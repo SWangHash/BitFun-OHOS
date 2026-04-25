@@ -1,29 +1,29 @@
-//! Agentic System Initialization for CLI
-//!
-//! Initialize the complete agentic system, including coordinator, execution engine, session management, etc.
+//! Agentic system assembly shared by CLI, ACP, and other hosts.
 
-use anyhow::Result;
-use bitfun_core::infrastructure::ai::AIClientFactory;
 use std::sync::Arc;
 
-// Import all agentic system modules
-use bitfun_core::agentic::coordination;
-use bitfun_core::agentic::events;
-use bitfun_core::agentic::execution;
-use bitfun_core::agentic::persistence;
-use bitfun_core::agentic::session;
-use bitfun_core::agentic::tools;
-use bitfun_core::infrastructure::try_get_path_manager_arc;
+use anyhow::Result;
+use log::info;
 
-/// Agentic system state
+use crate::agentic::coordination;
+use crate::agentic::events;
+use crate::agentic::execution;
+use crate::agentic::persistence;
+use crate::agentic::session;
+use crate::agentic::tools;
+use crate::infrastructure::ai::AIClientFactory;
+use crate::infrastructure::try_get_path_manager_arc;
+
+/// Agentic runtime state shared by host adapters.
+#[derive(Clone)]
 pub struct AgenticSystem {
     pub coordinator: Arc<coordination::ConversationCoordinator>,
     pub event_queue: Arc<events::EventQueue>,
 }
 
-/// Initialize Agentic system
+/// Initialize the agentic runtime and register the global coordinator.
 pub async fn init_agentic_system() -> Result<AgenticSystem> {
-    tracing::info!("Initializing Agentic system");
+    info!("Initializing agentic system");
 
     let _ai_client_factory = AIClientFactory::get_global().await?;
 
@@ -38,7 +38,7 @@ pub async fn init_agentic_system() -> Result<AgenticSystem> {
 
     let session_manager = Arc::new(session::SessionManager::new(
         context_store,
-        persistence_manager.clone(),
+        persistence_manager,
         Default::default(),
     ));
 
@@ -69,11 +69,11 @@ pub async fn init_agentic_system() -> Result<AgenticSystem> {
         execution_engine,
         tool_pipeline,
         event_queue.clone(),
-        event_router.clone(),
+        event_router,
     ));
 
     coordination::ConversationCoordinator::set_global(coordinator.clone());
-    tracing::info!("Agentic system initialization complete");
+    info!("Agentic system initialization complete");
 
     Ok(AgenticSystem {
         coordinator,

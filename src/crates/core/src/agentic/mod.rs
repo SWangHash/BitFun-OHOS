@@ -31,6 +31,7 @@ pub mod image_analysis;
 
 // Ephemeral side-question module (used by desktop /btw overlay)
 pub mod side_question;
+pub mod system;
 
 // Agents module
 pub mod agents;
@@ -54,4 +55,5 @@ pub use round_preempt::{
 };
 pub use session::*;
 pub use side_question::*;
+pub use system::{init_agentic_system, AgenticSystem};
 pub use workspace::{WorkspaceBackend, WorkspaceBinding};
