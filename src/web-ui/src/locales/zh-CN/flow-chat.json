@@ -564,6 +564,7 @@
       "analyzing": "分析中...",
       "expandPreview": "展开预览",
       "collapsePreview": "收起预览",
+      "openFullCodeHint": "打开全量代码",
       "viewGitDiff": "查看 Diff",
       "viewBaselineDiff": "查看基线 Diff"
     },

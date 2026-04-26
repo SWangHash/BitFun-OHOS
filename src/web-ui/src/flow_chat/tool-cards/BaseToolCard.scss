@@ -8,6 +8,7 @@
   --tool-card-header-pad-y: 7px;
   --tool-card-header-pad-x: 0px;
   --tool-card-header-icon-rail: 24px;
+  --tool-card-header-icon-slot: calc(var(--tool-card-header-icon-rail) + 10px);
 }
 
 /* ========== Card wrapper ========== */
@@ -139,10 +140,10 @@
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   flex-shrink: 0;
   align-self: stretch;
-  padding-right: 10px;
+  width: var(--tool-card-header-icon-slot);
   margin-right: 8px;
   box-sizing: border-box;
   min-height: 0;
@@ -299,7 +300,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   font-size: 12px;
   font-weight: 500;
@@ -310,6 +311,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  > * {
+    min-width: 0;
+  }
+
+  svg {
+    flex-shrink: 0;
+  }
 }
 
 /* Right extra content */
@@ -318,6 +327,11 @@
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
+  min-width: 0;
+
+  svg {
+    flex-shrink: 0;
+  }
 }
 
 /* ========== Expanded content area ========== */

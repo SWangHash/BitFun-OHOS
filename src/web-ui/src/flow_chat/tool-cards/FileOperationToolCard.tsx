@@ -19,11 +19,10 @@ import {
   XCircle,
   GitBranch,
   FileText,
-  ChevronDown,
-  ChevronUp,
   FileEdit,
   FilePlus,
   FileX2,
+  ChevronRight,
   Loader2,
   Clock,
   Check,
@@ -425,13 +424,20 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
     }
   }, [sessionId, currentFilePath, toolCall?.id, fileName, toolItem.toolName]);
 
+  const canOpenFullCode =
+    !isFailed &&
+    toolItem.toolName !== 'Delete' &&
+    status === 'completed' &&
+    Boolean(currentFilePath) &&
+    Boolean(sessionId || onOpenInEditor);
+
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
     if (
       (e.target as HTMLElement).closest(
-        '.file-op-git-rail:not(.file-op-git-rail--disabled)',
+        '.file-op-diff-pill, .file-op-open-full-button',
       )
     ) {
       return;
@@ -445,32 +451,37 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
     if (toolItem.toolName === 'Delete') {
       return;
     }
-    
-    if (status !== 'completed') {
-      applyContentExpandedState(!isContentExpanded, 'manual');
+
+    applyContentExpandedState(!isContentExpanded, 'manual');
+  }, [
+    applyContentExpandedState,
+    applyErrorExpandedState,
+    isContentExpanded,
+    isErrorExpanded,
+    isFailed,
+    toolItem.toolName,
+  ]);
+
+  const handleOpenFullCodeClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!canOpenFullCode || !currentFilePath) {
       return;
     }
 
-    if (currentFilePath && sessionId) {
+    if (sessionId) {
       handleOpenInCodeEditor();
       return;
     }
 
-    if (currentFilePath && onOpenInEditor) {
-      onOpenInEditor(currentFilePath);
-    }
+    onOpenInEditor?.(currentFilePath);
   }, [
-    applyContentExpandedState,
-    applyErrorExpandedState,
+    canOpenFullCode,
     currentFilePath,
     handleOpenInCodeEditor,
-    isContentExpanded,
-    isErrorExpanded,
-    isFailed,
     onOpenInEditor,
     sessionId,
-    status,
-    toolItem.toolName,
   ]);
 
   const handleOpenBaselineDiff = useCallback(async () => {
@@ -711,16 +722,12 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
     !isFailed &&
     isContentExpanded;
 
-  const opensPanelOnClick =
-    !isFailed &&
-    !isDeleteTool &&
-    (Boolean(currentFilePath && sessionId && status === 'completed') ||
-      Boolean(currentFilePath && onOpenInEditor));
-
   const renderHeader = () => {
     const { className: iconClassName } = getToolIconInfo();
-    const gitRailDisabled =
+    const gitDiffDisabled =
       !currentFilePath || !currentWorkspace || !sessionId;
+    const hasDiffStats =
+      currentFileDiffStats.additions > 0 || currentFileDiffStats.deletions > 0;
 
     const actionText = isDeleteTool
       ? ''
@@ -730,13 +737,7 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
       <ToolCardHeader
         icon={renderToolIcon()}
         iconClassName={iconClassName}
-        headerExpanded={
-          isFailed
-            ? isErrorExpanded
-            : hasExpandableContent
-              ? isContentExpanded
-              : undefined
-        }
+        headerExpanded={hasExpandableContent ? isContentExpanded : undefined}
         onAffordanceClick={
           hasExpandableContent
             ? () => applyContentExpandedState(!isContentExpanded, 'manual')
@@ -755,17 +756,30 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
                 {fileName}
               </span>
             </Tooltip>
-            {!isDeleteTool && !isParamsStreaming && !isLoading && (
-              (currentFileDiffStats.additions > 0 || currentFileDiffStats.deletions > 0)
-            ) && (
-              <span className="diff-preview-group">
+            {!isDeleteTool && !isParamsStreaming && !isLoading && hasDiffStats && (
+              <Tooltip content={t('toolCards.file.viewGitDiff')} placement="top">
+                <button
+                  type="button"
+                  className={`file-op-diff-pill${gitDiffDisabled ? ' file-op-diff-pill--disabled' : ''}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!gitDiffDisabled) {
+                      handleOpenBaselineDiff();
+                    }
+                  }}
+                  aria-label={t('toolCards.file.viewGitDiff')}
+                  title={t('toolCards.file.viewGitDiff')}
+                >
                 {currentFileDiffStats.additions > 0 && (
                   <span className="additions">+{currentFileDiffStats.additions}</span>
                 )}
                 {currentFileDiffStats.deletions > 0 && (
                   <span className="deletions">-{currentFileDiffStats.deletions}</span>
                 )}
-              </span>
+                  <GitBranch size={12} strokeWidth={2} aria-hidden />
+                </button>
+              </Tooltip>
             )}
           </>
         )
@@ -777,38 +791,18 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
               {currentFilePath ? t('toolCards.file.receivingParams') : t('toolCards.file.analyzing')}
             </span>
           )}
-          {!isDeleteTool &&
-            !isFailed &&
-            !isLoading &&
-            status === 'completed' &&
-            currentFilePath && (
-              <Tooltip content={t('toolCards.file.viewGitDiff')} placement="top">
-                <div
-                  className={`file-op-git-rail${gitRailDisabled ? ' file-op-git-rail--disabled' : ''}`}
-                >
-                  {!gitRailDisabled && (
-                    <button
-                      type="button"
-                      className="file-op-git-rail__hit"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenBaselineDiff();
-                      }}
-                      aria-label={t('toolCards.file.viewGitDiff')}
-                      title={t('toolCards.file.viewGitDiff')}
-                    />
-                  )}
-                  <div className="file-op-git-rail__visual" aria-hidden>
-                    <GitBranch size={16} strokeWidth={2} />
-                  </div>
-                </div>
-              </Tooltip>
-            )}
-
-          {isFailed && (
-            <div className="error-expand-indicator">
-              {isErrorExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            </div>
+          {canOpenFullCode && (
+            <Tooltip content={t('toolCards.file.openFullCodeHint')} placement="top">
+              <button
+                type="button"
+                className="file-op-open-full-button"
+                onClick={handleOpenFullCodeClick}
+                aria-label={t('toolCards.file.openFullCodeHint')}
+                title={t('toolCards.file.openFullCodeHint')}
+              >
+                <ChevronRight size={18} strokeWidth={2} absoluteStrokeWidth />
+              </button>
+            </Tooltip>
           )}
         </>
       }
@@ -845,14 +839,8 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
         expandedContent={expandedContent}
         errorContent={isFailed && isErrorExpanded ? renderErrorContent() : null}
         isFailed={isFailed}
-        headerExpandAffordance={hasExpandableContent || opensPanelOnClick || isFailed}
-        headerAffordanceKind={
-          hasExpandableContent
-            ? 'expand'
-            : opensPanelOnClick
-              ? 'open-panel-right'
-              : 'expand'
-        }
+        headerExpandAffordance={hasExpandableContent}
+        headerAffordanceKind="expand"
       />
     </div>
   );

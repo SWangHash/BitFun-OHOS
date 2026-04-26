@@ -540,6 +540,7 @@
       "analyzing": "分析中...",
       "expandPreview": "展開預覽",
       "collapsePreview": "收起預覽",
+      "openFullCodeHint": "打開全量代碼",
       "viewGitDiff": "查看 Diff",
       "viewBaselineDiff": "查看基線 Diff"
     },

@@ -564,6 +564,7 @@
       "analyzing": "Analyzing...",
       "expandPreview": "Expand preview",
       "collapsePreview": "Collapse preview",
+      "openFullCodeHint": "Open full code",
       "viewGitDiff": "View Diff",
       "viewBaselineDiff": "View Baseline Diff"
     },
