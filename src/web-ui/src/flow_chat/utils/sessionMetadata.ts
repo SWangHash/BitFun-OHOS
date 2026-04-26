@@ -298,9 +298,11 @@ export function buildSessionMetadata(
     remoteConnectionId:
       session.remoteConnectionId ?? existingMetadata?.remoteConnectionId,
     remoteSshHost: session.remoteSshHost ?? existingMetadata?.remoteSshHost,
-    unreadCompletion:
-      session.hasUnreadCompletion ?? existingMetadata?.unreadCompletion,
-    needsUserAttention:
-      session.needsUserAttention ?? existingMetadata?.needsUserAttention,
+    // Always use the in-memory session value as the source of truth.
+    // Previously this used `??` to fall back to existingMetadata, which prevented
+    // clears from reaching disk: when the store sets `hasUnreadCompletion: undefined`,
+    // `undefined ?? existingMetadata.unreadCompletion` would restore the old value.
+    unreadCompletion: session.hasUnreadCompletion,
+    needsUserAttention: session.needsUserAttention,
   };
 }
