@@ -543,15 +543,21 @@ const SubagentItemsContainer = React.memo<SubagentItemsContainerProps>(({
     return () => cancelAnimationFrame(rafId);
   }, [isCollapsed, scrollSignal]);
   
+  // Don't render the scrollable container when there are no items yet.
+  // This prevents an empty white area from showing before subagent content arrives.
+  if (items.length === 0) {
+    return null;
+  }
+
   return (
     <div className={`subagent-items-wrapper ${isCollapsed ? 'subagent-items-wrapper--collapsed' : 'subagent-items-wrapper--expanded'}`}>
-      <div 
+      <div
         ref={containerRef}
         className={`subagent-items-container ${isCollapsed ? 'subagent-items-container--collapsed' : 'subagent-items-container--expanded'}`}
         data-parent-tool-id={parentTaskToolId}
       >
         {items.map((item, idx) => (
-          <SubagentItemRenderer 
+          <SubagentItemRenderer
             key={item.id}
             item={item}
             turnId={turnId}
