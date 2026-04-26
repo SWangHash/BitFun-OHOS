@@ -35,14 +35,20 @@ pnpm install
 ### Common commands
 
 ```bash
-# Desktop
-pnpm run desktop:dev
-pnpm run desktop:preview:debug
+# Desktop (recommended for daily development)
+pnpm run desktop:dev                # full hot-reload: Vite HMR + Rust auto-rebuild & restart
+
+# Desktop (lightweight preview, no Rust auto-rebuild)
+pnpm run desktop:preview:debug      # reuse pre-built binary + Vite HMR; Rust changes require manual restart
+
+# Desktop (production build)
 pnpm run desktop:build
 
 # E2E
 pnpm run e2e:test
 ```
+
+> **`desktop:dev` vs `desktop:preview:debug`**: `desktop:dev` runs `tauri dev`, which provides **full hot-reload** — frontend changes apply instantly via Vite HMR, and Rust/backend changes trigger an incremental rebuild followed by an automatic app restart. This is the recommended workflow for active development. `desktop:preview:debug` launches a pre-built debug binary alongside a Vite dev server; frontend edits still get HMR, but **Rust-side changes are not auto-rebuilt** — you must stop and re-run the command (or use `--force-rebuild`). Use `desktop:preview:debug` when you only need to iterate on frontend code or want a faster cold-start without waiting for `tauri dev` initialization.
 
 > For the full script list, see [`package.json`](package.json). For agent-specific commands, verification, and architecture rules, see [`AGENTS.md`](AGENTS.md).
 

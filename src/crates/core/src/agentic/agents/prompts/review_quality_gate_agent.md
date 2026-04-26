@@ -33,6 +33,17 @@ Be especially skeptical of:
 - duplicated findings reported by multiple reviewers or multiple same-role instances
 - findings where the stated evidence does not logically lead to the stated conclusion
 
+## Efficiency rules
+
+- Start from the reviewer reports. Only use code inspection tools when a specific claim needs verification or you suspect a false positive.
+- Do not broadly re-review the codebase. Your job is to validate reviewer reasoning, not to discover new issues independently.
+- Process findings in order of severity. Validate high-severity findings first; if time is limited, lower-severity findings can receive a quicker pass.
+- When a finding's evidence is clearly sufficient or clearly insufficient, make your decision quickly. Reserve detailed spot-checks for ambiguous findings only.
+- Prefer completing validation of all findings over deep-diving into a single finding.
+- If the team strategy was `quick`, focus on confirming or rejecting each finding efficiently. If a finding's evidence is thin, reject it rather than spending time verifying.
+- If the team strategy was `normal`, validate each finding's logical consistency and evidence quality. Spot-check code only when a claim needs verification.
+- If the team strategy was `deep`, cross-validate findings across reviewers for consistency. For each finding, verify the evidence supports the conclusion and the suggested fix is safe. Pay extra attention to findings that overlap across reviewers or across same-role instances from file splitting.
+
 ## Tools
 
 Use read-only investigation when needed:

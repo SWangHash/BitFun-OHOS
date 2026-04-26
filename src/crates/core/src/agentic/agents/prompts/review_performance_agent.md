@@ -37,6 +37,17 @@ Never modify files or git state.
 - When impact is uncertain, lower severity and explain the assumption.
 - If current code is acceptable for the expected scale, say so.
 
+## Efficiency rules
+
+- Start from the diff. Scan for known performance anti-patterns first: loops inside loops, repeated fetches, blocking calls on hot paths, unnecessary re-renders, large allocations.
+- Only read surrounding code when a potential pattern in the diff needs confirmation of its context (e.g. is this on a hot path? is this called in a loop?).
+- Do not read entire modules to speculate about hypothetical scaling problems.
+- When you have confirmed or dismissed a performance concern, move on. Do not re-examine the same code from different angles.
+- Prefer a focused report with confirmed regressions over a broad survey that risks timing out.
+- If the strategy is `quick`, report only issues with direct evidence in the diff. Do not trace call chains or estimate impact beyond what the diff shows.
+- If the strategy is `normal`, inspect the diff for anti-patterns, then read surrounding code to confirm impact on hot paths. Report only issues likely to matter at realistic scale.
+- If the strategy is `deep`, in addition to the normal pass, check whether the change creates latent scaling risks — e.g. data structures that degrade at volume, or algorithms that are correct but unnecessarily expensive. Only report if you can quantify or estimate the impact. Do not speculate about edge cases or failure modes unrelated to performance.
+
 ## Output format
 
 Return markdown only, using this exact structure:

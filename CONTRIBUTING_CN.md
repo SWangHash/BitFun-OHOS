@@ -35,14 +35,20 @@ pnpm install
 ### 常用命令
 
 ```bash
-# Desktop
-pnpm run desktop:dev
-pnpm run desktop:preview:debug
+# Desktop（日常开发推荐）
+pnpm run desktop:dev                # 完整热更新：Vite HMR + Rust 自动重编译并重启
+
+# Desktop（轻量预览，无 Rust 自动重编译）
+pnpm run desktop:preview:debug      # 复用预构建二进制 + Vite HMR；Rust 改动需手动重启
+
+# Desktop（生产构建）
 pnpm run desktop:build
 
 # E2E
 pnpm run e2e:test
 ```
+
+> **`desktop:dev` 与 `desktop:preview:debug` 的区别**：`desktop:dev` 运行 `tauri dev`，提供**完整热更新** — 前端改动通过 Vite HMR 即时生效，Rust/后端改动会触发增量重编译并自动重启应用，是日常开发的首选方式。`desktop:preview:debug` 启动预构建的 debug 二进制和 Vite dev server；前端编辑仍可 HMR，但 **Rust 侧改动不会自动重编译** — 需要手动停止并重新运行命令（或使用 `--force-rebuild`）。适合仅需迭代前端代码、或希望跳过 `tauri dev` 初始化以更快冷启动的场景。
 
 > 完整脚本列表见 [`package.json`](package.json)。agent 专用命令、验证与架构规则见 [`AGENTS.md`](AGENTS.md)。
 

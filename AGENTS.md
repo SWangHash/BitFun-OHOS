@@ -9,7 +9,7 @@ Repository rule: **keep product logic platform-agnostic, then expose it through 
 ## Quick start
 
 1. Read `README.md` and `CONTRIBUTING.md` before architecture-sensitive changes.
-2. For fast local desktop checks, prefer `pnpm run desktop:preview:debug` over `pnpm run desktop:dev`.
+2. For desktop development, prefer `pnpm run desktop:dev` — it provides full hot-reload (Vite HMR + Rust auto-rebuild & restart). Use `pnpm run desktop:preview:debug` only when you need a faster cold-start for frontend-only iteration (Rust changes are not auto-rebuilt).
 3. After changes, run the smallest matching verification from the table below.
 
 ## Module index
@@ -35,9 +35,10 @@ Repository rule: **keep product logic platform-agnostic, then expose it through 
 pnpm install
 
 # Dev
-pnpm run desktop:preview:debug   # fast desktop iteration
-pnpm run dev:web                 # browser-only frontend
-pnpm run cli:dev                 # CLI runtime
+pnpm run desktop:dev               # full hot-reload: Vite HMR + Rust auto-rebuild & restart
+pnpm run desktop:preview:debug     # reuse pre-built binary + Vite HMR; no Rust auto-rebuild
+pnpm run dev:web                   # browser-only frontend
+pnpm run cli:dev                   # CLI runtime
 
 # Check
 pnpm run lint:web

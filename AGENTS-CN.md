@@ -9,7 +9,7 @@ BitFun 是一个由 Rust workspace 与共享 React 前端组成的项目。
 ## 快速开始
 
 1. 在修改架构敏感代码前，先阅读 `README.md` 和 `CONTRIBUTING.md`。
-2. 本地桌面快速验证优先使用 `pnpm run desktop:preview:debug`，而不是 `pnpm run desktop:dev`。
+2. 桌面端开发优先使用 `pnpm run desktop:dev` — 提供完整热更新（Vite HMR + Rust 自动重编译并重启）。仅在需要更快冷启动且只迭代前端时使用 `pnpm run desktop:preview:debug`（Rust 改动不会自动重编译）。
 3. 改完后按下方表格执行与改动范围匹配的最小验证。
 
 ## 模块索引
@@ -35,9 +35,10 @@ BitFun 是一个由 Rust workspace 与共享 React 前端组成的项目。
 pnpm install
 
 # 开发
-pnpm run desktop:preview:debug   # 桌面快速迭代
-pnpm run dev:web                 # 纯浏览器前端
-pnpm run cli:dev                 # CLI 运行时
+pnpm run desktop:dev               # 完整热更新：Vite HMR + Rust 自动重编译并重启
+pnpm run desktop:preview:debug     # 复用预构建二进制 + Vite HMR；无 Rust 自动重编译
+pnpm run dev:web                   # 纯浏览器前端
+pnpm run cli:dev                   # CLI 运行时
 
 # 检查
 pnpm run lint:web

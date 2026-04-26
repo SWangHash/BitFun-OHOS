@@ -280,14 +280,14 @@ describe('reviewTeamService', () => {
         strategyLevel: 'quick',
         strategySource: 'team',
         defaultModelSlot: 'fast',
-        strategyDirective: REVIEW_STRATEGY_DEFINITIONS.quick.promptDirective,
+        strategyDirective: REVIEW_STRATEGY_DEFINITIONS.quick.roleDirectives.ReviewBusinessLogic,
       }),
       expect.objectContaining({
         subagentId: 'ReviewPerformance',
         strategyLevel: 'quick',
         strategySource: 'team',
         defaultModelSlot: 'fast',
-        strategyDirective: REVIEW_STRATEGY_DEFINITIONS.quick.promptDirective,
+        strategyDirective: REVIEW_STRATEGY_DEFINITIONS.quick.roleDirectives.ReviewPerformance,
       }),
       expect.objectContaining({
         subagentId: 'ReviewSecurity',
@@ -295,7 +295,7 @@ describe('reviewTeamService', () => {
         strategySource: 'member',
         model: 'primary',
         defaultModelSlot: 'primary',
-        strategyDirective: REVIEW_STRATEGY_DEFINITIONS.deep.promptDirective,
+        strategyDirective: REVIEW_STRATEGY_DEFINITIONS.deep.roleDirectives.ReviewSecurity,
       }),
     ]);
     expect(manifest.enabledExtraReviewers[0]).toMatchObject({
@@ -311,7 +311,7 @@ describe('reviewTeamService', () => {
     expect(promptBlock).toContain('subagent_type: ReviewSecurity');
     expect(promptBlock).toContain('strategy: deep');
     expect(promptBlock).toContain('model_id: primary');
-    expect(promptBlock).toContain(`prompt_directive: ${REVIEW_STRATEGY_DEFINITIONS.deep.promptDirective}`);
+    expect(promptBlock).toContain(`prompt_directive: ${REVIEW_STRATEGY_DEFINITIONS.deep.roleDirectives.ReviewSecurity}`);
     expect(promptBlock).toContain('pass model_id with that value to the matching Task call');
     expect(promptBlock).toContain('Token/time impact: approximately 1.8-2.5x token usage and 1.5-2.5x runtime.');
   });

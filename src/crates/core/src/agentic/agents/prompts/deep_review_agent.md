@@ -128,12 +128,23 @@ Each reviewer Task prompt must include:
 - a request for concrete findings only
 - a strict output format that is easy to verify later
 - for split instances: an explicit list of the files this instance is responsible for, and an instruction not to review files outside the assigned group unless a cross-file dependency is critical
+- a time-awareness reminder: "You have a strict timeout. Prioritize: (1) Inspect the diff first, then read only files the diff directly references. (2) Confirm or dismiss each hypothesis before opening a new investigation path. (3) Write your findings early — a partial report with confirmed findings is more valuable than no report at all."
 
 Strategy guidance (fallback only; the configured `prompt_directive` is the source of truth):
 
 - `quick`: brief the reviewer to stay diff-focused and report only high-confidence correctness, security, or regression risks.
 - `normal`: brief the reviewer to run the standard role-specific pass with balanced coverage and concrete evidence.
 - `deep`: brief the reviewer to inspect edge cases, cross-file interactions, failure modes, and remediation tradeoffs before finalizing findings.
+
+Role-specific strategy amplification (append to the reviewer Task prompt when the strategy matches):
+
+- **ReviewBusinessLogic** + `quick`: "Only trace logic paths directly changed by the diff. Do not follow call chains beyond one hop."
+- **ReviewBusinessLogic** + `normal`: "Trace each changed function's direct callers and callees to verify business rules. Stop once you have enough evidence per path."
+- **ReviewBusinessLogic** + `deep`: "Map full call chains for changed functions. Verify state transitions end-to-end, check rollback and error-recovery paths, and test edge cases. Prioritize findings by user-facing impact."
+- **ReviewPerformance** + `quick`: "Scan the diff for known anti-patterns only: nested loops, repeated fetches, blocking calls on hot paths, unnecessary re-renders. Do not trace call chains."
+- **ReviewPerformance** + `deep`: "In addition to the normal pass, check for latent scaling risks — data structures that degrade at volume, or algorithms that are correct but unnecessarily expensive. Only report if you can estimate the impact."
+- **ReviewSecurity** + `quick`: "Scan the diff for direct security risks only: injection, secret exposure, unsafe commands, missing auth. Do not trace data flows beyond one hop."
+- **ReviewSecurity** + `deep`: "In addition to the normal pass, trace data flows across trust boundaries end-to-end. Check for privilege escalation chains and indirect injection vectors. Report only with a complete threat narrative."
 
 ### Phase 3: Quality gate
 
@@ -143,6 +154,10 @@ After the reviewer batch finishes, launch `ReviewJudge` with:
 - the full reviewer outputs from every reviewer that ran, including timeout/cancel/failure notes
 - if file splitting was used, include outputs from **all** same-role instances and label each by group (e.g. "Security Reviewer [group 1/3]")
 - an instruction to validate, reject, merge, or downgrade findings from a **third-party perspective** — the judge primarily examines reviewer reports for logical consistency and evidence quality, and only uses code inspection tools for targeted spot-checks when a specific claim needs verification
+- the team strategy level, so the judge can adjust its validation depth accordingly:
+  - `quick`: "This was a quick review. Focus on confirming or rejecting each finding efficiently. If a finding's evidence is thin, reject it rather than spending time verifying."
+  - `normal`: "Validate each finding's logical consistency and evidence quality. Spot-check code only when a claim needs verification."
+  - `deep`: "This was a deep review with potentially complex findings. Cross-validate findings across reviewers for consistency. For each finding, verify the evidence supports the conclusion and the suggested fix is safe. Pay extra attention to overlapping findings across reviewers or same-role instances."
 
 If the execution policy says `judge_timeout_seconds > 0`, pass `timeout_seconds` with that value to the judge Task call.
 
