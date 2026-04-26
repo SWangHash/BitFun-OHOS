@@ -21,7 +21,7 @@ Be respectful, kind, and constructive. We welcome contributors of all background
 
 The desktop app includes SSH remote support, which pulls in OpenSSL. On Windows the workspace **does not use vendored OpenSSL**; link against **pre-built** binaries (no Perl/NASM/OpenSSL source build).
 
-- **Default**: `pnpm run desktop:dev` calls `ensure-openssl-windows.mjs` on Windows. `pnpm run desktop:preview:debug` does the same whenever it needs to fast-rebuild `bitfun-desktop` before preview. Every `desktop:build*` script runs via `scripts/desktop-tauri-build.mjs`, which does the same before `tauri build` (first run downloads FireDaemon OpenSSL 3.5.5 into `.bitfun/cache/`; later runs reuse the cache). Extra args: `pnpm run desktop:build -- <tauri-build-args>`.
+- **Default**: `pnpm run desktop:dev` calls `ensure-openssl-windows.mjs` on Windows. `pnpm run desktop:preview:debug` does the same whenever it needs to fast-rebuild `bitfun-desktop` before preview. Every `desktop:build*` script runs via `scripts/desktop-tauri-build.mjs`, which does the same before invoking Cargo.
 - **Manual / CI**: Download the [FireDaemon OpenSSL 3.5.5 LTS ZIP](https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-3.5.5.zip), extract, set `OPENSSL_DIR` to the `x64` folder, `OPENSSL_STATIC=1`, or run `scripts/ci/setup-openssl-windows.ps1`.
 - **Opt out of auto-download**: `BITFUN_SKIP_OPENSSL_BOOTSTRAP=1` and configure `OPENSSL_DIR` yourself.
 - **`desktop:dev:raw`** skips the dev script (no OpenSSL bootstrap); set `OPENSSL_DIR` yourself, run `scripts/ci/setup-openssl-windows.ps1`, or `node scripts/ensure-openssl-windows.mjs` (warms `.bitfun/cache/` and prints PowerShell `OPENSSL_*` lines to paste).
@@ -44,20 +44,7 @@ pnpm run desktop:build
 pnpm run e2e:test
 ```
 
-For local iteration:
-
-- `desktop:preview:debug` avoids `tauri dev`, reuses the existing debug desktop binary when it is still current, and automatically does a fast rebuild with reduced debug info before preview when Rust / Tauri inputs are newer or the binary is missing.
-- Add `-- --force-rebuild` only when you explicitly want to rebuild before preview even if the timestamp check says the binary is current.
-- Keep `desktop:dev` for the full Tauri watcher/startup flow, and keep the project verification commands aligned with the actual files you changed.
-
-For packaging and release work:
-
-- Confirm the intended output format if the request only says "package" or "release" without naming the artifact type.
-- For Windows end-user installer delivery, prefer `pnpm run desktop:build:nsis`.
-- For a standalone Windows executable, use `pnpm run desktop:build:exe` only when that is the explicit ask.
-- Do not confuse local fast/debug artifacts with real release deliverables.
-
-> Note: More granular scripts are available (e.g. `dev:web`, `cli:dev`, `website:dev`). See `package.json` for details.
+> For the full script list, see [`package.json`](package.json). For agent-specific commands, verification, and architecture rules, see [`AGENTS.md`](AGENTS.md).
 
 ## Code Standards and Architecture Constraints
 
@@ -155,8 +142,6 @@ pnpm run e2e:test
 ```
 
 If you cannot run tests, explain why in the PR and provide manual verification steps.
-
-
 
 ## Security and Compliance
 

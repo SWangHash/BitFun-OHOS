@@ -2,11 +2,7 @@
 
 .explore-region {
   position: relative;
-  padding: 0 3rem; // Match model-round-item horizontal padding.
-
-  @media (max-width: 768px) {
-    padding: 0 1.5rem;
-  }
+  overflow: hidden;
 }
 
 // ==================== Non-collapsible (streaming / no auto-collapse yet) ====================
@@ -54,18 +50,15 @@
 // ==================== Collapsible (header + animated content) ====================
 
 .explore-region--collapsible {
-  margin: 0 0 0.6rem 0;
-  font-size: var(--flowchat-font-size-base);
-  line-height: 1.65;
+  margin: 4px 0;
 
   .explore-region__header {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 0;
+    padding: 5px 10px;
     color: var(--text-tertiary, #6b7280);
-    font-size: var(--flowchat-font-size-base);
-    line-height: 1.65;
+    font-size: 12px;
     cursor: pointer;
     user-select: none;
     transition: color 0.15s ease;
@@ -85,8 +78,6 @@
   }
 
   .explore-region__summary {
-    font-size: var(--flowchat-font-size-base);
-    line-height: 1.65;
     opacity: 0.8;
   }
 
@@ -107,9 +98,7 @@
 
   .explore-region__content {
     position: relative;
-    // Align nested tool cards with the summary text, not the group chevron.
-    padding: 0 0 0 20px;
-    box-sizing: border-box;
+    padding: 4px 10px;
 
     &::-webkit-scrollbar {
       width: 4px;

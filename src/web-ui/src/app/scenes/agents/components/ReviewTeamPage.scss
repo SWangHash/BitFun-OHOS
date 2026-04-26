@@ -2,7 +2,7 @@
 
 .review-team-page {
   .bitfun-config-page-content__inner {
-    max-width: 1120px;
+    max-width: 1280px;
   }
 
   &__summary-grid {
@@ -79,7 +79,7 @@
 
   &__policy-metrics {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: 8px;
     min-width: 0;
   }
@@ -525,10 +525,6 @@
       align-items: stretch;
     }
 
-    &__policy-metrics {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
     &__detail-hero,
     &__detail-title-row {
       flex-direction: column;
@@ -548,10 +544,6 @@
 
     &__add-controls {
       grid-template-columns: 1fr;
-    }
-
-    &__policy-metrics {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 }
