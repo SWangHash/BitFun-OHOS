@@ -661,6 +661,7 @@ impl PersistenceManager {
             todos: existing.and_then(|value| value.todos.clone()),
             workspace_path: Some(workspace_root),
             workspace_hostname,
+            unread_completion: existing.and_then(|value| value.unread_completion.clone()),
         }
     }
 

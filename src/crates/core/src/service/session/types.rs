@@ -90,6 +90,17 @@ pub struct SessionMetadata {
         alias = "workspace_hostname"
     )]
     pub workspace_hostname: Option<String>,
+
+    /// Unread completion status for the session.
+    /// 'completed' → green dot, 'error' → red dot.
+    /// Cleared after the user switches to the session and the content renders.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "unread_completion",
+        alias = "unreadCompletion"
+    )]
+    pub unread_completion: Option<String>,
 }
 
 /// Session status

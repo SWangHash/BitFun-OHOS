@@ -41,6 +41,8 @@ export interface SessionMetadata {
   remoteSshHost?: string;
   /** Backend unified workspace identity field: localhost for local, SSH host for remote. */
   workspaceHostname?: string;
+  /** Unread completion status for the session. 'completed' → green dot, 'error' → red dot. */
+  unreadCompletion?: 'completed' | 'error';
 }
 
 export type SessionStatus = 'active' | 'archived' | 'completed';
