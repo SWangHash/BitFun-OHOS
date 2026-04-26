@@ -1328,6 +1328,45 @@ export class FlowChatStore {
     this.onPersistUnreadCompletion?.(sessionId, undefined);
   }
 
+  public setSessionNeedsAttention(
+    sessionId: string,
+    attentionKind: 'ask_user' | 'tool_confirm'
+  ): void {
+    this.setState(prev => {
+      const session = prev.sessions.get(sessionId);
+      if (!session) return prev;
+
+      const updatedSession: Session = {
+        ...session,
+        needsUserAttention: attentionKind,
+      };
+
+      const newSessions = new Map(prev.sessions);
+      newSessions.set(sessionId, updatedSession);
+
+      return { ...prev, sessions: newSessions };
+    });
+    this.onPersistUnreadCompletion?.(sessionId, undefined);
+  }
+
+  public clearSessionNeedsAttention(sessionId: string): void {
+    this.setState(prev => {
+      const session = prev.sessions.get(sessionId);
+      if (!session || !session.needsUserAttention) return prev;
+
+      const updatedSession: Session = {
+        ...session,
+        needsUserAttention: undefined,
+      };
+
+      const newSessions = new Map(prev.sessions);
+      newSessions.set(sessionId, updatedSession);
+
+      return { ...prev, sessions: newSessions };
+    });
+    this.onPersistUnreadCompletion?.(sessionId, undefined);
+  }
+
   public async updateSessionTitle(
     sessionId: string,
     title: string,
@@ -1621,6 +1660,7 @@ export class FlowChatStore {
             btwThreads: [],
             btwOrigin: relationship.btwOrigin,
             hasUnreadCompletion: metadata.unreadCompletion,
+            needsUserAttention: metadata.needsUserAttention,
           };
           
           const newSessions = new Map(prev.sessions);

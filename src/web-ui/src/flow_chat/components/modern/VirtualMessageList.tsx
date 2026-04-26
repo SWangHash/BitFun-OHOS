@@ -1722,6 +1722,7 @@ export const VirtualMessageList = forwardRef<VirtualMessageListRef>((_, ref) => 
     cancelPendingAutoFollowArm,
     isStreamingOutput,
     latestTurnId,
+    virtualItems.length,
   ]);
 
   useEffect(() => {

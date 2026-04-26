@@ -101,6 +101,19 @@ pub struct SessionMetadata {
         alias = "unreadCompletion"
     )]
     pub unread_completion: Option<String>,
+
+    /// High-priority attention status for the session.
+    /// Set when the session requires user action while not the active session.
+    /// 'ask_user' → pending AskUserQuestion waiting for answer.
+    /// 'tool_confirm' → pending tool confirmations.
+    /// Takes precedence over unread_completion in the UI.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "needs_user_attention",
+        alias = "needsUserAttention"
+    )]
+    pub needs_user_attention: Option<String>,
 }
 
 /// Session status
@@ -516,6 +529,7 @@ impl SessionMetadata {
             workspace_path: None,
             workspace_hostname: None,
             unread_completion: None,
+            needs_user_attention: None,
         }
     }
 
