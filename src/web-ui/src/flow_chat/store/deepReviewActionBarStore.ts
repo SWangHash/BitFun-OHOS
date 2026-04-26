@@ -27,6 +27,7 @@ export type ReviewActionPhase =
   | 'fix_completed'
   | 'fix_failed'
   | 'fix_timeout'
+  | 'fix_interrupted'
   | 'review_interrupted'
   | 'resume_blocked'
   | 'resume_running'
@@ -52,6 +53,8 @@ export interface ReviewActionBarState {
   selectedRemediationIds: Set<string>;
   /** Whether the action bar was dismissed by the user */
   dismissed: boolean;
+  /** Whether the action bar is minimized (collapsed to a floating button) */
+  minimized: boolean;
   /** Which fix action is currently in flight */
   activeAction: 'fix' | 'fix-review' | 'resume' | null;
   /** User-supplied custom instructions (from the textarea) */
@@ -60,6 +63,12 @@ export interface ReviewActionBarState {
   errorMessage: string | null;
   /** Structured interruption state used to continue an incomplete Deep Review */
   interruption: DeepReviewInterruption | null;
+  /** IDs of remediation items that have been fixed/completed */
+  completedRemediationIds: Set<string>;
+  /** IDs of items being fixed in the current fix_running session (snapshot at start) */
+  fixingRemediationIds: Set<string>;
+  /** IDs of items remaining when a fix was interrupted */
+  remainingFixIds: string[];
 
   // ---- actions ----
   showActionBar: (params: {
@@ -68,6 +77,7 @@ export interface ReviewActionBarState {
     reviewData: CodeReviewRemediationData;
     reviewMode?: ReviewActionMode;
     phase?: ReviewActionPhase;
+    completedRemediationIds?: Set<string>;
   }) => void;
   showInterruptedActionBar: (params: {
     childSessionId: string;
@@ -81,7 +91,11 @@ export interface ReviewActionBarState {
   toggleGroupRemediation: (groupId: RemediationGroupId) => void;
   setActiveAction: (action: 'fix' | 'fix-review' | 'resume' | null) => void;
   setCustomInstructions: (value: string) => void;
+  setSelectedRemediationIds: (ids: Set<string>) => void;
   dismiss: () => void;
+  minimize: () => void;
+  restore: () => void;
+  skipRemainingFixes: () => void;
   reset: () => void;
 }
 
@@ -96,18 +110,34 @@ const initialState = {
   remediationItems: [] as ReviewRemediationItem[],
   selectedRemediationIds: new Set<string>(),
   dismissed: false,
+  minimized: false,
   activeAction: null as 'fix' | 'fix-review' | 'resume' | null,
   customInstructions: '',
   errorMessage: null as string | null,
   interruption: null as DeepReviewInterruption | null,
+  completedRemediationIds: new Set<string>(),
+  fixingRemediationIds: new Set<string>(),
+  remainingFixIds: [] as string[],
 };
 
 export const useReviewActionBarStore = create<ReviewActionBarState>((set, get) => ({
   ...initialState,
 
-  showActionBar: ({ childSessionId, parentSessionId, reviewData, reviewMode, phase }) => {
+  showActionBar: ({ childSessionId, parentSessionId, reviewData, reviewMode, phase, completedRemediationIds }) => {
     const items = buildReviewRemediationItems(reviewData);
     const defaultIds = new Set(getDefaultSelectedRemediationIds(items));
+
+    // If completedRemediationIds is provided, filter out items that no longer exist
+    const existingIds = new Set(items.map((i) => i.id));
+    const preservedCompleted = completedRemediationIds
+      ? new Set([...completedRemediationIds].filter((id) => existingIds.has(id)))
+      : new Set<string>();
+
+    // Remove completed items from default selection
+    for (const id of preservedCompleted) {
+      defaultIds.delete(id);
+    }
+
     set({
       childSessionId,
       parentSessionId,
@@ -117,10 +147,14 @@ export const useReviewActionBarStore = create<ReviewActionBarState>((set, get) =
       selectedRemediationIds: defaultIds,
       phase: phase ?? 'review_completed',
       dismissed: false,
+      minimized: false,
       activeAction: null,
       customInstructions: '',
       errorMessage: null,
       interruption: null,
+      completedRemediationIds: preservedCompleted,
+      fixingRemediationIds: new Set(),
+      remainingFixIds: [],
     });
   },
 
@@ -134,15 +168,35 @@ export const useReviewActionBarStore = create<ReviewActionBarState>((set, get) =
       selectedRemediationIds: new Set(),
       phase: phase ?? interruption.phase,
       dismissed: false,
+      minimized: false,
       activeAction: null,
       customInstructions: '',
       errorMessage: null,
       interruption,
+      completedRemediationIds: new Set(),
+      fixingRemediationIds: new Set(),
+      remainingFixIds: [],
     });
   },
 
   updatePhase: (phase, errorMessage) => {
-    set({ phase, errorMessage: errorMessage ?? null });
+    const prevPhase = get().phase;
+    if (prevPhase === 'fix_running' && phase === 'fix_completed') {
+      const { fixingRemediationIds, completedRemediationIds } = get();
+      const nextCompleted = new Set(completedRemediationIds);
+      for (const id of fixingRemediationIds) {
+        nextCompleted.add(id);
+      }
+      set({
+        phase,
+        errorMessage: errorMessage ?? null,
+        completedRemediationIds: nextCompleted,
+        fixingRemediationIds: new Set(),
+        remainingFixIds: [],
+      });
+    } else {
+      set({ phase, errorMessage: errorMessage ?? null });
+    }
   },
 
   toggleRemediation: (id) => {
@@ -187,10 +241,53 @@ export const useReviewActionBarStore = create<ReviewActionBarState>((set, get) =
     set({ selectedRemediationIds: next });
   },
 
-  setActiveAction: (action) => set({ activeAction: action }),
+  setActiveAction: (action) => {
+    if (action === 'fix' || action === 'fix-review') {
+      set({
+        activeAction: action,
+        fixingRemediationIds: new Set(get().selectedRemediationIds),
+      });
+    } else {
+      set({ activeAction: action });
+    }
+  },
   setCustomInstructions: (value) => set({ customInstructions: value }),
+  setSelectedRemediationIds: (ids) => set({ selectedRemediationIds: ids }),
   dismiss: () => set({ dismissed: true }),
+  minimize: () => set({ minimized: true }),
+  restore: () => set({ minimized: false }),
+  skipRemainingFixes: () => set({
+    phase: 'review_completed',
+    remainingFixIds: [],
+    activeAction: null,
+  }),
   reset: () => set({ ...initialState, selectedRemediationIds: new Set() }),
 }));
+
+// Subscribe to state changes and persist when relevant fields change
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+const PERSIST_DEBOUNCE_MS = 1000;
+
+useReviewActionBarStore.subscribe((state, prevState) => {
+  if (!state.childSessionId) return;
+
+  const shouldPersist =
+    state.phase !== prevState.phase ||
+    state.minimized !== prevState.minimized ||
+    state.completedRemediationIds !== prevState.completedRemediationIds ||
+    state.customInstructions !== prevState.customInstructions;
+
+  if (!shouldPersist) return;
+
+  if (persistTimer) clearTimeout(persistTimer);
+
+  persistTimer = setTimeout(() => {
+    import('../services/ReviewActionBarPersistenceService').then(({ persistReviewActionState }) => {
+      persistReviewActionState(state).catch(() => {
+        // Silently ignore persistence errors
+      });
+    });
+  }, PERSIST_DEBOUNCE_MS);
+});
 
 export const useDeepReviewActionBarStore = useReviewActionBarStore;

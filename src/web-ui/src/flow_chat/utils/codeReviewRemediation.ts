@@ -189,6 +189,7 @@ export function buildSelectedReviewRemediationPrompt(params: {
   selectedIds: Set<string>;
   rerunReview: boolean;
   reviewMode: ReviewMode;
+  completedItems?: string[];
 }): string {
   if (params.selectedIds.size === 0) {
     return '';
@@ -213,16 +214,40 @@ export function buildSelectedReviewRemediationPrompt(params: {
     ? 'After implementing fixes, run the most relevant verification. Then launch a full follow-up deep review of the fix diff by dispatching the review team (Business Logic, Performance, Security reviewers in parallel, followed by ReviewJudge). Submit the follow-up review result via submit_code_review.'
     : 'After implementing fixes, run the most relevant verification. Then submit a follow-up standard code review of the fix diff via submit_code_review.';
 
-  return [
+  const lines: string[] = [
     `The user approved remediation for selected ${reviewLabel} findings only.`,
     '',
     'Please implement only the selected remediation items below. Do not broaden scope beyond these selected findings unless required for correctness.',
     params.rerunReview ? rerunInstruction : 'After implementing fixes, summarize what changed and what verification was run.',
-    '',
-    '## Selected Remediation Plan',
-    planBlock,
-    '',
-    '## Selected Review Findings',
-    issuesBlock,
-  ].join('\n');
+  ];
+
+  // Append continuation context if there are completed items
+  if (params.completedItems && params.completedItems.length > 0) {
+    const allItems = buildReviewRemediationItems(params.reviewData);
+    const completedItemPlans = allItems
+      .filter((item) => params.completedItems!.includes(item.id))
+      .map((item) => item.plan);
+
+    if (completedItemPlans.length > 0) {
+      lines.push('');
+      lines.push('---');
+      lines.push('## Continuation Context');
+      lines.push('');
+      lines.push('This is a continuation of a previous fix attempt that was interrupted.');
+      lines.push('');
+      lines.push('### Already completed items (DO NOT re-fix):');
+      completedItemPlans.forEach((plan, i) => lines.push(`${i + 1}. ${plan}`));
+      lines.push('');
+      lines.push('Please focus only on the remaining items. Do not modify code related to already completed items unless necessary for correctness.');
+    }
+  }
+
+  lines.push('');
+  lines.push('## Selected Remediation Plan');
+  lines.push(planBlock);
+  lines.push('');
+  lines.push('## Selected Review Findings');
+  lines.push(issuesBlock);
+
+  return lines.join('\n');
 }

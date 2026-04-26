@@ -189,4 +189,138 @@ describeWithJsdom('DeepReviewActionBar', () => {
     expect(displayMessage).toBe('Fix Code Review findings and re-review');
     expect(agentType).toBe('CodeReview');
   });
+
+  it('minimizes action bar when close button is clicked', async () => {
+    const { DeepReviewActionBar } = await import('./DeepReviewActionBar');
+
+    useReviewActionBarStore.getState().showActionBar({
+      childSessionId: 'child-session',
+      parentSessionId: 'parent-session',
+      reviewData: {
+        summary: { recommended_action: 'request_changes' },
+        remediation_plan: ['Fix issue 1', 'Fix issue 2'],
+      },
+      phase: 'review_completed',
+    });
+
+    await act(async () => {
+      root.render(<DeepReviewActionBar />);
+    });
+
+    const closeButton = container.querySelector('.deep-review-action-bar__close');
+    expect(closeButton).toBeTruthy();
+
+    await act(async () => {
+      closeButton!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(useReviewActionBarStore.getState().minimized).toBe(true);
+    expect(useReviewActionBarStore.getState().dismissed).toBe(false);
+  });
+
+  it('marks completed remediation items when fix completes', async () => {
+    const store = useReviewActionBarStore.getState();
+    store.showActionBar({
+      childSessionId: 'child-session',
+      parentSessionId: 'parent-session',
+      reviewData: {
+        summary: { recommended_action: 'request_changes' },
+        remediation_plan: ['Fix issue 1', 'Fix issue 2'],
+      },
+      phase: 'review_completed',
+    });
+
+    // Select all items
+    const items = store.remediationItems;
+    for (const item of items) {
+      store.toggleRemediation(item.id);
+    }
+
+    store.setActiveAction('fix');
+    store.updatePhase('fix_running');
+
+    // Simulate fix completion
+    store.updatePhase('fix_completed');
+
+    const state = useReviewActionBarStore.getState();
+    expect(state.completedRemediationIds.size).toBe(2);
+    expect(state.phase).toBe('fix_completed');
+    expect(state.fixingRemediationIds.size).toBe(0);
+  });
+
+  it('shows completed items as disabled and strikethrough', async () => {
+    const { DeepReviewActionBar } = await import('./DeepReviewActionBar');
+
+    useReviewActionBarStore.getState().showActionBar({
+      childSessionId: 'child-session',
+      parentSessionId: 'parent-session',
+      reviewData: {
+        summary: { recommended_action: 'request_changes' },
+        remediation_plan: ['Fix issue 1', 'Fix issue 2'],
+      },
+      phase: 'review_completed',
+      completedRemediationIds: new Set(['remediation-0']),
+    });
+
+    await act(async () => {
+      root.render(<DeepReviewActionBar />);
+    });
+
+    const completedItem = container.querySelector('.deep-review-action-bar__remediation-item--completed');
+    expect(completedItem).toBeTruthy();
+
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    expect(checkboxes.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows continue fix UI when phase is fix_interrupted', async () => {
+    const { DeepReviewActionBar } = await import('./DeepReviewActionBar');
+
+    useReviewActionBarStore.getState().showActionBar({
+      childSessionId: 'child-session',
+      parentSessionId: 'parent-session',
+      reviewData: {
+        summary: { recommended_action: 'request_changes' },
+        remediation_plan: ['Fix issue 1', 'Fix issue 2'],
+      },
+      phase: 'fix_interrupted',
+    });
+
+    // Set remaining fix IDs directly on state
+    const store = useReviewActionBarStore.getState();
+    (store as unknown as { remainingFixIds: string[] }).remainingFixIds = ['remediation-0'];
+
+    await act(async () => {
+      root.render(<DeepReviewActionBar />);
+    });
+
+    const continueButton = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Continue fixing'));
+    expect(continueButton).toBeTruthy();
+
+    const skipButton = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Skip remaining'));
+    expect(skipButton).toBeTruthy();
+  });
+
+  it('skips remaining fixes and returns to review_completed', async () => {
+    const store = useReviewActionBarStore.getState();
+    store.showActionBar({
+      childSessionId: 'child-session',
+      parentSessionId: 'parent-session',
+      reviewData: {
+        summary: { recommended_action: 'request_changes' },
+        remediation_plan: ['Fix issue 1', 'Fix issue 2'],
+      },
+      phase: 'fix_interrupted',
+    });
+
+    store.skipRemainingFixes();
+
+    const state = useReviewActionBarStore.getState();
+    expect(state.phase).toBe('review_completed');
+    expect(state.remainingFixIds).toEqual([]);
+    expect(state.activeAction).toBeNull();
+  });
 });

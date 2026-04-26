@@ -8,7 +8,8 @@
 // ==================== Non-collapsible (streaming / no auto-collapse yet) ====================
 
 .explore-region--expanded:not(.explore-region--collapsible) {
-  margin: 4px 0;
+  margin-top: 4px;
+  margin-bottom: 4px;
 
   .explore-region__content {
     position: relative;

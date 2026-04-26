@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import path from 'path-browserify';
-import {CornerUpLeft, Link2, Square} from 'lucide-react';
+import {CornerUpLeft, Link2, Square, Sparkles} from 'lucide-react';
 import {FlowChatContext} from '../modern/FlowChatContext';
 import {VirtualItemRenderer} from '../modern/VirtualItemRenderer';
 import {ProcessingIndicator} from '../modern/ProcessingIndicator';
@@ -23,7 +23,9 @@ import {findLatestCodeReviewResult} from '../../utils/reviewSessionSummary';
 import {deriveDeepReviewInterruption} from '../../utils/deepReviewContinuation';
 import {buildReviewRemediationItems, type CodeReviewRemediationData} from '../../utils/codeReviewRemediation';
 import {ReviewActionBar} from './DeepReviewActionBar';
-import {type ReviewActionMode, useReviewActionBarStore} from '../../store/deepReviewActionBarStore';
+import {type ReviewActionMode, type ReviewActionPhase, useReviewActionBarStore} from '../../store/deepReviewActionBarStore';
+import {loadPersistedReviewState} from '../../services/ReviewActionBarPersistenceService';
+import type {ReviewActionPersistedState} from '@/shared/types/session-history';
 import './BtwSessionPanel.scss';
 
 export interface BtwSessionPanelProps {
@@ -269,14 +271,28 @@ export const BtwSessionPanel: React.FC<BtwSessionPanelProps> = ({
   // ---- Review action bar integration ----
   const actionBarPhase = useReviewActionBarStore((s) => s.phase);
   const actionBarDismissed = useReviewActionBarStore((s) => s.dismissed);
+  const actionBarMinimized = useReviewActionBarStore((s) => s.minimized);
   const actionBarChildSessionId = useReviewActionBarStore((s) => s.childSessionId);
+  const actionBarCompletedIds = useReviewActionBarStore((s) => s.completedRemediationIds);
+  const actionBarRemediationItems = useReviewActionBarStore((s) => s.remediationItems);
   const isDeepReview = childKind === 'deep_review';
   const isReviewSession = childKind === 'review' || childKind === 'deep_review';
   const showReviewActionBar =
     isReviewSession &&
     actionBarChildSessionId === childSessionId &&
     actionBarPhase !== 'idle' &&
-    !actionBarDismissed;
+    !actionBarDismissed &&
+    !actionBarMinimized;
+
+  const showMinimizedIndicator =
+    isReviewSession &&
+    actionBarChildSessionId === childSessionId &&
+    actionBarPhase !== 'idle' &&
+    !actionBarDismissed &&
+    actionBarMinimized;
+
+  const remainingCount = actionBarRemediationItems.length - actionBarCompletedIds.size;
+  const totalCount = actionBarRemediationItems.length;
 
   // Detect when a review completes with a remediation plan and auto-show the action bar.
   useEffect(() => {
@@ -313,7 +329,7 @@ export const BtwSessionPanel: React.FC<BtwSessionPanelProps> = ({
     // Only activate if the action bar is idle or not yet shown for this session
     if (store.childSessionId === childSessionId && store.phase !== 'idle') {
       // Update phase based on turn status if currently showing
-      if (isError && store.phase !== 'fix_failed' && store.phase !== 'review_error') {
+      if (isError && store.phase !== 'fix_failed' && store.phase !== 'review_error' && store.phase !== 'fix_interrupted') {
         store.updatePhase(
           store.phase === 'fix_running' ? 'fix_failed' : 'review_error',
           childSession.error ?? undefined,
@@ -326,6 +342,7 @@ export const BtwSessionPanel: React.FC<BtwSessionPanelProps> = ({
             reviewData: latestReviewData,
             reviewMode,
             phase: 'review_completed',
+            completedRemediationIds: store.completedRemediationIds,
           });
         } else {
           // Fix completed with no further remediation needed — dismiss the action bar
@@ -358,6 +375,78 @@ export const BtwSessionPanel: React.FC<BtwSessionPanelProps> = ({
         phase: 'review_completed',
       });
     }
+  }, [childSession, childSessionId, parentSessionId, isReviewSession, isDeepReview]);
+
+  // Restore persisted review action state on mount
+  useEffect(() => {
+    if (!isReviewSession || !childSessionId || !childSession) return;
+
+    const store = useReviewActionBarStore.getState();
+    // Only restore if store is idle for this session
+    if (store.phase !== 'idle' || store.childSessionId) return;
+
+    const workspacePath = childSession.workspacePath;
+    if (!workspacePath) return;
+
+    let cancelled = false;
+
+    loadPersistedReviewState(
+      childSessionId,
+      workspacePath,
+      childSession.remoteConnectionId,
+      childSession.remoteSshHost,
+    ).then((persisted: ReviewActionPersistedState | null) => {
+      if (cancelled || !persisted) return;
+
+      const latestReviewData = findLatestCodeReviewResult(childSession) as DeepReviewActionData | null;
+      const reviewMode: ReviewActionMode = isDeepReview ? 'deep' : 'standard';
+
+      // Detect fix interruption
+      let phase: ReviewActionPhase = persisted.phase as ReviewActionPhase;
+      let remainingFixIds: string[] = [];
+
+      if (persisted.phase === 'fix_running') {
+        const lastTurn = childSession.dialogTurns[childSession.dialogTurns.length - 1];
+        const isStillRunning = lastTurn?.status === 'processing' || lastTurn?.status === 'finishing';
+
+        if (!isStillRunning) {
+          // Fix was interrupted — determine remaining items
+          phase = 'fix_interrupted';
+          const latestItems = latestReviewData ? buildReviewRemediationItems(latestReviewData) : [];
+          const latestIds = new Set(latestItems.map((i) => i.id));
+          // Items that were being fixed but still exist in latest review data
+          remainingFixIds = persisted.completedRemediationIds.filter((id: string) => latestIds.has(id));
+        }
+      }
+
+      store.showActionBar({
+        childSessionId,
+        parentSessionId: parentSessionId ?? null,
+        reviewData: latestReviewData ?? ({} as CodeReviewRemediationData),
+        reviewMode,
+        phase,
+        completedRemediationIds: new Set(persisted.completedRemediationIds),
+      });
+
+      // Apply additional restored state
+      store.setCustomInstructions(persisted.customInstructions);
+      if (persisted.minimized) {
+        store.minimize();
+      }
+      if (remainingFixIds.length > 0) {
+        // Set remaining fix IDs in the store
+        // We need to access the store state directly to set this
+        const currentState = useReviewActionBarStore.getState();
+        // Use a type-safe approach
+        (currentState as unknown as { remainingFixIds: string[] }).remainingFixIds = remainingFixIds;
+      }
+    }).catch(() => {
+      // Ignore persistence load errors
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [childSession, childSessionId, parentSessionId, isReviewSession, isDeepReview]);
 
   // Observe action bar height to adjust body padding dynamically
@@ -529,6 +618,29 @@ export const BtwSessionPanel: React.FC<BtwSessionPanelProps> = ({
           onClick={handleScrollToBottom}
           className="btw-session-panel__scroll-to-bottom"
         />
+        {showMinimizedIndicator && (
+          <div className="btw-session-panel__minimized-indicator">
+            <button
+              onClick={() => useReviewActionBarStore.getState().restore()}
+              className="btw-session-panel__minimized-button"
+            >
+              <Sparkles size={14} />
+              <span className="btw-session-panel__minimized-text">
+                {isDeepReview
+                  ? t('deepReviewActionBar.minimizedDeep', {
+                      defaultValue: 'Deep Review',
+                    })
+                  : t('deepReviewActionBar.minimizedStandard', {
+                      defaultValue: 'Code Review',
+                    })}
+              </span>
+              <span className="btw-session-panel__minimized-count">
+                {remainingCount}/{totalCount}
+              </span>
+            </button>
+          </div>
+        )}
+
         {showReviewActionBar && (
           <div ref={actionBarRef} className="btw-session-panel__action-bar-wrapper">
             <ReviewActionBar />

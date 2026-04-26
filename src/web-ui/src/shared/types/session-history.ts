@@ -53,6 +53,20 @@ export interface SessionMetadata {
    * Takes precedence over unreadCompletion in the UI.
    */
   needsUserAttention?: 'ask_user' | 'tool_confirm';
+  /**
+   * Persisted review action bar state for code review / deep review sessions.
+   * Allows restoring the review action bar across app restarts.
+   */
+  reviewActionState?: ReviewActionPersistedState;
+}
+
+export interface ReviewActionPersistedState {
+  version: number;
+  phase: string;
+  completedRemediationIds: string[];
+  minimized: boolean;
+  customInstructions: string;
+  persistedAt: number;
 }
 
 export type SessionStatus = 'active' | 'archived' | 'completed';

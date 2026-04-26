@@ -222,6 +222,27 @@
     &:hover {
       background: var(--element-bg-subtle);
     }
+
+    &--completed {
+      opacity: 0.55;
+      cursor: default;
+
+      &:hover {
+        background: transparent;
+      }
+
+      .deep-review-action-bar__remediation-text {
+        text-decoration: line-through;
+        color: var(--color-text-muted);
+      }
+    }
+  }
+
+  &__completed-icon {
+    color: var(--color-success, #22c55e);
+    margin-right: 4px;
+    flex-shrink: 0;
+    vertical-align: text-bottom;
   }
 
   &__remediation-text {
@@ -345,6 +366,24 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+  }
+
+  /* Interruption notice */
+  &__interruption-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: var(--element-bg-subtle);
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin-bottom: 8px;
+  }
+
+  &__interruption-icon {
+    color: var(--color-warning, #f59e0b);
+    flex-shrink: 0;
   }
 
   /* Animations */

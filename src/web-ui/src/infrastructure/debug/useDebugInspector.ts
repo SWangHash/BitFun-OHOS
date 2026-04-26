@@ -12,6 +12,7 @@
 import { useCallback } from 'react';
 import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { createLogger } from '@/shared/utils/logger';
+import { isTauriRuntime } from '@/infrastructure/runtime';
 import {
   createMainWindowInspectorScript,
   CANCEL_MAIN_WINDOW_INSPECTOR_SCRIPT,
@@ -25,7 +26,7 @@ function isDevToolsAvailable(): boolean {
   // In a standard web build (non-Tauri) the inspector is useless because we
   // already have browser DevTools. Only enable in the desktop webview.
   if (typeof window === 'undefined') return false;
-  if (!('__TAURI__' in window)) return false;
+  if (!isTauriRuntime()) return false;
 
   // The backend only exposes debug commands when compiled with devtools feature
   // or in debug builds. We optimistically enable the shortcut here; the invoke
@@ -79,15 +80,19 @@ async function openNativeDevTools(): Promise<void> {
  * Shortcuts:
  *   Cmd/Ctrl + Shift + I  → Toggle element inspector
  *   Cmd/Ctrl + Shift + J  → Open native DevTools
+ *
+ * Note: shortcuts are always registered (so they work even if Tauri runtime
+ * detection races with component mount), but the callback no-ops when not
+ * in a Tauri desktop environment.
  */
 export function useDebugInspector(): void {
-  const available = isDevToolsAvailable();
-
   const handleToggleInspector = useCallback(() => {
+    if (!isDevToolsAvailable()) return;
     void toggleInspector();
   }, []);
 
   const handleOpenDevTools = useCallback(() => {
+    if (!isDevToolsAvailable()) return;
     void openNativeDevTools();
   }, []);
 
@@ -98,7 +103,6 @@ export function useDebugInspector(): void {
     { key: 'i', ctrl: true, shift: true, scope: 'app', allowInInput: true },
     handleToggleInspector,
     {
-      enabled: available,
       priority: 100,
       description: 'Toggle element inspector',
     }
@@ -110,7 +114,6 @@ export function useDebugInspector(): void {
     { key: 'j', ctrl: true, shift: true, scope: 'app', allowInInput: true },
     handleOpenDevTools,
     {
-      enabled: available,
       priority: 100,
       description: 'Open native DevTools',
     }

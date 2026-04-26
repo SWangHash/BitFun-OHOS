@@ -1276,6 +1276,7 @@ export class FlowChatStore {
 
       const updatedSession: Session = {
         ...session,
+        lastActiveAt: timestamp,
         lastFinishedAt: timestamp,
       };
 
@@ -1931,7 +1932,6 @@ export class FlowChatStore {
       const updatedSession = {
         ...session,
         todos: updatedTodos,
-        lastActiveAt: Date.now()
       };
 
       const newSessions = new Map(prev.sessions);
@@ -1976,7 +1976,6 @@ export class FlowChatStore {
       const updatedSession = {
         ...session,
         todos: [...todos],
-        lastActiveAt: Date.now()
       };
 
       const newSessions = new Map(prev.sessions);
