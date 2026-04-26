@@ -16,6 +16,7 @@ use super::events::{
     permission_request, send_update, tool_event_updates, PERMISSION_ALLOW_ONCE,
     PERMISSION_REJECT_ONCE,
 };
+use super::thinking::{InlineThinkRouter, InlineThinkSegment};
 use super::BitfunAcpRuntime;
 
 impl BitfunAcpRuntime {
@@ -111,6 +112,7 @@ async fn wait_for_prompt_completion(
     bitfun_session_id: &str,
 ) -> Result<StopReason> {
     let mut seen_tool_calls = HashSet::new();
+    let mut inline_think = InlineThinkRouter::new();
 
     loop {
         let event = match event_rx.recv().await {
@@ -130,10 +132,10 @@ async fn wait_for_prompt_completion(
 
         match event {
             CoreEvent::TextChunk { text, .. } => {
-                send_update(
+                send_inline_think_segments(
                     connection,
                     acp_session_id,
-                    SessionUpdate::AgentMessageChunk(ContentChunk::new(text.into())),
+                    inline_think.route_text(text),
                 )?;
             }
             CoreEvent::ThinkingChunk { content, .. } => {
@@ -165,9 +167,16 @@ async fn wait_for_prompt_completion(
                     .await?;
                 }
             }
-            CoreEvent::DialogTurnCompleted { .. } => return Ok(StopReason::EndTurn),
-            CoreEvent::DialogTurnCancelled { .. } => return Ok(StopReason::Cancelled),
+            CoreEvent::DialogTurnCompleted { .. } => {
+                send_inline_think_segments(connection, acp_session_id, inline_think.flush())?;
+                return Ok(StopReason::EndTurn);
+            }
+            CoreEvent::DialogTurnCancelled { .. } => {
+                send_inline_think_segments(connection, acp_session_id, inline_think.flush())?;
+                return Ok(StopReason::Cancelled);
+            }
             CoreEvent::DialogTurnFailed { error, .. } | CoreEvent::SystemError { error, .. } => {
+                send_inline_think_segments(connection, acp_session_id, inline_think.flush())?;
                 send_update(
                     connection,
                     acp_session_id,
@@ -180,6 +189,26 @@ async fn wait_for_prompt_completion(
             _ => {}
         }
     }
+}
+
+fn send_inline_think_segments(
+    connection: &ConnectionTo<Client>,
+    acp_session_id: &str,
+    segments: Vec<InlineThinkSegment>,
+) -> Result<()> {
+    for segment in segments {
+        let update = match segment {
+            InlineThinkSegment::Text(text) => {
+                SessionUpdate::AgentMessageChunk(ContentChunk::new(text.into()))
+            }
+            InlineThinkSegment::Thinking(content) => {
+                SessionUpdate::AgentThoughtChunk(ContentChunk::new(content.into()))
+            }
+        };
+        send_update(connection, acp_session_id, update)?;
+    }
+
+    Ok(())
 }
 
 async fn handle_permission_request(

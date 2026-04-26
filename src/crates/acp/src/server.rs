@@ -5,7 +5,7 @@ use agent_client_protocol::schema::{
     InitializeResponse, ListSessionsRequest, ListSessionsResponse, LoadSessionRequest,
     LoadSessionResponse, NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse,
     SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, SetSessionModeRequest,
-    SetSessionModeResponse,
+    SetSessionModeResponse, SetSessionModelRequest, SetSessionModelResponse,
 };
 use agent_client_protocol::{
     Agent, ByteStreams, Client, ConnectTo, ConnectionTo, Dispatch, Error, Result,
@@ -54,6 +54,13 @@ pub trait AcpRuntime: Send + Sync + 'static {
         _request: SetSessionConfigOptionRequest,
     ) -> Result<SetSessionConfigOptionResponse> {
         Err(Error::method_not_found().data("session/set_config_option is not implemented"))
+    }
+
+    async fn set_session_model(
+        &self,
+        _request: SetSessionModelRequest,
+    ) -> Result<SetSessionModelResponse> {
+        Err(Error::method_not_found().data("session/set_model is not implemented"))
     }
 }
 
@@ -207,6 +214,21 @@ where
                             responder.respond_with_result(
                                 runtime.set_session_config_option(request).await,
                             )
+                        })?;
+                        Ok(())
+                    }
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                {
+                    let runtime = runtime.clone();
+                    async move |request: SetSessionModelRequest,
+                                responder,
+                                cx: ConnectionTo<Client>| {
+                        let runtime = runtime.clone();
+                        cx.spawn(async move {
+                            responder.respond_with_result(runtime.set_session_model(request).await)
                         })?;
                         Ok(())
                     }

@@ -12,6 +12,9 @@ use bitfun_core::agentic::core::SessionConfig;
 use chrono::{DateTime, Utc};
 
 use super::events::send_update;
+use super::model::{
+    build_session_config_options, build_session_model_state, normalize_session_model_id,
+};
 use super::{AcpSessionState, BitfunAcpRuntime};
 
 impl BitfunAcpRuntime {
@@ -44,6 +47,7 @@ impl BitfunAcpRuntime {
             bitfun_session_id: session.session_id.clone(),
             cwd,
             mode_id: session.agent_type.clone(),
+            model_id: normalize_session_model_id(session.config.model_id.as_deref()),
             mcp_server_ids: self
                 .provision_mcp_servers(&session.session_id, mcp_servers)
                 .await?,
@@ -54,7 +58,16 @@ impl BitfunAcpRuntime {
             .insert(acp_session.acp_session_id.clone(), connection);
 
         let modes = build_session_modes(Some(session.agent_type.as_str())).await;
-        Ok(NewSessionResponse::new(SessionId::new(acp_session.acp_session_id)).modes(modes))
+        let models = build_session_model_state(Some(&acp_session.model_id)).await?;
+        let config_options =
+            build_session_config_options(Some(&acp_session.model_id), Some(&acp_session.mode_id))
+                .await?;
+        Ok(
+            NewSessionResponse::new(SessionId::new(acp_session.acp_session_id))
+                .modes(modes)
+                .models(models)
+                .config_options(config_options),
+        )
     }
 
     pub(super) async fn restore_session(
@@ -77,6 +90,7 @@ impl BitfunAcpRuntime {
             bitfun_session_id: session.session_id.clone(),
             cwd,
             mode_id: session.agent_type.clone(),
+            model_id: normalize_session_model_id(session.config.model_id.as_deref()),
             mcp_server_ids: self
                 .provision_mcp_servers(&session.session_id, mcp_servers)
                 .await?,
@@ -87,7 +101,14 @@ impl BitfunAcpRuntime {
             .insert(acp_session.acp_session_id.clone(), connection);
 
         let modes = build_session_modes(Some(session.agent_type.as_str())).await;
-        Ok(LoadSessionResponse::new().modes(modes))
+        let models = build_session_model_state(Some(&acp_session.model_id)).await?;
+        let config_options =
+            build_session_config_options(Some(&acp_session.model_id), Some(&acp_session.mode_id))
+                .await?;
+        Ok(LoadSessionResponse::new()
+            .modes(modes)
+            .models(models)
+            .config_options(config_options))
     }
 
     pub(super) async fn list_sessions_for_cwd(
@@ -149,36 +170,46 @@ impl BitfunAcpRuntime {
         &self,
         request: SetSessionModeRequest,
     ) -> Result<SetSessionModeResponse> {
-        let session_id = request.session_id.to_string();
         let mode_id = request.mode_id.to_string();
+        self.update_session_mode_inner(&request.session_id.to_string(), &mode_id)
+            .await?;
+
+        Ok(SetSessionModeResponse::new())
+    }
+
+    pub(super) async fn update_session_mode_inner(
+        &self,
+        session_id: &str,
+        mode_id: &str,
+    ) -> Result<()> {
         let acp_session = self
             .sessions
-            .get(&session_id)
-            .ok_or_else(|| Error::resource_not_found(Some(session_id.clone())))?;
+            .get(session_id)
+            .ok_or_else(|| Error::resource_not_found(Some(session_id.to_string())))?;
         let bitfun_session_id = acp_session.bitfun_session_id.clone();
         drop(acp_session);
 
-        validate_mode_id(&mode_id).await?;
+        validate_mode_id(mode_id).await?;
 
         self.agentic_system
             .coordinator
-            .update_session_agent_type(&bitfun_session_id, &mode_id)
+            .update_session_agent_type(&bitfun_session_id, mode_id)
             .await
             .map_err(Self::internal_error)?;
 
-        if let Some(mut state) = self.sessions.get_mut(&session_id) {
-            state.mode_id = mode_id.clone();
+        if let Some(mut state) = self.sessions.get_mut(session_id) {
+            state.mode_id = mode_id.to_string();
         }
 
-        if let Some(connection) = self.connections.get(&session_id) {
+        if let Some(connection) = self.connections.get(session_id) {
             send_update(
                 &connection,
-                &session_id,
-                SessionUpdate::CurrentModeUpdate(CurrentModeUpdate::new(mode_id)),
+                session_id,
+                SessionUpdate::CurrentModeUpdate(CurrentModeUpdate::new(mode_id.to_string())),
             )?;
         }
 
-        Ok(SetSessionModeResponse::new())
+        Ok(())
     }
 }
 

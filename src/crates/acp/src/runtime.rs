@@ -5,7 +5,8 @@ use agent_client_protocol::schema::{
     ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, LoadSessionResponse,
     McpCapabilities, NewSessionRequest, NewSessionResponse, PromptCapabilities, PromptRequest,
     PromptResponse, ProtocolVersion, SessionCapabilities, SessionListCapabilities,
-    SetSessionModeRequest, SetSessionModeResponse,
+    SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, SetSessionModeRequest,
+    SetSessionModeResponse, SetSessionModelRequest, SetSessionModelResponse,
 };
 use agent_client_protocol::{Client, ConnectionTo, Error, Result};
 use async_trait::async_trait;
@@ -17,8 +18,10 @@ use crate::server::{AcpRuntime, AcpServer};
 mod content;
 mod events;
 mod mcp;
+mod model;
 mod prompt;
 mod session;
+mod thinking;
 
 pub struct BitfunAcpRuntime {
     pub(crate) agentic_system: AgenticSystem,
@@ -32,6 +35,7 @@ pub(crate) struct AcpSessionState {
     pub(crate) bitfun_session_id: String,
     pub(crate) cwd: String,
     pub(crate) mode_id: String,
+    pub(crate) model_id: String,
     #[allow(dead_code)]
     pub(crate) mcp_server_ids: Vec<String>,
 }
@@ -109,5 +113,19 @@ impl AcpRuntime for BitfunAcpRuntime {
         request: SetSessionModeRequest,
     ) -> Result<SetSessionModeResponse> {
         self.update_session_mode(request).await
+    }
+
+    async fn set_session_config_option(
+        &self,
+        request: SetSessionConfigOptionRequest,
+    ) -> Result<SetSessionConfigOptionResponse> {
+        self.update_session_config_option(request).await
+    }
+
+    async fn set_session_model(
+        &self,
+        request: SetSessionModelRequest,
+    ) -> Result<SetSessionModelResponse> {
+        self.update_session_model(request).await
     }
 }
