@@ -60,6 +60,9 @@ pub struct RoundResult {
     pub usage: Option<crate::util::types::ai::GeminiUsage>,
     /// Provider-specific metadata returned by the model.
     pub provider_metadata: Option<Value>,
+    /// When set, this round's stream was partially recovered (aborted mid-way
+    /// but some output was already received). Contains a human-readable reason.
+    pub partial_recovery_reason: Option<String>,
 }
 
 /// Finish reason

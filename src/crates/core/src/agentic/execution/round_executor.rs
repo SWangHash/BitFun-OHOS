@@ -208,6 +208,8 @@ impl RoundExecutor {
                     }
 
                     let no_effective_output = !result.has_effective_output;
+                    let is_partial_recovery = result.partial_recovery_reason.is_some();
+
                     if no_effective_output && attempt_index < max_attempts - 1 {
                         let delay_ms = Self::retry_delay_ms(attempt_index);
                         warn!(
@@ -222,6 +224,23 @@ impl RoundExecutor {
                         attempt_index += 1;
                         continue;
                     }
+
+                    if is_partial_recovery && attempt_index < max_attempts - 1 {
+                        let delay_ms = Self::retry_delay_ms(attempt_index);
+                        warn!(
+                            "Retrying stream after partial recovery: session_id={}, round_id={}, attempt={}/{}, delay_ms={}, reason={}",
+                            context.session_id,
+                            round_id,
+                            attempt_index + 1,
+                            max_attempts,
+                            delay_ms,
+                            result.partial_recovery_reason.as_deref().unwrap_or("unknown")
+                        );
+                        tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+                        attempt_index += 1;
+                        continue;
+                    }
+
                     break result;
                 }
                 Err(stream_err) => {
@@ -362,6 +381,7 @@ impl RoundExecutor {
                 finish_reason: FinishReason::Complete,
                 usage: stream_result.usage.clone(),
                 provider_metadata: stream_result.provider_metadata.clone(),
+                partial_recovery_reason: stream_result.partial_recovery_reason.clone(),
             });
         }
 
@@ -567,6 +587,7 @@ impl RoundExecutor {
             },
             usage: stream_result.usage.clone(),
             provider_metadata: stream_result.provider_metadata.clone(),
+            partial_recovery_reason: stream_result.partial_recovery_reason.clone(),
         })
     }
 

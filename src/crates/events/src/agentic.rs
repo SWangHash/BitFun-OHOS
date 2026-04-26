@@ -138,6 +138,10 @@ pub enum AgenticEvent {
         total_tools: usize,
         duration_ms: u64,
         subagent_parent_info: Option<SubagentParentInfo>,
+        /// When set, the turn finished but the last model round was a partial
+        /// recovery (stream aborted mid-way). Contains a human-readable reason.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        partial_recovery_reason: Option<String>,
     },
 
     DialogTurnCancelled {

@@ -18,6 +18,8 @@ export interface FlowChatContext {
     turnId: string;
     lastActivityAt: number;
     timer: ReturnType<typeof setTimeout> | null;
+    /** Set when the turn completed with a partial stream recovery. */
+    partialRecoveryReason?: string;
   }>;
   /** In-flight historical session hydration: sessionId -> promise */
   pendingHistoryLoads: Map<string, Promise<void>>;

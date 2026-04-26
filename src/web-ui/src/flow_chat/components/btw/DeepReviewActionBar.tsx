@@ -243,48 +243,67 @@ export const ReviewActionBar: React.FC = () => {
     }
   }, [childSessionId, interruption, store, t]);
 
-  const handleCopyDiagnostics = useCallback(() => {
+  const handleCopyDiagnostics = useCallback(async () => {
     const detail = interruption?.errorDetail;
     if (!detail) return;
 
     const presentation = getAiErrorPresentation(detail);
 
-    const lines: string[] = [];
-    lines.push(t('deepReviewActionBar.diagnosticsTitle', { defaultValue: '=== Deep Review Interruption Diagnostics ===' }));
-    lines.push('');
-
-    const categoryLabel = t(presentation.titleKey, { defaultValue: presentation.category });
-    const categoryMessage = t(presentation.messageKey, { defaultValue: '' });
-    lines.push(`${t('deepReviewActionBar.diagnosticsErrorType', { defaultValue: 'Error type' })}: ${categoryLabel} (${presentation.category})`);
-    if (categoryMessage) {
-      lines.push(`${t('deepReviewActionBar.diagnosticsDescription', { defaultValue: 'Description' })}: ${categoryMessage}`);
-    }
-    lines.push('');
-
-    if (presentation.actions.length > 0) {
-      const actionLabels = presentation.actions.map((action) => {
-        return t(action.labelKey, { defaultValue: action.code });
-      });
-      lines.push(`${t('deepReviewActionBar.diagnosticsSuggestedActions', { defaultValue: 'Suggested actions' })}: ${actionLabels.join(', ')}`);
+    // Prefer the sanitized diagnostics from aiErrorPresenter if available
+    let diagnostics = presentation.diagnostics;
+    if (!diagnostics) {
+      const lines: string[] = [];
+      lines.push(t('deepReviewActionBar.diagnosticsTitle', { defaultValue: '=== Deep Review Interruption Diagnostics ===' }));
       lines.push('');
+
+      const categoryLabel = t(presentation.titleKey, { defaultValue: presentation.category });
+      const categoryMessage = t(presentation.messageKey, { defaultValue: '' });
+      lines.push(`${t('deepReviewActionBar.diagnosticsErrorType', { defaultValue: 'Error type' })}: ${categoryLabel} (${presentation.category})`);
+      if (categoryMessage) {
+        lines.push(`${t('deepReviewActionBar.diagnosticsDescription', { defaultValue: 'Description' })}: ${categoryMessage}`);
+      }
+      lines.push('');
+
+      if (presentation.actions.length > 0) {
+        const actionLabels = presentation.actions.map((action) => {
+          return t(action.labelKey, { defaultValue: action.code });
+        });
+        lines.push(`${t('deepReviewActionBar.diagnosticsSuggestedActions', { defaultValue: 'Suggested actions' })}: ${actionLabels.join(', ')}`);
+        lines.push('');
+      }
+
+      lines.push(`${t('deepReviewActionBar.diagnosticsTechnicalDetails', { defaultValue: 'Technical details' })}:`);
+      lines.push(`  - category: ${detail.category ?? 'unknown'}`);
+      if (detail.provider) lines.push(`  - provider: ${detail.provider}`);
+      if (detail.providerCode) lines.push(`  - provider code: ${detail.providerCode}`);
+      if (detail.providerMessage) {
+        const msg = detail.providerMessage.length > 500
+          ? `${detail.providerMessage.slice(0, 500)}... [truncated]`
+          : detail.providerMessage;
+        lines.push(`  - provider message: ${msg}`);
+      }
+      if (detail.httpStatus) lines.push(`  - HTTP status: ${detail.httpStatus}`);
+      if (detail.requestId) lines.push(`  - request ID: ${detail.requestId}`);
+      if (detail.rawMessage) {
+        const raw = detail.rawMessage.length > 500
+          ? `${detail.rawMessage.slice(0, 500)}... [truncated]`
+          : detail.rawMessage;
+        lines.push(`  - raw message: ${raw}`);
+      }
+
+      diagnostics = lines.join('\n');
     }
 
-    lines.push(`${t('deepReviewActionBar.diagnosticsTechnicalDetails', { defaultValue: 'Technical details' })}:`);
-    lines.push(`  - category: ${detail.category ?? 'unknown'}`);
-    if (detail.provider) lines.push(`  - provider: ${detail.provider}`);
-    if (detail.providerCode) lines.push(`  - provider code: ${detail.providerCode}`);
-    if (detail.providerMessage) lines.push(`  - provider message: ${detail.providerMessage}`);
-    if (detail.httpStatus) lines.push(`  - HTTP status: ${detail.httpStatus}`);
-    if (detail.requestId) lines.push(`  - request ID: ${detail.requestId}`);
-    if (detail.rawMessage) {
-      lines.push(`  - raw message: ${detail.rawMessage}`);
+    try {
+      await navigator.clipboard.writeText(diagnostics);
+      notificationService.success(t('deepReviewActionBar.diagnosticsCopied', {
+        defaultValue: 'Diagnostics copied',
+      }), { duration: 2500 });
+    } catch {
+      notificationService.error(t('deepReviewActionBar.diagnosticsCopyFailed', {
+        defaultValue: 'Failed to copy diagnostics',
+      }), { duration: 2500 });
     }
-
-    const diagnostics = lines.join('\n');
-    void navigator.clipboard?.writeText(diagnostics);
-    notificationService.success(t('deepReviewActionBar.diagnosticsCopied', {
-      defaultValue: 'Diagnostics copied',
-    }), { duration: 2500 });
   }, [interruption, t]);
 
   const phaseTitle = useMemo(() => {

@@ -250,9 +250,9 @@ export interface Session {
   /**
    * Set when a session finishes (completed / error / cancelled) while not the active session.
    * Cleared after the user switches to it and the content renders.
-   * 'completed' → green dot, 'error' → red dot.
+   * 'completed' → green dot, 'error' → red dot, 'interrupted' → red dot (partial stream recovery).
    */
-  hasUnreadCompletion?: 'completed' | 'error';
+  hasUnreadCompletion?: 'completed' | 'error' | 'interrupted';
 
   /**
    * Set when a session requires user attention while not the active session.

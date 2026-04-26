@@ -194,6 +194,7 @@ impl TransportAdapter for TauriTransportAdapter {
                 session_id,
                 turn_id,
                 subagent_parent_info,
+                partial_recovery_reason,
                 ..
             } => {
                 self.app_handle.emit(
@@ -202,6 +203,7 @@ impl TransportAdapter for TauriTransportAdapter {
                         "sessionId": session_id,
                         "turnId": turn_id,
                         "subagentParentInfo": subagent_parent_info,
+                        "partialRecoveryReason": partial_recovery_reason,
                     }),
                 )?;
             }

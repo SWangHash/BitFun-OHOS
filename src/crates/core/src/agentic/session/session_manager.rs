@@ -1042,7 +1042,8 @@ impl SessionManager {
 
         // Reset session state to Idle
         // After application restart, previous Processing state is invalid and must be reset
-        if !matches!(session.state, SessionState::Idle) {
+        let previous_state_was_not_idle = !matches!(session.state, SessionState::Idle);
+        if previous_state_was_not_idle {
             let old_state = session.state.clone();
             session.state = SessionState::Idle;
             debug!(
@@ -1158,6 +1159,34 @@ impl SessionManager {
             messages.len(),
             context_msg_count
         );
+
+        // Mark session as having unread completion if it was previously running (not Idle).
+        // This handles both normal app close and abnormal crash scenarios.
+        if previous_state_was_not_idle {
+            if let Ok(Some(mut metadata)) = self
+                .persistence_manager
+                .load_session_metadata(&session_storage_path, session_id)
+                .await
+            {
+                if metadata.unread_completion.is_none() {
+                    debug!(
+                        "Marking session as having unread completion (was interrupted during restore): session_id={}",
+                        session_id
+                    );
+                    metadata.unread_completion = Some("completed".to_string());
+                    if let Err(e) = self
+                        .persistence_manager
+                        .save_session_metadata(&session_storage_path, &metadata)
+                        .await
+                    {
+                        warn!(
+                            "Failed to save unread_completion metadata: session_id={}, error={}",
+                            session_id, e
+                        );
+                    }
+                }
+            }
+        }
 
         // 4. Add to memory (will overwrite if already exists)
         self.sessions

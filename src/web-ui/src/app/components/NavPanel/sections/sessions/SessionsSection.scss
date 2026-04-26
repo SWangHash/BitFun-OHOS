@@ -282,7 +282,8 @@
       0 0 0 1px color-mix(in srgb, var(--color-success, #22c55e) 35%, transparent),
       0 0 6px color-mix(in srgb, var(--color-success, #22c55e) 42%, transparent);
 
-    &.is-error {
+    &.is-error,
+    &.is-interrupted {
       background: var(--color-error, #ef4444);
       box-shadow:
         0 0 0 1px color-mix(in srgb, var(--color-error, #ef4444) 35%, transparent),

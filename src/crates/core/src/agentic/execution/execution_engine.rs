@@ -1213,6 +1213,7 @@ impl ExecutionEngine {
         let mut round_index = 0;
         let mut completed_rounds = 0usize;
         let mut total_tools = 0;
+        let mut last_partial_recovery_reason: Option<String> = None;
         let mut last_assistant_message = Message::assistant("".to_string());
         let mut finalization_reason: Option<&'static str> = None;
         let mut consecutive_compression_failures: u32 = 0;
@@ -1565,6 +1566,11 @@ impl ExecutionEngine {
 
             total_tools += round_result.tool_calls.len();
 
+            // Track partial recovery reason from the last round
+            if round_result.partial_recovery_reason.is_some() {
+                last_partial_recovery_reason = round_result.partial_recovery_reason.clone();
+            }
+
             // P0: Consecutive same-tool-call loop detection
             if !round_result.tool_calls.is_empty() {
                 let mut sigs: Vec<String> = round_result
@@ -1754,6 +1760,7 @@ impl ExecutionEngine {
                     total_tools,
                     duration_ms,
                     subagent_parent_info: event_subagent_parent_info,
+                    partial_recovery_reason: last_partial_recovery_reason,
                 },
                 None,
             )

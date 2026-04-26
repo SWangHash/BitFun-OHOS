@@ -564,13 +564,14 @@ function schedulePendingTurnCompletion(
   }, TURN_COMPLETION_QUIET_WINDOW_MS);
 }
 
-function beginTurnCompletion(context: FlowChatContext, sessionId: string, turnId: string): void {
+function beginTurnCompletion(context: FlowChatContext, sessionId: string, turnId: string, partialRecoveryReason?: string): void {
   clearPendingTurnCompletion(context, sessionId);
 
   context.pendingTurnCompletions.set(sessionId, {
     turnId,
     lastActivityAt: Date.now(),
     timer: null,
+    partialRecoveryReason,
   });
 
   schedulePendingTurnCompletion(context, sessionId, turnId);
@@ -645,7 +646,10 @@ function finalizeTurnCompletionState(
   // Mark unread completion for non-active sessions
   const activeSessionId = store.getState().activeSessionId;
   if (sessionId !== activeSessionId) {
-    context.flowChatStore.markSessionUnreadCompletion(sessionId, 'completed');
+    const pending = context.pendingTurnCompletions.get(sessionId);
+    const isPartialRecovery = !!pending?.partialRecoveryReason;
+    // Partial recovery after retry failure is treated as an error state (red dot)
+    context.flowChatStore.markSessionUnreadCompletion(sessionId, isPartialRecovery ? 'interrupted' : 'completed');
   }
 
   clearPendingTurnCompletion(context, sessionId, turnId);
@@ -1513,6 +1517,8 @@ function handleDialogTurnComplete(
   const sessionId = event?.sessionId ?? event?.session_id;
   const turnId = event?.turnId ?? event?.turn_id;
   const subagentParentInfo = normalizeSubagentParentInfo(event);
+  // Partial recovery reason from backend (stream was interrupted mid-way)
+  const partialRecoveryReason = event?.partialRecoveryReason ?? event?.partial_recovery_reason;
 
   if (subagentParentInfo) {
     if (sessionId) {
@@ -1561,7 +1567,7 @@ function handleDialogTurnComplete(
     log.debug('Skipping BACKEND_STREAM_COMPLETED transition', { currentState, sessionId, turnId });
   }
 
-  beginTurnCompletion(context, sessionId, turnId);
+  beginTurnCompletion(context, sessionId, turnId, partialRecoveryReason);
 }
 
 /**

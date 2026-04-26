@@ -279,12 +279,26 @@ export async function saveAllInProgressTurns(context: FlowChatContext): Promise<
             interruptionReason: 'app_restart',
           })
         );
-        
+
+        // Mark session as unread if it was interrupted while not active
+        if (sessionId !== state.activeSessionId) {
+          context.flowChatStore.markSessionUnreadCompletion(sessionId, 'completed');
+        }
+
         savePromises.push(
           saveDialogTurnToDisk(context, sessionId, lastTurn.id).catch(error => {
             log.error('Failed to save in-progress turn', { sessionId, turnId: lastTurn.id, error });
           })
         );
+
+        // Also persist the unread completion metadata
+        if (sessionId !== state.activeSessionId) {
+          savePromises.push(
+            updateSessionMetadata(context, sessionId).catch(error => {
+              log.error('Failed to update session metadata for unread completion', { sessionId, error });
+            })
+          );
+        }
       }
     }
   }

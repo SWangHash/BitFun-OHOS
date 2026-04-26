@@ -185,7 +185,8 @@ export async function sendMessage(
       dialogTurnId,
     });
     if (!startOk) {
-      throw new Error('Session is still busy finishing the previous turn');
+      const currentState = stateMachineManager.getCurrentState(sessionId);
+      throw new Error(`Session is still busy finishing the previous turn (current state: ${currentState})`);
     }
 
     if (isFirstMessage) {
