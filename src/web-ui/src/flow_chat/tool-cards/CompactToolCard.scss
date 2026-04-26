@@ -11,6 +11,8 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  width: 100%;
+  box-sizing: border-box;
   font-size: var(--flowchat-font-size-base);
   line-height: 1.65;
 }
@@ -66,6 +68,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 
@@ -193,6 +197,35 @@
 
   > svg {
     display: block;
+  }
+}
+
+/* ========== Expanded compact tools use the shared BaseToolCard shell ========== */
+.base-tool-card-wrapper.compact-tool-card-wrapper--expanded-card {
+  width: 100%;
+  box-sizing: border-box;
+
+  .base-tool-card {
+    cursor: pointer;
+  }
+
+  .base-tool-card-header {
+    gap: 8px;
+  }
+
+  .compact-card-content {
+    display: block;
+  }
+
+  .compact-card-status-icon,
+  .compact-card-right-icon {
+    color: var(--color-text-secondary);
+  }
+
+  .compact-card-action,
+  .compact-card-content,
+  .compact-card-extra {
+    color: var(--color-text-primary);
   }
 }
 

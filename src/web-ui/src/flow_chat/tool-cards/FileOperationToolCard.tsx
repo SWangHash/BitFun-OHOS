@@ -33,7 +33,7 @@ import type { ToolCardProps } from '../types/flow-chat';
 import { BaseToolCard, ToolCardHeader } from './BaseToolCard';
 import { useSnapshotState } from '../../tools/snapshot_system/hooks/useSnapshotState';
 import { SnapshotEventBus, SNAPSHOT_EVENTS } from '../../tools/snapshot_system/core/SnapshotEventBus';
-import { useCurrentWorkspace } from '../../infrastructure/contexts/WorkspaceContext';
+import { useOptionalCurrentWorkspace } from '../../infrastructure/contexts/WorkspaceContext';
 import { createDiffEditorTab } from '../../shared/utils/tabUtils';
 import { fileTabManager } from '../../shared/services/FileTabManager';
 import { CodePreview } from '../components/CodePreview';
@@ -87,7 +87,7 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
     clearError
   } = useSnapshotState(sessionId);
   const eventBus = SnapshotEventBus.getInstance();
-  const { workspace: currentWorkspace } = useCurrentWorkspace();
+  const { workspace: currentWorkspace } = useOptionalCurrentWorkspace();
 
   const getFilePath = useCallback((): string => {
     const params = partialParams || toolCall?.input;
@@ -354,6 +354,10 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
       return error;
     }
     return t('error.unknown');
+  };
+
+  const getSingleLineErrorMessage = () => {
+    return String(getErrorMessage()).replace(/\s+/g, ' ').trim();
   };
 
   const handleOpenInCodeEditor = useCallback(async () => {
@@ -740,25 +744,31 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
         }
         action={actionText}
       content={
-        <>
-          <Tooltip content={currentFilePath || fileName} placement="top">
-            <span className={`file-name ${isDeleteTool ? 'file-name--muted' : ''}`}>
-              {fileName}
-            </span>
-          </Tooltip>
-          {!isDeleteTool && !isParamsStreaming && !isFailed && !isLoading && (
-            (currentFileDiffStats.additions > 0 || currentFileDiffStats.deletions > 0)
-          ) && (
-            <span className="diff-preview-group">
-              {currentFileDiffStats.additions > 0 && (
-                <span className="additions">+{currentFileDiffStats.additions}</span>
-              )}
-              {currentFileDiffStats.deletions > 0 && (
-                <span className="deletions">-{currentFileDiffStats.deletions}</span>
-              )}
-            </span>
-          )}
-        </>
+        isFailed ? (
+          <span className="file-error-message-inline">
+            {getSingleLineErrorMessage()}
+          </span>
+        ) : (
+          <>
+            <Tooltip content={currentFilePath || fileName} placement="top">
+              <span className={`file-name ${isDeleteTool ? 'file-name--muted' : ''}`}>
+                {fileName}
+              </span>
+            </Tooltip>
+            {!isDeleteTool && !isParamsStreaming && !isLoading && (
+              (currentFileDiffStats.additions > 0 || currentFileDiffStats.deletions > 0)
+            ) && (
+              <span className="diff-preview-group">
+                {currentFileDiffStats.additions > 0 && (
+                  <span className="additions">+{currentFileDiffStats.additions}</span>
+                )}
+                {currentFileDiffStats.deletions > 0 && (
+                  <span className="deletions">-{currentFileDiffStats.deletions}</span>
+                )}
+              </span>
+            )}
+          </>
+        )
       }
       extra={
         <>

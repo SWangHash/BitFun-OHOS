@@ -2,8 +2,9 @@
  * TaskTool card display component.
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import {
+  AlertTriangle,
   Split,
   ChevronRight,
   ChevronDown,
@@ -22,6 +23,7 @@ import './ModelThinkingDisplay.scss';
 
 export const TaskToolDisplay: React.FC<ToolCardProps> = ({
   toolItem,
+  interruptionNote,
   onConfirm,
   onReject,
   onOpenInPanel,
@@ -53,10 +55,14 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
     nextExpanded: boolean,
     reason: 'manual' | 'auto' = 'manual',
   ) => {
+    if (nextExpanded !== isExpanded) {
+      /* Sync before the next commit paints so subagent wrapper + task card merge in one frame. */
+      taskCollapseStateManager.setCollapsed(toolItem.id, !nextExpanded);
+    }
     applyExpandedState(isExpanded, nextExpanded, setIsExpanded, { reason });
-  }, [applyExpandedState, isExpanded]);
+  }, [applyExpandedState, isExpanded, toolItem.id]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const prevStatus = prevStatusRef.current;
     
     if (prevStatus !== status) {
@@ -70,7 +76,7 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
     }
   }, [isRunning, status, updateCardExpandedState]);
   
-  useEffect(() => {
+  useLayoutEffect(() => {
     taskCollapseStateManager.setCollapsed(toolItem.id, !isExpanded);
   }, [isExpanded, toolItem.id]);
 
@@ -131,6 +137,7 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
   const hasRealPrompt = Boolean(
     taskInput && taskInput.prompt && taskInput.prompt !== 'Not provided',
   );
+  const hasInterruptionNote = Boolean(interruptionNote);
   const needsConfirmation =
     requiresConfirmation && !userConfirmed && status !== 'completed';
 
@@ -184,7 +191,7 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
   }, [isFailed, isExpanded, updateCardExpandedState]);
 
   const showHeaderExpandHint =
-    !isFailed && (hasRealPrompt || needsConfirmation);
+    !isFailed && (hasInterruptionNote || hasRealPrompt || needsConfirmation);
 
   const taskHeaderLine = useMemo(() => {
     const desc =
@@ -304,27 +311,36 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
       return null;
     }
 
-    if (!hasRealPrompt && !needsConfirmation) {
+    if (!hasInterruptionNote && !hasRealPrompt && !needsConfirmation) {
       return null;
     }
 
     return (
       <div className="task-expanded-content">
+        {interruptionNote && (
+          <>
+            <div className="task-interruption-note" role="note">
+              <AlertTriangle size={14} strokeWidth={2} aria-hidden />
+              <span>{interruptionNote}</span>
+            </div>
+            {(hasRealPrompt || needsConfirmation) && <div className="task-interruption-divider" aria-hidden />}
+          </>
+        )}
         {hasRealPrompt && (
           <div
-            className={`thinking-content-wrapper${promptScrollState.hasScroll ? ' has-scroll' : ''}${
+            className={`thinking-content-wrapper task-prompt-wrapper${promptScrollState.hasScroll ? ' has-scroll' : ''}${
               promptScrollState.atTop ? ' at-top' : ''
             }${promptScrollState.atBottom ? ' at-bottom' : ''}`}
           >
             <div
               ref={promptContentRef}
-              className="thinking-content expanded"
+              className="thinking-content task-prompt-content expanded"
               onScroll={checkPromptScrollState}
             >
               <Markdown
                 content={taskInput!.prompt}
                 isStreaming={false}
-                className="thinking-markdown"
+                className="thinking-markdown task-prompt-markdown"
               />
             </div>
           </div>

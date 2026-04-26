@@ -529,9 +529,9 @@
     "searchCount_one": "{{count}} search",
     "searchCount_other": "{{count}} searches",
     "searchCount": "{{count}} search(es)",
-    "thinkingCount_one": "Thought {{count}} time",
-    "thinkingCount_other": "Thought {{count}} times",
-    "thinkingCount": "Thought {{count}} time(s)",
+    "commandCount_one": "Executed {{count}} command",
+    "commandCount_other": "Executed {{count}} commands",
+    "commandCount": "Executed {{count}} command(s)",
     "exploreCount_one": "{{count}} exploration",
     "exploreCount_other": "{{count}} explorations",
     "exploreCount": "{{count}} exploration(s)",
@@ -793,6 +793,8 @@
     "timeout": {
       "disableTooltip": "Disable timeout",
       "enableTooltip": "Re-enable timeout",
+      "disableLabel": "Ignore limit",
+      "enableLabel": "Restore limit",
       "restoreShort": "Restore ({{seconds}}s left)"
     },
     "diagram": {

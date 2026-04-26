@@ -15,6 +15,57 @@
   }
 }
 
+.compact-tool-card-wrapper.terminal-tool-card--compact-collapsed {
+  width: 100%;
+
+  /* Mirror thinking row geometry: chevron 14px + gap 6px = 20px to label.
+   * Terminal lucide icon has internal whitespace inside its 14px viewBox, so the
+   * status-icon slot is widened to 16px to push the action text rightward and
+   * match the optical x-position of "思考了 XX 字". */
+  .compact-tool-card {
+    width: 100%;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .compact-card-status-icon {
+    width: 16px;
+    min-width: 16px;
+    height: calc(var(--flowchat-font-size-base) * 1.65);
+    justify-content: flex-start;
+  }
+
+  .terminal-card-icon {
+    flex-shrink: 0;
+  }
+
+  /* Collapsed-only command preview. Intentionally does NOT inherit `.terminal-command`
+   * (which forces 12px monospace + inline-block) so the text shares the exact same
+   * font-size/line-height/baseline as the sibling "执行命令" action span. */
+  /* Match `.read-file-card` typography: default weight, muted color, mono font. */
+  .compact-card-action {
+    font-weight: normal;
+  }
+
+  .terminal-command-compact {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--flowchat-font-size-base);
+    line-height: 1.65;
+    font-weight: normal;
+    color: var(--color-text-muted);
+    font-family: var(--tool-card-font-mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    .command-empty {
+      color: #e06c75;
+      font-style: italic;
+    }
+  }
+}
+
 /* Entire base card shows pointer (card toggles expand); children must not force default cursor. */
 .base-tool-card-wrapper.terminal-tool-card .base-tool-card {
   cursor: pointer;
@@ -60,7 +111,13 @@
   white-space: nowrap;
   cursor: inherit;
   transition: none;
-  display: inline-block;
+  /* inline-flex + align-items center makes the glyph optically share the same
+   * vertical center as the sibling `.tool-card-action` ("执行命令"), regardless of
+   * the monospace font's intrinsic baseline metrics. */
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.45;
+  height: calc(12px * 1.45);
   background: none !important;
   border: none !important;
   outline: none !important;

@@ -473,13 +473,35 @@
   margin: 0.5rem 0;
 }
 
+/* inline-block so multiple badges / linked images can sit on one row (shields, etc.) */
 .markdown-renderer img,
 .markdown-renderer .markdown-image {
-  display: block;
+  display: inline-block;
   max-width: 100%;
   height: auto;
-  margin: 0.75rem 0;
+  margin: 0.35rem 0.25rem;
+  vertical-align: middle;
   border-radius: 8px;
+}
+
+/* README-style centered badge rows: each badge is often its own <p> inside a div */
+.markdown-renderer div[align="center"] {
+  text-align: center;
+}
+
+.markdown-renderer div[align="center"] > p {
+  display: inline-block;
+  margin: 0.2rem 0.25rem;
+  vertical-align: middle;
+}
+
+.markdown-renderer div[align="center"] > p + p {
+  margin-top: 0.2rem;
+}
+
+.markdown-renderer div[align="center"] > p > a:has(> img) + br,
+.markdown-renderer div[align="center"] > p > img + br {
+  display: none;
 }
 
 .markdown-renderer .markdown-image--loading {
@@ -812,6 +834,19 @@
 
   .table-wrapper tbody tr:hover {
     background: #eef4ff;
+  }
+
+  blockquote,
+  .custom-blockquote {
+    background: var(--flowchat-md-bq-bg, rgba(15, 23, 42, 0.07));
+    border-left: 3px solid var(--flowchat-md-bq-border, rgba(15, 23, 42, 0.24));
+    color: var(--flowchat-md-bq-fg, var(--color-text-secondary, #475569));
+  }
+
+  blockquote:hover,
+  .custom-blockquote:hover {
+    background: var(--flowchat-md-bq-hover-bg, rgba(15, 23, 42, 0.1));
+    border-left-color: var(--flowchat-md-bq-hover-border, rgba(15, 23, 42, 0.34));
   }
 }
 

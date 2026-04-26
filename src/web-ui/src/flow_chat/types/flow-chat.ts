@@ -316,6 +316,7 @@ export interface ToolCardConfig {
 export interface ToolCardProps {
   toolItem: FlowToolItem;
   config: ToolCardConfig;
+  interruptionNote?: string | null;
   onConfirm?: (updatedInput?: any) => void;  // toolId is known within the card.
   onReject?: () => void;
   onOpenInEditor?: (filePath: string) => void;

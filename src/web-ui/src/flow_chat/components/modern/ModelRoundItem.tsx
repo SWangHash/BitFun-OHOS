@@ -14,12 +14,11 @@ import type { ModelRound, FlowItem, FlowTextItem, FlowToolItem, FlowThinkingItem
 import { FlowTextBlock } from '../FlowTextBlock';
 import { FlowToolCard } from '../FlowToolCard';
 import { ModelThinkingDisplay } from '../../tool-cards/ModelThinkingDisplay';
-import { isCollapsibleTool, isTerminalCollapsibleTool } from '../../tool-cards';
+import { isCollapsibleTool } from '../../tool-cards';
 import { useFlowChatContext } from './FlowChatContext';
 import { FlowChatStore } from '../../store/FlowChatStore';
 import { taskCollapseStateManager } from '../../store/TaskCollapseStateManager';
 import { ExportImageButton } from './ExportImageButton';
-import { TerminalGroupRenderer } from './TerminalGroupRenderer';
 import { Tooltip } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
 import './ModelRoundItem.scss';
@@ -41,6 +40,70 @@ function hasActiveStreamingNarrative(items: FlowItem[]): boolean {
       (maybeStreaming.status === 'streaming' || maybeStreaming.status === 'running');
   });
 }
+
+function useTaskCollapsed(toolId: string): boolean {
+  const [isCollapsed, setIsCollapsed] = useState(() =>
+    taskCollapseStateManager.isCollapsed(toolId)
+  );
+
+  useEffect(() => {
+    setIsCollapsed(taskCollapseStateManager.isCollapsed(toolId));
+
+    const unsubscribe = taskCollapseStateManager.addListener((changedToolId, collapsed) => {
+      if (changedToolId === toolId) {
+        setIsCollapsed(collapsed);
+      }
+    });
+
+    return unsubscribe;
+  }, [toolId]);
+
+  return isCollapsed;
+}
+
+interface TaskWithSubagentWrapperProps {
+  taskItem: FlowItem;
+  parentTaskToolId: string;
+  items: FlowItem[];
+  turnId: string;
+  roundId: string;
+}
+
+const TaskWithSubagentWrapper: React.FC<TaskWithSubagentWrapperProps> = React.memo(({
+  taskItem,
+  parentTaskToolId,
+  items,
+  turnId,
+  roundId,
+}) => {
+  const isCollapsed = useTaskCollapsed(parentTaskToolId);
+  const hasPrompt = Boolean(
+    taskItem.type === 'tool' &&
+    (taskItem as FlowToolItem).toolCall?.input?.prompt
+  );
+  const className = [
+    'task-with-subagent-wrapper',
+    !isCollapsed && 'task-with-subagent-wrapper--expanded',
+    hasPrompt && 'task-with-subagent-wrapper--has-prompt',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div className={className}>
+      <FlowItemRenderer
+        item={taskItem}
+        turnId={turnId}
+        roundId={roundId}
+        isLastItem={false}
+      />
+      <SubagentItemsContainer
+        parentTaskToolId={parentTaskToolId}
+        items={items}
+        turnId={turnId}
+        roundId={roundId}
+      />
+    </div>
+  );
+});
 
 export const ModelRoundItem = React.memo<ModelRoundItemProps>(
   ({ round, turnId, isLastRound = false }) => {
@@ -73,7 +136,6 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
     
     type ItemGroup = 
       | { type: 'explore'; items: FlowItem[]; isLast: boolean }
-      | { type: 'terminal'; items: FlowItem[]; isLast: boolean }
       | { type: 'critical'; item: FlowItem }
       | { type: 'subagent'; parentTaskToolId: string; items: FlowItem[] };
     
@@ -118,7 +180,6 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
       
       const finalGroups: ItemGroup[] = [];
       let exploreBuffer: FlowItem[] = [];
-      let terminalBuffer: FlowItem[] = [];
       let pendingBuffer: FlowItem[] = [];
       
       const normalItems: FlowItem[] = [];
@@ -132,13 +193,6 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         if (exploreBuffer.length > 0) {
           finalGroups.push({ type: 'explore', items: [...exploreBuffer], isLast });
           exploreBuffer = [];
-        }
-      };
-      
-      const flushTerminalBuffer = (isLast: boolean) => {
-        if (terminalBuffer.length > 0) {
-          finalGroups.push({ type: 'terminal', items: [...terminalBuffer], isLast });
-          terminalBuffer = [];
         }
       };
       
@@ -157,7 +211,6 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         
         if (group.type === 'subagent') {
           flushExploreBuffer(false);
-          flushTerminalBuffer(false);
           flushPendingAsCritical();
           finalGroups.push(group);
         } else {
@@ -169,18 +222,15 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
             
             if (isLastNormalItem) {
               flushExploreBuffer(false);
-              flushTerminalBuffer(false);
               flushPendingAsCritical();
             }
           } else if (item.type === 'tool') {
             const toolName = (item as FlowToolItem).toolName;
             const isExploreTool = isCollapsibleTool(toolName);
-            const isTerminalTool = isTerminalCollapsibleTool(toolName);
             
             if (isExploreTool) {
               if (deferExploreGrouping) {
                 flushExploreBuffer(false);
-                flushTerminalBuffer(false);
                 flushPendingAsCritical();
                 finalGroups.push({ type: 'critical', item });
                 normalItemIndex++;
@@ -192,16 +242,8 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
               if (isLastNormalItem || isLastGroup) {
                 flushExploreBuffer(true);
               }
-            } else if (isTerminalTool) {
-              terminalBuffer.push(...pendingBuffer, item);
-              pendingBuffer = [];
-              
-              if (isLastNormalItem || isLastGroup) {
-                flushTerminalBuffer(true);
-              }
             } else {
               flushExploreBuffer(false);
-              flushTerminalBuffer(false);
               flushPendingAsCritical();
               finalGroups.push({ type: 'critical', item });
             }
@@ -212,7 +254,6 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
       }
       
       flushExploreBuffer(true);
-      flushTerminalBuffer(true);
       flushPendingAsCritical();
       
       return finalGroups;
@@ -324,20 +365,6 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
                 />
               ));
 
-            case 'terminal': {
-              const terminalItems = group.items.filter((it) => it.type === 'tool') as FlowToolItem[];
-              return (
-                <TerminalGroupRenderer
-                  key={`terminal-group-${groupIndex}`}
-                  items={terminalItems}
-                  turnId={turnId}
-                  roundId={round.id}
-                  isLast={isLast}
-                  isGroupStreaming={round.isStreaming}
-                />
-              );
-            }
-
             case 'critical': {
               // If next group is the matching subagent, skip here — rendered by subagent case.
               const nextGroup = groupedItems[groupIndex + 1];
@@ -375,15 +402,14 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
               
               if (hasPairedTask) {
                 return (
-                  <div key={`task-with-subagent-${prevGroup.item.id}`} className="task-with-subagent-wrapper">
-                    <FlowItemRenderer
-                      item={prevGroup.item}
-                      turnId={turnId}
-                      roundId={round.id}
-                      isLastItem={false}
-                    />
-                    {subagentContainer}
-                  </div>
+                  <TaskWithSubagentWrapper
+                    key={`task-with-subagent-${prevGroup.item.id}`}
+                    taskItem={prevGroup.item}
+                    parentTaskToolId={group.parentTaskToolId}
+                    items={group.items}
+                    turnId={turnId}
+                    roundId={round.id}
+                  />
                 );
               }
               return subagentContainer;
@@ -490,49 +516,32 @@ const SubagentItemsContainer = React.memo<SubagentItemsContainerProps>(({
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
   }, [isCollapsed]);
-  
-  // Use MutationObserver for streaming auto-scroll with throttling.
+
+  const scrollSignal = useMemo(() => {
+    return items.map((item) => {
+      const itemAny = item as any;
+      const contentLength = typeof itemAny.content === 'string' ? itemAny.content.length : 0;
+      const paramsLength = itemAny.partialParams ? JSON.stringify(itemAny.partialParams).length : 0;
+      return `${item.id}:${item.status}:${contentLength}:${paramsLength}`;
+    }).join('|');
+  }, [items]);
+
+  // Auto-scroll only when the subagent item data changes. A MutationObserver on
+  // the whole subtree also reacts to layout-driven DOM churn while the right
+  // panel opens, which amplifies FlowChat reflow work.
   useEffect(() => {
     const container = containerRef.current;
     if (!container || isCollapsed) return;
-    
-    let rafId: number | null = null;
-    let throttleTimer: NodeJS.Timeout | null = null;
-    const THROTTLE_MS = 50;
-    
-    const scrollToBottom = () => {
-      if (container && !userScrolledUpRef.current) {
+
+    const rafId = requestAnimationFrame(() => {
+      if (!userScrolledUpRef.current) {
         container.scrollTop = container.scrollHeight;
         lastScrollTopRef.current = container.scrollTop;
       }
-    };
-    
-    const throttledScroll = () => {
-      if (throttleTimer) return;
-      
-      throttleTimer = setTimeout(() => {
-        throttleTimer = null;
-        if (rafId) cancelAnimationFrame(rafId);
-        rafId = requestAnimationFrame(scrollToBottom);
-      }, THROTTLE_MS);
-    };
-    
-    const observer = new MutationObserver(throttledScroll);
-    
-    observer.observe(container, {
-      childList: true,
-      subtree: true,
-      characterData: true,
     });
-    
-    scrollToBottom();
-    
-    return () => {
-      observer.disconnect();
-      if (rafId) cancelAnimationFrame(rafId);
-      if (throttleTimer) clearTimeout(throttleTimer);
-    };
-  }, [isCollapsed]);
+
+    return () => cancelAnimationFrame(rafId);
+  }, [isCollapsed, scrollSignal]);
   
   return (
     <div className={`subagent-items-wrapper ${isCollapsed ? 'subagent-items-wrapper--collapsed' : 'subagent-items-wrapper--expanded'}`}>

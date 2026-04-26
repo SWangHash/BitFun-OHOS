@@ -19,6 +19,7 @@ import type { ToolCardProps } from '../types/flow-chat';
 import { Terminal, Play, X, ExternalLink, Square } from 'lucide-react';
 import { createTerminalTab } from '@/shared/utils/tabUtils';
 import { BaseToolCard, ToolCardHeader } from './BaseToolCard';
+import { CompactToolCard, CompactToolCardHeader } from './CompactToolCard';
 import { CubeLoading, IconButton, Tooltip } from '../../component-library';
 import { TerminalOutputRenderer } from '@/tools/terminal/components';
 import { createLogger } from '@/shared/utils/logger';
@@ -450,11 +451,20 @@ export const TerminalToolCard: React.FC<TerminalToolCardProps> = ({
     return null;
   };
 
-  const renderCommandContent = () => {
-    const commandNode = (
-      <code ref={commandRef} className="terminal-command">
+  const renderCommandContent = (variant: 'default' | 'compact' = 'default') => {
+    const commandContent = (
+      <>
         {command
           || <span className="command-empty">{t(showConfirmButtons ? 'toolCards.terminal.commandEmpty' : 'toolCards.terminal.noCommand')}</span>}
+      </>
+    );
+    const commandNode = variant === 'compact' ? (
+      <span ref={commandRef} className="terminal-command-compact">
+        {commandContent}
+      </span>
+    ) : (
+      <code ref={commandRef} className="terminal-command">
+        {commandContent}
       </code>
     );
 
@@ -554,6 +564,63 @@ export const TerminalToolCard: React.FC<TerminalToolCardProps> = ({
       statusIcon={renderStatusIcon()}
     />
   );
+
+  const renderCompactHeader = () => (
+    <CompactToolCardHeader
+      statusIcon={<Terminal size={14} className="terminal-card-icon" />}
+      action={t('toolCards.terminal.executeCommand')}
+      content={renderCommandContent('compact')}
+      extra={(
+        <>
+          <ToolTimeoutIndicator
+            startTime={toolItem.startTime}
+            isRunning={status === 'preparing' || status === 'streaming' || status === 'running'}
+            timeoutMs={
+              typeof toolCall?.input?.timeout_ms === 'number' && toolCall.input.timeout_ms > 0
+                ? toolCall.input.timeout_ms
+                : undefined
+            }
+            showControls={false}
+            completedDurationMs={
+              status === 'completed' && parsedResult?.executionTimeMs
+                ? parsedResult.executionTimeMs
+                : undefined
+            }
+          />
+          {viewState.hasHeaderExtra && renderStatusText()}
+
+          {showConfirmButtons && (
+            <div className="terminal-confirm-actions" onClick={(e) => e.stopPropagation()}>
+              <IconButton
+                className="terminal-action-btn execute-btn"
+                variant="success"
+                size="xs"
+                onClick={handleExecute}
+                disabled={!canExecuteCommand}
+                tooltip={
+                  canExecuteCommand
+                    ? t('toolCards.terminal.executeCommandTitle')
+                    : t('toolCards.terminal.commandEmptyWarning')
+                }
+              >
+                <Play size={12} fill="currentColor" />
+              </IconButton>
+              <IconButton
+                className="terminal-action-btn cancel-btn"
+                variant="danger"
+                size="xs"
+                onClick={handleReject}
+                tooltip={t('toolCards.terminal.cancel')}
+              >
+                <X size={14} />
+              </IconButton>
+            </div>
+          )}
+        </>
+      )}
+      rightIcon={renderStatusIcon()}
+    />
+  );
   const expandedContent = isExpanded
     ? renderTerminalExpandedContent({ viewState, liveOutput, parsedResult, waitingMessage, t })
     : null;
@@ -563,17 +630,28 @@ export const TerminalToolCard: React.FC<TerminalToolCardProps> = ({
 
   return (
     <div ref={cardRootRef} data-tool-card-id={toolId ?? ''}>
-      <BaseToolCard
-        status={status}
-        isExpanded={isExpanded}
-        onClick={handleCardClick}
-        className="terminal-tool-card"
-        header={renderHeader()}
-        expandedContent={expandedContent}
-        errorContent={errorContent}
-        isFailed={viewState.isFailed}
-        requiresConfirmation={showConfirmButtons}
-      />
+      {isExpanded ? (
+        <BaseToolCard
+          status={status}
+          isExpanded={isExpanded}
+          onClick={handleCardClick}
+          className="terminal-tool-card"
+          header={renderHeader()}
+          expandedContent={expandedContent}
+          errorContent={errorContent}
+          isFailed={viewState.isFailed}
+          requiresConfirmation={showConfirmButtons}
+        />
+      ) : (
+        <CompactToolCard
+          status={status}
+          isExpanded={false}
+          onClick={handleCardClick}
+          className="terminal-tool-card terminal-tool-card--compact-collapsed"
+          clickable
+          header={renderCompactHeader()}
+        />
+      )}
     </div>
   );
 };

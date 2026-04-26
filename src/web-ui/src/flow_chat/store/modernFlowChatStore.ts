@@ -8,7 +8,7 @@ import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { immer } from 'zustand/middleware/immer';
 import type { Session, DialogTurn, ModelRound, FlowItem, FlowToolItem } from '../types/flow-chat';
-import { isCollapsibleTool, READ_TOOL_NAMES, SEARCH_TOOL_NAMES } from '../tool-cards';
+import { isCollapsibleTool, READ_TOOL_NAMES, SEARCH_TOOL_NAMES, COMMAND_TOOL_NAMES } from '../tool-cards';
 import { flowChatStore } from './FlowChatStore';
 
 /**
@@ -17,7 +17,7 @@ import { flowChatStore } from './FlowChatStore';
 export interface ExploreGroupStats {
   readCount: number;
   searchCount: number;
-  thinkingCount: number;
+  commandCount: number;
 }
 
 /**
@@ -114,22 +114,21 @@ function isExploreOnlyRound(round: ModelRound): boolean {
 /**
  * Compute statistics for a single ModelRound
  */
-function computeRoundStats(round: ModelRound): { readCount: number; searchCount: number; thinkingCount: number } {
+function computeRoundStats(round: ModelRound): ExploreGroupStats {
   let readCount = 0;
   let searchCount = 0;
-  let thinkingCount = 0;
+  let commandCount = 0;
   
   for (const item of round.items) {
     if (item.type === 'tool') {
       const toolName = (item as FlowToolItem).toolName;
       if (READ_TOOL_NAMES.has(toolName)) readCount++;
       else if (SEARCH_TOOL_NAMES.has(toolName)) searchCount++;
-    } else if (item.type === 'thinking') {
-      thinkingCount++;
+      else if (COMMAND_TOOL_NAMES.has(toolName)) commandCount++;
     }
   }
   
-  return { readCount, searchCount, thinkingCount };
+  return { readCount, searchCount, commandCount };
 }
 
 let cachedSession: Session | null = null;
@@ -189,7 +188,7 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
       allItems: FlowItem[];
       readCount: number;
       searchCount: number;
-      thinkingCount: number;
+      commandCount: number;
       startIndex: number;
       endIndex: number;
     }
@@ -206,7 +205,7 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
           currentGroup.allItems.push(...round.items);
           currentGroup.readCount += stats.readCount;
           currentGroup.searchCount += stats.searchCount;
-          currentGroup.thinkingCount += stats.thinkingCount;
+          currentGroup.commandCount += stats.commandCount;
           currentGroup.endIndex = index;
         } else {
           currentGroup = {
@@ -214,7 +213,7 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
             allItems: [...round.items],
             readCount: stats.readCount,
             searchCount: stats.searchCount,
-            thinkingCount: stats.thinkingCount,
+            commandCount: stats.commandCount,
             startIndex: index,
             endIndex: index,
           };
@@ -248,7 +247,11 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
             groupId: group.rounds.map(r => r.id).join('-'),
             rounds: group.rounds,
             allItems: group.allItems,
-            stats: { readCount: group.readCount, searchCount: group.searchCount, thinkingCount: group.thinkingCount },
+            stats: {
+              readCount: group.readCount,
+              searchCount: group.searchCount,
+              commandCount: group.commandCount,
+            },
             isGroupStreaming,
             isLastGroupInTurn: isLastGroup,
           }

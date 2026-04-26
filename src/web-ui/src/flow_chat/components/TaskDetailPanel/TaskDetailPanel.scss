@@ -207,6 +207,14 @@
     font-size: 13px;
   }
 
+  &__loading--inline {
+    flex-direction: row;
+    justify-content: center;
+    padding: 10px 12px 4px;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
   &__error {
     display: flex;
     align-items: flex-start;

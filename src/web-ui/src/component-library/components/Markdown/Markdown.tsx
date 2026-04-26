@@ -123,6 +123,7 @@ const sanitizeSchema = {
     ...defaultSchema.attributes,
     a: [...(defaultSchema.attributes?.a || []), 'href', 'title'],
     code: [...(defaultSchema.attributes?.code || []), 'className'],
+    div: [...(defaultSchema.attributes?.div || []), 'align'],
     details: [...(defaultSchema.attributes?.details || []), 'open'],
     img: [...(defaultSchema.attributes?.img || []), 'src', 'alt', 'title', 'width', 'height', 'align'],
     input: [...(defaultSchema.attributes?.input || []), 'type', 'checked', 'disabled'],

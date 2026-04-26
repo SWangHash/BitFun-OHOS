@@ -18,6 +18,7 @@ const CONTENT_IDLE_TIMEOUT = 500;
 interface FlowTextBlockProps {
   textItem: FlowTextItem;
   className?: string;
+  replayStreamingOnMount?: boolean;
 }
 
 /**
@@ -26,7 +27,8 @@ interface FlowTextBlockProps {
  */
 export const FlowTextBlock = React.memo<FlowTextBlockProps>(({
   textItem,
-  className = ''
+  className = '',
+  replayStreamingOnMount = true
 }) => {
   const { onFileViewRequest, onTabOpen, onOpenVisualization } = useFlowChatContext();
 
@@ -37,7 +39,9 @@ export const FlowTextBlock = React.memo<FlowTextBlockProps>(({
 
   const isStreaming = textItem.isStreaming &&
     (textItem.status === 'streaming' || textItem.status === 'running');
-  const displayContent = useTypewriter(content, isStreaming);
+  const displayContent = useTypewriter(content, isStreaming, {
+    replayOnMount: replayStreamingOnMount,
+  });
   
   // Heuristic: if content does not change for a while, streaming is done.
   const [isContentGrowing, setIsContentGrowing] = useState(true);
@@ -103,6 +107,7 @@ export const FlowTextBlock = React.memo<FlowTextBlockProps>(({
     prev.content === next.content &&
     prev.isStreaming === next.isStreaming &&
     prev.status === next.status &&
-    prevProps.className === nextProps.className
+    prevProps.className === nextProps.className &&
+    prevProps.replayStreamingOnMount === nextProps.replayStreamingOnMount
   );
 });

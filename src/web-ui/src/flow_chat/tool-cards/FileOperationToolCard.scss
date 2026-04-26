@@ -94,6 +94,14 @@
   }
 }
 
+.file-error-message-inline {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .params-streaming-indicator {
   font-size: 10px;
   color: rgba(139, 92, 246, 0.75);

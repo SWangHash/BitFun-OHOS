@@ -529,9 +529,9 @@
     "searchCount_one": "进行了 {{count}} 次搜索",
     "searchCount_other": "进行了 {{count}} 次搜索",
     "searchCount": "进行了 {{count}} 次搜索",
-    "thinkingCount_one": "思考了 {{count}} 次",
-    "thinkingCount_other": "思考了 {{count}} 次",
-    "thinkingCount": "思考了 {{count}} 次",
+    "commandCount_one": "执行了 {{count}} 个命令",
+    "commandCount_other": "执行了 {{count}} 个命令",
+    "commandCount": "执行了 {{count}} 个命令",
     "exploreCount_one": "执行了 {{count}} 次探索",
     "exploreCount_other": "执行了 {{count}} 次探索",
     "exploreCount": "执行了 {{count}} 次探索",
@@ -793,6 +793,8 @@
     "timeout": {
       "disableTooltip": "关闭超时限制",
       "enableTooltip": "恢复超时限制",
+      "disableLabel": "忽略限时",
+      "enableLabel": "恢复限时",
       "restoreShort": "恢复（剩余 {{seconds}} 秒）"
     },
     "diagram": {

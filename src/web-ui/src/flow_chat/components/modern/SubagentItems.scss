@@ -6,6 +6,7 @@
 
 .subagent-items-wrapper {
   position: relative;
+  contain: layout paint style;
 }
 
 .subagent-items-wrapper--collapsed {
@@ -33,6 +34,8 @@
   // The detail panel remains the place for reading long subagent output.
   max-height: clamp(78px, 12vh, 118px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  contain: layout paint style;
 
   .flow-text-block--subagent-compact {
     margin-bottom: 0.15rem;

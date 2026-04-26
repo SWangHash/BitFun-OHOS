@@ -207,8 +207,15 @@
     justify-content: center;
     align-self: center;
     gap: 6px;
+    line-height: 0;
     color: var(--color-text-muted);
     pointer-events: none;
+
+    /* Drop inline-SVG strut; keeps chevron + status optically on the same midline as the title. */
+    > svg {
+      display: block;
+      flex-shrink: 0;
+    }
   }
 
   .task-header-main {
@@ -301,15 +308,60 @@
     border-left: none;
   }
 
-  /* Prompt uses ModelThinkingDisplay shell + .thinking-markdown (see ModelThinkingDisplay.scss). */
-  .task-expanded-content .thinking-content {
-    /* Keep subagent task prompts compact; the detail panel still exposes the full text. */
-    max-height: calc(1.45em * 1);
+  /* Prompt uses the thinking markdown typography, but needs its own clipping box.
+     The generic thinking content has vertical padding; with a one-line max-height
+     that can leave only padding visible and push the prompt text out of view. */
+  .task-expanded-content .task-prompt-content {
+    padding: 0 12px;
+    max-height: calc(var(--flowchat-font-size-base) * 1.65 * 3 + 10px);
+    overflow-y: auto;
+  }
+
+  .task-expanded-content .task-prompt-wrapper {
+    &::before,
+    &::after {
+      content: none;
+    }
+  }
+
+  .task-interruption-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+
+    svg {
+      flex-shrink: 0;
+      margin-top: 2px;
+      color: var(--color-warning, #f59e0b);
+    }
+  }
+
+  .task-interruption-divider {
+    height: 1px;
+    background: var(--border-base);
+    margin: -2px calc(-1 * var(--tool-card-header-pad-x, 10px)) 0;
+  }
+
+  .task-expanded-content .task-prompt-markdown {
+    > :first-child {
+      margin-top: 0 !important;
+    }
+
+    > :last-child {
+      margin-bottom: 0 !important;
+    }
   }
 
   /* Extra breathing room below header / divider before prompt + actions. */
   &.base-tool-card-wrapper > .base-tool-card-expanded {
     padding-top: 14px;
+  }
+
+  &.base-tool-card-wrapper > .base-tool-card-expanded:has(.task-prompt-content) {
+    padding-bottom: 0;
   }
 
   .duration-text {
@@ -450,11 +502,37 @@
 .task-with-subagent-wrapper {
   position: relative;
   border-radius: 8px;
-  margin-bottom: 10px;
+  margin: 4px 0 10px;
   transition: box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  contain: layout paint style;
+
+  /* Unified task + subagent: title row is optically below geometric center; nudge the rail stack slightly down. */
+  .task-header-rail__visual {
+    transform: translateY(2px);
+  }
+
+  .flow-tool-card-wrapper .base-tool-card-wrapper.task-tool-display {
+    margin: 0;
+    /*
+     * The global BaseToolCard uses transition: all. During task/subagent merge
+     * that animates border/background/radius removal and briefly exposes a
+     * separate rounded card behind the prompt. Only keep shadow/border hover
+     * feedback in this grouped shell.
+     */
+    transition:
+      box-shadow 0.18s ease,
+      border-color 0.18s ease;
+  }
+
+  // Keep expand/collapse press feedback subtle inside grouped subagent cards.
+  .flow-tool-card-wrapper .base-tool-card-wrapper.task-tool-display:active {
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.14),
+      inset 0 1px 2px rgba(0, 0, 0, 0.18);
+  }
 
   // Expanded state: the wrapper becomes the unified visual container.
-  &:has(.subagent-items-wrapper--expanded) {
+  &.task-with-subagent-wrapper--expanded {
     // The wrapper itself provides the unified card appearance.
     background: var(--color-bg-flowchat);
     border: 1px solid var(--border-base);
@@ -471,12 +549,16 @@
       border-radius: 0;
       background: transparent;
       backdrop-filter: none;
-      margin-bottom: 0;
       box-shadow: none;
+      transition: none;
 
       &:hover {
         box-shadow: none;
         border-color: transparent;
+      }
+
+      &:active {
+        box-shadow: none;
       }
     }
 
@@ -488,6 +570,14 @@
       backdrop-filter: none;
     }
 
+    .base-tool-card-expanded {
+      animation: none;
+    }
+
+    &.task-with-subagent-wrapper--has-prompt .subagent-items-container {
+      border-top: 1px solid var(--border-base);
+    }
+
     // Hide the header top accent line — the wrapper border already frames
     // the unified card; keeping ::before would show a ghost divider above
     // the title, making the header look like a floating frame.
@@ -497,10 +587,10 @@
   }
 
   // Hover over expanded card: stronger elevation.
-  &:has(.subagent-items-wrapper--expanded):hover {
+  &.task-with-subagent-wrapper--expanded:hover {
     box-shadow:
-      0 4px 16px rgba(0, 0, 0, 0.25),
-      0 2px 8px rgba(0, 0, 0, 0.15),
+      0 2px 8px rgba(0, 0, 0, 0.18),
+      0 1px 4px rgba(0, 0, 0, 0.12),
       inset 0 1px 0 rgba(255, 255, 255, 0.04);
     border-color: var(--border-medium);
   }

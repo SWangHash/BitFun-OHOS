@@ -152,15 +152,28 @@ function settleSubagentItems(
     return;
   }
 
+  const parentTaskToolIds = new Set<string>([parentInfo.toolCallId]);
+  for (const round of parentTurn.modelRounds) {
+    for (const item of round.items) {
+      if (
+        item.type === 'tool' &&
+        (item.id === parentInfo.toolCallId || (item as FlowToolItem).toolCall?.id === parentInfo.toolCallId)
+      ) {
+        parentTaskToolIds.add(item.id);
+      }
+    }
+  }
+
   const timestamp = Date.now();
   let changed = false;
 
   store.updateDialogTurn(parentInfo.sessionId, parentInfo.dialogTurnId, (turn) => {
     const updatedRounds = turn.modelRounds.map((round) => {
+      let roundChanged = false;
       const updatedItems = round.items.map((item) => {
         if (
           !item.isSubagentItem
-          || item.parentTaskToolId !== parentInfo.toolCallId
+          || !parentTaskToolIds.has(item.parentTaskToolId || '')
           || item.subagentSessionId !== subagentSessionId
         ) {
           return item;
@@ -173,6 +186,7 @@ function settleSubagentItems(
         changed = true;
 
         if (item.type === 'text') {
+          roundChanged = true;
           return {
             ...item,
             status,
@@ -182,6 +196,7 @@ function settleSubagentItems(
         }
 
         if (item.type === 'thinking') {
+          roundChanged = true;
           return {
             ...item,
             status,
@@ -192,6 +207,7 @@ function settleSubagentItems(
         }
 
         if (item.type === 'tool') {
+          roundChanged = true;
           const nextToolResult = status === 'completed'
             ? item.toolResult
             : {
@@ -215,7 +231,7 @@ function settleSubagentItems(
         return item;
       });
 
-      return updatedItems === round.items ? round : { ...round, items: updatedItems };
+      return roundChanged ? { ...round, items: updatedItems } : round;
     });
 
     return changed ? { ...turn, modelRounds: updatedRounds } : turn;
