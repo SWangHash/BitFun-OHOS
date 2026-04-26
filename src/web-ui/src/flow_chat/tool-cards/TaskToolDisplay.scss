@@ -606,6 +606,36 @@
   animation: tool-card-text-fade 1.6s ease-in-out infinite;
 }
 
+/* Reviewer context block — replaces raw prompt for review-team members. */
+.task-reviewer-context {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+
+  &__role {
+    font-weight: 600;
+    font-size: 12px;
+  }
+
+  &__description {
+    color: var(--color-text-muted);
+  }
+
+  &__responsibilities {
+    margin: 0;
+    padding-left: 16px;
+    list-style: disc;
+
+    li {
+      color: var(--color-text-secondary);
+    }
+  }
+}
+
 @keyframes slideDown {
   from {
     opacity: 0;

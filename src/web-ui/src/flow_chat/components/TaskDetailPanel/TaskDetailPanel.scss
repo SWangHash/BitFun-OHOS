@@ -163,6 +163,68 @@
     }
   }
 
+  // Reviewer context section replaces raw prompt for review-team members.
+  &__reviewer-section {
+    background: transparent;
+    flex-shrink: 0;
+
+    summary {
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+      border: 1px dashed var(--tool-card-border, rgba(255, 255, 255, 0.15));
+      border-radius: 6px;
+
+      &:hover {
+        color: var(--color-text-primary);
+      }
+
+      &::marker {
+        color: var(--color-text-muted);
+      }
+    }
+
+    &[open] summary {
+      border-radius: 6px 6px 0 0;
+      border-bottom: none;
+    }
+  }
+
+  &__reviewer-context {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border: 1px dashed var(--tool-card-border, rgba(255, 255, 255, 0.15));
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  &__reviewer-role {
+    font-weight: 600;
+    font-size: 12px;
+  }
+
+  &__reviewer-desc {
+    color: var(--color-text-muted);
+  }
+
+  &__reviewer-responsibilities {
+    margin: 0;
+    padding-left: 16px;
+    list-style: disc;
+
+    li {
+      color: var(--color-text-secondary);
+    }
+  }
+
   &__execution {
     display: flex;
     flex-direction: column;

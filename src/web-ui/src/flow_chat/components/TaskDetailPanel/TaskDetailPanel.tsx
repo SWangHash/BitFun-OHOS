@@ -19,6 +19,7 @@ import { ToolTimeoutIndicator } from '../../tool-cards/ToolTimeoutIndicator';
 import { Button, Tooltip, DotMatrixLoader } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
 import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
+import type { ReviewerContext } from '@/shared/services/reviewTeamService';
 import './TaskDetailPanel.scss';
 
 const log = createLogger('TaskDetailPanel');
@@ -133,6 +134,7 @@ export interface TaskDetailData {
     description: string;
     prompt: string;
     agentType: string;
+    reviewerContext?: ReviewerContext | null;
   } | null;
   sessionId?: string;
 }
@@ -544,7 +546,24 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ data }) => {
         ref={contentRef}
         className="task-detail-panel__content"
       >
-        {taskInput?.prompt && taskInput.prompt !== 'Not provided' && (
+        {taskInput?.reviewerContext ? (
+          <details className="task-detail-panel__reviewer-section" open>
+            <summary>{t('toolCards.taskDetailPanel.reviewerContextLabel')}</summary>
+            <div className="task-detail-panel__reviewer-context">
+              <div className="task-detail-panel__reviewer-role" style={{ color: taskInput.reviewerContext.accentColor }}>
+                {taskInput.reviewerContext.roleName}
+              </div>
+              <div className="task-detail-panel__reviewer-desc">
+                {taskInput.reviewerContext.description}
+              </div>
+              <ul className="task-detail-panel__reviewer-responsibilities">
+                {taskInput.reviewerContext.responsibilities.map((resp, idx) => (
+                  <li key={idx}>{resp}</li>
+                ))}
+              </ul>
+            </div>
+          </details>
+        ) : taskInput?.prompt && taskInput.prompt !== 'Not provided' && (
           <details className="task-detail-panel__prompt-section">
             <summary>{t('toolCards.taskDetailPanel.promptLabel')}</summary>
             <pre className="task-detail-panel__prompt-content">{taskInput.prompt}</pre>
