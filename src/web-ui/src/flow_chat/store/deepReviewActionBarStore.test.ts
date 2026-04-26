@@ -7,20 +7,22 @@ vi.mock('../services/ReviewActionBarPersistenceService', () => ({
   loadPersistedReviewState: vi.fn().mockResolvedValue(null),
 }));
 
+/** Zustand replaces state on set(); always read fresh state after actions. */
+const bar = () => useReviewActionBarStore.getState();
+
 describe('deepReviewActionBarStore', () => {
   beforeEach(() => {
-    useReviewActionBarStore.getState().reset();
+    bar().reset();
   });
 
   afterEach(() => {
-    useReviewActionBarStore.getState().reset();
+    bar().reset();
     vi.clearAllMocks();
   });
 
   describe('showActionBar', () => {
     it('initializes with default selected remediation IDs', () => {
-      const store = useReviewActionBarStore.getState();
-      store.showActionBar({
+      bar().showActionBar({
         childSessionId: 'child-1',
         parentSessionId: 'parent-1',
         reviewData: {
@@ -29,16 +31,16 @@ describe('deepReviewActionBarStore', () => {
         },
       });
 
-      expect(store.childSessionId).toBe('child-1');
-      expect(store.phase).toBe('review_completed');
-      expect(store.selectedRemediationIds.size).toBeGreaterThan(0);
-      expect(store.completedRemediationIds.size).toBe(0);
-      expect(store.minimized).toBe(false);
+      const s = bar();
+      expect(s.childSessionId).toBe('child-1');
+      expect(s.phase).toBe('review_completed');
+      expect(s.selectedRemediationIds.size).toBeGreaterThan(0);
+      expect(s.completedRemediationIds.size).toBe(0);
+      expect(s.minimized).toBe(false);
     });
 
     it('preserves completedRemediationIds when re-showing for same session', () => {
-      const store = useReviewActionBarStore.getState();
-      store.showActionBar({
+      bar().showActionBar({
         childSessionId: 'child-1',
         parentSessionId: 'parent-1',
         reviewData: {
@@ -48,32 +50,33 @@ describe('deepReviewActionBarStore', () => {
         completedRemediationIds: new Set(['remediation-0']),
       });
 
-      expect(store.completedRemediationIds.has('remediation-0')).toBe(true);
+      const s = bar();
+      expect(s.completedRemediationIds.has('remediation-0')).toBe(true);
       // Completed items should not be in selected by default
-      expect(store.selectedRemediationIds.has('remediation-0')).toBe(false);
+      expect(s.selectedRemediationIds.has('remediation-0')).toBe(false);
     });
 
     it('filters out completed IDs that no longer exist in new review data', () => {
-      const store = useReviewActionBarStore.getState();
-      store.showActionBar({
+      bar().showActionBar({
         childSessionId: 'child-1',
         parentSessionId: 'parent-1',
         reviewData: {
           summary: { recommended_action: 'request_changes' },
           remediation_plan: ['Fix issue 2'],
         },
+        // Single plan row is remediation-0; remediation-1 cannot exist in this data
         completedRemediationIds: new Set(['remediation-0', 'remediation-1']),
       });
 
-      // remediation-0 does not exist in new data with only 1 item
-      expect(store.completedRemediationIds.has('remediation-0')).toBe(false);
+      const s = bar();
+      expect(s.completedRemediationIds.has('remediation-0')).toBe(true);
+      expect(s.completedRemediationIds.has('remediation-1')).toBe(false);
     });
   });
 
   describe('minimize and restore', () => {
     it('minimizes the action bar', () => {
-      const store = useReviewActionBarStore.getState();
-      store.showActionBar({
+      bar().showActionBar({
         childSessionId: 'child-1',
         parentSessionId: 'parent-1',
         reviewData: {
@@ -82,14 +85,14 @@ describe('deepReviewActionBarStore', () => {
         },
       });
 
-      store.minimize();
-      expect(store.minimized).toBe(true);
-      expect(store.phase).toBe('review_completed');
+      bar().minimize();
+      const s = bar();
+      expect(s.minimized).toBe(true);
+      expect(s.phase).toBe('review_completed');
     });
 
     it('restores the action bar from minimized state', () => {
-      const store = useReviewActionBarStore.getState();
-      store.showActionBar({
+      bar().showActionBar({
         childSessionId: 'child-1',
         parentSessionId: 'parent-1',
         reviewData: {
@@ -98,16 +101,15 @@ describe('deepReviewActionBarStore', () => {
         },
       });
 
-      store.minimize();
-      store.restore();
-      expect(store.minimized).toBe(false);
+      bar().minimize();
+      bar().restore();
+      expect(bar().minimized).toBe(false);
     });
   });
 
   describe('fix lifecycle', () => {
     it('snapshots selected IDs when starting fix', () => {
-      const store = useReviewActionBarStore.getState();
-      store.showActionBar({
+      bar().showActionBar({
         childSessionId: 'child-1',
         parentSessionId: 'parent-1',
         reviewData: {
@@ -116,16 +118,14 @@ describe('deepReviewActionBarStore', () => {
         },
       });
 
-      // Select first item
-      store.toggleRemediation('remediation-0');
-      store.setActiveAction('fix');
+      bar().setSelectedRemediationIds(new Set(['remediation-0']));
+      bar().setActiveAction('fix');
 
-      expect(store.fixingRemediationIds.has('remediation-0')).toBe(true);
+      expect(bar().fixingRemediationIds.has('remediation-0')).toBe(true);
     });
 
     it('moves fixing IDs to completed when fix completes', () => {
-      const store = useReviewActionBarStore.getState();
-      store.showActionBar({
+      bar().showActionBar({
         childSessionId: 'child-1',
         parentSessionId: 'parent-1',
         reviewData: {
@@ -134,19 +134,19 @@ describe('deepReviewActionBarStore', () => {
         },
       });
 
-      store.toggleRemediation('remediation-0');
-      store.setActiveAction('fix');
-      store.updatePhase('fix_running');
-      store.updatePhase('fix_completed');
+      bar().setSelectedRemediationIds(new Set(['remediation-0']));
+      bar().setActiveAction('fix');
+      bar().updatePhase('fix_running');
+      bar().updatePhase('fix_completed');
 
-      expect(store.completedRemediationIds.has('remediation-0')).toBe(true);
-      expect(store.fixingRemediationIds.size).toBe(0);
-      expect(store.phase).toBe('fix_completed');
+      const s = bar();
+      expect(s.completedRemediationIds.has('remediation-0')).toBe(true);
+      expect(s.fixingRemediationIds.size).toBe(0);
+      expect(s.phase).toBe('fix_completed');
     });
 
     it('does not mark items as completed on fix_failed', () => {
-      const store = useReviewActionBarStore.getState();
-      store.showActionBar({
+      bar().showActionBar({
         childSessionId: 'child-1',
         parentSessionId: 'parent-1',
         reviewData: {
@@ -155,21 +155,21 @@ describe('deepReviewActionBarStore', () => {
         },
       });
 
-      store.toggleRemediation('remediation-0');
-      store.setActiveAction('fix');
-      store.updatePhase('fix_running');
-      store.updatePhase('fix_failed', 'Something went wrong');
+      bar().setSelectedRemediationIds(new Set(['remediation-0']));
+      bar().setActiveAction('fix');
+      bar().updatePhase('fix_running');
+      bar().updatePhase('fix_failed', 'Something went wrong');
 
-      expect(store.completedRemediationIds.has('remediation-0')).toBe(false);
-      expect(store.phase).toBe('fix_failed');
-      expect(store.errorMessage).toBe('Something went wrong');
+      const s = bar();
+      expect(s.completedRemediationIds.has('remediation-0')).toBe(false);
+      expect(s.phase).toBe('fix_failed');
+      expect(s.errorMessage).toBe('Something went wrong');
     });
   });
 
   describe('skipRemainingFixes', () => {
     it('returns to review_completed and clears remaining fix IDs', () => {
-      const store = useReviewActionBarStore.getState();
-      store.showActionBar({
+      bar().showActionBar({
         childSessionId: 'child-1',
         parentSessionId: 'parent-1',
         reviewData: {
@@ -179,18 +179,18 @@ describe('deepReviewActionBarStore', () => {
         phase: 'fix_interrupted',
       });
 
-      store.skipRemainingFixes();
+      bar().skipRemainingFixes();
 
-      expect(store.phase).toBe('review_completed');
-      expect(store.remainingFixIds).toEqual([]);
-      expect(store.activeAction).toBeNull();
+      const s = bar();
+      expect(s.phase).toBe('review_completed');
+      expect(s.remainingFixIds).toEqual([]);
+      expect(s.activeAction).toBeNull();
     });
   });
 
   describe('toggleRemediation with completed items', () => {
     it('does not allow toggling completed items', () => {
-      const store = useReviewActionBarStore.getState();
-      store.showActionBar({
+      bar().showActionBar({
         childSessionId: 'child-1',
         parentSessionId: 'parent-1',
         reviewData: {
@@ -200,19 +200,19 @@ describe('deepReviewActionBarStore', () => {
         completedRemediationIds: new Set(['remediation-0']),
       });
 
+      const afterShow = bar();
       // Completed item should not be selected by default
-      expect(store.selectedRemediationIds.has('remediation-0')).toBe(false);
+      expect(afterShow.selectedRemediationIds.has('remediation-0')).toBe(false);
 
-      // Toggle should work on non-completed items
-      store.toggleRemediation('remediation-1');
-      expect(store.selectedRemediationIds.has('remediation-1')).toBe(true);
+      bar().setSelectedRemediationIds(new Set());
+      bar().toggleRemediation('remediation-1');
+      expect(bar().selectedRemediationIds.has('remediation-1')).toBe(true);
     });
   });
 
   describe('reset', () => {
     it('clears all state back to initial', () => {
-      const store = useReviewActionBarStore.getState();
-      store.showActionBar({
+      bar().showActionBar({
         childSessionId: 'child-1',
         parentSessionId: 'parent-1',
         reviewData: {
@@ -221,13 +221,14 @@ describe('deepReviewActionBarStore', () => {
         },
       });
 
-      store.minimize();
-      store.reset();
+      bar().minimize();
+      bar().reset();
 
-      expect(store.phase).toBe('idle');
-      expect(store.childSessionId).toBeNull();
-      expect(store.minimized).toBe(false);
-      expect(store.completedRemediationIds.size).toBe(0);
+      const s = bar();
+      expect(s.phase).toBe('idle');
+      expect(s.childSessionId).toBeNull();
+      expect(s.minimized).toBe(false);
+      expect(s.completedRemediationIds.size).toBe(0);
     });
   });
 });
