@@ -532,6 +532,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                       className={[
                         'bitfun-nav-panel__inline-item-unread-dot',
                         attentionKind === 'error' && 'is-error',
+                        attentionKind === 'interrupted' && 'is-interrupted',
                         attentionKind === 'ask_user' && 'is-ask-user',
                         attentionKind === 'tool_confirm' && 'is-tool-confirm',
                         isHighPriority && 'is-high-priority',
@@ -539,11 +540,13 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                       aria-label={
                         attentionKind === 'error'
                           ? t('nav.sessions.unreadError')
-                          : attentionKind === 'ask_user'
-                            ? t('nav.sessions.needsUserInput')
-                            : attentionKind === 'tool_confirm'
-                              ? t('nav.sessions.needsToolConfirm')
-                              : t('nav.sessions.unreadCompleted')
+                          : attentionKind === 'interrupted'
+                            ? t('nav.sessions.unreadInterrupted')
+                            : attentionKind === 'ask_user'
+                              ? t('nav.sessions.needsUserInput')
+                              : attentionKind === 'tool_confirm'
+                                ? t('nav.sessions.needsToolConfirm')
+                                : t('nav.sessions.unreadCompleted')
                       }
                     />
                   ) : null}

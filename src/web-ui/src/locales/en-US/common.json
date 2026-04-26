@@ -183,6 +183,7 @@
       "deepReviewRunning": "Reviewing",
       "unreadCompleted": "Completed — unread",
       "unreadError": "Failed — unread",
+      "unreadInterrupted": "Interrupted — retry needed",
       "needsUserInput": "Needs your input",
       "needsToolConfirm": "Needs confirmation",
       "badgeNeedsInput": "Waiting",

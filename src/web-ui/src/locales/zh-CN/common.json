@@ -183,6 +183,7 @@
       "deepReviewRunning": "审核中",
       "unreadCompleted": "已完成 — 未读",
       "unreadError": "执行失败 — 未读",
+      "unreadInterrupted": "输出中断 — 需重试",
       "needsUserInput": "等待你的输入",
       "needsToolConfirm": "等待确认",
       "badgeNeedsInput": "等待中",
