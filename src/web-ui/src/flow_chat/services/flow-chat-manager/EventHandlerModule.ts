@@ -1844,11 +1844,12 @@ function handleDialogTurnCancelled(
       });
   }
 
-  // Mark unread completion for non-active sessions
+  // Mark unread completion for non-active sessions (skip if user explicitly cancelled)
   const activeSessionIdForCancelled = store.getState().activeSessionId;
-  if (sessionId !== activeSessionIdForCancelled) {
+  if (sessionId !== activeSessionIdForCancelled && !context.userCancelledSessionIds.has(sessionId)) {
     context.flowChatStore.markSessionUnreadCompletion(sessionId, 'completed');
   }
+  context.userCancelledSessionIds.delete(sessionId);
 }
 
 /**

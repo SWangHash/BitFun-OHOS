@@ -35,6 +35,8 @@ export interface FlowChatContext {
   turnSaveInFlight: Map<string, Promise<void>>;
   /** Pending save marks for coalesced serial execution */
   turnSavePending: Set<string>;
+  /** Session IDs that the user explicitly cancelled; used to skip unread marking */
+  userCancelledSessionIds: Set<string>;
   currentWorkspacePath: string | null;
 }
 

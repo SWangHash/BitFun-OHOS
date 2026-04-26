@@ -304,6 +304,7 @@ export async function cancelCurrentTask(context: FlowChatContext): Promise<boole
       : false;
     
     if (success) {
+      context.userCancelledSessionIds.add(sessionId);
       markCurrentTurnItemsAsCancelled(context, sessionId);
       cleanupSessionBuffers(context, sessionId);
     }

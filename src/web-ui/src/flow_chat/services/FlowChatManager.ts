@@ -66,6 +66,7 @@ export class FlowChatManager {
       lastSaveHashes: new Map(),
       turnSaveInFlight: new Map(),
       turnSavePending: new Set(),
+      userCancelledSessionIds: new Set(),
       currentWorkspacePath: null
     };
     
