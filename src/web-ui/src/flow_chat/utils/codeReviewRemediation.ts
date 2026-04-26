@@ -42,7 +42,7 @@ export interface ReviewRemediationItem {
 }
 
 const DEFAULT_SELECTED_SEVERITIES = new Set(['critical', 'high', 'medium']);
-const REMEDIATION_GROUP_ORDER: RemediationGroupId[] = [
+export const REMEDIATION_GROUP_ORDER: RemediationGroupId[] = [
   'must_fix',
   'should_improve',
   'needs_decision',

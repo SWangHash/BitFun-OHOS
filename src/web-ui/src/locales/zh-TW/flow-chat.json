@@ -745,6 +745,13 @@
         "failed": "執行失敗"
       }
     },
+    "timeout": {
+      "disableTooltip": "關閉超時限制",
+      "disableLabel": "關閉",
+      "enableTooltip": "恢復超時限制",
+      "enableLabel": "啟用",
+      "restoreShort": "恢復（剩餘 {{seconds}} 秒）"
+    },
     "diagram": {
       "interactive": "交互圖表:",
       "preparing": "準備中",
@@ -1091,6 +1098,7 @@
         "certainty": "確定性",
         "location": "位置",
         "noSelectionHint": "至少選擇一項修復計劃後才能開始修復。",
+        "ungrouped": "其他",
         "startFix": "開始修復",
         "fixAndReview": "修復後重新審核",
         "cancel": "取消",

@@ -22,7 +22,10 @@
    * wrappers — every flow item shares the exact same visual gap to its sibling. */
   margin: 0 0 0.6rem 0;
   background: transparent;
-  border: none;
+  /* Transparent border to match the box-sizing of bordered cards so that thinking
+   * items and card content share the same left edge. */
+  border: 1px solid transparent;
+  box-sizing: border-box;
   font-size: var(--flowchat-font-size-base);
   line-height: 1.65;
   transition: padding 0.2s ease;

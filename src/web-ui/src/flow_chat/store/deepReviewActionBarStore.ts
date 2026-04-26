@@ -15,6 +15,7 @@ import {
   buildReviewRemediationItems,
   getDefaultSelectedRemediationIds,
 } from '../utils/codeReviewRemediation';
+import type { RemediationGroupId } from '../utils/codeReviewReport';
 import type { DeepReviewInterruption } from '../utils/deepReviewContinuation';
 
 export type ReviewActionMode = 'standard' | 'deep';
@@ -77,6 +78,7 @@ export interface ReviewActionBarState {
   updatePhase: (phase: ReviewActionPhase, errorMessage?: string | null) => void;
   toggleRemediation: (id: string) => void;
   toggleAllRemediation: () => void;
+  toggleGroupRemediation: (groupId: RemediationGroupId) => void;
   setActiveAction: (action: 'fix' | 'fix-review' | 'resume' | null) => void;
   setCustomInstructions: (value: string) => void;
   dismiss: () => void;
@@ -162,6 +164,27 @@ export const useReviewActionBarStore = create<ReviewActionBarState>((set, get) =
     } else {
       set({ selectedRemediationIds: new Set(remediationItems.map((i) => i.id)) });
     }
+  },
+
+  toggleGroupRemediation: (groupId) => {
+    const { remediationItems, selectedRemediationIds } = get();
+    const groupIds = new Set(remediationItems.filter((i) => i.groupId === groupId).map((i) => i.id));
+    if (groupIds.size === 0) return;
+
+    const allGroupSelected = [...groupIds].every((id) => selectedRemediationIds.has(id));
+    const next = new Set(selectedRemediationIds);
+
+    if (allGroupSelected) {
+      for (const id of groupIds) {
+        next.delete(id);
+      }
+    } else {
+      for (const id of groupIds) {
+        next.add(id);
+      }
+    }
+
+    set({ selectedRemediationIds: next });
   },
 
   setActiveAction: (action) => set({ activeAction: action }),

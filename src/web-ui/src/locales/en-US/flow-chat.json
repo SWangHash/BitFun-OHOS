@@ -529,9 +529,9 @@
     "searchCount_one": "{{count}} search",
     "searchCount_other": "{{count}} searches",
     "searchCount": "{{count}} search(es)",
-    "commandCount_one": "Executed {{count}} command",
-    "commandCount_other": "Executed {{count}} commands",
-    "commandCount": "Executed {{count}} command(s)",
+    "thinkingCount_one": "Thought {{count}} time",
+    "thinkingCount_other": "Thought {{count}} times",
+    "thinkingCount": "Thought {{count}} time(s)",
     "exploreCount_one": "{{count}} exploration",
     "exploreCount_other": "{{count}} explorations",
     "exploreCount": "{{count}} exploration(s)",
@@ -792,9 +792,9 @@
     },
     "timeout": {
       "disableTooltip": "Disable timeout",
+      "disableLabel": "Disable",
       "enableTooltip": "Re-enable timeout",
-      "disableLabel": "Ignore limit",
-      "enableLabel": "Restore limit",
+      "enableLabel": "Enable",
       "restoreShort": "Restore ({{seconds}}s left)"
     },
     "diagram": {
@@ -1143,6 +1143,7 @@
         "certainty": "Certainty",
         "location": "Location",
         "noSelectionHint": "Select at least one remediation item to start fixing.",
+        "ungrouped": "Other",
         "startFix": "Start fixing",
         "fixAndReview": "Fix and re-review",
         "cancel": "Cancel",

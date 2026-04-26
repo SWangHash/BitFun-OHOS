@@ -662,6 +662,37 @@ function buildExtraMember(
   };
 }
 
+/**
+ * Context information shown in the reviewer task card instead of the raw prompt.
+ * Keeps internal prompt directives private while giving the user a clear picture
+ * of what each reviewer is doing.
+ */
+export interface ReviewerContext {
+  roleName: string;
+  description: string;
+  responsibilities: string[];
+  accentColor: string;
+}
+
+/**
+ * If `subagentId` belongs to a built-in review-team role, return the
+ * user-facing context for that role.  Otherwise return `null`.
+ */
+export function getReviewerContextBySubagentId(
+  subagentId: string,
+): ReviewerContext | null {
+  const coreRole = DEFAULT_REVIEW_TEAM_CORE_ROLES.find(
+    (role) => role.subagentId === subagentId,
+  );
+  if (!coreRole) return null;
+  return {
+    roleName: coreRole.roleName,
+    description: coreRole.description,
+    responsibilities: coreRole.responsibilities,
+    accentColor: coreRole.accentColor,
+  };
+}
+
 export function isReviewTeamCoreSubagent(subagentId: string): boolean {
   return CORE_ROLE_IDS.has(subagentId);
 }

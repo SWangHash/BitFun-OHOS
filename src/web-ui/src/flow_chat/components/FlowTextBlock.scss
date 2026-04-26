@@ -14,6 +14,10 @@
   margin: 0 0 0.6rem 0;
   font-size: var(--flowchat-font-size-base);
   line-height: 1.65;
+  /* Transparent border to match the box-sizing of bordered cards (BaseToolCard,
+   * TerminalRegion, etc.) so that text and card content share the same left edge. */
+  border: 1px solid transparent;
+  box-sizing: border-box;
 
   /*
    * Markdown rendering inside a flow text block:

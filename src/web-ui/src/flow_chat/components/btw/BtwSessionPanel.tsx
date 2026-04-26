@@ -70,6 +70,8 @@ export const BtwSessionPanel: React.FC<BtwSessionPanelProps> = ({
   const [stoppingReview, setStoppingReview] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const actionBarRef = useRef<HTMLDivElement>(null);
+  const [actionBarHeight, setActionBarHeight] = useState(0);
   const shouldAutoScrollRef = useRef(true);
 
   useEffect(() => {
@@ -358,6 +360,32 @@ export const BtwSessionPanel: React.FC<BtwSessionPanelProps> = ({
     }
   }, [childSession, childSessionId, parentSessionId, isReviewSession, isDeepReview]);
 
+  // Observe action bar height to adjust body padding dynamically
+  useEffect(() => {
+    if (!showReviewActionBar) {
+      setActionBarHeight(0);
+      return;
+    }
+
+    const el = actionBarRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const h = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
+        setActionBarHeight(h);
+      }
+    });
+
+    observer.observe(el);
+    // Initial measurement
+    setActionBarHeight(el.getBoundingClientRect().height);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [showReviewActionBar]);
+
   const btwOrigin = childSession?.btwOrigin;
   const parentLabel = resolveSessionTitle(parentSession, t('btw.parent'));
   const backTooltip = btwOrigin?.parentTurnIndex
@@ -473,7 +501,11 @@ export const BtwSessionPanel: React.FC<BtwSessionPanelProps> = ({
           </div>
         </div>
 
-        <div ref={scrollContainerRef} className="btw-session-panel__body">
+        <div
+          ref={scrollContainerRef}
+          className="btw-session-panel__body"
+          style={actionBarHeight > 0 ? { paddingBottom: `${actionBarHeight + 20}px` } : undefined}
+        >
           {virtualItems.length === 0 ? (
             <div className="btw-session-panel__empty-state">{t('session.empty')}</div>
           ) : (
@@ -497,7 +529,11 @@ export const BtwSessionPanel: React.FC<BtwSessionPanelProps> = ({
           onClick={handleScrollToBottom}
           className="btw-session-panel__scroll-to-bottom"
         />
-        {showReviewActionBar && <ReviewActionBar />}
+        {showReviewActionBar && (
+          <div ref={actionBarRef} className="btw-session-panel__action-bar-wrapper">
+            <ReviewActionBar />
+          </div>
+        )}
       </div>
     </FlowChatContext.Provider>
   );

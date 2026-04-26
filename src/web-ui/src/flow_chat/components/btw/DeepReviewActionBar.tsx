@@ -16,7 +16,8 @@ import {
 import { Button, Checkbox, Tooltip } from '@/component-library';
 import { useReviewActionBarStore, type ReviewActionPhase } from '../../store/deepReviewActionBarStore';
 import type { ReviewRemediationItem } from '../../utils/codeReviewRemediation';
-import { buildSelectedReviewRemediationPrompt } from '../../utils/codeReviewRemediation';
+import { buildSelectedReviewRemediationPrompt, REMEDIATION_GROUP_ORDER } from '../../utils/codeReviewRemediation';
+import type { RemediationGroupId } from '../../utils/codeReviewReport';
 import { continueDeepReviewSession } from '../../services/DeepReviewContinuationService';
 import { flowChatManager } from '../../services/FlowChatManager';
 import { globalEventBus } from '@/infrastructure/event-bus';
@@ -44,6 +45,13 @@ const PHASE_CONFIG: Record<ReviewActionPhase, {
   resume_running: { icon: Loader2, iconClass: 'deep-review-action-bar__icon--loading', variant: 'loading' },
   resume_failed: { icon: AlertCircle, iconClass: 'deep-review-action-bar__icon--error', variant: 'error' },
   review_error: { icon: AlertTriangle, iconClass: 'deep-review-action-bar__icon--error', variant: 'error' },
+};
+
+const GROUP_PRIORITY_META: Record<RemediationGroupId, { color: string }> = {
+  must_fix: { color: 'var(--color-error, #ef4444)' },
+  should_improve: { color: 'var(--color-warning, #f59e0b)' },
+  needs_decision: { color: 'var(--color-accent-500, #60a5fa)' },
+  verification: { color: 'var(--color-success, #22c55e)' },
 };
 
 export const ReviewActionBar: React.FC = () => {
@@ -76,12 +84,37 @@ export const ReviewActionBar: React.FC = () => {
   const phaseConfig = PHASE_CONFIG[phase];
   const PhaseIcon = phaseConfig.icon;
 
+  // Group items by priority
+  const groupedItems = useMemo(() => {
+    const groups: Record<string, ReviewRemediationItem[]> = {};
+    for (const item of remediationItems) {
+      const gid = item.groupId ?? 'ungrouped';
+      if (!groups[gid]) groups[gid] = [];
+      groups[gid].push(item);
+    }
+    return groups;
+  }, [remediationItems]);
+
+  const groupOrder = useMemo(() => {
+    const ordered: string[] = [];
+    for (const gid of REMEDIATION_GROUP_ORDER) {
+      if (groupedItems[gid]?.length) ordered.push(gid);
+    }
+    if (groupedItems.ungrouped?.length) ordered.push('ungrouped');
+    return ordered;
+  }, [groupedItems]);
+
   const handleToggleRemediation = useCallback((id: string) => {
     store.toggleRemediation(id);
   }, [store]);
 
   const handleToggleAll = useCallback(() => {
     store.toggleAllRemediation();
+  }, [store]);
+
+  const handleToggleGroup = useCallback((groupId: string) => {
+    if (groupId === 'ungrouped') return;
+    store.toggleGroupRemediation(groupId as RemediationGroupId);
   }, [store]);
 
   const handleStartFixing = useCallback(async (rerunReview: boolean) => {
@@ -313,13 +346,13 @@ export const ReviewActionBar: React.FC = () => {
         onClick={handleDismiss}
         aria-label={t('deepReviewActionBar.dismiss', { defaultValue: 'Dismiss' })}
       >
-        <X size={14} />
+        <X size={16} />
       </button>
 
       {/* Phase status header */}
       <div className="deep-review-action-bar__status">
         <PhaseIcon
-          size={16}
+          size={18}
           className={`deep-review-action-bar__icon ${phaseConfig.iconClass}`}
         />
         <span className="deep-review-action-bar__status-title">{phaseTitle}</span>
@@ -349,30 +382,75 @@ export const ReviewActionBar: React.FC = () => {
                 defaultValue: '{{selected}}/{{total}} selected',
               })}
             </span>
-            {showRemediationList ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            {showRemediationList ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
 
           {showRemediationList && (
             <div className="deep-review-action-bar__remediation-list">
-              {remediationItems.map((item: ReviewRemediationItem) => (
-                <label key={item.id} className="deep-review-action-bar__remediation-item">
-                  <Checkbox
-                    checked={selectedRemediationIds.has(item.id)}
-                    onChange={() => handleToggleRemediation(item.id)}
-                    size="small"
-                  />
-                  <span className="deep-review-action-bar__remediation-text" title={item.plan}>
-                    {item.requiresDecision && (
-                      <span className="deep-review-action-bar__remediation-tag">
-                        {t('reviewActionBar.needsDecisionTag', { defaultValue: 'Decision' })}
+              {groupOrder.map((groupId) => {
+                const items = groupedItems[groupId]!;
+                const groupSelectedCount = items.filter((i) => selectedRemediationIds.has(i.id)).length;
+                const groupAllSelected = groupSelectedCount === items.length;
+                const groupPartial = groupSelectedCount > 0 && !groupAllSelected;
+                const groupTitle = groupId === 'ungrouped'
+                  ? t('toolCards.codeReview.remediationActions.ungrouped', { defaultValue: 'Other' })
+                  : t(`toolCards.codeReview.groups.${groupId}`, { defaultValue: groupId });
+                const groupMeta = groupId !== 'ungrouped' ? GROUP_PRIORITY_META[groupId as RemediationGroupId] : undefined;
+
+                return (
+                  <div key={groupId} className="deep-review-action-bar__remediation-group">
+                    <button
+                      type="button"
+                      className="deep-review-action-bar__remediation-group-header"
+                      onClick={() => handleToggleGroup(groupId)}
+                    >
+                      <Checkbox
+                        checked={groupAllSelected}
+                        indeterminate={groupPartial}
+                        onChange={() => handleToggleGroup(groupId)}
+                        size="small"
+                      />
+                      <span
+                        className="deep-review-action-bar__remediation-group-title"
+                        style={groupMeta ? { color: groupMeta.color } : undefined}
+                      >
+                        {groupTitle}
                       </span>
-                    )}
-                    {item.plan}
-                  </span>
-                </label>
-              ))}
+                      <span className="deep-review-action-bar__remediation-group-count">
+                        {groupSelectedCount}/{items.length}
+                      </span>
+                    </button>
+                    <div className="deep-review-action-bar__remediation-group-items">
+                      {items.map((item: ReviewRemediationItem) => (
+                        <label key={item.id} className="deep-review-action-bar__remediation-item">
+                          <Checkbox
+                            checked={selectedRemediationIds.has(item.id)}
+                            onChange={() => handleToggleRemediation(item.id)}
+                            size="small"
+                          />
+                          <span className="deep-review-action-bar__remediation-text" title={item.plan}>
+                            {item.requiresDecision && (
+                              <span className="deep-review-action-bar__remediation-tag">
+                                {t('reviewActionBar.needsDecisionTag', { defaultValue: 'Decision' })}
+                              </span>
+                            )}
+                            {item.plan}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
+
+          {/* Hint text */}
+          <div className="deep-review-action-bar__remediation-hint">
+            {t('toolCards.codeReview.remediationActions.hint', {
+              defaultValue: 'Deep Review is read-only by default. Select the remediation items to fix.',
+            })}
+          </div>
 
           {selectedCount === 0 && (
             <div className="deep-review-action-bar__empty-selection">
@@ -387,7 +465,7 @@ export const ReviewActionBar: React.FC = () => {
       {/* Friendly message when review completed with no remediation items */}
       {phase === 'review_completed' && remediationItems.length === 0 && (
         <div className="deep-review-action-bar__no-issues">
-          <CheckCircle size={16} className="deep-review-action-bar__no-issues-icon" />
+          <CheckCircle size={18} className="deep-review-action-bar__no-issues-icon" />
           <span className="deep-review-action-bar__no-issues-text">
             {t('reviewActionBar.noIssuesFound', {
               defaultValue: 'No issues found. Great job!',
@@ -404,7 +482,7 @@ export const ReviewActionBar: React.FC = () => {
             className="deep-review-action-bar__custom-toggle"
             onClick={() => setShowCustomInput(!showCustomInput)}
           >
-            <MessageSquare size={12} />
+            <MessageSquare size={14} />
             <span>
               {showCustomInput
                 ? t('deepReviewActionBar.hideCustomInput', { defaultValue: 'Hide instructions' })
@@ -471,7 +549,7 @@ export const ReviewActionBar: React.FC = () => {
               disabled={activeAction !== null}
               onClick={() => void handleContinueReview()}
             >
-              <Play size={13} />
+              <Play size={14} />
               {t('deepReviewActionBar.resumeReview', { defaultValue: 'Continue review' })}
             </Button>
             <Button
@@ -479,7 +557,7 @@ export const ReviewActionBar: React.FC = () => {
               size="small"
               onClick={handleCopyDiagnostics}
             >
-              <Copy size={13} />
+              <Copy size={14} />
               {t('deepReviewActionBar.copyDiagnostics', { defaultValue: 'Copy diagnostics' })}
             </Button>
           </>

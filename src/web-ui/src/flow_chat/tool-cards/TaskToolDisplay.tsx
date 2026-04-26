@@ -2,9 +2,8 @@
  * TaskTool card display component.
  */
 
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  AlertTriangle,
   Split,
   ChevronRight,
   ChevronDown,
@@ -18,12 +17,13 @@ import { BaseToolCard } from './BaseToolCard';
 import { taskCollapseStateManager } from '../store/TaskCollapseStateManager';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 import { ToolTimeoutIndicator } from './ToolTimeoutIndicator';
+import { getReviewerContextBySubagentId } from '@/shared/services/reviewTeamService';
+import type { ReviewerContext } from '@/shared/services/reviewTeamService';
 import './TaskToolDisplay.scss';
 import './ModelThinkingDisplay.scss';
 
 export const TaskToolDisplay: React.FC<ToolCardProps> = ({
   toolItem,
-  interruptionNote,
   onConfirm,
   onReject,
   onOpenInPanel,
@@ -55,14 +55,10 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
     nextExpanded: boolean,
     reason: 'manual' | 'auto' = 'manual',
   ) => {
-    if (nextExpanded !== isExpanded) {
-      /* Sync before the next commit paints so subagent wrapper + task card merge in one frame. */
-      taskCollapseStateManager.setCollapsed(toolItem.id, !nextExpanded);
-    }
     applyExpandedState(isExpanded, nextExpanded, setIsExpanded, { reason });
-  }, [applyExpandedState, isExpanded, toolItem.id]);
+  }, [applyExpandedState, isExpanded]);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const prevStatus = prevStatusRef.current;
     
     if (prevStatus !== status) {
@@ -76,7 +72,7 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
     }
   }, [isRunning, status, updateCardExpandedState]);
   
-  useLayoutEffect(() => {
+  useEffect(() => {
     taskCollapseStateManager.setCollapsed(toolItem.id, !isExpanded);
   }, [isExpanded, toolItem.id]);
 
@@ -114,22 +110,32 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
 
   const getTaskInput = () => {
     if (!toolCall?.input) return null;
-    
+
     const isEarlyDetection = toolCall.input._early_detection === true;
     const isPartialParams = toolCall.input._partial_params === true;
-    
+
     if (isEarlyDetection || isPartialParams) {
       return null;
     }
-    
+
     const inputKeys = Object.keys(toolCall.input).filter(key => !key.startsWith('_'));
     if (inputKeys.length === 0) return null;
-    
+
     const { description, prompt, subagent_type } = toolCall.input;
+    const agentType = subagent_type || 'Not provided';
+
+    // For built-in review-team reviewers, surface role context instead of
+    // the raw prompt so internal directives stay private.
+    const reviewerContext: ReviewerContext | null =
+      agentType !== 'Not provided'
+        ? getReviewerContextBySubagentId(agentType)
+        : null;
+
     return {
       description: description || (prompt ? truncateByVisualWidth(prompt, 70) : 'Not provided'),
       prompt: prompt || 'Not provided',
-      agentType: subagent_type || 'Not provided'
+      agentType,
+      reviewerContext,
     };
   };
 
@@ -137,7 +143,6 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
   const hasRealPrompt = Boolean(
     taskInput && taskInput.prompt && taskInput.prompt !== 'Not provided',
   );
-  const hasInterruptionNote = Boolean(interruptionNote);
   const needsConfirmation =
     requiresConfirmation && !userConfirmed && status !== 'completed';
 
@@ -191,7 +196,7 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
   }, [isFailed, isExpanded, updateCardExpandedState]);
 
   const showHeaderExpandHint =
-    !isFailed && (hasInterruptionNote || hasRealPrompt || needsConfirmation);
+    !isFailed && (hasRealPrompt || needsConfirmation);
 
   const taskHeaderLine = useMemo(() => {
     const desc =
@@ -311,36 +316,41 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
       return null;
     }
 
-    if (!hasInterruptionNote && !hasRealPrompt && !needsConfirmation) {
+    if (!hasRealPrompt && !needsConfirmation && !taskInput?.reviewerContext) {
       return null;
     }
 
     return (
       <div className="task-expanded-content">
-        {interruptionNote && (
-          <>
-            <div className="task-interruption-note" role="note">
-              <AlertTriangle size={14} strokeWidth={2} aria-hidden />
-              <span>{interruptionNote}</span>
+        {taskInput?.reviewerContext ? (
+          <div className="task-reviewer-context">
+            <div className="task-reviewer-context__role" style={{ color: taskInput.reviewerContext.accentColor }}>
+              {taskInput.reviewerContext.roleName}
             </div>
-            {(hasRealPrompt || needsConfirmation) && <div className="task-interruption-divider" aria-hidden />}
-          </>
-        )}
-        {hasRealPrompt && (
+            <div className="task-reviewer-context__description">
+              {taskInput.reviewerContext.description}
+            </div>
+            <ul className="task-reviewer-context__responsibilities">
+              {taskInput.reviewerContext.responsibilities.map((resp, idx) => (
+                <li key={idx}>{resp}</li>
+              ))}
+            </ul>
+          </div>
+        ) : hasRealPrompt && (
           <div
-            className={`thinking-content-wrapper task-prompt-wrapper${promptScrollState.hasScroll ? ' has-scroll' : ''}${
+            className={`thinking-content-wrapper${promptScrollState.hasScroll ? ' has-scroll' : ''}${
               promptScrollState.atTop ? ' at-top' : ''
             }${promptScrollState.atBottom ? ' at-bottom' : ''}`}
           >
             <div
               ref={promptContentRef}
-              className="thinking-content task-prompt-content expanded"
+              className="thinking-content expanded"
               onScroll={checkPromptScrollState}
             >
               <Markdown
                 content={taskInput!.prompt}
                 isStreaming={false}
-                className="thinking-markdown task-prompt-markdown"
+                className="thinking-markdown"
               />
             </div>
           </div>
