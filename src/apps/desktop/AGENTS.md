@@ -44,6 +44,15 @@ pnpm run desktop:build:fast
 
 `release-fast` profile (`Cargo.toml`): inherits `release` but disables LTO, increases `codegen-units` to 16, enables incremental compilation. Significantly faster at the cost of binary size and marginal runtime performance.
 
+## DevTools feature (model rule)
+
+The `devtools` Cargo feature exists for debugging UI/UX in the desktop app. When adding or modifying debug-related code:
+
+- Guard all debug-only APIs and commands with `#[cfg(any(debug_assertions, feature = "devtools"))]`
+- Provide no-op stubs under `#[cfg(not(any(debug_assertions, feature = "devtools")))]` so commands can always be registered in `invoke_handler`
+- The feature is enabled automatically in `dev` builds and `release-fast` profile builds via `--features devtools`
+- Never enable in `release` profile builds intended for end users
+
 ## Verification
 
 ```bash

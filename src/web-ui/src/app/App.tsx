@@ -13,6 +13,7 @@ import { createLogger } from '@/shared/utils/logger';
 import { useWorkspaceContext } from '../infrastructure/contexts/WorkspaceContext';
 import SplashScreen from './components/SplashScreen/SplashScreen';
 import { useGlobalSceneShortcuts } from './hooks/useGlobalSceneShortcuts';
+import { useDebugInspector } from '@/infrastructure/debug/useDebugInspector';
 
 // Toolbar Mode
 import { ToolbarModeProvider } from '../flow_chat';
@@ -188,6 +189,9 @@ function App() {
 
   // Top SceneBar: Mod+Alt+1..9 / Mod+Alt+PageUp/PageDown
   useGlobalSceneShortcuts();
+
+  // Debug inspector shortcuts (desktop devtools only)
+  useDebugInspector();
 
   // Unified layout via a single AppLayout
   return (

@@ -266,17 +266,17 @@ pub fn create_main_window(app_handle: &tauri::AppHandle) {
 
     match builder.build() {
         Ok(window) => {
-            #[cfg(debug_assertions)]
+            #[cfg(any(debug_assertions, feature = "devtools"))]
             {
                 if std::env::var("BITFUN_OPEN_DEVTOOLS")
                     .map(|v| v == "1")
                     .unwrap_or(false)
                 {
-                    window.open_devtools();
+                    let _ = window.open_devtools();
                 }
             }
 
-            #[cfg(not(debug_assertions))]
+            #[cfg(not(any(debug_assertions, feature = "devtools")))]
             let _ = window;
         }
         Err(e) => {

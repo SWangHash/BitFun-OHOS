@@ -12,6 +12,7 @@ use bitfun_core::infrastructure::{get_path_manager_arc, try_get_path_manager_arc
 use bitfun_core::service::workspace::get_global_workspace_service;
 use bitfun_core::util::{elapsed_ms, TimingCollector};
 use bitfun_transport::{TauriTransportAdapter, TransportAdapter};
+use serde::Deserialize;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -52,8 +53,6 @@ use api::storage_commands::*;
 use api::subagent_api::*;
 use api::system_api::*;
 use api::tool_api::*;
-use std::ffi::CString;
-use std::ptr;
 
 /// Agentic Coordinator state
 #[derive(Clone)]
@@ -65,11 +64,6 @@ pub struct CoordinatorState {
 #[derive(Clone)]
 pub struct SchedulerState {
     pub scheduler: Arc<bitfun_core::agentic::coordination::DialogScheduler>,
-}
-
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
 pub struct OhosPlatform {
@@ -700,7 +694,6 @@ pub async fn _run() {
             api::remote_connect_api::remote_connect_start,
             api::remote_connect_api::remote_connect_stop,
             api::remote_connect_api::remote_connect_stop_bot,
-            api::remote_connect_api::send_remote_connect_dialog_status,
             api::remote_connect_api::remote_connect_status,
             api::remote_connect_api::remote_connect_get_form_state,
             api::remote_connect_api::remote_connect_set_form_state,
@@ -784,6 +777,10 @@ pub async fn _run() {
             api::announcement_api::never_show_announcement,
             api::announcement_api::trigger_announcement,
             api::announcement_api::get_announcement_tips,
+            // Debug API (no-op stubs in release builds)
+            api::debug_api::debug_element_picked,
+            api::debug_api::debug_open_devtools,
+            api::debug_api::debug_close_devtools,
             // ohos adater
             open_oh_file_dialog,
             handle_min_window,

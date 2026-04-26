@@ -46,6 +46,24 @@ pnpm run e2e:test
 
 > For the full script list, see [`package.json`](package.json). For agent-specific commands, verification, and architecture rules, see [`AGENTS.md`](AGENTS.md).
 
+### Desktop debugging tools
+
+When working on desktop UI/UX, the `devtools` Cargo feature provides additional debugging capabilities. It is automatically enabled in `dev` builds and `release-fast` profile builds, but never in `release` builds for end users.
+
+| Shortcut | Action |
+|---|---|
+| `Cmd/Ctrl + Shift + I` | Toggle element inspector — hover to highlight elements, click to capture metadata |
+| `Cmd/Ctrl + Shift + J` | Open native webview DevTools window |
+
+The element inspector injects a lightweight script into the main webview. When you click an element, it captures:
+- Tag, id, class, CSS selector path
+- Computed styles and CSS variables
+- Box model (margin, padding, border)
+- Color values (text, background, border)
+- Element attributes
+
+Captured data is logged as structured JSON under the `bitfun::devtools` target.
+
 ## Code Standards and Architecture Constraints
 
 ### Logging

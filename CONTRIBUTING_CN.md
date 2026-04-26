@@ -46,6 +46,24 @@ pnpm run e2e:test
 
 > 完整脚本列表见 [`package.json`](package.json)。agent 专用命令、验证与架构规则见 [`AGENTS.md`](AGENTS.md)。
 
+### 桌面端调试工具
+
+开发桌面端 UI/UX 时，`devtools` Cargo feature 提供额外的调试能力。它在 `dev` 构建和 `release-fast` profile 构建中自动启用，但在面向最终用户的 `release` 构建中永不启用。
+
+| 快捷键 | 功能 |
+|---|---|
+| `Cmd/Ctrl + Shift + I` | 切换元素检查器 — 悬停高亮元素，点击采集元数据 |
+| `Cmd/Ctrl + Shift + J` | 打开原生 webview DevTools 窗口 |
+
+元素检查器向主 webview 注入一个轻量脚本。点击元素后会采集：
+- 标签、id、class、CSS 选择器路径
+- Computed styles 和 CSS 变量
+- Box model（margin、padding、border）
+- 颜色值（文本、背景、边框）
+- 元素属性
+
+采集的数据以结构化 JSON 形式输出到 `bitfun::devtools` 日志目标下。
+
 ## 代码规范与架构约束
 
 ### 日志规范

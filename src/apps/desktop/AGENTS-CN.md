@@ -44,6 +44,15 @@ pnpm run desktop:build:fast
 
 `release-fast` profile（`Cargo.toml`）：继承 `release`，但关闭 LTO、`codegen-units` 提高到 16、启用增量编译。编译速度显著提升，代价是二进制体积增大和边际运行时性能下降。
 
+## DevTools feature（模型规则）
+
+`devtools` Cargo feature 用于桌面端 UI/UX 调试。添加或修改调试相关代码时：
+
+- 所有调试专用 API 和 command 必须用 `#[cfg(any(debug_assertions, feature = "devtools"))]` 保护
+- 在 `#[cfg(not(any(debug_assertions, feature = "devtools")))]` 下提供 no-op stub，确保 command 始终可以注册到 `invoke_handler`
+- 该 feature 通过 `--features devtools` 在 `dev` 构建和 `release-fast` profile 构建中自动启用
+- 面向最终用户的 `release` profile 构建中永不启用
+
 ## 验证
 
 ```bash
