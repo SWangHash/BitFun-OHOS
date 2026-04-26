@@ -26,6 +26,12 @@ export interface ReviewStrategyCommonRules {
   reviewerPromptRules: string[];
 }
 
+export type ReviewRoleDirectiveKey =
+  | 'ReviewBusinessLogic'
+  | 'ReviewPerformance'
+  | 'ReviewSecurity'
+  | 'ReviewJudge';
+
 export interface ReviewStrategyProfile {
   level: ReviewStrategyLevel;
   label: string;
@@ -34,6 +40,9 @@ export interface ReviewStrategyProfile {
   runtimeImpact: string;
   defaultModelSlot: 'fast' | 'primary';
   promptDirective: string;
+  /** Per-role strategy directives. When a role key is present, its directive
+   *  overrides `promptDirective` for that reviewer or the judge. */
+  roleDirectives: Partial<Record<ReviewRoleDirectiveKey, string>>;
 }
 
 export const REVIEW_STRATEGY_LEVELS: ReviewStrategyLevel[] = [
@@ -64,6 +73,16 @@ export const REVIEW_STRATEGY_PROFILES: Record<
     defaultModelSlot: 'fast',
     promptDirective:
       'Prefer a concise diff-focused pass. Report only high-confidence correctness, security, or regression risks and avoid speculative design rewrites.',
+    roleDirectives: {
+      ReviewBusinessLogic:
+        'Only trace logic paths directly changed by the diff. Do not follow call chains beyond one hop. Report only issues where the diff introduces a provably wrong behavior.',
+      ReviewPerformance:
+        'Scan the diff for known anti-patterns only: nested loops, repeated fetches, blocking calls on hot paths, unnecessary re-renders. Do not trace call chains or estimate impact beyond what the diff shows.',
+      ReviewSecurity:
+        'Scan the diff for direct security risks only: injection, secret exposure, unsafe commands, missing auth. Do not trace data flows beyond one hop.',
+      ReviewJudge:
+        'This was a quick review. Focus on confirming or rejecting each finding efficiently. If a finding\'s evidence is thin, reject it rather than spending time verifying.',
+    },
   },
   normal: {
     level: 'normal',
@@ -75,6 +94,16 @@ export const REVIEW_STRATEGY_PROFILES: Record<
     defaultModelSlot: 'fast',
     promptDirective:
       'Perform the standard role-specific review. Balance coverage with precision and include concrete evidence for each issue.',
+    roleDirectives: {
+      ReviewBusinessLogic:
+        'Trace each changed function\'s direct callers and callees to verify business rules and state transitions. Stop investigating a path once you have enough evidence to confirm or dismiss it.',
+      ReviewPerformance:
+        'Inspect the diff for anti-patterns, then read surrounding code to confirm impact on hot paths. Report only issues likely to matter at realistic scale.',
+      ReviewSecurity:
+        'Trace each changed input path from entry point to usage. Check trust boundaries, auth assumptions, and data sanitization. Report only issues with a realistic threat narrative.',
+      ReviewJudge:
+        'Validate each finding\'s logical consistency and evidence quality. Spot-check code only when a claim needs verification.',
+    },
   },
   deep: {
     level: 'deep',
@@ -86,6 +115,16 @@ export const REVIEW_STRATEGY_PROFILES: Record<
     defaultModelSlot: 'primary',
     promptDirective:
       'Run a thorough role-specific pass. Inspect edge cases, cross-file interactions, failure modes, and remediation tradeoffs before finalizing findings.',
+    roleDirectives: {
+      ReviewBusinessLogic:
+        'Map full call chains for changed functions. Verify state transitions end-to-end, check rollback and error-recovery paths, and test edge cases in data shape and lifecycle assumptions. Prioritize findings by user-facing impact.',
+      ReviewPerformance:
+        'In addition to the normal pass, check for latent scaling risks — data structures that degrade at volume, or algorithms that are correct but unnecessarily expensive. Only report if you can estimate the impact. Do not speculate about edge cases or failure modes unrelated to performance.',
+      ReviewSecurity:
+        'In addition to the normal pass, trace data flows across trust boundaries end-to-end. Check for privilege escalation chains, indirect injection vectors, and failure modes that expose sensitive data. Report only issues with a complete threat narrative.',
+      ReviewJudge:
+        'This was a deep review with potentially complex findings. Cross-validate findings across reviewers for consistency. For each finding, verify the evidence supports the conclusion and the suggested fix is safe. Pay extra attention to overlapping findings across reviewers or same-role instances.',
+    },
   },
 };
 
@@ -668,6 +707,7 @@ function buildExtraMember(
  * of what each reviewer is doing.
  */
 export interface ReviewerContext {
+  definitionKey: ReviewTeamCoreRoleKey;
   roleName: string;
   description: string;
   responsibilities: string[];
@@ -686,6 +726,7 @@ export function getReviewerContextBySubagentId(
   );
   if (!coreRole) return null;
   return {
+    definitionKey: coreRole.key,
     roleName: coreRole.roleName,
     description: coreRole.description,
     responsibilities: coreRole.responsibilities,
@@ -810,6 +851,8 @@ function toManifestMember(
   reason?: ReviewTeamManifestMember['reason'],
 ): ReviewTeamManifestMember {
   const strategyProfile = getReviewStrategyProfile(member.strategyLevel);
+  const roleDirective =
+    strategyProfile.roleDirectives[member.subagentId as ReviewRoleDirectiveKey];
   return {
     subagentId: member.subagentId,
     displayName: member.displayName,
@@ -820,7 +863,7 @@ function toManifestMember(
     defaultModelSlot: strategyProfile.defaultModelSlot,
     strategyLevel: member.strategyLevel,
     strategySource: member.strategySource,
-    strategyDirective: strategyProfile.promptDirective,
+    strategyDirective: roleDirective || strategyProfile.promptDirective,
     locked: member.locked,
     source: member.source,
     subagentSource: member.subagentSource,
@@ -967,11 +1010,17 @@ export function buildReviewTeamPromptBlock(
   ].join('\n');
   const strategyRules = REVIEW_STRATEGY_LEVELS.map((level) => {
     const definition = getReviewStrategyProfile(level);
+    const roleEntries = Object.entries(definition.roleDirectives) as [ReviewRoleDirectiveKey, string][];
+    const roleLines = roleEntries.map(
+      ([role, directive]) => `    - ${role}: ${directive}`,
+    );
     return [
       `- ${level}: ${definition.summary}`,
       `  - ${formatStrategyImpact(level)}`,
       `  - Default model slot: ${definition.defaultModelSlot}`,
-      `  - Prompt directive: ${definition.promptDirective}`,
+      `  - Prompt directive (fallback): ${definition.promptDirective}`,
+      `  - Role-specific directives:`,
+      ...roleLines,
     ].join('\n');
   }).join('\n');
   const commonStrategyRules = REVIEW_STRATEGY_COMMON_RULES.reviewerPromptRules

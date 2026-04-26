@@ -2,8 +2,9 @@
  * TaskTool card display component.
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import {
+  AlertTriangle,
   Split,
   ChevronRight,
   ChevronDown,
@@ -24,12 +25,14 @@ import './ModelThinkingDisplay.scss';
 
 export const TaskToolDisplay: React.FC<ToolCardProps> = ({
   toolItem,
+  interruptionNote,
   onConfirm,
   onReject,
   onOpenInPanel,
   sessionId
 }) => {
   const { t } = useTranslation('flow-chat');
+  const { t: tAgents } = useTranslation('scenes/agents');
   const { toolCall, toolResult, status, requiresConfirmation, userConfirmed } = toolItem;
   const toolId = toolItem.id ?? toolCall?.id;
   
@@ -55,10 +58,14 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
     nextExpanded: boolean,
     reason: 'manual' | 'auto' = 'manual',
   ) => {
+    if (nextExpanded !== isExpanded) {
+      /* Sync before the next commit paints so subagent wrapper + task card merge in one frame. */
+      taskCollapseStateManager.setCollapsed(toolItem.id, !nextExpanded);
+    }
     applyExpandedState(isExpanded, nextExpanded, setIsExpanded, { reason });
-  }, [applyExpandedState, isExpanded]);
+  }, [applyExpandedState, isExpanded, toolItem.id]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const prevStatus = prevStatusRef.current;
     
     if (prevStatus !== status) {
@@ -72,7 +79,7 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
     }
   }, [isRunning, status, updateCardExpandedState]);
   
-  useEffect(() => {
+  useLayoutEffect(() => {
     taskCollapseStateManager.setCollapsed(toolItem.id, !isExpanded);
   }, [isExpanded, toolItem.id]);
 
@@ -143,6 +150,7 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
   const hasRealPrompt = Boolean(
     taskInput && taskInput.prompt && taskInput.prompt !== 'Not provided',
   );
+  const hasInterruptionNote = Boolean(interruptionNote);
   const needsConfirmation =
     requiresConfirmation && !userConfirmed && status !== 'completed';
 
@@ -196,7 +204,11 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
   }, [isFailed, isExpanded, updateCardExpandedState]);
 
   const showHeaderExpandHint =
-    !isFailed && (hasRealPrompt || needsConfirmation);
+    !isFailed &&
+    (hasInterruptionNote ||
+      hasRealPrompt ||
+      needsConfirmation ||
+      Boolean(taskInput?.reviewerContext));
 
   const taskHeaderLine = useMemo(() => {
     const desc =
@@ -316,44 +328,72 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
       return null;
     }
 
-    if (!hasRealPrompt && !needsConfirmation && !taskInput?.reviewerContext) {
+    const rc = taskInput?.reviewerContext;
+
+    if (
+      !hasInterruptionNote &&
+      !hasRealPrompt &&
+      !needsConfirmation &&
+      !rc
+    ) {
       return null;
     }
 
     return (
       <div className="task-expanded-content">
-        {taskInput?.reviewerContext ? (
+        {interruptionNote && (
+          <>
+            <div className="task-interruption-note" role="note">
+              <AlertTriangle size={14} strokeWidth={2} aria-hidden />
+              <span>{interruptionNote}</span>
+            </div>
+            {(hasRealPrompt || needsConfirmation || taskInput?.reviewerContext) && (
+              <div className="task-interruption-divider" aria-hidden />
+            )}
+          </>
+        )}
+        {rc ? (
           <div className="task-reviewer-context">
-            <div className="task-reviewer-context__role" style={{ color: taskInput.reviewerContext.accentColor }}>
-              {taskInput.reviewerContext.roleName}
+            <div className="task-reviewer-context__role" style={{ color: rc.accentColor }}>
+              {tAgents(`reviewTeams.members.${rc.definitionKey}.role`, {
+                defaultValue: rc.roleName,
+              })}
             </div>
             <div className="task-reviewer-context__description">
-              {taskInput.reviewerContext.description}
+              {tAgents(`reviewTeams.members.${rc.definitionKey}.description`, {
+                defaultValue: rc.description,
+              })}
             </div>
             <ul className="task-reviewer-context__responsibilities">
-              {taskInput.reviewerContext.responsibilities.map((resp, idx) => (
-                <li key={idx}>{resp}</li>
+              {rc.responsibilities.map((resp, idx) => (
+                <li key={idx}>
+                  {tAgents(`reviewTeams.members.${rc.definitionKey}.responsibilities.${idx}`, {
+                    defaultValue: resp,
+                  })}
+                </li>
               ))}
             </ul>
           </div>
-        ) : hasRealPrompt && (
+        ) : (
+          hasRealPrompt && (
           <div
-            className={`thinking-content-wrapper${promptScrollState.hasScroll ? ' has-scroll' : ''}${
+            className={`thinking-content-wrapper task-prompt-wrapper${promptScrollState.hasScroll ? ' has-scroll' : ''}${
               promptScrollState.atTop ? ' at-top' : ''
             }${promptScrollState.atBottom ? ' at-bottom' : ''}`}
           >
             <div
               ref={promptContentRef}
-              className="thinking-content expanded"
+              className="thinking-content task-prompt-content expanded"
               onScroll={checkPromptScrollState}
             >
               <Markdown
                 content={taskInput!.prompt}
                 isStreaming={false}
-                className="thinking-markdown"
+                className="thinking-markdown task-prompt-markdown"
               />
             </div>
           </div>
+          )
         )}
         {needsConfirmation && (
           <div className="tool-actions">

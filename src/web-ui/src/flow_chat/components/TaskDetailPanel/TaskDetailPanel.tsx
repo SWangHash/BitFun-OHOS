@@ -145,6 +145,7 @@ export interface TaskDetailPanelProps {
 
 export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ data }) => {
   const { t } = useTranslation('flow-chat');
+  const { t: tAgents } = useTranslation('scenes/agents');
   const { toolItem: initialToolItem, taskInput, sessionId } = data || {};
   const parentTaskToolId = initialToolItem?.id;
   const parentTaskToolCallId = initialToolItem?.toolCall?.id;
@@ -502,6 +503,8 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ data }) => {
     );
   }
 
+  const rc = taskInput?.reviewerContext;
+
   return (
     <div className="task-detail-panel">
       <div className="task-detail-panel__header">
@@ -546,19 +549,27 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ data }) => {
         ref={contentRef}
         className="task-detail-panel__content"
       >
-        {taskInput?.reviewerContext ? (
+        {rc ? (
           <details className="task-detail-panel__reviewer-section" open>
             <summary>{t('toolCards.taskDetailPanel.reviewerContextLabel')}</summary>
             <div className="task-detail-panel__reviewer-context">
-              <div className="task-detail-panel__reviewer-role" style={{ color: taskInput.reviewerContext.accentColor }}>
-                {taskInput.reviewerContext.roleName}
+              <div className="task-detail-panel__reviewer-role" style={{ color: rc.accentColor }}>
+                {tAgents(`reviewTeams.members.${rc.definitionKey}.role`, {
+                  defaultValue: rc.roleName,
+                })}
               </div>
               <div className="task-detail-panel__reviewer-desc">
-                {taskInput.reviewerContext.description}
+                {tAgents(`reviewTeams.members.${rc.definitionKey}.description`, {
+                  defaultValue: rc.description,
+                })}
               </div>
               <ul className="task-detail-panel__reviewer-responsibilities">
-                {taskInput.reviewerContext.responsibilities.map((resp, idx) => (
-                  <li key={idx}>{resp}</li>
+                {rc.responsibilities.map((resp, idx) => (
+                  <li key={idx}>
+                    {tAgents(`reviewTeams.members.${rc.definitionKey}.responsibilities.${idx}`, {
+                      defaultValue: resp,
+                    })}
+                  </li>
                 ))}
               </ul>
             </div>
