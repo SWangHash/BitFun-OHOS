@@ -187,7 +187,7 @@ export const GitToolDisplay: React.FC<ToolCardProps> = ({
 
   const renderHeader = () => (
     <CompactToolCardHeader
-      statusIcon={<GitBranch size={14} className="git-card-icon" />}
+      icon={<GitBranch size={16} className="git-card-icon" />}
       action={isFailed ? t('toolCards.git.commandFailed') : `${t('toolCards.git.title')}:`}
       content={
         <span className="git-tool-info">
@@ -243,7 +243,7 @@ export const GitToolDisplay: React.FC<ToolCardProps> = ({
           )}
         </>
       }
-      rightIcon={renderStatusIcon()}
+      rightStatusIcon={renderStatusIcon()}
     />
   );
 

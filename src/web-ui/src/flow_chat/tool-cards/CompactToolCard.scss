@@ -46,13 +46,13 @@
 /* ========== Loading state: A (border via text fade) + E (text fade) ========== */
 
 /* Hide left spinner/cube */
-.compact-tool-card-wrapper--loading-shimmer .compact-card-status-icon:has(.cube-loading),
-.compact-tool-card-wrapper--loading-shimmer .compact-card-status-icon:has(svg.animate-spin) {
+.compact-tool-card-wrapper--loading-shimmer .tool-card-icon-marks:has(.cube-loading),
+.compact-tool-card-wrapper--loading-shimmer .tool-card-icon-marks:has(svg.animate-spin) {
   display: none !important;
 }
 
 /* E — status icon + action + content breathe */
-.compact-tool-card-wrapper--loading-shimmer .compact-card-status-icon,
+.compact-tool-card-wrapper--loading-shimmer .tool-card-icon-marks,
 .compact-tool-card-wrapper--loading-shimmer .compact-card-action,
 .compact-tool-card-wrapper--loading-shimmer .compact-card-content {
   animation: tool-card-text-fade 1.6s ease-in-out infinite;
@@ -77,19 +77,19 @@
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
-    
-    .compact-card-status-icon {
+
+    .tool-card-icon-marks {
       color: var(--color-success);
       transform: scale(1.05);
     }
-    
+
     .compact-card-action,
     .compact-card-content,
     .compact-card-extra {
       color: var(--color-text-primary);
     }
-    
-    .compact-card-right-icon {
+
+    .compact-card-right-status-icon {
       color: var(--color-success);
       transform: scale(1.05);
     }
@@ -97,8 +97,8 @@
 
   &.clickable:active {
     background: transparent !important;
-    
-    .compact-card-status-icon {
+
+    .tool-card-icon-marks {
       transform: scale(1.0);
     }
   }
@@ -108,8 +108,8 @@
     .compact-card-content {
       color: var(--color-text-primary);
     }
-    
-    .compact-card-status-icon {
+
+    .tool-card-icon-marks {
       opacity: 0.95;
     }
   }
@@ -128,21 +128,6 @@
  *   the 23px text rhythm. This way the row height is driven solely by the text
  *   spans (line-height 1.65 × 14px = 23.1px), not by icon wrappers.
  */
-.compact-card-status-icon {
-  font-size: var(--flowchat-font-size-base);
-  line-height: 1;
-  flex-shrink: 0;
-  color: var(--color-text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-
-  > svg {
-    display: block;
-  }
-}
-
 .compact-card-action {
   font-size: var(--flowchat-font-size-base);
   line-height: 1.65;
@@ -184,22 +169,6 @@
   }
 }
 
-.compact-card-right-icon {
-  font-size: var(--flowchat-font-size-base);
-  line-height: 1;
-  flex-shrink: 0;
-  color: var(--color-text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: auto;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-
-  > svg {
-    display: block;
-  }
-}
-
 /* ========== Expanded compact tools use the shared BaseToolCard shell ========== */
 .base-tool-card-wrapper.compact-tool-card-wrapper--expanded-card {
   width: 100%;
@@ -217,8 +186,8 @@
     display: block;
   }
 
-  .compact-card-status-icon,
-  .compact-card-right-icon {
+  .tool-card-icon-marks,
+  .compact-card-right-status-icon {
     color: var(--color-text-secondary);
   }
 
@@ -232,7 +201,7 @@
 /* ========== Status-specific styles ========== */
 
 .compact-tool-card.status-completed {
-  .compact-card-status-icon {
+  .tool-card-icon-marks {
     color: var(--color-text-muted);
 
     .icon-check-done {
@@ -243,15 +212,19 @@
 
 .compact-tool-card.status-running,
 .compact-tool-card.status-streaming {
-  .compact-card-status-icon {
+  .tool-card-icon-marks {
     color: var(--color-accent-600);
   }
 }
 
 .compact-tool-card.status-error {
-  .compact-card-status-icon {
+  .tool-card-icon-marks {
     color: var(--color-error);
   }
+}
+
+.compact-card-right-status-icon {
+  margin-left: auto;
 }
 
 /* ========== Expanded content area ========== */

@@ -1227,6 +1227,41 @@ impl PersistenceManager {
         Ok(metadata_list)
     }
 
+    async fn count_session_metadata_dirs(
+        &self,
+        workspace_path: &Path,
+    ) -> BitFunResult<usize> {
+        let Some(sessions_root) = self.existing_project_sessions_dir(workspace_path) else {
+            return Ok(0);
+        };
+        let mut count = 0;
+        let mut entries = fs::read_dir(&sessions_root)
+            .await
+            .map_err(|e| BitFunError::io(format!("Failed to read sessions root: {}", e)))?;
+
+        while let Some(entry) = entries.next_entry().await.map_err(|e| {
+            BitFunError::io(format!("Failed to read session directory entry: {}", e))
+        })? {
+            let file_type = entry
+                .file_type()
+                .await
+                .map_err(|e| BitFunError::io(format!("Failed to get file type: {}", e)))?;
+            if !file_type.is_dir() {
+                continue;
+            }
+
+            let session_id = entry.file_name().to_string_lossy().to_string();
+            if self
+                .metadata_path(workspace_path, &session_id)
+                .exists()
+            {
+                count += 1;
+            }
+        }
+
+        Ok(count)
+    }
+
     async fn rebuild_index_locked(
         &self,
         workspace_path: &Path,
@@ -1353,6 +1388,18 @@ impl PersistenceManager {
                 );
                 return self.rebuild_index_locked(workspace_path).await;
             }
+
+            let disk_count = self.count_session_metadata_dirs(workspace_path).await?;
+            if index.sessions.len() != disk_count {
+                warn!(
+                    "Session index incomplete (index: {}, disk: {}), rebuilding: {}",
+                    index.sessions.len(),
+                    disk_count,
+                    index_path.display()
+                );
+                return self.rebuild_index_locked(workspace_path).await;
+            }
+
             return Ok(index.sessions);
         }
 

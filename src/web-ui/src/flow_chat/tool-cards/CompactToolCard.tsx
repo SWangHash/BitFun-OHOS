@@ -1,7 +1,7 @@
 /**
  * Compact tool card component
  * Used for ReadFile, GrepSearch, WebSearch, etc. with transparent gray background
- * 
+ *
  * Features:
  * - Collapsed: transparent background, no border, single-line display
  * - Expanded: shows detailed content with dark background box
@@ -10,6 +10,9 @@
 
 import React, { ReactNode } from 'react';
 import { BaseToolCard, type BaseToolCardProps } from './BaseToolCard';
+import { ToolCardIconSlot } from './ToolCardIconSlot';
+import { ToolCardStatusIcon } from './ToolCardStatusIcon';
+import type { ToolCardHeaderAffordanceKind } from './ToolCardHeaderLayoutContext';
 import './CompactToolCard.scss';
 
 export interface CompactToolCardProps {
@@ -87,38 +90,68 @@ export const CompactToolCard: React.FC<CompactToolCardProps> = ({
 };
 
 export interface CompactToolCardHeaderProps {
-  /** Left status icon */
-  statusIcon?: ReactNode;
+  /** Left tool icon (should be 16px lucide icon) */
+  icon?: ReactNode;
+  /** Custom class name for the icon element */
+  iconClassName?: string;
+  /** Show hover chevron when expandable */
+  expandable?: boolean;
+  /** Expand vs open-right-panel hint icon */
+  affordanceKind?: ToolCardHeaderAffordanceKind;
+  /** Expanded state for chevron rotation */
+  isExpanded?: boolean;
+  /** Click handler for the left icon rail affordance */
+  onAffordanceClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  /** Whether to show the left icon divider (default false for compact) */
+  showDivider?: boolean;
   /** Action text */
   action?: string;
   /** Main content */
   content?: ReactNode;
   /** Right extra content (e.g., statistics) */
   extra?: ReactNode;
-  /** Right status icon */
-  rightIcon?: ReactNode;
+  /** Right status icon (should be 14px) */
+  rightStatusIcon?: ReactNode;
+  /** Whether right status icon has a divider */
+  rightStatusIconWithDivider?: boolean;
 }
+
 export const CompactToolCardHeader: React.FC<CompactToolCardHeaderProps> = ({
-  statusIcon,
+  icon,
+  iconClassName,
+  expandable = false,
+  affordanceKind = 'expand',
+  isExpanded = false,
+  onAffordanceClick,
+  showDivider = false,
   action,
   content,
   extra,
-  rightIcon,
+  rightStatusIcon,
+  rightStatusIconWithDivider = false,
 }) => {
   return (
     <>
-      {statusIcon && (
-        <span className="compact-card-status-icon">
-          {statusIcon}
-        </span>
+      {icon && (
+        <ToolCardIconSlot
+          icon={icon}
+          iconClassName={iconClassName}
+          expandable={expandable}
+          affordanceKind={affordanceKind}
+          isExpanded={isExpanded}
+          onAffordanceClick={onAffordanceClick}
+          showDivider={showDivider}
+        />
       )}
       {action && <span className="compact-card-action">{action}</span>}
       {content && <span className="compact-card-content">{content}</span>}
       {extra && <span className="compact-card-extra">{extra}</span>}
-      {rightIcon && (
-        <span className="compact-card-right-icon">
-          {rightIcon}
-        </span>
+      {rightStatusIcon && (
+        <ToolCardStatusIcon
+          icon={rightStatusIcon}
+          withDivider={rightStatusIconWithDivider}
+          className="compact-card-right-status-icon"
+        />
       )}
     </>
   );

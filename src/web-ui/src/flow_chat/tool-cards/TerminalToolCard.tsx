@@ -498,7 +498,7 @@ export const TerminalToolCard: React.FC<TerminalToolCardProps> = ({
 
   const renderHeader = () => (
     <ToolCardHeader
-      icon={<Terminal size={14} className="terminal-card-icon" />}
+      icon={<Terminal size={16} className="terminal-card-icon" />}
       action={t('toolCards.terminal.executeCommand')}
       content={renderCommandContent()}
       extra={(
@@ -567,7 +567,7 @@ export const TerminalToolCard: React.FC<TerminalToolCardProps> = ({
 
   const renderCompactHeader = () => (
     <CompactToolCardHeader
-      statusIcon={<Terminal size={14} className="terminal-card-icon" />}
+      icon={<Terminal size={16} className="terminal-card-icon" />}
       action={t('toolCards.terminal.executeCommand')}
       content={renderCommandContent('compact')}
       extra={(
@@ -618,7 +618,7 @@ export const TerminalToolCard: React.FC<TerminalToolCardProps> = ({
           )}
         </>
       )}
-      rightIcon={renderStatusIcon()}
+      rightStatusIcon={renderStatusIcon()}
     />
   );
   const expandedContent = isExpanded

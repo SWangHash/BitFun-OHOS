@@ -43,7 +43,7 @@ export const BtwMarkerCard: React.FC<ToolCardProps> = React.memo(({ toolItem, se
       }}
       header={
         <CompactToolCardHeader
-          statusIcon={<CornerDownRight size={12} />}
+          icon={<CornerDownRight size={16} />}
           action={t('btw.title', { defaultValue: 'Side question' })}
           content={
             <span style={{ opacity: 0.95 }}>

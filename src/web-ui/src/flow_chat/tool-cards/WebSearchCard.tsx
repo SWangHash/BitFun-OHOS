@@ -32,11 +32,11 @@ export const WebSearchCard: React.FC<ToolCardProps> = ({
       case 'running':
       case 'streaming':
       case 'preparing':
-        return <Loader2 className="animate-spin" size={12} />;
+        return <Loader2 className="animate-spin" size={16} />;
       case 'completed':
-        return <Check size={12} className="icon-check-done" />;
+        return <Check size={16} className="icon-check-done" />;
       default:
-        return <Clock size={12} />;
+        return <Clock size={16} />;
     }
   };
 
@@ -150,7 +150,7 @@ export const WebSearchCard: React.FC<ToolCardProps> = ({
         clickable={Boolean(status === 'completed' && hasResults)}
         header={
           <CompactToolCardHeader
-            statusIcon={getStatusIcon()}
+            icon={getStatusIcon()}
             content={renderContent()}
           />
         }

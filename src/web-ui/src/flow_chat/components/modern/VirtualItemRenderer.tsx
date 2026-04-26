@@ -56,7 +56,7 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
                 status="running"
                 header={
                   <CompactToolCardHeader
-                    statusIcon={<Loader2 className="animate-spin" size={12} />}
+                    icon={<Loader2 className="animate-spin" size={16} />}
                     content="Analyzing image with image understanding model..."
                   />
                 }
