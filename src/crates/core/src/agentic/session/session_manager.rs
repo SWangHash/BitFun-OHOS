@@ -163,6 +163,69 @@ mod tests {
         assert!(matches!(restored.state, SessionState::Idle));
         assert_eq!(metadata.unread_completion, None);
     }
+
+    #[test]
+    fn build_messages_from_turns_skips_manual_compaction_turns() {
+        use crate::service::session::{DialogTurnData, DialogTurnKind, UserMessageData};
+
+        let turns = vec![
+            DialogTurnData::new(
+                "turn-1".to_string(),
+                0,
+                "session-1".to_string(),
+                UserMessageData {
+                    id: "user-1".to_string(),
+                    content: "hello".to_string(),
+                    timestamp: 1,
+                    metadata: None,
+                },
+            ),
+            DialogTurnData::new_with_kind(
+                DialogTurnKind::ManualCompaction,
+                "turn-2".to_string(),
+                1,
+                "session-1".to_string(),
+                UserMessageData {
+                    id: "user-2".to_string(),
+                    content: "/compact".to_string(),
+                    timestamp: 2,
+                    metadata: None,
+                },
+            ),
+        ];
+
+        let messages = SessionManager::build_messages_from_turns(&turns);
+
+        assert_eq!(messages.len(), 1);
+        assert!(messages[0].is_actual_user_message());
+    }
+
+    #[test]
+    fn fallback_session_title_uses_sentence_break_when_available() {
+        let title = SessionManager::fallback_session_title(
+            "Fix the flaky integration test. Add logging for retries.",
+            20,
+        );
+
+        assert_eq!(title, "Fix the flaky...");
+    }
+
+    #[test]
+    fn fallback_session_title_appends_ellipsis_when_truncated_without_sentence_break() {
+        let title = SessionManager::fallback_session_title(
+            "Implement session title generation fallback",
+            12,
+        );
+
+        assert_eq!(title, "Implement...");
+    }
+
+    #[test]
+    fn fallback_session_title_uses_default_for_blank_input() {
+        let title = SessionManager::fallback_session_title("   ", 20);
+
+        assert_eq!(title, "New Session");
+    }
 }
 
 /// Session manager
@@ -1103,13 +1166,14 @@ impl SessionManager {
             let trimmed = persisted_model_id.trim();
             let needs_migration = if trimmed.is_empty() {
                 false
-            } else if let Ok(ai_config) = get_global_config_service()
-                .await
-                .map_err(|e| BitFunError::config(e.to_string()))?
-                .get_config::<crate::service::config::types::AIConfig>(Some("ai"))
-                .await
-            {
-                !Self::is_session_model_id_usable(&ai_config, trimmed)
+            } else if let Ok(config_service) = get_global_config_service().await {
+                match config_service
+                    .get_config::<crate::service::config::types::AIConfig>(Some("ai"))
+                    .await
+                {
+                    Ok(ai_config) => !Self::is_session_model_id_usable(&ai_config, trimmed),
+                    Err(_) => false,
+                }
             } else {
                 false
             };
@@ -2197,69 +2261,4 @@ impl SessionManager {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::SessionManager;
-    use crate::service::session::{DialogTurnData, DialogTurnKind, UserMessageData};
 
-    #[test]
-    fn build_messages_from_turns_skips_manual_compaction_turns() {
-        let turns = vec![
-            DialogTurnData::new(
-                "turn-1".to_string(),
-                0,
-                "session-1".to_string(),
-                UserMessageData {
-                    id: "user-1".to_string(),
-                    content: "hello".to_string(),
-                    timestamp: 1,
-                    metadata: None,
-                },
-            ),
-            DialogTurnData::new_with_kind(
-                DialogTurnKind::ManualCompaction,
-                "turn-2".to_string(),
-                1,
-                "session-1".to_string(),
-                UserMessageData {
-                    id: "user-2".to_string(),
-                    content: "/compact".to_string(),
-                    timestamp: 2,
-                    metadata: None,
-                },
-            ),
-        ];
-
-        let messages = SessionManager::build_messages_from_turns(&turns);
-
-        assert_eq!(messages.len(), 1);
-        assert!(messages[0].is_actual_user_message());
-    }
-
-    #[test]
-    fn fallback_session_title_uses_sentence_break_when_available() {
-        let title = SessionManager::fallback_session_title(
-            "Fix the flaky integration test. Add logging for retries.",
-            20,
-        );
-
-        assert_eq!(title, "Fix the flaky...");
-    }
-
-    #[test]
-    fn fallback_session_title_appends_ellipsis_when_truncated_without_sentence_break() {
-        let title = SessionManager::fallback_session_title(
-            "Implement session title generation fallback",
-            12,
-        );
-
-        assert_eq!(title, "Implement...");
-    }
-
-    #[test]
-    fn fallback_session_title_uses_default_for_blank_input() {
-        let title = SessionManager::fallback_session_title("   ", 20);
-
-        assert_eq!(title, "New Session");
-    }
-}

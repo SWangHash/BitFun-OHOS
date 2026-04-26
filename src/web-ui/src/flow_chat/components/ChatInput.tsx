@@ -628,6 +628,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     };
   }, [clearPendingLargePastes]);
 
+  // Expose current input value for external queries (e.g. deep review fill-back confirmation)
+  React.useEffect(() => {
+    const handleGetChatInputState = (request: { getValue?: () => string }) => {
+      request.getValue = () => inputValueRef.current;
+    };
+
+    globalEventBus.on('chat-input:get-state', handleGetChatInputState);
+
+    return () => {
+      globalEventBus.off('chat-input:get-state', handleGetChatInputState);
+    };
+  }, []);
+
   React.useEffect(() => {
     if (!slashCommandState.isActive || slashCommandState.kind !== 'all' || derivedState?.isProcessing) {
       return;

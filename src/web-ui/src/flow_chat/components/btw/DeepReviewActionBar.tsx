@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   CheckCircle,
@@ -12,7 +12,6 @@ import {
   MessageSquare,
   Play,
   Copy,
-  Minimize2,
   Info,
 } from 'lucide-react';
 import { Button, Checkbox, Tooltip } from '@/component-library';
@@ -55,16 +54,6 @@ const GROUP_PRIORITY_META: Record<RemediationGroupId, { color: string }> = {
   should_improve: { color: 'var(--color-warning, #f59e0b)' },
   needs_decision: { color: 'var(--color-accent-500, #60a5fa)' },
   verification: { color: 'var(--color-success, #22c55e)' },
-};
-
-type ChatInputStateRequest = {
-  getValue?: () => string;
-};
-
-const getCurrentChatInputValue = (): string => {
-  const request: ChatInputStateRequest = {};
-  globalEventBus.emit('chat-input:get-state', request);
-  return request.getValue?.() ?? '';
 };
 
 const stopNestedScrollPropagation = (event: React.WheelEvent | React.TouchEvent) => {
@@ -201,7 +190,7 @@ export const ReviewActionBar: React.FC = () => {
     }
   }, [reviewData, childSessionId, selectedRemediationIds, customInstructions, reviewMode, isDeepReview, store, t, completedRemediationIds]);
 
-  const handleFillBackInput = useCallback(() => {
+  const handleFillBackInput = useCallback(async () => {
     if (!reviewData) return;
 
     let prompt = buildSelectedReviewRemediationPrompt({
@@ -217,20 +206,38 @@ export const ReviewActionBar: React.FC = () => {
 
     if (!prompt) return;
 
+    // Check if chat input already has content — require confirmation before replacing
+    const currentInputRequest: { getValue?: () => string } = {};
+    globalEventBus.emit('chat-input:get-state', currentInputRequest);
+    const currentInput = currentInputRequest.getValue?.() ?? '';
+
+    if (currentInput.trim()) {
+      const confirmed = await confirmWarning(
+        t('deepReviewActionBar.replaceInputConfirmTitle', {
+          defaultValue: 'Replace current input?',
+        }),
+        t('deepReviewActionBar.replaceInputConfirmMessage', {
+          defaultValue: 'The chat input already has text. Filling this plan will replace the current draft.',
+        }),
+        {
+          confirmText: t('deepReviewActionBar.replaceInputConfirmAction', {
+            defaultValue: 'Replace input',
+          }),
+        },
+      );
+      if (!confirmed) return;
+    }
+
     globalEventBus.emit('fill-chat-input', {
       content: prompt,
       mode: 'replace',
     });
 
     store.dismiss();
-  }, [reviewData, selectedRemediationIds, customInstructions, reviewMode, store]);
+  }, [reviewData, selectedRemediationIds, customInstructions, reviewMode, store, t]);
 
   const handleDismiss = useCallback(() => {
     store.dismiss();
-  }, [store]);
-
-  const handleMinimize = useCallback(() => {
-    store.minimize();
   }, [store]);
 
   const handleContinueReview = useCallback(async () => {
@@ -395,12 +402,16 @@ export const ReviewActionBar: React.FC = () => {
   }
 
   return (
-    <div className={`deep-review-action-bar deep-review-action-bar--${phaseConfig.variant}`}>
+    <div
+      className={`deep-review-action-bar deep-review-action-bar--${phaseConfig.variant}`}
+      onWheel={stopNestedScrollPropagation}
+      onTouchMove={stopNestedScrollPropagation}
+    >
       <button
         type="button"
         className="deep-review-action-bar__close"
-        onClick={handleMinimize}
-        aria-label={t('deepReviewActionBar.minimize', { defaultValue: 'Minimize' })}
+        onClick={handleDismiss}
+        aria-label={t('deepReviewActionBar.close', { defaultValue: 'Close' })}
       >
         <X size={16} />
       </button>
@@ -517,13 +528,7 @@ export const ReviewActionBar: React.FC = () => {
             </div>
           )}
 
-          {/* Hint text */}
-          <div className="deep-review-action-bar__remediation-hint">
-            {t('toolCards.codeReview.remediationActions.hint', {
-              defaultValue: 'Deep Review is read-only by default. Select the remediation items to fix.',
-            })}
-          </div>
-
+          {/* Empty selection hint */}
           {selectedCount === 0 && (
             <div className="deep-review-action-bar__empty-selection" role="note">
               <Info size={14} className="deep-review-action-bar__empty-selection-icon" />
@@ -607,7 +612,7 @@ export const ReviewActionBar: React.FC = () => {
                 variant="ghost"
                 size="small"
                 disabled={isFixDisabled}
-                onClick={handleFillBackInput}
+                onClick={() => void handleFillBackInput()}
               >
                 {t('deepReviewActionBar.fillBackInput', { defaultValue: 'Fill to input' })}
               </Button>
@@ -677,17 +682,6 @@ export const ReviewActionBar: React.FC = () => {
             onClick={handleDismiss}
           >
             {t('deepReviewActionBar.close', { defaultValue: 'Close' })}
-          </Button>
-        )}
-
-        {(phase === 'review_completed' || phase === 'fix_interrupted') && (
-          <Button
-            variant="ghost"
-            size="small"
-            onClick={handleMinimize}
-          >
-            <Minimize2 size={14} />
-            {t('deepReviewActionBar.minimize', { defaultValue: 'Minimize' })}
           </Button>
         )}
       </div>

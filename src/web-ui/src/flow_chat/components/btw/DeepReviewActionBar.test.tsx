@@ -277,7 +277,7 @@ describeWithJsdom('DeepReviewActionBar', () => {
     expect(useReviewActionBarStore.getState().dismissed).toBe(true);
   });
 
-  it('minimizes action bar when close button is clicked', async () => {
+  it('dismisses action bar when close button is clicked', async () => {
     const { DeepReviewActionBar } = await import('./DeepReviewActionBar');
 
     useReviewActionBarStore.getState().showActionBar({
@@ -302,8 +302,7 @@ describeWithJsdom('DeepReviewActionBar', () => {
       await Promise.resolve();
     });
 
-    expect(useReviewActionBarStore.getState().minimized).toBe(true);
-    expect(useReviewActionBarStore.getState().dismissed).toBe(false);
+    expect(useReviewActionBarStore.getState().dismissed).toBe(true);
   });
 
   it('marks completed remediation items when fix completes', async () => {

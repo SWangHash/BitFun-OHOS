@@ -143,11 +143,7 @@
   }
 
   &__action-bar-wrapper {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 10;
+    flex-shrink: 0;
     padding: 0 14px 14px;
     pointer-events: none;
 
