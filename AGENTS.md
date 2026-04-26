@@ -14,6 +14,7 @@ Repository rule: **keep product logic platform-agnostic, then expose it through 
 - `src/apps/desktop`: Tauri host app
 - `src/apps/server`: web backend runtime
 - `src/apps/cli`: CLI runtime
+- `src/apps/relay-server`: relay server for remote connect
 - `src/web-ui`: shared frontend for desktop and server/web
 - `BitFun-Installer`: separate installer app
 - `tests/e2e`: desktop E2E tests
@@ -36,7 +37,12 @@ pnpm run desktop:dev
 pnpm run desktop:preview:debug
 pnpm run dev:web
 pnpm run cli:dev
+pnpm run cli:check
 pnpm run installer:dev
+
+# Mobile / Website
+pnpm run build:mobile-web
+pnpm run website:dev
 
 # Frontend
 pnpm run lint:web
@@ -52,6 +58,9 @@ cargo test -p bitfun-core <test_name> -- --nocapture
 # Desktop / E2E
 cargo build -p bitfun-desktop
 pnpm run e2e:test:l0
+pnpm run e2e:test:l0:all
+pnpm run e2e:test:l1
+pnpm run e2e:test:smoke
 pnpm --dir tests/e2e exec wdio run ./config/wdio.conf.ts --spec "./specs/<file>.spec.ts"
 ```
 
@@ -73,6 +82,16 @@ pnpm --dir tests/e2e exec wdio run ./config/wdio.conf.ts --spec "./specs/<file>.
 - If the user clearly wants a Windows installer for end users, prefer `pnpm run desktop:build:nsis`.
 - If the user clearly wants a standalone Windows executable instead of an installer, prefer `pnpm run desktop:build:exe`.
 - If the user already names the exact target format, do not ask again; just use the requested packaging flow.
+- `release-fast` profile (`desktop:build:release-fast`, `desktop:build:nsis:fast`) is available for faster release builds with reduced LTO; use it only when the user explicitly asks for a quick release artifact.
+
+## Windows Development Notes
+
+The desktop app includes SSH remote support, which pulls in OpenSSL. On Windows the workspace **does not use vendored OpenSSL**; link against pre-built binaries.
+
+- Default: `pnpm run desktop:dev` and `pnpm run desktop:preview:debug` automatically call `scripts/ensure-openssl-windows.mjs` when needed.
+- Manual / CI: Download [FireDaemon OpenSSL 3.5.5 LTS ZIP](https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-3.5.5.zip), extract, set `OPENSSL_DIR` to the `x64` folder and `OPENSSL_STATIC=1`, or run `scripts/ci/setup-openssl-windows.ps1`.
+- Opt out of auto-download: `BITFUN_SKIP_OPENSSL_BOOTSTRAP=1` and configure `OPENSSL_DIR` yourself.
+- `desktop:dev:raw` skips the dev script (no OpenSSL bootstrap); set `OPENSSL_DIR` yourself or run `node scripts/ensure-openssl-windows.mjs`.
 
 ## Architecture
 
@@ -162,6 +181,7 @@ await api.invoke('your_command', { request: { ... } });
 - Tools: `src/crates/core/src/agentic/tools/implementations/`, `src/crates/core/src/agentic/tools/registry.rs`
 - MCP / LSP / remote: `src/crates/core/src/service/mcp/`, `src/crates/core/src/service/lsp/`, `src/crates/core/src/service/remote_connect/`, `src/crates/core/src/service/remote_ssh/`
 - Desktop APIs: `src/apps/desktop/src/api/`, `src/crates/api-layer/src/`, `src/crates/transport/src/adapters/tauri.rs`
+- Relay server: `src/apps/relay-server/`
 - Web/server communication: `src/web-ui/src/infrastructure/api/`, `src/crates/transport/src/adapters/websocket.rs`, `src/apps/server/src/routes/`, `src/apps/server/src/main.rs`
 
 ## Verification

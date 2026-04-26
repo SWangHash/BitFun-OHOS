@@ -14,6 +14,7 @@ BitFun 是一个由 Rust workspace 与共享 React 前端组成的项目。
 - `src/apps/desktop`：Tauri 桌面宿主应用
 - `src/apps/server`：web 后端运行时
 - `src/apps/cli`：CLI 运行时
+- `src/apps/relay-server`：远程连接中继服务器
 - `src/web-ui`：桌面端与 server/web 共享前端
 - `BitFun-Installer`：独立安装器应用
 - `tests/e2e`：桌面端 E2E 测试
@@ -36,7 +37,12 @@ pnpm run desktop:dev
 pnpm run desktop:preview:debug
 pnpm run dev:web
 pnpm run cli:dev
+pnpm run cli:check
 pnpm run installer:dev
+
+# Mobile / Website
+pnpm run build:mobile-web
+pnpm run website:dev
 
 # 前端
 pnpm run lint:web
@@ -52,6 +58,9 @@ cargo test -p bitfun-core <test_name> -- --nocapture
 # Desktop / E2E
 cargo build -p bitfun-desktop
 pnpm run e2e:test:l0
+pnpm run e2e:test:l0:all
+pnpm run e2e:test:l1
+pnpm run e2e:test:smoke
 pnpm --dir tests/e2e exec wdio run ./config/wdio.conf.ts --spec "./specs/<file>.spec.ts"
 ```
 
@@ -73,6 +82,16 @@ pnpm --dir tests/e2e exec wdio run ./config/wdio.conf.ts --spec "./specs/<file>.
 - 如果用户的语义明显是“给 Windows 最终用户安装”，优先使用 `pnpm run desktop:build:nsis`。
 - 如果用户明确要“独立可执行文件”而不是安装器，优先使用 `pnpm run desktop:build:exe`。
 - 如果用户已经明确点名目标格式，就不要重复确认，直接走对应打包流程。
+- `release-fast` profile（`desktop:build:release-fast`、`desktop:build:nsis:fast`）可用于更快的 release 构建（降低 LTO）；仅在用户明确要求快速 release 产物时使用。
+
+## Windows 开发注意事项
+
+桌面应用包含 SSH 远程支持，因此依赖 OpenSSL。在 Windows 上，工作空间**不使用 vendored OpenSSL**，而是链接预编译二进制。
+
+- 默认：`pnpm run desktop:dev` 和 `pnpm run desktop:preview:debug` 会在需要时自动调用 `scripts/ensure-openssl-windows.mjs`。
+- 手动 / CI：下载 [FireDaemon OpenSSL 3.5.5 LTS ZIP](https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-3.5.5.zip)，解压后将 `OPENSSL_DIR` 设为 `x64` 文件夹、`OPENSSL_STATIC=1`，或运行 `scripts/ci/setup-openssl-windows.ps1`。
+- 退出自动下载：`BITFUN_SKIP_OPENSSL_BOOTSTRAP=1`，然后自行配置 `OPENSSL_DIR`。
+- `desktop:dev:raw` 跳过 dev 脚本（不处理 OpenSSL 引导）；自行设置 `OPENSSL_DIR`，或运行 `node scripts/ensure-openssl-windows.mjs`。
 
 ## 架构
 
@@ -162,6 +181,7 @@ await api.invoke('your_command', { request: { ... } });
 - Tool：`src/crates/core/src/agentic/tools/implementations/`、`src/crates/core/src/agentic/tools/registry.rs`
 - MCP / LSP / remote：`src/crates/core/src/service/mcp/`、`src/crates/core/src/service/lsp/`、`src/crates/core/src/service/remote_connect/`、`src/crates/core/src/service/remote_ssh/`
 - 桌面端 API：`src/apps/desktop/src/api/`、`src/crates/api-layer/src/`、`src/crates/transport/src/adapters/tauri.rs`
+- 中继服务器：`src/apps/relay-server/`
 - Web/server 通信：`src/web-ui/src/infrastructure/api/`、`src/crates/transport/src/adapters/websocket.rs`、`src/apps/server/src/routes/`、`src/apps/server/src/main.rs`
 
 ## 验证
