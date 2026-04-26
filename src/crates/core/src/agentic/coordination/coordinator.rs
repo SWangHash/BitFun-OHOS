@@ -2867,6 +2867,17 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         Ok(normalized)
     }
 
+    pub async fn update_session_agent_type(
+        &self,
+        session_id: &str,
+        agent_type: &str,
+    ) -> BitFunResult<()> {
+        let normalized = Self::normalize_agent_type(agent_type);
+        self.session_manager
+            .update_session_agent_type(session_id, &normalized)
+            .await
+    }
+
     /// Emit event
     async fn emit_event(&self, event: AgenticEvent) {
         let _ = self

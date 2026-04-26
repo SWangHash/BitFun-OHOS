@@ -7,7 +7,9 @@ use crate::util::errors::BitFunResult;
 use log::{debug, trace, warn};
 use std::collections::BinaryHeap;
 use std::sync::Arc;
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::{broadcast, Mutex, Notify};
+
+const EVENT_BROADCAST_BUFFER: usize = 1024;
 
 /// Event queue configuration
 #[derive(Debug, Clone)]
@@ -46,6 +48,9 @@ pub struct EventQueue {
     /// Notifier (used to wake up waiting consumers)
     notify: Arc<Notify>,
 
+    /// Broadcast stream for non-consuming subscribers.
+    broadcast_tx: broadcast::Sender<EventEnvelope>,
+
     /// Configuration
     config: EventQueueConfig,
 
@@ -55,9 +60,11 @@ pub struct EventQueue {
 
 impl EventQueue {
     pub fn new(config: EventQueueConfig) -> Self {
+        let (broadcast_tx, _) = broadcast::channel(EVENT_BROADCAST_BUFFER);
         Self {
             queue: Arc::new(Mutex::new(BinaryHeap::new())),
             notify: Arc::new(Notify::new()),
+            broadcast_tx,
             config,
             stats: Arc::new(Mutex::new(QueueStats::default())),
         }
@@ -85,8 +92,10 @@ impl EventQueue {
         // Add to queue
         {
             let mut queue = self.queue.lock().await;
-            queue.push(std::cmp::Reverse(envelope));
+            queue.push(std::cmp::Reverse(envelope.clone()));
         }
+
+        let _ = self.broadcast_tx.send(envelope);
 
         // Update statistics: get queue size first, then update statistics (avoid getting queue lock while holding stats lock)
         let queue_len = self.queue.lock().await.len();
@@ -134,6 +143,11 @@ impl EventQueue {
     /// Dequeue a batch using the queue's configured batch size.
     pub async fn dequeue_configured_batch(&self) -> Vec<EventEnvelope> {
         self.dequeue_batch(self.config.batch_size).await
+    }
+
+    /// Subscribe to events without consuming them from the queue.
+    pub fn subscribe(&self) -> broadcast::Receiver<EventEnvelope> {
+        self.broadcast_tx.subscribe()
     }
 
     /// Clear all events for a session
