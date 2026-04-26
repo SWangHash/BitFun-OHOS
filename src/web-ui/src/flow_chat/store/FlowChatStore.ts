@@ -20,6 +20,7 @@ import type { SessionKind } from '@/shared/types/session-history';
 import {
   deriveLastFinishedAtFromMetadata,
   deriveSessionRelationshipFromMetadata,
+  isLegacyPersistedBtwSession,
   normalizeSessionRelationship,
 } from '../utils/sessionMetadata';
 import type { SessionTitleDescriptor } from '../utils/sessionTitle';
@@ -258,6 +259,7 @@ export class FlowChatStore {
         sessionKind: relationship.sessionKind,
         btwThreads: [],
         btwOrigin: relationship.btwOrigin,
+        isTransient: false,
       };
 
       const newSessions = new Map(prev.sessions);
@@ -280,7 +282,12 @@ export class FlowChatStore {
     title: string,
     mode: string,
     workspacePath?: string,
-    meta?: { parentSessionId?: string; sessionKind?: SessionKind; btwOrigin?: Session['btwOrigin'] },
+    meta?: {
+      parentSessionId?: string;
+      sessionKind?: SessionKind;
+      btwOrigin?: Session['btwOrigin'];
+      isTransient?: boolean;
+    },
     remoteConnectionId?: string,
     remoteSshHost?: string
   ): void {
@@ -318,6 +325,7 @@ export class FlowChatStore {
         sessionKind: relationship.sessionKind,
         btwThreads: [],
         btwOrigin: relationship.btwOrigin,
+        isTransient: meta?.isTransient ?? false,
       };
 
       const newSessions = new Map(prev.sessions);
@@ -1465,6 +1473,9 @@ export class FlowChatStore {
         log.warn('Session not found, skipping save', { sessionId, turnId });
         return;
       }
+      if (session.isTransient) {
+        return;
+      }
 
       const workspacePath = session.workspacePath;
       if (!workspacePath) {
@@ -1585,6 +1596,9 @@ export class FlowChatStore {
         if (existingSession) {
           return;
         }
+        if (isLegacyPersistedBtwSession(metadata)) {
+          return;
+        }
         
         let maxContextTokens = 128128;
         try {
@@ -1662,6 +1676,7 @@ export class FlowChatStore {
             btwOrigin: relationship.btwOrigin,
             hasUnreadCompletion: metadata.unreadCompletion,
             needsUserAttention: metadata.needsUserAttention,
+            isTransient: false,
           };
           
           const newSessions = new Map(prev.sessions);
