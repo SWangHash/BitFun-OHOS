@@ -26,6 +26,7 @@ use tauri::Manager;
 // Re-export API
 pub use api::*;
 
+use api::acp_client_api::*;
 use crate::ohos::ohos_file_system::{open_oh_file_dialog, set_theme_mode};
 use crate::ohos::window::{
     close_window,handle_max_window,handle_min_window,handle_restore_window,window_is_maximized,
@@ -216,7 +217,6 @@ pub async fn _run() {
             }
 
             logging::register_runtime_log_state(startup_log_level, session_log_dir.clone());
-
             for step in startup_timings.steps() {
                 log::debug!(
                     "Desktop startup step completed: step={}, duration_ms={}",
@@ -325,6 +325,7 @@ pub async fn _run() {
             }
 
             init_mcp_servers(app_handle.clone());
+            init_acp_clients(app_handle.clone());
 
             init_services(app_handle.clone(), startup_log_level);
 
@@ -593,6 +594,19 @@ pub async fn _run() {
             api::mcp_api::start_mcp_remote_oauth,
             api::mcp_api::get_mcp_remote_oauth_session,
             api::mcp_api::cancel_mcp_remote_oauth,
+            initialize_acp_clients,
+            get_acp_clients,
+            start_acp_client,
+            stop_acp_client,
+            restart_acp_client,
+            load_acp_json_config,
+            save_acp_json_config,
+            submit_acp_permission_response,
+            create_acp_flow_session,
+            start_acp_dialog_turn,
+            cancel_acp_dialog_turn,
+            get_acp_session_options,
+            set_acp_session_model,
             lsp_initialize,
             lsp_start_server_for_file,
             lsp_stop_server,
@@ -930,6 +944,17 @@ async fn init_function_agents(ai_client_factory: Arc<AIClientFactory>) -> anyhow
 fn init_mcp_servers(app_handle: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         let _ = app_handle;
+    });
+}
+
+fn init_acp_clients(app_handle: tauri::AppHandle) {
+    tokio::spawn(async move {
+        let state: tauri::State<'_, api::AppState> = app_handle.state();
+        if let Some(service) = state.acp_client_service.as_ref() {
+            if let Err(error) = service.initialize_all().await {
+                log::warn!("Failed to initialize ACP clients: {}", error);
+            }
+        }
     });
 }
 

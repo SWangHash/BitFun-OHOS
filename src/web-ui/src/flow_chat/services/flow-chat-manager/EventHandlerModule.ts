@@ -26,6 +26,7 @@ import type {
 } from '@/infrastructure/api/service-api/AgentAPI';
 import { i18nService } from '@/infrastructure/i18n/core/I18nService';
 import { MCPAPI } from '@/infrastructure/api/service-api/MCPAPI';
+import { ACPClientAPI, type AcpPermissionOption, type AcpPermissionRequestEvent } from '@/infrastructure/api/service-api/ACPClientAPI';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import type { FlowChatContext, DialogTurn, ModelRound, FlowToolItem } from './types';
 import {
@@ -38,6 +39,7 @@ import {
   type AiErrorPresentation,
   type AiErrorDetail,
 } from '@/shared/ai-errors/aiErrorPresenter';
+import { isAcpFlowSession } from '../../utils/acpSession';
 
 const pendingImageAnalysisTurns = new Map<string, string>();
 // `restore_session` and assistant bootstrap can race on the same historical
@@ -63,6 +65,7 @@ import {
   handleToolExecutionProgress,
   handleToolTerminalReady,
 } from './ToolEventModule';
+import { handleAcpPermissionRequestForToolCard } from './AcpPermissionToolCardModule';
 import {
   routeModelRoundStartedToToolCardInternal,
   routeTextChunkToToolCardInternal,
@@ -359,6 +362,9 @@ export async function initializeEventListeners(
   const unlistenMcpInteractionRequest = await listen('backend-event-mcpinteractionrequest', (event: any) => {
     void handleMcpInteractionRequest((event.payload as any)?.value || event.payload);
   });
+  const unlistenAcpPermissionRequest = await listen('backend-event-acppermissionrequest', (event: any) => {
+    void handleAcpPermissionRequest((event.payload as any)?.value || event.payload);
+  });
 
   const callbacks: AgenticEventCallbacks = {
     onSessionCreated: (event) => {
@@ -423,6 +429,7 @@ export async function initializeEventListeners(
     unlistenProgress();
     unlistenTerminalReady();
     unlistenMcpInteractionRequest();
+    unlistenAcpPermissionRequest();
     agenticEventListener.stopListening();
   };
 }
@@ -460,6 +467,46 @@ async function handleMcpInteractionRequest(rawEvent: unknown): Promise<void> {
       notificationService.error(`MCP interaction failed: ${method}`);
     }
   }
+}
+
+async function handleAcpPermissionRequest(rawEvent: unknown): Promise<void> {
+  const event = rawEvent as AcpPermissionRequestEvent | undefined;
+  const permissionId = event?.permissionId;
+  if (!permissionId) {
+    log.warn('Received invalid ACP permission request event', { rawEvent });
+    return;
+  }
+
+  if (handleAcpPermissionRequestForToolCard(event)) return;
+
+  log.warn('ACP permission request cannot be matched to a tool card, rejecting request', { permissionId });
+  const option = selectAcpPermissionOption(event?.options, false);
+  try {
+    await ACPClientAPI.submitPermissionResponse({
+      permissionId,
+      approve: false,
+      optionId: option?.optionId,
+    });
+  } catch (error) {
+    log.error('Failed to submit ACP permission auto-rejection', { permissionId, error });
+    notificationService.error('Failed to respond to ACP permission request');
+  }
+}
+
+function selectAcpPermissionOption(
+  options: AcpPermissionRequestEvent['options'],
+  approve: boolean
+): AcpPermissionOption | undefined {
+  const preferredKinds = approve
+    ? ['allow_once', 'allow_always']
+    : ['reject_once', 'reject_always'];
+  for (const kind of preferredKinds) {
+    const option = options?.find((candidate) => candidate.kind === kind);
+    if (option) return option;
+  }
+  return options?.find((candidate) =>
+    approve ? candidate.kind.startsWith('allow') : candidate.kind.startsWith('reject')
+  );
 }
 
 /**
@@ -1342,6 +1389,12 @@ function handleModelRoundStart(context: FlowChatContext, event: any): void {
 
   completeActiveTextItems(context, sessionId, turnId);
 
+  const disableExploreGrouping =
+    event.renderHints?.disableExploreGrouping === true ||
+    event.metadata?.disableExploreGrouping === true ||
+    event.disableExploreGrouping === true ||
+    isAcpFlowSession(session);
+
   const modelRound: ModelRound = {
     id: roundId,
     index: roundIndex || 0,
@@ -1349,7 +1402,10 @@ function handleModelRoundStart(context: FlowChatContext, event: any): void {
     isStreaming: true,
     isComplete: false,
     status: 'streaming',
-    startTime: Date.now()
+    startTime: Date.now(),
+    ...(disableExploreGrouping
+      ? { renderHints: { disableExploreGrouping: true } }
+      : {}),
   };
 
   context.flowChatStore.addModelRound(sessionId, turnId, modelRound);

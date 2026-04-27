@@ -413,6 +413,18 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
     return () => window.removeEventListener('toolbar-create-session', handler);
   }, [handleCreateFlowChatSession]);
 
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const clientId = (e as CustomEvent<{ clientId?: string }>).detail?.clientId?.trim();
+      if (!clientId) return;
+      void FlowChatManager.getInstance()
+        .createAcpChatSession(clientId)
+        .catch(error => log.error('Failed to create ACP FlowChat session', error));
+    };
+    window.addEventListener('bitfun:create-acp-session', handler);
+    return () => window.removeEventListener('bitfun:create-acp-session', handler);
+  }, []);
+
   // Global drag-and-drop
   React.useEffect(() => {
     const handleDragStart = (e: DragEvent) => {

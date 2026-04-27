@@ -1,0 +1,426 @@
+//! ACP client API
+
+use crate::api::app_state::AppState;
+use bitfun_acp::client::{
+    AcpClientInfo, AcpClientPermissionResponse, AcpClientStreamEvent, AcpSessionOptions,
+    SetAcpSessionModelRequest, SubmitAcpPermissionResponseRequest,
+};
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter, State};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AcpClientIdRequest {
+    pub client_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateAcpFlowSessionRequest {
+    pub client_id: String,
+    #[serde(default)]
+    pub session_name: Option<String>,
+    pub workspace_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateAcpFlowSessionResponse {
+    pub session_id: String,
+    pub session_name: String,
+    pub agent_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartAcpDialogTurnRequest {
+    pub session_id: String,
+    pub client_id: String,
+    pub user_input: String,
+    #[serde(default)]
+    pub original_user_input: Option<String>,
+    pub turn_id: String,
+    #[serde(default)]
+    pub workspace_path: Option<String>,
+    #[serde(default)]
+    pub timeout_seconds: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelAcpDialogTurnRequest {
+    pub session_id: String,
+    pub client_id: String,
+    #[serde(default)]
+    pub workspace_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAcpSessionOptionsRequest {
+    pub session_id: String,
+    pub client_id: String,
+    #[serde(default)]
+    pub workspace_path: Option<String>,
+}
+
+#[tauri::command]
+pub async fn initialize_acp_clients(state: State<'_, AppState>) -> Result<(), String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service.initialize_all().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_acp_clients(state: State<'_, AppState>) -> Result<Vec<AcpClientInfo>, String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service.list_clients().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_acp_flow_session(
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+    request: CreateAcpFlowSessionRequest,
+) -> Result<CreateAcpFlowSessionResponse, String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service
+        .start_client(&request.client_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let session_id = format!("acp_{}_{}", request.client_id, uuid::Uuid::new_v4());
+    let agent_type = format!("acp:{}", request.client_id);
+    let session_name = request
+        .session_name
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| format!("{} ACP", request.client_id));
+
+    let _ = app_handle.emit(
+        "agentic://session-created",
+        serde_json::json!({
+            "sessionId": session_id,
+            "sessionName": session_name,
+            "agentType": agent_type,
+            "workspacePath": request.workspace_path,
+        }),
+    );
+
+    Ok(CreateAcpFlowSessionResponse {
+        session_id,
+        session_name,
+        agent_type,
+    })
+}
+
+#[tauri::command]
+pub async fn start_acp_dialog_turn(
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+    request: StartAcpDialogTurnRequest,
+) -> Result<(), String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?
+        .clone();
+
+    let session_id = request.session_id.clone();
+    let turn_id = request.turn_id.clone();
+    let round_id = format!(
+        "round_{}_{}",
+        chrono::Utc::now().timestamp_millis(),
+        uuid::Uuid::new_v4()
+    );
+    let user_input = request.user_input.clone();
+    let original_user_input = request
+        .original_user_input
+        .clone()
+        .unwrap_or_else(|| request.user_input.clone());
+
+    app_handle
+        .emit(
+            "agentic://dialog-turn-started",
+            serde_json::json!({
+                "sessionId": session_id,
+                "turnId": turn_id,
+                "turnIndex": null,
+                "userInput": user_input,
+                "originalUserInput": original_user_input,
+                "userMessageMetadata": null,
+                "subagentParentInfo": null,
+            }),
+        )
+        .map_err(|e| e.to_string())?;
+    app_handle
+        .emit(
+            "agentic://model-round-started",
+            serde_json::json!({
+                "sessionId": session_id,
+                "turnId": turn_id,
+                "roundId": round_id,
+                "roundIndex": 0,
+                "renderHints": {
+                    "disableExploreGrouping": true,
+                },
+                "subagentParentInfo": null,
+            }),
+        )
+        .map_err(|e| e.to_string())?;
+
+    tokio::spawn(async move {
+        let result = service
+            .prompt_agent_stream(
+                &request.client_id,
+                request.user_input,
+                request.workspace_path,
+                Some(request.session_id.clone()),
+                request.timeout_seconds,
+                |event| {
+                    match event {
+                        AcpClientStreamEvent::AgentText(text) => {
+                            app_handle
+                                .emit(
+                                    "agentic://text-chunk",
+                                    serde_json::json!({
+                                        "sessionId": request.session_id,
+                                        "turnId": request.turn_id,
+                                        "roundId": round_id,
+                                        "text": text,
+                                        "subagentParentInfo": null,
+                                    }),
+                                )
+                                .map_err(|e| {
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
+                                })?;
+                        }
+                        AcpClientStreamEvent::AgentThought(text) => {
+                            app_handle
+                                .emit(
+                                    "agentic://text-chunk",
+                                    serde_json::json!({
+                                        "sessionId": request.session_id,
+                                        "turnId": request.turn_id,
+                                        "roundId": round_id,
+                                        "text": text,
+                                        "contentType": "thinking",
+                                        "isThinkingEnd": false,
+                                        "subagentParentInfo": null,
+                                    }),
+                                )
+                                .map_err(|e| {
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
+                                })?;
+                        }
+                        AcpClientStreamEvent::ToolEvent(tool_event) => {
+                            app_handle
+                                .emit(
+                                    "agentic://tool-event",
+                                    serde_json::json!({
+                                        "sessionId": request.session_id,
+                                        "turnId": request.turn_id,
+                                        "toolEvent": tool_event,
+                                        "subagentParentInfo": null,
+                                    }),
+                                )
+                                .map_err(|e| {
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
+                                })?;
+                        }
+                        AcpClientStreamEvent::Completed => {
+                            app_handle
+                                .emit(
+                                    "agentic://dialog-turn-completed",
+                                    serde_json::json!({
+                                        "sessionId": request.session_id,
+                                        "turnId": request.turn_id,
+                                        "subagentParentInfo": null,
+                                        "partialRecoveryReason": null,
+                                    }),
+                                )
+                                .map_err(|e| {
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
+                                })?;
+                        }
+                        AcpClientStreamEvent::Cancelled => {
+                            app_handle
+                                .emit(
+                                    "agentic://dialog-turn-cancelled",
+                                    serde_json::json!({
+                                        "sessionId": request.session_id,
+                                        "turnId": request.turn_id,
+                                        "subagentParentInfo": null,
+                                    }),
+                                )
+                                .map_err(|e| {
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
+                                })?;
+                        }
+                    }
+                    Ok(())
+                },
+            )
+            .await;
+
+        if let Err(error) = result {
+            let _ = app_handle.emit(
+                "agentic://dialog-turn-failed",
+                serde_json::json!({
+                    "sessionId": request.session_id,
+                    "turnId": request.turn_id,
+                    "error": error.to_string(),
+                    "errorCategory": null,
+                    "errorDetail": null,
+                    "subagentParentInfo": null,
+                }),
+            );
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn cancel_acp_dialog_turn(
+    state: State<'_, AppState>,
+    request: CancelAcpDialogTurnRequest,
+) -> Result<(), String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service
+        .cancel_agent_session(
+            &request.client_id,
+            request.workspace_path,
+            Some(request.session_id),
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_acp_session_options(
+    state: State<'_, AppState>,
+    request: GetAcpSessionOptionsRequest,
+) -> Result<AcpSessionOptions, String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service
+        .get_session_options(
+            &request.client_id,
+            request.workspace_path,
+            Some(request.session_id),
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn set_acp_session_model(
+    state: State<'_, AppState>,
+    request: SetAcpSessionModelRequest,
+) -> Result<AcpSessionOptions, String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service
+        .set_session_model(request)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn start_acp_client(
+    state: State<'_, AppState>,
+    request: AcpClientIdRequest,
+) -> Result<(), String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service
+        .start_client(&request.client_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn stop_acp_client(
+    state: State<'_, AppState>,
+    request: AcpClientIdRequest,
+) -> Result<(), String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service
+        .stop_client(&request.client_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn restart_acp_client(
+    state: State<'_, AppState>,
+    request: AcpClientIdRequest,
+) -> Result<(), String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service
+        .restart_client(&request.client_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn load_acp_json_config(state: State<'_, AppState>) -> Result<String, String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service.load_json_config().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn save_acp_json_config(
+    state: State<'_, AppState>,
+    json_config: String,
+) -> Result<(), String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service
+        .save_json_config(&json_config)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn submit_acp_permission_response(
+    state: State<'_, AppState>,
+    request: SubmitAcpPermissionResponseRequest,
+) -> Result<AcpClientPermissionResponse, String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service
+        .submit_permission_response(request)
+        .await
+        .map_err(|e| e.to_string())
+}

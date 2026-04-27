@@ -1555,6 +1555,7 @@ export class FlowChatStore {
             turnId,
             roundIndex,
             timestamp: round.startTime,
+            renderHints: round.renderHints,
             textItems,
             toolItems,
             thinkingItems,
@@ -1820,6 +1821,7 @@ export class FlowChatStore {
           id: round.id,
           turnId: round.turnId,
           index: round.roundIndex ?? 0,
+          renderHints: round.renderHints,
           items: [
             ...round.textItems.map((text: any) => ({
               id: text.id,

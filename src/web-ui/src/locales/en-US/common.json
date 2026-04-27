@@ -162,6 +162,7 @@
       "newCoworkSession": "New Cowork session",
       "newCodeSessionShort": "Code Session",
       "newCoworkSessionShort": "Office Session",
+      "newExternalAgentSessionShort": "{{agentName}} Session",
       "newClawSession": "New Claw session",
       "modeCode": "Code",
       "modeCowork": "Cowork",

@@ -266,6 +266,15 @@ export class SessionStateMachineImpl {
       const sessionId = this.context.taskId;
       const dialogTurnId = this.context.currentDialogTurnId;
       const { agentAPI } = await import('@/infrastructure/api');
+      const { isAcpFlowSession } = await import('../utils/acpSession');
+      const session = flowChatStore.getState().sessions.get(sessionId);
+      if (isAcpFlowSession(session)) {
+        log.debug('Skipping native backend cancellation for ACP session', {
+          sessionId,
+          dialogTurnId,
+        });
+        return;
+      }
       
       try {
         await agentAPI.cancelDialogTurn(sessionId, dialogTurnId);
@@ -318,4 +327,3 @@ export class SessionStateMachineImpl {
     this.notifyListeners();
   }
 }
-

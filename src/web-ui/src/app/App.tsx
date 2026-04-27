@@ -141,8 +141,19 @@ function App() {
       }
     };
 
+    const initACPClients = async () => {
+      try {
+        const { ACPClientAPI } = await import('../infrastructure/api/service-api/ACPClientAPI');
+        await ACPClientAPI.initializeClients();
+        log.debug('ACP clients initialized');
+      } catch (error) {
+        log.error('Failed to initialize ACP clients', error);
+      }
+    };
+
     initIdeControl();
     initMCPServers();
+    initACPClients();
     
   }, []);
 

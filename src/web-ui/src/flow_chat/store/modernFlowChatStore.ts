@@ -10,6 +10,7 @@ import { immer } from 'zustand/middleware/immer';
 import type { Session, DialogTurn, ModelRound, FlowItem, FlowToolItem } from '../types/flow-chat';
 import { isCollapsibleTool, READ_TOOL_NAMES, SEARCH_TOOL_NAMES, COMMAND_TOOL_NAMES } from '../tool-cards';
 import { flowChatStore } from './FlowChatStore';
+import { isAcpFlowSession } from '../utils/acpSession';
 
 /**
  * Explore group statistics (merged computed stats)
@@ -89,6 +90,10 @@ function hasActiveStreamingNarrative(round: ModelRound): boolean {
 function isExploreOnlyRound(round: ModelRound): boolean {
   if (!round.items || round.items.length === 0) return false;
 
+  if (round.renderHints?.disableExploreGrouping === true) {
+    return false;
+  }
+
   if (round.isStreaming && hasActiveStreamingNarrative(round)) {
     return false;
   }
@@ -110,6 +115,20 @@ function isExploreOnlyRound(round: ModelRound): boolean {
   });
   
   return allItemsCollapsible;
+}
+
+function withSessionRenderHints(round: ModelRound, session: Session): ModelRound {
+  if (!isAcpFlowSession(session) || round.renderHints?.disableExploreGrouping === true) {
+    return round;
+  }
+
+  return {
+    ...round,
+    renderHints: {
+      ...round.renderHints,
+      disableExploreGrouping: true,
+    },
+  };
 }
 
 /**
@@ -134,7 +153,12 @@ function computeRoundStats(round: ModelRound): ExploreGroupStats {
 
 let cachedSession: Session | null = null;
 let cachedDialogTurnsRef: DialogTurn[] | null = null;
+let cachedRenderHintKey: string | null = null;
 let cachedVirtualItems: VirtualItem[] = [];
+
+function getSessionRenderHintKey(session: Session): string {
+  return isAcpFlowSession(session) ? 'acp' : 'default';
+}
 
 /**
  * Convert Session to virtualized render items
@@ -150,20 +174,24 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
     if (cachedSession !== null) {
       cachedSession = null;
       cachedDialogTurnsRef = null;
+      cachedRenderHintKey = null;
       cachedVirtualItems = [];
     }
     return cachedVirtualItems;
   }
   
+  const renderHintKey = getSessionRenderHintKey(session);
   if (
     cachedSession?.sessionId === session.sessionId && 
-    cachedDialogTurnsRef === session.dialogTurns
+    cachedDialogTurnsRef === session.dialogTurns &&
+    cachedRenderHintKey === renderHintKey
   ) {
     return cachedVirtualItems;
   }
   
   cachedSession = session;
   cachedDialogTurnsRef = session.dialogTurns;
+  cachedRenderHintKey = renderHintKey;
   if (!session) return [];
 
   const items: VirtualItem[] = [];
@@ -182,7 +210,9 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
       return;
     }
 
-    const nonEmptyRounds = turn.modelRounds.filter(round => round.items && round.items.length > 0);
+    const nonEmptyRounds = turn.modelRounds
+      .filter(round => round.items && round.items.length > 0)
+      .map(round => withSessionRenderHints(round, session));
     
     interface TempExploreGroup {
       rounds: ModelRound[];
@@ -332,6 +362,7 @@ export const useModernFlowChatStore = create<ModernFlowChatState>()(
     clear: () => {
       cachedSession = null;
       cachedDialogTurnsRef = null;
+      cachedRenderHintKey = null;
       cachedVirtualItems = [];
 
       set((state) => {
