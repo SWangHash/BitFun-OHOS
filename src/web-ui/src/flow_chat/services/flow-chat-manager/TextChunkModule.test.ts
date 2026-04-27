@@ -45,7 +45,7 @@ function makeContext(session: Session): any {
   };
 }
 
-function makeSession(agentType?: string): Session {
+function makeSession(): Session {
   const round: ModelRound = {
     id: 'round-1',
     index: 0,
@@ -71,7 +71,7 @@ function makeSession(agentType?: string): Session {
     sessionId: 'session-1',
     dialogTurns: [turn],
     status: 'active',
-    config: { agentType },
+    config: {},
     createdAt: 800,
     lastActiveAt: 1000,
     error: null,
@@ -99,8 +99,8 @@ function insertTool(session: Session): void {
 }
 
 describe('processNormalTextChunkInternal', () => {
-  it('keeps native sessions on the existing active text item after tools', () => {
-    const session = makeSession('bitfun');
+  it('keeps using the existing active text item after tools in the same round', () => {
+    const session = makeSession();
     const context = makeContext(session);
 
     processNormalTextChunkInternal(context, 'session-1', 'turn-1', 'round-1', 'Before tools.');
@@ -113,17 +113,27 @@ describe('processNormalTextChunkInternal', () => {
     expect((textItems[0] as any).content).toBe('Before tools. After tools.');
   });
 
-  it('starts a new text item for ACP text that streams after tools', () => {
-    const session = makeSession('acp:claude-code');
+  it('uses a separate text item when later text arrives in a separate round', () => {
+    const session = makeSession();
+    session.dialogTurns[0].modelRounds.push({
+      id: 'round-2',
+      index: 1,
+      items: [],
+      isStreaming: true,
+      isComplete: false,
+      status: 'streaming',
+      startTime: 1002,
+    });
     const context = makeContext(session);
 
     processNormalTextChunkInternal(context, 'session-1', 'turn-1', 'round-1', 'Before tools.');
     insertTool(session);
-    processNormalTextChunkInternal(context, 'session-1', 'turn-1', 'round-1', 'After tools.');
+    processNormalTextChunkInternal(context, 'session-1', 'turn-1', 'round-2', 'After tools.');
 
-    const items = session.dialogTurns[0].modelRounds[0].items;
-    expect(items.map(item => item.type)).toEqual(['text', 'tool', 'text']);
-    expect((items[0] as any).content).toBe('Before tools.');
-    expect((items[2] as any).content).toBe('After tools.');
+    const [firstRound, secondRound] = session.dialogTurns[0].modelRounds;
+    expect(firstRound.items.map(item => item.type)).toEqual(['text', 'tool']);
+    expect(secondRound.items.map(item => item.type)).toEqual(['text']);
+    expect((firstRound.items[0] as any).content).toBe('Before tools.');
+    expect((secondRound.items[0] as any).content).toBe('After tools.');
   });
 });

@@ -7,7 +7,6 @@ import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import {
   ACPClientAPI,
-  type AcpPermissionOption,
 } from '@/infrastructure/api/service-api/ACPClientAPI';
 import { flowChatStore } from '../../store/FlowChatStore';
 import type { DialogTurn, FlowItem, FlowToolItem, ModelRound } from '../../types/flow-chat';
@@ -56,22 +55,6 @@ function resolveToolContext(toolId: string): ResolvedToolContext {
   };
 }
 
-function selectAcpPermissionOption(
-  options: AcpPermissionOption[] | undefined,
-  approve: boolean
-): AcpPermissionOption | undefined {
-  const preferredKinds = approve
-    ? ['allow_once', 'allow_always']
-    : ['reject_once', 'reject_always'];
-  for (const kind of preferredKinds) {
-    const option = options?.find((candidate) => candidate.kind === kind);
-    if (option) return option;
-  }
-  return options?.find((candidate) =>
-    approve ? candidate.kind.startsWith('allow') : candidate.kind.startsWith('reject')
-  );
-}
-
 export function useFlowChatToolActions() {
   const handleToolConfirm = useCallback(async (toolId: string, updatedInput?: any) => {
     try {
@@ -95,11 +78,9 @@ export function useFlowChatToolActions() {
 
       const acpPermission = toolItem.acpPermission;
       if (acpPermission?.permissionId) {
-        const option = selectAcpPermissionOption(acpPermission.options, true);
         await ACPClientAPI.submitPermissionResponse({
           permissionId: acpPermission.permissionId,
           approve: true,
-          optionId: option?.optionId,
         });
         return;
       }
@@ -133,11 +114,9 @@ export function useFlowChatToolActions() {
 
       const acpPermission = toolItem.acpPermission;
       if (acpPermission?.permissionId) {
-        const option = selectAcpPermissionOption(acpPermission.options, false);
         await ACPClientAPI.submitPermissionResponse({
           permissionId: acpPermission.permissionId,
           approve: false,
-          optionId: option?.optionId,
         });
         return;
       }

@@ -10,11 +10,76 @@ use super::tool_card_bridge::{acp_tool_name, normalize_tool_params};
 
 #[derive(Debug, Clone)]
 pub enum AcpClientStreamEvent {
+    ModelRoundStarted {
+        round_id: String,
+        round_index: usize,
+        disable_explore_grouping: bool,
+    },
     AgentText(String),
     AgentThought(String),
     ToolEvent(ToolEventData),
     Completed,
     Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AcpStreamItemKind {
+    Text,
+    Tool,
+}
+
+#[derive(Debug, Default)]
+pub(super) struct AcpStreamRoundTracker {
+    next_round_index: usize,
+    last_item_kind: Option<AcpStreamItemKind>,
+}
+
+impl AcpStreamRoundTracker {
+    pub(super) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(super) fn apply(&mut self, event: AcpClientStreamEvent) -> Vec<AcpClientStreamEvent> {
+        match event {
+            AcpClientStreamEvent::AgentText(_) | AcpClientStreamEvent::AgentThought(_) => {
+                let mut events = Vec::new();
+                if self.last_item_kind.is_none()
+                    || self.last_item_kind == Some(AcpStreamItemKind::Tool)
+                {
+                    events.push(self.next_round_started_event());
+                }
+                self.last_item_kind = Some(AcpStreamItemKind::Text);
+                events.push(event);
+                events
+            }
+            AcpClientStreamEvent::ToolEvent(_) => {
+                let mut events = Vec::new();
+                if self.last_item_kind.is_none() {
+                    events.push(self.next_round_started_event());
+                }
+                self.last_item_kind = Some(AcpStreamItemKind::Tool);
+                events.push(event);
+                events
+            }
+            AcpClientStreamEvent::ModelRoundStarted { .. }
+            | AcpClientStreamEvent::Completed
+            | AcpClientStreamEvent::Cancelled => vec![event],
+        }
+    }
+
+    fn next_round_started_event(&mut self) -> AcpClientStreamEvent {
+        let round_index = self.next_round_index;
+        self.next_round_index += 1;
+        AcpClientStreamEvent::ModelRoundStarted {
+            round_id: format!(
+                "round_{}_{}",
+                chrono::Utc::now().timestamp_millis(),
+                uuid::Uuid::new_v4()
+            ),
+            round_index,
+            disable_explore_grouping: true,
+        }
+    }
 }
 
 pub async fn acp_dispatch_to_stream_events(
@@ -214,4 +279,78 @@ fn value_to_display_text(value: &serde_json::Value) -> String {
 
 fn protocol_error(error: impl std::fmt::Display) -> BitFunError {
     BitFunError::service(format!("ACP protocol error: {}", error))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn tool_event(id: &str) -> AcpClientStreamEvent {
+        AcpClientStreamEvent::ToolEvent(ToolEventData::Started {
+            tool_id: id.to_string(),
+            tool_name: "Bash".to_string(),
+            params: json!({ "command": "echo ok" }),
+        })
+    }
+
+    fn event_kinds(events: &[AcpClientStreamEvent]) -> Vec<&'static str> {
+        events
+            .iter()
+            .map(|event| match event {
+                AcpClientStreamEvent::ModelRoundStarted { .. } => "round",
+                AcpClientStreamEvent::AgentText(_) => "text",
+                AcpClientStreamEvent::AgentThought(_) => "thought",
+                AcpClientStreamEvent::ToolEvent(_) => "tool",
+                AcpClientStreamEvent::Completed => "completed",
+                AcpClientStreamEvent::Cancelled => "cancelled",
+            })
+            .collect()
+    }
+
+    #[test]
+    fn starts_new_round_for_text_after_tool() {
+        let mut tracker = AcpStreamRoundTracker::new();
+        let mut events = Vec::new();
+        events.extend(tracker.apply(AcpClientStreamEvent::AgentText("before".to_string())));
+        events.extend(tracker.apply(tool_event("tool-1")));
+        events.extend(tracker.apply(AcpClientStreamEvent::AgentText("after".to_string())));
+
+        assert_eq!(
+            event_kinds(&events),
+            vec!["round", "text", "tool", "round", "text"]
+        );
+        assert!(matches!(
+            events[0],
+            AcpClientStreamEvent::ModelRoundStarted { round_index: 0, .. }
+        ));
+        assert!(matches!(
+            events[3],
+            AcpClientStreamEvent::ModelRoundStarted { round_index: 1, .. }
+        ));
+    }
+
+    #[test]
+    fn keeps_consecutive_tools_in_one_round_before_text() {
+        let mut tracker = AcpStreamRoundTracker::new();
+        let mut events = Vec::new();
+        events.extend(tracker.apply(tool_event("tool-1")));
+        events.extend(tracker.apply(tool_event("tool-2")));
+        events.extend(tracker.apply(AcpClientStreamEvent::AgentText("done".to_string())));
+
+        assert_eq!(
+            event_kinds(&events),
+            vec!["round", "tool", "tool", "round", "text"]
+        );
+    }
+
+    #[test]
+    fn keeps_consecutive_text_in_one_round() {
+        let mut tracker = AcpStreamRoundTracker::new();
+        let mut events = Vec::new();
+        events.extend(tracker.apply(AcpClientStreamEvent::AgentText("a".to_string())));
+        events.extend(tracker.apply(AcpClientStreamEvent::AgentText("b".to_string())));
+
+        assert_eq!(event_kinds(&events), vec!["round", "text", "text"]);
+    }
 }

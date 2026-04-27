@@ -6,10 +6,10 @@ use std::time::Duration;
 
 use agent_client_protocol::schema::{
     CancelNotification, ClientCapabilities, Implementation, InitializeRequest, NewSessionRequest,
-    PermissionOptionKind, ProtocolVersion, RequestPermissionOutcome, RequestPermissionRequest,
-    RequestPermissionResponse, SelectedPermissionOutcome, SessionConfigOption,
-    SessionConfigOptionValue, SessionModelState, SetSessionConfigOptionRequest,
-    SetSessionModelRequest, StopReason,
+    PermissionOption, PermissionOptionKind, ProtocolVersion, RequestPermissionOutcome,
+    RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
+    SessionConfigOption, SessionConfigOptionValue, SessionModelState,
+    SetSessionConfigOptionRequest, SetSessionModelRequest, StopReason,
 };
 use agent_client_protocol::{
     ActiveSession, Agent, ByteStreams, Client, ConnectionTo, Error, SessionMessage,
@@ -30,7 +30,7 @@ use super::config::{
     AcpClientConfig, AcpClientConfigFile, AcpClientInfo, AcpClientPermissionMode, AcpClientStatus,
 };
 use super::session_options::{model_config_id, session_options_from_state, AcpSessionOptions};
-use super::stream::{acp_dispatch_to_stream_events, AcpClientStreamEvent};
+use super::stream::{acp_dispatch_to_stream_events, AcpClientStreamEvent, AcpStreamRoundTracker};
 use super::tool::AcpAgentTool;
 
 const CONFIG_PATH: &str = "acp_clients";
@@ -65,8 +65,13 @@ pub struct SetAcpSessionModelRequest {
 pub struct AcpClientService {
     config_service: Arc<ConfigService>,
     clients: DashMap<String, Arc<AcpClientConnection>>,
-    pending_permissions: DashMap<String, oneshot::Sender<RequestPermissionResponse>>,
+    pending_permissions: DashMap<String, PendingPermission>,
     session_permission_modes: DashMap<String, AcpClientPermissionMode>,
+}
+
+struct PendingPermission {
+    sender: oneshot::Sender<RequestPermissionResponse>,
+    options: Vec<PermissionOption>,
 }
 
 struct AcpClientConnection {
@@ -86,6 +91,7 @@ struct AcpRemoteSession {
     config_options: Vec<SessionConfigOption>,
 }
 
+#[derive(Clone)]
 struct AcpCancelHandle {
     session_id: String,
     connection: ConnectionTo<Agent>,
@@ -364,24 +370,20 @@ impl AcpClientService {
         &self,
         request: SubmitAcpPermissionResponseRequest,
     ) -> BitFunResult<AcpClientPermissionResponse> {
-        let Some((_, sender)) = self.pending_permissions.remove(&request.permission_id) else {
+        let Some((_, pending)) = self.pending_permissions.remove(&request.permission_id) else {
             return Err(BitFunError::NotFound(format!(
                 "ACP permission request not found: {}",
                 request.permission_id
             )));
         };
 
-        let option_id = request.option_id.unwrap_or_else(|| {
-            if request.approve {
-                "allow_once".to_string()
-            } else {
-                "reject_once".to_string()
-            }
-        });
+        let option_id = request
+            .option_id
+            .unwrap_or_else(|| select_permission_option_id(&pending.options, request.approve));
         let response = RequestPermissionResponse::new(RequestPermissionOutcome::Selected(
             SelectedPermissionOutcome::new(option_id),
         ));
-        let _ = sender.send(response);
+        let _ = pending.sender.send(response);
         Ok(AcpClientPermissionResponse {
             permission_id: request.permission_id,
             resolved: true,
@@ -562,12 +564,15 @@ impl AcpClientService {
                 .as_mut()
                 .ok_or_else(|| BitFunError::service("ACP session was not initialized"))?;
             active.send_prompt(prompt).map_err(protocol_error)?;
+            let mut round_tracker = AcpStreamRoundTracker::new();
 
             loop {
                 match active.read_update().await.map_err(protocol_error)? {
                     SessionMessage::SessionMessage(dispatch) => {
                         for event in acp_dispatch_to_stream_events(dispatch).await? {
-                            on_event(event)?;
+                            for event in round_tracker.apply(event) {
+                                on_event(event)?;
+                            }
                         }
                     }
                     SessionMessage::StopReason(stop_reason) => {
@@ -628,6 +633,30 @@ impl AcpClientService {
             .send_notification(CancelNotification::new(handle.session_id.clone()))
             .map_err(protocol_error)?;
         Ok(())
+    }
+
+    pub async fn cancel_bitfun_session(
+        self: &Arc<Self>,
+        bitfun_session_id: &str,
+    ) -> BitFunResult<bool> {
+        let session_key_prefix = format!("{}:", bitfun_session_id);
+        for client in self.clients.iter().map(|entry| entry.value().clone()) {
+            let handle = client
+                .cancel_handles
+                .iter()
+                .find(|entry| entry.key().starts_with(&session_key_prefix))
+                .map(|entry| entry.value().clone());
+
+            if let Some(handle) = handle {
+                handle
+                    .connection
+                    .send_notification(CancelNotification::new(handle.session_id.clone()))
+                    .map_err(protocol_error)?;
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
     }
 
     async fn resolve_client_session(
@@ -758,7 +787,13 @@ impl AcpClientService {
 
         let permission_id = format!("acp_permission_{}", uuid::Uuid::new_v4());
         let (tx, rx) = oneshot::channel();
-        self.pending_permissions.insert(permission_id.clone(), tx);
+        self.pending_permissions.insert(
+            permission_id.clone(),
+            PendingPermission {
+                sender: tx,
+                options: request.options.clone(),
+            },
+        );
 
         let payload = json!({
             "permissionId": permission_id,
@@ -880,7 +915,30 @@ fn select_permission_by_kind(
                 .iter()
                 .find(|option| option.kind == fallback_kind)
         })
-        .or_else(|| request.options.first())
+        .map(|option| option.option_id.to_string())
+        .unwrap_or_else(|| select_permission_option_id(&request.options, approve));
+    RequestPermissionResponse::new(RequestPermissionOutcome::Selected(
+        SelectedPermissionOutcome::new(option_id),
+    ))
+}
+
+fn select_permission_option_id(options: &[PermissionOption], approve: bool) -> String {
+    let preferred_kinds = if approve {
+        [
+            PermissionOptionKind::AllowOnce,
+            PermissionOptionKind::AllowAlways,
+        ]
+    } else {
+        [
+            PermissionOptionKind::RejectOnce,
+            PermissionOptionKind::RejectAlways,
+        ]
+    };
+
+    options
+        .iter()
+        .find(|option| preferred_kinds.contains(&option.kind))
+        .or_else(|| options.first())
         .map(|option| option.option_id.to_string())
         .unwrap_or_else(|| {
             if approve {
@@ -888,8 +946,30 @@ fn select_permission_by_kind(
             } else {
                 "reject_once".to_string()
             }
-        });
-    RequestPermissionResponse::new(RequestPermissionOutcome::Selected(
-        SelectedPermissionOutcome::new(option_id),
-    ))
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn selects_actual_permission_option_id_for_approval() {
+        let options = vec![
+            PermissionOption::new("deny", "Deny", PermissionOptionKind::RejectOnce),
+            PermissionOption::new("yes-once", "Allow", PermissionOptionKind::AllowOnce),
+        ];
+
+        assert_eq!(select_permission_option_id(&options, true), "yes-once");
+    }
+
+    #[test]
+    fn selects_actual_permission_option_id_for_rejection() {
+        let options = vec![
+            PermissionOption::new("allow-always", "Allow", PermissionOptionKind::AllowAlways),
+            PermissionOption::new("no-once", "Reject", PermissionOptionKind::RejectOnce),
+        ];
+
+        assert_eq!(select_permission_option_id(&options, false), "no-once");
+    }
 }

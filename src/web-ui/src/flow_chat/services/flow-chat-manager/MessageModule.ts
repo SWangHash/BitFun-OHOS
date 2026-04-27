@@ -351,22 +351,7 @@ export async function cancelCurrentTask(context: FlowChatContext): Promise<boole
       return false;
     }
 
-    const session = state.sessions.get(sessionId);
-    const acpClientId = acpClientIdFromMode(session?.mode);
-    
     const currentState = stateMachineManager.getCurrentState(sessionId);
-    if (acpClientId && currentState === SessionExecutionState.PROCESSING) {
-      try {
-        await ACPClientAPI.cancelDialogTurn({
-          sessionId,
-          clientId: acpClientId,
-          workspacePath: session?.workspacePath,
-        });
-      } catch (error) {
-        log.warn('Failed to forward ACP cancel request', { sessionId, clientId: acpClientId, error });
-      }
-    }
-
     const success = currentState === SessionExecutionState.PROCESSING 
       ? await stateMachineManager.transition(sessionId, SessionExecutionEvent.USER_CANCEL)
       : false;

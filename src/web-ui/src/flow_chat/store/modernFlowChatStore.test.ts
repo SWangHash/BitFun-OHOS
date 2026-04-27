@@ -98,7 +98,7 @@ describe('sessionToVirtualItems explore grouping', () => {
     expect(items.map(item => item.type)).toEqual(['user-message', 'explore-group']);
   });
 
-  it('keeps ACP rounds with collapsible tools in the normal transcript', () => {
+  it('does not special-case ACP rounds without explicit render hints', () => {
     const session = makeSession({
       sessionId: 'acp-session',
       config: { agentType: 'acp:opencode' },
@@ -106,8 +106,7 @@ describe('sessionToVirtualItems explore grouping', () => {
 
     const items = sessionToVirtualItems(session);
 
-    expect(items.map(item => item.type)).toEqual(['user-message', 'model-round']);
-    expect(items[1]?.type === 'model-round' && items[1].data.renderHints?.disableExploreGrouping).toBe(true);
+    expect(items.map(item => item.type)).toEqual(['user-message', 'explore-group']);
   });
 
   it('honors explicit round render hints for non-ACP sessions', () => {

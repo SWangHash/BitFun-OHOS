@@ -135,11 +135,6 @@ pub async fn start_acp_dialog_turn(
 
     let session_id = request.session_id.clone();
     let turn_id = request.turn_id.clone();
-    let round_id = format!(
-        "round_{}_{}",
-        chrono::Utc::now().timestamp_millis(),
-        uuid::Uuid::new_v4()
-    );
     let user_input = request.user_input.clone();
     let original_user_input = request
         .original_user_input
@@ -160,23 +155,8 @@ pub async fn start_acp_dialog_turn(
             }),
         )
         .map_err(|e| e.to_string())?;
-    app_handle
-        .emit(
-            "agentic://model-round-started",
-            serde_json::json!({
-                "sessionId": session_id,
-                "turnId": turn_id,
-                "roundId": round_id,
-                "roundIndex": 0,
-                "renderHints": {
-                    "disableExploreGrouping": true,
-                },
-                "subagentParentInfo": null,
-            }),
-        )
-        .map_err(|e| e.to_string())?;
-
     tokio::spawn(async move {
+        let mut current_round_id: Option<String> = None;
         let result = service
             .prompt_agent_stream(
                 &request.client_id,
@@ -186,7 +166,36 @@ pub async fn start_acp_dialog_turn(
                 request.timeout_seconds,
                 |event| {
                     match event {
+                        AcpClientStreamEvent::ModelRoundStarted {
+                            round_id,
+                            round_index,
+                            disable_explore_grouping,
+                        } => {
+                            current_round_id = Some(round_id.clone());
+                            app_handle
+                                .emit(
+                                    "agentic://model-round-started",
+                                    serde_json::json!({
+                                        "sessionId": request.session_id,
+                                        "turnId": request.turn_id,
+                                        "roundId": round_id,
+                                        "roundIndex": round_index,
+                                        "renderHints": {
+                                            "disableExploreGrouping": disable_explore_grouping,
+                                        },
+                                        "subagentParentInfo": null,
+                                    }),
+                                )
+                                .map_err(|e| {
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
+                                })?;
+                        }
                         AcpClientStreamEvent::AgentText(text) => {
+                            let round_id = current_round_id.clone().ok_or_else(|| {
+                                bitfun_core::util::errors::BitFunError::service(
+                                    "ACP text arrived before model round start".to_string(),
+                                )
+                            })?;
                             app_handle
                                 .emit(
                                     "agentic://text-chunk",
@@ -203,6 +212,11 @@ pub async fn start_acp_dialog_turn(
                                 })?;
                         }
                         AcpClientStreamEvent::AgentThought(text) => {
+                            let round_id = current_round_id.clone().ok_or_else(|| {
+                                bitfun_core::util::errors::BitFunError::service(
+                                    "ACP thought arrived before model round start".to_string(),
+                                )
+                            })?;
                             app_handle
                                 .emit(
                                     "agentic://text-chunk",
