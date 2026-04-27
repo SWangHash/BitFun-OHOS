@@ -28,6 +28,12 @@ pub(super) fn normalize_tool_params(
                     normalized.insert("command".to_string(), value);
                 }
             }
+            if let Some(value) = normalized.get("command").cloned() {
+                normalized.insert(
+                    "command".to_string(),
+                    serde_json::Value::String(command_value_to_display_text(&value)),
+                );
+            }
         }
         "Read" | "Write" | "Edit" | "Delete" => {
             if !normalized.contains_key("file_path") {
@@ -310,6 +316,22 @@ fn has_any_key(object: &serde_json::Map<String, serde_json::Value>, keys: &[&str
     keys.iter().any(|key| object.contains_key(*key))
 }
 
+fn command_value_to_display_text(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(text) => text.clone(),
+        serde_json::Value::Array(items) => items
+            .iter()
+            .map(command_value_to_display_text)
+            .filter(|text| !text.is_empty())
+            .collect::<Vec<_>>()
+            .join(" "),
+        serde_json::Value::Number(number) => number.to_string(),
+        serde_json::Value::Bool(value) => value.to_string(),
+        serde_json::Value::Null => String::new(),
+        serde_json::Value::Object(_) => serde_json::to_string(value).unwrap_or_default(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -325,6 +347,20 @@ mod tests {
 
         let params = normalize_tool_params("Bash", json!({ "cmd": "ls -la" }));
         assert_eq!(params["command"], "ls -la");
+    }
+
+    #[test]
+    fn normalizes_bash_command_arrays_to_display_string() {
+        let params = normalize_tool_params(
+            "Bash",
+            json!({
+                "command": ["/bin/zsh", "-lc", "sed -n '1,120p' src/lib.rs"],
+                "cwd": "/tmp/project"
+            }),
+        );
+
+        assert_eq!(params["command"], "/bin/zsh -lc sed -n '1,120p' src/lib.rs");
+        assert_eq!(params["cwd"], "/tmp/project");
     }
 
     #[test]
