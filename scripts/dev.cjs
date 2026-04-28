@@ -165,13 +165,16 @@ function runCommand(command, cwd = ROOT_DIR) {
 /**
  * Spawn a command with explicit args array (no shell interpolation, safe for paths with spaces)
  */
-function spawnCommand(cmd, args, cwd = ROOT_DIR, env = process.env, shell = false) {
+function spawnCommand(cmd, args, cwd = ROOT_DIR, envOverrides = {}, shell = false) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
       cwd,
       stdio: 'inherit',
       shell,
-      env,
+      env: {
+        ...process.env,
+        ...envOverrides,
+      },
     });
 
     child.on('close', (code) => {
@@ -541,6 +544,34 @@ async function startDesktopPreview() {
   await new Promise(() => {});
 }
 
+function flashgrepBinaryName() {
+  return process.platform === 'win32' ? 'flashgrep.exe' : 'flashgrep';
+}
+
+function flashgrepBinaryPath() {
+  return path.join(ROOT_DIR, 'resources', 'flashgrep', flashgrepBinaryName());
+}
+
+function ensureFlashgrepBinary() {
+  const binaryPath = flashgrepBinaryPath();
+  if (!fs.existsSync(binaryPath)) {
+    return {
+      ok: false,
+      error: new Error(
+        `flashgrep binary not found: ${binaryPath}. Put the prebuilt daemon binary at resources/flashgrep/${flashgrepBinaryName()}`
+      ),
+    };
+  }
+
+  return { ok: true, binaryPath };
+}
+
+async function ensureFlashgrepBundleResource() {
+  const helperUrl = pathToFileURL(path.join(__dirname, 'prepare-flashgrep-resource.mjs')).href;
+  const helper = await import(helperUrl);
+  return helper.ensureFlashgrepBinary();
+}
+
 /**
  * Main entry
  */
@@ -566,7 +597,7 @@ async function main() {
   printHeader(`BitFun ${modeLabel} Development`);
   printBlank();
 
-  const totalSteps = desktopMode ? 4 : 3;
+  const totalSteps = desktopMode ? 5 : 3;
   let currentStep = 1;
 
   // Step 1: Copy resources
@@ -615,6 +646,28 @@ async function main() {
       logError: printError,
     });
     if (!mobileWebResult.ok) {
+      process.exit(1);
+    }
+
+    printStep(currentStep++, totalSteps, 'Build workspace search daemon');
+    const flashgrepResult = ensureFlashgrepBinary();
+    if (!flashgrepResult.ok) {
+      printError('Workspace search daemon is missing');
+      if (flashgrepResult.error && flashgrepResult.error.message) {
+        printError(flashgrepResult.error.message);
+      }
+      if (flashgrepResult.error && flashgrepResult.error.status !== undefined) {
+        printError(`Exit code: ${flashgrepResult.error.status}`);
+      }
+      process.exit(1);
+    }
+    process.env.FLASHGREP_DAEMON_BIN = flashgrepResult.binaryPath;
+
+    try {
+      await ensureFlashgrepBundleResource();
+    } catch (error) {
+      printError('Validate workspace search daemon failed');
+      printError(error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
   }

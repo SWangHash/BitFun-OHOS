@@ -9,6 +9,7 @@ pub mod theme;
 use bitfun_core::agentic::tools::computer_use_capability::set_computer_use_desktop_available;
 use bitfun_core::infrastructure::ai::AIClientFactory;
 use bitfun_core::infrastructure::{get_path_manager_arc, try_get_path_manager_arc};
+use bitfun_core::service::search::get_global_workspace_search_service;
 use bitfun_core::service::workspace::get_global_workspace_service;
 use bitfun_core::util::{elapsed_ms, TimingCollector};
 use bitfun_transport::{TauriTransportAdapter, TransportAdapter};
@@ -45,6 +46,7 @@ use api::lsp_api::*;
 use api::lsp_workspace_api::*;
 use api::mcp_api::*;
 use api::runtime_api::*;
+use api::search_api::*;
 use api::session_api::*;
 use api::skill_api::*;
 use api::snapshot_service::*;
@@ -185,6 +187,9 @@ pub async fn _run() {
 
     let path_manager = get_path_manager_arc();
 
+    setup_panic_hook();
+
+    let app = tauri::Builder::default()
     let run_result = tauri::Builder::default()
         .plugin(logging::build_log_plugin(log_targets))
         .plugin(tauri_plugin_opener::init())
@@ -329,22 +334,12 @@ pub async fn _run() {
             Ok(())
         })
         .on_window_event({
-            static CLEANUP_DONE: AtomicBool = AtomicBool::new(false);
-
             move |window, event| {
-                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if let tauri::WindowEvent::CloseRequested { .. } = event {
                     if window.label() == "main" {
-                        if CLEANUP_DONE
-                            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-                            .is_ok()
-                        {
+                        if perform_process_exit_cleanup() {
                             log::info!("Main window close requested, cleaning up");
-                            bitfun_core::util::process_manager::cleanup_all_processes();
-                            api::remote_connect_api::cleanup_on_exit();
-
                             window.app_handle().exit(0);
-                        } else {
-                            api.prevent_close();
                         }
                     }
                 }
@@ -417,6 +412,9 @@ pub async fn _run() {
             search_files,
             search_filenames,
             search_file_contents,
+            search_get_repo_status,
+            search_build_index,
+            search_rebuild_index,
             start_search_filenames_stream,
             start_search_file_contents_stream,
             cancel_search,
@@ -793,9 +791,22 @@ pub async fn _run() {
             set_theme_mode,
 
         ])
-        .run(tauri::generate_context!());
-    if let Err(e) = run_result {
-        log::error!("Error while running tauri application: {}", e);
+        .build(tauri::generate_context!());
+
+    match app {
+        Ok(app) => {
+            app.run(|_app_handle, event| {
+                if matches!(
+                    event,
+                    tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
+                ) {
+                    perform_process_exit_cleanup();
+                }
+            });
+        }
+        Err(e) => {
+            log::error!("Error while running tauri application: {}", e);
+        }
     }
 }
 
@@ -920,6 +931,101 @@ fn init_mcp_servers(app_handle: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         let _ = app_handle;
     });
+}
+
+fn setup_panic_hook() {
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let location = panic_info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "unknown location".to_string());
+
+        let message = panic_info
+            .payload()
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| {
+                panic_info
+                    .payload()
+                    .downcast_ref::<String>()
+                    .map(String::as_str)
+            })
+            .unwrap_or("unknown panic message");
+
+        log::error!("Application panic at {}: {}", location, message);
+
+        // Known wry bug: WKWebView.URL() returns nil after navigating to an
+        // invalid address, causing url_from_webview to panic on unwrap().
+        // This is non-fatal — the webview is still alive — so we log and
+        // continue instead of killing the process.
+        // See: https://github.com/tauri-apps/wry/pull/1554
+        if location.contains("wry") && location.contains("wkwebview") {
+            log::warn!("Suppressed non-fatal wry/wkwebview panic, application continues");
+            return;
+        }
+
+        if message.contains("WSAStartup") || message.contains("10093") || message.contains("hyper")
+        {
+            log::error!("Network-related crash detected, possible solutions:");
+            log::error!("  1) Restart the application");
+            log::error!("  2) Check Windows network service status");
+            log::error!("  3) Run as administrator");
+        }
+
+        perform_process_exit_cleanup();
+        std::process::exit(1);
+    }));
+}
+
+fn perform_process_exit_cleanup() -> bool {
+    static CLEANUP_DONE: AtomicBool = AtomicBool::new(false);
+
+    if CLEANUP_DONE
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return false;
+    }
+
+    if let Some(search_service) = get_global_workspace_search_service() {
+        let shutdown_thread = std::thread::Builder::new()
+            .name("workspace-search-shutdown".to_string())
+            .spawn(move || {
+                match tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                {
+                    Ok(runtime) => {
+                        runtime.block_on(async move {
+                            search_service.shutdown_all_daemons().await;
+                        });
+                    }
+                    Err(error) => {
+                        log::warn!(
+                            "Failed to create runtime for workspace search shutdown: {}",
+                            error
+                        );
+                    }
+                }
+            });
+
+        match shutdown_thread {
+            Ok(handle) => {
+                if handle.join().is_err() {
+                    log::warn!("Workspace search shutdown thread panicked");
+                }
+            }
+            Err(error) => {
+                log::warn!(
+                    "Failed to spawn workspace search shutdown thread: {}",
+                    error
+                );
+            }
+        }
+    }
+    bitfun_core::util::process_manager::cleanup_all_processes();
+    api::remote_connect_api::cleanup_on_exit();
+    true
 }
 
 fn start_event_loop_with_transport(
