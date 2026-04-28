@@ -19,7 +19,11 @@ import { notificationService } from '@/shared/notification-system';
 import { flowChatManager } from '@/flow_chat/services/FlowChatManager';
 import { openMainSession } from '@/flow_chat/services/openBtwSession';
 import { findReusableEmptySessionId } from '@/app/utils/projectSessionWorkspace';
-import { ACPClientAPI, type AcpClientInfo } from '@/infrastructure/api/service-api/ACPClientAPI';
+import {
+  ACPClientAPI,
+  type AcpClientInfo,
+  type AcpClientRequirementProbe,
+} from '@/infrastructure/api/service-api/ACPClientAPI';
 import { BranchSelectModal, type BranchSelectResult } from '../../../panels/BranchSelectModal';
 import SessionsSection from '../sessions/SessionsSection';
 import {
@@ -83,7 +87,6 @@ function useStickyObserver(ref: React.RefObject<HTMLDivElement | null>) {
 
   return isStuck;
 }
-
 interface WorkspaceItemProps {
   workspace: WorkspaceInfo;
   isActive: boolean;
@@ -346,9 +349,15 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
 
     const loadAcpClients = async () => {
       try {
-        const clients = await ACPClientAPI.getClients();
+        const [clients, requirementProbes] = await Promise.all([
+          ACPClientAPI.getClients(),
+          ACPClientAPI.probeClientRequirements(),
+        ]);
+        const probesById = new Map<string, AcpClientRequirementProbe>(
+          requirementProbes.map(probe => [probe.id, probe])
+        );
         if (!cancelled) {
-          setAcpClients(clients.filter(client => client.enabled));
+          setAcpClients(clients.filter(client => client.enabled && probesById.get(client.id)?.runnable === true));
         }
       } catch (_error) {
         setAcpClients([]);

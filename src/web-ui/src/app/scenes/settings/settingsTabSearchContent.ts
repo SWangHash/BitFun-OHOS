@@ -96,10 +96,8 @@ export const SETTINGS_TAB_SEARCH_CONTENT: Record<ConfigTab, readonly SettingsTab
   'acp-agents': [
     { ns: 'settings/acp-agents', key: 'title' },
     { ns: 'settings/acp-agents', key: 'subtitle' },
-    { ns: 'settings/acp-agents', key: 'presets.title' },
-    { ns: 'settings/acp-agents', key: 'presets.description' },
-    { ns: 'settings/acp-agents', key: 'clients.title' },
-    { ns: 'settings/acp-agents', key: 'clients.description' },
+    { ns: 'settings/acp-agents', key: 'registry.title' },
+    { ns: 'settings/acp-agents', key: 'registry.description' },
     { ns: 'settings/acp-agents', key: 'json.title' },
   ],
 

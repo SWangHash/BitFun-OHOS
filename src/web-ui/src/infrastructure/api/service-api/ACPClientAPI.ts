@@ -17,6 +17,22 @@ export interface AcpClientInfo {
   sessionCount: number;
 }
 
+export interface AcpRequirementProbeItem {
+  name: string;
+  installed: boolean;
+  version?: string;
+  path?: string;
+  error?: string;
+}
+
+export interface AcpClientRequirementProbe {
+  id: string;
+  tool: AcpRequirementProbeItem;
+  adapter?: AcpRequirementProbeItem;
+  runnable: boolean;
+  notes: string[];
+}
+
 export interface AcpClientIdRequest {
   clientId: string;
 }
@@ -25,6 +41,8 @@ export interface CreateAcpFlowSessionRequest {
   clientId: string;
   sessionName?: string;
   workspacePath: string;
+  remoteConnectionId?: string;
+  remoteSshHost?: string;
 }
 
 export interface CreateAcpFlowSessionResponse {
@@ -40,6 +58,8 @@ export interface StartAcpDialogTurnRequest {
   originalUserInput?: string;
   turnId: string;
   workspacePath?: string;
+  remoteConnectionId?: string;
+  remoteSshHost?: string;
   timeoutSeconds?: number;
 }
 
@@ -47,18 +67,24 @@ export interface CancelAcpDialogTurnRequest {
   sessionId: string;
   clientId: string;
   workspacePath?: string;
+  remoteConnectionId?: string;
+  remoteSshHost?: string;
 }
 
 export interface GetAcpSessionOptionsRequest {
   sessionId: string;
   clientId: string;
   workspacePath?: string;
+  remoteConnectionId?: string;
+  remoteSshHost?: string;
 }
 
 export interface SetAcpSessionModelRequest {
   sessionId: string;
   clientId: string;
   workspacePath?: string;
+  remoteConnectionId?: string;
+  remoteSshHost?: string;
   modelId: string;
 }
 
@@ -108,16 +134,27 @@ export class ACPClientAPI {
     return api.invoke('get_acp_clients');
   }
 
+  static async probeClientRequirements(): Promise<AcpClientRequirementProbe[]> {
+    return api.invoke('probe_acp_client_requirements');
+  }
+
+  static async predownloadClientAdapter(request: AcpClientIdRequest): Promise<void> {
+    await api.invoke('predownload_acp_client_adapter', { request });
+  }
+
   static async startClient(request: AcpClientIdRequest): Promise<void> {
-    return api.invoke('start_acp_client', { request });
+    await api.invoke('start_acp_client', { request });
+    window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
   }
 
   static async stopClient(request: AcpClientIdRequest): Promise<void> {
-    return api.invoke('stop_acp_client', { request });
+    await api.invoke('stop_acp_client', { request });
+    window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
   }
 
   static async restartClient(request: AcpClientIdRequest): Promise<void> {
-    return api.invoke('restart_acp_client', { request });
+    await api.invoke('restart_acp_client', { request });
+    window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
   }
 
   static async loadJsonConfig(): Promise<string> {
@@ -138,7 +175,9 @@ export class ACPClientAPI {
   static async createFlowSession(
     request: CreateAcpFlowSessionRequest
   ): Promise<CreateAcpFlowSessionResponse> {
-    return api.invoke('create_acp_flow_session', { request });
+    const response = await api.invoke<CreateAcpFlowSessionResponse>('create_acp_flow_session', { request });
+    window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
+    return response;
   }
 
   static async startDialogTurn(request: StartAcpDialogTurnRequest): Promise<void> {

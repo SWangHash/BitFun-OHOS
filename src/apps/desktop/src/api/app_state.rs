@@ -146,8 +146,13 @@ impl AppState {
                 None
             }
         };
-        let acp_client_service = Some(bitfun_acp::AcpClientService::new(config_service.clone()));
         let path_manager = workspace_service.path_manager().clone();
+        let acp_client_service = Some(
+            bitfun_acp::AcpClientService::new(config_service.clone(), path_manager.clone())
+                .map_err(|e| {
+                    BitFunError::service(format!("Failed to initialize ACP client service: {}", e))
+                })?,
+        );
 
         let announcement_scheduler = Arc::new(
             announcement::AnnouncementScheduler::new(&path_manager)

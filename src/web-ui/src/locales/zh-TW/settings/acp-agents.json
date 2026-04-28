@@ -1,52 +1,59 @@
 {
-  "title": "ACP Agent",
-  "subtitle": "配置可在 FlowChat 會話裡運行的外部 ACP Agent。",
+  "title": "ACP Agents",
+  "subtitle": "管理可在 FlowChat 會話裡運行的 ACP Agent。",
   "actions": {
     "save": "保存",
     "refresh": "刷新",
+    "learnMore": "了解更多",
     "editJson": "編輯 JSON",
     "closeJson": "關閉 JSON",
     "saveJson": "保存 JSON",
     "revert": "還原",
+    "install": "安裝",
     "restorePreset": "恢復預設",
-    "start": "啟動",
-    "stop": "停止",
-    "saveBeforeStart": "先保存改動再啟動"
+    "predownloadAcp": "預下載 ACP"
   },
   "json": {
     "title": "原始 JSON",
     "description": "高級編輯器，對應 acpClients 配置。桌面端會通過 stdio 啟動這些客戶端。"
   },
-  "presets": {
-    "title": "內置預設",
-    "description": "點擊預設後可按需調整命令，然後保存。啟用的客戶端會出現在工作區操作菜單裡。"
+  "registry": {
+    "title": "Agent 列表",
+    "description": "安裝完成且依賴就緒後，ACP Agent 會出現在工作區操作菜單裡。",
+    "searchPlaceholder": "搜尋 Agent...",
+    "filterLabel": "ACP Agent 篩選",
+    "filters": {
+      "all": "全部",
+      "installed": "已安裝",
+      "notInstalled": "未安裝"
+    },
+    "installed": "已安裝",
+    "notInstalled": "未安裝",
+    "cliRequired": "需安裝 CLI",
+    "empty": "沒有匹配的 ACP Agent。"
   },
   "clients": {
-    "title": "已配置客戶端",
-    "description": "管理每個外部 Agent 的命令、參數、權限與進程狀態。",
-    "loading": "正在加載 ACP Agent…",
-    "empty": "還沒有配置 ACP Agent。"
+    "loading": "正在加載 ACP Agent…"
   },
   "fields": {
     "name": "名稱",
     "command": "命令",
     "args": "參數，每行一個",
     "env": "環境變量，每行 KEY=VALUE",
-    "autoStart": "自動啟動",
-    "readonly": "只讀",
-    "permissionMode": "權限模式"
+    "permissionMode": "工具確認"
   },
   "permissionMode": {
     "ask": "詢問",
-    "allowOnce": "自動允許一次",
-    "rejectOnce": "自動拒絕一次"
+    "allowOnce": "自動通過",
+    "rejectOnce": "自動拒絕"
   },
-  "status": {
-    "configured": "已配置",
-    "starting": "啟動中",
-    "running": "運行中",
-    "stopped": "已停止",
-    "failed": "失敗"
+  "requirements": {
+    "tool": "CLI",
+    "adapter": "ACP",
+    "installed": "已安裝",
+    "missing": "缺失",
+    "ready": "依賴已就緒",
+    "notReady": "依賴缺失"
   },
   "notifications": {
     "loadFailed": "加載 ACP 配置失敗",
@@ -54,6 +61,7 @@
     "saveFailed": "保存 ACP 配置失敗",
     "invalidJson": "ACP JSON 無效",
     "invalidEnv": "環境變量無效",
-    "operationFailed": "ACP 操作失敗"
+    "predownloadSuccess": "ACP 適配器已下載",
+    "predownloadFailed": "下載 ACP 適配器失敗"
   }
 }

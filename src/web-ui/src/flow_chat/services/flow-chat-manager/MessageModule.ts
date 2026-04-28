@@ -261,6 +261,8 @@ export async function sendMessage(
         originalUserInput: displayMessage || message,
         turnId: dialogTurnId,
         workspacePath,
+        remoteConnectionId: updatedSession.remoteConnectionId,
+        remoteSshHost: updatedSession.remoteSshHost,
       });
     } else {
       try {

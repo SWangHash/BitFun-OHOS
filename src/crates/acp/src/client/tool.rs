@@ -185,6 +185,7 @@ impl Tool for AcpAgentTool {
                 prompt,
                 workspace_path,
                 context.session_id.clone(),
+                None,
                 timeout_seconds,
             )
             .await?;

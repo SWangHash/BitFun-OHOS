@@ -1,9 +1,11 @@
 //! ACP client API
 
 use crate::api::app_state::AppState;
+use crate::api::session_storage_path::desktop_effective_session_storage_path;
 use bitfun_acp::client::{
-    AcpClientInfo, AcpClientPermissionResponse, AcpClientStreamEvent, AcpSessionOptions,
-    SetAcpSessionModelRequest, SubmitAcpPermissionResponseRequest,
+    AcpClientInfo, AcpClientPermissionResponse, AcpClientRequirementProbe, AcpClientStreamEvent,
+    AcpSessionOptions, CreateAcpFlowSessionRecordResponse, SetAcpSessionModelRequest,
+    SubmitAcpPermissionResponseRequest,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
@@ -21,15 +23,13 @@ pub struct CreateAcpFlowSessionRequest {
     #[serde(default)]
     pub session_name: Option<String>,
     pub workspace_path: String,
+    #[serde(default)]
+    pub remote_connection_id: Option<String>,
+    #[serde(default)]
+    pub remote_ssh_host: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateAcpFlowSessionResponse {
-    pub session_id: String,
-    pub session_name: String,
-    pub agent_type: String,
-}
+pub type CreateAcpFlowSessionResponse = CreateAcpFlowSessionRecordResponse;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,6 +43,10 @@ pub struct StartAcpDialogTurnRequest {
     #[serde(default)]
     pub workspace_path: Option<String>,
     #[serde(default)]
+    pub remote_connection_id: Option<String>,
+    #[serde(default)]
+    pub remote_ssh_host: Option<String>,
+    #[serde(default)]
     pub timeout_seconds: Option<u64>,
 }
 
@@ -53,6 +57,10 @@ pub struct CancelAcpDialogTurnRequest {
     pub client_id: String,
     #[serde(default)]
     pub workspace_path: Option<String>,
+    #[serde(default)]
+    pub remote_connection_id: Option<String>,
+    #[serde(default)]
+    pub remote_ssh_host: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,6 +70,10 @@ pub struct GetAcpSessionOptionsRequest {
     pub client_id: String,
     #[serde(default)]
     pub workspace_path: Option<String>,
+    #[serde(default)]
+    pub remote_connection_id: Option<String>,
+    #[serde(default)]
+    pub remote_ssh_host: Option<String>,
 }
 
 #[tauri::command]
@@ -83,6 +95,35 @@ pub async fn get_acp_clients(state: State<'_, AppState>) -> Result<Vec<AcpClient
 }
 
 #[tauri::command]
+pub async fn probe_acp_client_requirements(
+    state: State<'_, AppState>,
+) -> Result<Vec<AcpClientRequirementProbe>, String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service
+        .probe_client_requirements()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn predownload_acp_client_adapter(
+    state: State<'_, AppState>,
+    request: AcpClientIdRequest,
+) -> Result<(), String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service
+        .predownload_client_adapter(&request.client_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn create_acp_flow_session(
     state: State<'_, AppState>,
     app_handle: AppHandle,
@@ -97,28 +138,36 @@ pub async fn create_acp_flow_session(
         .await
         .map_err(|e| e.to_string())?;
 
-    let session_id = format!("acp_{}_{}", request.client_id, uuid::Uuid::new_v4());
-    let agent_type = format!("acp:{}", request.client_id);
-    let session_name = request
-        .session_name
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| format!("{} ACP", request.client_id));
+    let session_storage_path = desktop_effective_session_storage_path(
+        &state,
+        &request.workspace_path,
+        request.remote_connection_id.as_deref(),
+        request.remote_ssh_host.as_deref(),
+    )
+    .await;
+    let response = service
+        .create_flow_session_record(
+            &session_storage_path,
+            &request.workspace_path,
+            &request.client_id,
+            request.session_name,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
 
     let _ = app_handle.emit(
         "agentic://session-created",
         serde_json::json!({
-            "sessionId": session_id,
-            "sessionName": session_name,
-            "agentType": agent_type,
+            "sessionId": response.session_id.clone(),
+            "sessionName": response.session_name.clone(),
+            "agentType": response.agent_type.clone(),
             "workspacePath": request.workspace_path,
+            "remoteConnectionId": request.remote_connection_id,
+            "remoteSshHost": request.remote_ssh_host,
         }),
     );
 
-    Ok(CreateAcpFlowSessionResponse {
-        session_id,
-        session_name,
-        agent_type,
-    })
+    Ok(response)
 }
 
 #[tauri::command]
@@ -140,6 +189,18 @@ pub async fn start_acp_dialog_turn(
         .original_user_input
         .clone()
         .unwrap_or_else(|| request.user_input.clone());
+    let session_storage_path = match request.workspace_path.as_deref() {
+        Some(workspace_path) => Some(
+            desktop_effective_session_storage_path(
+                &state,
+                workspace_path,
+                request.remote_connection_id.as_deref(),
+                request.remote_ssh_host.as_deref(),
+            )
+            .await,
+        ),
+        None => None,
+    };
 
     app_handle
         .emit(
@@ -163,6 +224,7 @@ pub async fn start_acp_dialog_turn(
                 request.user_input,
                 request.workspace_path,
                 Some(request.session_id.clone()),
+                session_storage_path,
                 request.timeout_seconds,
                 |event| {
                     match event {
@@ -330,10 +392,23 @@ pub async fn get_acp_session_options(
         .acp_client_service
         .as_ref()
         .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    let session_storage_path = match request.workspace_path.as_deref() {
+        Some(workspace_path) => Some(
+            desktop_effective_session_storage_path(
+                &state,
+                workspace_path,
+                request.remote_connection_id.as_deref(),
+                request.remote_ssh_host.as_deref(),
+            )
+            .await,
+        ),
+        None => None,
+    };
     service
         .get_session_options(
             &request.client_id,
             request.workspace_path,
+            session_storage_path,
             Some(request.session_id),
         )
         .await
@@ -349,8 +424,20 @@ pub async fn set_acp_session_model(
         .acp_client_service
         .as_ref()
         .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    let session_storage_path = match request.workspace_path.as_deref() {
+        Some(workspace_path) => Some(
+            desktop_effective_session_storage_path(
+                &state,
+                workspace_path,
+                request.remote_connection_id.as_deref(),
+                request.remote_ssh_host.as_deref(),
+            )
+            .await,
+        ),
+        None => None,
+    };
     service
-        .set_session_model(request)
+        .set_session_model(request, session_storage_path)
         .await
         .map_err(|e| e.to_string())
 }

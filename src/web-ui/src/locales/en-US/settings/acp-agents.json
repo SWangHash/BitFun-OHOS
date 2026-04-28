@@ -1,52 +1,59 @@
 {
   "title": "ACP Agents",
-  "subtitle": "Configure external ACP-compatible agents that can run inside FlowChat sessions.",
+  "subtitle": "Manage ACP-compatible agents for FlowChat sessions.",
   "actions": {
     "save": "Save",
     "refresh": "Refresh",
+    "learnMore": "Learn More",
     "editJson": "Edit JSON",
     "closeJson": "Close JSON",
     "saveJson": "Save JSON",
     "revert": "Revert",
+    "install": "Install",
     "restorePreset": "Restore preset",
-    "start": "Start",
-    "stop": "Stop",
-    "saveBeforeStart": "Save changes before starting"
+    "predownloadAcp": "Predownload ACP"
   },
   "json": {
     "title": "Raw JSON",
     "description": "Advanced editor for the acpClients config. Each client is spawned over stdio by the desktop app."
   },
-  "presets": {
-    "title": "Built-in Presets",
-    "description": "Apply a preset, adjust the command if needed, then save. Enabled clients appear in the workspace action menu."
+  "registry": {
+    "title": "Agents",
+    "description": "Installed ACP agents with ready dependencies appear in the workspace action menu.",
+    "searchPlaceholder": "Search agents...",
+    "filterLabel": "ACP agent filter",
+    "filters": {
+      "all": "All",
+      "installed": "Installed",
+      "notInstalled": "Not Installed"
+    },
+    "installed": "Installed",
+    "notInstalled": "Not Installed",
+    "cliRequired": "Install CLI",
+    "empty": "No matching ACP agents."
   },
   "clients": {
-    "title": "Configured Clients",
-    "description": "Manage command, arguments, permissions, and process status for each external agent.",
-    "loading": "Loading ACP agents…",
-    "empty": "No ACP agents configured."
+    "loading": "Loading ACP agents…"
   },
   "fields": {
     "name": "Name",
     "command": "Command",
     "args": "Arguments, one per line",
     "env": "Environment, KEY=VALUE per line",
-    "autoStart": "Auto start",
-    "readonly": "Readonly",
-    "permissionMode": "Permission mode"
+    "permissionMode": "Tool confirmation"
   },
   "permissionMode": {
     "ask": "Ask",
-    "allowOnce": "Allow once",
-    "rejectOnce": "Reject once"
+    "allowOnce": "Auto approve",
+    "rejectOnce": "Auto reject"
   },
-  "status": {
-    "configured": "Configured",
-    "starting": "Starting",
-    "running": "Running",
-    "stopped": "Stopped",
-    "failed": "Failed"
+  "requirements": {
+    "tool": "CLI",
+    "adapter": "ACP",
+    "installed": "Installed",
+    "missing": "Missing",
+    "ready": "Requirements ready",
+    "notReady": "Requirements missing"
   },
   "notifications": {
     "loadFailed": "Failed to load ACP config",
@@ -54,6 +61,7 @@
     "saveFailed": "Failed to save ACP config",
     "invalidJson": "Invalid ACP JSON",
     "invalidEnv": "Invalid environment value",
-    "operationFailed": "ACP operation failed"
+    "predownloadSuccess": "ACP adapter downloaded",
+    "predownloadFailed": "Failed to download ACP adapter"
   }
 }

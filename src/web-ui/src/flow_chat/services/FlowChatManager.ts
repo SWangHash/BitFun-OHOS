@@ -210,6 +210,8 @@ export class FlowChatManager {
     const response = await ACPClientAPI.createFlowSession({
       clientId,
       workspacePath,
+      remoteConnectionId: config.remoteConnectionId,
+      remoteSshHost: config.remoteSshHost,
       sessionName: `${clientId} ACP`,
     });
 

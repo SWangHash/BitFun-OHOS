@@ -193,6 +193,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         sessionId,
         clientId: acpClientId,
         workspacePath: activeSession?.workspacePath || activeSession?.config.workspacePath,
+        remoteConnectionId: activeSession?.remoteConnectionId,
+        remoteSshHost: activeSession?.remoteSshHost,
       });
       setAcpOptions(options);
     } catch (error) {
@@ -201,6 +203,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     }
   }, [
     activeSession?.config.workspacePath,
+    activeSession?.remoteConnectionId,
+    activeSession?.remoteSshHost,
     activeSession?.workspacePath,
     acpClientId,
     isAcpSession,
@@ -332,6 +336,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           sessionId,
           clientId: acpClientId,
           workspacePath: activeSession?.workspacePath || activeSession?.config.workspacePath,
+          remoteConnectionId: activeSession?.remoteConnectionId,
+          remoteSshHost: activeSession?.remoteSshHost,
           modelId,
         });
         setAcpOptions(options);
@@ -375,6 +381,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     }
   }, [
     activeSession?.config.workspacePath,
+    activeSession?.remoteConnectionId,
+    activeSession?.remoteSshHost,
     activeSession?.workspacePath,
     acpClientId,
     currentMode,

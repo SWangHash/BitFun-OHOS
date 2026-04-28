@@ -59,6 +59,31 @@ pub struct AcpClientInfo {
     pub session_count: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AcpClientRequirementProbe {
+    pub id: String,
+    pub tool: AcpRequirementProbeItem,
+    #[serde(default)]
+    pub adapter: Option<AcpRequirementProbeItem>,
+    pub runnable: bool,
+    #[serde(default)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AcpRequirementProbeItem {
+    pub name: String,
+    pub installed: bool,
+    #[serde(default)]
+    pub version: Option<String>,
+    #[serde(default)]
+    pub path: Option<String>,
+    #[serde(default)]
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AcpClientStatus {

@@ -1,26 +1,31 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  AlertCircle,
   Bot,
   CheckCircle,
-  Clock,
+  Download,
+  ExternalLink,
   FileJson,
-  Play,
-  RefreshCw,
-  RotateCcw,
+  PackageCheck,
   Save,
-  Square,
-  XCircle,
+  Search,
+  Terminal,
 } from 'lucide-react';
-import { Button, IconButton, Input, Select, Switch, Textarea } from '@/component-library';
+import { Button, Input, Select, Textarea } from '@/component-library';
 import {
-  ConfigCollectionItem,
   ConfigPageContent,
   ConfigPageHeader,
   ConfigPageLayout,
   ConfigPageSection,
 } from './common';
-import { ACPClientAPI, type AcpClientInfo, type AcpClientPermissionMode } from '../../api/service-api/ACPClientAPI';
+import {
+  ACPClientAPI,
+  type AcpClientInfo,
+  type AcpClientPermissionMode,
+  type AcpClientRequirementProbe,
+  type AcpRequirementProbeItem,
+} from '../../api/service-api/ACPClientAPI';
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import './AcpAgentsConfig.scss';
@@ -45,6 +50,8 @@ interface AcpClientConfigFile {
 interface AcpClientPreset {
   id: string;
   name: string;
+  description: string;
+  version?: string;
   command: string;
   args: string[];
 }
@@ -53,18 +60,21 @@ const PRESETS: AcpClientPreset[] = [
   {
     id: 'opencode',
     name: 'opencode',
+    description: 'AI coding agent with native ACP support.',
     command: 'opencode',
     args: ['acp'],
   },
   {
     id: 'claude-code',
     name: 'Claude Code',
+    description: 'Claude Code connected through the Zed ACP adapter.',
     command: 'npx',
     args: ['--yes', '@zed-industries/claude-code-acp@latest'],
   },
   {
     id: 'codex',
     name: 'Codex',
+    description: 'OpenAI Codex CLI connected through the Zed ACP adapter.',
     command: 'npx',
     args: ['--yes', '@zed-industries/codex-acp@latest'],
   },
@@ -135,17 +145,6 @@ function formatConfig(config: AcpClientConfigFile): string {
   return JSON.stringify(config, null, 2);
 }
 
-function parseArgsText(value: string): string[] {
-  return value
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean);
-}
-
-function formatArgs(args: string[]): string {
-  return args.join('\n');
-}
-
 function parseEnvText(value: string): Record<string, string> {
   const env: Record<string, string> = {};
   for (const rawLine of value.split('\n')) {
@@ -164,19 +163,44 @@ function formatEnv(env: Record<string, string>): string {
   return Object.entries(env).map(([key, value]) => `${key}=${value}`).join('\n');
 }
 
-function statusTone(status?: AcpClientInfo['status']): 'ok' | 'pending' | 'error' | 'muted' {
-  if (status === 'running') return 'ok';
-  if (status === 'starting') return 'pending';
-  if (status === 'failed') return 'error';
-  return 'muted';
+function requirementTone(item?: AcpRequirementProbeItem): 'ok' | 'error' | 'muted' {
+  if (!item) return 'muted';
+  return item.installed ? 'ok' : 'error';
 }
 
-function StatusIcon({ status }: { status?: AcpClientInfo['status'] }) {
-  if (status === 'running') return <CheckCircle size={13} />;
-  if (status === 'starting') return <Clock size={13} />;
-  if (status === 'failed') return <XCircle size={13} />;
-  return <Square size={13} />;
+function RequirementPill({
+  icon,
+  item,
+  label,
+  installedText,
+  missingText,
+}: {
+  icon: React.ReactNode;
+  item?: AcpRequirementProbeItem;
+  label: string;
+  installedText: string;
+  missingText: string;
+}) {
+  if (!item) return null;
+  const titleParts = [
+    item.name,
+    item.path,
+    item.version,
+    item.error,
+  ].filter(Boolean);
+  return (
+    <span
+      className={`bitfun-acp-agents__requirement is-${requirementTone(item)}`}
+      title={titleParts.join('\n')}
+    >
+      {icon}
+      <span>{label}</span>
+      <span>{item.installed ? installedText : missingText}</span>
+    </span>
+  );
 }
+
+type RegistryFilter = 'all' | 'installed' | 'not_installed';
 
 const AcpAgentsConfig: React.FC = () => {
   const { t } = useTranslation('settings/acp-agents');
@@ -188,37 +212,76 @@ const AcpAgentsConfig: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
   const [showJsonEditor, setShowJsonEditor] = useState(false);
   const [jsonConfig, setJsonConfig] = useState('');
   const [envDrafts, setEnvDrafts] = useState<Record<string, string>>({});
-  const [operationClientId, setOperationClientId] = useState<string | null>(null);
+  const [requirementProbes, setRequirementProbes] = useState<AcpClientRequirementProbe[]>([]);
+  const [downloadingAdapterClientId, setDownloadingAdapterClientId] = useState<string | null>(null);
+  const [registrySearch, setRegistrySearch] = useState('');
+  const [registryFilter, setRegistryFilter] = useState<RegistryFilter>('all');
 
   const clientsById = useMemo(() => new Map(clients.map(client => [client.id, client])), [clients]);
-  const clientRows = useMemo(() => {
+  const probesById = useMemo(
+    () => new Map(requirementProbes.map(probe => [probe.id, probe])),
+    [requirementProbes]
+  );
+  const customClientRows = useMemo(() => {
     const ids = new Set<string>([
-      ...PRESETS.map(preset => preset.id),
       ...Object.keys(config.acpClients),
       ...clients.map(client => client.id),
     ]);
 
-    return Array.from(ids).sort((a, b) => {
-      const presetA = PRESETS.findIndex(preset => preset.id === a);
-      const presetB = PRESETS.findIndex(preset => preset.id === b);
-      if (presetA !== -1 || presetB !== -1) {
-        return (presetA === -1 ? Number.MAX_SAFE_INTEGER : presetA) -
-          (presetB === -1 ? Number.MAX_SAFE_INTEGER : presetB);
-      }
-      return a.localeCompare(b);
-    });
+    return Array.from(ids)
+      .filter(id => !PRESET_BY_ID.has(id))
+      .sort((a, b) => a.localeCompare(b));
   }, [clients, config.acpClients]);
+
+  const registryPresets = useMemo(() => {
+    const search = registrySearch.trim().toLowerCase();
+    return PRESETS.filter(preset => {
+      const probe = probesById.get(preset.id);
+      const configured = Boolean(config.acpClients[preset.id] || clientsById.has(preset.id));
+      const installed = configured && probe?.runnable === true;
+      if (registryFilter === 'installed' && !installed) return false;
+      if (registryFilter === 'not_installed' && installed) return false;
+      if (!search) return true;
+      return [
+        preset.name,
+        preset.id,
+        preset.description,
+        preset.command,
+        ...preset.args,
+      ].join(' ').toLowerCase().includes(search);
+    });
+  }, [clientsById, config.acpClients, probesById, registryFilter, registrySearch]);
+
+  const visibleCustomClientRows = useMemo(() => {
+    const search = registrySearch.trim().toLowerCase();
+    return customClientRows.filter(clientId => {
+      const clientConfig = config.acpClients[clientId];
+      const clientInfo = clientsById.get(clientId);
+      const requirementProbe = probesById.get(clientId);
+      const installed = clientConfig?.enabled !== false && requirementProbe?.runnable === true;
+      if (registryFilter === 'installed' && !installed) return false;
+      if (registryFilter === 'not_installed' && installed) return false;
+      if (!search) return true;
+      return [
+        clientId,
+        clientConfig?.name,
+        clientInfo?.name,
+        clientConfig?.command,
+        ...(clientConfig?.args ?? []),
+      ].filter(Boolean).join(' ').toLowerCase().includes(search);
+    });
+  }, [clientsById, config.acpClients, customClientRows, probesById, registryFilter, registrySearch]);
 
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true);
-      const [rawConfig, nextClients] = await Promise.all([
+      const [rawConfig, nextClients, nextRequirementProbes] = await Promise.all([
         ACPClientAPI.loadJsonConfig(),
         ACPClientAPI.getClients(),
+        ACPClientAPI.probeClientRequirements(),
       ]);
       const parsed = normalizeConfigValue(JSON.parse(rawConfig || '{}'));
       setConfig(parsed);
@@ -232,6 +295,7 @@ const AcpAgentsConfig: React.FC = () => {
         )
       );
       setClients(nextClients);
+      setRequirementProbes(nextRequirementProbes);
       setDirty(false);
     } catch (error) {
       log.error('Failed to load ACP agent config', error);
@@ -245,6 +309,16 @@ const AcpAgentsConfig: React.FC = () => {
 
   useEffect(() => {
     void loadConfig();
+  }, [loadConfig]);
+
+  useEffect(() => {
+    const handleAcpClientsChanged = () => {
+      void loadConfig();
+    };
+    window.addEventListener('bitfun:acp-clients-changed', handleAcpClientsChanged);
+    return () => {
+      window.removeEventListener('bitfun:acp-clients-changed', handleAcpClientsChanged);
+    };
   }, [loadConfig]);
 
   const patchClientConfig = (clientId: string, patch: Partial<AcpClientConfig>) => {
@@ -269,18 +343,6 @@ const AcpAgentsConfig: React.FC = () => {
     setDirty(true);
   };
 
-  const applyPreset = (preset: AcpClientPreset) => {
-    setEnvDrafts(prev => ({
-      ...prev,
-      [preset.id]: '',
-    }));
-    patchClientConfig(preset.id, {
-      ...defaultConfigForPreset(preset),
-      enabled: true,
-    });
-    setExpandedClientId(preset.id);
-  };
-
   const mergeEnvDrafts = (baseConfig: AcpClientConfigFile): AcpClientConfigFile => ({
     acpClients: Object.fromEntries(
       Object.entries(baseConfig.acpClients).map(([clientId, clientConfig]) => [
@@ -302,8 +364,12 @@ const AcpAgentsConfig: React.FC = () => {
         ? nextConfig
         : mergeEnvDrafts(nextConfig);
       await ACPClientAPI.saveJsonConfig(formatConfig(configToSave));
-      const nextClients = await ACPClientAPI.getClients();
+      const [nextClients, nextRequirementProbes] = await Promise.all([
+        ACPClientAPI.getClients(),
+        ACPClientAPI.probeClientRequirements(),
+      ]);
       setClients(nextClients);
+      setRequirementProbes(nextRequirementProbes);
       setConfig(configToSave);
       setJsonConfig(formatConfig(configToSave));
       setDirty(false);
@@ -339,28 +405,37 @@ const AcpAgentsConfig: React.FC = () => {
     }
   };
 
-  const runClientOperation = async (
-    clientId: string,
-    operation: 'start' | 'stop' | 'restart',
-  ) => {
+  const predownloadAdapter = async (clientId: string) => {
     try {
-      setOperationClientId(clientId);
-      if (operation === 'start') {
-        await ACPClientAPI.startClient({ clientId });
-      } else if (operation === 'stop') {
-        await ACPClientAPI.stopClient({ clientId });
-      } else {
-        await ACPClientAPI.restartClient({ clientId });
-      }
-      setClients(await ACPClientAPI.getClients());
+      setDownloadingAdapterClientId(clientId);
+      await ACPClientAPI.predownloadClientAdapter({ clientId });
+      setRequirementProbes(await ACPClientAPI.probeClientRequirements());
+      notifySuccess(t('notifications.predownloadSuccess'));
     } catch (error) {
-      log.error('ACP client operation failed', { clientId, operation, error });
+      log.error('Failed to predownload ACP adapter', { clientId, error });
       notifyError(error instanceof Error ? error.message : String(error), {
-        title: t('notifications.operationFailed'),
+        title: t('notifications.predownloadFailed'),
       });
     } finally {
-      setOperationClientId(null);
+      setDownloadingAdapterClientId(null);
     }
+  };
+
+  const installPreset = async (preset: AcpClientPreset) => {
+    const nextConfig = {
+      acpClients: {
+        ...config.acpClients,
+        [preset.id]: {
+          ...defaultConfigForPreset(preset),
+          enabled: true,
+        },
+      },
+    };
+    setEnvDrafts(prev => ({
+      ...prev,
+      [preset.id]: '',
+    }));
+    await saveConfig(nextConfig, { mergeEnvDrafts: false });
   };
 
   const permissionOptions = useMemo(() => [
@@ -376,6 +451,14 @@ const AcpAgentsConfig: React.FC = () => {
         subtitle={t('subtitle')}
         extra={(
           <div className="bitfun-acp-agents__header-actions">
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={() => window.open('https://zed.dev/docs/agent-client-protocol', '_blank', 'noopener,noreferrer')}
+            >
+              {t('actions.learnMore')}
+              <ExternalLink size={14} />
+            </Button>
             <Button
               variant="secondary"
               size="small"
@@ -440,187 +523,229 @@ const AcpAgentsConfig: React.FC = () => {
           </ConfigPageSection>
         )}
 
-        <ConfigPageSection
-          title={t('presets.title')}
-          description={t('presets.description')}
-        >
-          <div className="bitfun-acp-agents__preset-grid">
-            {PRESETS.map(preset => {
-              const configured = Boolean(config.acpClients[preset.id] || clientsById.has(preset.id));
-              return (
+        <ConfigPageSection title={t('registry.title')} description={t('registry.description')}>
+          <div className="bitfun-acp-agents__registry-toolbar">
+            <Input
+              className="bitfun-acp-agents__registry-search"
+              value={registrySearch}
+              onChange={(event) => setRegistrySearch(event.target.value)}
+              placeholder={t('registry.searchPlaceholder')}
+              prefix={<Search size={16} />}
+              size="medium"
+              variant="outlined"
+            />
+            <div className="bitfun-acp-agents__registry-tabs" role="tablist" aria-label={t('registry.filterLabel')}>
+              {([
+                ['all', t('registry.filters.all')],
+                ['installed', t('registry.filters.installed')],
+                ['not_installed', t('registry.filters.notInstalled')],
+              ] as const).map(([filter, label]) => (
                 <button
-                  key={preset.id}
+                  key={filter}
                   type="button"
-                  className={`bitfun-acp-agents__preset${configured ? ' is-configured' : ''}`}
-                  onClick={() => applyPreset(preset)}
+                  className={`bitfun-acp-agents__registry-tab${registryFilter === filter ? ' is-active' : ''}`}
+                  onClick={() => setRegistryFilter(filter)}
                 >
-                  <Bot size={16} />
-                  <span className="bitfun-acp-agents__preset-name">{preset.name}</span>
-                  <span className="bitfun-acp-agents__preset-command">
-                    {[preset.command, ...preset.args].join(' ')}
-                  </span>
+                  {label}
                 </button>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </ConfigPageSection>
 
-        <ConfigPageSection
-          title={t('clients.title')}
-          description={t('clients.description')}
-          extra={(
-            <IconButton
-              variant="ghost"
-              size="small"
-              onClick={() => { void loadConfig(); }}
-              disabled={loading}
-              tooltip={t('actions.refresh')}
-            >
-              <RefreshCw size={14} />
-            </IconButton>
-          )}
-        >
           {loading ? (
             <div className="bitfun-acp-agents__empty">{t('clients.loading')}</div>
-          ) : clientRows.length === 0 ? (
-            <div className="bitfun-acp-agents__empty">{t('clients.empty')}</div>
+          ) : registryPresets.length === 0 && visibleCustomClientRows.length === 0 ? (
+            <div className="bitfun-acp-agents__empty">{t('registry.empty')}</div>
           ) : (
-            <div className="bitfun-acp-agents__client-list">
-              {clientRows.map(clientId => {
-                const preset = PRESET_BY_ID.get(clientId);
-                const clientInfo = clientsById.get(clientId);
-                const clientConfig = config.acpClients[clientId] ??
-                  (preset ? defaultConfigForPreset(preset) : undefined);
-                if (!clientConfig) return null;
-
-                const status = clientInfo?.status ?? (clientConfig.enabled ? 'configured' : 'stopped');
-                const running = status === 'running' || status === 'starting';
-                const busy = operationClientId === clientId;
+            <div className="bitfun-acp-agents__registry-list">
+              {registryPresets.map(preset => {
+                const clientConfig = config.acpClients[preset.id] ?? defaultConfigForPreset(preset);
+                const requirementProbe = probesById.get(preset.id);
+                const configured = Boolean(config.acpClients[preset.id] || clientsById.has(preset.id));
+                const runnable = requirementProbe?.runnable === true;
+                const installed = configured && runnable;
+                const adapterMissing = Boolean(requirementProbe?.adapter && !requirementProbe.adapter.installed);
+                const toolMissing = Boolean(requirementProbe?.tool && !requirementProbe.tool.installed);
+                const canPredownload = adapterMissing && !toolMissing;
+                const downloadingAdapter = downloadingAdapterClientId === preset.id;
 
                 return (
-                  <ConfigCollectionItem
-                    key={clientId}
-                    label={clientConfig.name || clientInfo?.name || clientId}
-                    expanded={expandedClientId === clientId}
-                    onToggle={() => setExpandedClientId(prev => prev === clientId ? null : clientId)}
-                    badge={(
-                      <span className={`bitfun-acp-agents__status is-${statusTone(status)}`}>
-                        <StatusIcon status={status} />
-                        {t(`status.${status}`)}
+                  <div key={preset.id} className={`bitfun-acp-agents__registry-card${installed ? ' is-installed' : ''}`}>
+                    <div className="bitfun-acp-agents__registry-main">
+                      <span className="bitfun-acp-agents__registry-icon">
+                        <Bot size={20} />
                       </span>
-                    )}
-                    control={(
-                      <div className="bitfun-acp-agents__client-actions">
-                        <Switch
-                          size="small"
-                          checked={clientConfig.enabled}
-                          onChange={(event) => patchClientConfig(clientId, { enabled: event.currentTarget.checked })}
-                        />
-                        <IconButton
-                          variant="ghost"
-                          size="small"
-                          onClick={() => applyPreset(preset ?? {
-                            id: clientId,
-                            name: clientConfig.name || clientId,
-                            command: clientConfig.command,
-                            args: clientConfig.args,
-                          })}
-                          tooltip={t('actions.restorePreset')}
-                        >
-                          <RotateCcw size={13} />
-                        </IconButton>
-                        {running ? (
-                          <IconButton
-                            variant="ghost"
-                            size="small"
-                            onClick={() => { void runClientOperation(clientId, 'stop'); }}
-                            disabled={busy}
-                            tooltip={t('actions.stop')}
-                          >
-                            <Square size={13} />
-                          </IconButton>
-                        ) : (
-                          <IconButton
-                            variant="ghost"
-                            size="small"
-                            onClick={() => { void runClientOperation(clientId, 'start'); }}
-                            disabled={busy || !clientConfig.enabled || dirty}
-                            tooltip={dirty ? t('actions.saveBeforeStart') : t('actions.start')}
-                          >
-                            <Play size={13} />
-                          </IconButton>
-                        )}
-                      </div>
-                    )}
-                    details={(
-                      <div className="bitfun-acp-agents__client-details">
-                        <Input
-                          label={t('fields.name')}
-                          value={clientConfig.name || ''}
-                          onChange={(event) => patchClientConfig(clientId, { name: event.target.value || undefined })}
-                          size="small"
-                          variant="outlined"
-                        />
-                        <Input
-                          label={t('fields.command')}
-                          value={clientConfig.command}
-                          onChange={(event) => patchClientConfig(clientId, { command: event.target.value })}
-                          size="small"
-                          variant="outlined"
-                        />
-                        <Textarea
-                          label={t('fields.args')}
-                          value={formatArgs(clientConfig.args)}
-                          onChange={(event) => patchClientConfig(clientId, { args: parseArgsText(event.target.value) })}
-                          rows={3}
-                          spellCheck={false}
-                        />
-                        <Textarea
-                          label={t('fields.env')}
-                          value={envDrafts[clientId] ?? formatEnv(clientConfig.env)}
-                          onChange={(event) => {
-                            const value = event.target.value;
-                            setEnvDrafts(prev => ({
-                              ...prev,
-                              [clientId]: value,
-                            }));
-                            try {
-                              patchClientConfig(clientId, { env: parseEnvText(value) });
-                            } catch (error) {
-                              notifyError(error instanceof Error ? error.message : String(error), {
-                                title: t('notifications.invalidEnv'),
-                              });
-                            }
-                          }}
-                          rows={3}
-                          spellCheck={false}
-                        />
-                        <div className="bitfun-acp-agents__client-options">
-                          <Switch
-                            label={t('fields.autoStart')}
-                            checked={clientConfig.autoStart}
-                            onChange={(event) => patchClientConfig(clientId, { autoStart: event.currentTarget.checked })}
-                            size="small"
-                          />
-                          <Switch
-                            label={t('fields.readonly')}
-                            checked={clientConfig.readonly}
-                            onChange={(event) => patchClientConfig(clientId, { readonly: event.currentTarget.checked })}
-                            size="small"
-                          />
-                          <Select
-                            label={t('fields.permissionMode')}
-                            options={permissionOptions}
-                            value={clientConfig.permissionMode}
-                            onChange={(value) => patchClientConfig(clientId, {
-                              permissionMode: normalizePermissionMode(value),
-                            })}
-                            size="small"
-                          />
+                      <div className="bitfun-acp-agents__registry-copy">
+                        <div className="bitfun-acp-agents__registry-title-row">
+                          <span className="bitfun-acp-agents__registry-name">{preset.name}</span>
+                          {preset.version && (
+                            <span className="bitfun-acp-agents__registry-version">{preset.version}</span>
+                          )}
+                        </div>
+                        <p className="bitfun-acp-agents__registry-description">{preset.description}</p>
+                        <div className="bitfun-acp-agents__registry-footer">
+                          <div className="bitfun-acp-agents__registry-requirements">
+                            <RequirementPill
+                              icon={<Terminal size={12} />}
+                              item={requirementProbe?.tool}
+                              label={t('requirements.tool')}
+                              installedText={t('requirements.installed')}
+                              missingText={t('requirements.missing')}
+                            />
+                            <RequirementPill
+                              icon={<PackageCheck size={12} />}
+                              item={requirementProbe?.adapter}
+                              label={t('requirements.adapter')}
+                              installedText={t('requirements.installed')}
+                              missingText={t('requirements.missing')}
+                            />
+                          </div>
+                          <div className="bitfun-acp-agents__registry-confirmation">
+                            <span className="bitfun-acp-agents__registry-confirmation-label">
+                              {t('fields.permissionMode')}
+                            </span>
+                            <Select
+                              className="bitfun-acp-agents__registry-confirmation-select"
+                              options={permissionOptions}
+                              value={clientConfig.permissionMode}
+                              onChange={(value) => patchClientConfig(preset.id, {
+                                permissionMode: normalizePermissionMode(value),
+                              })}
+                              size="small"
+                            />
+                          </div>
                         </div>
                       </div>
-                    )}
-                  />
+                    </div>
+
+                    <div className="bitfun-acp-agents__registry-side">
+                      {installed ? (
+                        <span className="bitfun-acp-agents__registry-installed">
+                          <CheckCircle size={14} />
+                          {t('registry.installed')}
+                        </span>
+                      ) : runnable ? (
+                        <Button
+                          variant="secondary"
+                          size="small"
+                          onClick={() => { void installPreset(preset); }}
+                          isLoading={saving}
+                          disabled={saving}
+                        >
+                          <Download size={14} />
+                          {t('actions.install')}
+                        </Button>
+                      ) : canPredownload ? (
+                        <Button
+                          variant="secondary"
+                          size="small"
+                          onClick={() => { void predownloadAdapter(preset.id); }}
+                          isLoading={downloadingAdapter}
+                          disabled={downloadingAdapter}
+                        >
+                          <Download size={14} />
+                          {t('actions.predownloadAcp')}
+                        </Button>
+                      ) : (
+                        <span className="bitfun-acp-agents__registry-missing">
+                          <AlertCircle size={14} />
+                          {toolMissing ? t('registry.cliRequired') : t('registry.notInstalled')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {visibleCustomClientRows.map(clientId => {
+                const clientInfo = clientsById.get(clientId);
+                const clientConfig = config.acpClients[clientId];
+                if (!clientConfig) return null;
+
+                const requirementProbe = probesById.get(clientId);
+                const runnable = requirementProbe?.runnable === true;
+                const installed = clientConfig.enabled !== false && runnable;
+                const adapterMissing = Boolean(requirementProbe?.adapter && !requirementProbe.adapter.installed);
+                const toolMissing = Boolean(requirementProbe?.tool && !requirementProbe.tool.installed);
+                const canPredownload = adapterMissing && !toolMissing;
+                const downloadingAdapter = downloadingAdapterClientId === clientId;
+                const displayName = clientConfig.name || clientInfo?.name || clientId;
+
+                return (
+                  <div
+                    key={clientId}
+                    className="bitfun-acp-agents__registry-card"
+                  >
+                    <div className="bitfun-acp-agents__registry-main">
+                      <span className="bitfun-acp-agents__registry-icon">
+                        <Bot size={20} />
+                      </span>
+                      <div className="bitfun-acp-agents__registry-copy">
+                        <div className="bitfun-acp-agents__registry-title-row">
+                          <span className="bitfun-acp-agents__registry-name">{displayName}</span>
+                        </div>
+                        <p className="bitfun-acp-agents__registry-description bitfun-acp-agents__registry-command">
+                          {[clientConfig.command, ...clientConfig.args].join(' ')}
+                        </p>
+                        <div className="bitfun-acp-agents__registry-footer">
+                          <div className="bitfun-acp-agents__registry-requirements">
+                            <RequirementPill
+                              icon={<Terminal size={12} />}
+                              item={requirementProbe?.tool}
+                              label={t('requirements.tool')}
+                              installedText={t('requirements.installed')}
+                              missingText={t('requirements.missing')}
+                            />
+                            <RequirementPill
+                              icon={<PackageCheck size={12} />}
+                              item={requirementProbe?.adapter}
+                              label={t('requirements.adapter')}
+                              installedText={t('requirements.installed')}
+                              missingText={t('requirements.missing')}
+                            />
+                          </div>
+                          <div className="bitfun-acp-agents__registry-confirmation">
+                            <span className="bitfun-acp-agents__registry-confirmation-label">
+                              {t('fields.permissionMode')}
+                            </span>
+                            <Select
+                              className="bitfun-acp-agents__registry-confirmation-select"
+                              options={permissionOptions}
+                              value={clientConfig.permissionMode}
+                              onChange={(value) => patchClientConfig(clientId, {
+                                permissionMode: normalizePermissionMode(value),
+                              })}
+                              size="small"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bitfun-acp-agents__registry-side">
+                      {installed ? (
+                        <span className="bitfun-acp-agents__registry-installed">
+                          <CheckCircle size={14} />
+                          {t('registry.installed')}
+                        </span>
+                      ) : canPredownload ? (
+                        <Button
+                          variant="secondary"
+                          size="small"
+                          onClick={() => { void predownloadAdapter(clientId); }}
+                          isLoading={downloadingAdapter}
+                          disabled={downloadingAdapter}
+                        >
+                          <Download size={14} />
+                          {t('actions.predownloadAcp')}
+                        </Button>
+                      ) : (
+                        <span className="bitfun-acp-agents__registry-missing">
+                          <AlertCircle size={14} />
+                          {toolMissing ? t('registry.cliRequired') : t('registry.notInstalled')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
             </div>
