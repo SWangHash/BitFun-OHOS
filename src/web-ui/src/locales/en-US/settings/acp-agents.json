@@ -24,12 +24,17 @@
     "filterLabel": "ACP agent filter",
     "filters": {
       "all": "All",
+      "enabled": "Enabled",
       "installed": "Installed",
-      "notInstalled": "Not Installed"
+      "notInstalled": "Not Installed",
+      "configInvalid": "Invalid config"
     },
+    "enabled": "Enabled",
     "installed": "Installed",
     "notInstalled": "Not Installed",
+    "configInvalid": "Invalid config",
     "cliRequired": "Install CLI",
+    "checking": "Checking",
     "empty": "No matching ACP agents."
   },
   "clients": {
@@ -52,6 +57,7 @@
     "adapter": "ACP",
     "installed": "Installed",
     "missing": "Missing",
+    "checking": "Checking",
     "ready": "Requirements ready",
     "notReady": "Requirements missing"
   },
@@ -59,6 +65,8 @@
     "loadFailed": "Failed to load ACP config",
     "saveSuccess": "ACP config saved",
     "saveFailed": "Failed to save ACP config",
+    "probeFailed": "Failed to check ACP requirements",
+    "openLinkFailed": "Failed to open link",
     "invalidJson": "Invalid ACP JSON",
     "invalidEnv": "Invalid environment value",
     "predownloadSuccess": "ACP adapter downloaded",

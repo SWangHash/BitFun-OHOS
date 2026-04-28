@@ -24,12 +24,17 @@
     "filterLabel": "ACP Agent 筛选",
     "filters": {
       "all": "全部",
+      "enabled": "已启用",
       "installed": "已安装",
-      "notInstalled": "未安装"
+      "notInstalled": "未安装",
+      "configInvalid": "配置异常"
     },
+    "enabled": "已启用",
     "installed": "已安装",
     "notInstalled": "未安装",
+    "configInvalid": "配置异常",
     "cliRequired": "需安装 CLI",
+    "checking": "检测中",
     "empty": "没有匹配的 ACP Agent。"
   },
   "clients": {
@@ -52,6 +57,7 @@
     "adapter": "ACP",
     "installed": "已安装",
     "missing": "缺失",
+    "checking": "检测中",
     "ready": "依赖已就绪",
     "notReady": "依赖缺失"
   },
@@ -59,6 +65,8 @@
     "loadFailed": "加载 ACP 配置失败",
     "saveSuccess": "ACP 配置已保存",
     "saveFailed": "保存 ACP 配置失败",
+    "probeFailed": "检测 ACP 依赖失败",
+    "openLinkFailed": "打开链接失败",
     "invalidJson": "ACP JSON 无效",
     "invalidEnv": "环境变量无效",
     "predownloadSuccess": "ACP 适配器已下载",
