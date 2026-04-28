@@ -1,4 +1,5 @@
 use crate::infrastructure::{FileSearchOutcome, FileSearchResult, SearchMatchType};
+use crate::service::config::{get_global_config_service, types::WorkspaceConfig};
 use crate::service::search::flashgrep::sdk::tokio::{ManagedClient, RepoSession};
 use crate::service::search::flashgrep::sdk::{
     ConsistencyMode, GlobRequest, OpenRepoParams, PathScope, QuerySpec, RefreshPolicyConfig,
@@ -258,10 +259,11 @@ impl WorkspaceSearchService {
             self.sessions.write().await.remove(&repo_root);
         }
 
+        let repo_config = repo_config_for_workspace_search().await;
         let params = OpenRepoParams {
             repo_path: repo_root.clone(),
             storage_root: Some(default_storage_root(&repo_root)),
-            config: RepoConfig::default(),
+            config: repo_config,
             refresh: RefreshPolicyConfig::default(),
         };
 
@@ -404,6 +406,36 @@ fn default_storage_root(repo_root: &Path) -> PathBuf {
         .join(".bitfun")
         .join("search")
         .join("flashgrep-index")
+}
+
+async fn repo_config_for_workspace_search() -> RepoConfig {
+    let max_file_size = match get_global_config_service().await {
+        Ok(config_service) => match config_service
+            .get_config::<WorkspaceConfig>(Some("workspace"))
+            .await
+        {
+            Ok(workspace_config) => workspace_config.max_file_size,
+            Err(error) => {
+                log::warn!(
+                    "Failed to read workspace config for flashgrep repo open, using default max_file_size: {}",
+                    error
+                );
+                WorkspaceConfig::default().max_file_size
+            }
+        },
+        Err(error) => {
+            log::warn!(
+                "Global config service unavailable for flashgrep repo open, using default max_file_size: {}",
+                error
+            );
+            WorkspaceConfig::default().max_file_size
+        }
+    };
+
+    RepoConfig {
+        max_file_size,
+        ..RepoConfig::default()
+    }
 }
 
 fn abbreviate_pattern_for_log(pattern: &str) -> String {

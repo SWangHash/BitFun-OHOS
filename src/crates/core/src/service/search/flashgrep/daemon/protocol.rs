@@ -435,7 +435,7 @@ fn default_top_k_tokens() -> usize {
 }
 
 fn default_max_file_size() -> u64 {
-    2 * 1024 * 1024
+    50 * 1024 * 1024
 }
 
 fn default_min_sparse_len() -> usize {
