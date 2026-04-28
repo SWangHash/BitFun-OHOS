@@ -3,13 +3,18 @@
 .explore-region {
   position: relative;
   overflow: hidden;
+  padding: 0 3rem; // Match model-round-item horizontal padding.
+
+  @media (max-width: 768px) {
+    padding: 0 1.5rem;
+  }
 }
 
 // ==================== Non-collapsible (streaming / no auto-collapse yet) ====================
 
 .explore-region--expanded:not(.explore-region--collapsible) {
-  margin-top: 4px;
-  margin-bottom: 4px;
+  margin-top: 3px;
+  margin-bottom: 3px;
 
   .explore-region__content {
     position: relative;
@@ -51,15 +56,18 @@
 // ==================== Collapsible (header + animated content) ====================
 
 .explore-region--collapsible {
-  margin: 4px 0;
+  margin: 0 0 var(--flowchat-flow-item-gap, 0.45rem) 0;
+  font-size: var(--flowchat-font-size-base);
+  line-height: 1.65;
 
   .explore-region__header {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 5px 10px;
+    padding: 0;
     color: var(--text-tertiary, #6b7280);
-    font-size: 12px;
+    font-size: var(--flowchat-font-size-base);
+    line-height: 1.65;
     cursor: pointer;
     user-select: none;
     border-radius: var(--radius-sm, 6px);
@@ -80,6 +88,8 @@
   }
 
   .explore-region__summary {
+    font-size: var(--flowchat-font-size-base);
+    line-height: 1.65;
     opacity: 0.8;
   }
 
@@ -100,7 +110,9 @@
 
   .explore-region__content {
     position: relative;
-    padding: 4px 0;
+    // Align nested tool cards with the summary text, not the group chevron.
+    padding: 0 0 0 20px;
+    box-sizing: border-box;
 
     &::-webkit-scrollbar {
       width: 4px;
