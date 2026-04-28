@@ -58,7 +58,8 @@
         "progressUnknown": "{{processed}} items processed",
         "dirtyFiles": "Pending changes: {{modified}} modified, {{deleted}} deleted, {{new}} new",
         "rebuildRecommended": "A rebuild is recommended.",
-        "probeDegraded": "Workspace probe is degraded and the indexed workspace view may stop tracking changes."
+        "probeDegraded": "Workspace probe is degraded and the indexed workspace view may stop tracking changes.",
+        "hoverTooltip": "Flashgrep index: {{status}}"
       },
       "taskState": {
         "queued": "Queued",

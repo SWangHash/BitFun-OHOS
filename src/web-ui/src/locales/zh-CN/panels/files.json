@@ -58,7 +58,8 @@
         "progressUnknown": "已处理 {{processed}} 项",
         "dirtyFiles": "待同步变更：修改 {{modified}}，删除 {{deleted}}，新增 {{new}}",
         "rebuildRecommended": "当前建议执行重建。",
-        "probeDegraded": "工作区探测状态异常，工作区索引视图可能不再持续跟进变更。"
+        "probeDegraded": "工作区探测状态异常，工作区索引视图可能不再持续跟进变更。",
+        "hoverTooltip": "Flashgrep 索引：{{status}}"
       },
       "taskState": {
         "queued": "排队中",

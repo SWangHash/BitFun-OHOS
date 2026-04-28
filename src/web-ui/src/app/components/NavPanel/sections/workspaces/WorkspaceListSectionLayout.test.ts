@@ -26,6 +26,7 @@ describe('WorkspaceListSection layout styles', () => {
     const workspaceNameButton = extractBlock(stylesheet, '&__workspace-item-name-btn');
     const workspaceTitle = extractBlock(stylesheet, '&__workspace-item-title');
     const workspaceLabel = extractBlock(stylesheet, '&__workspace-item-label');
+    const workspaceActions = extractBlock(stylesheet, '&__workspace-item-actions');
     const workspaceMenu = extractBlock(stylesheet, '&__workspace-item-menu');
     const assistantItem = extractBlock(stylesheet, '&__assistant-item');
     const assistantCard = extractBlock(stylesheet, '&__assistant-item-card');
@@ -40,20 +41,20 @@ describe('WorkspaceListSection layout styles', () => {
     expect(workspaceItem).toContain('max-width: 100%;');
     expect(workspaceCard).toContain('max-width: 100%;');
     expect(workspaceCard).toContain('overflow: hidden;');
-    expect(workspaceNameButton).toContain('flex: 1 1 0;');
+    expect(workspaceNameButton).toContain('flex: 0 1 auto;');
     expect(workspaceNameButton).toContain('overflow: hidden;');
     expect(workspaceNameButton).not.toContain('58px');
     expect(stylesheet).toContain('var(--bitfun-nav-row-action-size) +\n      var(--bitfun-nav-row-action-size)');
-    expect(stylesheet).toContain('&__workspace-item:hover &__workspace-item-name-btn');
-    expect(stylesheet).toContain('&__workspace-item.is-menu-open &__workspace-item-name-btn');
+    expect(stylesheet).toContain('&__workspace-item:hover &__workspace-item-name-stack');
+    expect(stylesheet).toContain('&__workspace-item.is-menu-open &__workspace-item-name-stack');
     expect(stylesheet).not.toContain('&__workspace-item.is-active &__workspace-item-name-btn');
     expect(stylesheet).toContain('&:not(:hover):not(:focus-within):not(.is-menu-open)');
     expect(workspaceTitle).toContain('flex: 1 1 0;');
     expect(workspaceTitle).toContain('max-width: 100%;');
     expect(workspaceLabel).toContain('flex: 1 1 0;');
     expect(workspaceLabel).toContain('text-overflow: ellipsis;');
-    expect(workspaceMenu).toContain('position: absolute;');
-    expect(workspaceMenu).toContain('right: var(--bitfun-nav-row-action-offset);');
+    expect(workspaceActions).toContain('position: absolute;');
+    expect(workspaceActions).toContain('right: var(--bitfun-nav-row-action-offset);');
     expect(workspaceMenu).toContain('gap: var(--bitfun-nav-row-action-gap);');
 
     expect(assistantItem).toContain('min-width: 0;');

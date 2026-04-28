@@ -12,7 +12,7 @@
 
     &.is-dragging {
       .bitfun-nav-panel__workspace-item {
-        cursor: grabbing;
+        cursor: default;
       }
     }
   }
@@ -93,7 +93,7 @@
       opacity: 0.42;
 
       .bitfun-nav-panel__workspace-item-card {
-        cursor: grabbing;
+        cursor: default;
       }
     }
 
@@ -129,8 +129,12 @@
         }
       }
 
-      .bitfun-nav-panel__workspace-item-name-btn {
+      .bitfun-nav-panel__workspace-item-name-cluster {
         border-radius: 0 6px 6px 0;
+      }
+
+      .bitfun-nav-panel__workspace-item-name-btn {
+        border-radius: 0;
       }
     }
 
@@ -172,10 +176,6 @@
                 box-shadow $motion-fast $easing-standard;
 
 
-
-    &[draggable='true'] {
-      cursor: grab;
-    }
 
     &:hover {
       .bitfun-nav-panel__workspace-item-icon-default {
@@ -239,16 +239,43 @@
     }
   }
 
-  &__workspace-item-name-btn {
+  &__workspace-item-name-cluster {
+    display: inline-flex;
+    align-items: stretch;
     flex: 1 1 0;
     min-width: 0;
+  }
+
+  &__workspace-item-name-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1px;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 100%;
+    padding: 0 4px;
+  }
+
+  &__workspace-item-name-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    width: 100%;
+  }
+
+  &__workspace-item-name-btn {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
     display: flex;
     align-items: center;
     gap: 6px;
     min-height: 30px;
-    padding: 0 4px;
+    padding: 0;
     border: none;
-    border-radius: 0 6px 6px 0;
+    border-radius: 0;
     background: transparent;
     color: inherit;
     cursor: pointer;
@@ -256,25 +283,23 @@
     text-align: left;
   }
 
-  &__workspace-item.is-active &__workspace-item-name-btn {
+  &__workspace-item.is-active &__workspace-item-name-stack {
     padding-right: calc(
+      4px +
       var(--bitfun-nav-row-action-size) +
-      var(--bitfun-nav-row-action-offset) +
-      4px
+      var(--bitfun-nav-row-action-offset)
     );
   }
 
-  &__workspace-item:hover &__workspace-item-name-btn,
-  &__workspace-item.is-menu-open &__workspace-item-name-btn,
-  &__workspace-item:focus-within &__workspace-item-name-btn {
+  &__workspace-item:hover &__workspace-item-name-stack,
+  &__workspace-item.is-menu-open &__workspace-item-name-stack,
+  &__workspace-item:focus-within &__workspace-item-name-stack {
     padding-right: calc(
-      var(--bitfun-nav-row-action-size) +
-      var(--bitfun-nav-row-action-size) +
+      4px +
       var(--bitfun-nav-row-action-size) +
       var(--bitfun-nav-row-action-gap) +
-      var(--bitfun-nav-row-action-gap) +
-      var(--bitfun-nav-row-action-offset) +
-      4px
+      var(--bitfun-nav-row-action-size) +
+      var(--bitfun-nav-row-action-offset)
     );
   }
 
@@ -416,6 +441,14 @@
     }
   }
 
+  &__workspace-item-name-line {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex: 1 1 0;
+    overflow: hidden;
+  }
+
   &__workspace-item-subtitle {
     display: inline-flex;
     align-items: center;
@@ -461,72 +494,43 @@
   }
 
   &__workspace-index-indicator {
-    --bitfun-index-tone: var(--color-text-muted);
-
     display: inline-flex;
     flex-shrink: 0;
-    width: 10px;
-    height: 10px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--bitfun-index-tone) 18%, transparent),
-      inset 0 1px 0 color-mix(in srgb, #fff 34%, transparent);
-    transition: transform $motion-fast $easing-standard,
-                box-shadow $motion-fast $easing-standard,
-                opacity $motion-fast $easing-standard,
-                filter $motion-fast $easing-standard;
-    cursor: default;
+    appearance: none;
+    padding: 0;
+    margin: 0;
+    border: none;
+    font: inherit;
+    vertical-align: middle;
+    cursor: pointer;
+    transition: opacity $motion-fast $easing-standard;
 
     &:hover {
-      transform: scale(1.08);
-      filter: saturate(1.08);
+      opacity: 0.88;
     }
 
     &.is-green {
-      --bitfun-index-tone: var(--color-success, #36c275);
-      background:
-        radial-gradient(circle at 30% 30%, color-mix(in srgb, #fff 40%, transparent), transparent 45%),
-        var(--bitfun-index-tone);
-      box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--bitfun-index-tone) 30%, transparent),
-        0 0 12px color-mix(in srgb, var(--bitfun-index-tone) 30%, transparent),
-        inset 0 1px 0 color-mix(in srgb, #fff 34%, transparent);
+      background: var(--color-success, #36c275);
     }
 
     &.is-yellow {
-      --bitfun-index-tone: var(--color-warning, #e8b54b);
-      background:
-        radial-gradient(circle at 30% 30%, color-mix(in srgb, #fff 40%, transparent), transparent 45%),
-        var(--bitfun-index-tone);
-      box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--bitfun-index-tone) 30%, transparent),
-        0 0 12px color-mix(in srgb, var(--bitfun-index-tone) 28%, transparent),
-        inset 0 1px 0 color-mix(in srgb, #fff 34%, transparent);
-      animation: bitfun-status-dot-pulse 1.4s ease-in-out infinite;
+      background: var(--color-warning, #e8b54b);
     }
 
     &.is-gray {
-      --bitfun-index-tone: color-mix(in srgb, var(--color-text-muted) 75%, var(--element-bg-medium));
-      background:
-        radial-gradient(circle at 30% 30%, color-mix(in srgb, #fff 28%, transparent), transparent 45%),
-        var(--bitfun-index-tone);
-      box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--bitfun-index-tone) 22%, transparent),
-        inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent);
-      opacity: 0.9;
+      background: color-mix(in srgb, var(--color-text-muted) 78%, var(--element-bg-medium));
     }
 
     &.is-red {
-      --bitfun-index-tone: var(--color-error, #e05d5d);
-      background:
-        radial-gradient(circle at 30% 30%, color-mix(in srgb, #fff 38%, transparent), transparent 45%),
-        var(--bitfun-index-tone);
-      box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--bitfun-index-tone) 30%, transparent),
-        0 0 12px color-mix(in srgb, var(--bitfun-index-tone) 30%, transparent),
-        inset 0 1px 0 color-mix(in srgb, #fff 34%, transparent);
-      animation: bitfun-status-dot-pulse 1s ease-in-out infinite;
+      background: var(--color-error, #e05d5d);
     }
+  }
+
+  &__workspace-index-modal-content {
+    overflow-x: hidden;
   }
 
   &__workspace-index-tooltip {
@@ -535,9 +539,11 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    min-width: 236px;
-    max-width: 296px;
-    padding: 2px;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    box-sizing: border-box;
+    padding: 12px 0 16px;
     color: var(--color-text-primary);
 
     &.is-green {
@@ -1011,7 +1017,7 @@
       opacity: 0.42;
 
       .bitfun-nav-panel__assistant-item-card {
-        cursor: grabbing;
+        cursor: default;
       }
     }
 
@@ -1046,10 +1052,6 @@
     transition: color $motion-fast $easing-standard,
                 background $motion-fast $easing-standard,
                 box-shadow $motion-fast $easing-standard;
-
-    &[draggable='true'] {
-      cursor: grab;
-    }
 
     &:hover {
       .bitfun-nav-panel__assistant-item-avatar-letter {

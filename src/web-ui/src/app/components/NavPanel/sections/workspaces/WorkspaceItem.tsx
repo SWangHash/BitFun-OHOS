@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Folder, FolderOpen, MoreHorizontal, FolderSearch, Plus, ChevronDown, Trash2, RotateCcw, Copy, FileText, GitBranch } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DotMatrixArrowRightIcon } from './DotMatrixArrowRightIcon';
-import { Button, ConfirmDialog, Tooltip } from '@/component-library';
+import { Button, ConfirmDialog, Modal, Tooltip } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';
 import { i18nService } from '@/infrastructure/i18n';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
@@ -130,6 +130,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   const [isDeletingWorktree, setIsDeletingWorktree] = useState(false);
   const [isResettingWorkspace, setIsResettingWorkspace] = useState(false);
   const [sessionsCollapsed, setSessionsCollapsed] = useState(false);
+  const [searchIndexModalOpen, setSearchIndexModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuAnchorRef = useRef<HTMLDivElement>(null);
   const menuPopoverRef = useRef<HTMLDivElement>(null);
@@ -825,13 +826,131 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
             </span>
           </span>
         </button>
-        <button
-          type="button"
-          className="bitfun-nav-panel__workspace-item-name-btn"
-          onClick={() => { void handleCardNameClick(); }}
-        >
-          <span className={`bitfun-nav-panel__workspace-item-title${isRemoteWorkspace(workspace) ? ' is-remote' : ''}`}>
-            <span className="bitfun-nav-panel__workspace-item-label">{workspaceDisplayName}</span>
+        <div className="bitfun-nav-panel__workspace-item-name-cluster">
+          <div className="bitfun-nav-panel__workspace-item-name-stack">
+            <div className="bitfun-nav-panel__workspace-item-name-row">
+              <button
+                type="button"
+                className="bitfun-nav-panel__workspace-item-name-btn"
+                onClick={() => { void handleCardNameClick(); }}
+              >
+                <span className="bitfun-nav-panel__workspace-item-name-line">
+                  <span className="bitfun-nav-panel__workspace-item-label">{workspaceDisplayName}</span>
+                </span>
+              </button>
+              {searchIndexIndicator && (
+                <>
+                  <Tooltip
+                    placement="right"
+                    content={tFiles('search.index.indicator.hoverTooltip', {
+                      status: [
+                        searchIndexIndicator.title,
+                        searchIndexIndicator.activeTaskLabel ?? searchIndexIndicator.phaseLabel,
+                      ].join(' · '),
+                    })}
+                  >
+                    <button
+                      type="button"
+                      className={`bitfun-nav-panel__workspace-index-indicator is-${searchIndexIndicator.tone}`}
+                      aria-label={searchIndexIndicator.ariaLabel}
+                      aria-expanded={searchIndexModalOpen}
+                      onClick={e => {
+                        e.stopPropagation();
+                        setSearchIndexModalOpen(true);
+                      }}
+                    />
+                  </Tooltip>
+                  <Modal
+                    isOpen={searchIndexModalOpen}
+                    onClose={() => setSearchIndexModalOpen(false)}
+                    title={tFiles('search.index.indicator.label')}
+                    size="small"
+                    contentInset
+                    contentClassName="bitfun-nav-panel__workspace-index-modal-content"
+                  >
+                    <div className={`bitfun-nav-panel__workspace-index-tooltip is-${searchIndexIndicator.tone}`}>
+                      <div className="bitfun-nav-panel__workspace-index-tooltip-header">
+                        <div className="bitfun-nav-panel__workspace-index-tooltip-heading">
+                          <span className={`bitfun-nav-panel__workspace-index-tooltip-dot is-${searchIndexIndicator.tone}`} aria-hidden="true" />
+                          <div className="bitfun-nav-panel__workspace-index-tooltip-title-wrap">
+                            <span className="bitfun-nav-panel__workspace-index-tooltip-title">
+                              {searchIndexIndicator.title}
+                            </span>
+                            <span className="bitfun-nav-panel__workspace-index-tooltip-phase">
+                              {searchIndexIndicator.activeTaskLabel ?? searchIndexIndicator.phaseLabel}
+                            </span>
+                          </div>
+                        </div>
+                        <span className={`bitfun-nav-panel__workspace-index-tooltip-badge is-${searchIndexIndicator.tone}`}>
+                          {searchIndexIndicator.phaseLabel}
+                        </span>
+                      </div>
+                      <div className="bitfun-nav-panel__workspace-index-tooltip-summary">
+                        {searchIndexIndicator.activeTaskMessage ?? searchIndexIndicator.summary}
+                      </div>
+                      {searchIndexIndicator.progressLabel ? (
+                        <div className="bitfun-nav-panel__workspace-index-tooltip-progress">
+                          <div className="bitfun-nav-panel__workspace-index-tooltip-progress-head">
+                            <span>{searchIndexIndicator.progressLabel}</span>
+                            {searchIndexIndicator.progressPercentLabel ? (
+                              <span className="bitfun-nav-panel__workspace-index-tooltip-progress-value">
+                                {searchIndexIndicator.progressPercentLabel}
+                              </span>
+                            ) : null}
+                          </div>
+                          {typeof searchIndexIndicator.progressPercent === 'number' ? (
+                            <div className="bitfun-nav-panel__workspace-index-tooltip-progress-bar" aria-hidden="true">
+                              <span
+                                className={`bitfun-nav-panel__workspace-index-tooltip-progress-fill is-${searchIndexIndicator.tone}`}
+                                style={{ width: `${searchIndexIndicator.progressPercent}%` }}
+                              />
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {searchIndexIndicator.dirtyFilesLabel ? (
+                        <div className="bitfun-nav-panel__workspace-index-tooltip-meta">
+                          {searchIndexIndicator.dirtyFilesLabel}
+                        </div>
+                      ) : null}
+                      {searchIndexIndicator.rebuildRecommended ? (
+                        <div className="bitfun-nav-panel__workspace-index-tooltip-meta is-warning">
+                          {tFiles('search.index.indicator.rebuildRecommended')}
+                        </div>
+                      ) : null}
+                      {!searchIndexIndicator.probeHealthy ? (
+                        <div className="bitfun-nav-panel__workspace-index-tooltip-meta is-warning">
+                          {tFiles('search.index.indicator.probeDegraded')}
+                        </div>
+                      ) : null}
+                      {searchIndexIndicator.errorText ? (
+                        <div className="bitfun-nav-panel__workspace-index-tooltip-error">
+                          {searchIndexIndicator.errorText}
+                        </div>
+                      ) : null}
+                      <div className="bitfun-nav-panel__workspace-index-tooltip-actions">
+                        <Button
+                          size="small"
+                          variant={searchIndexActionKind === 'build' ? 'accent' : 'secondary'}
+                          onClick={() => {
+                            void handleSearchIndexAction();
+                          }}
+                          disabled={
+                            workspaceSearchIndex.loading
+                            || workspaceSearchIndex.actionRunning
+                            || workspaceSearchIndex.hasActiveTask
+                          }
+                        >
+                          {workspaceSearchIndex.actionRunning || workspaceSearchIndex.hasActiveTask
+                            ? tFiles('search.index.actions.running')
+                            : searchIndexActionLabel}
+                        </Button>
+                      </div>
+                    </div>
+                  </Modal>
+                </>
+              )}
+            </div>
             {isRemoteWorkspace(workspace) && (
               <span className="bitfun-nav-panel__workspace-item-subtitle">
                 <span
@@ -841,104 +960,10 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 <span>{workspace.connectionName}</span>
               </span>
             )}
-          </span>
-        </button>
+          </div>
+        </div>
 
         <div className="bitfun-nav-panel__workspace-item-actions">
-          {searchIndexIndicator && (
-            <Tooltip
-              interactive
-              placement="right"
-              content={(
-                <div className={`bitfun-nav-panel__workspace-index-tooltip is-${searchIndexIndicator.tone}`}>
-                  <div className="bitfun-nav-panel__workspace-index-tooltip-header">
-                    <div className="bitfun-nav-panel__workspace-index-tooltip-heading">
-                      <span className={`bitfun-nav-panel__workspace-index-tooltip-dot is-${searchIndexIndicator.tone}`} aria-hidden="true" />
-                      <div className="bitfun-nav-panel__workspace-index-tooltip-title-wrap">
-                        <span className="bitfun-nav-panel__workspace-index-tooltip-title">
-                          {searchIndexIndicator.title}
-                        </span>
-                        <span className="bitfun-nav-panel__workspace-index-tooltip-phase">
-                          {searchIndexIndicator.activeTaskLabel ?? searchIndexIndicator.phaseLabel}
-                        </span>
-                      </div>
-                    </div>
-                    <span className={`bitfun-nav-panel__workspace-index-tooltip-badge is-${searchIndexIndicator.tone}`}>
-                      {searchIndexIndicator.phaseLabel}
-                    </span>
-                  </div>
-                  <div className="bitfun-nav-panel__workspace-index-tooltip-summary">
-                    {searchIndexIndicator.activeTaskMessage ?? searchIndexIndicator.summary}
-                  </div>
-                  {searchIndexIndicator.progressLabel ? (
-                    <div className="bitfun-nav-panel__workspace-index-tooltip-progress">
-                      <div className="bitfun-nav-panel__workspace-index-tooltip-progress-head">
-                        <span>{searchIndexIndicator.progressLabel}</span>
-                        {searchIndexIndicator.progressPercentLabel ? (
-                          <span className="bitfun-nav-panel__workspace-index-tooltip-progress-value">
-                            {searchIndexIndicator.progressPercentLabel}
-                          </span>
-                        ) : null}
-                      </div>
-                      {typeof searchIndexIndicator.progressPercent === 'number' ? (
-                        <div className="bitfun-nav-panel__workspace-index-tooltip-progress-bar" aria-hidden="true">
-                          <span
-                            className={`bitfun-nav-panel__workspace-index-tooltip-progress-fill is-${searchIndexIndicator.tone}`}
-                            style={{ width: `${searchIndexIndicator.progressPercent}%` }}
-                          />
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {searchIndexIndicator.dirtyFilesLabel ? (
-                    <div className="bitfun-nav-panel__workspace-index-tooltip-meta">
-                      {searchIndexIndicator.dirtyFilesLabel}
-                    </div>
-                  ) : null}
-                  {searchIndexIndicator.rebuildRecommended ? (
-                    <div className="bitfun-nav-panel__workspace-index-tooltip-meta is-warning">
-                      {tFiles('search.index.indicator.rebuildRecommended')}
-                    </div>
-                  ) : null}
-                  {!searchIndexIndicator.probeHealthy ? (
-                    <div className="bitfun-nav-panel__workspace-index-tooltip-meta is-warning">
-                      {tFiles('search.index.indicator.probeDegraded')}
-                    </div>
-                  ) : null}
-                  {searchIndexIndicator.errorText ? (
-                    <div className="bitfun-nav-panel__workspace-index-tooltip-error">
-                      {searchIndexIndicator.errorText}
-                    </div>
-                  ) : null}
-                  <div className="bitfun-nav-panel__workspace-index-tooltip-actions">
-                    <Button
-                      size="small"
-                      variant={searchIndexActionKind === 'build' ? 'accent' : 'secondary'}
-                      onClick={() => {
-                        void handleSearchIndexAction();
-                      }}
-                      disabled={
-                        workspaceSearchIndex.loading
-                        || workspaceSearchIndex.actionRunning
-                        || workspaceSearchIndex.hasActiveTask
-                      }
-                    >
-                      {workspaceSearchIndex.actionRunning || workspaceSearchIndex.hasActiveTask
-                        ? tFiles('search.index.actions.running')
-                        : searchIndexActionLabel}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            >
-              <span
-                className={`bitfun-nav-panel__workspace-index-indicator is-${searchIndexIndicator.tone}`}
-                aria-label={searchIndexIndicator.ariaLabel}
-                role="status"
-              />
-            </Tooltip>
-          )}
-
           <div className="bitfun-nav-panel__workspace-item-menu" ref={menuRef}>
             <Tooltip content={t('nav.items.project')} placement="right" followCursor>
               <button
