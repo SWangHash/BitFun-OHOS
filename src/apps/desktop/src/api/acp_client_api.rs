@@ -124,6 +124,21 @@ pub async fn predownload_acp_client_adapter(
 }
 
 #[tauri::command]
+pub async fn install_acp_client_cli(
+    state: State<'_, AppState>,
+    request: AcpClientIdRequest,
+) -> Result<(), String> {
+    let service = state
+        .acp_client_service
+        .as_ref()
+        .ok_or_else(|| "ACP client service not initialized".to_string())?;
+    service
+        .install_client_cli(&request.client_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn create_acp_flow_session(
     state: State<'_, AppState>,
     app_handle: AppHandle,

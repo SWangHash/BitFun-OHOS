@@ -366,9 +366,11 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
 
     void loadAcpClients();
     window.addEventListener('bitfun:acp-clients-changed', loadAcpClients);
+    window.addEventListener('bitfun:acp-requirements-changed', loadAcpClients);
     return () => {
       cancelled = true;
       window.removeEventListener('bitfun:acp-clients-changed', loadAcpClients);
+      window.removeEventListener('bitfun:acp-requirements-changed', loadAcpClients);
     };
   }, []);
 

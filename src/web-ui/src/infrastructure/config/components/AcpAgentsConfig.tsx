@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import {
   Bot,
+  Download,
   ExternalLink,
   FileJson,
   LoaderCircle,
-  PackageCheck,
+  Plus,
   Save,
   Search,
   Terminal,
@@ -92,7 +93,7 @@ function loadRequirementProbes(options: { force?: boolean } = {}): Promise<AcpCl
     return requirementProbeInFlight;
   }
 
-  requirementProbeInFlight = ACPClientAPI.probeClientRequirements()
+  requirementProbeInFlight = ACPClientAPI.probeClientRequirements({ force: options.force })
     .then((probes) => {
       requirementProbeCache = probes;
       return probes;
@@ -110,7 +111,7 @@ function defaultConfigForPreset(preset: AcpClientPreset): AcpClientConfig {
     command: preset.command,
     args: preset.args,
     env: {},
-    enabled: preset.id === 'opencode',
+    enabled: true,
     autoStart: false,
     readonly: false,
     permissionMode: 'ask',
@@ -191,7 +192,7 @@ function requirementTone(item?: AcpRequirementProbeItem): 'ok' | 'error' | 'mute
 }
 
 type RegistryFilter = 'all' | 'installed' | 'not_installed' | 'invalid';
-type AgentRowStatus = 'enabled' | 'not_installed' | 'invalid' | 'checking';
+type AgentRowStatus = 'enabled' | 'ready' | 'not_installed' | 'invalid' | 'checking';
 
 function getAgentRowStatus({
   configured,
@@ -205,7 +206,7 @@ function getAgentRowStatus({
   probePending: boolean;
 }): AgentRowStatus {
   if (probePending) return 'checking';
-  if (!configured) return 'not_installed';
+  if (!configured) return runnable ? 'ready' : 'not_installed';
   return enabled && runnable ? 'enabled' : 'invalid';
 }
 
@@ -278,6 +279,7 @@ const AcpAgentsConfig: React.FC = () => {
   const [probingRequirements, setProbingRequirements] = useState(false);
   const [registrySearch, setRegistrySearch] = useState('');
   const [registryFilter, setRegistryFilter] = useState<RegistryFilter>('all');
+  const [installingClientIds, setInstallingClientIds] = useState<Set<string>>(() => new Set());
   const requirementProbeRequestIdRef = useRef(0);
 
   const clientsById = useMemo(() => new Map(clients.map(client => [client.id, client])), [clients]);
@@ -301,7 +303,7 @@ const AcpAgentsConfig: React.FC = () => {
     return PRESETS.filter(preset => {
       const probe = probesById.get(preset.id);
       const probePending = probingRequirements && !probe;
-      const configured = Boolean(config.acpClients[preset.id] || clientsById.has(preset.id));
+      const configured = Boolean(config.acpClients[preset.id]);
       const enabled = config.acpClients[preset.id]?.enabled ?? clientsById.get(preset.id)?.enabled ?? false;
       const status = getAgentRowStatus({
         configured,
@@ -309,7 +311,7 @@ const AcpAgentsConfig: React.FC = () => {
         runnable: probe?.runnable === true,
         probePending,
       });
-      if (registryFilter === 'installed' && status !== 'enabled') return false;
+      if (registryFilter === 'installed' && status !== 'enabled' && status !== 'ready') return false;
       if (registryFilter === 'not_installed' && status !== 'not_installed') return false;
       if (registryFilter === 'invalid' && status !== 'invalid') return false;
       if (!search) return true;
@@ -338,7 +340,7 @@ const AcpAgentsConfig: React.FC = () => {
         runnable: requirementProbe?.runnable === true,
         probePending,
       });
-      if (registryFilter === 'installed' && status !== 'enabled') return false;
+      if (registryFilter === 'installed' && status !== 'enabled' && status !== 'ready') return false;
       if (registryFilter === 'not_installed' && status !== 'not_installed') return false;
       if (registryFilter === 'invalid' && status !== 'invalid') return false;
       if (!search) return true;
@@ -459,6 +461,27 @@ const AcpAgentsConfig: React.FC = () => {
     setDirty(true);
   };
 
+  const installPresetClient = async (preset: AcpClientPreset) => {
+    setInstallingClientIds(prev => new Set(prev).add(preset.id));
+    try {
+      await ACPClientAPI.installClientCli({ clientId: preset.id });
+      requirementProbeCache = null;
+      await refreshRequirementProbes({ force: true, notifyOnError: false });
+      notifySuccess(t('notifications.downloadSuccess'));
+    } catch (error) {
+      log.error('Failed to download ACP agent CLI', error);
+      notifyError(error instanceof Error ? error.message : String(error), {
+        title: t('notifications.downloadFailed'),
+      });
+    } finally {
+      setInstallingClientIds(prev => {
+        const next = new Set(prev);
+        next.delete(preset.id);
+        return next;
+      });
+    }
+  };
+
   const mergeEnvDrafts = (baseConfig: AcpClientConfigFile): AcpClientConfigFile => ({
     acpClients: Object.fromEntries(
       Object.entries(baseConfig.acpClients).map(([clientId, clientConfig]) => [
@@ -497,6 +520,24 @@ const AcpAgentsConfig: React.FC = () => {
     }
   };
 
+  const addPresetClient = async (preset: AcpClientPreset) => {
+    const nextClient = defaultConfigForPreset(preset);
+    const next = {
+      acpClients: {
+        ...config.acpClients,
+        [preset.id]: nextClient,
+      },
+    };
+    setConfig(next);
+    setJsonConfig(formatConfig(next));
+    setEnvDrafts(prev => ({
+      ...prev,
+      [preset.id]: formatEnv(nextClient.env),
+    }));
+    setDirty(true);
+    await saveConfig(next, { mergeEnvDrafts: false });
+  };
+
   const saveJsonConfig = async () => {
     try {
       const parsed = normalizeConfigValue(JSON.parse(jsonConfig));
@@ -533,6 +574,7 @@ const AcpAgentsConfig: React.FC = () => {
 
   const getStatusLabel = useCallback((status: AgentRowStatus) => {
     if (status === 'enabled') return t('registry.enabled');
+    if (status === 'ready') return t('registry.ready');
     if (status === 'not_installed') return t('registry.notInstalled');
     if (status === 'checking') return t('registry.checking');
     return t('registry.configInvalid');
@@ -656,10 +698,12 @@ const AcpAgentsConfig: React.FC = () => {
                 const clientConfig = config.acpClients[preset.id] ?? defaultConfigForPreset(preset);
                 const requirementProbe = probesById.get(preset.id);
                 const probePending = probingRequirements && !requirementProbe;
-                const configured = Boolean(config.acpClients[preset.id] || clientsById.has(preset.id));
+                const hasConfigEntry = Boolean(config.acpClients[preset.id]);
+                const configured = hasConfigEntry;
                 const enabled = clientConfig.enabled;
                 const runnable = requirementProbe?.runnable === true;
                 const status = getAgentRowStatus({ configured, enabled, runnable, probePending });
+                const installing = installingClientIds.has(preset.id);
 
                 return (
                   <div key={preset.id} className="bitfun-acp-agents__registry-row">
@@ -682,31 +726,43 @@ const AcpAgentsConfig: React.FC = () => {
                         checking={probePending}
                         checkingText={t('requirements.checking')}
                       />
-                      {preset.id !== 'opencode' && (
-                        <CapabilityBadge
-                          icon={<PackageCheck size={12} />}
-                          item={requirementProbe?.adapter}
-                          label={t('requirements.adapter')}
-                          installedText={t('requirements.installed')}
-                          missingText={t('requirements.missing')}
-                          checking={probePending}
-                          checkingText={t('requirements.checking')}
-                        />
-                      )}
                     </div>
                     <div className="bitfun-acp-agents__status-cell">
                       <AgentStatusBadge status={status} label={getStatusLabel(status)} />
                     </div>
                     <div className="bitfun-acp-agents__confirmation-cell">
-                      <Select
-                        className="bitfun-acp-agents__confirmation-select"
-                        options={permissionOptions}
-                        value={clientConfig.permissionMode}
-                        onChange={(value) => patchClientConfig(preset.id, {
-                          permissionMode: normalizePermissionMode(value),
-                        })}
-                        size="small"
-                      />
+                      {hasConfigEntry ? (
+                        <Select
+                          className="bitfun-acp-agents__confirmation-select"
+                          options={permissionOptions}
+                          value={clientConfig.permissionMode}
+                          onChange={(value) => patchClientConfig(preset.id, {
+                            permissionMode: normalizePermissionMode(value),
+                          })}
+                          size="small"
+                        />
+                      ) : status === 'not_installed' ? (
+                        <Button
+                          className="bitfun-acp-agents__add-button"
+                          variant="secondary"
+                          size="small"
+                          onClick={() => { void installPresetClient(preset); }}
+                          isLoading={installing}
+                        >
+                          <Download size={14} />
+                          {t('actions.download')}
+                        </Button>
+                      ) : (
+                        <Button
+                          className="bitfun-acp-agents__add-button"
+                          variant="secondary"
+                          size="small"
+                          onClick={() => addPresetClient(preset)}
+                        >
+                          <Plus size={14} />
+                          {t('actions.add')}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );

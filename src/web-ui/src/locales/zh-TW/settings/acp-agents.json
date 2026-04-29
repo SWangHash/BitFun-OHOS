@@ -2,6 +2,8 @@
   "title": "ACP Agents",
   "subtitle": "管理可在 FlowChat 會話裡運行的 ACP Agent。",
   "actions": {
+    "add": "添加",
+    "download": "下載",
     "save": "保存",
     "refresh": "刷新",
     "learnMore": "了解更多",
@@ -30,6 +32,7 @@
       "configInvalid": "配置異常"
     },
     "enabled": "已啟用",
+    "ready": "依賴就緒",
     "installed": "已安裝",
     "notInstalled": "未安裝",
     "configInvalid": "配置異常",
@@ -69,6 +72,8 @@
     "openLinkFailed": "打開鏈接失敗",
     "invalidJson": "ACP JSON 無效",
     "invalidEnv": "環境變量無效",
+    "downloadSuccess": "ACP Agent CLI 已下載",
+    "downloadFailed": "下載 ACP Agent CLI 失敗",
     "predownloadSuccess": "ACP 適配器已下載",
     "predownloadFailed": "下載 ACP 適配器失敗"
   }

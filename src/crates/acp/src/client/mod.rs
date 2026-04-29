@@ -1,6 +1,7 @@
 mod config;
 mod manager;
 mod remote_session;
+mod requirements;
 mod session_options;
 mod session_persistence;
 mod stream;

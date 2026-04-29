@@ -27,18 +27,21 @@ pub(super) fn preferred_resume_strategies(
         .is_some_and(|value| !value.is_empty());
 
     if has_remote_session_id {
-        if capabilities
-            .and_then(|capabilities| capabilities.session_capabilities.resume.as_ref())
-            .is_some()
-        {
-            strategies.push(AcpRemoteSessionStrategy::Resume);
-        }
-
+        // Prefer loading saved session state over resuming a live stream. Some
+        // ACP clients continue an unfinished prompt on resume, and ACP update
+        // notifications are only scoped to the remote session, not a BitFun turn.
         if capabilities
             .map(|capabilities| capabilities.load_session)
             .unwrap_or(false)
         {
             strategies.push(AcpRemoteSessionStrategy::Load);
+        }
+
+        if capabilities
+            .and_then(|capabilities| capabilities.session_capabilities.resume.as_ref())
+            .is_some()
+        {
+            strategies.push(AcpRemoteSessionStrategy::Resume);
         }
     }
 
@@ -73,7 +76,7 @@ mod tests {
     }
 
     #[test]
-    fn prefers_resume_before_load_when_both_are_supported() {
+    fn prefers_load_before_resume_when_both_are_supported() {
         assert_eq!(
             preferred_resume_strategies(
                 Some(
@@ -88,8 +91,8 @@ mod tests {
                 Some("s1")
             ),
             vec![
-                AcpRemoteSessionStrategy::Resume,
                 AcpRemoteSessionStrategy::Load,
+                AcpRemoteSessionStrategy::Resume,
                 AcpRemoteSessionStrategy::New
             ]
         );

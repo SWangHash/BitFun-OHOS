@@ -598,6 +598,7 @@ pub async fn _run() {
             get_acp_clients,
             probe_acp_client_requirements,
             predownload_acp_client_adapter,
+            install_acp_client_cli,
             start_acp_client,
             stop_acp_client,
             restart_acp_client,

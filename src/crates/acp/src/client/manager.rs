@@ -1,18 +1,15 @@
 use std::collections::HashMap;
-use std::env;
-#[cfg(windows)]
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use agent_client_protocol::schema::{
-    AgentCapabilities, CancelNotification, ClientCapabilities, Implementation, InitializeRequest,
-    LoadSessionRequest, LoadSessionResponse, NewSessionRequest, NewSessionResponse,
-    PermissionOption, PermissionOptionKind, ProtocolVersion, RequestPermissionOutcome,
-    RequestPermissionRequest, RequestPermissionResponse, ResumeSessionRequest,
-    ResumeSessionResponse, SelectedPermissionOutcome, SessionConfigOption,
+    AgentCapabilities, CancelNotification, ClientCapabilities, CloseSessionRequest, Implementation,
+    InitializeRequest, LoadSessionRequest, LoadSessionResponse, NewSessionRequest,
+    NewSessionResponse, PermissionOption, PermissionOptionKind, ProtocolVersion,
+    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
+    ResumeSessionRequest, ResumeSessionResponse, SelectedPermissionOutcome, SessionConfigOption,
     SessionConfigOptionValue, SessionModelState, SetSessionConfigOptionRequest,
     SetSessionModelRequest, StopReason,
 };
@@ -34,9 +31,13 @@ use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 use super::config::{
     AcpClientConfig, AcpClientConfigFile, AcpClientInfo, AcpClientPermissionMode,
-    AcpClientRequirementProbe, AcpClientStatus, AcpRequirementProbeItem,
+    AcpClientRequirementProbe, AcpClientStatus,
 };
 use super::remote_session::{preferred_resume_strategies, AcpRemoteSessionStrategy};
+use super::requirements::{
+    acp_requirement_spec, apply_command_environment, install_npm_cli_package,
+    predownload_npm_adapter, probe_executable, probe_npm_adapter, resolve_configured_command,
+};
 use super::session_options::{model_config_id, session_options_from_state, AcpSessionOptions};
 use super::session_persistence::AcpSessionPersistence;
 pub use super::session_persistence::CreateAcpFlowSessionRecordResponse;
@@ -45,10 +46,9 @@ use super::tool::AcpAgentTool;
 
 const CONFIG_PATH: &str = "acp_clients";
 const PERMISSION_TIMEOUT: Duration = Duration::from_secs(600);
+const SESSION_CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
 const LOAD_REPLAY_DRAIN_QUIET_WINDOW: Duration = Duration::from_millis(250);
 const LOAD_REPLAY_DRAIN_MAX_DURATION: Duration = Duration::from_secs(2);
-const REQUIREMENT_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
-const ADAPTER_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(120);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -264,6 +264,15 @@ impl AcpClientService {
                 }
             }
 
+            debug!(
+                "ACP requirement probe: id={} tool_installed={} adapter_installed={} runnable={} notes={:?}",
+                id,
+                tool.installed,
+                adapter.as_ref().map(|adapter| adapter.installed).unwrap_or(true),
+                runnable,
+                notes
+            );
+
             probes.push(AcpClientRequirementProbe {
                 id,
                 tool,
@@ -287,6 +296,19 @@ impl AcpClientService {
         })?;
 
         predownload_npm_adapter(adapter.package, adapter.bin).await
+    }
+
+    pub async fn install_client_cli(self: &Arc<Self>, client_id: &str) -> BitFunResult<()> {
+        let configs = self.load_configs().await?;
+        let spec = acp_requirement_spec(client_id, configs.get(client_id));
+        let package = spec.install_package.ok_or_else(|| {
+            BitFunError::config(format!(
+                "ACP client '{}' does not have a known CLI installer",
+                client_id
+            ))
+        })?;
+
+        install_npm_cli_package(package).await
     }
 
     pub async fn start_client(self: &Arc<Self>, client_id: &str) -> BitFunResult<()> {
@@ -315,13 +337,16 @@ impl AcpClientService {
             .insert(client_id.to_string(), connection.clone());
         *connection.status.write().await = AcpClientStatus::Starting;
 
-        let mut command = Command::new(&connection.config.command);
+        let program =
+            resolve_configured_command(&connection.config.command, &connection.config.env);
+        let mut command = Command::new(&program);
         command
             .args(&connection.config.args)
-            .envs(&connection.config.env)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
+        apply_command_environment(&mut command, Some(&connection.config.env));
+        configure_process_group(&mut command);
 
         let mut child = match command.spawn() {
             Ok(child) => child,
@@ -338,7 +363,7 @@ impl AcpClientService {
         let stdout = match child.stdout.take() {
             Some(stdout) => stdout,
             None => {
-                let _ = child.start_kill();
+                terminate_child_process_tree(client_id, child).await;
                 self.clients.remove(client_id);
                 *connection.status.write().await = AcpClientStatus::Failed;
                 return Err(BitFunError::service(format!(
@@ -350,7 +375,7 @@ impl AcpClientService {
         let stdin = match child.stdin.take() {
             Some(stdin) => stdin,
             None => {
-                let _ = child.start_kill();
+                terminate_child_process_tree(client_id, child).await;
                 self.clients.remove(client_id);
                 *connection.status.write().await = AcpClientStatus::Failed;
                 return Err(BitFunError::service(format!(
@@ -437,13 +462,8 @@ impl AcpClientService {
         if let Some(tx) = client.shutdown_tx.lock().await.take() {
             let _ = tx.send(());
         }
-        if let Some(mut child) = client.child.lock().await.take() {
-            if let Err(error) = child.start_kill() {
-                warn!(
-                    "Failed to kill ACP client process: id={} error={}",
-                    client_id, error
-                );
-            }
+        if let Some(child) = client.child.lock().await.take() {
+            terminate_child_process_tree(client_id, child).await;
         }
         *client.connection.write().await = None;
         *client.agent_capabilities.write().await = None;
@@ -453,6 +473,95 @@ impl AcpClientService {
         self.clients.remove(client_id);
         info!("ACP client stopped: id={}", client_id);
         Ok(())
+    }
+
+    pub async fn release_bitfun_session(self: &Arc<Self>, bitfun_session_id: &str) -> bool {
+        let session_key_prefix = format!("{}:", bitfun_session_id);
+        let clients = self
+            .clients
+            .iter()
+            .map(|entry| entry.value().clone())
+            .collect::<Vec<_>>();
+        let mut released = false;
+        let mut idle_client_ids = Vec::new();
+
+        for client in clients {
+            let session_keys = client
+                .sessions
+                .iter()
+                .filter(|entry| entry.key().starts_with(&session_key_prefix))
+                .map(|entry| entry.key().clone())
+                .collect::<Vec<_>>();
+            if session_keys.is_empty() {
+                continue;
+            }
+
+            released = true;
+            let supports_close = client
+                .agent_capabilities
+                .read()
+                .await
+                .as_ref()
+                .and_then(|capabilities| capabilities.session_capabilities.close.as_ref())
+                .is_some();
+
+            for session_key in session_keys {
+                let active_session_id =
+                    if let Some((_, session)) = client.sessions.remove(&session_key) {
+                        let mut session = session.lock().await;
+                        let session_id = session
+                            .active
+                            .as_ref()
+                            .map(|active| active.session_id().to_string());
+                        session.active = None;
+                        session_id
+                    } else {
+                        None
+                    };
+                let cancel_handle = client
+                    .cancel_handles
+                    .remove(&session_key)
+                    .map(|(_, handle)| handle);
+                let remote_session_id = cancel_handle
+                    .as_ref()
+                    .map(|handle| handle.session_id.clone())
+                    .or(active_session_id);
+
+                let Some(remote_session_id) = remote_session_id else {
+                    continue;
+                };
+
+                self.session_permission_modes.remove(&remote_session_id);
+                let connection = cancel_handle
+                    .as_ref()
+                    .map(|handle| handle.connection.clone());
+                close_or_cancel_remote_session(
+                    &client,
+                    connection,
+                    &remote_session_id,
+                    supports_close,
+                )
+                .await;
+            }
+
+            if !client.config.auto_start
+                && client.sessions.is_empty()
+                && client.cancel_handles.is_empty()
+            {
+                idle_client_ids.push(client.id.clone());
+            }
+        }
+
+        for client_id in idle_client_ids {
+            if let Err(error) = self.stop_client(&client_id).await {
+                warn!(
+                    "Failed to stop idle ACP client after session release: id={} error={}",
+                    client_id, error
+                );
+            }
+        }
+
+        released
     }
 
     pub async fn restart_client(self: &Arc<Self>, client_id: &str) -> BitFunResult<()> {
@@ -993,11 +1102,7 @@ impl AcpClientService {
     }
 
     async fn load_configs(&self) -> BitFunResult<HashMap<String, AcpClientConfig>> {
-        let mut configs = parse_config_value(self.load_config_value().await?)?.acp_clients;
-        configs
-            .entry("opencode".to_string())
-            .or_insert_with(default_opencode_client_config);
-        Ok(configs)
+        Ok(parse_config_value(self.load_config_value().await?)?.acp_clients)
     }
 
     async fn load_config_value(&self) -> BitFunResult<serde_json::Value> {
@@ -1125,275 +1230,6 @@ impl AcpClientConnection {
     }
 }
 
-struct AcpRequirementSpec<'a> {
-    tool_command: &'a str,
-    adapter: Option<AcpAdapterSpec<'a>>,
-}
-
-struct AcpAdapterSpec<'a> {
-    package: &'a str,
-    bin: &'a str,
-}
-
-fn acp_requirement_spec<'a>(
-    client_id: &'a str,
-    config: Option<&'a AcpClientConfig>,
-) -> AcpRequirementSpec<'a> {
-    match client_id {
-        "claude-code" => AcpRequirementSpec {
-            tool_command: "claude",
-            adapter: Some(AcpAdapterSpec {
-                package: "@zed-industries/claude-code-acp",
-                bin: "claude-code-acp",
-            }),
-        },
-        "codex" => AcpRequirementSpec {
-            tool_command: "codex",
-            adapter: Some(AcpAdapterSpec {
-                package: "@zed-industries/codex-acp",
-                bin: "codex-acp",
-            }),
-        },
-        "opencode" => AcpRequirementSpec {
-            tool_command: "opencode",
-            adapter: None,
-        },
-        _ => AcpRequirementSpec {
-            tool_command: config
-                .map(|config| config.command.as_str())
-                .unwrap_or(client_id),
-            adapter: None,
-        },
-    }
-}
-
-async fn probe_executable(command: &str) -> AcpRequirementProbeItem {
-    let path = find_executable(command);
-    let mut item = AcpRequirementProbeItem {
-        name: command.to_string(),
-        installed: path.is_some(),
-        version: None,
-        path: path.as_ref().map(|path| path.to_string_lossy().to_string()),
-        error: None,
-    };
-
-    if let Some(path) = path {
-        match run_command_with_timeout(path.as_os_str(), ["--version"], REQUIREMENT_PROBE_TIMEOUT)
-            .await
-        {
-            Ok(output) if output.status.success() => {
-                item.version = parse_version_text(&output.stdout)
-                    .or_else(|| parse_version_text(&output.stderr));
-            }
-            Ok(output) => {
-                item.error = Some(command_error_summary(&output.stderr, &output.stdout));
-            }
-            Err(error) => {
-                item.error = Some(error);
-            }
-        }
-    }
-
-    item
-}
-
-async fn probe_npm_adapter(package: &str, bin: &str) -> AcpRequirementProbeItem {
-    let npm_path = find_executable("npm");
-    let mut item = AcpRequirementProbeItem {
-        name: package.to_string(),
-        installed: false,
-        version: None,
-        path: None,
-        error: None,
-    };
-    let Some(npm_path) = npm_path else {
-        item.error = Some("npm is not available on PATH".to_string());
-        return item;
-    };
-
-    let global_args = ["ls", "-g", "--json", "--depth=0", package];
-    match run_command_with_timeout(npm_path.as_os_str(), global_args, REQUIREMENT_PROBE_TIMEOUT)
-        .await
-    {
-        Ok(output) if output.status.success() => {
-            if let Some(version) = npm_ls_package_version(&output.stdout, package) {
-                item.installed = true;
-                item.version = Some(version);
-                item.path = Some("npm global".to_string());
-                return item;
-            }
-        }
-        Ok(output) => {
-            item.error = Some(command_error_summary(&output.stderr, &output.stdout));
-        }
-        Err(error) => {
-            item.error = Some(error);
-        }
-    }
-
-    let offline_args = vec![
-        "exec".to_string(),
-        "--offline".to_string(),
-        "--yes".to_string(),
-        format!("--package={package}"),
-        "--".to_string(),
-        bin.to_string(),
-        "--help".to_string(),
-    ];
-    match run_command_with_timeout(
-        npm_path.as_os_str(),
-        offline_args.iter().map(String::as_str),
-        REQUIREMENT_PROBE_TIMEOUT,
-    )
-    .await
-    {
-        Ok(output) if output.status.success() => {
-            item.installed = true;
-            item.path = Some("npm offline cache".to_string());
-            item.error = None;
-        }
-        Ok(output) => {
-            item.error = Some(command_error_summary(&output.stderr, &output.stdout));
-        }
-        Err(error) => {
-            item.error = Some(error);
-        }
-    }
-
-    item
-}
-
-async fn predownload_npm_adapter(package: &str, bin: &str) -> BitFunResult<()> {
-    let npm_path = find_executable("npm")
-        .ok_or_else(|| BitFunError::service("npm is not available on PATH".to_string()))?;
-    let args = vec![
-        "exec".to_string(),
-        "--yes".to_string(),
-        format!("--package={package}"),
-        "--".to_string(),
-        bin.to_string(),
-        "--help".to_string(),
-    ];
-
-    match run_command_with_timeout(
-        npm_path.as_os_str(),
-        args.iter().map(String::as_str),
-        ADAPTER_DOWNLOAD_TIMEOUT,
-    )
-    .await
-    {
-        Ok(output) if output.status.success() => Ok(()),
-        Ok(output) => Err(BitFunError::service(format!(
-            "Failed to predownload ACP adapter '{}': {}",
-            package,
-            command_error_summary(&output.stderr, &output.stdout)
-        ))),
-        Err(error) => Err(BitFunError::service(format!(
-            "Failed to predownload ACP adapter '{}': {}",
-            package, error
-        ))),
-    }
-}
-
-async fn run_command_with_timeout<I, S>(
-    program: &std::ffi::OsStr,
-    args: I,
-    timeout: Duration,
-) -> Result<std::process::Output, String>
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<std::ffi::OsStr>,
-{
-    let mut command = Command::new(program);
-    command.args(args);
-    match tokio::time::timeout(timeout, command.output()).await {
-        Ok(Ok(output)) => Ok(output),
-        Ok(Err(error)) => Err(error.to_string()),
-        Err(_) => Err("Timed out while checking command".to_string()),
-    }
-}
-
-fn npm_ls_package_version(stdout: &[u8], package: &str) -> Option<String> {
-    let value: serde_json::Value = serde_json::from_slice(stdout).ok()?;
-    value
-        .get("dependencies")?
-        .get(package)?
-        .get("version")?
-        .as_str()
-        .map(ToString::to_string)
-}
-
-fn parse_version_text(output: &[u8]) -> Option<String> {
-    let text = String::from_utf8_lossy(output);
-    text.lines()
-        .map(str::trim)
-        .find(|line| !line.is_empty())
-        .map(ToString::to_string)
-}
-
-fn command_error_summary(stderr: &[u8], stdout: &[u8]) -> String {
-    let stderr = String::from_utf8_lossy(stderr).trim().to_string();
-    if !stderr.is_empty() {
-        return truncate_error(stderr);
-    }
-    let stdout = String::from_utf8_lossy(stdout).trim().to_string();
-    if !stdout.is_empty() {
-        return truncate_error(stdout);
-    }
-    "Command exited unsuccessfully".to_string()
-}
-
-fn truncate_error(value: String) -> String {
-    const MAX_LEN: usize = 240;
-    if value.chars().count() <= MAX_LEN {
-        return value;
-    }
-    format!("{}...", value.chars().take(MAX_LEN).collect::<String>())
-}
-
-fn find_executable(command: &str) -> Option<PathBuf> {
-    let command_path = PathBuf::from(command);
-    if command_path.components().count() > 1 {
-        return executable_file(&command_path).then_some(command_path);
-    }
-
-    let paths = env::var_os("PATH")?;
-    for directory in env::split_paths(&paths) {
-        for candidate in executable_candidates(&directory, command) {
-            if executable_file(&candidate) {
-                return Some(candidate);
-            }
-        }
-    }
-    None
-}
-
-fn executable_candidates(directory: &Path, command: &str) -> Vec<PathBuf> {
-    #[cfg(windows)]
-    {
-        let command_path = PathBuf::from(command);
-        if command_path.extension().is_some() {
-            return vec![directory.join(command)];
-        }
-        let extensions = env::var_os("PATHEXT").unwrap_or_else(|| OsString::from(".EXE;.BAT;.CMD"));
-        extensions
-            .to_string_lossy()
-            .split(';')
-            .filter(|extension| !extension.is_empty())
-            .map(|extension| directory.join(format!("{command}{extension}")))
-            .collect()
-    }
-
-    #[cfg(not(windows))]
-    {
-        vec![directory.join(command)]
-    }
-}
-
-fn executable_file(path: &Path) -> bool {
-    path.is_file()
-}
-
 fn parse_config_value(value: serde_json::Value) -> BitFunResult<AcpClientConfigFile> {
     if value.get("acpClients").is_some() {
         serde_json::from_value(value)
@@ -1409,19 +1245,6 @@ fn parse_config_value(value: serde_json::Value) -> BitFunResult<AcpClientConfigF
     }
 }
 
-fn default_opencode_client_config() -> AcpClientConfig {
-    AcpClientConfig {
-        name: Some("opencode".to_string()),
-        command: "opencode".to_string(),
-        args: vec!["acp".to_string()],
-        env: HashMap::new(),
-        enabled: true,
-        auto_start: false,
-        readonly: false,
-        permission_mode: AcpClientPermissionMode::Ask,
-    }
-}
-
 fn build_session_key(bitfun_session_id: Option<&str>, client_id: &str, cwd: &Path) -> String {
     format!(
         "{}:{}:{}",
@@ -1429,6 +1252,161 @@ fn build_session_key(bitfun_session_id: Option<&str>, client_id: &str, cwd: &Pat
         client_id,
         cwd.to_string_lossy()
     )
+}
+
+fn configure_process_group(command: &mut Command) {
+    #[cfg(unix)]
+    {
+        command.process_group(0);
+    }
+}
+
+async fn terminate_child_process_tree(client_id: &str, mut child: Child) {
+    let pid = child.id();
+
+    #[cfg(unix)]
+    if let Some(pid) = pid {
+        let process_group = format!("-{}", pid);
+        match Command::new("kill")
+            .arg("-TERM")
+            .arg(&process_group)
+            .status()
+            .await
+        {
+            Ok(status) if status.success() => {}
+            Ok(status) => {
+                warn!(
+                    "ACP client process group terminate exited unsuccessfully: id={} pid={} status={}",
+                    client_id, pid, status
+                );
+            }
+            Err(error) => {
+                warn!(
+                    "Failed to terminate ACP client process group: id={} pid={} error={}",
+                    client_id, pid, error
+                );
+            }
+        }
+
+        match tokio::time::timeout(Duration::from_millis(750), child.wait()).await {
+            Ok(Ok(_)) => return,
+            Ok(Err(error)) => {
+                warn!(
+                    "Failed to wait for ACP client process after terminate: id={} pid={} error={}",
+                    client_id, pid, error
+                );
+            }
+            Err(_) => {}
+        }
+
+        if let Err(error) = Command::new("kill")
+            .arg("-KILL")
+            .arg(&process_group)
+            .status()
+            .await
+        {
+            warn!(
+                "Failed to kill ACP client process group: id={} pid={} error={}",
+                client_id, pid, error
+            );
+        }
+        let _ = child.wait().await;
+        return;
+    }
+
+    #[cfg(windows)]
+    if let Some(pid) = pid {
+        match Command::new("taskkill")
+            .arg("/PID")
+            .arg(pid.to_string())
+            .arg("/T")
+            .arg("/F")
+            .status()
+            .await
+        {
+            Ok(status) if status.success() => {
+                let _ = child.wait().await;
+                return;
+            }
+            Ok(status) => {
+                warn!(
+                    "ACP client process tree kill exited unsuccessfully: id={} pid={} status={}",
+                    client_id, pid, status
+                );
+            }
+            Err(error) => {
+                warn!(
+                    "Failed to kill ACP client process tree: id={} pid={} error={}",
+                    client_id, pid, error
+                );
+            }
+        }
+    }
+
+    if let Err(error) = child.start_kill() {
+        warn!(
+            "Failed to kill ACP client process: id={} error={}",
+            client_id, error
+        );
+    }
+    let _ = child.wait().await;
+}
+
+async fn close_or_cancel_remote_session(
+    client: &AcpClientConnection,
+    connection: Option<ConnectionTo<Agent>>,
+    remote_session_id: &str,
+    supports_close: bool,
+) {
+    let connection = match connection {
+        Some(connection) => connection,
+        None => match client.connection().await {
+            Ok(connection) => connection,
+            Err(error) => {
+                warn!(
+                    "Failed to release ACP session because client is disconnected: client_id={} remote_session_id={} error={}",
+                    client.id, remote_session_id, error
+                );
+                return;
+            }
+        },
+    };
+
+    if supports_close {
+        let close = connection
+            .send_request(CloseSessionRequest::new(remote_session_id.to_string()))
+            .block_task();
+        match tokio::time::timeout(SESSION_CLOSE_TIMEOUT, close).await {
+            Ok(Ok(_)) => {
+                debug!(
+                    "ACP remote session closed: client_id={} remote_session_id={}",
+                    client.id, remote_session_id
+                );
+            }
+            Ok(Err(error)) => {
+                warn!(
+                    "Failed to close ACP remote session: client_id={} remote_session_id={} error={}",
+                    client.id, remote_session_id, error
+                );
+            }
+            Err(_) => {
+                warn!(
+                    "Timed out closing ACP remote session: client_id={} remote_session_id={} timeout_ms={}",
+                    client.id,
+                    remote_session_id,
+                    SESSION_CLOSE_TIMEOUT.as_millis()
+                );
+            }
+        }
+    } else if let Err(error) = connection
+        .send_notification(CancelNotification::new(remote_session_id.to_string()))
+        .map_err(protocol_error)
+    {
+        warn!(
+            "Failed to cancel ACP remote session during release: client_id={} remote_session_id={} error={}",
+            client.id, remote_session_id, error
+        );
+    }
 }
 
 fn new_session_response_from_load(

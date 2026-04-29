@@ -716,6 +716,11 @@ pub async fn delete_session(
         request.remote_ssh_host.as_deref(),
     )
     .await;
+    if let Some(acp_client_service) = app_state.acp_client_service.as_ref() {
+        acp_client_service
+            .release_bitfun_session(&request.session_id)
+            .await;
+    }
     coordinator
         .delete_session(&effective_path, &request.session_id)
         .await

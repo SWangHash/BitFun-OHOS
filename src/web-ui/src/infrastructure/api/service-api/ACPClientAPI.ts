@@ -124,9 +124,18 @@ export interface AcpPermissionRequestEvent {
   options?: AcpPermissionOption[];
 }
 
+let requirementProbeCache: AcpClientRequirementProbe[] | null = null;
+let requirementProbeInFlight: Promise<AcpClientRequirementProbe[]> | null = null;
+
 export class ACPClientAPI {
+  private static invalidateRequirementProbeCache(): void {
+    requirementProbeCache = null;
+    requirementProbeInFlight = null;
+  }
+
   static async initializeClients(): Promise<void> {
     await api.invoke('initialize_acp_clients');
+    ACPClientAPI.invalidateRequirementProbeCache();
     window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
   }
 
@@ -134,12 +143,39 @@ export class ACPClientAPI {
     return api.invoke('get_acp_clients');
   }
 
-  static async probeClientRequirements(): Promise<AcpClientRequirementProbe[]> {
-    return api.invoke('probe_acp_client_requirements');
+  static async probeClientRequirements(
+    options: { force?: boolean } = {}
+  ): Promise<AcpClientRequirementProbe[]> {
+    if (!options.force && requirementProbeCache) {
+      return requirementProbeCache;
+    }
+    if (!options.force && requirementProbeInFlight) {
+      return requirementProbeInFlight;
+    }
+
+    requirementProbeInFlight = api.invoke<AcpClientRequirementProbe[]>('probe_acp_client_requirements')
+      .then((probes) => {
+        requirementProbeCache = probes;
+        window.dispatchEvent(new Event('bitfun:acp-requirements-changed'));
+        return probes;
+      })
+      .finally(() => {
+        requirementProbeInFlight = null;
+      });
+
+    return requirementProbeInFlight;
   }
 
   static async predownloadClientAdapter(request: AcpClientIdRequest): Promise<void> {
     await api.invoke('predownload_acp_client_adapter', { request });
+    ACPClientAPI.invalidateRequirementProbeCache();
+    window.dispatchEvent(new Event('bitfun:acp-requirements-changed'));
+  }
+
+  static async installClientCli(request: AcpClientIdRequest): Promise<void> {
+    await api.invoke('install_acp_client_cli', { request });
+    ACPClientAPI.invalidateRequirementProbeCache();
+    window.dispatchEvent(new Event('bitfun:acp-requirements-changed'));
   }
 
   static async startClient(request: AcpClientIdRequest): Promise<void> {
@@ -163,6 +199,7 @@ export class ACPClientAPI {
 
   static async saveJsonConfig(jsonConfig: string): Promise<void> {
     await api.invoke('save_acp_json_config', { jsonConfig });
+    ACPClientAPI.invalidateRequirementProbeCache();
     window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
   }
 
