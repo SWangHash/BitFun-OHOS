@@ -74,6 +74,16 @@ impl AcpSessionPersistence {
         })
     }
 
+    pub(super) async fn delete_flow_session_record(
+        &self,
+        session_storage_path: &Path,
+        bitfun_session_id: &str,
+    ) -> BitFunResult<()> {
+        self.manager
+            .delete_session(session_storage_path, bitfun_session_id)
+            .await
+    }
+
     pub(super) async fn load_remote_session_id(
         &self,
         session_storage_path: &Path,

@@ -38,7 +38,6 @@ interface AcpClientConfig {
   args: string[];
   env: Record<string, string>;
   enabled: boolean;
-  autoStart: boolean;
   readonly: boolean;
   permissionMode: AcpClientPermissionMode;
 }
@@ -112,7 +111,6 @@ function defaultConfigForPreset(preset: AcpClientPreset): AcpClientConfig {
     args: preset.args,
     env: {},
     enabled: true,
-    autoStart: false,
     readonly: false,
     permissionMode: 'ask',
   };
@@ -144,7 +142,6 @@ function normalizeConfigValue(value: unknown): AcpClientConfigFile {
       args: Array.isArray(item.args) ? item.args.map(String) : [],
       env: normalizeEnvObject(item.env),
       enabled: item.enabled !== false,
-      autoStart: item.autoStart === true,
       readonly: item.readonly === true,
       permissionMode: normalizePermissionMode(item.permissionMode),
     };

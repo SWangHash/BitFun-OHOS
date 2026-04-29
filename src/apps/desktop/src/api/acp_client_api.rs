@@ -148,10 +148,6 @@ pub async fn create_acp_flow_session(
         .acp_client_service
         .as_ref()
         .ok_or_else(|| "ACP client service not initialized".to_string())?;
-    service
-        .start_client(&request.client_id)
-        .await
-        .map_err(|e| e.to_string())?;
 
     let session_storage_path = desktop_effective_session_storage_path(
         &state,
@@ -169,6 +165,22 @@ pub async fn create_acp_flow_session(
         )
         .await
         .map_err(|e| e.to_string())?;
+    if let Err(error) = service
+        .start_client_for_session(&request.client_id, &response.session_id)
+        .await
+    {
+        if let Err(cleanup_error) = service
+            .delete_flow_session_record(&session_storage_path, &response.session_id)
+            .await
+        {
+            log::warn!(
+                "Failed to delete ACP session record after client start failure: session_id={}, error={}",
+                response.session_id,
+                cleanup_error
+            );
+        }
+        return Err(error.to_string());
+    }
 
     let _ = app_handle.emit(
         "agentic://session-created",
@@ -458,21 +470,6 @@ pub async fn set_acp_session_model(
 }
 
 #[tauri::command]
-pub async fn start_acp_client(
-    state: State<'_, AppState>,
-    request: AcpClientIdRequest,
-) -> Result<(), String> {
-    let service = state
-        .acp_client_service
-        .as_ref()
-        .ok_or_else(|| "ACP client service not initialized".to_string())?;
-    service
-        .start_client(&request.client_id)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
 pub async fn stop_acp_client(
     state: State<'_, AppState>,
     request: AcpClientIdRequest,
@@ -483,21 +480,6 @@ pub async fn stop_acp_client(
         .ok_or_else(|| "ACP client service not initialized".to_string())?;
     service
         .stop_client(&request.client_id)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn restart_acp_client(
-    state: State<'_, AppState>,
-    request: AcpClientIdRequest,
-) -> Result<(), String> {
-    let service = state
-        .acp_client_service
-        .as_ref()
-        .ok_or_else(|| "ACP client service not initialized".to_string())?;
-    service
-        .restart_client(&request.client_id)
         .await
         .map_err(|e| e.to_string())
 }

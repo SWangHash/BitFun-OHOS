@@ -296,6 +296,7 @@
       "revealFailed": "打开工作区目录失败",
       "copyPathFailed": "复制路径失败",
       "createSessionFailed": "新建会话失败",
+      "creatingAcpSession": "正在启动 {{agentName}} 会话...",
       "initSessionFailed": "初始化 AGENTS.md 会话失败",
       "worktreeCreated": "已创建 worktree",
       "worktreeCreatedAndOpened": "已创建并打开 worktree",

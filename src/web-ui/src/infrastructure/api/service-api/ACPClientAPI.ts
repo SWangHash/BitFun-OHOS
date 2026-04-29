@@ -9,7 +9,6 @@ export interface AcpClientInfo {
   command: string;
   args: string[];
   enabled: boolean;
-  autoStart: boolean;
   readonly: boolean;
   permissionMode: AcpClientPermissionMode;
   status: AcpClientStatus;
@@ -178,18 +177,8 @@ export class ACPClientAPI {
     window.dispatchEvent(new Event('bitfun:acp-requirements-changed'));
   }
 
-  static async startClient(request: AcpClientIdRequest): Promise<void> {
-    await api.invoke('start_acp_client', { request });
-    window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
-  }
-
   static async stopClient(request: AcpClientIdRequest): Promise<void> {
     await api.invoke('stop_acp_client', { request });
-    window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
-  }
-
-  static async restartClient(request: AcpClientIdRequest): Promise<void> {
-    await api.invoke('restart_acp_client', { request });
     window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
   }
 

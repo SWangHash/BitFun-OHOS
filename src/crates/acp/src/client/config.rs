@@ -22,8 +22,6 @@ pub struct AcpClientConfig {
     #[serde(default = "default_true")]
     pub enabled: bool,
     #[serde(default)]
-    pub auto_start: bool,
-    #[serde(default)]
     pub readonly: bool,
     #[serde(default)]
     pub permission_mode: AcpClientPermissionMode,
@@ -51,7 +49,6 @@ pub struct AcpClientInfo {
     pub command: String,
     pub args: Vec<String>,
     pub enabled: bool,
-    pub auto_start: bool,
     pub readonly: bool,
     pub permission_mode: AcpClientPermissionMode,
     pub status: AcpClientStatus,

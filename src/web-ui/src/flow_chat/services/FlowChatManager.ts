@@ -207,31 +207,41 @@ export class FlowChatManager {
       throw new Error('Workspace path is required to create an ACP session');
     }
 
-    const response = await ACPClientAPI.createFlowSession({
-      clientId,
-      workspacePath,
-      remoteConnectionId: config.remoteConnectionId,
-      remoteSshHost: config.remoteSshHost,
-      sessionName: `${clientId} ACP`,
-    });
+    window.dispatchEvent(new CustomEvent('bitfun:acp-session-creation', {
+      detail: { phase: 'start', clientId },
+    }));
 
-    this.context.flowChatStore.createSession(
-      response.sessionId,
-      {
-        ...config,
+    try {
+      const response = await ACPClientAPI.createFlowSession({
+        clientId,
         workspacePath,
-        agentType: response.agentType,
-      },
-      undefined,
-      response.sessionName,
-      128128,
-      response.agentType,
-      workspacePath,
-      config.remoteConnectionId,
-      config.remoteSshHost,
-    );
+        remoteConnectionId: config.remoteConnectionId,
+        remoteSshHost: config.remoteSshHost,
+        sessionName: `${clientId} ACP`,
+      });
 
-    return response.sessionId;
+      this.context.flowChatStore.createSession(
+        response.sessionId,
+        {
+          ...config,
+          workspacePath,
+          agentType: response.agentType,
+        },
+        undefined,
+        response.sessionName,
+        128128,
+        response.agentType,
+        workspacePath,
+        config.remoteConnectionId,
+        config.remoteSshHost,
+      );
+
+      return response.sessionId;
+    } finally {
+      window.dispatchEvent(new CustomEvent('bitfun:acp-session-creation', {
+        detail: { phase: 'finish', clientId },
+      }));
+    }
   }
 
   async switchChatSession(sessionId: string): Promise<void> {

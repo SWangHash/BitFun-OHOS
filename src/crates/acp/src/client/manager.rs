@@ -95,6 +95,7 @@ struct PendingPermission {
 
 struct AcpClientConnection {
     id: String,
+    client_id: String,
     config: AcpClientConfig,
     status: RwLock<AcpClientStatus>,
     connection: RwLock<Option<ConnectionTo<Agent>>>,
@@ -168,27 +169,19 @@ impl AcpClientService {
             .keys()
             .cloned()
             .collect::<std::collections::HashSet<_>>();
-        let running_ids = self
+        let running_connections = self
             .clients
             .iter()
-            .map(|entry| entry.key().clone())
+            .map(|entry| (entry.key().clone(), entry.value().client_id.clone()))
             .collect::<Vec<_>>();
-        for running_id in running_ids {
-            let should_stop = !configured_ids.contains(&running_id)
+        for (connection_id, client_id) in running_connections {
+            let should_stop = !configured_ids.contains(&client_id)
                 || configs
-                    .get(&running_id)
+                    .get(&client_id)
                     .map(|config| !config.enabled)
                     .unwrap_or(true);
             if should_stop {
-                let _ = self.stop_client(&running_id).await;
-            }
-        }
-
-        for (id, config) in configs {
-            if config.enabled && config.auto_start {
-                if let Err(error) = self.start_client(&id).await {
-                    warn!("Failed to auto-start ACP client: id={} error={}", id, error);
-                }
+                let _ = self.stop_connection(&connection_id).await;
             }
         }
 
@@ -199,22 +192,25 @@ impl AcpClientService {
         let configs = self.load_configs().await?;
         let mut infos = Vec::with_capacity(configs.len());
         for (id, config) in configs {
-            let client = self.clients.get(&id).map(|entry| entry.clone());
-            let status = match client.as_ref() {
-                Some(client) => *client.status.read().await,
-                None => AcpClientStatus::Configured,
-            };
-            let session_count = client
-                .as_ref()
-                .map(|client| client.sessions.len())
-                .unwrap_or_default();
+            let clients = self
+                .clients
+                .iter()
+                .filter(|entry| entry.value().client_id == id)
+                .map(|entry| entry.value().clone())
+                .collect::<Vec<_>>();
+            let mut statuses = Vec::with_capacity(clients.len());
+            let mut session_count = 0usize;
+            for client in &clients {
+                statuses.push(*client.status.read().await);
+                session_count += client.sessions.len();
+            }
+            let status = aggregate_client_status(&statuses);
             infos.push(AcpClientInfo {
                 tool_name: AcpAgentTool::tool_name_for(&id),
                 name: config.name.clone().unwrap_or_else(|| id.clone()),
                 command: config.command.clone(),
                 args: config.args.clone(),
                 enabled: config.enabled,
-                auto_start: config.auto_start,
                 readonly: config.readonly,
                 permission_mode: config.permission_mode,
                 id,
@@ -311,8 +307,22 @@ impl AcpClientService {
         install_npm_cli_package(package).await
     }
 
-    pub async fn start_client(self: &Arc<Self>, client_id: &str) -> BitFunResult<()> {
-        if let Some(existing) = self.clients.get(client_id) {
+    pub async fn start_client_for_session(
+        self: &Arc<Self>,
+        client_id: &str,
+        bitfun_session_id: &str,
+    ) -> BitFunResult<()> {
+        let connection_id = session_client_connection_id(client_id, bitfun_session_id);
+        self.start_client_connection(&connection_id, client_id)
+            .await
+    }
+
+    async fn start_client_connection(
+        self: &Arc<Self>,
+        connection_id: &str,
+        client_id: &str,
+    ) -> BitFunResult<()> {
+        if let Some(existing) = self.clients.get(connection_id) {
             let status = *existing.status.read().await;
             if matches!(status, AcpClientStatus::Running | AcpClientStatus::Starting) {
                 return Ok(());
@@ -332,9 +342,13 @@ impl AcpClientService {
             )));
         }
 
-        let connection = Arc::new(AcpClientConnection::new(client_id.to_string(), config));
+        let connection = Arc::new(AcpClientConnection::new(
+            connection_id.to_string(),
+            client_id.to_string(),
+            config,
+        ));
         self.clients
-            .insert(client_id.to_string(), connection.clone());
+            .insert(connection_id.to_string(), connection.clone());
         *connection.status.write().await = AcpClientStatus::Starting;
 
         let program =
@@ -351,7 +365,7 @@ impl AcpClientService {
         let mut child = match command.spawn() {
             Ok(child) => child,
             Err(error) => {
-                self.clients.remove(client_id);
+                self.clients.remove(connection_id);
                 *connection.status.write().await = AcpClientStatus::Failed;
                 return Err(BitFunError::service(format!(
                     "Failed to spawn ACP client '{}': {}",
@@ -363,8 +377,8 @@ impl AcpClientService {
         let stdout = match child.stdout.take() {
             Some(stdout) => stdout,
             None => {
-                terminate_child_process_tree(client_id, child).await;
-                self.clients.remove(client_id);
+                terminate_child_process_tree(connection_id, child).await;
+                self.clients.remove(connection_id);
                 *connection.status.write().await = AcpClientStatus::Failed;
                 return Err(BitFunError::service(format!(
                     "ACP client '{}' stdout is unavailable",
@@ -375,8 +389,8 @@ impl AcpClientService {
         let stdin = match child.stdin.take() {
             Some(stdin) => stdin,
             None => {
-                terminate_child_process_tree(client_id, child).await;
-                self.clients.remove(client_id);
+                terminate_child_process_tree(connection_id, child).await;
+                self.clients.remove(connection_id);
                 *connection.status.write().await = AcpClientStatus::Failed;
                 return Err(BitFunError::service(format!(
                     "ACP client '{}' stdin is unavailable",
@@ -455,7 +469,20 @@ impl AcpClientService {
     }
 
     pub async fn stop_client(self: &Arc<Self>, client_id: &str) -> BitFunResult<()> {
-        let Some(client) = self.clients.get(client_id).map(|entry| entry.clone()) else {
+        let connection_ids = self
+            .clients
+            .iter()
+            .filter(|entry| entry.value().client_id == client_id)
+            .map(|entry| entry.key().clone())
+            .collect::<Vec<_>>();
+        for connection_id in connection_ids {
+            self.stop_connection(&connection_id).await?;
+        }
+        Ok(())
+    }
+
+    async fn stop_connection(self: &Arc<Self>, connection_id: &str) -> BitFunResult<()> {
+        let Some(client) = self.clients.get(connection_id).map(|entry| entry.clone()) else {
             return Ok(());
         };
 
@@ -463,15 +490,18 @@ impl AcpClientService {
             let _ = tx.send(());
         }
         if let Some(child) = client.child.lock().await.take() {
-            terminate_child_process_tree(client_id, child).await;
+            terminate_child_process_tree(connection_id, child).await;
         }
         *client.connection.write().await = None;
         *client.agent_capabilities.write().await = None;
         client.sessions.clear();
         client.cancel_handles.clear();
         *client.status.write().await = AcpClientStatus::Stopped;
-        self.clients.remove(client_id);
-        info!("ACP client stopped: id={}", client_id);
+        self.clients.remove(connection_id);
+        info!(
+            "ACP client stopped: id={} client_id={}",
+            connection_id, client.client_id
+        );
         Ok(())
     }
 
@@ -544,7 +574,7 @@ impl AcpClientService {
                 .await;
             }
 
-            if !client.config.auto_start
+            if client.id != client.client_id
                 && client.sessions.is_empty()
                 && client.cancel_handles.is_empty()
             {
@@ -552,11 +582,11 @@ impl AcpClientService {
             }
         }
 
-        for client_id in idle_client_ids {
-            if let Err(error) = self.stop_client(&client_id).await {
+        for connection_id in idle_client_ids {
+            if let Err(error) = self.stop_connection(&connection_id).await {
                 warn!(
                     "Failed to stop idle ACP client after session release: id={} error={}",
-                    client_id, error
+                    connection_id, error
                 );
             }
         }
@@ -564,14 +594,19 @@ impl AcpClientService {
         released
     }
 
-    pub async fn restart_client(self: &Arc<Self>, client_id: &str) -> BitFunResult<()> {
-        self.stop_client(client_id).await?;
-        self.start_client(client_id).await
+    pub async fn delete_flow_session_record(
+        &self,
+        session_storage_path: &Path,
+        bitfun_session_id: &str,
+    ) -> BitFunResult<()> {
+        self.session_persistence
+            .delete_flow_session_record(session_storage_path, bitfun_session_id)
+            .await
     }
 
     pub async fn load_json_config(&self) -> BitFunResult<String> {
-        let value = self.load_config_value().await?;
-        serde_json::to_string_pretty(&value)
+        let config = parse_config_value(self.load_config_value().await?)?;
+        serde_json::to_string_pretty(&config)
             .map_err(|error| BitFunError::config(format!("Failed to render ACP config: {}", error)))
     }
 
@@ -579,8 +614,13 @@ impl AcpClientService {
         let value: serde_json::Value = serde_json::from_str(json_config).map_err(|error| {
             BitFunError::config(format!("Invalid ACP client JSON config: {}", error))
         })?;
-        parse_config_value(value.clone())?;
-        self.config_service.set_config(CONFIG_PATH, value).await?;
+        let config = parse_config_value(value)?;
+        let canonical_value = serde_json::to_value(config).map_err(|error| {
+            BitFunError::config(format!("Failed to render ACP config: {}", error))
+        })?;
+        self.config_service
+            .set_config(CONFIG_PATH, canonical_value)
+            .await?;
         self.initialize_all().await
     }
 
@@ -873,9 +913,13 @@ impl AcpClientService {
         workspace_path: Option<String>,
         bitfun_session_id: Option<String>,
     ) -> BitFunResult<()> {
+        let connection_id = bitfun_session_id
+            .as_deref()
+            .map(|session_id| session_client_connection_id(client_id, session_id))
+            .unwrap_or_else(|| client_id.to_string());
         let client = self
             .clients
-            .get(client_id)
+            .get(&connection_id)
             .map(|entry| entry.clone())
             .ok_or_else(|| {
                 BitFunError::service(format!("ACP client is not running: {}", client_id))
@@ -931,10 +975,14 @@ impl AcpClientService {
         workspace_path: Option<String>,
         bitfun_session_id: Option<&str>,
     ) -> BitFunResult<(Arc<AcpClientConnection>, PathBuf, String)> {
-        self.start_client(client_id).await?;
+        let connection_id = bitfun_session_id
+            .map(|session_id| session_client_connection_id(client_id, session_id))
+            .unwrap_or_else(|| client_id.to_string());
+        self.start_client_connection(&connection_id, client_id)
+            .await?;
         let client = self
             .clients
-            .get(client_id)
+            .get(&connection_id)
             .map(|entry| entry.clone())
             .ok_or_else(|| {
                 BitFunError::service(format!("ACP client is not running: {}", client_id))
@@ -1209,9 +1257,10 @@ impl AcpClientService {
 }
 
 impl AcpClientConnection {
-    fn new(id: String, config: AcpClientConfig) -> Self {
+    fn new(id: String, client_id: String, config: AcpClientConfig) -> Self {
         Self {
             id,
+            client_id,
             config,
             status: RwLock::new(AcpClientStatus::Configured),
             connection: RwLock::new(None),
@@ -1252,6 +1301,35 @@ fn build_session_key(bitfun_session_id: Option<&str>, client_id: &str, cwd: &Pat
         client_id,
         cwd.to_string_lossy()
     )
+}
+
+fn session_client_connection_id(client_id: &str, bitfun_session_id: &str) -> String {
+    format!("{}::session::{}", client_id, bitfun_session_id)
+}
+
+fn aggregate_client_status(statuses: &[AcpClientStatus]) -> AcpClientStatus {
+    if statuses.is_empty() {
+        return AcpClientStatus::Configured;
+    }
+    if statuses
+        .iter()
+        .any(|status| matches!(status, AcpClientStatus::Running))
+    {
+        return AcpClientStatus::Running;
+    }
+    if statuses
+        .iter()
+        .any(|status| matches!(status, AcpClientStatus::Starting))
+    {
+        return AcpClientStatus::Starting;
+    }
+    if statuses
+        .iter()
+        .any(|status| matches!(status, AcpClientStatus::Failed))
+    {
+        return AcpClientStatus::Failed;
+    }
+    AcpClientStatus::Stopped
 }
 
 fn configure_process_group(command: &mut Command) {
