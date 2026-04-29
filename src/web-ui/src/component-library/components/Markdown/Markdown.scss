@@ -640,6 +640,13 @@
   text-decoration-thickness: 1.5px;
 }
 
+.markdown-renderer a .inline-code,
+.file-link .inline-code,
+.visualization-link .inline-code,
+.tab-link .inline-code {
+  color: inherit;
+}
+
 .markdown-link-path-tooltip {
   display: inline-block;
   max-width: min(520px, 80vw);

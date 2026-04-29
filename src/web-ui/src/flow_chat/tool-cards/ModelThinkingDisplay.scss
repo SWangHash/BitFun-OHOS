@@ -324,6 +324,13 @@
     color: var(--flowchat-link-hover-color, #93c5fd);
   }
 
+  a .inline-code,
+  .file-link .inline-code,
+  .visualization-link .inline-code,
+  .tab-link .inline-code {
+    color: inherit !important;
+  }
+
   ul,
   ol {
     padding-left: 1.25rem;

@@ -158,6 +158,13 @@
     text-decoration-thickness: 1.5px;
   }
 
+  .markdown-renderer a .inline-code,
+  .markdown-renderer .file-link .inline-code,
+  .markdown-renderer .visualization-link .inline-code,
+  .markdown-renderer .tab-link .inline-code {
+    color: inherit !important;
+  }
+
   /* Markdown.scss sets 0.875rem !important on fenced blocks — override with flow-chat scale. */
   .markdown-renderer .code-block-wrapper pre[class*='language-'],
   .markdown-renderer .code-block-wrapper pre code,
