@@ -3,7 +3,6 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Download,
   FolderOpen,
   Package,
   Plus,
@@ -217,7 +216,6 @@ const SkillsScene: React.FC = () => {
               <div className="skills-split__market-grid">
                 {market.marketSkills.map((skill, index) => {
                   const isInstalled = installedSkillNames.has(skill.name);
-                  const isDownloading = market.downloadingPackage === skill.installId;
                   return (
                     <SkillCard
                       key={skill.installId}
@@ -238,19 +236,6 @@ const SkillsScene: React.FC = () => {
                           {skill.installs ?? 0}
                         </span>
                       )}
-                      actions={[
-                        {
-                          id: 'download',
-                          icon: isInstalled ? <CheckCircle2 size={13} /> : <Download size={13} />,
-                          ariaLabel: isInstalled ? t('market.item.installed') : t('market.item.downloadProject'),
-                          title: isDownloading
-                            ? t('market.item.downloading')
-                            : (isInstalled ? t('market.item.installedTooltip') : t('market.item.downloadProject')),
-                          disabled: isDownloading || !market.hasWorkspace || market.isRemoteWorkspace || isInstalled,
-                          tone: isInstalled ? 'success' : 'primary',
-                          onClick: () => market.handleDownload(skill),
-                        },
-                      ]}
                       onOpenDetails={() => setSelectedDetail({ type: 'market', skill })}
                     />
                   );
@@ -515,21 +500,34 @@ const SkillsScene: React.FC = () => {
             {t('deleteModal.delete')}
           </Button>
         ) : selectedMarketSkill ? (
-          <Button
-            variant={installedSkillNames.has(selectedMarketSkill.name) ? 'secondary' : 'primary'}
-            size="small"
-            onClick={() => void market.handleDownload(selectedMarketSkill)}
-            disabled={
-              market.downloadingPackage === selectedMarketSkill.installId
-              || !market.hasWorkspace
-              || market.isRemoteWorkspace
-              || installedSkillNames.has(selectedMarketSkill.name)
-            }
-          >
-            {installedSkillNames.has(selectedMarketSkill.name)
-              ? t('market.item.installed')
-              : t('market.item.downloadProject')}
-          </Button>
+          <>
+            {installedSkillNames.has(selectedMarketSkill.name) ? (
+              <Button variant="secondary" size="small" disabled>
+                {t('market.item.installed')}
+              </Button>
+            ) : (
+              <>
+                {!market.isRemoteWorkspace && (
+                  <Button
+                    variant="primary"
+                    size="small"
+                    onClick={() => void market.handleDownload(selectedMarketSkill, 'project')}
+                    disabled={market.downloadingPackage === selectedMarketSkill.installId || !market.hasWorkspace}
+                  >
+                    {t('market.item.downloadProject')}
+                  </Button>
+                )}
+                <Button
+                  variant={market.isRemoteWorkspace ? 'primary' : 'secondary'}
+                  size="small"
+                  onClick={() => void market.handleDownload(selectedMarketSkill, 'user')}
+                  disabled={market.downloadingPackage === selectedMarketSkill.installId}
+                >
+                  {t('market.item.downloadUser')}
+                </Button>
+              </>
+            )}
+          </>
         ) : null}
       >
         {selectedInstalledSkill ? (
