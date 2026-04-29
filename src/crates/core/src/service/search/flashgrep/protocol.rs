@@ -20,6 +20,11 @@ pub(crate) struct RequestEnvelope {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "method", rename_all = "snake_case")]
 pub(crate) enum Request {
+    Initialize {
+        params: InitializeParams,
+    },
+    Initialized,
+    Ping,
     #[serde(rename = "base_snapshot/build")]
     BaseSnapshotBuild {
         params: RepoRef,
@@ -44,6 +49,35 @@ pub(crate) enum Request {
     Glob {
         params: GlobParams,
     },
+    CloseRepo {
+        params: RepoRef,
+    },
+    Shutdown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub(crate) struct InitializeParams {
+    #[serde(default)]
+    pub client_info: Option<ClientInfo>,
+    #[serde(default)]
+    pub capabilities: ClientCapabilities,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct ClientInfo {
+    pub name: String,
+    #[serde(default)]
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub(crate) struct ClientCapabilities {
+    #[serde(default)]
+    pub progress: bool,
+    #[serde(default)]
+    pub status_notifications: bool,
+    #[serde(default)]
+    pub task_notifications: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -237,6 +271,22 @@ pub(crate) struct ResponseEnvelope {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct NotificationEnvelope {
+    #[serde(default = "default_jsonrpc_version")]
+    pub jsonrpc: String,
+    pub method: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub params: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum ServerMessage {
+    Response(ResponseEnvelope),
+    Notification(NotificationEnvelope),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct ErrorResponse {
     pub code: i64,
     pub message: String,
@@ -247,6 +297,16 @@ pub(crate) struct ErrorResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum Response {
+    InitializeResult {
+        protocol_version: u32,
+        server_info: ServerInfo,
+        capabilities: ServerCapabilities,
+        search: SearchProtocolCapabilities,
+    },
+    InitializedAck,
+    Pong {
+        now_unix_secs: u64,
+    },
     RepoOpened {
         repo_id: String,
         status: RepoStatus,
@@ -272,6 +332,38 @@ pub(crate) enum Response {
         status: RepoStatus,
         paths: Vec<String>,
     },
+    RepoClosed {
+        repo_id: String,
+    },
+    ShutdownAck,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct ServerInfo {
+    pub name: String,
+    pub version: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct ServerCapabilities {
+    pub workspace_open: bool,
+    pub workspace_ensure: bool,
+    pub workspace_list: bool,
+    pub workspace_refresh: bool,
+    pub base_snapshot_build: bool,
+    pub base_snapshot_rebuild: bool,
+    pub task_status: bool,
+    pub task_cancel: bool,
+    pub search_query: bool,
+    pub glob_query: bool,
+    pub progress_notifications: bool,
+    pub status_notifications: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct SearchProtocolCapabilities {
+    pub consistency_modes: Vec<ConsistencyMode>,
+    pub search_modes: Vec<SearchModeConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

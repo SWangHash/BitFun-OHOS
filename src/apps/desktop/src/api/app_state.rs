@@ -3,6 +3,7 @@
 
 //! Application state management
 
+use crate::api::workspace_activation::spawn_workspace_background_warmup;
 use bitfun_core::agentic::side_question::SideQuestionRuntime;
 use bitfun_core::agentic::{agents, tools};
 use bitfun_core::infrastructure::ai::{AIClient, AIClientFactory};
@@ -204,52 +205,8 @@ impl AppState {
             .map(|workspace| workspace.root_path.clone());
 
         if let Some(workspace_path) = initial_workspace_path.clone() {
-            let skip_startup_snapshot_restore = initial_workspace
-                .as_ref()
-                .map(|workspace| {
-                    matches!(
-                        workspace.workspace_kind,
-                        bitfun_core::service::workspace::WorkspaceKind::Remote
-                    )
-                })
-                .unwrap_or(false);
-            if skip_startup_snapshot_restore {
-                log::debug!(
-                    "Skipping snapshot restore on startup for remote workspace: path={}",
-                    workspace_path.display()
-                );
-            } else {
-                if let Err(e) =
-                    bitfun_core::service::snapshot::initialize_snapshot_manager_for_workspace(
-                        workspace_path.clone(),
-                        None,
-                    )
-                    .await
-                {
-                    log::warn!(
-                        "Failed to restore snapshot system on startup: path={}, error={}",
-                        workspace_path.display(),
-                        e
-                    );
-                }
-            }
             if let Err(e) = ai_rules_service.set_workspace(workspace_path).await {
                 log::warn!("Failed to restore AI rules workspace on startup: {}", e);
-            }
-        }
-
-        if let Some(workspace_info) = initial_workspace {
-            if workspace_info.workspace_kind != workspace::WorkspaceKind::Remote {
-                if let Err(e) = workspace_search_service
-                    .open_repo(&workspace_info.root_path)
-                    .await
-                {
-                    log::warn!(
-                        "Failed to restore workspace search repository session on startup: path={}, error={}",
-                        workspace_info.root_path.display(),
-                        e
-                    );
-                }
             }
         }
 
@@ -360,6 +317,10 @@ impl AppState {
             active_searches: Arc::new(Mutex::new(HashMap::new())),
             announcement_scheduler,
         };
+
+        if let Some(workspace_info) = initial_workspace {
+            spawn_workspace_background_warmup(&app_state, workspace_info);
+        }
 
         log::info!("AppState initialized successfully");
         Ok(app_state)

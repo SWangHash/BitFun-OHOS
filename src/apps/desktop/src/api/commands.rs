@@ -12,6 +12,7 @@ use crate::api::search_api::{
     group_search_results, search_file_contents_via_workspace_search,
     search_metadata_from_content_result, should_use_workspace_search, SearchMetadataResponse,
 };
+use crate::api::workspace_activation::spawn_workspace_background_warmup;
 use bitfun_core::infrastructure::{
     BatchedFileSearchProgressSink, FileSearchResult, FileSearchResultGroup, FileTreeNode,
     SearchMatchType,
@@ -608,7 +609,17 @@ async fn clear_active_workspace_context(state: &State<'_, AppState>, app: &AppHa
     #[cfg(not(target_os = "macos"))]
     let _ = app;
 
+    let previous_workspace_path = state.workspace_path.read().await.clone();
     *state.workspace_path.write().await = None;
+
+    if let Some(previous_workspace_path) = previous_workspace_path {
+        let root_str = previous_workspace_path.to_string_lossy().to_string();
+        if !is_remote_path(root_str.trim()).await {
+            state
+                .workspace_search_service
+                .schedule_repo_release(previous_workspace_path);
+        }
+    }
 
     if let Some(ref pool) = state.js_worker_pool {
         pool.stop_all().await;
@@ -649,34 +660,6 @@ async fn apply_active_workspace_context(
     // Remote workspace roots are POSIX paths on the SSH host — not writable local directories on
     // Windows. Snapshot hooks already skip file tracking for registered remote paths; avoid
     // creating `/.bitfun` (or drive root) here which fails with access denied.
-    let root_str = workspace_info.root_path.to_string_lossy().to_string();
-    let skip_local_snapshot = workspace_info.workspace_kind == WorkspaceKind::Remote
-        || is_remote_path(root_str.trim()).await;
-    if !skip_local_snapshot {
-        if let Err(e) = bitfun_core::service::snapshot::initialize_snapshot_manager_for_workspace(
-            workspace_info.root_path.clone(),
-            None,
-        )
-        .await
-        {
-            warn!(
-                "Failed to initialize snapshot system: path={}, error={}",
-                workspace_info.root_path.display(),
-                e
-            );
-        }
-    } else {
-        debug!(
-            "Skipping local snapshot manager init for remote/non-local workspace root_path={}",
-            workspace_info.root_path.display()
-        );
-    }
-
-    state
-        .agent_registry
-        .load_custom_subagents(&workspace_info.root_path)
-        .await;
-
     if let Err(e) = state
         .ai_rules_service
         .set_workspace(workspace_info.root_path.clone())
@@ -689,19 +672,7 @@ async fn apply_active_workspace_context(
         );
     }
 
-    if workspace_info.workspace_kind != WorkspaceKind::Remote {
-        if let Err(e) = state
-            .workspace_search_service
-            .open_repo(&workspace_info.root_path)
-            .await
-        {
-            warn!(
-                "Failed to open workspace search repository session: path={}, error={}",
-                workspace_info.root_path.display(),
-                e
-            );
-        }
-    }
+    spawn_workspace_background_warmup(&*state, workspace_info.clone());
 
     #[cfg(target_os = "macos")]
     {

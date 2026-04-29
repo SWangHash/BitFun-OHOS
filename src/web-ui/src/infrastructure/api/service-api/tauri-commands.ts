@@ -263,7 +263,7 @@ export type WorkspaceSearchRepoPhase =
   | 'needs_index'
   | 'building'
   | 'ready'
-  | 'stale'
+  | 'tracking_changes'
   | 'refreshing'
   | 'limited';
 

@@ -30,7 +30,7 @@
         "needs_index": "Needs Index",
         "building": "Building",
         "ready": "Ready",
-        "stale": "Stale",
+        "tracking_changes": "Tracking Changes",
         "refreshing": "Refreshing",
         "limited": "Limited",
         "unknown": "Unknown"
@@ -40,7 +40,7 @@
         "needs_index": "Search works with fallback now. Build the index for faster content search.",
         "building": "Building the workspace index.",
         "ready": "Managed index is ready. Content search can use the indexed backend.",
-        "stale": "Managed index is usable, but workspace changes suggest a rebuild soon.",
+        "tracking_changes": "Managed index is usable and workspace changes are being tracked. Rebuild is only needed when one is recommended.",
         "refreshing": "Refreshing the workspace index with the latest file changes.",
         "limited": "Managed index is limited. Search can still fall back, but rebuild is recommended.",
         "unavailable": "Search index status is unavailable right now."

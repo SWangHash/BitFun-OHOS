@@ -200,7 +200,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
       || Boolean(repoStatus?.rebuildRecommended)
     ) {
       tone = 'yellow';
-    } else if (phase === 'ready' || phase === 'stale') {
+    } else if (phase === 'ready' || phase === 'tracking_changes') {
       tone = 'green';
     }
 

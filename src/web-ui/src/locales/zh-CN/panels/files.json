@@ -30,7 +30,7 @@
         "needs_index": "未建索引",
         "building": "建立中",
         "ready": "索引可用",
-        "stale": "索引已旧",
+        "tracking_changes": "跟踪变更中",
         "refreshing": "刷新中",
         "limited": "受限",
         "unknown": "未知"
@@ -40,7 +40,7 @@
         "needs_index": "当前搜索仍可通过 fallback 使用，建立索引后内容搜索会更快。",
         "building": "正在为当前工作区建立索引。",
         "ready": "索引已就绪，内容搜索可优先走索引后端。",
-        "stale": "索引当前可用，但工作区变更已提示应尽快重建。",
+        "tracking_changes": "索引当前可用，工作区变更正在被跟踪。只有出现建议重建时，才需要关注重建。",
         "refreshing": "正在根据最新文件变更刷新索引。",
         "limited": "索引能力受限。搜索仍可 fallback，但建议重建。",
         "unavailable": "当前无法获取索引状态。"

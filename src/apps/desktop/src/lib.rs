@@ -1051,18 +1051,11 @@ fn perform_process_exit_cleanup() -> bool {
                 }
             });
 
-        match shutdown_thread {
-            Ok(handle) => {
-                if handle.join().is_err() {
-                    log::warn!("Workspace search shutdown thread panicked");
-                }
-            }
-            Err(error) => {
-                log::warn!(
-                    "Failed to spawn workspace search shutdown thread: {}",
-                    error
-                );
-            }
+        if let Err(error) = shutdown_thread {
+            log::warn!(
+                "Failed to spawn workspace search shutdown thread: {}",
+                error
+            );
         }
     }
     bitfun_core::util::process_manager::cleanup_all_processes();

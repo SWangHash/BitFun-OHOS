@@ -1,14 +1,12 @@
 use crate::infrastructure::FileSearchOutcome;
-use crate::service::search::flashgrep::daemon::protocol::{
-    FileMatch as FlashgrepFileMatch, MatchLocation as FlashgrepMatchLocation,
-    SearchHit as FlashgrepSearchHit, SearchLine as FlashgrepSearchLine,
-};
-use crate::service::search::flashgrep::sdk::{
+use crate::service::search::flashgrep::{
     DirtyFileStats as FlashgrepDirtyFileStats, FileCount as FlashgrepFileCount,
+    FileMatch as FlashgrepFileMatch, MatchLocation as FlashgrepMatchLocation,
     RepoPhase as FlashgrepRepoPhase, RepoStatus as FlashgrepRepoStatus,
-    SearchBackend as FlashgrepSearchBackend, SearchModeConfig, TaskKind as FlashgrepTaskKind,
-    TaskPhase as FlashgrepTaskPhase, TaskState as FlashgrepTaskState, TaskStatus as FlashgrepTaskStatus,
-    WorkspaceOverlayStatus as FlashgrepWorkspaceOverlayStatus,
+    SearchBackend as FlashgrepSearchBackend, SearchHit as FlashgrepSearchHit,
+    SearchLine as FlashgrepSearchLine, SearchModeConfig, TaskKind as FlashgrepTaskKind,
+    TaskPhase as FlashgrepTaskPhase, TaskState as FlashgrepTaskState,
+    TaskStatus as FlashgrepTaskStatus, WorkspaceOverlayStatus as FlashgrepWorkspaceOverlayStatus,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -85,7 +83,7 @@ pub enum WorkspaceSearchRepoPhase {
     NeedsIndex,
     Building,
     Ready,
-    Stale,
+    TrackingChanges,
     Refreshing,
     Limited,
 }
@@ -97,7 +95,7 @@ impl From<FlashgrepRepoPhase> for WorkspaceSearchRepoPhase {
             FlashgrepRepoPhase::MissingBaseSnapshot => Self::NeedsIndex,
             FlashgrepRepoPhase::BuildingBaseSnapshot => Self::Building,
             FlashgrepRepoPhase::ReadyClean => Self::Ready,
-            FlashgrepRepoPhase::ReadyDirty => Self::Stale,
+            FlashgrepRepoPhase::ReadyDirty => Self::TrackingChanges,
             FlashgrepRepoPhase::RebuildingBaseSnapshot => Self::Refreshing,
             FlashgrepRepoPhase::Degraded => Self::Limited,
         }

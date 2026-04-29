@@ -44,5 +44,6 @@ pub mod system_api;
 pub mod terminal_api;
 pub mod tool_api;
 pub mod ohos;
+pub mod workspace_activation;
 
 pub use app_state::{AppState, AppStatistics, HealthStatus, RemoteWorkspace};

@@ -1,17 +1,19 @@
 use crate::infrastructure::{FileSearchOutcome, FileSearchResult, SearchMatchType};
 use crate::service::config::{get_global_config_service, types::WorkspaceConfig};
-use crate::service::search::flashgrep::sdk::tokio::{ManagedClient, RepoSession};
-use crate::service::search::flashgrep::sdk::{
-    ConsistencyMode, GlobRequest, OpenRepoParams, PathScope, QuerySpec, RefreshPolicyConfig,
-    RepoConfig, SearchRequest, SearchResults,
+use crate::service::search::flashgrep::{
+    ConsistencyMode, GlobRequest, ManagedClient, OpenRepoParams, PathScope, QuerySpec,
+    RefreshPolicyConfig, RepoConfig, RepoSession, SearchRequest, SearchResults,
 };
 use crate::util::errors::{BitFunError, BitFunResult};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc, OnceLock,
+};
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use super::types::{
     ContentSearchOutputMode, ContentSearchRequest, ContentSearchResult, GlobSearchRequest,
@@ -22,10 +24,19 @@ use super::types::{
 static GLOBAL_WORKSPACE_SEARCH_SERVICE: OnceLock<Arc<WorkspaceSearchService>> = OnceLock::new();
 
 const DEFAULT_TOP_K_TOKENS: usize = 6;
+const DEFAULT_SESSION_IDLE_GRACE: Duration = Duration::from_secs(45);
+
+#[derive(Debug, Clone)]
+struct SessionEntry {
+    session: Arc<RepoSession>,
+    activity_epoch: Arc<AtomicU64>,
+}
 
 pub struct WorkspaceSearchService {
     client: ManagedClient,
-    sessions: RwLock<HashMap<PathBuf, Arc<RepoSession>>>,
+    sessions: RwLock<HashMap<PathBuf, SessionEntry>>,
+    open_guards: Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>,
+    session_idle_grace: Duration,
 }
 
 impl WorkspaceSearchService {
@@ -47,6 +58,8 @@ impl WorkspaceSearchService {
         Self {
             client,
             sessions: RwLock::new(HashMap::new()),
+            open_guards: Mutex::new(HashMap::new()),
+            session_idle_grace: DEFAULT_SESSION_IDLE_GRACE,
         }
     }
 
@@ -242,21 +255,58 @@ impl WorkspaceSearchService {
         })
     }
 
+    pub fn schedule_repo_release(self: &Arc<Self>, repo_root: impl AsRef<Path>) {
+        let Ok(repo_root) = normalize_repo_root(repo_root.as_ref()) else {
+            return;
+        };
+        let service = Arc::clone(self);
+        tokio::spawn(async move {
+            service.release_repo_after_grace(repo_root).await;
+        });
+    }
+
     pub async fn shutdown_all_daemons(&self) {
-        self.sessions.write().await.clear();
+        let released_sessions = self.sessions.write().await.drain().count();
+        self.open_guards.lock().await.clear();
+        if released_sessions > 0 {
+            log::info!(
+                "Workspace search shutdown releasing sessions via daemon shutdown: count={}",
+                released_sessions
+            );
+        }
+        if let Err(error) = self.client.shutdown_daemon().await {
+            log::debug!("Workspace search daemon shutdown skipped: {}", error);
+        }
     }
 
     async fn get_or_open_session(&self, repo_root: &Path) -> BitFunResult<Arc<RepoSession>> {
         let repo_root = normalize_repo_root(repo_root)?;
+        let repo_guard = {
+            let mut guards = self.open_guards.lock().await;
+            guards
+                .entry(repo_root.clone())
+                .or_insert_with(|| Arc::new(Mutex::new(())))
+                .clone()
+        };
+        let _repo_guard = repo_guard.lock().await;
+
         if let Some(existing) = self.sessions.read().await.get(&repo_root).cloned() {
-            if existing.status().await.is_ok() {
-                return Ok(existing);
+            existing.activity_epoch.fetch_add(1, Ordering::Relaxed);
+            if existing.session.status().await.is_ok() {
+                return Ok(existing.session);
             }
             log::warn!(
                 "Workspace search session became unhealthy, reopening repository session: path={}",
                 repo_root.display()
             );
             self.sessions.write().await.remove(&repo_root);
+            if let Err(error) = existing.session.close().await {
+                log::debug!(
+                    "Workspace search repo close after unhealthy session failed: path={}, error={}",
+                    repo_root.display(),
+                    error
+                );
+            }
         }
 
         let repo_config = repo_config_for_workspace_search().await;
@@ -267,19 +317,19 @@ impl WorkspaceSearchService {
             refresh: RefreshPolicyConfig::default(),
         };
 
-        let session = Arc::new(
-            self.client
-                .open_repo(params)
-                .await
-                .map_err(map_flashgrep_error(
-                    "Failed to open flashgrep repository session",
-                ))?,
-        );
+        let entry =
+            SessionEntry {
+                session: Arc::new(self.client.open_repo(params).await.map_err(
+                    map_flashgrep_error("Failed to open flashgrep repository session"),
+                )?),
+                activity_epoch: Arc::new(AtomicU64::new(1)),
+            };
 
         let mut sessions = self.sessions.write().await;
         Ok(sessions
             .entry(repo_root)
-            .or_insert_with(|| session.clone())
+            .or_insert_with(|| entry.clone())
+            .session
             .clone())
     }
 
@@ -307,6 +357,46 @@ impl WorkspaceSearchService {
             active_task: active_task.map(Into::into),
         })
     }
+
+    async fn release_repo_after_grace(self: Arc<Self>, repo_root: PathBuf) {
+        let Some(expected_epoch) = self
+            .sessions
+            .read()
+            .await
+            .get(&repo_root)
+            .map(|entry| entry.activity_epoch.load(Ordering::Relaxed))
+        else {
+            return;
+        };
+
+        tokio::time::sleep(self.session_idle_grace).await;
+
+        let entry = {
+            let mut sessions = self.sessions.write().await;
+            let Some(entry) = sessions.get(&repo_root) else {
+                return;
+            };
+            if entry.activity_epoch.load(Ordering::Relaxed) != expected_epoch {
+                return;
+            }
+            sessions.remove(&repo_root)
+        };
+
+        if let Some(entry) = entry {
+            log::info!(
+                "Releasing idle workspace search repository session: path={}",
+                repo_root.display()
+            );
+            if let Err(error) = entry.session.close().await {
+                log::warn!(
+                    "Failed to release idle workspace search repository session: path={}, error={}",
+                    repo_root.display(),
+                    error
+                );
+            }
+            self.open_guards.lock().await.remove(&repo_root);
+        }
+    }
 }
 
 impl Default for WorkspaceSearchService {
@@ -330,7 +420,11 @@ fn resolve_daemon_program() -> Option<OsString> {
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let workspace_root = manifest_dir.join("../../..");
-    let binary_name = if cfg!(windows) { "flashgrep.exe" } else { "flashgrep" };
+    let binary_name = if cfg!(windows) {
+        "flashgrep.exe"
+    } else {
+        "flashgrep"
+    };
     let profile = std::env::var("PROFILE").ok();
 
     for candidate in daemon_binary_candidates(&workspace_root, binary_name, profile.as_deref()) {
@@ -339,7 +433,9 @@ fn resolve_daemon_program() -> Option<OsString> {
         }
     }
 
-    which::which("flashgrep").ok().map(|path| path.into_os_string())
+    which::which("flashgrep")
+        .ok()
+        .map(|path| path.into_os_string())
 }
 
 fn daemon_binary_candidates(

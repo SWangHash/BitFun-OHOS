@@ -1,6 +1,4 @@
-pub mod tokio;
-
-pub(crate) use crate::service::search::flashgrep::daemon::protocol::{
+pub(crate) use super::protocol::{
     ConsistencyMode, DirtyFileStats, FileCount, OpenRepoParams, PathScope, QuerySpec,
     RefreshPolicyConfig, RepoConfig, RepoPhase, RepoStatus, SearchBackend, SearchModeConfig,
     SearchResults, TaskKind, TaskPhase, TaskState, TaskStatus, WorkspaceOverlayStatus,

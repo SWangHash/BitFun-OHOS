@@ -55,7 +55,8 @@ function getIndexPhaseBadgeVariant(phase?: WorkspaceSearchRepoPhase): 'neutral' 
   switch (phase) {
     case 'ready':
       return 'success';
-    case 'stale':
+    case 'tracking_changes':
+      return 'info';
     case 'needs_index':
       return 'warning';
     case 'building':
