@@ -247,6 +247,9 @@ impl GitTool {
             let refs = args_str[..sep_pos].trim();
             let files = args_str[sep_pos + GIT_DIFF_FILE_SEPARATOR.len()..].trim();
             (refs, Some(files))
+        } else if let Some(stripped) = args_str.strip_prefix("-- ") {
+            // Handle "-- file1 file2" (no leading space before --)
+            ("", Some(stripped.trim()))
         } else {
             (args_str.trim(), None)
         };
