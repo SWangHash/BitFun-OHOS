@@ -33,4 +33,6 @@ export const DEEP_REVIEW_SCROLL_TO_EVENT = 'deep-review:scroll-to';
 export interface DeepReviewScrollToRequest {
   groupId: string;
   groupIndex: number;
+  /** Index of the best-matching issue in the report's `issues` array, or -1. */
+  issueIndex: number;
 }

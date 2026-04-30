@@ -32,6 +32,17 @@ function makeContext(session: Session): any {
         }
       },
       batchUpdateModelRoundItems: () => {},
+      updateDialogTurn: (
+        _sessionId: string,
+        _turnId: string,
+        updater: (turn: any) => any,
+      ) => {
+        const turn = session.dialogTurns[0];
+        const updated = updater(turn);
+        if (updated) {
+          Object.assign(turn, updated);
+        }
+      },
     },
     contentBuffers: new Map(),
     activeTextItems: new Map(),
@@ -42,6 +53,7 @@ function makeContext(session: Session): any {
     lastSaveHashes: new Map(),
     turnSaveInFlight: new Map(),
     turnSavePending: new Set(),
+    runtimeStatusTimers: new Map(),
   };
 }
 

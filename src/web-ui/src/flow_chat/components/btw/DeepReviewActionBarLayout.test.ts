@@ -47,7 +47,7 @@ describe('DeepReviewActionBar layout styles', () => {
     expect(root).toContain('overflow-y: auto;');
     expect(root).toContain('scrollbar-gutter: stable;');
     expect(actions).toContain('margin: 2px 0 -6px;');
-    expect(actions).toContain('padding: 12px 0 6px;');
+    expect(actions).toContain('padding: 8px 0 4px;');
     expect(stylesheet).not.toContain('--deep-review-action-bar-scrollbar-gutter');
     expect(actions).not.toContain('calc(');
   });

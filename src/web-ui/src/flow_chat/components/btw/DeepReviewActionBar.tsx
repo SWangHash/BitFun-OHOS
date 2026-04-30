@@ -8,7 +8,6 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
-  X,
   MessageSquare,
   Play,
   Copy,
@@ -16,6 +15,7 @@ import {
   SkipForward,
   RotateCcw,
   Eye,
+  Minus,
 } from 'lucide-react';
 import { Button, Checkbox, Tooltip } from '@/component-library';
 import { useReviewActionBarStore, type ReviewActionPhase } from '../../store/deepReviewActionBarStore';
@@ -39,6 +39,7 @@ import {
   extractPartialReviewData,
 } from '../../utils/deepReviewExperience';
 import { flowChatStore } from '../../store/FlowChatStore';
+import { CodeReviewReportExportActions } from '../../tool-cards/CodeReviewReportExportActions';
 import './DeepReviewActionBar.scss';
 
 const log = createLogger('DeepReviewActionBar');
@@ -94,12 +95,14 @@ export const ReviewActionBar: React.FC = () => {
     interruption,
     completedRemediationIds,
     remainingFixIds,
+    decisionSelections,
   } = store;
 
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [showRemediationList, setShowRemediationList] = useState(true);
   const [showPartialResults, setShowPartialResults] = useState(false);
   const [showRecoveryPlan, setShowRecoveryPlan] = useState(false);
+  const [expandedDecisionIds, setExpandedDecisionIds] = useState<Set<string>>(new Set());
   const [elapsedMs, setElapsedMs] = useState(0);
   const [longRunningNotified, setLongRunningNotified] = useState(false);
 
@@ -221,6 +224,7 @@ export const ReviewActionBar: React.FC = () => {
       rerunReview,
       reviewMode,
       completedItems: [...completedRemediationIds],
+      decisionSelections: store.decisionSelections,
     });
 
     if (!prompt) return;
@@ -280,6 +284,7 @@ export const ReviewActionBar: React.FC = () => {
       selectedIds: selectedRemediationIds,
       rerunReview: false,
       reviewMode,
+      decisionSelections: store.decisionSelections,
     });
 
     if (customInstructions.trim()) {
@@ -556,14 +561,21 @@ export const ReviewActionBar: React.FC = () => {
       onWheel={stopNestedScrollPropagation}
       onTouchMove={stopNestedScrollPropagation}
     >
-      <button
-        type="button"
-        className="deep-review-action-bar__close"
-        onClick={handleMinimize}
-        aria-label={t('deepReviewActionBar.minimize', { defaultValue: 'Minimize' })}
-      >
-        <X size={16} />
-      </button>
+      {/* Top-right controls: export actions + minimize */}
+      <div className="deep-review-action-bar__controls">
+        {reviewData && (
+          <CodeReviewReportExportActions reviewData={reviewData} />
+        )}
+        <span className="deep-review-action-bar__controls-divider" />
+        <button
+          type="button"
+          className="deep-review-action-bar__controls-btn"
+          onClick={handleMinimize}
+          aria-label={t('deepReviewActionBar.minimize', { defaultValue: 'Minimize' })}
+        >
+          <Minus size={14} />
+        </button>
+      </div>
 
       {/* Phase status header */}
       <div className="deep-review-action-bar__status">
@@ -851,26 +863,85 @@ export const ReviewActionBar: React.FC = () => {
                                   {t('reviewActionBar.needsDecisionTag', { defaultValue: 'Decision' })}
                                 </span>
                               )}
-                              <a
-                                className="deep-review-action-bar__remediation-link"
-                                href={`#review-remediation-${item.groupId ?? 'ungrouped'}-${item.groupIndex}`}
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (item.groupId != null) {
-                                    globalEventBus.emit(DEEP_REVIEW_SCROLL_TO_EVENT, {
-                                      groupId: item.groupId,
-                                      groupIndex: item.groupIndex,
-                                    });
-                                  }
-                                }}
-                              >
-                                {item.decisionContext?.question ?? item.plan}
-                              </a>
+                              {item.groupId === 'verification' ? (
+                                <span className="deep-review-action-bar__remediation-text-plain">
+                                  {item.decisionContext?.question ?? item.plan}
+                                </span>
+                              ) : (
+                                <a
+                                  className="deep-review-action-bar__remediation-link"
+                                  href={`#review-remediation-${item.groupId ?? 'ungrouped'}-${item.groupIndex}`}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (item.groupId != null) {
+                                      globalEventBus.emit(DEEP_REVIEW_SCROLL_TO_EVENT, {
+                                        groupId: item.groupId,
+                                        groupIndex: item.groupIndex,
+                                        issueIndex: item.issueIndex ?? -1,
+                                      });
+                                    }
+                                  }}
+                                >
+                                  {item.decisionContext?.question ?? item.plan}
+                                </a>
+                              )}
                               {item.decisionContext?.tradeoffs && (
                                 <span className="deep-review-action-bar__remediation-tradeoffs">
                                   {item.decisionContext.tradeoffs}
                                 </span>
+                              )}
+                              {item.decisionContext?.options && item.decisionContext.options.length > 0 && (
+                                <button
+                                  type="button"
+                                  className="deep-review-action-bar__decision-toggle"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setExpandedDecisionIds((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(item.id)) {
+                                        next.delete(item.id);
+                                      } else {
+                                        next.add(item.id);
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  {expandedDecisionIds.has(item.id)
+                                    ? t('toolCards.codeReview.remediationActions.collapseOptions', { defaultValue: 'Hide options' })
+                                    : t('toolCards.codeReview.remediationActions.expandOptions', { defaultValue: 'Show options' })
+                                  }
+                                </button>
+                              )}
+                              {expandedDecisionIds.has(item.id) && item.decisionContext?.options && (
+                                <ul className="deep-review-action-bar__decision-options">
+                                  {item.decisionContext.options.map((opt, oi) => {
+                                    const isSelected = decisionSelections[item.id] === oi;
+                                    const isRecommended = item.decisionContext?.recommendation === oi;
+                                    return (
+                                      <li key={oi} className={`deep-review-action-bar__decision-option ${isSelected ? 'is-selected' : ''} ${isRecommended ? 'is-recommended' : ''}`}>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            store.setDecisionSelection(item.id, oi);
+                                          }}
+                                        >
+                                          <span className="deep-review-action-bar__decision-option-marker">
+                                            {isSelected ? '\u25CF' : '\u25CB'}
+                                          </span>
+                                          <span className="deep-review-action-bar__decision-option-text">
+                                            {opt}
+                                            {isRecommended ? ` (${t('toolCards.codeReview.remediationActions.recommended', { defaultValue: 'recommended' })})` : ''}
+                                          </span>
+                                        </button>
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
                               )}
                             </span>
                           </label>
@@ -904,6 +975,18 @@ export const ReviewActionBar: React.FC = () => {
           <span className="deep-review-action-bar__no-issues-text">
             {t('reviewActionBar.noIssuesFound', {
               defaultValue: 'No issues found. Great job!',
+            })}
+          </span>
+        </div>
+      )}
+
+      {/* Fix completed — show success message */}
+      {phase === 'fix_completed' && (
+        <div className="deep-review-action-bar__fix-done">
+          <CheckCircle size={16} className="deep-review-action-bar__fix-done-icon" />
+          <span className="deep-review-action-bar__fix-done-text">
+            {t('deepReviewActionBar.fixCompletedMessage', {
+              defaultValue: 'All fixes applied successfully.',
             })}
           </span>
         </div>

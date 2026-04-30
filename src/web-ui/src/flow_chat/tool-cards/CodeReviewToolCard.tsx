@@ -330,23 +330,32 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
         setIsExpanded(true);
       }
 
-      // Ensure the remediation section is expanded
+      // Ensure both issues and remediation sections are expanded
       setExpandedReportSectionIds((current) => {
-        if (current.has('remediation')) return current;
         const next = new Set(current);
         next.add('remediation');
+        next.add('issues');
         return next;
       });
 
-      // Scroll to the target item after render
+      // Double rAF: wait for React state update + DOM render before scrolling
       requestAnimationFrame(() => {
-        const anchorId = `review-remediation-${request.groupId}-${request.groupIndex}`;
-        const anchor = document.getElementById(anchorId);
-        if (anchor) {
-          anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          anchor.classList.add('is-highlighted');
-          setTimeout(() => anchor.classList.remove('is-highlighted'), 2000);
-        }
+        requestAnimationFrame(() => {
+          // Prefer scrolling to the matching issue (has title + description)
+          // Fall back to the remediation plan item
+          let anchor: HTMLElement | null = null;
+          if (request.issueIndex >= 0) {
+            anchor = document.getElementById(`review-issue-${request.issueIndex}`);
+          }
+          if (!anchor) {
+            anchor = document.getElementById(`review-remediation-${request.groupId}-${request.groupIndex}`);
+          }
+          if (anchor) {
+            anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            anchor.classList.add('is-highlighted');
+            setTimeout(() => anchor!.classList.remove('is-highlighted'), 2000);
+          }
+        });
       });
     };
 
@@ -541,6 +550,7 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
               {issues.map((issue, index) => (
                 <div
                   key={index}
+                  id={`review-issue-${index}`}
                   className={`review-issue-item severity-${getSeverityClass(issue.severity ?? 'info')}`}
                 >
                   <div className="issue-header">

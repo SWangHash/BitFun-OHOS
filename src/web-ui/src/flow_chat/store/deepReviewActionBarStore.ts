@@ -71,6 +71,8 @@ export interface ReviewActionBarState {
   fixingRemediationIds: Set<string>;
   /** IDs of items remaining when a fix was interrupted */
   remainingFixIds: string[];
+  /** User's option choice for needs_decision items: map of item id -> option index */
+  decisionSelections: Record<string, number>;
 
   // ---- actions ----
   showActionBar: (params: {
@@ -98,6 +100,7 @@ export interface ReviewActionBarState {
   minimize: () => void;
   restore: () => void;
   skipRemainingFixes: () => void;
+  setDecisionSelection: (itemId: string, optionIndex: number) => void;
   reset: () => void;
 }
 
@@ -121,6 +124,7 @@ const initialState = {
   completedRemediationIds: new Set<string>(),
   fixingRemediationIds: new Set<string>(),
   remainingFixIds: [] as string[],
+  decisionSelections: {} as Record<string, number>,
 };
 
 export const useReviewActionBarStore = create<ReviewActionBarState>((set, get) => ({
@@ -159,6 +163,7 @@ export const useReviewActionBarStore = create<ReviewActionBarState>((set, get) =
       completedRemediationIds: preservedCompleted,
       fixingRemediationIds: new Set(),
       remainingFixIds: [],
+      decisionSelections: {},
     });
   },
 
@@ -181,6 +186,7 @@ export const useReviewActionBarStore = create<ReviewActionBarState>((set, get) =
       completedRemediationIds: new Set(),
       fixingRemediationIds: new Set(),
       remainingFixIds: [],
+      decisionSelections: {},
     });
   },
 
@@ -267,6 +273,10 @@ export const useReviewActionBarStore = create<ReviewActionBarState>((set, get) =
   dismiss: () => set({ dismissed: true }),
   minimize: () => set({ minimized: true }),
   restore: () => set({ minimized: false }),
+  setDecisionSelection: (itemId, optionIndex) =>
+    set((state) => ({
+      decisionSelections: { ...state.decisionSelections, [itemId]: optionIndex },
+    })),
   skipRemainingFixes: () => set({
     phase: 'review_completed',
     remainingFixIds: [],

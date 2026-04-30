@@ -336,7 +336,7 @@ describeWithJsdom('DeepReviewActionBar', () => {
       root.render(<DeepReviewActionBar />);
     });
 
-    const closeButton = container.querySelector('.deep-review-action-bar__close');
+    const closeButton = container.querySelector('.deep-review-action-bar__controls-btn');
     expect(closeButton).toBeTruthy();
 
     await act(async () => {

@@ -273,7 +273,21 @@ function buildReviewerStats(reviewers: CodeReviewReviewer[] = []): ReviewReviewe
 
 export function buildCodeReviewReportSections(report: CodeReviewReportData): ReviewReportSections {
   const structuredSections = report.report_sections;
-  const remediationGroups = buildGroups(REMEDIATION_GROUP_ORDER, structuredSections?.remediation_groups);
+
+  // Normalize remediation groups: DecisionContext entries become their plan text for display
+  const rawRemediationGroups = structuredSections?.remediation_groups;
+  const normalizedRemediationGroups: Partial<Record<RemediationGroupId, string[]>> = {};
+  if (rawRemediationGroups) {
+    for (const [key, entries] of Object.entries(rawRemediationGroups) as [RemediationGroupId, (string | DecisionContext)[] | undefined][]) {
+      if (!entries) continue;
+      normalizedRemediationGroups[key] = entries.map((entry) => {
+        if (typeof entry === 'string') return entry;
+        return entry.plan;
+      });
+    }
+  }
+
+  const remediationGroups = buildGroups(REMEDIATION_GROUP_ORDER, normalizedRemediationGroups);
   const strengthGroups = buildGroups(STRENGTH_GROUP_ORDER, structuredSections?.strength_groups);
   const executiveSummary = nonEmpty(structuredSections?.executive_summary);
   const coverageNotes = nonEmpty(structuredSections?.coverage_notes);

@@ -421,9 +421,9 @@ export const BtwSessionPanel: React.FC<BtwSessionPanelProps> = ({
             completedRemediationIds: store.completedRemediationIds,
           });
         } else {
-          // Fix completed with no further remediation needed — dismiss the action bar
-          // so the user can focus on the fix results in the chat stream.
-          store.dismiss();
+          // Fix completed with no further remediation needed — update phase to
+          // show completion state in the action bar instead of dismissing it.
+          store.updatePhase('fix_completed');
         }
       }
       return;
