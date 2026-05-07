@@ -26,8 +26,9 @@ import {
   Loader2,
   Clock,
   Check,
+  X,
 } from 'lucide-react';
-import { CubeLoading } from '../../component-library';
+import { CubeLoading, IconButton } from '../../component-library';
 import type { ToolCardProps } from '../types/flow-chat';
 import { BaseToolCard, ToolCardHeader } from './BaseToolCard';
 import { useSnapshotState } from '../../tools/snapshot_system/hooks/useSnapshotState';
@@ -45,6 +46,7 @@ import { useToolCardHeightContract } from './useToolCardHeightContract';
 import { hasNonFileUriScheme } from '@/shared/utils/pathUtils';
 import { notificationService } from '@/shared/notification-system';
 import { useGitState } from '@/tools/git/hooks/useGitState';
+import { ToolCardHeaderActions } from './ToolCardHeaderActions';
 import './FileOperationToolCard.scss';
 
 const log = createLogger('FileOperationToolCard');
@@ -59,10 +61,20 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
   toolItem,
   config,
   sessionId,
-  onOpenInEditor
+  onOpenInEditor,
+  onConfirm,
+  onReject,
 }) => {
   const { t } = useTranslation('flow-chat');
-  const { toolCall, toolResult, status, isParamsStreaming, partialParams } = toolItem;
+  const {
+    toolCall,
+    toolResult,
+    status,
+    isParamsStreaming,
+    partialParams,
+    requiresConfirmation,
+    userConfirmed,
+  } = toolItem;
   const toolId = toolItem.id ?? toolCall?.id;
   
   const [isErrorExpanded, setIsErrorExpanded] = useState(false);
@@ -128,6 +140,13 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
   const contentPreview = getContent();
   
   const isFailed = status === 'error' || (toolResult && 'success' in toolResult && !toolResult.success);
+  const showConfirmationActions = Boolean(
+    requiresConfirmation &&
+    !userConfirmed &&
+    status !== 'completed' &&
+    status !== 'cancelled' &&
+    status !== 'error'
+  );
   
   const fileName = currentFilePath ? 
     (currentFilePath.split(/[/\\]/).pop() || t('context.file')) : 
@@ -443,7 +462,7 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
 
     if (
       (e.target as HTMLElement).closest(
-        '.file-op-diff-pill, .file-op-open-full-button',
+        '.file-op-diff-pill, .file-op-open-full-button, .tool-card-header-actions',
       )
     ) {
       return;
@@ -467,6 +486,18 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
     isFailed,
     toolItem.toolName,
   ]);
+
+  const handleConfirmClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onConfirm?.(toolCall?.input);
+  }, [onConfirm, toolCall?.input]);
+
+  const handleRejectClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onReject?.();
+  }, [onReject]);
 
   const handleOpenFullCodeClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -720,12 +751,11 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
   const expandedContent = renderExpandedContent();
   const hasExpandableContent =
     !isFailed &&
-    !isDeleteTool &&
     Boolean(expandedContent);
 
   const isCardContentExpanded =
-    !isDeleteTool &&
     !isFailed &&
+    !isDeleteTool &&
     isContentExpanded;
 
   const renderHeader = () => {
@@ -793,11 +823,33 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
         )
       }
       extra={
-        <>
+        <ToolCardHeaderActions className="file-op-header-actions">
           {isParamsStreaming && (status === 'preparing' || status === 'streaming') && (
             <span className="params-streaming-indicator">
               {currentFilePath ? t('toolCards.file.receivingParams') : t('toolCards.file.analyzing')}
             </span>
+          )}
+          {showConfirmationActions && (
+            <>
+              <IconButton
+                className="tool-card-header-action file-op-header-action file-op-confirm-btn"
+                variant="success"
+                size="xs"
+                onClick={handleConfirmClick}
+                tooltip={t('toolCards.mcp.confirmExecute')}
+              >
+                <Check size={12} />
+              </IconButton>
+              <IconButton
+                className="tool-card-header-action file-op-header-action file-op-reject-btn"
+                variant="danger"
+                size="xs"
+                onClick={handleRejectClick}
+                tooltip={t('toolCards.mcp.cancel')}
+              >
+                <X size={12} />
+              </IconButton>
+            </>
           )}
           {canOpenFullCode && (
             <Tooltip content={t('toolCards.file.openFullCodeHint')} placement="top">
@@ -811,7 +863,7 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
               </button>
             </Tooltip>
           )}
-        </>
+        </ToolCardHeaderActions>
       }
       statusIcon={isDeleteTool ? null : renderStatusIcon()}
     />
@@ -829,6 +881,28 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
           <CompactToolCardHeader
             icon={getDeleteStatusIcon()}
             content={renderDeleteContent()}
+            extra={showConfirmationActions ? (
+              <ToolCardHeaderActions className="file-op-header-actions">
+                <IconButton
+                  className="tool-card-header-action file-op-header-action file-op-confirm-btn"
+                  variant="success"
+                  size="xs"
+                  onClick={handleConfirmClick}
+                  tooltip={t('toolCards.mcp.confirmExecute')}
+                >
+                  <Check size={12} />
+                </IconButton>
+                <IconButton
+                  className="tool-card-header-action file-op-header-action file-op-reject-btn"
+                  variant="danger"
+                  size="xs"
+                  onClick={handleRejectClick}
+                  tooltip={t('toolCards.mcp.cancel')}
+                >
+                  <X size={12} />
+                </IconButton>
+              </ToolCardHeaderActions>
+            ) : undefined}
           />
         }
       />
@@ -846,6 +920,7 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
         expandedContent={expandedContent}
         errorContent={isFailed && isErrorExpanded ? renderErrorContent() : null}
         isFailed={isFailed}
+        requiresConfirmation={showConfirmationActions}
         headerExpandAffordance={hasExpandableContent}
         headerAffordanceKind="expand"
       />

@@ -348,3 +348,32 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.file-op-header-actions {
+  gap: 4px;
+}
+
+.file-op-header-action.icon-btn--xs {
+  width: 18px;
+  height: 18px;
+}
+
+.file-op-confirm-btn {
+  color: var(--color-success);
+
+  &:hover:not(:disabled) {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+    box-shadow: 0 2px 8px var(--color-success-bg);
+  }
+}
+
+.file-op-reject-btn {
+  color: var(--color-error);
+
+  &:hover:not(:disabled) {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    box-shadow: 0 2px 8px var(--color-error-bg);
+  }
+}
