@@ -427,19 +427,42 @@ pub fn get_global_workspace_search_service() -> Option<Arc<WorkspaceSearchServic
     GLOBAL_WORKSPACE_SEARCH_SERVICE.get().cloned()
 }
 
-pub fn workspace_search_daemon_binary_name() -> &'static str {
-    if cfg!(windows) {
-        "flashgrep.exe"
+pub fn workspace_search_daemon_binary_names() -> &'static [&'static str] {
+    if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        &["flashgrep-x86_64-pc-windows-msvc.exe"]
+    } else if cfg!(all(target_os = "windows", target_arch = "aarch64")) {
+        &["flashgrep-aarch64-pc-windows-msvc.exe"]
+    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+        &["flashgrep-x86_64-apple-darwin"]
+    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        &["flashgrep-aarch64-apple-darwin"]
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        &["flashgrep-x86_64-unknown-linux-gnu"]
+    } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+        &["flashgrep-aarch64-unknown-linux-gnu"]
+    } else if cfg!(windows) {
+        &["flashgrep.exe"]
     } else {
-        "flashgrep"
+        &["flashgrep"]
     }
 }
 
+pub fn workspace_search_daemon_binary_name() -> &'static str {
+    workspace_search_daemon_binary_names()
+        .first()
+        .copied()
+        .unwrap_or("flashgrep")
+}
+
 pub fn workspace_search_daemon_missing_hint() -> String {
-    let bundled_path = format!("flashgrep/{}", workspace_search_daemon_binary_name());
+    let bundled_paths = workspace_search_daemon_binary_names()
+        .iter()
+        .map(|name| format!("flashgrep/{name}"))
+        .collect::<Vec<_>>()
+        .join(", ");
     format!(
-        "workspace search daemon binary is missing; expected bundled resource {} or a valid FLASHGREP_DAEMON_BIN override",
-        bundled_path
+        "workspace search daemon binary is missing; expected one of bundled resources [{}] or a valid FLASHGREP_DAEMON_BIN override",
+        bundled_paths
     )
 }
 
@@ -471,10 +494,10 @@ pub fn resolve_workspace_search_daemon_program_path() -> Option<PathBuf> {
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let workspace_root = manifest_dir.join("../../..");
-    let binary_name = workspace_search_daemon_binary_name();
+    let binary_names = workspace_search_daemon_binary_names();
     let profile = std::env::var("PROFILE").ok();
 
-    for candidate in daemon_binary_candidates(&workspace_root, binary_name, profile.as_deref()) {
+    for candidate in daemon_binary_candidates(&workspace_root, binary_names, profile.as_deref()) {
         if candidate.exists() {
             return Some(candidate);
         }
@@ -489,7 +512,7 @@ fn resolve_daemon_program() -> Option<OsString> {
 
 fn daemon_binary_candidates(
     workspace_root: &Path,
-    binary_name: &str,
+    binary_names: &[&str],
     current_profile: Option<&str>,
 ) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
@@ -503,8 +526,10 @@ fn daemon_binary_candidates(
 
     if let Ok(current_exe) = std::env::current_exe() {
         if let Some(parent) = current_exe.parent() {
-            push_candidate(parent.join(binary_name));
-            push_exe_relative_bundle_candidates(&mut push_candidate, parent, binary_name);
+            for binary_name in binary_names {
+                push_candidate(parent.join(binary_name));
+            }
+            push_exe_relative_bundle_candidates(&mut push_candidate, parent, binary_names);
         }
     }
 
@@ -512,12 +537,14 @@ fn daemon_binary_candidates(
         .into_iter()
         .chain(["debug", "release", "release-fast"])
     {
-        push_candidate(
-            workspace_root
-                .join("target")
-                .join(profile)
-                .join(binary_name),
-        );
+        for binary_name in binary_names {
+            push_candidate(
+                workspace_root
+                    .join("target")
+                    .join(profile)
+                    .join(binary_name),
+            );
+        }
     }
 
     candidates
@@ -526,23 +553,29 @@ fn daemon_binary_candidates(
 fn push_exe_relative_bundle_candidates(
     push_candidate: &mut impl FnMut(PathBuf),
     exe_dir: &Path,
-    binary_name: &str,
+    binary_names: &[&str],
 ) {
     if cfg!(target_os = "macos") {
-        push_candidate(exe_dir.join("../Resources/flashgrep").join(binary_name));
+        for binary_name in binary_names {
+            push_candidate(exe_dir.join("../Resources/flashgrep").join(binary_name));
+        }
     }
 
-    push_candidate(exe_dir.join("flashgrep").join(binary_name));
-    push_candidate(exe_dir.join("resources/flashgrep").join(binary_name));
+    for binary_name in binary_names {
+        push_candidate(exe_dir.join("flashgrep").join(binary_name));
+        push_candidate(exe_dir.join("resources/flashgrep").join(binary_name));
+    }
 
     if cfg!(target_os = "linux") {
-        push_candidate(exe_dir.join("../lib/bitfun/flashgrep").join(binary_name));
-        push_candidate(exe_dir.join("../share/bitfun/flashgrep").join(binary_name));
-        push_candidate(
-            exe_dir
-                .join("../share/com.bitfun.desktop/flashgrep")
-                .join(binary_name),
-        );
+        for binary_name in binary_names {
+            push_candidate(exe_dir.join("../lib/bitfun/flashgrep").join(binary_name));
+            push_candidate(exe_dir.join("../share/bitfun/flashgrep").join(binary_name));
+            push_candidate(
+                exe_dir
+                    .join("../share/com.bitfun.desktop/flashgrep")
+                    .join(binary_name),
+            );
+        }
     }
 }
 

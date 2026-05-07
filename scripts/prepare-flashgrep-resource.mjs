@@ -6,8 +6,30 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const RESOURCE_DIR = join(ROOT, 'resources', 'flashgrep');
 
+export function flashgrepBinaryNames() {
+  if (process.platform === 'win32' && process.arch === 'x64') {
+    return ['flashgrep-x86_64-pc-windows-msvc.exe'];
+  }
+  if (process.platform === 'win32' && process.arch === 'arm64') {
+    return ['flashgrep-aarch64-pc-windows-msvc.exe'];
+  }
+  if (process.platform === 'darwin' && process.arch === 'x64') {
+    return ['flashgrep-x86_64-apple-darwin'];
+  }
+  if (process.platform === 'darwin' && process.arch === 'arm64') {
+    return ['flashgrep-aarch64-apple-darwin'];
+  }
+  if (process.platform === 'linux' && process.arch === 'x64') {
+    return ['flashgrep-x86_64-unknown-linux-gnu'];
+  }
+  if (process.platform === 'linux' && process.arch === 'arm64') {
+    return ['flashgrep-aarch64-unknown-linux-gnu'];
+  }
+  return [process.platform === 'win32' ? 'flashgrep.exe' : 'flashgrep'];
+}
+
 export function flashgrepBinaryName() {
-  return process.platform === 'win32' ? 'flashgrep.exe' : 'flashgrep';
+  return flashgrepBinaryNames()[0];
 }
 
 export function flashgrepBinaryPath() {
@@ -15,15 +37,21 @@ export function flashgrepBinaryPath() {
 }
 
 export function ensureFlashgrepBinary() {
-  const binaryPath = flashgrepBinaryPath();
-  if (!existsSync(binaryPath)) {
-    throw new Error(
-      `flashgrep binary not found: ${binaryPath}. Put the prebuilt daemon binary at resources/flashgrep/${flashgrepBinaryName()}`
-    );
+  for (const binaryName of flashgrepBinaryNames()) {
+    const binaryPath = join(RESOURCE_DIR, binaryName);
+    if (!existsSync(binaryPath)) {
+      continue;
+    }
+
+    if (process.platform !== 'win32') {
+      chmodSync(binaryPath, statSync(binaryPath).mode | 0o111);
+    }
+    return binaryPath;
   }
 
-  if (process.platform !== 'win32') {
-    chmodSync(binaryPath, statSync(binaryPath).mode | 0o111);
-  }
-  return binaryPath;
+  throw new Error(
+    `flashgrep binary not found for ${process.platform}/${process.arch}. Expected one of: ${flashgrepBinaryNames()
+      .map((name) => `resources/flashgrep/${name}`)
+      .join(', ')}`
+  );
 }

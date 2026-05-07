@@ -230,26 +230,30 @@ pub async fn _run() {
 
             if workspace_search_enabled {
                 let flashgrep_path = startup_flashgrep_path.clone().or_else(|| {
-                    let binary_name =
-                        bitfun_core::service::search::workspace_search_daemon_binary_name();
-                    let primary = format!("flashgrep/{}", binary_name);
-                    if let Ok(path) = app
-                        .path()
-                        .resolve(&primary, tauri::path::BaseDirectory::Resource)
-                    {
-                        if path.exists() {
-                            return Some(path);
+                    let binary_names =
+                        bitfun_core::service::search::workspace_search_daemon_binary_names();
+                    for binary_name in binary_names {
+                        let primary = format!("flashgrep/{}", binary_name);
+                        if let Ok(path) = app
+                            .path()
+                            .resolve(&primary, tauri::path::BaseDirectory::Resource)
+                        {
+                            if path.exists() {
+                                return Some(path);
+                            }
                         }
                     }
 
                     if let Ok(resource_dir) = app.path().resource_dir() {
-                        for candidate in [
-                            resource_dir.join("flashgrep").join(binary_name),
-                            resource_dir.join("resources").join("flashgrep").join(binary_name),
-                            resource_dir.join(binary_name),
-                        ] {
-                            if candidate.exists() {
-                                return Some(candidate);
+                        for binary_name in binary_names {
+                            for candidate in [
+                                resource_dir.join("flashgrep").join(binary_name),
+                                resource_dir.join("resources").join("flashgrep").join(binary_name),
+                                resource_dir.join(binary_name),
+                            ] {
+                                if candidate.exists() {
+                                    return Some(candidate);
+                                }
                             }
                         }
                     }
