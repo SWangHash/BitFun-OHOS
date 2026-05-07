@@ -130,6 +130,14 @@ impl ManagedClient {
         Ok(())
     }
 
+    pub(crate) async fn stop_daemon(&self) -> Result<()> {
+        let daemon = self.state.lock().await.daemon.take();
+        if let Some(daemon) = daemon {
+            daemon.shutdown().await?;
+        }
+        Ok(())
+    }
+
     async fn send_request_with_restart(&self, request: Request) -> Result<Response> {
         self.send_request_with_restart_timeout(request, None).await
     }

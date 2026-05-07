@@ -3,7 +3,10 @@ pub mod service;
 pub mod types;
 
 pub use service::{
-    get_global_workspace_search_service, set_global_workspace_search_service,
+    get_global_workspace_search_service, resolve_workspace_search_daemon_program_path,
+    set_global_workspace_search_service, workspace_search_daemon_available,
+    workspace_search_daemon_binary_name, workspace_search_daemon_missing_hint,
+    workspace_search_feature_enabled, workspace_search_runtime_available,
     WorkspaceSearchService,
 };
 pub use types::{

@@ -279,6 +279,20 @@ impl WorkspaceSearchService {
         }
     }
 
+    pub async fn stop_all_daemons(&self) {
+        let released_sessions = self.sessions.write().await.drain().count();
+        self.open_guards.lock().await.clear();
+        if released_sessions > 0 {
+            log::info!(
+                "Workspace search stop releasing sessions via daemon stop: count={}",
+                released_sessions
+            );
+        }
+        if let Err(error) = self.client.stop_daemon().await {
+            log::debug!("Workspace search daemon stop skipped: {}", error);
+        }
+    }
+
     async fn get_or_open_session(&self, repo_root: &Path) -> BitFunResult<Arc<RepoSession>> {
         let repo_root = normalize_repo_root(repo_root)?;
         let repo_guard = {
@@ -413,29 +427,64 @@ pub fn get_global_workspace_search_service() -> Option<Arc<WorkspaceSearchServic
     GLOBAL_WORKSPACE_SEARCH_SERVICE.get().cloned()
 }
 
-fn resolve_daemon_program() -> Option<OsString> {
+pub fn workspace_search_daemon_binary_name() -> &'static str {
+    if cfg!(windows) {
+        "flashgrep.exe"
+    } else {
+        "flashgrep"
+    }
+}
+
+pub fn workspace_search_daemon_missing_hint() -> String {
+    let bundled_path = format!("flashgrep/{}", workspace_search_daemon_binary_name());
+    format!(
+        "workspace search daemon binary is missing; expected bundled resource {} or a valid FLASHGREP_DAEMON_BIN override",
+        bundled_path
+    )
+}
+
+pub fn workspace_search_daemon_available() -> bool {
+    resolve_workspace_search_daemon_program_path().is_some()
+}
+
+pub async fn workspace_search_feature_enabled() -> bool {
+    match get_global_config_service().await {
+        Ok(config_service) => config_service
+            .get_config::<bool>(Some("app.ai_experience.enable_workspace_search"))
+            .await
+            .unwrap_or(false),
+        Err(_) => false,
+    }
+}
+
+pub async fn workspace_search_runtime_available() -> bool {
+    workspace_search_feature_enabled().await && workspace_search_daemon_available()
+}
+
+pub fn resolve_workspace_search_daemon_program_path() -> Option<PathBuf> {
     if let Some(program) = std::env::var_os("FLASHGREP_DAEMON_BIN") {
-        return Some(program);
+        let path = PathBuf::from(program);
+        if path.exists() {
+            return Some(path);
+        }
     }
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let workspace_root = manifest_dir.join("../../..");
-    let binary_name = if cfg!(windows) {
-        "flashgrep.exe"
-    } else {
-        "flashgrep"
-    };
+    let binary_name = workspace_search_daemon_binary_name();
     let profile = std::env::var("PROFILE").ok();
 
     for candidate in daemon_binary_candidates(&workspace_root, binary_name, profile.as_deref()) {
         if candidate.exists() {
-            return Some(candidate.into_os_string());
+            return Some(candidate);
         }
     }
 
-    which::which("flashgrep")
-        .ok()
-        .map(|path| path.into_os_string())
+    which::which("flashgrep").ok()
+}
+
+fn resolve_daemon_program() -> Option<OsString> {
+    resolve_workspace_search_daemon_program_path().map(PathBuf::into_os_string)
 }
 
 fn daemon_binary_candidates(
@@ -732,5 +781,15 @@ fn split_preview(
 fn map_flashgrep_error(
     prefix: &'static str,
 ) -> impl Fn(crate::service::search::flashgrep::error::AppError) -> BitFunError {
-    move |error| BitFunError::service(format!("{prefix}: {error}"))
+    move |error| {
+        let detail = match &error {
+            crate::service::search::flashgrep::error::AppError::Io(io_error)
+                if io_error.kind() == std::io::ErrorKind::NotFound =>
+            {
+                format!("{error}. {}", workspace_search_daemon_missing_hint())
+            }
+            _ => error.to_string(),
+        };
+        BitFunError::service(format!("{prefix}: {detail}"))
+    }
 }

@@ -166,6 +166,9 @@ pub async fn _run() {
     }
     startup_timings.record_elapsed("init_function_agents", step_started);
 
+    let workspace_search_enabled = bitfun_core::service::search::workspace_search_feature_enabled().await;
+    let startup_flashgrep_path = configure_workspace_search_daemon_env();
+
     let step_started = Instant::now();
     let app_state = match AppState::new_async(token_usage_service).await {
         Ok(state) => state,
@@ -223,6 +226,48 @@ pub async fn _run() {
                     step.name,
                     step.duration_ms
                 );
+            }
+
+            if workspace_search_enabled {
+                let flashgrep_path = startup_flashgrep_path.clone().or_else(|| {
+                    let binary_name =
+                        bitfun_core::service::search::workspace_search_daemon_binary_name();
+                    let primary = format!("flashgrep/{}", binary_name);
+                    if let Ok(path) = app
+                        .path()
+                        .resolve(&primary, tauri::path::BaseDirectory::Resource)
+                    {
+                        if path.exists() {
+                            return Some(path);
+                        }
+                    }
+
+                    if let Ok(resource_dir) = app.path().resource_dir() {
+                        for candidate in [
+                            resource_dir.join("flashgrep").join(binary_name),
+                            resource_dir.join("resources").join("flashgrep").join(binary_name),
+                            resource_dir.join(binary_name),
+                        ] {
+                            if candidate.exists() {
+                                return Some(candidate);
+                            }
+                        }
+                    }
+
+                    None
+                });
+                if let Some(path) = flashgrep_path {
+                    std::env::set_var("FLASHGREP_DAEMON_BIN", &path);
+                    log::info!(
+                        "Workspace search daemon startup check passed: path={}",
+                        path.display()
+                    );
+                } else {
+                    log::warn!(
+                        "Workspace search daemon startup check failed: {}",
+                        bitfun_core::service::search::workspace_search_daemon_missing_hint()
+                    );
+                }
             }
 
             // Register bundled mobile-web resource path for remote connect.
@@ -1070,6 +1115,14 @@ fn perform_process_exit_cleanup() -> bool {
     true
 }
 
+fn configure_workspace_search_daemon_env() -> Option<std::path::PathBuf> {
+    let path = bitfun_core::service::search::resolve_workspace_search_daemon_program_path();
+    if let Some(path) = path.as_ref() {
+        std::env::set_var("FLASHGREP_DAEMON_BIN", path);
+    }
+    path
+}
+
 fn start_event_loop_with_transport(
     event_queue: Arc<bitfun_core::agentic::events::EventQueue>,
     event_router: Arc<bitfun_core::agentic::events::EventRouter>,
@@ -1105,6 +1158,7 @@ fn init_services(app_handle: tauri::AppHandle, default_log_level: log::LevelFilt
 
     spawn_ingest_server_with_config_listener();
     spawn_runtime_log_level_listener(default_log_level);
+    spawn_workspace_search_feature_listener(app_handle.clone());
 
     tauri::async_runtime::spawn(async move {
         let transport = Arc::new(TauriTransportAdapter::new(app_handle.clone()));
@@ -1201,6 +1255,93 @@ fn create_event_emitter(
 ) -> Arc<dyn bitfun_core::infrastructure::events::EventEmitter> {
     use bitfun_core::infrastructure::events::TransportEmitter;
     Arc::new(TransportEmitter::new(transport))
+}
+
+fn spawn_workspace_search_feature_listener(app_handle: tauri::AppHandle) {
+    use bitfun_core::service::config::{subscribe_config_updates, ConfigUpdateEvent};
+
+    let app_state: tauri::State<'_, api::AppState> = app_handle.state();
+    let workspace_search_service = app_state.workspace_search_service.clone();
+    let workspace_path = app_state.workspace_path.clone();
+
+    tokio::spawn(async move {
+        let mut feature_enabled =
+            bitfun_core::service::search::workspace_search_feature_enabled().await;
+
+        let Some(mut receiver) = subscribe_config_updates() else {
+            log::warn!("Config update subscription unavailable for workspace search listener");
+            return;
+        };
+
+        loop {
+            match receiver.recv().await {
+                Ok(ConfigUpdateEvent::AppUpdated) | Ok(ConfigUpdateEvent::ConfigReloaded) => {
+                    let next_enabled =
+                        bitfun_core::service::search::workspace_search_feature_enabled().await;
+
+                    if next_enabled == feature_enabled {
+                        continue;
+                    }
+
+                    if !next_enabled {
+                        workspace_search_service.stop_all_daemons().await;
+                        log::info!(
+                            "Workspace search feature disabled; stopped flashgrep daemon and cleared sessions"
+                        );
+                        feature_enabled = false;
+                        continue;
+                    }
+
+                    let resolved_path = configure_workspace_search_daemon_env();
+                    if !bitfun_core::service::search::workspace_search_daemon_available() {
+                        log::warn!(
+                            "Workspace search feature enabled but daemon is unavailable: path={:?}, hint={}",
+                            resolved_path.as_ref().map(|path| path.display().to_string()),
+                            bitfun_core::service::search::workspace_search_daemon_missing_hint()
+                        );
+                        feature_enabled = true;
+                        continue;
+                    }
+
+                    let current_workspace = workspace_path.read().await.clone();
+                    if let Some(current_workspace) = current_workspace {
+                        let workspace_str = current_workspace.to_string_lossy().to_string();
+                        if !bitfun_core::service::remote_ssh::workspace_state::is_remote_path(
+                            workspace_str.trim(),
+                        )
+                        .await
+                        {
+                            match workspace_search_service.open_repo(&current_workspace).await {
+                                Ok(_) => {
+                                    log::info!(
+                                        "Workspace search feature enabled; warmed current workspace: path={}",
+                                        current_workspace.display()
+                                    );
+                                }
+                                Err(error) => {
+                                    log::warn!(
+                                        "Workspace search feature enabled but failed to warm current workspace: path={}, error={}",
+                                        current_workspace.display(),
+                                        error
+                                    );
+                                }
+                            }
+                        }
+                    }
+
+                    feature_enabled = true;
+                }
+                Ok(_) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    log::warn!("Workspace search feature listener channel closed");
+                    break;
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    log::warn!("Workspace search feature listener lagged by {} messages", n);
+                }
+            }
+        }
+    });
 }
 
 fn spawn_ingest_server_with_config_listener() {

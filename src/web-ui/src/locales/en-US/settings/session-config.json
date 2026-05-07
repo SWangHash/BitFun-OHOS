@@ -35,6 +35,11 @@
       "deleteSuccess": "Imported appearance removed",
       "deleteFailed": "Failed to remove imported appearance",
       "refresh": "Refresh appearances"
+    },
+    "workspaceSearch": {
+      "title": "Accelerated workspace search",
+      "subtitle": "Use flashgrep-backed indexed search for local workspaces. When off, BitFun falls back to legacy search.",
+      "enable": "Enable accelerated workspace search"
     }
   },
   "toolExecution": {

@@ -323,7 +323,8 @@ pub(crate) enum Response {
     SearchCompleted {
         repo_id: String,
         backend: SearchBackend,
-        consistency_applied: ConsistencyMode,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        consistency_applied: Option<ConsistencyMode>,
         status: RepoStatus,
         results: SearchResults,
     },
@@ -362,6 +363,7 @@ pub(crate) struct ServerCapabilities {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct SearchProtocolCapabilities {
+    #[serde(default)]
     pub consistency_modes: Vec<ConsistencyMode>,
     pub search_modes: Vec<SearchModeConfig>,
 }

@@ -1,7 +1,7 @@
 use crate::agentic::tools::framework::{Tool, ToolResult, ToolUseContext};
 use crate::service::search::{
-    get_global_workspace_search_service, ContentSearchOutputMode, ContentSearchRequest,
-    WorkspaceSearchHit, WorkspaceSearchLine,
+    get_global_workspace_search_service, workspace_search_runtime_available,
+    ContentSearchOutputMode, ContentSearchRequest, WorkspaceSearchHit, WorkspaceSearchLine,
 };
 use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
@@ -830,66 +830,68 @@ Usage:
             return self.call_remote(input, context).await;
         }
 
-        if let Some(search_service) = get_global_workspace_search_service() {
-            let (request, output_mode, show_line_numbers, offset, head_limit) =
-                self.build_workspace_search_request(input, context)?;
-            let pattern = request.pattern.clone();
-            let search_mode = request.output_mode.search_mode();
-            let path = request
-                .search_path
-                .as_ref()
-                .map(|path| path.to_string_lossy().to_string())
-                .unwrap_or_else(|| request.repo_root.to_string_lossy().to_string());
-            let search_started_at = Instant::now();
-            let search_result = search_service.search_content(request).await?;
-            let display_base = Self::display_base(context);
-            let (result_text, file_count, total_matches) = self.format_workspace_search_output(
-                &output_mode,
-                show_line_numbers,
-                offset,
-                head_limit,
-                &search_result,
-                display_base.as_deref(),
-            );
-            let workspace_search_elapsed_ms = search_started_at.elapsed().as_millis();
+        if workspace_search_runtime_available().await {
+            if let Some(search_service) = get_global_workspace_search_service() {
+                let (request, output_mode, show_line_numbers, offset, head_limit) =
+                    self.build_workspace_search_request(input, context)?;
+                let pattern = request.pattern.clone();
+                let search_mode = request.output_mode.search_mode();
+                let path = request
+                    .search_path
+                    .as_ref()
+                    .map(|path| path.to_string_lossy().to_string())
+                    .unwrap_or_else(|| request.repo_root.to_string_lossy().to_string());
+                let search_started_at = Instant::now();
+                let search_result = search_service.search_content(request).await?;
+                let display_base = Self::display_base(context);
+                let (result_text, file_count, total_matches) = self.format_workspace_search_output(
+                    &output_mode,
+                    show_line_numbers,
+                    offset,
+                    head_limit,
+                    &search_result,
+                    display_base.as_deref(),
+                );
+                let workspace_search_elapsed_ms = search_started_at.elapsed().as_millis();
 
-            log::info!(
-                "Grep tool workspace-search result: pattern={}, path={}, output_mode={}, search_mode={:?}, file_count={}, total_matches={}, backend={:?}, repo_phase={:?}, rebuild_recommended={}, dirty_modified={}, dirty_deleted={}, dirty_new={}, candidate_docs={}, matched_lines={}, matched_occurrences={}, workspace_search_ms={}",
-                pattern,
-                path,
-                output_mode,
-                search_mode,
-                file_count,
-                total_matches,
-                search_result.backend,
-                search_result.repo_status.phase,
-                search_result.repo_status.rebuild_recommended,
-                search_result.repo_status.dirty_files.modified,
-                search_result.repo_status.dirty_files.deleted,
-                search_result.repo_status.dirty_files.new,
-                search_result.candidate_docs,
-                search_result.matched_lines,
-                search_result.matched_occurrences,
-                workspace_search_elapsed_ms,
-            );
+                log::info!(
+                    "Grep tool workspace-search result: pattern={}, path={}, output_mode={}, search_mode={:?}, file_count={}, total_matches={}, backend={:?}, repo_phase={:?}, rebuild_recommended={}, dirty_modified={}, dirty_deleted={}, dirty_new={}, candidate_docs={}, matched_lines={}, matched_occurrences={}, workspace_search_ms={}",
+                    pattern,
+                    path,
+                    output_mode,
+                    search_mode,
+                    file_count,
+                    total_matches,
+                    search_result.backend,
+                    search_result.repo_status.phase,
+                    search_result.repo_status.rebuild_recommended,
+                    search_result.repo_status.dirty_files.modified,
+                    search_result.repo_status.dirty_files.deleted,
+                    search_result.repo_status.dirty_files.new,
+                    search_result.candidate_docs,
+                    search_result.matched_lines,
+                    search_result.matched_occurrences,
+                    workspace_search_elapsed_ms,
+                );
 
-            return Ok(vec![ToolResult::Result {
-                data: json!({
-                    "pattern": pattern,
-                    "path": path,
-                    "output_mode": output_mode,
-                    "file_count": file_count,
-                    "total_matches": total_matches,
-                    "backend": search_result.backend,
-                    "repo_phase": search_result.repo_status.phase,
-                    "rebuild_recommended": search_result.repo_status.rebuild_recommended,
-                    "applied_limit": head_limit,
-                    "applied_offset": if offset > 0 { Some(offset) } else { None::<usize> },
-                    "result": result_text,
-                }),
-                result_for_assistant: Some(result_text),
-                image_attachments: None,
-            }]);
+                return Ok(vec![ToolResult::Result {
+                    data: json!({
+                        "pattern": pattern,
+                        "path": path,
+                        "output_mode": output_mode,
+                        "file_count": file_count,
+                        "total_matches": total_matches,
+                        "backend": search_result.backend,
+                        "repo_phase": search_result.repo_status.phase,
+                        "rebuild_recommended": search_result.repo_status.rebuild_recommended,
+                        "applied_limit": head_limit,
+                        "applied_offset": if offset > 0 { Some(offset) } else { None::<usize> },
+                        "result": result_text,
+                    }),
+                    result_for_assistant: Some(result_text),
+                    image_attachments: None,
+                }]);
+            }
         }
 
         let grep_options = self.build_grep_options(input, context)?;

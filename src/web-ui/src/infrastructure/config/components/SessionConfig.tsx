@@ -859,6 +859,22 @@ const SessionConfig: React.FC = () => {
           </ConfigPageRow>
         </ConfigPageSection>
 
+        {/* ── Accelerated workspace search ───────────────────────── */}
+        <ConfigPageSection
+          title={t('features.workspaceSearch.title')}
+          description={t('features.workspaceSearch.subtitle')}
+        >
+          <ConfigPageRow label={t('features.workspaceSearch.enable')} align="center">
+            <div className="bitfun-func-agent-config__row-control">
+              <Switch
+                checked={settings.enable_workspace_search}
+                onChange={(e) => updateSetting('enable_workspace_search', e.target.checked)}
+                size="small"
+              />
+            </div>
+          </ConfigPageRow>
+        </ConfigPageSection>
+
         {/* ── Tool execution behavior ────────────────────────────── */}
         <ConfigPageSection
           title={t('toolExecution.sectionTitle')}

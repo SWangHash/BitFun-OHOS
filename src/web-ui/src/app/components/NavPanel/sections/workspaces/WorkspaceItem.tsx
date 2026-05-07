@@ -6,6 +6,7 @@ import { DotMatrixArrowRightIcon } from './DotMatrixArrowRightIcon';
 import { Button, ConfirmDialog, Modal, Tooltip } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';
 import { i18nService } from '@/infrastructure/i18n';
+import { aiExperienceConfigService } from '@/infrastructure/config/services/AIExperienceConfigService';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import {
   createWorktreeWorkspace,
@@ -135,6 +136,9 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   const [isResettingWorkspace, setIsResettingWorkspace] = useState(false);
   const [sessionsCollapsed, setSessionsCollapsed] = useState(false);
   const [searchIndexModalOpen, setSearchIndexModalOpen] = useState(false);
+  const [workspaceSearchEnabled, setWorkspaceSearchEnabled] = useState(
+    () => aiExperienceConfigService.getSettings().enable_workspace_search,
+  );
   const [acpClients, setAcpClients] = useState<AcpClientInfo[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuAnchorRef = useRef<HTMLDivElement>(null);
@@ -155,12 +159,20 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   const isLinkedWorktree = isLinkedWorktreeWorkspace(workspace);
   const canShowSearchIndex =
     isActive
+    && workspaceSearchEnabled
     && workspace.workspaceKind === WorkspaceKind.Normal
     && !isRemoteWorkspace(workspace);
   const workspaceSearchIndex = useWorkspaceSearchIndex({
     workspacePath: canShowSearchIndex ? workspace.rootPath : undefined,
     enabled: canShowSearchIndex,
   });
+
+  useEffect(() => {
+    setWorkspaceSearchEnabled(aiExperienceConfigService.getSettings().enable_workspace_search);
+    return aiExperienceConfigService.addChangeListener(settings => {
+      setWorkspaceSearchEnabled(settings.enable_workspace_search);
+    });
+  }, []);
 
   // Remote connection status — optional: safe if not inside SSHRemoteProvider
   const sshContext = useContext(SSHContext);

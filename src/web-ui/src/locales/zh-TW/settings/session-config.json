@@ -35,6 +35,11 @@
       "deleteSuccess": "已刪除導入的形象",
       "deleteFailed": "刪除導入形象失敗",
       "refresh": "刷新形象列表"
+    },
+    "workspaceSearch": {
+      "title": "加速工作區搜尋",
+      "subtitle": "為本地工作區啟用基於 flashgrep 的索引搜尋。關閉後 BitFun 會回退到原有搜尋。",
+      "enable": "啟用加速工作區搜尋"
     }
   },
   "toolExecution": {

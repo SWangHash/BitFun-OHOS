@@ -1,4 +1,5 @@
 use crate::api::app_state::AppState;
+use bitfun_core::service::search::workspace_search_runtime_available;
 use bitfun_core::service::remote_ssh::workspace_state::is_remote_path;
 use bitfun_core::service::workspace::{WorkspaceInfo, WorkspaceKind};
 use log::{debug, info, warn};
@@ -70,6 +71,7 @@ async fn warm_workspace_background_services(
 
     if workspace_info.workspace_kind != WorkspaceKind::Remote
         && is_workspace_active(&workspace_path, &target_path).await
+        && workspace_search_runtime_available().await
     {
         let search_started_at = Instant::now();
         match workspace_search_service.open_repo(&target_path).await {

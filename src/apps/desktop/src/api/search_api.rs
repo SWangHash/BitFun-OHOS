@@ -2,7 +2,8 @@ use crate::api::app_state::AppState;
 use bitfun_core::infrastructure::{FileSearchResult, FileSearchResultGroup, SearchMatchType};
 use bitfun_core::service::remote_ssh::workspace_state::is_remote_path;
 use bitfun_core::service::search::{
-    ContentSearchResult, WorkspaceSearchBackend, WorkspaceSearchRepoPhase,
+    workspace_search_daemon_available, workspace_search_feature_enabled, ContentSearchResult,
+    WorkspaceSearchBackend, WorkspaceSearchRepoPhase,
 };
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -24,8 +25,31 @@ pub struct SearchMetadataResponse {
     pub matched_occurrences: usize,
 }
 
+async fn workspace_search_unavailable_message(root_path: &str) -> Option<String> {
+    if is_remote_path(root_path.trim()).await {
+        return Some(
+            "Remote workspace search status is not managed by BitFun workspace search".to_string(),
+        );
+    }
+
+    if !workspace_search_feature_enabled().await {
+        return Some(
+            "Workspace search is disabled. Enable it in Settings > Session Config to use accelerated workspace search.".to_string(),
+        );
+    }
+
+    if !workspace_search_daemon_available() {
+        return Some(
+            "Workspace search daemon is unavailable. BitFun will continue using legacy search."
+                .to_string(),
+        );
+    }
+
+    None
+}
+
 pub(crate) async fn should_use_workspace_search(root_path: &str) -> bool {
-    !is_remote_path(root_path.trim()).await
+    workspace_search_unavailable_message(root_path).await.is_none()
 }
 
 pub(crate) async fn search_file_contents_via_workspace_search(
@@ -113,10 +137,8 @@ pub async fn search_get_repo_status(
     state: State<'_, AppState>,
     request: SearchRepoIndexRequest,
 ) -> Result<serde_json::Value, String> {
-    if !should_use_workspace_search(&request.root_path).await {
-        return Err(
-            "Remote workspace search status is not managed by BitFun workspace search".to_string(),
-        );
+    if let Some(message) = workspace_search_unavailable_message(&request.root_path).await {
+        return Err(message);
     }
 
     state
@@ -132,11 +154,8 @@ pub async fn search_build_index(
     state: State<'_, AppState>,
     request: SearchRepoIndexRequest,
 ) -> Result<serde_json::Value, String> {
-    if !should_use_workspace_search(&request.root_path).await {
-        return Err(
-            "Remote workspace search indexing is not managed by BitFun workspace search"
-                .to_string(),
-        );
+    if let Some(message) = workspace_search_unavailable_message(&request.root_path).await {
+        return Err(message);
     }
 
     state
@@ -152,11 +171,8 @@ pub async fn search_rebuild_index(
     state: State<'_, AppState>,
     request: SearchRepoIndexRequest,
 ) -> Result<serde_json::Value, String> {
-    if !should_use_workspace_search(&request.root_path).await {
-        return Err(
-            "Remote workspace search indexing is not managed by BitFun workspace search"
-                .to_string(),
-        );
+    if let Some(message) = workspace_search_unavailable_message(&request.root_path).await {
+        return Err(message);
     }
 
     state

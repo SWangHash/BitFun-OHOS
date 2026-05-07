@@ -10,6 +10,12 @@ const log = createLogger('useWorkspaceSearchIndex');
 const ACTIVE_TASK_POLL_MS = 1000;
 const IDLE_STATUS_POLL_MS = 5000;
 
+function isWorkspaceSearchUnavailableError(message: string): boolean {
+  return message.includes('Workspace search is disabled')
+    || message.includes('Workspace search daemon is unavailable')
+    || message.includes('Remote workspace search status is not managed');
+}
+
 export interface UseWorkspaceSearchIndexOptions {
   workspacePath?: string;
   enabled?: boolean;
@@ -37,13 +43,14 @@ export function useWorkspaceSearchIndex(
   options: UseWorkspaceSearchIndexOptions = {}
 ): UseWorkspaceSearchIndexResult {
   const { workspacePath, enabled = true } = options;
-  const supported = Boolean(workspacePath && enabled);
 
   const [indexStatus, setIndexStatus] = useState<WorkspaceSearchIndexStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [actionRunning, setActionRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [backendSupported, setBackendSupported] = useState(true);
+  const supported = Boolean(workspacePath && enabled && backendSupported);
 
   const mountedRef = useRef(true);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -86,6 +93,12 @@ export function useWorkspaceSearchIndex(
           return null;
         }
         const message = err instanceof Error ? err.message : 'Failed to load search index status';
+        if (isWorkspaceSearchUnavailableError(message)) {
+          setBackendSupported(false);
+          setIndexStatus(null);
+          setError(null);
+          return null;
+        }
         log.warn('Failed to refresh workspace search index status', {
           workspacePath,
           error: err,
@@ -127,7 +140,13 @@ export function useWorkspaceSearchIndex(
       } catch (err) {
         if (mountedRef.current) {
           const message = err instanceof Error ? err.message : `Failed to ${action} search index`;
-          setError(message);
+          if (isWorkspaceSearchUnavailableError(message)) {
+            setBackendSupported(false);
+            setIndexStatus(null);
+            setError(null);
+          } else {
+            setError(message);
+          }
         }
         return null;
       } finally {
@@ -149,6 +168,10 @@ export function useWorkspaceSearchIndex(
       clearPollTimer();
     };
   }, [clearPollTimer]);
+
+  useEffect(() => {
+    setBackendSupported(true);
+  }, [enabled, workspacePath]);
 
   useEffect(() => {
     clearPollTimer();

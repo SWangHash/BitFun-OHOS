@@ -78,6 +78,9 @@ export interface AIExperienceConfig {
     spritesheetPath: string;
     spritesheetMimeType: string;
   } | null;
+
+  /** Whether to enable flashgrep-backed accelerated workspace search for local workspaces. */
+  enable_workspace_search: boolean;
 }
 
 export type ModelCapability =
