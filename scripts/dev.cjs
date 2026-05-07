@@ -708,7 +708,7 @@ async function main() {
     if (mode === 'desktop') {
       await ensureDesktopOpenSslIfNeeded();
       const desktopDir = path.join(ROOT_DIR, 'src/apps/desktop');
-      const tauriConfig = path.join(desktopDir, 'tauri.conf.json');
+      const tauriConfig = path.join(desktopDir, 'tauri.dev.conf.json');
       if (process.platform === 'win32') {
         // Running the generated .cmd shim directly via spawn is flaky on Windows.
         // Use cmd.exe with an explicit args array so the desktop app directory
