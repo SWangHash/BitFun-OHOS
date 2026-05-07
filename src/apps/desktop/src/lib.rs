@@ -521,6 +521,7 @@ pub async fn _run() {
             get_turn_files,
             get_file_diff,
             get_operation_diff,
+            get_session_file_diff_stats,
             get_operation_summary,
             get_session_operations,
             accept_operation,
