@@ -8,6 +8,7 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { confirmWarning } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
+import { readTextFromClipboard } from '@/shared/utils/textSelection';
 
 const log = createLogger('TerminalActionManager');
 
@@ -115,7 +116,9 @@ class TerminalActionManager {
       return;
     }
 
-    const terminalId = this.resolveTerminalIdForEvent(event);
+    const targetTerminalId = this.getTerminalIdFromElement(event.target instanceof Element ? event.target : null);
+    const activeTerminalId = this.getTerminalIdFromElement(typeof document !== 'undefined' && document.activeElement instanceof Element ? document.activeElement: null);
+    const terminalId = targetTerminalId || activeTerminalId;
     if (!terminalId) {
       return;
     }
@@ -125,19 +128,24 @@ class TerminalActionManager {
       return;
     }
 
+    if (shortcutAction === 'copy') {
+      const selectedText = this.getSelectedTextFromTerminal(handler);
+      if (!selectedText) {
+        return;
+      }
+      this.stopKeyboardEvent(event);
+      void this.handleCopy({
+        terminalId, 
+        selectedText,
+      });
+      return;
+    }
+ 
     if (shortcutAction === 'paste' && (handler.isReadOnly || !handler.write)) {
       return;
     }
 
     this.stopKeyboardEvent(event);
-
-    if (shortcutAction === 'copy') {
-      void this.handleCopy({
-        terminalId,
-        selectedText: this.getSelectedTextFromTerminal(handler),
-      });
-      return;
-    }
 
     if (shortcutAction === 'paste') {
       void this.handlePaste({ terminalId });
@@ -152,7 +160,7 @@ class TerminalActionManager {
       return null;
     }
 
-    if (!event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) {
+    if (!event.ctrlKey || event.altKey || event.metaKey) {
       return null;
     }
 
@@ -176,51 +184,6 @@ class TerminalActionManager {
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation?.();
-  }
-
-  private resolveTerminalIdForEvent(event: KeyboardEvent): string | null {
-    const candidates: Array<Element | null> = [
-      event.target instanceof Element ? event.target : null,
-      typeof document !== 'undefined' && document.activeElement instanceof Element ? document.activeElement : null,
-      this.getSelectionElement(),
-    ];
-
-    for (const candidate of candidates) {
-      const terminalId = this.getTerminalIdFromElement(candidate);
-      if (terminalId) {
-        return terminalId;
-      }
-    }
-
-    let matchedTerminalId: string | null = null;
-    for (const [terminalId, handler] of this.handlers.entries()) {
-      const selectedText = this.getSelectedTextFromTerminal(handler);
-      if (!selectedText) {
-        continue;
-      }
-
-      if (matchedTerminalId) {
-        return null;
-      }
-
-      matchedTerminalId = terminalId;
-    }
-
-    return matchedTerminalId;
-  }
-
-  private getSelectionElement(): Element | null {
-    if (typeof window === 'undefined') {
-      return null;
-    }
-
-    const selection = window.getSelection();
-    const anchorNode = selection?.anchorNode;
-    if (!anchorNode) {
-      return null;
-    }
-
-    return anchorNode instanceof Element ? anchorNode : anchorNode.parentElement;
   }
 
   private getTerminalIdFromElement(element: Element | null): string | null {
@@ -270,7 +233,7 @@ class TerminalActionManager {
     }
 
     try {
-      const text = await navigator.clipboard.readText();
+      const text = await readTextFromClipboard();
       if (!text) {
         return;
       }
