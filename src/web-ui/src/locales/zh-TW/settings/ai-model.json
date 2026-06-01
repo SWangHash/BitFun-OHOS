@@ -267,6 +267,9 @@
     "testSuccess": "測試成功",
     "testFailed": "測試失敗",
     "errorDetails": "詳細錯誤",
+    "authFailed": "身份驗證失敗，請先登入華為帳號後再配置AI模型",
+    "authChecking": "正在驗證身份...",
+    "authError": "身份驗證錯誤：{{error}}",
     "connectionTestMessages": {
       "toolCallsNotDetected": "本次測試未檢測到工具調用，因此暫時無法驗證工具調用能力。",
       "imageInputCheckFailed": "連接已成功，但圖片輸入測試未通過。"

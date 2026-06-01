@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, SquarePen, Trash2, Wifi, Loader, RefreshCw, AlertTriangle, X, Settings, ExternalLink, Eye, EyeOff, ChevronDown, ChevronRight, Info } from 'lucide-react';
-import { Button, Switch, Select, IconButton, NumberInput, Card, Modal, Input, Textarea, Tooltip, type SelectOption } from '@/component-library';
+import { Button, Switch, Select, IconButton, NumberInput, Card, Modal, Input, Textarea, Tooltip, Alert, type SelectOption } from '@/component-library';
 import { 
   AIModelConfig as AIModelConfigType, 
   ProxyConfig, 
@@ -12,8 +12,9 @@ import {
 import { configManager } from '../services/ConfigManager';
 import { PROVIDER_TEMPLATES, getModelDisplayName, getProviderDisplayName, getProviderTemplateId } from '../services/modelConfigs';
 import { DEFAULT_REASONING_MODE, getEffectiveReasoningMode, supportsAnthropicAdaptive, supportsAnthropicReasoning, supportsAnthropicThinkingBudget, supportsDeepSeekReasoningEffort, supportsResponsesReasoning } from '../utils/reasoning';
-import { aiApi, systemAPI } from '@/infrastructure/api';
+import { aiApi, systemAPI, checkHuaweiAccountAuth } from '@/infrastructure/api';
 import type { DiscoveredCliCredential } from '@/infrastructure/api/service-api/AIApi';
+import type { HuaweiAccountAuthResult } from '@/infrastructure/api/service-api/AIApi';
 import { useNotification } from '@/shared/notification-system';
 import { ConfigPageHeader, ConfigPageLayout, ConfigPageContent, ConfigPageSection, ConfigPageRow, ConfigCollectionItem } from './common';
 import DefaultModelConfig from './DefaultModelConfig';
@@ -324,6 +325,34 @@ const AIModelConfig: React.FC = () => {
   const [isDiscoveringCli, setIsDiscoveringCli] = useState(false);
   const lastRemoteFetchSignatureRef = React.useRef<string | null>(null);
   const activeRemoteFetchSignatureRef = React.useRef<string | null>(null);
+  const [huaweiAuthStatus, setHuaweiAuthStatus] = useState<HuaweiAccountAuthResult | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
+  const [platform, setPlatform] = useState<string>('');
+
+  useEffect(() => {
+    systemAPI.getSystemInfo()
+      .then(info => setPlatform(info.platform || ''))
+      .catch(() => setPlatform(''));
+  }, []);
+
+  useEffect(() => {
+    if (platform === 'ohos' || platform === 'harmonyos') {
+      setIsCheckingAuth(true);
+      checkHuaweiAccountAuth()
+        .then(result => {
+          setHuaweiAuthStatus(result);
+          setIsCheckingAuth(false);
+        })
+        .catch(error => {
+          log.error('Failed to check Huawei account auth', { error });
+          setHuaweiAuthStatus({
+            success: false,
+            error_message: error instanceof Error ? error.message : 'Authentication check failed'
+          });
+          setIsCheckingAuth(false);
+        });
+    }
+  }, [platform]);
 
   const requestFormatOptions = useMemo(
     () => [
@@ -994,6 +1023,12 @@ const AIModelConfig: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (platform === 'ohos' || platform === 'harmonyos') {
+      if (!huaweiAuthStatus?.success) {
+        notification.error(t('messages.authFailed'));
+        return;
+      }
+    }
     
     if (!editingConfig || !editingConfig.name || !editingConfig.base_url) {
       notification.warning(t('messages.fillRequired'));
@@ -1347,6 +1382,25 @@ const AIModelConfig: React.FC = () => {
           title={t('providerSelection.title')}
           subtitle={t('providerSelection.subtitle')}
         />
+
+        {(platform === 'ohos' || platform === 'harmonyos') && isCheckingAuth && (
+          <Alert
+            type="warning"
+            message={t('messages.authChecking')}
+            showIcon
+            className="bitfun-ai-model-config__auth-warning"
+          />
+        )}
+
+        {(platform === 'ohos' || platform === 'harmonyos') && !isCheckingAuth && huaweiAuthStatus && !huaweiAuthStatus.success && (
+          <Alert
+            type="error"
+            title={t('messages.authFailed')}
+            message={huaweiAuthStatus.error_message || t('messages.authFailed')}
+            showIcon
+            className="bitfun-ai-model-config__auth-error"
+          />
+        )}
 
         <ConfigPageContent className="bitfun-ai-model-config__content bitfun-ai-model-config__content--selection">
           <div className="bitfun-ai-model-config__provider-selection">

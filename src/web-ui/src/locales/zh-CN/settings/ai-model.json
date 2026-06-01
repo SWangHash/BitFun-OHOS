@@ -267,6 +267,9 @@
     "testSuccess": "测试成功",
     "testFailed": "测试失败",
     "errorDetails": "详细错误",
+    "authFailed": "身份验证失败，请先登录华为账号后再配置AI模型",
+    "authChecking": "正在验证身份...",
+    "authError": "身份验证错误：{{error}}",
     "connectionTestMessages": {
       "toolCallsNotDetected": "本次测试未检测到工具调用，因此暂时无法验证工具调用能力。",
       "imageInputCheckFailed": "连接已成功，但图片输入测试未通过。"

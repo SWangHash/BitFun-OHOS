@@ -37,6 +37,16 @@
         "reason": "$string:permission_internet_reason"
       },
       {
+        "name": "ohos.permission.GET_LOCAL_ACCOUNTS",
+        "reason": "$string:permission_get_local_accounts_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
         "name": "ohos.permission.READ_WRITE_USER_FILE",
         "reason": "$string:permission_user_file_reason"
       },

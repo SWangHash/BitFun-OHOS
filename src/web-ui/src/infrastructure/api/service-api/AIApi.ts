@@ -176,4 +176,22 @@ export class AIApi {
   }
 }
 
+export interface HuaweiAccountAuthResult {
+  success: boolean;
+  error_code?: string;
+  error_message?: string;
+  user_info?: {
+    id?: string;
+    name?: string;
+  };
+}
+
+export async function checkHuaweiAccountAuth(): Promise<HuaweiAccountAuthResult> {
+  try {
+    return await api.invoke<HuaweiAccountAuthResult>('check_huawei_account_auth', {});
+  } catch (error) {
+    throw createTauriCommandError('check_huawei_account_auth', error);
+  }
+}
+
 export const aiApi = new AIApi();

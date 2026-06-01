@@ -638,6 +638,7 @@ pub async fn _run() {
             list_ai_models_by_config,
             discover_cli_credentials,
             refresh_cli_credential,
+            check_huawei_account_auth,
             initialize_ai,
             set_agent_model,
             get_agent_models,

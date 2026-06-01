@@ -267,6 +267,9 @@
     "testSuccess": "Test successful",
     "testFailed": "Test failed",
     "errorDetails": "Error details",
+    "authFailed": "Authentication failed. Please login with Huawei account first to configure AI models.",
+    "authChecking": "Verifying authentication...",
+    "authError": "Authentication error: {{error}}",
     "connectionTestMessages": {
       "toolCallsNotDetected": "This test did not detect any tool calls, so tool calling could not be verified this time.",
       "imageInputCheckFailed": "The connection succeeded, but the image input check failed."

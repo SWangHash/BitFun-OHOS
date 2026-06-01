@@ -3554,7 +3554,6 @@ pub async fn refresh_cli_credential(
     use bitfun_core::infrastructure::cli_credentials::{
         codex::CodexResolver, gemini::GeminiResolver, CliCredentialKind, CredentialResolver,
     };
-    // Force a refresh by calling resolve(), then re-discover for the latest metadata.
     let resolved = match request.kind {
         CliCredentialKind::Codex => CodexResolver.resolve().await,
         CliCredentialKind::Gemini => GeminiResolver.resolve().await,
@@ -3567,4 +3566,50 @@ pub async fn refresh_cli_credential(
         .into_iter()
         .find(|c| c.kind == request.kind)
         .ok_or_else(|| "Credential not found after refresh".to_string())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HuaweiAccountAuthResponse {
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_info: Option<UserInfoResponse>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserInfoResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+#[tauri::command]
+pub async fn check_huawei_account_auth() -> Result<HuaweiAccountAuthResponse, String> {
+    #[cfg(target_os = "ohos")]
+    {
+        use bitfun_core::util::register_arkts_function::check_huawei_account_auth as check_auth_arkts;
+        let result = check_auth_arkts().await.map_err(|e| e.to_string())?;
+        Ok(HuaweiAccountAuthResponse {
+            success: result.success,
+            error_code: result.error_code,
+            error_message: result.error_message,
+            user_info: result.user_info.map(|u| UserInfoResponse {
+                id: u.id,
+                name: u.name,
+            }),
+        })
+    }
+    #[cfg(not(target_os = "ohos"))]
+    {
+        Ok(HuaweiAccountAuthResponse {
+            success: true,
+            error_code: None,
+            error_message: None,
+            user_info: None,
+        })
+    }
 }

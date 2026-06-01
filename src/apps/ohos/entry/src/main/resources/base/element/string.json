@@ -38,6 +38,10 @@
         {
             "name": "permission_download_directory_reason",
             "value": "Used to access download directory for file management and project operations"
+        },
+        {
+            "name": "permission_get_local_accounts_reason",
+            "value": "Used to verify Huawei account login status for AI feature access control"
         }
     ]
 }

@@ -18,6 +18,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import RustModule from 'libbitfun_desktop_lib.so';
 import { CommonUtils } from '../utils/CommonUtils';
 import { runDeveco } from '../utils/DevecoStart';
+import { performAuthCheck } from '../utils/Authentication';
 
 
 const DOMAIN = 0x0000;
@@ -186,6 +187,9 @@ export default class EntryAbility extends RustAbility {
         this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_DARK)
       }
       return '';
+    });
+    RustModule.registerArktsFunction('check_huawei_account_auth', async (err: Error, arg: string): Promise<string> => {
+      return await performAuthCheck();
     });
     return super.onWindowStageCreate(windowStage);
   }
