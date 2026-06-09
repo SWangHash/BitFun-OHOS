@@ -20,9 +20,11 @@ export interface SelectOption {
   description?: string;
   icon?: React.ReactNode;
   group?: string;
+  testId?: string;
+  testAttributes?: Record<`data-${string}`, string | number | boolean | undefined>;
 }
 
-export interface SelectProps {
+export interface SelectProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'defaultValue' | 'onChange'> {
   options?: SelectOption[];
   value?: string | number | (string | number)[];
   defaultValue?: string | number | (string | number)[];
@@ -78,6 +80,7 @@ export const Select: React.FC<SelectProps> = ({
   allowCustomValue = false,
   customValueHint,
   onOpenChange,
+  ...rootProps
 }) => {
   const { t } = useI18n('components');
   
@@ -463,6 +466,8 @@ export const Select: React.FC<SelectProps> = ({
         role="option"
         aria-selected={selected}
         aria-disabled={option.disabled}
+        data-testid={option.testId}
+        {...option.testAttributes}
       >
         {multiple && (
           <span className={`select__checkbox ${selected ? 'select__checkbox--checked' : ''}`}>
@@ -486,7 +491,7 @@ export const Select: React.FC<SelectProps> = ({
   };
 
   return (
-    <div className={classNames} ref={selectRef}>
+    <div {...rootProps} className={classNames} ref={selectRef}>
       {label && <label className="select__label">{label}</label>}
       
       <div

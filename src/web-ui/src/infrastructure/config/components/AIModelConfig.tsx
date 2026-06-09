@@ -1377,6 +1377,8 @@ const AIModelConfig: React.FC = () => {
               {providers.map(provider => (
                 <Card
                   key={provider.id}
+                  data-testid="settings-model-provider-option"
+                  data-provider-id={provider.id}
                   variant="default"
                   padding="medium"
                   interactive
@@ -1442,15 +1444,30 @@ const AIModelConfig: React.FC = () => {
       ? remoteModelOptions.map(model => ({
           label: model.display_name || model.id,
           value: model.id,
-          description: model.display_name && model.display_name !== model.id ? model.id : undefined
+          description: model.display_name && model.display_name !== model.id ? model.id : undefined,
+          testId: 'settings-model-option',
+          testAttributes: {
+            'data-model-id': model.id,
+            'data-model-name': model.id,
+          },
         }))
       : (currentTemplate?.models || []).map(model => ({
           label: model,
-          value: model
+          value: model,
+          testId: 'settings-model-option',
+          testAttributes: {
+            'data-model-id': model,
+            'data-model-name': model,
+          },
         }));
     const selectedModelOptions: SelectOption[] = selectedModelDrafts.map(draft => ({
       label: draft.modelName,
       value: draft.modelName,
+      testId: 'settings-model-option',
+      testAttributes: {
+        'data-model-id': draft.modelName,
+        'data-model-name': draft.modelName,
+      },
     }));
     const availableModelOptions: SelectOption[] = Array.from(
       new Map(
@@ -1785,6 +1802,7 @@ const AIModelConfig: React.FC = () => {
     const renderApiKeyRow = (label: string) => (
       <ConfigPageRow label={label} align="center" wide>
         <Input
+          data-testid="settings-model-api-key-input"
           type={showApiKey ? 'text' : 'password'}
           value={editingConfig.api_key || ''}
           onChange={(e) => {
@@ -1890,6 +1908,7 @@ const AIModelConfig: React.FC = () => {
                   <div className="bitfun-ai-model-config__control-stack">
                     <div className="bitfun-ai-model-config__model-picker-row">
                       <Select
+                        data-testid="settings-model-select-btn"
                         value={selectedModelValues}
                         onChange={(value) => {
                           const nextModelNames = Array.isArray(value) ? value.map(item => String(item)) : [String(value)];
@@ -2004,6 +2023,7 @@ const AIModelConfig: React.FC = () => {
                   <div className="bitfun-ai-model-config__control-stack">
                     <div className="bitfun-ai-model-config__model-picker-row">
                       <Select
+                        data-testid="settings-model-select-btn"
                         value={editingConfig.id ? (selectedModelValues[0] || '') : selectedModelValues}
                         onChange={(value) => {
                           const nextModelNames = Array.isArray(value)
@@ -2232,7 +2252,7 @@ const AIModelConfig: React.FC = () => {
 
           <div className="bitfun-ai-model-config__form-actions bitfun-ai-model-config__form-actions--sticky">
             <Button variant="secondary" onClick={closeEditingModal}>{t('actions.cancel')}</Button>
-            <Button variant="primary" onClick={handleSave}>{t('actions.save')}</Button>
+            <Button data-testid="settings-model-save-btn" variant="primary" onClick={handleSave}>{t('actions.save')}</Button>
           </div>
         </div>
       </>
@@ -2254,6 +2274,11 @@ const AIModelConfig: React.FC = () => {
         </span>
         {testResult && (
           <span
+            data-testid="settings-model-test-status"
+            data-config-id={config.id || ''}
+            data-model-id={config.model_name}
+            data-model-name={config.model_name}
+            data-status={testResult.success ? 'success' : 'error'}
             className={`bitfun-ai-model-config__status-dot ${testResult.success ? 'is-success' : 'is-error'}`}
             title={testResult.message}
           />
@@ -2362,6 +2387,10 @@ const AIModelConfig: React.FC = () => {
         expanded={isExpanded}
         onToggle={() => config.id && toggleExpanded(config.id)}
         disabled={!config.enabled}
+        data-testid="settings-model-row"
+        data-config-id={config.id || ''}
+        data-model-id={config.model_name}
+        data-model-name={config.model_name}
       />
     );
   };
@@ -2465,13 +2494,13 @@ const AIModelConfig: React.FC = () => {
             <div className="bitfun-ai-model-config__empty">
               <Wifi size={36} />
               <p>{t('empty.noModels')}</p>
-              <Button variant="primary" size="small" onClick={handleCreateNew}>
+              <Button data-testid="settings-model-create-first-config-btn" variant="primary" size="small" onClick={handleCreateNew}>
                 <Plus size={14} />
                 {t('actions.createFirst')}
               </Button>
             </div>
           ) : (
-            <div className="bitfun-ai-model-config__collection">
+            <div className="bitfun-ai-model-config__collection" data-testid="settings-model-list">
               {providerGroups.map(group => (
                 <div key={group.key} className="bitfun-ai-model-config__provider-group">
                   <div className="bitfun-ai-model-config__provider-group-header">

@@ -1,3 +1,5 @@
+[中文](ui-testids-CN.md) | **English**
+
 # UI Test IDs
 
 This document records stable `data-testid` values used by BitFun UI automation.
@@ -180,6 +182,9 @@ Avoid adding IDs to these surfaces unless there is a clear automated workflow.
 | Chat input target switcher | `chat-input-target-switcher` | Target/mode switcher. |
 | Chat input image strip | `chat-input-image-strip` | Attached image strip. |
 | Chat input start BTW button | `chat-input-boost-start-btw` | Starts the BTW flow when present. |
+| Chat model selector button | `chat-model-selector-btn` | Opens the session model selector. |
+| Chat model selector menu | `chat-model-selector-menu` | Model selector dropdown root. |
+| Chat model selector option | `chat-model-selector-option` | Repeated item. Pair with `data-model-id` and `data-model-name`. |
 | Pending queue panel | `pending-queue-panel` | Pending background task queue. |
 
 ## Settings
@@ -190,6 +195,20 @@ Avoid adding IDs to these surfaces unless there is a clear automated workflow.
 | Settings scene content | `settings-scene-content` | Active settings tab content wrapper. |
 | Settings navigation root | `settings-nav` | Left-side settings navigation. |
 | Settings navigation tab | `settings-nav-tab` | Repeated item. Pair with `data-settings-tab`. |
+
+## Settings Models
+
+| Element name | data-testid | Notes |
+|---|---|---|
+| Model list | `settings-model-list` | Container for configured model rows. |
+| Create first model config button | `settings-model-create-first-config-btn` | Starts the first model provider setup from the empty state. |
+| Model provider option | `settings-model-provider-option` | Repeated provider card. Pair with `data-provider-id`, for example `openbitfun`. |
+| Model API key input | `settings-model-api-key-input` | API key field in the model configuration form. Do not hardcode real keys in tests; load them from local config. |
+| Model select button | `settings-model-select-btn` | Opens the model selection dropdown. |
+| Model selection option | `settings-model-option` | Repeated dropdown item. Pair with `data-model-id` and `data-model-name`. |
+| Model save button | `settings-model-save-btn` | Saves the model provider/configuration form. |
+| Model row | `settings-model-row` | Repeated saved model row. Pair with `data-model-id`, `data-model-name`, and `data-config-id`. |
+| Model test status | `settings-model-test-status` | Repeated saved model test status. Pair with `data-model-id`, `data-model-name`, `data-config-id`, and `data-status` (`success` or `error`). |
 
 ## Notifications
 
@@ -283,4 +302,3 @@ Avoid adding IDs to these surfaces unless there is a clear automated workflow.
 | Add validation result | `skills-add-validation` | Includes `data-validation-valid`. |
 | Add cancel button | `skills-add-cancel-btn` | Closes add form. |
 | Add submit button | `skills-add-submit-btn` | Adds validated local skill. |
-
