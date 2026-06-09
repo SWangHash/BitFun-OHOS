@@ -141,6 +141,7 @@ const ChatPaneInner: React.FC<ChatPaneProps> = ({
       className="bitfun-chat-pane__content"
       data-shortcut-scope="chat"
       data-fullscreen={isFullscreen}
+      data-testid="chat-pane"
     >
       <FlowChatContainer
         className="bitfun-chat-pane__chat-container"

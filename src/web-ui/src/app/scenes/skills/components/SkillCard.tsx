@@ -15,7 +15,7 @@ export interface SkillCardAction {
   onClick: () => void;
 }
 
-interface SkillCardProps {
+interface SkillCardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children'> {
   name: string;
   description?: string;
   index?: number;
@@ -37,14 +37,19 @@ const SkillCard: React.FC<SkillCardProps> = ({
   meta,
   actions = [],
   onOpenDetails,
+  className,
+  style,
+  ...rootProps
 }) => {
   const Icon = iconKind === 'market' ? Package : Puzzle;
   const openDetails = () => onOpenDetails?.();
 
   return (
     <div
-      className="skill-card"
+      {...rootProps}
+      className={['skill-card', className].filter(Boolean).join(' ')}
       style={{
+        ...style,
         '--card-index': index,
         '--skill-card-gradient': getCardGradient(accentSeed ?? name),
         '--skill-card-color-rgb': getCardColorRgb(accentSeed ?? name),
@@ -104,6 +109,8 @@ const SkillCard: React.FC<SkillCardProps> = ({
                 disabled={action.disabled}
                 aria-label={action.ariaLabel}
                 title={action.title ?? action.ariaLabel}
+                data-testid="skills-card-action"
+                data-skill-action={action.id}
               >
                 {action.icon}
               </button>

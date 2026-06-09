@@ -274,7 +274,7 @@ const MainNav: React.FC<MainNavProps> = ({
     } catch (err) {
       log.error('Failed to open project', err);
     }
-  }, [t]);
+  }, []);
 
   const handleNewProject = useCallback(() => {
     window.dispatchEvent(new Event('nav:new-project'));
@@ -386,12 +386,14 @@ const MainNav: React.FC<MainNavProps> = ({
       className={`bitfun-nav-panel__workspace-menu${workspaceMenuClosing ? ' is-closing' : ''}`}
       role="menu"
       style={{ top: workspaceMenuPos.top, left: workspaceMenuPos.left }}
+      data-testid="nav-workspace-menu"
     >
       <button
         type="button"
         className="bitfun-nav-panel__workspace-menu-item"
         role="menuitem"
         onClick={() => { closeWorkspaceMenu(); void handleOpenProject(); }}
+        data-testid="nav-workspace-menu-open-project"
       >
         <FolderOpen size={13} />
         <span>{t('header.openProject')}</span>
@@ -401,6 +403,7 @@ const MainNav: React.FC<MainNavProps> = ({
         className="bitfun-nav-panel__workspace-menu-item"
         role="menuitem"
         onClick={() => { closeWorkspaceMenu(); handleNewProject(); }}
+        data-testid="nav-workspace-menu-new-project"
       >
         <FolderPlus size={13} />
         <span>{t('header.newProject')}</span>
@@ -410,6 +413,7 @@ const MainNav: React.FC<MainNavProps> = ({
         className="bitfun-nav-panel__workspace-menu-item"
         role="menuitem"
         onClick={handleOpenRemoteSSH}
+        data-testid="nav-workspace-menu-remote-ssh"
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
           <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0-6v6" />
@@ -437,6 +441,8 @@ const MainNav: React.FC<MainNavProps> = ({
                 role="menuitem"
                 title={tooltip}
                 onClick={() => { void handleSwitchWorkspace(workspace.id); }}
+                data-testid="nav-workspace-menu-recent-workspace"
+                data-workspace-id={workspace.id}
               >
                 <FolderOpen size={13} aria-hidden="true" />
                 <span className="bitfun-nav-panel__workspace-menu-item-main">
@@ -479,6 +485,7 @@ const MainNav: React.FC<MainNavProps> = ({
               className="bitfun-nav-panel__search-trigger"
               onClick={() => setSearchOpen(true)}
               aria-label={t('nav.search.triggerTooltip')}
+              data-testid="nav-search-trigger"
             >
               <span className="bitfun-nav-panel__search-trigger__icon" aria-hidden="true">
                 <span className="bitfun-nav-panel__search-trigger__icon-inner">
@@ -502,6 +509,7 @@ const MainNav: React.FC<MainNavProps> = ({
             className="bitfun-nav-panel__top-action-btn"
             onClick={handleCreateCodeSession}
             aria-label={createCodeTooltip}
+            data-testid="nav-new-code-session-btn"
           >
             <span className="bitfun-nav-panel__top-action-icon-circle" aria-hidden="true">
               <Plus size={12} />
@@ -516,6 +524,7 @@ const MainNav: React.FC<MainNavProps> = ({
             className="bitfun-nav-panel__top-action-btn"
             onClick={handleCreateCoworkSession}
             aria-label={createCoworkTooltip}
+            data-testid="nav-new-cowork-session-btn"
           >
             <span className="bitfun-nav-panel__top-action-icon-circle" aria-hidden="true">
               <Plus size={12} />
@@ -530,6 +539,7 @@ const MainNav: React.FC<MainNavProps> = ({
             className={`bitfun-nav-panel__top-action-btn${isAssistantActive ? ' is-active' : ''}`}
             onClick={handleOpenAssistant}
             aria-label={assistantTooltip}
+            data-testid="nav-assistant-btn"
           >
             <span className="bitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
               <User size={15} />
@@ -550,6 +560,7 @@ const MainNav: React.FC<MainNavProps> = ({
               onClick={() => setIsExtensionsOpen(v => !v)}
               aria-expanded={isExtensionsOpen}
               aria-label={extensionsLabel}
+              data-testid="nav-extensions-toggle"
             >
               <span className="bitfun-nav-panel__top-action-expand-icons" aria-hidden="true">
                 <Blocks size={15} className="bitfun-nav-panel__top-action-expand-icon-default" />
@@ -576,6 +587,7 @@ const MainNav: React.FC<MainNavProps> = ({
                 ].filter(Boolean).join(' ')}
                 onClick={handleOpenAgents}
                 aria-label={agentsTooltip}
+                data-testid="nav-agents-btn"
               >
                 <span className="bitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
                   <Users size={15} />
@@ -594,6 +606,7 @@ const MainNav: React.FC<MainNavProps> = ({
                 ].filter(Boolean).join(' ')}
                 onClick={handleOpenSkills}
                 aria-label={skillsTooltip}
+                data-testid="nav-skills-btn"
               >
                 <span className="bitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
                   <Puzzle size={15} />
@@ -606,7 +619,7 @@ const MainNav: React.FC<MainNavProps> = ({
       </div>
 
       {/* ── Sections ────────────────────────────────── */}
-      <div className="bitfun-nav-panel__sections">
+      <div className="bitfun-nav-panel__sections" data-testid="nav-sections">
 
         {/* Assistant sessions */}
         <div className="bitfun-nav-panel__section">
@@ -657,6 +670,7 @@ const MainNav: React.FC<MainNavProps> = ({
                     aria-label={addWorkspaceTooltip}
                     aria-expanded={workspaceMenuOpen}
                     onClick={toggleWorkspaceMenu}
+                    data-testid="nav-workspace-add-btn"
                   >
                     <Plus size="var(--bitfun-nav-row-action-icon-size)" />
                   </button>
@@ -676,7 +690,7 @@ const MainNav: React.FC<MainNavProps> = ({
       </div>
 
       {/* ── Bottom: MiniApp ───────────────────────── */}
-      <div className="bitfun-nav-panel__bottom-bar">
+      <div className="bitfun-nav-panel__bottom-bar" data-testid="nav-bottom-bar">
         <div className="bitfun-nav-panel__miniapp-footer">
           <MiniAppEntry
             isActive={activeTabId === 'miniapps' || !!activeMiniAppId}

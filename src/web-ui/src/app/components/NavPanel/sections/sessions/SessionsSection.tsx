@@ -459,7 +459,11 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
   }
 
   return (
-    <div className="bitfun-nav-panel__inline-list">
+    <div
+      className="bitfun-nav-panel__inline-list"
+      data-testid="nav-session-list"
+      data-workspace-id={workspaceId ?? ''}
+    >
       {visibleItems.map(({ session, level }) => {
           const isEditing = editingSessionId === session.sessionId;
           const relationship = resolveSessionRelationship(session);
@@ -547,6 +551,11 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                 .filter(Boolean)
                 .join(' ')}
               onClick={() => handleSwitch(session.sessionId)}
+              data-testid="nav-session-item"
+              data-session-id={session.sessionId}
+              data-session-kind={relationship.kind}
+              data-session-level={String(level)}
+              data-session-active={isRowActive ? 'true' : 'false'}
             >
               {showSessionModeIcon ? (
                 <span className="bitfun-nav-panel__inline-item-icon-slot">
@@ -659,6 +668,8 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                       ref={openMenuSessionId === session.sessionId ? sessionMenuAnchorRef : undefined}
                       className={`bitfun-nav-panel__inline-item-action-btn${openMenuSessionId === session.sessionId ? ' is-open' : ''}`}
                       onClick={e => handleMenuOpen(e, session.sessionId)}
+                      data-testid="nav-session-menu-btn"
+                      data-session-id={session.sessionId}
                     >
                       <MoreHorizontal size="var(--bitfun-nav-row-action-icon-size)" />
                     </button>
@@ -669,11 +680,14 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                       className="bitfun-nav-panel__inline-item-menu-popover"
                       role="menu"
                       style={{ top: `${sessionMenuPosition.top}px`, left: `${sessionMenuPosition.left}px` }}
+                      data-testid="nav-session-menu"
+                      data-session-id={session.sessionId}
                     >
                       <button
                         type="button"
                         className="bitfun-nav-panel__inline-item-menu-item"
                         onClick={e => { setOpenMenuSessionId(null); handleStartEdit(e, session); }}
+                        data-testid="nav-session-menu-rename"
                       >
                         <Pencil size={13} />
                         <span>{t('nav.sessions.rename')}</span>
@@ -682,6 +696,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                         type="button"
                         className="bitfun-nav-panel__inline-item-menu-item is-danger"
                         onClick={e => { setOpenMenuSessionId(null); void handleDelete(e, session.sessionId); }}
+                        data-testid="nav-session-menu-delete"
                       >
                         <Trash2 size={13} />
                         <span>{t('nav.sessions.delete')}</span>
@@ -716,6 +731,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
             }
             setExpandLevel(0);
           }}
+          data-testid="nav-session-list-toggle"
         >
           {expandLevel === 0 ? (
             <>

@@ -541,7 +541,7 @@ const AgentsHomeView: React.FC = () => {
   );
 
   return (
-    <GalleryLayout className="bitfun-agents-scene">
+    <GalleryLayout className="bitfun-agents-scene" data-testid="agents-scene">
       <GalleryPageHeader
         title={t('page.title')}
         subtitle={t('page.subtitle')}
@@ -551,6 +551,7 @@ const AgentsHomeView: React.FC = () => {
               type="button"
               className="gallery-anchor-btn"
               onClick={() => scrollToZone('core-agents-zone')}
+              data-testid="agents-anchor-core"
             >
               {t('nav.coreAgents')}
             </button>
@@ -558,6 +559,7 @@ const AgentsHomeView: React.FC = () => {
               type="button"
               className="gallery-anchor-btn"
               onClick={() => scrollToZone('teams-zone')}
+              data-testid="agents-anchor-teams"
             >
               {t('nav.teams', { defaultValue: 'Teams' })}
             </button>
@@ -565,6 +567,7 @@ const AgentsHomeView: React.FC = () => {
               type="button"
               className="gallery-anchor-btn"
               onClick={() => scrollToZone('agents-zone')}
+              data-testid="agents-anchor-custom"
             >
               {t('nav.agents')}
             </button>
@@ -584,6 +587,7 @@ const AgentsHomeView: React.FC = () => {
                   type="button"
                   className="gallery-search-btn"
                   aria-label={t('page.searchPlaceholder')}
+                  data-testid="agents-search-btn"
                 >
                   <SearchIcon size={14} />
                 </button>
@@ -593,9 +597,10 @@ const AgentsHomeView: React.FC = () => {
         )}
       />
 
-      <div className="gallery-zones">
+      <div className="gallery-zones" data-testid="agents-zones">
         <GalleryZone
           id="core-agents-zone"
+          data-testid="agents-core-zone"
           title={t('coreAgentsZone.title')}
           subtitle={t('coreAgentsZone.subtitle')}
           tools={(
@@ -633,6 +638,7 @@ const AgentsHomeView: React.FC = () => {
 
         <GalleryZone
           id="teams-zone"
+          data-testid="agents-teams-zone"
           title={t('teamsZone.title', {
             defaultValue: 'Agent Teams',
           })}
@@ -646,6 +652,7 @@ const AgentsHomeView: React.FC = () => {
                 type="button"
                 className="gallery-action-btn"
                 onClick={openReviewTeam}
+                data-testid="agents-review-team-configure-btn"
               >
                 <ShieldCheck size={15} />
                 <span>{t('reviewTeams.detail.open', { defaultValue: 'Configure team' })}</span>
@@ -659,6 +666,7 @@ const AgentsHomeView: React.FC = () => {
           {!loading && reviewTeam ? (
             <GalleryGrid minCardWidth={360}>
               <AgentTeamCard
+                teamId="code-review"
                 index={0}
                 title={t('reviewTeams.default.name', {
                   defaultValue: 'Code Review Team',
@@ -691,6 +699,7 @@ const AgentsHomeView: React.FC = () => {
 
         <GalleryZone
           id="agents-zone"
+          data-testid="agents-custom-zone"
           title={t('agentsZone.title')}
           subtitle={t('agentsZone.subtitle')}
           tools={(
@@ -709,6 +718,8 @@ const AgentsHomeView: React.FC = () => {
                         agentFilterLevel === key && 'gallery-cat-chip--active',
                       ].filter(Boolean).join(' ')}
                       onClick={() => setAgentFilterLevel(agentFilterLevel === key ? 'all' : key)}
+                      data-testid="agents-source-filter"
+                      data-agent-source={key}
                     >
                       <span>{label}</span>
                       <span className="gallery-filter-count">{count}</span>
@@ -728,6 +739,8 @@ const AgentsHomeView: React.FC = () => {
                         agentFilterType === key && 'gallery-cat-chip--active',
                       ].filter(Boolean).join(' ')}
                       onClick={() => setAgentFilterType(agentFilterType === key ? 'all' : key)}
+                      data-testid="agents-kind-filter"
+                      data-agent-kind={key}
                     >
                       <span>{label}</span>
                       <span className="gallery-filter-count">{count}</span>
@@ -739,6 +752,7 @@ const AgentsHomeView: React.FC = () => {
                 type="button"
                 className="gallery-action-btn gallery-action-btn--primary"
                 onClick={openCreateAgent}
+                data-testid="agents-create-agent-btn"
               >
                 <Plus size={15} />
                 <span>{t('page.newAgent')}</span>

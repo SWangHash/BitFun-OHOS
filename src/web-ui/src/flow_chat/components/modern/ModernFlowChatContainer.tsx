@@ -504,6 +504,8 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
         ref={chatScopeRef}
         className={`modern-flowchat-container flow-chat-typography ${className}`}
         data-shortcut-scope="chat"
+        data-testid="flowchat-container"
+        data-session-id={activeSession?.sessionId ?? ''}
       >
         <FlowChatHeader
           currentTurn={effectiveVisibleTurnInfo?.turnIndex ?? 0}
@@ -531,7 +533,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
           onOpenBackgroundSubagent={handleOpenBackgroundSubagent}
         />
 
-        <div className="modern-flowchat-container__messages">
+        <div className="modern-flowchat-container__messages" data-testid="flowchat-messages">
           {showHistoryPlaceholder ? (
             <HistorySessionPlaceholder
               state={historyState}

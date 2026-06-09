@@ -202,11 +202,13 @@ const SessionScene: React.FC<SessionSceneProps> = ({
         isEntering && 'layout-entering',
       ].filter(Boolean).join(' ')}
       style={panelCollapseHintStyles}
+      data-testid="session-scene"
     >
       {/* ChatPane — FlowChat conversation */}
       {!isChatHidden && (
         <div
           className={`bitfun-session-scene__chat-pane ${isDragging ? 'bitfun-session-scene__chat-pane--dragging' : ''}`}
+          data-testid="session-chat-pane"
         >
           <ChatPane
             width={0}
@@ -240,6 +242,7 @@ const SessionScene: React.FC<SessionSceneProps> = ({
           aria-valuemin={RIGHT_PANEL_CONFIG.COMPACT_WIDTH}
           aria-valuemax={RIGHT_PANEL_CONFIG.MAX_WIDTH}
           title={t('layout.resizer.title', { mode: panelModeLabels[rightPanelMode] })}
+          data-testid="session-right-pane-resizer"
         >
           <div className="bitfun-pane-resizer__line" />
           <div className="bitfun-pane-resizer__handle">
@@ -271,6 +274,7 @@ const SessionScene: React.FC<SessionSceneProps> = ({
             : isRightAsMain ? undefined : `${currentRightWidth}px`,
         }}
         data-mode={rightPanelMode}
+        data-testid="session-aux-pane"
       >
         <AuxPane
           ref={auxPaneRef}

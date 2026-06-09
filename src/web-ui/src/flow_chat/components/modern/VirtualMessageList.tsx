@@ -2060,7 +2060,10 @@ export const VirtualMessageList = forwardRef<VirtualMessageListRef>((_, ref) => 
   // ── Render ────────────────────────────────────────────────────────────
   if (virtualItems.length === 0) {
     return (
-      <div className="virtual-message-list virtual-message-list--empty">
+      <div
+        className="virtual-message-list virtual-message-list--empty"
+        data-testid="flowchat-message-list-empty"
+      >
         <div className="empty-state">
           <p>No messages yet</p>
         </div>
@@ -2069,7 +2072,7 @@ export const VirtualMessageList = forwardRef<VirtualMessageListRef>((_, ref) => 
   }
 
   return (
-    <div className="virtual-message-list">
+    <div className="virtual-message-list" data-testid="flowchat-message-list">
       <Virtuoso
         ref={virtuosoRef}
         data={virtualItems}

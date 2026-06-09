@@ -48,6 +48,10 @@ const AgentCard: React.FC<AgentCardProps> = ({
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && openDetails()}
       aria-label={agent.name}
+      data-testid="agents-agent-card"
+      data-agent-id={agent.id}
+      data-agent-kind={agent.agentKind}
+      data-subagent-source={agent.subagentSource ?? ''}
     >
       {/* Header: icon + name */}
       <div className="agent-card__header">

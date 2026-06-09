@@ -56,6 +56,9 @@ const CoreAgentCard: React.FC<CoreAgentCardProps> = ({
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && openDetails()}
       aria-label={agent.name}
+      data-testid="agents-core-agent-card"
+      data-agent-id={agent.id}
+      data-agent-kind={agent.agentKind}
     >
       <div className="core-agent-card__top">
         <div className="core-agent-card__icon-wrap">
