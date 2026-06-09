@@ -1,15 +1,17 @@
 # BitFun Core 拆解架构
 
-本文描述 BitFun 当前 runtime 架构快照、目标分层形态和模块边界。它只回答“系统应该如何分层、
-每层负责什么、crate 与能力如何归属”；具体执行顺序、PR 范围和验证命令见
-[`core-decomposition-plan.md`](../plans/core-decomposition-plan.md)。详细接口、crate 内部模块和
-测试设计见 [`agent-runtime-services-design.md`](agent-runtime-services-design.md)。
+本文概括 BitFun core runtime 拆解的两个稳定设计维度：**初始状态**和**目标状态**。
+初始状态描述设计建立时的事实架构、耦合关系和主要问题；目标状态描述期望分层、稳定接口、
+实现归属、组装边界、依赖方向和风险约束。
+
+本文聚焦设计结论。详细接口、crate 内部模块和测试设计见
+[`agent-runtime-services-design.md`](agent-runtime-services-design.md)。
 
 ## 1. 背景与目标
 
-BitFun 当前已经从 `bitfun-core` 中抽出了若干 owner crate，但 `bitfun-core` 仍承担兼容 facade、
+设计建立时，BitFun 已经从 `bitfun-core` 中抽出了若干 owner crate，但 `bitfun-core` 仍承担兼容 facade、
 完整产品 runtime 组装、agent loop、service 接线、tool materialization 和部分 product domain
-adapter。这个形态在功能上可运行，但会让后续 runtime 迁移持续面临三个问题：
+adapter。这个形态在功能上可运行，但会让 runtime 拆解持续面临三个问题：
 
 - 产品逻辑、平台接入和具体 service 实现边界不够稳定。
 - Desktop、CLI、Server、Remote、ACP、Web 等产品形态容易被完整 `bitfun-core` 牵引。
@@ -17,41 +19,41 @@ adapter。这个形态在功能上可运行，但会让后续 runtime 迁移持�
 
 目标形态不是在 `bitfun-core` 内继续扩张完整 `AgentRuntime`，而是形成可独立嵌入的
 Agent Runtime SDK。稳定契约定义上层可依赖的接口，Product Assembly 负责注册具体实现，
-Runtime Services、Tool Runtime 和 Harness Layer 分别隔离 service、tool、工作流和产品形态差异。
+Runtime Services、Tool primitives 和 Harness Layer 分别隔离 service、tool、工作流和产品形态差异。
 
-迁移期间不得改变产品行为、默认能力集合、权限语义、工具曝光、事件语义或 release 构建形态。
+目标状态必须保持产品行为、默认能力集合、权限语义、工具曝光、事件语义和 release 构建形态等价。
 
 ## 2. 架构原则
 
-- 依赖只能从产品层流向 runtime 层，再流向 contract 层；下层不得感知上层产品形态。
-- 接口和实现必须分开：接口属于稳定契约、Runtime Services、Tool Runtime 或 Harness contract；
-  具体实现属于 Product Assembly 或具体实现层。
-- Product Surface 可以有差异，capability contract 必须收敛。不同产品入口可以选择不同能力集合，
+- 依赖只能从产品入口 / 产品组装流向产品能力、具体适配、服务和执行原语，再流向稳定契约；下层不得感知上层产品形态。
+- 接口和实现必须分开：接口属于稳定契约、Runtime Services、Tool primitives 或 Harness contract；
+  具体实现属于 Product Assembly 的注册边界、Adapters 或 Services。
+- Product interface 可以有差异，capability contract 必须收敛。不同产品入口可以选择不同能力集合，
   但不能通过下沉 UI、命令或协议逻辑来换取复用。
-- `bitfun-core` 在迁移期保留 facade 和 `product-full` 组装点；新 owner crate 不得依赖回
+- `bitfun-core` 保留兼容 facade 和 `product-full` 组装边界；新 owner crate 不得依赖回
   `bitfun-core`。
 - Hook 是受控扩展点，Event 是事实通知。能改变行为的 hook 必须有顺序、timeout、错误策略和等价保护。
 - feature group 是构建边界，CapabilitySet 是产品运行时能力边界；两者必须由 Product Assembly
   显式映射。
 
-## 3. 现状逻辑视图
+## 3. 初始状态逻辑视图
 
-当前架构的核心事实是：多个 crate 已经承接了稳定类型、事件、stream、tool contract、部分 service
+初始状态的核心事实是：多个 crate 已经承接了稳定类型、事件、stream、tool contract、部分 service
 helper 和 product domain 纯逻辑，但完整运行时仍以 `bitfun-core` 为中心。
 
 ```mermaid
 flowchart TB
   Surfaces["产品入口<br/>Desktop / CLI / Server / Relay / Remote / Web"]
   Core["bitfun-core<br/>兼容 facade + 完整产品 runtime 组装"]
-  Acp["bitfun-acp<br/>ACP protocol / client integration"]
+  Acp["bitfun-acp<br/>ACP protocol surface / client behavior"]
   Transport["transport / api-layer<br/>API 与传输 adapter"]
   CoreTypes["bitfun-core-types<br/>稳定 DTO 子集"]
   Events["bitfun-events<br/>事件事实与 emitter 抽象"]
   Ports["bitfun-runtime-ports<br/>trait-only runtime 边界"]
   Stream["bitfun-agent-stream<br/>stream 聚合"]
   AgentTools["bitfun-agent-tools<br/>tool contract 与纯策略"]
-  ToolRuntime["tool-runtime<br/>既有 tool runtime crate"]
-  ToolPacks["bitfun-tool-packs<br/>feature group / provider plan"]
+  ToolRuntime["tool-execution<br/>tool-runtime package / 低层 helper"]
+  ToolPacks["tool-provider-groups<br/>bitfun-tool-packs package / provider plan"]
   ServicesCore["bitfun-services-core<br/>基础 service helper / filesystem facade"]
   ServicesIntegrations["bitfun-services-integrations<br/>MCP / Git / Remote helper owner"]
   ProductDomains["bitfun-product-domains<br/>MiniApp / function-agent 纯 domain"]
@@ -82,26 +84,26 @@ flowchart TB
   Ai --> External
 ```
 
-当前主要模块范围：
+初始状态主要模块范围：
 
-| 模块 | 当前定位 | 架构影响 |
+| 模块 | 初始定位 | 架构影响 |
 |---|---|---|
-| `bitfun-core` | 兼容 facade、agent runtime、tool runtime 组装、service 接线和完整产品能力集合 | 仍是事实上的 runtime owner，迁移必须先保护行为等价 |
+| `bitfun-core` | 兼容 facade、agent runtime、tool runtime 组装、service 接线和完整产品能力集合 | 仍是事实上的 runtime owner，拆解必须先保护行为等价 |
 | `bitfun-runtime-ports` | 面向 runtime/service 边界的 DTO 和 trait | 只定义 contract，不拥有 runtime 实现 |
-| `bitfun-agent-tools` | provider-neutral tool DTO、manifest、path/result policy 和 catalog contract | 已适合承接更多 tool contract，但不应拥有具体 IO tool |
-| `tool-runtime` | 既有工具执行相关 crate | 目标是收敛 provider registry、permission gate 和 execution pipeline |
+| `tool-contracts` / `bitfun-agent-tools` | provider-neutral tool DTO、manifest、path/result policy、catalog contract 和 deterministic execution admission gate | 适合承接纯 tool contract 策略，但不应拥有具体 IO tool |
+| `tool-execution` / `tool-runtime` | 既有低层工具执行 helper crate | 目标是只承接低层 file/search/tool execution helper，不拥有产品 registry 或 permission policy |
 | `bitfun-services-core` | 基础 service helper、本地 filesystem facade、部分通用 service 逻辑 | 适合作为本地基础 service owner，但不能吸收产品 runtime 语义 |
-| `bitfun-services-integrations` | MCP、Git、remote-connect、remote-SSH 等 integration helper | 适合拥有外部协议和重依赖 adapter，不应反向感知产品 surface |
+| `bitfun-services-integrations` | MCP、Git、remote-connect、remote-SSH 等 integration helper | 适合拥有外部协议和重依赖 service implementation，不应反向感知产品 interface |
 | `bitfun-product-domains` | MiniApp、function-agent 等纯状态、策略、port 和部分决策逻辑 | 适合承接 pure domain，不应直接执行 filesystem/Git/AI concrete call |
-| `bitfun-acp` | ACP protocol 和 client integration | 应保持 external capability owner，不下沉到 Agent Runtime SDK |
+| `bitfun-acp` | ACP protocol interface 和 client behavior | 应保持产品协议入口，不下沉到 Agent Runtime |
 | `transport` / `api-layer` | surface 到 runtime 的 API/transport adapter | 应保持传输层，不拥有 runtime owner |
 
-## 4. 当前主要问题
+## 4. 初始状态主要问题
 
 ### 4.1 分层不清晰
 
 同一能力经常同时包含 UI/command、runtime orchestration、tool execution、service IO 和 domain
-decision。当前代码中这些部分仍大量通过 `bitfun-core` 串联，导致后续迁移时难以判断“移动的是接口、
+decision。初始状态代码中这些部分仍大量通过 `bitfun-core` 串联，导致拆解时难以判断“移动的是接口、
 实现、组装逻辑还是产品行为”。
 
 ### 4.2 接口与实现边界不稳定
@@ -112,21 +114,23 @@ core-owned context 或完整 product runtime snapshot。接口没有稳定到足
 
 ### 4.3 产品形态被完整 core 牵引
 
-Desktop、CLI、Server、Remote、ACP 和 Web 的入口差异较大，但当前大多仍通过完整 `bitfun-core`
+Desktop、CLI、Server、Remote、ACP 和 Web 的入口差异较大，但初始状态下大多仍通过完整 `bitfun-core`
 获得能力。这会让轻量交付形态继承不必要的 tool、service、UI 或平台依赖。
 
 ### 4.4 Tool contract 与 tool execution 混合
 
-provider-neutral manifest、path policy、result policy 已部分外移，但 concrete tool execution、
-`ToolUseContext`、collapsed unlock state、runtime artifact persistence 和产品 catalog 仍在 core。
-工具迁移如果没有快照保护，容易改变 prompt-visible manifest、`GetToolSpec`、MCP/ACP catalog 或
-oversized result 行为。
+provider-neutral manifest、path policy、result policy、`ToolUseContext` runtime handle、collapsed unlock
+lifecycle、runtime artifact persistence 和 product registry materialization 在初始状态下与 concrete tool
+execution 交织在 core 及其兼容路径中。目标状态下，tool contracts 应拥有 provider-neutral manifest /
+catalog / permission / result / artifact contract，core、services 或 adapter 只保留实际 IO tool adapter、
+state update、旧路径 facade 和有等价保护的拆解边界。工具 owner 拆解如果没有快照保护，容易改变
+prompt-visible manifest、`GetToolSpec`、MCP/ACP catalog 或 oversized result 行为。
 
 ### 4.5 Service、MCP、ACP 与 runtime kernel 容易交叉
 
 MCP 和 ACP 是外部协议/能力接入，不应变成 Agent Runtime SDK 的内部协议依赖。Runtime kernel 只应看见
 external capability、tool provider 或 service port；连接生命周期、鉴权、transport 和 timeout 策略应由
-integration owner 或 Product Assembly 管理。
+Adapters、Services 或 Product Assembly 管理。
 
 ### 4.6 扩展点缺少统一语义
 
@@ -136,13 +140,13 @@ product commands 都是扩展点，但目前没有统一表达它们分别属于
 
 ### 4.7 feature graph 还不是产品能力矩阵
 
-`product-full` 当前是完整产品能力的安全网，不是最终按产品拆分的 feature matrix。直接减轻默认 feature
+初始状态下，`product-full` 是完整产品能力的安全网，不是最终按产品拆分的 feature matrix。直接减轻默认 feature
 或把 feature group 当成产品能力边界，都会引入构建形态和发布能力漂移。
 
 ### 4.8 构建与测试牵引过大
 
 重依赖和完整 runtime 聚合在 `bitfun-core` 周围，导致局部测试、owner crate 测试和轻量产品入口容易被
-不相关依赖拖入编译和链接路径。中间阶段不保证每个 PR 都变快，但目标架构必须让依赖收益可度量。
+不相关依赖拖入编译和链接路径。目标状态必须让依赖收益可度量，同时不能以牺牲功能等价换取构建收益。
 
 ## 5. 对照分析
 
@@ -173,173 +177,140 @@ agents 分为 primary agents 和 subagents，可配置 prompt、model 与 tool a
 
 - Agent、Tool、MCP、Plugin/Hook、Skill 和 Product Surface 应该是互相连接的扩展面，而不是同一个模块内部的分支。
 - 权限和工具可见性必须是 runtime 可观测的 contract，不能只存在于 UI 或 prompt 拼接中。
-- 多产品形态需要 Product Assembly 做 capability/provider 选择，而不是让 Agent Runtime SDK 判断当前是
+- 多产品形态需要 Product Assembly 做 capability/provider 选择，而不是让 Agent Runtime SDK 判断调用来自
   Desktop、CLI、Remote 还是 ACP。
 
 ## 6. 目标逻辑视图
 
-目标架构以层级为入口描述系统。每层只暴露本层 contract，具体实现由上层组装或下层 integration 提供。
+目标架构以六个物理 owner 分区表达依赖方向。`interfaces` 只承载协议和宿主入口；`assembly` 负责产品能力选择与注册；`adapters` 负责协议、transport 和外部 provider 转换；`services` 负责本地系统与 runtime infrastructure 的可复用具体实现；`execution` 只放可移植执行原语；`contracts` 提供稳定事实、port 和产品领域规则。这样可以同时区分“协议适配”和“服务实现”，也避免把 execution 误解为完整运行时实现层。
 
 ```mermaid
 flowchart TB
-  Surface["产品入口（Product Surfaces）<br/>UI / command / protocol / route"]
-  Assembly["产品组装层（Product Assembly）<br/>capability selection / provider registration"]
-  Capabilities["产品能力层（Product Capabilities）<br/>feature-level capability packs"]
-  Harness["工作流编排层（Harness Layer）<br/>workflow orchestration"]
-  AgentRuntime["Agent 运行时 SDK（Agent Runtime SDK）<br/>session / turn / scheduler / prompt / subagent"]
-  ToolRuntime["工具运行时（Tool Runtime）<br/>manifest / permission / execution / catalog"]
-  RuntimeServices["运行时服务层（Runtime Services）<br/>typed service bundle / capability availability"]
-  Integrations["具体实现层（Concrete Integrations）<br/>Tool / OS / Remote / Protocol providers"]
-  Contracts["稳定契约层（Stable Contracts）<br/>DTO / event / permission / artifact / port"]
-  External["外部系统（External Systems）<br/>OS / Git / MCP server / ACP client / AI provider"]
+  Interfaces["接口与入口层（Interfaces and Entrypoints）<br/>UI / command / protocol interface / delivery profile"]
+  Assembly["产品组装层（Product Assembly）<br/>compatibility facade / capability selection / adapter and service registration"]
+  Adapters["适配层（Adapters）<br/>AI / API / transport / WebDriver / external provider translation"]
+  Services["服务实现层（Services）<br/>filesystem / git / terminal / MCP / remote / process / OS integration"]
+  Execution["执行原语层（Execution Primitives）<br/>agent / harness / stream / typed-service / tool primitives"]
+  Contracts["稳定契约与产品领域层（Stable Contracts and Product Domains）<br/>DTO / event / runtime port / product domain policy"]
+  External["外部系统（External Systems）<br/>OS / Git / MCP server / ACP client / AI provider / remote host"]
 
-  Surface --> Assembly
-  Assembly --> Capabilities
-  Assembly --> AgentRuntime
-  Assembly --> ToolRuntime
-  Assembly --> RuntimeServices
-  Assembly --> Integrations
-  Capabilities --> Harness
-  Capabilities --> AgentRuntime
-  Capabilities --> ToolRuntime
-  Harness --> AgentRuntime
-  Harness --> ToolRuntime
-  Harness --> RuntimeServices
-  AgentRuntime --> ToolRuntime
-  AgentRuntime --> RuntimeServices
-  ToolRuntime --> Contracts
-  RuntimeServices --> Contracts
-  Integrations --> Contracts
-  Integrations --> External
+  Interfaces --> Assembly
+  Interfaces --> Adapters
+  Assembly --> Adapters
+  Assembly --> Services
+  Assembly --> Execution
+  Assembly --> Contracts
+  Adapters --> Services
+  Adapters --> Execution
+  Adapters --> Contracts
+  Services --> Execution
+  Services --> Contracts
+  Execution --> Contracts
+  Adapters --> External
+  Services --> External
 ```
+
+依赖方向只允许从上到下。接口与入口层暴露产品形态；组装层选择能力集合并注册 adapter/service；适配层翻译协议和外部 provider；服务实现层接触 OS、process、filesystem、git、terminal、MCP 和 remote；执行原语层提供可复用 runtime building blocks；契约层提供稳定事实、port 和产品领域规则。任何下层 crate 反向读取产品入口、组装配置或 host state 都视为边界违规。
 
 ## 7. 目标层级
 
-目标层级以职责边界为入口。每层可以由多个 crate 承载，关键判断标准是依赖方向、接口归属和实现归属是否清楚。
+目标层级以物理 owner 分区为入口。每个分区可以包含多个 crate，但 crate 内部职责必须能够通过依赖、测试和边界脚本独立验证。
 
-### 7.1 产品入口（Product Surfaces）
+### 7.1 接口与入口层（Interfaces and Entrypoints）
 
-产品入口（Product Surfaces）是用户、协议或外部系统进入 BitFun 的入口，负责展示、路由、协议适配和命令外观。
-它不拥有共享 runtime 行为，只把请求转换为 capability、runtime request 或 transport DTO。
-对应范围是 `src/apps/*`、`src/web-ui` 和 `src/mobile-web`，这些入口可以有形态差异，但差异不能下沉到 runtime。
+接口与入口层是用户、协议或外部系统进入 BitFun 的入口，负责 UI、命令、路由、协议接口、交付形态选择和 host integration。对应范围包括 `src/apps/*`、`src/web-ui`、`src/mobile-web`、`BitFun-Installer`、`tests/e2e` 和 `src/crates/interfaces`。入口层可以选择 `DeliveryProfile` 并调用 assembly 或 adapter API，但不拥有共享 runtime 行为。
 
 ### 7.2 产品组装层（Product Assembly）
 
-产品组装层（Product Assembly）是唯一的组装入口，负责选择产品能力、tool pack、harness pack、agent definition、
-command provider 和 service provider，并把具体实现注册到稳定接口。迁移期它可以留在 `bitfun-core`
-facade 或产品入口中，目标形态可以收敛为独立 assembly crate 或清晰的 facade 模块。
+产品组装层负责兼容导出、完整产品能力选择、feature group 到 capability set 的映射、adapter/service 注册和 product-full 接线。物理位置是 `src/crates/assembly`，当前包含 `bitfun-core` 兼容门面和 `bitfun-product-capabilities` 能力模型。`product-capabilities` 只描述 capability id、tool group、service requirement 和 harness selection，不执行 IO，也不承载产品领域状态机。
 
-### 7.3 产品能力层（Product Capabilities）
+### 7.3 适配层（Adapters）
 
-产品能力层（Product Capabilities）描述 Code Agent、Deep Review、DeepResearch、MiniApp、Remote Control、MCP App、
-Computer Use 等能力的组合边界。它负责定义一个产品能力需要哪些 agent、tool、harness、domain policy
-和 service capability，不负责 UI，也不直接执行 IO。当前主要落在 `bitfun-product-domains` 和
-`bitfun-core` 的能力组装代码中，后续应收敛为 capability pack 和 domain policy。
+适配层负责协议、transport、外部 provider 和宿主通信转换，物理位置是 `src/crates/adapters`。其中 `ai-adapters` 负责 AI provider 请求/响应映射和 provider stream 协议解析，解析结果应转换为 execution 层拥有的统一 stream 契约；`api-layer` 负责产品宿主共用的后端 API adapter，`transport` 负责事件投递和 host transport adapter，`webdriver` 负责 WebDriver 协议和浏览器自动化 adapter。适配层不拥有产品能力选择，也不承载可复用 OS service 实现。
 
-### 7.4 工作流编排层（Harness Layer）
+### 7.4 服务实现层（Services）
 
-工作流编排层（Harness Layer）承载多步骤工作流和策略编排，例如 SDD、Deep Review、DeepResearch、MiniApp 生成或更新流程。
-它可以调用 Agent Runtime SDK、Tool Runtime 和 Runtime Services，但不拥有 session manager 内部状态、
-具体 filesystem/Git/terminal manager 或产品 UI。当前相关逻辑仍分散在 `bitfun-core` 和产品能力中，
-目标归属是 `bitfun-harness` 或等价的 harness owner。
+服务实现层负责接触本地系统和 runtime infrastructure 的可复用具体实现，物理位置是 `src/crates/services`。其中 `services-core` 承载轻量 service primitive，`services-integrations` 承载 MCP、Git、remote、file watch 和产品领域 port 的具体实现，`terminal` 承载 PTY、shell integration 和 terminal session infrastructure。服务实现层可以实现 `contracts`、`execution` 或 `product-domains` 定义的 port，但不选择产品 profile，也不直接暴露 UI/协议入口。
 
-### 7.5 Agent 运行时 SDK（Agent Runtime SDK）
+### 7.5 执行原语层（Execution Primitives）
 
-Agent 运行时 SDK（Agent Runtime SDK）是可嵌入的 agent kernel，负责 session、turn、scheduler、prompt loop、subagent、
-background task、permission coordination 和 runtime events。它只依赖稳定契约、tool runtime 和注入的
-service ports，不感知 Desktop、CLI、Remote、ACP、Tauri 或 Web UI。当前主体仍在 `bitfun-core`，
-但 `bitfun-agent-runtime` 已开始承接可独立构建的 scheduler/background delivery 纯决策；concrete
-scheduler lifecycle、session manager、prompt loop 和 subagent registry 仍未外移。
+执行原语层提供 provider-neutral 的 runtime building blocks，物理位置是 `src/crates/execution`。`agent-runtime`、`agent-stream`、`harness`、`runtime-services`、`tool-contracts`、`tool-provider-groups` 和 `tool-execution` 分别定义 agent loop facts、统一 stream DTO / tool-call 累积 / replay 契约、workflow descriptor、typed service bundle、tool manifest / permission / result policy、tool group facts 和低层 tool execution helper。当前 Cargo package / lib 名保持兼容，但物理目录按职责命名。它们只能依赖稳定契约或明确的 provider-neutral DTO，不直接创建 Tauri handle、filesystem manager、Git provider、MCP client、AI client 或 host process。
 
-### 7.6 工具运行时（Tool Runtime）
+### 7.6 稳定契约与产品领域层（Stable Contracts and Product Domains）
 
-工具运行时（Tool Runtime）负责工具 manifest、catalog、permission gate、execution pipeline、tool hook 和结果归一化。
-它只消费 `ToolExecutionServices` 这类窄 service 视图，不直接创建 filesystem、Git、terminal、MCP 等具体实现。
-当前相关 crate 包括 `tool-runtime`、`bitfun-agent-tools`、`bitfun-tool-packs` 以及 `bitfun-core`
-中的 tool materialization 代码。
+稳定契约与产品领域层是最低层，物理位置是 `src/crates/contracts`。它包含 `core-types`、`events`、`runtime-ports` 和 `product-domains`。`product-domains` 是 Product Domain Model，负责 MiniApp、function-agent 等领域 DTO、纯策略、状态规则和窄 port；具体 Git、filesystem、AI 或 worker execution 实现在 services、adapters 或 assembly/core 的兼容路径中，不得回流到 contracts。
 
-### 7.7 运行时服务层（Runtime Services）
+### 7.7 扩展点归属
 
-运行时服务层（Runtime Services）是 runtime 可消费的 typed service bundle 和 capability availability 层。它提供
-filesystem、workspace、session store、Git、terminal、network、MCP catalog、remote connection / projection
-等端口，不执行产品命令，
-不作为无类型 service locator，也不创建平台实现。当前相关 crate 包括 `bitfun-runtime-ports`、
-`bitfun-runtime-services`、`bitfun-services-core`、`bitfun-services-integrations` 和 `bitfun-core` 中的 service 接线代码。
-
-### 7.8 具体实现层（Concrete Integrations）
-
-具体实现层拥有外部系统连接和重依赖，但它不是一个混合大筐，需要按实现类型保持边界：
-Tool 实现器负责具体 tool provider 和 tool pack；OS 实现器负责 filesystem、terminal、process、network、
-environment 等平台能力；协议实现器负责 MCP、ACP、AI provider、Git 等外部协议；Remote 实现器负责 remote
-connection、remote workspace projection 和 remote host capability。
-
-Remote 不应作为 Agent Runtime SDK 的内部能力，也不应只按 Desktop/CLI 入口区分。它的稳定接口应拆为
-remote connection、remote workspace、remote filesystem/terminal projection、remote capability facts 等 port；
-SSH、relay、本地隧道、远端 OS 差异和认证方式属于具体 Remote provider，由 Product Assembly 按产品形态注册。
-当前相关 crate 包括 `bitfun-services-*`、`bitfun-ai-adapters`、`terminal-core`、`bitfun-acp` 和 app adapters。
-
-### 7.9 稳定契约层（Stable Contracts）
-
-稳定契约层提供跨层共享的数据结构和接口语言，包括 DTO、event、permission facts、artifact refs、identity
-和 port traits。它只描述事实和能力，不包含 IO、网络、进程、UI、runtime manager 或产品策略。当前相关
-crate 包括 `bitfun-core-types`、`bitfun-events` 和 `bitfun-runtime-ports`。
-当前 remote workspace facts、remote session metadata、remote workspace file projection DTO 和 remote workspace/projection
-host trait 已归入 `bitfun-runtime-ports`，`bitfun-services-integrations::remote_connect` 保留旧路径 re-export。
+- AI、API、transport 和 WebDriver 的协议转换属于 Adapters。
+- MCP、terminal、filesystem、git、remote 和 file watch 的可复用具体实现属于 Services。
+- Tool manifest、permission、execution admission、result / artifact policy 属于 Execution Primitives 的 `tool-contracts`。
+- Tool provider group facts 属于 Execution Primitives 的 `tool-provider-groups`；低层 filesystem/search helper 属于 `tool-execution`。
+- Agent、subagent、prompt module、scheduler、session / turn facts 和 hook routing 属于 Execution Primitives。
+- Harness workflow descriptor 和 route plan 属于 Execution Primitives；具体工作流 IO 留在 Services、Adapters 或兼容路径，直到有等价保护后再迁移。
+- Capability pack、delivery profile、adapter/service selection 和 product-full assembly 属于 Product Assembly。
+- 产品领域状态、规则、port 和 domain policy 属于 Stable Contracts and Product Domains。
 
 ## 8. 接口与实现关系
 
-接口由稳定契约、Runtime Services、Tool Runtime 或 Harness contract 定义；具体实现由产品入口或具体实现层创建；
-注册动作只能发生在 Product Assembly。Agent Runtime SDK、Tool Runtime 和 Harness 只接收已经组装好的接口或
-provider registry，不直接创建平台实现。
+接口由稳定契约、Runtime Services、Tool Contracts 或 Harness contract 定义；具体实现由 adapter、service 或产品入口创建；注册动作只能发生在 Product Assembly。Agent Runtime、tool contracts、tool execution 和 Harness 只接收已经组装好的接口或 provider registry，不直接创建平台实现。
 
 ```mermaid
 flowchart TB
-  Surface["产品入口（Product Surfaces）<br/>选择入口和 DeliveryProfile"]
+  Interface["接口与入口层（Interfaces and Entrypoints）<br/>选择入口和 DeliveryProfile"]
   Assembly["产品组装层（Product Assembly）<br/>唯一注册点"]
   ServiceBuilder["运行时服务层（Runtime Services）<br/>RuntimeServicesBuilder"]
-  ToolBuilder["工具运行时（Tool Runtime）<br/>ToolRuntimeBuilder"]
+  ToolBuilder["工具执行原语（Tool Primitives）<br/>tool contracts / groups / execution"]
   HarnessBuilder["工作流编排层（Harness Layer）<br/>HarnessRegistryBuilder"]
-  AgentRegistry["Agent 运行时 SDK（Agent Runtime SDK）<br/>AgentDefinitionRegistry"]
-  CommandRegistry["产品入口 / 产品组装层<br/>ProductCommandRegistry"]
-  Runtime["Agent Runtime SDK / Tool Runtime / Harness<br/>只消费接口"]
-  Impl["具体实现层（Concrete Integrations）<br/>Tool / OS / Remote / Protocol providers"]
-  Contracts["稳定契约层（Stable Contracts）<br/>DTO / event / port trait"]
+  AgentRegistry["Agent 执行原语（Agent Runtime）<br/>AgentDefinitionRegistry"]
+  CommandRegistry["接口 / 产品组装层<br/>ProductCommandRegistry"]
+  Runtime["Agent / Tool / Harness primitives<br/>只消费接口"]
+  Adapters["适配层（Adapters）<br/>AI / API / transport / WebDriver adapters"]
+  Services["服务实现层（Services）<br/>OS / filesystem / Git / terminal / MCP / remote services"]
+  Contracts["稳定契约与产品领域层（Stable Contracts and Product Domains）<br/>DTO / event / port trait"]
 
-  Surface --> Assembly
+  Interface --> Assembly
   Assembly --> ServiceBuilder
   Assembly --> ToolBuilder
   Assembly --> HarnessBuilder
   Assembly --> AgentRegistry
   Assembly --> CommandRegistry
-  Assembly --> Impl
+  Assembly --> Adapters
+  Assembly --> Services
   ServiceBuilder --> Runtime
   ToolBuilder --> Runtime
   HarnessBuilder --> Runtime
   AgentRegistry --> Runtime
-  CommandRegistry --> Surface
+  CommandRegistry --> Interface
   Runtime --> Contracts
-  Impl --> Contracts
+  Adapters --> Contracts
+  Services --> Contracts
+  Adapters --> Services
 ```
 
 注册器与前文目标层级的对应关系如下：
 
-| 注册器 / 组装点 | 所属目标层级 | 目标或迁移期模块 | 注册内容 |
+| 注册器 / 组装点 | 所属目标层级 | 初始承载与目标承载 | 注册内容 |
 |---|---|---|---|
-| `ProductAssembler` / `ProductAssemblyPlan` | 产品组装层（Product Assembly） | 迁移期在 `bitfun-core` facade 或产品入口；目标可收敛为 assembly owner | `DeliveryProfile`、`CapabilitySet`、feature group、provider 选择 |
-| `RuntimeServicesBuilder` | 运行时服务层（Runtime Services） | `bitfun-runtime-services` PR1 基础壳层；迁移期连接 `bitfun-runtime-ports`、`bitfun-services-*` 和 `bitfun-core` service wiring | filesystem、workspace、session store、Git、terminal、network、MCP catalog、remote connection / workspace / projection port |
-| `ToolRuntimeBuilder` | 工具运行时（Tool Runtime） | `tool-runtime`、`bitfun-agent-tools`、`bitfun-tool-packs` | tool provider、tool pack、manifest、permission gate、tool hook |
-| `HarnessRegistryBuilder` | 工作流编排层（Harness Layer） | 目标 `bitfun-harness`；迁移期在 `bitfun-core` 和产品能力代码中 | SDD、Deep Review、DeepResearch、MiniApp 等 harness provider |
-| `AgentDefinitionRegistry` | Agent 运行时 SDK（Agent Runtime SDK） | 目标 `bitfun-agent-runtime`；迁移期在 `bitfun-core` agent definition 代码中 | agent、subagent、prompt module、skill definition |
-| `ProductCommandRegistry` | 产品入口（Product Surfaces）与产品组装层（Product Assembly）的边界 | 产品入口或 assembly 模块 | 输入框命令、审核入口、MiniApp 入口到 capability / harness / runtime request 的映射 |
-| concrete provider set | 具体实现层（Concrete Integrations） | `bitfun-services-*`、`bitfun-ai-adapters`、`terminal-core`、`bitfun-acp`、app adapters | Tool、OS、Remote、Protocol 的具体 provider；Remote provider 内部继续区分 SSH、relay、本地隧道、远端 OS 支持 |
+| `ProductAssembler` / `ProductAssemblyPlan` | 产品组装层（Product Assembly） | 初始可在 `bitfun-core` facade 或产品入口；目标可收敛为 assembly owner | `DeliveryProfile`、`CapabilitySet`、feature group、adapter/service 选择 |
+| `RuntimeServicesBuilder` | 执行原语层（Execution Primitives）与服务实现层（Services）的边界 | 目标在 `bitfun-runtime-services`；连接 `bitfun-runtime-ports`、`bitfun-services-*` 和初始 service wiring | filesystem、workspace、session store、Git、terminal、network、MCP catalog、remote connection / workspace / projection port |
+| `ToolRuntimeBuilder` | 执行原语层（Execution Primitives） | `tool-execution`、`tool-contracts`、`tool-provider-groups`；Cargo package 名保持兼容 | tool provider、tool group、manifest、permission gate、tool hook |
+| `HarnessRegistryBuilder` | 工作流编排层（Harness Layer） | 目标在 `bitfun-harness`；初始可由 `bitfun-core::agentic::harness` 注册 legacy-facade provider | SDD、Deep Review、DeepResearch、MiniApp 等 harness provider |
+| `AgentDefinitionRegistry` | 执行原语层（Execution Primitives） | 目标在 `bitfun-agent-runtime`；初始可由 `bitfun-core` agent definition 代码承载 | agent、subagent、prompt module、skill definition |
+| `ProductCommandRegistry` | 接口与入口层（Interfaces and Entrypoints）与产品组装层（Product Assembly）的边界 | 产品入口或 assembly 模块 | 输入框命令、审核入口、MiniApp 入口到 capability / harness / runtime request 的映射 |
+| adapter set | 适配层（Adapters） | `bitfun-ai-adapters`、`bitfun-api-layer`、`bitfun-transport`、`bitfun-webdriver`、app adapters | AI、API、transport、WebDriver 等协议或外部 provider adapter |
+| service set | 服务实现层（Services） | `bitfun-services-*`、`terminal-core` 和具体 app service implementations | OS、filesystem、Git、terminal、MCP、remote 的具体 service；Remote service 内部继续区分 SSH、relay、本地隧道、远端 OS 支持 |
 
 注册路径必须是显式、typed、可测试的：
 
-- 产品入口（Product Surfaces）只选择 `DeliveryProfile` 和产品配置，不直接把 concrete manager 传入 runtime。
-- 产品组装层（Product Assembly）根据产品形态创建或接收具体 provider，并调用 typed builder 完成注册。
-- Tool、OS、Remote、Protocol provider 分别留在对应 app 或 integration owner 中，通过同一组 port 暴露。
+- 接口与入口层（Interfaces and Entrypoints）只选择 `DeliveryProfile` 和产品配置，不直接把 concrete manager 传入 runtime。
+- 产品组装层（Product Assembly）根据产品形态创建或接收 adapter/service，并调用 typed builder 完成注册。
+- Tool、OS、Remote、Protocol provider 分别留在对应 app、Adapters 或 Services 中，通过同一组 port 暴露。
+- Tauri 只能出现在 Desktop app、transport/API adapter 或产品入口命令外观中；Agent Runtime、
+  Tool primitives、Harness、Runtime Services contract 和 Product Capabilities 不得依赖 Tauri handle、
+  window、command macro 或 desktop app state。
 - Remote provider 必须拆分稳定连接接口和具体远端 OS / transport 实现，避免把 SSH、relay 或远端平台差异泄漏到 runtime。
-- 不支持的能力在 assembly 的 capability availability 中显式返回 unsupported / unavailable，不在 runtime 内写产品分支。
+- 不支持的能力在 assembly 的 capability availability 中显式返回 unsupported / unavailable，不在 execution primitive 内写产品分支。
 - 禁止使用无类型 `Any` service locator、全局 mutable registry 或下层 crate 反向读取产品配置。
 
 ## 9. 风险
@@ -348,21 +319,22 @@ flowchart TB
 |---|---|
 | 产品组装层（Product Assembly）膨胀为新的全局状态中心 | assembly 只做构建期注册，输出不可变 runtime parts；产品状态仍归 surface 或 runtime owner |
 | 接口拆得过细，导致复杂度和动态分发成本上升 | 以 capability 和稳定用例定义 port 粒度，热路径避免运行时 map lookup，优先 builder-time 注入 |
-| 平台实现泄漏到 Agent Runtime SDK、Tool Runtime 或 Harness | 依赖检查禁止 runtime owner 依赖 app crate、Tauri、CLI TUI、ACP protocol 和 concrete service crate |
+| 平台实现泄漏到 Agent、Tool 或 Harness execution primitives | 依赖检查禁止 execution owner 依赖 app crate、Tauri、CLI TUI、ACP protocol 和 concrete service crate |
+| core 拆分后仍隐式绑定 Tauri | Tauri 只允许在 Desktop app 或明确 feature-gated adapter；向下层传递 typed port、DTO、event fact 和 capability availability |
 | 不同产品形态能力矩阵漂移 | Product Assembly 维护 capability matrix；减少或替换能力时补产品入口验证和 unsupported 行为测试 |
-| Tool、MCP、ACP 的 manifest、permission 或事件语义迁移后不等价 | 保留旧路径兼容 facade，增加 manifest snapshot、permission 决策和事件映射等价测试 |
+| Tool、MCP、ACP 的 manifest、permission 或事件语义拆解后不等价 | 保留旧路径兼容 facade，增加 manifest snapshot、permission 决策和事件映射等价测试 |
+| Harness provider 只做注册但被误认为已经拥有执行语义 | descriptor-only / legacy-facade provider 只能生成 route plan；执行语义移动必须单独证明行为等价 |
 | `bitfun-core` 只是改名为新的巨型 runtime crate | 新 owner crate 必须有单一职责和最小依赖；产品能力、harness、service 实现不得继续堆入 agent kernel |
 | 目标 crate 先行创建但没有真实 owner | 只有 owner 边界、旧路径兼容、focused tests、依赖收益和 boundary check 同时成立时才创建 crate；否则继续留在 facade |
 
-## 10. 总结
+## 10. 目标状态判定
 
-- 当前架构影响：`bitfun-core` 从事实上的完整 runtime owner 收缩为兼容 facade 和迁移期组装点；Agent Runtime SDK、
-  Tool Runtime、Runtime Services、Harness 和 Product Capabilities 分别成为可审查的 owner。
-- 接口与实现边界：稳定契约和各 runtime owner 定义接口，具体 Tool、OS、Remote、Protocol provider 留在具体实现层，
-  由产品组装层（Product Assembly）通过 typed builder / registry 注册。
-- Remote 拆分方向：runtime 只依赖 remote connection、remote workspace、remote projection 和 capability facts 等
-  port；SSH、relay、本地隧道、远端 OS 差异和认证方式属于具体 Remote provider。
-- 后续工作范围：抽出可独立构建的 runtime kernel；把 service、tool、harness 和 product capability 改为 typed
-  provider 注册；建立产品形态与 capability matrix 的对应关系。
-- 质量保护：用等价测试保护权限、工具曝光、事件、session、remote workspace 和构建形态不发生功能偏移。
-- 非目标：不改变默认产品能力、命令语义、权限策略或 release 构建形态。
+- `bitfun-core` 不再是事实上的完整 runtime owner，而是兼容 facade 和 `product-full` 组装边界。
+- Agent Runtime、Tool Contracts / Tool Provider Groups / Tool Execution、Runtime Services、Harness 和 Product Capabilities 分别拥有可审查的职责边界。
+- 稳定契约和各 execution owner 定义接口；具体 Tool、OS、Remote service 留在 Services，协议和外部 provider 转换留在 Adapters。
+- 产品组装层（Product Assembly）是唯一注册点，通过 typed builder / registry 连接接口和具体实现。
+- Tauri 只属于 Desktop app 或明确 feature-gated adapter，不进入 core、execution owner 或 contract crate。
+- runtime 只依赖 remote connection、remote workspace、remote projection 和 capability facts 等 port；SSH、relay、
+  本地隧道、远端 OS 差异和认证方式属于具体 Remote provider。
+- 产品形态差异通过 capability matrix 和 Product Assembly 表达，不通过下沉 UI、命令、协议或平台实现表达。
+- 权限、工具曝光、事件、session、remote workspace 和 release 构建形态必须保持功能等价。

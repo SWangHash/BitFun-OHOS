@@ -51,7 +51,9 @@ export class FlowChatManager {
   private context: FlowChatContext;
   private agentService: AgentService;
   private eventListenerInitialized = false;
+  private eventListenerInitializationPromise: Promise<void> | null = null;
   private eventListenerCleanup: (() => void) | null = null;
+  private initializationRequests = new Map<string, Promise<boolean>>();
 
   private constructor() {
     this.context = {
@@ -93,6 +95,52 @@ export class FlowChatManager {
   }
 
   async initialize(
+    workspacePath: string,
+    preferredMode?: string,
+    remoteConnectionId?: string,
+    remoteSshHost?: string
+  ): Promise<boolean> {
+    const requestKey = FlowChatManager.createInitializationRequestKey(
+      workspacePath,
+      preferredMode,
+      remoteConnectionId,
+      remoteSshHost,
+    );
+    const existingRequest = this.initializationRequests.get(requestKey);
+    if (existingRequest) {
+      return existingRequest;
+    }
+
+    let request: Promise<boolean>;
+    request = this.initializeWorkspace(
+      workspacePath,
+      preferredMode,
+      remoteConnectionId,
+      remoteSshHost,
+    ).finally(() => {
+      if (this.initializationRequests.get(requestKey) === request) {
+        this.initializationRequests.delete(requestKey);
+      }
+    });
+    this.initializationRequests.set(requestKey, request);
+    return request;
+  }
+
+  private static createInitializationRequestKey(
+    workspacePath: string,
+    preferredMode?: string,
+    remoteConnectionId?: string,
+    remoteSshHost?: string
+  ): string {
+    return JSON.stringify([
+      workspacePath,
+      preferredMode ?? '',
+      remoteConnectionId ?? '',
+      remoteSshHost ?? '',
+    ]);
+  }
+
+  private async initializeWorkspace(
     workspacePath: string,
     preferredMode?: string,
     remoteConnectionId?: string,
@@ -189,7 +237,8 @@ export class FlowChatManager {
             workspacePath,
             undefined,
             latestSession.remoteConnectionId,
-            latestSession.remoteSshHost
+            latestSession.remoteSshHost,
+            { deferFullHistoryUntilActive: true },
           );
         }
 
@@ -209,13 +258,24 @@ export class FlowChatManager {
     if (this.eventListenerInitialized) {
       return;
     }
+    if (this.eventListenerInitializationPromise) {
+      return this.eventListenerInitializationPromise;
+    }
 
-    this.eventListenerCleanup = await initializeEventListeners(
-      this.context,
-      (sessionId, turnId, result) => this.handleTodoWriteResult(sessionId, turnId, result)
-    );
-    
-    this.eventListenerInitialized = true;
+    this.eventListenerInitializationPromise = (async () => {
+      this.eventListenerCleanup = await initializeEventListeners(
+        this.context,
+        (sessionId, turnId, result) => this.handleTodoWriteResult(sessionId, turnId, result)
+      );
+
+      this.eventListenerInitialized = true;
+    })();
+
+    try {
+      await this.eventListenerInitializationPromise;
+    } finally {
+      this.eventListenerInitializationPromise = null;
+    }
   }
 
   public cleanupEventListeners(): void {
@@ -224,6 +284,7 @@ export class FlowChatManager {
       this.eventListenerCleanup = null;
       this.eventListenerInitialized = false;
     }
+    this.eventListenerInitializationPromise = null;
   }
 
   private processBatchedEvents(events: Array<{ key: string; payload: any }>): void {

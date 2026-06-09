@@ -114,7 +114,7 @@ export interface ReviewActionPersistedState {
 export type SessionStatus = 'active' | 'archived' | 'completed';
 export type DialogTurnKind = 'user_dialog' | 'manual_compaction' | 'local_command';
 
-export type LocalCommandKind = 'usage_report' | 'goal_pending' | 'goal_verifying';
+export type LocalCommandKind = 'usage_report';
 
 export interface LocalCommandMetadata {
   localCommandKind: LocalCommandKind;
@@ -124,8 +124,14 @@ export interface LocalCommandMetadata {
   modelVisible: false;
   usageReport?: Record<string, any>;
   usageReportStatus?: 'loading' | 'completed';
-  goalPendingId?: string;
-  goalVerifyingId?: string;
+  threadGoalKickoff?: boolean;
+  threadGoalObjectiveUpdated?: boolean;
+  threadGoalContinuation?: boolean;
+  threadGoalContinuationCheck?: boolean;
+  threadGoalObjective?: string;
+  objective?: string;
+  autoContinuationAttempt?: number;
+  autoContinuationMax?: number;
 }
 
 export interface SessionList {

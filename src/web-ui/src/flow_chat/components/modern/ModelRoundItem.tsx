@@ -7,7 +7,7 @@
  * and this component only renders rounds with critical output.
  */
 
-import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Copy, Check } from 'lucide-react';
 import type { ModelRound, FlowItem, FlowTextItem, FlowToolItem, FlowThinkingItem } from '../../types/flow-chat';
@@ -20,7 +20,12 @@ import { FlowChatStore } from '../../store/FlowChatStore';
 import { taskCollapseStateManager } from '../../store/TaskCollapseStateManager';
 import { ExportImageButton } from './ExportImageButton';
 import { ForkSessionButton } from './ForkSessionButton';
-import { buildModelRoundItemGroups, COMPLETED_TOOL_TRANSIENT_MS } from './modelRoundItemGrouping';
+import {
+  buildModelRoundItemGroups,
+  COMPLETED_TOOL_TRANSIENT_MS,
+  isCompletedToolInTransientWindow,
+  type ModelRoundItemGroup,
+} from './modelRoundItemGrouping';
 import {
   MODEL_ROUND_GROUP_RENDER_CHUNK_DELAY_MS,
   getInitialModelRoundGroupRenderCount,
@@ -31,12 +36,103 @@ import {
 } from './modelRoundProgressiveRender';
 import { Tooltip } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
+import {
+  isStartupRenderTraceEnabled,
+  recordReactRenderProfile,
+  startupTrace,
+} from '@/shared/utils/startupTrace';
 import { SubagentProjectionView } from '../subagent/SubagentProjectionView';
 import { formatSessionViewPreviewText } from '../../utils/sessionViewPreview';
 import './ModelRoundItem.scss';
 import './SubagentItems.scss';
 
 const log = createLogger('ModelRoundItem');
+
+interface ModelRoundGroupSummary {
+  textItemCount: number;
+  toolItemCount: number;
+  criticalGroupCount: number;
+  exploreGroupCount: number;
+}
+
+function summarizeModelRoundItemGroups(groups: ModelRoundItemGroup[]): ModelRoundGroupSummary {
+  return groups.reduce<ModelRoundGroupSummary>((summary, group) => {
+    if (group.type === 'explore') {
+      summary.exploreGroupCount += 1;
+      for (const item of group.items) {
+        if (item.type === 'text') {
+          summary.textItemCount += 1;
+        } else if (item.type === 'tool') {
+          summary.toolItemCount += 1;
+        }
+      }
+      return summary;
+    }
+
+    summary.criticalGroupCount += 1;
+    if (group.item.type === 'text') {
+      summary.textItemCount += 1;
+    } else if (group.item.type === 'tool') {
+      summary.toolItemCount += 1;
+    }
+    return summary;
+  }, {
+    textItemCount: 0,
+    toolItemCount: 0,
+    criticalGroupCount: 0,
+    exploreGroupCount: 0,
+  });
+}
+
+interface ModelRoundRenderTraceProps {
+  startedAtMs: number;
+  turnId: string;
+  round: ModelRound;
+  itemCount: number;
+  groupCount: number;
+  renderedCount: number;
+  visibleGroupStartIndex: number;
+  visibleGroupEndIndex: number;
+  allGroupSummary: ModelRoundGroupSummary;
+  visibleGroupSummary: ModelRoundGroupSummary;
+}
+
+const ModelRoundRenderTrace: React.FC<ModelRoundRenderTraceProps> = ({
+  startedAtMs,
+  turnId,
+  round,
+  itemCount,
+  groupCount,
+  renderedCount,
+  visibleGroupStartIndex,
+  visibleGroupEndIndex,
+  allGroupSummary,
+  visibleGroupSummary,
+}) => {
+  useLayoutEffect(() => {
+    recordReactRenderProfile(startupTrace, {
+      component: 'ModelRoundItem',
+      phase: 'commit',
+      actualDurationMs: performance.now() - startedAtMs,
+      turnId,
+      roundId: round.id,
+      itemCount,
+      groupCount,
+      renderedCount,
+      visibleGroupStartIndex,
+      visibleGroupEndIndex,
+      textItemCount: allGroupSummary.textItemCount,
+      toolItemCount: allGroupSummary.toolItemCount,
+      visibleTextItemCount: visibleGroupSummary.textItemCount,
+      visibleToolItemCount: visibleGroupSummary.toolItemCount,
+      criticalGroupCount: allGroupSummary.criticalGroupCount,
+      exploreGroupCount: allGroupSummary.exploreGroupCount,
+      isStreaming: round.isStreaming,
+    });
+  });
+
+  return null;
+};
 
 interface ModelRoundItemProps {
   round: ModelRound;
@@ -71,6 +167,8 @@ interface TaskWithSubagentWrapperProps {
   parentSessionId?: string;
   directSubagentSessionId?: string;
   turnId: string;
+  roundId?: string;
+  completedToolExitNowMs: number;
 }
 
 const TaskWithSubagentWrapper: React.FC<TaskWithSubagentWrapperProps> = React.memo(({
@@ -79,8 +177,12 @@ const TaskWithSubagentWrapper: React.FC<TaskWithSubagentWrapperProps> = React.me
   parentSessionId,
   directSubagentSessionId,
   turnId,
+  roundId,
+  completedToolExitNowMs,
 }) => {
   const isCollapsed = useTaskCollapsed(parentTaskToolId);
+  const isTaskRunning =
+    taskItem.status === 'preparing' || taskItem.status === 'streaming' || taskItem.status === 'running';
   const hasPrompt = Boolean(
     taskItem.type === 'tool' &&
     (taskItem as FlowToolItem).toolCall?.input?.prompt
@@ -96,15 +198,16 @@ const TaskWithSubagentWrapper: React.FC<TaskWithSubagentWrapperProps> = React.me
       <FlowItemRenderer
         item={taskItem}
         turnId={turnId}
+        roundId={roundId}
         isLastItem={false}
+        completedToolExitNowMs={completedToolExitNowMs}
       />
       <SubagentProjectionView
         parentTaskToolId={parentTaskToolId}
         parentSessionId={parentSessionId}
         directSubagentSessionId={directSubagentSessionId}
         parentToolIds={new Set<string>([parentTaskToolId, (taskItem as FlowToolItem).toolCall?.id].filter(Boolean) as string[])}
-        isRunning
-        ={taskItem.status === 'preparing' || taskItem.status === 'streaming' || taskItem.status === 'running'}
+        liveItemsMode={isTaskRunning ? 'full-turn' : 'last-round'}
         turnId={turnId}
       />
     </div>
@@ -117,6 +220,8 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
     const { sessionId } = useFlowChatContext();
     const [copied, setCopied] = useState(false);
     const copyButtonRef = useRef<HTMLButtonElement>(null);
+    const renderTraceEnabled = isStartupRenderTraceEnabled();
+    const renderTraceStartedAtMs = renderTraceEnabled ? performance.now() : null;
     
     useEffect(() => {
       if (!copied) return;
@@ -251,6 +356,14 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
       () => groupedItems.slice(visibleGroupStartIndex, visibleGroupEndIndex),
       [groupedItems, visibleGroupEndIndex, visibleGroupStartIndex],
     );
+    const allGroupSummary = useMemo(
+      () => renderTraceEnabled ? summarizeModelRoundItemGroups(groupedItems) : null,
+      [groupedItems, renderTraceEnabled],
+    );
+    const visibleGroupSummary = useMemo(
+      () => renderTraceEnabled ? summarizeModelRoundItemGroups(visibleGroupedItems) : null,
+      [renderTraceEnabled, visibleGroupedItems],
+    );
     const hasDeferredEarlierGroups = visibleGroupStartIndex > 0;
     const hasDeferredLaterGroups = visibleGroupEndIndex < groupedItems.length;
 
@@ -346,6 +459,20 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
       <div 
         className={`model-round-item model-round-item--${round.isStreaming ? 'streaming' : 'complete'}`}
       >
+        {renderTraceEnabled && renderTraceStartedAtMs !== null && allGroupSummary && visibleGroupSummary && (
+          <ModelRoundRenderTrace
+            startedAtMs={renderTraceStartedAtMs}
+            turnId={turnId}
+            round={round}
+            itemCount={sortedItems.length}
+            groupCount={groupedItems.length}
+            renderedCount={renderedGroupCount}
+            visibleGroupStartIndex={visibleGroupStartIndex}
+            visibleGroupEndIndex={visibleGroupEndIndex}
+            allGroupSummary={allGroupSummary}
+            visibleGroupSummary={visibleGroupSummary}
+          />
+        )}
         {hasDeferredEarlierGroups && (
           <div className="model-round-item__history-loader">
             {t('modelRound.loadingMoreHistory')}
@@ -362,7 +489,9 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
                   key={item.id}
                   item={item}
                   turnId={turnId}
+                  roundId={round.id}
                   isLastItem={isLast && itemIdx === group.items.length - 1}
+                  completedToolExitNowMs={transientNowMs}
                 />
               ));
 
@@ -379,6 +508,8 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
                     parentSessionId={sessionId}
                     directSubagentSessionId={projectedSubagent.subagentSessionId}
                     turnId={turnId}
+                    roundId={round.id}
+                    completedToolExitNowMs={transientNowMs}
                   />
                 );
               }
@@ -387,7 +518,9 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
                   key={group.item.id}
                   item={group.item}
                   turnId={turnId}
+                  roundId={round.id}
                   isLastItem={isLast}
+                  completedToolExitNowMs={transientNowMs}
                 />
               );
             }
@@ -450,11 +583,19 @@ ModelRoundItem.displayName = 'ModelRoundItem';
 interface FlowItemRendererProps {
   item: FlowItem;
   turnId: string;
+  roundId?: string;
   isLastItem?: boolean;
+  completedToolExitNowMs: number;
 }
 
 // Do not memoize: streaming content updates frequently.
-const FlowItemRenderer: React.FC<FlowItemRendererProps> = ({ item, turnId, isLastItem }) => {
+const FlowItemRenderer: React.FC<FlowItemRendererProps> = ({
+  item,
+  turnId,
+  roundId,
+  isLastItem,
+  completedToolExitNowMs,
+}) => {
   const {
     onToolConfirm,
     onToolReject,
@@ -468,6 +609,11 @@ const FlowItemRenderer: React.FC<FlowItemRendererProps> = ({ item, turnId, isLas
       return (
         <FlowTextBlock
           textItem={item as FlowTextItem}
+          traceContext={{
+            turnId,
+            roundId,
+            itemId: item.id,
+          }}
         />
       );
     
@@ -480,10 +626,16 @@ const FlowItemRenderer: React.FC<FlowItemRendererProps> = ({ item, turnId, isLas
       const toolItem = item as FlowToolItem;
       const isCompletedTool = toolItem.status === 'completed';
       const isCollapsible = isCollapsibleTool(toolItem.toolName);
+      const shouldAnimateCompletedExit =
+        isCollapsible &&
+        isCompletedTool &&
+        isCompletedToolInTransientWindow(toolItem, completedToolExitNowMs);
+      const isSettledCompletedTool = isCollapsible && isCompletedTool && !shouldAnimateCompletedExit;
       const toolClassName = [
         'flowchat-flow-item',
         isCollapsible && isCompletedTool ? 'flowchat-flow-item--tool-transition' : null,
-        isCollapsible && isCompletedTool ? 'flowchat-flow-item--tool-completed' : null,
+        shouldAnimateCompletedExit ? 'flowchat-flow-item--tool-completed' : null,
+        isSettledCompletedTool ? 'flowchat-flow-item--tool-settled' : null,
         isCollapsible && !isCompletedTool ? 'flowchat-flow-item--tool-active' : null,
       ].filter(Boolean).join(' ');
 

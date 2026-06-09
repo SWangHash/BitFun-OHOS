@@ -2,11 +2,45 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import { shouldScheduleDeferredStartupSystems } from './deferredStartupGate';
+import { STARTUP_OVERLAY_HIDDEN_EVENT } from './startupSignals';
+
 function readSource(relativePath: string): string {
   return readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8');
 }
 
 describe('startup performance contract', () => {
+  it('keeps the pre-React startup fallback logo-only', () => {
+    const source = readSource('../../../index.html');
+
+    expect(source).toContain('<link rel="icon" type="image/png" href="/Logo-ICON-128.png" />');
+    expect(source).not.toContain('rel="preload" as="image"');
+    expect(source).toContain('class="bitfun-preload__logo"');
+    expect(source).toContain('src="/Logo-ICON-128.png"');
+    expect(source).toContain('fetchpriority="low"');
+    expect(source).not.toContain('Loading workspace...');
+    expect(source).not.toContain('bitfun-preload__spinner');
+    expect(source).not.toContain('aria-live="polite"');
+
+    expect(source.indexOf('<script type="module" src="/src/main.tsx"></script>')).toBeLessThan(
+      source.indexOf('class="bitfun-preload__logo"'),
+    );
+  });
+
+  it('keeps the startup logo asset transparent without the desktop icon backing plate', async () => {
+    const { default: sharp } = await import('sharp');
+    const assetPath = fileURLToPath(new URL('../../../public/Logo-ICON-128.png', import.meta.url));
+    const { data, info } = await sharp(assetPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const alphaAt = (x: number, y: number): number => data[(y * info.width + x) * info.channels + 3] ?? 0;
+
+    expect(info.width).toBe(128);
+    expect(info.height).toBe(128);
+    expect(alphaAt(8, 8)).toBe(0);
+    expect(alphaAt(12, 12)).toBe(0);
+    expect(alphaAt(20, 20)).toBe(0);
+    expect(alphaAt(64, 64)).toBeGreaterThan(240);
+  });
+
   it('keeps editor and tool infrastructure out of the first startup module', () => {
     const source = readSource('../../main.tsx');
 
@@ -19,12 +53,75 @@ describe('startup performance contract', () => {
     expect(source).toContain("import('./shared/context-menu-system')");
   });
 
-  it('starts non-critical work after the shell is interactive', () => {
+  it('does not block first React render on frontend log-level config reads', () => {
+    const mainSource = readSource('../../main.tsx');
+    const loggerSource = readSource('../../shared/utils/logger.ts');
+    const themeSource = readSource('../../../../apps/desktop/src/theme.rs');
+
+    expect(mainSource).not.toContain("before_render_step', 'initialize_frontend_log_level_sync'");
+    expect(mainSource).not.toContain('before_render_step", "initialize_frontend_log_level_sync"');
+    expect(mainSource).toContain('initializeFrontendLogLevelSync');
+    expect(mainSource).toContain('installFrontendLogLevelConfigWatcher');
+    expect(loggerSource).toContain('__BITFUN_BOOTSTRAP_LOG_LEVEL__');
+    expect(themeSource).toContain('__BITFUN_BOOTSTRAP_LOG_LEVEL__');
+  });
+
+  it('keeps built-in theme startup on the bootstrap path without pre-render config writes', () => {
+    const mainSource = readSource('../../main.tsx');
+    const themeServiceSource = readSource('../../infrastructure/theme/core/ThemeService.ts');
+    const desktopThemeSource = readSource('../../../../apps/desktop/src/theme.rs');
+
+    expect(desktopThemeSource).toContain('__BITFUN_BOOTSTRAP_THEME_ID__');
+    expect(desktopThemeSource).toContain('__BITFUN_BOOTSTRAP_THEME_SELECTION__');
+    expect(mainSource).toContain("before_render_step', 'theme_service_initialize'");
+    expect(themeServiceSource).toContain('getBootstrapThemeSelection');
+    expect(themeServiceSource).toContain('applyThemeSelection(bootstrapSelection, { persist: false })');
+    expect(themeServiceSource).toContain('applyThemeSelection(saved, { persist: false })');
+    expect(themeServiceSource).toContain('ensureUserThemesLoaded');
+    expect(mainSource).toContain('themeService.ensureUserThemesLoaded()');
+    expect(mainSource.indexOf('themeService.ensureUserThemesLoaded()')).toBeGreaterThan(
+      mainSource.indexOf('async function initializeAfterRender()'),
+    );
+  });
+
+  it('keeps Windows startup show wait state-driven instead of fixed-delay only', () => {
+    const desktopThemeSource = readSource('../../../../apps/desktop/src/theme.rs');
+
+    expect(desktopThemeSource).toContain('WINDOWS_STARTUP_MAXIMIZE_SHOW_WAIT_MAX');
+    expect(desktopThemeSource).toContain('WINDOWS_STARTUP_MAXIMIZE_SHOW_WAIT_MIN');
+    expect(desktopThemeSource).toContain('WINDOWS_STARTUP_MAXIMIZE_SHOW_WAIT_POLL');
+    expect(desktopThemeSource).toContain('windows_maximize_show_wait_action');
+    expect(desktopThemeSource).toContain('window.is_maximized()');
+    expect(desktopThemeSource).toContain('windows_show_after_maximize_wait');
+    expect(desktopThemeSource).not.toContain(
+      'std::thread::sleep(std::time::Duration::from_millis(150))'
+    );
+  });
+
+  it('starts non-critical work after the startup overlay handoff', () => {
     const source = readSource('../../main.tsx');
 
-    expect(source).toContain("signalName: 'bitfun:interactive-shell-ready'");
+    expect(STARTUP_OVERLAY_HIDDEN_EVENT).toBe('bitfun:startup-overlay-hidden');
+    expect(source).toContain('STARTUP_OVERLAY_HIDDEN_EVENT');
+    expect(source).not.toContain("signalName: 'bitfun:interactive-shell-ready'");
     expect(source).not.toContain("signalName: 'bitfun:main-window-shown'");
     expect(source).toContain('fallbackTimeoutMs: 10000');
+  });
+
+  it('starts deferred app systems only after the startup overlay has handed off', () => {
+    const source = readSource('../App.tsx');
+
+    expect(shouldScheduleDeferredStartupSystems({
+      interactiveShellReady: true,
+      startupOverlayVisible: true,
+    })).toBe(false);
+    expect(shouldScheduleDeferredStartupSystems({
+      interactiveShellReady: true,
+      startupOverlayVisible: false,
+    })).toBe(true);
+    expect(source).toContain('shouldScheduleDeferredStartupSystems({ interactiveShellReady, startupOverlayVisible })');
+    expect(source).toContain('window.dispatchEvent(new CustomEvent(STARTUP_OVERLAY_HIDDEN_EVENT))');
+    expect(source).toContain('}, [interactiveShellReady, startupOverlayVisible]);');
   });
 
   it('does not initialize AI from the root app component', () => {
@@ -33,7 +130,33 @@ describe('startup performance contract', () => {
     expect(source).not.toMatch(/from\s+['"]\.\.\/infrastructure['"]/);
     expect(source).not.toMatch(/useAIInitialization/);
     expect(source).not.toMatch(/useCurrentModelConfig/);
+    expect(source).not.toMatch(/from\s+['"]@\/infrastructure\/config\/services\/AIExperienceConfigService['"]/);
     expect(source).toContain('bitfun:interactive-shell-ready');
+    expect(source).toContain('STARTUP_OVERLAY_HIDDEN_EVENT');
+  });
+
+  it('keeps the heavy app layout out of the root startup module', () => {
+    const source = readSource('../App.tsx');
+
+    expect(source).not.toMatch(/import\s+AppLayout\s+from\s+['"]\.\/layout\/AppLayout['"]/);
+    expect(source).toContain("import('./layout/AppLayout')");
+    expect(source).toContain('app_layout_ready');
+    expect(source).toContain('!appLayoutReady');
+  });
+
+  it('releases interactive shell readiness without waiting for an extra AppLayout state commit', () => {
+    const source = readSource('../App.tsx');
+
+    expect(source).toContain('workspaceLoadingRef.current');
+    expect(source).toContain('appLayoutReadyRef.current');
+    expect(source).toContain('interactiveShellReadyFrameRef.current');
+    expect(source).toContain('markInteractiveShellReadyIfReady');
+    expect(source).toContain('releaseInteractiveShellReadyIfReady');
+    expect(source).toContain('useLayoutEffect');
+    expect(source).toContain('requestAnimationFrame');
+    expect(source).toContain('interactive_shell_ready_after_paint_scheduled');
+    expect(source).toContain("markInteractiveShellReadyIfReady('app-layout-ready')");
+    expect(source).toContain("markInteractiveShellReadyIfReady('workspace-or-layout-state')");
   });
 
   it('loads Monaco styling and loader config only through editor initialization', () => {
@@ -72,12 +195,60 @@ describe('startup performance contract', () => {
     expect(source).toMatch(/import\s+type\s+\*\s+as\s+monaco\s+from\s+['"]monaco-editor['"]/);
   });
 
-  it('prewarms editor runtime only after the shell is interactive', () => {
+  it('prewarms editor runtime only after the shell is interactive and visible', () => {
     const source = readSource('../App.tsx');
 
     expect(source).toContain('interactiveShellReady');
+    expect(source).toContain('startupOverlayVisible');
     expect(source).toContain("import('@/tools/editor/services/MonacoStartupWarmup')");
     expect(source).toContain('scheduleMonacoStartupWarmup()');
+  });
+
+  it('does not let startup visibility retries reopen a user-hidden main window', () => {
+    const source = readSource('../App.tsx');
+
+    expect(source).toContain('userCloseRequestedRef');
+    expect(source).toContain("listen('bitfun_main_window_close_requested'");
+    expect(source).toContain('user-close-requested');
+    expect(source).toContain('startup-complete');
+    expect(source).toContain('startup-watchdog');
+  });
+
+  it('does not remount the historical message list when full hydration prepends older turns', () => {
+    const source = readSource('../../flow_chat/components/modern/VirtualMessageList.tsx');
+
+    expect(source).not.toContain('firstVirtualItemTurnId');
+    expect(source).not.toMatch(/key=\{`\$\{activeSession\?\.sessionId[^`]+firstVirtualItemTurnId/);
+  });
+
+  it('keeps read-only thread goal access metadata-only for unloaded sessions', () => {
+    const source = readSource('../../../../apps/desktop/src/api/agentic_api.rs');
+    const getStart = source.indexOf('pub async fn get_session_thread_goal');
+    const clearStart = source.indexOf('pub async fn clear_session_thread_goal');
+    const getSource = source.slice(getStart, clearStart);
+
+    expect(getStart).toBeGreaterThan(-1);
+    expect(clearStart).toBeGreaterThan(getStart);
+    expect(getSource).toContain('resolve_session_workspace_path_for_thread_goal_read');
+    expect(getSource).not.toContain('ensure_session_for_thread_goal');
+    expect(getSource).not.toContain('restore_session');
+  });
+
+  it('keeps non-active workspace session metadata out of the first startup window', () => {
+    const source = readSource('../../app/components/NavPanel/sections/sessions/SessionsSection.tsx');
+
+    expect(source).toContain('isActiveWorkspace = true');
+    expect(source).not.toContain('isActiveWorkspace: _isActiveWorkspace');
+    expect(source).toContain('getInitialSessionMetadataLoadMode');
+    expect(source).toContain("loadMode === 'immediate'");
+    expect(source).toContain("loadMode === 'after-startup-paint'");
+    expect(source).toContain('scheduleAfterStartupSignal');
+    expect(source).toContain('scheduleAfterStartupPaint');
+    expect(source).toContain('hasStartupOverlayHandedOff');
+    expect(source).toContain('SESSION_METADATA_DEFERRED_SIGNAL');
+    expect(source).toContain('sessions_nav_initial_active');
+    expect(source).toContain('sessions_nav_initial_deferred');
+    expect(source).toContain('data-session-nav-toggle-action');
   });
 
   it('keeps Git diff editor from importing the broad editor barrel', () => {
@@ -104,6 +275,7 @@ describe('startup performance contract', () => {
 
   it('avoids the infrastructure barrel from startup-visible modules', () => {
     const sources = [
+      '../../app/layout/AppLayout.tsx',
       '../../flow_chat/components/ChatInput.tsx',
       '../../tools/git/services/GitEventService.ts',
     ].map(readSource);
@@ -112,5 +284,42 @@ describe('startup performance contract', () => {
       expect(source).not.toMatch(/from\s+['"]@\/infrastructure['"]/);
       expect(source).not.toMatch(/from\s+['"]\.\.\/\.\.\/\.\.\/infrastructure['"]/);
     }
+
+    expect(sources[0]).not.toMatch(/from\s+['"]@\/infrastructure\/config['"]/);
+    expect(sources[0]).toContain("from '@/infrastructure/config/services/ConfigManager'");
+  });
+
+  it('avoids the broad flow-chat barrel from startup-visible shell modules', () => {
+    const sources = [
+      '../App.tsx',
+      '../../app/layout/AppLayout.tsx',
+    ].map(readSource);
+
+    for (const source of sources) {
+      expect(source).not.toMatch(/from\s+['"]\.\.\/flow_chat['"]/);
+      expect(source).not.toMatch(/from\s+['"]\.\.\/\.\.\/flow_chat['"]/);
+      expect(source).not.toMatch(/from\s+['"]@\/flow_chat['"]/);
+    }
+  });
+
+  it('keeps startup session metadata paging on the narrow SessionAPI entrypoint', () => {
+    const source = readSource('../../flow_chat/store/FlowChatStore.ts');
+
+    expect(source).toContain("import('@/infrastructure/api/service-api/SessionAPI')");
+    expect(source).not.toMatch(
+      /const\s+\{\s*sessionAPI\s*\}\s*=\s*await\s+import\(['"]@\/infrastructure\/api['"]\)/
+    );
+  });
+
+  it('keeps Agent companion implementation modules out of the root startup bundle', () => {
+    const source = readSource('../App.tsx');
+
+    expect(source).not.toMatch(/from\s+['"]@\/flow_chat\/utils\/agentCompanionActivity['"]/);
+    expect(source).not.toMatch(/from\s+['"]@\/flow_chat\/services\/AgentCompanionActivityBridge['"]/);
+    expect(source).not.toMatch(/from\s+['"]\.\/services\/openAgentCompanionSession['"]/);
+    expect(source).not.toMatch(/from\s+['"]@\/infrastructure\/config\/services\/AgentCompanionWindowService['"]/);
+    expect(source).toContain("import('@/flow_chat/utils/agentCompanionActivity')");
+    expect(source).toContain("import('@/flow_chat/services/AgentCompanionActivityBridge')");
+    expect(source).toContain("import('./services/openAgentCompanionSession')");
   });
 });

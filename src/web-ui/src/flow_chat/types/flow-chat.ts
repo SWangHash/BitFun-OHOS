@@ -308,6 +308,15 @@ export interface Session {
    * lazily; message sending must ensure this becomes 'ready' first.
    */
   contextRestoreState?: SessionContextRestoreState;
+
+  /**
+   * True when the session currently contains only a tail preview of persisted
+   * history. Destructive history actions must wait for the full history hydrate
+   * so UI indexes cannot drift from persisted backend turn indexes.
+   */
+  isPartial?: boolean;
+  loadedTurnCount?: number;
+  totalTurnCount?: number;
   
   todos?: TodoItem[];
   
@@ -365,6 +374,18 @@ export interface Session {
 
   /** Whether `/goal` mode is active for this session. */
   goalModeActive?: boolean;
+
+  /** Latest thread goal snapshot for UI (/goal menu, edit, resume). */
+  threadGoal?: {
+    goalId: string;
+    objective: string;
+    status: string;
+    tokensUsed?: number;
+    tokenBudget?: number | null;
+    timeUsedSeconds?: number;
+    updatedAt?: number;
+    autoContinuationCount?: number;
+  };
 
   /**
    * Lightweight markers for /btw threads created from this session.

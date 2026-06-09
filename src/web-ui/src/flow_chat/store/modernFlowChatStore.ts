@@ -7,13 +7,10 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { immer } from 'zustand/middleware/immer';
-import type { Session, DialogTurn, ModelRound, FlowItem, FlowToolItem, FlowUserSteeringItem } from '../types/flow-chat';
+import type { Session, DialogTurn, ModelRound, FlowItem, FlowToolItem, FlowUserSteeringItem, AnyFlowItem } from '../types/flow-chat';
 import { isCollapsibleTool, READ_TOOL_NAMES, SEARCH_TOOL_NAMES, COMMAND_TOOL_NAMES } from '../tool-cards';
-import { COMPLETED_TOOL_TRANSIENT_MS } from '../components/modern/modelRoundItemGrouping';
+import { isCompletedToolInTransientWindow } from '../components/modern/modelRoundItemGrouping';
 import { flowChatStore } from './FlowChatStore';
-import { createLogger } from '@/shared/utils/logger';
-
-const log = createLogger('ModernFlowChatStore');
 
 /**
  * Explore group statistics (merged computed stats)
@@ -57,7 +54,17 @@ export type VirtualItem =
       steeringId: string;
       steeringStatus: FlowUserSteeringItem['status'];
     }
-  | { type: 'model-round'; data: ModelRound; turnId: string; isLastRound: boolean; isTurnComplete: boolean }
+  | {
+      type: 'model-round';
+      data: ModelRound;
+      turnId: string;
+      isLastRound: boolean;
+      isTurnComplete: boolean;
+      segmentId?: string;
+      segmentIndex?: number;
+      segmentCount?: number;
+      sourceRoundId?: string;
+    }
   | { type: 'explore-group'; data: ExploreGroupData; turnId: string }
   | { type: 'image-analyzing'; turnId: string };
 
@@ -112,10 +119,25 @@ function hasActiveTool(round: ModelRound): boolean {
 
 function hasRecentlyCompletedTool(round: ModelRound, nowMs: number): boolean {
   return round.items.some(item => {
-    if (item.type !== 'tool' || item.status !== 'completed') return false;
-    const endTime = (item as FlowToolItem).endTime;
-    return typeof endTime === 'number' && nowMs - endTime < COMPLETED_TOOL_TRANSIENT_MS;
+    return isCompletedToolInTransientWindow(item, nowMs);
   });
+}
+
+function hasTrailingVisibleText(round: ModelRound): boolean {
+  for (let index = round.items.length - 1; index >= 0; index -= 1) {
+    const item = round.items[index];
+    if (!item || item.type === 'user-steering') {
+      continue;
+    }
+
+    if (item.type !== 'text') {
+      return false;
+    }
+
+    return typeof item.content === 'string' && item.content.trim().length > 0;
+  }
+
+  return false;
 }
 
 function isExploreOnlyRound(round: ModelRound, nowMs: number): boolean {
@@ -130,6 +152,10 @@ function isExploreOnlyRound(round: ModelRound, nowMs: number): boolean {
   }
 
   if (hasActiveTool(round) || (round.isStreaming && hasRecentlyCompletedTool(round, nowMs))) {
+    return false;
+  }
+
+  if (hasTrailingVisibleText(round)) {
     return false;
   }
   
@@ -150,6 +176,67 @@ function isExploreOnlyRound(round: ModelRound, nowMs: number): boolean {
   });
   
   return allItemsCollapsible;
+}
+
+const MODEL_ROUND_VIRTUAL_CHUNK_ITEM_LIMIT = 4;
+const MODEL_ROUND_VIRTUAL_CHUNK_THRESHOLD = MODEL_ROUND_VIRTUAL_CHUNK_ITEM_LIMIT * 3;
+
+interface ModelRoundVirtualChunk {
+  round: ModelRound;
+  segmentId?: string;
+  segmentIndex?: number;
+  segmentCount?: number;
+  sourceRoundId?: string;
+}
+
+function shouldSplitModelRoundForVirtualItems(
+  round: ModelRound,
+  isTurnComplete: boolean,
+  nowMs: number,
+): boolean {
+  return (
+    isTurnComplete &&
+    isTerminalRoundStatus(round.status) &&
+    !round.isStreaming &&
+    round.isComplete !== false &&
+    round.items.length > MODEL_ROUND_VIRTUAL_CHUNK_THRESHOLD &&
+    !hasActiveTool(round) &&
+    !hasRecentlyCompletedTool(round, nowMs) &&
+    round.items.every(item => !isActiveFlowItem(item))
+  );
+}
+
+function splitModelRoundForVirtualItems(
+  round: ModelRound,
+  isTurnComplete: boolean,
+  nowMs: number,
+): ModelRoundVirtualChunk[] {
+  if (!shouldSplitModelRoundForVirtualItems(round, isTurnComplete, nowMs)) {
+    return [{ round }];
+  }
+
+  const segmentCount = Math.ceil(round.items.length / MODEL_ROUND_VIRTUAL_CHUNK_ITEM_LIMIT);
+  const chunks: ModelRoundVirtualChunk[] = [];
+
+  for (let segmentIndex = 0; segmentIndex < segmentCount; segmentIndex += 1) {
+    const start = segmentIndex * MODEL_ROUND_VIRTUAL_CHUNK_ITEM_LIMIT;
+    const end = start + MODEL_ROUND_VIRTUAL_CHUNK_ITEM_LIMIT;
+    const segmentId = `${round.id}:segment:${segmentIndex}`;
+
+    chunks.push({
+      round: {
+        ...round,
+        id: segmentId,
+        items: round.items.slice(start, end),
+      },
+      segmentId,
+      segmentIndex,
+      segmentCount,
+      sourceRoundId: round.id,
+    });
+  }
+
+  return chunks;
 }
 
 /**
@@ -180,9 +267,55 @@ function steeringItemToUserMessage(item: FlowUserSteeringItem): NonNullable<Dial
   };
 }
 
+function isTerminalTurnStatus(status: DialogTurn['status']): boolean {
+  return status === 'completed' || status === 'cancelled' || status === 'error';
+}
+
+function isTerminalRoundStatus(status: ModelRound['status']): boolean {
+  return status === 'completed' || status === 'cancelled' || status === 'error';
+}
+
+function isActiveFlowItem(item: AnyFlowItem): boolean {
+  if (
+    item.status === 'pending' ||
+    item.status === 'preparing' ||
+    item.status === 'running' ||
+    item.status === 'streaming' ||
+    item.status === 'receiving' ||
+    item.status === 'analyzing' ||
+    item.status === 'pending_confirmation'
+  ) {
+    return true;
+  }
+
+  if (item.type === 'text' || item.type === 'thinking') {
+    return item.isStreaming;
+  }
+
+  if (item.type === 'tool') {
+    return item.isParamsStreaming === true;
+  }
+
+  return false;
+}
+
+function isStableTurnProjection(turn: DialogTurn): boolean {
+  if (!isTerminalTurnStatus(turn.status)) {
+    return false;
+  }
+
+  return turn.modelRounds.every(round =>
+    isTerminalRoundStatus(round.status) &&
+    !round.isStreaming &&
+    round.isComplete !== false &&
+    round.items.every(item => !isActiveFlowItem(item))
+  );
+}
+
 let cachedSession: Session | null = null;
 let cachedDialogTurnsRef: DialogTurn[] | null = null;
 let cachedVirtualItems: VirtualItem[] = [];
+let cachedTurnItems = new WeakMap<DialogTurn, VirtualItem[]>();
 
 /**
  * Convert Session to virtualized render items
@@ -199,6 +332,7 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
       cachedSession = null;
       cachedDialogTurnsRef = null;
       cachedVirtualItems = [];
+      cachedTurnItems = new WeakMap();
     }
     return cachedVirtualItems;
   }
@@ -217,6 +351,13 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
   const nowMs = Date.now();
 
   session.dialogTurns.forEach(turn => {
+    const cachedItems = cachedTurnItems.get(turn);
+    if (cachedItems && isStableTurnProjection(turn)) {
+      items.push(...cachedItems);
+      return;
+    }
+    const turnItemStart = items.length;
+
     if (turn.userMessage) {
       items.push({
         type: 'user-message',
@@ -338,16 +479,6 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
 
           const groupId = group.rounds[0]?.id ?? `explore-group-${turn.id}-${group.startIndex}`;
 
-          if (wasCutByCritical) {
-            log.debug('explore-group marked wasCutByCritical', {
-              groupId,
-              endIndex: group.endIndex,
-              totalRounds: rounds.length,
-              isTurnComplete,
-              isGroupStreaming,
-            });
-          }
-
           items.push({
             type: 'explore-group',
             turnId: turn.id,
@@ -370,12 +501,19 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
           groupIndex++;
         } else {
           const isLastRound = roundIndex === rounds.length - 1;
-          items.push({
-            type: 'model-round',
-            data: round,
-            turnId: turn.id,
-            isLastRound,
-            isTurnComplete,
+          const roundChunks = splitModelRoundForVirtualItems(round, isTurnComplete, nowMs);
+          roundChunks.forEach((chunk, chunkIndex) => {
+            items.push({
+              type: 'model-round',
+              data: chunk.round,
+              turnId: turn.id,
+              isLastRound: isLastRound && chunkIndex === roundChunks.length - 1,
+              isTurnComplete,
+              segmentId: chunk.segmentId,
+              segmentIndex: chunk.segmentIndex,
+              segmentCount: chunk.segmentCount,
+              sourceRoundId: chunk.sourceRoundId,
+            });
           });
           roundIndex++;
         }
@@ -404,6 +542,9 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
 
     flushRoundEntries(pendingRounds, { collapseTrailingExploreGroup: true });
 
+    if (isStableTurnProjection(turn)) {
+      cachedTurnItems.set(turn, items.slice(turnItemStart));
+    }
   });
 
   cachedVirtualItems = items;
@@ -457,6 +598,7 @@ export const useModernFlowChatStore = create<ModernFlowChatState>()(
       cachedSession = null;
       cachedDialogTurnsRef = null;
       cachedVirtualItems = [];
+      cachedTurnItems = new WeakMap();
 
       set((state) => {
         state.activeSession = null;

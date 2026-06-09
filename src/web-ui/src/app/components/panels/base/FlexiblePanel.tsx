@@ -127,6 +127,12 @@ const SessionUsagePanel = React.lazy(() =>
   }))
 );
 
+const BackgroundCommandOutputPanel = React.lazy(() =>
+  import('@/flow_chat/components/background-command/BackgroundCommandOutputPanel').then(module => ({
+    default: module.BackgroundCommandOutputPanel
+  }))
+);
+
 const ReviewPlatformPanel = React.lazy(() =>
   import('@/app/components/panels/review-platform/ReviewPlatformPanel')
 );
@@ -162,7 +168,7 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
   isActive = true,
   onFileMissingFromDiskChange,
 }) => {
-  const { t } = useI18n('components');
+  const { t, formatDate } = useI18n('components');
 
   // Use ref to save latest content, avoiding it in callback dependencies
   const contentRef = React.useRef(content);
@@ -666,7 +672,12 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
               <div className="detail-item">
                 <span className="label">{t('flexiblePanel.aiSession.startTime')}</span>
                 <span className="value">
-                  {content.data?.start_time ? new Date(content.data.start_time).toLocaleString() : t('flexiblePanel.aiSession.unknownTime')}
+                  {content.data?.start_time
+                    ? formatDate(new Date(content.data.start_time), {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })
+                    : t('flexiblePanel.aiSession.unknownTime')}
                 </span>
               </div>
             </div>
@@ -791,6 +802,13 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
               workspacePath={content.data?.workspacePath || workspacePath}
               initialTab={content.data?.initialTab}
             />
+          </React.Suspense>
+        );
+
+      case 'background-command-output':
+        return (
+          <React.Suspense fallback={<div className="bitfun-flexible-panel__loading">{t('flexiblePanel.loading.terminal')}</div>}>
+            <BackgroundCommandOutputPanel data={content.data} />
           </React.Suspense>
         );
 

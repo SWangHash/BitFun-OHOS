@@ -21,11 +21,8 @@ import {
 import { notificationService } from '../../../shared/notification-system/services/NotificationService';
 import type { NotificationAction } from '../../../shared/notification-system/types';
 import { createLogger } from '@/shared/utils/logger';
-import {
-  handleGoalVerificationFinished,
-  handleGoalVerificationStarted,
-  type GoalVerificationOutcome,
-} from '../goalVerificationService';
+import { handleThreadGoalUpdated } from '../threadGoalEventService';
+import { resolveThreadGoalUserMessageDisplay } from '../../utils/threadGoalDisplay';
 import type {
   DeepReviewQueueStateChangedEvent,
   ImageAnalysisEvent,
@@ -47,6 +44,7 @@ import {
 } from '@/shared/ai-errors/aiErrorPresenter';
 import { useReviewActionBarStore } from '../../store/deepReviewActionBarStore';
 import { buildDeepReviewCapacityQueueStateFromEvent } from '../../utils/deepReviewQueueStateEvents';
+import { useBackgroundCommandActivityStore } from '../../store/backgroundCommandActivityStore';
 
 const pendingImageAnalysisTurns = new Map<string, string>();
 import { 
@@ -64,7 +62,7 @@ import {
 } from './TextChunkModule';
 import { pendingQueueManager } from './PendingQueueModule';
 import { 
-  processToolEvent, 
+  processToolEvent,
   processToolParamsPartialInternal,
   processToolProgressInternal,
   handleToolExecutionProgress,
@@ -109,14 +107,20 @@ export function isAppWindowFocused(): boolean {
 function resolveDialogTurnDisplayContent(
   userInput: unknown,
   originalUserInput: unknown,
-  _userMessageMetadata: unknown,
+  userMessageMetadata: unknown,
 ): string {
   const cleanedUserInput = cleanRemoteUserInput(typeof userInput === 'string' ? userInput : '');
   const cleanedOriginalUserInput = cleanRemoteUserInput(
     typeof originalUserInput === 'string' ? originalUserInput : ''
   );
 
-  return cleanedOriginalUserInput || cleanedUserInput;
+  const base = cleanedOriginalUserInput || cleanedUserInput;
+  const metadata =
+    userMessageMetadata && typeof userMessageMetadata === 'object'
+      ? (userMessageMetadata as Record<string, unknown>)
+      : null;
+
+  return resolveThreadGoalUserMessageDisplay(base, metadata);
 }
 
 export const __test_only__ = {
@@ -382,7 +386,6 @@ function ensureSubagentSession(
   const parentTurnIndex = parentSession
     ?.dialogTurns
     .findIndex(turn => turn.id === parentInfo.dialogTurnId);
-
   store.addExternalSession(
     subagentSessionId,
     buildSubagentSessionTitleWithType(parentInfo, explicitSubagentType),
@@ -575,6 +578,10 @@ export async function initializeEventListeners(
     const eventData = (event.payload as any)?.value || event.payload;
     handleToolTerminalReady(eventData);
   });
+  const unlistenBackgroundCommandLifecycle = await listen('backend-event-backgroundcommandlifecycle', (event: any) => {
+    const eventData = (event.payload as any)?.value || event.payload;
+    useBackgroundCommandActivityStore.getState().applyLifecycleEvent(eventData);
+  });
   const unlistenMcpInteractionRequest = await listen('backend-event-mcpinteractionrequest', (event: any) => {
     void handleMcpInteractionRequest((event.payload as any)?.value || event.payload);
   });
@@ -643,11 +650,8 @@ export async function initializeEventListeners(
     onContextCompressionFailed: (event) => {
       handleCompressionFailed(context, event);
     },
-    onGoalVerificationStarted: (event) => {
-      handleGoalVerificationStartedEvent(event);
-    },
-    onGoalVerificationFinished: (event) => {
-      handleGoalVerificationFinishedEvent(event);
+    onThreadGoalUpdated: (event) => {
+      handleThreadGoalUpdatedEvent(event);
     },
     onSessionTitleGenerated: (event) => {
       handleSessionTitleGenerated(event);
@@ -665,6 +669,7 @@ export async function initializeEventListeners(
   return () => {
     unlistenProgress();
     unlistenTerminalReady();
+    unlistenBackgroundCommandLifecycle();
     unlistenMcpInteractionRequest();
     unlistenAcpPermissionRequest();
     agenticEventListener.stopListening();
@@ -736,16 +741,20 @@ function handleSessionCreated(context: FlowChatContext, event: any): void {
 
   const store = FlowChatStore.getInstance();
   const existing = store.getState().sessions.get(sessionId);
+  const workspacePath = resolveExternalSessionWorkspacePath(context, event);
+  const remoteConnectionId = extractEventRemoteConnectionId(event);
+  const remoteSshHost = extractEventRemoteSshHost(event);
+
   if (existing) return;
 
   store.addExternalSession(
     sessionId,
     sessionName || 'Remote Session',
     agentType || 'agentic',
-    resolveExternalSessionWorkspacePath(context, event),
+    workspacePath,
     undefined,
-    extractEventRemoteConnectionId(event),
-    extractEventRemoteSshHost(event)
+    remoteConnectionId,
+    remoteSshHost
   );
 }
 
@@ -1319,8 +1328,6 @@ function cleanRemoteUserInput(raw: string): string {
 
 function handleDialogTurnStarted(context: FlowChatContext, event: any): void {
   const { sessionId, turnId, turnIndex, userInput, originalUserInput, userMessageMetadata } = event;
-
-  FlowChatStore.getInstance().removeLocalGoalVerifyingTurn(sessionId);
 
   finalizePendingTurnCompletionNow(context, sessionId);
   clearPendingTurnCompletion(context, sessionId, turnId);
@@ -1948,66 +1955,17 @@ function buildUnsuccessfulCompletionError(finishReason?: string): string {
     : 'Dialog turn ended without a usable result.';
 }
 
-function parseGoalVerificationEvent(event: any): {
-  sessionId?: string;
-  sourceTurnId?: string;
-  outcome?: GoalVerificationOutcome;
-} {
+function handleThreadGoalUpdatedEvent(event: any): void {
   const sessionId = event?.sessionId ?? event?.session_id;
-  const sourceTurnId = event?.sourceTurnId ?? event?.source_turn_id;
-  const rawOutcome = event?.outcome;
-  const outcome =
-    rawOutcome === 'achieved'
-      || rawOutcome === 'continuing'
-      || rawOutcome === 'failed'
-      || rawOutcome === 'limit_reached'
-      ? rawOutcome
-      : undefined;
-
-  return {
-    sessionId: typeof sessionId === 'string' ? sessionId : undefined,
-    sourceTurnId: typeof sourceTurnId === 'string' ? sourceTurnId : undefined,
-    outcome,
-  };
-}
-
-function handleGoalVerificationStartedEvent(event: any): void {
-  const payload = parseGoalVerificationEvent(event);
-  if (!payload.sessionId) {
-    log.warn('GoalVerificationStarted missing sessionId', { event });
+  if (typeof sessionId !== 'string' || !sessionId) {
+    log.warn('ThreadGoalUpdated missing sessionId', { event });
     return;
   }
 
-  handleGoalVerificationStarted(
-    { sessionId: payload.sessionId, sourceTurnId: payload.sourceTurnId },
-    i18nService.t('flow-chat:chatInput.goalVerifying', {
-      defaultValue: 'Checking if the session goal is met...',
-    }),
-  );
-}
-
-function handleGoalVerificationFinishedEvent(event: any): void {
-  const payload = parseGoalVerificationEvent(event);
-  if (!payload.sessionId) {
-    log.warn('GoalVerificationFinished missing sessionId', { event });
-    return;
-  }
-
-  handleGoalVerificationFinished(
-    {
-      sessionId: payload.sessionId,
-      sourceTurnId: payload.sourceTurnId,
-      outcome: payload.outcome,
-    },
-    {
-      achievedTitle: i18nService.t('flow-chat:chatInput.goalAchieved', {
-        defaultValue: 'Session goal achieved',
-      }),
-      failedMessage: i18nService.t('flow-chat:chatInput.goalVerifyFailed', {
-        defaultValue: 'Goal verification failed. Check model configuration and try again.',
-      }),
-    },
-  );
+  handleThreadGoalUpdated({
+    sessionId,
+    goal: event?.goal ?? null,
+  });
 }
 
 export function handleDialogTurnComplete(

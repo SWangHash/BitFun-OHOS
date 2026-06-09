@@ -17,7 +17,11 @@ interface SessionListPageProps {
   onDisconnect: () => void;
 }
 
-function formatTime(unixStr: string, language: string, t: (key: string, params?: Record<string, string | number>) => string): string {
+function formatTime(
+  unixStr: string,
+  formatDate: (date: Date | number, options?: Intl.DateTimeFormatOptions) => string,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
   const ts = parseInt(unixStr, 10);
   if (!ts || isNaN(ts)) return '';
   const date = new Date(ts * 1000);
@@ -30,7 +34,7 @@ function formatTime(unixStr: string, language: string, t: (key: string, params?:
   if (diffHr < 24) return t('common.hoursAgo', { count: diffHr });
   const diffDay = Math.floor(diffHr / 24);
   if (diffDay < 7) return t('common.daysAgo', { count: diffDay });
-  return date.toLocaleDateString(language);
+  return formatDate(date);
 }
 
 function agentLabel(agentType: string, t: (key: string) => string): string {
@@ -139,7 +143,7 @@ const ThemeToggleIcon: React.FC<{ isDark: boolean }> = ({ isDark }) => (
 );
 
 const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectSession, onOpenWorkspace, onDisconnect }) => {
-  const { t, language } = useI18n();
+  const { t, formatDate } = useI18n();
   const {
     sessions,
     setSessions,
@@ -560,7 +564,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
   }, [sessionMgr, setCurrentAssistant, setError, loadFirstPage, searchQuery]);
 
   const workspaceDisplayName = currentWorkspace?.project_name || t('sessions.noWorkspaceSelected');
-  const assistantDisplayName = currentAssistant?.name || t('sessions.defaultAssistant');
+  const assistantDisplayName = currentAssistant?.name || t('shared.agents.default');
   const isProMode = displayMode === 'pro';
 
   return (
@@ -623,14 +627,14 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
             onClick={() => handleSelectMode('pro')}
           >
             <ProModeIcon />
-            <span>{t('sessions.proMode')}</span>
+            <span>{t('shared.modes.expert')}</span>
           </button>
           <button
             className={`session-list__mode-toggle-btn ${!isProMode ? 'is-active' : ''}`}
             onClick={() => handleSelectMode('assistant')}
           >
             <AssistantModeIcon />
-            <span>{t('sessions.assistantMode')}</span>
+            <span>{t('shared.modes.assistant')}</span>
           </button>
         </div>
 
@@ -776,7 +780,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
                         <SessionTypeIcon agentType="code" />
                       </div>
                       <div className="session-list__create-copy">
-                        <span className="session-list__create-title">{t('sessions.codeSession')}</span>
+                        <span className="session-list__create-title">{t('shared.agents.code')}</span>
                         <span className="session-list__create-desc">{t('sessions.codeSessionDesc')}</span>
                       </div>
                       <span className="session-list__create-arrow">
@@ -887,7 +891,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
                           {agentLabel(s.agent_type, t)}
                         </span>
                       </div>
-                      <div className="session-list__item-time">{formatTime(s.updated_at, language, t)}</div>
+                      <div className="session-list__item-time">{formatTime(s.updated_at, formatDate, t)}</div>
                     </div>
                   </div>
                 ))}

@@ -51,6 +51,21 @@
     color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
+    width: 100%;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: background var(--motion-fast) var(--easing-standard);
+
+    &:hover {
+      background: var(--element-bg-hover);
+    }
+  }
+
+  &__group-chevron {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    opacity: 0.6;
   }
 
   &__group-name {

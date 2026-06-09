@@ -3,7 +3,7 @@
  * Used to render Markdown-formatted text
  */
 
-import React, { useState, useMemo, useCallback, useEffect, Component, type ReactNode } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useLayoutEffect, Component, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -23,6 +23,11 @@ import { useTheme } from '@/infrastructure/theme';
 import { contextMenuController } from '@/shared/context-menu-system/core/ContextMenuController';
 import { ContextType, type CustomContext, type MenuItem } from '@/shared/context-menu-system/types';
 import { createLogger } from '@/shared/utils/logger';
+import {
+  isStartupRenderTraceEnabled,
+  recordReactRenderProfile,
+  startupTrace,
+} from '@/shared/utils/startupTrace';
 import path from 'path-browserify';
 import 'katex/dist/katex.min.css';
 import './Markdown.scss';
@@ -38,6 +43,47 @@ const COMPUTER_LINK_PREFIX = 'computer://';
 let _cachedWorkspacePathResult: string | undefined;
 let _cachedWorkspacePathAt = 0;
 const WORKSPACE_PATH_CACHE_MS = 5000;
+
+export interface MarkdownTraceContext {
+  turnId?: string;
+  roundId?: string;
+  itemId?: string;
+}
+
+interface MarkdownRenderTraceProps {
+  startedAtMs: number;
+  contentLength: number;
+  hasCodeBlock: boolean;
+  hasTable: boolean;
+  isStreaming: boolean;
+  traceContext?: MarkdownTraceContext;
+}
+
+const MarkdownRenderTrace: React.FC<MarkdownRenderTraceProps> = ({
+  startedAtMs,
+  contentLength,
+  hasCodeBlock,
+  hasTable,
+  isStreaming,
+  traceContext,
+}) => {
+  useLayoutEffect(() => {
+    recordReactRenderProfile(startupTrace, {
+      component: 'MarkdownRenderer',
+      phase: 'commit',
+      actualDurationMs: performance.now() - startedAtMs,
+      contentLength,
+      turnId: traceContext?.turnId,
+      roundId: traceContext?.roundId,
+      itemId: traceContext?.itemId,
+      hasCodeBlock,
+      hasTable,
+      isStreaming,
+    });
+  });
+
+  return null;
+};
 
 async function getWorkspacePathCached(): Promise<string | undefined> {
   const now = Date.now();
@@ -299,6 +345,25 @@ function resolveDisplayFilePath(targetPath: string, basePath?: string, workspace
   }
 
   return normalizeDisplayPath(resolveBaseRelativePath(baseResolved, workspacePath));
+}
+
+function extractMarkdownLinkHrefFromSource(
+  markdownSource: string,
+  position?: { start?: { offset?: number }; end?: { offset?: number } },
+): string | undefined {
+  const start = position?.start?.offset;
+  const end = position?.end?.offset;
+  if (typeof start !== 'number' || typeof end !== 'number' || end <= start) {
+    return undefined;
+  }
+
+  const snippet = markdownSource.slice(start, end);
+  const markerIndex = snippet.indexOf('](');
+  if (markerIndex === -1 || !snippet.endsWith(')')) {
+    return undefined;
+  }
+
+  return snippet.slice(markerIndex + 2, -1);
 }
 
 function isLocalAssetPath(src: string): boolean {
@@ -639,6 +704,7 @@ export interface MarkdownProps {
   onTabOpen?: (tabInfo: any) => void;
   onHttpLinkClick?: (url: string, event: React.MouseEvent<HTMLAnchorElement>) => boolean | void;
   onReproductionProceed?: () => void;
+  traceContext?: MarkdownTraceContext;
 }
 
 export const Markdown = React.memo<MarkdownProps>(({ 
@@ -651,7 +717,8 @@ export const Markdown = React.memo<MarkdownProps>(({
   onFileViewRequest,
   onTabOpen,
   onHttpLinkClick,
-  onReproductionProceed
+  onReproductionProceed,
+  traceContext,
 }) => {
   const { isLight } = useTheme();
   const { t } = useI18n('components');
@@ -660,6 +727,8 @@ export const Markdown = React.memo<MarkdownProps>(({
   const syntaxTheme = useMemo(() => buildMarkdownPrismStyle(isLight), [isLight]);
   
   const contentStr = typeof content === 'string' ? content : String(content || '');
+  const renderTraceEnabled = isStartupRenderTraceEnabled();
+  const renderTraceStartedAtMs = renderTraceEnabled ? performance.now() : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -708,21 +777,13 @@ export const Markdown = React.memo<MarkdownProps>(({
 
     return { markdownContent: body, reproductionSteps: steps };
   }, [contentStr, isStreaming]);
-  
-  const linkMap = useMemo(() => {
-    const map = new Map<string, string>();
-    const linkMatches = contentStr.match(/\[([^\]]+)\]\(([^)]+)\)/g) || [];
-    
-    linkMatches.forEach(match => {
-      const linkMatch = match.match(/\[([^\]]+)\]\(([^)]+)\)/);
-      if (linkMatch) {
-        const [, text, href] = linkMatch;
-        map.set(text, href);
-      }
-    });
-    return map;
-  }, [contentStr]);
-  
+
+  const markdownFeatureProfile = useMemo(() => ({
+    contentLength: markdownContent.length,
+    hasCodeBlock: /^[ \t]{0,3}(`{3,}|~{3,})/m.test(markdownContent),
+    hasTable: /^[ \t]*\|.+\|[ \t]*$/m.test(markdownContent),
+  }), [markdownContent]);
+
   // Parse line ranges like #L42 / 1-20
   const parseLineRange = useCallback((hash: string): LineRange | undefined => {
     const cleanHash = hash.replace(/^#/, '');
@@ -985,6 +1046,7 @@ export const Markdown = React.memo<MarkdownProps>(({
                 codeTagStyle,
                 gutterColor: isLight ? '#999' : '#666',
               }}
+              traceContext={traceContext}
             >
               {code}
             </AsyncPrismSyntaxHighlighter>
@@ -995,11 +1057,11 @@ export const Markdown = React.memo<MarkdownProps>(({
     },
     
     a({ node, href, children, ...props }: any) {
-      const linkText = typeof children === 'string' ? children : String(children);
-      const originalHref = linkMap.get(linkText);
-      const hrefValue = originalHref || href || node?.properties?.href;
+      const hrefValue = href || node?.properties?.href || extractMarkdownLinkHrefFromSource(
+        markdownContent,
+        node?.position,
+      );
       const isHashLink = typeof hrefValue === 'string' && hrefValue.startsWith('#');
-      const isComputerLink = typeof hrefValue === 'string' && hrefValue.startsWith(COMPUTER_LINK_PREFIX);
       const isVisualizationLink = typeof hrefValue === 'string' && hrefValue.startsWith('visualization:');
       const isTabLink = typeof hrefValue === 'string' && hrefValue.startsWith('tab:');
       const isHttpLink = typeof hrefValue === 'string' &&
@@ -1039,7 +1101,8 @@ export const Markdown = React.memo<MarkdownProps>(({
         const fileName = filePath.split(/[\\/]/).pop() || filePath;
 
         const isFolder = filePath.endsWith('/');
-        const shouldRevealInExplorer = isComputerLink || !isEditorOpenableFilePath(filePath);
+        const editorOpenable = isEditorOpenableFilePath(filePath);
+        const shouldRevealInExplorer = !editorOpenable;
         if (!isFolder) {
           const fileLinkButton = (
             <button
@@ -1229,7 +1292,7 @@ export const Markdown = React.memo<MarkdownProps>(({
     basePath,
     expandDetailsByDefault,
     isStreaming,
-    linkMap,
+    markdownContent,
     handleFileViewRequest,
     handleRevealInExplorer,
     handleLocalFileContextMenu,
@@ -1240,13 +1303,24 @@ export const Markdown = React.memo<MarkdownProps>(({
     parseLineRange,
     syntaxTheme,
     isLight,
-    currentWorkspacePath
+    currentWorkspacePath,
+    traceContext,
   ]);
   
   const wrapperClassName = `markdown-renderer ${className}`.trim();
 
   return (
     <div className={wrapperClassName}>
+      {renderTraceEnabled && renderTraceStartedAtMs !== null && (
+        <MarkdownRenderTrace
+          startedAtMs={renderTraceStartedAtMs}
+          contentLength={markdownFeatureProfile.contentLength}
+          hasCodeBlock={markdownFeatureProfile.hasCodeBlock}
+          hasTable={markdownFeatureProfile.hasTable}
+          isStreaming={isStreaming}
+          traceContext={traceContext}
+        />
+      )}
       <MarkdownErrorBoundary fallbackContent={markdownContent}>
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkMath, remarkAutolinkComputerFileLinks]}
