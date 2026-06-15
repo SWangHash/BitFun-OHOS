@@ -22,6 +22,8 @@ interface FlowTextBlockProps {
   textItem: FlowTextItem;
   className?: string;
   replayStreamingOnMount?: boolean;
+  testId?: string;
+  testAttributes?: Record<`data-${string}`, string | number | boolean | undefined>;
 }
 
 /**
@@ -31,7 +33,9 @@ interface FlowTextBlockProps {
 export const FlowTextBlock = React.memo<FlowTextBlockProps>(({
   textItem,
   className = '',
-  replayStreamingOnMount = true
+  replayStreamingOnMount = true,
+  testId,
+  testAttributes,
 }) => {
   const { onFileViewRequest, onTabOpen, onHttpLinkClick, onOpenVisualization } = useFlowChatContext();
   const { i18n } = useTranslation();
@@ -89,7 +93,11 @@ export const FlowTextBlock = React.memo<FlowTextBlockProps>(({
     const hint = hints[hintIndex];
 
     return (
-      <div className={`flow-text-block flow-text-block--runtime-status ${className}`}>
+      <div
+        className={`flow-text-block flow-text-block--runtime-status ${className}`}
+        data-testid={testId}
+        {...testAttributes}
+      >
         <DotMatrixLoader size="medium" className="flow-text-block__runtime-status-icon" />
         <span className="flow-text-block__runtime-status-text">{hint}</span>
       </div>
@@ -97,7 +105,14 @@ export const FlowTextBlock = React.memo<FlowTextBlockProps>(({
   }
 
   return (
-    <div className={`flow-text-block ${className} ${isActivelyStreaming ? 'streaming flow-text-block--streaming' : ''}`}>
+    <div
+      className={`flow-text-block ${className} ${isActivelyStreaming ? 'streaming flow-text-block--streaming' : ''}`}
+      data-testid={testId}
+      data-flow-item-id={textItem.id}
+      data-status={textItem.status}
+      data-streaming={isStreaming ? 'true' : 'false'}
+      {...testAttributes}
+    >
       {textItem.isMarkdown ? (
         <MarkdownRenderer
           content={displayContent}
@@ -132,6 +147,8 @@ export const FlowTextBlock = React.memo<FlowTextBlockProps>(({
     prev.isStreaming === next.isStreaming &&
     prev.status === next.status &&
     prevProps.className === nextProps.className &&
-    prevProps.replayStreamingOnMount === nextProps.replayStreamingOnMount
+    prevProps.replayStreamingOnMount === nextProps.replayStreamingOnMount &&
+    prevProps.testId === nextProps.testId &&
+    prevProps.testAttributes === nextProps.testAttributes
   );
 });

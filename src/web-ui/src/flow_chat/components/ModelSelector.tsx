@@ -509,6 +509,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                       data-testid="chat-model-selector-option"
                       data-model-id={model.id}
                       data-model-name={model.modelName}
+                      data-selected={isSelected ? 'true' : 'false'}
                       className={`bitfun-model-selector__option ${isSelected ? 'bitfun-model-selector__option--selected' : ''}`}
                       onClick={() => handleSelectModel(model.id)}
                     >
@@ -590,6 +591,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               data-testid="chat-model-selector-option"
               data-model-id="auto"
               data-model-name="auto"
+              data-selected={currentModelId === 'auto' ? 'true' : 'false'}
               className={`bitfun-model-selector__option bitfun-model-selector__option--special ${currentModelId === 'auto' ? 'bitfun-model-selector__option--selected' : ''}`}
               onClick={() => handleSelectModel('auto')}
             >
@@ -616,6 +618,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                   data-testid="chat-model-selector-option"
                   data-model-id="primary"
                   data-model-name={primaryModel?.model_name || 'primary'}
+                  data-selected={currentModelId === 'primary' ? 'true' : 'false'}
                   className={`bitfun-model-selector__option bitfun-model-selector__option--special ${currentModelId === 'primary' ? 'bitfun-model-selector__option--selected' : ''}`}
                   onClick={() => handleSelectModel('primary')}
                 >
@@ -644,6 +647,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                   data-testid="chat-model-selector-option"
                   data-model-id="fast"
                   data-model-name={fastModel?.model_name || 'fast'}
+                  data-selected={currentModelId === 'fast' ? 'true' : 'false'}
                   className={`bitfun-model-selector__option bitfun-model-selector__option--special ${currentModelId === 'fast' ? 'bitfun-model-selector__option--selected' : ''}`}
                   onClick={() => handleSelectModel('fast')}
                 >
@@ -670,6 +674,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                     data-testid="chat-model-selector-option"
                     data-model-id={model.id}
                     data-model-name={model.modelName}
+                    data-selected={isSelected ? 'true' : 'false'}
                     className={`bitfun-model-selector__option ${isSelected ? 'bitfun-model-selector__option--selected' : ''}`}
                     onClick={() => handleSelectModel(model.id)}
                   >

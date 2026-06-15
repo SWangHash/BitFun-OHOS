@@ -260,6 +260,13 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
     return (
       <div 
         className={`model-round-item model-round-item--${round.isStreaming ? 'streaming' : 'complete'}`}
+        data-testid="chat-assistant-message"
+        data-turn-id={turnId}
+        data-round-id={round.id}
+        data-status={round.status}
+        data-model-id={round.modelId || ''}
+        data-model-alias={round.modelAlias || ''}
+        data-streaming={round.isStreaming ? 'true' : 'false'}
       >
         {groupedItems.map((group, groupIndex) => {
           const isLastGroup = groupIndex === groupedItems.length - 1;
@@ -371,6 +378,12 @@ const FlowItemRenderer: React.FC<FlowItemRendererProps> = ({ item, turnId, isLas
       return (
         <FlowTextBlock
           textItem={item as FlowTextItem}
+          testId="chat-assistant-message-content"
+          testAttributes={{
+            'data-turn-id': turnId,
+            'data-flow-item-id': item.id,
+            'data-status': item.status,
+          }}
         />
       );
     

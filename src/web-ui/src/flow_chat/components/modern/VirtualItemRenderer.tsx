@@ -91,8 +91,10 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
     return (
       <div 
         className={wrapperClassName}
+        data-testid="flowchat-message-item"
         data-turn-id={item.turnId}
         data-item-type={item.type}
+        data-item-index={index}
       >
         {content || <div style={{ minHeight: '1px' }} />}
       </div>
