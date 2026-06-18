@@ -195,10 +195,12 @@
 | Chat thinking 展开按钮 | `chat-thinking-toggle` | 可点击的 thinking 展开/收起 header。 |
 | Chat thinking 内容 | `chat-thinking-content` | thinking/reasoning 文本内容。包含 `data-status` 和 `data-streaming`。 |
 | Chat shell 命令卡片 | `chat-shell-command-card` | Shell 命令工具卡根节点。包含 `data-status`、`data-expanded` 和 `data-terminal-session-id`。 |
+| Chat shell 命令展开按钮 | `chat-shell-command-toggle` | Shell 命令卡片的展开/收起点击目标。 |
 | Chat shell 命令文本 | `chat-shell-command-text` | Shell 命令文本节点。 |
 | Chat shell 命令输出 | `chat-shell-command-output` | Shell 命令 stdout/stderr 或实时输出区域。 |
 | Chat shell 命令退出码 | `chat-shell-command-exit-code` | 退出码节点。包含 `data-exit-code` 和 `data-status`。 |
 | Chat 文件变更卡片 | `chat-file-change-card` | 文件操作卡片根节点。包含 `data-status`、`data-action`、`data-path` 和 `data-expanded`。 |
+| Chat 文件变更展开按钮 | `chat-file-change-toggle` | 文件操作卡片的展开/收起点击目标。 |
 | Chat 文件变更路径 | `chat-file-change-path` | 文件路径/名称节点。包含 `data-path`。 |
 | Chat 文件变更动作 | `chat-file-change-action` | 文件操作动作节点。包含 `data-action`。 |
 | Chat 文件变更预览 | `chat-file-change-preview` | 文件操作卡片的代码/diff 预览区域。 |

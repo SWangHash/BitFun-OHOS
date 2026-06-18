@@ -679,6 +679,7 @@ export const TerminalToolCard: React.FC<TerminalToolCardProps> = ({
           errorContent={errorContent}
           isFailed={viewState.isFailed}
           requiresConfirmation={showConfirmButtons}
+          toggleTestId="chat-shell-command-toggle"
         />
       ) : (
         <CompactToolCard
@@ -689,6 +690,7 @@ export const TerminalToolCard: React.FC<TerminalToolCardProps> = ({
           onMouseUp={handleCardClick}
           className="terminal-tool-card terminal-tool-card--compact-collapsed"
           clickable
+          toggleTestId="chat-shell-command-toggle"
           header={renderCompactHeader()}
         />
       )}

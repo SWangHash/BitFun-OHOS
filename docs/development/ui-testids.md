@@ -194,10 +194,12 @@ Avoid adding IDs to these surfaces unless there is a clear automated workflow.
 | Chat thinking toggle | `chat-thinking-toggle` | Clickable thinking expand/collapse header. |
 | Chat thinking content | `chat-thinking-content` | Thinking/reasoning text content. Includes `data-status` and `data-streaming`. |
 | Chat shell command card | `chat-shell-command-card` | Shell command tool card root. Includes `data-status`, `data-expanded`, and `data-terminal-session-id`. |
+| Chat shell command toggle | `chat-shell-command-toggle` | Click target for expanding/collapsing a shell command card. |
 | Chat shell command text | `chat-shell-command-text` | Shell command text node. |
 | Chat shell command output | `chat-shell-command-output` | Shell command stdout/stderr or live output area. |
 | Chat shell command exit code | `chat-shell-command-exit-code` | Exit code node. Includes `data-exit-code` and `data-status`. |
 | Chat file change card | `chat-file-change-card` | File operation card root. Includes `data-status`, `data-action`, `data-path`, and `data-expanded`. |
+| Chat file change toggle | `chat-file-change-toggle` | Click target for expanding/collapsing a file operation card. |
 | Chat file change path | `chat-file-change-path` | File path/name node. Includes `data-path`. |
 | Chat file change action | `chat-file-change-action` | File operation action node. Includes `data-action`. |
 | Chat file change preview | `chat-file-change-preview` | Code/diff preview area for file operation cards. |
