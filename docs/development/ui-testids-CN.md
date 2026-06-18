@@ -191,6 +191,22 @@
 | Chat 用户消息内容 | `chat-user-message-content` | 用户消息文本内容。配合 `data-turn-id` 使用。 |
 | Chat assistant 消息 | `chat-assistant-message` | 重复的模型轮次容器。配合 `data-turn-id`、`data-round-id`、`data-status`、`data-model-id`、`data-model-alias` 和 `data-streaming` 使用。 |
 | Chat assistant 消息内容 | `chat-assistant-message-content` | assistant 文本块。配合 `data-turn-id`、`data-flow-item-id`、`data-status` 和 `data-streaming` 使用。 |
+| Chat thinking 面板 | `chat-thinking-panel` | thinking/reasoning 面板根节点。包含 `data-status`、`data-streaming` 和 `data-expanded`。 |
+| Chat thinking 展开按钮 | `chat-thinking-toggle` | 可点击的 thinking 展开/收起 header。 |
+| Chat thinking 内容 | `chat-thinking-content` | thinking/reasoning 文本内容。包含 `data-status` 和 `data-streaming`。 |
+| Chat shell 命令卡片 | `chat-shell-command-card` | Shell 命令工具卡根节点。包含 `data-status`、`data-expanded` 和 `data-terminal-session-id`。 |
+| Chat shell 命令文本 | `chat-shell-command-text` | Shell 命令文本节点。 |
+| Chat shell 命令输出 | `chat-shell-command-output` | Shell 命令 stdout/stderr 或实时输出区域。 |
+| Chat shell 命令退出码 | `chat-shell-command-exit-code` | 退出码节点。包含 `data-exit-code` 和 `data-status`。 |
+| Chat 文件变更卡片 | `chat-file-change-card` | 文件操作卡片根节点。包含 `data-status`、`data-action`、`data-path` 和 `data-expanded`。 |
+| Chat 文件变更路径 | `chat-file-change-path` | 文件路径/名称节点。包含 `data-path`。 |
+| Chat 文件变更动作 | `chat-file-change-action` | 文件操作动作节点。包含 `data-action`。 |
+| Chat 文件变更预览 | `chat-file-change-preview` | 文件操作卡片的代码/diff 预览区域。 |
+| Chat MiniApp 卡片 | `chat-miniapp-card` | MiniApp 结果卡片根节点。包含 `data-status`、`data-app-id` 和 `data-expanded`。 |
+| Chat MiniApp 标题 | `chat-miniapp-title` | MiniApp 标题/名称节点。包含 `data-app-id`。 |
+| Chat MiniApp 文件列表 | `chat-miniapp-file-list` | MiniApp 结果文件列表容器。 |
+| Chat MiniApp 文件行 | `chat-miniapp-file-row` | MiniApp 结果文件行。包含 `data-path`。 |
+| Chat MiniApp 打开按钮 | `chat-miniapp-open-btn` | 打开 MiniApp 场景。包含 `data-app-id`。 |
 
 ## Settings
 

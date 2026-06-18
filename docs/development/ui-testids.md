@@ -190,6 +190,22 @@ Avoid adding IDs to these surfaces unless there is a clear automated workflow.
 | Chat user message content | `chat-user-message-content` | User message text content. Pair with `data-turn-id`. |
 | Chat assistant message | `chat-assistant-message` | Repeated model round container. Pair with `data-turn-id`, `data-round-id`, `data-status`, `data-model-id`, `data-model-alias`, and `data-streaming`. |
 | Chat assistant message content | `chat-assistant-message-content` | Assistant text block. Pair with `data-turn-id`, `data-flow-item-id`, `data-status`, and `data-streaming`. |
+| Chat thinking panel | `chat-thinking-panel` | Thinking/reasoning panel root. Includes `data-status`, `data-streaming`, and `data-expanded`. |
+| Chat thinking toggle | `chat-thinking-toggle` | Clickable thinking expand/collapse header. |
+| Chat thinking content | `chat-thinking-content` | Thinking/reasoning text content. Includes `data-status` and `data-streaming`. |
+| Chat shell command card | `chat-shell-command-card` | Shell command tool card root. Includes `data-status`, `data-expanded`, and `data-terminal-session-id`. |
+| Chat shell command text | `chat-shell-command-text` | Shell command text node. |
+| Chat shell command output | `chat-shell-command-output` | Shell command stdout/stderr or live output area. |
+| Chat shell command exit code | `chat-shell-command-exit-code` | Exit code node. Includes `data-exit-code` and `data-status`. |
+| Chat file change card | `chat-file-change-card` | File operation card root. Includes `data-status`, `data-action`, `data-path`, and `data-expanded`. |
+| Chat file change path | `chat-file-change-path` | File path/name node. Includes `data-path`. |
+| Chat file change action | `chat-file-change-action` | File operation action node. Includes `data-action`. |
+| Chat file change preview | `chat-file-change-preview` | Code/diff preview area for file operation cards. |
+| Chat MiniApp card | `chat-miniapp-card` | MiniApp result card root. Includes `data-status`, `data-app-id`, and `data-expanded`. |
+| Chat MiniApp title | `chat-miniapp-title` | MiniApp title/name node. Includes `data-app-id`. |
+| Chat MiniApp file list | `chat-miniapp-file-list` | MiniApp result file list container. |
+| Chat MiniApp file row | `chat-miniapp-file-row` | MiniApp result file row. Includes `data-path`. |
+| Chat MiniApp open button | `chat-miniapp-open-btn` | Opens the MiniApp scene. Includes `data-app-id`. |
 | Pending queue panel | `pending-queue-panel` | Pending background task queue. |
 
 ## Settings

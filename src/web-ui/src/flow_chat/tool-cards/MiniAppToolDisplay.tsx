@@ -30,6 +30,26 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
 
   const appId = toolResult?.result?.app_id as string | undefined;
   const path = toolResult?.result?.path as string | undefined;
+  const miniAppFiles = useMemo(() => {
+    const files = toolResult?.result?.files;
+    if (Array.isArray(files)) {
+      return files
+        .map(file => {
+          if (typeof file === 'string') return file;
+          if (file && typeof file === 'object') {
+            const record = file as Record<string, unknown>;
+            return typeof record.path === 'string'
+              ? record.path
+              : typeof record.file_path === 'string'
+                ? record.file_path
+                : '';
+          }
+          return '';
+        })
+        .filter((filePath): filePath is string => filePath.length > 0);
+    }
+    return path ? [path] : [];
+  }, [path, toolResult?.result?.files]);
   const success = toolResult?.success === true;
   const isLoading = status === 'running' || status === 'streaming' || status === 'preparing';
   const isFailed = status === 'error' || (status === 'completed' && toolResult != null && toolResult.success === false);
@@ -89,7 +109,13 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
                 ? t('toolCards.initMiniApp.operationInit')
                 : t('toolCards.initMiniApp.skeletonReady')}
           </span>
-          <span className="command-text">{commandText}</span>
+          <span
+            className="command-text"
+            data-testid="chat-miniapp-title"
+            data-app-id={appId || ''}
+          >
+            {commandText}
+          </span>
         </span>
       }
       extra={
@@ -114,26 +140,33 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
     if (!appId) return null;
     return (
       <div className="miniapp-result-container">
-        <div className="miniapp-result-rows">
+        <div className="miniapp-result-rows" data-testid="chat-miniapp-file-list">
           <div className="miniapp-result-row">
             <span className="miniapp-result-label">{t('toolCards.initMiniApp.labelAppId')}</span>
             <span className="miniapp-result-value" title={appId}>
               {appId}
             </span>
           </div>
-          {path ? (
-            <div className="miniapp-result-row">
+          {miniAppFiles.map(filePath => (
+            <div
+              key={filePath}
+              className="miniapp-result-row"
+              data-testid="chat-miniapp-file-row"
+              data-path={filePath}
+            >
               <span className="miniapp-result-label">{t('toolCards.initMiniApp.labelPath')}</span>
-              <span className="miniapp-result-value" title={path}>
-                {path}
+              <span className="miniapp-result-value" title={filePath}>
+                {filePath}
               </span>
             </div>
-          ) : null}
+          ))}
         </div>
         <div className="miniapp-result-footer miniapp-action-buttons">
           <button
             type="button"
             className="miniapp-open-btn"
+            data-testid="chat-miniapp-open-btn"
+            data-app-id={appId}
             onClick={() => openScene(`miniapp:${appId}`)}
             title={t('toolCards.initMiniApp.openInMiniAppTitle')}
           >
@@ -167,7 +200,14 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
   };
 
   return (
-    <div ref={cardRootRef} data-tool-card-id={toolId ?? ''}>
+    <div
+      ref={cardRootRef}
+      data-testid="chat-miniapp-card"
+      data-tool-card-id={toolId ?? ''}
+      data-status={status}
+      data-app-id={appId || ''}
+      data-expanded={isExpanded ? 'true' : 'false'}
+    >
       <BaseToolCard
         status={status}
         isExpanded={isExpanded}

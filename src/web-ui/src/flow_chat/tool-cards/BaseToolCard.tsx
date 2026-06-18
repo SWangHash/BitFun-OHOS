@@ -148,6 +148,8 @@ export interface ToolCardHeaderProps {
   onAffordanceClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   /** Action text */
   action?: string;
+  actionTestId?: string;
+  actionDataAttributes?: Record<`data-${string}`, string | number | boolean | undefined>;
   /** Main content */
   content?: ReactNode;
   /** Right extra content (e.g., statistics, buttons, etc.) */
@@ -167,6 +169,8 @@ export const ToolCardHeader: React.FC<ToolCardHeaderProps> = ({
   headerExpanded,
   onAffordanceClick,
   action,
+  actionTestId,
+  actionDataAttributes,
   content,
   extra,
   statusIcon,
@@ -191,7 +195,11 @@ export const ToolCardHeader: React.FC<ToolCardHeaderProps> = ({
           onAffordanceClick={onAffordanceClick}
         />
       )}
-      {action && <span className="tool-card-action">{action}</span>}
+      {action && (
+        <span className="tool-card-action" data-testid={actionTestId} {...actionDataAttributes}>
+          {action}
+        </span>
+      )}
       {content && <div className="tool-card-content">{content}</div>}
       {extra && <div className="tool-card-extra">{extra}</div>}
       {statusIcon && (

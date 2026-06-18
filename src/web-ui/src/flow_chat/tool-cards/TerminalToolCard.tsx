@@ -100,7 +100,7 @@ function renderTerminalExpandedContent(params: {
   return (
     <>
       {viewState.displayPhase === 'live_output' && (
-        <div className="terminal-execution-output">
+        <div className="terminal-execution-output" data-testid="chat-shell-command-output">
           <TerminalOutputRenderer
             content={liveOutput}
             className="terminal-xterm-output"
@@ -110,7 +110,7 @@ function renderTerminalExpandedContent(params: {
       )}
 
       {(viewState.displayPhase === 'receiving_params' || viewState.displayPhase === 'executing') && waitingMessage && (
-        <div className="terminal-execution-output terminal-waiting">
+        <div className="terminal-execution-output terminal-waiting" data-testid="chat-shell-command-output">
           <span className="waiting-text">{waitingMessage}</span>
         </div>
       )}
@@ -118,7 +118,7 @@ function renderTerminalExpandedContent(params: {
       {viewState.showCompletedResult && (
         <div className="terminal-result-container">
           {parsedResult.output && (
-            <div className="terminal-result-output">
+            <div className="terminal-result-output" data-testid="chat-shell-command-output">
               <TerminalOutputRenderer
                 content={parsedResult.output}
                 className="terminal-xterm-output"
@@ -133,7 +133,12 @@ function renderTerminalExpandedContent(params: {
                 <span className="terminal-result-value">{parsedResult.workingDir}</span>
               </>
             )}
-            <span className={`terminal-exit-code ${parsedResult.exitCode === 0 ? 'success' : 'error'}`}>
+            <span
+              className={`terminal-exit-code ${parsedResult.exitCode === 0 ? 'success' : 'error'}`}
+              data-testid="chat-shell-command-exit-code"
+              data-exit-code={parsedResult.exitCode}
+              data-status={parsedResult.exitCode === 0 ? 'success' : 'error'}
+            >
               {t('toolCards.terminal.exitCode', { code: parsedResult.exitCode })}
             </span>
             {parsedResult.executionTimeMs && (
@@ -147,7 +152,7 @@ function renderTerminalExpandedContent(params: {
 
       {viewState.showCancelledResult && (
         <div className="terminal-result-container cancelled">
-          <div className="terminal-result-output">
+          <div className="terminal-result-output" data-testid="chat-shell-command-output">
             <TerminalOutputRenderer
               content={liveOutput}
               className="terminal-xterm-output"
@@ -433,11 +438,11 @@ export const TerminalToolCard: React.FC<TerminalToolCardProps> = ({
 
   const handleMouseDown = useCallback(() => {
     setShouldExpand(true);
-  }, [toggleExpanded, shouldExpand, setShouldExpand]);
+  }, []);
 
   const handleMouseMove = useCallback(() => {
     setShouldExpand(false);
-  }, [toggleExpanded, shouldExpand, setShouldExpand]);
+  }, []);
 
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -611,6 +616,7 @@ export const TerminalToolCard: React.FC<TerminalToolCardProps> = ({
             : 'terminal-command'
         }
         tooltipContent={commandText && isCommandTruncated ? commandText : undefined}
+        data-testid="chat-shell-command-text"
       />
     );
   };
@@ -654,7 +660,14 @@ export const TerminalToolCard: React.FC<TerminalToolCardProps> = ({
     : null;
 
   return (
-    <div ref={cardRootRef} data-tool-card-id={toolId ?? ''}>
+    <div
+      ref={cardRootRef}
+      data-testid="chat-shell-command-card"
+      data-tool-card-id={toolId ?? ''}
+      data-status={status}
+      data-expanded={isExpanded ? 'true' : 'false'}
+      data-terminal-session-id={terminalSessionId || ''}
+    >
       {isExpanded ? (
         <BaseToolCard
           status={status}
