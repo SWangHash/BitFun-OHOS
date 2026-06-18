@@ -18,6 +18,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import RustModule from 'libbitfun_desktop_lib.so';
 import { CommonUtils } from '../utils/CommonUtils';
 import { runDeveco } from '../utils/DevecoStart';
+import { webViewManager } from '../utils/WebViewManager';
 
 
 const DOMAIN = 0x0000;
@@ -187,6 +188,26 @@ export default class EntryAbility extends RustAbility {
         this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_DARK)
       }
       return '';
+    });
+    RustModule.registerArktsFunction('browser_webview_eval', async (err: Error, payload: string): Promise<string> => {
+      interface WebviewEvalRequest {
+        label: string;
+        script: string;
+      }
+      try {
+        const request: WebviewEvalRequest = JSON.parse(payload);
+        return await webViewManager.evalJavaScript(request.label, request.script);
+      } catch (parseError) {
+        hilog.error(DOMAIN, 'vnext', `browser_webview_eval parse error: ${JSON.stringify(parseError)}`);
+        return `Failed to parse request: ${JSON.stringify(parseError)}`;
+      }
+    });
+    RustModule.registerArktsFunction('browser_get_url', async (err: Error, label: string): Promise<string> => {
+      const url = webViewManager.getUrl(label);
+      if (!url) {
+        return 'Url is unavailable (webview URL is nil)';
+      }
+      return url;
     });
     return super.onWindowStageCreate(windowStage);
   }
