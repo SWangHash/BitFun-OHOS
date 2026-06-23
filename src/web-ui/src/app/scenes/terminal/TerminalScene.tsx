@@ -34,7 +34,7 @@ const TerminalScene: React.FC<TerminalSceneProps> = ({ isActive = true }) => {
   }
 
   return (
-    <div className="bitfun-terminal-scene">
+    <div className="bitfun-terminal-scene" data-testid="shell-panel">
       {activeSessionId ? (
         <ConnectedTerminal
           key={activeSessionId}
@@ -47,9 +47,9 @@ const TerminalScene: React.FC<TerminalSceneProps> = ({ isActive = true }) => {
           supportsCopyPaste={false}
         />
       ) : (
-        <div className="bitfun-terminal-scene__empty">
+        <div className="bitfun-terminal-scene__empty" data-testid="shell-command-list">
           <SquareTerminal size={32} className="bitfun-terminal-scene__empty-icon" />
-          <p className="bitfun-terminal-scene__empty-hint">{t('emptyState')}</p>
+          <p className="bitfun-terminal-scene__empty-hint" data-testid="shell-panel-title">{t('emptyState')}</p>
         </div>
       )}
     </div>

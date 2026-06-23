@@ -42,6 +42,12 @@ export const FlowToolCard: React.FC<FlowToolCardProps> = React.memo(({
   const CardComponent = getToolCardComponent(toolItem.toolName);
   const interruptionNote = getToolInterruptionNote(toolItem, t);
   const cardHandlesInterruptionNote = toolItem.toolName === 'Task';
+  const toolCardTestId =
+    toolItem.toolName === 'Bash'
+      ? 'chat-shell-tool-card'
+      : toolItem.toolName === 'WebFetch'
+        ? 'chat-browser-tool-card'
+        : undefined;
 
   const handleConfirm = React.useCallback((updatedInput?: any, permissionOptionId?: string, approve?: boolean) => {
     log.debug('handleConfirm called', {
@@ -64,7 +70,12 @@ export const FlowToolCard: React.FC<FlowToolCardProps> = React.memo(({
   }, [toolItem.id, onExpand]);
 
   return (
-    <div className={`flow-tool-card-wrapper ${className}`}>
+    <div
+      className={`flow-tool-card-wrapper ${className}`}
+      data-testid={toolCardTestId}
+      data-tool-name={toolItem.toolName}
+      data-tool-card-id={toolItem.id}
+    >
       <FlowToolCardErrorBoundary
         toolItem={toolItem}
         displayName={config.displayName}

@@ -59,6 +59,9 @@ const ShellNavEntryItem: React.FC<ShellNavEntryItemProps> = ({
 
         onOpenContextMenu(event, menuItems, { entry });
       }}
+      data-testid="shell-command-item"
+      data-command-id={entry.sessionId}
+      data-command-status={entry.isRunning ? 'running' : 'stopped'}
     >
       <Tooltip content={entry.name} placement="right">
         <span className="bitfun-shell-nav__terminal-item-main">
@@ -68,7 +71,7 @@ const ShellNavEntryItem: React.FC<ShellNavEntryItemProps> = ({
             <SquareTerminal size={14} className="bitfun-shell-nav__terminal-icon" />
           )}
 
-          <span className="bitfun-shell-nav__terminal-label">{entry.name}</span>
+          <span className="bitfun-shell-nav__terminal-label" data-testid="shell-command-text">{entry.name}</span>
 
           {showSavedBadge ? (
             <span className="bitfun-shell-nav__saved-indicator">{savedBadgeLabel}</span>
@@ -78,7 +81,11 @@ const ShellNavEntryItem: React.FC<ShellNavEntryItemProps> = ({
             <span className="bitfun-shell-nav__cmd-indicator">{startupCommandBadgeLabel}</span>
           ) : null}
 
-          <span className={`bitfun-shell-nav__terminal-dot${entry.isRunning ? ' is-running' : ' is-stopped'}`} />
+          <span
+            className={`bitfun-shell-nav__terminal-dot${entry.isRunning ? ' is-running' : ' is-stopped'}`}
+            data-testid="shell-command-status"
+            data-command-status={entry.isRunning ? 'running' : 'stopped'}
+          />
         </span>
       </Tooltip>
 
