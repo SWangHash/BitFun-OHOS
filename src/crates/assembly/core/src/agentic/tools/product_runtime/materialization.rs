@@ -35,6 +35,14 @@ impl StaticToolProviderFactory<dyn Tool> for ProductConcreteToolFactory {
             "get_goal" => Some(Arc::new(GetGoalTool::new())),
             "create_goal" => Some(Arc::new(CreateGoalTool::new())),
             "update_goal" => Some(Arc::new(UpdateGoalTool::new())),
+            #[cfg(feature = "canvas-runtime")]
+            "CreateCanvas" => Some(Arc::new(CreateCanvasTool::new())),
+            #[cfg(feature = "canvas-runtime")]
+            "ReadCanvas" => Some(Arc::new(ReadCanvasTool::new())),
+            #[cfg(feature = "canvas-runtime")]
+            "UpdateCanvas" => Some(Arc::new(UpdateCanvasTool::new())),
+            #[cfg(feature = "canvas-runtime")]
+            "PatchCanvas" => Some(Arc::new(PatchCanvasTool::new())),
             "CreatePlan" => Some(Arc::new(CreatePlanTool::new())),
             "submit_code_review" => Some(Arc::new(CodeReviewTool::new())),
             "GetToolSpec" => Some(Arc::new(GetToolSpecTool::new())),

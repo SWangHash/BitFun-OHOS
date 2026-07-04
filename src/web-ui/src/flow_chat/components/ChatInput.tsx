@@ -25,7 +25,7 @@ import { filterSlashCommands, useAcpSlashCommands } from '../hooks/useAcpSlashCo
 import { acpSessionRef, acpSlashCommandText } from '../utils/acpSession';
 import { AcpPlanPanel } from './AcpPlanPanel';
 import type { FlowChatState } from '../types/flow-chat';
-import type { FileContext, DirectoryContext, ImageContext } from '@/types/context.ts';
+import type { ContextItem, FileContext, DirectoryContext, ImageContext } from '@/types/context.ts';
 import { SmartRecommendations } from './smart-recommendations';
 import { useCurrentWorkspace, useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { createImageContextFromFile, createImageContextFromClipboard } from '../utils/imageUtils';
@@ -1129,7 +1129,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   React.useEffect(() => {
     const handleFillChatInput = (data: {
-      content: string;
+      content?: string;
+      context?: ContextItem;
       onlyIfEmpty?: boolean;
       mode?: 'replace' | 'append';
       separator?: string;
@@ -1138,18 +1139,33 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         return;
       }
 
+      if (data.context) {
+        dispatchInput({ type: 'ACTIVATE' });
+        addContext(data.context);
+        if (richTextInputRef.current) {
+          const input = richTextInputRef.current as HTMLDivElement & {
+            insertTag?: (context: ContextItem) => void;
+          };
+          input.focus();
+          input.insertTag?.(data.context);
+        }
+        return;
+      }
+
+      const content = data.content ?? '';
+
       const nextValue =
         data.mode === 'append'
           ? (() => {
               const currentValue = inputValueRef.current;
               if (!currentValue.trim()) {
-                return data.content;
+                return content;
               }
 
               const separator = data.separator ?? '\n\n';
-              return `${currentValue.replace(/\s+$/, '')}${separator}${data.content.replace(/^\s+/, '')}`;
+              return `${currentValue.replace(/\s+$/, '')}${separator}${content.replace(/^\s+/, '')}`;
             })()
-          : data.content;
+          : content;
 
       if (data.mode !== 'append') {
         clearPendingLargePastes();
@@ -1168,7 +1184,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     return () => {
       globalEventBus.off('fill-chat-input', handleFillChatInput);
     };
-  }, [clearPendingLargePastes]);
+  }, [addContext, clearPendingLargePastes]);
 
   // Expose current input value for external queries (e.g. deep review fill-back confirmation)
   React.useEffect(() => {

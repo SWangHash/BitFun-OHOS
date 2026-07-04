@@ -330,7 +330,6 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     displayMode: 'detailed',
     primaryColor: UI_EXCEPTION_ACCENTS.generativeUi
   },
-
   // Computer use (desktop automation)
   'ComputerUse': {
     toolName: 'ComputerUse',
@@ -341,6 +340,48 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     description: 'Screen capture, mouse/keyboard, and accessibility control of the desktop',
     displayMode: 'compact',
     primaryColor: 'var(--color-accent-600)'
+  },
+
+  // BitFun Canvas tools
+  'CreateCanvas': {
+    toolName: 'CreateCanvas',
+    displayName: 'Create Canvas',
+    icon: 'UI',
+    requiresConfirmation: false,
+    resultDisplayType: 'detailed',
+    description: 'Create a BitFun Canvas artifact',
+    displayMode: 'detailed',
+    primaryColor: UI_EXCEPTION_ACCENTS.generativeUi
+  },
+  'ReadCanvas': {
+    toolName: 'ReadCanvas',
+    displayName: 'Read Canvas',
+    icon: 'UI',
+    requiresConfirmation: false,
+    resultDisplayType: 'detailed',
+    description: 'Read a BitFun Canvas artifact',
+    displayMode: 'detailed',
+    primaryColor: UI_EXCEPTION_ACCENTS.generativeUi
+  },
+  'UpdateCanvas': {
+    toolName: 'UpdateCanvas',
+    displayName: 'Update Canvas',
+    icon: 'UI',
+    requiresConfirmation: false,
+    resultDisplayType: 'detailed',
+    description: 'Update a BitFun Canvas artifact',
+    displayMode: 'detailed',
+    primaryColor: UI_EXCEPTION_ACCENTS.generativeUi
+  },
+  'PatchCanvas': {
+    toolName: 'PatchCanvas',
+    displayName: 'Patch Canvas',
+    icon: 'UI',
+    requiresConfirmation: false,
+    resultDisplayType: 'detailed',
+    description: 'Patch a BitFun Canvas artifact',
+    displayMode: 'detailed',
+    primaryColor: UI_EXCEPTION_ACCENTS.generativeUi
   },
 };
 

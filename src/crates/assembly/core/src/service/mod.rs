@@ -9,6 +9,8 @@ pub(crate) mod agent_memory; // Agent memory prompt helpers
 #[cfg(feature = "service-integrations")]
 pub mod announcement; // Announcement / feature-demo / tips system
 pub(crate) mod bootstrap; // Workspace persona bootstrap helpers
+#[cfg(feature = "canvas-runtime")]
+pub mod canvas; // Canvas service compatibility facade
 pub mod config; // Config management
 #[cfg(feature = "product-full")]
 pub mod cron; // Scheduled jobs
@@ -48,6 +50,8 @@ pub use bitfun_services_core::{diagnostics, diff, system};
 #[cfg(feature = "service-integrations")]
 pub use bitfun_services_integrations::file_watch;
 pub use bootstrap::reset_workspace_persona_files_to_default;
+#[cfg(feature = "canvas-runtime")]
+pub use canvas::{CanvasMemoryStore, CanvasService};
 pub use config::{ConfigManager, ConfigProvider, ConfigService};
 #[cfg(feature = "product-full")]
 pub use cron::{

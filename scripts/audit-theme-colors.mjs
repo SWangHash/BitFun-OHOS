@@ -869,7 +869,7 @@ function audit(options) {
         incrementMap(tokenColorCounts, color);
       } else if (exceptionFile) {
         incrementMap(exceptionColorCounts, color);
-      } else {
+      } else if (colorDomain === 'appUi') {
         componentColorOccurrences += 1;
         incrementMap(componentColorCounts, color);
         addToSetMap(componentColorFiles, color, relativePath);

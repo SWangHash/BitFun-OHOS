@@ -138,6 +138,7 @@ sse-stream = "0.2.3"
 which = "8.0"
 similar = "2.5"
 urlencoding = "2.1"
+oxc = { version = "0.138.0", default-features = false, features = ["ast_visit", "codegen", "semantic", "transformer"] }
 
 # Tauri (desktop only)
 tauri = { git = "https://github.com/richerfu/tauri", branch = "feat/open-harmony", features = [] }

@@ -3,6 +3,8 @@
 pub mod analyze_image_tool;
 pub mod ask_user_question_tool;
 pub mod bash_tool;
+#[cfg(feature = "canvas-runtime")]
+pub mod canvas_tools;
 pub mod calendar_tool;
 pub mod harmonyos_project;
 pub mod code_review_tool;
@@ -51,6 +53,8 @@ pub mod harmony_build_tool;
 pub use analyze_image_tool::AnalyzeImageTool;
 pub use ask_user_question_tool::AskUserQuestionTool;
 pub use bash_tool::BashTool;
+#[cfg(feature = "canvas-runtime")]
+pub use canvas_tools::{CreateCanvasTool, PatchCanvasTool, ReadCanvasTool, UpdateCanvasTool};
 pub use calendar_tool::CalendarTool;
 pub use code_review_tool::CodeReviewTool;
 pub use computer_use_tool::ComputerUseTool;

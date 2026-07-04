@@ -163,6 +163,7 @@ schannel = "0.1"
 default = ["product-full"]
 product-full = [
     "ai-adapter-runtime",
+    "canvas-runtime",
     "dep:chrono-tz",
     "dep:cron",
     "dep:dashmap",
@@ -197,6 +198,10 @@ product-domains = [
     "bitfun-services-integrations/miniapp-runtime",
     "bitfun-product-domains/product-full",
 ]
+canvas-runtime = [
+    "product-domains",
+    "bitfun-services-integrations/canvas-runtime",
+]
 runtime-services = []
 service-integrations = [
     "dep:aes-gcm",
@@ -222,6 +227,22 @@ ssh-remote = [
 
 [dev-dependencies]
 tempfile = { workspace = true }
+
+[[test]]
+name = "context_profile"
+required-features = ["product-full"]
+
+[[test]]
+name = "git_contracts"
+required-features = ["service-integrations"]
+
+[[test]]
+name = "product_assembly"
+required-features = ["product-full"]
+
+[[test]]
+name = "remote_mcp_streamable_http"
+required-features = ["service-integrations"]
 
 [build-dependencies]
 sha2 = { workspace = true }

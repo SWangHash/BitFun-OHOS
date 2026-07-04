@@ -432,6 +432,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn product_agentic_manifest_exposes_canvas_tools_directly() {
+        let policy = crate::agentic::agents::get_agent_registry()
+            .get_agent_tool_policy("agentic", None)
+            .await;
+        let manifest = resolve_product_resolved_tool_manifest(
+            &policy.allowed_tools,
+            &policy.exposure_overrides,
+            &tool_context(Some("agentic")),
+        )
+        .await;
+
+        assert!(manifest
+            .allowed_tool_names
+            .contains(&"CreateCanvas".to_string()));
+        assert!(manifest
+            .allowed_tool_names
+            .contains(&"PatchCanvas".to_string()));
+        assert!(manifest
+            .tool_definitions
+            .iter()
+            .any(|tool| tool.name == "CreateCanvas"));
+    }
+
+    #[tokio::test]
     async fn product_catalog_facade_resolves_readonly_enabled_tools_from_same_provider_owner() {
         let readonly_names = resolve_product_readonly_enabled_tools()
             .await

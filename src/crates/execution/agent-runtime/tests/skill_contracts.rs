@@ -68,6 +68,9 @@ fn builtin_skill_catalog_and_mode_policy_are_runtime_owned() {
         builtin_skill_group_key("agent-browser"),
         Some("computer-use")
     );
+    assert_eq!(builtin_skill_group_key("bitfun-canvas"), Some("canvas"));
+    assert_eq!(builtin_skill_group_key("pr-review-canvas"), Some("canvas"));
+    assert_eq!(builtin_skill_group_key("docs-canvas"), Some("canvas"));
     assert_eq!(builtin_skill_group_key("gstack-review"), Some("gstack"));
     assert_eq!(builtin_skill_group_key("unknown-skill"), None);
 
@@ -101,6 +104,10 @@ fn builtin_skill_catalog_and_mode_policy_are_runtime_owned() {
     );
     assert_eq!(
         resolve_builtin_default_enabled("agent-browser", "coding_shared"),
+        Some(true)
+    );
+    assert_eq!(
+        resolve_builtin_default_enabled("bitfun-canvas", "agentic"),
         Some(true)
     );
 }

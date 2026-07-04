@@ -21,6 +21,7 @@ export const CONTRACT_VAR_DEFINITION_PATH_PARTS = [
   'component-library/styles',
   'infrastructure/theme',
   'src/mobile-web/src/theme/presets',
+  'tools/bitfun-canvas/runtime/styles',
   'tools/generative-widget/themePayload.ts',
 ];
 
@@ -67,6 +68,11 @@ export const COLOR_DOMAIN_RULES = [
     key: 'generatedWidget',
     label: 'Generated widget',
     pathParts: ['tools/generative-widget'],
+  },
+  {
+    key: 'bitfunCanvas',
+    label: 'BitFun Canvas',
+    pathParts: ['tools/bitfun-canvas'],
   },
   {
     key: 'boundaryFallback',
@@ -156,6 +162,12 @@ export const COLOR_DOMAIN_CONTRACTS = [
     owner: 'src/web-ui/src/tools/generative-widget',
     reason: 'Generated widgets run in an isolated iframe boundary and need an explicit payload instead of scraping host CSS variables.',
     mergePolicy: 'Keep payload variables canonical; keep legacy aliases in iframe fallback until widget consumers no longer read them.',
+  },
+  {
+    key: 'bitfunCanvas',
+    owner: 'src/web-ui/src/tools/bitfun-canvas',
+    reason: 'BitFun Canvas renders generated TSX inside a dedicated iframe runtime with an SDK palette that must stay isolated from app chrome tokens.',
+    mergePolicy: 'Keep Canvas iframe and SDK colors in the Canvas runtime contract; promote only reusable host chrome roles to shared app tokens.',
   },
   {
     key: 'boundaryFallback',
@@ -292,6 +304,11 @@ export const SURFACE_TOKEN_RENAME_CONTRACTS = [
 ];
 
 export const DYNAMIC_VAR_FAMILY_CONTRACTS = [
+  {
+    prefix: '--bitfun-canvas-',
+    owner: 'src/web-ui/src/tools/bitfun-canvas/runtime/canvasRuntimeInstaller.ts; src/web-ui/src/tools/bitfun-canvas/runtime/styles/canvas-runtime.scss',
+    reason: 'BitFun Canvas iframe runtime receives host theme values through a scoped CSS variable family that must stay isolated from app root tokens.',
+  },
   {
     prefix: '--blur-',
     owner: 'src/web-ui/src/infrastructure/theme/core/ThemeService.ts',
