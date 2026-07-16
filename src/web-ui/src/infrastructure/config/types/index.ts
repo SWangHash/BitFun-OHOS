@@ -597,7 +597,6 @@ export interface RuntimeLoggingInfo {
   effectiveLevel: BackendLogLevel;
   sessionLogDir: string;
   appLogPath: string;
-  aiLogPath: string;
   flashgrepLogPath: string;
   webviewLogPath: string;
   previousUnexpectedExit?: UnexpectedExitInfo | null;
