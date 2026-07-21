@@ -26,7 +26,6 @@ pub(crate) const DEFAULT_LOG_LEVEL: tracing::Level = tracing::Level::DEBUG;
 pub(crate) struct CliLogPaths {
     pub session_log_dir: PathBuf,
     pub app_log_path: PathBuf,
-    pub ai_log_path: PathBuf,
     pub flashgrep_log_path: PathBuf,
 }
 
@@ -236,7 +235,6 @@ pub(crate) fn build_log_paths(session_log_dir: &Path) -> CliLogPaths {
     CliLogPaths {
         session_log_dir: session_log_dir.to_path_buf(),
         app_log_path: session_log_dir.join("app.log"),
-        ai_log_path: session_log_dir.join("ai.log"),
         flashgrep_log_path: session_log_dir.join("flashgrep.log"),
     }
 }
@@ -248,16 +246,12 @@ fn create_rotating_writer(
     RotatingFile::new(session_log_dir, file_name, MAX_LOG_FILE_SIZE).map(SharedRotatingWriter::new)
 }
 
-fn is_ai_target(target: &str) -> bool {
-    target.starts_with("ai")
-}
-
 fn is_flashgrep_target(target: &str) -> bool {
     target.starts_with(FLASHGREP_LOG_TARGET_PREFIX)
 }
 
 fn is_app_target(target: &str) -> bool {
-    !is_ai_target(target) && !is_flashgrep_target(target)
+    !is_flashgrep_target(target)
 }
 
 fn matches_target_rule(target: &str, rule: &str) -> bool {
@@ -355,15 +349,11 @@ pub(crate) fn init_file_logging_at(
     let paths = build_log_paths(session_log_dir);
 
     let app_writer = create_rotating_writer(session_log_dir, "app");
-    let ai_writer = create_rotating_writer(session_log_dir, "ai");
     let flashgrep_writer = create_rotating_writer(session_log_dir, "flashgrep");
 
-    if let (Ok(app_writer), Ok(ai_writer), Ok(flashgrep_writer)) =
-        (app_writer, ai_writer, flashgrep_writer)
-    {
+    if let (Ok(app_writer), Ok(flashgrep_writer)) = (app_writer, flashgrep_writer) {
         tracing_subscriber::registry()
             .with(build_file_layer(app_writer, is_app_target, log_level))
-            .with(build_file_layer(ai_writer, is_ai_target, log_level))
             .with(build_file_layer(
                 flashgrep_writer,
                 is_flashgrep_target,
@@ -408,7 +398,6 @@ mod tests {
         let paths = build_log_paths(temp.path());
 
         assert_eq!(paths.app_log_path, temp.path().join("app.log"));
-        assert_eq!(paths.ai_log_path, temp.path().join("ai.log"));
         assert_eq!(paths.flashgrep_log_path, temp.path().join("flashgrep.log"));
     }
 
@@ -416,11 +405,9 @@ mod tests {
     fn create_rotating_writer_creates_expected_files() {
         let temp = tempfile::tempdir().expect("tempdir");
         create_rotating_writer(temp.path(), "app").expect("app writer");
-        create_rotating_writer(temp.path(), "ai").expect("ai writer");
         create_rotating_writer(temp.path(), "flashgrep").expect("flashgrep writer");
 
         assert!(temp.path().join("app.log").exists());
-        assert!(temp.path().join("ai.log").exists());
         assert!(temp.path().join("flashgrep.log").exists());
     }
 

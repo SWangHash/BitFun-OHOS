@@ -176,7 +176,6 @@ pub struct RuntimeLoggingInfo {
     pub effective_level: String,
     pub session_log_dir: String,
     pub app_log_path: String,
-    pub ai_log_path: String,
     pub flashgrep_log_path: String,
     pub webview_log_path: String,
     pub previous_unexpected_exit: Option<crate::crash_diagnostics::UnexpectedExitInfo>,
@@ -190,7 +189,6 @@ pub fn get_runtime_logging_info() -> RuntimeLoggingInfo {
         effective_level: level_to_str(current_runtime_log_level()).to_string(),
         session_log_dir: session_dir.to_string_lossy().to_string(),
         app_log_path: session_dir.join("app.log").to_string_lossy().to_string(),
-        ai_log_path: session_dir.join("ai.log").to_string_lossy().to_string(),
         flashgrep_log_path: session_dir
             .join("flashgrep.log")
             .to_string_lossy()
@@ -256,15 +254,6 @@ pub fn build_log_targets(config: &LogConfig) -> Vec<Target> {
                     && !target.starts_with("webview")
                     && !is_flashgrep_target(target)
             })
-        );
-
-        let ai_log_dir = session_dir.clone();
-        targets.push(
-            Target::new(TargetKind::Folder {
-                path: ai_log_dir,
-                file_name: Some("ai".into()),
-            })
-            .filter(|metadata| metadata.target().starts_with("ai"))
         );
 
         let flashgrep_log_dir = session_dir.clone();
