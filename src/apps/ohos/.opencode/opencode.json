@@ -1,0 +1,16 @@
+{
+  "mcp": {
+    "deveco-mcp": {
+      "type": "local",
+      "command": [
+        "devecocli",
+        "serve",
+        "mcp"
+      ],
+      "environment": {
+        "PROJECT_PATH": "D:\\workspace\\wc\\github\\BitFun-OHOS\\src\\apps\\ohos"
+      },
+      "enabled": true
+    }
+  }
+}
