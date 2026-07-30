@@ -469,7 +469,8 @@
     "creating": "建立中...",
     "errorSelectParent": "請選擇父目錄",
     "errorEnterName": "請輸入工作區名稱",
-    "errorCreateFailed": "建立工作區失敗"
+    "errorCreateFailed": "建立工作區失敗",
+    "errorInvalidName": "工作區名稱不能包含以下字符：/ \\ : * ? \" < > |"
   },
   "remoteConnect": {
     "tabNgrok": "內網穿透",
