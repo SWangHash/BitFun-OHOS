@@ -46,6 +46,7 @@ import {
   type TransferProgressState,
 } from '@/tools/file-system/services/workspaceFileTransfer';
 import { useWorkspaceFileDrop } from '@/tools/file-system/hooks/useWorkspaceFileDrop';
+import { validateFileName } from '@/tools/file-system/utils/validateFileName';
 import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { sshApi } from '@/features/ssh-remote/sshApi';
 import { formatBytes } from '@/shared/utils/format';
@@ -1239,6 +1240,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
               onNewFolder={handleNewFolder}
               onRefresh={() => loadFileTree(workspacePath || '', false)}
               hideToolbar={hideExplorerToolbar}
+              isRemoteWorkspace={isRemoteCurrentWorkspace}
             />
           )
         )}
@@ -1322,15 +1324,8 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         confirmText={inputDialog.type === 'newFile' ? t('dialog.newFile.confirm') : t('dialog.newFolder.confirm')}
         cancelText={inputDialog.type === 'newFile' ? t('dialog.newFile.cancel') : t('dialog.newFolder.cancel')}
         validator={(value) => {
-          const validPattern = isRemoteCurrentWorkspace
-            // eslint-disable-next-line no-control-regex -- filename rules explicitly forbid ASCII control characters.
-            ? /^[^/\x00-\x1F]+$/
-            // eslint-disable-next-line no-control-regex -- filename rules explicitly forbid ASCII control characters.
-            : /^[^<>:"/\\|?*\x00-\x1F]+$/;
-          if (!validPattern.test(value)) {
-            return t('validation.invalidFilename');
-          }
-          return null;
+          const errorKey = validateFileName(value, { isRemote: isRemoteCurrentWorkspace });
+          return errorKey ? t(errorKey) : null;
         }}
       />
     </div>
