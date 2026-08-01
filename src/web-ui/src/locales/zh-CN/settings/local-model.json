@@ -1,0 +1,36 @@
+{
+  "section": {
+    "title": "本地AI模型",
+    "description": "管理本地运行的AI模型（如Ollama）。已下载的模型会自动添加到模型列表中。"
+  },
+  "service": {
+    "unavailable": "本地模型服务未运行，请先启动Ollama或其他兼容服务。"
+  },
+  "status": {
+    "downloaded": "已下载",
+    "downloading": "下载中",
+    "paused": "已暂停",
+    "failed": "下载失败",
+    "undownloaded": "未下载",
+    "ready": "就绪"
+  },
+  "action": {
+    "download": "下载",
+    "pause": "暂停",
+    "pausing": "暂停中...",
+    "resume": "继续",
+    "retry": "重试",
+    "refresh": "刷新"
+  },
+  "error": {
+    "detectFailed": "检测本地模型服务失败",
+    "listFailed": "获取本地模型列表失败",
+    "pullFailed": "下载模型失败：{{name}}",
+    "pauseFailed": "暂停下载失败：{{name}}",
+    "refreshFailed": "刷新本地模型失败"
+  },
+  "empty": {
+    "description": "暂无本地模型，请下载一个模型开始使用。"
+  },
+  "loading": "正在加载本地模型..."
+}

@@ -18,6 +18,7 @@ import type { SubscriptionProvider } from '../types';
 import { useNotification } from '@/shared/notification-system';
 import { ConfigPageHeader, ConfigPageLayout, ConfigPageContent, ConfigPageSection, ConfigPageRow, ConfigCollectionItem } from './common';
 import DefaultModelConfig from './DefaultModelConfig';
+import LocalModelConfig from './LocalModelConfig';
 import SubagentModelConfig from './SubagentModelConfig';
 import SessionTitleConfig from './SessionTitleConfig';
 import { createLogger } from '@/shared/utils/logger';
@@ -2974,6 +2975,8 @@ const AIModelConfig: React.FC = () => {
       />
 
       <ConfigPageContent className="bitfun-ai-model-config__content">
+        <LocalModelConfig />
+
         <ConfigPageSection
           title={tDefault('tabs.default')}
           description={tDefault('subtitle')}

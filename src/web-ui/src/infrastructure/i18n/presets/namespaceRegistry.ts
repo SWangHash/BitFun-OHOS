@@ -32,6 +32,7 @@ export const ALL_NAMESPACES = [
   'settings/editor',
   'settings/external-sources',
   'settings/lsp',
+  'settings/local-model',
   'settings/mcp',
   'settings/mcp-tools',
   'settings/memories',

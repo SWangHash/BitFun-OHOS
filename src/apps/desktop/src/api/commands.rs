@@ -5340,3 +5340,179 @@ pub async fn refresh_subscription_account(
         .await
         .map_err(|e| format!("Failed to refresh subscription account: {e:#}"))
 }
+
+// ---------------------------------------------------------------------------
+// Local model service commands
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DetectLocalModelServiceRequest {
+    pub port: u16,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListLocalModelsRequest {
+    pub port: u16,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PullLocalModelRequest {
+    pub port: u16,
+    pub model_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PauseLocalModelDownloadRequest {
+    pub port: u16,
+    pub model_name: String,
+}
+
+const LOCAL_MODEL_PULL_PROGRESS_EVENT: &str = "local-model-pull-progress";
+
+/// Detect whether the local model service is available at `localhost:{port}`.
+///
+/// Returns a `LocalServiceStatus` with availablity flag and any models
+/// discovered via the OpenAI-compatible `/v1/models` endpoint.
+#[tauri::command]
+pub async fn detect_local_model_service(
+    app: AppHandle,
+    request: DetectLocalModelServiceRequest,
+) -> Result<bitfun_core::service::config::types::LocalServiceStatus, String> {
+    use bitfun_core::service::local_model_client;
+
+    let port = if request.port == 0 {
+        local_model_client::default_port()
+    } else {
+        request.port
+    };
+
+    log::info!("[local-model-command] detect_local_model_service called with port={}", port);
+
+    match local_model_client::detect_service(port).await {
+        Ok(status) => {
+            log::info!("[local-model-command] detect succeeded: available={}, models_count={}", status.available, status.models.len());
+            Ok(status)
+        }
+        Err(e) => {
+            log::warn!("[local-model-command] detect failed: {}", e);
+            // Return a "not available" status instead of erroring so the UI
+            // can show a friendly "service unavailable" state.
+            let unavailable = bitfun_core::service::config::types::LocalServiceStatus {
+                available: false,
+                port,
+                service_name: None,
+                version: None,
+                models: vec![],
+            };
+            let _ = app.emit(
+                "local-model-service-unavailable",
+                serde_json::json!({ "port": port, "error": e.to_string() }),
+            );
+            Ok(unavailable)
+        }
+    }
+}
+
+/// List all models from the local model service (include download status).
+///
+/// Use the Ollama-compatible `/api/models` endpoint.
+#[tauri::command]
+pub async fn list_local_models(
+    request: ListLocalModelsRequest,
+) -> Result<Vec<bitfun_core::service::config::types::LocalModel>, String> {
+    use bitfun_core::service::local_model_client;
+
+    let port = if request.port == 0 {
+        local_model_client::default_port()
+    } else {
+        request.port
+    };
+
+    local_model_client::list_models(port)
+        .await
+        .map_err(|e| format!("Failed to list local models: {}", e))
+}
+
+/// Pull (download) a model from the local model service.
+///
+/// Streaming progress is emitted via the `local-model-pull-progress` Tauri 
+/// event. The frontend should listen for this event to display a progress bar.
+#[tauri::command]
+pub async fn pull_local_model(
+    app: AppHandle,
+    request: PullLocalModelRequest,
+) -> Result<(), String> {
+    use bitfun_core::service::local_model_client;
+
+    let port = if request.port == 0 {
+        local_model_client::default_port()
+    } else {
+        request.port
+    };
+
+    let mut rx = local_model_client::pull_model(port, &request.model_name)
+        .await
+        .map_err(|e| format!("Failed to start model pull: {}", e))?;
+    
+    log::info!("[local-model-command] pull_model started for '{}', waiting for progress events", request.model_name);
+
+    // Forward progress events to the frontend via Tauri event system.
+    let app_handle = app.clone();
+    let model_name_for_log = request.model_name.clone();
+    tokio::spawn(async move {
+        let mut event_count: u32 = 0;
+        while let Some(progress) = rx.recv().await {
+            event_count += 1;
+            if event_count <= 5 || progress.status == "success" || progress.status == "paused" || progress.status == "failed" {
+                log::info!(
+                    "[local-model-command] Emitting progress event #{}: model={}, status={}, total={}, completed={}", 
+                    event_count, progress.model_name, progress.status, progress.total, progress.completed
+                );
+            }
+            if let Err(e) = app_handle.emit(LOCAL_MODEL_PULL_PROGRESS_EVENT, &progress) {
+                warn!(
+                    "[local-model-command] Failed to emit local model pull progress event: model={}, error={}",
+                    progress.model_name, e
+                );
+                break;
+            }
+        }
+        log::info!(
+            "[local-model-command] Progress event stream for model '{}' : {} events emitted",
+            model_name_for_log, event_count
+        );
+    });
+
+    Ok(())
+}
+
+/// Pause a model download in progress.
+#[tauri::command]
+pub async fn pause_local_model_download(
+    request: PauseLocalModelDownloadRequest,
+) -> Result<bool, String> {
+    use bitfun_core::service::local_model_client;
+
+    let port = if request.port == 0 {
+        local_model_client::default_port()
+    } else {
+        request.port
+    };
+
+    log::info!("[local-model-command] pause_local_model_download called for model='{}' port={}", request.model_name, port);
+
+    match local_model_client::pause_download(port, &request.model_name).await {
+        Ok(success) => {
+            log::info!("[local-model-command] Pause download result for '{}': success={}", request.model_name, success);
+            Ok(success)
+        }
+        Err(e) => {
+            log::warn!("[local-model-command] Pause download failed for '{}': {}", request.model_name, e);
+            Err(format!("Failed to pause model download: {}", e))
+        }
+    }
+}
