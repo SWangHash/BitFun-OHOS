@@ -5,5 +5,5 @@
 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() {
     std::env::set_var("RUST_MIN_STACK", "8388608"); // 8MB
-    bitfun_desktop_lib::run().await
+    bitfun_desktop_lib::run()
 }
