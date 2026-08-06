@@ -93,6 +93,7 @@ export const Modal: React.FC<ModalProps> = ({
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const modalRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  const overlayPointerDownRef = useRef(false);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const generatedTitleId = useId();
   const isExiting = !isOpen && isPresent;
@@ -177,6 +178,20 @@ export const Modal: React.FC<ModalProps> = ({
       previousFocusRef.current = null;
     };
   }, [isOpen]);
+
+  const handleOverlayMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    overlayPointerDownRef.current = event.target === event.currentTarget;
+  }, []);
+
+  const handleOverlayClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const startedAndEndedOnOverlay =
+      overlayPointerDownRef.current && event.target === event.currentTarget;
+    overlayPointerDownRef.current = false;
+
+    if (!isExiting && closeOnOverlayClick && startedAndEndedOnOverlay) {
+      onClose();
+    }
+  }, [closeOnOverlayClick, isExiting, onClose]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (!draggable || !modalRef.current || !headerRef.current) return;
@@ -362,7 +377,8 @@ export const Modal: React.FC<ModalProps> = ({
       ]
         .filter(Boolean)
         .join(' ')}
-      onClick={!isExiting && closeOnOverlayClick ? onClose : undefined}
+      onMouseDown={handleOverlayMouseDown}
+      onClick={handleOverlayClick}
     >
       <div
         ref={modalRef}
