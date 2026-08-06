@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use async_trait::async_trait;
+
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ElementScreenshotMetadata {
     pub x: f64,
@@ -44,6 +46,36 @@ pub struct WindowRect {
     pub y: i32,
     pub width: u32,
     pub height: u32,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct WindowCapabilities {
+    pub set_window_rect: bool,
+}
+
+/// Host-owned application-window operations used by the WebDriver protocol.
+///
+/// Page JavaScript/navigation remains on the WebView bridge. Keeping native
+/// application-window operations behind this port lets Tauri and HarmonyOS
+/// WindowStage provide equivalent protocol behavior without leaking either
+/// host API into the WebDriver adapter.
+#[async_trait]
+pub trait WebDriverWindowHost: Send + Sync {
+    fn window_handles(&self) -> Vec<String>;
+
+    fn capabilities(&self) -> WindowCapabilities;
+
+    async fn get_rect(&self, label: &str) -> Result<WindowRect, String>;
+
+    async fn set_rect(&self, label: &str, rect: WindowRect) -> Result<WindowRect, String>;
+
+    async fn maximize(&self, label: &str) -> Result<WindowRect, String>;
+
+    async fn minimize(&self, label: &str) -> Result<(), String>;
+
+    async fn fullscreen(&self, label: &str) -> Result<WindowRect, String>;
+
+    async fn close(&self, label: &str) -> Result<Vec<String>, String>;
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

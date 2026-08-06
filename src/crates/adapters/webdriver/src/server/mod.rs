@@ -4,9 +4,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use tauri::AppHandle;
-use tauri::Manager;
 use tokio::sync::{oneshot, RwLock};
 
+use crate::platform::WebDriverWindowHost;
 use crate::runtime::BridgeResponse;
 use crate::webdriver::SessionManager;
 
@@ -17,6 +17,7 @@ pub mod router;
 pub struct AppState {
     pub app: AppHandle,
     pub preferred_label: String,
+    pub window_host: Arc<dyn WebDriverWindowHost>,
     port: u16,
     pub sessions: RwLock<SessionManager>,
     pub(crate) pending_requests: Mutex<HashMap<String, oneshot::Sender<BridgeResponse>>>,
@@ -24,10 +25,16 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(app: AppHandle, preferred_label: String, port: u16) -> Self {
+    pub fn new(
+        app: AppHandle,
+        preferred_label: String,
+        port: u16,
+        window_host: Arc<dyn WebDriverWindowHost>,
+    ) -> Self {
         Self {
             app,
             preferred_label,
+            window_host,
             port,
             sessions: RwLock::new(SessionManager::new()),
             pending_requests: Mutex::new(HashMap::new()),
@@ -44,15 +51,22 @@ impl AppState {
     }
 
     pub fn initial_window_label(&self) -> Option<String> {
-        self.app.webview_windows().keys().next().cloned()
+        let handles = self.window_labels();
+        if handles.iter().any(|label| label == &self.preferred_label) {
+            Some(self.preferred_label.clone())
+        } else {
+            handles.into_iter().next()
+        }
     }
 
     pub fn has_window(&self, label: &str) -> bool {
-        true
+        self.window_labels()
+            .iter()
+            .any(|candidate| candidate == label)
     }
 
     pub fn window_labels(&self) -> Vec<String> {
-        self.app.webview_windows().keys().cloned().collect()
+        self.window_host.window_handles()
     }
 }
 

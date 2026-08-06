@@ -12,11 +12,13 @@ use tauri::AppHandle;
 
 use server::AppState;
 
+pub use platform::{WebDriverWindowHost, WindowCapabilities, WindowRect};
+
 const DEFAULT_WEBDRIVER_LABEL: &str = "main";
 
 static SERVER_STARTED: AtomicBool = AtomicBool::new(false);
 
-pub fn maybe_start(app: AppHandle) {
+pub fn maybe_start(app: AppHandle, window_host: Arc<dyn WebDriverWindowHost>) {
     if !(cfg!(debug_assertions) || cfg!(feature = "embedded")) {
         return;
     }
@@ -34,7 +36,12 @@ pub fn maybe_start(app: AppHandle) {
 
     let preferred_label =
         std::env::var("BITFUN_WEBDRIVER_LABEL").unwrap_or_else(|_| DEFAULT_WEBDRIVER_LABEL.into());
-    let state = Arc::new(AppState::new(app.clone(), preferred_label, port));
+    let state = Arc::new(AppState::new(
+        app.clone(),
+        preferred_label,
+        port,
+        window_host,
+    ));
 
     runtime::register_listener(app, state.clone());
     server::start(state);
