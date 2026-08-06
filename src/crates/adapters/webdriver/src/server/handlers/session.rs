@@ -7,7 +7,6 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
-use tauri::Manager;
 
 use crate::platform;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
@@ -108,11 +107,7 @@ pub async fn create(
 
     let session = state.sessions.write().await.create(initial_window.clone());
 
-    let set_window_rect = cfg!(any(
-        target_os = "macos",
-        target_os = "windows",
-        target_os = "linux"
-    ));
+    let set_window_rect = state.window_host.capabilities().set_window_rect;
 
     Ok(WebDriverResponse::success(json!({
         "sessionId": session.id,

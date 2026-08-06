@@ -11,6 +11,7 @@ embedded = []
 
 [dependencies]
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 axum = { workspace = true }
 tokio = { workspace = true, features = ["net", "rt", "sync", "time"] }
 serde = { workspace = true }

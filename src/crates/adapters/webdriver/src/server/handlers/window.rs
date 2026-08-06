@@ -6,7 +6,6 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use tauri::Manager;
 
 use super::{ensure_session, get_session};
 use crate::executor::BridgeExecutor;
@@ -90,9 +89,17 @@ pub async fn close_window(
 ) -> WebDriverResult {
     let current_window = get_session(&state, &session_id).await?.current_window;
 
-    let handles = state.window_labels();
+    let handles = state
+        .window_host
+        .close(&current_window)
+        .await
+        .map_err(WebDriverErrorResponse::unknown_error)?;
     let next_handle = handles.first().cloned();
     let mut sessions = state.sessions.write().await;
+    if handles.is_empty() {
+        sessions.delete(&session_id);
+        return Ok(WebDriverResponse::success(handles));
+    }
     let session = sessions.get_mut(&session_id)?;
     if let Some(next_handle) = next_handle {
         session.current_window = next_handle;

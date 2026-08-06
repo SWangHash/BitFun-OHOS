@@ -34,6 +34,7 @@ pub mod startup_trace;
 #[cfg(not(target_env = "ohos"))]
 pub mod tray;
 mod webview_recovery;
+mod webdriver_window_host;
 
 use bitfun_core::agentic::tools::computer_use_capability::set_computer_use_desktop_available;
 use bitfun_core::infrastructure::ai::AIClientFactory;
@@ -1057,7 +1058,10 @@ pub async fn _run() {
                     window_duration_ms
                 );
                 let webdriver_started = Instant::now();
-                bitfun_webdriver::maybe_start(app_handle.clone());
+                bitfun_webdriver::maybe_start(
+                    app_handle.clone(),
+                    webdriver_window_host::create(app_handle.clone()),
+                );
                 startup_trace.record_elapsed_step(
                     "native_setup",
                     "maybe_start_webdriver",
