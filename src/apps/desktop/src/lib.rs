@@ -390,7 +390,7 @@ pub async fn _run() {
         "native_pre_tauri",
         "resolve_runtime_log_level",
         step_started,
-    )
+    );
 
     // Initialize global I18nService so bot/remote-connect language is always in sync.
     {
