@@ -149,7 +149,7 @@ export const LocalModelConfig: React.FC = () => {
     return () => { isMounted.current = false; };
   }, [detectAndLoad]);
 
-  // --- Listen for pull progress events ---
+  // --- Listen for pull progress events (best-effort; may not work on all platforms) ---
   useEffect(() => {
     let cancelled = false;
     let unlistenFn: (() => void) | null = null;
@@ -203,6 +203,24 @@ export const LocalModelConfig: React.FC = () => {
       unlistenFn?.();
     };
   }, [refreshModels]);
+
+  // --- Polling fallback: refresh model list while downloads are active ---
+  // On OHOS the Tauri event bridge may not deliver push events to the WebView,
+  // so we poll listModels every 2 s whenever any model is downloading.
+  useEffect(() => {
+    const hasDownloading = models.some((m) => m.status === 'downloading')
+      || pullingModels.size > 0;
+
+    if (!hasDownloading || !serviceStatus?.available) return;
+
+    const interval = setInterval(() => {
+      if (isMounted.current) {
+        void refreshModels();
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [models, pullingModels, serviceStatus, refreshModels]);
 
   // --- Pull a model ---
   const handlePull = useCallback(async (modelName: string) => {
@@ -346,36 +364,21 @@ export const LocalModelConfig: React.FC = () => {
 
     return (
       <div key={model.name} className="local-model-config__model-row">
-        <div className="local-model-config__model-info">
-          <StatusIcon status={effectiveStatus} />
-          <div className="local-model-config__model-details">
-            <span className="local-model-config__model-name">{model.name}</span>
-            <span className="local-model-config__model-meta">
-              {model.details.family && <span className="local-model-config__model-family">{model.details.family}</span>}
-              {model.details.parameterSize && <span>{model.details.parameterSize}</span>}
-              {model.size > 0 && <span>{formatBytes(model.size)}</span>}
-            </span>
-          </div>
-        </div>
-
-        <div className="local-model-config__model-actions">
-          {/* Progress bar */}
-          {hasProgress && (
-            <div className="local-model-config__progress">
-              <div className="local-model-config__progress-bar">
-                <div
-                  className={`local-model-config__progress-fill${effectiveStatus === 'paused' ? ' local-model-config__progress-fill--paused' : ''}`}
-                  style={{ width: `${downloadPercent}%` }}
-                />
-              </div>
-              <span className="local-model-config__progress-text">
-                {downloadPercent}%
-                {progress && progress.total > 0 && ` (${formatBytes(progress.completed)} / ${formatBytes(progress.total)})`}
+        <div className="local-model-config__model-row-top">
+          <div className="local-model-config__model-info">
+            <StatusIcon status={effectiveStatus} />
+            <div className="local-model-config__model-details">
+              <span className="local-model-config__model-name">{model.name}</span>
+              <span className="local-model-config__model-meta">
+                {model.details.family && <span className="local-model-config__model-family">{model.details.family}</span>}
+                {model.details.parameterSize && <span>{model.details.parameterSize}</span>}
+                {model.size > 0 && <span>{formatBytes(model.size)}</span>}
               </span>
             </div>
-          )}
+          </div>
 
-          {/* Action buttons — mutually exclusive based on effectiveStatus */}
+          <div className="local-model-config__model-actions">
+            {/* Action buttons — mutually exclusive based on effectiveStatus */}
 
           {effectiveStatus === 'undownloaded' && (
             <Button
@@ -432,6 +435,23 @@ export const LocalModelConfig: React.FC = () => {
             </Button>
           )}
         </div>
+        </div>
+
+        {/* Full-width progress bar below the info/actions row */}
+        {hasProgress && (
+          <div className="local-model-config__progress">
+            <div className="local-model-config__progress-bar">
+              <div
+                className={`local-model-config__progress-fill${effectiveStatus === 'paused' ? ' local-model-config__progress-fill--paused' : ''}`}
+                style={{ width: `${downloadPercent}%` }}
+              />
+            </div>
+            <span className="local-model-config__progress-text">
+              {downloadPercent}%
+              {progress && progress.total > 0 && ` (${formatBytes(progress.completed)} / ${formatBytes(progress.total)})`}
+            </span>
+          </div>
+        )}
       </div>
     );
   };
