@@ -8,18 +8,18 @@
     align-items: center;
     gap: 8px;
     font-size: 12px;
-    color: var(--text-secondary);
+    color: var(--color-text-secondary);
   }
 
   &__service-name {
     font-weight: 500;
-    color: var(--text-primary);
+    color: var(--color-text-primary);
   }
 
   &__service-version {
     padding: 1px 6px;
     border-radius: 4px;
-    background: var(--surface-variant);
+    background: var(--element-bg-soft);
     font-size: 11px;
   }
 
@@ -35,13 +35,13 @@
     gap: 8px;
     padding: 10px 12px;
     border-radius: 8px;
-    background: var(--surface-variant);
-    border: 1px solid var(--border-default);
+    background: var(--element-bg-soft);
+    border: 1px solid var(--border-subtle);
     transition: border-color 0.15s ease;
     min-height: 48px;
 
     &:hover {
-      border-color: var(--border-hover);
+      border-color: var(--border-medium);
     }
   }
 
@@ -64,24 +64,24 @@
     flex-shrink: 0;
 
     &--downloaded {
-      color: var(--status-success);
+      color: var(--color-success);
     }
 
     &--downloading {
-      color: var(--status-info);
+      color: var(--color-info);
       animation: local-model-spin 1s linear infinite;
     }
 
     &--paused {
-      color: var(--status-warning);
+      color: var(--color-warning);
     }
 
     &--failed {
-      color: var(--status-error);
+      color: var(--color-error);
     }
 
     &--undownloaded {
-      color: var(--text-tertiary);
+      color: var(--color-text-muted);
     }
   }
 
@@ -95,7 +95,7 @@
   &__model-name {
     font-size: 13px;
     font-weight: 500;
-    color: var(--text-primary);
+    color: var(--color-text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -106,7 +106,7 @@
     align-items: center;
     gap: 6px;
     font-size: 11px;
-    color: var(--text-tertiary);
+    color: var(--color-text-muted);
 
     > span {
       white-space: nowrap;
@@ -116,7 +116,7 @@
   &__model-family {
     padding: 0 4px;
     border-radius: 3px;
-    background: var(--surface-elevated);
+    background: var(--element-bg-base);
     font-size: 10px;
   }
 
@@ -137,24 +137,24 @@
     width: 100%;
     height: 6px;
     border-radius: 3px;
-    background: var(--surface-elevated);
+    background: var(--border-subtle);
     overflow: hidden;
   }
 
   &__progress-fill {
     height: 100%;
     border-radius: 3px;
-    background: var(--status-info);
+    background: var(--color-accent-500);
     transition: width 0.3s ease;
 
     &--paused {
-      background: var(--status-warning);
+      background: var(--color-warning);
     }
   }
 
   &__progress-text {
     font-size: 11px;
-    color: var(--text-secondary);
+    color: var(--color-text-secondary);
     white-space: nowrap;
   }
 
@@ -169,14 +169,14 @@
   &__empty {
     text-align: center;
     padding: 20px;
-    color: var(--text-tertiary);
+    color: var(--color-text-muted);
     font-size: 13px;
   }
 
   &__loading {
     text-align: center;
     padding: 20px;
-    color: var(--text-secondary);
+    color: var(--color-text-secondary);
     font-size: 13px;
   }
 

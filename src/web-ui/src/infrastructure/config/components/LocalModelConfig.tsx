@@ -305,7 +305,7 @@ export const LocalModelConfig: React.FC = () => {
           provider: 'local',
           base_url: 'http://localhost:11434',
           model_name: lm.name,
-          context_window: 2048,
+          context_window: 32768,
           enabled: true,
           category: 'general_chat',
           capabilities: ['text_chat'],
