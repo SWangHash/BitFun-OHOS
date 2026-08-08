@@ -302,7 +302,7 @@ export const LocalModelConfig: React.FC = () => {
         const newModel: AIModelConfig = {
           id: `local-${lm.name}`,
           name: displayName,
-          provider: 'local',
+          provider: 'openai',
           base_url: 'http://localhost:11434',
           model_name: lm.name,
           context_window: 32768,
