@@ -105,6 +105,15 @@ async function syncLocalModelsDefault(): Promise<void> {
     const { createLogger } = await import('@/shared/utils/logger');
     const log = createLogger('DeferredStartup:local_model_sync');
     log.info('Synced local models to AI model list', { count: newEntries.length });
+
+    // Auto-set primary model if none is configured
+    const defaultModels = await configManager.getConfig<Record<string, string>>('ai.default_models') || {};
+    if (!defaultModels.primary) {
+      defaultModels.primary = newEntries[0].id;
+      await configManager.setConfig('ai.default_models', defaultModels);
+      configManager.clearCache();
+      log.info('Auto-set primary model', { modelId: newEntries[0].id });
+    }
   }
 }
 
