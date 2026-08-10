@@ -15,6 +15,8 @@ import {
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@/shared/utils/logger';
 import { Modal, Button, Input, Tooltip } from '@/component-library';
+import { systemAPI } from "@/infrastructure";
+import { isTauriCommandError } from '@/infrastructure/api/errors/TauriCommandError';
 import './NewProjectDialog.scss';
 import {workspaceAPI, systemAPI} from "@/infrastructure";
 import { isTauriCommandError } from '@/infrastructure/api/errors/TauriCommandError';
@@ -78,8 +80,8 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
       setError(t('newProject.errorEnterName'));
       return;
     }
-    if (INVALID_NAME_CHARS.test(projectName.trim())) {
-      notificationService.warning(t('newProject.errorInvalidName'), { duration: 4500 });
+    if (projectName.trim().length > 255) {
+      setError(t('newProject.errorNameTooLong'));
       return;
     }
     if (projectName.trim().length > 255) {
@@ -93,6 +95,19 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
     // without creating a new folder. Surface a clear error before attempting.
     const trimmedName = projectName.trim();
     const fullPath = `${parentPath.replace(/\\/g, '/')}/${trimmedName}`;
+    try {
+      if (await systemAPI.checkPathExists(fullPath)) {
+        setError(t('newProject.errorAlreadyExists'));
+        return;
+      }
+    } catch (error) {
+      log.error('Failed to check path existence', error);
+    }
+
+    // Pre-creation existence / case-collision check. On Windows/macOS the
+    // filesystem is case-insensitive, so "MyProject" and "myproject" resolve to
+    // the same folder; createDirectory is idempotent and would silently succeed
+    // without creating a new folder. Surface a clear error before attempting.
     try {
       if (await systemAPI.checkPathExists(fullPath)) {
         setError(t('newProject.errorAlreadyExists'));
@@ -121,11 +136,10 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
         message = t('newProject.errorCreateFailed');
       }
       setError(message);
-      notificationService.error(message, { duration: 4500 });
     } finally {
       setIsCreating(false);
     }
-  }, [parentPath, projectName, onConfirm, onClose, t]);
+  }, [parentPath, projectName, fullPath, onConfirm, onClose, t]);
 
   // Reset form and close dialog
   const handleCancel = useCallback(() => {
