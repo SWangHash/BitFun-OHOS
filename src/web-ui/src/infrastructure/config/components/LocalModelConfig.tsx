@@ -288,15 +288,18 @@ export const LocalModelConfig: React.FC = () => {
 
     try {
       const existingModels = await configManager.getConfig<AIModelConfig[]>('ai.models') || [];
-      const existingModelNames = new Set(
+      // Identify local models by base_url pointing to Ollama (localhost:11434).
+      // We can't rely on provider alone since local models use provider:'openai'.
+      const OLLAMA_BASE_URL = 'http://localhost:11434/v1';
+      const existingLocalModelNames = new Set(
         existingModels
-          .filter((m) => m.provider === 'local')
+          .filter((m) => m.base_url === OLLAMA_BASE_URL)
           .map((m) => m.model_name),
       );
 
       const newEntries: AIModelConfig[] = [];
       for (const lm of downloadedModels) {
-        if (existingModelNames.has(lm.name)) continue;
+        if (existingLocalModelNames.has(lm.name)) continue;
 
         const displayName = lm.details.family || lm.name;
         const newModel: AIModelConfig = {
