@@ -26,6 +26,7 @@ export interface DeferredStartupSystemsDependencies {
   initializeMcpServers?: () => Promise<void>;
   initializeAcpClients?: () => Promise<void>;
   preloadDeferredRenderers?: () => Promise<void>;
+  syncLocalModels?: () => Promise<void>;
 }
 
 async function initializeIdeControlDefault(): Promise<void> {
@@ -58,6 +59,55 @@ async function preloadDeferredRenderersDefault(): Promise<void> {
   ]);
 }
 
+/**
+ * Detect Ollama and sync any downloaded local models into ai.models config
+ * so they appear in ModelSelector without needing to open Settings first.
+ */
+async function syncLocalModelsDefault(): Promise<void> {
+  const { localModelApi } = await import('@/infrastructure/api/service-api/LocalModelAPI');
+  const { configManager } = await import('@/infrastructure/config/services/ConfigManager');
+
+  const status = await localModelApi.detectService();
+  if (!status.available) return;
+
+  const models = await localModelApi.listModels();
+  const downloaded = models.filter((m) => m.status === 'downloaded');
+  if (downloaded.length === 0) return;
+
+  const existingModels = await configManager.getConfig<any[]>('ai.models') || [];
+  const OLLAMA_BASE_URL = 'http://localhost:11434/v1';
+  const existingLocalNames = new Set(
+    existingModels
+      .filter((m: any) => m.base_url === OLLAMA_BASE_URL)
+      .map((m: any) => m.model_name),
+  );
+
+  const newEntries: any[] = [];
+  for (const lm of downloaded) {
+    if (existingLocalNames.has(lm.name)) continue;
+    newEntries.push({
+      id: `local-${lm.name}`,
+      name: lm.details.family || lm.name,
+      provider: 'openai',
+      base_url: OLLAMA_BASE_URL,
+      model_name: lm.name,
+      context_window: 200000,
+      enabled: true,
+      category: 'general_chat',
+      capabilities: ['text_chat'],
+    });
+  }
+
+  if (newEntries.length > 0) {
+    const updated = [...existingModels, ...newEntries];
+    await configManager.setConfig('ai.models', updated);
+    configManager.clearCache();
+    const { createLogger } = await import('@/shared/utils/logger');
+    const log = createLogger('DeferredStartup:local_model_sync');
+    log.info('Synced local models to AI model list', { count: newEntries.length });
+  }
+}
+
 export function scheduleDeferredStartupSystems(
   dependencies: DeferredStartupSystemsDependencies = {}
 ): BackgroundTaskHandle<void> {
@@ -68,6 +118,7 @@ export function scheduleDeferredStartupSystems(
   const initializeMcpServers = dependencies.initializeMcpServers ?? initializeMcpServersDefault;
   const initializeAcpClients = dependencies.initializeAcpClients ?? initializeAcpClientsDefault;
   const preloadDeferredRenderers = dependencies.preloadDeferredRenderers ?? preloadDeferredRenderersDefault;
+  const syncLocalModels = dependencies.syncLocalModels ?? syncLocalModelsDefault;
 
   return scheduler.schedule(async signal => {
     if (signal.aborted) {
@@ -91,6 +142,7 @@ export function scheduleDeferredStartupSystems(
     await runStep('ide_control', initializeIdeControl);
     await runStep('mcp_servers', initializeMcpServers);
     await runStep('acp_clients', initializeAcpClients);
+    await runStep('local_model_sync', syncLocalModels);
     await runStep('renderer_preloads', preloadDeferredRenderers);
 
     if (!signal.aborted) {
