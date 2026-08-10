@@ -125,7 +125,7 @@
   &__path-input {
     flex: 1;
     min-width: 0;
-
+    
     // Style the container (not the <input>) so the overlay background and dashed
     // border fill the full width including the container's padding area. The
     // base Input.scss sets `border: none !important` on the <input>, so a border
@@ -133,7 +133,7 @@
     // dashed look the design intended. Fills in all themes; only the dark theme
     // made the unfilled ends visible because the white-04 overlay is invisible
     // on light backgrounds.
-    .bitfun-input-wrapper .bitfun-input-container {
+    .bitfun-input-container {
       width: 100%;
       background: var(--bf-appearance-token-color-overlay-white-04);
       border: 1px dashed var(--bf-appearance-token-border-subtle);
@@ -212,7 +212,7 @@
   &__name-input {
     // See &__path-input: style the container so the overlay background fills the
     // full width and the border (here solid) renders as intended.
-    .bitfun-input-wrapper .bitfun-input-container {
+    .bitfun-input-container {
       width: 100%;
       background: var(--bf-appearance-token-color-overlay-white-04);
       border: 1px solid var(--bf-appearance-token-border-subtle);
