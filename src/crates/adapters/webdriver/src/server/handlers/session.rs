@@ -7,7 +7,10 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
+#[cfg(not(target_env = "ohos"))]
+use tauri::Manager;
 
+#[cfg(not(target_env = "ohos"))]
 use crate::platform;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
@@ -41,6 +44,7 @@ async fn wait_for_window(
     }
 }
 
+#[cfg(not(target_env = "ohos"))]
 fn parse_user_agent(user_agent: &str) -> (String, String) {
     if user_agent.contains("Edg/") {
         let version = user_agent
@@ -95,7 +99,34 @@ fn parse_user_agent(user_agent: &str) -> (String, String) {
 }
 
 async fn detect_browser_info(state: Arc<AppState>, window_label: &str) -> (String, String) {
-    ("webview".to_string(), "unknown".to_string())
+    #[cfg(not(target_env = "ohos"))]
+    {
+        let Some(webview) = state.app.get_webview(window_label) else {
+            return ("webview".to_string(), "unknown".to_string());
+        };
+
+        let user_agent = platform::evaluator::evaluate_script(
+            state,
+            webview,
+            5_000,
+            "() => navigator.userAgent || ''",
+            &[],
+            false,
+            &Value::Array(Vec::new()),
+        )
+        .await;
+
+        match user_agent {
+            Ok(Value::String(user_agent)) => parse_user_agent(&user_agent),
+            _ => ("webview".to_string(), "unknown".to_string()),
+        }
+    }
+
+    #[cfg(target_env = "ohos")]
+    {
+        let _ = (state, window_label);
+        ("webview".to_string(), "unknown".to_string())
+    }
 }
 
 pub async fn create(

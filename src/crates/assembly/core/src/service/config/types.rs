@@ -505,6 +505,8 @@ pub struct TerminalConfig {
     pub default_shell: String,
     /// Terminal panel placement in the session layout: "right" or "bottom".
     pub terminal_panel_position: String,
+    /// Environment variables applied to terminals and agent command processes.
+    pub env_vars: HashMap<String, String>,
     pub font_size: u32,
     pub font_family: String,
     pub cursor_blink: bool,
@@ -1786,6 +1788,7 @@ impl Default for TerminalConfig {
         Self {
             default_shell: String::new(),
             terminal_panel_position: "right".to_string(),
+            env_vars: HashMap::new(),
             font_size: 14,
             font_family: "Consolas, \"Courier New\", monospace".to_string(),
             cursor_blink: true,
@@ -2114,7 +2117,7 @@ mod tests {
         AIConfig, AIExperienceConfig, AIModelConfig, AgentModelDefaultsConfig, AgentProfileConfig,
         AgentProfileView, AppConfig, AppLoggingConfig, AuthConfig, GlobalConfig,
         MemoryExternalContextPolicy, ModelExchangeTracingMode, NotificationConfig, OpenCodePlan,
-        SubagentBatchExecutionPolicy, SubagentModelSelection, SubscriptionProvider,
+        SubagentBatchExecutionPolicy, SubagentModelSelection, SubscriptionProvider, TerminalConfig,
         UserSkillGroupsConfig, UserToolGroupsConfig,
     };
     use bitfun_runtime_ports::ToolPermissionConfig;
@@ -2126,6 +2129,29 @@ mod tests {
         let config: AppConfig =
             serde_json::from_value(serde_json::json!({})).expect("empty app config should default");
         assert!(!config.prevent_sleep);
+    }
+
+    #[test]
+    fn terminal_environment_variables_survive_config_roundtrip() {
+        let config: TerminalConfig = serde_json::from_value(serde_json::json!({
+            "env_vars": {
+                "BITFUN_TEST_TOKEN": "configured",
+                "EMPTY_VALUE": ""
+            }
+        }))
+        .expect("terminal config should deserialize");
+
+        assert_eq!(
+            config.env_vars.get("BITFUN_TEST_TOKEN").map(String::as_str),
+            Some("configured")
+        );
+        assert_eq!(
+            serde_json::to_value(config).expect("terminal config should serialize")["env_vars"],
+            serde_json::json!({
+                "BITFUN_TEST_TOKEN": "configured",
+                "EMPTY_VALUE": ""
+            })
+        );
     }
 
     #[test]

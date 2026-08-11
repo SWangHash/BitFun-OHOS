@@ -9,7 +9,9 @@ use std::sync::Arc;
 use serde_json::Value;
 use tauri::{Manager, WebviewWindow};
 
-use crate::platform::{self, PrintOptions};
+#[cfg(not(target_env = "ohos"))]
+use crate::platform;
+use crate::platform::PrintOptions;
 use crate::runtime;
 use crate::server::response::WebDriverErrorResponse;
 use crate::server::AppState;
@@ -50,15 +52,58 @@ impl BridgeExecutor {
         .map_err(map_bridge_error)
     }
 
-    pub async fn take_screenshot(&self) -> Result<String, WebDriverErrorResponse> {
-        Err(WebDriverErrorResponse::no_such_window("No such windows"))
+    pub(crate) async fn take_screenshot(&self) -> Result<String, WebDriverErrorResponse> {
+        #[cfg(not(target_env = "ohos"))]
+        {
+            let webview = self
+                .state
+                .app
+                .get_webview(&self.session.current_window)
+                .ok_or_else(|| {
+                    WebDriverErrorResponse::no_such_window(format!(
+                        "Webview not found: {}",
+                        self.session.current_window
+                    ))
+                })?;
+
+            platform::take_screenshot(webview, self.session.timeouts.script).await
+        }
+
+        #[cfg(target_env = "ohos")]
+        {
+            Err(WebDriverErrorResponse::unsupported_operation(
+                "Taking screenshots is not supported on HarmonyOS",
+            ))
+        }
     }
 
     pub(crate) async fn print_page(
         &self,
         options: PrintOptions,
     ) -> Result<String, WebDriverErrorResponse> {
-        Err(WebDriverErrorResponse::no_such_window("No such windows"))
+        #[cfg(not(target_env = "ohos"))]
+        {
+            let webview = self
+                .state
+                .app
+                .get_webview(&self.session.current_window)
+                .ok_or_else(|| {
+                    WebDriverErrorResponse::no_such_window(format!(
+                        "Webview not found: {}",
+                        self.session.current_window
+                    ))
+                })?;
+
+            platform::print_page(webview, self.session.timeouts.script, &options).await
+        }
+
+        #[cfg(target_env = "ohos")]
+        {
+            let _ = options;
+            Err(WebDriverErrorResponse::unsupported_operation(
+                "Printing pages is not supported on HarmonyOS",
+            ))
+        }
     }
 
     pub(crate) fn webview_window(&self) -> Result<WebviewWindow, WebDriverErrorResponse> {

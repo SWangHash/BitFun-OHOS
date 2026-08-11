@@ -5,8 +5,10 @@ use serde::Deserialize;
 use serde_json::Value;
 use tauri::AppHandle;
 use tauri::Listener;
+#[cfg(not(target_env = "ohos"))]
 use tauri::Manager;
 
+#[cfg(not(target_env = "ohos"))]
 use crate::platform;
 use crate::server::response::WebDriverErrorResponse;
 use crate::server::AppState;
@@ -83,7 +85,44 @@ pub(crate) async fn run_script(
 ) -> Result<Value, WebDriverErrorResponse> {
     let session = state.sessions.read().await.get_cloned(session_id)?;
     let timeout_ms = session.timeouts.script.max(5_000);
-
     let frame_context = script::serialize_frame_context(&session.frame_context);
-    Err(WebDriverErrorResponse::no_such_window("No such windows"))
+
+    #[cfg(not(target_env = "ohos"))]
+    {
+        let webview = state
+            .app
+            .get_webview(&session.current_window)
+            .ok_or_else(|| {
+                WebDriverErrorResponse::no_such_window(format!(
+                    "Webview not found: {}",
+                    session.current_window
+                ))
+            })?;
+
+        platform::evaluator::evaluate_script(
+            state,
+            webview,
+            timeout_ms,
+            script_source,
+            &args,
+            async_mode,
+            &frame_context,
+        )
+        .await
+    }
+
+    #[cfg(target_env = "ohos")]
+    {
+        let _ = (
+            state,
+            timeout_ms,
+            script_source,
+            args,
+            async_mode,
+            frame_context,
+        );
+        Err(WebDriverErrorResponse::unsupported_operation(
+            "Script execution is not supported on HarmonyOS",
+        ))
+    }
 }
