@@ -161,6 +161,7 @@ pub use todo_write_tool::TodoWriteTool;
 pub use verify_ui_tool::VerifyUiTool;
 #[cfg(feature = "tools-image-analysis")]
 pub use view_image_tool::ViewImageTool;
+pub use verify_ui_tool::VerifyUiTool;
 #[cfg(feature = "tools-browser-web")]
 pub use web::{WebFetchTool, WebSearchTool};
 #[cfg(feature = "tools-git")]
