@@ -253,5 +253,30 @@
     "enabled": "enabled",
     "disabled": "disabled",
     "revealPathFailed": "Could not open in file explorer: {{error}}"
+  },
+  "matrix": {
+    "tabLabel": "OpenHarmony",
+    "title": "OpenHarmony Matrix Skills",
+    "subtitle": "Browse and install Agent Skills from the OpenHarmony Matrix market.",
+    "searchPlaceholder": "Search Matrix skills...",
+    "resultsInfo": "{{count}} skills available",
+    "empty": {
+      "noSkills": "No Matrix skills found"
+    },
+    "tags": {
+      "loading": "Loading tags...",
+      "empty": "No tags available",
+      "clear": "Clear filters"
+    },
+    "item": {
+      "install": "Install",
+      "installing": "Installing...",
+      "installed": "Installed",
+      "installedTooltip": "Already installed locally"
+    },
+    "messages": {
+      "installSuccess": "Matrix skill \"{{name}}\" installed to {{path}}",
+      "installFailed": "Failed to install \"{{name}}\": {{error}}"
+    }
   }
 }

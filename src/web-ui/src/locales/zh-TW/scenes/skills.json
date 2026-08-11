@@ -253,5 +253,30 @@
     "enabled": "啟用",
     "disabled": "停用",
     "revealPathFailed": "無法在資源管理器中開啟: {{error}}"
+  },
+  "matrix": {
+    "tabLabel": "OpenHarmony",
+    "title": "OpenHarmony 格物市場技能",
+    "subtitle": "從 OpenHarmony 格物市場瀏覽並安裝 Agent Skills。",
+    "searchPlaceholder": "搜尋 Matrix 技能...",
+    "resultsInfo": "共 {{count}} 個技能",
+    "empty": {
+      "noSkills": "未找到 Matrix 技能"
+    },
+    "tags": {
+      "loading": "正在載入標籤...",
+      "empty": "暫無標籤",
+      "clear": "清除篩選"
+    },
+    "item": {
+      "install": "安裝",
+      "installing": "安裝中...",
+      "installed": "已安裝",
+      "installedTooltip": "本地已安裝"
+    },
+    "messages": {
+      "installSuccess": "Matrix 技能 \"{{name}}\" 已安裝到 {{path}}",
+      "installFailed": "安裝 \"{{name}}\" 失敗: {{error}}"
+    }
   }
 }

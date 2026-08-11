@@ -84,6 +84,7 @@ use api::i18n_api::*;
 use api::lsp_api::*;
 use api::lsp_workspace_api::*;
 use api::mcp_api::*;
+use api::matrix_skill_api::*;
 use api::review_platform_api::*;
 use api::runtime_api::*;
 use api::search_api::*;
@@ -1484,6 +1485,10 @@ pub async fn _run() {
             search_skill_market,
             download_skill_market,
             set_global_skill_disabled,
+            list_matrix_tags,
+            list_matrix_skills,
+            install_matrix_skill,
+            check_matrix_skill_checksum,
             set_mode_skill_disabled,
             replace_mode_skill_selection,
             reset_mode_skill_selection,
