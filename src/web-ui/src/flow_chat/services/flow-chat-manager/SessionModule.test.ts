@@ -47,6 +47,7 @@ const persistenceMocks = vi.hoisted(() => ({
   touchSessionActivity: vi.fn(),
   cleanupSaveState: vi.fn(),
   cleanupSessionBuffers: vi.fn(),
+  updateSessionMetadata: vi.fn().mockResolvedValue(undefined),
 }));
 
 const stateMachineMocks = vi.hoisted(() => ({
@@ -101,6 +102,7 @@ vi.mock('@/infrastructure/services/business/workspaceManager', () => ({
 vi.mock('./PersistenceModule', () => ({
   touchSessionActivity: persistenceMocks.touchSessionActivity,
   cleanupSaveState: persistenceMocks.cleanupSaveState,
+  updateSessionMetadata: persistenceMocks.updateSessionMetadata,
 }));
 
 vi.mock('./TextChunkModule', () => ({
