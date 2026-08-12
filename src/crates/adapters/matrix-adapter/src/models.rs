@@ -6,6 +6,97 @@
 //! (per `spec/matrix-skill-market/spec.md` Edge Cases and FR-010).
 
 use serde::{Deserialize, Serialize};
+use serde::de::{Deserializer, Error};
+
+/// Custom deserializer that accepts both a JSON number and a JSON string
+/// containing a number. The Matrix API is inconsistent: some fields
+/// (e.g. `count`, `download`, `view`, `favor`, `zipObsSize`, `size`) may be
+/// returned as strings like `"114688"` or as numbers like `114688` depending
+/// on the endpoint and value magnitude. This helper makes the DTOs resilient
+/// to both wire formats.
+pub fn deserialize_u64_from_string_or_number<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    if let Some(n) = value.as_u64() {
+        Ok(n)
+    } else if let Some(s) = value.as_str() {
+        s.parse::<u64>()
+            .map_err(|e| Error::custom(format!("invalid u64 string '{}': {}", s, e)))
+    } else if let Some(f) = value.as_f64() {
+        Ok(f as u64)
+    } else if value.is_null() {
+        Ok(0)
+    } else {
+        Err(Error::custom(format!(
+            "expected u64 or numeric string, got: {}",
+            value
+        )))
+    }
+}
+
+/// Custom deserializer for `Option<u64>` fields that accepts both numbers
+/// and strings. Returns `None` for JSON `null` or missing fields.
+pub fn deserialize_optional_u64_from_string_or_number<'de, D>(
+    deserializer: D,
+) -> Result<Option<u64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::<serde_json::Value>::deserialize(deserializer)?;
+    match opt {
+        None => Ok(None),
+        Some(value) if value.is_null() => Ok(None),
+        Some(value) => {
+            if let Some(n) = value.as_u64() {
+                Ok(Some(n))
+            } else if let Some(s) = value.as_str() {
+                s.parse::<u64>()
+                    .map(Some)
+                    .map_err(|e| Error::custom(format!("invalid u64 string '{}': {}", s, e)))
+            } else if let Some(f) = value.as_f64() {
+                Ok(Some(f as u64))
+            } else {
+                Err(Error::custom(format!(
+                    "expected u64 or numeric string, got: {}",
+                    value
+                )))
+            }
+        }
+    }
+}
+
+/// Custom deserializer for `Option<u32>` fields that accepts both numbers
+/// and strings.
+pub fn deserialize_optional_u32_from_string_or_number<'de, D>(
+    deserializer: D,
+) -> Result<Option<u32>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::<serde_json::Value>::deserialize(deserializer)?;
+    match opt {
+        None => Ok(None),
+        Some(value) if value.is_null() => Ok(None),
+        Some(value) => {
+            if let Some(n) = value.as_u64() {
+                Ok(Some(n as u32))
+            } else if let Some(s) = value.as_str() {
+                s.parse::<u32>()
+                    .map(Some)
+                    .map_err(|e| Error::custom(format!("invalid u32 string '{}': {}", s, e)))
+            } else if let Some(f) = value.as_f64() {
+                Ok(Some(f as u32))
+            } else {
+                Err(Error::custom(format!(
+                    "expected u32 or numeric string, got: {}",
+                    value
+                )))
+            }
+        }
+    }
+}
 
 /// Generic Matrix API response envelope.
 ///
@@ -84,6 +175,7 @@ pub struct MatrixSkillCategory {
     pub cn_name: Option<String>,
     pub en_description: Option<String>,
     pub cn_description: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_u32_from_string_or_number")]
     pub sort_order: Option<u32>,
 }
 
@@ -101,18 +193,24 @@ pub struct MatrixSkillSummary {
     pub description: Option<String>,
     pub version: Option<String>,
     pub repository: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_u64_from_string_or_number")]
     pub download: Option<u64>,
+    #[serde(default, deserialize_with = "deserialize_optional_u64_from_string_or_number")]
     pub view: Option<u64>,
+    #[serde(default, deserialize_with = "deserialize_optional_u64_from_string_or_number")]
     pub favor: Option<u64>,
     pub zip_sha256: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_u64_from_string_or_number")]
     pub zip_obs_size: Option<u64>,
     pub zip_obs_create_time: Option<String>,
     pub latest_version: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_u32_from_string_or_number")]
     pub version_count: Option<u32>,
     pub is_featured: Option<bool>,
     pub tags: Option<Vec<MatrixTag>>,
     pub organization: Option<MatrixSkillOrganization>,
     pub source_url: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_u32_from_string_or_number")]
     pub status: Option<u32>,
 }
 
@@ -121,6 +219,7 @@ pub struct MatrixSkillSummary {
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MatrixSkillsPage {
+    #[serde(deserialize_with = "deserialize_u64_from_string_or_number")]
     pub count: u64,
     pub list: Vec<MatrixSkillSummary>,
 }
@@ -132,6 +231,7 @@ pub struct MatrixSkillsPage {
 pub struct MatrixSkillChecksum {
     pub en_name: String,
     pub sha256: String,
+    #[serde(deserialize_with = "deserialize_u64_from_string_or_number")]
     pub size: u64,
     pub create_time: Option<String>,
 }
