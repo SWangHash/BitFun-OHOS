@@ -10,7 +10,22 @@ import type {
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 
-const log = createLogger('SkillsScene:useMatrixSkillMarket');
+const log = createLogger('useMatrixSkillMarket');
+
+function extractErrorMessage(err: unknown): string {
+  if (err == null) return 'Unknown error';
+  if (typeof err === 'string') return err;
+  if (err instanceof Error) return err.message;
+  const obj = err as Record<string, unknown>;
+  if (typeof obj.message === 'string' && obj.message.length > 0) return obj.message;
+  if (typeof obj.kind === 'string') return `Matrix API error: ${obj.kind}`;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
 
 const DEFAULT_PAGE_SIZE = 12;
 
@@ -98,7 +113,7 @@ export function useMatrixSkillMarket({
         return;
       }
       log.error('Failed to load Matrix tags', err);
-      setTagsError(err instanceof Error ? err.message : String(err));
+      setTagsError(extractErrorMessage(err));
     } finally {
       if (requestId === requestIdRef.current) {
         setTagsLoading(false);
@@ -134,7 +149,7 @@ export function useMatrixSkillMarket({
           return;
         }
         log.error('Failed to load Matrix skills', err);
-        setSkillsError(err instanceof Error ? err.message : String(err));
+        setSkillsError(extractErrorMessage(err));
       } finally {
         if (requestId === requestIdRef.current) {
           setSkillsLoading(false);
@@ -223,7 +238,7 @@ export function useMatrixSkillMarket({
         );
         await onInstalledChanged?.();
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = extractErrorMessage(err);
         log.error('Failed to install Matrix skill', err);
         setInstallError(message);
         notification.error(
