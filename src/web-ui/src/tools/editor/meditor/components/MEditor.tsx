@@ -57,7 +57,8 @@ export const MEditor = forwardRef<EditorInstance, MEditorProps>((props, ref) => 
     className = '',
     style = {},
     filePath,
-    basePath
+    basePath,
+    progressivePreview = false
   } = props
 
   const { t } = useI18n('tools')
@@ -77,10 +78,13 @@ export const MEditor = forwardRef<EditorInstance, MEditorProps>((props, ref) => 
     setTheme,
     textareaRef,
     editorInstance
-  } = useEditor(controlledValue ?? defaultValue, onChange)
+  } = useEditor(controlledValue ?? defaultValue, onChange, initialMode)
 
   const tiptapEditorRef = useRef<TiptapEditorHandle>(null)
-  const editability = useMemo(() => analyzeMarkdownEditability(value), [value])
+  const editability = useMemo(
+    () => progressivePreview ? analyzeMarkdownEditability('') : analyzeMarkdownEditability(value),
+    [progressivePreview, value],
+  )
   const effectiveMode = mode === 'ir' && editability.containsRenderOnlyBlocks
     ? (readonly ? 'preview' : 'split')
     : mode
@@ -266,7 +270,7 @@ export const MEditor = forwardRef<EditorInstance, MEditorProps>((props, ref) => 
       
       <div className="m-editor-content">
         {effectiveMode === 'preview' && (
-          <Preview value={value} basePath={basePath} />
+          <Preview value={value} basePath={basePath} progressive={progressivePreview} />
         )}
 
         {effectiveMode === 'edit' && (
@@ -298,8 +302,8 @@ export const MEditor = forwardRef<EditorInstance, MEditorProps>((props, ref) => 
                 autofocus={autofocus}
               />
             </div>
-            <div className="m-editor-preview-panel">
-              <Preview value={value} basePath={basePath} />
+            <div data-bf-component="m-editor" data-bf-part="previewPanel" className="m-editor-preview-panel">
+              <Preview value={value} basePath={basePath} progressive={progressivePreview} />
             </div>
           </>
         )}

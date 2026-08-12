@@ -6,10 +6,11 @@ import type { EditorInstance, EditorMode, EditorTheme } from '../types'
  */
 export function useEditor(
   initialValue: string = '',
-  onChange?: (value: string) => void
+  onChange?: (value: string) => void,
+  initialMode: EditorMode = 'ir'
 ) {
   const [value, setValue] = useState(initialValue)
-  const [mode, setMode] = useState<EditorMode>('ir')
+  const [mode, setMode] = useState<EditorMode>(initialMode)
   const [theme, setTheme] = useState<EditorTheme>('dark')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
