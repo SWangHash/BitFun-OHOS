@@ -1288,7 +1288,7 @@
   &__tags-loading,
   &__tags-error,
   &__tags-empty {
-    font-size: $font-size-xs;
+    font-size: var(--bf-appearance-token-font-size-xs);
     color: var(--bf-appearance-token-color-text-muted);
   }
 
@@ -1304,7 +1304,7 @@
     border: 1px solid var(--bf-appearance-token-border-medium);
     background: var(--bf-appearance-token-element-bg-subtle);
     color: var(--bf-appearance-token-color-text-secondary);
-    font-size: $font-size-xs;
+    font-size: var(--bf-appearance-token-font-size-xs);
     line-height: $line-height-base;
     cursor: pointer;
     transition: background $motion-fast $easing-standard,
