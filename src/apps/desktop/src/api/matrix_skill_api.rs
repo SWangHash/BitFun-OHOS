@@ -41,7 +41,24 @@ pub async fn list_matrix_tags(
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "skill".to_string());
-    list_tags(&client, &resolved_service_type).await
+    log::info!(
+        "Tauri list_matrix_tags invoked: service_type={}",
+        resolved_service_type
+    );
+    let result = list_tags(&client, &resolved_service_type).await;
+    match &result {
+        Ok(tags) => log::info!(
+            "Tauri list_matrix_tags ok: service_type={}, count={}",
+            resolved_service_type,
+            tags.len()
+        ),
+        Err(error) => log::error!(
+            "Tauri list_matrix_tags failed: service_type={}, error={:?}",
+            resolved_service_type,
+            error
+        ),
+    }
+    result
 }
 
 /// Paginate-query the Matrix skill list.
@@ -56,7 +73,26 @@ pub async fn list_matrix_skills(
     request: MatrixSkillsListRequest,
 ) -> Result<MatrixSkillsPage, MatrixApiError> {
     let client = MatrixHttpClient::new()?;
-    list_skills(&client, &request).await
+    log::info!(
+        "Tauri list_matrix_skills invoked: page_num={}, page_size={}",
+        request.page_num,
+        request.page_size
+    );
+    let result = list_skills(&client, &request).await;
+    match &result {
+        Ok(page) => log::info!(
+            "Tauri list_matrix_skills ok: page_num={}, count={}, returned={}",
+            request.page_num,
+            page.count,
+            page.list.len()
+        ),
+        Err(error) => log::error!(
+            "Tauri list_matrix_skills failed: page_num={}, error={:?}",
+            request.page_num,
+            error
+        ),
+    }
+    result
 }
 
 /// Download, verify, and install a Matrix skill by `en_name`.
@@ -73,7 +109,22 @@ pub async fn install_matrix_skill(
 ) -> Result<MatrixSkillInstallResult, MatrixApiError> {
     let client = MatrixHttpClient::new()?;
     let trimmed = en_name.trim().to_string();
-    install_skill(&trimmed, &client).await
+    log::info!("Tauri install_matrix_skill invoked: en_name={}", trimmed);
+    let result = install_skill(&trimmed, &client).await;
+    match &result {
+        Ok(r) => log::info!(
+            "Tauri install_matrix_skill ok: en_name={}, path={}, size={}",
+            r.en_name,
+            r.install_path,
+            r.size
+        ),
+        Err(error) => log::error!(
+            "Tauri install_matrix_skill failed: en_name={}, error={:?}",
+            trimmed,
+            error
+        ),
+    }
+    result
 }
 
 /// Fetch the latest SHA-256 for a Matrix skill (standalone).
@@ -89,5 +140,23 @@ pub async fn check_matrix_skill_checksum(
 ) -> Result<MatrixSkillChecksum, MatrixApiError> {
     let client = MatrixHttpClient::new()?;
     let trimmed = en_name.trim().to_string();
-    check_checksum(&client, &trimmed).await
+    log::info!(
+        "Tauri check_matrix_skill_checksum invoked: en_name={}",
+        trimmed
+    );
+    let result = check_checksum(&client, &trimmed).await;
+    match &result {
+        Ok(c) => log::info!(
+            "Tauri check_matrix_skill_checksum ok: en_name={}, size={}, sha256={}",
+            c.en_name,
+            c.size,
+            c.sha256
+        ),
+        Err(error) => log::error!(
+            "Tauri check_matrix_skill_checksum failed: en_name={}, error={:?}",
+            trimmed,
+            error
+        ),
+    }
+    result
 }

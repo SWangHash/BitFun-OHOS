@@ -22,6 +22,11 @@ pub async fn list_tags(
     client: &MatrixHttpClient,
     service_type: &str,
 ) -> Result<Vec<MatrixTag>, MatrixApiError> {
+    log::info!(
+        "Matrix list_tags: service_type={}, base_url={}",
+        service_type,
+        client.base_url()
+    );
     let encoded = urlencoding::encode(service_type);
     let url = client.url(&format!(
         "api/model_base/model/tags?serviceType={}",
@@ -31,9 +36,27 @@ pub async fn list_tags(
         .send_get_text_bounded(&url, DEFAULT_JSON_RESPONSE_MAX_BYTES)
         .await?;
     let envelope: MatrixEnvelope<MatrixTagsData> =
-        serde_json::from_str(&text).map_err(MatrixApiError::from)?;
+        serde_json::from_str(&text).map_err(|error| {
+            log::error!(
+                "Matrix list_tags parse error: service_type={}, error={}",
+                service_type,
+                error
+            );
+            MatrixApiError::from(error)
+        })?;
     if envelope.code != "20000" {
+        log::error!(
+            "Matrix list_tags business error: service_type={}, code={}, message={}",
+            service_type,
+            envelope.code,
+            envelope.message
+        );
         return Err(MatrixApiError::business(envelope.code, envelope.message));
     }
+    log::info!(
+        "Matrix list_tags success: service_type={}, count={}",
+        service_type,
+        envelope.data.skill.len()
+    );
     Ok(envelope.data.skill)
 }

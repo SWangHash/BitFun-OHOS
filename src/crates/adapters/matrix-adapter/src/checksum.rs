@@ -23,15 +23,35 @@ pub async fn check_checksum(
     client: &MatrixHttpClient,
     en_name: &str,
 ) -> Result<MatrixSkillChecksum, MatrixApiError> {
+    log::info!("Matrix check_checksum: en_name={}", en_name);
     let encoded = urlencoding::encode(en_name);
     let url = client.url(&format!("api/registry/skill/{}/checksum", encoded));
     let text = client
         .send_get_text_bounded(&url, DEFAULT_JSON_RESPONSE_MAX_BYTES)
         .await?;
     let envelope: MatrixEnvelope<MatrixSkillChecksum> =
-        serde_json::from_str(&text).map_err(MatrixApiError::from)?;
+        serde_json::from_str(&text).map_err(|error| {
+            log::error!(
+                "Matrix check_checksum parse error: en_name={}, error={}",
+                en_name,
+                error
+            );
+            MatrixApiError::from(error)
+        })?;
     if envelope.code != "20000" {
+        log::error!(
+            "Matrix check_checksum business error: en_name={}, code={}, message={}",
+            en_name,
+            envelope.code,
+            envelope.message
+        );
         return Err(MatrixApiError::business(envelope.code, envelope.message));
     }
+    log::info!(
+        "Matrix check_checksum success: en_name={}, size={}, sha256={}",
+        en_name,
+        envelope.data.size,
+        envelope.data.sha256
+    );
     Ok(envelope.data)
 }

@@ -54,6 +54,13 @@ impl MatrixHttpClient {
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| DEFAULT_MATRIX_API_URL.to_string());
 
+        log::info!(
+            "MatrixHttpClient constructed: base_url={}, timeout={}s, max_redirects={}",
+            base_url,
+            MATRIX_HTTP_TIMEOUT_SECS,
+            MAX_MATRIX_REDIRECTS
+        );
+
         Ok(Self { inner, base_url })
     }
 
@@ -77,9 +84,22 @@ impl MatrixHttpClient {
         url: &str,
         max_bytes: usize,
     ) -> Result<String, MatrixApiError> {
+        log::info!("Matrix HTTP GET text: url={}", url);
         let request = self.inner.get(url);
-        let response = request.send().await.map_err(MatrixApiError::from)?;
+        let response = request.send().await.map_err(|error| {
+            log::error!(
+                "Matrix HTTP GET text network error: url={}, error={}",
+                url,
+                error
+            );
+            MatrixApiError::from(error)
+        })?;
         let status = response.status();
+        log::info!(
+            "Matrix HTTP GET text response: url={}, status={}",
+            url,
+            status.as_u16()
+        );
         if !status.is_success() {
             return Err(MatrixApiError::new(
                 MatrixApiErrorKind::Http {
@@ -89,6 +109,11 @@ impl MatrixHttpClient {
             ));
         }
         let body = collect_bounded_body(response, max_bytes, status).await?;
+        log::info!(
+            "Matrix HTTP GET text body: url={}, bytes={}",
+            url,
+            body.len()
+        );
         Ok(String::from_utf8_lossy(&body).into_owned())
     }
 
@@ -99,9 +124,22 @@ impl MatrixHttpClient {
         url: &str,
         body: &impl serde::Serialize,
     ) -> Result<serde_json::Value, MatrixApiError> {
+        log::info!("Matrix HTTP POST json: url={}", url);
         let request = self.inner.post(url).json(body);
-        let response = request.send().await.map_err(MatrixApiError::from)?;
+        let response = request.send().await.map_err(|error| {
+            log::error!(
+                "Matrix HTTP POST json network error: url={}, error={}",
+                url,
+                error
+            );
+            MatrixApiError::from(error)
+        })?;
         let status = response.status();
+        log::info!(
+            "Matrix HTTP POST json response: url={}, status={}",
+            url,
+            status.as_u16()
+        );
         let body_limit = if status.is_success() {
             DEFAULT_JSON_RESPONSE_MAX_BYTES
         } else {
@@ -135,7 +173,19 @@ impl MatrixHttpClient {
             ));
         }
         let value: serde_json::Value =
-            serde_json::from_slice(&body).map_err(MatrixApiError::from)?;
+            serde_json::from_slice(&body).map_err(|error| {
+                log::error!(
+                    "Matrix HTTP POST json parse error: url={}, error={}",
+                    url,
+                    error
+                );
+                MatrixApiError::from(error)
+            })?;
+        log::info!(
+            "Matrix HTTP POST json body: url={}, bytes={}",
+            url,
+            body.len()
+        );
         Ok(value)
     }
 
@@ -146,9 +196,22 @@ impl MatrixHttpClient {
         url: &str,
         max_bytes: usize,
     ) -> Result<Vec<u8>, MatrixApiError> {
+        log::info!("Matrix HTTP GET bytes: url={}", url);
         let request = self.inner.get(url);
-        let response = request.send().await.map_err(MatrixApiError::from)?;
+        let response = request.send().await.map_err(|error| {
+            log::error!(
+                "Matrix HTTP GET bytes network error: url={}, error={}",
+                url,
+                error
+            );
+            MatrixApiError::from(error)
+        })?;
         let status = response.status();
+        log::info!(
+            "Matrix HTTP GET bytes response: url={}, status={}",
+            url,
+            status.as_u16()
+        );
         if !status.is_success() {
             return Err(MatrixApiError::new(
                 MatrixApiErrorKind::Http {
@@ -157,7 +220,13 @@ impl MatrixHttpClient {
                 format!("Matrix API returned HTTP {}", status.as_u16()),
             ));
         }
-        collect_bounded_body(response, max_bytes, status).await
+        let body = collect_bounded_body(response, max_bytes, status).await?;
+        log::info!(
+            "Matrix HTTP GET bytes body: url={}, bytes={}",
+            url,
+            body.len()
+        );
+        Ok(body)
     }
 
     /// Fetch the skill ZIP binary for `en_name` (bounded to 16 MiB).

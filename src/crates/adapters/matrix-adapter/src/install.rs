@@ -67,7 +67,9 @@ pub async fn install_skill(
     en_name: &str,
     client: &MatrixHttpClient,
 ) -> Result<MatrixSkillInstallResult, MatrixApiError> {
+    log::info!("Matrix install_skill start: en_name={}", en_name);
     if en_name.trim().is_empty() {
+        log::error!("Matrix install_skill: en_name is empty");
         return Err(MatrixApiError::new(
             MatrixApiErrorKind::Parse,
             "Matrix skill en_name must not be empty",
@@ -75,17 +77,43 @@ pub async fn install_skill(
     }
 
     // Step 1: Download ZIP bytes (bounded to 16 MiB by the client helper).
+    log::info!("Matrix install_skill step 1 download: en_name={}", en_name);
     let zip_bytes = client.fetch_skill_zip(en_name).await?;
     let size = zip_bytes.len() as u64;
+    log::info!(
+        "Matrix install_skill step 1 done: en_name={}, size_bytes={}",
+        en_name,
+        size
+    );
 
     // Step 2: Fetch expected SHA-256 (after download, per Matrix's real-time
     // update note). The checksum endpoint may return a fresher value than
     // what was embedded in the skills list.
+    log::info!(
+        "Matrix install_skill step 2 checksum: en_name={}",
+        en_name
+    );
     let checksum = check_checksum(client, en_name).await?;
+    log::info!(
+        "Matrix install_skill step 2 done: en_name={}, expected_sha256={}, expected_size={}",
+        en_name,
+        checksum.sha256,
+        checksum.size
+    );
 
     // Step 3: Compute SHA-256 of downloaded bytes and compare.
+    log::info!(
+        "Matrix install_skill step 3 verify: en_name={}",
+        en_name
+    );
     let actual_sha256_hex = sha256_hex(&zip_bytes);
     if actual_sha256_hex != checksum.sha256 {
+        log::error!(
+            "Matrix install_skill integrity mismatch: en_name={}, expected={}, actual={}",
+            en_name,
+            checksum.sha256,
+            actual_sha256_hex
+        );
         return Err(MatrixApiError::new(
             MatrixApiErrorKind::Integrity {
                 expected: checksum.sha256.clone(),
@@ -94,9 +122,19 @@ pub async fn install_skill(
             "SHA-256 checksum mismatch between downloaded ZIP and checksum endpoint",
         ));
     }
+    log::info!(
+        "Matrix install_skill step 3 verified: en_name={}, sha256={}",
+        en_name,
+        actual_sha256_hex
+    );
 
     // Step 4: Resolve install root.
     let install_root = resolve_matrix_skills_root()?;
+    log::info!(
+        "Matrix install_skill step 4 root: en_name={}, install_root={}",
+        en_name,
+        install_root.display()
+    );
 
     // Step 5: Create the install root and a unique staging directory.
     fs::create_dir_all(&install_root).await?;
@@ -109,10 +147,20 @@ pub async fn install_skill(
         );
         return Err(MatrixApiError::from(error));
     }
+    log::info!(
+        "Matrix install_skill step 5 staging: en_name={}, staging_dir={}",
+        en_name,
+        staging_dir.display()
+    );
 
     // Steps 6-7: Unzip + SKILL.md presence check. Both run inside
     // spawn_blocking because the zip crate is sync and we do not want to
     // block the async runtime.
+    log::info!(
+        "Matrix install_skill step 6 unzip: en_name={}, staging_dir={}",
+        en_name,
+        staging_dir.display()
+    );
     let staging_dir_for_unzip = staging_dir.clone();
     let unzip_result = tokio::task::spawn_blocking(move || -> Result<(), MatrixApiError> {
         unzip_with_path_guard(&zip_bytes, &staging_dir_for_unzip)?;
@@ -131,6 +179,11 @@ pub async fn install_skill(
         Ok(inner) => inner,
         Err(join_error) => {
             cleanup_staging(&staging_dir).await;
+            log::error!(
+                "Matrix install_skill unzip task panicked: en_name={}, error={}",
+                en_name,
+                join_error
+            );
             return Err(MatrixApiError::new(
                 MatrixApiErrorKind::RuntimeUnavailable,
                 format!("Matrix skill unzip task panicked: {}", join_error),
@@ -140,13 +193,29 @@ pub async fn install_skill(
 
     if let Err(error) = unzip_result {
         cleanup_staging(&staging_dir).await;
+        log::error!(
+            "Matrix install_skill unzip failed: en_name={}, error={:?}",
+            en_name,
+            error
+        );
         return Err(error);
     }
+    log::info!(
+        "Matrix install_skill step 6-7 done: en_name={}, staging_dir={}",
+        en_name,
+        staging_dir.display()
+    );
 
     // Step 8: Atomic rename staging → final. Remove an existing target first
     // (tokio::fs::rename fails if the destination is a non-empty dir on
     // Windows).
     let final_dir = install_root.join(en_name);
+    log::info!(
+        "Matrix install_skill step 8 atomic rename: en_name={}, staging={}, final={}",
+        en_name,
+        staging_dir.display(),
+        final_dir.display()
+    );
     if final_dir.exists() {
         if let Err(error) = fs::remove_dir_all(&final_dir).await {
             cleanup_staging(&staging_dir).await;
@@ -171,8 +240,19 @@ pub async fn install_skill(
             ),
         ));
     }
+    log::info!(
+        "Matrix install_skill step 8 done: en_name={}, final_dir={}",
+        en_name,
+        final_dir.display()
+    );
 
-    // Step 10: Return the install result.
+    log::info!(
+        "Matrix install_skill complete: en_name={}, install_path={}, size={}, sha256={}",
+        en_name,
+        final_dir.display(),
+        size,
+        actual_sha256_hex
+    );
     Ok(MatrixSkillInstallResult {
         en_name: en_name.to_string(),
         version: None,
