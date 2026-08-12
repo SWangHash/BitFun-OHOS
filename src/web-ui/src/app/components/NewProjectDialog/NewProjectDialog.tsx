@@ -15,16 +15,11 @@ import {
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@/shared/utils/logger';
 import { Modal, Button, Input, Tooltip } from '@/component-library';
-import { systemAPI } from "@/infrastructure";
+import { workspaceAPI, systemAPI } from "@/infrastructure";
 import { isTauriCommandError } from '@/infrastructure/api/errors/TauriCommandError';
 import './NewProjectDialog.scss';
-import {workspaceAPI, systemAPI} from "@/infrastructure";
-import { isTauriCommandError } from '@/infrastructure/api/errors/TauriCommandError';
-import { notificationService } from '@/shared/notification-system';
 
 const log = createLogger('NewProjectDialog');
-
-const INVALID_NAME_CHARS = /[\/\\:*?"<>|]/;
 
 export interface NewProjectDialogProps {
   isOpen: boolean;
