@@ -29,7 +29,7 @@ import { useFeedbackInboxStore } from './feedbackInboxStore';
 import './FeedbackDialog.scss';
 
 const log = createLogger('FeedbackDialog');
-const GITCODE_ISSUES_URL = 'https://gitcode.com/OpenHarmonyPCDeveloper/BitFun/issues';
+const GITCODE_ISSUES_URL = 'https://gitcode.com/OpenBitFun/bitfun_ade/issues';
 let submissionRetryUntilMs = 0;
 
 function submissionRetrySecondsRemaining(): number {
@@ -317,7 +317,7 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
         closeOnOverlayClick={!submitting && !replyState.sending}
         testId="feedback-dialog"
       >
-        <div data-bf-component="feedback-dialog" data-bf-part="root">
+        <div className="bitfun-feedback__root" data-bf-component="feedback-dialog" data-bf-part="root">
         {completed ? (
           <div className="bitfun-feedback__complete" role="status">
             <CheckCircle2 size={34} aria-hidden="true" />
