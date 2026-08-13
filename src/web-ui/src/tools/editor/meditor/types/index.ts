@@ -89,6 +89,8 @@ export interface EditorOptions {
    * Used to resolve relative image paths.
    */
   basePath?: string
+  /** Render preview in bounded chunks for large Markdown documents. */
+  progressivePreview?: boolean
 }
 
 /**
