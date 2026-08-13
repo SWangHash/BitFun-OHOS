@@ -16,8 +16,11 @@ const SESSION_DIR_PATTERN: &str = r"^\d{8}T\d{6}$";
 const MAX_LOG_SESSIONS: usize = 10;
 const FLASHGREP_LOG_TARGET_PREFIX: &str = "flashgrep";
 static SESSION_LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
-// Default to Debug in early development for easier diagnostics
+// Default to Info in release, Debug in debug builds
+#[cfg(debug_assertions)]
 static CURRENT_LOG_LEVEL: AtomicU8 = AtomicU8::new(level_filter_to_u8(log::LevelFilter::Debug));
+#[cfg(not(debug_assertions))]
+static CURRENT_LOG_LEVEL: AtomicU8 = AtomicU8::new(level_filter_to_u8(log::LevelFilter::Info));
 
 fn get_thread_id() -> u64 {
     let thread_id = thread::current().id();
@@ -291,13 +294,15 @@ pub fn build_log_targets(config: &LogConfig) -> Vec<Target> {
 
 pub fn build_log_plugin<R: Runtime>(log_targets: Vec<Target>, initial_level: log::LevelFilter) -> TauriPlugin<R> {
     tauri_plugin_log::Builder::new()
-        .level(initial_level)
+        .level(log::LevelFilter::Trace)
         .level_for("ignore", log::LevelFilter::Off)
         .level_for("ignore::walk", log::LevelFilter::Off)
         .level_for("globset", log::LevelFilter::Off)
         .level_for("tracing", log::LevelFilter::Off)
         .level_for("opentelemetry_sdk", log::LevelFilter::Off)
         .level_for("opentelemetry-otlp", log::LevelFilter::Off)
+        .level_for("tao", log::LevelFilter::Off)
+        .level_for("mio", log::LevelFilter::Off)
         .level_for("notify", log::LevelFilter::Warn)
         .level_for("html5ever", log::LevelFilter::Warn)
         .level_for("selectors", log::LevelFilter::Warn)
