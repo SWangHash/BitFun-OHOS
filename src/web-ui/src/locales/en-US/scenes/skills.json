@@ -97,7 +97,10 @@
     },
     "detail": {
       "installsLabel": "Installs",
-      "linkLabel": "Link"
+      "linkLabel": "Link",
+      "versionLabel": "Version",
+      "orgLabel": "Organization",
+      "tagsLabel": "Tags"
     }
   },
   "suite": {

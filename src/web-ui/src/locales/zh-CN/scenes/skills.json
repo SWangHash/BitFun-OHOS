@@ -97,7 +97,10 @@
     },
     "detail": {
       "installsLabel": "安装量",
-      "linkLabel": "链接"
+      "linkLabel": "链接",
+      "versionLabel": "版本",
+      "orgLabel": "组织",
+      "tagsLabel": "标签"
     }
   },
   "suite": {

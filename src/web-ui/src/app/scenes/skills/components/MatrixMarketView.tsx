@@ -31,6 +31,7 @@ interface MatrixMarketViewProps {
   installingEnName: string | null;
   installError: string | null;
   onInstall: (skill: MatrixSkillSummary) => Promise<void>;
+  onOpenDetails: (skill: MatrixSkillSummary) => void;
 
   installedEnNames: Set<string>;
 }
@@ -57,6 +58,7 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
   installingEnName,
   installError,
   onInstall,
+  onOpenDetails,
   installedEnNames,
 }) => {
   const { t } = useTranslation('scenes/skills');
@@ -208,9 +210,7 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
                         onClick: () => void onInstall(skill),
                       },
                     ]}
-                    onOpenDetails={() => {
-                      // No-op: details modal not yet wired for Matrix cards in this iteration
-                    }}
+                    onOpenDetails={() => onOpenDetails(skill)}
                   />
                 );
               })}

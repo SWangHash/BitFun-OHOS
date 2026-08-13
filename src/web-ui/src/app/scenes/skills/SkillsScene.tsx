@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge, Button, ConfirmDialog, Input, Modal, Search, Select, Switch } from '@/component-library';
 import { GalleryDetailModal } from '@/app/components';
 import type { SkillInfo, SkillLevel, SkillMarketItem } from '@/infrastructure/config/types';
+import type { MatrixSkillSummary } from '@/infrastructure/api/service-api/MatrixSkillAPI';
 import {
   buildSkillCoverageSourceMap,
   canDeleteSkill,
@@ -100,6 +101,7 @@ const SkillsScene: React.FC = () => {
   const [selectedDetail, setSelectedDetail] = useState<
     | { type: 'installed'; skillKey: string }
     | { type: 'market'; skill: SkillMarketItem }
+    | { type: 'matrix'; skill: MatrixSkillSummary }
     | null
   >(null);
 
@@ -133,6 +135,7 @@ const SkillsScene: React.FC = () => {
     [installed.skills, selectedDetail],
   );
   const selectedMarketSkill = selectedDetail?.type === 'market' ? selectedDetail.skill : null;
+  const selectedMatrixSkill = selectedDetail?.type === 'matrix' ? selectedDetail.skill : null;
 
   useEffect(() => {
     if (selectedDetail?.type === 'installed' && !installed.loading && !selectedInstalledSkill) {
@@ -777,6 +780,7 @@ const SkillsScene: React.FC = () => {
             installingEnName={matrix.installingEnName}
             installError={matrix.installError}
             onInstall={matrix.handleInstall}
+            onOpenDetails={(skill) => setSelectedDetail({ type: 'matrix', skill })}
             installedEnNames={installedMatrixEnNames}
           />
         )}
@@ -785,14 +789,16 @@ const SkillsScene: React.FC = () => {
       <GalleryDetailModal
         isOpen={desktopConfigAvailable && Boolean(selectedDetail)}
         onClose={() => setSelectedDetail(null)}
-        icon={selectedMarketSkill ? <Package size={24} strokeWidth={1.6} /> : <Puzzle size={24} strokeWidth={1.6} />}
+        icon={selectedMarketSkill || selectedMatrixSkill ? <Package size={24} strokeWidth={1.6} /> : <Puzzle size={24} strokeWidth={1.6} />}
         iconGradient={getCardGradient(
           selectedInstalledSkill?.name
           ?? selectedMarketSkill?.installId
           ?? selectedMarketSkill?.name
+          ?? selectedMatrixSkill?.id
+          ?? selectedMatrixSkill?.enName
           ?? 'skill'
         )}
-        title={selectedInstalledSkill?.name ?? selectedMarketSkill?.name ?? ''}
+        title={selectedInstalledSkill?.name ?? selectedMarketSkill?.name ?? selectedMatrixSkill?.name ?? selectedMatrixSkill?.enName ?? ''}
         badges={selectedInstalledSkill ? (
           <>
             {selectedInstalledSkill.isShadowed && (
@@ -828,7 +834,7 @@ const SkillsScene: React.FC = () => {
             {t('market.item.installed')}
           </Badge>
         ) : null}
-        description={selectedInstalledSkill?.description ?? selectedMarketSkill?.description}
+        description={selectedInstalledSkill?.description ?? selectedMarketSkill?.description ?? selectedMatrixSkill?.description}
         testId="skill-detail-panel"
         titleTestId="skill-detail-title"
         descriptionTestId="skill-detail-description"
@@ -837,6 +843,11 @@ const SkillsScene: React.FC = () => {
           <span className="bitfun-skills-scene__market-meta">
             <TrendingUp size={12} />
             {selectedMarketSkill.installs ?? 0}
+          </span>
+        ) : selectedMatrixSkill ? (
+          <span className="bitfun-skills-scene__market-meta">
+            <TrendingUp size={12} />
+            {selectedMatrixSkill.download ?? 0}
           </span>
         ) : null}
         actions={selectedInstalledSkill && canDeleteSkill(selectedInstalledSkill) ? (
@@ -878,6 +889,25 @@ const SkillsScene: React.FC = () => {
                   {t('market.item.downloadUser')}
                 </Button>
               </>
+            )}
+          </>
+        ) : selectedMatrixSkill ? (
+          <>
+            {installedMatrixEnNames.has(selectedMatrixSkill.enName) ? (
+              <Button variant="secondary" size="small" disabled>
+                {t('matrix.item.installed')}
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                size="small"
+                onClick={() => void matrix.handleInstall(selectedMatrixSkill)}
+                disabled={matrix.installingEnName === selectedMatrixSkill.enName}
+              >
+                {matrix.installingEnName === selectedMatrixSkill.enName
+                  ? t('matrix.item.installing')
+                  : t('matrix.item.install')}
+              </Button>
             )}
           </>
         ) : null}
@@ -925,6 +955,44 @@ const SkillsScene: React.FC = () => {
             <span className="bitfun-skills-scene__detail-label">{t('market.item.sourceLabel')}</span>
             <span className="bitfun-skills-scene__detail-value">{selectedMarketSkill.source}</span>
           </div>
+        ) : null}
+
+        {selectedMatrixSkill ? (
+          <>
+            {selectedMatrixSkill.repository && (
+              <div className="bitfun-skills-scene__detail-row">
+                <span className="bitfun-skills-scene__detail-label">{t('market.detail.linkLabel')}</span>
+                <a
+                  className="bitfun-skills-scene__detail-link"
+                  href={selectedMatrixSkill.repository}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {selectedMatrixSkill.repository}
+                </a>
+              </div>
+            )}
+            {selectedMatrixSkill.version && (
+              <div className="bitfun-skills-scene__detail-row">
+                <span className="bitfun-skills-scene__detail-label">{t('market.detail.versionLabel')}</span>
+                <span className="bitfun-skills-scene__detail-value">{selectedMatrixSkill.version}</span>
+              </div>
+            )}
+            {selectedMatrixSkill.organization?.name && (
+              <div className="bitfun-skills-scene__detail-row">
+                <span className="bitfun-skills-scene__detail-label">{t('market.detail.orgLabel')}</span>
+                <span className="bitfun-skills-scene__detail-value">{selectedMatrixSkill.organization.name}</span>
+              </div>
+            )}
+            {selectedMatrixSkill.tags && selectedMatrixSkill.tags.length > 0 && (
+              <div className="bitfun-skills-scene__detail-row">
+                <span className="bitfun-skills-scene__detail-label">{t('market.detail.tagsLabel')}</span>
+                <span className="bitfun-skills-scene__detail-value">
+                  {selectedMatrixSkill.tags.map((tag) => tag.name).join(', ')}
+                </span>
+              </div>
+            )}
+          </>
         ) : null}
 
         {selectedMarketSkill ? (

@@ -97,7 +97,10 @@
     },
     "detail": {
       "installsLabel": "安裝量",
-      "linkLabel": "鏈接"
+      "linkLabel": "鏈接",
+      "versionLabel": "版本",
+      "orgLabel": "組織",
+      "tagsLabel": "標籤"
     }
   },
   "suite": {
