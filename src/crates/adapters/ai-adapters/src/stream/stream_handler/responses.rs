@@ -62,11 +62,30 @@ fn emit_unified_response(
     unified_response: UnifiedResponse,
 ) {
     timeout_controller.observe_unified_response(&unified_response);
-    trace!(
-        target: AI_STREAM_RESPONSE_TARGET,
-        "Responses unified response: {:?}",
-        unified_response
-    );
+    if crate::diagnostics::include_sensitive_diagnostics() {
+        trace!(
+            target: AI_STREAM_RESPONSE_TARGET,
+            "Responses unified response: {:?}",
+            unified_response
+        );
+    } else {
+        let mut parts = Vec::new();
+        if let Some(ref text) = unified_response.text { parts.push(format!("text_chars={}", text.chars().count())); }
+        if let Some(ref reasoning) = unified_response.reasoning_content { parts.push(format!("reasoning_chars={}", reasoning.chars().count())); }
+        if let Some(ref tc) = unified_response.tool_call {
+            parts.push(format!("tool_call: index={:?}, has_id={}, name={:?}, arguments_bytes={}, snapshot={}",
+                tc.tool_call_index, tc.id.is_some(), tc.name.as_deref(),
+                tc.arguments.as_ref().map(|a| a.len()).unwrap_or(0), tc.arguments_is_snapshot));
+        }
+        if unified_response.finish_reason.is_some() { parts.push(format!("finish_reason={:?}", unified_response.finish_reason)); }
+        if unified_response.usage.is_some() { parts.push("has_usage=true".to_string()); }
+        if parts.is_empty() { parts.push("empty".to_string()); }
+        trace!(
+            target: AI_STREAM_RESPONSE_TARGET,
+            "Responses unified response summary: {}",
+            parts.join(", ")
+        );
+    }
     stats.record_unified_response(&unified_response);
     let _ = tx_event.send(Ok(unified_response));
 }
@@ -346,7 +365,11 @@ pub async fn handle_responses_stream(
 
         let raw = sse.data;
         stats.record_sse_event("data");
-        trace!(target: AI_STREAM_RESPONSE_TARGET, "Responses SSE: {:?}", raw);
+        if crate::diagnostics::include_sensitive_diagnostics() {
+            trace!(target: AI_STREAM_RESPONSE_TARGET, "Responses SSE: {:?}", raw);
+        } else {
+            trace!(target: AI_STREAM_RESPONSE_TARGET, "Responses SSE: data_bytes={}", raw.len());
+        }
         if let Some(ref tx) = tx_raw_sse {
             let _ = tx.send(raw.clone());
         }
