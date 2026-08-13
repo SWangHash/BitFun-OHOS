@@ -27,8 +27,11 @@ pub const EARLY_STARTUP_LOG_FILE_NAME: &str = "early-startup.log";
 pub const NATIVE_STARTUP_TRACE_FILE_NAME: &str = "native-startup-trace.jsonl";
 static SESSION_LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
 static GLOBAL_LOG_ROUTER: OnceLock<&'static SwitchingLogger> = OnceLock::new();
-// Default to Debug in early development for easier diagnostics
+// Default to Info in release, Debug in debug builds
+#[cfg(debug_assertions)]
 static CURRENT_LOG_LEVEL: AtomicU8 = AtomicU8::new(level_filter_to_u8(log::LevelFilter::Debug));
+#[cfg(not(debug_assertions))]
+static CURRENT_LOG_LEVEL: AtomicU8 = AtomicU8::new(level_filter_to_u8(log::LevelFilter::Info));
 static FLOW_CHAT_DIAGNOSTICS_WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 struct EarlyFileLogger {
@@ -618,6 +621,8 @@ fn configured_log_builder(log_targets: Vec<Target>) -> tauri_plugin_log::Builder
         .level_for("tracing", log::LevelFilter::Off)
         .level_for("opentelemetry_sdk", log::LevelFilter::Off)
         .level_for("opentelemetry-otlp", log::LevelFilter::Off)
+        .level_for("tao", log::LevelFilter::Off)
+        .level_for("mio", log::LevelFilter::Off)
         .level_for("notify", log::LevelFilter::Warn)
         .level_for("html5ever", log::LevelFilter::Warn)
         .level_for("selectors", log::LevelFilter::Warn)
