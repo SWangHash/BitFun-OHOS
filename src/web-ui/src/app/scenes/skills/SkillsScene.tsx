@@ -775,6 +775,7 @@ const SkillsScene: React.FC = () => {
             onPrevPage={matrix.goToPrevPage}
             onNextPage={matrix.goToNextPage}
             installingEnName={matrix.installingEnName}
+            installError={matrix.installError}
             onInstall={matrix.handleInstall}
             installedEnNames={installedMatrixEnNames}
           />

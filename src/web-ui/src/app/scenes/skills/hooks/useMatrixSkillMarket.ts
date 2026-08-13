@@ -26,7 +26,6 @@ function extractErrorMessage(err: unknown): string {
   }
 }
 
-
 const DEFAULT_PAGE_SIZE = 12;
 
 interface UseMatrixSkillMarketOptions {
@@ -90,7 +89,10 @@ export function useMatrixSkillMarket({
   const [installingEnName, setInstallingEnName] = useState<string | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
 
-  const requestIdRef = useRef(0);
+  // Separate request ID refs for tags and skills to prevent parallel calls
+  // from invalidating each other's responses.
+  const tagsRequestIdRef = useRef(0);
+  const skillsRequestIdRef = useRef(0);
   const pageSize = DEFAULT_PAGE_SIZE;
 
   const loadTags = useCallback(async () => {
@@ -99,23 +101,27 @@ export function useMatrixSkillMarket({
       setTagsLoading(false);
       return;
     }
-    const requestId = ++requestIdRef.current;
+    const requestId = ++tagsRequestIdRef.current;
     setTagsLoading(true);
     setTagsError(null);
     try {
+      log.info('Loading Matrix tags');
       const result = await matrixSkillAPI.listTags('skill');
-      if (requestId !== requestIdRef.current) {
+      if (requestId !== tagsRequestIdRef.current) {
+        log.info('Matrix tags response discarded (stale request)');
         return;
       }
+      log.info('Matrix tags loaded', { count: result.length });
       setTags(result);
     } catch (err) {
-      if (requestId !== requestIdRef.current) {
+      if (requestId !== tagsRequestIdRef.current) {
         return;
       }
-      log.error('Failed to load Matrix tags', err);
-      setTagsError(extractErrorMessage(err));
+      const msg = extractErrorMessage(err);
+      log.error('Failed to load Matrix tags', { error: msg, raw: err });
+      setTagsError(msg);
     } finally {
-      if (requestId === requestIdRef.current) {
+      if (requestId === tagsRequestIdRef.current) {
         setTagsLoading(false);
       }
     }
@@ -129,7 +135,7 @@ export function useMatrixSkillMarket({
         setSkillsError(null);
         return;
       }
-      const requestId = ++requestIdRef.current;
+      const requestId = ++skillsRequestIdRef.current;
       const request: MatrixSkillsListRequest = {
         pageNum: String(targetPage + 1),
         pageSize: String(pageSize),
@@ -139,19 +145,27 @@ export function useMatrixSkillMarket({
       setSkillsLoading(true);
       setSkillsError(null);
       try {
+        log.info('Loading Matrix skills', { page: targetPage + 1, request });
         const result = await matrixSkillAPI.listSkills(request);
-        if (requestId !== requestIdRef.current) {
+        if (requestId !== skillsRequestIdRef.current) {
+          log.info('Matrix skills response discarded (stale request)');
           return;
         }
+        log.info('Matrix skills loaded', {
+          page: targetPage + 1,
+          count: result.count,
+          returned: result.list.length,
+        });
         setPage(result);
       } catch (err) {
-        if (requestId !== requestIdRef.current) {
+        if (requestId !== skillsRequestIdRef.current) {
           return;
         }
-        log.error('Failed to load Matrix skills', err);
-        setSkillsError(extractErrorMessage(err));
+        const msg = extractErrorMessage(err);
+        log.error('Failed to load Matrix skills', { error: msg, raw: err });
+        setSkillsError(msg);
       } finally {
-        if (requestId === requestIdRef.current) {
+        if (requestId === skillsRequestIdRef.current) {
           setSkillsLoading(false);
         }
       }
@@ -183,7 +197,8 @@ export function useMatrixSkillMarket({
 
   const skills = useMemo(() => page?.list ?? [], [page]);
   const totalCount = page?.count ?? 0;
-  const hasMore = skills.length < totalCount && skills.length > 0;
+  // hasMore: there are more pages beyond the current one
+  const hasMore = (currentPage + 1) * pageSize < totalCount;
   const loadingMore = false;
 
   const totalPages = useMemo(() => {
@@ -232,14 +247,16 @@ export function useMatrixSkillMarket({
       try {
         setInstallError(null);
         setInstallingEnName(skill.enName);
+        log.info('Installing Matrix skill', { enName: skill.enName });
         const result = await matrixSkillAPI.installSkill(skill.enName);
+        log.info('Matrix skill installed', { enName: skill.enName, path: result.installPath });
         notification.success(
           t('matrix.messages.installSuccess', { name: skill.enName, path: result.installPath }),
         );
         await onInstalledChanged?.();
       } catch (err) {
         const message = extractErrorMessage(err);
-        log.error('Failed to install Matrix skill', err);
+        log.error('Failed to install Matrix skill', { enName: skill.enName, error: message, raw: err });
         setInstallError(message);
         notification.error(
           t('matrix.messages.installFailed', { name: skill.enName, error: message }),
