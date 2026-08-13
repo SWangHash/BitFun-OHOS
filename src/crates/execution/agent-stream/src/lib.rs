@@ -2,6 +2,7 @@
 //!
 //! Processes AI streaming responses, supports tool pre-detection and parameter streaming
 
+pub mod diagnostics;
 mod hidden_text;
 pub mod tool_call_accumulator;
 mod unified;
@@ -897,26 +898,43 @@ impl StreamProcessor {
         );
 
         if log::log_enabled!(log::Level::Debug) {
-            if !ctx.full_thinking.is_empty() {
-                debug!(target: "ai::stream_processor", "Full thinking content: \n{}", ctx.full_thinking);
-            }
-            if !ctx.full_text.is_empty() {
-                debug!(target: "ai::stream_processor", "Full text content: \n{}", ctx.full_text);
-            }
-            if !ctx.tool_calls.is_empty() {
-                let log_str: String = ctx
-                    .tool_calls
-                    .iter()
-                    .map(|tc| {
-                        format!(
-                            "Tool name: {}, arguments: {}\n",
-                            tc.tool_name,
-                            serde_json::to_string(&tc.arguments)
-                                .unwrap_or_else(|_| "Serialization failed".to_string())
-                        )
-                    })
-                    .collect();
-                debug!(target: "ai::stream_processor", "Tool call details: \n{}", log_str);
+            if diagnostics::include_sensitive_diagnostics() {
+                if !ctx.full_thinking.is_empty() {
+                    debug!(target: "ai::stream_processor", "Full thinking content: \n{}", ctx.full_thinking);
+                }
+                if !ctx.full_text.is_empty() {
+                    debug!(target: "ai::stream_processor", "Full text content: \n{}", ctx.full_text);
+                }
+                if !ctx.tool_calls.is_empty() {
+                    let log_str: String = ctx
+                        .tool_calls
+                        .iter()
+                        .map(|tc| {
+                            format!(
+                                "Tool name: {}, arguments: {}\n",
+                                tc.tool_name,
+                                serde_json::to_string(&tc.arguments)
+                                    .unwrap_or_else(|_| "Serialization failed".to_string())
+                            )
+                        })
+                        .collect();
+                    debug!(target: "ai::stream_processor", "Tool call details: \n{}", log_str);
+                }
+            } else {
+                let mut parts = Vec::new();
+                if !ctx.full_thinking.is_empty() {
+                    parts.push(format!("thinking_chars={}", ctx.full_thinking.chars().count()));
+                }
+                if !ctx.full_text.is_empty() {
+                    parts.push(format!("text_chars={}", ctx.full_text.chars().count()));
+                }
+                if !ctx.tool_calls.is_empty() {
+                    let tool_names: Vec<&str> = ctx.tool_calls.iter().map(|tc| tc.tool_name.as_str()).collect();
+                    parts.push(format!("tool_calls=[{}]", tool_names.join(", ")));
+                }
+                if !parts.is_empty() {
+                    debug!(target: "ai::stream_processor", "Stream result summary: {}", parts.join(", "));
+                }
             }
         }
 
