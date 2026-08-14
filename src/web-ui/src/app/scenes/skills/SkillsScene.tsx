@@ -29,7 +29,7 @@ import {
   findSkillByKey,
   getSkillSourceLabel,
 } from '@/infrastructure/config/skillSourcePresentation';
-import { workspaceAPI } from '@/infrastructure/api';
+import { workspaceAPI, systemAPI } from '@/infrastructure/api';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
 import { isTauriRuntime } from '@/infrastructure/runtime';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
@@ -959,19 +959,21 @@ const SkillsScene: React.FC = () => {
 
         {selectedMatrixSkill ? (
           <>
-            {selectedMatrixSkill.repository && (
-              <div className="bitfun-skills-scene__detail-row">
-                <span className="bitfun-skills-scene__detail-label">{t('market.detail.linkLabel')}</span>
-                <a
-                  className="bitfun-skills-scene__detail-link"
-                  href={selectedMatrixSkill.repository}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {selectedMatrixSkill.repository}
-                </a>
-              </div>
-            )}
+            {(() => {
+              const repo = selectedMatrixSkill.repository;
+              return repo ? (
+                <div className="bitfun-skills-scene__detail-row">
+                  <span className="bitfun-skills-scene__detail-label">{t('market.detail.linkLabel')}</span>
+                  <button
+                    type="button"
+                    className="bitfun-skills-scene__detail-link"
+                    onClick={() => void systemAPI.openExternal(repo)}
+                  >
+                    {repo}
+                  </button>
+                </div>
+              ) : null;
+            })()}
             {selectedMatrixSkill.version && (
               <div className="bitfun-skills-scene__detail-row">
                 <span className="bitfun-skills-scene__detail-label">{t('market.detail.versionLabel')}</span>
@@ -1005,15 +1007,14 @@ const SkillsScene: React.FC = () => {
         {selectedMarketSkill?.url ? (
           <div className="bitfun-skills-scene__detail-row">
             <span className="bitfun-skills-scene__detail-label">{t('market.detail.linkLabel')}</span>
-            <a
-              href={selectedMarketSkill.url}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
               className="bitfun-skills-scene__detail-link"
               data-testid="skills-detail-external-link"
+              onClick={() => void systemAPI.openExternal(selectedMarketSkill.url)}
             >
               {selectedMarketSkill.url}
-            </a>
+            </button>
           </div>
         ) : null}
       </GalleryDetailModal>
