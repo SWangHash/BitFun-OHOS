@@ -134,7 +134,11 @@ pub async fn handle_openai_stream(
 
         let raw = sse.data;
         stats.record_sse_event("data");
-        trace!(target: AI_STREAM_RESPONSE_TARGET, "OpenAI SSE: {:?}", raw);
+        if crate::diagnostics::include_sensitive_diagnostics() {
+            trace!(target: AI_STREAM_RESPONSE_TARGET, "OpenAI SSE: {:?}", raw);
+        } else {
+            trace!(target: AI_STREAM_RESPONSE_TARGET, "OpenAI SSE: data_bytes={}", raw.len());
+        }
         if let Some(ref tx) = tx_raw_sse {
             let _ = tx.send(raw.clone());
         }
@@ -205,11 +209,32 @@ pub async fn handle_openai_stream(
 
         let has_empty_choices = sse_data.is_choices_empty();
         let unified_responses = sse_data.into_unified_responses();
-        trace!(
-            target: AI_STREAM_RESPONSE_TARGET,
-            "OpenAI unified responses: {:?}",
-            unified_responses
-        );
+        if crate::diagnostics::include_sensitive_diagnostics() {
+            trace!(
+                target: AI_STREAM_RESPONSE_TARGET,
+                "OpenAI unified responses: {:?}",
+                unified_responses
+            );
+        } else {
+            let summary: Vec<String> = unified_responses.iter().map(|r| {
+                let mut parts = Vec::new();
+                if let Some(ref text) = r.text { parts.push(format!("text_chars={}", text.chars().count())); }
+                if let Some(ref reasoning) = r.reasoning_content { parts.push(format!("reasoning_chars={}", reasoning.chars().count())); }
+                if let Some(ref tc) = r.tool_call {
+                    parts.push(format!("tool_call: index={:?}, has_id={}, name={:?}, arguments_bytes={}, snapshot={}",
+                        tc.tool_call_index, tc.id.is_some(), tc.name.as_deref(),
+                        tc.arguments.as_ref().map(|a| a.len()).unwrap_or(0), tc.arguments_is_snapshot));
+                }
+                if r.finish_reason.is_some() { parts.push(format!("finish_reason={:?}", r.finish_reason)); }
+                if r.usage.is_some() { parts.push("has_usage=true".to_string()); }
+                if parts.is_empty() { "empty".to_string() } else { parts.join(", ") }
+            }).collect();
+            trace!(
+                target: AI_STREAM_RESPONSE_TARGET,
+                "OpenAI unified responses summary: [{}]",
+                summary.join("; ")
+            );
+        }
         if unified_responses.is_empty() {
             if has_empty_choices {
                 stats.increment("skip:empty_choices_no_usage");

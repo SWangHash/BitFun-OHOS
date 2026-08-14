@@ -1651,8 +1651,10 @@ impl Default for AppConfig {
 impl Default for AppLoggingConfig {
     fn default() -> Self {
         Self {
-            // Set to Debug in early development for easier diagnostics
+            #[cfg(debug_assertions)]
             level: "debug".to_string(),
+            #[cfg(not(debug_assertions))]
+            level: "info".to_string(),
             include_sensitive_diagnostics: false,
             model_exchange_tracing: ModelExchangeTracingConfig::default(),
         }
