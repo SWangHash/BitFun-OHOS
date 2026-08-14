@@ -247,25 +247,12 @@ impl MatrixHttpClient {
 }
 
 fn matrix_redirect_policy() -> reqwest::redirect::Policy {
-    reqwest::redirect::Policy::custom(|attempt| {
-        if attempt.previous().len() >= MAX_MATRIX_REDIRECTS {
-            return attempt.error("matrix api redirect limit exceeded");
-        }
-        let Some(previous) = attempt.previous().last() else {
-            return attempt.stop();
-        };
-        if same_origin(previous, attempt.url()) {
-            attempt.follow()
-        } else {
-            attempt.stop()
-        }
-    })
-}
-
-fn same_origin(previous: &reqwest::Url, next: &reqwest::Url) -> bool {
-    previous.scheme() == next.scheme()
-        && previous.host_str() == next.host_str()
-        && previous.port_or_known_default() == next.port_or_known_default()
+    // Matrix API redirects ZIP downloads to a CDN
+    // (e.g. openharmony-matrix.obs.cn-north-4.myhuaweicloud.com), which is a
+    // different origin. Use `Policy::limited` to follow all redirects up to
+    // MAX_MATRIX_REDIRECTS, regardless of origin. This is safe because the
+    // initial URL is always the trusted Matrix API base URL.
+    reqwest::redirect::Policy::limited(MAX_MATRIX_REDIRECTS)
 }
 
 async fn collect_bounded_body(
