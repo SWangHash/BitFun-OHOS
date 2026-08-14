@@ -256,7 +256,6 @@ export function useMatrixSkillMarket({
         await onInstalledChanged?.();
       } catch (err) {
         const message = extractErrorMessage(err);
-        console.error('[Matrix] Install failed:', { enName: skill.enName, rawError: err, extractedMessage: message });
         log.error('Failed to install Matrix skill', { enName: skill.enName, error: message, raw: err });
         setInstallError(String(message || 'Unknown install error'));
         notification.error(
