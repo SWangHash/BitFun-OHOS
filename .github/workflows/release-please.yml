@@ -93,3 +93,17 @@ jobs:
             --ref "${GITHUB_REF_NAME}" \
             -f "tag_name=${TAG_NAME}" \
             -f "upload_to_release=true"
+
+      - name: Trigger OHOS PC package
+        if: steps.detect.outputs.should_release == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.detect.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+
+          gh workflow run ohos-pc-package.yml \
+            --ref "${GITHUB_REF_NAME}" \
+            -f "tag_name=${TAG_NAME}" \
+            -f "upload_to_release=true"

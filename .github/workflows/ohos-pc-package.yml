@@ -1,0 +1,183 @@
+name: OHOS PC Package
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag name to build (e.g. v0.2.17). Leave empty to build from HEAD."
+        required: false
+        type: string
+      upload_to_release:
+        description: "Upload built HAP to the release specified by tag_name."
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ohos-pc-package-${{ github.event.release.tag_name || inputs.tag_name || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      upload_to_release: ${{ steps.meta.outputs.upload_to_release }}
+      checkout_ref: ${{ steps.meta.outputs.checkout_ref }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve version metadata
+        id: meta
+        shell: bash
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_SHA: ${{ github.sha }}
+          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
+          INPUT_TAG_NAME: ${{ inputs.tag_name }}
+          INPUT_UPLOAD_TO_RELEASE: ${{ inputs.upload_to_release }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
+            TAG="${RELEASE_TAG_NAME}"
+            VERSION="${TAG#v}"
+            UPLOAD="true"
+            CHECKOUT_REF="${TAG}"
+          elif [[ -n "${INPUT_TAG_NAME}" ]]; then
+            TAG="${INPUT_TAG_NAME}"
+            VERSION="${TAG#v}"
+            CHECKOUT_REF="${TAG}"
+            if [[ "${INPUT_UPLOAD_TO_RELEASE}" == "true" ]]; then
+              UPLOAD="true"
+            else
+              UPLOAD="false"
+            fi
+          else
+            VERSION="$(jq -r '.version' package.json)"
+            TAG="v${VERSION}"
+            UPLOAD="false"
+            CHECKOUT_REF="${GITHUB_SHA}"
+          fi
+
+          echo "version=$VERSION"          >> "$GITHUB_OUTPUT"
+          echo "release_tag=$TAG"          >> "$GITHUB_OUTPUT"
+          echo "upload_to_release=$UPLOAD" >> "$GITHUB_OUTPUT"
+          echo "checkout_ref=$CHECKOUT_REF" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build OHOS PC HAP
+    runs-on: [self-hosted, ohos]
+    needs: prepare
+    timeout-minutes: 90
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.checkout_ref }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build web UI for OHOS
+        run: pnpm --dir src/web-ui run build
+
+      - name: Init Tauri OHOS target
+        run: cd src/apps/desktop && cargo tauri ohos init
+
+      - name: Build Rust backend (.so)
+        run: cd src/apps/desktop && cargo tauri ohos build
+
+      - name: Verify .so output
+        shell: bash
+        run: |
+          SO="target/aarch64-unknown-linux-ohos/release/libbitfun_desktop_lib.so"
+          if [[ ! -f "$SO" ]]; then
+            echo "::error::$SO not found"
+            exit 1
+          fi
+          echo "libbitfun_desktop_lib.so size: $(du -h "$SO" | cut -f1)"
+
+      - name: Stage artifacts into OHOS project
+        shell: bash
+        run: |
+          SO="target/aarch64-unknown-linux-ohos/release/libbitfun_desktop_lib.so"
+          cp "$SO" src/apps/ohos/entry/libs/arm64-v8a/libbitfun_desktop_lib.so
+          rm -rf src/apps/ohos/entry/src/main/resources/resfile/dist
+          cp -r src/web-ui/dist src/apps/ohos/entry/src/main/resources/resfile/dist
+
+      - name: Install OHOS dependencies
+        working-directory: src/apps/ohos
+        run: |
+          $OHPM install --all
+          cd entry && $OHPM install --all
+
+      - name: Build HAP
+        working-directory: src/apps/ohos
+        run: |
+          $HVIGORW --mode module -p product=default -p module=entry@default assembleHap --no-daemon
+
+      - name: Verify HAP output
+        shell: bash
+        run: |
+          HAP=$(find src/apps/ohos/entry/build -name "*.hap" -type f | head -1)
+          if [[ -z "$HAP" ]]; then
+            echo "::error::No .hap found in build output"
+            exit 1
+          fi
+          echo "HAP: $HAP"
+          echo "HAP size: $(du -h "$HAP" | cut -f1)"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: bitfun-ohos-pc-${{ needs.prepare.outputs.release_tag }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            src/apps/ohos/entry/build/**/*.hap
+            target/aarch64-unknown-linux-ohos/release/libbitfun_desktop_lib.so
+
+  upload-release:
+    name: Upload to Release
+    needs: [prepare, build]
+    if: needs.prepare.outputs.upload_to_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: bitfun-ohos-pc-${{ needs.prepare.outputs.release_tag }}
+          path: ohos-release-assets
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare.outputs.release_tag }}
+          files: ohos-release-assets/**
+          fail_on_unmatched_files: true
