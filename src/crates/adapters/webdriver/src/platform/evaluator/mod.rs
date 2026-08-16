@@ -27,6 +27,11 @@ pub(crate) async fn evaluate_script<R: tauri::Runtime>(
     async_mode: bool,
     frame_context: &Value,
 ) -> Result<Value, WebDriverErrorResponse> {
+    // OpenHarmony's ArkWeb host currently reaches this generic evaluator via
+    // the Tauri fork's Webview::eval implementation. The injected bridge is
+    // pure page JavaScript, so pointer/wheel/key actions remain shared. A
+    // future ArkWeb-native provider can replace only this branch when it needs
+    // a direct runJavaScript/result callback instead of Tauri IPC.
     #[cfg(target_os = "macos")]
     {
         let _ = state;

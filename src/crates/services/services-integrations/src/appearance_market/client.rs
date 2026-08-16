@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use bitfun_product_domains::appearance_market::{
     AppearanceAdminSubmissionDetail, AppearanceCursorPage, AppearanceMarketListingDetail,
     AppearanceMarketListingSummary, AppearanceMarketSort, AppearanceMarketSubmission,

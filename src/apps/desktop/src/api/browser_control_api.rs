@@ -35,7 +35,7 @@ fn default_cdp_port() -> u16 {
 /// no live endpoint to reattach to, it does nothing and leaves the on-demand
 /// path to handle it.
 pub fn init_on_startup() {
-    tokio::spawn(async {
+    tauri::async_runtime::spawn(async {
         if !auto_connect_on_startup_enabled().await {
             return;
         }

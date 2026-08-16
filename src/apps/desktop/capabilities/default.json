@@ -5,7 +5,6 @@
   "windows": ["main", "agent-companion-pet", "spotlight"],
   "permissions": [
     "log:default",
-    "autostart:default",
     "core:default",
     "core:path:default",
     "core:event:default",
@@ -45,12 +44,6 @@
     "core:window:allow-unmaximize",
     "core:window:allow-unminimize",
     "core:window:allow-set-min-size",
-    "dialog:default",
-    "dialog:allow-open",
-    "dialog:allow-save",
-    "dialog:allow-ask",
-    "dialog:allow-confirm",
-    "dialog:allow-message",
     "opener:default",
     "opener:allow-open-url",
     {
