@@ -15,7 +15,6 @@ tokio = { workspace = true, features = ["fs", "io-util", "macros", "net", "rt", 
 napi-ohos = { workspace = true }
 napi-derive-ohos = { workspace = true }
 tokio-stream = { workspace = true }
-tokio-util = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 

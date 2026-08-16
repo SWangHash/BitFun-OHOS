@@ -275,11 +275,24 @@ export default class EntryAbility extends RustAbility {
     });
     RustModule.registerArktsFunction('set_decorations_ohos', async (err: Error, arg: string): Promise<string> => {
       const req: SetDecorationsArg = JSON.parse(arg);
+      const mainWin = windowStage.getMainWindowSync();
       try {
-        await windowStage.getMainWindowSync().setWindowDecorVisible(req.visible);
+        // Showing native title buttons makes HarmonyOS fall back to hover-only
+        // window decorations. Re-apply the same custom title-bar configuration
+        // used at startup after restoring the buttons.
+        await mainWin.setWindowTitleButtonVisible(
+          req.visible,
+          req.visible,
+          req.visible,
+        );
+        if (req.visible) {
+          mainWin.setWindowDecorHeight(44);
+          mainWin.setWindowTitleMoveEnabled(false);
+          mainWin.setWindowDecorVisible(false);
+        }
       } catch (e) {
         const be = e as BusinessError;
-        hilog.warn(DOMAIN, TAG, `setWindowDecorVisible failed: ${be.message}`);
+        hilog.warn(DOMAIN, TAG, `setWindowTitleButtonVisible failed: ${be.message}`);
       }
       return '';
     });
@@ -334,6 +347,16 @@ export default class EntryAbility extends RustAbility {
         dispWidth = disp.width;
         dispHeight = disp.height;
         scale = disp.densityPixels > 0 ? disp.densityPixels : 1;
+        // A floating window may not intersect the system bar when this query
+        // runs, in which case getWindowAvoidArea() reports zero. The display's
+        // available bounds still exclude the desktop bar, so keep that
+        // right/bottom reservation as a monitor-level fallback.
+        if (disp.availableWidth > 0 && disp.availableWidth <= disp.width) {
+          avoidRight = Math.max(avoidRight, disp.width - disp.availableWidth);
+        }
+        if (disp.availableHeight > 0 && disp.availableHeight <= disp.height) {
+          avoidBottom = Math.max(avoidBottom, disp.height - disp.availableHeight);
+        }
       } catch (e) {
         const be = e as BusinessError;
         hilog.warn(DOMAIN, TAG, `getDefaultDisplaySync failed: ${be.message}`);
@@ -341,10 +364,10 @@ export default class EntryAbility extends RustAbility {
       try {
         const avoidArea = windowStage.getMainWindowSync()
           .getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-        avoidTop = avoidArea.topRect.height;
-        avoidBottom = avoidArea.bottomRect.height;
-        avoidLeft = avoidArea.leftRect.width;
-        avoidRight = avoidArea.rightRect.width;
+        avoidTop = Math.max(avoidTop, avoidArea.topRect.height);
+        avoidBottom = Math.max(avoidBottom, avoidArea.bottomRect.height);
+        avoidLeft = Math.max(avoidLeft, avoidArea.leftRect.width);
+        avoidRight = Math.max(avoidRight, avoidArea.rightRect.width);
       } catch (e) {
         const be = e as BusinessError;
         hilog.warn(DOMAIN, TAG, `getWindowAvoidArea failed: ${be.message}`);
@@ -389,7 +412,7 @@ export default class EntryAbility extends RustAbility {
     });
     RustModule.registerArktsFunction('maximize_ohos', async (err: Error, arg: string): Promise<string> => {
       try {
-        await windowStage.getMainWindowSync().maximize();
+        await windowStage.getMainWindowSync().maximize(window.MaximizePresentation.EXIT_IMMERSIVE);
       } catch (e) {
         const be = e as BusinessError;
         hilog.warn(DOMAIN, TAG, `maximize failed: ${be.message}`);

@@ -109,3 +109,23 @@ if (!window.__bitfunWd) {{
         core_tail = core::tail()
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::bridge_helper_script;
+
+    #[test]
+    fn bridge_includes_harmony_safe_pointer_actions() {
+        let bridge = bridge_helper_script();
+
+        for symbol in [
+            "performPointerSourceActions",
+            "performWheelSourceActions",
+            "performKeySourceActions",
+            "dispatchPointerClick",
+            "releaseActions",
+        ] {
+            assert!(bridge.contains(symbol), "missing injected symbol: {symbol}");
+        }
+    }
+}

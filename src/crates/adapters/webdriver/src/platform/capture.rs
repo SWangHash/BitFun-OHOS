@@ -570,7 +570,7 @@ mod imp {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "ohos")))]
 mod imp {
     use super::*;
 
@@ -590,6 +590,30 @@ mod imp {
     ) -> Result<String, WebDriverErrorResponse> {
         Err(WebDriverErrorResponse::unsupported_operation(
             "Linux embedded webdriver print is temporarily disabled",
+        ))
+    }
+}
+
+#[cfg(target_env = "ohos")]
+mod imp {
+    use super::*;
+
+    pub(super) async fn take_screenshot<R: Runtime>(
+        _webview: Webview<R>,
+        _timeout_ms: u64,
+    ) -> Result<String, WebDriverErrorResponse> {
+        Err(WebDriverErrorResponse::unsupported_operation(
+            "HarmonyOS ArkWeb screenshots require a native capture provider",
+        ))
+    }
+
+    pub(super) async fn print_page<R: Runtime>(
+        _webview: Webview<R>,
+        _timeout_ms: u64,
+        _options: &PrintOptions,
+    ) -> Result<String, WebDriverErrorResponse> {
+        Err(WebDriverErrorResponse::unsupported_operation(
+            "HarmonyOS ArkWeb printing requires a native print provider",
         ))
     }
 }
