@@ -85,5 +85,28 @@ pub(crate) async fn run_script(
     let timeout_ms = session.timeouts.script.max(5_000);
 
     let frame_context = script::serialize_frame_context(&session.frame_context);
-    Err(WebDriverErrorResponse::no_such_window("No such windows"))
+    let window = state
+        .app
+        .get_webview_window(&session.current_window)
+        .ok_or_else(|| {
+            WebDriverErrorResponse::no_such_window(format!(
+                "Window not found: {}",
+                session.current_window
+            ))
+        })?;
+
+    // The JavaScript bridge is platform-neutral. Each host only supplies the
+    // WebView evaluator and result transport in `platform::evaluator` (the
+    // OHOS target uses the generic Tauri bridge until an ArkWeb-native host
+    // adapter is wired in).
+    platform::evaluator::evaluate_script(
+        state,
+        window.as_ref().clone(),
+        timeout_ms,
+        script_source,
+        &args,
+        async_mode,
+        &frame_context,
+    )
+    .await
 }

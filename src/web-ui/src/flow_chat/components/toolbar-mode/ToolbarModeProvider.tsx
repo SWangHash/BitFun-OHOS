@@ -1,4 +1,5 @@
 import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { createLogger } from '@/shared/utils/logger';
 import {
   MAIN_WINDOW_DEFAULT_SIZE,
@@ -35,6 +36,9 @@ const setMainWindowTransientGeometry = async (transient: boolean): Promise<void>
   const { systemAPI } = await import('@/infrastructure/api/service-api/SystemAPI');
   await systemAPI.setMainWindowTransientGeometry(transient);
 };
+
+const waitForAnimationFrame = (): Promise<void> =>
+  new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
 
 const restoreMainWindowFromToolbarMode = async (
   ops: WindowOps,
@@ -77,6 +81,16 @@ const restoreMainWindowFromToolbarMode = async (
       height: MAIN_WINDOW_DEFAULT_SIZE.height,
     });
     await ops.center();
+  }
+
+  if (isOpenHarmonyRuntime()) {
+    try {
+      // Geometry changes, especially maximize(), can reset HarmonyOS to its
+      // hover-only immersive chrome. Restore the normal title bar last.
+      await ops.setDecorations(saved?.isDecorated ?? true);
+    } catch (error) {
+      log.debug('Failed to re-apply HarmonyOS window decorations (ignored)', error);
+    }
   }
 
   await ops.setMinSizeLogical({
@@ -198,14 +212,31 @@ export const ToolbarModeProvider: React.FC<ToolbarModeProviderProps> = ({ childr
   const disableToolbarMode = useCallback(async () => {
     const ops = createWindowOps();
     const isMacOS = isMacOSPlatform();
+    const documentElement = isOpenHarmonyRuntime() ? document.documentElement : null;
+    const previousVisibility = documentElement?.style.visibility ?? '';
 
     try {
+      if (documentElement) {
+        documentElement.style.visibility = 'hidden';
+        await waitForAnimationFrame();
+      }
+
+      await restoreMainWindowFromToolbarMode(ops, savedWindowStateRef.current, isMacOS);
       setIsToolbarMode(false);
       setIsExpanded(false);
-      await restoreMainWindowFromToolbarMode(ops, savedWindowStateRef.current, isMacOS);
       savedWindowStateRef.current = null;
+
+      if (documentElement) {
+        // Let React commit the normal layout before revealing the restored window.
+        await waitForAnimationFrame();
+        await waitForAnimationFrame();
+      }
     } catch (error) {
       log.error('Failed to disable toolbar mode', error);
+    } finally {
+      if (documentElement) {
+        documentElement.style.visibility = previousVisibility;
+      }
     }
   }, []);
 

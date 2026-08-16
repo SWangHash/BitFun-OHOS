@@ -111,7 +111,7 @@ pub async fn create(
     let set_window_rect = cfg!(any(
         target_os = "macos",
         target_os = "windows",
-        target_os = "linux"
+        all(target_os = "linux", not(target_env = "ohos"))
     ));
 
     Ok(WebDriverResponse::success(json!({

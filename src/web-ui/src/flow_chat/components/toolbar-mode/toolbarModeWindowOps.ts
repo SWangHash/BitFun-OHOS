@@ -147,7 +147,9 @@ const ohosOps = (): WindowOps => ({
     return await workspaceAPI.window_is_maximized();
   },
   async isDecorated(): Promise<boolean | undefined> {
-    return false;
+    // OHOS main window ships with native window decorations (min/max/close)
+    // visible by default; report true so exiting toolbar mode restores them.
+    return true;
   },
   async unmaximize(): Promise<void> {
     await workspaceAPI.unmaximizeOhos();
