@@ -17,6 +17,7 @@ napi-derive-ohos = { workspace = true }
 tokio-stream = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
+tokio-util = { workspace = true }
 
 serde = { workspace = true }
 serde_json = { workspace = true }
