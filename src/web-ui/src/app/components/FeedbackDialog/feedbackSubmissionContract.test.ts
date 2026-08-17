@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { compile } from 'sass';
 import { describe, expect, it } from 'vitest';
 
 const readSource = (relativePath: string): string =>
@@ -67,14 +68,22 @@ describe('OpenHarmony feedback submission contract', () => {
 
   it('shows a single completion action after capability-backed success', () => {
     const dialog = readSource('./FeedbackDialog.tsx');
+    const styles = readSource('./FeedbackDialog.scss');
     const completeView = dialog.slice(
       dialog.indexOf('className="bitfun-feedback__complete"'),
       dialog.indexOf(') : (\n          <div ref={containerRef}'),
+    );
+    const completeStyles = styles.slice(
+      styles.indexOf('.bitfun-feedback__complete {'),
+      styles.indexOf('.bitfun-feedback__inbox-layout {'),
     );
 
     expect(completeView).toContain("t('shared:statuses.done')");
     expect(completeView).not.toContain('openGitCode');
     expect(completeView).not.toContain('feedback-submit');
+    expect(dialog).toContain('maxWidth: completed ? 560 : 960');
+    expect(completeStyles).not.toContain('min-height:');
+    expect(completeStyles).not.toContain('flex: 1;');
   });
 
   it('does not present an invalid zero-second quota retry', () => {
@@ -102,13 +111,48 @@ describe('OpenHarmony feedback submission contract', () => {
   });
 
   it('keeps the dialog below the host window controls at every supported size', () => {
+    const stylesheetPath = fileURLToPath(new URL('./FeedbackDialog.scss', import.meta.url));
+    const dialog = readSource('./FeedbackDialog.tsx');
     const styles = readSource('./FeedbackDialog.scss');
+    const builtStyles = compile(stylesheetPath).css;
+    const actionStyles = styles.slice(
+      styles.indexOf('.bitfun-feedback__actions {'),
+      styles.indexOf('.bitfun-feedback__complete {'),
+    );
 
-    expect(styles).toContain('padding: 48px 40px 32px;');
-    expect(styles).toContain('width: min(960px, calc(100vw - 80px));');
-    expect(styles).toContain('height: min(620px, calc(100vh - 114px));');
-    expect(styles).toContain('padding: 44px 12px 12px;');
-    expect(styles).toContain('max-height: calc(100vh - 56px);');
+    expect(styles).toContain('padding: 48px clamp(12px, 5.882vw, 40px) 32px;');
+    expect(styles).toContain('padding: 22px clamp(18px, 3.824vw, 26px) 24px;');
+    expect(dialog).toContain('dimensions={{');
+    expect(dialog).toContain("width: '100%'");
+    expect(dialog).toContain('maxWidth: completed ? 560 : 960');
+    expect(dialog).toContain("maxHeight: 'var(--bitfun-feedback-modal-max-height)'");
+    expect(styles).toContain('--bitfun-feedback-modal-max-height: calc(100vh - 80px);');
+    expect(styles).toContain('height: calc(100vh - 114px);');
+    expect(styles).toContain('max-height: 620px;');
+    expect(styles).toContain('.bitfun-feedback__root {\n  width: 100%;');
+    expect(styles).not.toContain('.bitfun-feedback__overlay > .modal');
+    expect(styles).not.toContain('min(960px, calc(100vw - 80px))');
+    expect(styles).not.toContain('min(620px, calc(100vh - 114px))');
+    expect(builtStyles).toContain('padding: 48px clamp(12px, 5.882vw, 40px) 32px;');
+    expect(builtStyles).toContain('height: calc(100vh - 114px);');
+    expect(builtStyles).not.toContain('min(960px, 100vw - 80px)');
+    expect(builtStyles).not.toContain('min(620px, 100vh - 114px)');
+    expect(styles).toContain('@media (max-width: 680px) {');
+    expect(styles).toContain('@media (max-height: 540px) {');
+    expect(styles).toContain('--bitfun-feedback-modal-max-height: calc(100vh - 56px);');
+    expect(styles).toContain('padding-top: 44px;');
+    expect(styles).toContain('padding-bottom: 12px;');
+    expect(dialog).toContain('<div className="bitfun-feedback__primary-actions">');
+    expect(dialog).not.toContain('bitfun-feedback__action-spacer');
+    expect(actionStyles).toContain('display: flex;');
+    expect(actionStyles).toContain('flex-wrap: wrap;');
+    expect(actionStyles).toContain('width: 100%;');
+    expect(actionStyles).toContain('min-width: 0;');
+    expect(actionStyles).toContain('.bitfun-feedback__primary-actions {');
+    expect(actionStyles).toContain('flex-shrink: 0;');
+    expect(actionStyles).toContain('margin-left: auto;');
+    expect(actionStyles).not.toContain('grid-template-columns:');
+    expect(styles).not.toContain('@media (max-width: 460px)');
   });
 
   it('keeps Mock request logs limited to a fixed stage and request id', () => {

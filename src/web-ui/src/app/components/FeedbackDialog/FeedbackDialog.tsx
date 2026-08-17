@@ -311,6 +311,11 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
         onClose={requestClose}
         title={t('header.feedback')}
         size="xlarge"
+        dimensions={{
+          width: '100%',
+          maxWidth: completed ? 560 : 960,
+          maxHeight: 'var(--bitfun-feedback-modal-max-height)',
+        }}
         overlayClassName="bitfun-feedback__overlay"
         contentClassName="bitfun-feedback__modal-content"
         showCloseButton={!submitting && !replyState.sending}
@@ -430,26 +435,27 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
                 <ExternalLink size={15} aria-hidden="true" />
                 {t('feedback.actions.gitcode')}
               </Button>
-              <span className="bitfun-feedback__action-spacer" />
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={submitting}
-                onClick={requestClose}
-              >
-                {t('feedback.actions.cancel')}
-              </Button>
-              <Button
-                type="submit"
-                disabled={!canSubmit}
-                isLoading={submitting}
-                data-testid="feedback-submit"
-              >
-                <Send size={15} aria-hidden="true" />
-                {submitError instanceof FeedbackApiError && submitError.retryable
-                  ? t('feedback.actions.retry')
-                  : t('feedback.actions.submit')}
-              </Button>
+              <div className="bitfun-feedback__primary-actions">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={submitting}
+                  onClick={requestClose}
+                >
+                  {t('feedback.actions.cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={!canSubmit}
+                  isLoading={submitting}
+                  data-testid="feedback-submit"
+                >
+                  <Send size={15} aria-hidden="true" />
+                  {submitError instanceof FeedbackApiError && submitError.retryable
+                    ? t('feedback.actions.retry')
+                    : t('feedback.actions.submit')}
+                </Button>
+              </div>
             </div>
               </form>
             ) : (
