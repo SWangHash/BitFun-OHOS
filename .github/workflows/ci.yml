@@ -320,3 +320,107 @@ jobs:
 
       - name: Build mobile web
         run: pnpm run build:mobile-web
+
+  # ── OHOS: cargo check ──────────────────────────────────────────────
+  # Lightweight compile-check for the OHOS target on every PR/push.
+  # Uses cargo check (no linking), so only the OHOS NDK sysroot headers
+  # are needed — no full DevEco SDK, no hvigor, no ohpm.
+  ohos-cargo-check:
+    name: OHOS Cargo Check (aarch64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Create Tauri resource directories
+        shell: bash
+        run: mkdir -p dist src/mobile-web/dist
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache OHOS NDK
+        id: cache-ndk
+        uses: actions/cache@v4
+        with:
+          path: /opt/ohos-ndk
+          key: ohos-ndk-5.0.0.60-v1
+
+      - name: Download OHOS NDK
+        if: steps.cache-ndk.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # OpenHarmony 5.0.0.60 (API 12 Release) ohos-sdk-full from daily build.
+          # Update the URL and cache key when upgrading the NDK version.
+          OHOS_SDK_URL="https://cidownload.openharmony.cn/version/Master_Version/OpenHarmony_5.0.0.60/20240806_020315/version-Master_Version-OpenHarmony_5.0.0.60-20240806_020315-ohos-sdk-full.tar.gz"
+          echo "Downloading OHOS SDK (~2.5 GB)..."
+          curl -fSL --retry 3 --retry-delay 5 -o /tmp/ohos-sdk-full.tar.gz "$OHOS_SDK_URL"
+          # Extract top-level; the tarball contains a versioned directory with linux/ inside
+          tar -xzf /tmp/ohos-sdk-full.tar.gz -C /tmp
+          rm /tmp/ohos-sdk-full.tar.gz
+          # Find the linux/ subdirectory containing arch-specific SDK zips
+          LINUX_DIR=$(find /tmp -name "linux" -type d | head -1)
+          if [[ -z "$LINUX_DIR" ]]; then
+            echo "::error::Could not find linux/ directory in SDK tarball"
+            ls -la /tmp/
+            exit 1
+          fi
+          echo "Linux SDK dir: $LINUX_DIR"
+          cd "$LINUX_DIR"
+          # Unzip only the native SDK package (llvm + sysroot headers)
+          NATIVE_ZIP=$(ls native-*.zip 2>/dev/null || ls opensource-native-*.zip 2>/dev/null || true)
+          if [[ -z "$NATIVE_ZIP" ]]; then
+            echo "::error::No native SDK zip found in $LINUX_DIR"
+            ls -la "$LINUX_DIR"
+            exit 1
+          fi
+          echo "Extracting $NATIVE_ZIP ..."
+          mkdir -p /opt/ohos-ndk
+          unzip -q -o "$NATIVE_ZIP" -d /opt/ohos-ndk
+          # The native zip extracts as openharmony/native/ or just native/
+          if [[ -d /opt/ohos-ndk/openharmony/native ]]; then
+            mv /opt/ohos-ndk/openharmony/native /opt/ohos-ndk/native
+            rm -rf /opt/ohos-ndk/openharmony
+          elif [[ ! -d /opt/ohos-ndk/native ]]; then
+            echo "::error::Could not find native/ in extracted SDK"
+            find /opt/ohos-ndk -maxdepth 3 -type d | head -20
+            exit 1
+          fi
+          echo "NDK installed: $(du -sh /opt/ohos-ndk/native | cut -f1)"
+          rm -rf /tmp/version-*
+
+      - name: Install Rust nightly + rust-src
+        shell: bash
+        run: |
+          rustup toolchain install nightly --profile minimal
+          rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
+          rustup target add aarch64-unknown-linux-ohos
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          shared-key: "ohos-check-v1"
+          cache-bin: false
+          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          cache-on-failure: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+      - name: Configure OHOS target linker
+        shell: bash
+        run: |
+          mkdir -p /usr/local/bin .cargo
+          # Wrapper script so clang receives --target and --sysroot flags
+          printf '#!/bin/sh\nexec /opt/ohos-ndk/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/opt/ohos-ndk/native/sysroot -D__MUSL__ "$@"\n' \
+            > /usr/local/bin/aarch64-unknown-linux-ohos-clang
+          chmod +x /usr/local/bin/aarch64-unknown-linux-ohos-clang
+          # .cargo/config.toml pointing to the wrapper
+          printf '[target.aarch64-unknown-linux-ohos]\nar = "/opt/ohos-ndk/native/llvm/bin/llvm-ar"\nlinker = "/usr/local/bin/aarch64-unknown-linux-ohos-clang"\n' \
+            > .cargo/config.toml
+
+      - name: Cargo check (OHOS aarch64)
+        shell: bash
+        run: |
+          cargo +nightly check -Z build-std=std,panic_abort \
+            --target aarch64-unknown-linux-ohos \
+            -p bitfun-desktop --lib
