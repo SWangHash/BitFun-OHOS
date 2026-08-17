@@ -17,12 +17,12 @@ napi-derive-ohos = { workspace = true }
 tokio-stream = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
-tokio-util = { workspace = true }
 
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true, optional = true }
 ts-rs = { workspace = true, optional = true }
+tokio-util = { workspace = true }
 
 anyhow = { workspace = true }
 thiserror = { workspace = true }
