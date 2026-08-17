@@ -748,7 +748,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-acp"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "agent-client-protocol",
  "async-trait",
@@ -759,14 +759,11 @@ dependencies = [
  "bitfun-events",
  "chrono",
  "dashmap",
- "dirs 6.0.0",
  "futures",
  "log",
- "semver",
  "serde",
  "serde_json",
  "sha2",
- "tar",
  "tokio",
  "tokio-util",
  "uuid",
@@ -774,11 +771,11 @@ dependencies = [
 
 [[package]]
 name = "bitfun-agent-content"
-version = "0.2.18"
+version = "0.2.17"
 
 [[package]]
 name = "bitfun-agent-runtime"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "async-trait",
  "bitfun-agent-stream",
@@ -804,13 +801,12 @@ dependencies = [
 
 [[package]]
 name = "bitfun-agent-runtime-ipc"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "async-trait",
  "bitfun-events",
  "bitfun-product-domains",
  "bitfun-runtime-ports",
- "bitfun-transport",
  "dunce",
  "fs2",
  "serde",
@@ -825,7 +821,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-agent-stream"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -845,7 +841,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-agent-tools"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "async-trait",
  "bitfun-core-types",
@@ -858,7 +854,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-ai-adapters"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "apple-native-keyring-store",
@@ -892,7 +888,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-app-server"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
@@ -901,19 +897,23 @@ dependencies = [
  "bitfun-app-server-client",
  "bitfun-app-server-protocol",
  "bitfun-core",
+ "bitfun-events",
  "bitfun-product-domains",
  "bitfun-runtime-ports",
+ "futures",
  "log",
  "serde",
  "serde_json",
  "tokio",
+ "tokio-util",
  "tracing",
+ "ts-rs",
  "url",
 ]
 
 [[package]]
 name = "bitfun-app-server-client"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
@@ -924,7 +924,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-app-server-protocol"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "agent-client-protocol",
  "bitfun-core-types",
@@ -938,7 +938,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-claude-code-adapter"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "bitfun-product-domains",
  "bitfun-services-core",
@@ -957,7 +957,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-cli"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "arboard",
@@ -980,6 +980,7 @@ dependencies = [
  "chrono",
  "clap",
  "crossterm",
+ "dashmap",
  "dirs 6.0.0",
  "dunce",
  "flate2",
@@ -1000,6 +1001,7 @@ dependencies = [
  "shlex 1.3.0",
  "similar",
  "syntect",
+ "syntect-tui",
  "tar",
  "tempfile",
  "thiserror 2.0.19",
@@ -1016,7 +1018,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-codex-adapter"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "bitfun-product-domains",
  "bitfun-services-core",
@@ -1033,7 +1035,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-core"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1047,7 +1049,6 @@ dependencies = [
  "bitfun-claude-code-adapter",
  "bitfun-codex-adapter",
  "bitfun-core-types",
- "bitfun-dsh-adapter",
  "bitfun-events",
  "bitfun-external-sources",
  "bitfun-harness",
@@ -1060,6 +1061,7 @@ dependencies = [
  "bitfun-services-core",
  "bitfun-services-integrations",
  "bitfun-tool-packs",
+ "bitfun-transport",
  "chrono",
  "chrono-tz",
  "cron",
@@ -1101,17 +1103,17 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-tungstenite",
- "tokio-util",
  "tool-runtime",
  "tower-http",
  "ts-rs",
  "unic-langid",
+ "urlencoding",
  "uuid",
 ]
 
 [[package]]
 name = "bitfun-core-types"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "serde",
  "serde_json",
@@ -1120,7 +1122,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-desktop"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "alloc-no-stdlib",
  "alloc-stdlib",
@@ -1201,25 +1203,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "bitfun-dsh-adapter"
-version = "0.2.18"
-dependencies = [
- "async-trait",
- "bitfun-plugin-runtime-client",
- "bitfun-product-domains",
- "bitfun-runtime-ports",
- "hex",
- "serde",
- "serde_json",
- "serde_yaml",
- "sha2",
- "tokio",
- "urlencoding",
-]
-
-[[package]]
 name = "bitfun-events"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1233,7 +1218,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-external-sources"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "bitfun-product-domains",
  "futures",
@@ -1243,7 +1228,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-harness"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "async-trait",
  "thiserror 2.0.19",
@@ -1252,7 +1237,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-miniapp-market-server"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "axum",
@@ -1264,7 +1249,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-miniapp-market-service"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "axum",
@@ -1288,13 +1273,14 @@ dependencies = [
  "tower-http",
  "tracing",
  "url",
+ "urlencoding",
  "uuid",
  "zip 4.6.1",
 ]
 
 [[package]]
 name = "bitfun-opencode-adapter"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "async-trait",
  "bitfun-plugin-runtime-client",
@@ -1322,7 +1308,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-page-function-runtime"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "rquickjs",
  "serde",
@@ -1333,7 +1319,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-plugin-runtime-client"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "async-trait",
  "bitfun-runtime-ports",
@@ -1342,7 +1328,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-product-capabilities"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "async-trait",
  "bitfun-agent-runtime",
@@ -1355,7 +1341,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-product-domains"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "dirs 6.0.0",
  "hex",
@@ -1372,7 +1358,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-relay-server"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "axum",
@@ -1389,7 +1375,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-relay-service"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -1418,7 +1404,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-runtime-ports"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1433,7 +1419,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-runtime-services"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1448,7 +1434,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-sdk-host"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "async-trait",
  "bitfun-agent-runtime",
@@ -1461,21 +1447,18 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
- "ts-rs",
  "uuid",
 ]
 
 [[package]]
 name = "bitfun-sdk-host-app"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "async-trait",
  "bitfun-agent-runtime",
  "bitfun-core",
  "bitfun-sdk-host",
- "bitfun-services-core",
- "bitfun-transport",
  "futures-util",
  "rustls",
  "serde_json",
@@ -1488,7 +1471,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-server"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
@@ -1514,7 +1497,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-services-core"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1550,7 +1533,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-services-integrations"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1588,7 +1571,6 @@ dependencies = [
  "oxc",
  "qrcode",
  "rand 0.8.7",
- "regex",
  "reqwest 0.13.4",
  "rmcp",
  "russh",
@@ -1627,7 +1609,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-skin-market-server"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "axum",
@@ -1639,7 +1621,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-skin-market-service"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "axum",
@@ -1668,7 +1650,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-static-hook-support"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "bitfun-product-domains",
  "bitfun-services-core",
@@ -1681,7 +1663,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-tool-call-jsonrepair"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "serde",
  "serde_json",
@@ -1689,25 +1671,23 @@ dependencies = [
 
 [[package]]
 name = "bitfun-tool-packs"
-version = "0.2.18"
+version = "0.2.17"
 
 [[package]]
 name = "bitfun-transport"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "async-trait",
  "bitfun-events",
  "log",
- "serde",
  "serde_json",
  "tauri",
- "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "bitfun-webdriver"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "axum",
@@ -2834,6 +2814,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "custom_error"
+version = "1.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f8a51dd197fa6ba5b4dc98a990a43cc13693c23eb0089ebb0fcc1f04152bca6"
+
+[[package]]
 name = "dark-light"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3668,6 +3654,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
 
 [[package]]
+name = "fancy-regex"
+version = "0.16.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "998b056554fbe42e03ae0e152895cd1a7e1002aec800fdc6635d20270260c46f"
+dependencies = [
+ "bit-set",
+ "regex-automata",
+ "regex-syntax",
+]
+
+[[package]]
 name = "fast-float2"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4186,6 +4183,15 @@ checksum = "1bd49230192a3797a9a4d6abe9b3eed6f7fa4c8a8a4947977c6f80025f92cbd8"
 dependencies = [
  "rustix 1.1.4",
  "windows-link 0.2.1",
+]
+
+[[package]]
+name = "getopts"
+version = "0.2.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfe4fbac503b8d1f88e6676011885f34b7174f46e59956bba534ba83abded4df"
+dependencies = [
+ "unicode-width 0.2.0",
 ]
 
 [[package]]
@@ -5790,6 +5796,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "linked-hash-map"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6597,6 +6609,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-av-foundation"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "478ae33fcac9df0a18db8302387c666b8ef08a3e2d62b510ca4fc278a384b6c0"
+dependencies = [
+ "objc2 0.6.4",
+ "objc2-foundation",
+]
+
+[[package]]
 name = "objc2-cloud-kit"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6605,6 +6627,28 @@ dependencies = [
  "bitflags 2.11.1",
  "objc2 0.6.4",
  "objc2-foundation",
+]
+
+[[package]]
+name = "objc2-core-audio"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1eebcea8b0dbff5f7c8504f3107c68fc061a3eb44932051c8cf8a68d969c3b2"
+dependencies = [
+ "dispatch2",
+ "objc2 0.6.4",
+ "objc2-core-audio-types",
+ "objc2-core-foundation",
+]
+
+[[package]]
+name = "objc2-core-audio-types"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a89f2ec274a0cf4a32642b2991e8b351a404d290da87bb6a9a9d8632490bd1c"
+dependencies = [
+ "bitflags 2.11.1",
+ "objc2 0.6.4",
 ]
 
 [[package]]
@@ -6665,6 +6709,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-core-media"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05ec576860167a15dd9fce7fbee7512beb4e31f532159d3482d1f9c6caedf31d"
+dependencies = [
+ "bitflags 2.11.1",
+ "dispatch2",
+ "objc2 0.6.4",
+ "objc2-core-audio",
+ "objc2-core-audio-types",
+ "objc2-core-foundation",
+ "objc2-core-video",
+]
+
+[[package]]
+name = "objc2-core-ml"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "201b055e6acfa0f9f15568255d3f03ce2b54bc86d1814442dc69138e36813e18"
+dependencies = [
+ "objc2 0.6.4",
+ "objc2-foundation",
+]
+
+[[package]]
 name = "objc2-core-text"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6715,6 +6784,17 @@ dependencies = [
  "libc",
  "objc2 0.6.4",
  "objc2-core-foundation",
+]
+
+[[package]]
+name = "objc2-image-io"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32b0446e98cf4a784cc7a0177715ff317eeaa8463841c616cfc78aa4f953c4ea"
+dependencies = [
+ "objc2 0.6.4",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
 ]
 
 [[package]]
@@ -6812,9 +6892,17 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfc194758a2d5d7540b1ad283bfb9ca318ec608991892326e95b428230b2689b"
 dependencies = [
+ "block2 0.6.2",
  "objc2 0.6.4",
+ "objc2-av-foundation",
  "objc2-core-foundation",
+ "objc2-core-graphics",
+ "objc2-core-image",
+ "objc2-core-media",
+ "objc2-core-ml",
+ "objc2-core-video",
  "objc2-foundation",
+ "objc2-image-io",
 ]
 
 [[package]]
@@ -8327,9 +8415,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "679341d22c78c6c649893cbd6c3278dcbe9fc4faa62fea3a9296ae2b50c14625"
 dependencies = [
  "bitflags 2.11.1",
+ "getopts",
  "memchr",
+ "pulldown-cmark-escape",
  "unicase",
 ]
+
+[[package]]
+name = "pulldown-cmark-escape"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
 
 [[package]]
 name = "pulp"
@@ -8654,6 +8750,7 @@ dependencies = [
  "lru",
  "paste",
  "strum 0.26.3",
+ "time",
  "unicode-segmentation",
  "unicode-truncate",
  "unicode-width 0.2.0",
@@ -10623,15 +10720,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "656b45c05d95a5704399aeef6bd0ddec7b2b3531b7c9e900abbf7c4d2190c925"
 dependencies = [
  "bincode",
+ "fancy-regex",
  "flate2",
  "fnv",
  "once_cell",
  "onig",
+ "plist",
  "regex-syntax",
  "serde",
  "serde_derive",
+ "serde_json",
  "thiserror 2.0.19",
  "walkdir",
+ "yaml-rust",
+]
+
+[[package]]
+name = "syntect-tui"
+version = "3.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24486acfb54bfcae77f45784cb59254e14454949a44f9d0b62613a699619c210"
+dependencies = [
+ "custom_error",
+ "ratatui",
+ "syntect",
 ]
 
 [[package]]
@@ -11144,7 +11256,7 @@ dependencies = [
 
 [[package]]
 name = "terminal-core"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11565,7 +11677,7 @@ checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 
 [[package]]
 name = "tool-runtime"
-version = "0.2.18"
+version = "0.2.17"
 dependencies = [
  "anydoc",
  "bitfun-agent-tools",
@@ -13458,6 +13570,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "388c44dc09d76f1536602ead6d325eb532f5c122f17782bd57fb47baeeb767e2"
 dependencies = [
  "lzma-sys",
+]
+
+[[package]]
+name = "yaml-rust"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56c1936c4cc7a1c9ab21a1ebb602eb942ba868cbd44a99cb7cdc5892335e1c85"
+dependencies = [
+ "linked-hash-map",
 ]
 
 [[package]]
