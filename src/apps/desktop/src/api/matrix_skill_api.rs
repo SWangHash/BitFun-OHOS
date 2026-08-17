@@ -2,8 +2,9 @@
 //!
 //! These commands wrap the independent `bitfun-matrix-adapter` crate so the
 //! frontend can invoke Matrix market operations (`list_matrix_tags`,
-//! `list_matrix_skills`, `install_matrix_skill`,
-//! `check_matrix_skill_checksum`) via the standard Tauri `invoke` bridge.
+//! `list_matrix_skills`, `list_matrix_categories`, `list_matrix_organizations`,
+//! `install_matrix_skill`, `check_matrix_skill_checksum`) via the standard
+//! Tauri `invoke` bridge.
 //!
 //! Design notes:
 //! - Commands construct a fresh `MatrixHttpClient` per invocation. The client
@@ -13,17 +14,19 @@
 //! - These commands are intentionally separate from `skill_api.rs` (which owns
 //!   the legacy skills.sh integration) per `spec.md` FR-008 (code
 //!   independence).
-//! - Remote-workspace policy: `LocalOnly` for all four commands (Matrix
+//! - Remote-workspace policy: `LocalOnly` for all six commands (Matrix
 //!   download and install require local filesystem access to
-//!   `~/.bitfun/skills/matrix/`).
+//!   `~/.bitfun/skills/matrix/`; the browse commands are co-located for
+//!   policy simplicity and because they only matter for local install).
 
 use tauri::State;
 
 use crate::api::AppState;
 use bitfun_matrix_adapter::{
-    check_checksum, install_skill, list_skills, list_tags, MatrixApiError, MatrixHttpClient,
-    MatrixSkillChecksum, MatrixSkillInstallResult, MatrixSkillsListRequest, MatrixSkillsPage,
-    MatrixTag,
+    check_checksum, install_skill, list_categories, list_organizations, list_skills, list_tags,
+    MatrixApiError, MatrixCategoryItem, MatrixHttpClient, MatrixOrgSidebarPage,
+    MatrixOrgSidebarRequest, MatrixSkillChecksum, MatrixSkillInstallResult, MatrixSkillsListRequest,
+    MatrixSkillsPage, MatrixTag,
 };
 
 /// Browse Matrix platform skill tags.
@@ -89,6 +92,73 @@ pub async fn list_matrix_skills(
         Err(error) => log::error!(
             "Tauri list_matrix_skills failed: page_num={}, error={:?}",
             request.page_num,
+            error
+        ),
+    }
+    result
+}
+
+/// Browse Matrix skill categories with counts (sidebar for "按分类").
+///
+/// Wraps `bitfun_matrix_adapter::list_categories`, which calls
+/// `POST /api/registry/skill/countByCategory` with an empty body. Returns the
+/// category list used to populate the "by category" browse section chips.
+#[tauri::command]
+pub async fn list_matrix_categories(
+    _app_state: State<'_, AppState>,
+) -> Result<Vec<MatrixCategoryItem>, MatrixApiError> {
+    let client = MatrixHttpClient::new()?;
+    log::info!("Tauri list_matrix_categories invoked");
+    let result = list_categories(&client).await;
+    match &result {
+        Ok(items) => log::info!(
+            "Tauri list_matrix_categories ok: count={}",
+            items.len()
+        ),
+        Err(error) => log::error!(
+            "Tauri list_matrix_categories failed: error={:?}",
+            error
+        ),
+    }
+    result
+}
+
+/// Browse Matrix skill organizations with counts (sidebar for "按组织").
+///
+/// Wraps `bitfun_matrix_adapter::list_organizations`, which calls
+/// `POST /api/registry/skill/org/list`. The frontend passes an optional
+/// `MatrixOrgSidebarRequest` (keyword / pageNum / pageSize); when omitted or
+/// incomplete, `pageNum=1` and `pageSize=1000` defaults are applied so the
+/// full organization universe is fetched in one request. Returns the
+/// organization list page used to populate the "by organization" browse
+/// section chips.
+#[tauri::command]
+pub async fn list_matrix_organizations(
+    _app_state: State<'_, AppState>,
+    request: Option<MatrixOrgSidebarRequest>,
+) -> Result<MatrixOrgSidebarPage, MatrixApiError> {
+    let client = MatrixHttpClient::new()?;
+    let mut req = request.unwrap_or_default();
+    if req.page_num.is_none() {
+        req.page_num = Some(1);
+    }
+    if req.page_size.is_none() {
+        req.page_size = Some(1000);
+    }
+    log::info!(
+        "Tauri list_matrix_organizations invoked: keyword={:?}, page_num={:?}, page_size={:?}",
+        req.keyword,
+        req.page_num,
+        req.page_size
+    );
+    let result = list_organizations(&client, &req).await;
+    match &result {
+        Ok(page) => log::info!(
+            "Tauri list_matrix_organizations ok: count={}",
+            page.list.len()
+        ),
+        Err(error) => log::error!(
+            "Tauri list_matrix_organizations failed: error={:?}",
             error
         ),
     }

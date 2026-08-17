@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { matrixSkillAPI } from '@/infrastructure/api';
 import type {
+  MatrixCategoryItem,
+  MatrixSidebarItem,
   MatrixSkillSummary,
   MatrixSkillsListRequest,
   MatrixSkillsPage,
@@ -28,6 +30,8 @@ function extractErrorMessage(err: unknown): string {
 
 const DEFAULT_PAGE_SIZE = 15;
 
+export type MatrixSection = 'feature' | 'tag' | 'cat' | 'org';
+
 interface UseMatrixSkillMarketOptions {
   enabled?: boolean;
   onInstalledChanged?: () => Promise<void> | void;
@@ -40,6 +44,21 @@ interface MatrixListState {
   selectedTagIds: string[];
   toggleTag: (tagId: string) => void;
   clearTags: () => void;
+
+  categories: MatrixCategoryItem[];
+  categoriesLoading: boolean;
+  categoriesError: string | null;
+  selectedCategoryId: string | null;
+  toggleCategory: (categoryId: string) => void;
+
+  organizations: MatrixSidebarItem[];
+  organizationsLoading: boolean;
+  organizationsError: string | null;
+  selectedOrgId: string | null;
+  toggleOrganization: (orgId: string) => void;
+
+  activeSection: MatrixSection;
+  selectSection: (section: MatrixSection) => void;
 
   keyword: string;
   setKeyword: (value: string) => void;
@@ -75,7 +94,18 @@ export function useMatrixSkillMarket({
   const [tagsLoading, setTagsLoading] = useState(false);
   const [tagsError, setTagsError] = useState<string | null>(null);
 
+  const [categories, setCategories] = useState<MatrixCategoryItem[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+
+  const [organizations, setOrganizations] = useState<MatrixSidebarItem[]>([]);
+  const [organizationsLoading, setOrganizationsLoading] = useState(false);
+  const [organizationsError, setOrganizationsError] = useState<string | null>(null);
+
+  const [activeSection, setActiveSection] = useState<MatrixSection>('feature');
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
 
   const [keyword, setKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
@@ -89,9 +119,9 @@ export function useMatrixSkillMarket({
   const [installingEnName, setInstallingEnName] = useState<string | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
 
-  // Separate request ID refs for tags and skills to prevent parallel calls
-  // from invalidating each other's responses.
   const tagsRequestIdRef = useRef(0);
+  const categoriesRequestIdRef = useRef(0);
+  const organizationsRequestIdRef = useRef(0);
   const skillsRequestIdRef = useRef(0);
   const pageSize = DEFAULT_PAGE_SIZE;
 
@@ -127,6 +157,80 @@ export function useMatrixSkillMarket({
     }
   }, [enabled]);
 
+  const loadCategories = useCallback(async () => {
+    if (!enabled) {
+      setCategories([]);
+      setCategoriesLoading(false);
+      return;
+    }
+    const requestId = ++categoriesRequestIdRef.current;
+    setCategoriesLoading(true);
+    setCategoriesError(null);
+    try {
+      log.info('Loading Matrix categories');
+      const result = await matrixSkillAPI.listCategories();
+      if (requestId !== categoriesRequestIdRef.current) {
+        log.info('Matrix categories response discarded (stale request)');
+        return;
+      }
+      log.info('Matrix categories loaded', { count: result.length });
+      const sorted = [...result].sort(
+        (a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER),
+      );
+      setCategories(sorted);
+    } catch (err) {
+      if (requestId !== categoriesRequestIdRef.current) {
+        return;
+      }
+      const msg = extractErrorMessage(err);
+      log.error('Failed to load Matrix categories', { error: msg, raw: err });
+      setCategoriesError(msg);
+    } finally {
+      if (requestId === categoriesRequestIdRef.current) {
+        setCategoriesLoading(false);
+      }
+    }
+  }, [enabled]);
+
+  const loadOrganizations = useCallback(async () => {
+    if (!enabled) {
+      setOrganizations([]);
+      setOrganizationsLoading(false);
+      return;
+    }
+    const requestId = ++organizationsRequestIdRef.current;
+    setOrganizationsLoading(true);
+    setOrganizationsError(null);
+    try {
+      log.info('Loading Matrix organizations');
+      const result = await matrixSkillAPI.listOrganizations({
+        keyword: '',
+        pageNum: 1,
+        pageSize: 1000,
+      });
+      if (requestId !== organizationsRequestIdRef.current) {
+        log.info('Matrix organizations response discarded (stale request)');
+        return;
+      }
+      const filtered = result.list.filter(
+        (item) => item.enName !== 'Other' && item.enName !== '',
+      );
+      log.info('Matrix organizations loaded', { count: filtered.length });
+      setOrganizations(filtered);
+    } catch (err) {
+      if (requestId !== organizationsRequestIdRef.current) {
+        return;
+      }
+      const msg = extractErrorMessage(err);
+      log.error('Failed to load Matrix organizations', { error: msg, raw: err });
+      setOrganizationsError(msg);
+    } finally {
+      if (requestId === organizationsRequestIdRef.current) {
+        setOrganizationsLoading(false);
+      }
+    }
+  }, [enabled]);
+
   const loadSkillsPage = useCallback(
     async (targetPage: number) => {
       if (!enabled) {
@@ -140,12 +244,15 @@ export function useMatrixSkillMarket({
         pageNum: String(targetPage + 1),
         pageSize: String(pageSize),
         keyword: submittedKeyword.trim() || undefined,
-        tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
+        isFeatured: activeSection === 'feature' ? true : undefined,
+        tagIds: activeSection === 'tag' && selectedTagIds.length > 0 ? selectedTagIds : undefined,
+        categoryId: activeSection === 'cat' && selectedCategoryId ? selectedCategoryId : undefined,
+        orgId: activeSection === 'org' && selectedOrgId ? selectedOrgId : undefined,
       };
       setSkillsLoading(true);
       setSkillsError(null);
       try {
-        log.info('Loading Matrix skills', { page: targetPage + 1, request });
+        log.info('Loading Matrix skills', { page: targetPage + 1, section: activeSection, request });
         const result = await matrixSkillAPI.listSkills(request);
         if (requestId !== skillsRequestIdRef.current) {
           log.info('Matrix skills response discarded (stale request)');
@@ -170,23 +277,31 @@ export function useMatrixSkillMarket({
         }
       }
     },
-    [enabled, pageSize, submittedKeyword, selectedTagIds],
+    [enabled, pageSize, submittedKeyword, activeSection, selectedTagIds, selectedCategoryId, selectedOrgId],
   );
 
   useEffect(() => {
     if (!enabled) {
       setTags([]);
+      setCategories([]);
+      setOrganizations([]);
       setPage(null);
       setCurrentPage(0);
       setSkillsLoading(false);
       setSkillsError(null);
       setTagsError(null);
+      setCategoriesError(null);
+      setOrganizationsError(null);
       setInstallingEnName(null);
       setInstallError(null);
+      setActiveSection('feature');
+      setSelectedTagIds([]);
+      setSelectedCategoryId(null);
+      setSelectedOrgId(null);
       return;
     }
-    void loadTags();
-  }, [enabled, loadTags]);
+    void Promise.all([loadTags(), loadCategories(), loadOrganizations()]);
+  }, [enabled, loadTags, loadCategories, loadOrganizations]);
 
   useEffect(() => {
     if (!enabled) {
@@ -197,7 +312,6 @@ export function useMatrixSkillMarket({
 
   const skills = useMemo(() => page?.list ?? [], [page]);
   const totalCount = page?.count ?? 0;
-  // hasMore: there are more pages beyond the current one
   const hasMore = (currentPage + 1) * pageSize < totalCount;
   const loadingMore = false;
 
@@ -207,6 +321,14 @@ export function useMatrixSkillMarket({
     }
     return Math.max(1, Math.ceil(totalCount / pageSize));
   }, [totalCount, pageSize]);
+
+  const selectSection = useCallback((section: MatrixSection) => {
+    setSelectedTagIds([]);
+    setSelectedCategoryId(null);
+    setSelectedOrgId(null);
+    setActiveSection(section);
+    setCurrentPage(0);
+  }, []);
 
   const toggleTag = useCallback((tagId: string) => {
     setSelectedTagIds((prev) => {
@@ -220,6 +342,16 @@ export function useMatrixSkillMarket({
 
   const clearTags = useCallback(() => {
     setSelectedTagIds([]);
+    setCurrentPage(0);
+  }, []);
+
+  const toggleCategory = useCallback((categoryId: string) => {
+    setSelectedCategoryId((prev) => (prev === categoryId ? null : categoryId));
+    setCurrentPage(0);
+  }, []);
+
+  const toggleOrganization = useCallback((orgId: string) => {
+    setSelectedOrgId((prev) => (prev === orgId ? null : orgId));
     setCurrentPage(0);
   }, []);
 
@@ -269,8 +401,13 @@ export function useMatrixSkillMarket({
   );
 
   const refresh = useCallback(async () => {
-    await Promise.all([loadTags(), loadSkillsPage(currentPage)]);
-  }, [loadTags, loadSkillsPage, currentPage]);
+    await Promise.all([
+      loadTags(),
+      loadCategories(),
+      loadOrganizations(),
+      loadSkillsPage(currentPage),
+    ]);
+  }, [loadTags, loadCategories, loadOrganizations, loadSkillsPage, currentPage]);
 
   return {
     tags,
@@ -279,6 +416,18 @@ export function useMatrixSkillMarket({
     selectedTagIds,
     toggleTag,
     clearTags,
+    categories,
+    categoriesLoading,
+    categoriesError,
+    selectedCategoryId,
+    toggleCategory,
+    organizations,
+    organizationsLoading,
+    organizationsError,
+    selectedOrgId,
+    toggleOrganization,
+    activeSection,
+    selectSection,
     keyword,
     setKeyword,
     submitKeyword,

@@ -271,6 +271,23 @@
       "empty": "No tags available",
       "clear": "Clear filters"
     },
+    "sections": {
+      "featured": "Featured",
+      "byTag": "By Tag",
+      "byCategory": "By Category",
+      "byOrganization": "By Organization"
+    },
+    "featured": {
+      "hint": "Showing all featured skills"
+    },
+    "categories": {
+      "loading": "Loading categories...",
+      "empty": "No categories available"
+    },
+    "organizations": {
+      "loading": "Loading organizations...",
+      "empty": "No organizations available"
+    },
     "item": {
       "install": "Install",
       "installing": "Installing...",

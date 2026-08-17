@@ -1487,6 +1487,8 @@ pub async fn _run() {
             set_global_skill_disabled,
             list_matrix_tags,
             list_matrix_skills,
+            list_matrix_categories,
+            list_matrix_organizations,
             install_matrix_skill,
             check_matrix_skill_checksum,
             set_mode_skill_disabled,

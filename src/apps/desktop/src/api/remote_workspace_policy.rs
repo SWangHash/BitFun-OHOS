@@ -978,6 +978,8 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         "list_manageable_subagents",
         RemoteWorkspacePolicy::RemoteRouted,
     ),
+    ("list_matrix_categories", RemoteWorkspacePolicy::LocalOnly),
+    ("list_matrix_organizations", RemoteWorkspacePolicy::LocalOnly),
     ("list_matrix_tags", RemoteWorkspacePolicy::LocalOnly),
     ("list_matrix_skills", RemoteWorkspacePolicy::LocalOnly),
     ("list_mcp_prompts", RemoteWorkspacePolicy::LegacyUnaudited),

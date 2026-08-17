@@ -249,6 +249,65 @@ pub struct MatrixSkillsListRequest {
     pub category_id: Option<String>,
     pub org_id: Option<String>,
     pub tag_ids: Option<Vec<String>>,
+    /// Filter to featured skills only (the "精品集" browse section). Omitted
+    /// from the serialized body when `None` so the Matrix API treats it as
+    /// no filter, matching the website's `delete o.isFeatured` behavior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_featured: Option<bool>,
+}
+
+/// Sidebar facet item returned by the Matrix "count by facet" endpoints
+/// (`countByScenario` / `countByTag` / `org/list`). Carries the facet `id`,
+/// localized display names, and the skill `count` for that facet. `count` may
+/// arrive as either a JSON number or a numeric string (see
+/// [`deserialize_optional_u64_from_string_or_number`]).
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct MatrixSidebarItem {
+    pub id: String,
+    pub name: Option<String>,
+    pub en_name: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_u64_from_string_or_number")]
+    pub count: Option<u64>,
+}
+
+/// Sidebar category item returned by `POST /api/registry/skill/countByCategory`.
+/// Categories use `cnName` (the localized Chinese name) for display instead of
+/// `name`, plus an optional `sortOrder` for stable ordering.
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct MatrixCategoryItem {
+    pub id: String,
+    pub cn_name: Option<String>,
+    pub en_name: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_u64_from_string_or_number")]
+    pub count: Option<u64>,
+    #[serde(default, deserialize_with = "deserialize_optional_u32_from_string_or_number")]
+    pub sort_order: Option<u32>,
+}
+
+/// Paginated organization sidebar page (`data` field of the envelope for
+/// `POST /api/registry/skill/org/list`).
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct MatrixOrgSidebarPage {
+    pub list: Vec<MatrixSidebarItem>,
+}
+
+/// Client-side request body for `POST /api/registry/skill/org/list`.
+///
+/// `pageNum` and `pageSize` are numbers on the wire (unlike the skills list
+/// endpoint which uses strings) to match the Matrix org/list contract. All
+/// fields are optional and omitted when `None`.
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct MatrixOrgSidebarRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keyword: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_num: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_size: Option<u32>,
 }
 
 /// Result returned by `install_skill` and the `install_matrix_skill` Tauri

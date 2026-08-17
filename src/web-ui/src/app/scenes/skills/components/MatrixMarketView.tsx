@@ -2,7 +2,12 @@ import React from 'react';
 import { CheckCircle2, Download, Package, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Search } from '@/component-library';
-import type { MatrixSkillSummary } from '@/infrastructure/api/service-api/MatrixSkillAPI';
+import type {
+  MatrixCategoryItem,
+  MatrixSidebarItem,
+  MatrixSkillSummary,
+} from '@/infrastructure/api/service-api/MatrixSkillAPI';
+import type { MatrixSection } from '../hooks/useMatrixSkillMarket';
 import SkillCard from './SkillCard';
 
 interface MatrixMarketViewProps {
@@ -12,6 +17,21 @@ interface MatrixMarketViewProps {
   selectedTagIds: string[];
   onToggleTag: (tagId: string) => void;
   onClearTags: () => void;
+
+  categories: MatrixCategoryItem[];
+  categoriesLoading: boolean;
+  categoriesError: string | null;
+  selectedCategoryId: string | null;
+  onToggleCategory: (categoryId: string) => void;
+
+  organizations: MatrixSidebarItem[];
+  organizationsLoading: boolean;
+  organizationsError: string | null;
+  selectedOrgId: string | null;
+  onToggleOrganization: (orgId: string) => void;
+
+  activeSection: MatrixSection;
+  onSelectSection: (section: MatrixSection) => void;
 
   keyword: string;
   onKeywordChange: (value: string) => void;
@@ -36,6 +56,8 @@ interface MatrixMarketViewProps {
   installedEnNames: Set<string>;
 }
 
+const SECTIONS: MatrixSection[] = ['feature', 'tag', 'cat', 'org'];
+
 const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
   tags,
   tagsLoading,
@@ -43,6 +65,18 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
   selectedTagIds,
   onToggleTag,
   onClearTags,
+  categories,
+  categoriesLoading,
+  categoriesError,
+  selectedCategoryId,
+  onToggleCategory,
+  organizations,
+  organizationsLoading,
+  organizationsError,
+  selectedOrgId,
+  onToggleOrganization,
+  activeSection,
+  onSelectSection,
   keyword,
   onKeywordChange,
   onKeywordSubmit,
@@ -61,7 +95,172 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
   onOpenDetails,
   installedEnNames,
 }) => {
-  const { t } = useTranslation('scenes/skills');
+  const { t, i18n } = useTranslation('scenes/skills');
+  const isZh = i18n.language?.startsWith('zh');
+
+  const sectionLabel = (section: MatrixSection): string => {
+    switch (section) {
+      case 'feature':
+        return t('matrix.sections.featured');
+      case 'tag':
+        return t('matrix.sections.byTag');
+      case 'cat':
+        return t('matrix.sections.byCategory');
+      case 'org':
+        return t('matrix.sections.byOrganization');
+      default:
+        return '';
+    }
+  };
+
+  const renderChips = () => {
+    if (activeSection === 'feature') {
+      return (
+        <div className="skills-matrix__chip-list" data-testid="matrix-featured-hint">
+          <span className="skills-matrix__chip-hint">{t('matrix.featured.hint')}</span>
+        </div>
+      );
+    }
+
+    if (activeSection === 'tag') {
+      return (
+        <div className="skills-matrix__chip-list" data-testid="matrix-tags-bar">
+          {tagsLoading && (
+            <span className="skills-matrix__chip-loading">{t('matrix.tags.loading')}</span>
+          )}
+          {!tagsLoading && tagsError && (
+            <span className="skills-matrix__chip-error">{tagsError}</span>
+          )}
+          {!tagsLoading && !tagsError && tags.length === 0 && (
+            <span className="skills-matrix__chip-empty">{t('matrix.tags.empty')}</span>
+          )}
+          {!tagsLoading && !tagsError && tags.length > 0 && (
+            <React.Fragment>
+              {selectedTagIds.length > 0 && (
+                <button
+                  type="button"
+                  className="skills-matrix__chip skills-matrix__chip--clear"
+                  onClick={onClearTags}
+                  aria-label={t('matrix.tags.clear')}
+                >
+                  {t('matrix.tags.clear')}
+                </button>
+              )}
+              {tags.map((tag) => {
+                const selected = selectedTagIds.includes(tag.id);
+                return (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    className={`skills-matrix__chip ${selected ? 'is-active' : ''}`}
+                    onClick={() => onToggleTag(tag.id)}
+                    aria-pressed={selected}
+                  >
+                    {isZh ? tag.name : tag.enName}
+                  </button>
+                );
+              })}
+            </React.Fragment>
+          )}
+        </div>
+      );
+    }
+
+    if (activeSection === 'cat') {
+      return (
+        <div className="skills-matrix__chip-list" data-testid="matrix-categories-bar">
+          {categoriesLoading && (
+            <span className="skills-matrix__chip-loading">{t('matrix.categories.loading')}</span>
+          )}
+          {!categoriesLoading && categoriesError && (
+            <span className="skills-matrix__chip-error">{categoriesError}</span>
+          )}
+          {!categoriesLoading && !categoriesError && categories.length === 0 && (
+            <span className="skills-matrix__chip-empty">{t('matrix.categories.empty')}</span>
+          )}
+          {!categoriesLoading && !categoriesError && categories.length > 0 && (
+            <React.Fragment>
+              {selectedCategoryId && (
+                <button
+                  type="button"
+                  className="skills-matrix__chip skills-matrix__chip--clear"
+                  onClick={() => onToggleCategory(selectedCategoryId)}
+                  aria-label={t('matrix.tags.clear')}
+                >
+                  {t('matrix.tags.clear')}
+                </button>
+              )}
+              {categories.map((cat) => {
+                const selected = selectedCategoryId === cat.id;
+                const label = isZh ? cat.cnName : cat.enName;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    className={`skills-matrix__chip ${selected ? 'is-active' : ''}`}
+                    onClick={() => onToggleCategory(cat.id)}
+                    aria-pressed={selected}
+                  >
+                    <span className="skills-matrix__chip-label">{label}</span>
+                    {typeof cat.count === 'number' && (
+                      <span className="skills-matrix__chip-count">{cat.count}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </React.Fragment>
+          )}
+        </div>
+      );
+    }
+
+    // org
+    return (
+      <div className="skills-matrix__chip-list" data-testid="matrix-organizations-bar">
+        {organizationsLoading && (
+          <span className="skills-matrix__chip-loading">{t('matrix.organizations.loading')}</span>
+        )}
+        {!organizationsLoading && organizationsError && (
+          <span className="skills-matrix__chip-error">{organizationsError}</span>
+        )}
+        {!organizationsLoading && !organizationsError && organizations.length === 0 && (
+          <span className="skills-matrix__chip-empty">{t('matrix.organizations.empty')}</span>
+        )}
+        {!organizationsLoading && !organizationsError && organizations.length > 0 && (
+          <React.Fragment>
+            {selectedOrgId && (
+              <button
+                type="button"
+                className="skills-matrix__chip skills-matrix__chip--clear"
+                onClick={() => onToggleOrganization(selectedOrgId)}
+                aria-label={t('matrix.tags.clear')}
+              >
+                {t('matrix.tags.clear')}
+              </button>
+            )}
+            {organizations.map((org) => {
+              const selected = selectedOrgId === org.id;
+              const label = isZh ? org.name : org.enName;
+              return (
+                <button
+                  key={org.id}
+                  type="button"
+                  className={`skills-matrix__chip ${selected ? 'is-active' : ''}`}
+                  onClick={() => onToggleOrganization(org.id)}
+                  aria-pressed={selected}
+                >
+                  <span className="skills-matrix__chip-label">{label}</span>
+                  {typeof org.count === 'number' && (
+                    <span className="skills-matrix__chip-count">{org.count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </React.Fragment>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="skills-discover skills-matrix" data-testid="matrix-market">
@@ -85,47 +284,22 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
         </div>
       </div>
 
-      <div className="skills-matrix__tags-bar" data-testid="matrix-tags-bar">
-        {tagsLoading && (
-          <span className="skills-matrix__tags-loading">
-            {t('matrix.tags.loading')}
-          </span>
-        )}
-        {!tagsLoading && tagsError && (
-          <span className="skills-matrix__tags-error">{tagsError}</span>
-        )}
-        {!tagsLoading && !tagsError && tags.length === 0 && (
-          <span className="skills-matrix__tags-empty">{t('matrix.tags.empty')}</span>
-        )}
-        {!tagsLoading && !tagsError && tags.length > 0 && (
-          <>
-            {selectedTagIds.length > 0 && (
-              <button
-                type="button"
-                className="skills-matrix__tag-chip skills-matrix__tag-chip--clear"
-                onClick={onClearTags}
-                aria-label={t('matrix.tags.clear')}
-              >
-                {t('matrix.tags.clear')}
-              </button>
-            )}
-            {tags.map((tag) => {
-              const selected = selectedTagIds.includes(tag.id);
-              return (
-                <button
-                  key={tag.id}
-                  type="button"
-                  className={`skills-matrix__tag-chip ${selected ? 'is-active' : ''}`}
-                  onClick={() => onToggleTag(tag.id)}
-                  aria-pressed={selected}
-                >
-                  {tag.name}
-                </button>
-              );
-            })}
-          </>
-        )}
+      <div className="skills-matrix__section-bar" role="tablist" data-testid="matrix-section-bar">
+        {SECTIONS.map((section) => (
+          <button
+            key={section}
+            type="button"
+            role="tab"
+            aria-selected={activeSection === section}
+            className={`skills-matrix__section-btn ${activeSection === section ? 'is-active' : ''}`}
+            onClick={() => onSelectSection(section)}
+          >
+            {sectionLabel(section)}
+          </button>
+        ))}
       </div>
+
+      {renderChips()}
 
       <div className="skills-discover__content">
         {installError && (

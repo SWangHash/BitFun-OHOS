@@ -102,6 +102,32 @@ export interface MatrixSkillsListRequest {
   categoryId?: string;
   orgId?: string;
   tagIds?: string[];
+  isFeatured?: boolean;
+}
+
+export interface MatrixSidebarItem {
+  id: string;
+  name?: string;
+  enName?: string;
+  count?: number;
+}
+
+export interface MatrixCategoryItem {
+  id: string;
+  cnName?: string;
+  enName?: string;
+  count?: number;
+  sortOrder?: number;
+}
+
+export interface MatrixOrgSidebarPage {
+  list: MatrixSidebarItem[];
+}
+
+export interface MatrixOrgSidebarRequest {
+  keyword?: string;
+  pageNum?: number;
+  pageSize?: number;
 }
 
 export interface MatrixApiError {
@@ -124,6 +150,22 @@ class MatrixSkillAPI {
       return await api.invoke<MatrixSkillsPage>('list_matrix_skills', { request });
     } catch (error) {
       throw createTauriCommandError('list_matrix_skills', error, { request });
+    }
+  }
+
+  async listCategories(): Promise<MatrixCategoryItem[]> {
+    try {
+      return await api.invoke<MatrixCategoryItem[]>('list_matrix_categories');
+    } catch (error) {
+      throw createTauriCommandError('list_matrix_categories', error);
+    }
+  }
+
+  async listOrganizations(request?: MatrixOrgSidebarRequest): Promise<MatrixOrgSidebarPage> {
+    try {
+      return await api.invoke<MatrixOrgSidebarPage>('list_matrix_organizations', { request });
+    } catch (error) {
+      throw createTauriCommandError('list_matrix_organizations', error, { request });
     }
   }
 

@@ -2,8 +2,8 @@
 
 - This crate owns OpenHarmony Matrix market (`https://matrix.openharmony.cn/`)
   protocol translation and Matrix skill ZIP install for BitFun. It exposes
-  `MatrixHttpClient`, the four Matrix skill-market HTTP endpoints
-  (tags / skills / install / checksum), DTO mapping, SHA-256 integrity
+  `MatrixHttpClient`, the Matrix skill-market HTTP endpoints
+  (tags / skills / categories / organizations / install / checksum), DTO mapping, SHA-256 integrity
   verification, and atomic unzip-to-disk install.
 - Boundary rule: must not depend on `bitfun-core`, `bitfun-*` app crates,
   Tauri, or any host entrypoint. Keep this crate self-contained so it can be
