@@ -1,11 +1,7 @@
 .bitfun-feedback__overlay {
-  padding: 48px 40px 32px;
-}
+  --bitfun-feedback-modal-max-height: calc(100vh - 80px);
 
-.bitfun-feedback__overlay .modal {
-  width: min(960px, calc(100vw - 80px));
-  max-width: min(960px, calc(100vw - 80px));
-  max-height: calc(100vh - 80px);
+  padding: 48px clamp(12px, 5.882vw, 40px) 32px;
 }
 
 .bitfun-feedback__modal-content {
@@ -15,9 +11,7 @@
 }
 
 .bitfun-feedback__root {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
+  width: 100%;
   min-width: 0;
   min-height: 0;
 }
@@ -29,7 +23,8 @@
   width: 100%;
   min-width: 0;
   min-height: 0;
-  height: min(620px, calc(100vh - 114px));
+  height: calc(100vh - 114px);
+  max-height: 620px;
 }
 
 .bitfun-feedback__view-switch {
@@ -84,7 +79,7 @@
   flex-direction: column;
   gap: 18px;
   min-height: 0;
-  padding: 22px 26px 24px;
+  padding: 22px clamp(18px, 3.824vw, 26px) 24px;
   overflow-y: auto;
 }
 
@@ -192,26 +187,31 @@
 .bitfun-feedback__actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
+  width: 100%;
+  min-width: 0;
   margin-top: auto;
 
   .btn {
+    flex-shrink: 0;
     min-width: 96px;
   }
 }
 
-.bitfun-feedback__action-spacer {
-  flex: 1;
+.bitfun-feedback__primary-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
 }
 
 .bitfun-feedback__complete {
   display: flex;
-  flex: 1;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 12px;
-  min-height: min(460px, 64vh);
   padding: 32px;
   color: var(--bf-appearance-token-color-text-secondary);
   text-align: center;
@@ -626,36 +626,27 @@
   }
 }
 
-@media (max-width: 680px), (max-height: 540px) {
+@media (max-width: 680px) {
   .bitfun-feedback__overlay {
-    padding: 44px 12px 12px;
-  }
-
-  .bitfun-feedback__overlay .modal {
-    width: calc(100vw - 24px);
-    max-width: calc(100vw - 24px);
-    max-height: calc(100vh - 56px);
-  }
-
-  .bitfun-feedback__center {
-    height: calc(100vh - 90px);
-  }
-
-  .bitfun-feedback__form {
-    padding: 18px;
-  }
-
-  .bitfun-feedback__privacy,
-  .bitfun-feedback__actions {
-    align-items: stretch;
-    flex-wrap: wrap;
+    padding-right: clamp(12px, 5.882vw, 40px);
+    padding-left: clamp(12px, 5.882vw, 40px);
   }
 
   .bitfun-feedback__privacy {
     align-items: center;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-height: 540px) {
+  .bitfun-feedback__overlay {
+    --bitfun-feedback-modal-max-height: calc(100vh - 56px);
+
+    padding-top: 44px;
+    padding-bottom: 12px;
   }
 
-  .bitfun-feedback__action-spacer {
-    display: none;
+  .bitfun-feedback__center {
+    height: calc(100vh - 90px);
   }
 }

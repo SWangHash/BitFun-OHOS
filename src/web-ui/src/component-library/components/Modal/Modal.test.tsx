@@ -26,6 +26,10 @@ describe('Modal behavior', () => {
 
   afterEach(() => {
     act(() => root.unmount());
+    document.querySelectorAll('style[data-bf-appearance-runtime="test"]')
+      .forEach(style => style.remove());
+    document.documentElement.removeAttribute('data-bf-appearance');
+    document.documentElement.removeAttribute('data-bf-appearance-revision');
     container.remove();
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -88,6 +92,45 @@ describe('Modal behavior', () => {
 
     expect(document.body.querySelector('.modal')).not.toBeNull();
     expect(document.body.querySelector('.modal--exiting')).toBeNull();
+  });
+
+  it('keeps instance dimensions above late Appearance size rules', () => {
+    act(() => {
+      root.render(
+        <Modal
+          isOpen
+          onClose={vi.fn()}
+          size="xlarge"
+          dimensions={{
+            width: '100%',
+            maxWidth: 960,
+            maxHeight: 'calc(100vh - 80px)',
+          }}
+        >
+          Content
+        </Modal>,
+      );
+    });
+
+    const runtimeStyle = document.createElement('style');
+    runtimeStyle.setAttribute('data-bf-appearance-runtime', 'test');
+    runtimeStyle.textContent = `
+      :root[data-bf-appearance="builtin"][data-bf-appearance-revision="7"]
+      [data-bf-component="modal"][data-bf-part="dialog"][data-bf-size="xlarge"] {
+        width: 100%;
+        max-width: 720px;
+        max-height: 100%;
+      }
+    `;
+    document.documentElement.setAttribute('data-bf-appearance', 'builtin');
+    document.documentElement.setAttribute('data-bf-appearance-revision', '7');
+    document.head.appendChild(runtimeStyle);
+
+    const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]');
+    expect(dialog?.style.width).toBe('100%');
+    expect(dialog?.style.maxWidth).toBe('960px');
+    expect(dialog?.style.maxHeight).toBe('calc(100vh - 80px)');
+    expect(dialog ? getComputedStyle(dialog).maxWidth : null).toBe('960px');
   });
 
   it('closes only when the pointer press and release both occur on the overlay', () => {

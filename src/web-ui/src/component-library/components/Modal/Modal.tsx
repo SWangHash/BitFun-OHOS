@@ -89,6 +89,11 @@ function registerOpenModal(
   };
 }
 
+export type ModalDimensions = Pick<
+  React.CSSProperties,
+  'width' | 'minWidth' | 'maxWidth' | 'height' | 'minHeight' | 'maxHeight'
+>;
+
 export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -96,6 +101,8 @@ export interface ModalProps {
   titleExtra?: React.ReactNode;
   children: React.ReactNode;
   size?: 'small' | 'medium' | 'large' | 'xlarge';
+  /** Instance constraints that take precedence over Appearance size presets. */
+  dimensions?: ModalDimensions;
   contentInset?: boolean;
   /** Extra class on `.modal__content` (e.g. flex layout for scroll regions inside children) */
   contentClassName?: string;
@@ -121,6 +128,7 @@ export const Modal: React.FC<ModalProps> = ({
   titleExtra,
   children,
   size = 'medium',
+  dimensions,
   contentInset = false,
   contentClassName,
   showCloseButton = true,
@@ -140,7 +148,10 @@ export const Modal: React.FC<ModalProps> = ({
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [resizedDimensions, setResizedDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDirection, setResizeDirection] = useState<string>('');
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
@@ -309,14 +320,14 @@ export const Modal: React.FC<ModalProps> = ({
       });
       
       if (resizable) {
-        setDimensions({
+        setResizedDimensions({
           width: modalWidth,
           height: modalHeight
         });
       }
     } else if (!isOpen && !isPresent) {
       setPosition(null);
-      setDimensions(null);
+      setResizedDimensions(null);
     }
   }, [isOpen, isPresent, draggable, resizable]);
 
@@ -386,7 +397,7 @@ export const Modal: React.FC<ModalProps> = ({
       newHeight = window.innerHeight - newY;
     }
     
-    setDimensions({ width: newWidth, height: newHeight });
+    setResizedDimensions({ width: newWidth, height: newHeight });
     setPosition({ x: newX, y: newY });
   }, [isResizing, resizable, resizeDirection, resizeStart, position]);
 
@@ -411,14 +422,19 @@ export const Modal: React.FC<ModalProps> = ({
 
   if (!isOpen && !isPresent) return null;
 
-  const appliedStyle = (draggable || resizable) && position ? {
-    position: 'fixed' as const,
-    top: position.y,
-    left: position.x,
-    transform: 'none',
-    margin: 0,
-    ...(dimensions && resizable ? { width: dimensions.width, height: dimensions.height } : {})
-  } : {};
+  const appliedStyle: React.CSSProperties = {
+    ...dimensions,
+    ...((draggable || resizable) && position ? {
+      position: 'fixed' as const,
+      top: position.y,
+      left: position.x,
+      transform: 'none',
+      margin: 0,
+      ...(resizedDimensions && resizable
+        ? { width: resizedDimensions.width, height: resizedDimensions.height }
+        : {}),
+    } : {}),
+  };
   const dialogAppearanceState = [
     draggable && 'draggable',
     isDragging && 'dragging',

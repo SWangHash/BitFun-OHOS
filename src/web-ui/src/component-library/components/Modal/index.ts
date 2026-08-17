@@ -1,2 +1,2 @@
 export { Modal } from './Modal';
-export type { ModalProps } from './Modal';
+export type { ModalDimensions, ModalProps } from './Modal';
