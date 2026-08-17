@@ -323,8 +323,9 @@ jobs:
 
   # ── OHOS: cargo check ──────────────────────────────────────────────
   # Lightweight compile-check for the OHOS target on every PR/push.
-  # Uses cargo check (no linking), so only the OHOS NDK sysroot headers
-  # are needed — no full DevEco SDK, no hvigor, no ohpm.
+  # Uses hdx (https://github.com/chawyehsu/hdx) to download the
+  # HarmonyOS Command Line Tools, then extracts only the native/ NDK
+  # (llvm + sysroot).  The full DevEco SDK, hvigor, and ohpm are not needed.
   ohos-cargo-check:
     name: OHOS Cargo Check (aarch64)
     runs-on: ubuntu-latest
@@ -332,6 +333,7 @@ jobs:
     env:
       CARGO_INCREMENTAL: "0"
       CARGO_PROFILE_DEV_DEBUG: "0"
+      OHOS_CLT_VERSION: "6.1.1.300"
     steps:
       - uses: actions/checkout@v5
 
@@ -346,51 +348,51 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /opt/ohos-ndk
-          key: ohos-ndk-5.0.0.60-v1
+          key: ohos-ndk-${{ env.OHOS_CLT_VERSION }}-v1
 
-      - name: Download OHOS NDK
+      - name: Download OHOS Command Line Tools via hdx
         if: steps.cache-ndk.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euo pipefail
-          # OpenHarmony 5.0.0.60 (API 12 Release) ohos-sdk-full from daily build.
-          # Update the URL and cache key when upgrading the NDK version.
-          OHOS_SDK_URL="https://cidownload.openharmony.cn/version/Master_Version/OpenHarmony_5.0.0.60/20240806_020315/version-Master_Version-OpenHarmony_5.0.0.60-20240806_020315-ohos-sdk-full.tar.gz"
-          echo "Downloading OHOS SDK (~2.5 GB)..."
-          curl -fSL --retry 3 --retry-delay 5 -o /tmp/ohos-sdk-full.tar.gz "$OHOS_SDK_URL"
-          # Extract top-level; the tarball contains a versioned directory with linux/ inside
-          tar -xzf /tmp/ohos-sdk-full.tar.gz -C /tmp
-          rm /tmp/ohos-sdk-full.tar.gz
-          # Find the linux/ subdirectory containing arch-specific SDK zips
-          LINUX_DIR=$(find /tmp -name "linux" -type d | head -1)
-          if [[ -z "$LINUX_DIR" ]]; then
-            echo "::error::Could not find linux/ directory in SDK tarball"
-            ls -la /tmp/
-            exit 1
+
+          # ── Install hdx ──────────────────────────────────────────────
+          echo "Installing hdx..."
+          if curl -fSL --retry 2 -o /tmp/hdx \
+              "https://github.com/chawyehsu/hdx/releases/latest/download/hdx-linux-x86_64" 2>/dev/null; then
+            chmod +x /tmp/hdx
+            echo "hdx binary downloaded"
+          else
+            echo "Pre-built hdx not found, building from source..."
+            cargo install --git https://github.com/chawyehsu/hdx --root /tmp
           fi
-          echo "Linux SDK dir: $LINUX_DIR"
-          cd "$LINUX_DIR"
-          # Unzip only the native SDK package (llvm + sysroot headers)
-          NATIVE_ZIP=$(ls native-*.zip 2>/dev/null || ls opensource-native-*.zip 2>/dev/null || true)
-          if [[ -z "$NATIVE_ZIP" ]]; then
-            echo "::error::No native SDK zip found in $LINUX_DIR"
-            ls -la "$LINUX_DIR"
-            exit 1
-          fi
-          echo "Extracting $NATIVE_ZIP ..."
+
+          # ── Restore hdx credentials ─────────────────────────────────
+          mkdir -p ~/.config/hdx
+          echo "${{ secrets.HDX_CREDENTIALS_B64 }}" | base64 -d > ~/.config/hdx/credentials.json
+
+          # ── Get download URL for Command Line Tools ─────────────────
+          echo "Fetching Command Line Tools $OHOS_CLT_VERSION download URL..."
+          CLT_URL=$(/tmp/hdx dget command-line-tools --version "$OHOS_CLT_VERSION" --platform linux)
+          echo "Download URL obtained"
+
+          # ── Download and extract ─────────────────────────────────────
+          echo "Downloading Command Line Tools (~2 GB)..."
+          curl -fSL --retry 3 --retry-delay 5 -o /tmp/command-line-tools.zip "$CLT_URL"
+
+          # The zip layout: command-line-tools/sdk/{version}/openharmony/native/
+          echo "Extracting native NDK..."
           mkdir -p /opt/ohos-ndk
-          unzip -q -o "$NATIVE_ZIP" -d /opt/ohos-ndk
-          # The native zip extracts as openharmony/native/ or just native/
-          if [[ -d /opt/ohos-ndk/openharmony/native ]]; then
-            mv /opt/ohos-ndk/openharmony/native /opt/ohos-ndk/native
-            rm -rf /opt/ohos-ndk/openharmony
-          elif [[ ! -d /opt/ohos-ndk/native ]]; then
-            echo "::error::Could not find native/ in extracted SDK"
-            find /opt/ohos-ndk -maxdepth 3 -type d | head -20
+          unzip -q -o /tmp/command-line-tools.zip "*/openharmony/native/*" -d /tmp/clt
+          NATIVE_DIR=$(find /tmp/clt -path "*/openharmony/native" -type d | head -1)
+          if [[ -z "$NATIVE_DIR" ]]; then
+            echo "::error::Could not find openharmony/native/ in Command Line Tools zip"
+            find /tmp/clt -maxdepth 4 -type d | head -20
             exit 1
           fi
+          mv "$NATIVE_DIR" /opt/ohos-ndk/native
           echo "NDK installed: $(du -sh /opt/ohos-ndk/native | cut -f1)"
-          rm -rf /tmp/version-*
+          rm -rf /tmp/command-line-tools.zip /tmp/clt /tmp/hdx
 
       - name: Install Rust nightly + rust-src
         shell: bash
