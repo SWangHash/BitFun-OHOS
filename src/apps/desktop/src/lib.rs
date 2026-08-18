@@ -2133,6 +2133,11 @@ async fn init_agentic_system() -> anyhow::Result<(
 )> {
     use bitfun_core::agentic::*;
 
+    #[cfg(target_env = "ohos")]
+    bitfun_services_integrations::browser_control::register_haitai_browser_launch_port(Arc::new(
+        api::ohos::browser::HaitaiBrowserLaunchHost,
+    ));
+
     let ai_client_factory = AIClientFactory::get_global().await?;
 
     let event_queue = Arc::new(events::EventQueue::new(Default::default()));

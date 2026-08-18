@@ -89,6 +89,10 @@ interface MonitorAvoidArea {
   left: number;
   right: number;
 }
+interface HaitaiBrowserLaunchRequest {
+  port?: number;
+  initialUrl?: string | null;
+}
 
 export default class EntryAbility extends RustAbility {
   public moduleName: string = "bitfun_desktop_lib";
@@ -244,12 +248,49 @@ export default class EntryAbility extends RustAbility {
           "entities": ["entity.system.browsable"],
           "uri": url
         }
+        if (/^https?:\/\//i.test(url)) {
+          want.bundleName = 'com.haitai.htbrowser';
+          want.moduleName = 'pc_entry';
+          want.abilityName = 'EntryAbility';
+        }
         await this.context.startAbility(want);
         hilog.info(201, 'vnext', `open url succeed: ${url}`);
         return `start ability succeed with ${url}`;
       } catch (error) {
         hilog.info(201, 'vnext', `fail to open ${url} ${error.code}`);
         return `fail to open ${url} ${error.code}`;
+      }
+    });
+    RustModule.registerArktsFunction('launch_haitai_browser_cdp', async (err: Error, arg: string): Promise<string> => {
+      try {
+        const request = JSON.parse(arg) as HaitaiBrowserLaunchRequest;
+        const port = request.port ?? 9222;
+        if (!Number.isInteger(port) || port < 1 || port > 65535) {
+          return JSON.stringify({ ok: false, error: 'invalid Haitai CDP port' });
+        }
+        const cmdArgs = `--remote-debugging-port=${port} --remote-debugging=true --remote-allow-origins=http://localhost:${port}`;
+        const want: Want = {
+          bundleName: 'com.haitai.htbrowser',
+          moduleName: 'pc_entry',
+          abilityName: 'EntryAbility',
+          parameters: { cmdArgs: cmdArgs },
+        };
+        const initialUrl = request.initialUrl?.trim() ?? '';
+        if (initialUrl.length > 0) {
+          if (!/^https?:\/\//i.test(initialUrl)) {
+            return JSON.stringify({ ok: false, error: 'Haitai initialUrl must use http or https' });
+          }
+          want.action = 'ohos.want.action.viewData';
+          want.entities = ['entity.system.browsable'];
+          want.uri = initialUrl;
+        }
+        await this.context.startAbility(want);
+        hilog.info(201, 'vnext', `launched Haitai CDP provider port=${port} url=${initialUrl}`);
+        return JSON.stringify({ ok: true });
+      } catch (error) {
+        const detail = error as BusinessError;
+        hilog.error(201, 'vnext', `failed to launch Haitai CDP provider: ${detail.message}`);
+        return JSON.stringify({ ok: false, error: detail.message ?? String(error) });
       }
     });
     RustModule.registerArktsFunction('window_is_minimized', async (err: Error, arg: string): Promise<string> => {
