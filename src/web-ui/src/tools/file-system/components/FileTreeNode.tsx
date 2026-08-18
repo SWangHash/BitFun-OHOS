@@ -3,6 +3,8 @@ import { FileTreeNodeProps } from '../types';
 import { expandedFoldersContains } from '@/shared/utils/pathUtils';
 import { FileTreeItem } from './FileTreeItem';
 import { getPathDepth } from './fileTreeDepth';
+import { useI18n } from '@/infrastructure/i18n';
+import { isFilePermissionError } from '@/shared/utils/fsErrorUtils';
 
 interface ExtendedFileTreeNodeProps extends FileTreeNodeProps {
   selectedFile?: string;
@@ -33,7 +35,13 @@ export const FileTreeNode: React.FC<ExtendedFileTreeNodeProps> = ({
   renameSiblings,
   isRemoteWorkspace = false,
 }) => {
+  const { t } = useI18n('panels/files');
   const indentDepth = getPathDepth(node.path, workspacePath);
+  const directoryError = node.errorMessage
+    ? isFilePermissionError(node.errorMessage)
+      ? t('errors.directoryPermissionDenied')
+      : t('errors.directoryLoadFailed', { message: node.errorMessage })
+    : null;
 
   return (
     <div className={`bitfun-file-explorer__node ${className}`}>
@@ -57,6 +65,15 @@ export const FileTreeNode: React.FC<ExtendedFileTreeNodeProps> = ({
 
       {node.isDirectory && isExpanded && (
         <div className="bitfun-file-explorer__node-children">
+          {directoryError && (
+            <div
+              className="bitfun-file-explorer__node-error"
+              style={{ paddingLeft: `${indentDepth * 20 + 16}px` }}
+              role="alert"
+            >
+              {directoryError}
+            </div>
+          )}
           {(node.children ?? []).map(child => (
             <FileTreeNode
               key={child.path}

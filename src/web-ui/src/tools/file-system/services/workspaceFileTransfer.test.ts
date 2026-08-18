@@ -3,6 +3,7 @@ import {
   decodeBase64FileChunk,
   isFilePermissionError,
   isSafePeerTransferEntryName,
+  isSourceFileMissingError,
   joinWorkspaceTargetPath,
   normalizeClipboardLocalPaths,
   resolvePasteTargetDirectory,
@@ -24,7 +25,21 @@ describe("workspaceFileTransfer", () => {
     expect(isFilePermissionError(new Error("Access denied (os error 5)"))).toBe(
       true,
     );
+    expect(
+      isFilePermissionError(
+        "Failed to read directory: Operation not permitted (os error 1)",
+      ),
+    ).toBe(true);
     expect(isFilePermissionError("File exists (os error 17)")).toBe(false);
+  });
+
+  it("recognizes missing sandbox source files returned by paste operations", () => {
+    expect(
+      isSourceFileMissingError(
+        "paste_files: Service error: Source file does not exist",
+      ),
+    ).toBe(true);
+    expect(isSourceFileMissingError("Destination does not exist")).toBe(false);
   });
 
   it("rejects peer directory entries that can escape the selected destination", () => {

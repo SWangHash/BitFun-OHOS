@@ -88,6 +88,12 @@
   "empty": {
     "selectWorkspace": "选择工作区后将显示文件树"
   },
+  "errors": {
+    "fileTreePermissionDenied": "BitFun 没有访问此文件夹的权限。",
+    "fileTreeLoadFailed": "加载文件树失败：{{message}}",
+    "directoryPermissionDenied": "BitFun 没有访问此文件夹的权限。",
+    "directoryLoadFailed": "加载文件夹失败：{{message}}"
+  },
   "dialog": {
     "newFile": {
       "title": "新建文件",
@@ -148,7 +154,9 @@
     "pasteSuccessFolders": "成功粘贴 {{count}} 个文件夹",
     "pasteSuccessItems": "成功粘贴 {{count}} 项",
     "pasteFailed": "{{count}} 个文件粘贴失败",
+    "pasteFailedWithReason": "粘贴失败：{{error}}",
     "pastePermissionDenied": "没有权限。请检查源文件和目标文件夹的访问权限。",
+    "pasteSourceMissing": "源文件不存在或已被移动。请重新复制后再粘贴。",
     "pasteErrorDetail": "{{name}}：{{error}}",
     "pasteNoFiles": "剪贴板中没有文件",
     "pastingFiles": "正在粘贴 {{count}} 个文件到 {{target}}...",
