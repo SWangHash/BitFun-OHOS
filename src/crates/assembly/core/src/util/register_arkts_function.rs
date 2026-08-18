@@ -34,6 +34,9 @@ pub const SYSTEM_COLOR_SCHEME_CHANGED_EVENT: &str = "bitfun:system-color-scheme-
 /// tweak for one string).
 pub const BROWSER_WEBVIEW_PAGE_LOAD_EVENT: &str = "browser-webview-page-load";
 
+/// Event emitted for each intermediate or final OHOS speech-recognition result.
+pub const SPEECH_TRANSCRIPTION_RESULT_EVENT: &str = "speech://transcription-result";
+
 /// Dedicated single-threaded tokio runtime for `notify_system_color_mode`. The
 /// `#[napi]` callback runs on a HarmonyOS thread that has no tokio runtime in
 /// context, so we cannot rely on `Handle::try_current()` captured at host init
@@ -129,6 +132,25 @@ pub fn emit_browser_page_load(label: String, event: String, url: String) {
     });
 }
 
+#[napi]
+pub fn emit_speech_transcription(session_id: String, text: String, is_final: bool) {
+    browser_page_load_runtime().block_on(async move {
+        let payload = serde_json::json!({
+            "sessionId": session_id,
+            "text": text,
+            "isFinal": is_final,
+        });
+        if let Err(error) = emit_global_event(BackendEvent::Custom {
+            event_name: SPEECH_TRANSCRIPTION_RESULT_EVENT.to_string(),
+            payload,
+        })
+        .await
+        {
+            log::warn!("Failed to emit speech transcription result: {error}");
+        }
+    });
+}
+
 pub async fn call_arkts_string_function(
     function_name: &str,
     input: String,
@@ -212,15 +234,17 @@ pub async fn get_clipboard_files() -> Result<Vec<String>, String> {
 /// `prefix` is used in error messages to identify the originating call.
 fn parse_paths_envelope(json: &str, prefix: &str) -> Result<Vec<String>, String> {
     // Tolerate a stray non-JSON legacy return by surfacing it as an error.
-    let value: serde_json::Value =
-        serde_json::from_str(json).map_err(|e| format!("{prefix}: invalid json response: {e}: {json}"))?;
+    let value: serde_json::Value = serde_json::from_str(json)
+        .map_err(|e| format!("{prefix}: invalid json response: {e}: {json}"))?;
 
     if let Some(error) = value.get("error").and_then(|v| v.as_str()) {
         return Err(error.to_owned());
     }
 
     let Some(paths) = value.get("paths").and_then(|v| v.as_array()) else {
-        return Err(format!("{prefix}: unexpected response, missing 'paths': {json}"));
+        return Err(format!(
+            "{prefix}: unexpected response, missing 'paths': {json}"
+        ));
     };
 
     let strings: Vec<String> = paths
@@ -292,12 +316,22 @@ pub async fn ohos_speech_call(name: &str, json: &str) -> Result<String, String> 
         Ok(promise) => match promise.await {
             Ok(json) => Ok(json),
             Err(err) => {
-                log::error!("[ohos_speech] {} promise rejected: {} | {:?}", name, err.to_string(), err);
+                log::error!(
+                    "[ohos_speech] {} promise rejected: {} | {:?}",
+                    name,
+                    err.to_string(),
+                    err
+                );
                 Err(err.to_string())
             }
         },
         Err(err) => {
-            log::error!("[ohos_speech] {} call_async failed: {} | {:?}", name, err.to_string(), err);
+            log::error!(
+                "[ohos_speech] {} call_async failed: {} | {:?}",
+                name,
+                err.to_string(),
+                err
+            );
             Err(err.to_string())
         }
     }

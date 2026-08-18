@@ -7,7 +7,7 @@ import {
   type SpeechInputSession,
 } from '@/infrastructure/api';
 import { useAIExperienceSettings } from '@/infrastructure/config/hooks';
-import { isTauriRuntime } from '@/infrastructure/runtime';
+import { isOpenHarmonyRuntime, isTauriRuntime } from '@/infrastructure/runtime';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
@@ -108,12 +108,15 @@ export function useComposerVoiceInput({
   const latestAudioLevelRef = useRef(0);
   const audioLevelFrameRef = useRef<number | null>(null);
   const activeRecordingIdRef = useRef(0);
+  const ohosTranscriptRef = useRef('');
+  const ohosMergedTextRef = useRef<string | null>(null);
   const bufferedChunksRef = useRef<Array<{ pcm16Base64: string; seconds: number }>>([]);
   const bufferedSecondsRef = useRef(0);
   const cancelRecordingRef = useRef<(() => Promise<void>) | null>(null);
   const recordingLimitTimerRef = useRef<number | null>(null);
   const lowVolumeStartedAtRef = useRef<number | null>(null);
   const speechRuntimeSupported = isTauriRuntime();
+  const openHarmonyRuntime = isOpenHarmonyRuntime();
 
   const clearRecordingLimitTimer = useCallback(() => {
     if (recordingLimitTimerRef.current !== null) {
@@ -170,6 +173,30 @@ export function useComposerVoiceInput({
     };
   }, [refreshCapability, selectedModelId, selectedProvider, speechRuntimeSupported]);
 
+  useEffect(() => {
+    if (!openHarmonyRuntime) {
+      return undefined;
+    }
+    const removeTranscriptionListener = speechAPI.onTranscriptionResult(result => {
+      const session = sessionRef.current;
+      const text = result.text.trim();
+      if (!session || result.sessionId !== session.sessionId || !text || text === ohosTranscriptRef.current) {
+        return;
+      }
+      const previousText = ohosTranscriptRef.current;
+      const appendedText = text.startsWith(previousText)
+        ? text.slice(previousText.length).trimStart()
+        : text;
+      if (appendedText) {
+        activateInput();
+        const mergedText = insertText(appendedText);
+        ohosMergedTextRef.current = mergedText;
+      }
+      ohosTranscriptRef.current = text;
+    });
+    return removeTranscriptionListener;
+  }, [activateInput, insertText, openHarmonyRuntime]);
+
   useEffect(() => () => {
     activeRecordingIdRef.current += 1;
     const session = sessionRef.current;
@@ -180,6 +207,8 @@ export function useComposerVoiceInput({
     sessionPromiseRef.current = null;
     bufferedChunksRef.current = [];
     bufferedSecondsRef.current = 0;
+    ohosTranscriptRef.current = '';
+    ohosMergedTextRef.current = null;
     lowVolumeStartedAtRef.current = null;
     clearRecordingLimitTimer();
     if (audioLevelFrameRef.current !== null) {
@@ -389,14 +418,23 @@ export function useComposerVoiceInput({
 
       const result = await speechAPI.finishInputSession(session.sessionId);
       const text = result.text.trim();
-      if (text) {
+      const alreadyInserted = openHarmonyRuntime ? ohosTranscriptRef.current : '';
+      const textToInsert = alreadyInserted.length > 0
+        ? (text.startsWith(alreadyInserted) ? text.slice(alreadyInserted.length).trimStart() : '')
+        : text;
+      if (textToInsert) {
         activateInput();
-        const mergedText = insertText(text);
+        const mergedText = insertText(textToInsert);
+        ohosMergedTextRef.current = mergedText;
         if (mode === 'send' && mergedText) {
           await submitText(mergedText);
         } else {
           focusInputSoon();
         }
+      } else if (mode === 'send' && ohosMergedTextRef.current) {
+        await submitText(ohosMergedTextRef.current);
+      } else if (text) {
+        focusInputSoon();
       } else {
         notificationService.info(t('input.voiceInput.empty'));
       }
@@ -424,10 +462,12 @@ export function useComposerVoiceInput({
       pendingAppendRef.current = Promise.resolve();
       bufferedChunksRef.current = [];
       bufferedSecondsRef.current = 0;
+      ohosTranscriptRef.current = '';
+      ohosMergedTextRef.current = null;
       setCompletionMode(null);
       setPhase('idle');
     }
-  }, [activateInput, attachSession, clearRecordingLimitTimer, focusInputSoon, insertText, submitText, t]);
+  }, [activateInput, attachSession, clearRecordingLimitTimer, focusInputSoon, insertText, openHarmonyRuntime, submitText, t]);
 
   const startRecording = useCallback(async () => {
     if (!settings?.enabled) {
@@ -456,6 +496,8 @@ export function useComposerVoiceInput({
     pendingAppendRef.current = Promise.resolve();
     bufferedChunksRef.current = [];
     bufferedSecondsRef.current = 0;
+    ohosTranscriptRef.current = '';
+    ohosMergedTextRef.current = null;
     lowVolumeStartedAtRef.current = null;
     setLowVolumeWarning(false);
     let sessionPromise: Promise<SpeechInputSession> | null = null;
@@ -504,7 +546,7 @@ export function useComposerVoiceInput({
       }
       recorderRef.current = recorder;
       setPhase('recording');
-      recordingLimitTimerRef.current = window.setTimeout(() => {
+      recordingLimitTimerRef.current = openHarmonyRuntime ? null : window.setTimeout(() => {
         if (activeRecordingIdRef.current === recordingId && recorderRef.current) {
           void stopAndTranscribe('transcribe');
         }
@@ -600,7 +642,7 @@ export function useComposerVoiceInput({
       setAudioLevel(0);
       setPhase('idle');
     }
-  }, [attachSession, enqueueChunk, modelInstalled, openVoiceInputSettings, settings, speechRuntimeSupported, stopAndTranscribe, t, updateAudioLevel]);
+  }, [attachSession, enqueueChunk, modelInstalled, openHarmonyRuntime, openVoiceInputSettings, settings, speechRuntimeSupported, stopAndTranscribe, t, updateAudioLevel]);
 
   const toggle = useCallback(() => {
     if (phase === 'recording') {

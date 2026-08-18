@@ -3,6 +3,7 @@ import { audio } from '@kit.AudioKit';
 import { speechRecognizer } from '@kit.CoreSpeechKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import RustModule from 'libbitfun_desktop_lib.so';
 
 const VOICE_DOMAIN: number = 0x0000;
 const VOICE_TAG: string = 'BitFunVoiceInput';
@@ -14,7 +15,10 @@ const DEFAULT_SAMPLE_RATE = 16000;
 const DEFAULT_MAX_RECORDING_SECONDS = 60;
 const ENGINE_VAD_BEGIN = 2000;
 const ENGINE_VAD_END = 3000;
-const ENGINE_MAX_AUDIO_DURATION = 55000;
+// HarmonyOS long-recognition mode accepts a long session. This is a platform
+// bound rather than a product recording timer; the web UI does not stop OHOS
+// recording at the user-configured desktop limit.
+const ENGINE_MAX_AUDIO_DURATION = 8 * 60 * 60 * 1000;
 
 interface VoiceStartRequest {
   language?: string;
@@ -88,7 +92,7 @@ export class VoiceInputService {
     const req: VoiceStartRequest = JSON.parse(arg);
     this.language = this.resolveLanguage(req.language);
     this.sampleRate = req.sampleRate ?? DEFAULT_SAMPLE_RATE;
-    this.maxRecordingSeconds = req.maxRecordingSeconds ?? DEFAULT_MAX_RECORDING_SECONDS;
+    this.maxRecordingSeconds = ENGINE_MAX_AUDIO_DURATION / 1000;
     const modelId: string = req.modelId ?? 'ohos-system';
     this.sessionId = this.newSessionId();
     this.finalText = '';
@@ -104,7 +108,7 @@ export class VoiceInputService {
         online: 1,
         extraParams: {
           locate: 'CN',
-          recognizerMode: 'short'
+          recognizerMode: 'long'
         }
       });
     this.engine.setListener(this.buildRecognitionListener());
@@ -202,10 +206,11 @@ export class VoiceInputService {
       },
       onEvent: (_sessionId: string, _eventCode: number, _eventMessage: string): void => {
       },
-      onResult: (_sessionId: string, result: speechRecognizer.SpeechRecognitionResult): void => {
+      onResult: (sessionId: string, result: speechRecognizer.SpeechRecognitionResult): void => {
         const text: string = result.result.trim();
         if (text.length > 0) {
           this.finalText = text;
+          RustModule.emitSpeechTranscription(sessionId, text, result.isLast);
         }
         if (result.isLast) {
           this.resolveFinish();

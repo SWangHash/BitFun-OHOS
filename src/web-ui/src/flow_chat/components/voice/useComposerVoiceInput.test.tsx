@@ -40,6 +40,7 @@ vi.mock('@/infrastructure/api', () => ({
       }],
     })),
     onModelStatusChanged: vi.fn(() => () => undefined),
+    onTranscriptionResult: vi.fn(() => () => undefined),
     startInputSession: vi.fn(async () => ({ sessionId: 'voice-session-1' })),
     appendAudioChunk: vi.fn(async () => undefined),
     finishInputSession: mocks.finishInputSession,
@@ -66,6 +67,7 @@ vi.mock('@/infrastructure/config/hooks', () => ({
 
 vi.mock('@/infrastructure/runtime', () => ({
   isTauriRuntime: () => true,
+  isOpenHarmonyRuntime: () => false,
 }));
 
 vi.mock('@/app/stores/sceneStore', () => ({

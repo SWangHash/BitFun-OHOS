@@ -4,3 +4,4 @@ export declare function ohosMarkCleanShutdown(): void;
 export declare function getAppConfigBool(path: string): boolean;
 export declare function notifySystemColorMode(mode: string): void;
 export declare function emitBrowserPageLoad(label: string, event: string, url: string): void;
+export declare function emitSpeechTranscription(sessionId: string, text: string, isFinal: boolean): void;
