@@ -414,6 +414,16 @@ $_indent-width: 8px;
   position: relative;
 }
 
+.bitfun-file-explorer__node-error {
+  padding-top: $_node-padding-y;
+  padding-right: $_node-padding-x;
+  padding-bottom: $_node-padding-y;
+  color: var(--bf-appearance-token-color-error);
+  font-size: var(--bf-appearance-token-font-size-xs);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .bitfun-file-explorer__load-more {
   @include mixins.flex-layout(row, center, start, $size-gap-2);
   width: calc(100% - #{$size-gap-2});
