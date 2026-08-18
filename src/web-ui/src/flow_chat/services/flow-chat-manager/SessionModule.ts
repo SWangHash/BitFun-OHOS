@@ -7,7 +7,6 @@ import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import { configAPI } from '@/infrastructure/api/service-api/ConfigAPI';
 import { sessionAPI } from '@/infrastructure/api/service-api/SessionAPI';
 import { isSessionInUseError } from '@/infrastructure/api/errors/TauriCommandError';
-import { notificationService } from '../../../shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { isRemoteTraceContext, startupTrace } from '@/shared/utils/startupTrace';
 import { elapsedMs, nowMs } from '@/shared/utils/timing';
@@ -699,10 +698,6 @@ export async function createChatSession(
       throw error;
     }
     log.error('Failed to create chat session', { config, error });
-    
-    notificationService.error('Failed to create chat session', {
-      duration: 3000
-    });
     throw error;
   }
 }

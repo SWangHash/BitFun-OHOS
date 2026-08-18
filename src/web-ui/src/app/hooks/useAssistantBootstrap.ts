@@ -3,8 +3,6 @@ import {
   agentAPI,
   type EnsureAssistantBootstrapResponse,
 } from '@/infrastructure/api/service-api/AgentAPI';
-import { useI18n } from '@/infrastructure/i18n';
-import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { WorkspaceKind, type WorkspaceInfo } from '@/shared/types';
 
@@ -20,12 +18,10 @@ interface ActiveBootstrapAttempt extends BootstrapRequest {
 }
 
 export function useAssistantBootstrap() {
-  const { t } = useI18n('notifications');
   const activeAttemptRef = useRef<ActiveBootstrapAttempt | null>(null);
   const pendingRequestRef = useRef<BootstrapRequest | null>(null);
   const latestWorkspacePathRef = useRef<string | null>(null);
   const inFlightWorkspacePathRef = useRef<string | null>(null);
-  const blockedNoticeShownRef = useRef<Set<string>>(new Set());
   const requestBootstrapRef = useRef<(request: BootstrapRequest) => void>(() => {});
 
   const drainPendingRequest = useCallback(() => {
@@ -85,7 +81,6 @@ export function useAssistantBootstrap() {
             sessionId: response.sessionId,
             turnId: response.turnId,
           };
-          blockedNoticeShownRef.current.delete(request.workspacePath);
           log.info('Assistant bootstrap started', {
             workspacePath: request.workspacePath,
             sessionId: response.sessionId,
@@ -93,15 +88,6 @@ export function useAssistantBootstrap() {
           });
           return;
         case 'blocked':
-          if (
-            response.reason === 'model_unavailable' &&
-            !blockedNoticeShownRef.current.has(request.workspacePath)
-          ) {
-            blockedNoticeShownRef.current.add(request.workspacePath);
-            notificationService.info(t('info.assistantBootstrapWaitingForModelConfiguration'), {
-              duration: 5000,
-            });
-          }
           log.info('Assistant bootstrap blocked', {
             workspacePath: request.workspacePath,
             sessionId: request.sessionId,
@@ -110,9 +96,6 @@ export function useAssistantBootstrap() {
           });
           return;
         case 'skipped':
-          if (response.reason === 'bootstrap_not_required') {
-            blockedNoticeShownRef.current.delete(request.workspacePath);
-          }
           log.debug('Assistant bootstrap skipped', {
             workspacePath: request.workspacePath,
             sessionId: request.sessionId,
@@ -123,7 +106,7 @@ export function useAssistantBootstrap() {
           return;
       }
     },
-    [t]
+    []
   );
 
   const requestBootstrap = useCallback(

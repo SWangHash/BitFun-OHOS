@@ -527,6 +527,11 @@
     "promptSection": "Section: {{section}}.",
     "promptFile": "Related file: {{file}}{{line}}."
   },
+  "modelConfigurationNotice": {
+    "title": "No AI model available",
+    "description": "Configure and enable a model before starting a conversation.",
+    "action": "Model settings"
+  },
   "input": {
     "placeholder": "How can I help you...",
     "placeholderWithContext": "Type a message, or drag and drop files to add context...",
