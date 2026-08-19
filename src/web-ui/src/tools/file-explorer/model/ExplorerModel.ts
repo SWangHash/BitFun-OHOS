@@ -371,6 +371,7 @@ export class ExplorerModel {
       size: record.size,
       extension: record.extension,
       lastModified: record.lastModified,
+      errorMessage: record.errorMessage,
     };
 
     if (record.kind === 'directory' && record.childIds.length > 0) {

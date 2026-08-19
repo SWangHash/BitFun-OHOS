@@ -88,6 +88,12 @@
   "empty": {
     "selectWorkspace": "選擇工作區後將顯示檔案樹"
   },
+  "errors": {
+    "fileTreePermissionDenied": "BitFun 沒有存取此資料夾的權限。",
+    "fileTreeLoadFailed": "載入檔案樹失敗：{{message}}",
+    "directoryPermissionDenied": "BitFun 沒有存取此資料夾的權限。",
+    "directoryLoadFailed": "載入資料夾失敗：{{message}}"
+  },
   "dialog": {
     "newFile": {
       "title": "新增檔案",
@@ -148,6 +154,10 @@
     "pasteSuccessFolders": "成功粘貼 {{count}} 個資料夾",
     "pasteSuccessItems": "成功粘貼 {{count}} 項",
     "pasteFailed": "{{count}} 個檔案粘貼失敗",
+    "pasteFailedWithReason": "粘貼失敗：{{error}}",
+    "pastePermissionDenied": "沒有權限。請檢查來源檔案和目標資料夾的存取權限。",
+    "pasteSourceMissing": "來源檔案不存在或已被移動。請重新複製後再貼上。",
+    "pasteErrorDetail": "{{name}}：{{error}}",
     "pasteNoFiles": "剪貼板中沒有檔案",
     "pastingFiles": "正在粘貼 {{count}} 個檔案到 {{target}}...",
     "openExplorerFailed": "開啟檔案管理器失敗: {{error}}",
