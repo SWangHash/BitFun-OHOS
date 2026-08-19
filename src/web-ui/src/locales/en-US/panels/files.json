@@ -88,6 +88,12 @@
   "empty": {
     "selectWorkspace": "File tree will be displayed after selecting a workspace"
   },
+  "errors": {
+    "fileTreePermissionDenied": "BitFun does not have permission to access this folder.",
+    "fileTreeLoadFailed": "Failed to load the file tree: {{message}}",
+    "directoryPermissionDenied": "BitFun does not have permission to access this folder.",
+    "directoryLoadFailed": "Failed to load the folder: {{message}}"
+  },
   "dialog": {
     "newFile": {
       "title": "New File",
@@ -148,7 +154,9 @@
     "pasteSuccessFolders": "Successfully pasted {{count}} folders",
     "pasteSuccessItems": "Successfully pasted {{count}} items",
     "pasteFailed": "{{count}} files failed to paste",
+    "pasteFailedWithReason": "Failed to paste: {{error}}",
     "pastePermissionDenied": "Permission denied. Check the source file and destination folder permissions.",
+    "pasteSourceMissing": "The source file no longer exists or has been moved. Copy it again and retry.",
     "pasteErrorDetail": "{{name}}: {{error}}",
     "pasteNoFiles": "No files in clipboard",
     "pastingFiles": "Pasting {{count}} files to {{target}}...",

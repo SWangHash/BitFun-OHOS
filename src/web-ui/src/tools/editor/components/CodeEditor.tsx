@@ -45,8 +45,6 @@ import type { LineRange } from '@/component-library/components/Markdown';
 import { EditorBreadcrumb } from './EditorBreadcrumb';
 import { EditorStatusBar } from './EditorStatusBar';
 import largeFileExpansionLabels from './largeFileExpansionLabels.json';
-
-const log = createLogger('CodeEditor');
 import {
   GoToLinePopover,
   EncodingPopover,
@@ -54,6 +52,9 @@ import {
 } from './StatusBarPopovers';
 import type { AnchorRect } from './StatusBarPopovers';
 import './CodeEditor.scss';
+
+const log = createLogger('CodeEditor');
+const FILE_TOO_LARGE_ERROR = 'file-too-large';
 
 export interface CodeEditorProps {
   /** File path */
@@ -248,7 +249,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     minimap: { enabled: showMinimap, side: 'right', size: 'proportional' }
   });
   const isMemoryContent = initialContent !== undefined;
-  const isUnsupportedFileType = !isMemoryContent && ['archive', 'binary'].includes(getFileIconType(filePath));
+  const isUnsupportedFileType = !isMemoryContent && ['archive', 'binary'].includes(
+    getFileIconType(fileName || filePath)
+  );
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [selection, setSelection] = useState({ chars: 0, lines: 0 });
   const [statusBarPopover, setStatusBarPopover] = useState<null | 'position' | 'indent' | 'encoding' | 'language'>(null);
@@ -1580,7 +1583,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         ? fileInfoBefore.size
         : undefined;
       if (typeof fileSizeBytes === 'number' && fileSizeBytes >= MAX_TEXT_FILE_SIZE_BYTES) {
-        setError(t('editor.common.fileTooLarge'));
+        setError(FILE_TOO_LARGE_ERROR);
         return;
       }
       const fileContent = await workspaceAPI.readFileContent(filePath, readEncoding);
@@ -2307,6 +2310,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const loadingOverlayText = monacoReady
     ? t('editor.codeEditor.loadingFile')
     : t('editor.codeEditor.preparingEditor');
+  const errorMessage = error === FILE_TOO_LARGE_ERROR
+    ? t('editor.common.fileTooLarge')
+    : error;
 
   return (
     <div 
@@ -2324,7 +2330,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       ].filter(Boolean).join(' ') || undefined}
       onKeyDownCapture={handleContainerKeyDown}
     >
-      {showBreadcrumb && (
+      {showBreadcrumb && !isUnsupportedFileType && error !== FILE_TOO_LARGE_ERROR && (
         <EditorBreadcrumb
           filePath={filePath}
           workspacePath={workspacePath}
@@ -2353,8 +2359,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       {error && (
         <div className="code-editor-tool__error-overlay" data-bf-component="editor-tool" data-bf-part="error">
           <AlertCircle className="code-editor-tool__error-icon" />
-          <p className="code-editor-tool__error-message">{error}</p>
-          {!isUnsupportedFileType && error !== t('editor.common.fileTooLarge') && (
+          <p className="code-editor-tool__error-message">{errorMessage}</p>
+          {!isUnsupportedFileType && error !== FILE_TOO_LARGE_ERROR && (
             <button
               onClick={loadFileContent}
               className="code-editor-tool__error-retry-btn"

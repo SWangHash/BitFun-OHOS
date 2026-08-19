@@ -6,6 +6,7 @@ export interface FileSystemNode {
   children?: FileSystemNode[];
   extension?: string;
   lastModified?: Date;
+  errorMessage?: string;
   
   isCompressed?: boolean;
   compressedPath?: string;

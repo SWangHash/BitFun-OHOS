@@ -43,6 +43,7 @@ import {
   downloadWorkspaceFileToDisk,
   joinWorkspaceTargetPath,
   isFilePermissionError,
+  isSourceFileMissingError,
   normalizeWorkspaceTargetDirectory,
   pasteClipboardFilesToWorkspaceDirectory,
   resolvePasteTargetDirectory,
@@ -81,6 +82,19 @@ function isAlreadyExistsError(error: unknown): boolean {
   return /already exists|file exists|os error 17|os error 183|EEXIST/i.test(message);
 }
 
+function getLocalizedPasteFailureReason(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  error: unknown,
+): string {
+  if (isFilePermissionError(error)) {
+    return t('notifications.pastePermissionDenied');
+  }
+  if (isSourceFileMissingError(error)) {
+    return t('notifications.pasteSourceMissing');
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
 function getPasteErrorMessage(
   t: (key: string, options?: Record<string, unknown>) => string,
   name: string,
@@ -88,7 +102,7 @@ function getPasteErrorMessage(
 ): string {
   return t('notifications.pasteErrorDetail', {
     name,
-    error: isFilePermissionError(error) ? t('notifications.pastePermissionDenied') : error,
+    error: getLocalizedPasteFailureReason(t, error),
   });
 }
 
@@ -305,6 +319,11 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     // Local filesystem watchers are unavailable for remote SSH workspaces.
     enableAutoWatch: !isRemoteCurrentWorkspace,
   });
+  const fileTreeError = error
+    ? isFilePermissionError(error)
+      ? t('errors.fileTreePermissionDenied')
+      : t('errors.fileTreeLoadFailed', { message: error })
+    : null;
   const handleNodeExpandLazy = useCallback((path: string) => {
     expandFolderLazy(path);
   }, [expandFolderLazy]);
@@ -775,9 +794,9 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         cancelledTransferIdsRef.current.delete(id);
       } else {
         notification.error(
-          isFilePermissionError(error)
-            ? t('notifications.pastePermissionDenied')
-            : t('notifications.pasteFailed', { count: 1 })
+          t('notifications.pasteFailedWithReason', {
+            error: getLocalizedPasteFailureReason(t, error),
+          })
         );
       }
     }
@@ -1276,9 +1295,9 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
             <div className="bitfun-files-panel__loading">
               <CubeLoading size="medium" text={t('status.loadingFileTree')} />
             </div>
-          ) : error ? (
+          ) : fileTreeError ? (
             <div className="bitfun-files-panel__error" data-bf-component="files-panel" data-bf-part="error">
-              <p>❌ {error}</p>
+              <p>{fileTreeError}</p>
               <button 
                 className="bitfun-files-panel__retry-button"
                 onClick={() => loadFileTree()}

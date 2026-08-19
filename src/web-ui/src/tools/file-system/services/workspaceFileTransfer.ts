@@ -12,6 +12,7 @@ import {
 } from "@/infrastructure/api/adapters/peer-device-adapter";
 import { i18nService } from "@/infrastructure/i18n";
 import { isRemoteWorkspace, type WorkspaceInfo } from "@/shared/types";
+import { isFilePermissionError } from "@/shared/utils/fsErrorUtils";
 import {
   dirnameAbsolutePath,
   normalizeLocalPathForRename,
@@ -49,9 +50,11 @@ export interface UploadToWorkspaceOptions {
 
 const PEER_FILE_CHUNK_BYTES = 1024 * 1024;
 
-export function isFilePermissionError(error: unknown): boolean {
+export { isFilePermissionError };
+
+export function isSourceFileMissingError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /permission denied|access denied|eacces|eperm|os error (?:5|13)\b/i.test(message);
+  return /source file does not exist/i.test(message);
 }
 
 interface PeerFileInfoResponse extends PeerDeviceCommandResponse {
@@ -809,13 +812,6 @@ export async function uploadLocalPathsToWorkspaceDirectory(
     indeterminate: false,
   });
   window.setTimeout(() => onProgress(null), 450);
-
-  if (result.successCount === 0 && result.failedFiles.length > 0) {
-    const details = result.failedFiles
-      .map((entry) => `${entry.path}: ${entry.error}`)
-      .join("; ");
-    throw new Error(details);
-  }
 
   return {
     successCount: result.successCount,

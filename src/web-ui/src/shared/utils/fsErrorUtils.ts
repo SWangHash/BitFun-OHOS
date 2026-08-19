@@ -14,6 +14,11 @@ export function isLikelyFileNotFoundError(err: unknown): boolean {
   );
 }
 
+export function isFilePermissionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /permission denied|operation not permitted|access denied|eacces|eperm|os error (?:1|5|13)\b/i.test(message);
+}
+
 /** Metadata from get_file_metadata uses camelCase fields from desktop commands. */
 export function isFileMissingFromMetadata(fileInfo: unknown): boolean {
   if (!fileInfo || typeof fileInfo !== 'object') {
