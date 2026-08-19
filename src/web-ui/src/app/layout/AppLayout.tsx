@@ -44,6 +44,7 @@ import './AppLayout.scss';
 type TransitionDirection = 'entering' | 'returning' | null;
 
 const log = createLogger('AppLayout');
+
 const NewProjectDialog = lazy(() =>
   import('../components/NewProjectDialog').then(module => ({ default: module.NewProjectDialog }))
 );
@@ -234,7 +235,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
     } catch (error) {
       log.error('Failed to open project', error);
     }
-  }, [openWorkspace, t]);
+  }, [openWorkspace]);
   const handleNewProject = useCallback(() => setShowNewProjectDialog(true), []);
   const handleShowAbout  = useCallback(() => setShowAboutDialog(true), []);
 
@@ -393,9 +394,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
           return;
         }
         log.error('FlowChatManager initialization failed', error);
-        import('@/shared/notification-system').then(({ notificationService }) => {
-          notificationService.error(t('appLayout.flowChatInitFailed'), { duration: 5000 });
-        });
+        // FlowChat initialization runs as part of workspace hydration. Keep
+        // failures in the log here; user-facing guidance belongs to the active
+        // chat surface after the user starts working, not to app startup.
       }
     };
 

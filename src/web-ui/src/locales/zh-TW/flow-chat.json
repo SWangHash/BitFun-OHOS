@@ -528,6 +528,11 @@
     "promptSection": "所屬區域：{{section}}。",
     "promptFile": "關聯檔案：{{file}}{{line}}。"
   },
+  "modelConfigurationNotice": {
+    "title": "暫無可用的 AI 模型",
+    "description": "請先設定並啟用模型，然後開始對話。",
+    "action": "模型設定"
+  },
   "input": {
     "placeholder": "有什麼可以幫您...",
     "placeholderWithContext": "輸入消息，或拖放檔案新增上下文...",
