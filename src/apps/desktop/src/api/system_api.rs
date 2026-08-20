@@ -745,6 +745,22 @@ pub async fn set_main_window_transient_geometry(
     crate::set_main_window_transient_geometry(&app, request.transient)
 }
 
+#[cfg(target_env = "ohos")]
+async fn call_ohos_window_host(name: &str) -> Result<(), String> {
+    let function = {
+        let lock = bitfun_core::util::JS_THREADSAFE_FUNCTION.read();
+        lock.get(name).cloned()
+    };
+    let Some(function) = function else {
+        return Err(format!("{name} has not been registered by ArkTS"));
+    };
+    let promise = function
+        .call_async(Ok(String::new()))
+        .await
+        .map_err(|error| error.to_string())?;
+    promise.await.map(|_| ()).map_err(|error| error.to_string())
+}
+
 /// Immediately exit the application (used by the "ask" dialog when the user
 /// chooses to quit rather than minimize to tray).
 #[tauri::command]
@@ -753,6 +769,11 @@ pub async fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
     crate::crash_diagnostics::mark_clean_shutdown("quit_app_command");
     crate::save_main_window_state(&app);
     crate::perform_process_exit_cleanup();
+    #[cfg(target_env = "ohos")]
+    {
+        call_ohos_window_host("quit_app_ohos").await?;
+    }
+    #[cfg(not(target_env = "ohos"))]
     app.exit(0);
     Ok(())
 }
@@ -806,7 +827,9 @@ pub async fn minimize_to_tray(
     }
     #[cfg(target_env = "ohos")]
     {
-        Err("Do not support the minimize to tray via command".to_string())
+        call_ohos_window_host("minimize_to_tray_ohos").await?;
+        log::info!("Main window minimized to HarmonyOS dock via command");
+        Ok(())
     }
 
 }
