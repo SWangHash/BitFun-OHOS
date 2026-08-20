@@ -25,6 +25,10 @@ pub fn register_arkts_function(
 /// mode changes. Defined here so rust and the web-ui reference the same string.
 pub const SYSTEM_COLOR_SCHEME_CHANGED_EVENT: &str = "bitfun:system-color-scheme-changed";
 
+/// Event emitted by the HarmonyOS native window host when the user clicks the
+/// system title-bar close button. Desktop Tauri emits the same event directly.
+pub const MAIN_WINDOW_CLOSE_REQUESTED_EVENT: &str = "bitfun_main_window_close_requested";
+
 /// Event name the embedded browser webview emits to signal page-load lifecycle
 /// (started/finished) so the web-ui's `useEmbeddedBrowserWebview` hook can
 /// update `isLoading`, the address bar URL, and re-inject the
@@ -80,6 +84,23 @@ pub fn notify_system_color_mode(mode: String) {
         .await
         {
             log::warn!("Failed to emit system color mode change: {error}");
+        }
+    });
+}
+
+/// Called synchronously from the HarmonyOS `windowStageClose` callback. The
+/// native callback always consumes the close and lets the web UI apply the
+/// persisted quit / minimize-to-dock / ask policy.
+#[napi]
+pub fn notify_main_window_close_requested() {
+    system_color_mode_runtime().block_on(async {
+        if let Err(error) = emit_global_event(BackendEvent::Custom {
+            event_name: MAIN_WINDOW_CLOSE_REQUESTED_EVENT.to_string(),
+            payload: serde_json::json!({}),
+        })
+        .await
+        {
+            log::warn!("Failed to emit main window close request: {error}");
         }
     });
 }

@@ -458,7 +458,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
             return;
           }
 
-          // Windows / Linux: read the user's close-button preference.
+          // Windows / Linux / HarmonyOS: read the user's close-button preference.
           let behavior: CloseBehavior = 'minimize_to_tray';
           try {
             behavior = (await configManager.getConfig<CloseBehavior>('app.close_button_behavior')) ?? 'minimize_to_tray';
