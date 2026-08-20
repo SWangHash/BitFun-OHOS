@@ -133,13 +133,15 @@ struct FunctionCall {
 
 #[derive(Debug, Deserialize)]
 pub struct OpenAISSEData {
+    #[serde(default)]
     #[allow(dead_code)]
-    id: String,
+    id: Option<String>,
     #[serde(default)]
     #[allow(dead_code)]
     created: Option<u64>,
+    #[serde(default)]
     #[allow(dead_code)]
-    model: String,
+    model: Option<String>,
     choices: Vec<Choice>,
     usage: Option<OpenAIUsage>,
 }
