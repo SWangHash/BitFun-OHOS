@@ -255,6 +255,9 @@ impl ConfigManager {
                 manager.config.app.logging.include_sensitive_diagnostics,
             );
         }
+        bitfun_agent_stream::diagnostics::set_include_sensitive_diagnostics(
+            manager.config.app.logging.include_sensitive_diagnostics,
+        );
 
         debug!("ConfigManager initialized at {:?}", manager.config_file);
         Ok(manager)
@@ -938,6 +941,7 @@ impl ConfigManager {
             {
                 bitfun_ai_adapters::diagnostics::set_include_sensitive_diagnostics(new_include);
             }
+            bitfun_agent_stream::diagnostics::set_include_sensitive_diagnostics(new_include);
 
             use super::global::{ConfigUpdateEvent, GlobalConfigManager};
             GlobalConfigManager::broadcast_update(
