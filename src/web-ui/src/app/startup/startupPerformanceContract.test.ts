@@ -236,6 +236,24 @@ describe('startup performance contract', () => {
     expect(minimizeSource).not.toContain('setup_tray(&app, &startup_trace).map_err');
   });
 
+  it('routes HarmonyOS native close requests through the shared close behavior policy', () => {
+    const abilitySource = readSource('../../../../apps/ohos/entry/src/main/ets/entryability/EntryAbility.ets');
+    const nativeBridgeSource = readSource('../../../../crates/assembly/core/src/util/register_arkts_function.rs');
+    const systemApiSource = readSource('../../../../apps/desktop/src/api/system_api.rs');
+    const layoutSource = readSource('../layout/AppLayout.tsx');
+
+    expect(abilitySource).toContain("windowStage.on('windowStageClose'");
+    expect(abilitySource).toContain('RustModule.notifyMainWindowCloseRequested()');
+    expect(abilitySource).toContain("registerArktsFunction('quit_app_ohos'");
+    expect(abilitySource).toContain("registerArktsFunction('minimize_to_tray_ohos'");
+    expect(nativeBridgeSource).toContain('pub fn notify_main_window_close_requested()');
+    expect(nativeBridgeSource).toContain('bitfun_main_window_close_requested');
+    expect(systemApiSource).toContain('call_ohos_window_host("quit_app_ohos")');
+    expect(systemApiSource).toContain('call_ohos_window_host("minimize_to_tray_ohos")');
+    expect(layoutSource).toContain("configManager.getConfig<CloseBehavior>('app.close_button_behavior')");
+    expect(layoutSource).toContain("behavior === 'ask'");
+  });
+
   it('starts non-critical work after the startup overlay handoff', () => {
     const source = readSource('../../main.tsx');
 

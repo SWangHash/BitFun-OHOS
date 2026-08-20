@@ -149,6 +149,10 @@ export default class EntryAbility extends RustAbility {
     const TAG: string = '[BitfunUIAbilityComponents]';
     const feedbackCredentialStore = new FeedbackCredentialStore();
     const marketCredentialStore = new MarketCredentialStore();
+    windowStage.on('windowStageClose', () => {
+      RustModule.notifyMainWindowCloseRequested();
+      return true;
+    });
     const windowHostService = new WindowHostService(windowStage, () => {
       this.context.terminateSelf(() => {
         hilog.info(DOMAIN_NUMBER, TAG, 'WebDriver requested Ability termination');
@@ -250,6 +254,18 @@ export default class EntryAbility extends RustAbility {
       this.context.terminateSelf(() => {
         hilog.info(DOMAIN_NUMBER, TAG, 'terminateSelf success');
       });
+      return '';
+    });
+    RustModule.registerArktsFunction('quit_app_ohos', async (_err: Error, _arg: string): Promise<string> => {
+      this.context.terminateSelf(() => {
+        hilog.info(DOMAIN_NUMBER, TAG, 'Quit requested from window close behavior');
+      });
+      return '';
+    });
+    RustModule.registerArktsFunction('minimize_to_tray_ohos', async (_err: Error, _arg: string): Promise<string> => {
+      // HarmonyOS PC keeps minimized applications in the system dock. This is
+      // the platform equivalent of the desktop system-tray close behavior.
+      await windowStage.getMainWindowSync().minimize();
       return '';
     });
     RustModule.registerArktsFunction('window_start_dragging', async (err: Error, arg: string): Promise<string> => {
@@ -522,7 +538,7 @@ export default class EntryAbility extends RustAbility {
     });
     setTimeout(() => {
       windowStage.getMainWindow((err, data) => {
-        data.setWindowDecorHeight(44);
+        data.setWindowDecorHeight(38);
         data.setWindowTitleMoveEnabled(false);
         data.setWindowDecorVisible(false);
       })
