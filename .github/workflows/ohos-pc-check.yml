@@ -1,0 +1,70 @@
+name: OHOS PC Check
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/*'
+  pull_request:
+    branches:
+      - main
+      - 'release/*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ohos-pc-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ohos-cargo-check:
+    name: OHOS aarch64 cargo check (release)
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/yujiangtao3456/bitfun-ade-ohos-ci:20260818
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: "0"
+      NODE_OPTIONS: --max-old-space-size=6144
+      # Force nightly toolchain without triggering rustup update checks.
+      # Image has USTC mirror in RUSTUP_DIST_SERVER which is slow from GitHub
+      # runners in the US; override to official mirror for any required downloads.
+      RUSTUP_TOOLCHAIN: nightly
+      RUSTUP_DIST_SERVER: https://static.rust-lang.org
+      RUSTUP_UPDATE_ROOT: https://static.rust-lang.org/rustup
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build desktop frontend
+        run: npm run build
+
+      - name: Build mobile-web frontend
+        run: pnpm --filter bitfun-mobile-web build
+
+      - name: Init Tauri OHOS target
+        working-directory: src/apps/desktop
+        run: cargo tauri ohos init
+
+      - name: Cargo check (aarch64-unknown-linux-ohos, release)
+        working-directory: src/apps/desktop
+        shell: bash
+        run: |
+          # 仅此 step 需要 OHOS env var（OHOS_NDK_HOME、CC、CXX、AR 等）
+          # GH Actions container 把 HOME 重写成 /github/home，~/.bashrc 找不到
+          # 必须用绝对路径 /root/.bashrc
+          # 另外 Ubuntu .bashrc 顶部 `case $- in *i*) ;; *) return;; esac` 会让非交互
+          # shell 提前 return，提取 export 行单独 source 避开 early return
+          BASHRC=/root/.bashrc
+          if [[ -f "$BASHRC" ]]; then
+            grep '^export ' "$BASHRC" > /tmp/bashrc-exports.sh 2>/dev/null || true
+            source /tmp/bashrc-exports.sh 2>/dev/null || true
+          fi
+
+          cargo check --target aarch64-unknown-linux-ohos --release
