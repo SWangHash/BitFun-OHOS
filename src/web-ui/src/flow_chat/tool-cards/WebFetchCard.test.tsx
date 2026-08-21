@@ -48,7 +48,7 @@ vi.mock('@/shared/utils/textSelection', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/shared/utils/textSelection')>();
   return {
     ...actual,
-    copyTextToClipboard: vi.fn(async () => true),
+    copyTextToClipboard: vi.fn(async () => ({ ok: true })),
   };
 });
 

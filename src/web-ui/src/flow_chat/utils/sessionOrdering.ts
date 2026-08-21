@@ -128,13 +128,30 @@ export function compareSessionMetadataForDisplay(
 }
 
 /**
- * Left-nav session list order: newest-created first, stable while switching sessions
- * (does not use `lastActiveAt`, so rows do not jump to the top on click).
+ * A session is considered empty when it has no dialog turns and is in the
+ * fresh "new" lifecycle state (never sent a message).
+ */
+export function isEmptySession(
+  s: Pick<Session, 'dialogTurns' | 'historyState'>
+): boolean {
+  return s.dialogTurns.length === 0 && s.historyState === 'new';
+}
+
+/**
+ * Left-nav session list order: empty sessions pinned to the top, then
+ * newest-created first, stable while switching sessions (does not use
+ * `lastActiveAt`, so rows do not jump to the top on click).
  */
 export function compareSessionsForNavStable(
-  a: Pick<Session, 'sessionId' | 'createdAt'>,
-  b: Pick<Session, 'sessionId' | 'createdAt'>
+  a: Pick<Session, 'sessionId' | 'createdAt' | 'dialogTurns' | 'historyState'>,
+  b: Pick<Session, 'sessionId' | 'createdAt' | 'dialogTurns' | 'historyState'>
 ): number {
+  const aEmpty = isEmptySession(a);
+  const bEmpty = isEmptySession(b);
+  if (aEmpty !== bEmpty) {
+    return aEmpty ? -1 : 1;
+  }
+
   const createdAtDiff = b.createdAt - a.createdAt;
   if (createdAtDiff !== 0) {
     return createdAtDiff;

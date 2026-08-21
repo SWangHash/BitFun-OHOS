@@ -668,7 +668,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
     return () => window.removeEventListener('bitfun:acp-session-creation', handler);
   }, [tCommon]);
 
-  // Global drag-and-drop
+  // Prevent the webview from navigating to a dropped file when no owned drop
+  // target handles it. Feature drop zones subscribe through infrastructure.
   React.useEffect(() => {
     const handleDragStart = (e: DragEvent) => {
       if (e.dataTransfer) {
@@ -677,18 +678,17 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
       }
     };
     const handleDragOver  = (e: DragEvent) => e.preventDefault();
-    const handleDragEnter = (_e: DragEvent) => {};
-    const handleDrop      = (e: DragEvent) => { if (!e.defaultPrevented) e.preventDefault(); };
+    const handleDrop      = (e: DragEvent) => {
+      if (!e.defaultPrevented) e.preventDefault();
+    };
 
     document.addEventListener('dragstart', handleDragStart, true);
     document.addEventListener('dragover',  handleDragOver,  true);
-    document.addEventListener('dragenter', handleDragEnter, true);
     document.addEventListener('drop',      handleDrop,      true);
 
     return () => {
       document.removeEventListener('dragstart', handleDragStart, true);
       document.removeEventListener('dragover',  handleDragOver,  true);
-      document.removeEventListener('dragenter', handleDragEnter, true);
       document.removeEventListener('drop',      handleDrop,      true);
     };
   }, []);

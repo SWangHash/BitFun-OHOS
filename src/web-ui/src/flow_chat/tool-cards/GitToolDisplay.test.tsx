@@ -37,7 +37,7 @@ vi.mock('../../component-library', () => ({
 }));
 
 vi.mock('@/shared/utils/textSelection', () => ({
-  copyTextToClipboard: vi.fn(async () => true),
+  copyTextToClipboard: vi.fn(async () => ({ ok: true })),
 }));
 
 vi.mock('@/shared/notification-system', () => ({

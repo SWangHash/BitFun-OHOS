@@ -546,6 +546,8 @@
     "cancelShortcut": "取消",
     "clear": "清空",
     "attach": "附加檔案",
+    "nativeDropRemoteUnsupported": "無法將本機檔案直接附加到遠端工作區，請先透過檔案面板上傳。",
+    "nativeDropFailed": "無法附加拖入的檔案。",
     "collapseInput": "收起輸入框",
     "expandInput": "展開輸入框",
     "retry": "重試",
@@ -2418,6 +2420,7 @@
     "acpModeFailed": "切換模式失敗",
     "switchFailed": "切換模型失敗",
     "modelNotConfigured": "未設定",
+    "openSettings": "模型設定",
     "contextUsage": {
       "agentPrompt": "上次請求輸入上下文: {{usage}}",
       "acpContext": "ACP 回報上下文: {{usage}}",
