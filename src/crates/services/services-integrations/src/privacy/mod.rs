@@ -10,14 +10,20 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 const CONSENT_VERSION: &str = "4";
 const EFFECTIVE_AT: &str = "2026-07-30T00:00:00Z";
-const POLICY_UPDATED_AT: &str = "2026-07-30T00:00:00Z";
+const POLICY_UPDATED_AT: &str = "2026-08-21T00:00:00Z";
 const CHANGE_TYPE: PrivacyChangeType = PrivacyChangeType::Editorial;
 const LEGAL_CONTENT_SENTINEL: &str = "LEGAL_CONTENT_REQUIRED";
 
 const ZH_CN_CONTENT: &str = include_str!("assets/zh-CN.md");
-const ZH_CN_SHA256: &str = "af8e3bff76330d3910ab2343a083922f0895d04f3e497c9cd02472cc2a5d9987";
-const ACCEPTED_POLICY_DOCUMENTS: &[(&str, &str, &str)] =
-    &[(POLICY_UPDATED_AT, "zh-CN", ZH_CN_SHA256)];
+const ZH_CN_SHA256: &str = "4666317d79e4e29ea85152913b3101db8a7d849f47e698c909a239529f2848d3";
+const ACCEPTED_POLICY_DOCUMENTS: &[(&str, &str, &str)] = &[
+    (POLICY_UPDATED_AT, "zh-CN", ZH_CN_SHA256),
+    (
+        "2026-07-30T00:00:00Z",
+        "zh-CN",
+        "af8e3bff76330d3910ab2343a083922f0895d04f3e497c9cd02472cc2a5d9987",
+    ),
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -420,6 +426,18 @@ mod tests {
         }
     }
 
+    fn previous_editorial_consent() -> PrivacyConsentRecord {
+        PrivacyConsentRecord {
+            consent_version: CONSENT_VERSION.to_string(),
+            accepted_policy_updated_at: "2026-07-30T00:00:00Z".to_string(),
+            accepted_document_sha256:
+                "af8e3bff76330d3910ab2343a083922f0895d04f3e497c9cd02472cc2a5d9987".to_string(),
+            accepted_at: "2026-07-30T00:00:00Z".to_string(),
+            locale: "zh-CN".to_string(),
+            app_version: "1.2.3".to_string(),
+        }
+    }
+
     #[test]
     fn resolves_every_locale_to_the_chinese_policy() {
         assert_eq!(normalize_locale("zh-Hant-HK"), "zh-CN");
@@ -509,6 +527,26 @@ mod tests {
         assert!(service.initialize("1.2.3").await.unwrap().has_unread_update);
         let current = service.enter_not_accepted("en-US", "1.2.3").await.unwrap();
         assert!(!current.has_unread_update);
+        let _ = tokio::fs::remove_dir_all(directory).await;
+    }
+
+    #[tokio::test]
+    async fn editorial_update_preserves_previous_consent_and_marks_it_unread() {
+        let directory = temporary_directory("editorial-consent");
+        let service = PrivacyService::new(directory.clone(), "zh-CN");
+        service
+            .store_state(&PrivacyStateFile {
+                mode: Some(StoredPrivacyMode::Full),
+                consent: Some(previous_editorial_consent()),
+                viewed_policy_updated_at: Some("2026-07-30T00:00:00Z".to_string()),
+            })
+            .await
+            .unwrap();
+
+        let status = service.initialize("1.2.3").await.unwrap();
+        assert_eq!(status.lifecycle_state, PrivacyLifecycleState::Full);
+        assert_eq!(status.effective_mode, PrivacyEffectiveMode::Full);
+        assert!(status.has_unread_update);
         let _ = tokio::fs::remove_dir_all(directory).await;
     }
 

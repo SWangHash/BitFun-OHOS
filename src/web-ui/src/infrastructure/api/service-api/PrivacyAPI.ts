@@ -58,7 +58,7 @@ export const disabledPrivacyStatus: PrivacyStatus = {
 const bundledPreviewPolicies = {
   'zh-CN': {
     content: zhCnPolicy,
-    documentSha256: 'af8e3bff76330d3910ab2343a083922f0895d04f3e497c9cd02472cc2a5d9987',
+    documentSha256: '4666317d79e4e29ea85152913b3101db8a7d849f47e698c909a239529f2848d3',
   },
 } as const;
 
@@ -71,7 +71,7 @@ export function bundledPrivacyPreviewStatus(_locale: string): PrivacyStatus {
       consentVersion: '4',
       changeType: 'editorial',
       effectiveAt: '2026-07-30T00:00:00Z',
-      updatedAt: '2026-07-30T00:00:00Z',
+      updatedAt: '2026-08-21T00:00:00Z',
       locale: policyLocale,
       documentSha256: policy.documentSha256,
       content: policy.content,
