@@ -18,6 +18,27 @@ fn elapsed_ms_u64(started_at: Instant) -> u64 {
     started_at.elapsed().as_millis() as u64
 }
 
+fn changed_files_compare_with_head(params: &GitChangedFilesParams) -> bool {
+    params.source.as_deref() == Some("HEAD") && params.target.is_none()
+}
+
+async fn repository_has_unborn_head(path: &Path) -> Result<bool, GitError> {
+    let path = path.to_path_buf();
+    task::spawn_blocking(move || {
+        let repository = open_repository(&path)?;
+        let result = match repository.head() {
+            Ok(_) => Ok(false),
+            Err(error) if error.code() == ErrorCode::UnbornBranch => Ok(true),
+            Err(error) => Err(GitError::CommandFailed(format!(
+                "Failed to inspect repository HEAD: {error}"
+            ))),
+        };
+        result
+    })
+    .await
+    .map_err(|error| GitError::CommandFailed(format!("spawn_blocking join: {error}")))?
+}
+
 fn review_path_has_parent_traversal(path: &str, windows: bool) -> bool {
     if windows {
         path.replace('\\', "/")
@@ -1104,8 +1125,18 @@ impl GitService {
         path: P,
         params: &GitChangedFilesParams,
     ) -> Result<Vec<GitChangedFile>, GitError> {
-        let repo_path = path.as_ref().to_string_lossy();
-        let args = build_git_changed_files_args(params);
+        let path = path.as_ref();
+        let repo_path = path.to_string_lossy();
+        let mut effective_params = params.clone();
+        if changed_files_compare_with_head(params) && repository_has_unborn_head(path).await? {
+            // `git diff HEAD` cannot resolve HEAD before the first commit. The
+            // index comparison has the same empty-tree semantics Git uses for
+            // `git diff --cached` in an unborn repository; callers merge this
+            // with status/untracked facts for the complete workspace view.
+            effective_params.source = None;
+            effective_params.staged = Some(true);
+        }
+        let args = build_git_changed_files_args(&effective_params);
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
 
         let output = if params.review_safe.unwrap_or(false) {
@@ -1426,11 +1457,7 @@ impl GitService {
         let normalized_expected = worktree_path_str.replace("\\", "/");
         let expected_branch = branch.to_string();
         task::spawn_blocking(move || {
-            let repository = Repository::open(&worktree_path).map_err(|error| {
-                GitError::CommandFailed(format!(
-                    "Failed to inspect newly created worktree: {error}"
-                ))
-            })?;
+            let repository = open_repository(&worktree_path)?;
             let (branch, head) = match repository.head() {
                 Ok(head) => (
                     head.shorthand().ok().map(str::to_string),

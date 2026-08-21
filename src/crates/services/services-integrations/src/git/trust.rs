@@ -19,8 +19,9 @@
 //! Trust is never granted implicitly: nothing in this module is invoked as a
 //! fallback of a failed operation.
 
-use super::utils::execute_git_hardened_command_with_env;
+use super::utils::{execute_git_hardened_command_with_env, open_repository};
 use super::GitError;
+use git2::ErrorCode;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -67,6 +68,15 @@ pub struct GitTrustReport {
     pub detail: Option<String>,
     /// Command the user can run to resolve this outside the product.
     pub manual_command: Option<String>,
+    /// Whether the surface that produced this report can apply the grant after
+    /// confirmation. Adapters that expose read-only remote probes set this to
+    /// false so clients can present the manual-host path before asking.
+    #[serde(default = "grant_supported_by_default")]
+    pub grant_supported: bool,
+}
+
+const fn grant_supported_by_default() -> bool {
+    true
 }
 
 /// Result of an explicitly confirmed trust decision.
@@ -321,7 +331,7 @@ pub fn classify_command_failure(repo_path: &str, message: String) -> GitError {
 /// not there, gets that verdict.
 pub fn classify_repository_open_error(path: &Path, error: &git2::Error) -> GitError {
     let message = error.message().to_string();
-    if is_untrusted_repository_message(&message) {
+    if error.code() == ErrorCode::Owner || is_untrusted_repository_message(&message) {
         let repository_path = untrusted_repository_path_from_message(&message)
             .or_else(|| normalize_trust_path(&path.to_string_lossy()));
         return untrusted_error(repository_path, message);
@@ -331,11 +341,26 @@ pub fn classify_repository_open_error(path: &Path, error: &git2::Error) -> GitEr
     // could not look (a denied parent directory), which is the very case that
     // must not be called "no repository".
     let definitely_absent = matches!(path.try_exists(), Ok(false));
-    if definitely_absent || is_missing_repository_message(&message) {
+    if definitely_absent
+        || (is_missing_repository_message(&message) && !has_repository_marker(path))
+    {
         return GitError::RepositoryNotFound(error.to_string());
     }
 
     GitError::CommandFailed(error.to_string())
+}
+
+/// Whether the path itself carries a repository marker that makes a
+/// "repository missing" diagnostic inconclusive. A worktree's `.git` may be a
+/// directory or a pointer file; both are evidence that initialization is the
+/// wrong recovery action. A path that already names `.git` is covered too.
+pub(crate) fn has_repository_marker(path: &Path) -> bool {
+    let path_is_git = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case(".git"));
+    (path_is_git && matches!(path.try_exists(), Ok(true)))
+        || matches!(path.join(".git").try_exists(), Ok(true))
 }
 
 /// Candidate `safe.directory` values for a rejected repository, most precise
@@ -407,12 +432,49 @@ async fn inspect_repository_trust_with_env(
             repository_path: normalize_trust_path(path),
             detail: Some("Path does not exist".to_string()),
             manual_command: None,
+            grant_supported: true,
         });
     }
 
     let probe =
         execute_git_hardened_command_with_env(path, &["rev-parse", "--show-toplevel"], env).await;
-    classify_toplevel_probe(path, probe)
+    let report = classify_toplevel_probe(path, probe)?;
+    if report.state != GitTrustState::Trusted {
+        return Ok(report);
+    }
+
+    let libgit2_probe = open_repository(path).map(|_| ());
+    require_libgit2_acceptance(path, report, libgit2_probe)
+}
+
+/// A trusted result is a product-level invariant, not just a Git CLI result:
+/// the UI and several service paths use libgit2 after the probe. If libgit2
+/// still sees the ownership wall, keep the state actionable instead of sending
+/// the caller into a grant/retry loop that can never succeed.
+fn require_libgit2_acceptance(
+    path: &str,
+    report: GitTrustReport,
+    probe: Result<(), GitError>,
+) -> Result<GitTrustReport, GitError> {
+    match probe {
+        Ok(()) => Ok(report),
+        Err(GitError::RepositoryUntrusted {
+            repository_path,
+            detail,
+        }) => {
+            let repository_path = normalize_trust_path(&repository_path)
+                .or(report.repository_path)
+                .or_else(|| normalize_trust_path(path));
+            Ok(GitTrustReport {
+                state: GitTrustState::TrustRequired,
+                manual_command: repository_path.as_deref().map(manual_trust_command),
+                repository_path,
+                detail: Some(detail),
+                grant_supported: true,
+            })
+        }
+        Err(other) => Err(other),
+    }
 }
 
 /// Turns one `rev-parse --show-toplevel` outcome into a trust report.
@@ -439,6 +501,7 @@ fn classify_toplevel_probe(
             repository_path: normalize_trust_path(&output).or_else(|| normalize_trust_path(path)),
             detail: None,
             manual_command: None,
+            grant_supported: true,
         }),
         Err(error) => {
             // Two shapes of the same wall: the typed ownership rejection every
@@ -466,6 +529,7 @@ fn classify_toplevel_probe(
                         repository_path: normalize_trust_path(path),
                         detail: Some(message),
                         manual_command: None,
+                        grant_supported: true,
                     })
                 }
                 other => return Err(other),
@@ -476,6 +540,7 @@ fn classify_toplevel_probe(
                 repository_path,
                 detail: Some(detail),
                 manual_command,
+                grant_supported: true,
             })
         }
     }
@@ -819,6 +884,31 @@ mod tests {
             classify_repository_open_error(&existing, &rejected),
             GitError::RepositoryUntrusted { .. }
         ));
+
+        let owner_code = git2::Error::new(
+            ErrorCode::Owner,
+            git2::ErrorClass::Repository,
+            "localized ownership diagnostic",
+        );
+        assert!(matches!(
+            classify_repository_open_error(&existing, &owner_code),
+            GitError::RepositoryUntrusted { .. }
+        ));
+    }
+
+    #[test]
+    fn repository_marker_keeps_a_missing_diagnostic_inconclusive() {
+        let repository = tempfile::tempdir().expect("repository tempdir");
+        std::fs::create_dir(repository.path().join(".git")).expect("repository marker");
+        let diagnosed = git2::Error::from_str(
+            "could not find repository at '/srv/shared/repo'; class=Repository",
+        );
+
+        assert!(matches!(
+            classify_repository_open_error(repository.path(), &diagnosed),
+            GitError::CommandFailed(_)
+        ));
+        assert!(has_repository_marker(repository.path()));
     }
 
     #[test]
@@ -1008,6 +1098,45 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn cli_success_does_not_hide_a_libgit2_ownership_rejection() {
+        let report = GitTrustReport {
+            state: GitTrustState::Trusted,
+            repository_path: Some("/srv/shared/repo".to_string()),
+            detail: None,
+            manual_command: None,
+            grant_supported: true,
+        };
+        let combined = require_libgit2_acceptance(
+            "/srv/shared/repo",
+            report,
+            Err(GitError::RepositoryUntrusted {
+                repository_path: "/srv/shared/repo".to_string(),
+                detail: "repository owner is not accepted by libgit2".to_string(),
+            }),
+        )
+        .expect("combined trust report");
+
+        assert_eq!(combined.state, GitTrustState::TrustRequired);
+        assert_eq!(
+            combined.manual_command.as_deref(),
+            Some("git config --global --add safe.directory /srv/shared/repo")
+        );
+    }
+
+    #[test]
+    fn legacy_trust_report_defaults_to_a_grant_capable_local_surface() {
+        let report: GitTrustReport = serde_json::from_value(serde_json::json!({
+            "state": "trust_required",
+            "repositoryPath": "/srv/shared/repo",
+            "detail": "detected dubious ownership",
+            "manualCommand": "git config --global --add safe.directory /srv/shared/repo"
+        }))
+        .expect("legacy trust report");
+
+        assert!(report.grant_supported);
+    }
+
     #[tokio::test]
     async fn reports_a_normal_repository_as_trusted() {
         let temp = tempfile::tempdir().expect("tempdir");
@@ -1024,8 +1153,19 @@ mod tests {
     #[tokio::test]
     async fn reports_a_plain_directory_as_not_a_repository() {
         let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().to_string_lossy().to_string();
+        // The test temp root may itself live under the BitFun worktree. Stop
+        // Git at this directory so the fixture stays a plain directory rather
+        // than discovering the repository that contains the test process.
+        let ceiling = temp
+            .path()
+            .parent()
+            .expect("tempdir parent")
+            .to_string_lossy()
+            .to_string();
+        let env = [("GIT_CEILING_DIRECTORIES", ceiling.as_str())];
 
-        let report = inspect_repository_trust(&temp.path().to_string_lossy())
+        let report = inspect_repository_trust_with_env(&path, &env)
             .await
             .expect("trust report");
         assert_eq!(report.state, GitTrustState::NotARepository);
@@ -1053,7 +1193,8 @@ mod tests {
             .expect("trust report");
         if report.state != GitTrustState::TrustRequired {
             eprintln!(
-                "skipping: installed Git does not honor GIT_TEST_ASSUME_DIFFERENT_OWNER (state={:?})",
+                "skipping real Git ownership gate: installed Git does not honor \
+                 GIT_TEST_ASSUME_DIFFERENT_OWNER (state={:?})",
                 report.state
             );
             return;

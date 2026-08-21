@@ -84,6 +84,29 @@ pub struct GitTrustReport {
     pub detail: Option<String>,
     /// Command the user can run on this host to resolve it themselves.
     pub manual_command: Option<String>,
+    /// App Server intentionally exposes no trust mutation; missing legacy
+    /// fields therefore default to the safe, manual-only behavior.
+    #[serde(default)]
+    pub grant_supported: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GitTrustReport, GitTrustState};
+
+    #[test]
+    fn legacy_app_server_trust_report_defaults_to_manual_only() {
+        let report: GitTrustReport = serde_json::from_value(serde_json::json!({
+            "state": "trust_required",
+            "repositoryPath": "/srv/shared/repo",
+            "detail": "detected dubious ownership",
+            "manualCommand": "git config --global --add safe.directory /srv/shared/repo"
+        }))
+        .expect("legacy app-server trust report");
+
+        assert_eq!(report.state, GitTrustState::TrustRequired);
+        assert!(!report.grant_supported);
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

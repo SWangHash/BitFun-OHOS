@@ -159,6 +159,7 @@ pub(super) fn git_trust_report(value: bitfun_core::service::git::GitTrustReport)
         repository_path: value.repository_path,
         detail: value.detail,
         manual_command: value.manual_command,
+        grant_supported: false,
     }
 }
 

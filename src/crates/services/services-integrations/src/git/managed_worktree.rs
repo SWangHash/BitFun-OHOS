@@ -2,8 +2,8 @@ use super::service::GitService;
 use super::types::{GitLocalChangeSummary, GitWorktreeInfo};
 use super::utils::{execute_git_command, open_repository};
 use super::GitError;
+use super::{config, trust};
 use bitfun_services_core::process_manager;
-use git2::Repository;
 use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 use tokio::io::AsyncWriteExt;
@@ -56,25 +56,25 @@ fn validate_relative_file_path(path: &str) -> Result<PathBuf, GitError> {
 }
 
 async fn git_output_bytes(repo_path: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
-    let output = process_manager::create_tokio_command("git")
+    let mut command = process_manager::create_tokio_command("git");
+    command
         .current_dir(repo_path)
+        .env("LC_ALL", "C")
         .env("GIT_TERMINAL_PROMPT", "0")
-        .args(args)
-        .output()
-        .await
-        .map_err(|error| {
-            GitError::CommandFailed(format!("Failed to execute git command: {error}"))
-        })?;
+        .args(args);
+    config::configure_tokio_command(&mut command);
+    let output = command.output().await.map_err(|error| {
+        GitError::CommandFailed(format!("Failed to execute git command: {error}"))
+    })?;
     if output.status.success() {
         Ok(output.stdout)
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        Err(GitError::CommandFailed(if stderr.is_empty() {
-            stdout
-        } else {
-            stderr
-        }))
+        Err(trust::classify_command_failure(
+            &repo_path.to_string_lossy(),
+            if stderr.is_empty() { stdout } else { stderr },
+        ))
     }
 }
 
@@ -86,12 +86,14 @@ async fn git_with_stdin(repo_path: &Path, args: &[&str], input: &[u8]) -> Result
     let mut child = process_manager::create_tokio_command("git");
     child
         .current_dir(repo_path)
+        .env("LC_ALL", "C")
         .env("GIT_TERMINAL_PROMPT", "0")
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    config::configure_tokio_command(&mut child);
     let mut child = child.spawn().map_err(|error| {
         GitError::CommandFailed(format!("Failed to execute git command: {error}"))
     })?;
@@ -113,11 +115,10 @@ async fn git_with_stdin(repo_path: &Path, args: &[&str], input: &[u8]) -> Result
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        Err(GitError::CommandFailed(if stderr.is_empty() {
-            stdout
-        } else {
-            stderr
-        }))
+        Err(trust::classify_command_failure(
+            &repo_path.to_string_lossy(),
+            if stderr.is_empty() { stdout } else { stderr },
+        ))
     }
 }
 
@@ -285,11 +286,7 @@ impl GitService {
 
         let inspect_path = target_path.clone();
         task::spawn_blocking(move || {
-            let repository = Repository::open(&inspect_path).map_err(|error| {
-                GitError::CommandFailed(format!(
-                    "Failed to inspect newly created detached worktree: {error}"
-                ))
-            })?;
+            let repository = open_repository(&inspect_path)?;
             let head = repository
                 .head()
                 .ok()
