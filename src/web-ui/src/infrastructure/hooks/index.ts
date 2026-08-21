@@ -8,3 +8,4 @@ export * from './useWorkspaceManagerSync';
 
 // Shortcut hook
 export * from './useShortcut';
+export * from './useNativeFileDrop';

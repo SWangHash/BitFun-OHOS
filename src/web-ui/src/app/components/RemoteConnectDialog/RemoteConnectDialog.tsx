@@ -925,11 +925,11 @@ export const RemoteConnectDialog: React.FC<RemoteConnectDialogProps> = ({
   const handleCopyPairingUrl = useCallback(async () => {
     if (!connectionResult?.qr_url) return;
     const copied = await copyTextToClipboard(connectionResult.qr_url);
-    if (copied) {
+    if (copied.ok) {
       setQrCopied(true);
       window.setTimeout(() => setQrCopied(false), 2000);
     } else {
-      notifyError(t('remoteConnect.copyUrlFailed'));
+      notifyError(t('remoteConnect.copyUrlFailed', { error: copied.error ?? '' }));
     }
   }, [connectionResult?.qr_url, notifyError, t]);
 

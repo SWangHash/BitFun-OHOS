@@ -334,7 +334,7 @@
       "renameOutcomeUnknown": "重新命名結果尚不確定。請重新整理或重新開啟工作階段清單，確認目前名稱後再重試。",
       "copySessionId": "複製 ID",
       "copySessionIdSuccess": "已複製會話 ID",
-      "copySessionIdFailed": "複製會話 ID 失敗",
+      "copySessionIdFailed": "複製會話 ID 失敗：{{error}}",
       "exportMarkdown": "匯出為 Markdown",
       "exportMarkdownFull": "匯出完整過程",
       "exportMarkdownResult": "匯出結果",
@@ -780,7 +780,7 @@
     "syncPhaseListingSessions": "正在掃描本地工作階段…",
     "syncPhaseExportingSessions": "正在備份工作階段 {{current}}/{{total}}",
     "copyServerUrl": "複製伺服器位址",
-    "copyServerFailed": "無法複製伺服器位址，請檢查剪貼簿權限後重試。",
+    "copyServerFailed": "無法複製伺服器位址，請檢查剪貼簿權限後重試。錯誤：{{error}}",
     "loginValueProp": "登入以關聯你的多台裝置：互相遠端控制，並雲端同步設定與工作階段。"
   },
   "relayDeploy": {
@@ -893,7 +893,7 @@
     "stateWaiting": "等待連接...",
     "urlCopied": "已複製 URL",
     "copyUrl": "複製配對連結",
-    "copyUrlFailed": "無法複製配對連結，請手動複製或檢查剪貼簿權限。",
+    "copyUrlFailed": "無法複製配對連結，請手動複製或檢查剪貼簿權限。錯誤：{{error}}",
     "weixinQrAlt": "微信登入二維碼",
     "stateWaitingBot": "等待機器人確認...",
     "stateHandshaking": "握手中...",

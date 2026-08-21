@@ -306,11 +306,11 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
   const handleCopyRelayUrl = useCallback(async () => {
     if (!accountRelayUrl) return;
     const copied = await copyTextToClipboard(accountRelayUrl);
-    if (copied) {
+    if (copied.ok) {
       setCopiedServerUrl(true);
       window.setTimeout(() => setCopiedServerUrl(false), 1500);
     } else {
-      warning(t('accountLogin.copyServerFailed'));
+      warning(t('accountLogin.copyServerFailed', { error: copied.error ?? '' }));
     }
   }, [accountRelayUrl, t, warning]);
 

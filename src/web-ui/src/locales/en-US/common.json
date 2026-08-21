@@ -334,7 +334,7 @@
       "renameOutcomeUnknown": "The rename result is uncertain. Refresh or reopen the session list, then check the current title before retrying.",
       "copySessionId": "Copy ID",
       "copySessionIdSuccess": "Session ID copied",
-      "copySessionIdFailed": "Failed to copy session ID",
+      "copySessionIdFailed": "Failed to copy session ID: {{error}}",
       "exportMarkdown": "Export as Markdown",
       "exportMarkdownFull": "Export full process",
       "exportMarkdownResult": "Export result",
@@ -780,7 +780,7 @@
     "syncPhaseListingSessions": "Scanning local sessions…",
     "syncPhaseExportingSessions": "Backing up sessions {{current}}/{{total}}",
     "copyServerUrl": "Copy server address",
-    "copyServerFailed": "Could not copy the server address. Check clipboard permission and try again.",
+    "copyServerFailed": "Could not copy the server address. Check clipboard permission and try again. Error: {{error}}",
     "loginValueProp": "Log in to link your devices: control one from another and keep settings & sessions in sync."
   },
   "relayDeploy": {
@@ -893,7 +893,7 @@
     "stateWaiting": "Waiting for connection...",
     "urlCopied": "URL Copied",
     "copyUrl": "Copy pairing URL",
-    "copyUrlFailed": "Could not copy the pairing URL. Copy it manually or check clipboard permission.",
+    "copyUrlFailed": "Could not copy the pairing URL. Copy it manually or check clipboard permission. Error: {{error}}",
     "weixinQrAlt": "WeChat login QR code",
     "stateWaitingBot": "Waiting for bot confirmation...",
     "stateHandshaking": "Handshaking...",

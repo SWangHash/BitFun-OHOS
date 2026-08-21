@@ -977,9 +977,9 @@ $_section-header-height: 24px;
     max-width: min(280px, calc(100vw - 24px));
     max-height: calc(100vh - 16px);
     overflow-y: auto;
-    padding: 6px;
+    padding: 2px;
     border: 1px solid var(--bf-appearance-token-border-subtle);
-    border-radius: 10px;
+    border-radius: 4px;
     background: var(--bf-appearance-token-color-bg-primary);
     box-shadow: 0 10px 28px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.24);
     z-index: $z-popover;
@@ -989,12 +989,12 @@ $_section-header-height: 24px;
   &__assistant-session-menu-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     width: 100%;
-    height: 30px;
-    padding: 0 8px;
+    height: 20px;
+    padding: 0 4px;
     border: none;
-    border-radius: 8px;
+    border-radius: 4px;
     background: transparent;
     color: var(--bf-appearance-token-color-text-secondary);
     cursor: pointer;
@@ -1009,7 +1009,7 @@ $_section-header-height: 24px;
 
     &:hover {
       color: var(--bf-appearance-token-color-text-primary);
-      background: var(--bf-appearance-token-element-bg-soft);
+      background: var(--bf-appearance-token-element-bg-medium);
     }
 
     &:focus-visible {

@@ -76,13 +76,31 @@ describe('copyTextToClipboard', () => {
       value: execCommand,
     });
 
-    await expect(copyTextToClipboard('pairing-url')).resolves.toBe(true);
+    await expect(copyTextToClipboard('pairing-url')).resolves.toEqual({ ok: true });
     expect(writeText).toHaveBeenCalledWith('pairing-url');
     expect(execCommand).toHaveBeenCalledWith('copy');
     expect(dom.window.document.querySelector('textarea')).toBeNull();
   });
 
-  it('reports failure and cleans up when both copy paths fail', async () => {
+  it('reports failure with the actual error message and cleans up when both copy paths fail', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('NotAllowedError: Document is not focused'));
+    Object.defineProperty(dom.window.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    Object.defineProperty(dom.window.document, 'execCommand', {
+      configurable: true,
+      value: vi.fn(() => { throw new Error('copy unsupported'); }),
+    });
+
+    await expect(copyTextToClipboard('pairing-url')).resolves.toEqual({
+      ok: false,
+      error: 'NotAllowedError: Document is not focused',
+    });
+    expect(dom.window.document.querySelector('textarea')).toBeNull();
+  });
+
+  it('reports the fallback error when only execCommand throws and navigator.clipboard is unavailable', async () => {
     Object.defineProperty(dom.window.navigator, 'clipboard', {
       configurable: true,
       value: undefined,
@@ -92,7 +110,10 @@ describe('copyTextToClipboard', () => {
       value: vi.fn(() => { throw new Error('copy unsupported'); }),
     });
 
-    await expect(copyTextToClipboard('pairing-url')).resolves.toBe(false);
+    await expect(copyTextToClipboard('pairing-url')).resolves.toEqual({
+      ok: false,
+      error: 'copy unsupported',
+    });
     expect(dom.window.document.querySelector('textarea')).toBeNull();
   });
 });

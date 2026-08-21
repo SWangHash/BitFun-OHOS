@@ -16,6 +16,7 @@ import { AsyncPrismSyntaxHighlighter } from './AsyncPrismSyntaxHighlighter';
 import { buildMarkdownPrismStyle } from './markdownPrismTheme';
 import { Tooltip } from '../Tooltip';
 import { globalAPI, systemAPI, workspaceAPI } from '../../../infrastructure/api';
+import { notificationService } from '@/shared/notification-system';
 import { getPrismLanguageFromAlias } from '@/infrastructure/language-detection';
 import { useAppearance } from '@/infrastructure/appearance';
 import { contextMenuController } from '@/shared/context-menu-system/core/ContextMenuController';
@@ -1000,12 +1001,77 @@ export const Markdown = React.memo<MarkdownProps>(({
     });
   }, []);
 
+  const handleSaveFileAs = useCallback(async (filePath: string, fileName: string) => {
+    const reportError = (error: unknown) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      log.error('Failed to save file as', { filePath, error });
+      notificationService.error(
+        translateMarkdownLabel('markdown.saveAsFailed', { error: detail }),
+        { duration: 4000 },
+      );
+    };
+
+    try {
+      let dest: string | null = null;
+
+      // On HarmonyOS the Tauri dialog/fs plugins are unavailable; route
+      // through the OHOS adapter: pick a destination folder, then copy the
+      // source file into it via the binary-safe export_local_file_to_path.
+      let systemInfo;
+      try {
+        systemInfo = await systemAPI.getSystemInfo();
+      } catch (infoErr) {
+        log.warn('getSystemInfo failed; assuming non-OHOS save path', infoErr);
+      }
+      if (systemInfo?.platform === 'openharmony') {
+        const folder = await workspaceAPI.open_oh_file_dialog({ directory: true });
+        if (typeof folder !== 'string' || folder.length === 0) {
+          return; // user cancelled
+        }
+        dest = path.join(folder, fileName);
+        await workspaceAPI.exportLocalFileToPath(filePath, dest);
+      } else {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        dest = await save({
+          title: translateMarkdownLabel('markdown.saveAs'),
+          defaultPath: fileName,
+        });
+        if (!dest) {
+          return;
+        }
+        const { copyFile } = await import('@tauri-apps/plugin-fs');
+        await copyFile(filePath, dest);
+      }
+
+      notificationService.success(
+        translateMarkdownLabel('markdown.saveAsSuccess'),
+        { duration: 2500 },
+      );
+    } catch (error) {
+      reportError(error);
+    }
+  }, []);
+
   const handleLocalFileContextMenu = useCallback((
     event: React.MouseEvent<HTMLElement>,
     filePath: string,
-    displayPath: string
+    displayPath: string,
+    fileName: string,
+    lineRange?: LineRange
   ) => {
     const items: MenuItem[] = [
+      {
+        id: 'markdown-open-file',
+        label: translateMarkdownLabel('markdown.openFile'),
+        icon: 'FileInput',
+        onClick: () => handleFileViewRequest(filePath, fileName, lineRange),
+      },
+      {
+        id: 'markdown-save-as',
+        label: translateMarkdownLabel('markdown.saveAs'),
+        icon: 'Download',
+        onClick: () => void handleSaveFileAs(displayPath || filePath, fileName),
+      },
       {
         id: 'markdown-open-in-explorer',
         label: translateMarkdownLabel('markdown.openInExplorer'),
@@ -1024,7 +1090,7 @@ export const Markdown = React.memo<MarkdownProps>(({
       filePath,
       displayPath,
     });
-  }, [handleRevealInExplorer, handleCopyLink, showLinkContextMenu]);
+  }, [handleSaveFileAs, handleFileViewRequest, handleRevealInExplorer, handleCopyLink, showLinkContextMenu]);
 
   const handleWebLinkContextMenu = useCallback((event: React.MouseEvent<HTMLElement>, url: string) => {
     const targetElement = event.currentTarget;
@@ -1211,7 +1277,7 @@ export const Markdown = React.memo<MarkdownProps>(({
                 }
                 handleFileViewRequest(filePath, fileName, lineRange);
               }}
-              onContextMenu={(e) => handleLocalFileContextMenu(e, filePath, displayFilePath)}
+              onContextMenu={(e) => handleLocalFileContextMenu(e, filePath, displayFilePath, fileName, lineRange)}
               type="button"
               style={{
                 cursor: 'pointer',

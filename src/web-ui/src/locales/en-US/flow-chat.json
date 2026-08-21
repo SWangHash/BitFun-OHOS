@@ -537,6 +537,8 @@
     "cancelShortcut": "Cancel",
     "clear": "Clear",
     "attach": "Attach File",
+    "nativeDropRemoteUnsupported": "Local files cannot be attached directly to a remote workspace. Upload them through the Files panel first.",
+    "nativeDropFailed": "The dropped files could not be attached.",
     "collapseInput": "Collapse input",
     "expandInput": "Expand input",
     "retry": "Retry",
@@ -2389,6 +2391,7 @@
     "fastModeDescription": "1.5x speed with higher credit usage",
     "switchFailed": "Failed to switch model",
     "modelNotConfigured": "Not Configured",
+    "openSettings": "Model settings",
     "contextUsage": {
       "agentPrompt": "Last request prompt: {{usage}}",
       "acpContext": "ACP reported context: {{usage}}",
