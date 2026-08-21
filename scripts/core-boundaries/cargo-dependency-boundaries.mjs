@@ -142,6 +142,7 @@ const SERVICES_INTEGRATIONS_TOKIO_FEATURES = new Map([
   ['miniapp-market', ['fs', 'io-util', 'net', 'process', 'rt', 'sync', 'time']],
   ['plugin-source', ['fs', 'rt', 'sync', 'time']],
   ['hook-import', ['fs', 'sync']],
+  ['privacy', ['fs']],
   ['remote-connect', ['fs', 'io-util', 'net', 'process', 'rt', 'sync', 'time']],
   ['remote-ssh', ['fs', 'io-util', 'macros', 'net', 'process', 'rt', 'sync', 'time']],
   ['remote-ssh-concrete', ['fs', 'io-util', 'macros', 'net', 'process', 'rt', 'sync', 'time']],

@@ -2489,6 +2489,7 @@ test('services integrations Tokio owner contracts reject feature-union masking',
   );
   const mutations = [
     ['plugin-source', 'tokio/time', /plugin-source missing effective Tokio capabilities: time/],
+    ['privacy', 'tokio/fs', /privacy missing effective Tokio capabilities: fs/],
     ['mcp', 'tokio/process', /mcp missing effective Tokio capabilities: process/],
     ['miniapp-market', 'miniapp-runtime', /miniapp-market missing effective Tokio capabilities: fs/],
     ['function-agents', 'git', /function-agents missing effective Tokio capabilities: fs/],
