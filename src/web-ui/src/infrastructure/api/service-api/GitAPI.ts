@@ -200,6 +200,8 @@ export interface GitTrustReport {
   detail: string | null;
   /** Command the user can run themselves when we cannot apply the change. */
   manualCommand: string | null;
+  /** Whether this surface can apply the grant after user confirmation. */
+  grantSupported?: boolean;
 }
 
 export interface GitTrustOutcome {

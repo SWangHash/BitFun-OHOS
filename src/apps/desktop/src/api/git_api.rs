@@ -557,7 +557,9 @@ pub async fn git_get_repository_trust(
     request: GitRepositoryRequest,
 ) -> Result<GitTrustReport, String> {
     if let Some(target) = resolve_remote_git_target(&request.repository_path).await? {
-        return inspect_remote_repository_trust(&state, &target).await;
+        let mut report = inspect_remote_repository_trust(&state, &target).await?;
+        report.grant_supported = false;
+        return Ok(report);
     }
 
     GitService::inspect_trust(&request.repository_path)
@@ -645,6 +647,7 @@ async fn inspect_remote_repository_trust(
             repository_path: Some(repository_path),
             detail: None,
             manual_command: None,
+            grant_supported: false,
         });
     }
 
@@ -659,6 +662,7 @@ async fn inspect_remote_repository_trust(
             repository_path: Some(repository_path),
             detail: Some(diagnostic),
             manual_command: Some(manual_command),
+            grant_supported: false,
         });
     }
 
@@ -669,6 +673,7 @@ async fn inspect_remote_repository_trust(
                 .or_else(|| Some(target.repository_path.clone())),
             detail: Some(diagnostic),
             manual_command: None,
+            grant_supported: false,
         });
     }
 
@@ -694,6 +699,38 @@ fn remote_git_diagnostic(output: &RemoteGitOutput) -> String {
     } else {
         output.stderr.trim().to_string()
     }
+}
+
+fn remote_head_is_unborn(output: &RemoteGitOutput) -> bool {
+    output.exit_code == 1 && output.stdout.trim().is_empty() && output.stderr.trim().is_empty()
+}
+
+async fn remote_repository_has_unborn_head(
+    state: &AppState,
+    target: &RemoteGitTarget,
+) -> Result<bool, String> {
+    let output = execute_remote_git_command(
+        state,
+        target,
+        &[
+            "rev-parse".to_string(),
+            "--verify".to_string(),
+            "--quiet".to_string(),
+            "HEAD^{commit}".to_string(),
+        ],
+    )
+    .await?;
+    if output.exit_code == 0 {
+        return Ok(false);
+    }
+    if remote_head_is_unborn(&output) {
+        return Ok(true);
+    }
+
+    Err(remote_git_error_message(
+        &target.repository_path,
+        remote_git_diagnostic(&output),
+    ))
 }
 
 /// Whether a remote `rev-parse --is-inside-work-tree` found a repository.
@@ -1248,12 +1285,17 @@ pub async fn git_get_changed_files(
     );
 
     if let Some(target) = resolve_remote_git_target(&request.repository_path).await? {
-        let output = execute_remote_git_success(
-            &state,
-            &target,
-            &build_git_changed_files_args(&request.params),
-        )
-        .await?;
+        let mut params = request.params;
+        if params.source.as_deref() == Some("HEAD")
+            && params.target.is_none()
+            && remote_repository_has_unborn_head(&state, &target).await?
+        {
+            params.source = None;
+            params.staged = Some(true);
+        }
+        let output =
+            execute_remote_git_success(&state, &target, &build_git_changed_files_args(&params))
+                .await?;
         return Ok(parse_name_status_output(&output));
     }
 
@@ -1737,5 +1779,16 @@ mod tests {
             remote_operation_error("/srv/shared/repo", &remote_output("ok\n", "", 0)),
             None
         );
+    }
+
+    #[test]
+    fn remote_unborn_head_probe_requires_the_quiet_missing_revision_shape() {
+        assert!(remote_head_is_unborn(&remote_output("", "", 1)));
+        assert!(!remote_head_is_unborn(&remote_output("", "", 128)));
+        assert!(!remote_head_is_unborn(&remote_output(
+            "",
+            "fatal: detected dubious ownership in repository at '/srv/shared/repo'",
+            128,
+        )));
     }
 }
