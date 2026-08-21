@@ -39,19 +39,19 @@ describe('PrivacyAPI', () => {
     });
     const client = new PrivacyAPI();
     await client.accept({
-      policyUpdatedAt: '2026-07-30T00:00:00Z',
+      policyUpdatedAt: '2026-08-21T00:00:00Z',
       consentVersion: '4',
       documentSha256: 'a'.repeat(64),
       locale: 'zh-CN',
     });
-    await client.markViewed('2026-07-30T00:00:00Z', 'zh-CN');
+    await client.markViewed('2026-08-21T00:00:00Z', 'zh-CN');
 
     expect(invoke).toHaveBeenNthCalledWith(
       1,
       'privacy_accept',
       {
         request: {
-          policyUpdatedAt: '2026-07-30T00:00:00Z',
+          policyUpdatedAt: '2026-08-21T00:00:00Z',
           consentVersion: '4',
           documentSha256: 'a'.repeat(64),
           locale: 'zh-CN',
@@ -62,7 +62,7 @@ describe('PrivacyAPI', () => {
     expect(invoke).toHaveBeenNthCalledWith(
       2,
       'privacy_mark_viewed',
-      { request: { policyUpdatedAt: '2026-07-30T00:00:00Z', locale: 'zh-CN' } },
+      { request: { policyUpdatedAt: '2026-08-21T00:00:00Z', locale: 'zh-CN' } },
       { retries: 0 },
     );
     expect(JSON.stringify(invoke.mock.calls)).not.toContain('policyVersion');
@@ -76,7 +76,10 @@ describe('PrivacyAPI', () => {
     expect(status.policy?.content).toContain('关于HUAWEI BitFun的隐私协议');
     expect(status.policy?.content).not.toContain('开发测试占位版');
     expect(status.policy).not.toHaveProperty('policyVersion');
-    expect(status.policy?.updatedAt).toBe('2026-07-30T00:00:00Z');
+    expect(status.policy?.updatedAt).toBe('2026-08-21T00:00:00Z');
+    expect(status.policy?.documentSha256).toBe(
+      '4666317d79e4e29ea85152913b3101db8a7d849f47e698c909a239529f2848d3',
+    );
     expect(status.policy?.consentVersion).toBe('4');
     expect(status.policy?.changeType).toBe('editorial');
   });
