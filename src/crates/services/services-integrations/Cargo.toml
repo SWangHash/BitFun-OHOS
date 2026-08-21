@@ -130,6 +130,7 @@ privacy = [
     "chrono",
     "dep:bitfun-product-domains",
     "sha2",
+    "tokio/fs",
 ]
 feedback = [
     "aes-gcm",
