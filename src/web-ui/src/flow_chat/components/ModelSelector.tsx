@@ -30,7 +30,7 @@ import type { AIModelConfig, AgentModelDefaultsConfig, DefaultModelsConfig } fro
 import { Switch, Tooltip } from '@/component-library';
 import { PresenceBoundary } from '@/component-library/components/PresenceBoundary';
 import { notificationService } from '@/shared/notification-system';
-import { openModelSettings } from '@/shared/ai-errors/aiErrorActions';
+import { openModelSettings } from '@/app/services/openModelSettings';
 import { FlowChatStore } from '../store/FlowChatStore';
 import { getModelMaxTokens } from '../services/flow-chat-manager/SessionModule';
 import { acpClientIdFromAgentType } from '../utils/acpSession';
@@ -1564,8 +1564,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               title={t('modelSelector.openSettings')}
               data-bf-component="model-selector"
               data-bf-part="settingsButton"
-              onClick={(e) => {
-                e.stopPropagation();
+              onClick={(event) => {
+                event.stopPropagation();
+                setDropdownOpen(false);
                 void openModelSettings();
               }}
             >

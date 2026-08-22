@@ -47,8 +47,24 @@ const fallbackStorage: SyncStringStorage = {
   },
 };
 
-function getDispatchStorage(): SyncStringStorage {
-  return typeof localStorage === 'undefined' ? fallbackStorage : localStorage;
+export function getDispatchStorage(): SyncStringStorage {
+  try {
+    // HarmonyOS WebView can expose the storage property as null before its
+    // backing store is ready. Check the actual interface instead of only
+    // checking for an undefined global, then keep dispatch state in memory.
+    const candidate = typeof globalThis !== 'undefined' ? globalThis.localStorage : undefined;
+    if (
+      candidate
+      && typeof candidate.getItem === 'function'
+      && typeof candidate.setItem === 'function'
+      && typeof candidate.removeItem === 'function'
+    ) {
+      return candidate;
+    }
+  } catch {
+    // Accessing WebView storage itself may throw while the page is starting.
+  }
+  return fallbackStorage;
 }
 
 function mergeDismissedIds(

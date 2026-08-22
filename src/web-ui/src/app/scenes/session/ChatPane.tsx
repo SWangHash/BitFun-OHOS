@@ -16,6 +16,10 @@ import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { isAcpFlowSession } from '@/flow_chat/utils/acpSession';
 import { useAvailableAIModels } from '@/infrastructure/config/hooks/useAvailableAIModels';
 import { useCanvasStore } from '../../components/panels/content-canvas/stores/canvasStore';
+import { useActiveSessionState } from '@/flow_chat/hooks';
+import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
+import { isAcpFlowSession } from '@/flow_chat/utils/acpSession';
+import { useAvailableAIModels } from '@/infrastructure/config/hooks/useAvailableAIModels';
 import { openModelSettings } from '../../services/openModelSettings';
 import type { LineRange } from '@/component-library';
 import path from 'path-browserify';
@@ -59,8 +63,6 @@ const ChatPaneInner: React.FC<ChatPaneProps> = ({
   const addTab = useCanvasStore(state => state.addTab);
   const modelStatus = useAvailableAIModels();
   const activeSessionState = useActiveSessionState();
-  // Use the i18next namespace hook directly so the banner follows locale
-  // changes even when the flow-chat namespace is loaded lazily.
   const { t } = useTranslation('flow-chat');
   const deferredTaskDetailTimersRef = useRef<number[]>([]);
   const deferredTaskDetailIdleCallbacksRef = useRef<number[]>([]);
@@ -192,9 +194,7 @@ const ChatPaneInner: React.FC<ChatPaneProps> = ({
             data-bf-component="chat-pane"
             className="bitfun-chat-pane__model-notice-action"
             data-bf-part="modelNoticeAction"
-            onClick={() => {
-              void openModelSettings();
-            }}
+            onClick={() => { void openModelSettings(); }}
           >
             <Settings size={15} aria-hidden="true" />
             <span>{t('modelConfigurationNotice.action')}</span>

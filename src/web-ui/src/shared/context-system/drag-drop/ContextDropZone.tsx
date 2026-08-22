@@ -29,7 +29,6 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
   rootRef,
   onContextAdded,
   resolveExternalFiles,
-  onContextAdded,
   disabled = false,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);

@@ -22,4 +22,12 @@ describe('ModelSelector portal layer', () => {
     expect(dropdownBlock).toContain('z-index: $z-popover;');
     expect(dropdownBlock).not.toContain('z-index: $z-dropdown;');
   });
+
+  it('keeps model settings reachable from the native model list', () => {
+    const component = readSource('./ModelSelector.tsx');
+
+    expect(component).toContain('data-testid="chat-model-selector-settings"');
+    expect(component).toContain('data-bf-part="settingsButton"');
+    expect(component).toContain("openModelSettings()");
+  });
 });
