@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import { Plus, SquarePen, Trash2, Wifi, Loader, RefreshCw, AlertTriangle, X, Settings, ExternalLink, Eye, EyeOff, ChevronDown, ChevronRight, ChevronUp, Info, Brain, FolderOpen } from 'lucide-react';
 import { Button, Switch, Select, IconButton, NumberInput, Card, Modal, Input, Search, Textarea, Tooltip, type SelectOption } from '@/component-library';
 import {
@@ -388,6 +389,8 @@ const AIModelConfig: React.FC = () => {
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string } | null>>({});
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const notification = useNotification();
+  const contentFocus = useSettingsStore(state => state.contentFocus);
+  const contentFocusRequestId = useSettingsStore(state => state.contentFocusRequestId);
   
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
@@ -978,7 +981,7 @@ const AIModelConfig: React.FC = () => {
   };
 
   
-  const handleCreateNew = () => {
+  const handleCreateNew = useCallback(() => {
     resetRemoteModelDiscovery();
     setSelectedModelDrafts([]);
     setEditingProviderModelIds(new Set());
@@ -988,7 +991,12 @@ const AIModelConfig: React.FC = () => {
     setProviderQuery('');
     setShowAllProviders(false);
     setCreationMode('selection');
-  };
+  }, [resetRemoteModelDiscovery]);
+
+  useEffect(() => {
+    if (contentFocus !== 'model-create') return;
+    handleCreateNew();
+  }, [contentFocus, contentFocusRequestId, handleCreateNew]);
 
   const handleImportFromSubscription = useCallback((
     account: SubscriptionAccount,

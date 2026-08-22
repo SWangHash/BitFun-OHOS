@@ -3,7 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { dispatchJobStore } from './dispatchJobStore';
+import { dispatchJobStore, getDispatchStorage } from './dispatchJobStore';
 
 function registerJob(state: 'running' | 'succeeded' = 'running'): void {
   dispatchJobStore.getState().registerJob({
@@ -40,6 +40,27 @@ function registerJob(state: 'running' | 'succeeded' = 'running'): void {
 describe('dispatchJobStore', () => {
   beforeEach(() => {
     dispatchJobStore.getState().clear();
+  });
+
+  it('falls back to memory when the WebView exposes null localStorage', () => {
+    const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: null,
+    });
+
+    try {
+      const fallback = getDispatchStorage();
+      expect(fallback.getItem('missing')).toBeNull();
+      fallback.setItem('key', 'value');
+      expect(fallback.getItem('key')).toBe('value');
+    } finally {
+      if (originalStorage) {
+        Object.defineProperty(globalThis, 'localStorage', originalStorage);
+      } else {
+        delete (globalThis as { localStorage?: Storage }).localStorage;
+      }
+    }
   });
 
   it('keeps cursors monotonic and clears terminal-drained state on progress', () => {

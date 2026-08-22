@@ -311,7 +311,7 @@ export const SETTINGS_CATEGORIES: ConfigCategoryDef[] = [
 
 export const DEFAULT_SETTINGS_TAB: ConfigTab = 'basics';
 
-export type SettingsContentFocus = 'hooks';
+export type SettingsContentFocus = 'hooks' | 'model-create';
 
 export interface NormalizedSettingsTarget {
   tab: ConfigTab;
@@ -337,5 +337,8 @@ export function normalizeSettingsTab(section: string): ConfigTab {
 /** Preserve an optional in-page target while normalizing the owning Settings tab. */
 export function normalizeSettingsTarget(section: string): NormalizedSettingsTarget {
   if (section === 'hooks') return { tab: 'external-sources', focus: 'hooks' };
+  if (section === 'models:create' || section === 'model-create') {
+    return { tab: 'models', focus: 'model-create' };
+  }
   return { tab: normalizeSettingsTab(section) };
 }

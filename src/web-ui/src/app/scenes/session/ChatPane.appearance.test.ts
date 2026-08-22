@@ -10,4 +10,17 @@ describe('chat pane appearance contract', () => {
       continuityGroup: 'session-workspace',
     });
   });
+
+  it('registers the missing-model notice and its settings action', () => {
+    expect(chatPaneAppearanceDescriptor.parts).toContainEqual({
+      id: 'modelNotice',
+      propertyProfile: 'paint',
+      visualRole: 'content',
+    });
+    expect(chatPaneAppearanceDescriptor.parts).toContainEqual({
+      id: 'modelNoticeAction',
+      propertyProfile: 'control',
+      visualRole: 'control',
+    });
+  });
 });
