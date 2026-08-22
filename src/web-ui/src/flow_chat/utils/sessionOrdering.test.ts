@@ -78,6 +78,25 @@ describe('sessionOrdering', () => {
     expect(orderedIds).toEqual(['first', 'second']);
   });
 
+  it('pins empty new sessions to the top of the nav list', () => {
+    const sessions = [
+      createSession({ sessionId: 'old-empty', createdAt: 1000, historyState: 'new', dialogTurns: [] }),
+      createSession({ sessionId: 'active', createdAt: 2000, historyState: 'ready', dialogTurns: [{ id: 't1' } as never] }),
+      createSession({ sessionId: 'new-empty', createdAt: 3000, historyState: 'new', dialogTurns: [] }),
+    ];
+    const orderedIds = [...sessions].sort(compareSessionsForNavStable).map(s => s.sessionId);
+    expect(orderedIds).toEqual(['new-empty', 'old-empty', 'active']);
+  });
+
+  it('does not pin sessions whose historyState is not new even when dialogTurns is empty', () => {
+    const sessions = [
+      createSession({ sessionId: 'ready-empty', createdAt: 1000, historyState: 'ready', dialogTurns: [] }),
+      createSession({ sessionId: 'active', createdAt: 2000, historyState: 'ready', dialogTurns: [{ id: 't1' } as never] }),
+    ];
+    const orderedIds = [...sessions].sort(compareSessionsForNavStable).map(s => s.sessionId);
+    expect(orderedIds).toEqual(['active', 'ready-empty']);
+  });
+
   it('sorts persisted metadata by lastFinishedAt before createdAt without using lastActiveAt', () => {
     const metadata = [
       { sessionId: 'older-new', createdAt: 1000, lastActiveAt: 9000 },

@@ -5,6 +5,14 @@ import { randomString } from "../helper";
 import { OnDownloadStartResult } from "../ability/type";
 import { getCookies, JsHelper } from "./Utils";
 import { WebHeader } from "@kit.ArkUI";
+import { unifiedDataChannel, uniformTypeDescriptor, uniformDataStruct } from "@kit.ArkData";
+import { bundleManager } from "@kit.AbilityKit";
+import fileUri from "@ohos.file.fileuri";
+import hilog from "@ohos.hilog";
+
+const FILE_DROP_LOG_DOMAIN: number = 0x0000;
+const FILE_DROP_LOG_TAG: string = "BitFunFileDrop";
+const USER_APPDATA_PREFIX: string = "/storage/Users/currentUser/appdata";
 
 export interface WebviewStyle {
   x?: number | string;
@@ -38,6 +46,88 @@ export interface WebviewInitData {
 
 interface WebviewNodeData extends WebviewInitData {
   controller: WebviewController;
+}
+
+interface OhosNativeDropPayload {
+  type: string;
+  paths: string[];
+}
+
+// ArkWeb does not deliver external (file manager) file drags as HTML5 drop
+// events, and Wry's OHOS adapter does not forward them through Tauri's native
+// drag-drop handler. The Web component therefore collects the dropped files
+// and forwards their filesystem paths to the web-ui through a global JS hook.
+function normalizeDroppedFileUri(uri: string): string {
+  if (!uri.startsWith("file://") && !uri.startsWith("docs://")) {
+    return uri;
+  }
+
+  const path = new fileUri.FileUri(uri).path;
+  if (!path.startsWith(USER_APPDATA_PREFIX)) {
+    return path;
+  }
+
+  const storagePath = "/data/storage" + path.slice(USER_APPDATA_PREFIX.length);
+  try {
+    const bundleName = bundleManager.getBundleInfoForSelfSync(
+      bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT,
+    ).name;
+    return bundleName.length > 0
+      ? storagePath.replace("/" + bundleName + "/", "/base/")
+      : storagePath;
+  } catch (e) {
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "Unable to resolve bundle name for dropped file");
+    return storagePath;
+  }
+}
+
+function collectDroppedFilePaths(dragEvent: DragEvent): string[] {
+  const paths: string[] = [];
+  const seen: Set<string> = new Set<string>();
+  try {
+    const data = dragEvent.getData() as unifiedDataChannel.UnifiedData;
+    if (!data) {
+      return paths;
+    }
+    const records: unifiedDataChannel.UnifiedRecord[] = data.getRecords();
+    if (!records || records.length <= 0) {
+      return paths;
+    }
+    for (let i = 0; i < records.length; i++) {
+      const types = records[i].getTypes();
+      if (types.includes(uniformTypeDescriptor.UniformDataType.FILE_URI)) {
+        const fileUriUds =
+          records[i].getEntry(uniformTypeDescriptor.UniformDataType.FILE_URI) as uniformDataStruct.FileUri;
+        if (fileUriUds && fileUriUds.oriUri) {
+          try {
+            const path = normalizeDroppedFileUri(fileUriUds.oriUri);
+            if (path.length > 0 && !seen.has(path)) {
+              seen.add(path);
+              paths.push(path);
+            }
+          } catch (e) {
+            hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "Unable to normalize dropped file URI");
+          }
+        }
+      }
+    }
+  } catch (e) {
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "Unable to inspect native drag data");
+  }
+  return paths;
+}
+
+function dispatchNativeDragEvent(controller: WebviewController, type: string, paths: string[]): void {
+  const payload: OhosNativeDropPayload = { type: type, paths: paths };
+  const code: string =
+    "window.__bitFunNativeFileDrop && window.__bitFunNativeFileDrop(" + JSON.stringify(payload) + ");";
+  try {
+    controller.runJavaScript(code).then((ret: string) => {}).catch((e: Error) => {
+      hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "Native drag event JavaScript dispatch failed");
+    });
+  } catch (e) {
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "Native drag event controller is unavailable");
+  }
 }
 
 @Builder
@@ -96,6 +186,24 @@ function WebBuilder(data: WebviewNodeData) {
       if (typeof data?.onTitleChange === "function") {
         data.onTitleChange(e.title);
       }
+    })
+    .onDragEnter((dragEvent: DragEvent) => {
+      dispatchNativeDragEvent(data.controller, "enter", []);
+    })
+    .onDragMove((dragEvent: DragEvent) => {
+      dispatchNativeDragEvent(data.controller, "over", []);
+    })
+    .onDragLeave((dragEvent: DragEvent) => {
+      dispatchNativeDragEvent(data.controller, "leave", []);
+    })
+    .onDrop((dragEvent: DragEvent) => {
+      const paths = collectDroppedFilePaths(dragEvent);
+      hilog.info(
+        FILE_DROP_LOG_DOMAIN,
+        FILE_DROP_LOG_TAG,
+        `Native file drop collected: pathCount=${paths.length}`,
+      );
+      dispatchNativeDragEvent(data.controller, "drop", paths);
     });
 }
 

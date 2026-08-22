@@ -5,7 +5,7 @@
 
 export const DEFAULT_POPOVER_VIEWPORT_PADDING = 8;
 
-export type FixedPopoverPlacement = 'top' | 'bottom';
+export type FixedPopoverPlacement = 'top' | 'bottom' | 'left' | 'right';
 
 export interface FixedPopoverViewport {
   width: number;

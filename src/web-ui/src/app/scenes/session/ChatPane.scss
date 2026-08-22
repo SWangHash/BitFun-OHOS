@@ -32,7 +32,6 @@
   align-items: center;
   gap: $size-gap-3;
   min-width: 0;
-  // The notice is a top-of-chat banner, so use the full available pane width.
   width: 100%;
   margin: 0 0 $size-gap-2;
   box-sizing: border-box;
@@ -76,10 +75,7 @@
   font-size: var(--bf-appearance-token-font-size-xs);
   cursor: pointer;
 
-  &:hover {
-    background: var(--bf-appearance-token-color-bg-tertiary);
-  }
-
+  &:hover { background: var(--bf-appearance-token-color-bg-tertiary); }
   &:focus-visible {
     outline: 2px solid var(--bf-appearance-token-color-accent-500);
     outline-offset: 2px;
@@ -87,11 +83,6 @@
 }
 
 @media (max-width: 560px) {
-  .bitfun-chat-pane__model-notice {
-    flex-wrap: wrap;
-  }
-
-  .bitfun-chat-pane__model-notice-action {
-    margin-left: calc(18px + #{$size-gap-3});
-  }
+  .bitfun-chat-pane__model-notice { flex-wrap: wrap; }
+  .bitfun-chat-pane__model-notice-action { margin-left: calc(18px + #{$size-gap-3}); }
 }

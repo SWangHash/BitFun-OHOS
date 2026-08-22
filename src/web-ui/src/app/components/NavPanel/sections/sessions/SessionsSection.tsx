@@ -1041,10 +1041,10 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
     async (e: React.MouseEvent, sessionId: string) => {
       e.stopPropagation();
       const copied = await copyTextToClipboard(sessionId);
-      if (copied) {
+      if (copied.ok) {
         notificationService.success(t('nav.sessions.copySessionIdSuccess'), { duration: 2000 });
       } else {
-        notificationService.error(t('nav.sessions.copySessionIdFailed'), { duration: 3000 });
+        notificationService.error(t('nav.sessions.copySessionIdFailed', { error: copied.error ?? '' }), { duration: 3000 });
       }
     },
     [t]

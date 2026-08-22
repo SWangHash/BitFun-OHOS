@@ -336,7 +336,7 @@
       "renameOutcomeUnknown": "重命名结果尚不确定。请刷新或重新打开会话列表，确认当前名称后再重试。",
       "copySessionId": "复制 ID",
       "copySessionIdSuccess": "已复制会话 ID",
-      "copySessionIdFailed": "复制会话 ID 失败",
+      "copySessionIdFailed": "复制会话 ID 失败：{{error}}",
       "exportMarkdown": "导出为 Markdown",
       "exportMarkdownFull": "导出完整过程",
       "exportMarkdownResult": "导出结果",
@@ -803,7 +803,7 @@
     "syncPhaseListingSessions": "正在扫描本地会话…",
     "syncPhaseExportingSessions": "正在备份会话 {{current}}/{{total}}",
     "copyServerUrl": "复制服务器地址",
-    "copyServerFailed": "无法复制服务器地址，请检查剪贴板权限后重试。",
+    "copyServerFailed": "无法复制服务器地址，请检查剪贴板权限后重试。错误：{{error}}",
     "loginValueProp": "登录以关联你的多台设备：互相远程控制，并云同步设置与会话。"
   },
   "relayDeploy": {
@@ -916,7 +916,7 @@
     "stateWaiting": "等待连接...",
     "urlCopied": "已复制 URL",
     "copyUrl": "复制配对链接",
-    "copyUrlFailed": "无法复制配对链接，请手动复制或检查剪贴板权限。",
+    "copyUrlFailed": "无法复制配对链接，请手动复制或检查剪贴板权限。错误：{{error}}",
     "weixinQrAlt": "微信登录二维码",
     "stateWaitingBot": "等待机器人确认...",
     "stateHandshaking": "握手中...",

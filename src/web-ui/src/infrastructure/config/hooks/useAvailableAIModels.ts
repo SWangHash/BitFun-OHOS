@@ -24,9 +24,7 @@ export function useAvailableAIModels(): AvailableAIModelStatus {
     const load = () => {
       const version = ++loadVersion;
       void configManager.getConfig<AIModelConfig[]>('ai.models').then(models => {
-        if (cancelled || version !== loadVersion) {
-          return;
-        }
+        if (cancelled || version !== loadVersion) return;
         setStatus(hasAvailableAIModel(models) ? 'available' : 'unavailable');
       });
     };

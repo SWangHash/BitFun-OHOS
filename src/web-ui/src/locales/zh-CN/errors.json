@@ -10,7 +10,7 @@
     "badRequest": "请求无效",
     "conflict": "资源冲突",
     "tooManyRequests": "请求过于频繁",
-    "copyFailed": "Copy failed. Please try again."
+    "copyFailed": "复制失败，请重试。错误：{{error}}"
   },
   "file": {
     "notFound": "文件未找到：{{path}}",
@@ -22,11 +22,11 @@
     "invalidPath": "无效的文件路径：{{path}}",
     "tooLarge": "文件过大：{{path}}",
     "encodingError": "文件编码错误：{{path}}",
-    "createFileFailed": "Failed to create file",
-    "createFolderFailed": "Failed to create folder",
-    "renameFailed": "Rename failed",
+    "createFileFailed": "创建文件失败",
+    "createFolderFailed": "创建文件夹失败",
+    "renameFailed": "重命名失败",
     "openInBrowserFailed": "在浏览器中打开文件失败",
-    "revealFailed": "Failed to open file manager"
+    "revealFailed": "打开文件管理器失败"
   },
   "workspace": {
     "notFound": "工作区未找到",
@@ -127,7 +127,7 @@
     "loadError": "加载配置失败",
     "saveError": "保存配置失败",
     "invalidFormat": "配置格式无效",
-    "validationError": "Configuration validation failed"
+    "validationError": "配置验证失败"
   },
   "snapshot": {
     "createError": "创建快照失败",
@@ -144,29 +144,29 @@
     "cleanupFailed": "清理过期数据失败"
   },
   "contextMenu": {
-    "noSelection": "No text selected",
-    "notEditable": "Content is not editable",
-    "readOnlyEditor": "Editor is read-only",
-    "clipboardUnavailable": "Clipboard access is unavailable",
-    "clipboardEmpty": "Clipboard is empty",
-    "copyFailed": "Copy failed",
-    "cutFailed": "Cut failed",
-    "pasteFailed": "Paste failed",
-    "selectAllFailed": "Select all failed",
-    "refreshFailed": "Refresh failed",
-    "deleteFailed": "Delete failed",
-    "deleteCancelled": "Delete canceled",
-    "editorModelUnavailable": "Editor model is unavailable",
-    "copyPathFailed": "Copy path failed",
-    "copyRelativePathFailed": "Copy relative path failed"
+    "noSelection": "未选择文本",
+    "notEditable": "内容不可编辑",
+    "readOnlyEditor": "编辑器为只读",
+    "clipboardUnavailable": "剪贴板不可用",
+    "clipboardEmpty": "剪贴板为空",
+    "copyFailed": "复制失败",
+    "cutFailed": "剪切失败",
+    "pasteFailed": "粘贴失败",
+    "selectAllFailed": "全选失败",
+    "refreshFailed": "刷新失败",
+    "deleteFailed": "删除失败",
+    "deleteCancelled": "删除已取消",
+    "editorModelUnavailable": "编辑器模型不可用",
+    "copyPathFailed": "复制路径失败",
+    "copyRelativePathFailed": "复制相对路径失败"
   },
   "core": {
-    "initializationFailed": "Core system initialization failed"
+    "initializationFailed": "核心系统初始化失败"
   },
   "boundary": {
-    "title": "Application Error",
-    "reload": "Reload",
-    "technicalDetails": "Technical Details",
-    "unknown": "Unknown error"
+    "title": "应用错误",
+    "reload": "重新加载",
+    "technicalDetails": "技术详情",
+    "unknown": "未知错误"
   }
 }

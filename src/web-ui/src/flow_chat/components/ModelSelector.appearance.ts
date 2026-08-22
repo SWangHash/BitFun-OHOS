@@ -9,6 +9,7 @@ export const modelSelectorAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'contextUsage' },
     { id: 'dropdown' },
     { id: 'dropdownHeader' },
+    { id: 'settingsButton' },
     { id: 'list' },
     { id: 'option' },
     { id: 'optionMain' },

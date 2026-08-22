@@ -78,15 +78,39 @@ export const clearSelection = (): void => {
   }
 };
 
- 
-export const copyTextToClipboard = async (text: string): Promise<boolean> => {
+  
+export interface ClipboardCopyResult {
+  ok: boolean;
+  error?: string;
+}
+
+const toErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message || error.name || 'unknown error';
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (error && typeof error === 'object' && 'message' in error) {
+    const msg = (error as { message: unknown }).message;
+    if (typeof msg === 'string' && msg.length > 0) {
+      return msg;
+    }
+  }
+  return String(error);
+};
+
+export const copyTextToClipboard = async (text: string): Promise<ClipboardCopyResult> => {
+  let primaryError: string | undefined;
+
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text);
-      return true;
+      return { ok: true };
     } catch (error) {
       // WebView clipboard permission can be denied even when the API exists.
       // Fall through to the selection-based copy path before reporting failure.
+      primaryError = toErrorMessage(error);
       log.warn('Clipboard API copy failed; trying fallback', error);
     }
   }
@@ -101,10 +125,18 @@ export const copyTextToClipboard = async (text: string): Promise<boolean> => {
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
-    return document.execCommand('copy');
+    const fallbackOk = document.execCommand('copy');
+    if (fallbackOk) {
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      error: primaryError ?? 'execCommand copy returned false',
+    };
   } catch (error) {
     log.error('Failed to copy text to clipboard', error);
-    return false;
+    const fallbackError = toErrorMessage(error);
+    return { ok: false, error: primaryError ?? fallbackError };
   } finally {
     if (textArea.isConnected) {
       document.body.removeChild(textArea);

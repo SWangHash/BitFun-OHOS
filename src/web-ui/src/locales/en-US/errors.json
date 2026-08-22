@@ -10,7 +10,7 @@
     "badRequest": "Bad request",
     "conflict": "Resource conflict",
     "tooManyRequests": "Too many requests",
-    "copyFailed": "Copy failed. Please try again."
+    "copyFailed": "Copy failed. Please try again. Error: {{error}}"
   },
   "file": {
     "notFound": "File not found: {{path}}",

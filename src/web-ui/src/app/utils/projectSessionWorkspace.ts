@@ -1,14 +1,80 @@
 import { WorkspaceKind, isRemoteWorkspace, type WorkspaceInfo } from '@/shared/types';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
+import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
+import { sessionBelongsToWorkspaceNavRow } from '@/flow_chat/utils/sessionOrdering';
+import { normalizeDefaultSessionTitleMode } from '@/flow_chat/utils/sessionTitle';
 
 /**
- * Always create a new session instead of reusing an existing empty one.
+ * Find an existing empty session in the workspace that can be reused instead
+ * of creating a new one. An empty session has no dialog turns and is in the
+ * fresh "new" lifecycle state (never sent a message).
+ *
+ * Empty-session reuse is tracked per category (code / cowork / claw). An
+ * existing empty code session does NOT block creating a new empty cowork
+ * session, and vice versa: only sessions whose normalized mode matches the
+ * requested mode are considered. When no same-category empty session exists,
+ * null is returned so the caller creates a new session of the requested type.
  */
 export function findReusableEmptySessionId(
-  _workspace: WorkspaceInfo,
-  _requestedMode?: string
+  workspace: WorkspaceInfo,
+  requestedMode?: string
 ): string | null {
-  return null;
+  const { sessions } = flowChatStore.getState();
+  const remoteConnectionId = isRemoteWorkspace(workspace)
+    ? workspace.connectionId
+    : undefined;
+  const remoteSshHost = isRemoteWorkspace(workspace)
+    ? workspace.sshHost
+    : undefined;
+
+  const targetMode = normalizeDefaultSessionTitleMode(requestedMode);
+
+  const candidates: Array<{ sessionId: string; createdAt: number }> = [];
+
+  for (const session of sessions.values()) {
+    if (session.isTransient) {
+      continue;
+    }
+    if (session.sessionKind === 'subagent') {
+      continue;
+    }
+    if (session.dialogTurns.length > 0) {
+      continue;
+    }
+    if (session.historyState !== 'new') {
+      continue;
+    }
+    if (
+      !sessionBelongsToWorkspaceNavRow(
+        session,
+        workspace.rootPath,
+        remoteConnectionId,
+        remoteSshHost
+      )
+    ) {
+      continue;
+    }
+
+    const sessionMode = normalizeDefaultSessionTitleMode(
+      session.mode || session.config.agentType
+    );
+    if (sessionMode !== targetMode) {
+      continue;
+    }
+
+    candidates.push({
+      sessionId: session.sessionId,
+      createdAt: session.createdAt,
+    });
+  }
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  candidates.sort((a, b) => b.createdAt - a.createdAt);
+
+  return candidates[0].sessionId;
 }
 
 /**
