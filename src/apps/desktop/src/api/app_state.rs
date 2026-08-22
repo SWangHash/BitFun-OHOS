@@ -3,7 +3,9 @@
 
 //! Application state management
 
-use crate::api::workspace_activation::spawn_workspace_background_warmup;
+use crate::api::workspace_activation::{
+    spawn_restored_workspace_auto_index, spawn_workspace_background_warmup,
+};
 use bitfun_core::agentic::side_question::SideQuestionRuntime;
 use bitfun_core::agentic::{agents, tools};
 use bitfun_core::infrastructure::ai::{AIClient, AIClientFactory};
@@ -18,7 +20,7 @@ use bitfun_core::util::errors::*;
 use bitfun_services_integrations::speech::{SpeechService, SpeechStoragePaths};
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
@@ -99,6 +101,11 @@ impl AppState {
         token_usage_service: Arc<token_usage::TokenUsageService>,
     ) -> BitFunResult<Self> {
         let start_time = std::time::Instant::now();
+
+        // Make the usage store reachable from tools that call the model outside
+        // the round executor (e.g. `analyze_image`), so their consumption is
+        // included in the usage statistics.
+        token_usage::set_global_token_usage_service(token_usage_service.clone());
 
         let config_service = config::get_global_config_service().await.map_err(|e| {
             BitFunError::config(format!("Failed to get global config service: {}", e))
@@ -211,15 +218,43 @@ impl AppState {
         }));
 
         let initial_workspace = workspace_service.get_current_workspace().await;
+        let mut restored_workspaces = workspace_service.get_opened_workspaces().await;
+        if let Some(initial_workspace) = initial_workspace.as_ref() {
+            if !restored_workspaces
+                .iter()
+                .any(|workspace| workspace.id == initial_workspace.id)
+            {
+                restored_workspaces.push(initial_workspace.clone());
+            }
+        }
         let initial_workspace_path = initial_workspace
             .as_ref()
             .map(|workspace| workspace.root_path.clone());
+        let mut index_budget_roots = workspace_service
+            .get_recent_workspaces()
+            .await
+            .into_iter()
+            .filter(|workspace| workspace.workspace_kind != workspace::WorkspaceKind::Remote)
+            .map(|workspace| workspace.root_path)
+            .collect::<Vec<_>>();
+        let mut known_index_roots = index_budget_roots.iter().cloned().collect::<HashSet<_>>();
+        for workspace in workspace_service.list_workspace_infos().await {
+            if workspace.workspace_kind != workspace::WorkspaceKind::Remote
+                && known_index_roots.insert(workspace.root_path.clone())
+            {
+                index_budget_roots.push(workspace.root_path);
+            }
+        }
 
         // Initialize SSH Remote services synchronously so they're ready before app starts
-        let ssh_data_dir = dirs::data_local_dir()
-            .unwrap_or_else(|| std::path::PathBuf::from("."))
-            .join("BitFun")
-            .join("ssh");
+        let ssh_data_dir = if crate::e2e_storage_guard_enabled() {
+            workspace_service.path_manager().user_data_dir().join("ssh")
+        } else {
+            dirs::data_local_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+                .join("BitFun")
+                .join("ssh")
+        };
         let ssh_manager = Arc::new(RwLock::new(None));
         let ssh_manager_clone = ssh_manager.clone();
         let remote_file_service = Arc::new(RwLock::new(None));
@@ -323,6 +358,7 @@ impl AppState {
         if let Some(workspace_info) = initial_workspace {
             spawn_workspace_background_warmup(&app_state, workspace_info);
         }
+        spawn_restored_workspace_auto_index(&app_state, restored_workspaces, index_budget_roots);
 
         log::info!("AppState initialized successfully");
         Ok(app_state)

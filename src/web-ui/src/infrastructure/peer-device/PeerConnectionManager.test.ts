@@ -24,7 +24,11 @@ describe('PeerConnectionManager attach', () => {
     expect(connection.getState()).toMatchObject({
       deviceName: 'Studio',
       health: 'ready',
-      capabilities: { idempotentDialogSubmit: true, targetedSessionRollback: false },
+      capabilities: {
+        idempotentDialogSubmit: true,
+        targetedSessionRollback: false,
+        tokenUsageStatistics: true,
+      },
     });
     expect(manager.get('peer-1')).toBe(connection);
   });
@@ -356,7 +360,12 @@ function createRpc(options: { failCommands?: Set<string> } = {}) {
       return JSON.stringify({
         resp: 'host_invoke_result',
         ok: true,
-        value: { capabilities: { idempotent_dialog_submit: true } },
+        value: {
+          capabilities: {
+            idempotent_dialog_submit: true,
+            token_usage_statistics: true,
+          },
+        },
       });
     }
     return JSON.stringify({ resp: 'host_invoke_result', ok: true, value: null });
@@ -396,3 +405,29 @@ function observe(manager: PeerConnectionManager) {
         health !== undefined && health !== all[index - 1]),
   };
 }
+
+describe('PeerConnectionManager presence recovery', () => {
+  it('clears a presence-lost attachment once the device is reachable again', async () => {
+    // `lost` is terminal and `connect` refuses a lost entry, so one presence
+    // blip during a burst of switching used to strand a healthy device for the
+    // rest of the session.
+    const manager = new PeerConnectionManager({
+      deviceRpc: async () => JSON.stringify({
+        resp: 'host_invoke_result',
+        ok: true,
+        value: { capabilities: {} },
+      }),
+      getControllerDeviceId: async () => 'controller-1',
+    });
+
+    await manager.connect('device-b', 'B');
+    manager.reportPresence([]);
+    expect(manager.get('device-b')?.getState().health).toBe('lost');
+
+    manager.reportPresence(['device-b']);
+
+    expect(manager.has('device-b')).toBe(false);
+    await expect(manager.connect('device-b', 'B')).resolves.toBeDefined();
+  });
+
+});

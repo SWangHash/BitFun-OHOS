@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import {
   __test_only__,
   handleDialogTurnComplete,
+  handleSessionHistoryChanged,
   handleSessionStateChanged,
   insertSteeringItemIfAbsent,
   isAppWindowFocused,
@@ -851,6 +852,45 @@ describe('shouldProcessEvent', () => {
     expect(stateMachineManager.get(mockSessionId)?.getContext().currentDialogTurnId).toBe(mockTurnId);
   });
 
+  it('keeps accepting latest-turn data while idle recovery is still in flight', () => {
+    FlowChatStore.getInstance().setState(() => ({
+      sessions: new Map([[
+        mockSessionId,
+        {
+          sessionId: mockSessionId,
+          title: 'Test Session',
+          dialogTurns: [{
+            id: mockTurnId,
+            sessionId: mockSessionId,
+            userMessage: {
+              id: 'user-1',
+              content: 'Continue review',
+              timestamp: 1000,
+            },
+            modelRounds: [],
+            status: 'processing',
+            startTime: 1000,
+          }],
+          status: 'idle',
+          config: { agentType: 'agentic' },
+          createdAt: 1000,
+          lastActiveAt: 1000,
+          error: null,
+          sessionKind: 'normal',
+        } as Session,
+      ]]),
+      activeSessionId: mockSessionId,
+    }));
+    vi.spyOn(stateMachineManager, 'get').mockReturnValue({
+      getCurrentState: () => SessionExecutionState.IDLE,
+      getContext: () => ({ currentDialogTurnId: mockTurnId }),
+    } as any);
+
+    expect(
+      shouldProcessEvent(mockSessionId, mockTurnId, 'data', 'ToolEvent'),
+    ).toBe(true);
+  });
+
   it('does not recover idle data for an old non-latest turn', () => {
     FlowChatStore.getInstance().setState(() => ({
       sessions: new Map([[
@@ -1234,6 +1274,7 @@ function createFlowChatContext(): FlowChatContext {
     deferredStorageIdentitySaves: new Set(),
     runtimeStatusTimers: new Map(),
     userCancelledSessionIds: new Set(),
+    pendingHistoryFenceSessions: new Set(),
     handledTerminalTurnEvents: new Set(),
     currentWorkspacePath: null,
   };
@@ -1403,11 +1444,75 @@ describe('handleSessionStateChanged', () => {
   });
 });
 
+describe('handleSessionHistoryChanged', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    resetFlowChatStore();
+  });
+
+  afterEach(() => {
+    resetFlowChatStore();
+  });
+
+  it('reconciles the latest settled native turn after the durable history fence', async () => {
+    createSessionWithTurn({
+      id: 'turn-1',
+      sessionId: 'session-1',
+      agentType: 'agentic',
+      userMessage: { id: 'user-1', content: 'request', timestamp: 1 },
+      modelRounds: [],
+      status: 'completed',
+      startTime: 1,
+      endTime: 2,
+    });
+    const reconcile = vi.spyOn(
+      FlowChatStore.getInstance(),
+      'reconcileSettledDialogTurn',
+    ).mockResolvedValue(true);
+
+    const context = createFlowChatContext();
+    handleSessionHistoryChanged(context, {
+      sessionId: 'session-1',
+    });
+    await Promise.resolve();
+
+    expect(reconcile).toHaveBeenCalledWith('session-1', 'turn-1');
+    expect(context.pendingHistoryFenceSessions.has('session-1')).toBe(false);
+  });
+
+  it('parks the fence for the completion finalizer while the turn is still settling', async () => {
+    createSessionWithTurn({
+      id: 'turn-1',
+      sessionId: 'session-1',
+      agentType: 'agentic',
+      userMessage: { id: 'user-1', content: 'request', timestamp: 1 },
+      modelRounds: [],
+      status: 'finishing',
+      startTime: 1,
+    });
+    const reconcile = vi.spyOn(
+      FlowChatStore.getInstance(),
+      'reconcileSettledDialogTurn',
+    ).mockResolvedValue(true);
+
+    const context = createFlowChatContext();
+    handleSessionHistoryChanged(context, {
+      sessionId: 'session-1',
+    });
+    await Promise.resolve();
+
+    expect(reconcile).not.toHaveBeenCalled();
+    expect(context.pendingHistoryFenceSessions.has('session-1')).toBe(true);
+  });
+});
+
 describe('handleDialogTurnComplete', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     resetFlowChatStore();
     stateMachineManager.clear();
+    vi.spyOn(FlowChatStore.getInstance(), 'reconcileSettledDialogTurn')
+      .mockResolvedValue(false);
   });
 
   afterEach(() => {
@@ -1480,6 +1585,13 @@ describe('handleDialogTurnComplete', () => {
       .sessions.get('session-1')
       ?.dialogTurns[0].endTime).toBe(eventOwnedEndTime);
 
+    // Durable fence lands while the turn is still finalizing: it must be
+    // parked instead of racing the persistence commit with an extra read.
+    handleSessionHistoryChanged(context, { sessionId: 'session-1' });
+    expect(FlowChatStore.getInstance().reconcileSettledDialogTurn)
+      .not.toHaveBeenCalled();
+    expect(context.pendingHistoryFenceSessions.has('session-1')).toBe(true);
+
     handleSessionStateChanged(context, {
       sessionId: 'session-1',
       newState: 'Idle',
@@ -1491,6 +1603,37 @@ describe('handleDialogTurnComplete', () => {
       ?.dialogTurns[0];
     expect(finalizedTurn?.status).toBe('completed');
     expect(finalizedTurn?.endTime).toBe(eventOwnedEndTime);
+    expect(FlowChatStore.getInstance().reconcileSettledDialogTurn)
+      .toHaveBeenCalledTimes(1);
+    expect(FlowChatStore.getInstance().reconcileSettledDialogTurn)
+      .toHaveBeenCalledWith('session-1', 'turn-1');
+    expect(context.pendingHistoryFenceSessions.has('session-1')).toBe(false);
+  });
+
+  it('skips the settled-turn reconcile when no durable fence has been observed', async () => {
+    putFinishingSessionInStore();
+    const context = createFlowChatContext();
+    await setFinishingMachine();
+
+    handleDialogTurnComplete(context, {
+      sessionId: 'session-1',
+      turnId: 'turn-1',
+      success: true,
+      finishReason: 'stop',
+      hasFinalResponse: true,
+    }, vi.fn());
+
+    handleSessionStateChanged(context, {
+      sessionId: 'session-1',
+      newState: 'Idle',
+    });
+
+    expect(FlowChatStore.getInstance()
+      .getState()
+      .sessions.get('session-1')
+      ?.dialogTurns[0].status).toBe('completed');
+    expect(FlowChatStore.getInstance().reconcileSettledDialogTurn)
+      .not.toHaveBeenCalled();
   });
 
   it('clears the cancellation gate when the same turn completes during cancel', async () => {

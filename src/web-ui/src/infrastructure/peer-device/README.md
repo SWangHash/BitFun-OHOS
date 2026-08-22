@@ -3,6 +3,34 @@
 Controller-side React/transport layer for Peer Device Mode. Architecture:
 [`docs/architecture/peer-device-mode.md`](../../../../../docs/architecture/peer-device-mode.md).
 
+## Migrating to the Session Projection contract
+
+The invariants below are pairwise rules between writers that carry no shared
+position. They are being replaced by one contract —
+[`docs/architecture/session-projection.md`](../../../../../docs/architecture/session-projection.md)
+— under which a write is admitted by its position in the order rather than by
+what it would do to painted content. **This list shrinking is the measure of
+that migration**; a change that adds a rule here is going the wrong way.
+
+Already owned by the contract (`flow_chat/session-stream/`):
+
+- The stream position, the delivery gap, and the attach fence in invariant 12.
+  `runtimeSessionEventGate` is now an adapter over `SessionStream`, not a
+  second owner of that state.
+- Surface-scoped Session identity in invariant 0: a stream is keyed by
+  `(DeviceSurfaceId, SessionId)` by construction.
+
+Also owned: which read may write a Turn. `replaceRunningSnapshot` is gone —
+the persisted record (snapshot merge *and* disk hydrate) may not write the Turn
+the runtime stream owns, and the Host's declared executing Turn is part of that
+ownership. `snapshotDropsProjectedTurnContent` and
+`isRunningSnapshotForwardProgress` survive inside `persistedReadMayReplaceTurn`
+for the two gaps the contract does not yet close (a Host with no runtime
+projection, and a partial history read); see the contract doc before touching
+them.
+
+Still to migrate, in order: the interaction mailbox, then history positions.
+
 ## Invariants (do not regress)
 
 0. **A surface switch is a view change, not a teardown.** Attachments and the
@@ -32,11 +60,16 @@ Controller-side React/transport layer for Peer Device Mode. Architecture:
      inside that window made the submission resume against a missing session
      and throw `Session lost after adding dialog turn` — before
      `start_dialog_turn`, so the message reached no host at all (regression:
-     2026-08-15). `resetProductSurface` therefore awaits
+     2026-08-15).      `resetProductSurface` therefore awaits
      `waitForInFlightSubmissions` first. `sendMessage` and its driver carry one
      `SurfaceScope`; after every host await, a stale epoch abandons without
      writing into the newly selected container, and an unaccepted message is
-     re-queued onto its original surface. Any new await inside `startTurn`
+     re-queued onto its original surface. Once `start_dialog_turn` has been
+     invoked, the host may already own the Turn before the client sees the
+     ACK — that submission must not be re-queued, and attach must drop any
+     pending-queue item that duplicates a live turn's user message. Drain
+     must not fire while a Runtime attach is resetting the state machine to
+     IDLE. Any new await inside `startTurn`
      widens that window and must keep the same scope checkpoint.
    - **Reconciliation repairs a projection, never guts it.** The wholesale
      replace path (`replaceRunningSnapshot`) skips the forward-progress
@@ -47,7 +80,11 @@ Controller-side React/transport layer for Peer Device Mode. Architecture:
      *every* turn reads as idle and qualifies for replacement.
      That combination erased the whole response and left only the prompt on
      screen (regression: 2026-08-15). `snapshotDropsProjectedTurnContent` gates
-     the replace; the refresh loop still re-attaches an executing turn when a
+     the replace. Equal item counts are not sufficient: text and thinking must
+     preserve prefix progress, and completed tool results may not disappear.
+     Recognized client-derived display cards are carried across the terminal
+     host-tail repair instead of blocking authoritative text reconciliation.
+     The refresh loop still re-attaches an executing turn when a
      snapshot is refused, or a rebuilt surface would render it as static
      history.
    - **Surface-scoped events must stay routed by source device.** Background
@@ -59,6 +96,11 @@ Controller-side React/transport layer for Peer Device Mode. Architecture:
      it to `SURFACE_SCOPED_EVENTS`/prefixes too, or local and peer streams will
      interleave in one store. Never route control-plane events (`account://…`)
      — they must always pass.
+   - **React subscriptions include the Surface activation.** A Session id is
+     not a complete subscription identity. Hooks that read per-Surface state
+     machines subscribe to the Surface epoch and return no snapshot during the
+     rebind render; otherwise React can pair A's old `turnId` with B's Session
+     for one render, including when both devices use the same Session id.
 
 1. **Cloud session/turn APIs stay on the controller** (`LOCAL_ONLY` in
    `peer-device-adapter.ts`). Peer history comes from HostInvoke
@@ -120,20 +162,90 @@ Controller-side React/transport layer for Peer Device Mode. Architecture:
     Remote `SIGINT` / `SIGTSTP` map to PTY control bytes instead of silently
     succeeding without affecting the process.
 
-12. **Active chat has snapshot self-healing.** DeviceEvent has no ACK/replay, so
-    FlowChat reconciles the active session from `restore_session_view`
-    every 3s and immediately after a detected event gap. This is gated on
+12. **Active chat attaches to a Runtime-owned Turn projection.** DeviceEvent is
+    the low-latency path, not the owner of current-Turn state. Desktop and CLI
+    Peer Hosts materialize eligible current Turns after their ordered delivery
+    boundary and expose them
+    from `restore_session_view` as `runtimeEventSnapshot` with a per-Session
+    cursor and Runtime-process `streamId`. While restore is in flight,
+    `runtimeSessionEventGate` queues live events by
+    `(DeviceSurfaceId, SessionId)`; replay starts from an empty active-Turn base,
+    then the gate drops cursor-covered events and releases newer events in
+    order. Never compare cursors across different `streamId` values. This is
+    gated on
     `isSurfaceReconcileEnabled()`, **not** on Peer Mode: once a window has
     switched surface, a turn left running on the local device also needs the
-    repair, because its events were dropped by surface routing while another
-    device was rendered. The Peer Host must
+    same attach, because its live events were dropped by surface routing while
+    another device was rendered. Attach is requested as soon as a Session on
+    this surface has a usable live projection: `historyState === 'ready'`
+    after disk hydrate, or `historyState === 'new'` for a session created in
+    this window (those never become `ready` via hydrate). The gate is per
+    `(DeviceSurfaceId, SessionId)`, not per the focused tab — a dropped-event
+    refresh must still attach a background session that kept running here.
+    The 3s loop is only a liveness retry and an older-Host fallback. The Peer Host must
     overlay its live in-memory session state on the persisted view; otherwise
     an in-progress turn is normalized as interrupted history and later chunks
-    are dropped by the controller state machine. Reconciliation must not
-    overwrite a local projection that changed while HostInvoke was in flight.
-    Continuous host output must create a persisted checkpoint within each 2s
-    coalescing window, and active snapshots may replace a running projection
-    early only when stream/tool content proves forward progress.
+    are dropped by the controller state machine. Surface epoch checks reject a
+    restore from a device no longer rendered. Older hosts may omit the Runtime
+    projection; their persisted snapshot must still never overwrite newer live
+    content.
+
+    **Delivery is not acceptance, and persist is not the current Turn.** A
+    live event that the state machine drops still advances the gate cursor.
+    Mark that projection stale so the next attach replays the journal instead
+    of treating the cursor as current and leaving in-progress tool cards
+    frozen. `finish()` may cover live events only after replay (or an
+    equivalent apply) proves the painted tools/text have caught up with the
+    Host journal — a matching cursor is not that proof. Overlapping attach
+    transfers the fence instead of draining it onto a state machine that is
+    about to reset. A 3s `staleOnly` tick, a hidden document, or a
+    `FINISHING` machine must not skip repair while `hasGap` is set; TextChunk
+    heartbeats are not evidence that a dropped ToolEnd was applied.
+    `loadSessionHistory` and `refreshPeerSessionSnapshot` both read
+    `runtimeEventSnapshot`: the persisted checkpoint of an executing Turn is
+    only identity, never the painted rounds. A session-object identity change
+    during restore must still return the journal — hiding it used to abort
+    attach and freeze the receiver while the Host kept streaming.
+    A CLI Peer Host still filters Host-local turns with `owns()`; that is a
+    CLI Host limitation, not a reason for a Desktop receiver to freeze.
+
+    **Terminal delivery is not the durability fence.** The Host may publish
+    `DialogTurnCompleted` before its complete generation journal has been
+    committed. After the commit it publishes `SessionHistoryChanged`; local and
+    Peer surfaces then reconcile the terminal tail from that Host. The
+    controller must not echo a shorter painted prefix over the settled record,
+    even when the prefix has the same round and item counts.
+
+    **The subscription and the attach loop must never be able to disable each
+    other.** The agentic subscription is this window's only live view of a
+    running Turn, and a surface switch tears it down. Rebuilding it used to be
+    a side effect of `FlowChatManager.initialize()`, which a newer switch is
+    allowed to supersede — so a rapid switch could leave the window with no
+    subscription and nothing to retry. The attach loop then *refused to run
+    while the subscription was down*, disabling the only path that could repair
+    it, and the chat froze permanently with no live output and no snapshot
+    repair (regression: 2026-08-16). `FlowChatManager` therefore re-arms on
+    `onSurfaceActivated` and retries a failed start on its own, the attach loop
+    treats a dead subscription as a reason to reconcile **and** re-arm rather
+    than to bail, and callers of `initialize()` must not report a superseded
+    bootstrap as a product failure. Any new gate on subscription readiness has
+    to keep both halves independently recoverable.
+    **Controller presence is not Turn ownership.** A controller lease gates
+    submission and interaction responses, but once a Peer Host accepts a Turn,
+    the Host keeps executing and materializing it through a zero-controller
+    device-switch interval. Detach/presence loss must not cancel that Turn;
+    only an actual host event-stream continuity failure may fail it closed.
+    **Blocking interactions are owner mailboxes, not one-shot UI events.** The
+    Runtime retains native `AskUserQuestion` and interactive permission
+    requests until answer/cancel/drop, and `restore_session_view` returns their
+    additive, revisioned `interactionSnapshot` from both Desktop and CLI Peer
+    Hosts. Keep its frontend projection per Surface, fence it with the captured
+    Surface epoch and newer event state, replay it after the Turn projection,
+    and use it only to reconstruct UI in the owning Turn/round. Reattachment
+    must never restart or cancel the
+    running Session. Older peers may omit the field; absence is not an empty
+    authoritative mailbox. Any new interaction that can suspend execution is
+    incomplete until its owner exposes equivalent replayable attach state.
 
 13. **Weak links use bounded, idempotency-aware recovery.** Default Peer
     HostInvoke concurrency is four with one slot reserved from normal/low
@@ -157,6 +269,15 @@ Controller-side React/transport layer for Peer Device Mode. Architecture:
     fallback. Targeted rollback is separately capability-gated and never falls
     back to a controller-local or numeric rollback path. Never include catalog
     preview text in Peer request/response logs.
+
+15. **Git ownership trust is read on the peer, granted at the machine.**
+    `git_get_repository_trust` is a read-only probe and routes to the peer
+    host. `git_trust_repository` writes the peer user's global Git
+    configuration (`safe.directory`) and tells Git to run hooks from a tree
+    they do not own, so it is denied on both the desktop and CLI peer hosts.
+    Keep it out of the FE `LOCAL_ONLY` set: running it on the controller would
+    write an exception for a path that only exists on the peer. A controller
+    surfaces the probe's `manualCommand` instead.
 
 ## Related account-login guards
 

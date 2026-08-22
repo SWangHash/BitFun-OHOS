@@ -35,6 +35,8 @@ import {
 import { elapsedMs, nowMs } from '@/shared/utils/timing';
 import { normalizeRemoteSessionScope } from '@/shared/utils/remoteSessionScope';
 import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFlag';
+import { isSurfaceReconcileEnabled } from '@/infrastructure/peer-device/deviceSurfaceReconcile';
+import { persistedMayWriteTurn } from '@/flow_chat/session-stream/SessionStream';
 import {
   getActiveSurfaceId,
   getActiveSurfaceScope,
@@ -43,6 +45,10 @@ import {
   surfaceScopedKey,
   type DeviceSurfaceId,
 } from '@/infrastructure/peer-device/deviceSurface';
+import {
+  isRuntimeSessionAttachmentInFlight,
+  markRuntimeSessionProjectionStale,
+} from '@/infrastructure/peer-device/runtimeSessionEventGate';
 import { i18nService } from '@/infrastructure/i18n/core/I18nService';
 import type {
   DialogTurnData,
@@ -53,6 +59,8 @@ import type {
 import {
   agentAPI,
   type LoadSessionTurnWindowResponse,
+  type PendingUserQuestionSnapshot,
+  type SessionRuntimeEventSnapshot,
   type SessionInfo as AgentSessionInfo,
   type SessionViewRestoreTiming,
 } from '@/infrastructure/api/service-api/AgentAPI';
@@ -91,6 +99,7 @@ import { useBackgroundSubagentActivityStore } from './backgroundSubagentActivity
 import { sessionComposerStore } from './sessionComposerStore';
 import { completeSessionMutationReconciliation } from './sessionMutationStore';
 import { recordHistorySessionDiagnosticEvent } from '../services/historySessionDiagnostics';
+import { liveSessionInteractionStore } from '../services/liveSessionInteractionStore';
 import {
   isDispatchJobTerminal,
   isNonLocalDispatchTarget,
@@ -323,6 +332,7 @@ const HISTORICAL_SESSION_INITIAL_LOCAL_TAIL_TURN_COUNT = 3;
 const HISTORICAL_SESSION_FULL_HISTORY_IDLE_TIMEOUT_MS = 1500;
 const HISTORICAL_SESSION_PREVIOUS_WINDOW_TURN_COUNT = 12;
 const PEER_SESSION_REFRESH_TAIL_TURN_COUNT = 3;
+const SETTLED_TURN_RECONCILE_TAIL_TURN_COUNT = 1;
 const SESSION_TURN_WINDOW_DEFAULT_BEFORE = 4;
 const SESSION_TURN_WINDOW_DEFAULT_AFTER = 12;
 const SESSION_HISTORY_PRESENTATION_SOFT_TURN_BUDGET = 48;
@@ -342,6 +352,12 @@ export interface PeerSessionSnapshotRefreshResult {
   backendState: string;
   latestTurnId?: string;
   latestTurnStatus?: DialogTurn['status'];
+  /** Present whenever the host sent a valid journal and this surface is still current. */
+  runtimeEventSnapshot?: SessionRuntimeEventSnapshot;
+  /** False when the rendered projection already includes this cursor. */
+  runtimeEventReplayRequired?: boolean;
+  /** Applied after Runtime event replay so the blocking card binds to its tool. */
+  pendingUserQuestions?: PendingUserQuestionSnapshot;
 }
 
 export interface DispatchSnapshotApplyResult {
@@ -672,15 +688,323 @@ function snapshotDropsProjectedTurnContent(
     if (!snapshotRound) {
       return true;
     }
-    if (streamProgressEntries(snapshotRound).size < streamProgressEntries(currentRound).size) {
-      return true;
+    const currentStreams = streamProgressEntries(currentRound);
+    const snapshotStreams = streamProgressEntries(snapshotRound);
+    for (const [key, currentItem] of currentStreams) {
+      const snapshotItem = snapshotStreams.get(key);
+      // The same text/thinking item can still be only an earlier checkpoint
+      // prefix. Item counts alone therefore do not make replacement lossless.
+      if (!snapshotItem || !snapshotItem.content.startsWith(currentItem.content)) {
+        return true;
+      }
     }
-    if (toolProgressEntries(snapshotRound).size < toolProgressEntries(currentRound).size) {
-      return true;
+
+    const currentTools = toolProgressEntries(currentRound);
+    const snapshotTools = toolProgressEntries(snapshotRound);
+    for (const [key, currentTool] of currentTools) {
+      const snapshotTool = snapshotTools.get(key);
+      if (!snapshotTool || (currentTool.toolResult && !snapshotTool.toolResult)) {
+        return true;
+      }
     }
   }
 
   return false;
+}
+
+function preserveClientDerivedDisplayItems(
+  current: DialogTurn,
+  persisted: DialogTurn,
+): DialogTurn {
+  let changed = false;
+  const modelRounds = persisted.modelRounds.map(persistedRound => {
+    const currentRound = current.modelRounds.find(round => round.id === persistedRound.id);
+    if (!currentRound) {
+      return persistedRound;
+    }
+    const persistedIds = new Set(persistedRound.items.map(item => item.id));
+    const derivedItems = currentRound.items.filter(item =>
+      item.type === 'tool'
+      && item.id.startsWith('plan-display-')
+      && !persistedIds.has(item.id),
+    );
+    if (derivedItems.length === 0) {
+      return persistedRound;
+    }
+    changed = true;
+    return {
+      ...persistedRound,
+      items: [...persistedRound.items, ...derivedItems],
+    };
+  });
+
+  return changed ? { ...persisted, modelRounds } : persisted;
+}
+
+/**
+ * Whether a persisted-record read may replace the Turn already projected.
+ *
+ * Contract 2 of docs/architecture/session-projection.md: the runtime stream
+ * owns an executing Turn, so its persisted copy — deliberately stored idle so a
+ * restart never revives work, and therefore lagging and shaped like a finished
+ * Turn — must not be painted over it. Doing so left a controller showing less
+ * of a Turn than the Host, and showing it as finished while the Host was still
+ * streaming (regression: 2026-08-17).
+ *
+ * Those two symptoms together are the signature. Missing token usage is not
+ * part of it: a provider that returns no usage stats produces the same empty
+ * field on a perfectly healthy Turn.
+ *
+ * Two cases keep a content comparison, and both are places the contract does
+ * not yet reach:
+ *
+ * - An older Host serves no runtime projection at all. With no runtime stream
+ *   to own the Turn, its checkpoint is the only progress there is, so forward
+ *   progress is still admitted.
+ * - A settled Turn belongs to the persisted record, but a windowed or
+ *   not-yet-checkpointed read can name a Turn while carrying none of its work.
+ *   A history read carries no position for content it omitted, so "does this
+ *   write lose content" is still the only question available. This guard is
+ *   deletable once a read reports its own completeness.
+ */
+function persistedReadMayReplaceTurn(
+  sessionId: string,
+  projected: DialogTurn,
+  incoming: DialogTurn,
+  hostExecutingTurnId: string | undefined,
+  hostServesRuntimeProjection: boolean,
+): boolean {
+  if (!persistedMayWriteTurn(sessionId, incoming.id, hostExecutingTurnId)) {
+    return (
+      !hostServesRuntimeProjection &&
+      isRunningSnapshotForwardProgress(projected, incoming)
+    );
+  }
+  return !snapshotDropsProjectedTurnContent(projected, incoming);
+}
+
+/** Empty current-Turn shell so Runtime journal replay cannot overlap a persist checkpoint. */
+function asRuntimeReplayTurn(turn: DialogTurn): DialogTurn {
+  return {
+    ...turn,
+    modelRounds: [],
+    status: 'pending',
+    endTime: undefined,
+    error: undefined,
+    errorDetail: undefined,
+    success: undefined,
+    finishReason: undefined,
+    hasFinalResponse: undefined,
+    recovery: undefined,
+  };
+}
+
+function coerceRuntimeEventSnapshot(
+  snapshot: SessionRuntimeEventSnapshot | null | undefined,
+  sessionId: string,
+  backendActive: boolean,
+  fallbackActiveTurnId?: string,
+): SessionRuntimeEventSnapshot | undefined {
+  if (
+    !backendActive ||
+    snapshot?.sessionId !== sessionId ||
+    typeof snapshot.streamId !== 'string' ||
+    !snapshot.streamId ||
+    !Number.isSafeInteger(snapshot.cursor) ||
+    !Array.isArray(snapshot.events)
+  ) {
+    return undefined;
+  }
+  const activeTurnId = snapshot.activeTurnId || fallbackActiveTurnId;
+  if (!activeTurnId) {
+    return undefined;
+  }
+  if (snapshot.activeTurnId && snapshot.activeTurnId !== activeTurnId) {
+    return undefined;
+  }
+  return snapshot.activeTurnId
+    ? snapshot
+    : { ...snapshot, activeTurnId };
+}
+
+interface PendingUserQuestionReconcileResult {
+  turns: DialogTurn[];
+  changed: boolean;
+  revisionApplied: boolean;
+}
+
+/**
+ * Rebuild the user-input card from the Runtime mailbox, independently of the
+ * persisted Turn checkpoint. A running Tool can wait indefinitely, so its
+ * push event is not recoverable by waiting for Turn completion.
+ */
+function reconcilePendingUserQuestionSnapshot(
+  turns: DialogTurn[],
+  snapshot: PendingUserQuestionSnapshot | undefined,
+  previousRevision: number,
+): PendingUserQuestionReconcileResult {
+  if (
+    !snapshot ||
+    !Number.isFinite(snapshot.revision) ||
+    snapshot.revision < previousRevision
+  ) {
+    return { turns, changed: false, revisionApplied: false };
+  }
+
+  const nextTurns = turns.map(turn => ({
+    ...turn,
+    modelRounds: turn.modelRounds.map(round => ({
+      ...round,
+      items: [...round.items],
+    })),
+  }));
+  const pendingIds = new Set(snapshot.questions.map(question => question.toolId));
+  let changed = false;
+  let fullyApplied = true;
+
+  // Remove only cards that this reconciliation path previously marked as
+  // mailbox projections. An existing live/persisted item is marked only while
+  // the Runtime says it is pending; after that, the mailbox is authoritative
+  // for whether the blocking card should remain.
+  for (const turn of nextTurns) {
+    for (const round of turn.modelRounds) {
+      const retained: AnyFlowItem[] = [];
+      for (const item of round.items) {
+        if (item.type !== 'tool') {
+          retained.push(item);
+          continue;
+        }
+        const tool = item as FlowToolItem;
+        if (tool._runtimeInteractionProjection?.kind !== 'user_question') {
+          retained.push(tool);
+          continue;
+        }
+        const toolId = tool.toolCall?.id || tool.id;
+        if (pendingIds.has(toolId)) {
+          retained.push(tool);
+          continue;
+        }
+        if (tool.toolResult || runningStatusRank(tool.status) >= 3) {
+          const { _runtimeInteractionProjection: _projection, ...settledTool } = tool;
+          retained.push(settledTool as FlowToolItem);
+          changed = true;
+          continue;
+        }
+        changed = true;
+      }
+      if (retained.length !== round.items.length) {
+        round.items = retained;
+      } else if (retained.some((item, index) => item !== round.items[index])) {
+        round.items = retained;
+      }
+    }
+  }
+
+  for (const pending of snapshot.questions) {
+    if (!pending || pending.sessionId === '') {
+      continue;
+    }
+    const turn = pending.dialogTurnId
+      ? nextTurns.find(candidate => candidate.id === pending.dialogTurnId)
+      : nextTurns[nextTurns.length - 1];
+    if (!turn || turn.sessionId !== pending.sessionId) {
+      // Tail restore should always contain the active Turn. If it does not,
+      // leave the revision uncommitted so the next reconciliation retries
+      // after that Turn is available instead of losing the mailbox entry.
+      fullyApplied = false;
+      continue;
+    }
+
+    let targetRound = turn.modelRounds.find(round =>
+      round.items.some(item =>
+        item.type === 'tool' &&
+        ((item as FlowToolItem).toolCall?.id === pending.toolId || item.id === pending.toolId)
+      )
+    );
+    if (!targetRound && pending.modelRoundId) {
+      targetRound = turn.modelRounds.find(round => round.id === pending.modelRoundId);
+    }
+    if (!targetRound) {
+      targetRound = turn.modelRounds[turn.modelRounds.length - 1];
+    }
+    if (!targetRound) {
+      targetRound = {
+        id: pending.modelRoundId || `runtime-interaction-${pending.toolId}`,
+        index: 0,
+        items: [],
+        isStreaming: true,
+        isComplete: false,
+        status: 'streaming',
+        startTime: pending.registeredAtMs,
+      };
+      turn.modelRounds.push(targetRound);
+      changed = true;
+    }
+
+    const existingIndex = targetRound.items.findIndex(item =>
+      item.type === 'tool' &&
+      ((item as FlowToolItem).toolCall?.id === pending.toolId || item.id === pending.toolId)
+    );
+    const existing = existingIndex >= 0
+      ? targetRound.items[existingIndex] as FlowToolItem
+      : undefined;
+    const alreadyProjected =
+      existing?._runtimeInteractionProjection?.revision === snapshot.revision &&
+      existing.status === 'waiting';
+    if (!alreadyProjected) {
+      const projected: FlowToolItem = {
+        ...(existing || {
+          id: pending.toolId,
+          type: 'tool',
+          timestamp: pending.registeredAtMs,
+          requiresConfirmation: false,
+        }),
+        id: pending.toolId,
+        type: 'tool',
+        toolName: 'AskUserQuestion',
+        toolCall: {
+          id: pending.toolId,
+          input: pending.questions,
+        },
+        toolResult: undefined,
+        status: 'waiting',
+        isParamsStreaming: false,
+        startTime: existing?.startTime ?? pending.registeredAtMs,
+        endTime: undefined,
+        _runtimeInteractionProjection: {
+          kind: 'user_question',
+          revision: snapshot.revision,
+        },
+      };
+      if (existingIndex >= 0) {
+        targetRound.items[existingIndex] = projected;
+      } else {
+        targetRound.items.push(projected);
+      }
+      changed = true;
+    }
+
+    if (
+      targetRound.status !== 'streaming' ||
+      targetRound.isComplete ||
+      !targetRound.isStreaming
+    ) {
+      targetRound.status = 'streaming';
+      targetRound.isComplete = false;
+      targetRound.isStreaming = true;
+      changed = true;
+    }
+    if (turn.status !== 'processing') {
+      turn.status = 'processing';
+      changed = true;
+    }
+  }
+
+  return {
+    turns: changed ? nextTurns : turns,
+    changed,
+    revisionApplied: fullyApplied,
+  };
 }
 
 function itemMatchesIdentity(item: AnyFlowItem, itemId: string): boolean {
@@ -1545,6 +1869,7 @@ interface SurfaceStateContainer {
   readonly deferredFullHistoryProjections: Map<string, DeferredFullHistoryProjection>;
   readonly fullHistoryProjectionApplyRequests: Set<string>;
   readonly pendingRemoveSessionOptions: Map<string, RemoveSessionOptions>;
+  readonly userQuestionSnapshotRevisions: Map<string, number>;
 }
 
 function createSurfaceStateContainer(surfaceId: DeviceSurfaceId): SurfaceStateContainer {
@@ -1559,6 +1884,7 @@ function createSurfaceStateContainer(surfaceId: DeviceSurfaceId): SurfaceStateCo
     deferredFullHistoryProjections: new Map(),
     fullHistoryProjectionApplyRequests: new Set(),
     pendingRemoveSessionOptions: new Map(),
+    userQuestionSnapshotRevisions: new Map(),
   };
 }
 
@@ -1633,6 +1959,10 @@ export class FlowChatStore {
 
   private get pendingRemoveSessionOptions(): Map<string, RemoveSessionOptions> {
     return this.activeSurface.pendingRemoveSessionOptions;
+  }
+
+  private get userQuestionSnapshotRevisions(): Map<string, number> {
+    return this.activeSurface.userQuestionSnapshotRevisions;
   }
 
   /** Key a store-level cache entry to the surface that asked for it. */
@@ -2594,6 +2924,7 @@ export class FlowChatStore {
       this.fullHistoryProjectionApplyRequests.delete(sessionId);
       this.sessionHistoryViews.delete(sessionId);
       this.sessionHistoryTurnAccessTimes.delete(sessionId);
+      this.userQuestionSnapshotRevisions.delete(sessionId);
     }
 
     const activeSurfaceId = getActiveSurfaceId();
@@ -5748,9 +6079,9 @@ export class FlowChatStore {
     }
   }
 
-  public updateModelRoundItem(sessionId: string, dialogTurnId: string, itemId: string, updates: Partial<FlowItem>): void {
+  public updateModelRoundItem(sessionId: string, dialogTurnId: string, itemId: string, updates: Partial<FlowItem>): boolean {
+    let updated = false;
     this.updateDialogTurn(sessionId, dialogTurnId, turn => {
-      let updated = false;
       
       const updatedModelRounds = turn.modelRounds.map(modelRound => {
         if (updated) return modelRound;
@@ -5808,17 +6139,21 @@ export class FlowChatStore {
         modelRounds: updatedModelRounds
       };
     });
+    if (!updated) {
+      markRuntimeSessionProjectionStale(getActiveSurfaceScope().surfaceId, sessionId);
+    }
+    return updated;
   }
 
   /**
    * Silent update ModelRound item (does not trigger listeners)
    * Used for batch update scenarios
    */
-  public updateModelRoundItemSilent(sessionId: string, dialogTurnId: string, itemId: string, updates: Partial<FlowItem>): void {
+  public updateModelRoundItemSilent(sessionId: string, dialogTurnId: string, itemId: string, updates: Partial<FlowItem>): boolean {
     const prevSilentMode = this.silentMode;
     this.silentMode = true;
     try {
-      this.updateModelRoundItem(sessionId, dialogTurnId, itemId, updates);
+      return this.updateModelRoundItem(sessionId, dialogTurnId, itemId, updates);
     } finally {
       this.silentMode = prevSilentMode;
     }
@@ -7079,12 +7414,15 @@ export class FlowChatStore {
     sessionId: string,
     workspacePath: string,
     options?: {
-      replaceRunningSnapshot?: boolean;
       requireActiveSession?: boolean;
       shouldApply?: () => boolean;
+      shouldReplayRuntimeSnapshot?: (snapshot: SessionRuntimeEventSnapshot) => boolean;
     },
   ): Promise<PeerSessionSnapshotRefreshResult> {
     const scope = getActiveSurfaceScope();
+    const interactionEventVersion = liveSessionInteractionStore.captureEventVersion(
+      scope.surfaceId,
+    );
     const initialSession = this.state.sessions.get(sessionId);
     if (!initialSession) {
       return {
@@ -7105,13 +7443,40 @@ export class FlowChatStore {
     // This snapshot describes the device it was read from; reconciling it into
     // the surface that is rendered now would merge two devices' turns.
     scope.assertCurrent('refreshPeerSessionSnapshot');
+    if (restored.interactionSnapshot?.sessionId === sessionId) {
+      liveSessionInteractionStore.reconcilePermissionSnapshot(
+        scope.surfaceId,
+        sessionId,
+        restored.interactionSnapshot.permissions,
+        interactionEventVersion,
+      );
+    }
     const backendActive = isBackendSessionActivelyProcessing(restored.session.state);
+    const persistTailTurnId = restored.turns[restored.turns.length - 1]?.turnId;
+    const runtimeEventSnapshot = coerceRuntimeEventSnapshot(
+      restored.runtimeEventSnapshot,
+      sessionId,
+      backendActive,
+      persistTailTurnId,
+    );
     const activeTurnId = backendActive
-      ? restored.turns[restored.turns.length - 1]?.turnId
+      ? runtimeEventSnapshot?.activeTurnId ?? persistTailTurnId
       : undefined;
-    const snapshotTurns = this.convertToDialogTurns(restored.turns, { activeTurnId });
-    const replaceExistingTurns =
-      !backendActive || options?.replaceRunningSnapshot === true;
+    const runtimeEventReplayRequired = runtimeEventSnapshot
+      ? options?.shouldReplayRuntimeSnapshot?.(runtimeEventSnapshot) ?? true
+      : false;
+    const runtimeReplaySnapshot = runtimeEventReplayRequired
+      ? runtimeEventSnapshot
+      : undefined;
+    const snapshotTurns = this.convertToDialogTurns(restored.turns, { activeTurnId }).map(turn =>
+      runtimeReplaySnapshot && turn.id === runtimeReplaySnapshot.activeTurnId
+        ? asRuntimeReplayTurn(turn)
+        : turn
+    );
+    const pendingUserQuestions =
+      restored.interactionSnapshot?.sessionId === sessionId
+        ? restored.interactionSnapshot.userQuestions
+        : undefined;
     let applied = false;
 
     this.setState(prev => {
@@ -7126,13 +7491,49 @@ export class FlowChatStore {
       }
 
       const session = prev.sessions.get(sessionId);
-      // A live event or another refresh won the race while HostInvoke was in
-      // flight. Do not overwrite that newer local projection.
-      if (!session || session !== initialSession) {
+      if (!session) {
+        return prev;
+      }
+      const persistMergeSafe = session === initialSession;
+      // A live event or hydrate won the race while HostInvoke was in flight.
+      // Persisted-turn merge is then unsafe, but a required Runtime replay
+      // still needs an empty current-Turn shell — hiding the journal used to
+      // leave in-progress tool cards frozen.
+      if (!persistMergeSafe && !runtimeReplaySnapshot) {
         return prev;
       }
 
-      const mergedTurns = [...session.dialogTurns];
+      if (!persistMergeSafe && runtimeReplaySnapshot) {
+        const replayTurnId = runtimeReplaySnapshot.activeTurnId;
+        if (!replayTurnId) {
+          return prev;
+        }
+        const mergedTurns = [...session.dialogTurns];
+        const existingIndex = mergedTurns.findIndex(turn => turn.id === replayTurnId);
+        if (existingIndex === -1) {
+          const shell = snapshotTurns.find(turn => turn.id === replayTurnId);
+          if (!shell) {
+            return prev;
+          }
+          mergedTurns.push(shell);
+        } else {
+          mergedTurns[existingIndex] = asRuntimeReplayTurn(mergedTurns[existingIndex]);
+        }
+        const newSessions = new Map(prev.sessions);
+        newSessions.set(sessionId, {
+          ...session,
+          dialogTurns: mergedTurns,
+          isHistorical: false,
+          historyState: 'ready',
+        });
+        applied = true;
+        return {
+          ...prev,
+          sessions: newSessions,
+        };
+      }
+
+      let mergedTurns = [...session.dialogTurns];
       let turnsChanged = false;
       for (const snapshotTurn of snapshotTurns) {
         const existingIndex = mergedTurns.findIndex(turn => turn.id === snapshotTurn.id);
@@ -7140,9 +7541,17 @@ export class FlowChatStore {
           mergedTurns.push(snapshotTurn);
           turnsChanged = true;
         } else if (
-          replaceExistingTurns
-            ? !snapshotDropsProjectedTurnContent(mergedTurns[existingIndex], snapshotTurn)
-            : isRunningSnapshotForwardProgress(mergedTurns[existingIndex], snapshotTurn)
+          // The Runtime journal replay *is* the runtime writer, so it always
+          // establishes its own active Turn.
+          runtimeReplaySnapshot && snapshotTurn.id === runtimeReplaySnapshot.activeTurnId
+            ? true
+            : persistedReadMayReplaceTurn(
+                sessionId,
+                mergedTurns[existingIndex],
+                snapshotTurn,
+                activeTurnId,
+                Boolean(runtimeEventSnapshot),
+              )
         ) {
           mergedTurns[existingIndex] = snapshotTurn;
           turnsChanged = true;
@@ -7150,6 +7559,24 @@ export class FlowChatStore {
       }
 
       mergedTurns.sort(compareDialogTurnOrder);
+      if (!runtimeReplaySnapshot) {
+        const previousQuestionRevision = this.userQuestionSnapshotRevisions.get(sessionId) ?? -1;
+        const questionReconciliation = reconcilePendingUserQuestionSnapshot(
+          mergedTurns,
+          pendingUserQuestions,
+          previousQuestionRevision,
+        );
+        if (questionReconciliation.changed) {
+          mergedTurns = questionReconciliation.turns;
+          turnsChanged = true;
+        }
+        if (questionReconciliation.revisionApplied && pendingUserQuestions) {
+          this.userQuestionSnapshotRevisions.set(
+            sessionId,
+            pendingUserQuestions.revision,
+          );
+        }
+      }
       const turnCatalog = restored.turnCatalog?.sessionId === sessionId
         ? selectPreferredTurnCatalog(session.turnCatalog, restored.turnCatalog)
         : session.turnCatalog;
@@ -7223,7 +7650,179 @@ export class FlowChatStore {
       backendState: restored.session.state,
       latestTurnId: latestTurn?.id,
       latestTurnStatus: latestTurn?.status,
+      ...(runtimeEventSnapshot && scope.isCurrent()
+        ? {
+            runtimeEventSnapshot,
+            runtimeEventReplayRequired,
+            pendingUserQuestions,
+          }
+        : {}),
     };
+  }
+
+  /**
+   * Repair one terminal Turn from the host's canonical persisted record.
+   *
+   * Runtime chunks are optimized for latency and can be lost while a window is
+   * suspended or a Peer controller reconnects. Once the Runtime has settled,
+   * persistence owns the Turn, so local and device surfaces both perform this
+   * small tail read instead of treating the last painted chunk as complete.
+   */
+  public async reconcileSettledDialogTurn(
+    sessionId: string,
+    turnId: string,
+  ): Promise<boolean> {
+    const scope = getActiveSurfaceScope();
+    const initialSession = this.state.sessions.get(sessionId);
+    const workspacePath = initialSession
+      ? sessionProjectWorkspacePath(initialSession)
+      : undefined;
+    if (!initialSession || !workspacePath) {
+      return false;
+    }
+
+    const restored = await agentAPI.restoreSessionView(
+      sessionId,
+      workspacePath,
+      initialSession.remoteConnectionId,
+      initialSession.remoteSshHost,
+      `settled-turn-${turnId.slice(0, 8)}`,
+      initialSession.sessionKind === 'subagent',
+      SETTLED_TURN_RECONCILE_TAIL_TURN_COUNT,
+    );
+    scope.assertCurrent('reconcileSettledDialogTurn');
+
+    const backendActive = isBackendSessionActivelyProcessing(restored.session.state);
+    const persistedTailTurnId = restored.turns[restored.turns.length - 1]?.turnId;
+    const runtimeSnapshot = coerceRuntimeEventSnapshot(
+      restored.runtimeEventSnapshot,
+      sessionId,
+      backendActive,
+      persistedTailTurnId,
+    );
+    const hostExecutingTurnId = backendActive
+      ? runtimeSnapshot?.activeTurnId ?? persistedTailTurnId
+      : undefined;
+    if (hostExecutingTurnId === turnId) {
+      return false;
+    }
+
+    const incoming = this.convertToDialogTurns(restored.turns)
+      .find(turn => turn.id === turnId);
+    if (
+      !incoming
+      || !['completed', 'cancelled', 'error'].includes(incoming.status)
+    ) {
+      return false;
+    }
+
+    let applied = false;
+    this.setState(prev => {
+      const session = prev.sessions.get(sessionId);
+      if (!session) {
+        return prev;
+      }
+      const turnIndex = session.dialogTurns.findIndex(turn => turn.id === turnId);
+      if (turnIndex < 0) {
+        return prev;
+      }
+      const current = session.dialogTurns[turnIndex];
+      const reconciled = preserveClientDerivedDisplayItems(current, incoming);
+      if (
+        !['completed', 'cancelled', 'error'].includes(current.status)
+        || !persistedReadMayReplaceTurn(
+          sessionId,
+          current,
+          reconciled,
+          hostExecutingTurnId,
+          Boolean(runtimeSnapshot),
+        )
+      ) {
+        return prev;
+      }
+
+      const dialogTurns = [...session.dialogTurns];
+      dialogTurns[turnIndex] = {
+        ...current,
+        ...reconciled,
+        tokenUsage: reconciled.tokenUsage ?? current.tokenUsage,
+        success: reconciled.success ?? current.success,
+        finishReason: reconciled.finishReason ?? current.finishReason,
+        hasFinalResponse: reconciled.hasFinalResponse ?? current.hasFinalResponse,
+      };
+      const sessions = new Map(prev.sessions);
+      sessions.set(sessionId, {
+        ...session,
+        dialogTurns,
+      });
+      applied = true;
+      return {
+        ...prev,
+        sessions,
+      };
+    });
+
+    return applied;
+  }
+
+  /** Empty the current Turn so journal replay cannot overlap a persist checkpoint. */
+  public prepareRuntimeTurnReplay(sessionId: string, turnId: string): void {
+    this.setState(prev => {
+      const session = prev.sessions.get(sessionId);
+      if (!session) {
+        return prev;
+      }
+      const index = session.dialogTurns.findIndex(turn => turn.id === turnId);
+      if (index === -1) {
+        return prev;
+      }
+      const dialogTurns = [...session.dialogTurns];
+      dialogTurns[index] = asRuntimeReplayTurn(dialogTurns[index]);
+      const sessions = new Map(prev.sessions);
+      sessions.set(sessionId, {
+        ...session,
+        dialogTurns,
+      });
+      return {
+        ...prev,
+        sessions,
+      };
+    });
+  }
+
+  /** Reconcile blocking user questions after Runtime event replay. */
+  public reconcilePendingUserQuestions(
+    sessionId: string,
+    pendingUserQuestions: PendingUserQuestionSnapshot | undefined,
+  ): boolean {
+    let applied = false;
+    this.setState(prev => {
+      const session = prev.sessions.get(sessionId);
+      if (!session) {
+        return prev;
+      }
+      const previousRevision = this.userQuestionSnapshotRevisions.get(sessionId) ?? -1;
+      const reconciliation = reconcilePendingUserQuestionSnapshot(
+        session.dialogTurns,
+        pendingUserQuestions,
+        previousRevision,
+      );
+      if (reconciliation.revisionApplied && pendingUserQuestions) {
+        this.userQuestionSnapshotRevisions.set(sessionId, pendingUserQuestions.revision);
+      }
+      if (!reconciliation.changed) {
+        applied = reconciliation.revisionApplied;
+        return prev;
+      }
+      const sessions = new Map(prev.sessions);
+      sessions.set(sessionId, {
+        ...session,
+        dialogTurns: reconciliation.turns,
+      });
+      applied = true;
+      return { ...prev, sessions };
+    });
+    return applied;
   }
 
   /**
@@ -7336,6 +7935,7 @@ export class FlowChatStore {
       let restoredTurnCatalog: SessionTurnCatalog | undefined;
       let restoredTiming: SessionViewRestoreTiming | undefined;
       let restoredCurrentContextUsage: SessionContextUsage | null | undefined;
+      let restoredRuntimeEventSnapshot: SessionRuntimeEventSnapshot | undefined;
 
       // Finish or resume relay history import before Core restores its model
       // context. Ordinary local sessions return after one metadata read, while
@@ -7477,6 +8077,12 @@ export class FlowChatStore {
                 : undefined;
               restoredTiming = restored.timings;
               restoredCurrentContextUsage = restored.currentContextUsage;
+              restoredRuntimeEventSnapshot = coerceRuntimeEventSnapshot(
+                restored.runtimeEventSnapshot,
+                sessionId,
+                isBackendSessionActivelyProcessing(restored.session.state),
+                restored.turns[restored.turns.length - 1]?.turnId,
+              );
             } catch (error) {
               if (!isUnsupportedTauriCommandError(error, 'restore_session_view')) {
                 throw error;
@@ -7624,9 +8230,13 @@ export class FlowChatStore {
       
       const convertStartedAt = nowMs();
       const activeTurnId = isBackendSessionActivelyProcessing(restoredSessionInfo?.state)
-        ? turns[turns.length - 1]?.turnId
+        ? restoredRuntimeEventSnapshot?.activeTurnId ?? turns[turns.length - 1]?.turnId
         : undefined;
-      const dialogTurns = this.convertToDialogTurns(turns, { activeTurnId });
+      const dialogTurns = this.convertToDialogTurns(turns, { activeTurnId }).map(turn =>
+        restoredRuntimeEventSnapshot && turn.id === activeTurnId
+          ? asRuntimeReplayTurn(turn)
+          : turn
+      );
       const restoredLastUserDialogMode =
         restoredSessionInfo?.lastUserDialogAgentType || this.deriveLastUserDialogMode(dialogTurns);
       startupTrace.markPhase('historical_session_convert_end', {
@@ -7644,10 +8254,28 @@ export class FlowChatStore {
 
         const restoredAgentType =
           restoredSessionInfo?.agentType || session.mode || session.config.agentType;
+        const mergedTurns = dialogTurns.map(loaded => {
+          const existing = session.dialogTurns.find(turn => turn.id === loaded.id);
+          // Disk hydrate is the persisted record, so the same ownership rule
+          // applies: it may not overwrite the Turn the runtime stream owns.
+          if (
+            existing &&
+            !persistedReadMayReplaceTurn(
+              sessionId,
+              existing,
+              loaded,
+              activeTurnId,
+              Boolean(restoredRuntimeEventSnapshot),
+            )
+          ) {
+            return existing;
+          }
+          return loaded;
+        });
 
         const updatedSession = {
           ...session,
-          dialogTurns,
+          dialogTurns: mergedTurns,
           isHistorical: false,
           historyState: 'ready' as const,
           contextRestoreState,
@@ -7672,7 +8300,7 @@ export class FlowChatStore {
           currentTokenUsage: reconcileRestoreViewCurrentTokenUsage(
             session.currentTokenUsage,
             restoredCurrentContextUsage,
-            dialogTurns,
+            mergedTurns,
             restoredAgentType,
           ),
         };
@@ -7717,12 +8345,22 @@ export class FlowChatStore {
       // owns a live turn (notably a Peer Host), keep the controller state
       // machine aligned so subsequent streamed chunks are accepted even though
       // their DialogTurnStarted event happened before the controller attached.
-      stateMachineManager.reset(sessionId);
-      if (activeTurnId) {
-        await stateMachineManager.transition(sessionId, SessionExecutionEvent.START, {
-          taskId: sessionId,
-          dialogTurnId: activeTurnId,
-        });
+      // An in-flight Runtime attach already owns that machine; resetting here
+      // would drop the journal replay and freeze in-progress tool cards.
+      if (!isRuntimeSessionAttachmentInFlight(scope.surfaceId, sessionId)) {
+        stateMachineManager.reset(sessionId);
+        if (activeTurnId) {
+          await stateMachineManager.transition(sessionId, SessionExecutionEvent.START, {
+            taskId: sessionId,
+            dialogTurnId: activeTurnId,
+          });
+        }
+      }
+      if (activeTurnId && isSurfaceReconcileEnabled()) {
+        const { requestPeerSessionRefresh } = await import(
+          '../services/flow-chat-manager/PeerSessionRefreshModule'
+        );
+        requestPeerSessionRefresh(sessionId);
       }
       completeSessionMutationReconciliation(sessionId);
       startupTrace.markPhase('historical_session_hydrate_end', {

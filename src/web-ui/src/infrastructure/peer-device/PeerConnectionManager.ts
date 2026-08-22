@@ -42,6 +42,7 @@ export type PeerConnectionLostReason = 'keepalive' | 'presence';
 export interface PeerHostCapabilities {
   readonly idempotentDialogSubmit: boolean;
   readonly targetedSessionRollback: boolean;
+  readonly tokenUsageStatistics: boolean;
 }
 
 /** Immutable view of one connection; safe to hold in component state. */
@@ -102,12 +103,14 @@ interface PeerModePingResult {
   capabilities?: {
     idempotent_dialog_submit?: boolean;
     targeted_session_rollback?: boolean;
+    token_usage_statistics?: boolean;
   };
 }
 
 const NO_CAPABILITIES: PeerHostCapabilities = {
   idempotentDialogSubmit: false,
   targetedSessionRollback: false,
+  tokenUsageStatistics: false,
 };
 
 interface ConnectionEntry {
@@ -265,9 +268,23 @@ export class PeerConnectionManager {
    */
   reportPresence(onlineDeviceIds: Iterable<string>): void {
     const online = new Set(onlineDeviceIds);
-    for (const entry of this.entries.values()) {
+    for (const entry of Array.from(this.entries.values())) {
       if (!online.has(entry.deviceId)) {
         this.markLost(entry, 'presence');
+        continue;
+      }
+      // The device is back. `lost` is terminal and `connect` refuses a lost
+      // entry, so leaving it in place would keep a reachable device
+      // permanently unselectable — one presence blip during a burst of
+      // switching was enough to strand it for the rest of the session. Drop
+      // the dead entry so the next switch attaches a fresh one.
+      if (entry.health === 'lost' && entry.lostReason === 'presence') {
+        this.entries.delete(entry.deviceId);
+        entry.adapter.disconnect().catch(() => undefined);
+        log.info('Peer device is reachable again; cleared its lost attachment', {
+          deviceId: entry.deviceId,
+        });
+        this.publish();
       }
     }
   }
@@ -327,6 +344,7 @@ export class PeerConnectionManager {
     adapter.setHostCapabilities({
       supportsIdempotentDialogSubmit: entry.capabilities.idempotentDialogSubmit,
       supportsTargetedSessionRollback: entry.capabilities.targetedSessionRollback,
+      supportsTokenUsageStatistics: entry.capabilities.tokenUsageStatistics,
     });
     entry.health = 'ready';
     this.scheduleKeepalive(entry);
@@ -340,6 +358,7 @@ export class PeerConnectionManager {
     return {
       idempotentDialogSubmit: result?.capabilities?.idempotent_dialog_submit === true,
       targetedSessionRollback: result?.capabilities?.targeted_session_rollback === true,
+      tokenUsageStatistics: result?.capabilities?.token_usage_statistics === true,
     };
   }
 
@@ -396,6 +415,7 @@ export class PeerConnectionManager {
       entry.adapter.setHostCapabilities({
         supportsIdempotentDialogSubmit: capabilities.idempotentDialogSubmit,
         supportsTargetedSessionRollback: capabilities.targetedSessionRollback,
+        supportsTokenUsageStatistics: capabilities.tokenUsageStatistics,
       });
       entry.consecutiveFailures = 0;
       const recovered = entry.health !== 'ready';

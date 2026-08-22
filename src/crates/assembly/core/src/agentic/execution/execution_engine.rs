@@ -8,9 +8,9 @@ use super::model_exchange_trace::{
 use super::round_executor::{ModelRoundLifecycle, RoundExecutor};
 use super::types::{ExecutionContext, ExecutionResult, RoundContext, RoundResult};
 use crate::agentic::agents::{
-    build_prompt_context_for_workspace, get_agent_registry, PrependedPromptReminders,
-    PromptBuilder, PromptBuilderContext, RuntimeContextNeeds, ToolListingSections,
-    UserContextPolicy, UserContextSection,
+    build_prompt_context_for_workspace, get_agent_registry, render_direct_tool_listing_body,
+    PrependedPromptReminders, PromptBuilder, PromptBuilderContext, RuntimeContextNeeds,
+    ToolListingSections, UserContextPolicy, UserContextSection,
 };
 use crate::agentic::context_profile::{ContextProfilePolicy, ModelCapabilityProfile};
 use crate::agentic::coordination::scheduler::agent_dialog_turn_image_contexts;
@@ -69,7 +69,7 @@ use bitfun_agent_runtime::permission::PERMISSION_MODE_CONTEXT_KEY;
 use bitfun_agent_runtime::remote_file_delivery::TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY;
 use bitfun_agent_runtime::thread_goal_tools::ensure_thread_goal_tools;
 use bitfun_ai_adapters::ModelExchangeTraceConfig;
-use bitfun_core_types::SessionModelBindingPolicy;
+use bitfun_core_types::{ModelRequestContext, SessionModelBindingPolicy};
 use bitfun_runtime_ports::{resolve_permission_mode, PermissionMode, PermissionModeLayers};
 use dashmap::DashMap;
 use log::{debug, error, info, trace, warn};
@@ -270,6 +270,7 @@ async fn activate_conditional_instructions_after_round(
 
 struct CompressionRuntimeScaffold {
     ai_client: Arc<crate::infrastructure::ai::AIClient>,
+    model_request_context: ModelRequestContext,
     tool_definitions: Option<Vec<ToolDefinition>>,
     system_prompt_message: Message,
     prepended_prompt_reminders: PrependedPromptReminders,
@@ -494,6 +495,7 @@ struct FinalizeRoundInput<'a> {
     messages: &'a [Message],
     prepended_reminders: &'a [&'a str],
     primary_model_facts: &'a PrimaryModelFacts,
+    model_request_context: &'a ModelRequestContext,
     execution_context_vars: &'a HashMap<String, String>,
     round_group_id: Option<String>,
     round_number: usize,
@@ -504,6 +506,7 @@ struct FinalizeRoundInput<'a> {
 
 struct CompressionModelSummaryInput<'a> {
     trace_config: Option<ModelExchangeTraceConfig>,
+    model_request_context: &'a ModelRequestContext,
     primary_supports_image_understanding: bool,
     prepended_prompt_reminders: &'a PrependedPromptReminders,
     tool_definitions: &'a Option<Vec<ToolDefinition>>,
@@ -533,6 +536,12 @@ impl ExecutionEngine {
         "Tool use is disabled for finalize. Respond with plain text only.";
     const FINALIZE_USER_FOLLOWUP: &'static str =
         "Provide a final answer. You MUST not call any tools.";
+
+    fn model_request_context(prompt_cache_lineage_id: &str) -> ModelRequestContext {
+        ModelRequestContext {
+            prompt_cache_route_key: Some(prompt_cache_lineage_id.to_string()),
+        }
+    }
 
     async fn context_vars_for_round(
         &self,
@@ -1340,6 +1349,14 @@ impl ExecutionEngine {
             } else {
                 None
             },
+            direct_tool_listing: (!manifest.deferred_tool_names.is_empty()).then(|| {
+                render_direct_tool_listing_body(
+                    manifest
+                        .tool_definitions
+                        .iter()
+                        .map(|definition| definition.name.as_str()),
+                )
+            }),
             deferred_tool_listing: if has_tool_definition("GetToolSpec") {
                 GetToolSpecTool::build_deferred_tools_context_section(
                     &manifest.deferred_tool_summaries,
@@ -1938,6 +1955,7 @@ impl ExecutionEngine {
             loaded_deferred_tool_specs: Vec::new(),
             model_config_id: input.primary_model_facts.model_id.clone(),
             effective_model_name: input.ai_client.config.model.clone(),
+            model_request_context: input.model_request_context.clone(),
             primary_model_facts: input.primary_model_facts.clone(),
             agent_type: input.agent_type,
             context_vars: round_context_vars,
@@ -2204,6 +2222,7 @@ impl ExecutionEngine {
         ai_client: Arc<crate::infrastructure::ai::AIClient>,
         request_messages: Vec<AIMessage>,
         tool_definitions: Option<Vec<ToolDefinition>>,
+        model_request_context: &ModelRequestContext,
         trace_config: Option<ModelExchangeTraceConfig>,
         max_tries: usize,
     ) -> BitFunResult<String> {
@@ -2212,9 +2231,10 @@ impl ExecutionEngine {
 
         for attempt in 0..max_tries {
             let result = ai_client
-                .send_message_with_trace(
+                .send_message_with_trace_and_request_context(
                     request_messages.clone(),
                     tool_definitions.clone(),
+                    Some(model_request_context.clone()),
                     trace_config.clone(),
                 )
                 .await;
@@ -2307,6 +2327,7 @@ impl ExecutionEngine {
                 input.ai_client,
                 request_messages,
                 input.tool_definitions.clone(),
+                input.model_request_context,
                 input.trace_config,
                 2,
             )
@@ -2329,6 +2350,7 @@ impl ExecutionEngine {
         context_window: usize,
         compression_contract: Option<crate::agentic::core::CompressionContract>,
         ai_client: Arc<crate::infrastructure::ai::AIClient>,
+        model_request_context: &ModelRequestContext,
         tool_definitions: &Option<Vec<ToolDefinition>>,
         prepended_prompt_reminders: &PrependedPromptReminders,
         primary_supports_image_understanding: bool,
@@ -2370,6 +2392,7 @@ impl ExecutionEngine {
             let summary_result = self
                 .generate_compression_model_summary(CompressionModelSummaryInput {
                     ai_client: ai_client.clone(),
+                    model_request_context,
                     runtime_messages: &plan.summary_request_messages,
                     dialog_turn_id,
                     workspace,
@@ -2542,6 +2565,8 @@ impl ExecutionEngine {
         };
         Self::validate_frozen_model_contract(context).await?;
         Self::validate_frozen_reasoning_contract(context, ai_client.as_ref())?;
+        let model_request_context =
+            Self::model_request_context(session.effective_prompt_cache_lineage_id());
 
         let primary_model_facts = Self::resolve_primary_model_context(
             &model_id,
@@ -2640,6 +2665,7 @@ impl ExecutionEngine {
 
         Ok(CompressionRuntimeScaffold {
             ai_client,
+            model_request_context,
             tool_definitions,
             system_prompt_message: turn_prompt_scaffold.system_prompt_message,
             prepended_prompt_reminders: turn_prompt_scaffold.prepended_prompt_reminders,
@@ -2687,6 +2713,7 @@ impl ExecutionEngine {
         before_pressure: TokenPressureSnapshot,
         context_window: usize,
         ai_client: Arc<crate::infrastructure::ai::AIClient>,
+        model_request_context: &ModelRequestContext,
         tool_definitions: &Option<Vec<ToolDefinition>>,
         system_prompt_message: Message,
         prepended_prompt_reminders: &PrependedPromptReminders,
@@ -2763,6 +2790,7 @@ impl ExecutionEngine {
                 context_window,
                 compression_contract,
                 ai_client,
+                model_request_context,
                 tool_definitions,
                 prepended_prompt_reminders,
                 primary_supports_image_understanding,
@@ -3031,6 +3059,7 @@ impl ExecutionEngine {
                 context_window,
                 compression_contract,
                 scaffold.ai_client.clone(),
+                &scaffold.model_request_context,
                 &scaffold.tool_definitions,
                 &scaffold.prepended_prompt_reminders,
                 scaffold.primary_supports_image_understanding,
@@ -3460,6 +3489,8 @@ impl ExecutionEngine {
         };
         Self::validate_frozen_model_contract(&context).await?;
         Self::validate_frozen_reasoning_contract(&context, ai_client.as_ref())?;
+        let model_request_context =
+            Self::model_request_context(session.effective_prompt_cache_lineage_id());
 
         // Primary model vision capability (tools + system prompt appendix; also used below for API message stripping).
         let primary_model_facts = Self::resolve_primary_model_context(
@@ -3872,6 +3903,7 @@ impl ExecutionEngine {
                         token_pressure,
                         context_window,
                         ai_client.clone(),
+                        &model_request_context,
                         &tool_definitions,
                         turn_prompt_scaffold.system_prompt_message.clone(),
                         &turn_prompt_scaffold.prepended_prompt_reminders,
@@ -4021,6 +4053,7 @@ impl ExecutionEngine {
                 loaded_deferred_tool_specs,
                 model_config_id: model_id.clone(),
                 effective_model_name: ai_client.config.model.clone(),
+                model_request_context: model_request_context.clone(),
                 primary_model_facts: primary_model_facts.clone(),
                 agent_type: agent_type.clone(),
                 context_vars: round_context_vars,
@@ -4102,6 +4135,7 @@ impl ExecutionEngine {
                             send_pressure,
                             context_window,
                             ai_client.clone(),
+                            &model_request_context,
                             &tool_definitions,
                             turn_prompt_scaffold.system_prompt_message.clone(),
                             &turn_prompt_scaffold.prepended_prompt_reminders,
@@ -4798,6 +4832,7 @@ impl ExecutionEngine {
                         round_group_id: finalize_round_group_id.clone(),
                         execution_context_vars: &execution_context_vars,
                         primary_model_facts: &primary_model_facts,
+                        model_request_context: &model_request_context,
                         prepended_reminders: &finalize_prepended_reminders,
                         messages: &messages,
                         reminder_text: finalize_reminder,
@@ -4829,6 +4864,7 @@ impl ExecutionEngine {
                             round_group_id: finalize_round_group_id.clone(),
                             execution_context_vars: &execution_context_vars,
                             primary_model_facts: &primary_model_facts,
+                            model_request_context: &model_request_context,
                             prepended_reminders: &finalize_prepended_reminders,
                             messages: &messages,
                             reminder_text: finalize_reminder,
@@ -6388,6 +6424,23 @@ mod tests {
         assert_eq!(snapshot.repeated_tool_signature_count, 0);
         assert_eq!(snapshot.consecutive_failed_commands, 2);
         assert_eq!(snapshot.compression_failure_count, 2);
+    }
+
+    #[test]
+    fn provider_prompt_cache_route_key_depends_only_on_lineage() {
+        let first = ExecutionEngine::model_request_context("session-1");
+        let same_lineage = ExecutionEngine::model_request_context("session-1");
+        let changed_lineage = ExecutionEngine::model_request_context("session-2");
+
+        assert_eq!(first.prompt_cache_route_key.as_deref(), Some("session-1"));
+        assert_eq!(
+            first.prompt_cache_route_key,
+            same_lineage.prompt_cache_route_key
+        );
+        assert_ne!(
+            first.prompt_cache_route_key,
+            changed_lineage.prompt_cache_route_key
+        );
     }
 
     fn command_result(tool_name: &str, success: bool, exit_code: Option<i32>) -> Message {

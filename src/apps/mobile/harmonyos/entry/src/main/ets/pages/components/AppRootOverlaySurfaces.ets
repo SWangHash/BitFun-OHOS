@@ -2,24 +2,30 @@ import {
   AppRootPresentationActions,
   emptyAppRootPresentationActions
 } from '../actions/AppRootPresentationActions';
-import { AppRouteContract, ConversationSource } from '../navigation/AppRouteContract';
+import { AppRouteContract } from '../navigation/AppRouteContract';
 import { AppShellState, CONNECT_INTENT_AUTO } from '../state/AppShellState';
+import {
+  SettingsPlacement,
+  SettingsPlacementPolicy,
+  SettingsSheetKind
+} from '../policy/SettingsPlacementPolicy';
 import { GeneralChatPageState } from '../state/GeneralChatPageState';
+import { DeviceDirectoryState } from '../state/DeviceDirectoryState';
 import { RemotePageState } from '../state/RemotePageState';
 import { AppSidebar } from './AppSidebar';
 import { ConnectView } from './ConnectView';
 import { RemoteControlSettingsSheet } from './RemoteControlSettingsSheet';
-import {
-  RemoteSurfaceHost,
-  RemoteSurfaceMode,
-  RemoteSurfaceState
-} from './remote/RemoteSurfaceHost';
+import { RemoteSurfaceState } from './remote/RemoteSurfaceHost';
 import { SettingsSheet } from './SettingsSheet';
+import { SidebarWorkspaceSection } from './SidebarWorkspaceSection';
 
 @ComponentV2
 export struct AppSidebarSurface {
   @Param shellState: AppShellState = new AppShellState();
+  @Param sessionDetailsPlacement: SettingsPlacement =
+    SettingsPlacementPolicy.compactBottom(SettingsSheetKind.SessionDetails);
   @Param remotePageState: RemotePageState = new RemotePageState();
+  @Param deviceDirectoryState: DeviceDirectoryState = new DeviceDirectoryState();
   @Param generalPageState: GeneralChatPageState = new GeneralChatPageState();
   @Param remoteSurfaceState: RemoteSurfaceState = new RemoteSurfaceState();
   @Param actions: AppRootPresentationActions = emptyAppRootPresentationActions();
@@ -27,30 +33,26 @@ export struct AppSidebarSurface {
 
   build() {
     AppSidebar({
-      sessions: this.source() === ConversationSource.Remote ? [] : this.generalPageState.recentSessions(),
+      sessions: this.generalPageState.recentSessions(),
+      sessionDetailsPlacement: this.sessionDetailsPlacement,
       pinnedSessionId: this.generalPageState.pinnedSessionId(),
-      selectedSessionId: this.source() === ConversationSource.Remote ? '' :
-        (AppRouteContract.isGeneralComposerRoute(this.shellState.activeRoute) ?
-          this.generalPageState.conversation.activeSession.sessionId : ''),
+      selectedSessionId: AppRouteContract.isGeneralComposerRoute(this.shellState.activeRoute) ?
+        this.generalPageState.conversation.activeSession.sessionId : '',
       connectionState: this.remotePageState.connectionState,
       accountUserId: this.remotePageState.accountUserId,
-      activeSection: this.source() === ConversationSource.Remote ? 'remote' : 'chat',
-      showConversationSourceSwitcher: true,
-      showViewSettingsButton: this.source() === ConversationSource.Remote,
-      showCustomContent: this.source() === ConversationSource.Remote,
-      conversationSource: this.source(),
+      showViewSettingsButton: false,
+      showWorkspaceSection: true,
       contentSlot: () => {
-        this.RemoteContent()
+        this.WorkspaceContent()
       },
       onClose: this.actions.onSidebar.close,
-      onNewChat: () => this.newChat(),
+      onNewChat: this.actions.onSidebar.newChat,
       onEnterCode: this.actions.onSidebar.enterCode,
-      onConversationSource: this.actions.onCompactConversationSource,
       onOpenViewSettings: this.onOpenRemoteViewSettings,
       onSearchQueryChange: (query: string) => {
-        if (this.source() === ConversationSource.Remote) this.actions.onRemoteHome.queryChanged(query);
+        this.actions.onRemoteHome.queryChanged(query);
       },
-      onOpenSettings: () => this.openSettings(),
+      onOpenSettings: this.actions.onSidebar.settings,
       onOpenAccount: this.actions.onSidebar.openAccount,
       onOpenSession: this.actions.onSidebar.openSession,
       onArchiveSession: this.actions.onSidebar.archive,
@@ -60,37 +62,46 @@ export struct AppSidebarSurface {
   }
 
   @Builder
-  private RemoteContent() {
-    RemoteSurfaceHost({
-      mode: RemoteSurfaceMode.Master,
-      remotePageState: this.remotePageState,
-      presentationState: this.remoteSurfaceState,
-      actions: this.actions,
-      showSelectedSession: true,
-      compact: true
+  private WorkspaceContent() {
+    SidebarWorkspaceSection({
+      directoryState: this.deviceDirectoryState,
+      sessions: this.remotePageState.visibleSessions(),
+      recentWorkspaces: this.remotePageState.recentWorkspaces,
+      workspaceName: this.remotePageState.workspaceName,
+      workspacePath: this.remotePageState.workspacePath,
+      workspaceKind: this.remotePageState.workspaceKind,
+      connectionState: this.remotePageState.connectionState,
+      controlTargetDeviceId: this.remotePageState.controlTargetDeviceId,
+      controlTargetDeviceName: this.remotePageState.controlTargetDeviceName ||
+        this.remotePageState.desktopName,
+      selectedSessionId: this.remoteSelectedSessionId(),
+      runningSessionId: this.remoteRunningSessionId(),
+      onOpenSession: this.actions.onSidebar.openSession,
+      onCreateInWorkspace: (deviceId: string, path: string) => {
+        this.actions.onSidebar.close();
+        this.actions.onRemoteHome.createInWorkspace(path, 'code', deviceId);
+      },
+      onOpenWorkspace: (deviceId: string, path: string) => {
+        this.actions.onRemoteHome.selectWorkspace(path, deviceId);
+      },
+      onToggleDevice: this.actions.onRemoteHome.toggleDirectoryDevice,
+      onRetryDevice: this.actions.onRemoteHome.retryDirectoryDevice,
+      onConnect: this.actions.onSidebar.connectDesktop
     })
   }
 
-  private source(): ConversationSource {
-    return AppRouteContract.conversationSource(this.shellState.activeRoute);
+  private remoteSelectedSessionId(): string {
+    if (AppRouteContract.isGeneralComposerRoute(this.shellState.activeRoute)) {
+      return '';
+    }
+    if (this.remotePageState.pendingSessionId.length > 0) {
+      return this.remotePageState.pendingSessionId;
+    }
+    return this.remotePageState.activeSession.sessionId;
   }
 
-  private newChat(): void {
-    if (this.source() === ConversationSource.Remote) {
-      this.actions.onSidebar.close();
-      this.actions.onRemoteHome.createAssistant();
-    } else {
-      this.actions.onSidebar.newChat();
-    }
-  }
-
-  private openSettings(): void {
-    if (this.source() === ConversationSource.Remote) {
-      this.actions.onSidebar.close();
-      this.actions.onRemoteHome.openSettings();
-    } else {
-      this.actions.onSidebar.settings();
-    }
+  private remoteRunningSessionId(): string {
+    return this.remotePageState.hasRunningActiveTurn() ? this.remotePageState.activeSession.sessionId : '';
   }
 }
 
@@ -131,6 +142,7 @@ export struct AppSettingsSurface {
       })
     } else {
       SettingsSheet({
+        sheetState: this.shellState.settingsSheet,
         generalChatApiUrl: this.generalPageState.apiUrl,
         generalChatModelName: this.generalPageState.modelName,
         hasGeneralChatApiKey: this.generalPageState.hasApiKey,
@@ -142,6 +154,8 @@ export struct AppSettingsSurface {
         onOpenAccount: this.actions.onSettings.openAccount,
         onTestGeneralChatConfig: this.actions.onSettings.testGeneral,
         onSaveGeneralChatConfig: this.actions.onSettings.saveGeneral,
+        onSelectGeneralChatModel: this.actions.onSettings.selectGeneralModel,
+        onSetLanguage: this.actions.onSettings.setLanguage,
         onClose: this.actions.onSettings.close
       })
     }

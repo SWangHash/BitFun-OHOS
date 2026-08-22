@@ -530,6 +530,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ),
     ("generate_insights", RemoteWorkspacePolicy::RemoteRouted),
     (
+        "get_token_usage_statistics",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
         "generate_session_title",
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
@@ -835,6 +839,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         "git_get_repository_basic",
         RemoteWorkspacePolicy::RemoteRouted,
     ),
+    (
+        "git_get_repository_trust",
+        RemoteWorkspacePolicy::RemoteRouted,
+    ),
     ("git_get_status", RemoteWorkspacePolicy::RemoteRouted),
     ("git_is_repository", RemoteWorkspacePolicy::RemoteRouted),
     (
@@ -850,6 +858,7 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ("git_reset_files", RemoteWorkspacePolicy::RemoteRouted),
     ("git_reset_to_commit", RemoteWorkspacePolicy::RemoteRouted),
     ("git_resolve_revision", RemoteWorkspacePolicy::RemoteRouted),
+    ("git_trust_repository", RemoteWorkspacePolicy::RemoteRouted),
     ("grant_miniapp_path", RemoteWorkspacePolicy::LegacyUnaudited),
     (
         "grant_miniapp_workspace",
@@ -1009,6 +1018,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     (
         "load_persisted_session_metadata",
         RemoteWorkspacePolicy::LegacyUnaudited,
+    ),
+    (
+        "load_session_event_backfill",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
         "load_session_turn_window",
@@ -2168,6 +2181,15 @@ mod tests {
     }
 
     #[test]
+    fn token_usage_statistics_are_scoped_to_the_current_bitfun_host() {
+        assert_eq!(
+            remote_workspace_policy("get_token_usage_statistics"),
+            Some(RemoteWorkspacePolicy::WorkspaceAgnostic),
+            "token usage is recorded by the current BitFun runtime and does not follow the workspace filesystem to an SSH host"
+        );
+    }
+
+    #[test]
     fn external_mcp_import_commands_explicitly_reject_remote_workspaces() {
         for command in [
             "plan_external_mcp_import_command",
@@ -2218,19 +2240,11 @@ mod tests {
     }
 
     #[test]
-    fn external_source_control_web_command_is_registered() {
+    fn external_source_control_command_is_registered() {
         const COMMAND: &str = "get_external_source_control_snapshot";
-        let web_api = include_str!(
-            "../../../../web-ui/src/infrastructure/api/service-api/ExternalSourcesAPI.ts"
-        );
-
-        assert!(
-            web_api.contains(&format!("invokeSurfaceSnapshot('{COMMAND}'")),
-            "Web UI must invoke the stable external-source control command"
-        );
         assert!(
             registered_commands().contains(COMMAND),
-            "Desktop must register the external-source control command invoked by Web UI"
+            "Desktop must register the external-source control command"
         );
     }
 

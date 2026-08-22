@@ -35,10 +35,14 @@ pub mod startup_trace;
 pub mod tray;
 mod webview_recovery;
 
+use bitfun_agent_runtime::sdk::{attach_session_event_cursor, SessionEventJournal};
 use bitfun_core::agentic::tools::computer_use_capability::set_computer_use_desktop_available;
 use bitfun_core::infrastructure::ai::AIClientFactory;
 use bitfun_core::infrastructure::{get_path_manager_arc, try_get_path_manager_arc};
 use bitfun_core::service::search::get_global_workspace_search_service;
+use bitfun_core::service::session_projection_store::{
+    runtime_event_log_dir, FileSessionProjectionStore,
+};
 use bitfun_core::service::workspace::get_global_workspace_service;
 use bitfun_core::util::{elapsed_ms, TimingCollector};
 use bitfun_events::AgenticEvent;
@@ -46,7 +50,7 @@ use bitfun_transport::{TauriTransportAdapter, TransportAdapter};
 use serde::Deserialize;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc,
+    Arc, OnceLock,
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::Emitter;
@@ -97,6 +101,9 @@ use api::system_api::*;
 use api::tool_api::*;
 use startup_trace::{DesktopStartupTrace, DesktopStartupTraceSnapshot};
 use std::path::PathBuf;
+
+pub(crate) const PLUGIN_HOST_LAUNCH_POLICY: bitfun_core::plugin_host::PluginHostLaunchPolicy =
+    bitfun_core::plugin_host::PluginHostLaunchPolicy::Disabled;
 
 /// Agentic Coordinator state
 #[derive(Clone)]
@@ -328,6 +335,12 @@ fn handle_secondary_launch(app: &tauri::AppHandle) {
             }
         });
     }
+}
+
+pub(crate) fn e2e_storage_guard_enabled() -> bool {
+    std::env::var("BITFUN_E2E_STORAGE_GUARD")
+        .ok()
+        .is_some_and(|value| value == "1" || value.eq_ignore_ascii_case("true"))
 }
 
 #[cfg(not(target_env = "ohos"))]
@@ -589,6 +602,22 @@ pub async fn _run() {
     startup_timings.record_elapsed("initialize_global_config", step_started);
     startup_trace.record_elapsed_step("native_pre_tauri", "initialize_global_config", step_started);
 
+    let step_started = Instant::now();
+    match bitfun_core::plugin_host::initialize_configured_plugin_host_with_log_file(
+        PLUGIN_HOST_LAUNCH_POLICY,
+        Some(session_log_dir.join("plugin-host.log")),
+    )
+    .await
+    {
+        Ok(bitfun_core::plugin_host::PluginHostStartup::Disabled) => {}
+        Ok(status) => log::info!("Plugin host initialization completed: {:?}", status),
+        Err(error) => {
+            log::error!("Failed to initialize configured plugin host: {}", error);
+        }
+    }
+    startup_timings.record_elapsed("initialize_plugin_host", step_started);
+    startup_trace.record_elapsed_step("native_pre_tauri", "initialize_plugin_host", step_started);
+
     // The three steps below only depend on the global config service (initialized
     // above) and write to disjoint global singletons, so they can run concurrently:
     // - initialize_global_i18n_service: reads config, sets the global i18n singleton
@@ -751,6 +780,19 @@ pub async fn _run() {
     startup_timings.record_elapsed("initialize_app_state", step_started);
     startup_trace.record_elapsed_step("native_pre_tauri", "initialize_app_state", step_started);
 
+    // A Turn that is still executing exists nowhere durable but this log: the
+    // persisted Session record stores a running Turn as idle so a restart never
+    // revives work. Without it, a client returning to this device after the
+    // process restarted is served a Turn frozen at the last checkpoint.
+    let session_event_journal = Arc::new(match try_get_path_manager_arc() {
+        Ok(path_manager) => SessionEventJournal::new().with_store(Arc::new(
+            FileSessionProjectionStore::new(runtime_event_log_dir(&path_manager)),
+        )),
+        Err(error) => {
+            log::warn!("Runtime event log disabled: application paths unavailable: {error}");
+            SessionEventJournal::new()
+        }
+    });
     let step_started = Instant::now();
     let desktop_runtime = match runtime::DesktopRuntimeContext::build(
         coordinator.clone(),
@@ -759,6 +801,7 @@ pub async fn _run() {
         app_state.workspace_service.clone(),
         app_state.ssh_manager.clone(),
         app_state.acp_client_service.clone(),
+        session_event_journal.clone(),
     ) {
         Ok(runtime) => runtime,
         Err(error) => {
@@ -786,6 +829,21 @@ pub async fn _run() {
     let path_manager = get_path_manager_arc();
 
     let mut builder = tauri::Builder::default();
+
+    let is_e2e_webdriver =
+        e2e_storage_guard_enabled() && std::env::var_os("BITFUN_WEBDRIVER_PORT").is_some();
+
+    #[cfg(any(all(target_os = "linux",not(target_env = "ohos")), target_os = "macos", target_os = "windows"))]
+    if !is_e2e_webdriver {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            log::info!(
+                "Existing BitFun Desktop instance received launch request: args_count={}, cwd={}",
+                args.len(),
+                cwd
+            );
+            handle_secondary_launch(app);
+        }));
+    }
 
     let app = builder
         .plugin(logging::build_log_command_plugin())
@@ -1127,7 +1185,12 @@ pub async fn _run() {
             let transport = Arc::new(TauriTransportAdapter::new(app_handle.clone()));
 
             let step_started = Instant::now();
-            start_event_loop_with_transport(event_queue, event_router, transport);
+            start_event_loop_with_transport(
+                event_queue,
+                event_router,
+                transport,
+                session_event_journal.clone(),
+            );
             startup_trace.record_elapsed_step(
                 "native_setup",
                 "start_event_loop_with_transport",
@@ -1318,6 +1381,7 @@ pub async fn _run() {
             api::agentic_api::delete_session,
             api::agentic_api::restore_session,
             api::agentic_api::restore_session_view,
+            api::agentic_api::load_session_event_backfill,
             api::agentic_api::load_session_turn_window,
             api::agentic_api::restore_session_with_turns,
             api::agentic_api::reset_memory,
@@ -1506,6 +1570,8 @@ pub async fn _run() {
             add_skill,
             delete_skill,
             git_is_repository,
+            git_get_repository_trust,
+            git_trust_repository,
             git_get_repository_basic,
             git_resolve_revision,
             git_get_repository,
@@ -1914,6 +1980,8 @@ pub async fn _run() {
             api::insights_api::load_insights_report,
             api::insights_api::has_insights_data,
             api::insights_api::cancel_insights_generation,
+            // Token usage statistics API
+            api::token_usage_api::get_token_usage_statistics,
             // SSH Remote API
             api::ssh_api::ssh_list_saved_connections,
             api::ssh_api::ssh_save_connection,
@@ -2015,11 +2083,15 @@ pub async fn _run() {
 
     match app {
         Ok(app) => {
-            app.run(|_app_handle, event| match event {
-                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
-                    crash_diagnostics::mark_clean_shutdown("tauri_run_exit");
-                    save_main_window_state(_app_handle);
-                    perform_process_exit_cleanup();
+            app.run(|app_handle, event| match event {
+                tauri::RunEvent::ExitRequested { api, code, .. } => {
+                    if !PROCESS_EXIT_CLEANUP_COMPLETE.load(Ordering::Acquire) {
+                        api.prevent_exit();
+                        request_desktop_exit(app_handle, code.unwrap_or(0), "tauri_exit_requested");
+                    }
+                }
+                tauri::RunEvent::Exit => {
+                    perform_process_exit_cleanup_emergency();
                 }
                 #[cfg(target_os = "macos")]
                 tauri::RunEvent::Reopen {
@@ -2031,7 +2103,7 @@ pub async fn _run() {
                     } else {
                         "dock_reopen_no_visible_windows"
                     };
-                    show_main_window_on_macos(_app_handle, reason);
+                    show_main_window_on_macos(app_handle, reason);
                 }
                 _ => {}
             });
@@ -2304,21 +2376,75 @@ fn setup_panic_hook() {
             return;
         }
 
-        perform_process_exit_cleanup();
+        perform_process_exit_cleanup_emergency();
         std::process::exit(1);
     }));
 }
 
-pub(crate) fn perform_process_exit_cleanup() -> bool {
-    static CLEANUP_DONE: AtomicBool = AtomicBool::new(false);
+static PROCESS_EXIT_CLEANUP_STARTED: AtomicBool = AtomicBool::new(false);
+static PROCESS_EXIT_CLEANUP_COMPLETE: AtomicBool = AtomicBool::new(false);
+static DESKTOP_EXIT_REQUESTED: AtomicBool = AtomicBool::new(false);
+static PROCESS_EXIT_CLEANUP_NOTIFY: OnceLock<tokio::sync::Notify> = OnceLock::new();
 
-    if CLEANUP_DONE
-        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-        .is_err()
-    {
-        return false;
+pub(crate) async fn perform_process_exit_cleanup() -> bool {
+    let notify = PROCESS_EXIT_CLEANUP_NOTIFY.get_or_init(tokio::sync::Notify::new);
+    if PROCESS_EXIT_CLEANUP_STARTED.swap(true, Ordering::AcqRel) {
+        loop {
+            let notified = notify.notified();
+            if PROCESS_EXIT_CLEANUP_COMPLETE.load(Ordering::Acquire) {
+                return false;
+            }
+            notified.await;
+        }
     }
 
+    log::info!("Desktop process graceful shutdown started");
+    match bitfun_core::plugin_host::shutdown_configured_plugin_host().await {
+        Ok(Some(report)) => log::info!(
+            "Desktop plugin host shutdown completed: generation={}, disposition={:?}, rpc_completed={}, exit_code={:?}, duration_ms={}",
+            report.generation,
+            report.disposition,
+            report.rpc_completed,
+            report.exit_code,
+            report.duration_ms
+        ),
+        Ok(None) => log::debug!("Desktop plugin host shutdown skipped: host not started"),
+        Err(error) => log::warn!("Desktop plugin host shutdown failed: {}", error),
+    }
+    if let Some(search_service) = get_global_workspace_search_service() {
+        search_service.shutdown_blocking();
+    }
+    bitfun_core::util::process_manager::cleanup_all_processes();
+    api::remote_connect_api::cleanup_on_exit();
+    PROCESS_EXIT_CLEANUP_COMPLETE.store(true, Ordering::Release);
+    notify.notify_waiters();
+    log::info!("Desktop process graceful shutdown completed");
+    true
+}
+
+pub(crate) fn request_desktop_exit(app: &tauri::AppHandle, exit_code: i32, reason: &'static str) {
+    if DESKTOP_EXIT_REQUESTED.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    save_main_window_state(app);
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        perform_process_exit_cleanup().await;
+        crash_diagnostics::mark_clean_shutdown(reason);
+        log::info!(
+            "Desktop exit authorized after graceful shutdown: reason={}, exit_code={}",
+            reason,
+            exit_code
+        );
+        app.exit(exit_code);
+    });
+}
+
+pub(crate) fn perform_process_exit_cleanup_emergency() -> bool {
+    if PROCESS_EXIT_CLEANUP_COMPLETE.load(Ordering::Acquire) {
+        return false;
+    }
+    log::warn!("Desktop emergency process cleanup started");
     if let Some(search_service) = get_global_workspace_search_service() {
         search_service.shutdown_blocking();
     }
@@ -2338,18 +2464,29 @@ fn configure_workspace_search_daemon_env() -> Option<std::path::PathBuf> {
 /// Deliver one event to the WebView and, when peer controllers are attached,
 /// fan it out to paired devices. Text chunks arrive here already coalesced by
 /// `TextChunkCoalescer`.
-async fn deliver_event_to_webview(transport: &TauriTransportAdapter, event: AgenticEvent) {
-    if let Err(e) = transport.emit_event(event.clone()).await {
+async fn deliver_event_to_webview(
+    transport: &TauriTransportAdapter,
+    event: AgenticEvent,
+    session_event_journal: &SessionEventJournal,
+) {
+    let cursor = session_event_journal.record(&event);
+    let Some(mut projected) = bitfun_events::project_agentic_frontend_event(event) else {
+        log::warn!("Unhandled AgenticEvent type in desktop delivery");
+        return;
+    };
+    if let Some(cursor) = cursor {
+        attach_session_event_cursor(&mut projected.payload, cursor);
+    }
+
+    if let Err(e) = transport
+        .emit_generic(&projected.event_name, projected.payload.clone())
+        .await
+    {
         log::error!("Failed to emit event: {:?}", e);
     }
 
     if !api::peer_host_invoke::attached_controllers().is_empty() {
-        if let Some(projected) = bitfun_events::project_agentic_frontend_event(event) {
-            api::remote_connect_api::fanout_peer_device_event(
-                projected.event_name,
-                projected.payload,
-            );
-        }
+        api::remote_connect_api::fanout_peer_device_event(projected.event_name, projected.payload);
     }
 }
 
@@ -2548,12 +2685,14 @@ fn start_event_loop_with_transport(
     event_queue: Arc<bitfun_core::agentic::events::EventQueue>,
     event_router: Arc<bitfun_core::agentic::events::EventRouter>,
     transport: Arc<TauriTransportAdapter>,
+    session_event_journal: Arc<SessionEventJournal>,
 ) {
     tauri::async_runtime::spawn(async move {
         event_loop_driver(event_queue, event_router, |event| {
             let transport = transport.clone();
+            let session_event_journal = session_event_journal.clone();
             async move {
-                deliver_event_to_webview(&transport, event).await;
+                deliver_event_to_webview(&transport, event, &session_event_journal).await;
             }
         })
         .await;
@@ -2630,6 +2769,14 @@ fn spawn_runtime_log_level_listener(default_level: log::LevelFilter) {
                     Ok(ConfigUpdateEvent::LogLevelUpdated { new_level }) => {
                         if let Some(level) = logging::parse_log_level(&new_level) {
                             logging::apply_runtime_log_level(level, "config_update_event");
+                            if let Err(error) =
+                                bitfun_core::plugin_host::set_configured_plugin_host_log_level(
+                                    logging::level_to_str(level),
+                                )
+                                .await
+                            {
+                                log::warn!("Failed to update plugin host log level: {}", error);
+                            }
                         } else {
                             log::warn!(
                                 "Received invalid log level from config update event: {}",
@@ -2640,6 +2787,14 @@ fn spawn_runtime_log_level_listener(default_level: log::LevelFilter) {
                     Ok(ConfigUpdateEvent::ConfigReloaded) => {
                         let level = resolve_runtime_log_level(default_level).await;
                         logging::apply_runtime_log_level(level, "config_reloaded");
+                        if let Err(error) =
+                            bitfun_core::plugin_host::set_configured_plugin_host_log_level(
+                                logging::level_to_str(level),
+                            )
+                            .await
+                        {
+                            log::warn!("Failed to update plugin host log level: {}", error);
+                        }
                     }
                     Ok(_) => {}
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
@@ -2722,6 +2877,10 @@ fn spawn_workspace_search_feature_listener(app_handle: tauri::AppHandle) {
                         {
                             match workspace_search_service.open_repo(&current_workspace).await {
                                 Ok(_) => {
+                                    workspace_search_service.schedule_auto_index(
+                                        &current_workspace,
+                                        bitfun_core::service::search::WorkspaceSearchAutoIndexPriority::Focused,
+                                    ).await;
                                     log::info!(
                                         "Workspace search feature enabled; warmed current workspace: path={}",
                                         current_workspace.display()

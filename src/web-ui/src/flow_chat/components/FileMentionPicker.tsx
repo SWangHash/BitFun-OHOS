@@ -398,9 +398,29 @@ export const FileMentionPicker: React.FC<FileMentionPickerProps> = ({
           ...(currentPath ? [] : referenceItems.map(item => ({ kind: 'file' as const, item }))),
         ]
   ), [currentFiles, currentPath, isSearchMode, referenceItems, results, sessionResults]);
-  const currentDirName = currentPath
-    ? currentPath.replace(/\\/g, '/').split('/').pop() || ''
-    : workspacePath?.replace(/\\/g, '/').split('/').pop() || t('fileMention.rootDirectory');
+  const currentDirectoryDisplay = useMemo(() => {
+    if (!workspacePath) {
+      const rootDirectory = t('fileMention.rootDirectory');
+      return { name: rootDirectory, parentPath: '', fullPath: rootDirectory };
+    }
+
+    const normalizedWorkspace = workspacePath.replace(/\\/g, '/').replace(/\/+$/, '');
+    const workspaceName = normalizedWorkspace.split('/').pop() || t('fileMention.rootDirectory');
+    const directorySegments = [workspaceName];
+
+    if (currentPath) {
+      const relativeCurrentPath = getRelativePath(currentPath)
+        .replace(/\\/g, '/')
+        .replace(/^\/+|\/+$/g, '');
+      if (relativeCurrentPath) directorySegments.push(...relativeCurrentPath.split('/').filter(Boolean));
+    }
+
+    return {
+      name: directorySegments[directorySegments.length - 1],
+      parentPath: directorySegments.slice(0, -1).join('/'),
+      fullPath: directorySegments.join('/'),
+    };
+  }, [currentPath, getRelativePath, t, workspacePath]);
   const isOverlay = Boolean(anchorRef) && !position;
   const overlayLayout = useAnchoredPopoverPosition({
     open: isOpen && isOverlay,
@@ -562,7 +582,24 @@ export const FileMentionPicker: React.FC<FileMentionPickerProps> = ({
           </Tooltip>
         )}
         {isSearchMode ? <><Search size={11} /><span>{t('fileMention.searchResults')}</span></> : (
-          <span className="file-mention-picker__dir-name">{currentDirName}</span>
+          <div className="file-mention-picker__directory-label" title={currentDirectoryDisplay.fullPath}>
+            <span
+              data-bf-component="file-mention-picker"
+              data-bf-part="currentDirectoryName"
+              className="file-mention-picker__dir-name"
+            >
+              {currentDirectoryDisplay.name}
+            </span>
+            {currentDirectoryDisplay.parentPath && (
+              <span
+                data-bf-component="file-mention-picker"
+                data-bf-part="parentDirectoryPath"
+                className="file-mention-picker__parent-path"
+              >
+                {currentDirectoryDisplay.parentPath}
+              </span>
+            )}
+          </div>
         )}
       </div>
       <div data-bf-component="file-mention-picker" data-bf-part="content" className="file-mention-picker__content">
@@ -602,21 +639,11 @@ export const FileMentionPicker: React.FC<FileMentionPickerProps> = ({
                   <span
                     data-bf-component="file-mention-picker"
                     data-bf-part="itemName"
-                    className={`file-mention-picker__item-name${file && !file.referenceStableKey ? ' file-mention-picker__item-name--with-path' : ''}`}
+                    className="file-mention-picker__item-name"
                   >
                     {session?.sessionName ?? file?.name}
                   </span>
                   {session && <span data-bf-component="file-mention-picker" data-bf-part="itemDetail" className="file-mention-picker__item-detail">{session.workspaceLabel}</span>}
-                  {file && !file.referenceStableKey && (
-                    <span
-                      data-bf-component="file-mention-picker"
-                      data-bf-part="itemDetail"
-                      className="file-mention-picker__item-detail file-mention-picker__item-path"
-                      title={file.relativePath}
-                    >
-                      {file.relativePath}
-                    </span>
-                  )}
                   {file?.referenceStableKey && (
                     <span data-bf-component="file-mention-picker" data-bf-part="itemDetail" className="file-mention-picker__item-detail">
                       {file.referenceDescription || file.path}

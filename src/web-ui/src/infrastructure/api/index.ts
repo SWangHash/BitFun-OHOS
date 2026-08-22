@@ -39,13 +39,26 @@ import { btwAPI } from './service-api/BtwAPI';
 import { editorAiAPI } from './service-api/EditorAiAPI';
 import { reviewPlatformAPI } from './service-api/ReviewPlatformAPI';
 import { insightsApi } from './insightsApi';
+import { tokenUsageStatisticsApi } from './tokenUsageStatisticsApi';
 import { speechAPI } from './service-api/SpeechAPI';
 import { worktreeAPI } from './service-api/WorktreeAPI';
 import { feedbackAPI } from './service-api/FeedbackAPI';
 
 // Export API modules
-export { feedbackAPI, workspaceAPI, configAPI, aiApi, toolAPI, agentAPI, systemAPI, projectAPI, diffAPI, snapshotAPI, globalAPI, contextAPI, cronAPI, permissionAPI, pageAPI, gitAPI, gitAgentAPI, gitRepoHistoryAPI, sessionAPI, i18nAPI, btwAPI, editorAiAPI, reviewPlatformAPI, insightsApi, speechAPI, worktreeAPI };
+export { feedbackAPI, workspaceAPI, configAPI, aiApi, toolAPI, agentAPI, systemAPI, projectAPI, diffAPI, snapshotAPI, globalAPI, contextAPI, cronAPI, permissionAPI, pageAPI, gitAPI, gitAgentAPI, gitRepoHistoryAPI, sessionAPI, i18nAPI, btwAPI, editorAiAPI, reviewPlatformAPI, insightsApi, tokenUsageStatisticsApi, speechAPI, worktreeAPI };
+export { TokenUsageStatisticsUnavailableError } from './tokenUsageStatisticsApi';
 export * from './service-api/ReviewPlatformAPI';
+
+export type {
+  TokenUsageStatisticsRequest,
+  UsageAttributionStatus,
+  UsageGranularity,
+  UsageStatistics,
+  UsageStatisticsEntry,
+  UsageStatisticsFilterKind,
+  UsageTimeRange,
+  UsageTrendPoint,
+} from './tokenUsageStatisticsApi';
 
 // Export types
 export type { GitRepoHistory };
@@ -76,6 +89,7 @@ export const bitfunAPI = {
   editorAi: editorAiAPI,
   reviewPlatform: reviewPlatformAPI,
   insights: insightsApi,
+  tokenUsageStatistics: tokenUsageStatisticsApi,
   speech: speechAPI,
   worktree: worktreeAPI,
   feedback: feedbackAPI,

@@ -15,15 +15,16 @@ use bitfun_runtime_ports::{
     AgentInputAttachment, AgentInteractionResponsePort, AgentLifecycleDeliveryPort,
     AgentLocalCommandTurnPort, AgentLocalCommandTurnRecordRequest,
     AgentLocalCommandTurnRecordResult, AgentMessageWorkspaceReferencesRequest,
-    AgentSessionArchiveRequest, AgentSessionArchiveStateRequest, AgentSessionClosePort,
-    AgentSessionCompactionPort, AgentSessionCompactionRequest, AgentSessionCompactionResult,
-    AgentSessionCreateRequest, AgentSessionCreateResult, AgentSessionDeleteRequest,
-    AgentSessionForkAtTurnRequest, AgentSessionForkBeforeTurnRequest, AgentSessionForkPort,
-    AgentSessionForkRequest, AgentSessionForkResult, AgentSessionLineageCancellationRequest,
-    AgentSessionLineageInspection, AgentSessionLineagePort, AgentSessionLineageRequest,
-    AgentSessionLineageSnapshot, AgentSessionLineageTranscriptRequest, AgentSessionListRequest,
-    AgentSessionManagementPort, AgentSessionModePort, AgentSessionModeUpdateRequest,
-    AgentSessionModelPort, AgentSessionModelSelectionUpdateRequest, AgentSessionModelUpdateRequest,
+    AgentModeCatalogEntry, AgentModeCatalogPort, AgentModeCatalogQuery, AgentSessionArchiveRequest,
+    AgentSessionArchiveStateRequest, AgentSessionClosePort, AgentSessionCompactionPort,
+    AgentSessionCompactionRequest, AgentSessionCompactionResult, AgentSessionCreateRequest,
+    AgentSessionCreateResult, AgentSessionDeleteRequest, AgentSessionForkAtTurnRequest,
+    AgentSessionForkBeforeTurnRequest, AgentSessionForkPort, AgentSessionForkRequest,
+    AgentSessionForkResult, AgentSessionLineageCancellationRequest, AgentSessionLineageInspection,
+    AgentSessionLineagePort, AgentSessionLineageRequest, AgentSessionLineageSnapshot,
+    AgentSessionLineageTranscriptRequest, AgentSessionListRequest, AgentSessionManagementPort,
+    AgentSessionModePort, AgentSessionModeUpdateRequest, AgentSessionModelPort,
+    AgentSessionModelSelectionUpdateRequest, AgentSessionModelUpdateRequest,
     AgentSessionRenameRequest, AgentSessionRevertPort, AgentSessionRevertRequest,
     AgentSessionRevertResult, AgentSessionRollbackToTurnOutcome, AgentSessionRollbackToTurnRequest,
     AgentSessionSummary, AgentSessionUsagePort, AgentSessionUsageRequest,
@@ -44,9 +45,20 @@ use bitfun_runtime_ports::{
 use bitfun_runtime_services::RuntimeServices;
 
 use crate::event_source::{AgentEventReceiver, AgentEventSource, AgentSessionEventReceiver};
-use crate::permission::{PermissionRequestEventReceiver, PermissionRequestManager};
+use crate::permission::{
+    PermissionRequestEventReceiver, PermissionRequestManager, PermissionRequestSnapshot,
+};
 use crate::post_call_hooks::RuntimeHookRegistry;
+use crate::user_questions::{get_user_input_manager, PendingUserQuestionSnapshot};
 use bitfun_runtime_ports::{PermissionReply, PermissionReplySource, PermissionRequest};
+
+#[path = "session_event_journal.rs"]
+mod session_event_journal;
+pub use session_event_journal::{
+    attach_session_event_cursor, SessionEventBackfill, SessionEventCursor, SessionEventJournal,
+    SessionEventProjectionSnapshot, SessionEventProjectionStore, StoredSessionEvents,
+    RUNTIME_EVENT_CURSOR_KEY, RUNTIME_EVENT_STREAM_ID_KEY,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RuntimeBuildError {
@@ -122,6 +134,18 @@ pub struct AgentSessionRestoreRequest {
 pub struct AgentSessionRestoreResult {
     pub session: AgentSessionSummary,
     pub state: crate::session_state::SessionState,
+}
+
+/// Authoritative live interactions required to re-attach a product Surface to
+/// a running Session after missing push events.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionInteractionSnapshot {
+    pub session_id: String,
+    #[serde(default)]
+    pub user_questions: PendingUserQuestionSnapshot,
+    #[serde(default)]
+    pub permissions: PermissionRequestSnapshot,
 }
 
 #[async_trait::async_trait]
@@ -207,10 +231,12 @@ pub struct AgentRuntime {
     services: Option<RuntimeServices>,
     event_stream: Option<AgentEventStream>,
     event_source: Option<AgentEventSource>,
+    session_event_journal: Option<Arc<SessionEventJournal>>,
     tool_registry: Option<Arc<dyn RuntimeToolRegistry>>,
     harness_registry: Option<Arc<HarnessRegistry>>,
     hook_registry: RuntimeHookRegistry,
     agent_registry: Option<Arc<dyn RuntimeAgentRegistry>>,
+    mode_catalog: Option<Arc<dyn AgentModeCatalogPort>>,
     plugin_runtime: PluginRuntimeBinding,
 }
 
@@ -371,6 +397,13 @@ impl std::fmt::Debug for AgentRuntime {
                 &self.event_source.as_ref().map(|_| "<AgentEventSource>"),
             )
             .field(
+                "session_event_journal",
+                &self
+                    .session_event_journal
+                    .as_ref()
+                    .map(|_| "<SessionEventJournal>"),
+            )
+            .field(
                 "tool_registry",
                 &self.tool_registry.as_ref().map(|_| "<RuntimeToolRegistry>"),
             )
@@ -431,10 +464,12 @@ pub struct AgentRuntimeBuilder {
     services: Option<RuntimeServices>,
     event_stream: Option<AgentEventStream>,
     event_source: Option<AgentEventSource>,
+    session_event_journal: Option<Arc<SessionEventJournal>>,
     tool_registry: Option<Arc<dyn RuntimeToolRegistry>>,
     harness_registry: Option<Arc<HarnessRegistry>>,
     hook_registry: RuntimeHookRegistry,
     agent_registry: Option<Arc<dyn RuntimeAgentRegistry>>,
+    mode_catalog: Option<Arc<dyn AgentModeCatalogPort>>,
     plugin_runtime: PluginRuntimeBinding,
 }
 
@@ -598,6 +633,11 @@ impl AgentRuntimeBuilder {
         self
     }
 
+    pub fn with_session_event_journal(mut self, journal: Arc<SessionEventJournal>) -> Self {
+        self.session_event_journal = Some(journal);
+        self
+    }
+
     pub fn with_tool_registry(mut self, registry: Arc<dyn RuntimeToolRegistry>) -> Self {
         self.tool_registry = Some(registry);
         self
@@ -615,6 +655,11 @@ impl AgentRuntimeBuilder {
 
     pub fn with_agent_registry(mut self, registry: Arc<dyn RuntimeAgentRegistry>) -> Self {
         self.agent_registry = Some(registry);
+        self
+    }
+
+    pub fn with_mode_catalog(mut self, port: Arc<dyn AgentModeCatalogPort>) -> Self {
+        self.mode_catalog = Some(port);
         self
     }
 
@@ -650,10 +695,12 @@ impl AgentRuntimeBuilder {
             services,
             event_stream,
             event_source,
+            session_event_journal,
             tool_registry,
             harness_registry,
             hook_registry,
             agent_registry,
+            mode_catalog,
             plugin_runtime,
         } = self;
 
@@ -687,10 +734,12 @@ impl AgentRuntimeBuilder {
             services,
             event_stream,
             event_source,
+            session_event_journal,
             tool_registry,
             harness_registry,
             hook_registry,
             agent_registry,
+            mode_catalog,
             plugin_runtime,
         })
     }
@@ -793,6 +842,13 @@ pub struct AgentRunHandle {
 }
 
 impl AgentRuntime {
+    /// Attach the host-owned Session event projection after a narrow Runtime
+    /// facade has been assembled from existing product ports.
+    pub fn with_session_event_journal(mut self, journal: Arc<SessionEventJournal>) -> Self {
+        self.session_event_journal = Some(journal);
+        self
+    }
+
     pub fn subscribe_events(&self) -> Result<AgentEventReceiver, RuntimeError> {
         self.event_source
             .as_ref()
@@ -815,6 +871,61 @@ impl AgentRuntime {
             .as_ref()
             .map(|manager| manager.interactive_pending_requests())
             .ok_or(RuntimeError::MissingPermissionRequestManager)
+    }
+
+    /// Capture every blocking interaction needed to resume rendering one
+    /// Session. Push events remain the low-latency path; this snapshot is the
+    /// gap-recovery contract for reconnecting or device-switching surfaces.
+    pub fn session_interaction_snapshot(&self, session_id: &str) -> SessionInteractionSnapshot {
+        let user_questions = get_user_input_manager().pending_question_snapshot(session_id);
+        let permissions =
+            self.permission_requests
+                .as_ref()
+                .map(|manager| {
+                    let mut snapshot = manager.interactive_pending_snapshot();
+                    snapshot.requests.retain(|request| {
+                        request.session_id == session_id
+                            || request.delegation.as_ref().is_some_and(|delegation| {
+                                delegation.parent_session_id == session_id
+                            })
+                    });
+                    snapshot
+                })
+                .unwrap_or_default();
+        SessionInteractionSnapshot {
+            session_id: session_id.to_string(),
+            user_questions,
+            permissions,
+        }
+    }
+
+    /// Materialized current-Turn projection owned by the Runtime Host.
+    ///
+    /// Unlike a live receiver, this remains available while no client is
+    /// subscribed and is therefore safe for GUI/TUI/Peer reattachment.
+    pub fn session_event_projection_snapshot(
+        &self,
+        session_id: &str,
+    ) -> Option<SessionEventProjectionSnapshot> {
+        self.session_event_journal
+            .as_ref()
+            .map(|journal| journal.snapshot(session_id))
+    }
+
+    /// Incremental catch-up for a client that already applied up to `cursor`.
+    ///
+    /// Prefer this over a snapshot when a client detects a delivery gap: it
+    /// returns only what was missed, so a live projection is repaired instead
+    /// of rebuilt.
+    pub fn session_events_since(
+        &self,
+        session_id: &str,
+        stream_id: &str,
+        cursor: u64,
+    ) -> Option<SessionEventBackfill> {
+        self.session_event_journal
+            .as_ref()
+            .map(|journal| journal.events_since(session_id, stream_id, cursor))
     }
 
     pub fn permission_request_dialog_turn_id(
@@ -973,6 +1084,23 @@ impl AgentRuntime {
             .as_ref()
             .map(|registry| registry.agent_ids(query))
             .unwrap_or_default()
+    }
+
+    pub async fn list_agent_modes(
+        &self,
+        query: AgentModeCatalogQuery,
+    ) -> Result<Vec<AgentModeCatalogEntry>, RuntimeError> {
+        self.mode_catalog
+            .as_ref()
+            .ok_or_else(|| {
+                RuntimeError::Port(PortError::new(
+                    PortErrorKind::NotAvailable,
+                    "agent mode catalog port is not registered",
+                ))
+            })?
+            .list_modes(query)
+            .await
+            .map_err(RuntimeError::from)
     }
 
     pub async fn create_session(
@@ -1750,6 +1878,33 @@ mod tests {
         ThreadGoal, ThreadGoalStatus, TranscriptContent, TranscriptMessage, WorkspacePort,
     };
     use bitfun_runtime_services::RuntimeServicesBuilder;
+
+    #[test]
+    fn session_interaction_snapshot_wire_is_additive_and_camel_case() {
+        let legacy: SessionInteractionSnapshot = serde_json::from_value(serde_json::json!({
+            "sessionId": "session-1"
+        }))
+        .expect("older payloads may omit additive mailbox fields");
+        assert!(legacy.user_questions.questions.is_empty());
+        assert!(legacy.permissions.requests.is_empty());
+
+        let encoded = serde_json::to_value(SessionInteractionSnapshot {
+            session_id: "session-1".to_string(),
+            user_questions: PendingUserQuestionSnapshot {
+                revision: 4,
+                questions: Vec::new(),
+            },
+            permissions: PermissionRequestSnapshot {
+                revision: 7,
+                requests: Vec::new(),
+            },
+        })
+        .expect("interaction snapshot should serialize");
+        assert_eq!(encoded["sessionId"], "session-1");
+        assert_eq!(encoded["userQuestions"]["revision"], 4);
+        assert_eq!(encoded["permissions"]["revision"], 7);
+        assert!(encoded.get("user_questions").is_none());
+    }
 
     #[derive(Debug)]
     struct TestRuntimePort {

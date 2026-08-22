@@ -13,7 +13,8 @@ use bitfun_agent_runtime::sdk::{
     AgentLocalCommandTurnRecordRequest, AgentRuntime, AgentSessionArchiveStateRequest,
     AgentSessionDeleteRequest, AgentSessionForkAtTurnRequest, AgentSessionLineageRequest,
     AgentSessionLineageSnapshot, AgentSessionRenameRequest, AgentSessionUsageRequest,
-    PortErrorKind, RuntimeError,
+    PortErrorKind, RuntimeError, SessionEventBackfill, SessionEventJournal,
+    SessionEventProjectionSnapshot, SessionInteractionSnapshot,
 };
 use bitfun_core::agentic::coordination::{ConversationCoordinator, DialogScheduler};
 use bitfun_core::agentic::core::Session;
@@ -125,6 +126,8 @@ fn local_command_turn_record_request(
 pub(crate) struct DesktopSessionViewRestore {
     pub session: Session,
     pub turns: Vec<DialogTurnData>,
+    pub interaction_snapshot: SessionInteractionSnapshot,
+    pub runtime_event_snapshot: Option<SessionEventProjectionSnapshot>,
     pub current_context_usage: Option<SessionContextUsage>,
     pub total_turn_count: usize,
     pub turn_catalog: SessionTurnCatalog,
@@ -288,11 +291,13 @@ impl DesktopSessionApplication {
         workspace_service: Arc<WorkspaceService>,
         ssh_manager: Arc<RwLock<Option<SSHConnectionManager>>>,
         host_effects: Arc<dyn DesktopSessionHostEffects>,
+        session_event_journal: Arc<SessionEventJournal>,
     ) -> Result<Self, String> {
-        let agent_runtime = CoreProductAgentRuntime::build_session_surface(
+        let agent_runtime = CoreProductAgentRuntime::build_session_surface_with_event_journal(
             coordinator.clone(),
             scheduler.clone(),
             token_usage_service,
+            session_event_journal,
         )?;
         let compatibility = CoreAgentRuntimeCompatibility::build(coordinator.clone(), scheduler);
 
@@ -378,6 +383,32 @@ impl DesktopSessionApplication {
     ) -> DesktopSessionApplicationResult<()> {
         let scope = self.resolved_scope(request).await;
         self.ensure_runtime_ownership(&scope)
+    }
+
+    pub(crate) async fn ensure_configured_plugin_instance(
+        &self,
+        request: DesktopSessionScopeRequest,
+        project_id: Option<String>,
+    ) -> DesktopSessionApplicationResult<Option<serde_json::Value>> {
+        let scope = self.resolved_scope(request).await;
+        self.ensure_runtime_ownership(&scope)?;
+        if scope.remote_connection_id.is_some() {
+            log::debug!(
+                "Configured plugin host activation skipped for remote workspace: workspace_path={}",
+                scope.workspace_path
+            );
+            return Ok(None);
+        }
+        let workspace_path = PathBuf::from(&scope.workspace_path);
+        bitfun_core::plugin_host::ensure_configured_plugin_instance(
+            crate::PLUGIN_HOST_LAUNCH_POLICY,
+            workspace_path.clone(),
+            workspace_path,
+            project_id,
+            serde_json::Map::new(),
+        )
+        .await
+        .map_err(|error| DesktopSessionApplicationError::Core(error.to_string()))
     }
 
     pub(crate) async fn list_persisted_sessions(
@@ -755,6 +786,27 @@ impl DesktopSessionApplication {
             .map_err(desktop_core_session_error)
     }
 
+    pub(crate) fn session_interaction_snapshot(
+        &self,
+        session_id: &str,
+    ) -> SessionInteractionSnapshot {
+        self.agent_runtime.session_interaction_snapshot(session_id)
+    }
+
+    /// Incremental catch-up for a client that already applied up to `cursor`.
+    ///
+    /// Workspace-agnostic: the journal belongs to this Runtime Host, not to any
+    /// workspace filesystem, so no session scope is resolved here.
+    pub(crate) fn session_events_since(
+        &self,
+        session_id: &str,
+        stream_id: &str,
+        cursor: u64,
+    ) -> Option<SessionEventBackfill> {
+        self.agent_runtime
+            .session_events_since(session_id, stream_id, cursor)
+    }
+
     pub(crate) async fn restore_session_view<F>(
         &self,
         request: DesktopSessionScopeRequest,
@@ -787,6 +839,10 @@ impl DesktopSessionApplication {
             .loaded_session_snapshot(session_id)
             .map_err(|error| DesktopSessionApplicationError::Core(error.to_string()))?;
         overlay_live_session_state(&mut session, live_session);
+        let interaction_snapshot = self.agent_runtime.session_interaction_snapshot(session_id);
+        let runtime_event_snapshot = self
+            .agent_runtime
+            .session_event_projection_snapshot(session_id);
         let current_context_usage = self
             .compatibility
             .load_persisted_session_metadata(&storage_path, session_id)
@@ -797,6 +853,8 @@ impl DesktopSessionApplication {
         Ok(DesktopSessionViewRestore {
             session,
             turns,
+            interaction_snapshot,
+            runtime_event_snapshot,
             current_context_usage,
             total_turn_count,
             turn_catalog,

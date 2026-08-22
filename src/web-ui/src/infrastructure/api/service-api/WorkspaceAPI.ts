@@ -72,6 +72,12 @@ interface WorkspaceSearchRepoStatusRaw {
   workspaceOverlayRoot: string;
   phase: WorkspaceSearchIndexStatus['repoStatus']['phase'];
   snapshotKey?: string | null;
+  baseHeadCommit?: string | null;
+  workspaceHeadCommit?: string | null;
+  baseAdvanceInProgress: boolean;
+  baseAdvanceTargetHead?: string | null;
+  baseDeltaDepth: number;
+  baseCompactionRecommended: boolean;
   lastProbeUnixSecs?: number | null;
   lastRebuildUnixSecs?: number | null;
   dirtyFiles: {
@@ -79,10 +85,11 @@ interface WorkspaceSearchRepoStatusRaw {
     deleted: number;
     new: number;
   };
-  rebuildRecommended: boolean;
   activeTaskId?: string | null;
   probeHealthy: boolean;
+  workspaceProbePending?: boolean;
   lastError?: string | null;
+  lastMaintenanceError?: string | null;
   overlay?: WorkspaceSearchIndexStatus['repoStatus']['overlay'] | null;
 }
 
@@ -102,9 +109,17 @@ interface WorkspaceSearchTaskStatusRaw {
   error?: string | null;
 }
 
+interface WorkspaceSearchAutoIndexStatusRaw {
+  decision: NonNullable<WorkspaceSearchIndexStatus['autoIndex']>['decision'];
+  threshold: number;
+  indexableFiles?: number | null;
+  reason?: string | null;
+}
+
 interface WorkspaceSearchIndexStatusRaw {
   repoStatus: WorkspaceSearchRepoStatusRaw;
   activeTask?: WorkspaceSearchTaskStatusRaw | null;
+  autoIndex?: WorkspaceSearchAutoIndexStatusRaw | null;
 }
 
 interface WorkspaceSearchIndexTaskHandleRaw {
@@ -147,13 +162,20 @@ function mapWorkspaceSearchRepoStatus(raw: WorkspaceSearchRepoStatusRaw): Worksp
     workspaceOverlayRoot: raw.workspaceOverlayRoot,
     phase: raw.phase,
     snapshotKey: raw.snapshotKey ?? null,
+    baseHeadCommit: raw.baseHeadCommit ?? null,
+    workspaceHeadCommit: raw.workspaceHeadCommit ?? null,
+    baseAdvanceInProgress: raw.baseAdvanceInProgress,
+    baseAdvanceTargetHead: raw.baseAdvanceTargetHead ?? null,
+    baseDeltaDepth: raw.baseDeltaDepth,
+    baseCompactionRecommended: raw.baseCompactionRecommended,
     lastProbeUnixSecs: raw.lastProbeUnixSecs ?? null,
     lastRebuildUnixSecs: raw.lastRebuildUnixSecs ?? null,
     dirtyFiles: raw.dirtyFiles,
-    rebuildRecommended: raw.rebuildRecommended,
     activeTaskId: raw.activeTaskId ?? null,
     probeHealthy: raw.probeHealthy,
+    workspaceProbePending: raw.workspaceProbePending ?? false,
     lastError: raw.lastError ?? null,
+    lastMaintenanceError: raw.lastMaintenanceError ?? null,
     overlay: raw.overlay ?? null,
   };
 }
@@ -178,10 +200,22 @@ function mapWorkspaceSearchTaskStatus(
   };
 }
 
+function mapWorkspaceSearchAutoIndexStatus(
+  raw: WorkspaceSearchAutoIndexStatusRaw
+): NonNullable<WorkspaceSearchIndexStatus['autoIndex']> {
+  return {
+    decision: raw.decision,
+    threshold: raw.threshold,
+    indexableFiles: raw.indexableFiles ?? null,
+    reason: raw.reason ?? null,
+  };
+}
+
 function mapWorkspaceSearchIndexStatus(raw: WorkspaceSearchIndexStatusRaw): WorkspaceSearchIndexStatus {
   return {
     repoStatus: mapWorkspaceSearchRepoStatus(raw.repoStatus),
     activeTask: raw.activeTask ? mapWorkspaceSearchTaskStatus(raw.activeTask) : null,
+    autoIndex: raw.autoIndex ? mapWorkspaceSearchAutoIndexStatus(raw.autoIndex) : null,
   };
 }
 

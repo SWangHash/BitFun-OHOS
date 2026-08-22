@@ -77,6 +77,7 @@ pub(crate) async fn dispatch(
         }
         "load_session_turn_window" => session::load_session_turn_window(state, args).await,
         "load_session_turns" => session::load_session_turns(state, args).await,
+        "load_session_event_backfill" => session::load_session_event_backfill(state, args),
         "restore_session_view" => session::restore_session_view(state, args).await,
         "restore_session_with_turns" => session::restore_session_with_turns(state, args).await,
         "restore_session" => session::restore_session(state, args).await,
@@ -119,6 +120,7 @@ pub(crate) async fn dispatch(
 
         // Git (local workspace only)
         "git_is_repository" => git::git_is_repository(args).await,
+        "git_get_repository_trust" => git::git_get_repository_trust(args).await,
 
         // Soft empty / no-op for Desktop-only subsystems
         "notify_cron_host_ready" => soft::notify_cron_host_ready().await,
@@ -129,6 +131,7 @@ pub(crate) async fn dispatch(
 
         // System
         "get_system_info" => system::get_system_info().await,
+        "get_token_usage_statistics" => system::get_token_usage_statistics(state, args).await,
 
         other => Err(format!(
             "command '{other}' is not supported on CLI peer host"
