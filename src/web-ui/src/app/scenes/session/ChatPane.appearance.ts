@@ -9,5 +9,8 @@ export const chatPaneAppearanceDescriptor: AppearanceSurfaceDescriptor = {
       visualRole: 'continuous-surface',
       continuityGroup: 'session-workspace',
     },
+    { id: 'modelNotice', propertyProfile: 'paint', visualRole: 'content' },
+    { id: 'modelNoticeCopy', propertyProfile: 'paint', visualRole: 'content' },
+    { id: 'modelNoticeAction', propertyProfile: 'control', visualRole: 'control' },
   ],
 };

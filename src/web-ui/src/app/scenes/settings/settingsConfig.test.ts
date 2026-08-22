@@ -16,6 +16,13 @@ describe('settings deep-link targets', () => {
     });
   });
 
+  it('routes model creation targets into the model settings flow', () => {
+    expect(normalizeSettingsTarget('models:create')).toEqual({
+      tab: 'models',
+      focus: 'model-create',
+    });
+  });
+
   it('keeps Hook management discoverable through the owning settings entry', () => {
     const externalSources = SETTINGS_CATEGORIES
       .flatMap((category) => category.tabs)

@@ -3,13 +3,18 @@ export function openModelSettings(): void {
     window.dispatchEvent(new CustomEvent('scene:open', { detail: { sceneId: 'settings' } }));
   };
 
-  void import('@/app/scenes/settings/settingsStore')
-    .then(({ useSettingsStore }) => {
-      // Set the tab before opening the scene so SettingsScene mounts directly on
-      // the models panel instead of flashing the default (basics) tab first.
+  void Promise.all([
+    import('@/app/scenes/settings/settingsStore'),
+    import('@/app/scenes/settings/settingsContentRegistry'),
+  ])
+    .then(([{ useSettingsStore }, { preloadSettingsTabContent }]) => {
+      // Set the tab and warm its chunk/i18n before opening the scene. This is
+      // important for HarmonyOS WebView, where a lazy chunk can otherwise be
+      // evaluated after the scene has already started rendering.
       useSettingsStore.getState().setActiveTab('models');
-      openSettingsScene();
+      return preloadSettingsTabContent('models');
     })
+    .then(openSettingsScene)
     .catch(() => {
       // Opening the scene still gives the user a path to repair model settings.
       openSettingsScene();
