@@ -37,9 +37,10 @@ export function useCopyTextAction({
       return;
     }
 
-    const didCopy = await copyTextToClipboard(text);
-    if (!didCopy) {
-      notificationService.error(failureMessage);
+    const result = await copyTextToClipboard(text);
+    if (!result.ok) {
+      const detail = result.error ? `${failureMessage}: ${result.error}` : failureMessage;
+      notificationService.error(detail);
       return;
     }
 

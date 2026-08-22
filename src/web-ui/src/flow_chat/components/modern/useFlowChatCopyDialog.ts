@@ -42,9 +42,9 @@ export function useFlowChatCopyDialog(): void {
         return;
       }
 
-      copyTextToClipboard(fullText).then(success => {
-        if (!success) {
-          notificationService.error(i18nService.t('errors:general.copyFailed'));
+      copyTextToClipboard(fullText).then(result => {
+        if (!result.ok) {
+          notificationService.error(i18nService.t('errors:general.copyFailed', { error: result.error ?? '' }));
         }
       });
     });

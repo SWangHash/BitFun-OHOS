@@ -11,7 +11,7 @@
 import React, { useState, useEffect, useId, useRef, useCallback, useMemo, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
-import { ChevronDown, Check, Zap } from 'lucide-react';
+import { ChevronDown, Check, Settings, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
@@ -29,6 +29,7 @@ import { globalEventBus } from '@/infrastructure/event-bus';
 import type { AIModelConfig, AgentModelDefaultsConfig, DefaultModelsConfig } from '@/infrastructure/config/types';
 import { Switch, Tooltip } from '@/component-library';
 import { notificationService } from '@/shared/notification-system';
+import { openModelSettings } from '@/shared/ai-errors/aiErrorActions';
 import { FlowChatStore } from '../store/FlowChatStore';
 import { getModelMaxTokens } from '../services/flow-chat-manager/SessionModule';
 import { acpClientIdFromAgentType } from '../utils/acpSession';
@@ -1399,6 +1400,21 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         >
           <div className="bitfun-model-selector__dropdown-header" data-bf-component="model-selector" data-bf-part="dropdownHeader">
             <span>{t('modelSelector.modelSelection')}</span>
+            <button
+              type="button"
+              className="bitfun-model-selector__settings-btn"
+              data-testid="chat-model-selector-settings"
+              aria-label={t('modelSelector.openSettings')}
+              title={t('modelSelector.openSettings')}
+              data-bf-component="model-selector"
+              data-bf-part="settingsButton"
+              onClick={(e) => {
+                e.stopPropagation();
+                void openModelSettings();
+              }}
+            >
+              <Settings size={11} className="bitfun-model-selector__settings-btn-icon" />
+            </button>
           </div>
 
           <Tooltip content={t('modelSelector.autoModelDesc')} placement="right">

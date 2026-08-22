@@ -596,8 +596,9 @@ pub fn create_main_window(
             }
         });
 
-    // Keep HTML5 drag-and-drop working inside the webview for desktop UI drag targets.
-    builder = builder.disable_drag_drop_handler();
+    // Keep the native drag-drop handler enabled on the main window. External
+    // files are delivered through Webview::onDragDropEvent with real paths;
+    // disabling it makes browser File.path unavailable and drops appear inert.
 
     // Block top-level webview reloads after the initial page while allowing the
     // local iframe documents used by sandboxed MiniApps.

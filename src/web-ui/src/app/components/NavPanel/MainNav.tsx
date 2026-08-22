@@ -272,6 +272,14 @@ const MainNav: React.FC<MainNavProps> = ({
 
   const handleCreateAssistantSession = useCallback(async (workspace: WorkspaceInfo) => {
     try {
+      const reusableId = findReusableEmptySessionId(workspace, 'Claw');
+      if (reusableId) {
+        await openMainSession(reusableId, {
+          workspaceId: workspace.id,
+          activateWorkspace: setActiveWorkspace,
+        });
+        return;
+      }
       const sessionId = await flowChatManager.createChatSession(
         flowChatSessionConfigForWorkspace(workspace),
         'Claw'

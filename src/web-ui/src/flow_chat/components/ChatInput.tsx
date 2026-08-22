@@ -11,6 +11,8 @@ import { ArrowUp, BotMessageSquare, Image, RotateCcw, Plus, X, Sparkles, Loader2
 import { ContextDropZone, useContextStore } from '../../shared/context-system';
 import { useActiveSessionState } from '@/flow_chat/hooks';
 import { i18nService } from '@/infrastructure/i18n';
+import { workspaceAPI } from '@/infrastructure/api';
+import { useNativeFileDrop } from '@/infrastructure/hooks/useNativeFileDrop';
 import { resolveSessionTitle } from '../utils/sessionTitle';
 import {
   RichTextInput,
@@ -40,10 +42,12 @@ import type {
   ImageContext,
   SessionReferenceContext,
 } from '@/types/context.ts';
+import { WorkspaceKind } from '@/shared/types';
 import { SmartRecommendations } from './smart-recommendations';
 import { useCurrentWorkspace, useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { flowChatSessionConfigForCurrentWorkspace } from '@/app/utils/projectSessionWorkspace';
-import { createImageContextFromFile, createImageContextFromClipboard } from '../utils/imageUtils';
+import { createImageContextFromFile, createImageContextFromClipboard, isImageFile } from '../utils/imageUtils';
+import { resolveNativeDroppedPaths } from '../utils/nativeFileDrop';
 import {
   getInlineSkillPickerQuery,
   getInlineSlashCommandPickerQuery,
@@ -493,7 +497,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     [contexts],
   );
   const currentImageCount = imageContexts.length;
-  
+  const nativeDropZoneRef = useRef<HTMLDivElement>(null);
+  const [isNativeDragOverInput, setIsNativeDragOverInput] = useState(false);
+
   const activeSessionState = useActiveSessionState();
   const activeBtwSessionTab = useAgentCanvasStore(state => selectActiveBtwSessionTab(state as any));
   const [flowChatState, setFlowChatState] = useState<FlowChatState>(() => FlowChatStore.getInstance().getState());
@@ -916,6 +922,46 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     workspacePath: currentWorkspacePath,
     workspaceName: currentWorkspaceName,
   } = useCurrentWorkspace();
+  useNativeFileDrop({
+    targetRef: nativeDropZoneRef,
+    onDragOver: setIsNativeDragOverInput,
+    onDrop: async (paths) => {
+      const targetsRemoteWorkspace = workspace?.workspaceKind === WorkspaceKind.Remote
+        || Boolean(effectiveTargetSession?.remoteConnectionId || effectiveTargetSession?.config.remoteConnectionId);
+      if (targetsRemoteWorkspace) {
+        notificationService.warning(t('input.nativeDropRemoteUnsupported'), { duration: 4000 });
+        return;
+      }
+      const contexts = await resolveNativeDroppedPaths(
+        paths,
+        (filePath) => workspaceAPI.getFileMetadata(filePath),
+        (filePath, error) => log.warn('Failed to inspect native dropped path', { filePath, error }),
+      );
+      if (contexts.length === 0) {
+        notificationService.warning(t('input.nativeDropFailed'), { duration: 4000 });
+        return;
+      }
+      let remainingImages = CHAT_INPUT_CONFIG.image.maxCount - currentImageCount;
+      let imageLimitNotified = false;
+      for (const context of contexts) {
+        if (context.type === 'image') {
+          if (remainingImages <= 0) {
+            if (!imageLimitNotified) {
+              notificationService.warning(t('input.maxImagesWarning', { count: CHAT_INPUT_CONFIG.image.maxCount }), { duration: 3000 });
+              imageLimitNotified = true;
+            }
+            continue;
+          }
+          remainingImages -= 1;
+        }
+        addContext(context);
+        if (context.type !== 'image' && richTextInputRef.current && (richTextInputRef.current as any).insertTag) {
+          (richTextInputRef.current as any).insertTag(context);
+        }
+        if (!inputState.isActive) dispatchInput({ type: 'ACTIVATE' });
+      }
+    },
+  });
   // A host that explicitly registers workspacePath owns the composer
   // workspace. Even an empty registered path is intentional isolation and
   // must not leak the user's active project into an Agentic MiniApp surface.
@@ -5167,7 +5213,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (!derivedState) return <span className="bitfun-chat-input__send-action" data-bf-component="chat-input" data-bf-part="sendButton" data-bf-action="send" data-bf-state="disabled"><IconButton className="bitfun-chat-input__send-button" disabled size="small"><ArrowUp size={11} /></IconButton></span>;
 
     const { sendButtonMode, hasQueuedInput } = derivedState;
-    
+
     if (sendButtonMode === 'cancel') {
       return (
         <span className="bitfun-chat-input__send-action" data-bf-component="chat-input" data-bf-part="sendButton" data-bf-action="cancel">
@@ -5254,7 +5300,36 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       {deepReviewConsentDialog}
       <ContextDropZone
         acceptedTypes={['file', 'directory', 'image', 'code-snippet', 'mermaid-diagram']}
-        className="bitfun-chat-input-drop-zone"
+        rootRef={nativeDropZoneRef}
+        className={`bitfun-chat-input-drop-zone ${isNativeDragOverInput ? 'bitfun-context-drop-zone--can-accept' : ''}`}
+        resolveExternalFiles={async (files) => {
+          const items: ContextItem[] = [];
+          const toFileContext = (file: File, filePath: string): FileContext => ({
+            id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+            type: 'file',
+            filePath,
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType: file.type,
+            timestamp: Date.now(),
+          });
+          for (const file of files) {
+            const filePath = (file as any).path || '';
+            if (isImageFile(file.name)) {
+              try {
+                items.push(await createImageContextFromFile(file));
+                continue;
+              } catch {
+                if (!filePath) continue;
+                items.push(toFileContext(file, filePath));
+                continue;
+              }
+            }
+            if (!filePath) continue;
+            items.push(toFileContext(file, filePath));
+          }
+          return items;
+        }}
         onContextAdded={(context) => {
           if (context.type === 'image' && currentImageCount >= CHAT_INPUT_CONFIG.image.maxCount) {
             notificationService.warning(t('input.maxImagesWarning', { count: CHAT_INPUT_CONFIG.image.maxCount }), { duration: 3000 });
