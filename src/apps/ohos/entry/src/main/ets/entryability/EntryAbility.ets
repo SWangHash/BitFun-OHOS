@@ -10,10 +10,12 @@ import { window, display } from '@kit.ArkUI';
 import { RustAbility } from '@ohos-rs/ability';
 import { CommonEventListener } from '../utils/CommonEventListener';
 import { harmonyShare, systemShare } from '@kit.ShareKit';
-import { fileIo, fileUri } from '@kit.CoreFileKit';
+import { fileIo, fileUri, Environment } from '@kit.CoreFileKit';
 import { uniformTypeDescriptor } from '@kit.ArkData';
 import { calendarManager } from '@kit.CalendarKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { buffer } from '@kit.ArkTS';
+import { notificationManager } from '@kit.NotificationKit';
 import RustModule from 'libbitfun_desktop_lib.so';
 import { AppUpdater, UpdateCheckResult } from '../utils/AppUpdater';
 import { CommonUtils } from '../utils/CommonUtils';
@@ -57,6 +59,14 @@ interface SetMinSizeArg {
 }
 interface SetResizableArg {
   resizable: boolean;
+}
+interface SaveFileToDownloadsArg {
+  fileName: string;
+  dataBase64: string;
+}
+interface SendNotificationArg {
+  title: string;
+  body: string | null;
 }
 interface PointResult {
   x: number;
@@ -565,6 +575,49 @@ export default class EntryAbility extends RustAbility {
       } catch (err) {
         hilog.error(201, 'vnext', `reveal in explorer failed ${JSON.stringify(err)}`)
       }
+      return '';
+    });
+    // Save a binary blob (base64) to <Download>/BitFun/<fileName> and return
+    // the path. Mirrors the desktop `downloadDir` + `writeFile` save so the
+    // web-ui can show the path and reveal it. `READ_WRITE_DOWNLOAD_DIRECTORY`
+    // is declared in module.json5. Download dir via `Environment.getUserDownloadDir()`
+    // (Core_File_Kit, 2-in-1/PC); base64 decode via `buffer.from` (ArkTS base lib).
+    RustModule.registerArktsFunction('save_file_to_downloads_ohos', async (err: Error, arg: string): Promise<string> => {
+      const params: SaveFileToDownloadsArg = JSON.parse(arg);
+      const downloadDir = Environment.getUserDownloadDir();
+      const bitfunDir = `${downloadDir}/BitFun`;
+      if (!fileIo.accessSync(bitfunDir, fileIo.AccessModeType.EXIST)) {
+        await fileIo.mkdir(bitfunDir);
+      }
+      const targetPath = `${bitfunDir}/${params.fileName}`;
+      const file = fileIo.openSync(targetPath, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+      const dataBuffer = buffer.from(params.dataBase64, 'base64');
+      fileIo.writeSync(file.fd, dataBuffer.buffer);
+      fileIo.closeSync(file);
+      return targetPath;
+    });
+    // Send an OS-level notification (HarmonyOS Notification Kit) when a dialog
+    // turn completes in the background, mirroring the desktop
+    // send_system_notification. `requestEnableNotification()` prompts the user
+    // once (idempotent afterwards); `publish` shows the notification.
+    RustModule.registerArktsFunction('send_system_notification_ohos', async (err: Error, arg: string): Promise<string> => {
+      const params: SendNotificationArg = JSON.parse(arg);
+      try {
+        await notificationManager.requestEnableNotification();
+      } catch (e) {
+        // user denied or unavailable; publish will no-op below
+      }
+      const request: notificationManager.NotificationRequest = {
+        id: Date.now() % 2147483647,
+        content: {
+          contentType: notificationManager.ContentType.NOTIFICATION_CONTENT_BASIC_TEXT as number,
+          normal: {
+            title: params.title,
+            text: params.body ?? '',
+          },
+        },
+      };
+      await notificationManager.publish(request);
       return '';
     });
     RustModule.registerArktsFunction('set_theme_mode', async (err: Error, arg: string): Promise<string> => {

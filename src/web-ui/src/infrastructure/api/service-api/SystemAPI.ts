@@ -4,6 +4,7 @@ import { api } from './ApiClient';
 import { createTauriCommandError } from '../errors/TauriCommandError';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { createLogger } from '@/shared/utils/logger';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 
 
 const log = createLogger('SystemAPI');
@@ -203,8 +204,22 @@ export class SystemAPI {
     return false;
   }
 
-  /** Desktop only: send an OS-level desktop notification. */
+  /**
+   * Send an OS-level notification. On HarmonyOS this routes through the
+   * `send_system_notification_ohos` ArkTS function (Notification Kit); on the
+   * Tauri desktop runtime it invokes the desktop `send_system_notification`.
+   */
   async sendSystemNotification(title: string, body?: string): Promise<void> {
+    if (isOpenHarmonyRuntime()) {
+      try {
+        await api.invoke('send_system_notification_ohos', {
+          arg: JSON.stringify({ title, body: body ?? null }),
+        });
+      } catch (error) {
+        log.warn('Failed to send OHOS system notification', { title, error });
+      }
+      return;
+    }
     if (typeof window === 'undefined' || !('__TAURI__' in window)) {
       return;
     }
