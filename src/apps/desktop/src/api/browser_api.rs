@@ -191,7 +191,7 @@ fn parse_browser_url(raw: &str) -> Result<tauri::Url, String> {
         .parse::<tauri::Url>()
         .map_err(|e| format!("invalid url: {e}"))?;
     match url.scheme() {
-        "http" | "https" => Ok(url),
+        "http" | "https" | "data" => Ok(url),
         scheme => Err(format!("unsupported protocol: {scheme}")),
     }
 }

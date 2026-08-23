@@ -1410,6 +1410,7 @@
     "generateFailed": "生成圖片失敗",
     "fileNamePrefix": "BitFun對話",
     "exportSuccess": "圖片已導出：{{filePath}}",
+    "exportDownloaded": "圖片已下載",
     "exportSuccessPrefix": "圖片已導出：",
     "exportFailed": "導出圖片失敗，請重試",
     "exporting": "正在導出...",
