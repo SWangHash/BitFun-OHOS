@@ -136,6 +136,7 @@ const LOCAL_ONLY_COMMANDS = new Set([
  */
 const HIGH_PRIORITY_COMMANDS = new Set([
   'restore_session_view',
+  'load_session_event_backfill',
   'restore_session_with_turns',
   'restore_session',
   'load_session_turn_window',
@@ -187,6 +188,7 @@ const HIGH_PRIORITY_COMMANDS = new Set([
 const RETRYABLE_READ_COMMANDS = new Set([
   'initialize_workspace_startup_state',
   'restore_session_view',
+  'load_session_event_backfill',
   'restore_session_with_turns',
   'load_session_turn_window',
   'load_session_turns',
@@ -347,6 +349,8 @@ export interface PeerDeviceTransportHooks {
   supportsIdempotentDialogSubmit?: boolean;
   /** Enables targeted rollback only when the target host owns the transaction. */
   supportsTargetedSessionRollback?: boolean;
+  /** Enables host-local usage statistics only when the target implements it. */
+  supportsTokenUsageStatistics?: boolean;
 }
 
 interface HostInvokeResultEnvelope {
@@ -475,7 +479,9 @@ export class PeerDeviceTransportAdapter implements ITransportAdapter {
   setHostCapabilities(
     capabilities: Pick<
       PeerDeviceTransportHooks,
-      'supportsIdempotentDialogSubmit' | 'supportsTargetedSessionRollback'
+      | 'supportsIdempotentDialogSubmit'
+      | 'supportsTargetedSessionRollback'
+      | 'supportsTokenUsageStatistics'
     >,
   ): void {
     this.hooks = { ...this.hooks, ...capabilities };
@@ -544,6 +550,15 @@ export class PeerDeviceTransportAdapter implements ITransportAdapter {
     ) {
       throw new PeerProductCommandError(
         'The connected Peer host does not support targeted Session rollback',
+      );
+    }
+
+    if (
+      action === 'get_token_usage_statistics' &&
+      this.hooks.supportsTokenUsageStatistics !== true
+    ) {
+      throw new PeerProductCommandError(
+        'token_usage_statistics_unsupported: The connected Peer host does not support usage statistics',
       );
     }
 

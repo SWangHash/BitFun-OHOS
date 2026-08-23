@@ -155,6 +155,74 @@ export interface PermissionRequest {
   displayMetadata?: Record<string, unknown>;
 }
 
+export interface PendingUserQuestion {
+  toolId: string;
+  sessionId: string;
+  dialogTurnId?: string;
+  modelRoundId?: string;
+  questions: unknown;
+  registeredAtMs: number;
+}
+
+export interface PendingUserQuestionSnapshot {
+  revision: number;
+  questions: PendingUserQuestion[];
+}
+
+export interface PermissionRequestSnapshot {
+  revision: number;
+  requests: PermissionRequest[];
+}
+
+/**
+ * Runtime-owned blocking interactions required to re-attach a UI Surface to
+ * a Session after push events were missed while another device was rendered.
+ */
+export interface SessionInteractionSnapshot {
+  sessionId: string;
+  userQuestions: PendingUserQuestionSnapshot;
+  permissions: PermissionRequestSnapshot;
+}
+
+export interface RuntimeProjectedAgenticEvent {
+  eventName: string;
+  payload: Record<string, unknown>;
+}
+
+/**
+ * Runtime-owned materialized projection of the current Turn. `streamId` and
+ * `cursor` fence this snapshot against concurrent live events.
+ */
+export interface SessionRuntimeEventSnapshot {
+  sessionId: string;
+  streamId: string;
+  cursor: number;
+  activeTurnId?: string | null;
+  events: RuntimeProjectedAgenticEvent[];
+}
+
+/**
+ * Everything this client missed after the cursor it already applied.
+ *
+ * `delta` is contiguous: apply the events in order and the projection is
+ * repaired in place. `snapshotRequired` means the Host cannot prove
+ * contiguity — the cursor aged out of its replay window, it belongs to an
+ * older Runtime process, or the Host keeps no journal at all.
+ */
+export type SessionEventBackfill =
+  | {
+      kind: 'delta';
+      streamId: string;
+      cursor: number;
+      events: RuntimeProjectedAgenticEvent[];
+      /**
+       * Replaying events rebuilds a blocking interaction's card; only the
+       * mailbox makes it answerable.
+       */
+      interactionSnapshot?: SessionInteractionSnapshot | null;
+    }
+  | { kind: 'snapshotRequired' };
+
 export type PermissionRequestEvent =
   | { event: 'asked'; request: PermissionRequest }
   | { event: 'replied'; requestId: string; reply: { reply: PermissionReplyKind }; source: string }
@@ -242,6 +310,10 @@ export interface SessionViewRestoreTiming {
 export interface RestoreSessionViewResponse {
   session: SessionInfo;
   turns: DialogTurnData[];
+  /** Absent when talking to an older Peer Host. */
+  interactionSnapshot?: SessionInteractionSnapshot;
+  /** Absent when talking to a host without resumable Session attachment. */
+  runtimeEventSnapshot?: SessionRuntimeEventSnapshot | null;
   currentContextUsage?: SessionContextUsage | null;
   turnCatalog?: SessionTurnCatalog;
   contextRestoreState: 'ready' | 'pending';
@@ -285,6 +357,8 @@ export type LoadSessionTurnWindowResponse =
 
 export interface RollbackSessionToTurnRequest {
   workspacePath: string;
+  workspaceId?: string;
+  workspaceHostname?: string;
   sessionId: string;
   targetTurnId: string;
   expectedStorageTurnIndex?: number;
@@ -1025,6 +1099,24 @@ export class AgentAPI {
     }
   }
 
+  async loadSessionEventBackfill(
+    sessionId: string,
+    streamId: string,
+    cursor: number,
+  ): Promise<SessionEventBackfill> {
+    try {
+      return await api.invoke<SessionEventBackfill>('load_session_event_backfill', {
+        request: { sessionId, streamId, cursor },
+      });
+    } catch (error) {
+      throw createTauriCommandError('load_session_event_backfill', error, {
+        sessionId,
+        streamId,
+        cursor,
+      });
+    }
+  }
+
   async loadSessionTurnWindow(
     request: LoadSessionTurnWindowRequest,
   ): Promise<LoadSessionTurnWindowResponse> {
@@ -1275,6 +1367,10 @@ export class AgentAPI {
 
   onSessionStateChanged(callback: (event: AgenticEvent) => void): () => void {
     return api.listen<AgenticEvent>('agentic://session-state-changed', callback);
+  }
+
+  onSessionHistoryChanged(callback: (event: AgenticEvent) => void): () => void {
+    return api.listen<AgenticEvent>('agentic://session-history-changed', callback);
   }
 
   onSessionModelAutoMigrated(

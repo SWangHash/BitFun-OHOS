@@ -22,6 +22,7 @@ serde_json = { workspace = true }
 serde_yaml = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 chrono = { workspace = true, optional = true }
+chrono-tz = { workspace = true, optional = true }
 git2 = { workspace = true, optional = true }
 dunce = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
@@ -40,10 +41,6 @@ rusqlite = { version = "0.32", features = ["bundled"], optional = true }
 [target.'cfg(windows)'.dependencies]
 win32job = { workspace = true, optional = true }
 windows = { workspace = true, optional = true }
-
-# Keep libgit2 self-contained on Unix, matching the product assembly dependency.
-[target.'cfg(not(windows))'.dependencies]
-git2 = { workspace = true, features = ["vendored-openssl"], optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true, optional = true }
@@ -91,6 +88,7 @@ local-storage = [
     "windows/Win32_Foundation",
     "windows/Win32_Storage_FileSystem",
 ]
+token-usage-statistics = ["local-storage", "dep:chrono-tz"]
 process-runtime = [
     "dep:libc",
     "dep:tokio",

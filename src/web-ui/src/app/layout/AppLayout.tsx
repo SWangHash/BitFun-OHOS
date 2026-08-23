@@ -20,6 +20,7 @@ import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { sessionStorageAdapter } from '@/shared/utils/sessionStorageAdapter';
 import { FlowChatManager } from '../../flow_chat/services/FlowChatManager';
+import { isSurfaceChangedError } from '@/infrastructure/peer-device/deviceSurface';
 import WorkspaceBody from './WorkspaceBody';
 import { useToolbarModeContext } from '../../flow_chat/components/toolbar-mode/ToolbarModeContext';
 import { MCPInteractionDialog } from '../components/MCPInteractionDialog/MCPInteractionDialog';
@@ -391,6 +392,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
         }
       } catch (error) {
         if (cancelled) {
+          return;
+        }
+        // A newer device surface superseded this bootstrap. The activation that
+        // replaced it runs its own, so this is ordinary control flow — not a
+        // failure the user should see, and not a reason to leave the window
+        // without a live subscription.
+        if (isSurfaceChangedError(error)) {
+          void FlowChatManager.getInstance().ensureEventListeners();
           return;
         }
         log.error('FlowChatManager initialization failed', error);

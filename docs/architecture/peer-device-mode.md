@@ -74,9 +74,72 @@ React only subscribes to snapshots. Attachment disposal is the only operation
 that discards a peer's cached surface state.
 
 Because the local surface can now miss its own events while another device is
-rendered, snapshot reconciliation is no longer Peer-only: after this window's
-first surface switch, `isSurfaceReconcileEnabled()` keeps the repair loop
-running for whichever surface is rendered, local included.
+rendered, Session attachment is no longer Peer-only. After this window's first
+surface switch, `isSurfaceReconcileEnabled()` attaches whichever surface is
+rendered, local included.
+
+### Running-Turn attachment
+
+The live WebView/DeviceEvent broadcast is a low-latency delivery path, not the
+owner of a running Turn. Desktop and CLI Peer Runtime Hosts keep a materialized
+projection of each eligible current Turn even when no client is subscribed. Events enter
+that projection after the host's ordering/coalescing boundary and receive a
+per-Session monotonic cursor plus a Runtime-process `streamId`. Text and
+thinking chunks are materialized without collapsing segments across tool
+boundaries; noisy tool progress is compacted.
+
+`restore_session_view` returns this additive `runtimeEventSnapshot`; the CLI
+Peer Host applies its existing Peer-owned-Turn filter before recording or
+returning the projection. The persisted Session record of an executing Turn is
+a lagging checkpoint, not the live projection: `loadSessionHistory` and
+`refreshPeerSessionSnapshot` must not paint that checkpoint's in-progress
+tool rows. A restore that races a live store update must still return the
+journal so attach can replay. Delivery of a live event to a product listener
+is not acceptance — a dropped ToolEvent / TextChunk marks the projection
+stale so the next attach replays instead of treating the cursor as current.
+`finish()` covers those cursors only after the painted projection has caught
+up with journal terminal tools; a matching cursor alone is not enough.
+Overlapping attach transfers the in-flight fence rather than delivering it
+onto a state machine that is about to reset. Hidden-document and
+fresh-TextChunk liveness skips apply only to the 3s poll, not to a dirty
+projection. During an attach, the frontend fences live events for
+`(DeviceSurfaceId, SessionId)`,
+replays the snapshot into an empty current-Turn projection, and then releases
+only events newer than the snapshot cursor. A different `streamId` is a new
+Runtime process and its cursors are never compared with the old stream. The
+Surface epoch rejects a response from a device that is no longer rendered.
+This makes attach independent of client-written intermediate checkpoints and
+closes the snapshot/live race without restarting, cancelling, or moving the
+Turn. Older Hosts may omit the field and use the persisted-snapshot fallback.
+Controller presence is an admission boundary, not the lifetime owner: after a
+Peer Host accepts a Turn, that Host continues executing and materializing it
+while zero controllers are attached. A later controller attaches to the same
+Runtime projection; controller loss alone must not cancel or interrupt the
+Turn. Actual host event-stream loss remains a fail-closed continuity error.
+
+### Blocking-interaction reattachment
+
+A push event is a notification, not the owner of an interaction that can block
+an Agent turn. The owning Runtime keeps every native `AskUserQuestion` and
+interactive permission request in a live mailbox until it is answered or
+cancelled; an `AskUserQuestion` registration is also removed if its owning Tool
+future is dropped. `restore_session_view` returns an additive
+`interactionSnapshot` containing the Session-filtered mailbox and monotonic
+revisions. Desktop and CLI Peer Hosts expose the same field; older Hosts may
+omit it and remain on the event-only compatibility path.
+
+The frontend projects that mailbox into the active Surface container. Permission
+requests are retained for inactive Surfaces by source device, while missed
+`AskUserQuestion` cards are reconstructed in their exact Dialog Turn and model
+round. Snapshot responses are fenced by the Surface epoch and by event/revision
+ordering, so an old response cannot erase a newer request or revive one that was
+already answered. Reattachment only repairs presentation state: it never
+restarts, cancels, or moves the Session, Dialog Turn, or Tool future.
+
+This is the contract for any new blocking interaction: its execution owner must
+retain replayable request state and expose it through an attach/snapshot path.
+A one-shot frontend event plus an unresolved channel is not a complete
+multi-device implementation.
 
 ## Cloud account sync vs Peer Remote
 
@@ -161,17 +224,19 @@ FS) and must not be mixed with Peer Device Mode.
   controllers; controller re-emits the same event names locally. This includes
   SSH-backed remote PTY Ready / Data / Exit events created on B, not only B's
   local terminal service events.
-- Because DeviceEvent delivery has no ACK/replay contract, the controller also
-  reconciles its active chat session from the Peer Host every 3s, immediately
-  after session/visibility changes, and after detecting a dropped data event.
-  Realtime events remain the primary path; snapshot reconciliation repairs a
-  controller that attached after turn/round lifecycle events or crossed a
-  transient relay gap. The host overlays its authoritative in-memory session
-  state onto the persisted view so an executing turn is not misclassified as
-  interrupted history. Continuous host output is checkpointed at least once
-  per 2s coalescing window. A controller accepts an active snapshot before the
-  stale-stream deadline only when its rounds, streams, and tools provably move
-  forward; an older persisted snapshot cannot overwrite newer DeviceEvents.
+- Relay DeviceEvent delivery itself has no ACK/replay contract. The active chat
+  therefore attaches immediately when the selected Session becomes hydrated,
+  after Surface/visibility changes, and after a detected data gap. The Peer
+  Host's `runtimeEventSnapshot` plus `(streamId, cursor)` is the resumable
+  current-Turn contract: live events are fenced while the snapshot is in
+  flight, the materialized Turn is replayed, and only later cursors are
+  released. The 3s reconciliation remains a liveness retry and an older-Host
+  persisted-snapshot fallback, not the source of Turn continuity. The host
+  still overlays its authoritative in-memory Session state so an executing
+  Turn is not misclassified as interrupted history. Native blocking
+  interactions are reconciled from the Runtime-owned `interactionSnapshot`
+  after event replay, because a Turn can wait indefinitely without emitting
+  another text chunk or producing a newer persisted checkpoint.
 - CLI Peer Host forwards only turns submitted through Peer Host and linked
   child turns. A background-result follow-up inherits ownership only when its
   Core-internal metadata identifies the exact tracked parent and source child

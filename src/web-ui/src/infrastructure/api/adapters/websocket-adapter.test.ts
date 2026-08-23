@@ -143,10 +143,11 @@ describe('resolveWsMethod', () => {
     // because the table is a plain object). Track B Batch 1 added config write +
     // i18n and the P0 Session/Config control plane. Atomic cloud-speech save
     // config validation, and live reasoning projection raise the count to 34.
+    // The read-only Git ownership-trust probe makes 35.
     expect(AGENT_COMMAND_SCHEMA.start_dialog_turn.method).toBe(
       'agent/submitDialogTurn'
     );
-    expect(Object.keys(AGENT_COMMAND_SCHEMA).length).toBe(34);
+    expect(Object.keys(AGENT_COMMAND_SCHEMA).length).toBe(35);
 
     // Touch the locals so noUnusedLocals does not flag them under vitest's
     // transformed build (tsc --noEmit is the real gate; this is belt-and-suspenders).

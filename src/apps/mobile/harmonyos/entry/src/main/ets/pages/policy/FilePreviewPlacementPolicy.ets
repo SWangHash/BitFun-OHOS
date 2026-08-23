@@ -80,6 +80,10 @@ export class FilePreviewPlacementPolicy {
     if (creaseFocusLayout) {
       return creaseFocusLayout;
     }
+    const lastCreaseFocusLayout = FilePreviewPlacementPolicy.lastCreaseFocusSplit(viewportWidth, creases);
+    if (lastCreaseFocusLayout) {
+      return lastCreaseFocusLayout;
+    }
     const flatLayout = FilePreviewPlacementPolicy.flatTriplePane(
       viewportWidth,
       creases,
@@ -159,8 +163,33 @@ export class FilePreviewPlacementPolicy {
     const crease = visible[0];
     const conversationWidth = crease.left;
     const previewWidth = viewportWidth - crease.left - crease.width;
-    if (conversationWidth < FilePreviewPlacementPolicy.MIN_CONVERSATION_WIDTH ||
+    if (conversationWidth < FilePreviewPlacementPolicy.MIN_MASTER_WIDTH ||
       previewWidth < FilePreviewPlacementPolicy.MIN_PREVIEW_WIDTH) {
+      return undefined;
+    }
+    return new FilePreviewLayout(
+      FilePreviewPlacement.WideFocusSplit,
+      0,
+      0,
+      conversationWidth,
+      crease.width,
+      previewWidth
+    );
+  }
+
+  private static lastCreaseFocusSplit(
+    viewportWidth: number,
+    creases: ConversationLayoutCrease[]
+  ): FilePreviewLayout | undefined {
+    const visible = FilePreviewPlacementPolicy.visibleCreases(viewportWidth, creases);
+    if (visible.length < 2) {
+      return undefined;
+    }
+    const crease = visible[visible.length - 1];
+    const conversationWidth = crease.left;
+    const previewWidth = viewportWidth - crease.left - crease.width;
+    if (conversationWidth < FilePreviewPlacementPolicy.MIN_CONVERSATION_WIDTH ||
+      previewWidth < FilePreviewPlacementPolicy.MIN_MASTER_WIDTH) {
       return undefined;
     }
     return new FilePreviewLayout(

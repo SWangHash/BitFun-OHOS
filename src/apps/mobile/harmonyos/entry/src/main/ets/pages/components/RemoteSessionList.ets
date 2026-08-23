@@ -2,6 +2,12 @@ import { RecentWorkspaceEntry, RemoteSession } from '../../model/RemoteModels';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { CARD, INK, MUTED, SOFT } from './Theme';
 import { SessionActionPresentation, SessionActionSurface } from './SessionActionSurface';
+import { AdaptiveSheetOptions } from './AdaptiveSheetOptions';
+import {
+  SettingsPlacement,
+  SettingsPlacementPolicy,
+  SettingsSheetKind
+} from '../policy/SettingsPlacementPolicy';
 import { SessionActionCapabilities, SessionActionPolicy, SessionActionScope } from '../policy/SessionActionPolicy';
 import { SessionDetailsView } from './SessionDetailsView';
 import {
@@ -24,6 +30,8 @@ export struct RemoteSessionList {
   @Param workspaceKind: string = 'normal';
   @Param recentWorkspaces: RecentWorkspaceEntry[] = [];
   @Param actionPresentation: SessionActionPresentation = SessionActionPresentation.BottomSheet;
+  @Param sessionDetailsPlacement: SettingsPlacement =
+    SettingsPlacementPolicy.compactBottom(SettingsSheetKind.SessionDetails);
   @Param workspaceFilter: string = '';
   @Param agentFilter: string = '';
   @Param statusFilter: string = '';
@@ -237,19 +245,18 @@ export struct RemoteSessionList {
               .layoutWeight(1)
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
-            if (this.isWorkspaceCollapsed(project.path)) {
-              SymbolGlyph($r('sys.symbol.chevron_right'))
+            // The Stack keeps the 18vp slot stable across both states; the
+            // glyph stays unsized because a chevron_right is drawn against
+            // the left edge of any box forced wider than its natural,
+            // half-width advance box.
+            Stack({ alignContent: Alignment.Center }) {
+              SymbolGlyph(this.isWorkspaceCollapsed(project.path) ?
+                $r('sys.symbol.chevron_right') : $r('sys.symbol.chevron_down'))
                 .fontSize(14)
                 .fontColor([MUTED])
-                .width(18)
-                .height(18)
-            } else {
-              SymbolGlyph($r('sys.symbol.chevron_down'))
-                .fontSize(14)
-                .fontColor([MUTED])
-                .width(18)
-                .height(18)
             }
+            .width(18)
+            .height(18)
             if (project.path.length > 0) {
               SymbolGlyph($r('sys.symbol.square_and_pencil'))
                 .fontSize(18)
@@ -346,19 +353,14 @@ export struct RemoteSessionList {
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
             .fontColor(MUTED)
-          if (this.chatsCollapsed) {
-            SymbolGlyph($r('sys.symbol.chevron_right'))
+          Stack({ alignContent: Alignment.Center }) {
+            SymbolGlyph(this.chatsCollapsed ?
+              $r('sys.symbol.chevron_right') : $r('sys.symbol.chevron_down'))
               .fontSize(14)
               .fontColor([MUTED])
-              .width(18)
-              .height(18)
-          } else {
-            SymbolGlyph($r('sys.symbol.chevron_down'))
-              .fontSize(14)
-              .fontColor([MUTED])
-              .width(18)
-              .height(18)
           }
+          .width(18)
+          .height(18)
         }
         .onClick(() => {
           this.chatsCollapsed = !this.chatsCollapsed;
@@ -368,8 +370,6 @@ export struct RemoteSessionList {
           SymbolGlyph($r('sys.symbol.square_and_pencil'))
             .fontSize(18)
             .fontColor([MUTED])
-            .width(22)
-            .height(22)
             .opacity(0.52)
         }
         .width(40)
@@ -756,23 +756,6 @@ export struct RemoteSessionList {
   }
 
   private sessionDetailsSheetOptions(): SheetOptions {
-    if (this.actionPresentation === SessionActionPresentation.BottomSheet) {
-      return {
-        height: SheetSize.LARGE,
-        backgroundColor: '#00000000',
-        maskColor: '#44000000',
-        showClose: false,
-        dragBar: false
-      };
-    }
-    return {
-      height: 560,
-      width: 560,
-      preferType: SheetType.CENTER,
-      backgroundColor: '#00000000',
-      maskColor: '#44000000',
-      showClose: false,
-      dragBar: false
-    };
+    return AdaptiveSheetOptions.fromPlacement(this.sessionDetailsPlacement);
   }
 }

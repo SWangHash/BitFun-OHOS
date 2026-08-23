@@ -16,7 +16,7 @@ import {
 import { createLogger } from '@/shared/utils/logger';
 import { systemAPI } from '@/infrastructure/api';
 import type { CheckForUpdatesResponse } from '@/infrastructure/api/service-api/SystemAPI';
-import { isTauriRuntime } from '@/infrastructure/runtime';
+import { canCheckForAppUpdates, isTauriRuntime } from '@/infrastructure/update/tauriEnv';
 import { UpdateAvailableDialog } from '@/infrastructure/update/UpdateAvailableDialog';
 import { useUpdateInstallStore } from '@/infrastructure/update/updateInstallStore';
 import { formatUpdateInstallError } from '@/infrastructure/update/updateErrorMessage';
@@ -126,6 +126,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   const aboutInfo = getAboutInfo();
   const { version, license } = aboutInfo;
   const nativeRuntime = isTauriRuntime();
+  const updateChecksAvailable = canCheckForAppUpdates();
   const displayedVersion = formatDisplayedVersion(
     version,
     nativeVersion,
@@ -160,7 +161,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   }, [isOpen, nativeRuntime]);
 
   const handleCheckForUpdates = useCallback(async () => {
-    if (!isTauriRuntime()) {
+    if (!canCheckForAppUpdates()) {
       return;
     }
     setManualCheckStatus('idle');

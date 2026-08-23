@@ -93,7 +93,26 @@ describe('FileMentionPicker overlay', () => {
     );
   });
 
-  it('shows the workspace-relative path after the file name', async () => {
+  it('shows the current directory name before its parent path', async () => {
+    vi.mocked(workspaceAPI.getDirectoryChildren).mockResolvedValueOnce([
+      {
+        path: '/workspace/src',
+        name: 'src',
+        isDirectory: true,
+      },
+    ]);
+
+    await act(async () => {
+      root.render(<Harness />);
+      await Promise.resolve();
+    });
+
+    const item = document.querySelector<HTMLElement>('[data-bf-part="item"]');
+    expect(document.querySelector('[data-bf-part="currentDirectoryName"]')?.textContent).toBe('workspace');
+    expect(document.querySelector('[data-bf-part="parentDirectoryPath"]')).toBeNull();
+    expect(item?.querySelector('[data-bf-part="itemName"]')?.textContent).toBe('src');
+    expect(item?.querySelector('[data-bf-part="itemDetail"]')).toBeNull();
+
     vi.mocked(workspaceAPI.getDirectoryChildren).mockResolvedValueOnce([
       {
         path: '/workspace/src/App.tsx',
@@ -103,17 +122,15 @@ describe('FileMentionPicker overlay', () => {
     ]);
 
     await act(async () => {
-      root.render(<Harness />);
+      item?.click();
       await Promise.resolve();
     });
 
-    const item = document.querySelector('[data-bf-part="item"]');
-    const itemName = item?.querySelector('[data-bf-part="itemName"]');
-    const itemPath = item?.querySelector('[data-bf-part="itemDetail"]');
-    expect(itemName?.textContent).toBe('App.tsx');
-    expect(itemName?.classList.contains('file-mention-picker__item-name--with-path')).toBe(true);
-    expect(itemPath?.textContent).toBe('src/App.tsx');
-    expect(itemPath?.classList.contains('file-mention-picker__item-path')).toBe(true);
+    expect(document.querySelector('[data-bf-part="currentDirectoryName"]')?.textContent).toBe('src');
+    expect(document.querySelector('[data-bf-part="parentDirectoryPath"]')?.textContent).toBe('workspace');
+    const nestedItem = document.querySelector('[data-bf-part="item"]');
+    expect(nestedItem?.querySelector('[data-bf-part="itemName"]')?.textContent).toBe('App.tsx');
+    expect(nestedItem?.querySelector('[data-bf-part="itemDetail"]')).toBeNull();
   });
 
   it('does not present a remote browse failure as an empty directory', async () => {

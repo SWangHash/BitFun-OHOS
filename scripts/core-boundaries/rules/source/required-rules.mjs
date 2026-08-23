@@ -4,6 +4,18 @@ import { agentRuntimeRootPublicModules } from './public-api-rules.mjs';
 
 export const requiredContentRules = [
   {
+    path: 'src/web-ui/src/infrastructure/api/service-api/ExternalSourcesAPI.ts',
+    reason:
+      'the Web API must continue invoking the stable Desktop command without making Web source a Rust compilation input',
+    patterns: [
+      {
+        regex:
+          /\binvokeSurfaceSnapshot\(\s*['"]get_external_source_control_snapshot['"]/,
+        message: 'missing stable external-source control snapshot invocation',
+      },
+    ],
+  },
+  {
     path: 'src/crates/adapters/agent-runtime-ipc/Cargo.toml',
     reason:
       'agent-runtime-ipc must keep the exact feature-free bitfun-transport dependency',
@@ -8231,71 +8243,28 @@ export const requiredContentRules = [
     ],
   },
   {
-    path: 'src/crates/interfaces/app-server/src/management/service.rs',
+    path: 'src/apps/cli/src/modes/chat/worktree.rs',
     reason:
-      'App Server owns the concrete management adapter while Hosts retain explicit service injection and capability scope',
+      'CLI worktree presentation must delegate session binding to the worktree owner and refuse remote-workspace local fallback',
     patterns: [
       {
-        regex: /\bpub struct AppManagementService\b/,
-        message: 'missing concrete App Server management service',
+        regex: /\bWorktreeService::bind_session\b/,
+        message: 'missing worktree session binding delegation',
       },
       {
-        regex: /\bimpl AppManagementService\b/,
-        message: 'missing concrete App Server management implementation',
+        regex: /\bis_remote_workspace\b/,
+        message: 'missing remote workspace guard',
       },
       {
-        regex: /\bAppManagementCapabilities::available\(\)/,
-        message: 'missing App Server management capability projection',
-      },
-    ],
-  },
-  {
-    path: 'src/apps/cli/src/shared_tui_backend.rs',
-    reason:
-      'Shared TUI must retain local Model, Skill, Subagent, and MCP compatibility management without expanding Runtime IPC or leaking owners into controllers',
-    patterns: [
-      {
-        regex: /management: Arc<AppManagementService>/,
-        message: 'missing injected Shared TUI App Server management service',
-      },
-      {
-        regex: /\bfn management_service\b/,
-        message: 'missing Shared TUI management capability gate',
-      },
-      {
-        regex: /\bfn set_management_scope_from_binding\b/,
-        message: 'missing Shared TUI Remote workspace compatibility guard',
-      },
-      {
-        regex: /\.list_models\(ListModelsRequest \{\}\)/,
-        message: 'missing Shared TUI model compatibility delegation',
-      },
-      {
-        regex: /\.list_skills\(request\)/,
-        message: 'missing Shared TUI skill compatibility delegation',
-      },
-      {
-        regex: /\.list_subagents\(request\)/,
-        message: 'missing Shared TUI subagent compatibility delegation',
-      },
-      {
-        regex: /\.list_mcp_servers\(request\)/,
-        message: 'missing Shared TUI MCP compatibility delegation',
-      },
-      {
-        regex: /\bshared_management_capabilities_follow_the_local_management_service\b/,
-        message: 'missing Shared TUI management capability regression',
-      },
-      {
-        regex: /\bremote_workspace_cannot_use_the_local_management_service\b/,
-        message: 'missing Shared TUI Remote management scope regression',
+        regex: /does not fall back to controller-local services/,
+        message: 'missing remote workspace local-fallback guard',
       },
     ],
   },
   {
     path: 'src/apps/cli/src/ui/startup.rs',
     reason:
-      'CLI subagent presentation remains app-local while mode-aware reads and mutations cross the typed TUI backend boundary',
+      'CLI subagent presentation remains app-local while mode-aware reads and mutations call the agent registry owner directly',
     patterns: [
       {
         regex: /\bfn show_available_subagent_list\b/,
@@ -8306,16 +8275,16 @@ export const requiredContentRules = [
         message: 'missing CLI subagent config surface',
       },
       {
-        regex: /\bagent\.list_subagents\b/,
-        message: 'missing typed CLI mode-scoped subagent query',
+        regex: /\bget_subagents_for_query\b/,
+        message: 'missing CLI agent-registry mode-scoped subagent query',
       },
       {
         regex: /\bSubagentSummary\b/,
         message: 'missing secret-safe CLI subagent read projection',
       },
       {
-        regex: /\bagent\s*\.set_subagent_enabled\b/,
-        message: 'missing typed CLI subagent availability update path',
+        regex: /\bupdate_subagent_override\b/,
+        message: 'missing CLI agent-registry subagent availability update path',
       },
     ],
   },
@@ -8424,28 +8393,62 @@ export const requiredContentRules = [
         regex: /\bpub struct WorkspaceSearchRepoConfig\b/,
         message: 'missing stable workspace-search repo config contract',
       },
-      {
-        regex: /\bwith_scan_fallback\b/,
-        message: 'missing flashgrep scan fallback request flag',
-      },
     ],
   },
   {
     path: 'src/crates/services/services-integrations/src/workspace_search/result_mapping.rs',
     reason:
-      'services-integrations workspace_search result mapping must own shared flashgrep preview/result conversion',
+      'services-integrations workspace_search result mapping must own flashgrep result conversion and delegate content previews to line_hydration',
     patterns: [
       {
         regex: /\bconvert_hits_to_file_search_results\b/,
         message: 'missing hit-to-file-result conversion owner',
       },
       {
-        regex: /\bsplit_preview\b/,
-        message: 'missing preview split contract',
+        regex: /\bline_hydration\b/,
+        message: 'missing preview hydration ownership note',
       },
       {
         regex: /\bpreview_inside\b/,
         message: 'missing preview-inside rendering contract',
+      },
+    ],
+  },
+  {
+    path: 'src/crates/services/services-integrations/src/workspace_search/line_hydration.rs',
+    reason:
+      'services-integrations workspace_search must own disk hydration of daemon line positions, because flashgrep never returns line text',
+    patterns: [
+      {
+        regex: /\bpub\(crate\)\s+fn\s+hydrate_grouped_line_matches\b/,
+        message: 'missing grouped line-match hydration owner',
+      },
+      {
+        regex: /\bMAX_HYDRATED_LINE_COLUMNS\b/,
+        message: 'missing long-line clamp shared with the ripgrep path',
+      },
+      {
+        regex: /\bContentMatchPreviewBuilder\b/,
+        message: 'previews must be built with the shared services-core builder',
+      },
+    ],
+  },
+  {
+    path: 'src/crates/services/services-core/src/filesystem/content_preview.rs',
+    reason:
+      'services-core filesystem must own the content preview primitives shared by the ripgrep and indexed search paths',
+    patterns: [
+      {
+        regex: /\bpub fn compile_content_search_regex\b/,
+        message: 'missing shared content-search regex compiler',
+      },
+      {
+        regex: /\bpub fn build_content_match_preview\b/,
+        message: 'missing shared content preview builder',
+      },
+      {
+        regex: /\bpub struct ContentMatchPreviewBuilder\b/,
+        message: 'missing reusable preview builder for batched hydration',
       },
     ],
   },
@@ -8531,10 +8534,6 @@ export const requiredContentRules = [
       {
         regex: /\bensure_remote_search_context\b/,
         message: 'missing remote search context lifecycle owner',
-      },
-      {
-        regex: /\ballow_scan_fallback:\s*true\b/,
-        message: 'missing remote scan fallback contract',
       },
       {
         regex: /\bfallback_query\b/,

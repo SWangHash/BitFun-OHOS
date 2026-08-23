@@ -40,6 +40,7 @@ import { modelRoundItemAppearanceDescriptor } from '@/flow_chat/components/moder
 import { deepReviewActionBarAppearanceDescriptor } from '@/flow_chat/deep-review/action-bar/appearance';
 import { modelSelectorAppearanceDescriptor } from '@/flow_chat/components/ModelSelector.appearance';
 import { reasoningPresetSelectorAppearanceDescriptor } from '@/flow_chat/components/ReasoningPresetSelector.appearance';
+import { acpModeSelectorAppearanceDescriptor } from '@/flow_chat/components/AcpModeSelector.appearance';
 import { flowChatHeaderAppearanceDescriptor } from '@/flow_chat/components/modern/FlowChatHeader.appearance';
 import { flowChatTurnRailAppearanceDescriptor } from '@/flow_chat/components/modern/FlowChatTurnRail.appearance';
 import { sessionFilesBadgeAppearanceDescriptor } from '@/flow_chat/components/modern/SessionFilesBadge.appearance';
@@ -274,6 +275,7 @@ import {
 } from '@/features/dispatch/appearance';
 import { voiceInputConfigAppearanceDescriptor } from '@/infrastructure/config/components/VoiceInputConfig.appearance';
 import { worktreesConfigAppearanceDescriptor } from '@/infrastructure/config/components/WorktreesConfig.appearance';
+import { usageStatisticsConfigAppearanceDescriptor } from '@/infrastructure/config/components/UsageStatisticsConfig.appearance';
 import { turnCompletionNoticeAppearanceDescriptor } from '@/flow_chat/components/modern/TurnCompletionNoticeItem.appearance';
 import { turnFailureNoticeAppearanceDescriptor } from '@/flow_chat/components/modern/TurnFailureNoticeItem.appearance';
 import { virtualItemAppearanceDescriptor } from '@/flow_chat/components/modern/VirtualItemRenderer.appearance';
@@ -323,6 +325,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(deepReviewActionBarAppearanceDescriptor)
     .registerComponent(modelSelectorAppearanceDescriptor)
     .registerComponent(reasoningPresetSelectorAppearanceDescriptor)
+    .registerComponent(acpModeSelectorAppearanceDescriptor)
     .registerComponent(flowChatHeaderAppearanceDescriptor)
     .registerComponent(flowChatTurnRailAppearanceDescriptor)
     .registerComponent(sessionFilesBadgeAppearanceDescriptor)
@@ -438,6 +441,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(workspaceProjectPermissionsDialogAppearanceDescriptor)
     .registerComponent(workspaceSessionBatchModalAppearanceDescriptor)
     .registerComponent(archivedSessionsConfigAppearanceDescriptor)
+    .registerComponent(usageStatisticsConfigAppearanceDescriptor)
     .registerComponent(settingsNavAppearanceDescriptor)
     .registerComponent(backgroundCommandOutputPanelAppearanceDescriptor)
     .registerComponent(chatInputPixelPetAppearanceDescriptor)

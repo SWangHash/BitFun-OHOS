@@ -10,7 +10,7 @@ Scope: `src/apps/mobile/harmonyos`，主要涉及双屏/三屏布局、会话来
 
 ### 已实现
 
-- 布局判定对齐官方 GridRow 横向断点：md `600vp` 起双栏，lg `840vp` 起 extra-wide；合盖与悬停（`HALF_FOLDED`）强制不走 master-detail。不再用 `deviceType === tablet` 决定宽屏。
+- 布局判定对齐官方 GridRow 横向断点：md `600vp` 起双栏，lg `840vp` 起 extra-wide；合盖与帐篷悬停（`HALF_FOLDED` / 双轴都半折，且不是仍横屏宽窗）强制不走 master-detail。三折单轴半折、另一轴展开时窗口仍是横屏宽窗，继续走 master-detail。不再用 `deviceType === tablet` 决定宽屏。
 - 展开折叠屏若 `getCurrentFoldCreaseRegion()` 为空，合成中线铰链（16vp）作为 master/detail 分界，避免内容压在铰链上。
 - 悬停态会话使用官方 `FolderStack`：上半为显示区（时间线），下半为操作区（Composer）。
 - 展开态只要存在可用纵向折痕（双折叠一道、三折叠两道），且当前视口放得下 master + detail，就进入 master-detail。
@@ -21,10 +21,9 @@ Scope: `src/apps/mobile/harmonyos`，主要涉及双屏/三屏布局、会话来
 - 本地与远程来源切换使用路由合同计算目标，不累积跨来源返回路径。
 - 切回本地时停止手机侧远程轮询，但不清空远程活动会话或断开桌面。
 - 通过 `display.getCurrentFoldCreaseRegion()` 读取折痕；第一道有效纵向折痕用于 master/detail 分界。
-- 双折叠展开打开文件预览时，会话/预览分界对齐那一道折痕，而不是按视口对半切。
+- 双折叠展开打开文件预览时，会话/预览分界对齐那一道折痕，而不是按视口对半切。三折一道或两道折痕对不齐三栏最小宽度时，仍对齐折痕做 focus split，不把整窗对半切。
 - 两道折痕或 lg 宽度被识别为 extra-wide，但会话仍使用同一个 master-detail，不创建第三会话栏。官方聊天分栏在 md/lg/xl 均为列表|会话；第三窗格只用于文件预览。
-- 第二道折痕会把 detail 划分为无折痕候选内容带；会话视图选择最宽的候选带，同宽时优先右侧，避免 Composer、菜单和消息内操作热区跨越折痕。
-- extra-wide detail 外层仍覆盖中间和右侧两屏；上述内容带只是 presentation 几何约束，不增加第三个业务 pane。
+- 第二道折痕不再把会话详情收成中间或右侧的单屏带。detail 从第一道折痕之后一直铺到窗口右缘，中间和右侧两屏共同承载同一会话；正文用最大宽度约束，避免无限制拉宽。不增加第三个业务 pane。
 - 监听 `foldStatusChange` 与 `foldDisplayModeChange`，折叠形态变化时重算几何。
 
 ### 已验证
@@ -96,7 +95,8 @@ HarmonyOS 手机在展开双屏、完整展开三屏或其他宽屏形态下，�
 
 ```text
 设备处于折叠状态                                      -> 单屏
-设备处于悬停（HALF_FOLDED）                          -> 单屏 + FolderStack（上显示 / 下操作）
+设备处于帐篷悬停（HALF_FOLDED / 双轴都半折，且不是仍横屏宽窗） -> 单屏 + FolderStack（上显示 / 下操作）
+设备单轴半折、另一轴展开，窗口仍是横屏宽窗            -> 宽屏 master-detail（左第一屏 master，右展开带 detail）
 设备非折叠，宽视口（≥600vp 或 media query），有纵向折痕，且放得下两栏 -> 宽屏
 设备非折叠，宽视口，折叠屏展开且折痕缺失              -> 宽屏，合成中线铰链
 设备非折叠，宽视口，无折痕                            -> 宽屏（断点驱动，含平板）
@@ -104,6 +104,8 @@ HarmonyOS 手机在展开双屏、完整展开三屏或其他宽屏形态下，�
 ```
 
 折叠与悬停优先于宽度和折痕。双折叠展开的一道折痕与三折叠的两道折痕使用同一套 master-detail，不新增第三会话栏。
+
+本应用自己用折痕几何做 master-detail，不能把会话交给系统 `Navigation` 分栏或平行视界。`module.json5` 的 `easyGo` 必须把 `wideWindowMode` 与 `squareWindowMode`（三折 M 态 / 双折展开）设为 `original`。根 `Navigation` 保持 `NavigationMode.Stack`，只承担单屏路由。宽屏可见内容必须画在 `Navigation` 外面，按 `activeRoute` 渲染 `WideConversationHost`；否则即使用 Stack，HarmonyOS 6.1 仍可能把 `Navigation` 切成 1:1，会话锁在左半屏，右侧露出 `startWindow`。
 
 ### 路由分流
 
@@ -262,7 +264,7 @@ MasterDetail -> 双屏和三屏共同使用的 master-detail
 
 1. 双屏优先让 master/detail 分界与第一道折痕对齐。
 2. 三屏同样让 master pane 占据第一屏，并与第一道折痕对齐。
-3. 必须为折痕自身保留安全间距，避免列表行、来源选择器或点击热区跨越折痕。
+3. 必须为折痕自身保留安全间距，避免列表行、来源选择器或点击热区跨越折痕。该占位使用页面底色，不把折痕宽度画成分隔条。
 4. 折痕坐标为像素，ArkUI 布局宽度使用布局单位；进入布局策略前必须转换到同一坐标系。
 
 折痕信息不可用、坐标不在当前应用内容区域内或转换失败时，继续使用当前固定 master 宽度和弹性 detail，不得阻断页面渲染。
@@ -273,9 +275,10 @@ MasterDetail -> 双屏和三屏共同使用的 master-detail
 
 - 页面头部和背景可以占满整个 detail pane。
 - 消息阅读区、状态内容和 Composer 应设置合理最大宽度，并在 detail pane 内稳定对齐。
-- 存在第二道折痕时，将 detail 划分为互不跨越折痕的候选内容带；会话视图选择最宽内容带，同宽时选择右侧内容带。
+- 存在第二道折痕时，会话详情仍占据第一道折痕之后的整段剩余宽度（中间+右侧），不得只留在最宽的那一屏。
+- 收起 master 后：双折和三折都把会话铺满整窗，恢复按钮钉在窗口左上角。展开态三折 detail 仍从第一道折痕铺到右缘；只有收起左栏时才占用第一屏。
 - 最大宽度不能按视口宽度缩放字体，只限制内容容器。
-- 第二道折痕位于 detail 内部时，发送、停止、菜单、附件和语音等关键点击控件不能落在折痕安全区。
+- 第二道折痕位于 detail 内部时，不因此再切出第三会话栏；关键点击控件随内容带一起落在剩余两屏内。
 - 第一阶段不利用第二道折痕拆出文件、任务或其他辅助面板。
 
 ### 几何更新

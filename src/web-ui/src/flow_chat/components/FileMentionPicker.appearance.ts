@@ -5,7 +5,8 @@ export const fileMentionPickerAppearanceDescriptor: AppearanceSurfaceDescriptor 
   parts: [
     { id: 'root' }, { id: 'header' }, { id: 'back' }, { id: 'content' },
     { id: 'loading' }, { id: 'empty' }, { id: 'list' }, { id: 'item' },
-    { id: 'itemName' }, { id: 'itemDetail' }, { id: 'footer' },
+    { id: 'itemName' }, { id: 'itemDetail' }, { id: 'currentDirectoryName' },
+    { id: 'parentDirectoryPath' }, { id: 'footer' },
   ],
   states: [
     { id: 'selected', selector: { kind: 'self', suffix: '[data-bf-state~="selected"]' } },
