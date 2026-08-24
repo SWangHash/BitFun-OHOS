@@ -3,6 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const getAccessState = vi.fn();
 const listFeedbackRecords = vi.fn();
 
+const record = (index: number) => ({
+  feedbackId: `feedback-${index}`,
+  category: 'other' as const,
+  status: 'submitted' as const,
+  hasNewReply: false,
+  createdAt: `2026-07-28T01:${String(index).padStart(2, '0')}:00Z`,
+  updatedAt: `2026-07-28T02:${String(index).padStart(2, '0')}:00Z`,
+  canOpen: true,
+});
+
 vi.mock('@/infrastructure/api', () => ({
   feedbackAPI: { getAccessState, listFeedbackRecords },
   normalizeFeedbackError: (error: unknown) => error,
@@ -72,6 +82,64 @@ describe('feedbackInboxStore', () => {
 
     expect(listFeedbackRecords).toHaveBeenCalledTimes(1);
     expect(listFeedbackRecords).toHaveBeenCalledWith({}, { userInitiated: false });
+  });
+
+  it('refreshes every currently loaded Inbox page before replacing the list', async () => {
+    const firstPage = Array.from({ length: 20 }, (_, index) => record(index));
+    const secondPage = Array.from({ length: 20 }, (_, index) => record(index + 20));
+    getAccessState.mockResolvedValue({
+      hasHistory: true,
+      canReuseAccess: true,
+      cachedInbox: { items: firstPage, nextCursor: 'cursor-2', hasMore: true },
+    });
+    listFeedbackRecords
+      .mockResolvedValueOnce({ items: firstPage, nextCursor: 'cursor-2', hasMore: true })
+      .mockResolvedValueOnce({ items: secondPage, nextCursor: 'cursor-3', hasMore: true });
+    const { useFeedbackInboxStore } = await import('./feedbackInboxStore');
+    useFeedbackInboxStore.setState({
+      records: [...firstPage, ...secondPage],
+      nextCursor: 'cursor-3',
+      hasMore: true,
+      loaded: true,
+    });
+
+    expect(await useFeedbackInboxStore.getState().refresh(true)).toBe(true);
+    expect(listFeedbackRecords).toHaveBeenCalledTimes(2);
+    expect(listFeedbackRecords).toHaveBeenNthCalledWith(1, {}, { userInitiated: true });
+    expect(listFeedbackRecords).toHaveBeenNthCalledWith(
+      2,
+      { cursor: 'cursor-2' },
+      { userInitiated: true },
+    );
+    expect(useFeedbackInboxStore.getState()).toMatchObject({
+      records: [...firstPage, ...secondPage],
+      nextCursor: 'cursor-3',
+      hasMore: true,
+    });
+  });
+
+  it('keeps all loaded pages when a later refresh page fails', async () => {
+    const firstPage = Array.from({ length: 20 }, (_, index) => record(index));
+    const loadedRecords = Array.from({ length: 40 }, (_, index) => record(index));
+    getAccessState.mockResolvedValue({
+      hasHistory: true,
+      canReuseAccess: true,
+      cachedInbox: { items: firstPage, nextCursor: 'cursor-2', hasMore: true },
+    });
+    listFeedbackRecords
+      .mockResolvedValueOnce({ items: firstPage, nextCursor: 'cursor-2', hasMore: true })
+      .mockRejectedValueOnce({ code: 'NETWORK_ERROR' });
+    const { useFeedbackInboxStore } = await import('./feedbackInboxStore');
+    useFeedbackInboxStore.setState({
+      records: loadedRecords,
+      nextCursor: 'cursor-3',
+      hasMore: true,
+      loaded: true,
+    });
+
+    expect(await useFeedbackInboxStore.getState().refresh(true)).toBe(false);
+    expect(useFeedbackInboxStore.getState().records).toEqual(loadedRecords);
+    expect(useFeedbackInboxStore.getState().nextCursor).toBe('cursor-3');
   });
 
   it('clears the unread marker when a conversation result is committed', async () => {

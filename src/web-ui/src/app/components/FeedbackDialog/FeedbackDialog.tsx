@@ -15,7 +15,9 @@ import { usePrivacy } from '@/app/components/Privacy/PrivacyContext';
 import {
   feedbackAPI,
   FeedbackApiError,
+  FEEDBACK_CONTENT_MAX_CHARS,
   feedbackContentLength,
+  feedbackInsertText,
   systemAPI,
   truncateFeedbackContent,
   type FeedbackCategory,
@@ -26,6 +28,7 @@ import { registerCriticalOperationExitGuard } from '@/shared/services/criticalOp
 import { FeedbackInboxView } from './FeedbackInboxView';
 import { PrivacyStatementLink } from './PrivacyStatementLink';
 import { useFeedbackInboxStore } from './feedbackInboxStore';
+import { useRejectedInsertionCaret } from './useRejectedInsertionCaret';
 import './FeedbackDialog.scss';
 
 const log = createLogger('FeedbackDialog');
@@ -51,6 +54,7 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
   const { t } = useI18n('common');
   const { status, accept } = usePrivacy();
   const containerRef = useRef<HTMLDivElement>(null);
+  const { armRejectedInsertionCaret, restoreRejectedInsertionCaret } = useRejectedInsertionCaret();
   const refreshInbox = useFeedbackInboxStore(state => state.refresh);
   const [activeView, setActiveView] = useState<'create' | 'inbox'>('create');
   const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(null);
@@ -74,6 +78,9 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
   const [pendingReplyExit, setPendingReplyExit] = useState<PendingReplyExit | null>(null);
 
   const contentLength = feedbackContentLength(content);
+  const contentNativeMaxLength = contentLength >= FEEDBACK_CONTENT_MAX_CHARS
+    ? content.length
+    : undefined;
   const correlationAvailable = feedbackAPI.correlationAvailable();
   const hasDraft = Boolean(
     category || content || includeCorrelation || privacyChecked,
@@ -173,11 +180,112 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
     closeImmediately();
   }, [activeView, closeImmediately, completed, hasDraft, replyState, submitting]);
 
-  const handleContentChange = (value: string) => {
+  const handleContentChange = (textarea: HTMLTextAreaElement) => {
+    const value = textarea.value;
+    if (/^\s/.test(value) && value.replace(/^\s+/, '') === content) {
+      document.execCommand('undo');
+      return;
+    }
     const truncated = truncateFeedbackContent(value);
-    setWasTruncated(truncated !== value);
+    setWasTruncated(Array.from(value.replace(/^\s+/, '')).length > FEEDBACK_CONTENT_MAX_CHARS);
     setContent(truncated);
     setSubmitError(null);
+  };
+
+  const applyFeedbackInsertion = (textarea: HTMLTextAreaElement, insertedText: string) => {
+    const currentValue = textarea.value;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    if (start === end && feedbackContentLength(currentValue) >= FEEDBACK_CONTENT_MAX_CHARS) {
+      return;
+    }
+    const acceptedText = feedbackInsertText(currentValue, start, end, insertedText);
+    if (acceptedText && document.execCommand('insertText', false, acceptedText)) {
+      // execCommand preserves the browser's native undo transaction for a
+      // paste, unlike replacing the controlled value in onChange.
+    } else {
+      textarea.setRangeText(acceptedText, start, end, 'end');
+    }
+    const candidate = currentValue.slice(0, start) + insertedText + currentValue.slice(end);
+    setWasTruncated(feedbackContentLength(candidate.replace(/^\s+/, '')) > FEEDBACK_CONTENT_MAX_CHARS);
+  };
+
+  const handleContentPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const textarea = event.currentTarget;
+    if (
+      textarea.selectionStart === textarea.selectionEnd
+      && feedbackContentLength(textarea.value) >= FEEDBACK_CONTENT_MAX_CHARS
+    ) {
+      armRejectedInsertionCaret(textarea);
+      // Let the native maxLength gate reject the paste without creating a
+      // JavaScript edit boundary in the browser's undo history.
+      return;
+    }
+    event.preventDefault();
+    applyFeedbackInsertion(textarea, event.clipboardData.getData('text/plain'));
+  };
+
+  const handleContentKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      !event.ctrlKey
+      && !event.metaKey
+      && !event.altKey
+      && (
+        event.key.length === 1
+        || event.key === 'Enter'
+        || event.key === 'Process'
+        || event.nativeEvent.keyCode === 229
+      )
+    ) {
+      const textarea = event.currentTarget;
+      if (
+        textarea.selectionStart === textarea.selectionEnd
+        && feedbackContentLength(textarea.value) >= FEEDBACK_CONTENT_MAX_CHARS
+      ) {
+        armRejectedInsertionCaret(textarea);
+      }
+    }
+  };
+
+  const handleContentBeforeInput = (event: React.FormEvent<HTMLTextAreaElement>) => {
+    const nativeEvent = event.nativeEvent as InputEvent;
+    const textarea = event.currentTarget;
+    if (
+      nativeEvent.inputType.startsWith('insert')
+      && textarea.selectionStart === textarea.selectionEnd
+      && feedbackContentLength(textarea.value) >= FEEDBACK_CONTENT_MAX_CHARS
+    ) {
+      armRejectedInsertionCaret(textarea);
+      return;
+    }
+    if (
+      textarea.selectionStart === textarea.selectionEnd
+      && feedbackContentLength(textarea.value) >= FEEDBACK_CONTENT_MAX_CHARS
+    ) {
+      // Native maxLength owns full-input rejection so the browser does not
+      // create a JavaScript edit boundary that consumes the next undo.
+      return;
+    }
+    const insertedText = nativeEvent.inputType === 'insertLineBreak'
+      || nativeEvent.inputType === 'insertParagraph'
+      ? '\n'
+      : nativeEvent.data;
+    if (
+      !['insertText', 'insertLineBreak', 'insertParagraph'].includes(nativeEvent.inputType)
+      || nativeEvent.isComposing
+      || insertedText == null
+    ) {
+      return;
+    }
+    const acceptedText = feedbackInsertText(
+      textarea.value,
+      textarea.selectionStart,
+      textarea.selectionEnd,
+      insertedText,
+    );
+    if (acceptedText === insertedText) return;
+    event.preventDefault();
+    applyFeedbackInsertion(textarea, insertedText);
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -378,8 +486,15 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
                 label={t('feedback.content')}
                 required
                 value={content}
+                maxLength={contentNativeMaxLength}
                 disabled={submitting}
-                onChange={event => handleContentChange(event.target.value)}
+                onChange={event => handleContentChange(event.target)}
+                onInput={event => restoreRejectedInsertionCaret(event.currentTarget)}
+                onKeyDown={handleContentKeyDown}
+                onKeyUp={event => restoreRejectedInsertionCaret(event.currentTarget)}
+                onPaste={handleContentPaste}
+                onBeforeInput={handleContentBeforeInput}
+                onCompositionEnd={event => restoreRejectedInsertionCaret(event.currentTarget)}
                 placeholder={t('feedback.contentPlaceholder')}
                 error={content.length > 0 && !content.trim()}
                 errorMessage={t('feedback.errors.contentRequired')}
