@@ -1,6 +1,7 @@
 //! Skill Management API
 
 use crate::api::app_state::RemoteWorkspace;
+use crate::api::skill_market_downloader::install_skill_from_market;
 use log::info;
 use regex::Regex;
 use reqwest::Client;
@@ -8,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use std::sync::OnceLock;
 use tauri::State;
 use tokio::sync::RwLock;
@@ -31,21 +31,79 @@ use bitfun_core::infrastructure::get_path_manager_arc;
 use bitfun_core::service::config::agent_profile_project_store::{
     deserialize_project_agent_profiles_document, serialize_project_agent_profiles_document,
 };
+use bitfun_core::service::config::types::ProxyConfig;
 use bitfun_core::service::remote_ssh::workspace_state::is_remote_path;
 use bitfun_core::service::remote_ssh::{get_remote_workspace_manager, RemoteWorkspaceEntry};
-use bitfun_core::service::runtime::RuntimeManager;
-use bitfun_core::util::process_manager;
 
 const SKILLS_SEARCH_API_BASE: &str = "https://skills.sh";
 const DEFAULT_MARKET_QUERY: &str = "skill";
 const DEFAULT_MARKET_LIMIT: u32 = 12;
 const MAX_MARKET_LIMIT: u32 = 500;
-const MAX_OUTPUT_PREVIEW_CHARS: usize = 2000;
 const MARKET_DESC_FETCH_TIMEOUT_SECS: u64 = 4;
-const MARKET_DESC_FETCH_CONCURRENCY: usize = 6;
+const MARKET_DESC_FETCH_CONCURRENCY: usize = 12;
 const MARKET_DESC_MAX_LEN: usize = 220;
+const MARKET_DESC_FETCH_DEADLINE_SECS: u64 = 15;
 
 static MARKET_DESCRIPTION_CACHE: OnceLock<RwLock<HashMap<String, String>>> = OnceLock::new();
+
+/// Build a per-call HTTP client for the skill market listing/description
+/// paths. Uses BitFun's configured `ProxyConfig` when enabled (read live so
+/// changing the AI proxy takes effect without restart), falling back to the
+/// standard HTTPS_PROXY/HTTP_PROXY/ALL_PROXY env vars (reqwest default), then
+/// direct. No aggressive connect/overall timeout is set here: skills.sh is an
+/// international domain and a slow-but-reachable direct connection can take
+/// 8-20s; a tight connect_timeout would cut it off and turn "works" into
+/// "timed out". The per-skill description fetch keeps its own per-page bound
+/// in fetch_description_from_skill_page.
+fn build_market_client(proxy: Option<&ProxyConfig>) -> Result<Client, String> {
+    let mut builder = Client::builder()
+        .user_agent(concat!("BitFun/", env!("CARGO_PKG_VERSION")));
+    if let Some(proxy_url) = resolve_proxy_url(proxy) {
+        match reqwest::Proxy::all(&proxy_url) {
+            Ok(p) => builder = builder.proxy(p),
+            Err(e) => log::warn!("Failed to apply skill market proxy: {}", e),
+        }
+    }
+    builder
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))
+}
+
+/// Resolve the proxy URL: BitFun's `ProxyConfig` if enabled, else startup env.
+fn resolve_proxy_url(proxy: Option<&ProxyConfig>) -> Option<String> {
+    if let Some(p) = proxy {
+        if p.enabled {
+            let url = p.url.trim();
+            if !url.is_empty() {
+                return Some(normalize_proxy_url(url));
+            }
+        }
+    }
+    read_startup_proxy_env()
+}
+
+/// Prefix `http://` to bare `host:port` proxy URLs (mirrors the AI adapter).
+fn normalize_proxy_url(url: &str) -> String {
+    if url.contains("://") {
+        url.to_string()
+    } else {
+        format!("http://{}", url)
+    }
+}
+
+/// Read a proxy URL from the standard env vars (HTTPS_PROXY / HTTP_PROXY /
+/// ALL_PROXY, case-insensitive). Returns the first one set.
+fn read_startup_proxy_env() -> Option<String> {
+    for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"] {
+        if let Ok(value) = std::env::var(key) {
+            let trimmed = value.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}
 
 fn can_delete_owned_skill(source_id: &str, source_slot: &str, is_builtin: bool) -> bool {
     if is_builtin {
@@ -82,6 +140,8 @@ pub struct SkillValidationResult {
 pub struct SkillMarketListRequest {
     pub query: Option<String>,
     pub limit: Option<u32>,
+    #[serde(default)]
+    pub offset: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,6 +149,8 @@ pub struct SkillMarketListRequest {
 pub struct SkillMarketSearchRequest {
     pub query: String,
     pub limit: Option<u32>,
+    #[serde(default)]
+    pub offset: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1075,7 +1137,7 @@ mod skill_delete_policy_tests {
 
 #[tauri::command]
 pub async fn list_skill_market(
-    _state: State<'_, AppState>,
+    state: State<'_, AppState>,
     request: SkillMarketListRequest,
 ) -> Result<Vec<SkillMarketItem>, String> {
     let query = request
@@ -1085,12 +1147,14 @@ pub async fn list_skill_market(
         .filter(|v| !v.is_empty())
         .unwrap_or(DEFAULT_MARKET_QUERY);
     let limit = normalize_market_limit(request.limit);
-    fetch_skill_market(query, limit).await
+    let offset = normalize_market_offset(request.offset);
+    let proxy = configured_proxy_for_skills(&state).await?;
+    fetch_skill_market(query, limit, offset, proxy.as_ref()).await
 }
 
 #[tauri::command]
 pub async fn search_skill_market(
-    _state: State<'_, AppState>,
+    state: State<'_, AppState>,
     request: SkillMarketSearchRequest,
 ) -> Result<Vec<SkillMarketItem>, String> {
     let query = request.query.trim();
@@ -1098,12 +1162,47 @@ pub async fn search_skill_market(
         return Ok(Vec::new());
     }
     let limit = normalize_market_limit(request.limit);
-    fetch_skill_market(query, limit).await
+    let offset = normalize_market_offset(request.offset);
+    let proxy = configured_proxy_for_skills(&state).await?;
+    fetch_skill_market(query, limit, offset, proxy.as_ref()).await
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillDescriptionRequest {
+    pub ids: Vec<String>,
+}
+
+/// Lazily fetch skill descriptions for a set of skill ids. The listing path no
+/// longer blocks on description scraping; the frontend calls this after the
+/// list renders so the marketplace appears immediately and descriptions fill
+/// in progressively. Returns whatever could be fetched (including from the
+/// process-level cache) when the overall deadline elapses.
+#[tauri::command]
+pub async fn get_skill_descriptions(
+    state: State<'_, AppState>,
+    request: SkillDescriptionRequest,
+) -> Result<HashMap<String, String>, String> {
+    if request.ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let api_base =
+        std::env::var("SKILLS_API_URL").unwrap_or_else(|_| SKILLS_SEARCH_API_BASE.into());
+    let base_url = api_base.trim_end_matches('/').to_string();
+    let proxy = configured_proxy_for_skills(&state).await?;
+
+    let fetched = timeout(
+        Duration::from_secs(MARKET_DESC_FETCH_DEADLINE_SECS),
+        fetch_descriptions_for_ids(&request.ids, &base_url, proxy.as_ref()),
+    )
+    .await;
+    Ok(fetched.unwrap_or_default())
 }
 
 #[tauri::command]
 pub async fn download_skill_market(
-    _state: State<'_, AppState>,
+    state: State<'_, AppState>,
     request: SkillMarketDownloadRequest,
 ) -> Result<SkillMarketDownloadResponse, String> {
     let package = request.package.trim().to_string();
@@ -1134,64 +1233,19 @@ pub async fn download_skill_market(
         .map(|skill| skill.name)
         .collect();
 
-    let runtime_manager = RuntimeManager::new()
-        .map_err(|e| format!("Failed to initialize runtime manager: {}", e))?;
-    let resolved_npx = runtime_manager.resolve_command("npx").ok_or_else(|| {
-        "Command 'npx' is not available. Install Node.js or configure BitFun runtimes.".to_string()
-    })?;
-
-    let mut command = process_manager::create_tokio_command(&resolved_npx.command);
-    command
-        .arg("-y")
-        .arg("skills")
-        .arg("add")
-        .arg(&package)
-        .arg("-y")
-        .arg("-a")
-        .arg("universal");
-
-    if level == SkillLocation::User {
-        command.arg("-g");
-    }
-
-    if let Some(path) = workspace_path.as_ref() {
-        command.current_dir(path);
-    }
-
-    let current_path = std::env::var("PATH").ok();
-    if let Some(merged_path) = runtime_manager.merged_path_env(current_path.as_deref()) {
-        command.env("PATH", &merged_path);
-        #[cfg(windows)]
-        {
-            command.env("Path", &merged_path);
-        }
-    }
-
-    command.stdout(Stdio::piped());
-    command.stderr(Stdio::piped());
-
-    let output = command
-        .output()
-        .await
-        .map_err(|e| format!("Failed to execute skills installer: {}", e))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-    if !output.status.success() {
-        let exit_code = output.status.code().unwrap_or(-1);
-        let detail = if !stderr.trim().is_empty() {
-            truncate_preview(stderr.trim())
-        } else if !stdout.trim().is_empty() {
-            truncate_preview(stdout.trim())
-        } else {
-            "Unknown installer error".to_string()
-        };
-        return Err(format!(
-            "Failed to download skill package '{}' (exit code {}): {}",
-            package, exit_code, detail
-        ));
-    }
+    let proxy = configured_proxy_for_skills(&state).await?;
+    let outcome = install_skill_from_market(
+        &package,
+        level,
+        workspace_path.as_deref(),
+        proxy.as_ref(),
+    )
+    .await?;
+    let install_summary = format!(
+        "Installed skill '{}' to {}",
+        package,
+        outcome.target_dir.display()
+    );
 
     registry
         .refresh_for_workspace(workspace_path.as_deref())
@@ -1217,8 +1271,23 @@ pub async fn download_skill_market(
         package,
         level,
         installed_skills,
-        output: summarize_command_output(&stdout, &stderr),
+        output: install_summary,
     })
+}
+
+/// Read the BitFun AI proxy config (`global_config.ai.proxy`) for use by the
+/// native skill downloader. Mirrors `commands.rs::configured_ai_proxy` inline
+/// to keep the skill market download path self-contained; the duplication is a
+/// known follow-up cleanup (extract to a shared `api::proxy` module).
+async fn configured_proxy_for_skills(
+    state: &State<'_, AppState>,
+) -> Result<Option<ProxyConfig>, String> {
+    let global_config: bitfun_core::service::config::GlobalConfig = state
+        .config_service
+        .get_config(None)
+        .await
+        .map_err(|e| format!("Failed to get configuration: {}", e))?;
+    Ok(global_config.ai.proxy.enabled.then_some(global_config.ai.proxy))
 }
 
 fn normalize_market_limit(value: Option<u32>) -> u32 {
@@ -1227,16 +1296,34 @@ fn normalize_market_limit(value: Option<u32>) -> u32 {
         .clamp(1, MAX_MARKET_LIMIT)
 }
 
-async fn fetch_skill_market(query: &str, limit: u32) -> Result<Vec<SkillMarketItem>, String> {
+fn normalize_market_offset(value: Option<u32>) -> u32 {
+    value.unwrap_or(0)
+}
+
+async fn fetch_skill_market(
+    query: &str,
+    limit: u32,
+    offset: u32,
+    proxy: Option<&ProxyConfig>,
+) -> Result<Vec<SkillMarketItem>, String> {
     let api_base =
         std::env::var("SKILLS_API_URL").unwrap_or_else(|_| SKILLS_SEARCH_API_BASE.into());
     let base_url = api_base.trim_end_matches('/');
     let endpoint = format!("{}/api/search", base_url);
 
-    let client = Client::new();
+    // Over-fetch by `offset` so we can slice the requested page out of the
+    // prefix without depending on whether skills.sh's legacy /api/search
+    // honors an `offset`/`page` parameter. The legacy endpoint does not
+    // document one, so requesting `limit + offset` and slicing locally is the
+    // safe, correct fallback.
+    let fetch_limit = offset
+        .saturating_add(limit)
+        .min(MAX_MARKET_LIMIT);
+
+    let client = build_market_client(proxy)?;
     let response = client
         .get(&endpoint)
-        .query(&[("q", query), ("limit", &limit.to_string())])
+        .query(&[("q", query), ("limit", &fetch_limit.to_string())])
         .send()
         .await
         .map_err(|e| format!("Failed to query skill market: {}", e))?;
@@ -1283,68 +1370,74 @@ async fn fetch_skill_market(query: &str, limit: u32) -> Result<Vec<SkillMarketIt
         });
     }
 
-    fill_market_descriptions(&client, base_url, &mut items).await;
+    // Slice the requested page.
+    let start = (offset as usize).min(items.len());
+    let end = (start.saturating_add(limit as usize)).min(items.len());
+    let mut page: Vec<SkillMarketItem> = items.into_iter().skip(start).take(end - start).collect();
 
-    Ok(items)
-}
-
-fn summarize_command_output(stdout: &str, stderr: &str) -> String {
-    let primary = if !stdout.trim().is_empty() {
-        stdout.trim()
-    } else {
-        stderr.trim()
-    };
-
-    if primary.is_empty() {
-        return "Skill downloaded successfully.".to_string();
+    // Block on description fill so cards appear WITH their descriptions (no
+    // title-only placeholders that pop in later). skills.sh's legacy search has
+    // no description field and its v1 API needs Vercel OIDC auth, so per-skill
+    // HTML scrape is the only no-auth source — this is the unavoidable
+    // ~few-second cost of a cold page (the process cache speeds up repeat
+    // views of the same skills). Each per-skill fetch is bounded by
+    // MARKET_DESC_FETCH_TIMEOUT_SECS, so this cannot hang indefinitely.
+    if !page.is_empty() {
+        let ids: Vec<String> = page.iter().map(|i| i.id.clone()).collect();
+        let descs = fetch_descriptions_for_ids(&ids, base_url, proxy).await;
+        for item in page.iter_mut() {
+            if item.description.trim().is_empty() {
+                if let Some(desc) = descs.get(&item.id) {
+                    item.description = desc.clone();
+                }
+            }
+        }
     }
 
-    truncate_preview(primary)
-}
-
-fn truncate_preview(text: &str) -> String {
-    if text.chars().count() <= MAX_OUTPUT_PREVIEW_CHARS {
-        return text.to_string();
-    }
-
-    let truncated: String = text.chars().take(MAX_OUTPUT_PREVIEW_CHARS).collect();
-    format!("{}...", truncated)
+    Ok(page)
 }
 
 fn market_description_cache() -> &'static RwLock<HashMap<String, String>> {
     MARKET_DESCRIPTION_CACHE.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
-async fn fill_market_descriptions(client: &Client, base_url: &str, items: &mut [SkillMarketItem]) {
+async fn fetch_descriptions_for_ids(
+    ids: &[String],
+    base_url: &str,
+    proxy: Option<&ProxyConfig>,
+) -> HashMap<String, String> {
     let cache = market_description_cache();
+    let mut result: HashMap<String, String> = HashMap::new();
 
+    // 1. Serve whatever is already in the process-level cache.
     {
         let reader = cache.read().await;
-        for item in items.iter_mut() {
-            if !item.description.trim().is_empty() {
-                continue;
-            }
-            if let Some(cached) = reader.get(&item.id) {
-                item.description = cached.clone();
+        for id in ids {
+            if let Some(cached) = reader.get(id) {
+                result.insert(id.clone(), cached.clone());
             }
         }
     }
 
-    let mut missing_ids = Vec::new();
-    for item in items.iter() {
-        if item.description.trim().is_empty() {
-            missing_ids.push(item.id.clone());
-        }
+    let missing: Vec<String> = ids
+        .iter()
+        .filter(|id| !result.contains_key(*id))
+        .cloned()
+        .collect();
+
+    if missing.is_empty() {
+        return result;
     }
 
-    if missing_ids.is_empty() {
-        return;
-    }
-
+    // 2. Concurrent HTML scrape for uncached ids. Concurrency and per-page
+    //    timeout are bounded by MARKET_DESC_FETCH_CONCURRENCY and
+    //    MARKET_DESC_FETCH_TIMEOUT_SECS respectively; the caller also wraps
+    //    the whole call in an overall deadline.
+    let client = build_market_client(proxy).unwrap_or_else(|_| Client::new());
     let mut join_set = JoinSet::new();
     let mut fetched = HashMap::new();
 
-    for skill_id in missing_ids {
+    for skill_id in missing {
         let client_clone = client.clone();
         let page_url = format!("{}/{}", base_url, skill_id.trim_start_matches('/'));
 
@@ -1360,30 +1453,24 @@ async fn fill_market_descriptions(client: &Client, base_url: &str, items: &mut [
         }
     }
 
-    while let Some(result) = join_set.join_next().await {
-        if let Ok((skill_id, Some(desc))) = result {
+    while let Some(result_entry) = join_set.join_next().await {
+        if let Ok((skill_id, Some(desc))) = result_entry {
             fetched.insert(skill_id, desc);
         }
     }
 
-    if fetched.is_empty() {
-        return;
-    }
-
-    {
+    // 3. Write back to cache and merge into the result map.
+    if !fetched.is_empty() {
         let mut writer = cache.write().await;
         for (skill_id, desc) in &fetched {
             writer.insert(skill_id.clone(), desc.clone());
         }
     }
-
-    for item in items.iter_mut() {
-        if item.description.trim().is_empty() {
-            if let Some(desc) = fetched.get(&item.id) {
-                item.description = desc.clone();
-            }
-        }
+    for (id, desc) in fetched {
+        result.insert(id, desc);
     }
+
+    result
 }
 
 async fn fetch_description_from_skill_page(client: &Client, page_url: &str) -> Option<String> {

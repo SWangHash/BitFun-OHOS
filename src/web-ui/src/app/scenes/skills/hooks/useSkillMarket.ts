@@ -59,11 +59,11 @@ export function useSkillMarket({
     capabilityRef.current.enabled && capabilityRef.current.epoch === epoch
   ), []);
 
-  const fetchSkills = useCallback(async (query: string | undefined, limit: number) => {
+  const fetchSkills = useCallback(async (query: string | undefined, limit: number, offset: number) => {
     const normalized = query?.trim();
     return normalized
-      ? await configAPI.searchSkillMarket(normalized, limit)
-      : await configAPI.listSkillMarket(undefined, limit);
+      ? await configAPI.searchSkillMarket(normalized, limit, offset)
+      : await configAPI.listSkillMarket(undefined, limit, offset);
   }, []);
 
   const loadFirstPage = useCallback(async (query?: string) => {
@@ -77,7 +77,7 @@ export function useSkillMarket({
     setMarketError(null);
     setCurrentPage(0);
     try {
-      const skillList = await fetchSkills(query, pageSize);
+      const skillList = await fetchSkills(query, pageSize, 0);
       if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
         return;
       }
@@ -122,6 +122,8 @@ export function useSkillMarket({
       installed: installedSkillNames.has(skill.name),
     }));
 
+    // Sort by install count (popular first), then original fetch order for a
+    // stable position. Installed skills are prioritized to the front.
     entries.sort((a, b) => {
       if (a.installed !== b.installed) {
         return a.installed ? -1 : 1;
@@ -156,12 +158,12 @@ export function useSkillMarket({
     if (capabilityEpoch === null) {
       return;
     }
-    const requestId = ++marketRequestIdRef.current;
 
     const nextPage = currentPage + 1;
-    const neededCount = Math.min((nextPage + 1) * pageSize, MAX_TOTAL_SKILLS);
+    const nextOffset = nextPage * pageSize;
 
-    if (displayMarketSkills.length >= neededCount) {
+    // If the next page is already loaded locally, just advance the view.
+    if (displayMarketSkills.length >= nextOffset + pageSize) {
       setCurrentPage(nextPage);
       return;
     }
@@ -170,22 +172,46 @@ export function useSkillMarket({
       return;
     }
 
+    const requestId = ++marketRequestIdRef.current;
+    // Advance the page immediately so the user sees the page turn (with
+    // skeletons) right away, instead of freezing on the current page.
     setCurrentPage(nextPage);
 
     try {
       setLoadingMore(true);
-      const skillList = await fetchSkills(searchQuery || undefined, neededCount);
+      // Real offset pagination: fetch only the next page slice from the
+      // backend; no re-fetching of previously loaded items, no grow-limit.
+      const remainingBudget = Math.max(0, MAX_TOTAL_SKILLS - displayMarketSkills.length);
+      if (remainingBudget < pageSize) {
+        setHasMore(false);
+        return;
+      }
+      const skillList = await fetchSkills(searchQuery || undefined, pageSize, nextOffset);
       if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
         return;
       }
-      setMarketSkills(skillList);
-      const hitCap = neededCount >= MAX_TOTAL_SKILLS;
-      setHasMore(!hitCap && skillList.length >= neededCount);
+      if (skillList.length > 0) {
+        setMarketSkills((prev) => {
+          // Append new items, deduping by installId to avoid duplicate cards
+          // if the backend returned overlap.
+          const seen = new Set(prev.map((s) => s.installId));
+          const fresh = skillList.filter((s) => {
+            if (seen.has(s.installId)) {
+              return false;
+            }
+            seen.add(s.installId);
+            return true;
+          });
+          return [...prev, ...fresh];
+        });
+      }
+      setHasMore(skillList.length >= pageSize);
     } catch (err) {
       if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
         return;
       }
       log.error('Failed to load more skills', err);
+      // Roll back to the previous page on failure.
       setCurrentPage(currentPage);
     } finally {
       if (requestId === marketRequestIdRef.current && capabilityIsCurrent(capabilityEpoch)) {

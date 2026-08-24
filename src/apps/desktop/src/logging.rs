@@ -644,6 +644,13 @@ fn configured_log_builder(log_targets: Vec<Target>) -> tauri_plugin_log::Builder
         )
         .level_for("hyper_util", log::LevelFilter::Info)
         .level_for("h2", log::LevelFilter::Info)
+        // reqwest/rustls log every new connection and CA-store load at DEBUG,
+        // which floods the log during skill market listing/description fetches.
+        // Keep WARN/ERROR (real failures) but drop the mechanical connect noise.
+        .level_for("reqwest", log::LevelFilter::Warn)
+        .level_for("rustls", log::LevelFilter::Warn)
+        .level_for("rustls_platform_verifier", log::LevelFilter::Warn)
+        .level_for("hyper", log::LevelFilter::Warn)
         .level_for("portable_pty", log::LevelFilter::Info)
         .level_for("russh", log::LevelFilter::Info)
         .level_for("grep_searcher", log::LevelFilter::Warn)
