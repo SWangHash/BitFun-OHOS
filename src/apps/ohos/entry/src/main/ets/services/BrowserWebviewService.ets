@@ -19,6 +19,7 @@ interface BrowserWebviewEntry {
 export interface CreateRequest {
   label: string;
   url: string;
+  html?: string;
   x: number;
   y: number;
   width: number;
@@ -135,7 +136,11 @@ export class BrowserWebviewService {
     // can react exactly like the desktop `.on_page_load` path.
     const initData: WebviewInitData = {
       webTag: label,
-      url: request.url,
+      // When HTML content is provided (local file), leave url empty so
+      // WebBuilder falls through to loadData() instead of loadUrl(). The
+      // OHOS Web component cannot load file:// URLs for workspace files.
+      url: request.html ? '' : request.url,
+      html: request.html,
       style: style,
       javascriptEnable: true,
       devtools: true,

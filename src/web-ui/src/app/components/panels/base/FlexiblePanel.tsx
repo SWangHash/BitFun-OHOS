@@ -856,6 +856,7 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
             <BrowserPanel
               isActive={isActive}
               initialUrl={content.data?.url}
+              initialHtml={content.data?.html}
             />
           </React.Suspense>
         );
