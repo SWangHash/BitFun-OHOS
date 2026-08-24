@@ -779,6 +779,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ),
     ("get_skill_configs", RemoteWorkspacePolicy::LegacyUnaudited),
     (
+        "get_skill_descriptions",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
         "get_snapshot_sessions",
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
