@@ -17,6 +17,7 @@ import {
   useAnchoredPopoverPosition,
   type AnchoredPopoverLayout,
 } from '@/shared/utils/useAnchoredPopoverPosition';
+import type { FixedPopoverPlacement } from '@/shared/utils/fixedPopoverViewport';
 import { PresenceBoundary } from '../PresenceBoundary/PresenceBoundary';
 import './Select.scss';
 
@@ -205,7 +206,7 @@ export const Select: React.FC<SelectProps> = ({
     highlightedIndex: number;
     searchQuery: string;
     loading: boolean;
-    placement: 'bottom' | 'top';
+    placement: FixedPopoverPlacement;
     layout: AnchoredPopoverLayout | null;
   }>(() => ({
     filteredOptions,

@@ -8,6 +8,7 @@ import { configAPI } from '@/infrastructure/api/service-api/ConfigAPI';
 import { sessionAPI } from '@/infrastructure/api/service-api/SessionAPI';
 import { isSessionInUseError } from '@/infrastructure/api/errors/TauriCommandError';
 import { createLogger } from '@/shared/utils/logger';
+import { notificationService } from '@/shared/notification-system';
 import { isRemoteTraceContext, startupTrace } from '@/shared/utils/startupTrace';
 import { elapsedMs, nowMs } from '@/shared/utils/timing';
 import { i18nService } from '@/infrastructure/i18n';

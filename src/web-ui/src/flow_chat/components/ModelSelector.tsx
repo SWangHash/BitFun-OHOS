@@ -48,6 +48,7 @@ import {
 } from '../utils/tokenUsageDisplay';
 import { createLogger } from '@/shared/utils/logger';
 import { getModelSelectorDropdownLayout } from './modelSelectorDropdownPosition';
+import type { FixedPopoverPlacement } from '@/shared/utils/fixedPopoverViewport';
 import { AcpModeSelector } from './AcpModeSelector';
 import { ReasoningPresetSelector } from './ReasoningPresetSelector';
 import {
@@ -91,7 +92,7 @@ interface ModelSelectorProps {
   /** Custom class name. */
   className?: string;
   /** Preferred dropdown placement relative to the trigger. */
-  dropdownPlacement?: 'top' | 'bottom';
+  dropdownPlacement?: FixedPopoverPlacement;
   /** Current session ID (used to update the selected session model). */
   sessionId?: string;
   /** Whether the active input target is a Task subagent session. */
