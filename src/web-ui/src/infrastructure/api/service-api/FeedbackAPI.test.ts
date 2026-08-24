@@ -41,6 +41,17 @@ describe('FeedbackAPI', () => {
     expect(truncated.endsWith('😀')).toBe(true);
   });
 
+  it('removes leading whitespace before applying the character limit', async () => {
+    const { feedbackContentLength, feedbackInsertText, truncateFeedbackContent } = await import('./FeedbackAPI');
+
+    expect(truncateFeedbackContent(' \n\t反馈')).toBe('反馈');
+    expect(feedbackContentLength(truncateFeedbackContent(`${' '.repeat(20)}${'a'.repeat(2_000)}`))).toBe(2_000);
+    expect(feedbackInsertText('abc', 3, 3, `${'x'.repeat(2_000)}tail`)).toHaveLength(1_997);
+    expect(feedbackInsertText('abc', 0, 0, '  next')).toBe('next');
+    expect(feedbackInsertText('a'.repeat(2_000), 2_000, 2_000, ' ')).toBe('');
+    expect(feedbackInsertText('a'.repeat(2_000), 0, 10, '😀')).toBe('😀');
+  });
+
   it('maps Inbox paging to a structured request with a fixed default page size', async () => {
     const { feedbackAPI } = await import('./FeedbackAPI');
     invokeMock.mockResolvedValue({ items: [], hasMore: false });

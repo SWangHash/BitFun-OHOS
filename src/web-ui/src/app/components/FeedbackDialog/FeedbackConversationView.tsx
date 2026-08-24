@@ -3,9 +3,12 @@ import { LockKeyhole, RefreshCw, Send } from 'lucide-react';
 import { Button, ConfirmDialog, IconButton, Textarea } from '@/component-library';
 import { usePrivacy } from '@/app/components/Privacy/PrivacyContext';
 import { PrivacyStatementDialog } from '@/app/components/Privacy/PrivacyStatementDialog';
+import { useImeEnterGuard } from '@/flow_chat/hooks/useImeEnterGuard';
 import {
   feedbackAPI,
   FeedbackApiError,
+  FEEDBACK_CONTENT_MAX_CHARS,
+  feedbackInsertText,
   type FeedbackMessage,
   type FeedbackRecordSummary,
   feedbackContentLength,
@@ -14,6 +17,7 @@ import {
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { PrivacyStatementLink } from './PrivacyStatementLink';
 import { useFeedbackInboxStore } from './feedbackInboxStore';
+import { useRejectedInsertionCaret } from './useRejectedInsertionCaret';
 
 interface FeedbackConversationViewProps {
   record: FeedbackRecordSummary;
@@ -30,6 +34,7 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
 }) => {
   const { t, formatDate } = useI18n('common');
   const { status, accept } = usePrivacy();
+  const { isImeEnter, handleCompositionStart, handleCompositionEnd } = useImeEnterGuard();
   const [messages, setMessages] = useState<FeedbackMessage[]>([]);
   const [nextCursor, setNextCursor] = useState<string>();
   const [hasMore, setHasMore] = useState(false);
@@ -45,6 +50,7 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
   const [showConsent, setShowConsent] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { armRejectedInsertionCaret, restoreRejectedInsertionCaret } = useRejectedInsertionCaret();
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const visibleAdminTimesRef = useRef(new Set<string>());
   const lastReadThroughRef = useRef<string | null>(null);
@@ -58,6 +64,9 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
   const markInaccessible = useFeedbackInboxStore(state => state.markInaccessible);
   const refreshInbox = useFeedbackInboxStore(state => state.refresh);
   const draftLength = feedbackContentLength(draft);
+  const draftNativeMaxLength = draftLength >= FEEDBACK_CONTENT_MAX_CHARS
+    ? draft.length
+    : undefined;
   const canReply = Boolean(draft.trim()) && !sending && record.status !== 'resolved';
 
   useEffect(() => {
@@ -89,7 +98,7 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
   const loadLatest = useCallback(async (manual: boolean) => {
     if (manual) setRefreshing(true);
     else setLoading(true);
-    setError(null);
+    if (!manual) setError(null);
     try {
       const page = await feedbackAPI.openConversation({ feedbackId: record.feedbackId });
       if (!mountedRef.current) return;
@@ -105,12 +114,12 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
         refreshedReconciledUnreadRef.current = true;
         void refreshInbox(true);
       }
-      if (!manual) {
-        requestAnimationFrame(() => {
-          const container = scrollRef.current;
-          if (container) container.scrollTop = container.scrollHeight;
-        });
-      }
+      // Refresh can append newly arrived messages to the existing list. Wait
+      // for the merged list to render, then keep the conversation at its tail.
+      requestAnimationFrame(() => {
+        const container = scrollRef.current;
+        if (container) container.scrollTop = container.scrollHeight;
+      });
     } catch (caught) {
       if (mountedRef.current) handleConversationError(caught);
     } finally {
@@ -240,6 +249,45 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
     void sendReply();
   };
 
+  const handleReplyKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      !event.ctrlKey
+      && !event.metaKey
+      && !event.altKey
+      && (
+        event.key.length === 1
+        || event.key === 'Process'
+        || event.nativeEvent.keyCode === 229
+      )
+    ) {
+      const textarea = event.currentTarget;
+      if (
+        textarea.selectionStart === textarea.selectionEnd
+        && feedbackContentLength(textarea.value) >= FEEDBACK_CONTENT_MAX_CHARS
+      ) {
+        armRejectedInsertionCaret(textarea);
+      }
+    }
+    if (event.key !== 'Enter' || isImeEnter(event)) return;
+    if (event.ctrlKey) {
+      const textarea = event.currentTarget;
+      if (
+        textarea.selectionStart === textarea.selectionEnd
+        && feedbackContentLength(textarea.value) >= FEEDBACK_CONTENT_MAX_CHARS
+      ) {
+        armRejectedInsertionCaret(textarea);
+        // Let native maxLength reject the newline without touching undo state.
+        return;
+      }
+      event.preventDefault();
+      applyFeedbackInsertion(event.currentTarget, '\n');
+      return;
+    }
+    // Enter sends the reply; Ctrl+Enter inserts a newline.
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  };
+
   const acceptAndSend = async () => {
     const content = draft.trim();
     if (!content || sending || !status?.policy) return;
@@ -264,11 +312,86 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
     if (mountedRef.current) setSending(false);
   };
 
-  const handleDraftChange = (value: string) => {
+  const handleDraftChange = (textarea: HTMLTextAreaElement) => {
+    const value = textarea.value;
     const truncated = truncateFeedbackContent(value);
-    setDraftTruncated(truncated !== value);
+    setDraftTruncated(Array.from(value.replace(/^\s+/, '')).length > FEEDBACK_CONTENT_MAX_CHARS);
     setDraft(truncated);
     setReplyError(null);
+  };
+
+  const applyFeedbackInsertion = (textarea: HTMLTextAreaElement, insertedText: string) => {
+    const currentValue = textarea.value;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    if (start === end && feedbackContentLength(currentValue) >= FEEDBACK_CONTENT_MAX_CHARS) {
+      return;
+    }
+    const acceptedText = feedbackInsertText(currentValue, start, end, insertedText);
+    if (acceptedText && document.execCommand('insertText', false, acceptedText)) {
+      // execCommand preserves the browser's native undo transaction for a
+      // paste, unlike replacing the controlled value in onChange.
+    } else {
+      textarea.setRangeText(acceptedText, start, end, 'end');
+    }
+    const candidate = currentValue.slice(0, start) + insertedText + currentValue.slice(end);
+    setDraftTruncated(feedbackContentLength(candidate.replace(/^\s+/, '')) > FEEDBACK_CONTENT_MAX_CHARS);
+  };
+
+  const handleDraftPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const textarea = event.currentTarget;
+    if (
+      textarea.selectionStart === textarea.selectionEnd
+      && feedbackContentLength(textarea.value) >= FEEDBACK_CONTENT_MAX_CHARS
+    ) {
+      armRejectedInsertionCaret(textarea);
+      // Let the native maxLength gate reject the paste without creating a
+      // JavaScript edit boundary in the browser's undo history.
+      return;
+    }
+    event.preventDefault();
+    applyFeedbackInsertion(textarea, event.clipboardData.getData('text/plain'));
+  };
+
+  const handleDraftBeforeInput = (event: React.FormEvent<HTMLTextAreaElement>) => {
+    const nativeEvent = event.nativeEvent as InputEvent;
+    const textarea = event.currentTarget;
+    if (
+      nativeEvent.inputType.startsWith('insert')
+      && textarea.selectionStart === textarea.selectionEnd
+      && feedbackContentLength(textarea.value) >= FEEDBACK_CONTENT_MAX_CHARS
+    ) {
+      armRejectedInsertionCaret(textarea);
+      return;
+    }
+    if (
+      textarea.selectionStart === textarea.selectionEnd
+      && feedbackContentLength(textarea.value) >= FEEDBACK_CONTENT_MAX_CHARS
+    ) {
+      // Native maxLength owns full-input rejection so the browser does not
+      // create a JavaScript edit boundary that consumes the next undo.
+      return;
+    }
+    const insertedText = nativeEvent.inputType === 'insertLineBreak'
+      || nativeEvent.inputType === 'insertParagraph'
+      ? '\n'
+      : nativeEvent.data;
+    if (
+      !['insertText', 'insertLineBreak', 'insertParagraph'].includes(nativeEvent.inputType)
+      || nativeEvent.isComposing
+      || insertedText == null
+    ) {
+      return;
+    }
+    const acceptedText = feedbackInsertText(
+      textarea.value,
+      textarea.selectionStart,
+      textarea.selectionEnd,
+      insertedText,
+    );
+    if (acceptedText === insertedText) return;
+    event.preventDefault();
+    applyFeedbackInsertion(textarea, insertedText);
   };
 
   useEffect(() => {
@@ -340,6 +463,29 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
           <RefreshCw size={15} aria-hidden="true" />
         </IconButton>
       </div>
+      {error || ackError ? (
+        <div className="bitfun-feedback__conversation-notices">
+          {error ? (
+            <div className="bitfun-feedback__message-error" role="alert">
+              <span>{conversationErrorText(error.code, t)}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="small"
+                disabled={sending}
+                onClick={() => void loadLatest(true)}
+              >
+                {t('feedback.actions.retry')}
+              </Button>
+            </div>
+          ) : null}
+          {ackError ? (
+            <div className="bitfun-feedback__message-notice" role="status">
+              {t('feedback.conversation.ackFailed')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <div ref={scrollRef} className="bitfun-feedback__messages" aria-live="polite">
         <div ref={topSentinelRef} className="bitfun-feedback__message-sentinel" aria-hidden="true" />
         {loading || loadingEarlier ? (
@@ -349,26 +495,7 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
               : t('feedback.conversation.loading')}
           </div>
         ) : null}
-        {error ? (
-          <div className="bitfun-feedback__message-error" role="alert">
-            <span>{conversationErrorText(error.code, t)}</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="small"
-              disabled={sending}
-              onClick={() => void loadLatest(true)}
-            >
-              {t('feedback.actions.retry')}
-            </Button>
-          </div>
-        ) : null}
-        {ackError ? (
-          <div className="bitfun-feedback__message-notice" role="status">
-            {t('feedback.conversation.ackFailed')}
-          </div>
-        ) : null}
-        {!loading && messages.length === 0 && !error ? (
+        {!loading && !refreshing && messages.length === 0 && !error ? (
           <div className="bitfun-feedback__message-empty">
             {t('feedback.conversation.empty')}
           </div>
@@ -401,11 +528,22 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
         <form className="bitfun-feedback__reply" onSubmit={requestReply}>
           <Textarea
             value={draft}
+            maxLength={draftNativeMaxLength}
             rows={3}
             disabled={sending}
             aria-label={t('feedback.reply.input')}
             placeholder={t('feedback.reply.placeholder')}
-            onChange={event => handleDraftChange(event.target.value)}
+            onKeyDown={handleReplyKeyDown}
+            onKeyUp={event => restoreRejectedInsertionCaret(event.currentTarget)}
+            onInput={event => restoreRejectedInsertionCaret(event.currentTarget)}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={event => {
+              handleCompositionEnd();
+              restoreRejectedInsertionCaret(event.currentTarget);
+            }}
+            onPaste={handleDraftPaste}
+            onBeforeInput={handleDraftBeforeInput}
+            onChange={event => handleDraftChange(event.target)}
           />
           <div className="bitfun-feedback__reply-meta" aria-live="polite">
             <span>{draftTruncated ? t('feedback.contentTruncated') : ''}</span>
