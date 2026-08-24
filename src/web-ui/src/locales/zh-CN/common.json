@@ -1634,7 +1634,8 @@
     "title": "关闭 BitFun",
     "message": "请选择关闭操作：退出程序将完全停止运行，最小化到托盘可保持后台运行随时唤回。",
     "quit": "退出程序",
-    "minimizeToTray": "最小化到托盘"
+    "minimizeToTray": "最小化到托盘",
+    "doNotAskAgain": "下次不再询问（可在“设置”界面中的“基础”中随时修改）"
   },
   "reviewPlatform": {
     "relativeTime": {

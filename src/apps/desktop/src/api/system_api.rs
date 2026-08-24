@@ -883,7 +883,7 @@ pub async fn startup_window_control(
                     .config_service
                     .get_config::<String>(Some("app.close_button_behavior"))
                     .await
-                    .unwrap_or_else(|_| "minimize_to_tray".to_string());
+                    .unwrap_or_else(|_| "ask".to_string());
 
             if behavior == "quit" {
                 log::info!("Quit requested from startup window control");
