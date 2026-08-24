@@ -26,7 +26,7 @@ import { MCPInteractionDialog } from '../components/MCPInteractionDialog/MCPInte
 import { workspaceAPI } from '@/infrastructure/api';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import type { CloseBehavior } from '@/infrastructure/api/service-api/SystemAPI';
-import { confirmDialog } from '@/component-library';
+import { confirmDialogChoice } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
 import { DailyAppUpdateGate } from '@/infrastructure/update';
 import { useI18n } from '@/infrastructure/i18n';
@@ -459,25 +459,46 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
           }
 
           // Windows / Linux / HarmonyOS: read the user's close-button preference.
-          let behavior: CloseBehavior = 'minimize_to_tray';
+          let behavior: CloseBehavior = 'ask';
           try {
-            behavior = (await configManager.getConfig<CloseBehavior>('app.close_button_behavior')) ?? 'minimize_to_tray';
+            behavior = (await configManager.getConfig<CloseBehavior>('app.close_button_behavior')) ?? 'ask';
           } catch {
-            // Fall back to minimize_to_tray if config cannot be read.
+            // Fall back to ask if config cannot be read.
           }
 
           try {
             if (behavior === 'minimize_to_tray') {
               await systemAPI.minimizeToTray();
             } else if (behavior === 'ask') {
-              const shouldQuit = await confirmDialog({
+              let doNotAskAgain = false;
+              const closeChoice = await confirmDialogChoice({
                 title: tCommon('closeDialog.title'),
-                message: tCommon('closeDialog.message'),
+                message: (
+                  <div>
+                    <div>{tCommon('closeDialog.message')}</div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16 }}>
+                      <input
+                        type="checkbox"
+                        onChange={(event) => { doNotAskAgain = event.target.checked; }}
+                      />
+                      <span>{tCommon('closeDialog.doNotAskAgain')}</span>
+                    </label>
+                  </div>
+                ),
                 confirmText: tCommon('closeDialog.quit'),
                 cancelText: tCommon('closeDialog.minimizeToTray'),
                 showCancel: true,
               });
-              if (shouldQuit) {
+              const selectedBehavior: CloseBehavior = closeChoice === 'confirm' ? 'quit' : 'minimize_to_tray';
+              if (doNotAskAgain) {
+                try {
+                  await configManager.setConfig('app.close_button_behavior', selectedBehavior);
+                  configManager.clearCache();
+                } catch (error) {
+                  log.warn('Failed to save close-button preference', error);
+                }
+              }
+              if (closeChoice === 'confirm') {
                 if (await confirmCriticalOperationExit()) {
                   await persistInterruptedTurnsForExit();
                   await systemAPI.quitApp();
