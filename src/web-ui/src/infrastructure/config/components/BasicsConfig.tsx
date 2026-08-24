@@ -687,7 +687,7 @@ function BasicsTerminalSection() {
 function BasicsWindowBehaviorSection() {
   const { t } = useTranslation('settings/basics');
   const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
-  const [behavior, setBehavior] = useState<CloseBehavior>('quit');
+  const [behavior, setBehavior] = useState<CloseBehavior>('ask');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -716,10 +716,10 @@ function BasicsWindowBehaviorSection() {
       try {
         setLoading(true);
         const v = await configManager.getConfig<CloseBehavior>('app.close_button_behavior');
-        if (!cancelled) setBehavior(v ?? 'minimize_to_tray');
+        if (!cancelled) setBehavior(v ?? 'ask');
       } catch {
         // Key absent on first launch — fall back to default silently.
-        if (!cancelled) setBehavior('minimize_to_tray');
+        if (!cancelled) setBehavior('ask');
       } finally {
         if (!cancelled) setLoading(false);
       }
