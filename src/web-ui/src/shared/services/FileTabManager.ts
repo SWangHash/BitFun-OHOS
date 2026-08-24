@@ -148,10 +148,11 @@ class FileTabManager {
   }
 
   /**
-   * Open a local HTML file in the built-in browser panel. The webview cannot
-   * load `file://` URLs, so the file content is read and wrapped into a
-   * `data:text/html;base64,...` URL that the webview CAN load. Applies to all
-   * open paths: file tree, file search, and flow-chat right-click "Open".
+   * Open a local HTML file in the built-in browser panel. The OHOS Web
+   * component cannot load `file://` URLs for workspace files, so the file
+   * content is read and passed as raw HTML to the browser panel, which uses
+   * `loadData` to render it. Applies to all open paths: file tree, file
+   * search, and flow-chat right-click "Open".
    */
   private openHtmlInBrowser(
     filePath: string,
@@ -166,10 +167,9 @@ class FileTabManager {
     fileName: string,
     mode: 'agent' | 'project',
   ): Promise<void> {
-    let dataUrl: string;
+    let htmlContent: string;
     try {
-      const base64 = await workspaceAPI.readFileContent(filePath, 'base64');
-      dataUrl = `data:text/html;base64,${base64}`;
+      htmlContent = await workspaceAPI.readFileContent(filePath);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('[FileTabManager] Failed to read HTML file for browser tab', { filePath, error });
@@ -180,7 +180,7 @@ class FileTabManager {
     const eventDetail: PendingTabDetail = {
       type: 'browser',
       title: fileName,
-      data: { url: dataUrl },
+      data: { html: htmlContent },
       metadata: { duplicateCheckKey: duplicateKey },
       checkDuplicate: true,
       duplicateCheckKey: duplicateKey,
