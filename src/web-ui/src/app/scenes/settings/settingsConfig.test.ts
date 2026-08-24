@@ -2,7 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { normalizeSettingsTarget, SETTINGS_CATEGORIES } from './settingsConfig';
 import { SETTINGS_TAB_SEARCH_CONTENT } from './settingsTabSearchContent';
 
+function hasVoiceInputTab(): boolean {
+  return SETTINGS_CATEGORIES.some(category =>
+    category.tabs.some(tab => tab.id === 'voice-input')
+  );
+}
+
 describe('settings deep-link targets', () => {
+  it('keeps voice input visible on non-OpenHarmony runtimes', () => {
+    expect(hasVoiceInputTab()).toBe(true);
+  });
+
   it('routes the legacy Hooks target into External AI applications with focus intent', () => {
     expect(normalizeSettingsTarget('hooks')).toEqual({
       tab: 'external-sources',

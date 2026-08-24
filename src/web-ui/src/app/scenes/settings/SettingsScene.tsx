@@ -11,6 +11,7 @@ import React, {
   useEffect,
   useState,
 } from 'react';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { useSettingsStore } from './settingsStore';
 import { useExternalAppAwareness } from '@/infrastructure/config/components/external-sources';
 import type { ConfigTab } from './settingsConfig';
@@ -86,13 +87,18 @@ const SettingsScene: React.FC = () => {
 
   const resolvedTab: ConfigTab =
     (activeTab as string) === 'session-config' ? 'session-permissions' : activeTab;
+  const isVoiceInputTabHidden = isOpenHarmonyRuntime() && resolvedTab === 'voice-input';
 
   useEffect(() => {
     /** Legacy merged session settings tab removed in favor of two panels. */
     if ((activeTab as string) === 'session-config') {
       setActiveTab('session-permissions');
+      return;
     }
-  }, [activeTab, setActiveTab]);
+    if (isVoiceInputTabHidden) {
+      setActiveTab('basics');
+    }
+  }, [activeTab, isVoiceInputTabHidden, setActiveTab]);
 
   /**
    * Cold entries into the scene (first open after launch, deep links) mount a

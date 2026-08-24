@@ -5,6 +5,8 @@
  * Labels are i18n keys resolved at render time via useTranslation('settings').
  */
 
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
+
 export type ConfigTab =
   | 'basics'
   | 'appearance'
@@ -201,12 +203,12 @@ export const SETTINGS_CATEGORIES: ConfigCategoryDef[] = [
           'shortcut',
         ],
       },
-      {
-        id: 'voice-input',
+      ...(!isOpenHarmonyRuntime() ? [{
+        id: 'voice-input' as const,
         labelKey: 'configCenter.tabs.voiceInput',
         descriptionKey: 'configCenter.tabDescriptions.voiceInput',
         keywords: ['voice', 'speech', 'microphone', 'dictation', 'transcription', 'audio'],
-      },
+      }] : []),
       {
         id: 'review',
         labelKey: 'configCenter.tabs.review',
