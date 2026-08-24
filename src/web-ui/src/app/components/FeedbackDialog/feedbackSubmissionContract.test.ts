@@ -110,6 +110,33 @@ describe('OpenHarmony feedback submission contract', () => {
     expect(styles).toContain('grid-template-columns: minmax(300px, 36%) minmax(0, 1fr)');
   });
 
+  it('matches the main workspace list scrollbar treatment', () => {
+    const styles = readSource('./FeedbackDialog.scss');
+
+    expect(styles).not.toContain('feedback-scroll-container');
+    expect(styles).not.toContain('scrollbar-gutter: stable;');
+    expect(styles).toContain('overflow-x: hidden;');
+    expect(styles).toContain('overflow-y: auto;');
+    expect(styles).toContain('width: 3px;');
+    expect(styles).toContain('background: var(--bf-appearance-token-border-subtle);');
+    expect(styles).toContain('border-radius: 2px;');
+  });
+
+  it('limits feedback paste before replacing the controlled value', () => {
+    const dialog = readSource('./FeedbackDialog.tsx');
+
+    expect(dialog).toContain('onPaste={handleContentPaste}');
+    expect(dialog).toContain('onBeforeInput={handleContentBeforeInput}');
+    expect(dialog).toContain('textarea.setRangeText(acceptedText, start, end, \'end\')');
+    expect(dialog).toContain('feedbackInsertText(currentValue, start, end, insertedText)');
+    expect(dialog).toContain('start === end && feedbackContentLength(currentValue) >= FEEDBACK_CONTENT_MAX_CHARS');
+    expect(dialog).toContain('maxLength={contentNativeMaxLength}');
+    expect(dialog).toContain("nativeEvent.inputType.startsWith('insert')");
+    expect(dialog).toContain('armRejectedInsertionCaret(textarea)');
+    expect(dialog).toContain("/^\\s/.test(value) && value.replace(/^\\s+/, '') === content");
+    expect(dialog).toContain("document.execCommand('undo')");
+  });
+
   it('keeps the dialog below the host window controls at every supported size', () => {
     const stylesheetPath = fileURLToPath(new URL('./FeedbackDialog.scss', import.meta.url));
     const dialog = readSource('./FeedbackDialog.tsx');
