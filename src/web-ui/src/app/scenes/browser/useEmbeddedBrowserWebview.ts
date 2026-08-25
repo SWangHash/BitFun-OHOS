@@ -60,6 +60,8 @@ type BrowserWebviewPageLoadPayload = {
 export interface UseEmbeddedBrowserWebviewOptions {
   defaultUrl: string;
   initialUrl?: string;
+  /** Raw HTML content to load instead of a URL (for local HTML files). */
+  initialHtml?: string;
   isVisible: boolean;
   labelPrefix: string;
   log: BrowserLogger;
@@ -190,12 +192,18 @@ function createCommandBasedBrowserWebviewHandle(
  * ops route through Tauri commands (not `Webview.getByLabel`) so they work
  * uniformly on desktop (Tauri child webview) and OHOS (ArkUI Web component).
  */
-async function createBrowserWebview(label: string, url: string, bounds: WebviewBounds): Promise<BrowserWebviewHandle> {
+async function createBrowserWebview(
+  label: string,
+  url: string,
+  bounds: WebviewBounds,
+  html?: string,
+): Promise<BrowserWebviewHandle> {
   const { invoke } = await import('@tauri-apps/api/core');
   await invoke('browser_webview_create', {
     request: {
       label,
       url,
+      html: html ?? null,
       x: bounds.left,
       y: bounds.top,
       width: bounds.width,
@@ -206,9 +214,10 @@ async function createBrowserWebview(label: string, url: string, bounds: WebviewB
 }
 
 export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOptions) {
-  const { defaultUrl, initialUrl, isVisible, labelPrefix, log } = options;
+  const { defaultUrl, initialUrl, initialHtml, isVisible, labelPrefix, log } = options;
   const isTauri = useMemo(() => isTauriEnvironment(), []);
   const startUrl = initialUrl ?? defaultUrl;
+  const initialHtmlRef = useRef<string | undefined>(initialHtml);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const webviewRef = useRef<BrowserWebviewHandle | null>(null);
@@ -386,7 +395,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       webviewLabelRef.current = label;
       setWebviewLabel(label);
       try {
-        const handle = await createBrowserWebview(label, url, initialBounds);
+        const handle = await createBrowserWebview(label, url, initialBounds, initialHtmlRef.current);
         webviewRef.current = handle;
         lastBoundsRef.current = initialBounds;
         await injectBrowserPageScripts(label);

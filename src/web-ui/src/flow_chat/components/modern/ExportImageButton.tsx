@@ -3,8 +3,9 @@
  * Uses React rendering to match FlowChat styles.
  * Uses modern-screenshot (fork of html-to-image with better CSS var / font / CORS handling).
  *
- * NOTE: Temporarily disabled — the export button is hidden. Keep the export
- * infrastructure in place for when the underlying capture/save issues are resolved.
+ * Saving is runtime-adaptive: the Tauri desktop runtime writes into the
+ * downloads directory (Windows/macOS/Linux); non-Tauri runtimes such as the
+ * HarmonyOS ArkWeb host hand the PNG blob to the webview download delegate.
  */
 
 import React, { useState, useCallback, useRef } from 'react';
@@ -16,12 +17,10 @@ import { FlowTextBlock } from '../FlowTextBlock';
 import { FlowToolCard } from '../FlowToolCard';
 import type { DialogTurn, FlowTextItem, FlowToolItem, FlowThinkingItem } from '../../types/flow-chat';
 import { i18nService } from '@/infrastructure/i18n';
-import { workspaceAPI } from '@/infrastructure/api';
 import { createLogger } from '@/shared/utils/logger';
 import { getBuiltinAppearanceCssToken } from '@/infrastructure/appearance/builtins/catalog';
 import { withTimeout } from '@/shared/utils/timing';
-import { downloadDir, join } from '@tauri-apps/api/path';
-import { writeFile } from '@tauri-apps/plugin-fs';
+import { savePngBlob, notifyPngExportSuccess } from '../../utils/saveExportedPng';
 import { ModelThinkingDisplay } from '../../tool-cards/ModelThinkingDisplay';
 import { Tooltip } from '@/component-library';
 import './ExportImageButton.scss';
@@ -497,44 +496,8 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
         .substring(0, 80);
       const namePrefix = safeTitle || i18nService.t('flow-chat:exportImage.fileNamePrefix');
       const fileName = `${namePrefix}_${timestampStr}.png`;
-      const downloadsPath = await downloadDir();
-      const filePath = await join(downloadsPath, fileName);
-
-      const arrayBuffer = await blob.arrayBuffer();
-      await writeFile(filePath, new Uint8Array(arrayBuffer));
-
-      const plainSuccessMessage = i18nService.t('flow-chat:exportImage.exportSuccess', { filePath });
-      const successPrefix = i18nService.t('flow-chat:exportImage.exportSuccessPrefix');
-
-      const revealExportedFile = async () => {
-        if (typeof window === 'undefined' || !('__TAURI__' in window)) {
-          return;
-        }
-        try {
-          await workspaceAPI.revealInExplorer(filePath);
-        } catch (error) {
-          log.error('Failed to reveal export path in file manager', { filePath, error });
-        }
-      };
-
-      notificationService.success(plainSuccessMessage, {
-        messageNode: (
-          <>
-            {successPrefix}
-            <button
-              type="button"
-              className="notification-item__path-link"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                void revealExportedFile();
-              }}
-            >
-              {filePath}
-            </button>
-          </>
-        ),
-      });
+      const saveResult = await savePngBlob(blob, fileName);
+      notifyPngExportSuccess(saveResult);
     } catch (error) {
       // Ensure DOM is always cleaned up on error.
       cleanupDom();

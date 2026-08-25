@@ -112,6 +112,7 @@ pub struct WebviewBoundsRequest {
 pub struct WebviewCreateRequest {
     pub label: String,
     pub url: String,
+    pub html: Option<String>,
     pub x: f64,
     pub y: f64,
     pub width: f64,
@@ -191,7 +192,7 @@ fn parse_browser_url(raw: &str) -> Result<tauri::Url, String> {
         .parse::<tauri::Url>()
         .map_err(|e| format!("invalid url: {e}"))?;
     match url.scheme() {
-        "http" | "https" => Ok(url),
+        "http" | "https" | "data" | "file" => Ok(url),
         scheme => Err(format!("unsupported protocol: {scheme}")),
     }
 }
@@ -202,12 +203,26 @@ pub async fn browser_webview_create(
     app: tauri::AppHandle,
     request: WebviewCreateRequest,
 ) -> Result<(), String> {
+    // When `html` is provided, the webview loads raw HTML content via
+    // `loadData` (OHOS) / `data:` URL (desktop) instead of navigating to a
+    // URL. Skip URL-scheme validation in that case — there is no URL.
+    let has_html = request.html.as_deref().is_some_and(|h| !h.is_empty());
+
     #[cfg(not(target_env = "ohos"))]
     {
         validate_browser_label(&request.label)?;
         validate_webview_bounds(request.x, request.y, request.width, request.height)?;
 
-        let url = parse_browser_url(&request.url)?;
+        let url = if has_html {
+            // Embed HTML content as a data URL so the desktop webview can load
+            // it without needing file:// access.
+            use base64::Engine;
+            let b64 = base64::engine::general_purpose::STANDARD.encode(request.html.as_ref().unwrap().as_bytes());
+            format!("data:text/html;base64,{b64}").parse::<tauri::Url>()
+                .map_err(|e| format!("invalid data url: {e}"))?
+        } else {
+            parse_browser_url(&request.url)?
+        };
 
         let window = app
             .get_window("main")
@@ -241,7 +256,9 @@ pub async fn browser_webview_create(
         let _ = app;
         validate_browser_label(&request.label)?;
         validate_webview_bounds(request.x, request.y, request.width, request.height)?;
-        let _ = parse_browser_url(&request.url)?;
+        if !has_html {
+            let _ = parse_browser_url(&request.url)?;
+        }
         let json = serde_json::to_string(&request)
             .map_err(|e| format!("failed to encode request: {e}"))?;
         let response = ohos_browser_call("browser_webview_create_ohos", &json).await?;

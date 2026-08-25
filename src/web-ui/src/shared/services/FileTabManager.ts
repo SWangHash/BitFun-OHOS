@@ -8,6 +8,7 @@ import { getEditorType } from '@/infrastructure/language-detection';
 import type { LineRange } from '@/component-library/components/Markdown';
 import { enqueuePendingTab } from './pendingTabQueue';
 import type { PendingTabDetail } from './pendingTabQueue';
+import { workspaceAPI } from '@/infrastructure/api';
 
 export interface FileTabOptions {
    
@@ -74,9 +75,15 @@ class FileTabManager {
     
     const normalizedPath = normalizePath(filePath);
     
-    
     const fileName = providedFileName || normalizedPath.split(/[/\\]/).pop() || '';
-    
+
+    // HTML files open in the built-in browser panel instead of the code editor
+    // so the rendered page is visible. Applies to all open paths: file tree,
+    // file search, and flow-chat right-click "Open".
+    if (/\.(html?|xhtml|shtml)$/i.test(fileName)) {
+      this.openHtmlInBrowser(normalizedPath, fileName, mode);
+      return;
+    }
     
     const editorType = getEditorType(fileName);
     
@@ -132,6 +139,59 @@ class FileTabManager {
     const isRightPanelCollapsed = this.isRightPanelCollapsed();
     
     if (isRightPanelCollapsed) {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent(eventName, { detail: eventDetail }));
+      }, 300);
+    } else {
+      window.dispatchEvent(new CustomEvent(eventName, { detail: eventDetail }));
+    }
+  }
+
+  /**
+   * Open a local HTML file in the built-in browser panel. The OHOS Web
+   * component cannot load `file://` URLs for workspace files, so the file
+   * content is read and passed as raw HTML to the browser panel, which uses
+   * `loadData` to render it. Applies to all open paths: file tree, file
+   * search, and flow-chat right-click "Open".
+   */
+  private openHtmlInBrowser(
+    filePath: string,
+    fileName: string,
+    mode: 'agent' | 'project',
+  ): void {
+    void this.loadHtmlIntoBrowserTab(filePath, fileName, mode);
+  }
+
+  private async loadHtmlIntoBrowserTab(
+    filePath: string,
+    fileName: string,
+    mode: 'agent' | 'project',
+  ): Promise<void> {
+    let htmlContent: string;
+    try {
+      htmlContent = await workspaceAPI.readFileContent(filePath);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('[FileTabManager] Failed to read HTML file for browser tab', { filePath, error });
+      return;
+    }
+
+    const duplicateKey = `browser-panel:${filePath}`;
+    const eventDetail: PendingTabDetail = {
+      type: 'browser',
+      title: fileName,
+      data: { html: htmlContent },
+      metadata: { duplicateCheckKey: duplicateKey },
+      checkDuplicate: true,
+      duplicateCheckKey: duplicateKey,
+      replaceExisting: false,
+    };
+
+    const eventName = mode === 'project' ? 'project-create-tab' : 'agent-create-tab';
+
+    window.dispatchEvent(new CustomEvent('expand-right-panel'));
+
+    if (this.isRightPanelCollapsed()) {
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent(eventName, { detail: eventDetail }));
       }, 300);

@@ -270,9 +270,10 @@ fn validate_session_id(session_id: &str) -> Result<()> {
 ///
 /// Subscription providers perform token exchange, refresh, or account
 /// discovery outside the normal AI request client, so they must receive the
-/// same explicit proxy configuration from the host. Keep environment proxy
-/// discovery disabled to match the main AI client, which is controlled by
-/// `ai.proxy`.
+/// same explicit proxy configuration from the host. When BitFun does not have
+/// an explicit `ai.proxy` configured, leave reqwest's automatic system-proxy
+/// discovery enabled so subscription login works in environments that expose
+/// connectivity through the OS proxy settings.
 pub(crate) fn build_http_client(
     options: &SubscriptionHttpOptions,
     provider: &str,
@@ -298,7 +299,7 @@ pub(crate) fn build_http_client(
         builder = builder.proxy(proxy);
         log::info!("Using configured proxy for {provider} subscription authentication");
     } else {
-        builder = builder.no_proxy();
+        log::info!("Using system proxy for {provider} subscription authentication when available");
     }
 
     builder
