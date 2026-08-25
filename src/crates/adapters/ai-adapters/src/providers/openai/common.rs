@@ -28,8 +28,15 @@ struct OpenAIModelEntry {
 pub(crate) fn apply_headers(client: &AIClient, builder: RequestBuilder) -> RequestBuilder {
     shared::apply_header_policy(client, builder, |mut builder| {
         builder = builder
-            .header("Content-Type", "application/json")
-            .header("Authorization", format!("Bearer {}", client.config.api_key));
+            .header("Content-Type", "application/json");
+        
+        // When the API key is empty or whitespace-only, do not set the
+        // Authorization header. This allows local model services (e.g. Ollama)
+        // that do not require authentication to work without a dummy key.
+        let api_key = client.config.api_key.trim();
+        if !api_key.is_empty() {
+            builder = builder.header("Authorization", format!("Bearer {}", api_key));
+        }
 
         if client.config.base_url.contains("openbitfun.com") {
             builder = builder.header("X-Verification-Code", "from_bitfun");
