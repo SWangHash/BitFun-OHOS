@@ -23,7 +23,7 @@ export function useInstalledSkills({
 }: UseInstalledSkillsOptions) {
   const { t } = useTranslation('scenes/skills');
   const notification = useNotification();
-  const { workspacePath, hasWorkspace, isRemoteWorkspace } = useWorkspaceManagerSync();
+  const { workspacePath, hasWorkspace, isRemoteWorkspace, isAssistantWorkspace } = useWorkspaceManagerSync();
 
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [globallyDisabledSkillKeys, setGloballyDisabledSkillKeys] = useState<Set<string>>(new Set());
@@ -189,7 +189,10 @@ export function useInstalledSkills({
       notification.warning(t('messages.invalidPath'));
       return false;
     }
-    if (formLevel === 'project' && !hasWorkspace) {
+    // Block project-level add when no real workspace or the active workspace is
+    // the assistant workspace — it would land in the assistant dir and
+    // "disappear" when the workspace switches.
+    if (formLevel === 'project' && (!hasWorkspace || isAssistantWorkspace)) {
       notification.warning(t('messages.noWorkspace'));
       return false;
     }
@@ -226,7 +229,7 @@ export function useInstalledSkills({
         setIsAdding(false);
       }
     }
-  }, [capabilityIsCurrent, currentCapabilityEpoch, formLevel, formPath, hasWorkspace, isRemoteWorkspace, loadSkills, notification, resetForm, t, validationResult, workspacePath]);
+  }, [capabilityIsCurrent, currentCapabilityEpoch, formLevel, formPath, hasWorkspace, isAssistantWorkspace, isRemoteWorkspace, loadSkills, notification, resetForm, t, validationResult, workspacePath]);
 
   const handleDelete = useCallback(async (skill: SkillInfo) => {
     const capabilityEpoch = currentCapabilityEpoch();
@@ -360,5 +363,6 @@ export function useInstalledSkills({
     workspacePath,
     hasWorkspace,
     isRemoteWorkspace,
+    isAssistantWorkspace,
   };
 }

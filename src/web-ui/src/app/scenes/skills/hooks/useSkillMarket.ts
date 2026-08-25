@@ -28,7 +28,7 @@ export function useSkillMarket({
 }: UseSkillMarketOptions) {
   const { t } = useTranslation('scenes/skills');
   const notification = useNotification();
-  const { hasWorkspace, workspacePath, isRemoteWorkspace } = useWorkspaceManagerSync();
+  const { hasWorkspace, workspacePath, isRemoteWorkspace, isAssistantWorkspace } = useWorkspaceManagerSync();
 
   const [marketSkills, setMarketSkills] = useState<SkillMarketItem[]>([]);
   const [marketLoading, setMarketLoading] = useState(true);
@@ -227,7 +227,10 @@ export function useSkillMarket({
     }
 
     const resolvedLevel: SkillLevel = isRemoteWorkspace ? 'user' : targetLevel;
-    if (resolvedLevel === 'project' && !hasWorkspace) {
+    // Block project-level install when the active workspace is the assistant
+    // workspace — it would land in the assistant dir and "disappear" when the
+    // workspace switches. User must open a real project first (no auto-fallback).
+    if (resolvedLevel === 'project' && (!hasWorkspace || isAssistantWorkspace)) {
       notification.warning(t('messages.noWorkspace'));
       return;
     }
@@ -258,7 +261,7 @@ export function useSkillMarket({
         setDownloadingPackage(null);
       }
     }
-  }, [capabilityIsCurrent, currentCapabilityEpoch, hasWorkspace, isRemoteWorkspace, notification, onInstalledChanged, t, workspacePath]);
+  }, [capabilityIsCurrent, currentCapabilityEpoch, hasWorkspace, isAssistantWorkspace, isRemoteWorkspace, notification, onInstalledChanged, t, workspacePath]);
 
   return {
     marketSkills: paginatedSkills,
@@ -275,6 +278,7 @@ export function useSkillMarket({
     handleDownload,
     hasWorkspace,
     isRemoteWorkspace,
+    isAssistantWorkspace,
     totalLoaded: displayMarketSkills.length,
   };
 }

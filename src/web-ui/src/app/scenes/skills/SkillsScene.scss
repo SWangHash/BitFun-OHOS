@@ -1163,6 +1163,15 @@
     padding-top: $size-gap-3;
     border-top: 1px solid var(--bf-appearance-token-border-subtle);
   }
+
+  // Hint shown in the skill detail modal when project-level install is
+  // unavailable (assistant or remote workspace is active).
+  &__modal-project-hint {
+    margin: 0;
+    font-size: var(--bf-appearance-token-font-size-xs);
+    color: var(--bf-appearance-token-color-text-muted);
+    opacity: 0.85;
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
