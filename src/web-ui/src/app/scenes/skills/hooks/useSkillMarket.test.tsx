@@ -33,6 +33,7 @@ vi.mock('@/infrastructure/hooks/useWorkspaceManagerSync', () => ({
     workspacePath: 'D:/workspace/project',
     hasWorkspace: true,
     isRemoteWorkspace: false,
+    isAssistantWorkspace: false,
   }),
 }));
 vi.mock('@/shared/notification-system', () => ({
