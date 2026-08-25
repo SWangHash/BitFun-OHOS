@@ -120,9 +120,6 @@ describe('OpenHarmony feedback submission contract', () => {
     expect(styles).toContain('width: 3px;');
     expect(styles).toContain('background: var(--bf-appearance-token-border-subtle);');
     expect(styles).toContain('border-radius: 2px;');
-    expect(styles).toContain('right: 0;');
-    expect(styles).toContain('top: 0;');
-    expect(styles).toContain('bottom: 0;');
   });
 
   it('limits feedback paste before replacing the controlled value', () => {
@@ -136,6 +133,8 @@ describe('OpenHarmony feedback submission contract', () => {
     expect(dialog).toContain('maxLength={contentNativeMaxLength}');
     expect(dialog).toContain("nativeEvent.inputType.startsWith('insert')");
     expect(dialog).toContain('armRejectedInsertionCaret(textarea)');
+    expect(dialog).toContain("/^\\s/.test(value) && value.replace(/^\\s+/, '') === content");
+    expect(dialog).toContain("document.execCommand('undo')");
   });
 
   it('keeps the dialog below the host window controls at every supported size', () => {

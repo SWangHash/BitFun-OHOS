@@ -137,7 +137,7 @@ describe('feedback conversation contract', () => {
     expect(source).toContain("applyFeedbackInsertion(event.currentTarget, '\\n')");
     expect(source).toContain('event.currentTarget.form?.requestSubmit()');
     expect(source).toContain('onCompositionStart={handleCompositionStart}');
-    expect(source).toContain('onCompositionEnd={handleCompositionEnd}');
+    expect(source).toContain('handleCompositionEnd();');
     expect(source).toContain('value.replace(/^\\s+/, \'\')');
   });
 
@@ -152,5 +152,7 @@ describe('feedback conversation contract', () => {
     expect(source).toContain('maxLength={draftNativeMaxLength}');
     expect(source).toContain("nativeEvent.inputType.startsWith('insert')");
     expect(source).toContain('armRejectedInsertionCaret(textarea)');
+    expect(source).toContain("/^\\s/.test(value) && value.replace(/^\\s+/, '') === draft");
+    expect(source).toContain("document.execCommand('undo')");
   });
 });

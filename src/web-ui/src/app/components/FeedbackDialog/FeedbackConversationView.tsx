@@ -314,6 +314,10 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
 
   const handleDraftChange = (textarea: HTMLTextAreaElement) => {
     const value = textarea.value;
+    if (/^\s/.test(value) && value.replace(/^\s+/, '') === draft) {
+      document.execCommand('undo');
+      return;
+    }
     const truncated = truncateFeedbackContent(value);
     setDraftTruncated(Array.from(value.replace(/^\s+/, '')).length > FEEDBACK_CONTENT_MAX_CHARS);
     setDraft(truncated);

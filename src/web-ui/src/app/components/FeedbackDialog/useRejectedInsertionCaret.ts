@@ -47,5 +47,8 @@ export function useRejectedInsertionCaret() {
     });
   }, [restore]);
 
-  return { armRejectedInsertionCaret: arm, restoreRejectedInsertionCaret: restore };
+  return {
+    armRejectedInsertionCaret: arm,
+    restoreRejectedInsertionCaret: restore,
+  };
 }
