@@ -102,7 +102,10 @@
     },
     "detail": {
       "installsLabel": "安装量",
-      "linkLabel": "链接"
+      "linkLabel": "链接",
+      "versionLabel": "版本",
+      "orgLabel": "组织",
+      "tagsLabel": "标签"
     }
   },
   "suite": {
@@ -258,5 +261,47 @@
     "enabled": "启用",
     "disabled": "禁用",
     "revealPathFailed": "无法在资源管理器中打开: {{error}}"
+  },
+  "matrix": {
+    "tabLabel": "OpenHarmony",
+    "title": "OpenHarmony 格物市场技能",
+    "subtitle": "从 OpenHarmony 格物市场浏览并安装 Agent Skills。",
+    "searchPlaceholder": "搜索 Matrix 技能...",
+    "resultsInfo": "共 {{count}} 个技能",
+    "empty": {
+      "noSkills": "未找到 Matrix 技能"
+    },
+    "tags": {
+      "loading": "正在加载标签...",
+      "empty": "暂无标签",
+      "clear": "清除筛选"
+    },
+    "sections": {
+      "featured": "精品集",
+      "byTag": "按标签",
+      "byCategory": "按分类",
+      "byOrganization": "按组织"
+    },
+    "featured": {
+      "hint": "显示全部精品技能"
+    },
+    "categories": {
+      "loading": "正在加载分类...",
+      "empty": "暂无分类"
+    },
+    "organizations": {
+      "loading": "正在加载组织...",
+      "empty": "暂无组织"
+    },
+    "item": {
+      "install": "安装",
+      "installing": "安装中...",
+      "installed": "已安装",
+      "installedTooltip": "本地已安装"
+    },
+    "messages": {
+      "installSuccess": "Matrix 技能 \"{{name}}\" 已安装到 {{path}}",
+      "installFailed": "安装 \"{{name}}\" 失败: {{error}}"
+    }
   }
 }

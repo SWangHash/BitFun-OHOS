@@ -356,6 +356,7 @@ fn skill_discovery_root_facts_are_runtime_owned() {
         project_roots,
         [
             (".bitfun", "bitfun", "bitfun", "BitFun"),
+            (".bitfun", "bitfun", "matrix", "Matrix"),
             (".claude", "claude", "claude-code", "Claude Code"),
             (".codex", "codex", "codex", "Codex"),
             (".cursor", "cursor", "cursor", "Cursor"),
@@ -376,6 +377,7 @@ fn skill_discovery_root_facts_are_runtime_owned() {
             (".cursor", "home.cursor", "cursor", "Cursor"),
             (".opencode", "home.opencode", "opencode", "OpenCode"),
             (".agents", "home.agents", "agent-skills", "Agent Skills"),
+            (".bitfun", "bitfun", "matrix", "Matrix"),
         ]
     );
     assert_eq!(

@@ -9,6 +9,13 @@ pub const BITFUN_SYSTEM_SKILL_SLOT: &str = "bitfun-system";
 pub const BITFUN_SYSTEM_SKILL_DIR: &str = ".system";
 pub const BITFUN_SKILL_SOURCE_ID: &str = "bitfun";
 pub const BITFUN_SKILL_SOURCE_LABEL: &str = "BitFun";
+/// Source id for skills installed from the OpenHarmony Matrix market
+/// (`~/.bitfun/skills/matrix/<enName>/`). The slot stays `"bitfun"` so
+/// Matrix skills remain compatible with BitFun's `SkillInfo` schema while
+/// being distinguishable via `source_id == "matrix"`.
+pub const MATRIX_SKILL_SOURCE_ID: &str = "matrix";
+pub const MATRIX_SKILL_SOURCE_LABEL: &str = "Matrix";
+pub const MATRIX_USER_SKILL_SLOT: &str = "bitfun";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SkillRootSpec {
@@ -28,6 +35,13 @@ pub const PROJECT_SKILL_ROOTS: &[SkillRootSpec] = &[
         slot: "bitfun",
         source_id: BITFUN_SKILL_SOURCE_ID,
         source_label: BITFUN_SKILL_SOURCE_LABEL,
+    },
+    SkillRootSpec {
+        parent: ".bitfun",
+        subdir: "skills/matrix",
+        slot: MATRIX_USER_SKILL_SLOT,
+        source_id: MATRIX_SKILL_SOURCE_ID,
+        source_label: MATRIX_SKILL_SOURCE_LABEL,
     },
     SkillRootSpec {
         parent: ".claude",
@@ -101,6 +115,13 @@ pub const USER_HOME_SKILL_ROOTS: &[SkillRootSpec] = &[
         slot: "home.agents",
         source_id: "agent-skills",
         source_label: "Agent Skills",
+    },
+    SkillRootSpec {
+        parent: ".bitfun",
+        subdir: "skills/matrix",
+        slot: MATRIX_USER_SKILL_SLOT,
+        source_id: MATRIX_SKILL_SOURCE_ID,
+        source_label: MATRIX_SKILL_SOURCE_LABEL,
     },
 ];
 
