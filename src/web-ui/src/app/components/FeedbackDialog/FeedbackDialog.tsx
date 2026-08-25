@@ -182,6 +182,10 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
 
   const handleContentChange = (textarea: HTMLTextAreaElement) => {
     const value = textarea.value;
+    if (/^\s/.test(value) && value.replace(/^\s+/, '') === content) {
+      document.execCommand('undo');
+      return;
+    }
     const truncated = truncateFeedbackContent(value);
     setWasTruncated(Array.from(value.replace(/^\s+/, '')).length > FEEDBACK_CONTENT_MAX_CHARS);
     setContent(truncated);

@@ -100,7 +100,6 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
               ? supportId
               : props['aria-describedby']}
             style={style}
-            {...props}
             data-bf-component="textarea"
             data-bf-part="field"
           />
