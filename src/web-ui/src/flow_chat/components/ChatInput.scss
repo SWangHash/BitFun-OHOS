@@ -47,17 +47,36 @@
   }
 }
 
+.bitfun-chat-input__voice-status-row {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  margin-right: $size-gap-2;
+}
+
+.bitfun-chat-input__actions-left .bitfun-chat-input__voice-status-row {
+  min-height: 28px;
+}
+
 .bitfun-chat-input__voice-cluster {
   display: inline-flex;
   align-items: center;
   gap: $size-gap-1;
+  min-height: 28px;
   flex-shrink: 0;
-  min-width: 24px;
-
-  &--recording {
-    min-width: 270px;
-  }
 }
+
+.bitfun-chat-input__voice-cluster--button {
+  width: auto;
+}
+
+.bitfun-chat-input__voice-recording-hint {
+  color: var(--bf-appearance-token-color-accent);
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 
 .bitfun-chat-input__voice-control.icon-btn {
   width: 24px;
@@ -65,11 +84,13 @@
   min-width: 24px;
   min-height: 24px;
   border-radius: 50%;
-  color: var(--bf-appearance-token-color-text-secondary);
+  color: var(--bf-appearance-token-color-accent);
+  background: color-mix(in srgb, var(--bf-appearance-token-color-accent) 14%, transparent);
   flex-shrink: 0;
 
   &:not(:disabled):hover {
     color: var(--bf-appearance-token-color-text-primary);
+    background: color-mix(in srgb, var(--bf-appearance-token-color-accent) 24%, transparent);
   }
 }
 

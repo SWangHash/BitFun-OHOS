@@ -7,6 +7,7 @@ export const DEFAULT_SPEECH_SAMPLE_RATE = 16000;
 export const DEFAULT_MAX_RECORDING_SECONDS = 60;
 export const SPEECH_MODEL_PROGRESS_EVENT = 'speech://model-download-progress';
 export const SPEECH_MODEL_STATUS_CHANGED_EVENT = 'speech://model-status-changed';
+export const SPEECH_TRANSCRIPTION_EVENT = 'speech://transcription';
 
 export type SpeechModelInstallState =
   | 'not_installed' | 'downloading' | 'installed' | 'verifying'
@@ -59,6 +60,12 @@ export interface SpeechTranscriptionResult {
   language: string;
   durationMs: number;
   audioDurationSeconds: number;
+}
+
+export interface SpeechTranscriptionEvent {
+  sessionId: string;
+  text: string;
+  isFinal: boolean;
 }
 
 export class SpeechAPI {
@@ -115,6 +122,10 @@ export class SpeechAPI {
 
   onModelStatusChanged(callback: (status: SpeechModelStatus) => void): () => void {
     return api.listen(SPEECH_MODEL_STATUS_CHANGED_EVENT, callback);
+  }
+
+  onTranscription(callback: (event: SpeechTranscriptionEvent) => void): () => void {
+    return api.listen(SPEECH_TRANSCRIPTION_EVENT, callback);
   }
 }
 
