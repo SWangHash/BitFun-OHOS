@@ -66,6 +66,16 @@
     gap: 4px;
   }
 
+  &__voice-control {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+  }
+
+  &__voice-control .bitfun-chat-input__voice-cluster {
+    min-height: 18px;
+  }
+
   &__permission {
     position: relative;
     display: inline-flex;

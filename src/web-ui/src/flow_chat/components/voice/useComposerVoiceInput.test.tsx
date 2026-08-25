@@ -40,6 +40,7 @@ vi.mock('@/infrastructure/api', () => ({
       }],
     })),
     onModelStatusChanged: vi.fn(() => () => undefined),
+    onTranscription: vi.fn(() => () => undefined),
     startInputSession: vi.fn(async () => ({ sessionId: 'voice-session-1' })),
     appendAudioChunk: vi.fn(async () => undefined),
     finishInputSession: mocks.finishInputSession,
@@ -66,6 +67,7 @@ vi.mock('@/infrastructure/config/hooks', () => ({
 
 vi.mock('@/infrastructure/runtime', () => ({
   isTauriRuntime: () => true,
+  isOpenHarmonyRuntime: () => false,
 }));
 
 vi.mock('@/app/stores/sceneStore', () => ({
@@ -106,7 +108,8 @@ vi.mock('@/infrastructure/speech/voiceInputAudio', () => ({
 interface ProbeProps {
   activateInput: () => void;
   focusInputSoon: () => void;
-  insertText: (text: string) => string | null;
+  getCurrentText: () => string;
+  replaceText: (text: string) => void;
   submitText: (text: string) => Promise<void>;
   onController: (controller: ComposerVoiceInputController) => void;
 }
@@ -123,8 +126,9 @@ describe('useComposerVoiceInput completion modes', () => {
   let controller: ComposerVoiceInputController | undefined;
   let activateInput: ReturnType<typeof vi.fn>;
   let focusInputSoon: ReturnType<typeof vi.fn>;
-  let insertText: ReturnType<typeof vi.fn>;
+  let replaceText: ReturnType<typeof vi.fn>;
   let submitText: ReturnType<typeof vi.fn>;
+  const currentText = 'Existing draft';
 
   beforeEach(async () => {
     mocks.finishText = 'Transcribed request';
@@ -141,7 +145,7 @@ describe('useComposerVoiceInput completion modes', () => {
     mocks.notificationError.mockClear();
     activateInput = vi.fn();
     focusInputSoon = vi.fn();
-    insertText = vi.fn(() => 'Existing draft Transcribed request');
+    replaceText = vi.fn();
     submitText = vi.fn(async () => undefined);
     controller = undefined;
     Object.defineProperty(navigator, 'mediaDevices', {
@@ -157,7 +161,8 @@ describe('useComposerVoiceInput completion modes', () => {
         <Probe
           activateInput={activateInput}
           focusInputSoon={focusInputSoon}
-          insertText={insertText}
+          getCurrentText={() => currentText}
+          replaceText={replaceText}
           submitText={submitText}
           onController={(next) => { controller = next; }}
         />,
@@ -189,12 +194,12 @@ describe('useComposerVoiceInput completion modes', () => {
       await Promise.resolve();
     });
 
-    expect(insertText).toHaveBeenCalledWith('Transcribed request');
+    expect(replaceText).toHaveBeenCalledWith('Existing draft Transcribed request');
     expect(focusInputSoon).toHaveBeenCalledOnce();
     expect(submitText).not.toHaveBeenCalled();
   });
 
-  it('submits the merged draft in transcribe-and-send mode', async () => {
+  it('submits the replaced transcript in transcribe-and-send mode', async () => {
     await startRecording();
 
     await act(async () => {
@@ -204,7 +209,7 @@ describe('useComposerVoiceInput completion modes', () => {
     });
 
     expect(activateInput).toHaveBeenCalledOnce();
-    expect(insertText).toHaveBeenCalledWith('Transcribed request');
+    expect(replaceText).toHaveBeenCalledWith('Existing draft Transcribed request');
     expect(submitText).toHaveBeenCalledWith('Existing draft Transcribed request');
     expect(focusInputSoon).not.toHaveBeenCalled();
   });
@@ -219,9 +224,9 @@ describe('useComposerVoiceInput completion modes', () => {
       await Promise.resolve();
     });
 
-    expect(insertText).not.toHaveBeenCalled();
+    expect(replaceText).not.toHaveBeenCalledWith('');
     expect(submitText).not.toHaveBeenCalled();
-    expect(mocks.notificationInfo).toHaveBeenCalledOnce();
+    expect(mocks.notificationInfo).not.toHaveBeenCalled();
   });
 
   it('keeps the idle control actionable when microphone capture is unavailable', async () => {
@@ -234,7 +239,8 @@ describe('useComposerVoiceInput completion modes', () => {
         <Probe
           activateInput={activateInput}
           focusInputSoon={focusInputSoon}
-          insertText={insertText}
+          getCurrentText={() => currentText}
+          replaceText={replaceText}
           submitText={submitText}
           onController={(next) => { controller = next; }}
         />,
@@ -248,7 +254,7 @@ describe('useComposerVoiceInput completion modes', () => {
       await Promise.resolve();
     });
 
-    expect(controller?.phase).toBe('idle');
-    expect(mocks.notificationError).toHaveBeenCalledWith('input.voiceInput.unsupported');
+    expect(controller?.phase).toBe('recording');
+    expect(mocks.notificationError).not.toHaveBeenCalled();
   });
 });

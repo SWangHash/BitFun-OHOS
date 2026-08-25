@@ -161,7 +161,7 @@ import {
 } from '@/features/dispatch/approvalPolicy';
 import { dispatchJobStore } from '@/features/dispatch/dispatchJobStore';
 import { useComposerCapabilities } from '../session-drivers/useComposerCapabilities';
-import { ComposerVoiceInputButton } from './voice/ComposerVoiceInputButton';
+import { ComposerVoiceInputButton, ComposerVoiceInputStatus } from './voice/ComposerVoiceInputButton';
 import { useComposerVoiceInput } from './voice/useComposerVoiceInput';
 import { expandWidgetPromptReferenceTokens } from '@/tools/generative-widget/widgetPromptReference';
 import {
@@ -5420,19 +5420,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }, []);
 
 
+  const voiceInputTextRef = useRef(inputState.value);
+  voiceInputTextRef.current = inputState.value;
+
   const voiceInput = useComposerVoiceInput({
     activateInput: () => dispatchInput({ type: 'ACTIVATE' }),
+    getCurrentText: () => voiceInputTextRef.current,
     focusInputSoon: () => {
       window.requestAnimationFrame(() => richTextInputRef.current?.focus());
     },
-    insertText: (text) => {
-      const current = inputState.value.trim();
-      const mergedText = current ? `${inputState.value.trimEnd()} ${text}` : text;
-      dispatchInput({
-        type: 'SET_VALUE',
-        payload: mergedText,
-      });
-      return mergedText;
+    replaceText: (text) => {
+      voiceInputTextRef.current = text;
+      dispatchInput({ type: 'SET_VALUE', payload: text });
     },
     submitText: async (text) => {
       await handleSendOrCancel(text);
@@ -6443,19 +6442,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   </div>
                 ) : null}
 
-                {!caps.transferInFlight && !isInterruptedTurnRecoveryInFlight ? (
-                  <ComposerVoiceInputButton controller={voiceInput} />
-                ) : null}
+                <ComposerVoiceInputButton controller={voiceInput} />
                 {voiceInput.phase === 'idle' ? renderActionButton() : null}
               </div>
             </div>
           </div>
+          {!caps.transferInFlight && !isInterruptedTurnRecoveryInFlight ? null : null}
         </div>
       </div>
       <ChatInputWorkspaceStrip
         repositoryPath={chatStripRepositoryPath}
         workspaceLabel={chatStripWorkspaceLabel}
         executionTarget={effectiveTargetSession?.config.executionTarget}
+        voiceControl={voiceInput.phase === 'recording' ? <ComposerVoiceInputStatus controller={voiceInput} /> : null}
         dispatchControl={dispatchControl}
         worktreeControl={worktreeControl}
         deferPassiveGitRefresh={deferChatStripPassiveGitRefresh}

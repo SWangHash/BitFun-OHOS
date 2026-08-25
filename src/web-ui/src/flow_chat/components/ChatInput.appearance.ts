@@ -60,6 +60,7 @@ export const chatInputAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   ],
   states: [
     { id: 'processing', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-bf-state~="processing"]' } },
+    { id: 'recording', selector: { kind: 'self', suffix: '[data-bf-state~="recording"]' } },
     { id: 'multiline', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-bf-state~="multiline"]' } },
     { id: 'selected', selector: { kind: 'self', suffix: '[data-bf-state~="selected"]' } },
     { id: 'current', selector: { kind: 'self', suffix: '[data-bf-state~="current"]' } },
