@@ -790,25 +790,6 @@ pub async fn _run() {
 
     let mut builder = tauri::Builder::default();
 
-    let is_e2e_webdriver =
-        e2e_storage_guard_enabled() && std::env::var_os("BITFUN_WEBDRIVER_PORT").is_some();
-
-    #[cfg(any(
-        all(target_os = "linux", not(target_env = "ohos")),
-        target_os = "macos",
-        target_os = "windows"
-    ))]
-    if !is_e2e_webdriver {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
-            log::info!(
-                "Existing BitFun Desktop instance received launch request: args_count={}, cwd={}",
-                args.len(),
-                cwd
-            );
-            handle_secondary_launch(app);
-        }));
-    }
-
     let app = builder
         .plugin(logging::build_log_command_plugin())
         .plugin(logging::build_log_handoff_plugin(log_targets))
