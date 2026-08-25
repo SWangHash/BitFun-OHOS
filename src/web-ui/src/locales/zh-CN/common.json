@@ -119,7 +119,7 @@
     "actions": {
       "cancel": "取消",
       "submit": "提交反馈",
-      "retry": "重试提交",
+      "retry": "重试",
       "gitcode": "前往 GitCode"
     },
     "complete": {

@@ -40,6 +40,39 @@ describe('feedback conversation contract', () => {
     expect(source).not.toContain('dangerouslySetInnerHTML');
   });
 
+  it('keeps conversation refresh notices outside the scroll container', () => {
+    const source = readSource('./FeedbackConversationView.tsx');
+    const noticesPosition = source.indexOf('bitfun-feedback__conversation-notices');
+    const messagesPosition = source.indexOf('className="bitfun-feedback__messages"');
+
+    expect(noticesPosition).toBeGreaterThan(0);
+    expect(messagesPosition).toBeGreaterThan(noticesPosition);
+    expect(source).toContain('conversationErrorText(error.code, t)');
+    expect(source).toContain("t('feedback.conversation.ackFailed')");
+  });
+
+  it('does not flash the empty state while a retry is refreshing', () => {
+    const source = readSource('./FeedbackConversationView.tsx');
+
+    expect(source).toContain('!loading && !refreshing && messages.length === 0 && !error');
+    expect(source).toContain('if (!manual) setError(null)');
+    expect(source).toContain('loading || loadingEarlier');
+    expect(source).not.toContain('loading || refreshing || loadingEarlier');
+  });
+
+  it('scrolls to the newest message after both initial load and manual refresh', () => {
+    const source = readSource('./FeedbackConversationView.tsx');
+    const loadLatest = source.slice(
+      source.indexOf('const loadLatest'),
+      source.indexOf('const loadEarlier'),
+    );
+
+    expect(source).toContain('onClick={() => void loadLatest(true)}');
+    expect(loadLatest).toContain('requestAnimationFrame');
+    expect(loadLatest).toContain('container.scrollTop = container.scrollHeight');
+    expect(loadLatest).not.toContain('if (!manual)');
+  });
+
   it('gates replies on consent while preserving and Unicode-truncating the draft', () => {
     const source = readSource('./FeedbackConversationView.tsx');
     const acceptPosition = source.indexOf('await accept({');
@@ -94,5 +127,30 @@ describe('feedback conversation contract', () => {
     expect(source).toContain("? t('feedback.reply.retry')");
     expect(source).not.toContain("? t('feedback.actions.retry')");
     expect(zh.feedback.reply.retry).toBe('重试发送');
+  });
+
+  it('sends replies with Enter while Ctrl+Enter inserts a newline and IME Enter is ignored', () => {
+    const source = readSource('./FeedbackConversationView.tsx');
+
+    expect(source).toContain("event.key !== 'Enter' || isImeEnter(event)");
+    expect(source).toContain('if (event.ctrlKey)');
+    expect(source).toContain("applyFeedbackInsertion(event.currentTarget, '\\n')");
+    expect(source).toContain('event.currentTarget.form?.requestSubmit()');
+    expect(source).toContain('onCompositionStart={handleCompositionStart}');
+    expect(source).toContain('onCompositionEnd={handleCompositionEnd}');
+    expect(source).toContain('value.replace(/^\\s+/, \'\')');
+  });
+
+  it('limits paste and beforeinput before changing the controlled draft', () => {
+    const source = readSource('./FeedbackConversationView.tsx');
+
+    expect(source).toContain('onPaste={handleDraftPaste}');
+    expect(source).toContain('onBeforeInput={handleDraftBeforeInput}');
+    expect(source).toContain('textarea.setRangeText(acceptedText, start, end, \'end\')');
+    expect(source).toContain('feedbackInsertText(currentValue, start, end, insertedText)');
+    expect(source).toContain('start === end && feedbackContentLength(currentValue) >= FEEDBACK_CONTENT_MAX_CHARS');
+    expect(source).toContain('maxLength={draftNativeMaxLength}');
+    expect(source).toContain("nativeEvent.inputType.startsWith('insert')");
+    expect(source).toContain('armRejectedInsertionCaret(textarea)');
   });
 });
