@@ -24,6 +24,8 @@ pub mod i18n; // I18n service
 pub(crate) mod instruction_context; // Workspace instruction file prompt helpers
 #[cfg(feature = "lsp")]
 pub mod lsp; // LSP (Language Server Protocol) system
+#[cfg(feature = "product-full")]
+pub mod local_model_client; // Local model service HTTP client (Ollama-compatible)
 #[cfg(feature = "mcp-runtime")]
 pub mod mcp; // MCP (Model Context Protocol) system
 #[cfg(feature = "remote-connect")]
@@ -94,6 +96,12 @@ pub use i18n::{get_global_i18n_service, I18nConfig, I18nService, LocaleId, Local
 pub use lsp::LspManager;
 #[cfg(feature = "mcp-runtime")]
 pub use mcp::MCPService;
+#[cfg(feature = "product-full")]
+pub use local_model_client::{
+    detect_service as detect_local_model_service, list_models as list_local_models,
+    pause_download as pause_local_model_download, pull_model as pull_local_model,
+    LocalModelError, default_port as local_model_default_port,
+};
 #[cfg(feature = "review-platform")]
 pub use review_platform::{
     ReviewAuthSource, ReviewAuthState, ReviewChecks, ReviewDecision, ReviewEvidenceCompleteness,

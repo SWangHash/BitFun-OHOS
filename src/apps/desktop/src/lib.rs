@@ -1999,6 +1999,12 @@ pub async fn _run() {
             api::debug_api::debug_element_picked,
             api::debug_api::debug_open_devtools,
             api::debug_api::debug_close_devtools,
+
+            // Local model service API
+            api::commands::detect_local_model_service,
+            api::commands::list_local_models,
+            api::commands::pull_local_model,
+            api::commands::pause_local_model_download,
         ])
         .build(tauri::generate_context!());
 
