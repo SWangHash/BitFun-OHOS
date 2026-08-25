@@ -126,7 +126,6 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   const aboutInfo = getAboutInfo();
   const { version, license } = aboutInfo;
   const nativeRuntime = isTauriRuntime();
-  const updateChecksAvailable = canCheckForAppUpdates();
   const displayedVersion = formatDisplayedVersion(
     version,
     nativeVersion,

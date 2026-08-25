@@ -10,6 +10,7 @@ import type {
   ReasoningPresetDescriptor,
 } from '@/infrastructure/config/types';
 import { getModelSelectorDropdownLayout } from './modelSelectorDropdownPosition';
+import type { FixedPopoverPlacement } from '@/shared/utils/fixedPopoverViewport';
 import './ReasoningPresetSelector.scss';
 
 interface ReasoningPresetSelectorProps {
@@ -17,7 +18,7 @@ interface ReasoningPresetSelectorProps {
   selectedPreset?: string | null;
   disabled?: boolean;
   loading?: boolean;
-  dropdownPlacement?: 'top' | 'bottom';
+  dropdownPlacement?: FixedPopoverPlacement;
   onSelect: (presetId: string | null) => void | Promise<void>;
 }
 

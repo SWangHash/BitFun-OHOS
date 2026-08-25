@@ -17,6 +17,7 @@ import { PresenceBoundary } from '@/component-library/components/PresenceBoundar
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import type { AcpModeState } from '../utils/acpSessionConfig';
 import { getModelSelectorDropdownLayout } from './modelSelectorDropdownPosition';
+import type { FixedPopoverPlacement } from '@/shared/utils/fixedPopoverViewport';
 import './AcpModeSelector.scss';
 
 interface AcpModeSelectorProps {
@@ -25,7 +26,7 @@ interface AcpModeSelectorProps {
   clientId?: string;
   disabled?: boolean;
   loading?: boolean;
-  dropdownPlacement?: 'top' | 'bottom';
+  dropdownPlacement?: FixedPopoverPlacement;
   /**
    * Replaces the trigger tooltip. The caller uses this when this picker is the
    * only one on screen and therefore also carries the context-usage readout.

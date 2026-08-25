@@ -55,6 +55,11 @@ apps/desktop/gen/
 src/apps/desktop/gen/
 src-tauri/gen/
 
+# HarmonyOS OHOS app build outputs (copied frontend assets for resfile)
+src/apps/ohos/entry/build/
+src/apps/ohos/entry/src/main/resources/resfile/
+src/apps/ohos/oh-rs-ability/build/
+
 # Updater signing private key (never commit; pubkey is in tauri.conf.json)
 src/apps/desktop/.tauri/*.key
 
