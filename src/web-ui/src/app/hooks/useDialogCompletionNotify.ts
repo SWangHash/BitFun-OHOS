@@ -5,6 +5,7 @@ import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import {
   buildDialogCompletionNotificationCopy,
   shouldSendDialogCompletionNotification,
@@ -53,14 +54,29 @@ export const useDialogCompletionNotify = () => {
       const session = sessionId
         ? flowChatStore.getState().sessions.get(sessionId)
         : undefined;
-      if (
-        !shouldSendDialogCompletionNotification({
-          event,
-          session,
+
+      const shouldSend = shouldSendDialogCompletionNotification({
+        event,
+        session,
+        isBackground,
+        notificationsEnabled: enabled,
+      });
+      // Diagnostic (OHOS only): capture why the hook sends or skips, since OHOS
+      // does not always update document.hidden / fire window blur on minimize.
+      if (isOpenHarmonyRuntime()) {
+        log.info('Dialog turn completion notification evaluated', {
+          sessionId,
           isBackground,
-          notificationsEnabled: enabled,
-        })
-      ) {
+          documentHidden: document.hidden,
+          windowFocused: windowFocusedRef.current,
+          enabled,
+          hasSession: !!session,
+          sessionKind: session?.sessionKind,
+          shouldSend,
+        });
+      }
+
+      if (!shouldSend) {
         return;
       }
 
@@ -71,6 +87,9 @@ export const useDialogCompletionNotify = () => {
         t,
       });
 
+      if (isOpenHarmonyRuntime()) {
+        log.info('Sending dialog completion notification', { title: notificationCopy.title });
+      }
       await systemAPI.sendSystemNotification(
         notificationCopy.title,
         notificationCopy.body,

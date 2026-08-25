@@ -1267,6 +1267,22 @@ export class WorkspaceAPI {
   }
 
   /**
+   * Save a binary file to the HarmonyOS Download directory and return the
+   * resolved file path (mirrors the desktop `downloadDir` + `writeFile` save).
+   * Routes to the `save_file_to_downloads_ohos` ArkTS function registered by the
+   * OHOS host. Only meaningful on the OpenHarmony runtime.
+   */
+  async saveFileToDownloadsOhos(fileName: string, dataBase64: string): Promise<string> {
+    try {
+      return await api.invoke('save_file_to_downloads_ohos', {
+        arg: JSON.stringify({ fileName, dataBase64 }),
+      });
+    } catch (error) {
+      throw createTauriCommandError('save_file_to_downloads_ohos', error, { fileName });
+    }
+  }
+
+  /**
    * Tell the native shell which color mode the webview should adopt.
    *
    * `mode` is `"light"`, `"dark"`, or `"system"`:

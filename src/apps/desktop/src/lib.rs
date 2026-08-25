@@ -57,7 +57,9 @@ use tauri_plugin_window_state::{AppHandleExt, StateFlags, WindowExt};
 // Re-export API
 pub use api::*;
 
-use crate::ohos::ohos_file_system::{open_oh_file_dialog, set_theme_mode};
+use crate::ohos::ohos_file_system::{
+    open_oh_file_dialog, save_file_to_downloads_ohos, send_system_notification_ohos, set_theme_mode,
+};
 use crate::ohos::window::{
     center_ohos, close_window, current_monitor_ohos, handle_max_window, handle_min_window,
     handle_restore_window, inner_size_ohos, maximize_ohos, outer_position_ohos, outer_size_ohos,
@@ -787,6 +789,25 @@ pub async fn _run() {
     let path_manager = get_path_manager_arc();
 
     let mut builder = tauri::Builder::default();
+
+    let is_e2e_webdriver =
+        e2e_storage_guard_enabled() && std::env::var_os("BITFUN_WEBDRIVER_PORT").is_some();
+
+    #[cfg(any(
+        all(target_os = "linux", not(target_env = "ohos")),
+        target_os = "macos",
+        target_os = "windows"
+    ))]
+    if !is_e2e_webdriver {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            log::info!(
+                "Existing BitFun Desktop instance received launch request: args_count={}, cwd={}",
+                args.len(),
+                cwd
+            );
+            handle_secondary_launch(app);
+        }));
+    }
 
     let app = builder
         .plugin(logging::build_log_command_plugin())
@@ -1977,6 +1998,8 @@ pub async fn _run() {
             window_start_dragging,
             close_window,
             set_theme_mode,
+            save_file_to_downloads_ohos,
+            send_system_notification_ohos,
             open_external_ohos,
             set_always_on_top_ohos,
             set_decorations_ohos,
