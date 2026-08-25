@@ -14,7 +14,6 @@ export * from './service-api/PageAPI';
 export * from './service-api/SpeechAPI';
 export * from './service-api/FeedbackAPI';
 export * from './service-api/WorktreeAPI';
-export * from './service-api/LocalModelAPI';
 
 // Import API modules
 import { workspaceAPI } from './service-api/WorkspaceAPI';
@@ -44,11 +43,9 @@ import { insightsApi } from './insightsApi';
 import { speechAPI } from './service-api/SpeechAPI';
 import { worktreeAPI } from './service-api/WorktreeAPI';
 import { feedbackAPI } from './service-api/FeedbackAPI';
-import { localModelApi } from './service-api/LocalModelAPI';
 
 // Export API modules
-export { feedbackAPI, workspaceAPI, configAPI, aiApi, toolAPI, agentAPI, systemAPI, projectAPI, diffAPI, snapshotAPI, globalAPI, contextAPI, cronAPI, permissionAPI, pageAPI, gitAPI, gitAgentAPI, gitRepoHistoryAPI, startchatAgentAPI, sessionAPI, i18nAPI, btwAPI, editorAiAPI, reviewPlatformAPI, insightsApi, tokenUsageStatisticsApi, speechAPI, worktreeAPI, localModelApi };
-export { TokenUsageStatisticsUnavailableError } from './tokenUsageStatisticsApi';
+export { feedbackAPI, workspaceAPI, configAPI, aiApi, toolAPI, agentAPI, systemAPI, projectAPI, diffAPI, snapshotAPI, globalAPI, contextAPI, cronAPI, permissionAPI, pageAPI, gitAPI, gitAgentAPI, gitRepoHistoryAPI, startchatAgentAPI, sessionAPI, i18nAPI, btwAPI, editorAiAPI, reviewPlatformAPI, insightsApi, speechAPI, worktreeAPI };
 export * from './service-api/ReviewPlatformAPI';
 
 // Export types
@@ -84,7 +81,6 @@ export const bitfunAPI = {
   speech: speechAPI,
   worktree: worktreeAPI,
   feedback: feedbackAPI,
-  localModel: localModelApi,
 };
 
 // Default export

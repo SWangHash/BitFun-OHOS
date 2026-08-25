@@ -502,10 +502,6 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     (
-        "detect_local_model_service",
-        RemoteWorkspacePolicy::LocalOnly,
-    ),
-    (
         "explorer_get_children_paginated",
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
@@ -514,18 +510,6 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     ("export_config", RemoteWorkspacePolicy::LegacyUnaudited),
-    (
-        "list_local_models",
-        RemoteWorkspacePolicy::LocalOnly,
-    ),
-    (
-        "pull_local_model",
-        RemoteWorkspacePolicy::LocalOnly,
-    ),
-    (
-        "pause_local_model_download",
-        RemoteWorkspacePolicy::LocalOnly,
-    ),
     (
         "export_diagnostics_bundle",
         RemoteWorkspacePolicy::LegacyUnaudited,

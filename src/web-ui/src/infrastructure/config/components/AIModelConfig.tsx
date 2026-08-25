@@ -28,7 +28,6 @@ import type { OpenCodePlan, SubscriptionProvider } from '../types';
 import { useNotification } from '@/shared/notification-system';
 import { ConfigPageHeader, ConfigPageLayout, ConfigPageContent, ConfigPageSection, ConfigPageRow, ConfigCollectionItem } from './common';
 import DefaultModelConfig from './DefaultModelConfig';
-import LocalModelConfig from './LocalModelConfig';
 import SubagentModelConfig from './SubagentModelConfig';
 import SessionTitleConfig from './SessionTitleConfig';
 import ReasoningConfigPanel from './ReasoningConfigPanel';
@@ -3126,8 +3125,6 @@ const AIModelConfig: React.FC = () => {
       />
 
       <ConfigPageContent className="bitfun-ai-model-config__content">
-        <LocalModelConfig />
-
         <ConfigPageSection
           title={tDefault('tabs.default')}
           description={tDefault('subtitle')}
