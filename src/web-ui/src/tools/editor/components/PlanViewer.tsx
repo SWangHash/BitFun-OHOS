@@ -5,7 +5,7 @@ import { Circle, ArrowRight, Check, XCircle, Loader2, CheckCircle, AlertCircle, 
 import yaml from 'yaml';
 import { MEditor } from '../meditor';
 import type { EditorInstance } from '../meditor';
-import { MAX_TEXT_FILE_SIZE_BYTES } from './CodeEditor';
+import { FILE_TOO_LARGE_ERROR, MAX_TEXT_FILE_SIZE_BYTES } from './CodeEditor';
 import { createLogger } from '@/shared/utils/logger';
 import { CubeLoading, Button, Tooltip } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';
@@ -136,7 +136,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
       const fileInfo = await workspaceAPI.getFileMetadata(filePath);
       if (typeof fileInfo?.size === 'number' && fileInfo.size >= MAX_TEXT_FILE_SIZE_BYTES) {
         setFileTooLarge(true);
-        setError(t('editor.common.fileTooLarge'));
+        setError(FILE_TOO_LARGE_ERROR);
         return;
       }
       const content = await workspaceAPI.readFileContent(filePath);
@@ -759,11 +759,14 @@ ${JSON.stringify(simpleTodos, null, 2)}
 
   // Render error state
   if (error) {
+    const errorMessage = error === FILE_TOO_LARGE_ERROR || error === 'editor.common.fileTooLarge'
+      ? t('editor.common.fileTooLarge')
+      : error;
     return (
       <div className="bitfun-plan-viewer bitfun-plan-viewer--error" data-bf-component="plan-viewer" data-bf-part="error" data-bf-state="error">
         <div className="error-content">
           <AlertCircle className="error-icon" />
-          <p>{error}</p>
+          <p>{errorMessage}</p>
           {!fileTooLarge && (
             <Button variant="secondary" size="small" onClick={loadFileContent}>
               {t('editor.common.retry')}
