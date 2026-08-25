@@ -21,7 +21,7 @@ import {
 } from '@/infrastructure/peer-device/peerModeFlag';
 import { CubeLoading, Button } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';
-import CodeEditor, { MAX_TEXT_FILE_SIZE_BYTES } from './CodeEditor';
+import CodeEditor, { FILE_TOO_LARGE_ERROR, MAX_TEXT_FILE_SIZE_BYTES } from './CodeEditor';
 import {
   diskVersionFromMetadata,
   diskVersionsDiffer,
@@ -210,7 +210,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           }
           if (typeof fileInfo.size === 'number' && fileInfo.size >= MAX_TEXT_FILE_SIZE_BYTES) {
             setFileTooLarge(true);
-            setError(t('editor.common.fileTooLarge'));
+            setError(FILE_TOO_LARGE_ERROR);
             return;
           }
           if (shouldUseLargeMarkdownSourceMode(fileInfo.size)) {
@@ -693,11 +693,14 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   }
 
   if (error) {
+    const errorMessage = error === FILE_TOO_LARGE_ERROR || error === 'editor.common.fileTooLarge'
+      ? t('editor.common.fileTooLarge')
+      : error;
     return (
       <div className={`bitfun-markdown-editor-error ${className}`} data-bf-component="markdown-editor" data-bf-part="error" data-bf-state="error">
         <div className="error-content">
           <AlertCircle className="error-icon" />
-          <p>{error}</p>
+          <p>{errorMessage}</p>
           {filePath && !fileTooLarge && (
             <Button variant="secondary" size="small" onClick={loadFileContent}>
               {t('editor.common.retry')}
