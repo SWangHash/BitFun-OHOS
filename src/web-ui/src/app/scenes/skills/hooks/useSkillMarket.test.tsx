@@ -9,6 +9,7 @@ import { useSkillMarket } from './useSkillMarket';
 const listSkillMarketMock = vi.hoisted(() => vi.fn());
 const searchSkillMarketMock = vi.hoisted(() => vi.fn());
 const downloadSkillMarketMock = vi.hoisted(() => vi.fn());
+const getSkillDescriptionsMock = vi.hoisted(() => vi.fn());
 const installedChangedMock = vi.hoisted(() => vi.fn());
 const notificationMocks = vi.hoisted(() => ({
   success: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('@/infrastructure/api', () => ({
     listSkillMarket: listSkillMarketMock,
     searchSkillMarket: searchSkillMarketMock,
     downloadSkillMarket: downloadSkillMarketMock,
+    getSkillDescriptions: getSkillDescriptionsMock,
   },
 }));
 vi.mock('@/infrastructure/hooks/useWorkspaceManagerSync', () => ({
@@ -31,6 +33,7 @@ vi.mock('@/infrastructure/hooks/useWorkspaceManagerSync', () => ({
     workspacePath: 'D:/workspace/project',
     hasWorkspace: true,
     isRemoteWorkspace: false,
+    isAssistantWorkspace: false,
   }),
 }));
 vi.mock('@/shared/notification-system', () => ({
@@ -61,6 +64,7 @@ describe('useSkillMarket', () => {
     listSkillMarketMock.mockReset().mockResolvedValue([]);
     searchSkillMarketMock.mockReset().mockResolvedValue([]);
     downloadSkillMarketMock.mockReset();
+    getSkillDescriptionsMock.mockReset().mockResolvedValue({});
     installedChangedMock.mockReset();
     notificationMocks.success.mockReset();
     notificationMocks.warning.mockReset();
