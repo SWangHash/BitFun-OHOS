@@ -187,6 +187,26 @@ export class BrowserWebviewService {
     return JSON.stringify(ok);
   }
 
+  async getUrl(request: LabelRequest): Promise<string> {
+    const entry = this.entries.get(request.label);
+    if (entry === undefined) {
+      hilog.warn(BROWSER_DOMAIN, BROWSER_TAG, `getUrl label not found: ${request.label}`);
+      return this.errorEnvelope(`webview not found: ${request.label}`);
+    }
+    // WebviewController.getUrl() throws synchronously when the controller is
+    // not attached yet (e.g. immediately after create before the node builds),
+    // so guard the read and surface it through the standard error envelope.
+    try {
+      const url: string = entry.controller.getUrl();
+      hilog.info(BROWSER_DOMAIN, BROWSER_TAG, `getUrl ok label=${request.label} url=${url}`);
+      const ok: OkResultResponse = { ok: true, result: url };
+      return JSON.stringify(ok);
+    } catch (e) {
+      hilog.warn(BROWSER_DOMAIN, BROWSER_TAG, `getUrl failed label=${request.label}: ${JSON.stringify(e)}`);
+      return this.errorEnvelope(`getUrl failed: ${JSON.stringify(e)}`);
+    }
+  }
+
   async navigate(request: NavigateRequest): Promise<string> {
     const entry = this.entries.get(request.label);
     if (entry === undefined) {
