@@ -3,7 +3,7 @@ import { LockKeyhole, RefreshCw, Send } from 'lucide-react';
 import { Button, ConfirmDialog, IconButton, Textarea } from '@/component-library';
 import { usePrivacy } from '@/app/components/Privacy/PrivacyContext';
 import { PrivacyStatementDialog } from '@/app/components/Privacy/PrivacyStatementDialog';
-import { useImeEnterGuard } from '@/flow_chat/hooks/useImeEnterGuard';
+import { useImeOwnedKeyGuard } from '@/flow_chat/hooks/useImeOwnedKeyGuard';
 import {
   feedbackAPI,
   FeedbackApiError,
@@ -34,7 +34,11 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
 }) => {
   const { t, formatDate } = useI18n('common');
   const { status, accept } = usePrivacy();
-  const { isImeEnter, handleCompositionStart, handleCompositionEnd } = useImeEnterGuard();
+  const {
+    isImeOwnedKey: isImeEnter,
+    handleCompositionStart,
+    handleCompositionEnd,
+  } = useImeOwnedKeyGuard();
   const [messages, setMessages] = useState<FeedbackMessage[]>([]);
   const [nextCursor, setNextCursor] = useState<string>();
   const [hasMore, setHasMore] = useState(false);
