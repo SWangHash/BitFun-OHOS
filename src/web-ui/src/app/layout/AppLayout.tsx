@@ -61,6 +61,9 @@ const AboutDialog = lazy(() =>
   import('../components/AboutDialog').then(module => ({ default: module.AboutDialog }))
 );
 const WorkspaceManager = lazy(() => import('../../tools/workspace/components/WorkspaceManager'));
+const AgentCompanionInAppPet = lazy(() =>
+  import('../components/AgentCompanionDesktopPet/AgentCompanionInAppPet')
+);
 
 interface AppLayoutProps {
   className?: string;
@@ -840,6 +843,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
         </Suspense>
       </PresenceBoundary>
       <MCPInteractionDialog />
+      {isOpenHarmony && (
+        <Suspense fallback={null}>
+          <AgentCompanionInAppPet />
+        </Suspense>
+      )}
     </>
   );
 };

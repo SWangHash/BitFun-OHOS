@@ -1,4 +1,4 @@
-import { isTauriRuntime } from '@/infrastructure/runtime';
+import { isTauriRuntime, isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { createLogger } from '@/shared/utils/logger';
 import type { AIExperienceSettings } from './AIExperienceConfigService';
 
@@ -14,6 +14,12 @@ export async function syncAgentCompanionDesktopWindow(
   settings: AIExperienceSettings,
 ): Promise<void> {
   if (!isTauriRuntime()) return;
+  // HarmonyOS has no separate Agent companion OS window (see the
+  // `#[cfg(target_env = "ohos")]` Err(...) stubs in
+  // `src/apps/desktop/src/appearance.rs`). The pet is rendered instead as an
+  // in-app overlay by `AgentCompanionInAppPet`, which reads these settings
+  // directly and shows/hides itself — so do not invoke the failing stub here.
+  if (isOpenHarmonyRuntime()) return;
   const requestId = companionDesktopWindowSyncRequestId += 1;
 
   const run = async (): Promise<void> => {

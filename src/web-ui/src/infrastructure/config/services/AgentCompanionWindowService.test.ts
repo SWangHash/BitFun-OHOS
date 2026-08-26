@@ -9,6 +9,11 @@ const tauriEvent = vi.hoisted(() => ({
   emit: vi.fn(),
 }));
 
+const runtime = vi.hoisted(() => ({
+  isTauriRuntime: () => true,
+  isOpenHarmonyRuntime: vi.fn(() => false),
+}));
+
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: tauriCore.invoke,
 }));
@@ -18,7 +23,8 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 vi.mock('@/infrastructure/runtime', () => ({
-  isTauriRuntime: () => true,
+  isTauriRuntime: runtime.isTauriRuntime,
+  isOpenHarmonyRuntime: runtime.isOpenHarmonyRuntime,
 }));
 
 vi.mock('@/shared/utils/logger', () => ({
@@ -127,5 +133,20 @@ describe('syncAgentCompanionDesktopWindow', () => {
       'hide_agent_companion_desktop_pet',
     ]);
     expect(tauriEvent.emit).not.toHaveBeenCalled();
+  });
+
+  it('skips the separate-window show/hide stubs on HarmonyOS (in-app overlay owns the surface)', async () => {
+    runtime.isOpenHarmonyRuntime.mockReturnValue(true);
+    try {
+      const { syncAgentCompanionDesktopWindow } = await import('./AgentCompanionWindowService');
+
+      await syncAgentCompanionDesktopWindow(settings(true));
+      await syncAgentCompanionDesktopWindow(settings(false));
+
+      expect(tauriCore.invoke).not.toHaveBeenCalled();
+      expect(tauriEvent.emit).not.toHaveBeenCalled();
+    } finally {
+      runtime.isOpenHarmonyRuntime.mockReturnValue(false);
+    }
   });
 });
