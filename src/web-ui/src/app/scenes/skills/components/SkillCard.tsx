@@ -1,59 +1,47 @@
 import React from 'react';
-import { Package, Puzzle } from 'lucide-react';
-import { getCardGradient } from '@/shared/utils/cardGradients';
 import './SkillCard.scss';
 
-type SkillCardActionTone = 'primary' | 'danger' | 'success' | 'muted';
-
 export interface SkillCardAction {
-  id: string;
-  icon: React.ReactNode;
-  ariaLabel: string;
-  title?: string;
-  disabled?: boolean;
-  tone?: SkillCardActionTone;
+  label: string;
+  icon?: React.ReactNode;
   onClick: () => void;
+  disabled?: boolean;
 }
 
 interface SkillCardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children'> {
   name: string;
   description?: string;
-  index?: number;
-  accentSeed?: string;
-  iconKind?: 'skill' | 'market';
-  badges?: React.ReactNode;
-  meta?: React.ReactNode;
-  actions?: SkillCardAction[];
+  letter?: string;
+  headerRight?: React.ReactNode;
+  leftContent?: React.ReactNode;
+  rightAction?: SkillCardAction;
+  afterAction?: React.ReactNode;
   onOpenDetails?: () => void;
 }
 
 const SkillCard: React.FC<SkillCardProps> = ({
   name,
   description,
-  index = 0,
-  accentSeed,
-  iconKind = 'skill',
-  badges,
-  meta,
-  actions = [],
+  letter,
+  headerRight,
+  leftContent,
+  rightAction,
+  afterAction,
   onOpenDetails,
   className,
   style,
   ...rootProps
 }) => {
-  const Icon = iconKind === 'market' ? Package : Puzzle;
+  const avatarLetter = letter ?? name.charAt(0).toUpperCase();
   const openDetails = () => onOpenDetails?.();
 
   return (
-    <div data-bf-component="skill-card" data-bf-part="root"
+    <div
+      data-bf-component="skill-card"
+      data-bf-part="root"
       {...rootProps}
       className={['skill-card', className].filter(Boolean).join(' ')}
-      style={{
-        ...style,
-        '--surface-stagger-index': index,
-        '--skill-card-gradient': getCardGradient(accentSeed ?? name),
-      } as React.CSSProperties}
-      data-bf-variant={iconKind}
+      style={style}
       onClick={openDetails}
       tabIndex={0}
       onKeyDown={(e) => {
@@ -64,66 +52,59 @@ const SkillCard: React.FC<SkillCardProps> = ({
       }}
       aria-label={name}
     >
-      {/* Header: icon + badges */}
+      {/* Header: avatar + name */}
       <div className="skill-card__header" data-bf-component="skill-card" data-bf-part="header">
-        <div className="skill-card__icon-area" data-bf-component="skill-card" data-bf-part="iconArea">
-          <div className="skill-card__icon" data-bf-component="skill-card" data-bf-part="icon">
-            <Icon size={20} strokeWidth={1.6} />
+        <div className="skill-card__avatar" data-bf-component="skill-card" data-bf-part="avatar">
+          {avatarLetter}
+        </div>
+        <span className="skill-card__name" data-bf-component="skill-card" data-bf-part="name">
+          {name}
+        </span>
+        {headerRight && (
+          <div className="skill-card__header-right" data-bf-component="skill-card" data-bf-part="headerRight">
+            {headerRight}
           </div>
-        </div>
-        {badges && <div className="skill-card__badges" data-bf-component="skill-card" data-bf-part="badges">{badges}</div>}
-      </div>
-
-      {/* Body: name + trend (meta) on one row, then description */}
-      <div className="skill-card__body" data-bf-component="skill-card" data-bf-part="body">
-        <div className="skill-card__title-row" data-bf-component="skill-card" data-bf-part="titleRow">
-          <span className="skill-card__name" data-bf-component="skill-card" data-bf-part="name">{name}</span>
-          {meta ? (
-            <div
-              className="skill-card__meta"
-              data-bf-component="skill-card"
-              data-bf-part="meta"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-            >
-              {meta}
-            </div>
-          ) : null}
-        </div>
-        {description?.trim() && (
-          <p className="skill-card__desc" data-bf-component="skill-card" data-bf-part="description">{description.trim()}</p>
         )}
       </div>
 
-      {/* Footer: action buttons */}
-      {actions.length > 0 && (
-      <div className="skill-card__footer" data-bf-component="skill-card" data-bf-part="footer">
-        <div className="skill-card__actions" data-bf-component="skill-card" data-bf-part="actions" onClick={(e) => e.stopPropagation()}>
-            {actions.map((action) => (
-              <button
-                key={action.id}
-                type="button"
-                className={[
-                  'skill-card__action-btn',
-                  action.tone && `skill-card__action-btn--${action.tone}`,
-                ].filter(Boolean).join(' ')}
-                onClick={action.onClick}
-                disabled={action.disabled}
-                aria-label={action.ariaLabel}
-                title={action.title ?? action.ariaLabel}
-                data-testid={`skills-card-action-${action.id}`}
-                data-skill-action={action.id}
-                data-bf-component="skill-card"
-                data-bf-part="action"
-                data-bf-tone={action.tone}
-                data-bf-state={action.disabled ? 'disabled' : undefined}
-              >
-                {action.icon}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* Body: description */}
+      {description?.trim() && (
+        <p className="skill-card__desc" data-bf-component="skill-card" data-bf-part="description">
+          {description.trim()}
+        </p>
       )}
+
+      {/* Footer: left content + right action */}
+      <div className="skill-card__footer" data-bf-component="skill-card" data-bf-part="footer">
+        {leftContent && (
+          <div className="skill-card__left" data-bf-component="skill-card" data-bf-part="leftContent">
+            {leftContent}
+          </div>
+        )}
+        {rightAction && (
+          <button
+            type="button"
+            className="skill-card__action"
+            onClick={(e) => {
+              e.stopPropagation();
+              rightAction.onClick();
+            }}
+            disabled={rightAction.disabled}
+            aria-label={rightAction.label}
+            data-testid="skill-card-action"
+            data-bf-component="skill-card"
+            data-bf-part="action"
+          >
+            {rightAction.icon}
+            <span>{rightAction.label}</span>
+          </button>
+        )}
+        {afterAction && (
+          <div className="skill-card__after-action" data-bf-component="skill-card" data-bf-part="afterAction">
+            {afterAction}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

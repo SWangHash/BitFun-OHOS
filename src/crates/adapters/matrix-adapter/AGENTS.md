@@ -16,9 +16,9 @@
   See `src/crates/adapters/AGENTS.md` and `spec/matrix-skill-market/plan.md`
   `Complexity Tracking` for the documented trade-off.
 - HTTP safety invariants (mirrors BitFun `ReviewHttpClient`): 25 s timeout,
-  same-origin redirect with at most 5 hops, bounded response body (16 MiB JSON,
-  8 KiB error), `use_native_tls()`. Base URL is overridable via the
-  `MATRIX_API_URL` environment variable (default
+  cross-origin redirect with at most 5 hops, bounded response body (16 MiB JSON,
+  8 KiB error), rustls TLS (workspace default, no native OpenSSL dependency).
+  Base URL is overridable via the `MATRIX_API_URL` environment variable (default
   `https://matrix.openharmony.cn/`).
 - ZIP install safety: every entry is checked for path traversal (reject
   `/`-prefix, `..` segments, and resolution outside the staging directory) and

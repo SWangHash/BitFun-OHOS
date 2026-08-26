@@ -375,8 +375,6 @@
 | Agent/Skill 面板 | `agent-skill-panel` | Skills 发现页激活时的场景根节点。 |
 | Skill 列表 | `skill-list` | 默认安装技能列表网格，也用于 marketplace 搜索结果。 |
 | Skill 列表项 | `skill-list-item` | 重复的已安装 skill 卡片。包含 `data-skill-id`、`data-skill-name`、`data-skill-key`、`data-skill-level` 和 `data-skill-builtin`。 |
-| Skill 列表项标题 | `skill-list-item-title` | Skill 卡片标题。 |
-| Skill 列表项描述 | `skill-list-item-description` | 存在时为 Skill 卡片描述。 |
 | Skill 列表空状态 | `skill-list-empty` | 已安装或 marketplace skill 列表为空时的状态。 |
 | Skill 详情面板 | `skill-detail-panel` | Skill 详情弹窗根节点。 |
 | Skill 详情标题 | `skill-detail-title` | Skill 详情弹窗标题。 |

@@ -9,11 +9,12 @@ description = "OpenHarmony Matrix skill market adapter for BitFun (protocol tran
 path = "src/lib.rs"
 
 [dependencies]
-# HTTP client (json + native-tls + stream are the only features this crate
+# HTTP client (json + rustls + stream are the only features this crate
 # relies on; workspace = true inherits the broader workspace version pin, and
 # per repo policy this crate declares only the slices it actually uses since
-# the workspace disables reqwest defaults).
-reqwest = { workspace = true, features = ["json", "native-tls", "stream"] }
+# the workspace disables reqwest defaults). rustls matches the rest of the
+# workspace and avoids a native OpenSSL dependency on non-Windows targets.
+reqwest = { workspace = true, features = ["json", "rustls", "stream"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
@@ -26,6 +27,10 @@ thiserror = { workspace = true }
 urlencoding = { workspace = true }
 # Async stream iteration for bounded response body collection.
 futures = { workspace = true }
+
+[dev-dependencies]
+# Integration tests use #[tokio::test]; the macros feature is test-only.
+tokio = { workspace = true, features = ["macros"] }
 
 [lints]
 workspace = true

@@ -375,8 +375,6 @@ Notes:
 | Agent/Skill panel | `agent-skill-panel` | Skills scene root when the Skills discovery page is active. |
 | Skill list | `skill-list` | Installed skill list grid by default. Also used for marketplace results. |
 | Skill list item | `skill-list-item` | Repeated installed skill card. Includes `data-skill-id`, `data-skill-name`, `data-skill-key`, `data-skill-level`, and `data-skill-builtin`. |
-| Skill list item title | `skill-list-item-title` | Skill card title. |
-| Skill list item description | `skill-list-item-description` | Skill card description when present. |
 | Skill list empty | `skill-list-empty` | Empty state for installed or marketplace skill list. |
 | Skill detail panel | `skill-detail-panel` | Skill detail modal root. |
 | Skill detail title | `skill-detail-title` | Skill detail modal title. |

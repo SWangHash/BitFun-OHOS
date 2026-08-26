@@ -60,6 +60,7 @@ async fn test_list_skills() {
         category_id: None,
         org_id: None,
         tag_ids: None,
+        is_featured: None,
     };
     let page = list_skills(&client, &request)
         .await

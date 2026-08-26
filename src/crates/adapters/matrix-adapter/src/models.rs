@@ -98,6 +98,36 @@ where
     }
 }
 
+/// Custom deserializer for `String` fields that tolerates an explicit JSON
+/// `null`. Depending on the browse filter (e.g. organization-filtered skill
+/// lists), Matrix returns explicit `null`s for fields like `enName`; serde's
+/// container-level `#[serde(default)]` only covers *missing* fields, so a
+/// present-but-null value would otherwise fail the whole response with
+/// `invalid type: null, expected string`. Missing fields still fall back to
+/// the container default (empty string); `null` deserializes to empty string.
+pub fn deserialize_string_from_null<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    Ok(value.unwrap_or_default())
+}
+
+/// Custom deserializer for `Option<Vec<String>>` fields that tolerates JSON
+/// `null` entries inside the array (skipped) as well as a `null` array
+/// (mapped to `None`). Matrix org-filtered skill entries have been observed
+/// to carry `null` elements inside `tagIds`, which fails plain
+/// `Vec<String>` deserialization with `invalid type: null, expected a string`.
+pub fn deserialize_optional_string_list<'de, D>(
+    deserializer: D,
+) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::<Vec<Option<String>>>::deserialize(deserializer)?;
+    Ok(opt.map(|values| values.into_iter().flatten().collect()))
+}
+
 /// Generic Matrix API response envelope.
 ///
 /// Matrix returns `{ "code": "20000", "message": "...", "data": <T> }` for all
@@ -106,7 +136,9 @@ where
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MatrixEnvelope<T> {
+    #[serde(default, deserialize_with = "deserialize_string_from_null")]
     pub code: String,
+    #[serde(default, deserialize_with = "deserialize_string_from_null")]
     pub message: String,
     pub data: T,
 }
@@ -124,9 +156,13 @@ pub struct MatrixTagsData {
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MatrixTag {
+    #[serde(default, deserialize_with = "deserialize_string_from_null")]
     pub id: String,
+    #[serde(default, deserialize_with = "deserialize_string_from_null")]
     pub service_type: String,
+    #[serde(default, deserialize_with = "deserialize_string_from_null")]
     pub name: String,
+    #[serde(default, deserialize_with = "deserialize_string_from_null")]
     pub en_name: String,
     #[serde(default)]
     pub r#type: Option<String>,
@@ -183,12 +219,16 @@ pub struct MatrixSkillCategory {
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MatrixSkillSummary {
+    #[serde(default, deserialize_with = "deserialize_string_from_null")]
     pub id: String,
+    #[serde(default, deserialize_with = "deserialize_string_from_null")]
     pub name: String,
+    #[serde(default, deserialize_with = "deserialize_string_from_null")]
     pub en_name: String,
     pub owner: Option<MatrixSkillOwner>,
     pub category_list: Option<Vec<MatrixSkillCategory>>,
     pub org_id: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_string_list")]
     pub tag_ids: Option<Vec<String>>,
     pub description: Option<String>,
     pub version: Option<String>,
@@ -322,4 +362,93 @@ pub struct MatrixSkillInstallResult {
     pub size: u64,
     pub source_id: String,
     pub skill_md_present: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn skill_summary_tolerates_explicit_null_strings() {
+        let payload = r#"{
+            "id": null,
+            "name": null,
+            "enName": null,
+            "orgId": "org-1",
+            "tags": [{ "id": null, "serviceType": null, "name": null, "enName": null }],
+            "download": "12"
+        }"#;
+        let skill: MatrixSkillSummary = serde_json::from_str(payload).expect("nulls must not fail");
+        assert_eq!(skill.id, "");
+        assert_eq!(skill.name, "");
+        assert_eq!(skill.en_name, "");
+        let tag = skill.tags.as_ref().expect("tags present")[0].clone();
+        assert_eq!(tag.id, "");
+        assert_eq!(tag.name, "");
+        assert_eq!(skill.download, Some(12));
+    }
+
+    #[test]
+    fn skill_summary_keeps_normal_values() {
+        let payload = r#"{
+            "id": "42",
+            "name": "示例技能",
+            "enName": "demo-skill",
+            "download": 77779
+        }"#;
+        let skill: MatrixSkillSummary = serde_json::from_str(payload).expect("normal payload");
+        assert_eq!(skill.id, "42");
+        assert_eq!(skill.name, "示例技能");
+        assert_eq!(skill.en_name, "demo-skill");
+        assert_eq!(skill.download, Some(77779));
+    }
+
+    #[test]
+    fn skills_page_with_org_filtered_null_entries_parses() {
+        let payload = r#"{
+            "count": 1,
+            "list": [{ "id": null, "name": null, "enName": null }]
+        }"#;
+        let page: MatrixSkillsPage = serde_json::from_str(payload).expect("page parses");
+        assert_eq!(page.count, 1);
+        assert_eq!(page.list.len(), 1);
+        assert_eq!(page.list[0].en_name, "");
+    }
+
+    #[test]
+    fn skill_summary_tolerates_null_tag_id_entries() {
+        let payload = r#"{
+            "id": "42",
+            "name": "demo",
+            "enName": "demo-skill",
+            "tagIds": [null, "t1", null, "t2"]
+        }"#;
+        let skill: MatrixSkillSummary = serde_json::from_str(payload).expect("null tag entries");
+        assert_eq!(
+            skill.tag_ids,
+            Some(vec!["t1".to_string(), "t2".to_string()])
+        );
+    }
+
+    #[test]
+    fn skill_summary_tolerates_null_tag_ids_array() {
+        let payload = r#"{
+            "id": "42",
+            "name": "demo",
+            "enName": "demo-skill",
+            "tagIds": null
+        }"#;
+        let skill: MatrixSkillSummary = serde_json::from_str(payload).expect("null tagIds");
+        assert_eq!(skill.tag_ids, None);
+    }
+
+    #[test]
+    fn envelope_tolerates_null_code_and_message() {
+        let payload = r#"{ "code": null, "message": null, "data": { "count": 0, "list": [] } }"#;
+        let page: MatrixEnvelope<MatrixSkillsPage> =
+            serde_json::from_str(payload).expect("null envelope strings");
+        assert_eq!(page.code, "");
+        assert_eq!(page.message, "");
+        assert_eq!(page.data.count, 0);
+    }
 }

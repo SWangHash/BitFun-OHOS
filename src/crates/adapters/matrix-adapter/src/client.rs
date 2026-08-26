@@ -3,8 +3,8 @@
 //! Mirrors the BitFun `ReviewHttpClient` safe-defaults pattern
 //! (`src/crates/services/services-integrations/src/review_platform_http.rs`):
 //! 25 s timeout, same-origin redirect with at most 5 hops, bounded response
-//! body (16 MiB for JSON / binary, 8 KiB for error), `use_native_tls()`. The
-//! base URL is overridable via the `MATRIX_API_URL` environment variable
+//! body (16 MiB for JSON / binary, 8 KiB for error), rustls TLS (workspace
+//! default, no native OpenSSL dependency). The base URL is overridable via the `MATRIX_API_URL` environment variable
 //! (default `https://matrix.openharmony.cn/`) for local testing and future
 //! mirror switching.
 
@@ -38,7 +38,6 @@ impl MatrixHttpClient {
     pub fn new() -> Result<Self, MatrixApiError> {
         let inner = reqwest::Client::builder()
             .user_agent(MATRIX_USER_AGENT)
-            .use_native_tls()
             .redirect(matrix_redirect_policy())
             .timeout(Duration::from_secs(MATRIX_HTTP_TIMEOUT_SECS))
             .build()

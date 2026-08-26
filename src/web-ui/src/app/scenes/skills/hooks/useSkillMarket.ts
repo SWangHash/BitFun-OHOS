@@ -33,9 +33,9 @@ export function useSkillMarket({
   const [marketSkills, setMarketSkills] = useState<SkillMarketItem[]>([]);
   const [marketLoading, setMarketLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
   const [marketError, setMarketError] = useState<string | null>(null);
   const [downloadingPackage, setDownloadingPackage] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const marketRequestIdRef = useRef(0);
   const capabilityKey = `${enabled}\u0000${workspacePath ?? ''}\u0000${isRemoteWorkspace}`;
@@ -80,7 +80,7 @@ export function useSkillMarket({
 
     setMarketLoading(true);
     setMarketError(null);
-    setCurrentPage(0);
+    setLoadMoreError(false);
     try {
       const fetchBatch = pageSize + 1;
       const skillList = await fetchSkills(query, fetchBatch, 0);
@@ -111,7 +111,6 @@ export function useSkillMarket({
       setLoadingMore(false);
       setMarketError(null);
       setDownloadingPackage(null);
-      setCurrentPage(0);
       setHasMore(false);
       return;
     }
@@ -145,48 +144,26 @@ export function useSkillMarket({
     return entries.map((entry) => entry.skill);
   }, [installedSkillNames, marketSkills]);
 
-  const loadedPages = Math.ceil(displayMarketSkills.length / pageSize);
-  const totalPages = hasMore ? loadedPages + 1 : Math.max(1, loadedPages);
-
-  const paginatedSkills = useMemo(() => displayMarketSkills.slice(
-    currentPage * pageSize,
-    (currentPage + 1) * pageSize,
-  ), [currentPage, displayMarketSkills, pageSize]);
-
-  const goToPrevPage = useCallback(() => {
-    if (currentCapabilityEpoch() === null) {
-      return;
-    }
-    setCurrentPage((page) => Math.max(0, page - 1));
-  }, [currentCapabilityEpoch]);
-
   const goToNextPage = useCallback(async () => {
     const capabilityEpoch = currentCapabilityEpoch();
     if (capabilityEpoch === null) {
       return;
     }
-
-    const nextPage = currentPage + 1;
-    const nextOffset = nextPage * pageSize;
-
-    // If the next page is already loaded locally, just advance the view.
-    if (displayMarketSkills.length >= nextOffset + pageSize) {
-      setCurrentPage(nextPage);
-      return;
-    }
-
-    if (!hasMore) {
+    if (marketLoading || loadingMore || loadMoreError || !hasMore) {
       return;
     }
 
     const requestId = ++marketRequestIdRef.current;
+    setLoadingMore(true);
     try {
-      setLoadingMore(true);
-      const remainingBudget = Math.max(0, MAX_TOTAL_SKILLS - displayMarketSkills.length);
+      const nextOffset = displayMarketSkills.length;
+      const remainingBudget = Math.max(0, MAX_TOTAL_SKILLS - nextOffset);
       if (remainingBudget < pageSize) {
         setHasMore(false);
         return;
       }
+      // Fetch one extra item so an exhausted result set is detected without an
+      // extra request (no next page → stop scroll loading).
       const fetchBatch = pageSize + 1;
       const skillList = await fetchSkills(searchQuery || undefined, fetchBatch, nextOffset);
       if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
@@ -199,35 +176,25 @@ export function useSkillMarket({
       const displaySkills = skillList.slice(0, pageSize);
       const existingIds = new Set(marketSkills.map((s) => s.installId));
       const added = displaySkills.filter((s) => !existingIds.has(s.installId));
-
       if (added.length === 0) {
         setHasMore(false);
         return;
       }
-
       setMarketSkills((prev) => [...prev, ...added]);
-
-      const updatedTotal = marketSkills.length + added.length;
-      if (nextPage * pageSize >= updatedTotal) {
-        setHasMore(false);
-        return;
-      }
-
-      setCurrentPage(nextPage);
-      const itemsOnThisPage = Math.min(pageSize, updatedTotal - nextPage * pageSize);
-      setHasMore(itemsOnThisPage >= pageSize && skillList.length > pageSize);
+      setHasMore(skillList.length > pageSize);
+      setLoadMoreError(false);
     } catch (err) {
       if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
         return;
       }
       log.error('Failed to load more skills', err);
-      notification.error(t('market.errors.loadMoreFailed'));
+      setLoadMoreError(true);
     } finally {
       if (requestId === marketRequestIdRef.current && capabilityIsCurrent(capabilityEpoch)) {
         setLoadingMore(false);
       }
     }
-  }, [capabilityIsCurrent, currentCapabilityEpoch, currentPage, displayMarketSkills.length, fetchSkills, hasMore, notification, pageSize, searchQuery, t]);
+  }, [capabilityIsCurrent, currentCapabilityEpoch, displayMarketSkills.length, fetchSkills, hasMore, loadingMore, marketLoading, marketSkills, pageSize, searchQuery]);
 
   const handleDownload = useCallback(async (skill: SkillMarketItem, targetLevel: SkillLevel = 'project') => {
     const capabilityEpoch = currentCapabilityEpoch();
@@ -272,18 +239,22 @@ export function useSkillMarket({
     }
   }, [capabilityIsCurrent, currentCapabilityEpoch, hasWorkspace, isAssistantWorkspace, isRemoteWorkspace, notification, onInstalledChanged, t, workspacePath]);
 
+  const retryLoadMore = useCallback(() => {
+    setLoadMoreError(false);
+    void goToNextPage();
+  }, [goToNextPage]);
+
   return {
-    marketSkills: paginatedSkills,
+    marketSkills: displayMarketSkills,
     marketLoading,
     loadingMore,
+    loadMoreError,
     marketError,
     downloadingPackage,
     hasMore,
-    currentPage,
-    totalPages,
     refresh,
-    goToPrevPage,
     goToNextPage,
+    retryLoadMore,
     handleDownload,
     hasWorkspace,
     isRemoteWorkspace,

@@ -6,7 +6,6 @@ import type {
   MatrixSidebarItem,
   MatrixSkillSummary,
   MatrixSkillsListRequest,
-  MatrixSkillsPage,
   MatrixTag,
 } from '@/infrastructure/api/service-api/MatrixSkillAPI';
 import type { SkillLevel } from '@/infrastructure/config/types';
@@ -15,6 +14,8 @@ import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 
 const log = createLogger('useMatrixSkillMarket');
+
+const EMPTY_INSTALLED_SET: Set<string> = new Set();
 
 function extractErrorMessage(err: unknown): string {
   if (err == null) return 'Unknown error';
@@ -30,12 +31,13 @@ function extractErrorMessage(err: unknown): string {
   }
 }
 
-const DEFAULT_PAGE_SIZE = 15;
+const DEFAULT_PAGE_SIZE = 12;
 
 export type MatrixSection = 'feature' | 'tag' | 'cat' | 'org';
 
 interface UseMatrixSkillMarketOptions {
   enabled?: boolean;
+  installedEnNames?: Set<string>;
   onInstalledChanged?: () => Promise<void> | void;
 }
 
@@ -70,13 +72,11 @@ interface MatrixListState {
   totalCount: number;
   skillsLoading: boolean;
   loadingMore: boolean;
+  loadMoreError: boolean;
   skillsError: string | null;
-
-  currentPage: number;
-  totalPages: number;
   hasMore: boolean;
-  goToPrevPage: () => void;
-  goToNextPage: () => Promise<void>;
+  loadMore: () => Promise<void>;
+  retryLoadMore: () => void;
 
   installingEnName: string | null;
   installError: string | null;
@@ -84,17 +84,19 @@ interface MatrixListState {
 
   hasWorkspace: boolean;
   isRemoteWorkspace: boolean;
+  isAssistantWorkspace: boolean;
 
   refresh: () => Promise<void>;
 }
 
 export function useMatrixSkillMarket({
   enabled = true,
+  installedEnNames = EMPTY_INSTALLED_SET,
   onInstalledChanged,
 }: UseMatrixSkillMarketOptions): MatrixListState {
   const { t } = useTranslation('scenes/skills');
   const notification = useNotification();
-  const { hasWorkspace, workspacePath, isRemoteWorkspace } = useWorkspaceManagerSync();
+  const { hasWorkspace, workspacePath, isRemoteWorkspace, isAssistantWorkspace } = useWorkspaceManagerSync();
 
   const [tags, setTags] = useState<MatrixTag[]>([]);
   const [tagsLoading, setTagsLoading] = useState(false);
@@ -115,12 +117,15 @@ export function useMatrixSkillMarket({
 
   const [keyword, setKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
+  const keywordRef = useRef('');
 
-  const [page, setPage] = useState<MatrixSkillsPage | null>(null);
+  const [skills, setSkills] = useState<MatrixSkillSummary[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [skillsLoading, setSkillsLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [skillsError, setSkillsError] = useState<string | null>(null);
-
-  const [currentPage, setCurrentPage] = useState(0);
 
   const [installingEnName, setInstallingEnName] = useState<string | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
@@ -129,6 +134,9 @@ export function useMatrixSkillMarket({
   const categoriesRequestIdRef = useRef(0);
   const organizationsRequestIdRef = useRef(0);
   const skillsRequestIdRef = useRef(0);
+  const skillsLoadingRef = useRef(false);
+  const skillsLoadingMoreRef = useRef(false);
+  const fetchedCountRef = useRef(0);
   const pageSize = DEFAULT_PAGE_SIZE;
 
   const loadTags = useCallback(async () => {
@@ -237,63 +245,120 @@ export function useMatrixSkillMarket({
     }
   }, [enabled]);
 
-  const loadSkillsPage = useCallback(
-    async (targetPage: number) => {
-      if (!enabled) {
-        setPage(null);
-        setSkillsLoading(false);
-        setSkillsError(null);
+  const loadFirstPage = useCallback(async () => {
+    if (!enabled) {
+      return;
+    }
+    const requestId = ++skillsRequestIdRef.current;
+    const request: MatrixSkillsListRequest = {
+      pageNum: '1',
+      pageSize: String(pageSize),
+      keyword: submittedKeyword.trim() || undefined,
+      isFeatured: activeSection === 'feature' ? true : undefined,
+      tagIds: activeSection === 'tag' && selectedTagIds.length > 0 ? selectedTagIds : undefined,
+      categoryId: activeSection === 'cat' && selectedCategoryId ? selectedCategoryId : undefined,
+      orgId: activeSection === 'org' && selectedOrgId ? selectedOrgId : undefined,
+    };
+    fetchedCountRef.current = 0;
+    setSkills([]);
+    setTotalCount(0);
+    setHasMore(false);
+    setLoadMoreError(false);
+    setSkillsLoading(true);
+    setSkillsError(null);
+    try {
+      log.info('Loading Matrix skills first page', { section: activeSection, request });
+      const result = await matrixSkillAPI.listSkills(request);
+      if (requestId !== skillsRequestIdRef.current) {
+        log.info('Matrix skills response discarded (stale request)');
         return;
       }
-      const requestId = ++skillsRequestIdRef.current;
-      const request: MatrixSkillsListRequest = {
-        pageNum: String(targetPage + 1),
-        pageSize: String(pageSize),
-        keyword: submittedKeyword.trim() || undefined,
-        isFeatured: activeSection === 'feature' ? true : undefined,
-        tagIds: activeSection === 'tag' && selectedTagIds.length > 0 ? selectedTagIds : undefined,
-        categoryId: activeSection === 'cat' && selectedCategoryId ? selectedCategoryId : undefined,
-        orgId: activeSection === 'org' && selectedOrgId ? selectedOrgId : undefined,
-      };
-      setSkillsLoading(true);
-      setSkillsError(null);
-      try {
-        log.info('Loading Matrix skills', { page: targetPage + 1, section: activeSection, request });
-        const result = await matrixSkillAPI.listSkills(request);
-        if (requestId !== skillsRequestIdRef.current) {
-          log.info('Matrix skills response discarded (stale request)');
-          return;
-        }
-        log.info('Matrix skills loaded', {
-          page: targetPage + 1,
-          count: result.count,
-          returned: result.list.length,
-        });
-        setPage(result);
-      } catch (err) {
-        if (requestId !== skillsRequestIdRef.current) {
-          return;
-        }
-        const msg = extractErrorMessage(err);
-        log.error('Failed to load Matrix skills', { error: msg, raw: err });
-        setSkillsError(msg);
-      } finally {
-        if (requestId === skillsRequestIdRef.current) {
-          setSkillsLoading(false);
-        }
+      log.info('Matrix skills loaded', {
+        page: 1,
+        count: result.count,
+        returned: result.list.length,
+      });
+      setSkills(result.list);
+      setTotalCount(result.count);
+      setHasMore(result.list.length >= pageSize);
+      fetchedCountRef.current = result.list.length;
+    } catch (err) {
+      if (requestId !== skillsRequestIdRef.current) {
+        return;
       }
-    },
-    [enabled, pageSize, submittedKeyword, activeSection, selectedTagIds, selectedCategoryId, selectedOrgId],
-  );
+      const msg = extractErrorMessage(err);
+      log.error('Failed to load Matrix skills', { error: msg, raw: err });
+      setSkillsError('matrix.errors.loadFailed');
+    } finally {
+      if (requestId === skillsRequestIdRef.current) {
+        setSkillsLoading(false);
+      }
+    }
+  }, [enabled, pageSize, submittedKeyword, activeSection, selectedTagIds, selectedCategoryId, selectedOrgId]);
+
+  const loadMoreSkills = useCallback(async () => {
+    if (!enabled || skillsLoadingRef.current || skillsLoadingMoreRef.current || loadMoreError || !hasMore) {
+      return;
+    }
+    const requestId = ++skillsRequestIdRef.current;
+    const request: MatrixSkillsListRequest = {
+      pageNum: String(Math.floor(fetchedCountRef.current / pageSize) + 1),
+      pageSize: String(pageSize),
+      keyword: submittedKeyword.trim() || undefined,
+      isFeatured: activeSection === 'feature' ? true : undefined,
+      tagIds: activeSection === 'tag' && selectedTagIds.length > 0 ? selectedTagIds : undefined,
+      categoryId: activeSection === 'cat' && selectedCategoryId ? selectedCategoryId : undefined,
+      orgId: activeSection === 'org' && selectedOrgId ? selectedOrgId : undefined,
+    };
+    skillsLoadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      log.info('Loading more Matrix skills', { section: activeSection, request });
+      const result = await matrixSkillAPI.listSkills(request);
+      if (requestId !== skillsRequestIdRef.current) {
+        log.info('Matrix skills response discarded (stale request)');
+        return;
+      }
+      log.info('Matrix skills loaded', {
+        page: Math.floor(fetchedCountRef.current / pageSize) + 1,
+        count: result.count,
+        returned: result.list.length,
+      });
+      fetchedCountRef.current += result.list.length;
+      setSkills((prev) => {
+        const seen = new Set(prev.map((s) => s.id));
+        const fresh = result.list.filter((s) => !seen.has(s.id));
+        return [...prev, ...fresh];
+      });
+      setTotalCount(result.count);
+      setHasMore(result.list.length >= pageSize);
+      setLoadMoreError(false);
+    } catch (err) {
+      if (requestId !== skillsRequestIdRef.current) {
+        return;
+      }
+      const msg = extractErrorMessage(err);
+      log.error('Failed to load more Matrix skills', { error: msg, raw: err });
+      setLoadMoreError(true);
+    } finally {
+      if (requestId === skillsRequestIdRef.current) {
+        skillsLoadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
+    }
+  }, [enabled, hasMore, loadMoreError, pageSize, submittedKeyword, activeSection, selectedTagIds, selectedCategoryId, selectedOrgId]);
 
   useEffect(() => {
     if (!enabled) {
       setTags([]);
       setCategories([]);
       setOrganizations([]);
-      setPage(null);
-      setCurrentPage(0);
+      setSkills([]);
+      setTotalCount(0);
+      setHasMore(false);
       setSkillsLoading(false);
+      setLoadingMore(false);
+      setLoadMoreError(false);
       setSkillsError(null);
       setTagsError(null);
       setCategoriesError(null);
@@ -304,6 +369,10 @@ export function useMatrixSkillMarket({
       setSelectedTagIds([]);
       setSelectedCategoryId(null);
       setSelectedOrgId(null);
+      setKeyword('');
+      keywordRef.current = '';
+      setSubmittedKeyword('');
+      fetchedCountRef.current = 0;
       return;
     }
     void Promise.all([loadTags(), loadCategories(), loadOrganizations()]);
@@ -313,27 +382,33 @@ export function useMatrixSkillMarket({
     if (!enabled) {
       return;
     }
-    void loadSkillsPage(currentPage);
-  }, [enabled, currentPage, loadSkillsPage]);
+    void loadFirstPage();
+  }, [enabled, loadFirstPage]);
 
-  const skills = useMemo(() => page?.list ?? [], [page]);
-  const totalCount = page?.count ?? 0;
-  const hasMore = (currentPage + 1) * pageSize < totalCount;
-  const loadingMore = false;
-
-  const totalPages = useMemo(() => {
-    if (totalCount === 0) {
-      return 1;
-    }
-    return Math.max(1, Math.ceil(totalCount / pageSize));
-  }, [totalCount, pageSize]);
+  const sortedSkills = useMemo(() => {
+    const entries = skills.map((skill, index) => ({
+      skill,
+      index,
+      installed: installedEnNames.has(skill.enName),
+    }));
+    entries.sort((a, b) => {
+      if (a.installed !== b.installed) {
+        return a.installed ? -1 : 1;
+      }
+      const downloadDelta = (b.skill.download ?? 0) - (a.skill.download ?? 0);
+      if (downloadDelta !== 0) {
+        return downloadDelta;
+      }
+      return a.index - b.index;
+    });
+    return entries.map((entry) => entry.skill);
+  }, [skills, installedEnNames]);
 
   const selectSection = useCallback((section: MatrixSection) => {
     setSelectedTagIds([]);
     setSelectedCategoryId(null);
     setSelectedOrgId(null);
     setActiveSection(section);
-    setCurrentPage(0);
   }, []);
 
   const toggleTag = useCallback((tagId: string) => {
@@ -343,47 +418,39 @@ export function useMatrixSkillMarket({
       }
       return [...prev, tagId];
     });
-    setCurrentPage(0);
   }, []);
 
   const clearTags = useCallback(() => {
     setSelectedTagIds([]);
-    setCurrentPage(0);
   }, []);
 
   const toggleCategory = useCallback((categoryId: string) => {
     setSelectedCategoryId((prev) => (prev === categoryId ? null : categoryId));
-    setCurrentPage(0);
   }, []);
 
   const toggleOrganization = useCallback((orgId: string) => {
     setSelectedOrgId((prev) => (prev === orgId ? null : orgId));
-    setCurrentPage(0);
+  }, []);
+
+  const updateKeyword = useCallback((value: string) => {
+    keywordRef.current = value;
+    setKeyword(value);
+    if (value.trim() === '') {
+      setSubmittedKeyword('');
+    }
   }, []);
 
   const submitKeyword = useCallback(() => {
-    setSubmittedKeyword(keyword);
-    setCurrentPage(0);
-  }, [keyword]);
-
-  const goToPrevPage = useCallback(() => {
-    setCurrentPage((p) => Math.max(0, p - 1));
+    setSubmittedKeyword(keywordRef.current.trim());
   }, []);
 
-  const goToNextPage = useCallback(async () => {
-    if (!hasMore) {
-      return;
-    }
-    setCurrentPage((p) => p + 1);
-  }, [hasMore]);
-
   const handleInstall = useCallback(
-    async (skill: MatrixSkillSummary, targetLevel: SkillLevel = 'user') => {
+    async (skill: MatrixSkillSummary, targetLevel: SkillLevel = 'project') => {
       if (!enabled || !skill.enName) {
         return;
       }
       const resolvedLevel: SkillLevel = isRemoteWorkspace ? 'user' : targetLevel;
-      if (resolvedLevel === 'project' && !hasWorkspace) {
+      if (resolvedLevel === 'project' && (!hasWorkspace || isAssistantWorkspace)) {
         notification.warning(t('messages.noWorkspace'));
         return;
       }
@@ -404,7 +471,7 @@ export function useMatrixSkillMarket({
       } catch (err) {
         const message = extractErrorMessage(err);
         log.error('Failed to install Matrix skill', { enName: skill.enName, error: message, raw: err });
-        setInstallError(String(message || 'Unknown install error'));
+        setInstallError(t('matrix.messages.installFailed', { name: skill.enName, error: String(message || 'Unknown error') }));
         notification.error(
           t('matrix.messages.installFailed', { name: skill.enName, error: String(message || 'Unknown error') }),
         );
@@ -412,17 +479,22 @@ export function useMatrixSkillMarket({
         setInstallingEnName(null);
       }
     },
-    [enabled, notification, onInstalledChanged, t, isRemoteWorkspace, hasWorkspace, workspacePath],
+    [enabled, notification, onInstalledChanged, t, isRemoteWorkspace, hasWorkspace, isAssistantWorkspace, workspacePath],
   );
+
+  const retryLoadMore = useCallback(() => {
+    setLoadMoreError(false);
+    void loadMoreSkills();
+  }, [loadMoreSkills]);
 
   const refresh = useCallback(async () => {
     await Promise.all([
       loadTags(),
       loadCategories(),
       loadOrganizations(),
-      loadSkillsPage(currentPage),
+      loadFirstPage(),
     ]);
-  }, [loadTags, loadCategories, loadOrganizations, loadSkillsPage, currentPage]);
+  }, [loadTags, loadCategories, loadOrganizations, loadFirstPage]);
 
   return {
     tags,
@@ -444,23 +516,23 @@ export function useMatrixSkillMarket({
     activeSection,
     selectSection,
     keyword,
-    setKeyword,
+    setKeyword: updateKeyword,
     submitKeyword,
-    skills,
+    skills: sortedSkills,
     totalCount,
     skillsLoading,
     loadingMore,
+    loadMoreError,
     skillsError,
-    currentPage,
-    totalPages,
     hasMore,
-    goToPrevPage,
-    goToNextPage,
+    loadMore: loadMoreSkills,
+    retryLoadMore,
     installingEnName,
     installError,
     handleInstall,
     hasWorkspace,
     isRemoteWorkspace,
+    isAssistantWorkspace,
     refresh,
   };
 }
