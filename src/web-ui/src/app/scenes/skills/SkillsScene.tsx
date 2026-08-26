@@ -683,6 +683,7 @@ const SkillsScene: React.FC = () => {
                                 isDownloading
                                 || !market.hasWorkspace
                                 || market.isRemoteWorkspace
+                                || market.isAssistantWorkspace
                                 || isInstalled,
                               tone: isInstalled ? 'success' : 'primary',
                               onClick: () => void market.handleDownload(skill, 'project'),
@@ -809,7 +810,7 @@ const SkillsScene: React.FC = () => {
               </Button>
             ) : (
               <>
-                {!market.isRemoteWorkspace && (
+                {!market.isRemoteWorkspace && !market.isAssistantWorkspace && (
                   <Button
                     variant="primary"
                     size="small"
@@ -818,6 +819,11 @@ const SkillsScene: React.FC = () => {
                   >
                     {t('market.item.downloadProject')}
                   </Button>
+                )}
+                {(market.isRemoteWorkspace || market.isAssistantWorkspace) && (
+                  <p className="bitfun-skills-scene__modal-project-hint">
+                    {t('messages.noWorkspace')}
+                  </p>
                 )}
                 <Button
                   variant={market.isRemoteWorkspace ? 'primary' : 'secondary'}
@@ -915,9 +921,9 @@ const SkillsScene: React.FC = () => {
             options={[
               { label: t('form.level.user'), value: 'user' },
               {
-                label: `${t('form.level.project')}${installed.hasWorkspace && !installed.isRemoteWorkspace ? '' : t('form.level.projectDisabled')}`,
+                label: `${t('form.level.project')}${installed.hasWorkspace && !installed.isRemoteWorkspace && !installed.isAssistantWorkspace ? '' : t('form.level.projectDisabled')}`,
                 value: 'project',
-                disabled: !installed.hasWorkspace || installed.isRemoteWorkspace,
+                disabled: !installed.hasWorkspace || installed.isRemoteWorkspace || installed.isAssistantWorkspace,
               },
             ]}
             value={installed.formLevel}
