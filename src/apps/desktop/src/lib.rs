@@ -1568,6 +1568,7 @@ pub async fn _run() {
             list_skill_market,
             search_skill_market,
             download_skill_market,
+            get_skill_descriptions,
             set_global_skill_disabled,
             set_mode_skill_disabled,
             replace_mode_skill_selection,

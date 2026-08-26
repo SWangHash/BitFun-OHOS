@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { workspaceManager } from '../services/business/workspaceManager';
-import { isRemoteWorkspace, type WorkspaceInfo } from '@/shared/types';
+import { isRemoteWorkspace, type WorkspaceInfo, WorkspaceKind } from '@/shared/types';
 
 function readWorkspaceFields() {
   const ws = workspaceManager.getState().currentWorkspace;
@@ -9,6 +9,7 @@ function readWorkspaceFields() {
     workspacePath: ws?.rootPath ?? '',
     hasWorkspace: !!ws,
     isRemoteWorkspace: isRemoteWorkspace(ws),
+    isAssistantWorkspace: ws?.workspaceKind === WorkspaceKind.Assistant,
   };
 }
 
@@ -22,6 +23,7 @@ export function useWorkspaceManagerSync(): {
   workspacePath: string;
   hasWorkspace: boolean;
   isRemoteWorkspace: boolean;
+  isAssistantWorkspace: boolean;
 } {
   const [fields, setFields] = useState(readWorkspaceFields);
 
