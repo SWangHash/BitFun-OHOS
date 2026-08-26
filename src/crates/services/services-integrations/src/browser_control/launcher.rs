@@ -618,6 +618,7 @@ impl BrowserLauncher {
     /// `open location` handler, which is not subject to that filter; other
     /// platforms have no equivalent, so the caller must hand the URL to the
     /// user instead. Returns whether the page was actually opened.
+    #[cfg(not(target_env = "ohos"))]
     fn open_user_profile_debugging_setup(kind: &BrowserKind, setup_url: &str) -> bool {
         #[cfg(target_os = "macos")]
         {
@@ -668,6 +669,7 @@ impl BrowserLauncher {
         }
     }
 
+    #[cfg(not(target_env = "ohos"))]
     async fn prepare_user_profile_connection(
         kind: &BrowserKind,
         wait_for_user_setup: bool,
