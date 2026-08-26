@@ -33,7 +33,6 @@ pub enum StorageLevel {
 pub struct PathManager {
     /// User config root directory
     user_root: PathBuf,
-    home_dir: PathBuf,
     /// Optional override for the BitFun home directory, used by tests to avoid
     /// touching the real user home.
     bitfun_home_override: Option<PathBuf>,
@@ -47,12 +46,10 @@ impl PathManager {
         Self::validate_e2e_storage_guard()?;
         let user_root = Self::get_user_config_root()?;
         let bitfun_home_override = Self::get_bitfun_home_override();
-        let home_dir = Self::get_home_dir()?;
 
         Ok(Self {
             user_root,
-            home_dir,
-            bitfun_home_override: None,
+            bitfun_home_override,
             project_runtime_slug_cache: Arc::new(Mutex::new(HashMap::new())),
         })
     }
@@ -95,15 +92,16 @@ impl PathManager {
     /// - macOS: ~/Library/Application Support/bitfun/
     /// - Linux: ~/.config/bitfun/
     fn get_user_config_root() -> BitFunResult<PathBuf> {
-        Ok(PathBuf::from("/data/storage/el2/base/files/bitfun"))
-    }
+        if let Some(path) =
+            Self::env_path("BITFUN_USER_ROOT").or_else(|| Self::env_path("BITFUN_E2E_USER_ROOT"))
+        {
+            return Ok(path);
+        }
 
-    fn get_home_dir() -> BitFunResult<PathBuf> {
-        Ok(PathBuf::from("/data/storage/el2/base/files/home_dir/.bitfun"))
-    }
+        let config_dir = dirs::config_dir()
+            .ok_or_else(|| BitFunError::config("Failed to get config directory".to_string()))?;
 
-    pub fn home_dir(&self) -> PathBuf {
-        self.home_dir.clone()
+        Ok(config_dir.join("bitfun"))
     }
 
     fn get_bitfun_home_override() -> Option<PathBuf> {
@@ -112,7 +110,12 @@ impl PathManager {
 
     /// Get assistant home root directory: ~/.bitfun/
     pub fn bitfun_home_dir(&self) -> PathBuf {
-        self.home_dir()
+        if let Some(path) = &self.bitfun_home_override {
+            return path.clone();
+        }
+        dirs::home_dir()
+            .unwrap_or_else(|| self.user_root.clone())
+            .join(".bitfun")
     }
 
     /// Get the legacy assistant workspace base directory: ~/.bitfun/
@@ -628,8 +631,7 @@ impl Default for PathManager {
                 );
                 Self {
                     user_root: std::env::temp_dir().join("bitfun"),
-                    home_dir: Self::get_home_dir().unwrap_or_default(),
-                    bitfun_home_override: None,
+                    bitfun_home_override: Self::get_bitfun_home_override(),
                     project_runtime_slug_cache: Arc::new(Mutex::new(HashMap::new())),
                 }
             }
@@ -646,7 +648,6 @@ impl PathManager {
             .unwrap_or_else(|| user_root.clone());
         Self {
             user_root,
-            home_dir: Self::get_home_dir().unwrap_or_default(),
             bitfun_home_override: Some(base.join("home").join(".bitfun")),
             project_runtime_slug_cache: Arc::new(Mutex::new(HashMap::new())),
         }
