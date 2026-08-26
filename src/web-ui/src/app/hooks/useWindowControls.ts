@@ -9,8 +9,10 @@ import { nowMs } from '@/shared/utils/timing';
 import { dismissibleLayerManager } from '@/infrastructure/services/DismissibleLayerManager';
 import { useI18n } from '@/infrastructure/i18n';
 import {workspaceAPI} from "@/infrastructure";
-import { isMacOSDesktopRuntime, supportsNativeWindowControls } from '@/infrastructure/runtime';
+import { isMacOSDesktopRuntime, isOpenHarmonyRuntime, supportsNativeWindowControls } from '@/infrastructure/runtime';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
+import { aiExperienceConfigService } from '@/infrastructure/config/services/AIExperienceConfigService';
+import { enterPetOnlyMode } from '../services/agentCompanionPetOnlyMode';
 import {
   captureFocusedEditable,
   restoreWindowKeyboardFocus,
@@ -225,6 +227,19 @@ export const useWindowControls = (options?: { isToolbarMode?: boolean }) => {
   // Window control handlers
   const handleMinimize = useCallback(async () => {
     if (!canUseNativeWindowControls) return;
+
+    // HarmonyOS interim: the in-app pet overlay is a child of the main window
+    // DOM, so it would hide with the window on minimize. When the desktop pet
+    // is enabled, morph the main window into a small always-on-top pet-only
+    // surface instead of minimizing, so the pet stays visible. System-level
+    // minimize (taskbar/shortcut) is not intercepted — only the in-app button.
+    if (isOpenHarmonyRuntime()) {
+      const aiSettings = aiExperienceConfigService.getSettings();
+      if (aiSettings.enable_agent_companion && aiSettings.agent_companion_display_mode === 'desktop') {
+        await enterPetOnlyMode();
+        return;
+      }
+    }
 
     // Save active element to restore focus after window restore
     const focusSnapshot = captureFocusedEditable();

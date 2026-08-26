@@ -32,7 +32,7 @@ import {
   QuickActionsConfig,
   ReviewConfig,
   SessionPermissionsConfig,
-  // SessionPersonalizationConfig,
+  SessionPersonalizationConfig,
   UsageStatisticsConfig,
   VoiceInputConfig,
   WorktreesConfig,
@@ -66,7 +66,7 @@ function resolveSettingsContent(tab: ConfigTab): React.ComponentType | null {
     case 'usage-statistics':        return UsageStatisticsConfig;
     case 'archived-sessions':       return ArchivedSessionsConfig;
     case 'worktrees':               return WorktreesConfig;
-    // case 'session-personalization': return SessionPersonalizationConfig; // temporarily hidden
+    case 'session-personalization': return SessionPersonalizationConfig;
     case 'session-permissions':     return SessionPermissionsConfig;
     case 'quick-actions':           return QuickActionsConfig;
     case 'voice-input':             return VoiceInputConfig;

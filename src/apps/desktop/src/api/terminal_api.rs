@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::Mutex;
 
-use bitfun_core::infrastructure::try_get_path_manager_arc;
+use bitfun_core::infrastructure::{try_get_path_manager_arc, PathManager};
 use bitfun_core::service::config::{load_terminal_default_shell, load_terminal_env_vars};
 use bitfun_core::service::remote_ssh::workspace_state::{
     get_remote_workspace_manager, init_remote_workspace_manager,
@@ -98,9 +98,9 @@ impl TerminalState {
     /// Get the scripts directory path for shell integration
     /// Uses the same path structure as PathManager
     fn get_scripts_dir() -> PathBuf {
-        dirs::config_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("bitfun")
+        PathManager::new()
+            .map(|p| p.user_root_dir().to_path_buf())
+            .unwrap_or_else(|_| PathBuf::from("."))
             .join("temp")
             .join("scripts")
     }

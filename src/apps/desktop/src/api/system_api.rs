@@ -317,7 +317,6 @@ pub async fn check_for_updates(
         release_notes: None,
         release_date: None,
     })
-
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -380,7 +379,6 @@ pub async fn install_update(app: AppHandle, request: InstallUpdateRequest) -> Re
     {
         Err("Not supported on this platform".to_string())
     }
-
 }
 
 #[derive(Debug, Deserialize)]
@@ -427,7 +425,6 @@ pub async fn open_html_file_in_browser(
         use crate::api::ohos::browser::open_browser;
         open_browser(request.path).await
     }
-
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -617,13 +614,11 @@ pub async fn set_macos_edit_menu_mode(
 pub async fn get_clipboard() -> Result<String, String> {
     use arboard::Clipboard;
     match Clipboard::new() {
-        Ok(mut clipboard) => {
-            match clipboard.get_text() {
-                Ok(text) => Ok(text),
-                Err(e) => Err(format!("Failed to get clipboard text: {}", e))
-            }
+        Ok(mut clipboard) => match clipboard.get_text() {
+            Ok(text) => Ok(text),
+            Err(e) => Err(format!("Failed to get clipboard text: {}", e)),
         },
-        Err(e) => Err(format!("Failed to create clipboard text: {}", e))
+        Err(e) => Err(format!("Failed to create clipboard text: {}", e)),
     }
 }
 
@@ -631,13 +626,11 @@ pub async fn get_clipboard() -> Result<String, String> {
 pub async fn set_clipboard(text: String) -> Result<(), String> {
     use arboard::Clipboard;
     match Clipboard::new() {
-        Ok(mut clipboard) => {
-            match clipboard.set_text(text) {
-                Ok(_) => Ok(()),
-                Err(e) => Err(format!("Failed to set clipboard text: {}", e))
-            }
+        Ok(mut clipboard) => match clipboard.set_text(text) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Failed to set clipboard text: {}", e)),
         },
-        Err(e) => Err(format!("Failed to create clipboard text: {}", e))
+        Err(e) => Err(format!("Failed to create clipboard text: {}", e)),
     }
 }
 
@@ -804,7 +797,10 @@ pub fn get_app_config_bool(path: String) -> bool {
         let Ok(service) = bitfun_core::service::config::get_global_config_service().await else {
             return false;
         };
-        service.get_config::<bool>(Some(&path)).await.unwrap_or(false)
+        service
+            .get_config::<bool>(Some(&path))
+            .await
+            .unwrap_or(false)
     })
 }
 
@@ -822,6 +818,7 @@ pub async fn minimize_to_tray(
         }
         if let Some(window) = app.get_webview_window("main") {
             window.hide().map_err(|e| e.to_string())?;
+            crate::appearance::keep_agent_companion_desktop_pet_visible(&app);
             log::info!("Main window minimized to tray via command");
         }
         Ok(())
@@ -832,7 +829,6 @@ pub async fn minimize_to_tray(
         log::info!("Main window minimized to HarmonyOS dock via command");
         Ok(())
     }
-
 }
 
 /// Initialize the desktop tray after the startup shell has become interactive.
@@ -849,7 +845,6 @@ pub async fn initialize_tray_after_startup(
     {
         Err("Do not support the initialized tray before startup".to_string())
     }
-
 }
 
 /// Minimal startup-window controls used by the static pre-React splash.
@@ -891,26 +886,27 @@ pub async fn startup_window_control(
                     .await
                     .unwrap_or_else(|_| "ask".to_string());
 
-            if behavior == "quit" {
-                log::info!("Quit requested from startup window control");
-                crate::save_main_window_state(&app);
-                crate::perform_process_exit_cleanup().await;
-                crate::crash_diagnostics::mark_clean_shutdown("startup_window_control");
-                log::info!(
+                if behavior == "quit" {
+                    log::info!("Quit requested from startup window control");
+                    crate::save_main_window_state(&app);
+                    crate::perform_process_exit_cleanup().await;
+                    crate::crash_diagnostics::mark_clean_shutdown("startup_window_control");
+                    log::info!(
                     "Desktop exit authorized after graceful shutdown: reason=startup_window_control"
                 );
-                app.exit(0);
-            } else {
-                if let Err(error) = crate::tray::setup_tray(&app, &startup_trace) {
-                    log::warn!("Failed to initialize tray before startup close: {}", error);
+                    app.exit(0);
+                } else {
+                    if let Err(error) = crate::tray::setup_tray(&app, &startup_trace) {
+                        log::warn!("Failed to initialize tray before startup close: {}", error);
+                    }
+                    window.hide().map_err(|error| {
+                        format!("Failed to hide main window during startup close: {}", error)
+                    })?;
+                    crate::appearance::keep_agent_companion_desktop_pet_visible(&app);
+                    log::info!("Main window hidden from startup window control");
                 }
-                window.hide().map_err(|error| {
-                    format!("Failed to hide main window during startup close: {}", error)
-                })?;
-                log::info!("Main window hidden from startup window control");
             }
         }
-    }
         Ok(())
     }
 
@@ -959,15 +955,15 @@ pub async fn toggle_main_window_fullscreen(
             return Err("Main window not found".to_string());
         };
 
-    let current_fullscreen = window
-        .is_fullscreen()
-        .map_err(|error| format!("Failed to read main window fullscreen state: {}", error))?;
-    let current_maximized = window
-        .is_maximized()
-        .map_err(|error| format!("Failed to read main window maximize state: {}", error))?;
-    let restore_maximized_after_fullscreen = *main_window_fullscreen_restore_maximized()
-        .lock()
-        .map_err(|_| "Main window fullscreen restore state is unavailable".to_string())?;
+        let current_fullscreen = window
+            .is_fullscreen()
+            .map_err(|error| format!("Failed to read main window fullscreen state: {}", error))?;
+        let current_maximized = window
+            .is_maximized()
+            .map_err(|error| format!("Failed to read main window maximize state: {}", error))?;
+        let restore_maximized_after_fullscreen = *main_window_fullscreen_restore_maximized()
+            .lock()
+            .map_err(|_| "Main window fullscreen restore state is unavailable".to_string())?;
 
         let transition = crate::api::system_api::plan_main_window_fullscreen_transition(
             current_fullscreen,
@@ -990,8 +986,8 @@ pub async fn toggle_main_window_fullscreen(
                 .map_err(|_| "Main window fullscreen restore state is unavailable".to_string())? =
                 transition.next_restore_maximized_after_fullscreen;
 
-        return Ok(read_main_window_fullscreen_response(&window, true, false));
-    }
+            return Ok(read_main_window_fullscreen_response(&window, true, false));
+        }
 
         window
             .set_fullscreen(false)
@@ -1013,13 +1009,14 @@ pub async fn toggle_main_window_fullscreen(
             .map_err(|_| "Main window fullscreen restore state is unavailable".to_string())? =
             transition.next_restore_maximized_after_fullscreen;
 
-        Ok(crate::api::system_api::read_main_window_fullscreen_response(
-            &window,
-            false,
-            restored_maximized,
-        ))
+        Ok(
+            crate::api::system_api::read_main_window_fullscreen_response(
+                &window,
+                false,
+                restored_maximized,
+            ),
+        )
     }
-
 }
 
 fn apply_main_window_fullscreen_monitor_bounds(

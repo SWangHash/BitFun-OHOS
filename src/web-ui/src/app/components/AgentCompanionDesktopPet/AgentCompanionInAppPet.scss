@@ -40,3 +40,14 @@
 .bitfun-agent-companion-inapp__menu {
   z-index: 9001;
 }
+
+/*
+ * Pet-only surface (HarmonyOS "minimize-to-pet"): the window has been shrunk to
+ * just the pet sprite. Bubbles would overflow the tiny window, so hide them
+ * while this surface is active; they resume when the user restores the window.
+ * The pet dock keeps its bottom-right anchor, which centers it in the small
+ * window thanks to the fixed edge gap.
+ */
+.bitfun-agent-companion-inapp--pet-only .bitfun-agent-companion-window__bubbles {
+  display: none;
+}

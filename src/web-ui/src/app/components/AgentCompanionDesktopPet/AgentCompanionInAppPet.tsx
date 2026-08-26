@@ -30,6 +30,8 @@ import { useAgentCompanionActivity } from '@/flow_chat/hooks/useAgentCompanionAc
 import type { AgentCompanionTaskStatus } from '@/flow_chat/utils/agentCompanionActivity';
 import { handleAgentCompanionPetCommand } from '@/app/services/agentCompanionPetCommands';
 import { openAgentCompanionSession } from '@/app/services/openAgentCompanionSession';
+import { exitPetOnlyMode, isPetOnlyModeActive } from '@/app/services/agentCompanionPetOnlyMode';
+import { useAgentCompanionPetOnlyModeStore } from '@/app/stores/agentCompanionPetOnlyModeStore';
 import { quickActions } from '@/shared/services/ide-control';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { createLogger } from '@/shared/utils/logger';
@@ -76,6 +78,7 @@ export const AgentCompanionInAppPet: React.FC = () => {
   const activity = useAgentCompanionActivity();
   const mood = activity.mood;
   const tasks = activity.tasks;
+  const isPetOnlyMode = useAgentCompanionPetOnlyModeStore(state => state.isPetOnlyMode);
 
   const [pet, setPet] = useState<AgentCompanionPetSelection | null>(
     () => aiExperienceConfigService.getSettings().agent_companion_pet ?? null,
@@ -120,6 +123,14 @@ export const AgentCompanionInAppPet: React.FC = () => {
     let disposed = false;
     const applySettings = (settings: AIExperienceSettings) => {
       if (disposed) return;
+      // If the pet is turned off while minimized-to-pet, restore the window
+      // before unmounting so the app is not left in the tiny pet-only shape.
+      if (
+        (!settings.enable_agent_companion || settings.agent_companion_display_mode !== 'desktop')
+        && isPetOnlyModeActive()
+      ) {
+        void exitPetOnlyMode();
+      }
       setPet(settings.agent_companion_pet ?? null);
       setPetFrameSize(null);
       setEnabled(settings.enable_agent_companion);
@@ -491,8 +502,14 @@ export const AgentCompanionInAppPet: React.FC = () => {
     if (!session || event.pointerId !== session.pointerId) {
       return;
     }
+    const wasDrag = session.dragStarted;
     clearPetPointerSession(event.currentTarget, event.pointerId);
     setIsDraggingPet(false);
+    // A click (no drag) on the pet restores the full app window when the
+    // surface is currently minimized to the pet-only shape.
+    if (!wasDrag && isPetOnlyMode) {
+      void exitPetOnlyMode();
+    }
   };
 
   const onPetPointerCancel = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -562,7 +579,7 @@ export const AgentCompanionInAppPet: React.FC = () => {
 
   return createPortal(
     <main
-      className={`bitfun-agent-companion-window bitfun-agent-companion-inapp${isMenuOverlay ? ' bitfun-agent-companion-window--menu-open' : ''}`}
+      className={`bitfun-agent-companion-window bitfun-agent-companion-inapp${isMenuOverlay ? ' bitfun-agent-companion-window--menu-open' : ''}${isPetOnlyMode ? ' bitfun-agent-companion-inapp--pet-only' : ''}`}
       onContextMenu={event => event.preventDefault()}
       data-bf-component="agent-companion-desktop-pet"
       data-bf-part="root"
