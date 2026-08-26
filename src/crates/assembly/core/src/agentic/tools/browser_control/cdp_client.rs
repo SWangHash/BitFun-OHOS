@@ -11,21 +11,54 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, OnceLock, Weak};
 use std::time::Duration;
+#[cfg(target_env = "ohos")]
+use std::pin::Pin;
+#[cfg(target_env = "ohos")]
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio::sync::{broadcast, Mutex, RwLock};
+#[cfg(target_env = "ohos")]
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
+#[cfg(target_env = "ohos")]
+use tokio_tungstenite::{client_async, WebSocketStream};
+#[cfg(not(target_env = "ohos"))]
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 
 use super::browser_launcher::BrowserKind;
 
-type WsSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
-type WsStream = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
+#[cfg(target_env = "ohos")]
+trait CdpIo: AsyncRead + AsyncWrite + Unpin + Send {}
+
+#[cfg(target_env = "ohos")]
+impl<T> CdpIo for T where T: AsyncRead + AsyncWrite + Unpin + Send {}
+
+#[cfg(target_env = "ohos")]
+type CdpStream = Pin<Box<dyn CdpIo>>;
+#[cfg(target_env = "ohos")]
+type WsSocket = WebSocketStream<CdpStream>;
+#[cfg(not(target_env = "ohos"))]
+type WsSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
+type WsSink = SplitSink<WsSocket, Message>;
+type WsStream = SplitStream<WsSocket>;
 type PendingResponses = Arc<RwLock<HashMap<i64, tokio::sync::oneshot::Sender<Value>>>>;
 type EventChannels = Arc<RwLock<HashMap<Option<String>, broadcast::Sender<CdpEvent>>>>;
 type SessionStatuses = Arc<RwLock<HashMap<String, Weak<AtomicBool>>>>;
 
 const PAGE_CDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 const USER_PROFILE_APPROVAL_TIMEOUT: Duration = Duration::from_secs(90);
+
+#[cfg(any(target_env = "ohos", test))]
+fn protocol_has_domain(protocol: &Value, name: &str) -> bool {
+    protocol
+        .get("domains")
+        .and_then(Value::as_array)
+        .is_some_and(|domains| {
+            domains
+                .iter()
+                .any(|domain| domain.get("domain").and_then(Value::as_str) == Some(name))
+        })
+}
 
 /// A single CDP event emitted by the browser (no `id`, has `method` + `params`).
 #[derive(Debug, Clone)]
@@ -92,11 +125,98 @@ impl CdpClient {
             .map_err(|error| BitFunError::tool(error.to_string()))
     }
 
-    /// Create a new page/tab on a legacy fixed debug port.
-    pub async fn create_page(port: u16, url: Option<&str>) -> BitFunResult<CdpPageInfo> {
-        CdpEndpointProvider::create_page(port, url)
+    #[cfg(target_env = "ohos")]
+    pub async fn validate_ohos_protocol(port: u16) -> BitFunResult<()> {
+        let protocol = CdpEndpointProvider::get_protocol(port)
             .await
-            .map_err(|error| BitFunError::tool(error.to_string()))
+            .map_err(|error| BitFunError::tool(error.to_string()))?;
+        let domains = protocol
+            .get("domains")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                BitFunError::tool("OHOS CDP /json/protocol did not contain domains".to_string())
+            })?;
+        for required in ["DOM", "Runtime", "Page", "Input", "Network", "Target"] {
+            if !protocol_has_domain(&protocol, required) {
+                return Err(BitFunError::tool(format!(
+                    "OHOS CDP protocol is missing required domain {required}"
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// Create a new page/tab on a debug port.
+    pub async fn create_page(port: u16, url: Option<&str>) -> BitFunResult<CdpPageInfo> {
+        match CdpEndpointProvider::create_page(port, url).await {
+            Ok(page) => Ok(page),
+            Err(error) => {
+                #[cfg(target_env = "ohos")]
+                {
+                    // ArkWeb exposes the standard page endpoint on some
+                    // versions but not `/json/new` on others. Fall back to
+                    // the browser-level CDP Target domain when the HTTP
+                    // helper is unavailable.
+                    return Self::create_page_via_target(port, url)
+                        .await
+                        .map_err(|fallback| {
+                            BitFunError::tool(format!(
+                                "OHOS CDP could not create a page via /json/new ({error}) or Target.createTarget ({fallback})"
+                            ))
+                        });
+                }
+
+                #[cfg(not(target_env = "ohos"))]
+                {
+                    Err(BitFunError::tool(error.to_string()))
+                }
+            }
+        }
+    }
+
+    #[cfg(target_env = "ohos")]
+    async fn create_page_via_target(port: u16, url: Option<&str>) -> BitFunResult<CdpPageInfo> {
+        let version = CdpEndpointProvider::get_version(port)
+            .await
+            .map_err(|error| BitFunError::tool(error.to_string()))?;
+        let browser_ws_url = version.web_socket_debugger_url.as_deref().ok_or_else(|| {
+            BitFunError::tool(
+                "OHOS CDP /json/version did not provide a browser WebSocket debugger URL"
+                    .to_string(),
+            )
+        })?;
+        let browser_client = Self::connect(browser_ws_url).await?;
+        let target = browser_client
+            .send(
+                "Target.createTarget",
+                Some(json!({
+                    "url": url.unwrap_or("about:blank"),
+                    "background": false,
+                })),
+            )
+            .await?;
+        let target_id = target
+            .get("targetId")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                BitFunError::tool(format!(
+                    "Target.createTarget returned no targetId: {target}"
+                ))
+            })?
+            .to_string();
+
+        for _ in 0..10 {
+            if let Ok(pages) = Self::list_pages(port).await {
+                if let Some(page) = pages.into_iter().find(|page| page.id == target_id) {
+                    return Ok(page);
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        }
+
+        Err(BitFunError::tool(format!(
+            "OHOS CDP target {target_id} was created but did not appear in /json"
+        )))
     }
 
     /// Connect to a specific page by its legacy WebSocket debugger URL.
@@ -189,7 +309,7 @@ impl CdpClient {
     }
 
     async fn connect_with_timeout(ws_url: &str, timeout: Duration) -> BitFunResult<Self> {
-        let (ws_stream, _) = tokio::time::timeout(timeout, connect_async(ws_url))
+        let (ws_stream, _) = tokio::time::timeout(timeout, Self::connect_stream(ws_url))
             .await
             .map_err(|_| {
                 BitFunError::tool("Timed out waiting for the CDP WebSocket connection".to_string())
@@ -235,7 +355,63 @@ impl CdpClient {
         })
     }
 
-    /// Subscribe to events for this page session only.
+    #[cfg(not(target_env = "ohos"))]
+    async fn connect_stream(
+        ws_url: &str,
+    ) -> Result<
+        (
+            WsSocket,
+            tokio_tungstenite::tungstenite::handshake::client::Response,
+        ),
+        String,
+    > {
+        connect_async(ws_url)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    #[cfg(target_env = "ohos")]
+    async fn connect_stream(
+        ws_url: &str,
+    ) -> Result<
+        (
+            WsSocket,
+            tokio_tungstenite::tungstenite::handshake::client::Response,
+        ),
+        String,
+    > {
+        let mut request = ws_url
+            .into_client_request()
+            .map_err(|error| format!("invalid CDP WebSocket URL: {error}"))?;
+        if request.uri().scheme_str() != Some("ws") {
+            return Err(format!(
+                "unsupported CDP WebSocket scheme: {}",
+                request.uri().scheme_str().unwrap_or("<missing>")
+            ));
+        }
+        let host = request
+            .uri()
+            .host()
+            .ok_or_else(|| "CDP WebSocket URL has no host".to_string())?
+            .to_string();
+        let port = request.uri().port_u16().unwrap_or(80);
+        #[cfg(target_env = "ohos")]
+        {
+            let origin = format!("http://localhost:{port}")
+                .parse()
+                .map_err(|error| format!("invalid CDP Origin header: {error}"))?;
+            request.headers_mut().insert("Origin", origin);
+        }
+        let stream = TcpStream::connect((host.as_str(), port))
+            .await
+            .map_err(|error| error.to_string())?;
+        let stream: CdpStream = Box::pin(stream);
+        client_async(request, stream)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    /// Subscribe to all CDP events. Filter on `method` at the call site.
     pub fn subscribe_events(&self) -> broadcast::Receiver<CdpEvent> {
         self.events.subscribe()
     }
@@ -283,6 +459,7 @@ impl CdpClient {
                 .get("protocolVersion")
                 .and_then(Value::as_str)
                 .map(str::to_string),
+            user_agent: None,
             web_socket_debugger_url: None,
         })
     }
@@ -538,7 +715,7 @@ impl CdpClient {
 }
 
 #[cfg(test)]
-mod tests {
+mod protocol_tests {
     use super::*;
 
     #[test]
@@ -678,5 +855,26 @@ mod tests {
         ));
 
         server.await.expect("mock CDP server");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::protocol_has_domain;
+    use serde_json::json;
+
+    #[test]
+    fn protocol_domain_detection_uses_standard_domain_key() {
+        let standard = json!({
+            "domains": [
+                { "domain": "DOM" },
+                { "domain": "Runtime" }
+            ]
+        });
+        assert!(protocol_has_domain(&standard, "DOM"));
+
+        let non_standard = json!({ "domains": [{ "name": "Page" }] });
+        assert!(!protocol_has_domain(&non_standard, "Page"));
+        assert!(!protocol_has_domain(&standard, "Input"));
     }
 }

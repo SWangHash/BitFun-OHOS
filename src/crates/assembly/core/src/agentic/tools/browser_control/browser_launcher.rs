@@ -81,13 +81,11 @@ impl BrowserLauncher {
         kind: &BrowserKind,
         port: u16,
         user_data_dir: Option<&str>,
+        initial_url: Option<&str>,
     ) -> BitFunResult<LaunchResult> {
-        Ok(provider::BrowserLauncher::launch_with_cdp_options(
-            kind,
-            port,
-            Self::launch_options(user_data_dir),
-        )
-        .await?)
+        let mut options = Self::launch_options(user_data_dir);
+        options.initial_url = initial_url.map(str::to_string);
+        Ok(provider::BrowserLauncher::launch_with_cdp_options(kind, port, options).await?)
     }
 
     pub async fn restart_with_cdp(kind: &BrowserKind, port: u16) -> BitFunResult<LaunchResult> {
@@ -108,6 +106,7 @@ impl BrowserLauncher {
             user_data_dir: user_data_dir.map(PathBuf::from),
             managed_profile_root: Some(get_path_manager_arc().user_data_dir()),
             wait_for_user_profile_setup: false,
+            initial_url: None,
         }
     }
 }

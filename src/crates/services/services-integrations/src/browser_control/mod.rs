@@ -9,6 +9,10 @@ pub mod cdp;
 pub mod launcher;
 
 pub use cdp::{CdpEndpointProvider, CdpPageInfo, CdpVersionInfo};
+#[cfg(target_env = "ohos")]
+pub use launcher::{
+    register_haitai_browser_launch_port, HaitaiBrowserLaunchPort, HaitaiBrowserLaunchRequest,
+};
 pub use launcher::{
     BrowserDebugEndpoint, BrowserKind, BrowserLaunchOptions, BrowserLauncher, LaunchResult,
     DEFAULT_CDP_PORT,

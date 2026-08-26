@@ -71,6 +71,17 @@ impl ControlHubTool {
         Self
     }
 
+    fn is_absolute_http_url(url: &str) -> bool {
+        let rest = url
+            .strip_prefix("http://")
+            .or_else(|| url.strip_prefix("https://"));
+        let Some(rest) = rest else {
+            return false;
+        };
+        let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+        !authority.is_empty() && !authority.starts_with(':')
+    }
+
     fn browser_connect_mode_from_params(params: &Value) -> &'static str {
         match params.get("mode").and_then(|v| v.as_str()) {
             Some("headless") => "headless",
@@ -80,38 +91,51 @@ impl ControlHubTool {
     }
 
     fn default_browser_connect_hints(kind: &BrowserKind, port: u16) -> Vec<String> {
-        match kind {
-            BrowserKind::Chrome | BrowserKind::Edge => {
-                let setup_url = if matches!(kind, BrowserKind::Chrome) {
-                    "chrome://inspect/#remote-debugging"
-                } else {
-                    "edge://inspect/#remote-debugging"
-                };
-                vec![
-                    format!(
-                        "{} can connect BitFun to the current real profile, preserving its open tabs, cookies, extensions, and login state.",
-                        kind
-                    ),
-                    format!(
-                        "For one-time setup, ask the user to click Enable default CDP in BitFun Settings > Browser control. BitFun opens {}; enable Remote debugging there (the browser remembers this for normal future starts), then approve BitFun's connection dialog in {}.",
-                        setup_url, kind
-                    ),
-                    "After approval, keep using browser.connect / snapshot / click / fill; BitFun retains one guarded browser connection to avoid repeated prompts.".to_string(),
-                ]
-            }
-            _ => {
-                let exe = BrowserLauncher::browser_executable(kind);
-                vec![
-                    format!(
-                        "If {} already publishes DevToolsActivePort from its normal user-data directory, BitFun reuses that real profile automatically; otherwise it starts a persistent managed profile.",
-                        kind
-                    ),
-                    format!(
-                        "If CDP is not ready on test port {}, retry browser.connect — it starts \"{}\" with BitFun's managed profile.",
-                        port, exe
-                    ),
-                    "After the browser is listening, use browser.connect / snapshot / click / fill to drive the DOM directly.".to_string(),
-                ]
+        #[cfg(target_env = "ohos")]
+        {
+            let _ = (kind, port);
+            return vec![
+                "OHOS browser control starts or attaches the Haitai browser through its local TCP CDP endpoint; it never uses hdc, a development machine, root, or port forwarding.".to_string(),
+                "If Haitai is already running without CDP, browser.connect tries one hot-start and then returns NEEDS_RESTART; close Haitai completely and retry.".to_string(),
+                "After connecting, use browser.tab_new or browser.connect { url } with the task URL, then browser.snapshot/click/fill to drive the page through CDP.".to_string(),
+            ];
+        }
+
+        #[cfg(not(target_env = "ohos"))]
+        {
+            match kind {
+                BrowserKind::Chrome | BrowserKind::Edge => {
+                    let setup_url = if matches!(kind, BrowserKind::Chrome) {
+                        "chrome://inspect/#remote-debugging"
+                    } else {
+                        "edge://inspect/#remote-debugging"
+                    };
+                    vec![
+                        format!(
+                            "{} can connect BitFun to the current real profile, preserving its open tabs, cookies, extensions, and login state.",
+                            kind
+                        ),
+                        format!(
+                            "For one-time setup, ask the user to click Enable default CDP in BitFun Settings > Browser control. BitFun opens {}; enable Remote debugging there (the browser remembers this for normal future starts), then approve BitFun's connection dialog in {}.",
+                            setup_url, kind
+                        ),
+                        "After approval, keep using browser.connect / snapshot / click / fill; BitFun retains one guarded browser connection to avoid repeated prompts.".to_string(),
+                    ]
+                }
+                _ => {
+                    let exe = BrowserLauncher::browser_executable(kind);
+                    vec![
+                        format!(
+                            "If {} already publishes DevToolsActivePort from its normal user-data directory, BitFun reuses that real profile automatically; otherwise it starts a persistent managed profile.",
+                            kind
+                        ),
+                        format!(
+                            "If CDP is not ready on test port {}, retry browser.connect — it starts \"{}\" with BitFun's managed profile.",
+                            port, exe
+                        ),
+                        "After the browser is listening, use browser.connect / snapshot / click / fill to drive the DOM directly.".to_string(),
+                    ]
+                }
             }
         }
     }
@@ -262,10 +286,10 @@ Use this tool via `{ domain, action, params }` for browser automation, terminal 
   * Do not call `connect`, `tab_new`, or `navigate` merely to display a URL. Use the CDP workflow only when the agent must read page content or interact with the DOM.
 - UI action:
   * `open_builtin { url, title?, replace_existing? }` — open an http(s) URL in BitFun's built-in right-side browser panel. This changes the BitFun UI only; it does not fetch page text for reasoning. The panel is display-only for the user — the agent cannot snapshot, read, or interact with it; use `connect` + `snapshot` when page content is needed.
-- Automation modes (external browser):
-  * `connect { mode: "default" }` (default) — on Chrome 144+ and current Edge, request a user-approved connection to the currently running real profile so existing tabs and login state are preserved. Other supported Chromium browsers also reuse the real profile when it publishes DevToolsActivePort; otherwise BitFun starts or attaches its persistent managed profile on port 9222.
+- Automation modes:
+  * `connect { mode: "default", url? }` (default) — on desktop, use the current approved profile where available or BitFun's managed profile; on OHOS, start or attach Haitai with local TCP CDP on port 9222.
   * `connect { mode: "headless" }` — attach to an already-running headless browser on the headless test port 9223. This mode never starts a browser; when nothing is listening it returns `NOT_AVAILABLE` together with the exact launch command.
-  * `params.port` overrides the CDP port for `connect` and for every other CDP action; after `connect`, actions reuse the connected session's port automatically.
+  * `params.port` overrides the CDP port for `connect` and every other CDP action; OHOS passes it to Haitai's cmdArgs.
 - Actions: open_builtin, connect, tab_new, navigate, back, forward, reload, snapshot, click, hover, fill, type, check, uncheck, select, press_key, scroll, auto_scroll, wait, get, get_text, get_url, get_title, get_html, screenshot, evaluate, fetch, cookies, set_cookies, set_file_input_files, cdp, network, console, errors, trace, dialog, read_article, close, list_pages, tab_query, switch_page, list_sessions.
 - Pausing:
   * `wait { duration_ms }` — pause for a fixed time, up to 60 minutes (`ms` and `seconds` are accepted spellings). This is the action to use when you must idle between rounds of work, e.g. `{ "duration_ms": 1800000 }` to resume in 30 minutes. It needs no browser session, and the result reports the `ms` actually waited, so check that figure before assuming the full pause happened.
@@ -404,6 +428,9 @@ Branch on `ok` and `error.code`, not on English messages.
                 let (browser_kind, browser_cdp_supported) =
                     match crate::agentic::tools::browser_control::browser_launcher::BrowserLauncher::detect_default_browser() {
                         Ok(k) => {
+                            #[cfg(target_env = "ohos")]
+                            let supported = BrowserLauncher::is_cdp_available(9222).await;
+                            #[cfg(not(target_env = "ohos"))]
                             let supported = !matches!(
                                 k,
                                 crate::agentic::tools::browser_control::browser_launcher::BrowserKind::Unknown(_)
@@ -863,6 +890,18 @@ Branch on `ok` and `error.code`, not on English messages.
             "connect" => {
                 let mode = Self::browser_connect_mode_from_params(params);
 
+                #[cfg(target_env = "ohos")]
+                if mode == "headless" {
+                    return Ok(err_response(
+                        "browser",
+                        "connect",
+                        ControlHubError::new(
+                            ErrorCode::NotAvailable,
+                            "OHOS browser control supports the Haitai browser only; headless TCP CDP is unavailable",
+                        ),
+                    ));
+                }
+
                 if mode == "headless" && !BrowserLauncher::is_cdp_available(port).await {
                     return Ok(err_response(
                         "browser",
@@ -878,6 +917,13 @@ Branch on `ok` and `error.code`, not on English messages.
                     ));
                 }
 
+                // OHOS exposes one supported provider. Ignore stale desktop
+                // browser settings and explicit Chrome/Edge values rather
+                // than routing them to a desktop executable path.
+                #[cfg(target_env = "ohos")]
+                let kind = BrowserKind::Haitai;
+
+                #[cfg(not(target_env = "ohos"))]
                 let kind = if let Some(browser_str) = params.get("browser").and_then(|v| v.as_str())
                 {
                     parse_browser_kind(browser_str)
@@ -894,6 +940,26 @@ Branch on `ok` and `error.code`, not on English messages.
                 }?;
 
                 let user_data_dir = params.get("user_data_dir").and_then(|v| v.as_str());
+                let initial_url = params
+                    .get("url")
+                    .and_then(|value| value.as_str())
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string);
+                if let Some(url) = initial_url.as_deref() {
+                    if (!Self::is_absolute_http_url(url)
+                        || url.chars().any(|character| character.is_whitespace()))
+                    {
+                        return Ok(err_response(
+                            "browser",
+                            "connect",
+                            ControlHubError::new(
+                                ErrorCode::InvalidParams,
+                                "connect.url must be an absolute http(s) URL",
+                            ),
+                        ));
+                    }
+                }
                 let launch_result = if mode == "headless" {
                     LaunchResult::AlreadyConnected
                 } else if user_data_dir.is_none()
@@ -903,13 +969,39 @@ Branch on `ok` and `error.code`, not on English messages.
                 {
                     LaunchResult::AlreadyConnected
                 } else {
-                    // Every browser shares the same logical tool port. When
-                    // the selection or explicit profile changes, stop routing
-                    // new actions through the previously retained browser.
-                    if CdpClient::browser_connection(port).await.is_some() {
-                        CdpClient::remove_browser_connection(port).await;
+                    match BrowserLauncher::launch_with_cdp_opts(
+                        &kind,
+                        port,
+                        user_data_dir,
+                        initial_url.as_deref(),
+                    )
+                    .await
+                    {
+                        Ok(result) => result,
+                        Err(error) => {
+                            #[cfg(target_env = "ohos")]
+                            {
+                                let error_text = error.to_string();
+                                let code = if error_text.contains("identity mismatch") {
+                                    ErrorCode::WrongBrowser
+                                } else {
+                                    ErrorCode::NotAvailable
+                                };
+                                return Ok(err_response(
+                                    "browser",
+                                    "connect",
+                                    ControlHubError::new(code, error_text).with_hints(
+                                        Self::default_browser_connect_hints(&kind, port),
+                                    ),
+                                ));
+                            }
+
+                            #[cfg(not(target_env = "ohos"))]
+                            {
+                                return Err(error);
+                            }
+                        }
                     }
-                    BrowserLauncher::launch_with_cdp_opts(&kind, port, user_data_dir).await?
                 };
 
                 let uses_user_profile = match &launch_result {
@@ -987,12 +1079,39 @@ Branch on `ok` and `error.code`, not on English messages.
                     | LaunchResult::Launched
                     | LaunchResult::UserProfileReady { .. } => {
                         let version = Self::browser_version(port).await?;
+                        #[cfg(target_env = "ohos")]
+                        CdpClient::validate_ohos_protocol(port).await?;
                         if mode == "headless" {
                             if let Err(error) = Self::verify_headless_cdp_browser(&version, port) {
                                 return Ok(err_response("browser", "connect", error));
                             }
                         }
-                        let pages = Self::browser_pages(port).await?;
+                        let mut pages = Self::browser_pages(port).await?;
+                        if let Some(url) = initial_url.as_deref() {
+                            let already_open = pages.iter().any(|page| {
+                                page.page_type.as_deref() == Some("page")
+                                    && page.url.starts_with(url)
+                                    && page.web_socket_debugger_url.is_some()
+                            });
+                            if !already_open {
+                                let page = Self::create_browser_page(port, Some(url)).await.map_err(
+                                    |error| {
+                                        BitFunError::tool(format!(
+                                            "failed to open connect.url through Haitai CDP: {error}"
+                                        ))
+                                    },
+                                )?;
+                                pages.push(page);
+                            }
+                        }
+                        if pages.is_empty() {
+                            let page = Self::create_browser_page(port, None).await.map_err(|error| {
+                                BitFunError::tool(format!(
+                                    "Haitai CDP has no page target and could not create about:blank: {error}"
+                                ))
+                            })?;
+                            pages.push(page);
+                        }
                         let connected_browser = if mode == "headless" {
                             "Headless test browser".to_string()
                         } else {
@@ -1014,6 +1133,12 @@ Branch on `ok` and `error.code`, not on English messages.
                                     .map(|n| p.title.to_lowercase().contains(n))
                                     .unwrap_or(true);
                                 p.page_type.as_deref() == Some("page") && url_ok && title_ok
+                            })
+                        } else if let Some(url) = initial_url.as_deref() {
+                            pages.iter().find(|page| {
+                                page.page_type.as_deref() == Some("page")
+                                    && page.url.starts_with(url)
+                                    && page.web_socket_debugger_url.is_some()
                             })
                         } else {
                             None
@@ -1111,9 +1236,35 @@ Branch on `ok` and `error.code`, not on English messages.
                                 "launched"
                             },
                         });
+                        #[cfg(target_env = "ohos")]
+                        if let Some(object) = result.as_object_mut() {
+                            object.remove("port");
+                            object.insert("transport".to_string(), json!("tcp_loopback"));
+                            object.insert(
+                                "endpoint".to_string(),
+                                json!(format!("127.0.0.1:{port}")),
+                            );
+                            object.insert(
+                                "profile_scope".to_string(),
+                                json!("existing_haitai_profile"),
+                            );
+                        }
                         if let Some(w) = activate_warning {
                             result["warning"] = json!(w);
                         }
+                        #[cfg(target_env = "ohos")]
+                        let summary = if targeted {
+                            format!(
+                                "Connected to {} through local TCP CDP (session {}, page '{}')",
+                                connected_browser, session.session_id, page.title
+                            )
+                        } else {
+                            format!(
+                                "Connected to {} through local TCP CDP (session {})",
+                                connected_browser, session.session_id
+                            )
+                        };
+                        #[cfg(not(target_env = "ohos"))]
                         let summary = if uses_user_profile {
                             format!(
                                 "Connected to the current {} profile via user-approved DOM/CDP (session {}, page '{}')",
@@ -1161,7 +1312,11 @@ Branch on `ok` and `error.code`, not on English messages.
                         "connect",
                         ControlHubError::new(
                             ErrorCode::NotAvailable,
-                            "The user's default browser is running without the test port enabled.",
+                            if cfg!(target_env = "ohos") {
+                                "NEEDS_RESTART: Haitai is running without CDP. Close Haitai completely and retry browser.connect."
+                            } else {
+                                "The user's default browser is running without the test port enabled."
+                            },
                         )
                         .with_hint(instructions)
                         .with_hints(Self::default_browser_connect_hints(&kind, port)),
@@ -2327,9 +2482,18 @@ Branch on `ok` and `error.code`, not on English messages.
 }
 
 fn parse_browser_kind(browser: &str) -> BitFunResult<BrowserKind> {
-    match BrowserLauncher::browser_kind_from_config(browser) {
-        Some(kind) => Ok(kind),
-        None => BrowserLauncher::detect_default_browser(),
+    #[cfg(target_env = "ohos")]
+    {
+        let _ = browser;
+        return BrowserLauncher::detect_default_browser();
+    }
+
+    #[cfg(not(target_env = "ohos"))]
+    {
+        match BrowserLauncher::browser_kind_from_config(browser) {
+            Some(kind) => Ok(kind),
+            None => BrowserLauncher::detect_default_browser(),
+        }
     }
 }
 
@@ -2787,6 +2951,8 @@ fn map_dispatch_error(domain: &str, _action: &str, err: BitFunError) -> ControlH
         ErrorCode::StaleRef
     } else if lower.contains("refused") || lower.contains("guard") {
         ErrorCode::GuardRejected
+    } else if domain == "browser" && (lower.contains("cdp") || lower.contains("websocket")) {
+        ErrorCode::NotAvailable
     } else if lower.contains("only available in") || lower.contains("not available") {
         ErrorCode::NotAvailable
     } else if domain == "terminal" && lower.contains("session") {
@@ -3256,6 +3422,15 @@ mod control_hub_tests {
             map_dispatch_error("browser", "x", mk("something exploded")).code,
             ErrorCode::Internal
         ));
+        assert!(matches!(
+            map_dispatch_error(
+                "browser",
+                "connect",
+                mk("OHOS CDP protocol is missing Page")
+            )
+            .code,
+            ErrorCode::NotAvailable
+        ));
     }
 
     #[test]
@@ -3445,6 +3620,7 @@ mod control_hub_tests {
             let version = CdpVersionInfo {
                 browser: reported.map(str::to_string),
                 protocol_version: None,
+                user_agent: None,
                 web_socket_debugger_url: None,
             };
             let err = ControlHubTool::verify_headless_cdp_browser(&version, 9222)
@@ -3472,6 +3648,7 @@ mod control_hub_tests {
             let version = CdpVersionInfo {
                 browser: Some(reported.to_string()),
                 protocol_version: None,
+                user_agent: None,
                 web_socket_debugger_url: None,
             };
             assert!(
@@ -3479,6 +3656,19 @@ mod control_hub_tests {
                 "endpoint '{reported}' must be accepted as headless"
             );
         }
+    }
+
+    #[test]
+    fn connect_url_requires_an_absolute_http_url_with_an_authority() {
+        assert!(ControlHubTool::is_absolute_http_url(
+            "https://example.com/path"
+        ));
+        assert!(ControlHubTool::is_absolute_http_url(
+            "http://127.0.0.1:8080"
+        ));
+        assert!(!ControlHubTool::is_absolute_http_url("example.com"));
+        assert!(!ControlHubTool::is_absolute_http_url("https://"));
+        assert!(!ControlHubTool::is_absolute_http_url("file:///tmp/page"));
     }
 
     #[test]

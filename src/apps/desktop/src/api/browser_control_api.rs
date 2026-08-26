@@ -110,45 +110,59 @@ pub struct BrowserControlBrowsersResponse {
 /// List selectable browsers for CDP browser control.
 #[tauri::command]
 pub async fn browser_control_list_browsers() -> Result<BrowserControlBrowsersResponse, String> {
-    let browsers = [
-        ("default", "Default browser", true),
-        (
-            "chrome",
-            "Google Chrome",
-            BrowserLauncher::is_browser_installed(&BrowserKind::Chrome),
-        ),
-        (
-            "edge",
-            "Microsoft Edge",
-            BrowserLauncher::is_browser_installed(&BrowserKind::Edge),
-        ),
-        (
-            "brave",
-            "Brave Browser",
-            BrowserLauncher::is_browser_installed(&BrowserKind::Brave),
-        ),
-        (
-            "chromium",
-            "Chromium",
-            BrowserLauncher::is_browser_installed(&BrowserKind::Chromium),
-        ),
-        (
-            "arc",
-            "Arc",
-            BrowserLauncher::is_browser_installed(&BrowserKind::Arc),
-        ),
-    ];
+    #[cfg(target_env = "ohos")]
+    {
+        return Ok(BrowserControlBrowsersResponse {
+            options: vec![BrowserControlBrowserOption {
+                value: "haitai".to_string(),
+                label: "Haitai Browser".to_string(),
+                installed: true,
+            }],
+        });
+    }
 
-    Ok(BrowserControlBrowsersResponse {
-        options: browsers
-            .into_iter()
-            .map(|(value, label, installed)| BrowserControlBrowserOption {
-                value: value.to_string(),
-                label: label.to_string(),
-                installed,
-            })
-            .collect(),
-    })
+    #[cfg(not(target_env = "ohos"))]
+    {
+        let browsers = [
+            ("default", "Default browser", true),
+            (
+                "chrome",
+                "Google Chrome",
+                BrowserLauncher::is_browser_installed(&BrowserKind::Chrome),
+            ),
+            (
+                "edge",
+                "Microsoft Edge",
+                BrowserLauncher::is_browser_installed(&BrowserKind::Edge),
+            ),
+            (
+                "brave",
+                "Brave Browser",
+                BrowserLauncher::is_browser_installed(&BrowserKind::Brave),
+            ),
+            (
+                "chromium",
+                "Chromium",
+                BrowserLauncher::is_browser_installed(&BrowserKind::Chromium),
+            ),
+            (
+                "arc",
+                "Arc",
+                BrowserLauncher::is_browser_installed(&BrowserKind::Arc),
+            ),
+        ];
+
+        Ok(BrowserControlBrowsersResponse {
+            options: browsers
+                .into_iter()
+                .map(|(value, label, installed)| BrowserControlBrowserOption {
+                    value: value.to_string(),
+                    label: label.to_string(),
+                    installed,
+                })
+                .collect(),
+        })
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -217,10 +231,18 @@ pub async fn browser_control_get_status(
         };
         let ver = ver_info.as_ref().and_then(|v| v.browser.clone());
         // Identify the actual browser from CDP version response.
-        let kind = ver
-            .as_deref()
-            .and_then(BrowserLauncher::browser_kind_from_cdp_version)
-            .unwrap_or_else(|| configured_kind.clone());
+        let kind = {
+            #[cfg(target_env = "ohos")]
+            {
+                configured_kind.clone()
+            }
+            #[cfg(not(target_env = "ohos"))]
+            {
+                ver.as_deref()
+                    .and_then(BrowserLauncher::browser_kind_from_cdp_version)
+                    .unwrap_or_else(|| configured_kind.clone())
+            }
+        };
         // Only count targets of type "page" (real browser tabs),
         // not service workers, browser targets, etc.
         let pages = if let Some(connection) = &user_profile_connection {

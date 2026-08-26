@@ -35,6 +35,9 @@ pub enum ErrorCode {
     WrongDisplay,
     /// A targeted browser tab / page could not be resolved or addressed.
     WrongTab,
+    /// A browser endpoint exists on the requested port but is not the
+    /// provider selected by the current platform policy.
+    WrongBrowser,
     /// Backend reported an internal error not classified above.
     Internal,
     /// Frontend-reported error during execution.
@@ -88,6 +91,7 @@ impl ErrorCode {
             ErrorCode::GuardRejected => "GUARD_REJECTED",
             ErrorCode::WrongDisplay => "WRONG_DISPLAY",
             ErrorCode::WrongTab => "WRONG_TAB",
+            ErrorCode::WrongBrowser => "WRONG_BROWSER",
             ErrorCode::Internal => "INTERNAL",
             ErrorCode::FrontendError => "FRONTEND_ERROR",
             ErrorCode::MissingSession => "MISSING_SESSION",
@@ -120,6 +124,7 @@ impl ErrorCode {
             "GUARD_REJECTED" => Self::GuardRejected,
             "WRONG_DISPLAY" => Self::WrongDisplay,
             "WRONG_TAB" => Self::WrongTab,
+            "WRONG_BROWSER" => Self::WrongBrowser,
             "INTERNAL" => Self::Internal,
             "FRONTEND_ERROR" => Self::FrontendError,
             "MISSING_SESSION" => Self::MissingSession,

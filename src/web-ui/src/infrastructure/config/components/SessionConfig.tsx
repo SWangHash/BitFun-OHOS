@@ -34,6 +34,7 @@ import {
   permissionConfigService,
 } from '../services/PermissionConfigService';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime/environment';
 import { useNotification, notificationService } from '@/shared/notification-system';
 import type {
   DebugModeConfig,
@@ -57,6 +58,7 @@ import './DebugConfig.scss';
 const log = createLogger('SessionSettingsPanels');
 
 const IS_TAURI_DESKTOP = typeof window !== 'undefined' && '__TAURI__' in window;
+const IS_OHOS = isOpenHarmonyRuntime();
 
 type ComputerUseStatusPayload = {
   computerUseEnabled: boolean;
@@ -97,7 +99,7 @@ function resolveToolPermissionMode(config: ToolPermissionConfig): ToolPermission
   return config.interaction.auto_approve_ask ? 'auto' : 'ask';
 }
 
-const DEFAULT_BROWSER_CONTROL_BROWSER = 'default';
+const DEFAULT_BROWSER_CONTROL_BROWSER = IS_OHOS ? 'haitai' : 'default';
 
 export type SessionSettingsPanelVariant = 'personalization' | 'permissions';
 
@@ -272,7 +274,9 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
       setExecutionTimeout(execTimeout != null ? String(execTimeout) : '');
       setSubagentBatchExecutionPolicy(normalizeSubagentBatchExecutionPolicy(loadedSubagentBatchExecutionPolicy));
       if (debugConfigData) setDebugConfig(debugConfigData);
-      setPreferredBrowser(browserControlPreferredBrowser || DEFAULT_BROWSER_CONTROL_BROWSER);
+      setPreferredBrowser(
+        IS_OHOS ? 'haitai' : browserControlPreferredBrowser || DEFAULT_BROWSER_CONTROL_BROWSER,
+      );
       setBrowserAutoConnectOnStartup(browserControlAutoConnect === true);
       setToolPermissionConfig(normalizeToolPermissionConfig(loadedToolPermissionConfig));
       setShowPermissionModeControl(loadedPermissionModeControlVisibility !== false);
@@ -1455,7 +1459,6 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
         )}
 
         {/* ── Browser control (CDP) ──────────────────────────────── */}
-        {false && (
         <ConfigPageSection
           title={t('browserControl.sectionTitle')}
           description={
@@ -1606,7 +1609,6 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
             </>
           ) : null}
         </ConfigPageSection>
-        )}
 
         {/* ── Debug mode settings ───────────────────────────────── */}
         {false && (

@@ -1,14 +1,24 @@
 //! Detect and launch the user's default browser with CDP debug port enabled.
 
+#[cfg(target_env = "ohos")]
+use super::cdp::CdpEndpointProvider;
+#[cfg(any(target_env = "ohos", test))]
+use super::cdp::CdpVersionInfo;
 use anyhow::{anyhow, Result};
+#[cfg(target_env = "ohos")]
+use async_trait::async_trait;
+#[cfg(not(target_env = "ohos"))]
 use bitfun_services_core::process_manager;
 #[allow(unused_imports)]
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+#[cfg(not(target_env = "ohos"))]
 use std::process::Command;
 use std::sync::Mutex;
+#[cfg(target_env = "ohos")]
+use std::sync::{Arc, OnceLock, RwLock};
 use std::time::Duration;
 
 /// Default CDP debug port.
@@ -16,6 +26,7 @@ pub const DEFAULT_CDP_PORT: u16 = 9222;
 
 /// Build a `Command` that suppresses transient Windows console windows while
 /// preserving normal process behavior on other platforms.
+#[cfg(not(target_env = "ohos"))]
 fn silent_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
     process_manager::create_command(program)
 }
@@ -28,6 +39,8 @@ pub enum BrowserKind {
     Chromium,
     Brave,
     Arc,
+    HarmonySystem,
+    Haitai,
     Unknown(String),
 }
 
@@ -39,6 +52,8 @@ impl std::fmt::Display for BrowserKind {
             BrowserKind::Chromium => write!(f, "Chromium"),
             BrowserKind::Brave => write!(f, "Brave Browser"),
             BrowserKind::Arc => write!(f, "Arc"),
+            BrowserKind::HarmonySystem => write!(f, "HarmonyOS System Browser"),
+            BrowserKind::Haitai => write!(f, "Haitai Browser"),
             BrowserKind::Unknown(name) => write!(f, "{}", name),
         }
     }
@@ -79,19 +94,88 @@ pub struct BrowserLaunchOptions {
     /// explicit setup action; ordinary agent connects should return guidance
     /// quickly instead of holding a tool call open.
     pub wait_for_user_profile_setup: bool,
+    pub initial_url: Option<String>,
+}
+
+#[cfg(target_env = "ohos")]
+#[derive(Debug, Clone)]
+pub struct HaitaiBrowserLaunchRequest {
+    pub port: u16,
+    pub initial_url: Option<String>,
+}
+
+#[cfg(target_env = "ohos")]
+#[async_trait]
+pub trait HaitaiBrowserLaunchPort: Send + Sync {
+    async fn launch_haitai(&self, request: HaitaiBrowserLaunchRequest) -> Result<(), String>;
+}
+
+#[cfg(target_env = "ohos")]
+static HAITAI_BROWSER_LAUNCH_PORT: OnceLock<RwLock<Option<Arc<dyn HaitaiBrowserLaunchPort>>>> =
+    OnceLock::new();
+
+#[cfg(target_env = "ohos")]
+fn haitai_browser_launch_port() -> &'static RwLock<Option<Arc<dyn HaitaiBrowserLaunchPort>>> {
+    HAITAI_BROWSER_LAUNCH_PORT.get_or_init(|| RwLock::new(None))
+}
+
+#[cfg(target_env = "ohos")]
+pub fn register_haitai_browser_launch_port(port: Arc<dyn HaitaiBrowserLaunchPort>) {
+    if let Ok(mut slot) = haitai_browser_launch_port().write() {
+        *slot = Some(port);
+    }
+}
+
+#[cfg(target_env = "ohos")]
+async fn launch_haitai_browser(request: HaitaiBrowserLaunchRequest) -> Result<(), String> {
+    let port = haitai_browser_launch_port()
+        .read()
+        .map_err(|error| format!("failed to read Haitai launch port: {error}"))?
+        .clone()
+        .ok_or_else(|| {
+            "Haitai browser launch bridge is not registered by the OHOS host".to_string()
+        })?;
+    port.launch_haitai(request).await
 }
 
 impl BrowserLauncher {
+    #[cfg(any(target_env = "ohos", test))]
+    pub fn is_haitai_cdp_endpoint(version: &CdpVersionInfo, port: u16) -> bool {
+        let browser_ok = version
+            .user_agent
+            .as_deref()
+            .is_some_and(|user_agent| user_agent.to_ascii_lowercase().contains("htbrowser/"));
+        let protocol_ok = version.protocol_version.as_deref() == Some("1.3");
+        let ws_ok = version
+            .web_socket_debugger_url
+            .as_deref()
+            .is_some_and(|url| {
+                url.starts_with(&format!("ws://127.0.0.1:{port}/"))
+                    || url.starts_with(&format!("ws://localhost:{port}/"))
+            });
+        browser_ok && protocol_ok && ws_ok
+    }
+
     /// Check if a CDP debug port is already listening.
     pub async fn is_cdp_available(port: u16) -> bool {
-        let url = format!("http://127.0.0.1:{}/json/version", port);
-        reqwest::Client::new()
-            .get(&url)
-            .timeout(std::time::Duration::from_secs(2))
-            .send()
-            .await
-            .map(|r| r.status().is_success())
-            .unwrap_or(false)
+        #[cfg(target_env = "ohos")]
+        {
+            return CdpEndpointProvider::get_version(port)
+                .await
+                .is_ok_and(|version| Self::is_haitai_cdp_endpoint(&version, port));
+        }
+
+        #[cfg(not(target_env = "ohos"))]
+        {
+            let url = format!("http://127.0.0.1:{}/json/version", port);
+            reqwest::Client::new()
+                .get(&url)
+                .timeout(std::time::Duration::from_secs(2))
+                .send()
+                .await
+                .map(|r| r.status().is_success())
+                .unwrap_or(false)
+        }
     }
 
     /// Detect the user's default browser on the current platform.
@@ -104,7 +188,11 @@ impl BrowserLauncher {
         {
             Self::detect_default_browser_windows()
         }
-        #[cfg(target_os = "linux")]
+        #[cfg(target_env = "ohos")]
+        {
+            Ok(BrowserKind::Haitai)
+        }
+        #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
         {
             Self::detect_default_browser_linux()
         }
@@ -179,7 +267,7 @@ impl BrowserLauncher {
         Ok(BrowserKind::Chrome)
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
     fn detect_default_browser_linux() -> Result<BrowserKind> {
         let output = silent_command("xdg-settings")
             .args(["get", "default-web-browser"])
@@ -207,7 +295,10 @@ impl BrowserLauncher {
     /// don't change during a session.
     pub fn is_browser_installed(kind: &BrowserKind) -> bool {
         // Unknown browsers are never considered installed.
-        if matches!(kind, BrowserKind::Unknown(_)) {
+        if matches!(
+            kind,
+            BrowserKind::HarmonySystem | BrowserKind::Haitai | BrowserKind::Unknown(_)
+        ) {
             return false;
         }
 
@@ -253,6 +344,7 @@ impl BrowserLauncher {
                 BrowserKind::Brave => "/Applications/Brave Browser.app",
                 BrowserKind::Arc => "/Applications/Arc.app",
                 BrowserKind::Chromium => "/Applications/Chromium.app",
+                BrowserKind::HarmonySystem | BrowserKind::Haitai => "",
                 BrowserKind::Unknown(_) => "",
             };
             if !app_path.is_empty() {
@@ -300,15 +392,28 @@ impl BrowserLauncher {
             "chromium" => Some(BrowserKind::Chromium),
             "brave" | "brave-browser" | "brave_browser" => Some(BrowserKind::Brave),
             "arc" => Some(BrowserKind::Arc),
+            "harmonyos-system" | "harmonyos_browser" | "hmos-browser" => {
+                Some(BrowserKind::HarmonySystem)
+            }
+            "haitai" | "haitai-browser" | "haitai_browser" => Some(BrowserKind::Haitai),
             other => Some(BrowserKind::Unknown(other.to_string())),
         }
     }
 
     pub fn resolve_browser_kind(preferred_browser: Option<&str>) -> Result<BrowserKind> {
-        if let Some(kind) = preferred_browser.and_then(Self::browser_kind_from_config) {
-            Ok(kind)
-        } else {
-            Self::detect_default_browser()
+        #[cfg(target_env = "ohos")]
+        {
+            let _ = preferred_browser;
+            return Ok(BrowserKind::Haitai);
+        }
+
+        #[cfg(not(target_env = "ohos"))]
+        {
+            if let Some(kind) = preferred_browser.and_then(Self::browser_kind_from_config) {
+                Ok(kind)
+            } else {
+                Self::detect_default_browser()
+            }
         }
     }
 
@@ -319,6 +424,8 @@ impl BrowserLauncher {
             BrowserKind::Chromium => "chromium".to_string(),
             BrowserKind::Brave => "brave".to_string(),
             BrowserKind::Arc => "arc".to_string(),
+            BrowserKind::HarmonySystem => "harmonyos-system".to_string(),
+            BrowserKind::Haitai => "haitai".to_string(),
             BrowserKind::Unknown(name) => name
                 .chars()
                 .map(|c| {
@@ -353,6 +460,7 @@ impl BrowserLauncher {
                 BrowserKind::Chromium => Path::new("Chromium"),
                 BrowserKind::Brave => Path::new("BraveSoftware/Brave-Browser"),
                 BrowserKind::Arc => Path::new("Arc/User Data"),
+                BrowserKind::HarmonySystem | BrowserKind::Haitai => return None,
                 BrowserKind::Unknown(_) => return None,
             };
             return Some(application_support.join(relative));
@@ -367,6 +475,7 @@ impl BrowserLauncher {
                 BrowserKind::Chromium => Path::new("Chromium/User Data"),
                 BrowserKind::Brave => Path::new("BraveSoftware/Brave-Browser/User Data"),
                 BrowserKind::Arc => Path::new("Arc/User Data"),
+                BrowserKind::HarmonySystem | BrowserKind::Haitai => return None,
                 BrowserKind::Unknown(_) => return None,
             };
             return Some(local_app_data.join(relative));
@@ -384,6 +493,7 @@ impl BrowserLauncher {
                 BrowserKind::Chromium => Path::new("chromium"),
                 BrowserKind::Brave => Path::new("BraveSoftware/Brave-Browser"),
                 BrowserKind::Arc => Path::new("arc"),
+                BrowserKind::HarmonySystem | BrowserKind::Haitai => return None,
                 BrowserKind::Unknown(_) => return None,
             };
             return Some(config_root.join(relative));
@@ -508,6 +618,7 @@ impl BrowserLauncher {
     /// `open location` handler, which is not subject to that filter; other
     /// platforms have no equivalent, so the caller must hand the URL to the
     /// user instead. Returns whether the page was actually opened.
+    #[cfg(not(target_env = "ohos"))]
     fn open_user_profile_debugging_setup(kind: &BrowserKind, setup_url: &str) -> bool {
         #[cfg(target_os = "macos")]
         {
@@ -558,6 +669,7 @@ impl BrowserLauncher {
         }
     }
 
+    #[cfg(not(target_env = "ohos"))]
     async fn prepare_user_profile_connection(
         kind: &BrowserKind,
         wait_for_user_setup: bool,
@@ -599,6 +711,7 @@ impl BrowserLauncher {
         })
     }
 
+    #[cfg(not(target_env = "ohos"))]
     fn default_managed_profile_root() -> PathBuf {
         dirs::data_local_dir()
             .or_else(dirs::data_dir)
@@ -606,6 +719,7 @@ impl BrowserLauncher {
             .join("BitFun")
     }
 
+    #[cfg(not(target_env = "ohos"))]
     fn ensure_managed_user_data_dir(kind: &BrowserKind, root: &Path) -> Result<PathBuf> {
         let dir = Self::managed_user_data_dir(root, kind);
         std::fs::create_dir_all(&dir)
@@ -621,6 +735,7 @@ impl BrowserLauncher {
             BrowserKind::Brave => Some("Brave Browser"),
             BrowserKind::Arc => Some("Arc"),
             BrowserKind::Chromium => Some("Chromium"),
+            BrowserKind::HarmonySystem | BrowserKind::Haitai => None,
             BrowserKind::Unknown(_) => None,
         }
     }
@@ -641,7 +756,7 @@ impl BrowserLauncher {
         }
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
     fn spawn_browser(
         _kind: &BrowserKind,
         exe: &str,
@@ -650,7 +765,7 @@ impl BrowserLauncher {
         silent_command(exe).args(args).spawn()
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", not(target_env = "ohos")))]
     fn spawn_browser(
         kind: &BrowserKind,
         exe: &str,
@@ -677,6 +792,8 @@ impl BrowserLauncher {
                 BrowserKind::Chromium => {
                     "/Applications/Chromium.app/Contents/MacOS/Chromium".into()
                 }
+                BrowserKind::HarmonySystem => "harmonyos-system-browser".into(),
+                BrowserKind::Haitai => "haitai-browser".into(),
                 BrowserKind::Unknown(name) => name.clone(),
             }
         }
@@ -686,7 +803,13 @@ impl BrowserLauncher {
             Self::windows_browser_executable(kind)
         }
 
-        #[cfg(target_os = "linux")]
+        #[cfg(target_env = "ohos")]
+        {
+            let _ = kind;
+            return "com.haitai.htbrowser/pc_entry/EntryAbility".into();
+        }
+
+        #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
         {
             match kind {
                 BrowserKind::Chrome => "google-chrome".into(),
@@ -694,6 +817,8 @@ impl BrowserLauncher {
                 BrowserKind::Brave => "brave-browser".into(),
                 BrowserKind::Chromium => "chromium-browser".into(),
                 BrowserKind::Arc => "arc".into(),
+                BrowserKind::HarmonySystem => "harmonyos-system-browser".into(),
+                BrowserKind::Haitai => "haitai-browser".into(),
                 BrowserKind::Unknown(name) => name.clone(),
             }
         }
@@ -726,6 +851,9 @@ impl BrowserLauncher {
                 "chromium.exe",
             ),
             BrowserKind::Arc => (vec![r"Arc\Arc.exe"], None, "arc.exe"),
+            BrowserKind::HarmonySystem | BrowserKind::Haitai => {
+                return "unsupported-browser".to_string()
+            }
             BrowserKind::Unknown(name) => return name.clone(),
         };
 
@@ -796,72 +924,127 @@ impl BrowserLauncher {
         port: u16,
         options: BrowserLaunchOptions,
     ) -> Result<LaunchResult> {
-        if options.user_data_dir.is_none() {
-            // Opportunistically reuse the real profile for any Chromium browser
-            // that already publishes a browser-level endpoint. Chrome and Edge
-            // additionally get a first-class setup flow when it is not enabled.
-            if let Some(endpoint) = Self::user_profile_debug_endpoint(kind) {
-                return Ok(LaunchResult::UserProfileReady { endpoint });
+        #[cfg(target_env = "ohos")]
+        {
+            if !matches!(kind, BrowserKind::Haitai) {
+                return Err(anyhow!(
+                    "OHOS browser control only supports the Haitai browser provider"
+                ));
             }
-            if Self::supports_default_cdp(kind) {
-                return Self::prepare_user_profile_connection(
-                    kind,
-                    options.wait_for_user_profile_setup,
-                )
-                .await;
-            }
-        }
 
-        if Self::is_cdp_available(port).await {
-            info!("CDP already available on port {} for {}", port, kind);
-            return Ok(LaunchResult::AlreadyConnected);
-        }
-
-        let exe = Self::browser_executable(kind);
-        let profile_dir = match options.user_data_dir {
-            Some(dir) => dir,
-            None => {
-                let root = options
-                    .managed_profile_root
-                    .unwrap_or_else(Self::default_managed_profile_root);
-                Self::ensure_managed_user_data_dir(kind, &root)?
-            }
-        };
-        let flag = format!("--remote-debugging-port={}", port);
-        let profile_flag = format!("--user-data-dir={}", profile_dir.display());
-        let extra: Vec<String> = vec![
-            flag.clone(),
-            profile_flag,
-            "--no-first-run".to_string(),
-            "--no-default-browser-check".to_string(),
-        ];
-
-        info!(
-            "Launching {} with CDP on port {} (user_data_dir={})",
-            kind,
-            port,
-            profile_dir.display()
-        );
-        let result = Self::spawn_browser(kind, &exe, &extra);
-
-        match result {
-            Ok(_child) => {
-                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-
-                if Self::is_cdp_available(port).await {
-                    Ok(LaunchResult::Launched)
-                } else {
-                    Ok(LaunchResult::LaunchedButCdpNotReady {
-                        port,
-                        message: format!(
-                            "{} was launched but CDP is not yet responding on port {}. \
-                             It may need a few more seconds to initialize.",
-                            kind, port
-                        ),
-                    })
+            match CdpEndpointProvider::get_version(port).await {
+                Ok(version) if Self::is_haitai_cdp_endpoint(&version, port) => {
+                    info!("Haitai browser CDP endpoint is already connected");
+                    return Ok(LaunchResult::AlreadyConnected);
+                }
+                Ok(_) | Err(super::cdp::CdpEndpointError::VersionResponse(_)) => {
+                    return Err(anyhow!(
+                        "Haitai CDP endpoint identity mismatch on 127.0.0.1:{port}"
+                    ));
+                }
+                Err(_) => {
+                    // Connection refused/timeout means the port is free (or
+                    // Haitai has not started yet); let the OHOS host issue
+                    // the verified Want with CDP cmdArgs.
                 }
             }
-            Err(e) => Err(anyhow!("Failed to launch {}: {}", kind, e)),
+
+            launch_haitai_browser(HaitaiBrowserLaunchRequest {
+                port,
+                initial_url: options.initial_url.clone(),
+            })
+            .await
+            .map_err(|error| anyhow!(error))?;
+
+            for _ in 0..50 {
+                if let Ok(version) = CdpEndpointProvider::get_version(port).await {
+                    if Self::is_haitai_cdp_endpoint(&version, port) {
+                        return Ok(LaunchResult::Launched);
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+
+            return Ok(LaunchResult::BrowserRunningWithoutCdp {
+                browser: kind.to_string(),
+                executable: "com.haitai.htbrowser/pc_entry/EntryAbility".to_string(),
+                port,
+                instructions: "Haitai was started without a usable CDP endpoint. Close Haitai completely and retry browser.connect so it can cold-start with cmdArgs.".to_string(),
+            });
+        }
+
+        #[cfg(not(target_env = "ohos"))]
+        {
+            if matches!(kind, BrowserKind::HarmonySystem | BrowserKind::Haitai) {
+                return Err(anyhow!(
+                    "the selected non-desktop browser CDP provider is unavailable"
+                ));
+            }
+
+            if options.user_data_dir.is_none() {
+                if let Some(endpoint) = Self::user_profile_debug_endpoint(kind) {
+                    return Ok(LaunchResult::UserProfileReady { endpoint });
+                }
+                if Self::supports_default_cdp(kind) {
+                    return Self::prepare_user_profile_connection(
+                        kind,
+                        options.wait_for_user_profile_setup,
+                    )
+                    .await;
+                }
+            }
+
+            if Self::is_cdp_available(port).await {
+                info!("CDP already available on port {} for {}", port, kind);
+                return Ok(LaunchResult::AlreadyConnected);
+            }
+
+            let exe = Self::browser_executable(kind);
+            let profile_dir = match options.user_data_dir {
+                Some(dir) => dir,
+                None => {
+                    let root = options
+                        .managed_profile_root
+                        .unwrap_or_else(Self::default_managed_profile_root);
+                    Self::ensure_managed_user_data_dir(kind, &root)?
+                }
+            };
+            let flag = format!("--remote-debugging-port={}", port);
+            let profile_flag = format!("--user-data-dir={}", profile_dir.display());
+            let extra: Vec<String> = vec![
+                flag.clone(),
+                profile_flag,
+                "--no-first-run".to_string(),
+                "--no-default-browser-check".to_string(),
+            ];
+
+            info!(
+                "Launching {} with CDP on port {} (user_data_dir={})",
+                kind,
+                port,
+                profile_dir.display()
+            );
+            let result = Self::spawn_browser(kind, &exe, &extra);
+
+            match result {
+                Ok(_child) => {
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
+                    if Self::is_cdp_available(port).await {
+                        Ok(LaunchResult::Launched)
+                    } else {
+                        Ok(LaunchResult::LaunchedButCdpNotReady {
+                            port,
+                            message: format!(
+                                "{} was launched but CDP is not yet responding on port {}. \
+                             It may need a few more seconds to initialize.",
+                                kind, port
+                            ),
+                        })
+                    }
+                }
+                Err(e) => Err(anyhow!("Failed to launch {}: {}", kind, e)),
+            }
         }
     }
 
@@ -879,6 +1062,9 @@ impl BrowserLauncher {
                 BrowserKind::Brave => "Brave Browser",
                 BrowserKind::Arc => "Arc",
                 BrowserKind::Chromium => "Chromium",
+                BrowserKind::HarmonySystem | BrowserKind::Haitai => {
+                    return Err(anyhow!("Unsupported browser kind for restart on macOS"))
+                }
                 BrowserKind::Unknown(name) => name.as_str(),
             };
             let script = format!(
@@ -904,6 +1090,9 @@ impl BrowserLauncher {
                 BrowserKind::Brave => &["brave.exe"],
                 BrowserKind::Arc => &["arc.exe"],
                 BrowserKind::Chromium => &["chromium.exe", "chrome.exe"],
+                BrowserKind::HarmonySystem | BrowserKind::Haitai => {
+                    return Err(anyhow!("Unsupported browser kind for restart on Windows"))
+                }
                 BrowserKind::Unknown(_) => {
                     return Err(anyhow!("Unsupported browser kind for restart on Windows"))
                 }
@@ -970,16 +1159,18 @@ impl BrowserLauncher {
             BrowserKind::Brave => vec!["Brave Browser"],
             BrowserKind::Arc => vec!["Arc"],
             BrowserKind::Chromium => vec!["Chromium"],
+            BrowserKind::HarmonySystem | BrowserKind::Haitai => return false,
             BrowserKind::Unknown(_) => return false,
         };
 
-        #[cfg(target_os = "linux")]
+        #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
         let process_names: Vec<&str> = match kind {
             BrowserKind::Chrome => vec!["chrome", "google-chrome"],
             BrowserKind::Edge => vec!["msedge", "microsoft-edge"],
             BrowserKind::Brave => vec!["brave", "brave-browser"],
             BrowserKind::Arc => vec!["arc"],
             BrowserKind::Chromium => vec!["chromium", "chromium-browser"],
+            BrowserKind::HarmonySystem | BrowserKind::Haitai => return false,
             BrowserKind::Unknown(_) => return false,
         };
 
@@ -990,10 +1181,14 @@ impl BrowserLauncher {
             BrowserKind::Brave => vec!["brave.exe"],
             BrowserKind::Arc => vec!["arc.exe"],
             BrowserKind::Chromium => vec!["chrome.exe", "chromium.exe"],
+            BrowserKind::HarmonySystem | BrowserKind::Haitai => return false,
             BrowserKind::Unknown(_) => return false,
         };
 
-        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        #[cfg(any(
+            target_os = "macos",
+            all(target_os = "linux", not(target_env = "ohos"))
+        ))]
         {
             for name in &process_names {
                 let output = silent_command("pgrep").args(["-f", name]).output().ok();
@@ -1026,6 +1221,12 @@ impl BrowserLauncher {
                     }
                 }
             }
+            false
+        }
+
+        #[cfg(target_env = "ohos")]
+        {
+            let _ = kind;
             false
         }
     }
@@ -1073,6 +1274,14 @@ mod tests {
             BrowserLauncher::browser_kind_from_config("microsoft_edge"),
             Some(BrowserKind::Edge)
         );
+        assert_eq!(
+            BrowserLauncher::browser_kind_from_config("harmonyos-system"),
+            Some(BrowserKind::HarmonySystem)
+        );
+        assert_eq!(
+            BrowserLauncher::browser_kind_from_config("haitai"),
+            Some(BrowserKind::Haitai)
+        );
         assert_eq!(BrowserLauncher::browser_kind_from_config("default"), None);
     }
 
@@ -1084,6 +1293,21 @@ mod tests {
             ),
             Some(BrowserKind::Edge)
         );
+    }
+
+    #[test]
+    fn haitai_cdp_identity_requires_user_agent_protocol_and_loopback_websocket() {
+        let version = CdpVersionInfo {
+            browser: Some("Chrome/132".to_string()),
+            protocol_version: Some("1.3".to_string()),
+            user_agent: Some("Mozilla/5.0 htbrowser/2.0.22".to_string()),
+            web_socket_debugger_url: Some("ws://127.0.0.1:9222/devtools/browser/test".to_string()),
+        };
+        assert!(BrowserLauncher::is_haitai_cdp_endpoint(&version, 9222));
+
+        let mut wrong = version.clone();
+        wrong.user_agent = Some("Mozilla/5.0 Chrome/132".to_string());
+        assert!(!BrowserLauncher::is_haitai_cdp_endpoint(&wrong, 9222));
     }
 
     #[test]
