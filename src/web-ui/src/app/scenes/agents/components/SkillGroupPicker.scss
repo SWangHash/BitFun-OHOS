@@ -193,6 +193,11 @@
     font-size: var(--bf-appearance-token-font-size-sm);
   }
 
+  &__footer {
+    justify-content: flex-end;
+    gap: $size-gap-2;
+  }
+
   &__list {
     overflow-y: auto;
     border: 1px solid var(--bf-appearance-token-border-subtle);

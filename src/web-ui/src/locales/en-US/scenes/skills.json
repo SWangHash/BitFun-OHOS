@@ -69,11 +69,15 @@
     "searchPlaceholder": "Search marketplace skills...",
     "loading": "Loading marketplace skills...",
     "errorPrefix": "Failed to load marketplace: ",
+    "errors": {
+      "loadFailed": "Failed to load skills. Please check your network and try again.",
+      "loadMoreFailed": "Failed to load more skills. Please check your network and try again."
+    },
     "empty": {
       "noMatch": "No matching marketplace skills found",
       "noSkills": "No marketplace skills available"
     },
-    "resultsInfo": "{{count}} results for \"{{query}}\"",
+    "resultsInfo": "Results for \"{{query}}\"",
     "item": {
       "sourceLabel": "Source: ",
       "installs": "Installs: {{count}}",
