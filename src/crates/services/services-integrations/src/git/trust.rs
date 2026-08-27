@@ -19,6 +19,7 @@
 //! Trust is never granted implicitly: nothing in this module is invoked as a
 //! fallback of a failed operation.
 
+use super::config;
 use super::utils::{execute_git_hardened_command_with_env, open_repository};
 use super::GitError;
 use git2::ErrorCode;
@@ -624,6 +625,8 @@ async fn trust_repository_with_env(
                 env,
             )
             .await?;
+            // Rediscover the config so libgit2 sees the file just written by Git.
+            config::resume_alignment_after_global_write();
             added_entries.push(candidate.clone());
         }
 
