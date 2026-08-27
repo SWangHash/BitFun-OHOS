@@ -899,6 +899,15 @@ const SkillsScene: React.FC = () => {
               rel="noreferrer"
               className="bitfun-skills-scene__detail-link"
               data-testid="skills-detail-external-link"
+              onClick={async (e) => {
+                e.preventDefault();
+                try {
+                  const { systemAPI } = await import('@/infrastructure/api');
+                  await systemAPI.openExternal(selectedMarketSkill.url);
+                } catch {
+                  window.open(selectedMarketSkill.url, '_blank');
+                }
+              }}
             >
               {selectedMarketSkill.url}
             </a>
