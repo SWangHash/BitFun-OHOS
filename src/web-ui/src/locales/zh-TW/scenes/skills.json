@@ -69,11 +69,15 @@
     "searchPlaceholder": "搜尋市場技能...",
     "loading": "正在載入市場技能...",
     "errorPrefix": "市場載入失敗: ",
+    "errors": {
+      "loadFailed": "載入技能失敗，請檢查網路後重試",
+      "loadMoreFailed": "載入更多失敗，請檢查網路後重試"
+    },
     "empty": {
       "noMatch": "沒有找到匹配的市場技能",
       "noSkills": "暫時沒有可展示的市場技能"
     },
-    "resultsInfo": "關鍵詞「{{query}}」共 {{count}} 筆相關結果",
+    "resultsInfo": "關鍵詞「{{query}}」的搜尋結果",
     "item": {
       "sourceLabel": "來源: ",
       "installs": "安裝量: {{count}}",
