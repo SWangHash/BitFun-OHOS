@@ -803,9 +803,9 @@ fn resize_agent_companion_window(
     {
         if !width.is_finite() || !height.is_finite() {
             warn!(
-            "Ignored invalid Agent companion window size: width={}, height={}",
-            width, height
-        );
+                "Ignored invalid Agent companion window size: width={}, height={}",
+                width, height
+            );
             return;
         }
 
@@ -859,7 +859,6 @@ fn resize_agent_companion_window(
 pub async fn show_agent_companion_desktop_pet(app: tauri::AppHandle) -> Result<(), String> {
     #[cfg(not(target_env = "ohos"))]
     {
-        let _guard = agent_companion_window_ops().lock().await;
         let started_at = Instant::now();
         let _guard = agent_companion_window_ops().lock().await;
         debug!("Agent companion window show requested");
@@ -872,6 +871,12 @@ pub async fn show_agent_companion_desktop_pet(app: tauri::AppHandle) -> Result<(
             if let Err(e) = window.unminimize() {
                 warn!("Failed to unminimize Agent companion window: {}", e);
             }
+            if let Err(e) = window.set_always_on_top(true) {
+                warn!(
+                    "Failed to restore Agent companion window always-on-top state: {}",
+                    e
+                );
+            }
             position_agent_companion_window(&app, &window);
             window.show().map_err(|e| {
                 error!("Failed to show Agent companion window: {}", e);
@@ -882,10 +887,10 @@ pub async fn show_agent_companion_desktop_pet(app: tauri::AppHandle) -> Result<(
                 started_at.elapsed().as_millis()
             );
             return Ok(());
-    }
+        }
 
-    let url = app_url("?bitfunWindow=agent-companion");
-    let mut builder = tauri::WebviewWindowBuilder::new(&app, AGENT_COMPANION_WINDOW_LABEL, url)
+        let url = app_url("?bitfunWindow=agent-companion");
+        let mut builder = tauri::WebviewWindowBuilder::new(&app, AGENT_COMPANION_WINDOW_LABEL, url)
         .title("BitFun Agent Companion")
         .inner_size(
             AGENT_COMPANION_WINDOW_MIN_SIZE,
@@ -920,35 +925,35 @@ pub async fn show_agent_companion_desktop_pet(app: tauri::AppHandle) -> Result<(
             }
         });
 
-    builder = builder.disable_drag_drop_handler();
+        builder = builder.disable_drag_drop_handler();
 
-    let build_started_at = Instant::now();
-    let window = builder.build().map_err(|e| {
-        error!(
-            "Failed to create Agent companion window: error={} duration_ms={}",
-            e,
-            build_started_at.elapsed().as_millis()
-        );
-        format!("Failed to create Agent companion window: {}", e)
-    })?;
-    debug!(
+        let build_started_at = Instant::now();
+        let window = builder.build().map_err(|e| {
+            error!(
+                "Failed to create Agent companion window: error={} duration_ms={}",
+                e,
+                build_started_at.elapsed().as_millis()
+            );
+            format!("Failed to create Agent companion window: {}", e)
+        })?;
+        debug!(
         "Agent companion window creation step completed: step=build duration_ms={} total_duration_ms={}",
         build_started_at.elapsed().as_millis(),
         started_at.elapsed().as_millis()
     );
 
-    position_agent_companion_window(&app, &window);
+        position_agent_companion_window(&app, &window);
 
-    let show_started_at = Instant::now();
-    window.show().map_err(|e| {
-        error!("Failed to show Agent companion window: {}", e);
-        format!("Failed to show Agent companion window: {}", e)
-    })?;
-    debug!(
-        "Agent companion window shown: show_duration_ms={} total_duration_ms={}",
-        show_started_at.elapsed().as_millis(),
-        started_at.elapsed().as_millis()
-    );
+        let show_started_at = Instant::now();
+        window.show().map_err(|e| {
+            error!("Failed to show Agent companion window: {}", e);
+            format!("Failed to show Agent companion window: {}", e)
+        })?;
+        debug!(
+            "Agent companion window shown: show_duration_ms={} total_duration_ms={}",
+            show_started_at.elapsed().as_millis(),
+            started_at.elapsed().as_millis()
+        );
 
         Ok(())
     }
@@ -956,7 +961,37 @@ pub async fn show_agent_companion_desktop_pet(app: tauri::AppHandle) -> Result<(
     {
         Err("Failed to show Agent companion window".to_string())
     }
+}
 
+/// Keep the independent companion visible when the main window is minimized.
+///
+/// On Windows, minimizing the main window can also occlude another window from
+/// the same process even when it was created as a top-level always-on-top
+/// window. The companion is intentionally independent from the main window, so
+/// restore its visibility and stacking state without changing its geometry.
+pub(crate) fn keep_agent_companion_desktop_pet_visible(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window(AGENT_COMPANION_WINDOW_LABEL) else {
+        return;
+    };
+
+    if let Err(error) = window.unminimize() {
+        warn!(
+            "Failed to unminimize Agent companion window after main minimize: {}",
+            error
+        );
+    }
+    if let Err(error) = window.set_always_on_top(true) {
+        warn!(
+            "Failed to keep Agent companion window always on top: {}",
+            error
+        );
+    }
+    if let Err(error) = window.show() {
+        warn!(
+            "Failed to keep Agent companion window visible after main minimize: {}",
+            error
+        );
+    }
 }
 
 #[tauri::command]
@@ -977,7 +1012,12 @@ pub async fn resize_agent_companion_desktop_pet(
             let window_for_resize = window.clone();
             window
                 .run_on_main_thread(move || {
-                    resize_agent_companion_window(&app_for_resize, &window_for_resize, width, height);
+                    resize_agent_companion_window(
+                        &app_for_resize,
+                        &window_for_resize,
+                        width,
+                        height,
+                    );
                 })
                 .map_err(|e| {
                     warn!("Failed to schedule Agent companion window resize: {}", e);
@@ -996,7 +1036,9 @@ pub async fn hide_agent_companion_desktop_pet(app: tauri::AppHandle) -> Result<(
         if let Some(window) = app.get_webview_window(AGENT_COMPANION_WINDOW_LABEL) {
             if let Ok(scale_factor) = window.scale_factor() {
                 if let Ok(position) = window.outer_position() {
-                    remember_agent_companion_window_position(position.to_logical::<f64>(scale_factor));
+                    remember_agent_companion_window_position(
+                        position.to_logical::<f64>(scale_factor),
+                    );
                 }
             }
             window.destroy().map_err(|e| {
@@ -1010,7 +1052,6 @@ pub async fn hide_agent_companion_desktop_pet(app: tauri::AppHandle) -> Result<(
     {
         Err("Failed to hide Agent companion window".to_string())
     }
-
 }
 
 #[tauri::command]
@@ -1025,9 +1066,9 @@ pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
                 format!("Failed to show main window: {}", e)
             })?;
             debug!(
-            "Main window show step completed: step=show duration_ms={}",
-            step_started_at.elapsed().as_millis()
-        );
+                "Main window show step completed: step=show duration_ms={}",
+                step_started_at.elapsed().as_millis()
+            );
 
             #[cfg(target_os = "macos")]
             {
@@ -1041,65 +1082,65 @@ pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
                 format!("Failed to focus main window: {}", e)
             })?;
             debug!(
-            "Main window show step completed: step=focus duration_ms={}",
-            step_started_at.elapsed().as_millis()
-        );
+                "Main window show step completed: step=focus duration_ms={}",
+                step_started_at.elapsed().as_millis()
+            );
         } else {
             error!("Main window not found");
             return Err("Main window not found".to_string());
         }
 
         debug!(
-        "Main window shown: total_duration_ms={}",
-        total_started_at.elapsed().as_millis()
-    );
+            "Main window shown: total_duration_ms={}",
+            total_started_at.elapsed().as_millis()
+        );
         Ok(())
     }
 
-#[cfg(test)]
-mod tests {
-    use super::MainWebviewNavigationPolicy;
-    use tauri::Url;
+    #[cfg(test)]
+    mod tests {
+        use super::MainWebviewNavigationPolicy;
+        use tauri::Url;
 
-    fn url(value: &str) -> Url {
-        value.parse().expect("test URL should be valid")
+        fn url(value: &str) -> Url {
+            value.parse().expect("test URL should be valid")
+        }
+
+        #[test]
+        fn main_webview_navigation_allows_only_the_first_page_navigation() {
+            let policy = MainWebviewNavigationPolicy::new();
+
+            assert!(policy.should_allow(&url("http://localhost:1422/")));
+            assert!(!policy.should_allow(&url("http://localhost:1422/")));
+            assert!(!policy.should_allow(&url("https://example.com/")));
+            assert!(!policy.should_allow(&url("data:text/html,blocked")));
+        }
+
+        #[test]
+        fn main_webview_navigation_allows_local_iframe_documents_without_consuming_initial_page() {
+            let policy = MainWebviewNavigationPolicy::new();
+
+            assert!(policy.should_allow(&url(
+                "blob:http://localhost:1422/65b60dd8-a501-47c2-b7fd-aa99af720dc6"
+            )));
+            assert!(policy.should_allow(&url("about:blank")));
+            assert!(policy.should_allow(&url("about:srcdoc")));
+            assert!(policy.should_allow(&url("tauri://localhost/index.html")));
+            assert!(!policy.should_allow(&url("tauri://localhost/index.html")));
+        }
+
+        #[test]
+        fn main_webview_navigation_keeps_iframe_documents_available_after_initial_page() {
+            let policy = MainWebviewNavigationPolicy::new();
+
+            assert!(policy.should_allow(&url("tauri://localhost/index.html")));
+            assert!(policy.should_allow(&url(
+                "blob:tauri://localhost/f5445ef0-5b0b-42b0-9540-276a0012ae56"
+            )));
+            assert!(policy.should_allow(&url("about:blank")));
+            assert!(!policy.should_allow(&url("tauri://localhost/index.html")));
+        }
     }
-
-    #[test]
-    fn main_webview_navigation_allows_only_the_first_page_navigation() {
-        let policy = MainWebviewNavigationPolicy::new();
-
-        assert!(policy.should_allow(&url("http://localhost:1422/")));
-        assert!(!policy.should_allow(&url("http://localhost:1422/")));
-        assert!(!policy.should_allow(&url("https://example.com/")));
-        assert!(!policy.should_allow(&url("data:text/html,blocked")));
-    }
-
-    #[test]
-    fn main_webview_navigation_allows_local_iframe_documents_without_consuming_initial_page() {
-        let policy = MainWebviewNavigationPolicy::new();
-
-        assert!(policy.should_allow(&url(
-            "blob:http://localhost:1422/65b60dd8-a501-47c2-b7fd-aa99af720dc6"
-        )));
-        assert!(policy.should_allow(&url("about:blank")));
-        assert!(policy.should_allow(&url("about:srcdoc")));
-        assert!(policy.should_allow(&url("tauri://localhost/index.html")));
-        assert!(!policy.should_allow(&url("tauri://localhost/index.html")));
-    }
-
-    #[test]
-    fn main_webview_navigation_keeps_iframe_documents_available_after_initial_page() {
-        let policy = MainWebviewNavigationPolicy::new();
-
-        assert!(policy.should_allow(&url("tauri://localhost/index.html")));
-        assert!(policy.should_allow(&url(
-            "blob:tauri://localhost/f5445ef0-5b0b-42b0-9540-276a0012ae56"
-        )));
-        assert!(policy.should_allow(&url("about:blank")));
-        assert!(!policy.should_allow(&url("tauri://localhost/index.html")));
-    }
-}
 
     #[cfg(target_env = "ohos")]
     {

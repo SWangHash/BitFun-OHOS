@@ -53,7 +53,7 @@ const SETTINGS_CONTENT_LOADERS: Partial<Record<ConfigTab, () => Promise<unknown>
   'archived-sessions': loadArchivedSessionsConfig,
   worktrees: loadWorktreesConfig,
 
-  // 'session-personalization': loadSessionConfig, // temporarily hidden from config center
+  'session-personalization': loadSessionConfig,
   'session-permissions': loadSessionConfig,
   'quick-actions': loadQuickActionsConfig,
   'voice-input': loadVoiceInputConfig,

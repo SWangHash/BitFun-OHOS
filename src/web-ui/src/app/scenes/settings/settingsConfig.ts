@@ -14,7 +14,7 @@ export type ConfigTab =
   | 'usage-statistics'
   | 'worktrees'
   | 'archived-sessions'
-  // | 'session-personalization' // temporarily hidden from config center
+  | 'session-personalization'
   | 'session-permissions'
   | 'quick-actions'
   | 'voice-input'
@@ -172,20 +172,19 @@ export const SETTINGS_CATEGORIES: ConfigCategoryDef[] = [
     id: 'smartCapabilities',
     nameKey: 'configCenter.categories.smartCapabilities',
     tabs: [
-      // session-personalization temporarily hidden from config center
-      // {
-      //   id: 'session-personalization',
-      //   labelKey: 'configCenter.tabs.sessionPersonalization',
-      //   descriptionKey: 'configCenter.tabDescriptions.sessionPersonalization',
-      //   keywords: [
-      //     'session',
-      //     'companion',
-      //     'agent',
-      //     'pixel',
-      //     'pet',
-      //     'partner',
-      //   ],
-      // },
+      {
+        id: 'session-personalization',
+        labelKey: 'configCenter.tabs.sessionPersonalization',
+        descriptionKey: 'configCenter.tabDescriptions.sessionPersonalization',
+        keywords: [
+          'session',
+          'companion',
+          'agent',
+          'pixel',
+          'pet',
+          'partner',
+        ],
+      },
       {
         id: 'session-permissions',
         labelKey: 'configCenter.tabs.sessionPermissions',

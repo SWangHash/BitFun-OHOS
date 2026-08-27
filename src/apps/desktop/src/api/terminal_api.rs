@@ -1,6 +1,5 @@
 //! Terminal API
 
-use bitfun_core::infrastructure::PathManager;
 use log::{error, warn};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -8,12 +7,12 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::Mutex;
 
-use bitfun_core::infrastructure::try_get_path_manager_arc;
+use bitfun_core::infrastructure::{try_get_path_manager_arc, PathManager};
+use bitfun_core::service::config::{load_terminal_default_shell, load_terminal_env_vars};
 use bitfun_core::service::remote_ssh::workspace_state::{
     get_remote_workspace_manager, init_remote_workspace_manager,
 };
 use bitfun_core::service::runtime::RuntimeManager;
-use bitfun_core::service::config::{load_terminal_default_shell, load_terminal_env_vars};
 use bitfun_core::service::terminal::TerminalEvent;
 use bitfun_core::service::terminal::{
     AcknowledgeRequest as CoreAcknowledgeRequest, CloseSessionRequest as CoreCloseSessionRequest,
@@ -99,9 +98,9 @@ impl TerminalState {
     /// Get the scripts directory path for shell integration
     /// Uses the same path structure as PathManager
     fn get_scripts_dir() -> PathBuf {
-        PathManager::new().map(|p| p.home_dir())
+        PathManager::new()
+            .map(|p| p.user_root_dir().to_path_buf())
             .unwrap_or_else(|_| PathBuf::from("."))
-            .join("bitfun")
             .join("temp")
             .join("scripts")
     }

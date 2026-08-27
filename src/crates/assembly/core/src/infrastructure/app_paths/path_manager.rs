@@ -33,7 +33,6 @@ pub enum StorageLevel {
 pub struct PathManager {
     /// User config root directory
     user_root: PathBuf,
-    home_dir: PathBuf,
     /// Optional override for the BitFun home directory, used by tests to avoid
     /// touching the real user home.
     bitfun_home_override: Option<PathBuf>,
@@ -47,12 +46,10 @@ impl PathManager {
         Self::validate_e2e_storage_guard()?;
         let user_root = Self::get_user_config_root()?;
         let bitfun_home_override = Self::get_bitfun_home_override();
-        let home_dir = Self::get_home_dir()?;
 
         Ok(Self {
             user_root,
-            home_dir,
-            bitfun_home_override: None,
+            bitfun_home_override,
             project_runtime_slug_cache: Arc::new(Mutex::new(HashMap::new())),
         })
     }
@@ -98,21 +95,18 @@ impl PathManager {
         Ok(PathBuf::from("/data/storage/el2/base/files/bitfun"))
     }
 
-    fn get_home_dir() -> BitFunResult<PathBuf> {
-        Ok(PathBuf::from("/data/storage/el2/base/files/home_dir/.bitfun"))
-    }
-
-    pub fn home_dir(&self) -> PathBuf {
-        self.home_dir.clone()
-    }
-
     fn get_bitfun_home_override() -> Option<PathBuf> {
         Self::env_path("BITFUN_HOME").or_else(|| Self::env_path("BITFUN_E2E_HOME"))
     }
 
     /// Get assistant home root directory: ~/.bitfun/
     pub fn bitfun_home_dir(&self) -> PathBuf {
-        self.home_dir()
+        if let Some(path) = &self.bitfun_home_override {
+            return path.clone();
+        }
+        dirs::home_dir()
+            .unwrap_or_else(|| self.user_root.clone())
+            .join(".bitfun")
     }
 
     /// Get the legacy assistant workspace base directory: ~/.bitfun/
@@ -628,8 +622,7 @@ impl Default for PathManager {
                 );
                 Self {
                     user_root: std::env::temp_dir().join("bitfun"),
-                    home_dir: Self::get_home_dir().unwrap_or_default(),
-                    bitfun_home_override: None,
+                    bitfun_home_override: Self::get_bitfun_home_override(),
                     project_runtime_slug_cache: Arc::new(Mutex::new(HashMap::new())),
                 }
             }
@@ -646,7 +639,6 @@ impl PathManager {
             .unwrap_or_else(|| user_root.clone());
         Self {
             user_root,
-            home_dir: Self::get_home_dir().unwrap_or_default(),
             bitfun_home_override: Some(base.join("home").join(".bitfun")),
             project_runtime_slug_cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -899,7 +891,7 @@ mod tests {
     }
 
     #[test]
-    fn env_overrides_keep_e2e_storage_out_of_real_user_profile() {
+    fn sandbox_user_root_is_fixed_while_home_override_remains_supported() {
         let _guard = ENV_LOCK.lock().expect("env lock poisoned");
         let _env_guard = EnvVarGuard::capture([
             "BITFUN_USER_ROOT",
@@ -918,9 +910,11 @@ mod tests {
         std::env::set_var("BITFUN_E2E_HOME", &home_root);
 
         let pm = PathManager::new().expect("path manager should use env overrides");
-        assert_eq!(pm.user_config_dir(), user_root.join("config"));
-        assert_eq!(pm.user_data_dir(), user_root.join("data"));
-        assert_eq!(pm.logs_dir(), user_root.join("config").join("logs"));
+        let sandbox_root = Path::new("/data/storage/el2/base/files/bitfun");
+        assert_eq!(pm.user_root_dir(), sandbox_root);
+        assert_eq!(pm.user_config_dir(), sandbox_root.join("config"));
+        assert_eq!(pm.user_data_dir(), sandbox_root.join("data"));
+        assert_eq!(pm.logs_dir(), sandbox_root.join("config").join("logs"));
         assert_eq!(pm.bitfun_home_dir(), home_root);
     }
 

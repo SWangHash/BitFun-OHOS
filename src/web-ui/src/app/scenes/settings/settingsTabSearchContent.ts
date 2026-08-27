@@ -95,12 +95,12 @@ export const SETTINGS_TAB_SEARCH_CONTENT: Record<ConfigTab, readonly SettingsTab
     { ns: 'common', key: 'nav.sessions.deleteAllArchived' },
   ],
 
-  // 'session-personalization': [
-  //   { ns: 'settings/session-config', key: 'personalizationPage.title' },
-  //   { ns: 'settings/session-config', key: 'personalizationPage.subtitle' },
-  //   { ns: 'settings/session-config', key: 'features.agentCompanion.title' },
-  //   { ns: 'settings/session-config', key: 'features.agentCompanion.subtitle' },
-  // ],
+  'session-personalization': [
+    { ns: 'settings/session-config', key: 'personalizationPage.title' },
+    { ns: 'settings/session-config', key: 'personalizationPage.subtitle' },
+    { ns: 'settings/session-config', key: 'features.agentCompanion.title' },
+    { ns: 'settings/session-config', key: 'features.agentCompanion.subtitle' },
+  ],
 
   'session-permissions': [
     { ns: 'settings/session-config', key: 'permissionsPage.title' },

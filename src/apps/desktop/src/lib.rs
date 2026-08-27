@@ -1281,6 +1281,13 @@ pub async fn _run() {
         .on_window_event({
             move |window, event| {
                 if window.label() == "main"
+                    && matches!(event, tauri::WindowEvent::Resized { .. })
+                    && window.is_minimized().unwrap_or(false)
+                {
+                    appearance::keep_agent_companion_desktop_pet_visible(window.app_handle());
+                }
+
+                if window.label() == "main"
                     && matches!(event, tauri::WindowEvent::CloseRequested { .. })
                 {
                     save_main_window_state(window.app_handle());
