@@ -54,7 +54,7 @@ import type { AnchorRect } from './StatusBarPopovers';
 import './CodeEditor.scss';
 
 const log = createLogger('CodeEditor');
-const FILE_TOO_LARGE_ERROR = 'file-too-large';
+export const FILE_TOO_LARGE_ERROR = 'file-too-large';
 
 export interface CodeEditorProps {
   /** File path */
@@ -196,7 +196,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   }, [rawFilePath]);
 
   const { t } = useI18n('tools');
-  
+
   const detectLanguageFromFileName = useCallback((fileName: string): string => {
     const detected = getMonacoLanguage(fileName);
     return detected !== 'plaintext' ? detected : (language || 'plaintext');
@@ -1514,7 +1514,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
     if (isUnsupportedFileType) {
       setLoading(false);
-      setError(t('editor.common.unsupportedFileType'));
+      setError('editor.common.unsupportedFileType');
       return;
     }
 
@@ -2310,9 +2310,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const loadingOverlayText = monacoReady
     ? t('editor.codeEditor.loadingFile')
     : t('editor.codeEditor.preparingEditor');
-  const errorMessage = error === FILE_TOO_LARGE_ERROR
+  const errorMessage = error === FILE_TOO_LARGE_ERROR || error === 'editor.common.fileTooLarge'
     ? t('editor.common.fileTooLarge')
-    : error;
+    : error === 'editor.common.unsupportedFileType'
+      ? t('editor.common.unsupportedFileType')
+      : error;
 
   return (
     <div 
@@ -2344,6 +2346,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
             width: '100%', 
             height: '100%',
             overflow: 'hidden',
+            visibility: loading || error ? 'hidden' : 'visible',
             opacity: loading && showLoadingOverlay ? 0.3 : 1,
             transition: 'opacity 0.2s'
           }} 
