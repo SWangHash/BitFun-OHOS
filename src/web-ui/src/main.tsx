@@ -2,7 +2,7 @@ import ReactDOM from "react-dom/client";
 import BusinessApplication from "./app/BusinessApplication";
 import AgentCompanionDesktopPet from "./app/components/AgentCompanionDesktopPet/AgentCompanionDesktopPet";
 import AppErrorBoundary from "./app/components/AppErrorBoundary";
-import { PrivacyGate, PrivacyProvider } from "./app/components/Privacy";
+import { PrivacyProvider } from "./app/components/Privacy";
 import { STARTUP_OVERLAY_HIDDEN_EVENT } from "./app/startup/startupSignals";
 import { I18nProvider } from "./infrastructure/i18n/providers/I18nProvider";
 import { mouseGlowService } from "./infrastructure/mouse-glow/core/MouseGlowService";
@@ -365,9 +365,7 @@ async function startApplication(): Promise<void> {
   ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <AppErrorBoundary>
       <PrivacyProvider>
-        <PrivacyGate>
-          <BusinessApplication />
-        </PrivacyGate>
+        <BusinessApplication />
       </PrivacyProvider>
     </AppErrorBoundary>
   );
