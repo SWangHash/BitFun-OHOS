@@ -816,9 +816,17 @@ impl ConfigManager {
 
         let mut current = &mut config_value;
         for key in parent_keys {
-            current = current.get_mut(key).ok_or_else(|| {
-                BitFunError::NotFound(format!("Config path '{}' not found", path))
-            })?;
+            if !current.is_object() {
+                return Err(BitFunError::config(format!(
+                    "Cannot set value at path '{}': parent is not an object",
+                    path
+                )));
+            }
+            let obj = current.as_object_mut().unwrap();
+            if !obj.contains_key(*key) {
+                obj.insert(key.to_string(), serde_json::Value::Object(serde_json::Map::new()));
+            }
+            current = current.get_mut(*key).unwrap();
         }
 
         if let Some(obj) = current.as_object_mut() {

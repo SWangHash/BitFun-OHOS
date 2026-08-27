@@ -2024,7 +2024,7 @@ fn mcp_cursor_format_helpers_preserve_cursor_compatibility_contract() {
                 "args": ["run", "--rm", "-i", "example/server"]
             }
         }
-    }));
+    }), ConfigLocation::User);
 
     assert_eq!(parsed.len(), 1);
     assert_eq!(parsed[0].id, "remote-sse");

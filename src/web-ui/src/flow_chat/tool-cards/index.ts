@@ -5,6 +5,7 @@
 
 import { createLogger } from '@/shared/utils/logger';
 import { isMcpToolName } from '@/infrastructure/mcp/toolName';
+import { DEFERRED_TOOL_GATEWAY_NAME } from '../utils/toolInvocationIdentity';
 export {
   TOOL_CARD_CONFIGS,
   getToolCardConfig,
@@ -151,6 +152,12 @@ export const TOOL_CARD_COMPONENTS = {
 export function getToolCardComponent(toolName: string) {
   // Check MCP tools (prefix: mcp__).
   if (isMcpToolName(toolName)) {
+    return MCPToolDisplay;
+  }
+
+  // Deferred tool gateway may wrap MCP tools; route to MCPToolDisplay
+  // so the deferred→real name resolution inside the component can proceed.
+  if (toolName === DEFERRED_TOOL_GATEWAY_NAME) {
     return MCPToolDisplay;
   }
   

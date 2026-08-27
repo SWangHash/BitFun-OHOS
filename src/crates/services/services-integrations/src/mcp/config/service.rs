@@ -82,11 +82,54 @@ impl MCPConfigService {
             }
         };
 
+        let (migrated_user, migrated_project) = self
+            .migrate_configs_by_location(user_configs, project_configs)
+            .await;
+
         Ok(merge_mcp_server_config_sources([
             builtin_configs,
-            user_configs,
-            project_configs,
+            migrated_user,
+            migrated_project,
         ]))
+    }
+
+    async fn migrate_configs_by_location(
+        &self,
+        user_configs: Vec<MCPServerConfig>,
+        project_configs: Vec<MCPServerConfig>,
+    ) -> (Vec<MCPServerConfig>, Vec<MCPServerConfig>) {
+        let mut final_user = Vec::new();
+        let mut final_project = Vec::new();
+
+        for config in user_configs {
+            if config.location == ConfigLocation::Project {
+                info!(
+                    "Migrating MCP server '{}' from user to project store (location=project)",
+                    config.id
+                );
+                let _ = self.delete_from_user_config(&config.id).await;
+                let _ = self.save_project_config(&config).await;
+                final_project.push(config);
+            } else {
+                final_user.push(config);
+            }
+        }
+
+        for config in project_configs {
+            if config.location == ConfigLocation::User {
+                info!(
+                    "Migrating MCP server '{}' from project to user store (location=user)",
+                    config.id
+                );
+                let _ = self.delete_from_project_config(&config.id).await;
+                let _ = self.save_user_config(&config).await;
+                final_user.push(config);
+            } else {
+                final_project.push(config);
+            }
+        }
+
+        (final_user, final_project)
     }
 
     async fn load_builtin_configs(&self) -> MCPRuntimeResult<Vec<MCPServerConfig>> {
@@ -101,7 +144,16 @@ impl MCPConfigService {
                     .and_then(|v| v.as_object())
                     .is_some() =>
             {
-                Ok(parse_cursor_format(&config_value))
+                let mut configs = parse_cursor_format(&config_value, ConfigLocation::User);
+                for config in &mut configs {
+                    if config.location == ConfigLocation::Project {
+                        info!(
+                            "MCP server '{}' in user config has location=project; it will be saved to project.mcp_servers on next write",
+                            config.id
+                        );
+                    }
+                }
+                Ok(configs)
             }
             Some(config_value) => {
                 if let Some(servers) = config_value.as_array() {
@@ -127,9 +179,14 @@ impl MCPConfigService {
                     .and_then(|v| v.as_object())
                     .is_some() =>
             {
-                let mut configs = parse_cursor_format(&config_value);
+                let mut configs = parse_cursor_format(&config_value, ConfigLocation::Project);
                 for config in &mut configs {
-                    config.location = ConfigLocation::Project;
+                    if config.location == ConfigLocation::User {
+                        info!(
+                            "MCP server '{}' in project config has location=user; it will be saved to mcp_servers on next write",
+                            config.id
+                        );
+                    }
                 }
                 Ok(configs)
             }
@@ -157,8 +214,14 @@ impl MCPConfigService {
             ConfigLocation::BuiltIn => Err(MCPRuntimeError::configuration(
                 "Cannot modify built-in MCP server configuration",
             )),
-            ConfigLocation::User => self.save_user_config(config).await,
-            ConfigLocation::Project => self.save_project_config(config).await,
+            ConfigLocation::User => {
+                let _ = self.delete_from_project_config(&config.id).await;
+                self.save_user_config(config).await
+            }
+            ConfigLocation::Project => {
+                let _ = self.delete_from_user_config(&config.id).await;
+                self.save_project_config(config).await
+            }
         }
     }
 
@@ -256,6 +319,25 @@ impl MCPConfigService {
     }
 
     pub async fn delete_server_config(&self, server_id: &str) -> MCPRuntimeResult<()> {
+        let existing = self.get_server_config(server_id).await?;
+        let location = existing
+            .as_ref()
+            .map(|c| c.location)
+            .unwrap_or(ConfigLocation::User);
+
+        match location {
+            ConfigLocation::BuiltIn => Err(MCPRuntimeError::configuration(
+                "Cannot delete built-in MCP server configuration",
+            )),
+            ConfigLocation::User => self.delete_from_user_config(server_id).await,
+            ConfigLocation::Project => self.delete_from_project_config(server_id).await,
+        }?;
+
+        info!("Deleted MCP server config: {} (location={:?})", server_id, location);
+        Ok(())
+    }
+
+    async fn delete_from_user_config(&self, server_id: &str) -> MCPRuntimeResult<()> {
         self.mutate_user_config(|servers| {
             if servers.remove(server_id).is_none() {
                 return Err(MCPRuntimeError::not_found(format!(
@@ -264,8 +346,25 @@ impl MCPConfigService {
             }
             Ok(())
         })
-        .await?;
-        info!("Deleted MCP server config: {}", server_id);
-        Ok(())
+        .await
+    }
+
+    async fn delete_from_project_config(&self, server_id: &str) -> MCPRuntimeResult<()> {
+        let mut configs = self.load_project_configs().await.unwrap_or_default();
+        let before = configs.len();
+        configs.retain(|c| c.id != server_id);
+        if configs.len() == before {
+            return Err(MCPRuntimeError::not_found(format!(
+                "MCP server config not found in project.mcp_servers: {server_id}"
+            )));
+        }
+
+        let value = serde_json::to_value(&configs).map_err(|e| {
+            MCPRuntimeError::serialization(format!("Failed to serialize MCP config: {}", e))
+        })?;
+
+        self.config_store
+            .set_config_value("project.mcp_servers", value)
+            .await
     }
 }
