@@ -137,6 +137,7 @@ import { acpAgentsConfigAppearanceDescriptor } from '@/infrastructure/config/com
 import { sessionConfigAppearanceDescriptor } from '@/infrastructure/config/components/SessionConfig.appearance';
 import { sessionTitleConfigAppearanceDescriptor } from '@/infrastructure/config/components/SessionTitleConfig.appearance';
 import { mcpToolsConfigAppearanceDescriptor } from '@/infrastructure/config/components/McpToolsConfig.appearance';
+import { localModelManagerAppearanceDescriptor } from '@/infrastructure/config/components/LocalModelManagerInline.appearance';
 import { externalMcpOverviewAppearanceDescriptor } from '@/infrastructure/config/components/ExternalMcpOverview.appearance';
 import { voiceInputDiagnosticsAppearanceDescriptor } from '@/infrastructure/config/components/VoiceInputDiagnostics.appearance';
 import { assistantCardAppearanceDescriptor } from '@/app/scenes/profile/views/AssistantCard.appearance';
@@ -432,6 +433,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(sessionConfigAppearanceDescriptor)
     .registerComponent(sessionTitleConfigAppearanceDescriptor)
     .registerComponent(mcpToolsConfigAppearanceDescriptor)
+    .registerComponent(localModelManagerAppearanceDescriptor)
     .registerComponent(externalMcpOverviewAppearanceDescriptor)
     .registerComponent(voiceInputDiagnosticsAppearanceDescriptor)
     .registerComponent(assistantCardAppearanceDescriptor)
