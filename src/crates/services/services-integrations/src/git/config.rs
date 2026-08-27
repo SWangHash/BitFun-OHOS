@@ -9,19 +9,9 @@
 //! it actually loaded, align the matching libgit2 configuration levels, and
 //! pin Git children only when doing so preserves the same effective file set.
 //!
-//! Two deliberate degradations keep this layer from changing behavior for
-//! users whose setup it cannot describe:
-//!
-//! - When Git merges several global-scope files (an XDG `git/config` next to
-//!   `~/.gitconfig`), pinning one file through `GIT_CONFIG_GLOBAL` would drop
-//!   the others for child processes, so the CLI keeps Git's default lookup and
-//!   only libgit2's search path is aligned. `--show-origin` does not mark
-//!   which file Git loaded at global scope, so any extra `git/config`-shaped
-//!   origin is treated as a potential XDG file.
-//! - When discovery or alignment fails, Git operations must keep working
-//!   exactly as before this layer existed: no new CLI pin or libgit2 path is
-//!   applied, existing process defaults/overrides stay intact, and alignment
-//!   is retried later.
+//! Inherited Git configuration overrides are preserved during discovery. When
+//! the reported file set cannot be represented safely, alignment is skipped
+//! and retried later.
 
 use bitfun_services_core::process_manager;
 use git2::{opts, ConfigLevel};
@@ -33,14 +23,13 @@ use tokio::process::Command as TokioCommand;
 const GIT_CONFIG_GLOBAL: &str = "GIT_CONFIG_GLOBAL";
 const GLOBAL_CONFIG_FILENAME: &str = ".gitconfig";
 const CONFIG_RETRY_DELAY: Duration = Duration::from_secs(30);
-// Git config keys do not permit underscores, so keep the probe alias hyphenated.
-const GIT_HOME_ALIAS: &str = "bitfun-home";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct GlobalGitConfig {
     /// File pinned on Git child processes through `GIT_CONFIG_GLOBAL`. `None`
-    /// when Git merges multiple global-scope files (XDG plus `~/.gitconfig`);
-    /// child processes then keep Git's default lookup.
+    /// when Git's effective global file set cannot be reproduced by pinning a
+    /// single file or when nothing needs pinning; child processes then keep
+    /// Git's default lookup.
     pub(crate) cli_pin: Option<PathBuf>,
     /// Every libgit2 config level that must be redirected for its effective
     /// config to match the files reported by Git CLI.
@@ -63,6 +52,18 @@ impl GlobalConfigAttempt {
         self.last_error = Some(message);
         self.retry_after = Some(now + CONFIG_RETRY_DELAY);
     }
+
+    fn clear_retry(&mut self) {
+        self.retry_after = None;
+    }
+}
+
+/// Clears the retry deadline after a successful global-config write.
+pub(crate) fn resume_alignment_after_global_write() {
+    let mut attempt = GLOBAL_CONFIG_ATTEMPT
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    attempt.clear_retry();
 }
 
 static GLOBAL_CONFIG: OnceLock<GlobalGitConfig> = OnceLock::new();
@@ -155,51 +156,43 @@ fn resolve_global_config() -> Result<GlobalGitConfig, String> {
 
 fn discover_global_config_from_git() -> Result<GlobalGitConfig, String> {
     let output = run_git_probe(&["config", "--global", "--list", "--show-origin"])?;
-    if output.status.success() {
-        let files = parse_show_origin_files(&output.stdout);
-        if let Some(config) = plan_from_origin_files(&files)? {
-            return Ok(config);
-        }
-    }
-
-    // The listing is empty (no global configuration yet) or this Git build
-    // rejected the probe: fall back to the default global file inside the
-    // HOME that Git itself reports.
-    let home = discover_git_home()?;
-    plan_for_single_file(home.join(GLOBAL_CONFIG_FILENAME))
-}
-
-fn discover_git_home() -> Result<PathBuf, String> {
-    let output = run_git_probe(&[
-        "-c",
-        "alias.bitfun-home=!printf %s \"$HOME\"",
-        GIT_HOME_ALIAS,
-    ])?;
     if !output.status.success() {
         return Err(format_git_probe_failure(
-            "git -c alias.bitfun-home=... bitfun-home",
+            "git config --global --list --show-origin",
             &output,
         ));
     }
 
-    let home = String::from_utf8_lossy(&output.stdout)
-        .trim_end_matches(['\r', '\n'])
-        .to_string();
-    if home.is_empty() {
-        return Err("Git reported an empty HOME while resolving its global config".to_string());
+    let files = parse_show_origin_files(&output.stdout);
+    match plan_from_origin_files(&files)? {
+        Some(config) => Ok(config),
+        // Retry discovery for a file set that cannot be described safely.
+        None => Err(discovery_gave_up_reason(files.is_empty())),
     }
+}
 
-    Ok(normalize_git_path(PathBuf::from(home)))
+/// Why [`plan_from_origin_files`] reported an undescribable listing.
+fn discovery_gave_up_reason(listing_empty: bool) -> String {
+    if listing_empty {
+        "no global configuration exists yet; Git children keep their default lookup until \
+         the first global write"
+            .to_string()
+    } else {
+        "Git merges several global-scope configuration files this layer cannot pin or align \
+         consistently; Git children keep their default merged lookup"
+            .to_string()
+    }
 }
 
 fn run_git_probe(args: &[&str]) -> Result<std::process::Output, String> {
     // This probe is global-only. A neutral directory avoids making discovery
     // depend on the active repository's ownership or validity.
+    //
+    // Preserve inherited Git configuration overrides while probing.
     let working_directory = std::env::temp_dir();
 
     process_manager::create_command("git")
         .current_dir(working_directory)
-        .env_remove(GIT_CONFIG_GLOBAL)
         .env("LC_ALL", "C")
         .env("LANG", "C")
         .env("LANGUAGE", "C")
@@ -219,8 +212,7 @@ fn format_git_probe_failure(command: &str, output: &std::process::Output) -> Str
     }
 }
 
-/// Collects the `file:<path>` origins from `git config --global --list
-/// --show-origin` output, in listing order.
+/// Collects unique `file:<path>` origins from Git's global-config listing.
 fn parse_show_origin_files(output: &[u8]) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
@@ -237,16 +229,27 @@ fn parse_show_origin_files(output: &[u8]) -> Vec<PathBuf> {
             continue;
         }
 
-        files.push(normalize_git_path(PathBuf::from(
-            path.trim_matches(['\'', '"']),
-        )));
+        let file = normalize_git_path(PathBuf::from(path.trim_matches(['\'', '"'])));
+        if !files.contains(&file) {
+            files.push(file);
+        }
     }
 
     files
 }
 
+/// Whether the path's basename is the conventional primary global file. XDG
+/// paths end in `git/config`, so the two shapes are disjoint.
+fn is_primary_git_config(path: &Path) -> bool {
+    path.file_name().and_then(|name| name.to_str()) == Some(GLOBAL_CONFIG_FILENAME)
+}
+
 /// Decides how to align the backends from the global-scope files Git reported.
-/// Returns `None` when the listing contained no file origins at all.
+/// Returns `None` when this layer cannot describe the file set well enough to
+/// reproduce it for children: no origins at all, several files competing for
+/// one libgit2 config level, or a filename libgit2 cannot discover. The
+/// caller keeps both backends on their process defaults for that outcome
+/// instead of picking a guess.
 fn plan_from_origin_files(files: &[PathBuf]) -> Result<Option<GlobalGitConfig>, String> {
     if files.is_empty() {
         return Ok(None);
@@ -256,12 +259,20 @@ fn plan_from_origin_files(files: &[PathBuf]) -> Result<Option<GlobalGitConfig>, 
     // prefer an origin whose basename is `.gitconfig`. This keeps an included
     // file from becoming the write target when the main file also appears in
     // the listing.
-    let primary = files.iter().find(|path| {
-        path.file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| name == GLOBAL_CONFIG_FILENAME)
-    });
+    let primary = files.iter().find(|path| is_primary_git_config(path));
     let xdg = files.iter().find(|path| is_xdg_git_config(path));
+
+    // Multiple files of one shape cannot be represented by a single libgit2
+    // search path without dropping configuration.
+    if files
+        .iter()
+        .filter(|path| is_primary_git_config(path))
+        .count()
+        > 1
+        || files.iter().filter(|path| is_xdg_git_config(path)).count() > 1
+    {
+        return Ok(None);
+    }
 
     match (primary, xdg) {
         (Some(primary), Some(xdg)) => {
@@ -279,7 +290,8 @@ fn plan_from_origin_files(files: &[PathBuf]) -> Result<Option<GlobalGitConfig>, 
         }
         (Some(primary), None) => plan_for_single_file(primary.clone()).map(Some),
         (None, Some(xdg)) => plan_for_single_file(xdg.clone()).map(Some),
-        (None, None) => plan_for_single_file(files[0].clone()).map(Some),
+        // Do not guess a libgit2 level for an unknown filename.
+        (None, None) => Ok(None),
     }
 }
 
@@ -500,13 +512,43 @@ mod tests {
     }
 
     #[test]
-    fn refuses_to_claim_alignment_for_a_filename_libgit2_cannot_discover() {
+    fn leaves_an_unnamed_single_file_origin_undescribed_instead_of_pinning_it() {
         let paths = vec![PathBuf::from(
             "/storage/Users/currentUser/custom-global-config",
         )];
 
-        let error = plan_from_origin_files(&paths).expect_err("custom filename is not alignable");
-        assert!(error.contains("does not use a filename libgit2 can discover"));
+        // libgit2 cannot discover this filename, so do not pin it.
+        let plan = plan_from_origin_files(&paths).expect("hands-off plan");
+        assert_eq!(plan, None);
+    }
+
+    #[test]
+    fn treats_an_empty_listing_as_nothing_to_align() {
+        let plan = plan_from_origin_files(&[]).expect("empty listing plan");
+        assert_eq!(plan, None);
+    }
+
+    #[test]
+    fn refuses_to_pick_between_two_competing_primary_gitconfigs() {
+        // Multiple primary files cannot be represented by one libgit2 level.
+        let paths = vec![
+            PathBuf::from("/storage/Users/currentUser/.ohos_git/.gitconfig"),
+            PathBuf::from("/storage/Users/currentUser/.gitconfig"),
+        ];
+
+        let plan = plan_from_origin_files(&paths).expect("ambiguous listing plan");
+        assert_eq!(plan, None);
+    }
+
+    #[test]
+    fn dedupes_origins_that_reappear_once_per_entry() {
+        let output = b"file:/home/currentUser/.gitconfig\tsafe.directory\t/home/repo\n\
+                       file:/home/currentUser/.gitconfig\tuser.name\tBitFun\n";
+
+        assert_eq!(
+            parse_show_origin_files(output),
+            vec![PathBuf::from("/home/currentUser/.gitconfig")]
+        );
     }
 
     #[test]
@@ -629,6 +671,18 @@ mod tests {
         attempt.record_failure(now, "temporary failure".to_string());
         assert!(!attempt.is_ready(now));
         assert!(attempt.is_ready(now + CONFIG_RETRY_DELAY));
+    }
+
+    #[test]
+    fn a_global_write_clears_the_discovery_cooldown_immediately() {
+        let now = Instant::now();
+        let mut attempt = GlobalConfigAttempt::default();
+
+        attempt.record_failure(now, "no global configuration yet".to_string());
+        assert!(!attempt.is_ready(now));
+
+        attempt.clear_retry();
+        assert!(attempt.is_ready(now));
     }
 
     #[cfg(windows)]
