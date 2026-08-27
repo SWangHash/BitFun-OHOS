@@ -3,18 +3,19 @@ import { audio } from '@kit.AudioKit';
 import { speechRecognizer } from '@kit.CoreSpeechKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import RustModule from 'libbitfun_desktop_lib.so';
 
 const VOICE_DOMAIN: number = 0x0000;
 const VOICE_TAG: string = 'BitFunVoiceInput';
 const MICROPHONE_PERMISSION: Permissions = 'ohos.permission.MICROPHONE';
 const AUDIO_CHUNK_BYTES = 1280;
-const HALF_AUDIO_CHUNK_BYTES = 640;
 const DEFAULT_LANGUAGE = 'zh-CN';
 const DEFAULT_SAMPLE_RATE = 16000;
-const DEFAULT_MAX_RECORDING_SECONDS = 60;
+const DEFAULT_MAX_RECORDING_SECONDS = 8 * 60 * 60;
+const MAX_RECORDING_SECONDS = 8 * 60 * 60;
 const ENGINE_VAD_BEGIN = 2000;
 const ENGINE_VAD_END = 3000;
-const ENGINE_MAX_AUDIO_DURATION = 55000;
+const ENGINE_MAX_AUDIO_DURATION = 8 * 60 * 60 * 1000;
 
 interface VoiceStartRequest {
   language?: string;
@@ -49,6 +50,27 @@ interface VoiceAppendResult {
   limitReached: boolean;
 }
 
+function appendRecognitionSegment(existing: string, incoming: string): string {
+  const current = existing.trim();
+  const next = incoming.trim();
+  if (next.length === 0) {
+    return current;
+  }
+  if (current.length === 0 || next === current || next.indexOf(current) === 0) {
+    return next.length >= current.length ? next : current;
+  }
+  if (current.indexOf(next) === 0 || (next.length > 1 && current.endsWith(next))) {
+    return current;
+  }
+  const maxOverlap: number = Math.min(current.length, next.length);
+  for (let overlap = maxOverlap; overlap > 1; overlap -= 1) {
+    if (current.slice(current.length - overlap) === next.slice(0, overlap)) {
+      return `${current}${next.slice(overlap)}`;
+    }
+  }
+  return `${current}${next}`;
+}
+
 /**
  * HarmonyOS system speech input service.
  *
@@ -68,14 +90,20 @@ export class VoiceInputService {
   private maxRecordingSeconds: number = DEFAULT_MAX_RECORDING_SECONDS;
   private listening: boolean = false;
   private reading: boolean = false;
+  private recognitionReady: boolean = false;
   private idCounter: number = 0;
   private startedAt: number = 0;
   private capturedSeconds: number = 0;
+  private pendingAudio: Uint8Array = new Uint8Array(0);
   private finalText: string = '';
+  private partialText: string = '';
   private finishedResult: string = '';
+  private finishedSessionId: string = '';
+  private finishedError: string = '';
   private hasFinishedResult: boolean = false;
   private finishResolver: ((result: string) => void) | null = null;
   private finishRejecter: ((error: Error) => void) | null = null;
+  private maxDurationTimer?: number;
 
   async start(arg: string): Promise<string> {
     await this.cancelInternal(false);
@@ -88,15 +116,23 @@ export class VoiceInputService {
     const req: VoiceStartRequest = JSON.parse(arg);
     this.language = this.resolveLanguage(req.language);
     this.sampleRate = req.sampleRate ?? DEFAULT_SAMPLE_RATE;
-    this.maxRecordingSeconds = req.maxRecordingSeconds ?? DEFAULT_MAX_RECORDING_SECONDS;
+    this.maxRecordingSeconds = Math.min(
+      Math.max(1, req.maxRecordingSeconds ?? DEFAULT_MAX_RECORDING_SECONDS),
+      MAX_RECORDING_SECONDS
+    );
     const modelId: string = req.modelId ?? 'ohos-system';
     this.sessionId = this.newSessionId();
     this.finalText = '';
+    this.partialText = '';
     this.finishedResult = '';
+    this.finishedSessionId = '';
+    this.finishedError = '';
     this.hasFinishedResult = false;
     this.finishResolver = null;
     this.finishRejecter = null;
     this.capturedSeconds = 0;
+    this.pendingAudio = new Uint8Array(0);
+    this.recognitionReady = false;
     this.startedAt = Date.now();
     try {
       this.engine = await speechRecognizer.createEngine({
@@ -104,12 +140,12 @@ export class VoiceInputService {
         online: 1,
         extraParams: {
           locate: 'CN',
-          recognizerMode: 'short'
+          recognizerMode: 'long'
         }
       });
-    this.engine.setListener(this.buildRecognitionListener());
-    this.capturer = await this.createCapturer();
-    this.engine.startListening({
+      this.engine.setListener(this.buildRecognitionListener());
+      this.capturer = await this.createCapturer();
+      this.engine.startListening({
         sessionId: this.sessionId,
         audioInfo: {
           audioType: 'pcm',
@@ -124,8 +160,8 @@ export class VoiceInputService {
           maxAudioDuration: ENGINE_MAX_AUDIO_DURATION
         }
       });
-    await this.capturer.start();
-    this.listening = true;
+      await this.capturer.start();
+      this.listening = true;
       this.reading = true;
       this.captureLoop(this.sessionId);
     } catch (err) {
@@ -146,6 +182,9 @@ export class VoiceInputService {
 
   async append(arg: string): Promise<string> {
     const req: VoiceAppendRequest = JSON.parse(arg);
+    if (req.sessionId !== this.sessionId || !this.listening) {
+      throw new Error('Voice input session is not active');
+    }
     const receivedBytes: number = this.estimateBase64Bytes(req.pcm16Base64);
     const receivedSeconds: number = this.sampleRate > 0
       ? receivedBytes / (this.sampleRate * 2)
@@ -163,30 +202,37 @@ export class VoiceInputService {
   async finish(arg: string): Promise<string> {
     const sessionId: string = JSON.parse(arg).sessionId as string;
     if (this.hasFinishedResult) {
-      const prebuilt: string = this.finishedResult;
-      this.hasFinishedResult = false;
-      this.finishedResult = '';
-      await this.releaseCapturer();
+      if (sessionId !== this.finishedSessionId) {
+        throw new Error('Voice input session is not active');
+      }
+      const result: string = this.finishedResult;
+      const errorMessage = this.finishedError;
+      this.clearFinishedResult();
       this.releaseEngine();
-      return prebuilt;
+      if (errorMessage.length > 0) {
+        throw new Error(errorMessage);
+      }
+      return result;
     }
     const engine = this.engine;
     if (!engine || sessionId !== this.sessionId) {
       throw new Error('Voice input session is not active');
     }
-    await this.releaseCapturer();
-    try {
-      engine.finish(this.sessionId);
-    } catch (err) {
-      const failErr: Error = this.toError(err);
-      hilog.error(VOICE_DOMAIN, VOICE_TAG, 'voice input finish failed: %{public}s', failErr.message);
-      this.releaseEngine();
-      throw failErr;
-    }
-    const resultJson: string = await new Promise<string>((resolve, reject): void => {
+    const resultPromise: Promise<string> = new Promise<string>((resolve, reject): void => {
       this.finishResolver = resolve;
       this.finishRejecter = reject;
     });
+    await this.releaseCapturer();
+    this.flushPendingAudio();
+    try {
+      engine.finish(sessionId);
+    } catch (err) {
+      const error = this.toError(err);
+      this.finishResolver = null;
+      this.finishRejecter = null;
+      throw error;
+    }
+    const resultJson: string = await resultPromise;
     this.releaseEngine();
     return resultJson;
   }
@@ -198,23 +244,75 @@ export class VoiceInputService {
 
   private buildRecognitionListener(): speechRecognizer.RecognitionListener {
     return {
-      onStart: (_sessionId: string, _eventMessage: string): void => {
+      onStart: (sessionId: string, eventMessage: string): void => {
+        hilog.info(VOICE_DOMAIN, VOICE_TAG,
+          'recognition onStart: session=%{public}s message=%{public}s', sessionId, eventMessage);
+        if (sessionId !== this.sessionId) {
+          return;
+        }
+        this.recognitionReady = true;
+        hilog.info(VOICE_DOMAIN, VOICE_TAG,
+          'recognition ready: session=%{public}s pendingAudioBytes=%{public}d',
+          sessionId, this.pendingAudio.length);
+        this.flushPendingAudio();
+        this.maxDurationTimer = setTimeout(() => {
+          void this.finishAfterLimit();
+        }, this.maxRecordingSeconds * 1000);
       },
-      onEvent: (_sessionId: string, _eventCode: number, _eventMessage: string): void => {
+      onEvent: (sessionId: string, eventCode: number, eventMessage: string): void => {
+        hilog.info(VOICE_DOMAIN, VOICE_TAG,
+          'recognition onEvent: session=%{public}s code=%{public}d message=%{public}s',
+          sessionId, eventCode, eventMessage);
       },
-      onResult: (_sessionId: string, result: speechRecognizer.SpeechRecognitionResult): void => {
+      onResult: (sessionId: string, result: speechRecognizer.SpeechRecognitionResult): void => {
+        if (sessionId !== this.sessionId) {
+          return;
+        }
         const text: string = result.result.trim();
+        hilog.info(VOICE_DOMAIN, VOICE_TAG,
+          'recognition onResult: session=%{public}s isFinal=%{public}d isLast=%{public}d rawText=%{public}s',
+          sessionId, result.isFinal ? 1 : 0, result.isLast ? 1 : 0, text);
         if (text.length > 0) {
-          this.finalText = text;
+          const isFinal: boolean = result.isFinal || result.isLast;
+          if (isFinal) {
+            this.finalText = appendRecognitionSegment(this.finalText, text);
+            this.partialText = '';
+          } else {
+            this.partialText = text;
+          }
+          const displayText: string = appendRecognitionSegment(this.finalText, this.partialText);
+          hilog.info(VOICE_DOMAIN, VOICE_TAG,
+            'recognition merged: session=%{public}s finalText=%{public}s partialText=%{public}s displayText=%{public}s',
+            sessionId, this.finalText, this.partialText, displayText);
+          RustModule.emitSpeechTranscription(
+            this.sessionId,
+            displayText,
+            isFinal
+          );
         }
         if (result.isLast) {
+          hilog.info(VOICE_DOMAIN, VOICE_TAG,
+            'recognition result isLast: session=%{public}s finalText=%{public}s partialText=%{public}s',
+            sessionId, this.finalText, this.partialText);
           this.resolveFinish();
         }
       },
-      onComplete: (_sessionId: string, _eventMessage: string): void => {
+      onComplete: (sessionId: string, eventMessage: string): void => {
+        hilog.info(VOICE_DOMAIN, VOICE_TAG,
+          'recognition onComplete: session=%{public}s message=%{public}s finalText=%{public}s partialText=%{public}s',
+          sessionId, eventMessage, this.finalText, this.partialText);
+        if (sessionId !== this.sessionId) {
+          return;
+        }
         this.resolveFinish();
       },
-      onError: (_sessionId: string, errorCode: number, errorMessage: string): void => {
+      onError: (sessionId: string, errorCode: number, errorMessage: string): void => {
+        hilog.error(VOICE_DOMAIN, VOICE_TAG,
+          'recognition onError: session=%{public}s code=%{public}d message=%{public}s',
+          sessionId, errorCode, errorMessage);
+        if (sessionId !== this.sessionId) {
+          return;
+        }
         const error: Error = new Error(errorMessage.length > 0
           ? errorMessage
           : `Voice input failed (${errorCode})`);
@@ -226,6 +324,8 @@ export class VoiceInputService {
           this.finishResolver = null;
           rejecter(error);
         } else {
+          this.finishedSessionId = sessionId;
+          this.finishedError = error.message;
           this.hasFinishedResult = true;
           this.finishedResult = '';
         }
@@ -238,14 +338,22 @@ export class VoiceInputService {
   private resolveFinish(): void {
     this.listening = false;
     this.reading = false;
+    const resolvedText: string = appendRecognitionSegment(this.finalText, this.partialText);
+    this.finalText = resolvedText;
+    this.partialText = '';
     const result: VoiceTranscriptionResult = {
-      text: this.finalText,
+      text: resolvedText,
       language: this.language,
       durationMs: Date.now() - this.startedAt,
       audioDurationSeconds: this.capturedSeconds
     };
     const resultJson: string = JSON.stringify(result);
+    hilog.info(VOICE_DOMAIN, VOICE_TAG,
+      'recognition finished: session=%{public}s text=%{public}s durationMs=%{public}d audioSeconds=%{public}f',
+      this.sessionId, resolvedText, result.durationMs, result.audioDurationSeconds);
     this.finishedResult = resultJson;
+    this.finishedSessionId = this.sessionId;
+    this.finishedError = '';
     this.hasFinishedResult = true;
     if (this.finishResolver) {
       const resolver = this.finishResolver;
@@ -269,13 +377,8 @@ export class VoiceInputService {
         }
         this.writeAudioBuffer(sessionId, buffer);
       } catch (err) {
-        this.reading = false;
-        if (this.finishRejecter) {
-          const rejecter = this.finishRejecter;
-          this.finishRejecter = null;
-          this.finishResolver = null;
-          rejecter(this.toError(err));
-        }
+        hilog.error(VOICE_DOMAIN, VOICE_TAG,
+          'audio capture failed: session=%{public}s error=%{public}s', sessionId, this.toError(err).message);
         await this.cancelInternal(true);
         break;
       }
@@ -287,16 +390,46 @@ export class VoiceInputService {
     if (!engine || buffer.byteLength === 0) {
       return;
     }
-    const data: Uint8Array = new Uint8Array(buffer);
+    const incoming: Uint8Array = new Uint8Array(buffer);
+    const data: Uint8Array = new Uint8Array(this.pendingAudio.length + incoming.length);
+    data.set(this.pendingAudio, 0);
+    data.set(incoming, this.pendingAudio.length);
     let offset = 0;
-    while (offset + AUDIO_CHUNK_BYTES <= data.length) {
-      engine.writeAudio(sessionId, data.subarray(offset, offset + AUDIO_CHUNK_BYTES));
+    if (this.recognitionReady) {
+      while (offset + AUDIO_CHUNK_BYTES <= data.length) {
+        engine.writeAudio(sessionId, data.subarray(offset, offset + AUDIO_CHUNK_BYTES));
+        offset += AUDIO_CHUNK_BYTES;
+      }
+    }
+    this.pendingAudio = data.slice(offset);
+    if (this.pendingAudio.length > 0 && !this.recognitionReady) {
+      hilog.info(VOICE_DOMAIN, VOICE_TAG,
+        'audio buffered before recognition ready: session=%{public}s bytes=%{public}d',
+        sessionId, this.pendingAudio.length);
+    }
+  }
+
+  private flushPendingAudio(): void {
+    const engine = this.engine;
+    if (!engine || this.pendingAudio.length === 0 || this.sessionId.length === 0) {
+      return;
+    }
+    let offset = 0;
+    while (offset + AUDIO_CHUNK_BYTES <= this.pendingAudio.length) {
+      engine.writeAudio(this.sessionId, this.pendingAudio.subarray(offset, offset + AUDIO_CHUNK_BYTES));
       offset += AUDIO_CHUNK_BYTES;
     }
-    const remaining: number = data.length - offset;
-    if (remaining === HALF_AUDIO_CHUNK_BYTES) {
-      engine.writeAudio(sessionId, data.subarray(offset, offset + HALF_AUDIO_CHUNK_BYTES));
+    if (offset < this.pendingAudio.length) {
+      engine.writeAudio(this.sessionId, this.pendingAudio.subarray(offset));
     }
+    this.pendingAudio = new Uint8Array(0);
+  }
+
+  private clearFinishedResult(): void {
+    this.hasFinishedResult = false;
+    this.finishedResult = '';
+    this.finishedSessionId = '';
+    this.finishedError = '';
   }
 
   private async createCapturer(): Promise<audio.AudioCapturer> {
@@ -322,14 +455,40 @@ export class VoiceInputService {
     };
   }
 
-  private async cancelInternal(notifyError: boolean): Promise<void> {
+  private async finishAfterLimit(): Promise<void> {
+    if (!this.listening || this.sessionId.length === 0) {
+      return;
+    }
+    hilog.info(VOICE_DOMAIN, VOICE_TAG, 'voice input reached maximum duration');
+    try {
+      await this.finish(JSON.stringify({ sessionId: this.sessionId }));
+    } catch (err) {
+      hilog.error(VOICE_DOMAIN, VOICE_TAG, 'voice input max-duration finish failed: %{public}s', this.toError(err).message);
+      await this.cancelInternal(true);
+    }
+  }
+
+  private clearMaxDurationTimer(): void {
+    if (this.maxDurationTimer !== undefined) {
+      clearTimeout(this.maxDurationTimer);
+      this.maxDurationTimer = undefined;
+    }
+  }
+
+  private async cancelInternal(_notifyError: boolean): Promise<void> {
+    this.clearMaxDurationTimer();
     const engine = this.engine;
     const sessionId = this.sessionId;
     this.listening = false;
     this.reading = false;
+    this.recognitionReady = false;
+    this.pendingAudio = new Uint8Array(0);
     const rejecter = this.finishRejecter;
     this.finishResolver = null;
     this.finishRejecter = null;
+    if (rejecter) {
+      rejecter(new Error('Voice input cancelled'));
+    }
     await this.releaseCapturer();
     if (engine && sessionId.length > 0) {
       try {
@@ -338,12 +497,10 @@ export class VoiceInputService {
       }
     }
     this.releaseEngine();
-    if (notifyError && rejecter) {
-      rejecter(new Error('Voice input cancelled'));
-    }
   }
 
   private async releaseCapturer(): Promise<void> {
+    this.clearMaxDurationTimer();
     const capturer = this.capturer;
     this.capturer = undefined;
     if (!capturer) {
@@ -363,6 +520,8 @@ export class VoiceInputService {
     const engine = this.engine;
     this.engine = undefined;
     this.sessionId = '';
+    this.recognitionReady = false;
+    this.pendingAudio = new Uint8Array(0);
     if (!engine) {
       return;
     }
@@ -431,9 +590,34 @@ export class VoiceInputService {
  */
 export async function ensureMicrophonePermission(context: Context): Promise<void> {
   const atManager = abilityAccessCtrl.createAtManager();
-  const result = await atManager.requestPermissionsFromUser(context, [MICROPHONE_PERMISSION]);
-  if (result.authResults.length === 0 ||
-    result.authResults[0] !== abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
-    throw new Error('Microphone permission denied');
+  const tokenId = context.applicationInfo.accessTokenId;
+  let currentStatus: abilityAccessCtrl.GrantStatus | undefined;
+  try {
+    currentStatus = await atManager.checkAccessToken(tokenId, MICROPHONE_PERMISSION);
+  } catch (err) {
+    // A failed status lookup must not prevent the user-facing permission request.
+    hilog.warn(VOICE_DOMAIN, VOICE_TAG, 'microphone permission check failed: %{public}s', `${err}`);
   }
+  if (currentStatus === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
+    return;
+  }
+  try {
+    const result = await atManager.requestPermissionsFromUser(context, [MICROPHONE_PERMISSION]);
+    if (result.authResults.length > 0 &&
+      result.authResults[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
+      return;
+    }
+  } catch (err) {
+    hilog.warn(VOICE_DOMAIN, VOICE_TAG, 'microphone permission prompt failed: %{public}s', `${err}`);
+  }
+  try {
+    const settingResult = await atManager.requestPermissionOnSetting(context, [MICROPHONE_PERMISSION]);
+    if (settingResult.length > 0 &&
+      settingResult[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
+      return;
+    }
+  } catch (err) {
+    hilog.warn(VOICE_DOMAIN, VOICE_TAG, 'microphone permission settings failed: %{public}s', `${err}`);
+  }
+  throw new Error('Microphone permission denied');
 }

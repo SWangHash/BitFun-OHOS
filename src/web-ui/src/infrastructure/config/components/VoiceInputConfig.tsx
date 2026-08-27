@@ -137,7 +137,7 @@ function clampRecordingSeconds(value: number): number {
   if (!Number.isFinite(value)) {
     return DEFAULT_MAX_RECORDING_SECONDS;
   }
-  return Math.min(300, Math.max(5, Math.round(value)));
+  return Math.min(8 * 60 * 60, Math.max(5, Math.round(value)));
 }
 
 function statusBadgeVariant(state: SpeechModelInstallState): BadgeVariant {
@@ -620,7 +620,7 @@ const VoiceInputConfig: React.FC = () => {
               className="voice-input-config__number-input"
               type="number"
               min={5}
-              max={300}
+              max={8 * 60 * 60}
               step={5}
               value={voiceInput.max_recording_seconds}
               onChange={(event) => {
