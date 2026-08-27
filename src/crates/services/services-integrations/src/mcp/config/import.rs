@@ -8,6 +8,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 const USER_CONFIG_KEY: &str = "mcp_servers";
+const PROJECT_CONFIG_KEY: &str = "project.mcp_servers";
 const IMPORT_METADATA_KEY: &str = "_bitfunImport";
 const MAX_IMPORT_SERVERS: usize = 256;
 const MAX_IMPORT_ID_BYTES: usize = 512;
@@ -116,13 +117,18 @@ impl MCPConfigService {
     pub async fn user_json_config_snapshot(
         &self,
     ) -> Result<MCPUserJsonConfigSnapshot, MCPImportError> {
-        let current = self.config_store.get_config_value(USER_CONFIG_KEY).await?;
-        let json_config =
-            super::format_mcp_json_config_value(current.as_ref()).map_err(|error| {
-                MCPImportError::Store(MCPRuntimeError::configuration(error.to_string()))
-            })?;
+        let user_value = self.config_store.get_config_value(USER_CONFIG_KEY).await?;
+        let project_value = self.config_store.get_config_value(PROJECT_CONFIG_KEY).await?;
+
+        let merged = merge_user_and_project_servers(user_value.as_ref(), project_value.as_ref());
+        let json_config = super::format_mcp_json_config_value(Some(&merged)).map_err(|error| {
+            MCPImportError::Store(MCPRuntimeError::configuration(error.to_string()))
+        })?;
+
+        let fingerprint = combined_fingerprint(&user_value, &project_value);
+
         Ok(MCPUserJsonConfigSnapshot {
-            fingerprint: config_fingerprint(&current),
+            fingerprint,
             json_config,
         })
     }
@@ -133,18 +139,39 @@ impl MCPConfigService {
         replacement: Value,
     ) -> Result<(), MCPImportError> {
         validate_id(expected_fingerprint, "fingerprint")?;
-        let current = self.config_store.get_config_value(USER_CONFIG_KEY).await?;
-        if config_fingerprint(&current) != expected_fingerprint {
-            return Err(MCPImportError::StaleConfiguration);
+
+        // Split the replacement by location: servers with location="project"
+        // go to project.mcp_servers; everything else stays in mcp_servers.
+        let (user_value, project_value) = split_by_location(&replacement);
+
+        for _ in 0..USER_MUTATION_ATTEMPTS {
+            let current_user = self.config_store.get_config_value(USER_CONFIG_KEY).await?;
+            let current_project = self.config_store.get_config_value(PROJECT_CONFIG_KEY).await?;
+            let current_fingerprint = combined_fingerprint(&current_user, &current_project);
+            if current_fingerprint != expected_fingerprint {
+                return Err(MCPImportError::StaleConfiguration);
+            }
+            if self
+                .config_store
+                .compare_and_set_config_value(USER_CONFIG_KEY, current_user, user_value.clone())
+                .await?
+            {
+                // Only write project store when there are project servers.
+                // Never clear it based on absence — duplicate JSON keys or
+                // partial views could otherwise silently delete project data.
+                // Stale project servers are surfaced in the merged JSON editor
+                // view and can be removed explicitly by the user.
+                if !project_value.is_null() {
+                    self.config_store
+                        .set_config_value(PROJECT_CONFIG_KEY, project_value.clone())
+                        .await?;
+                }
+                return Ok(());
+            }
+            // CAS failed due to a concurrent write between our read and CAS;
+            // re-read and retry up to USER_MUTATION_ATTEMPTS times.
         }
-        if !self
-            .config_store
-            .compare_and_set_config_value(USER_CONFIG_KEY, current, replacement)
-            .await?
-        {
-            return Err(MCPImportError::StaleConfiguration);
-        }
-        Ok(())
+        Err(MCPImportError::StaleConfiguration)
     }
 
     pub async fn user_import_snapshot(&self) -> Result<MCPUserImportSnapshot, MCPImportError> {
@@ -234,6 +261,32 @@ impl MCPConfigService {
         }
         Err(MCPRuntimeError::configuration(
             "User MCP configuration changed repeatedly during update",
+        ))
+    }
+
+    pub(super) async fn mutate_project_config(
+        &self,
+        mut mutate: impl FnMut(&mut Map<String, Value>) -> MCPRuntimeResult<()>,
+    ) -> MCPRuntimeResult<()> {
+        for _ in 0..USER_MUTATION_ATTEMPTS {
+            let current = self.config_store.get_config_value(PROJECT_CONFIG_KEY).await?;
+            let mut replacement = cursor_root(&current)
+                .map_err(|error| MCPRuntimeError::configuration(error.to_string()))?;
+            let servers = replacement
+                .get_mut("mcpServers")
+                .and_then(Value::as_object_mut)
+                .expect("cursor_root always creates an MCP object");
+            mutate(servers)?;
+            if self
+                .config_store
+                .compare_and_set_config_value(PROJECT_CONFIG_KEY, current, replacement)
+                .await?
+            {
+                return Ok(());
+            }
+        }
+        Err(MCPRuntimeError::configuration(
+            "Project MCP configuration changed repeatedly during update",
         ))
     }
 }
@@ -362,4 +415,92 @@ fn import_summary(native_id: &str, value: &Value) -> Option<MCPImportedServerSum
 fn config_fingerprint(value: &Option<Value>) -> String {
     let bytes = serde_json::to_vec(value).expect("JSON value serialization cannot fail");
     format!("sha256:{}", hex::encode(Sha256::digest(bytes)))
+}
+
+/// Splits a Cursor-format config `{ "mcpServers": { ... } }` by `location`:
+/// servers with `location: "project"` go to the project value, everything else
+/// stays in the user value. Both returned values are Cursor-format.
+fn split_by_location(replacement: &Value) -> (Value, Value) {
+    let empty = || serde_json::json!({ "mcpServers": {} });
+    let servers = match replacement.get("mcpServers").and_then(|v| v.as_object()) {
+        Some(s) => s,
+        None => return (replacement.clone(), Value::Null),
+    };
+
+    let mut user_servers = serde_json::Map::new();
+    let mut project_servers = serde_json::Map::new();
+
+    for (id, server) in servers {
+        let is_project = server
+            .get("location")
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| s == "project");
+
+        let mut server = server.clone();
+        // Strip the location field — it is set automatically on load.
+        if let Some(obj) = server.as_object_mut() {
+            obj.remove("location");
+        }
+
+        if is_project {
+            project_servers.insert(id.clone(), server);
+        } else {
+            user_servers.insert(id.clone(), server);
+        }
+    }
+
+    let user_value = if user_servers.is_empty() {
+        empty()
+    } else {
+        serde_json::json!({ "mcpServers": user_servers })
+    };
+    let project_value = if project_servers.is_empty() {
+        Value::Null
+    } else {
+        serde_json::json!({ "mcpServers": project_servers })
+    };
+
+    (user_value, project_value)
+}
+
+/// Merges servers from the user store and project store into a single
+/// Cursor-format JSON value. Each server gets a `location` field indicating
+/// its source (`"user"` or `"project"`).
+fn merge_user_and_project_servers(
+    user_value: Option<&Value>,
+    project_value: Option<&Value>,
+) -> Value {
+    let mut merged = serde_json::Map::new();
+
+    if let Some(servers) = user_value.and_then(|v| v.get("mcpServers")).and_then(|v| v.as_object()) {
+        for (id, server) in servers {
+            let mut server = server.clone();
+            if let Some(obj) = server.as_object_mut() {
+                obj.insert("location".to_string(), Value::String("user".to_string()));
+            }
+            merged.insert(id.clone(), server);
+        }
+    }
+
+    if let Some(servers) = project_value.and_then(|v| v.get("mcpServers")).and_then(|v| v.as_object()) {
+        for (id, server) in servers {
+            let mut server = server.clone();
+            if let Some(obj) = server.as_object_mut() {
+                obj.insert("location".to_string(), Value::String("project".to_string()));
+            }
+            merged.insert(id.clone(), server);
+        }
+    }
+
+    serde_json::json!({ "mcpServers": merged })
+}
+
+/// Computes a fingerprint covering both the user and project config stores.
+fn combined_fingerprint(user: &Option<Value>, project: &Option<Value>) -> String {
+    let user_bytes = serde_json::to_vec(user).expect("JSON serialization cannot fail");
+    let project_bytes = serde_json::to_vec(project).expect("JSON serialization cannot fail");
+    let mut hasher = Sha256::new();
+    hasher.update(&user_bytes);
+    hasher.update(&project_bytes);
+    format!("sha256:{}", hex::encode(hasher.finalize()))
 }

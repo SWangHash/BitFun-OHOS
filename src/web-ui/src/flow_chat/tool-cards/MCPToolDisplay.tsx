@@ -14,7 +14,9 @@ import { MCPAPI, MCP_APPS_PROTOCOL_VERSION, type McpUiResourceCsp, type McpUiRes
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { isMcpToolName } from '@/infrastructure/mcp/toolName';
+import { DEFERRED_TOOL_GATEWAY_NAME } from '../utils/toolInvocationIdentity';
 import { getCachedToolInfo } from '@/infrastructure/mcp/toolInfoCache';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime/environment';
 import { APPEARANCE_DOMAIN_TOKENS } from '@/infrastructure/appearance/appearanceDomainTokens';
 import type { ToolInfo } from '@/shared/types/agent-api';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
@@ -58,6 +60,17 @@ interface MCPToolResult {
   content?: MCPToolResultContent[];
   is_error?: boolean;
 }
+
+/** Decode a base64 string into UTF-8 text (atob + UTF-8 decode). */
+const decodeBase64 = (b64: string): string => {
+  try {
+    const binary = atob(b64);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch {
+    return '';
+  }
+};
 
 /** Clean and escape domains for CSP injection (prevent HTML injection). */
 const cleanDomains = (domains: string[] | undefined): string => {
@@ -179,7 +192,7 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
   useEffect(() => {
     let cancelled = false;
 
-    if (!isMcpToolName(config.toolName)) {
+    if (!isMcpToolName(config.toolName) && config.toolName !== DEFERRED_TOOL_GATEWAY_NAME) {
       setResolvedToolInfo(null);
       return;
     }
@@ -516,14 +529,18 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
       .then((res) => {
         if (cancelled) return;
         const htmlContent = res.contents.find((c) => c.uri === uiResourceUri) ?? res.contents[0];
-        const rawHtml = htmlContent?.content ?? '';
+        // Read content from text field, fallback to base64-decoded blob
+        const textContent = htmlContent?.content ?? '';
+        const blobContent = (htmlContent as unknown as { blob?: string })?.blob ?? '';
+        const rawHtml = textContent || (blobContent ? decodeBase64(blobContent) : '');
         // Extract CSP and permissions from response if available
         const meta: McpUiResourceMeta = {
           csp: (htmlContent as unknown as { csp?: McpUiResourceCsp })?.csp,
           permissions: (htmlContent as unknown as { permissions?: McpUiResourcePermissions })?.permissions,
         };
-        // Inject CSP preamble into HTML
-        const html = injectPreamble(rawHtml, meta.csp);
+        // Inject CSP preamble into HTML (skip on OpenHarmony where ArkWeb
+        // may interpret default-src 'none' too restrictively for srcDoc)
+        const html = isOpenHarmonyRuntime() ? rawHtml : injectPreamble(rawHtml, meta.csp);
         // Update latest CSP ref for hostCapabilities
         latestCspRef.current = meta.csp;
         setMcpAppState((s) => s ? { ...s, html, rawHtml, meta, loading: false, error: html ? null : 'No content' } : null);
@@ -694,7 +711,9 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
                 className="mcp-app-iframe"
                 data-bf-component="mcp-tool-display"
                 data-bf-part="iframe"
-                sandbox="allow-scripts allow-forms"
+                sandbox={isOpenHarmonyRuntime()
+                  ? 'allow-scripts allow-forms allow-same-origin'
+                  : 'allow-scripts allow-forms'}
                 title="MCP App"
                 srcDoc={mcpAppState.html}
                 style={mcpAppHeight !== undefined ? { minHeight: mcpAppHeight } : undefined}
