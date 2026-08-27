@@ -37,6 +37,7 @@ pub const MAIN_WINDOW_CLOSE_REQUESTED_EVENT: &str = "bitfun_main_window_close_re
 /// `apps/desktop/src/lib.rs` (kept duplicated to avoid a cross-crate visibility
 /// tweak for one string).
 pub const BROWSER_WEBVIEW_PAGE_LOAD_EVENT: &str = "browser-webview-page-load";
+pub const SPEECH_TRANSCRIPTION_EVENT: &str = "speech://transcription";
 
 /// Dedicated single-threaded tokio runtime for `notify_system_color_mode`. The
 /// `#[napi]` callback runs on a HarmonyOS thread that has no tokio runtime in
@@ -146,6 +147,26 @@ pub fn emit_browser_page_load(label: String, event: String, url: String) {
         .await
         {
             log::warn!("Failed to emit browser page load event: {error}");
+        }
+    });
+}
+
+/// Forwards native HarmonyOS speech recognition results to the web UI.
+#[napi]
+pub fn emit_speech_transcription(session_id: String, text: String, is_final: bool) {
+    browser_page_load_runtime().block_on(async move {
+        let payload = serde_json::json!({
+            "sessionId": session_id,
+            "text": text,
+            "isFinal": is_final,
+        });
+        if let Err(error) = emit_global_event(BackendEvent::Custom {
+            event_name: SPEECH_TRANSCRIPTION_EVENT.to_string(),
+            payload,
+        })
+        .await
+        {
+            log::warn!("Failed to emit speech transcription event: {error}");
         }
     });
 }

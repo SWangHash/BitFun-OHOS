@@ -74,7 +74,7 @@ const defaultSettings: AIExperienceSettings = {
     provider: 'local',
     model_id: 'sensevoice-small-int8',
     default_language: 'auto',
-    max_recording_seconds: 60,
+    max_recording_seconds: 8 * 60 * 60,
     microphone_device_id: '',
   },
   quick_actions: DEFAULT_QUICK_ACTIONS,
@@ -89,6 +89,9 @@ function normalizeSettings(settings: AIExperienceSettings | null | undefined): A
       ...settings?.voice_input,
     },
   };
+  if (merged.voice_input.max_recording_seconds === 60) {
+    merged.voice_input.max_recording_seconds = defaultSettings.voice_input.max_recording_seconds;
+  }
   // Legacy configs used null to mean the built-in SVG panda. Panda is now the default preset.
   if (!merged.agent_companion_pet) {
     merged.agent_companion_pet = DEFAULT_AGENT_COMPANION_PET;

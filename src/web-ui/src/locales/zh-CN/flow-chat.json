@@ -565,6 +565,7 @@
     "voiceInput": {
       "start": "开始语音输入",
       "stop": "停止录音",
+      "recording": "正在录音，点击麦克风可停止录制",
       "preparing": "正在准备麦克风",
       "transcribing": "正在转写",
       "disabled": "语音输入已关闭",
