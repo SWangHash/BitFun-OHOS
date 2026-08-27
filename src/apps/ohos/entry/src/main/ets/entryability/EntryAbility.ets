@@ -587,6 +587,10 @@ export default class EntryAbility extends RustAbility {
       const req: LabelRequest = JSON.parse(arg);
       return await browserService.setFocus(req);
     });
+    RustModule.registerArktsFunction('browser_webview_get_url_ohos', async (err: Error, arg: string): Promise<string> => {
+      const req: LabelRequest = JSON.parse(arg);
+      return await browserService.getUrl(req);
+    });
     setTimeout(() => {
       windowStage.getMainWindow((err, data) => {
         data.setWindowDecorHeight(38);

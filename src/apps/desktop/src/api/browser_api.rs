@@ -15,7 +15,7 @@
 //! `emit_browser_page_load` `#[napi]` function (mirrors the desktop
 //! `.on_page_load` handler in `lib.rs`).
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
 const VIDEO_DECODER_MODE_ENV: &str = "BITFUN_BROWSER_VIDEO_DECODER_MODE";
@@ -70,34 +70,29 @@ if (isWebView2 && !isBitFunDocument) {{
     script
 }
 
+// Desktop-only: resolves a Tauri child webview by label. On OHOS every command
+// routes through the ArkTS bridge below instead, so this has no callers there.
+#[cfg(not(target_env = "ohos"))]
 fn find_browser_webview(app: &tauri::AppHandle, label: &str) -> Result<tauri::Webview, String> {
-    #[cfg(not(target_env = "ohos"))]
-    {
-        app.get_webview(label)
-            .ok_or_else(|| format!("Webview not found: {label}"))
-    }
-    #[cfg(target_env = "ohos")]
-    {
-        let _ = app;
-        Err("Unable to find browser webview".to_owned())
-    }
+    app.get_webview(label)
+        .ok_or_else(|| format!("Webview not found: {label}"))
 }
 
-#[derive(Debug, Serialize,Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebviewEvalRequest {
     pub label: String,
     pub script: String,
 }
 
-#[derive(Debug, Serialize,Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebviewNavigateRequest {
     pub label: String,
     pub url: String,
 }
 
-#[derive(Debug, Serialize,Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebviewBoundsRequest {
     pub label: String,
@@ -107,7 +102,7 @@ pub struct WebviewBoundsRequest {
     pub height: f64,
 }
 
-#[derive(Debug, Serialize,Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebviewCreateRequest {
     pub label: String,
@@ -185,6 +180,24 @@ fn decode_ok_envelope(response: &str) -> Result<(), String> {
     }
 }
 
+/// Decode the JSON envelope returned by `BrowserWebviewService` methods that
+/// carry a string payload:
+/// - `{ok:true,result:"..."}` → `Ok(result)`
+/// - `{error:"..."}` → `Err(error)`
+/// Anything else surfaces as an unexpected-response error.
+#[cfg(target_env = "ohos")]
+fn decode_result_envelope(response: &str) -> Result<String, String> {
+    let value: serde_json::Value = serde_json::from_str(response)
+        .map_err(|e| format!("invalid json response from ArkTS: {e}: {response}"))?;
+    if let Some(result) = value.get("result").and_then(|v| v.as_str()) {
+        return Ok(result.to_owned());
+    }
+    if let Some(error) = value.get("error").and_then(|v| v.as_str()) {
+        return Err(error.to_owned());
+    }
+    Err(format!("unexpected response from ArkTS: {response}"))
+}
+
 /// Shared URL-scheme validation for create / navigate. Returns the parsed
 /// `tauri::Url` so the caller can re-use it on desktop or discard it on OHOS.
 fn parse_browser_url(raw: &str) -> Result<tauri::Url, String> {
@@ -217,8 +230,10 @@ pub async fn browser_webview_create(
             // Embed HTML content as a data URL so the desktop webview can load
             // it without needing file:// access.
             use base64::Engine;
-            let b64 = base64::engine::general_purpose::STANDARD.encode(request.html.as_ref().unwrap().as_bytes());
-            format!("data:text/html;base64,{b64}").parse::<tauri::Url>()
+            let b64 = base64::engine::general_purpose::STANDARD
+                .encode(request.html.as_ref().unwrap().as_bytes());
+            format!("data:text/html;base64,{b64}")
+                .parse::<tauri::Url>()
                 .map_err(|e| format!("invalid data url: {e}"))?
         } else {
             parse_browser_url(&request.url)?
@@ -287,7 +302,6 @@ pub async fn browser_webview_eval(
         let response = ohos_browser_call("browser_webview_eval_ohos", &json).await?;
         decode_ok_envelope(&response)
     }
-
 }
 
 #[tauri::command]
@@ -299,7 +313,9 @@ pub async fn browser_webview_navigate(
 
     #[cfg(not(target_env = "ohos"))]
     {
-        let url = request.url.parse::<tauri::Url>()
+        let url = request
+            .url
+            .parse::<tauri::Url>()
             .map_err(|e| format!("invalid url: {e}"))?;
         find_browser_webview(&app, &request.label)?
             .navigate(url)
@@ -317,7 +333,7 @@ pub async fn browser_webview_navigate(
     }
 }
 
-#[derive(Debug, Serialize,Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebviewLabelRequest {
     pub label: String,
@@ -361,7 +377,9 @@ pub async fn browser_webview_set_bounds(
 
         webview
             .set_bounds(tauri::Rect {
-                position: tauri::Position::Logical(tauri::LogicalPosition::new(request.x, request.y)),
+                position: tauri::Position::Logical(tauri::LogicalPosition::new(
+                    request.x, request.y,
+                )),
                 size: tauri::Size::Logical(tauri::LogicalSize::new(request.width, request.height)),
             })
             .map_err(|e| format!("set bounds failed: {e}"))
@@ -377,7 +395,6 @@ pub async fn browser_webview_set_bounds(
         let response = ohos_browser_call("browser_webview_set_bounds_ohos", &json).await?;
         decode_ok_envelope(&response)
     }
-
 }
 
 // Handle operations that the frontend drives via the command-based
@@ -480,20 +497,36 @@ pub async fn browser_webview_set_focus(
 
 /// Return the current URL of a browser webview.
 ///
-/// Uses `catch_unwind` to guard against a known wry bug where
+/// On desktop the URL is read from the Tauri child webview, wrapped in
+/// `catch_unwind` to guard against a known wry bug where
 /// `WKWebView::URL()` returns nil (e.g. after navigating to an invalid
 /// address), causing an `unwrap()` panic inside `url_from_webview`.
+/// On OHOS the URL comes from the ArkTS `BrowserWebviewService` entry
+/// (`JsHelper.getUrl()`), mirroring the other `browser_webview_*` commands.
 #[tauri::command]
 pub async fn browser_get_url(
     app: tauri::AppHandle,
     request: WebviewLabelRequest,
 ) -> Result<String, String> {
-    let webview = find_browser_webview(&app, &request.label)?;
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| webview.url()));
+    #[cfg(not(target_env = "ohos"))]
+    {
+        let webview = find_browser_webview(&app, &request.label)?;
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| webview.url()));
 
-    match result {
-        Ok(Ok(url)) => Ok(url.to_string()),
-        Ok(Err(e)) => Err(format!("url failed: {e}")),
-        Err(_) => Err("url unavailable (webview URL is nil)".to_string()),
+        match result {
+            Ok(Ok(url)) => Ok(url.to_string()),
+            Ok(Err(e)) => Err(format!("url failed: {e}")),
+            Err(_) => Err("url unavailable (webview URL is nil)".to_string()),
+        }
+    }
+
+    #[cfg(target_env = "ohos")]
+    {
+        let _ = app;
+        validate_browser_label(&request.label)?;
+        let json = serde_json::to_string(&request)
+            .map_err(|e| format!("failed to encode request: {e}"))?;
+        let response = ohos_browser_call("browser_webview_get_url_ohos", &json).await?;
+        decode_result_envelope(&response)
     }
 }
