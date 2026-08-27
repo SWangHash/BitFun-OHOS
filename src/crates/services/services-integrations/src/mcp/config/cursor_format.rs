@@ -90,6 +90,30 @@ pub fn config_to_cursor_format(config: &MCPServerConfig) -> serde_json::Value {
         cursor_config.insert("url".to_string(), serde_json::json!(url));
     }
 
+    if let Some(working_directory) = &config.working_directory {
+        cursor_config.insert(
+            "workingDirectory".to_string(),
+            serde_json::json!(working_directory),
+        );
+    }
+
+    if !config.capabilities.is_empty() {
+        cursor_config.insert("capabilities".to_string(), serde_json::json!(config.capabilities));
+    }
+
+    if !config.settings.is_empty() {
+        cursor_config.insert("settings".to_string(), serde_json::json!(config.settings));
+    }
+
+    if let Some(oauth_enabled) = config.oauth_enabled {
+        cursor_config.insert(
+            "oauthEnabled".to_string(),
+            serde_json::json!(oauth_enabled),
+        );
+    }
+
+    cursor_config.insert("location".to_string(), serde_json::json!(config.location));
+
     if let Some(oauth) = &config.oauth {
         cursor_config.insert("oauth".to_string(), serde_json::json!(oauth));
     }
@@ -101,7 +125,10 @@ pub fn config_to_cursor_format(config: &MCPServerConfig) -> serde_json::Value {
     serde_json::Value::Object(cursor_config)
 }
 
-pub fn parse_cursor_format(config: &serde_json::Value) -> Vec<MCPServerConfig> {
+pub fn parse_cursor_format(
+    config: &serde_json::Value,
+    default_location: ConfigLocation,
+) -> Vec<MCPServerConfig> {
     let mut servers = Vec::new();
 
     if let Some(mcp_servers) = config.get("mcpServers").and_then(|v| v.as_object()) {
@@ -231,25 +258,52 @@ pub fn parse_cursor_format(config: &serde_json::Value) -> Vec<MCPServerConfig> {
                     command,
                     args,
                     env,
-                    working_directory: None,
+                    working_directory: obj
+                        .get("workingDirectory")
+                        .or_else(|| obj.get("working_directory"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
                     inherit_parent_environment,
                     headers,
                     url,
                     auto_start,
                     enabled,
-                    location: ConfigLocation::User,
-                    capabilities: Vec::new(),
-                    settings: Default::default(),
+                    location: obj
+                        .get("location")
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| serde_json::from_str::<ConfigLocation>(s).ok())
+                        .unwrap_or(default_location),
+                    capabilities: obj
+                        .get("capabilities")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default(),
+                    settings: obj
+                        .get("settings")
+                        .and_then(|v| v.as_object())
+                        .map(|m| m.clone().into_iter().collect::<std::collections::HashMap<_, _>>())
+                        .unwrap_or_default(),
                     oauth: obj
                         .get("oauth")
                         .cloned()
                         .and_then(|value| serde_json::from_value(value).ok()),
-                    oauth_enabled: None,
+                    oauth_enabled: obj
+                        .get("oauthEnabled")
+                        .or_else(|| obj.get("oauth_enabled"))
+                        .and_then(|v| v.as_bool()),
                     xaa: obj
                         .get("xaa")
                         .cloned()
                         .and_then(|value| serde_json::from_value(value).ok()),
-                    timeouts: Default::default(),
+                    timeouts: obj
+                        .get("timeouts")
+                        .cloned()
+                        .and_then(|value| serde_json::from_value(value).ok())
+                        .unwrap_or_default(),
                 };
 
                 servers.push(server_config);

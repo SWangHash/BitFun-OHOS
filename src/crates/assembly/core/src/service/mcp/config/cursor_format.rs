@@ -1,4 +1,5 @@
 use crate::service::mcp::server::MCPServerConfig;
+use crate::service::mcp::ConfigLocation;
 use crate::util::errors::BitFunResult;
 
 pub(super) fn config_to_cursor_format(config: &MCPServerConfig) -> serde_json::Value {
@@ -7,6 +8,10 @@ pub(super) fn config_to_cursor_format(config: &MCPServerConfig) -> serde_json::V
 
 pub(super) fn parse_cursor_format(
     config: &serde_json::Value,
+    default_location: ConfigLocation,
 ) -> BitFunResult<Vec<MCPServerConfig>> {
-    Ok(bitfun_services_integrations::mcp::config::parse_cursor_format(config))
+    Ok(bitfun_services_integrations::mcp::config::parse_cursor_format(
+        config,
+        default_location,
+    ))
 }

@@ -77,49 +77,6 @@ impl MCPServerProcess {
         Ok(())
     }
 
-    pub async fn restart(
-        &mut self,
-        command: &str,
-        args: &[String],
-        env: &std::collections::HashMap<String, String>,
-    ) -> BitFunResult<()> {
-        self.inner.restart(command, args, env).await?;
-        Ok(())
-    }
-
-    pub async fn restart_in_directory(
-        &mut self,
-        command: &str,
-        args: &[String],
-        env: &std::collections::HashMap<String, String>,
-        working_directory: Option<&std::path::Path>,
-    ) -> BitFunResult<()> {
-        self.inner
-            .restart_in_directory(command, args, env, working_directory)
-            .await?;
-        Ok(())
-    }
-
-    pub async fn restart_with_environment_policy(
-        &mut self,
-        command: &str,
-        args: &[String],
-        env: &std::collections::HashMap<String, String>,
-        working_directory: Option<&std::path::Path>,
-        inherit_parent_environment: bool,
-    ) -> BitFunResult<()> {
-        self.inner
-            .restart_with_environment_policy(
-                command,
-                args,
-                env,
-                working_directory,
-                inherit_parent_environment,
-            )
-            .await?;
-        Ok(())
-    }
-
     pub async fn status(&self) -> MCPServerStatus {
         self.inner.status().await
     }

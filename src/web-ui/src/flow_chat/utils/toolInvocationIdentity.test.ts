@@ -72,6 +72,31 @@ describe('toolInvocationIdentity', () => {
     });
   });
 
+  it('resolves deferred MCP tools when args is missing or null', () => {
+    const inputNoArgs = { tool_name: 'mcp__test__echo' };
+    expect(effectiveToolInvocation('CallDeferredTool', inputNoArgs)).toEqual({
+      toolName: 'mcp__test__echo',
+      input: {},
+      isDeferred: true,
+    });
+
+    const inputNullArgs = { tool_name: 'mcp__test__echo', args: null };
+    expect(effectiveToolInvocation('CallDeferredTool', inputNullArgs)).toEqual({
+      toolName: 'mcp__test__echo',
+      input: {},
+      isDeferred: true,
+    });
+  });
+
+  it('falls back when args is an array', () => {
+    const input = { tool_name: 'mcp__test__echo', args: [1, 2] };
+    expect(effectiveToolInvocation('CallDeferredTool', input)).toEqual({
+      toolName: 'CallDeferredTool',
+      input,
+      isDeferred: false,
+    });
+  });
+
   it('projects an effective card view while retaining the canonical item', () => {
     const item = {
       id: 'tool-1',
