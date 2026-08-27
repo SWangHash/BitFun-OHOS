@@ -352,7 +352,7 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
       && !(progress && progress.total > 0);
 
     return (
-      <div key={model.name} className="local-model-manager__model-row">
+      <div key={model.name} className="local-model-manager__model-row" data-bf-component="local-model-manager" data-bf-part="modelRow">
         <div className="local-model-manager__model-row-top">
           <div className="local-model-manager__model-info">
             <StatusIcon status={effectiveStatus} />
@@ -406,7 +406,7 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
           )}
 
           {effectiveStatus === 'downloaded' && (
-            <span className="local-model-manager__ready-badge">
+            <span className="local-model-manager__ready-badge" data-bf-component="local-model-manager" data-bf-part="readyBadge">
               <CheckCircle size={14} />
               {t('status.ready')}
             </span>
@@ -428,7 +428,7 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
 
         {/* Full-width progress bar below the info/actions row */}
         {hasProgress && (
-          <div className="local-model-manager__progress">
+          <div className="local-model-manager__progress" data-bf-component="local-model-manager" data-bf-part="progress">
             <div className="local-model-manager__progress-bar">
               <div
                 className={
@@ -455,8 +455,8 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
   const isBusy = detecting || loadingModels;
 
   return (
-    <div className="local-model-manager">
-      <div className="local-model-manager__header">
+    <div className="local-model-manager" data-bf-component="local-model-manager" data-bf-part="root">
+      <div className="local-model-manager__header" data-bf-component="local-model-manager" data-bf-part="header">
         <span className="local-model-manager__header-title">{t('section.title')}</span>
         <IconButton
           variant="ghost"
@@ -477,7 +477,7 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
       )}
 
       {isAvailable && serviceStatus && (
-        <div className="local-model-manager__service-info">
+        <div className="local-model-manager__service-info" data-bf-component="local-model-manager" data-bf-part="serviceInfo">
           <span className="local-model-manager__service-name">
             {serviceStatus.serviceName || 'Ollama'}
           </span>
@@ -498,21 +498,21 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
 
       {/* Model list */}
       {isAvailable && models.length > 0 && (
-        <div className="local-model-manager__model-list">
+        <div className="local-model-manager__model-list" data-bf-component="local-model-manager" data-bf-part="modelList">
           {models.map(renderModelRow)}
         </div>
       )}
 
       {/* Empty state */}
       {isAvailable && models.length === 0 && !loadingModels && (
-        <div className="local-model-manager__empty">
+        <div className="local-model-manager__empty" data-bf-component="local-model-manager" data-bf-part="empty">
           {t('empty.description')}
         </div>
       )}
 
       {/* Loading state */}
       {loadingModels && (
-        <div className="local-model-manager__loading">
+        <div className="local-model-manager__loading" data-bf-component="local-model-manager" data-bf-part="loading">
           {t('loading')}
         </div>
       )}
