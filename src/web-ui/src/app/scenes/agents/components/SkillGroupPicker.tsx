@@ -307,7 +307,7 @@ export const SkillGroupManagerModal: React.FC<SkillGroupManagerModalProps> = ({
                 inputSize="small"
                 error={nameError}
                 errorMessage={nameError ? t('agentsOverview.skillGroupPicker.validation.nameRequired') : undefined}
-                hint={!nameError ? `${name.length}/${GROUP_NAME_MAX_LENGTH}` : undefined}
+                suffix={!nameError ? `${name.length}/${GROUP_NAME_MAX_LENGTH}` : undefined}
                 maxLength={GROUP_NAME_MAX_LENGTH}
                 disabled={saving}
               />
