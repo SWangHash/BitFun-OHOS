@@ -254,6 +254,10 @@
     "tokendance": {
       "name": "詞元跳動",
       "description": "統一的大模型 API 閘道"
+    },
+    "ollama": {
+      "name": "本地AI模型",
+      "description": "透過 Ollama 在本地運行的 AI 模型"
     }
   },
   "tabs": {

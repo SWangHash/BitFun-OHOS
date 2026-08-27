@@ -254,6 +254,10 @@
     "tokendance": {
       "name": "TokenDance",
       "description": "Unified AI model gateway"
+    },
+    "ollama": {
+      "name": "Local AI Models",
+      "description": "Locally running AI models via Ollama"
     }
   },
   "tabs": {
