@@ -29,26 +29,25 @@ export function effectiveToolInvocation(
     return { toolName: wireToolName, input: wireInput, isDeferred: false };
   }
 
-  const hasArgs = Object.prototype.hasOwnProperty.call(input, 'args');
-  if (
-    hasArgs
-    && (
-      input.args === null
-      || typeof input.args !== 'object'
-      || Array.isArray(input.args)
-    )
-  ) {
+  // Allow args to be missing, null, or undefined; use empty object in those
+  // cases. The tool name is the critical piece for component routing.
+  const effectiveArgs = (!Object.prototype.hasOwnProperty.call(input, 'args')
+    || input.args === null
+    || input.args === undefined)
+    ? {}
+    : input.args;
+
+  if (typeof effectiveArgs !== 'object' || Array.isArray(effectiveArgs)) {
     return { toolName: wireToolName, input: wireInput, isDeferred: false };
   }
 
-  const args = hasArgs ? input.args as Record<string, unknown> : {};
   const overflowEntries = Object.entries(input)
     .filter(([key]) => key !== 'tool_name' && key !== 'args');
   const effectiveInput = overflowEntries.length === 0
-    ? args
+    ? effectiveArgs as Record<string, unknown>
     : Object.fromEntries([
         ...overflowEntries,
-        ...Object.entries(args),
+        ...Object.entries(effectiveArgs as Record<string, unknown>),
       ]);
 
   return {

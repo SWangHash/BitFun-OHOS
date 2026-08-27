@@ -196,8 +196,8 @@ pub struct MCPResourceContent {
     /// Text or HTML content. Serialized as `text` per MCP spec; accepts `text` or `content` when deserializing.
     #[serde(
         default,
-        alias = "text",
         rename = "text",
+        alias = "content",
         skip_serializing_if = "Option::is_none"
     )]
     pub content: Option<String>,

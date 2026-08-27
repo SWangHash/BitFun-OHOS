@@ -13,6 +13,7 @@ use bitfun_services_core::process_manager;
 use bitfun_services_core::process_tree::ProcessTreeChild;
 use log::{debug, error, info, warn};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, RwLock};
@@ -27,13 +28,17 @@ pub struct MCPServerProcess {
     connection: Option<Arc<MCPConnection>>,
     server_info: Option<MCPServerInfo>,
     start_time: Option<Instant>,
-    restart_count: u32,
-    max_restarts: u32,
     health_check_interval: Duration,
     last_ping_time: Arc<RwLock<Option<Instant>>>,
     last_error_message: Arc<RwLock<Option<String>>>,
     message_rx: Option<mpsc::UnboundedReceiver<MCPMessage>>,
     remote_url: Option<String>,
+    /// Monotonically increasing generation counter for health-check tasks.
+    /// Each `start_health_check` call captures the current value; `stop()` and
+    /// a new start both increment it. A stale health-check task sees a mismatch
+    /// and exits without writing status, preventing the connected→reconnecting
+    /// loop after stop→start cycles.
+    health_check_generation: Arc<AtomicU64>,
     #[cfg(test)]
     fail_next_stop: bool,
 }
@@ -50,13 +55,12 @@ impl MCPServerProcess {
             connection: None,
             server_info: None,
             start_time: None,
-            restart_count: 0,
-            max_restarts: 3,
             health_check_interval: Duration::from_secs(30),
             last_ping_time: Arc::new(RwLock::new(None)),
             last_error_message: Arc::new(RwLock::new(None)),
             message_rx: None,
             remote_url: None,
+            health_check_generation: Arc::new(AtomicU64::new(0)),
             #[cfg(test)]
             fail_next_stop: false,
         }
@@ -208,7 +212,6 @@ impl MCPServerProcess {
 
         self.set_status_with_error(MCPServerStatus::Connected, None)
             .await;
-        self.restart_count = 0;
         info!(
             "MCP server started successfully: name={} id={}",
             self.name, self.id
@@ -296,7 +299,6 @@ impl MCPServerProcess {
 
         self.set_status_with_error(MCPServerStatus::Connected, None)
             .await;
-        self.restart_count = 0;
         info!(
             "Remote MCP server started successfully: name={} id={}",
             self.name, self.id
@@ -341,6 +343,10 @@ impl MCPServerProcess {
         info!("Stopping MCP server: name={} id={}", self.name, self.id);
         self.set_status(MCPServerStatus::Stopping).await;
 
+        // Invalidate any running health-check task so its stale connection
+        // does not overwrite the status after we set Stopped.
+        self.health_check_generation.fetch_add(1, Ordering::SeqCst);
+
         #[cfg(test)]
         if self.fail_next_stop {
             self.fail_next_stop = false;
@@ -367,72 +373,6 @@ impl MCPServerProcess {
 
         info!("MCP server stopped: name={} id={}", self.name, self.id);
         Ok(())
-    }
-
-    /// Restarts the server.
-    pub async fn restart(
-        &mut self,
-        command: &str,
-        args: &[String],
-        env: &std::collections::HashMap<String, String>,
-    ) -> MCPRuntimeResult<()> {
-        self.restart_in_directory(command, args, env, None).await
-    }
-
-    pub async fn restart_in_directory(
-        &mut self,
-        command: &str,
-        args: &[String],
-        env: &std::collections::HashMap<String, String>,
-        working_directory: Option<&std::path::Path>,
-    ) -> MCPRuntimeResult<()> {
-        self.restart_with_environment_policy(command, args, env, working_directory, true)
-            .await
-    }
-
-    pub async fn restart_with_environment_policy(
-        &mut self,
-        command: &str,
-        args: &[String],
-        env: &std::collections::HashMap<String, String>,
-        working_directory: Option<&std::path::Path>,
-        inherit_parent_environment: bool,
-    ) -> MCPRuntimeResult<()> {
-        if self.restart_count >= self.max_restarts {
-            error!(
-                "Max restart attempts reached: name={} id={} max_restarts={}",
-                self.name, self.id, self.max_restarts
-            );
-            self.set_status_with_error(
-                MCPServerStatus::Failed,
-                Some(format!(
-                    "Max restart attempts ({}) reached",
-                    self.max_restarts
-                )),
-            )
-            .await;
-            return Err(MCPRuntimeError::mcp(format!(
-                "Max restart attempts ({}) reached",
-                self.max_restarts
-            )));
-        }
-
-        self.restart_count += 1;
-        info!(
-            "Restarting MCP server: name={} id={} attempt={}/{}",
-            self.name, self.id, self.restart_count, self.max_restarts
-        );
-
-        self.stop().await?;
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        self.start_with_environment_policy(
-            command,
-            args,
-            env,
-            working_directory,
-            inherit_parent_environment,
-        )
-        .await
     }
 
     /// Sets status.
@@ -476,12 +416,34 @@ impl MCPServerProcess {
         let interval = self.health_check_interval;
         let server_name = self.name.clone();
         let remote_url = self.remote_url.clone();
+        // Capture the current generation so this task can detect if a newer
+        // start (or stop) has superseded it. A stale task must not write status.
+        let generation = self.health_check_generation.clone();
+        let my_generation = generation.fetch_add(1, Ordering::SeqCst) + 1;
 
         tokio::spawn(async move {
+            // Wait for one full interval before the first health check.
+            // This gives slow-starting servers (e.g., Node.js on resource-constrained
+            // platforms like OpenHarmony) time to fully initialize after handshake
+            // before we start pinging them. Without this grace period, the first
+            // ping may arrive before the server is ready to respond, causing an
+            // immediate reconnect loop.
+            tokio::time::sleep(interval).await;
+
             let mut ticker = tokio::time::interval(interval);
 
             loop {
                 ticker.tick().await;
+
+                // If a newer start or stop has bumped the generation, this task
+                // is stale (holds an old connection) and must not touch status.
+                if generation.load(Ordering::SeqCst) != my_generation {
+                    debug!(
+                        "Health check task superseded: server_name={} generation={}",
+                        server_name, my_generation
+                    );
+                    break;
+                }
 
                 let current_status = *status.read().await;
                 if !matches!(
@@ -498,11 +460,20 @@ impl MCPServerProcess {
                 if let Some(conn) = &connection {
                     match conn.ping().await {
                         Ok(_) => {
+                            // Re-check generation before writing — a concurrent
+                            // stop/start may have invalidated this task during
+                            // the await on ping().
+                            if generation.load(Ordering::SeqCst) != my_generation {
+                                break;
+                            }
                             *status.write().await = MCPServerStatus::Healthy;
                             *last_ping.write().await = Some(Instant::now());
                             *last_error_message.write().await = None;
                         }
                         Err(e) => {
+                            if generation.load(Ordering::SeqCst) != my_generation {
+                                break;
+                            }
                             let redacted_error =
                                 redact_sensitive_value(&e.to_string(), remote_url.as_deref());
                             warn!(
