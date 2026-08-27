@@ -1,0 +1,36 @@
+{
+  "section": {
+    "title": "Local AI Models",
+    "description": "Download and manage locally running AI models (e.g. Ollama)."
+  },
+  "service": {
+    "unavailable": "Local model service is not running. Please start Ollama or another compatible service to use local models."
+  },
+  "status": {
+    "downloaded": "Downloaded",
+    "downloading": "Downloading",
+    "paused": "Paused",
+    "failed": "Failed",
+    "undownloaded": "Not Downloaded",
+    "ready": "Ready"
+  },
+  "action": {
+    "download": "Download",
+    "pause": "Pause",
+    "pausing": "Pausing...",
+    "resume": "Resume",
+    "retry": "Retry",
+    "refresh": "Refresh"
+  },
+  "error": {
+    "detectFailed": "Failed to detect local model service",
+    "listFailed": "Failed to list local models",
+    "pullFailed": "Failed to download model: {{name}}",
+    "pauseFailed": "Failed to pause download: {{name}}",
+    "refreshFailed": "Failed to refresh local models"
+  },
+  "empty": {
+    "description": "No local models found. Download a model to get started."
+  },
+  "loading": "Loading local models..."
+}
