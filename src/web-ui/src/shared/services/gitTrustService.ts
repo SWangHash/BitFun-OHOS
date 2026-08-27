@@ -20,6 +20,7 @@ import {
   isGitRepositoryUntrustedError,
 } from '@/infrastructure/api/errors/TauriCommandError';
 import { i18nService } from '@/infrastructure/i18n';
+import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFlag';
 import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { repositoryPathKey } from '@/shared/utils/pathUtils';
@@ -130,6 +131,28 @@ function reportManualPath(repositoryPath: string, manualCommand: string | null):
 }
 
 async function promptAndTrust(repositoryPath: string): Promise<boolean> {
+  const report = await readTrustReport(repositoryPath);
+  if (report?.state === 'trusted') {
+    promptQuietUntil.delete(promptKey(repositoryPath));
+    notificationService.success(
+      i18nService.t('panels/git:trust.alreadyTrusted', { path: repositoryPath }),
+    );
+    return true;
+  }
+  if (
+    report?.state === 'trust_required' &&
+    (report.grantSupported === false || isPeerDeviceModeActive())
+  ) {
+    const reportedPath = report.repositoryPath ?? repositoryPath;
+    promptQuietUntil.set(promptKey(repositoryPath), Date.now() + PROMPT_QUIET_PERIOD_MS);
+    log.info('Git repository trust must be granted on the repository host', {
+      repositoryPath,
+      reportedPath,
+    });
+    reportManualPath(reportedPath, report.manualCommand);
+    return false;
+  }
+
   const confirmed = await confirmWarning(
     i18nService.t('panels/git:trust.title'),
     i18nService.t('panels/git:trust.message', { path: repositoryPath }),

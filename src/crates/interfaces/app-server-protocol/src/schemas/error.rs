@@ -7,6 +7,7 @@ pub const SESSION_IN_USE_CODE: i64 = -32002;
 pub const STALE_REVISION_CODE: i64 = -32003;
 pub const OUTCOME_UNKNOWN_CODE: i64 = -32004;
 pub const STREAM_INVALIDATED_CODE: i64 = -32005;
+pub const PERMISSION_DENIED_CODE: i64 = -32006;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -16,6 +17,7 @@ pub enum AppServerErrorKind {
     StaleRevision,
     OutcomeUnknown,
     StreamInvalidated,
+    PermissionDenied,
     InvalidRequest,
     Internal,
 }
@@ -28,6 +30,7 @@ impl AppServerErrorKind {
             Self::StaleRevision => STALE_REVISION_CODE,
             Self::OutcomeUnknown => OUTCOME_UNKNOWN_CODE,
             Self::StreamInvalidated => STREAM_INVALIDATED_CODE,
+            Self::PermissionDenied => PERMISSION_DENIED_CODE,
             Self::InvalidRequest => -32602,
             Self::Internal => -32603,
         }

@@ -237,6 +237,29 @@ async fn git_service_preserves_repository_status_contract() {
 }
 
 #[tokio::test]
+async fn changed_files_uses_the_index_as_the_empty_base_before_the_first_commit() {
+    let repo_dir = TempRepoDir::new("unborn-head-changed-files");
+    run_git(repo_dir.path(), &["init"]);
+    fs::write(repo_dir.path().join("first.txt"), "first revision\n").unwrap();
+    run_git(repo_dir.path(), &["add", "--", "first.txt"]);
+
+    let files = GitService::get_changed_files(
+        repo_dir.path(),
+        &GitChangedFilesParams {
+            source: Some("HEAD".to_string()),
+            review_safe: Some(true),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("changed files for unborn HEAD");
+
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0].path, "first.txt");
+    assert_eq!(files[0].status, GitChangedFileStatus::Added);
+}
+
+#[tokio::test]
 async fn workspace_diff_port_reports_staged_unstaged_and_untracked_changes() {
     let repo_dir = TempRepoDir::new("workspace-diff-port");
     run_git(repo_dir.path(), &["init"]);

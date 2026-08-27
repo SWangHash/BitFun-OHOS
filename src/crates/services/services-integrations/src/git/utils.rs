@@ -1,10 +1,10 @@
-/**
- * Git utility functions
- */
-use super::trust;
 pub use super::{
     build_git_changed_files_args, build_git_diff_args, parse_branch_line, parse_git_log_line,
 };
+/**
+ * Git utility functions
+ */
+use super::{config, trust};
 use super::{GitCommandOutput, GitError, GitFileStatus};
 use bitfun_services_core::process_manager;
 use git2::{Repository, Status, StatusOptions};
@@ -39,6 +39,7 @@ where
 /// missing repository.
 pub fn open_repository<P: AsRef<Path>>(path: P) -> Result<Repository, GitError> {
     let path = path.as_ref();
+    config::ensure_global_config();
     Repository::open(path).map_err(|error| trust::classify_repository_open_error(path, &error))
 }
 
@@ -46,6 +47,7 @@ pub fn open_repository<P: AsRef<Path>>(path: P) -> Result<Repository, GitError> 
 /// distinguishable from a missing repository.
 pub fn discover_repository<P: AsRef<Path>>(path: P) -> Result<Repository, GitError> {
     let path = path.as_ref();
+    config::ensure_global_config();
     Repository::discover(path).map_err(|error| trust::classify_repository_open_error(path, &error))
 }
 
@@ -55,9 +57,12 @@ pub fn discover_repository<P: AsRef<Path>>(path: P) -> Result<Repository, GitErr
 /// only refuses to operate on it. Reporting `false` there would hide the real
 /// reason behind "not a repository" and strip every recovery affordance.
 pub fn is_git_repository<P: AsRef<Path>>(path: P) -> bool {
+    let path = path.as_ref();
     match open_repository(path) {
         Ok(_) => true,
-        Err(error) => error.untrusted_repository_path().is_some(),
+        Err(error) => {
+            error.untrusted_repository_path().is_some() || trust::has_repository_marker(path)
+        }
     }
 }
 
@@ -284,10 +289,10 @@ pub async fn execute_git_command_raw(
     // Ownership-trust classification matches Git's English diagnostics, so
     // every in-product Git call pins the locale instead of inheriting the
     // user's (possibly localized) one.
-    let output = process_manager::create_tokio_command("git")
-        .current_dir(repo_path)
-        .env("LC_ALL", "C")
-        .args(args)
+    let mut command = process_manager::create_tokio_command("git");
+    command.current_dir(repo_path).env("LC_ALL", "C").args(args);
+    config::configure_tokio_command(&mut command);
+    let output = command
         .output()
         .await
         .map_err(|e| GitError::CommandFailed(format!("Failed to execute git command: {}", e)))?;
@@ -355,6 +360,7 @@ pub(crate) async fn execute_git_hardened_command_with_env(
         .kill_on_drop(true)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    config::configure_tokio_command(&mut command);
     for (key, value) in env {
         command.env(key, value);
     }
@@ -413,10 +419,10 @@ pub fn execute_git_command_sync_raw(
     args: &[&str],
 ) -> Result<GitCommandOutput, GitError> {
     // English diagnostics, see execute_git_command_raw.
-    let output = process_manager::create_command("git")
-        .current_dir(repo_path)
-        .env("LC_ALL", "C")
-        .args(args)
+    let mut command = process_manager::create_command("git");
+    command.current_dir(repo_path).env("LC_ALL", "C").args(args);
+    config::configure_command(&mut command);
+    let output = command
         .output()
         .map_err(|e| GitError::CommandFailed(format!("Failed to execute git command: {}", e)))?;
 
@@ -442,14 +448,17 @@ pub fn execute_git_command_sync_with_timeout(
 ) -> Result<String, GitError> {
     use std::process::Stdio;
 
-    let mut child = process_manager::create_command("git")
+    let mut command = process_manager::create_command("git");
+    command
         .current_dir(repo_path)
         // English diagnostics, see execute_git_command_raw.
         .env("LC_ALL", "C")
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    config::configure_command(&mut command);
+    let mut child = command
         .spawn()
         .map_err(|e| GitError::CommandFailed(format!("Failed to execute git command: {}", e)))?;
 
@@ -518,6 +527,9 @@ pub fn format_timestamp(timestamp: i64) -> String {
 }
 
 /// Checks whether Git is available.
+///
+/// Deliberately independent of [`config`]: a global-config discovery failure
+/// must not downgrade a working Git installation to "unavailable".
 pub fn check_git_available() -> bool {
     process_manager::create_command("git")
         .arg("--version")
