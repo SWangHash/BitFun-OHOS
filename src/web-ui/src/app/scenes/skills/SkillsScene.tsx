@@ -607,7 +607,7 @@ const SkillsScene: React.FC = () => {
               {!market.marketLoading && market.marketError && (
                 <div className="skills-discover__empty skills-discover__empty--error" data-bf-scene="skills" data-bf-part="error">
                   <Package size={28} strokeWidth={1.5} />
-                  <span>{market.marketError}</span>
+                  <span>{t(market.marketError)}</span>
                 </div>
               )}
 
@@ -637,7 +637,7 @@ const SkillsScene: React.FC = () => {
                   {marketQuery && (
                     <div className="skills-discover__results-info" data-bf-scene="skills" data-bf-part="resultsInfo">
                       <span>
-                        {t('market.resultsInfo', { query: marketQuery, count: market.totalLoaded })}
+                        {t('market.resultsInfo', { query: marketQuery })}
                       </span>
                     </div>
                   )}

@@ -69,11 +69,15 @@
     "searchPlaceholder": "搜索市场技能...",
     "loading": "正在加载市场技能...",
     "errorPrefix": "市场加载失败: ",
+    "errors": {
+      "loadFailed": "加载技能失败，请检查网络后重试",
+      "loadMoreFailed": "加载更多失败，请检查网络后重试"
+    },
     "empty": {
       "noMatch": "没有找到匹配的市场技能",
       "noSkills": "暂时没有可展示的市场技能"
     },
-    "resultsInfo": "关键词「{{query}}」共 {{count}} 条相关结果",
+    "resultsInfo": "关键词「{{query}}」的搜索结果",
     "item": {
       "sourceLabel": "来源: ",
       "installs": "安装量: {{count}}",

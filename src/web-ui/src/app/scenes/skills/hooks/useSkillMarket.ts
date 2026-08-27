@@ -88,7 +88,7 @@ export function useSkillMarket({
         return;
       }
       log.error('Failed to load skill market', err);
-      setMarketError(err instanceof Error ? err.message : String(err));
+      setMarketError('market.errors.loadFailed');
     } finally {
       if (requestId === marketRequestIdRef.current && capabilityIsCurrent(capabilityEpoch)) {
         setMarketLoading(false);
@@ -211,6 +211,7 @@ export function useSkillMarket({
         return;
       }
       log.error('Failed to load more skills', err);
+      notification.error(t('market.errors.loadMoreFailed'));
       // Roll back to the previous page on failure.
       setCurrentPage(currentPage);
     } finally {
@@ -218,7 +219,7 @@ export function useSkillMarket({
         setLoadingMore(false);
       }
     }
-  }, [capabilityIsCurrent, currentCapabilityEpoch, currentPage, displayMarketSkills.length, fetchSkills, hasMore, pageSize, searchQuery]);
+  }, [capabilityIsCurrent, currentCapabilityEpoch, currentPage, displayMarketSkills.length, fetchSkills, hasMore, notification, pageSize, searchQuery, t]);
 
   const handleDownload = useCallback(async (skill: SkillMarketItem, targetLevel: SkillLevel = 'project') => {
     const capabilityEpoch = currentCapabilityEpoch();
