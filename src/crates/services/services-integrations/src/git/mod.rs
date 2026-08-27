@@ -4,6 +4,7 @@
 //! legacy public path.
 
 pub mod args;
+mod config;
 pub mod error;
 pub mod graph;
 mod managed_worktree;

@@ -11,6 +11,7 @@ const trustRepositoryMock = vi.hoisted(() => vi.fn());
 const getRepositoryTrustMock = vi.hoisted(() => vi.fn());
 const warningMock = vi.hoisted(() => vi.fn());
 const successMock = vi.hoisted(() => vi.fn());
+const isPeerDeviceModeActiveMock = vi.hoisted(() => vi.fn(() => false));
 
 vi.mock('@/component-library/components/ConfirmDialog/confirmService', () => ({
   confirmWarning: confirmWarningMock,
@@ -21,6 +22,10 @@ vi.mock('@/infrastructure/api', () => ({
     trustRepository: trustRepositoryMock,
     getRepositoryTrust: getRepositoryTrustMock,
   },
+}));
+
+vi.mock('@/infrastructure/peer-device/peerModeFlag', () => ({
+  isPeerDeviceModeActive: isPeerDeviceModeActiveMock,
 }));
 
 vi.mock('@/infrastructure/i18n', () => ({
@@ -57,6 +62,16 @@ function grantedOutcome() {
   };
 }
 
+function trustRequiredReport() {
+  return {
+    state: 'trust_required' as const,
+    repositoryPath: REPOSITORY_PATH,
+    detail: 'detected dubious ownership',
+    manualCommand: `git config --global --add safe.directory "${REPOSITORY_PATH}"`,
+    grantSupported: true,
+  };
+}
+
 beforeEach(() => {
   resetGitTrustDecisions();
   confirmWarningMock.mockReset();
@@ -65,6 +80,8 @@ beforeEach(() => {
   getRepositoryTrustMock.mockRejectedValue(new Error('probe not stubbed'));
   warningMock.mockReset();
   successMock.mockReset();
+  isPeerDeviceModeActiveMock.mockReset();
+  isPeerDeviceModeActiveMock.mockReturnValue(false);
 });
 
 describe('requestGitRepositoryTrust', () => {
@@ -260,10 +277,24 @@ describe('requestGitRepositoryTrust', () => {
   // there, so the controller must end up showing the command instead of a
   // dead end.
   it('falls back to the read-only probe for the command when granting is refused', async () => {
-    confirmWarningMock.mockResolvedValue(true);
-    trustRepositoryMock.mockRejectedValue(
-      new Error("command 'git_trust_repository' is local-only and cannot run on peer"),
-    );
+    getRepositoryTrustMock.mockResolvedValue({
+      state: 'trust_required',
+      repositoryPath: REPOSITORY_PATH,
+      detail: 'detected dubious ownership',
+      manualCommand: `git config --global --add safe.directory "${REPOSITORY_PATH}"`,
+      grantSupported: false,
+    });
+
+    await expect(requestGitRepositoryTrust(REPOSITORY_PATH)).resolves.toBe(false);
+    expect(getRepositoryTrustMock).toHaveBeenCalledWith(REPOSITORY_PATH);
+    expect(confirmWarningMock).not.toHaveBeenCalled();
+    expect(trustRepositoryMock).not.toHaveBeenCalled();
+    expect(warningMock.mock.calls[0][0]).toContain('trust.unavailableWithCommand');
+    expect(warningMock.mock.calls[0][0]).toContain('safe.directory');
+  });
+
+  it('shows the manual path before confirmation in peer mode with an older host', async () => {
+    isPeerDeviceModeActiveMock.mockReturnValue(true);
     getRepositoryTrustMock.mockResolvedValue({
       state: 'trust_required',
       repositoryPath: REPOSITORY_PATH,
@@ -272,8 +303,8 @@ describe('requestGitRepositoryTrust', () => {
     });
 
     await expect(requestGitRepositoryTrust(REPOSITORY_PATH)).resolves.toBe(false);
-    expect(getRepositoryTrustMock).toHaveBeenCalledWith(REPOSITORY_PATH);
-    expect(warningMock.mock.calls[0][0]).toContain('trust.unavailableWithCommand');
+    expect(confirmWarningMock).not.toHaveBeenCalled();
+    expect(trustRepositoryMock).not.toHaveBeenCalled();
     expect(warningMock.mock.calls[0][0]).toContain('safe.directory');
   });
 
@@ -285,12 +316,14 @@ describe('requestGitRepositoryTrust', () => {
     trustRepositoryMock.mockRejectedValue(
       new Error("command 'git_trust_repository' is local-only and cannot run on peer"),
     );
-    getRepositoryTrustMock.mockResolvedValue({
-      state: 'trusted',
-      repositoryPath: REPOSITORY_PATH,
-      detail: null,
-      manualCommand: null,
-    });
+    getRepositoryTrustMock
+      .mockResolvedValueOnce(trustRequiredReport())
+      .mockResolvedValueOnce({
+        state: 'trusted',
+        repositoryPath: REPOSITORY_PATH,
+        detail: null,
+        manualCommand: null,
+      });
 
     await expect(requestGitRepositoryTrust(REPOSITORY_PATH)).resolves.toBe(true);
     expect(warningMock).not.toHaveBeenCalled();
@@ -303,12 +336,15 @@ describe('requestGitRepositoryTrust', () => {
   it('does not silence the next caller after recovering outside the product', async () => {
     confirmWarningMock.mockResolvedValue(true);
     trustRepositoryMock.mockRejectedValueOnce(new Error('config is read-only'));
-    getRepositoryTrustMock.mockResolvedValue({
-      state: 'trusted',
-      repositoryPath: REPOSITORY_PATH,
-      detail: null,
-      manualCommand: null,
-    });
+    getRepositoryTrustMock
+      .mockResolvedValueOnce(trustRequiredReport())
+      .mockResolvedValueOnce({
+        state: 'trusted',
+        repositoryPath: REPOSITORY_PATH,
+        detail: null,
+        manualCommand: null,
+      })
+      .mockResolvedValueOnce(trustRequiredReport());
 
     await expect(requestGitRepositoryTrust(REPOSITORY_PATH)).resolves.toBe(true);
 

@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use agent_client_protocol::{Error, Result};
 use bitfun_agent_runtime::sdk::{AgentEventSource, AgentRuntime, PortErrorKind, RuntimeError};
+use bitfun_app_server_protocol::error::PERMISSION_DENIED_CODE;
 use bitfun_core::service::git::GitError;
 use bitfun_runtime_ports::AgentContextReloadPort;
 
@@ -109,8 +110,9 @@ pub fn runtime_call<T>(result: std::result::Result<T, RuntimeError>) -> Result<T
 
 /// Map a `bitfun_core::service::git::GitError` onto a JSON-RPC `Error`. Mirrors
 /// the runtime boundary's intent: argument/path problems surface as
-/// `invalid_params`, everything else as `internal_error` with the message in
-/// `data`. Used by the `git/*` schema handlers.
+/// `invalid_params`, ownership refusal as the stable permission-denied server
+/// error, and everything else as `internal_error` with the message in `data`.
+/// Used by the `git/*` schema handlers.
 pub fn git_service_error(error: GitError) -> Error {
     match error {
         // The repository exists and the request was well formed; Git refuses it
@@ -120,9 +122,13 @@ pub fn git_service_error(error: GitError) -> Error {
         GitError::RepositoryUntrusted {
             ref repository_path,
             ..
-        } => Error::invalid_params().data(serde_json::json!(
-            bitfun_core::service::git::trust::untrusted_repository_error_message(repository_path)
-        )),
+        } => {
+            Error::new(PERMISSION_DENIED_CODE as i32, "Permission denied").data(serde_json::json!(
+                bitfun_core::service::git::trust::untrusted_repository_error_message(
+                    repository_path
+                )
+            ))
+        }
         GitError::RepositoryNotFound(_)
         | GitError::InvalidPath(_)
         | GitError::BranchNotFound(_) => {
@@ -193,7 +199,10 @@ mod tests {
             data.starts_with(bitfun_core::service::git::trust::REPOSITORY_UNTRUSTED_ERROR_PREFIX)
         );
         assert!(data.contains("/srv/shared/repo"));
-        assert_eq!(mapped.code, Error::invalid_params().code);
+        assert_eq!(
+            mapped.code,
+            agent_client_protocol::ErrorCode::Other(PERMISSION_DENIED_CODE as i32)
+        );
     }
 
     /// The frontend `ConfigAPI.getConfig` swallows the error into `undefined`
