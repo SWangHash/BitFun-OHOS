@@ -1,6 +1,3 @@
-
-
-
 //! Application state management
 
 use crate::api::workspace_activation::{
@@ -195,7 +192,7 @@ impl AppState {
                     "worker_host.js not found in any candidate location; \
                      MiniApp Workers will not start"
                 );
-                std::path::PathBuf::from("/data/storage/el2/base/files").join("woker_host.js")
+                std::path::PathBuf::from("worker_host.js")
             }
         };
         let speech_service = Arc::new(SpeechService::new(SpeechStoragePaths::new(
