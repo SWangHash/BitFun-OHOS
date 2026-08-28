@@ -970,27 +970,30 @@ pub async fn show_agent_companion_desktop_pet(app: tauri::AppHandle) -> Result<(
 /// window. The companion is intentionally independent from the main window, so
 /// restore its visibility and stacking state without changing its geometry.
 pub(crate) fn keep_agent_companion_desktop_pet_visible(app: &tauri::AppHandle) {
-    let Some(window) = app.get_webview_window(AGENT_COMPANION_WINDOW_LABEL) else {
-        return;
-    };
+    #[cfg(not(target_env = "ohos"))]
+    {
+        let Some(window) = app.get_webview_window(AGENT_COMPANION_WINDOW_LABEL) else {
+            return;
+        };
 
-    if let Err(error) = window.unminimize() {
-        warn!(
+        if let Err(error) = window.unminimize() {
+            warn!(
             "Failed to unminimize Agent companion window after main minimize: {}",
             error
         );
-    }
-    if let Err(error) = window.set_always_on_top(true) {
-        warn!(
+        }
+        if let Err(error) = window.set_always_on_top(true) {
+            warn!(
             "Failed to keep Agent companion window always on top: {}",
             error
         );
-    }
-    if let Err(error) = window.show() {
-        warn!(
+        }
+        if let Err(error) = window.show() {
+            warn!(
             "Failed to keep Agent companion window visible after main minimize: {}",
             error
         );
+        }
     }
 }
 

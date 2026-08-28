@@ -11,7 +11,6 @@ pub use client::{
     RatingAggregate,
 };
 pub use credentials::{
-    clear_market_credentials, load_market_credentials, save_market_credentials,
     system_market_credential_store, MarketCredentialStore, StoredMarketCredentials,
     SystemMarketCredentialStore,
 };

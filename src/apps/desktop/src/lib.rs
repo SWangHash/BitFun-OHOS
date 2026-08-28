@@ -735,6 +735,28 @@ pub async fn _run() {
     #[cfg(not(target_env = "ohos"))]
     let feedback_service_state = api::feedback_api::FeedbackServiceState::disabled();
 
+    // Inject the OHOS AssetStoreKit-backed vault as the unified
+    // SecureCredentialVault for subscription auth and the MiniApp/
+    // appearance market. OHOS has no D-Bus Secret Service provider, so
+    // the system-vault backend is not built for this target; the desktop
+    // host is responsible for wiring a vault before any subscription or
+    // market operation runs. Feedback service still uses its dedicated
+    // `feedback_secure_credentials` ArkTS function until its multi-asset
+    // split logic migrates to the unified vault.
+    #[cfg(target_env = "ohos")]
+    {
+        use bitfun_core::infrastructure::subscription_auth::set_subscription_credential_vault;
+        use std::sync::Arc;
+
+        let vault: Arc<dyn bitfun_services_core::secure_credentials::SecureCredentialVault> = Arc::new(
+            api::ohos::secure_credentials::OhosSecureCredentialVault::new(),
+        );
+        // Subscription auth shares the global injection seam; market
+        // clients construct a per-instance wrapper around the same vault
+        // in `miniapp_market_api.rs` and `appearance_market_api.rs`.
+        set_subscription_credential_vault(vault);
+    }
+
     let step_started = Instant::now();
     let (coordinator, scheduler, event_queue, event_router, ai_client_factory, token_usage_service) =
         match init_agentic_system().await {
