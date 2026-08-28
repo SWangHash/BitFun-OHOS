@@ -188,14 +188,40 @@ export class FeedbackAPI {
 }
 
 export function truncateFeedbackContent(value: string): string {
-  const characters = Array.from(value);
+  // Leading whitespace is not meaningful feedback and can create an empty
+  // first line. Remove it before applying the limit so it cannot consume the
+  // user's 2,000-character budget.
+  const characters = Array.from(value.replace(/^\s+/, ''));
   return characters.length <= FEEDBACK_CONTENT_MAX_CHARS
-    ? value
+    ? characters.join('')
     : characters.slice(0, FEEDBACK_CONTENT_MAX_CHARS).join('');
 }
 
 export function feedbackContentLength(value: string): number {
   return Array.from(value).length;
+}
+
+/**
+ * Returns the portion of an insertion that fits after replacing a textarea
+ * selection. Keeping this calculation separate lets the UI intercept paste
+ * and beforeinput without replacing the whole value after the browser has
+ * already created an undo entry.
+ */
+export function feedbackInsertText(
+  value: string,
+  selectionStart: number,
+  selectionEnd: number,
+  insertedText: string,
+): string {
+  const before = value.slice(0, selectionStart);
+  const after = value.slice(selectionEnd);
+  const normalized = selectionStart === 0
+    ? insertedText.replace(/^\s+/, '')
+    : insertedText;
+  const available = FEEDBACK_CONTENT_MAX_CHARS - feedbackContentLength(before + after);
+  return available > 0
+    ? Array.from(normalized).slice(0, available).join('')
+    : '';
 }
 
 export function normalizeFeedbackError(error: unknown): FeedbackApiError {

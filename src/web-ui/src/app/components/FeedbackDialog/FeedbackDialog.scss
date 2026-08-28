@@ -299,7 +299,15 @@
   gap: 6px;
   min-height: 0;
   padding: 10px;
+  overflow-x: hidden;
   overflow-y: auto;
+
+  &::-webkit-scrollbar { width: 3px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb {
+    background: var(--bf-appearance-token-border-subtle);
+    border-radius: 2px;
+  }
 
   > .btn {
     flex-shrink: 0;
@@ -488,6 +496,14 @@
   font-size: var(--bf-appearance-token-font-size-sm);
 }
 
+.bitfun-feedback__conversation-notices {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 12px 0;
+}
+
 .bitfun-feedback__messages {
   display: flex;
   flex: 1;
@@ -495,8 +511,16 @@
   gap: 10px;
   min-height: 0;
   padding: 12px 16px 18px;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+
+  &::-webkit-scrollbar { width: 3px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb {
+    background: var(--bf-appearance-token-border-subtle);
+    border-radius: 2px;
+  }
 }
 
 .bitfun-feedback__message-sentinel {
