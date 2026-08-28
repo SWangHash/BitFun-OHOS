@@ -257,6 +257,25 @@ async fn handle_post(
             }
             Ok(())
         }
+        "ping" => {
+            // Emulates servers (e.g. the Huawei developer-knowledge gateway) that do
+            // not implement the `ping` method and answer with a JSON-RPC error.
+            let response = json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "error": {
+                    "code": -32601,
+                    "message": "Method not found: ping"
+                }
+            });
+            write_response(
+                stream,
+                "200 OK",
+                &[("Content-Type", "application/json")],
+                &response.to_string(),
+            )
+            .await
+        }
         _ => {
             let response = json!({
                 "jsonrpc": "2.0",
@@ -491,4 +510,38 @@ async fn remote_mcp_streamable_http_accepts_202_and_delivers_response_via_sse() 
         state.saw_elicitation_capability.load(Ordering::SeqCst),
         "client should advertise elicitation capability"
     );
+}
+
+#[tokio::test]
+async fn remote_ping_is_healthy_when_server_does_not_implement_ping() {
+    let state = TestState::default();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server_state = state.clone();
+    tokio::spawn(async move {
+        while let Ok((stream, _)) = listener.accept().await {
+            let connection_state = server_state.clone();
+            tokio::spawn(async move {
+                handle_connection(stream, connection_state)
+                    .await
+                    .expect("test MCP connection should complete");
+            });
+        }
+    });
+
+    let url = format!("http://{addr}/mcp");
+    let connection = MCPConnection::new_remote("test-server", url, Default::default(), false)
+        .await
+        .expect("remote connection should be created");
+    connection
+        .initialize("BitFunTest", "0.0.0")
+        .await
+        .expect("initialize should succeed");
+
+    // A server that answers `ping` with `-32601 Method not found` is still healthy:
+    // the HTTP transport is alive and speaking MCP, and other requests keep working.
+    connection
+        .ping()
+        .await
+        .expect("ping to a server without ping support should count as healthy");
 }
