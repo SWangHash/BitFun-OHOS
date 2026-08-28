@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { systemAPI } from '@/infrastructure/api';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { createLogger } from '@/shared/utils/logger';
 import { scheduleAfterStartupSignal } from '@/shared/utils/startupTaskScheduling';
@@ -54,6 +55,20 @@ export function DailyAppUpdateGate(): ReactElement | null {
           try {
             const autoAtCheck = await configManager.getConfig<boolean>('app.auto_update');
             if (cancelled || autoAtCheck === false) {
+              return;
+            }
+            if (isOpenHarmonyRuntime()) {
+              // OHOS updates are handled by the system AppGallery flow: the
+              // check itself shows the system update dialog when an update
+              // exists, and HAP installs happen there. Keep the BitFun
+              // in-app install/progress UI out of the OHOS path entirely.
+              const ohosRes = await systemAPI.checkForUpdatesOhos();
+              if (cancelled) {
+                return;
+              }
+              if (ohosRes.error) {
+                log.warn('OHOS daily update check failed', ohosRes.error);
+              }
               return;
             }
             const res = await systemAPI.checkForUpdates();

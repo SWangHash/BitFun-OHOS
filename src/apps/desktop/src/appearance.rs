@@ -956,7 +956,42 @@ pub async fn show_agent_companion_desktop_pet(app: tauri::AppHandle) -> Result<(
     {
         Err("Failed to show Agent companion window".to_string())
     }
+}
 
+/// Keep the independent companion visible when the main window is minimized.
+///
+/// On Windows, minimizing the main window can also occlude another window from
+/// the same process even when it was created as a top-level always-on-top
+/// window. The companion is intentionally independent from the main window, so
+/// restore its visibility and stacking state without changing its geometry.
+///
+/// Desktop-only: these Tauri `WebviewWindow` window-state methods are not part
+/// of the OpenHarmony tauri fork contract, and OHOS hosts the pet through the
+/// ArkTS window layer instead (see `src/apps/desktop/src/api/ohos/window.rs`).
+#[cfg(not(target_env = "ohos"))]
+pub(crate) fn keep_agent_companion_desktop_pet_visible(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window(AGENT_COMPANION_WINDOW_LABEL) else {
+        return;
+    };
+
+    if let Err(error) = window.unminimize() {
+        warn!(
+            "Failed to unminimize Agent companion window after main minimize: {}",
+            error
+        );
+    }
+    if let Err(error) = window.set_always_on_top(true) {
+        warn!(
+            "Failed to keep Agent companion window always on top: {}",
+            error
+        );
+    }
+    if let Err(error) = window.show() {
+        warn!(
+            "Failed to keep Agent companion window visible after main minimize: {}",
+            error
+        );
+    }
 }
 
 #[tauri::command]

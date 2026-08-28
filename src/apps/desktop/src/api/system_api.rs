@@ -310,14 +310,46 @@ pub async fn check_for_updates(
         }
     }
     #[cfg(target_env = "ohos")]
-    Ok(CheckForUpdatesResponse {
-        update_available: false,
-        current_version: Default::default(),
-        latest_version: None,
-        release_notes: None,
-        release_date: None,
-    })
+    {
+        // Route through the ArkTS AppGallery bridge: the update strategy (system
+        // update dialog) is triggered by checkAppUpdate on the ArkTS side and
+        // installs HAP packages through the system flow. ArkTS does not report a
+        // version string, but surfacing the real availability instead of a fake
+        // "no update" keeps the generic daily-update path honest on OHOS.
+        let _ = request;
+        let raw = crate::api::ohos::update::check_app_update_ohos().await?;
+        let (update_available, update_error) = parse_ohos_update_response(&raw)?;
+        if let Some(error) = update_error {
+            return Err(format!(
+                "Failed to check for updates on HarmonyOS: {error}"
+            ));
+        }
+        let current_version = app.package_info().version.to_string();
+        Ok(CheckForUpdatesResponse {
+            update_available,
+            current_version,
+            latest_version: None,
+            release_notes: None,
+            release_date: None,
+        })
+    }
+}
 
+/// Parse the JSON envelope returned by the ArkTS `check_app_update_ohos` bridge.
+///
+/// Shape: `{"updateAvailable":bool}` on success, or
+/// `{"updateAvailable":bool,"error":"..."}` when the ArkTS check or its update
+/// strategy failed. Returns `(update_available, error)`.
+#[cfg(any(target_env = "ohos", test))]
+fn parse_ohos_update_response(json: &str) -> Result<(bool, Option<String>), String> {
+    let value: serde_json::Value = serde_json::from_str(json)
+        .map_err(|e| format!("invalid ArkTS update response JSON: {e}: {json}"))?;
+    let update_available = value
+        .get("updateAvailable")
+        .and_then(|v| v.as_bool())
+        .ok_or_else(|| format!("ArkTS update response missing updateAvailable: {json}"))?;
+    let error = value.get("error").and_then(|v| v.as_str()).map(str::to_owned);
+    Ok((update_available, error))
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -378,7 +410,23 @@ pub async fn install_update(app: AppHandle, request: InstallUpdateRequest) -> Re
 
     #[cfg(target_env = "ohos")]
     {
-        Err("Not supported on this platform".to_string())
+        let _ = (app, request);
+        // HAP packages cannot be self-installed from Rust on HarmonyOS; the
+        // system AppGallery flow owns installation. Re-run the same ArkTS check
+        // so the system update dialog (DialogUpdateStrategy) takes over the
+        // install, and report Ok only when the system flow confirmed an update.
+        let raw = crate::api::ohos::update::check_app_update_ohos().await?;
+        let (update_available, update_error) = parse_ohos_update_response(&raw)?;
+        if let Some(error) = update_error {
+            return Err(format!(
+                "HarmonyOS system update dialog unavailable: {error}"
+            ));
+        }
+        if update_available {
+            Ok(())
+        } else {
+            Err("No update available".to_string())
+        }
     }
 
 }
@@ -1070,6 +1118,62 @@ pub async fn send_system_notification(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn parse_ohos_update_response_accepts_no_update() {
+        let (available, error) =
+            super::parse_ohos_update_response(r#"{"updateAvailable":false}"#).expect("parse");
+        assert!(!available);
+        assert!(error.is_none());
+    }
+
+    #[test]
+    fn parse_ohos_update_response_accepts_update_available() {
+        let (available, error) =
+            super::parse_ohos_update_response(r#"{"updateAvailable":true}"#).expect("parse");
+        assert!(available);
+        assert!(error.is_none());
+    }
+
+    #[test]
+    fn parse_ohos_update_response_surfaces_error_and_keeps_update_available() {
+        let (available, error) = super::parse_ohos_update_response(
+            r#"{"updateAvailable":false,"error":"checkAppUpdate threw"}"#,
+        )
+        .expect("parse");
+        assert!(!available);
+        assert_eq!(error.as_deref(), Some("checkAppUpdate threw"));
+    }
+
+    #[test]
+    fn parse_ohos_update_response_keeps_update_available_when_strategy_failed() {
+        let (available, error) = super::parse_ohos_update_response(
+            r#"{"updateAvailable":true,"error":"showUpdateDialog non-success resultCode: 100"}"#,
+        )
+        .expect("parse");
+        assert!(available);
+        assert_eq!(
+            error.as_deref(),
+            Some("showUpdateDialog non-success resultCode: 100")
+        );
+    }
+
+    #[test]
+    fn parse_ohos_update_response_rejects_malformed_json() {
+        assert!(super::parse_ohos_update_response("not-json").is_err());
+        assert!(super::parse_ohos_update_response(r#"{}"#).is_err());
+        assert!(super::parse_ohos_update_response(r#"{"error":"only error"}"#).is_err());
+    }
+
+    #[test]
+    fn parse_ohos_update_response_keeps_whitespace_insensitive() {
+        let (available, error) = super::parse_ohos_update_response(
+            "{\"updateAvailable\": true,\n  \"error\": \"boom\"}",
+        )
+        .expect("parse");
+        assert!(available);
+        assert_eq!(error.as_deref(), Some("boom"));
+    }
+
     /// The probe reads `platforms[<key>].url` out of `latest.json`; if this key
     /// stops matching what scripts/generate-tauri-latest-json.mjs emits, every
     /// probe silently scores 0 and ranking degrades to the configured order.
