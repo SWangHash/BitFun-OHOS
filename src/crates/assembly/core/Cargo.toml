@@ -330,6 +330,12 @@ scheduled-jobs = [
 # the owning runtime boundary instead of activating that runtime by themselves.
 document-read = ["tool-runtime?/document-read"]
 subscription-auth = ["bitfun-ai-adapters?/subscription-auth"]
+# Forwarded to `bitfun-ai-adapters/system-vault`, which selects the OS
+# keyring backend in `bitfun-services-core`. Desktop hosts enable this on
+# macOS/Windows/Linux; the OHOS desktop build does not (it injects an
+# ArkTS-backed vault at startup instead). Kept as an additive feature so
+# the OHOS target never pulls keyring or zbus transitively.
+system-vault = ["bitfun-ai-adapters?/system-vault"]
 
 # Tool groups mirror the provider-neutral groups in bitfun-tool-packs. They
 # compose concrete service owners but never form a product-shaped umbrella.
