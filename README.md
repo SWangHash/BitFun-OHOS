@@ -8,17 +8,7 @@
 
 Writes code, produces documents, and drives the desktop — with Mini Apps, a Rust runtime, and a self-hostable device-sync server.
 
-[**⬇ Download for macOS · Windows · Linux**](https://github.com/GCWing/BitFun/releases/latest) · [Verify downloads](./docs/verify-downloads.md)
-
-[Website](https://openbitfun.com/) · [Quick start](#first-run) · [Security](./SECURITY.md) · [Discussions](https://github.com/GCWing/BitFun/discussions) · [Contributing](./CONTRIBUTING.md)
-
-[![GitHub release](https://img.shields.io/github/v/release/GCWing/BitFun?style=flat-square&color=blue)](https://github.com/GCWing/BitFun/releases)
-[![Downloads](https://img.shields.io/github/downloads/GCWing/BitFun/total?style=flat-square&color=brightgreen)](https://github.com/GCWing/BitFun/releases)
-[![Stars](https://img.shields.io/github/stars/GCWing/BitFun?style=flat-square&color=yellow)](https://github.com/GCWing/BitFun/stargazers)
-[![Core code: MIT](https://img.shields.io/badge/core_code-MIT-yellow?style=flat-square)](https://github.com/GCWing/BitFun/blob/main/LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue?style=flat-square)](https://github.com/GCWing/BitFun/releases)
-
-[![Trendshift](https://trendshift.io/api/badge/repositories/44672)](https://trendshift.io/repositories/44672)
+[Website](https://www.bitfun.work/) · [Quick start](#first-run) · [Security](./SECURITY.md) · [Discussions](https://gitcode.com/OpenBitFun/bitfun_ade/discussions) · [Contributing](./CONTRIBUTING.md)
 
 </div>
 
@@ -65,15 +55,6 @@ Writes code, produces documents, and drives the desktop — with Mini Apps, a Ru
 ## Install
 
 **Download a build** — grab the latest installer from [Releases](https://github.com/GCWing/BitFun/releases/latest), install it, configure your model, and you are ready to go.
-
-**Or run from source:**
-
-```bash
-pnpm install
-pnpm run desktop:dev
-```
-
-Prerequisites: [Node.js](https://nodejs.org/) 22.12+ (LTS recommended), [pnpm](https://pnpm.io/) 10.15.0 via Corepack, the [Rust toolchain](https://rustup.rs/), and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/). More detail in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ### First run
 
@@ -148,48 +129,8 @@ You can hand two kinds of complex work to BitFun: shipping code in real reposito
 
 ### Download directly
 
-Go to [Releases](https://github.com/GCWing/BitFun/releases) to download the latest desktop installer. After installation, configure your model and start using BitFun.
+Go to [Releases](https://gitcode.com/OpenHarmonyPCDeveloper/BitFun/releases) to download the latest desktop installer. After installation, configure your model and start using BitFun.
 
-### Run from source
-
-**Prerequisites:**
-
-- [Node.js](https://nodejs.org/) 22.12+ (LTS recommended)
-- [pnpm](https://pnpm.io/) 10.15.0 via Corepack
-- [Rust toolchain](https://rustup.rs/)
-- [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) (required for desktop development)
-- [ohos-rs](https://ohos.rs/docs/basic/quick-start)
-- [DevEco Studio](https://developer.huawei.com/consumer/en/deveco-studio/)
-
-**Commands:**
-
-```bash
-# Install dependencies in root directory
-pnpm install
-
-# build frontend in root directory
-npm run build
-
-# build backend(.so) in desktop directory
-cd src/apps/desktop && cargo tauri ohos init && cargo tauri ohos build
-
-# build desktop frontend
-cd src/web-ui && npm run build
-
-# build app
-## copy frontend resources
-1. cp src/web-ui/dist src/apps/ohos/entry/src/main/resources/resfile
-
-## copy app exe
-2. cp target/aarch64-unknow-linux-ohos/release/libbitfun_desktop_lib.so src/apps/ohos/entry/libs/arm64-v8a/libbitfun_desktop_lib.so  
-
-## build whole app
-3. use deveco app to build 
-```
-
-For more development details, see [CONTRIBUTING.md](./CONTRIBUTING.md).
-
----
 
 ## Customize Your BitFun
 
@@ -220,7 +161,7 @@ You can use BitFun's Code Agent to extend BitFun itself.
 
 ## Community & contributing
 
-Questions, ideas, and bug reports are all welcome in [Discussions](https://github.com/GCWing/BitFun/discussions) and [Issues](https://github.com/GCWing/BitFun/issues).
+Questions, ideas, and bug reports are all welcome in [Discussions](https://gitcode.com/OpenBitFun/bitfun_ade/discussions) and [Issues](https://gitcode.com/OpenBitFun/bitfun_ade/issues).
 
 Stars, Issues, and PRs are welcome. We especially care about:
 

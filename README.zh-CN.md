@@ -8,17 +8,7 @@
 
 能写代码、能做文档、能操控桌面，并提供小应用、Rust Runtime 和可自部署的多设备互控服务器。
 
-[**⬇ 下载 macOS · Windows · Linux 版**](https://github.com/GCWing/BitFun/releases/latest) · [校验下载](./docs/verify-downloads.zh-CN.md)
-
-[官网](https://openbitfun.com/) · [快速开始](#第一次运行) · [安全策略](./SECURITY_CN.md) · [讨论区](https://github.com/GCWing/BitFun/discussions) · [参与贡献](./CONTRIBUTING_CN.md)
-
-[![GitHub release](https://img.shields.io/github/v/release/GCWing/BitFun?style=flat-square&color=blue)](https://github.com/GCWing/BitFun/releases)
-[![Downloads](https://img.shields.io/github/downloads/GCWing/BitFun/total?style=flat-square&color=brightgreen)](https://github.com/GCWing/BitFun/releases)
-[![Stars](https://img.shields.io/github/stars/GCWing/BitFun?style=flat-square&color=yellow)](https://github.com/GCWing/BitFun/stargazers)
-[![Core code: MIT](https://img.shields.io/badge/core_code-MIT-yellow?style=flat-square)](https://github.com/GCWing/BitFun/blob/main/LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue?style=flat-square)](https://github.com/GCWing/BitFun/releases)
-
-[![Trendshift](https://trendshift.io/api/badge/repositories/44672)](https://trendshift.io/repositories/44672)
+[官网](https://www.bitfun.work/) · [快速开始](#第一次运行) · [安全策略](./SECURITY_CN.md) · [讨论区](https://gitcode.com/OpenBitFun/bitfun_ade/discussions) · [参与贡献](./CONTRIBUTING_CN.md)
 
 </div>
 
@@ -31,16 +21,15 @@
 
 ## 核心特性
 
-| 特性 | 说明 |
-| --- | --- |
-| **Agentic Mini App** | 为任务生成专属界面——图表、看板、表单、面板——对话绑定该界面的实时状态 |
+| 特性                     | 说明                                                                                     |
+| ------------------------ | ---------------------------------------------------------------------------------------- |
+| **Agentic Mini App**     | 为任务生成专属界面——图表、看板、表单、面板——对话绑定该界面的实时状态                     |
 | **自部署多设备互联互控** | 账号登录、跨设备会话同步、设备间操控，全部走你自己部署的 relay。零知识加密，不经第三方云 |
-| **编码交付** | 在真实 Git 仓库里规划、改代码、跑测试、提交。Agentic、Plan、Debug、Deep Review、长程任务 |
-| **办公交付** | 调研、写作、演示文稿、会议纪要、报告 |
-| **桌面执行层** | 浏览器、终端、桌面软件、文件系统、远程工作区 |
-| **四层可定制** | 自定义 Agent → MCP / Skills / Hooks → Mini App → 源码级改造 |
-| **性能** | KV Cache 平均命中率 98.67%；flashgrep 在千万行仓库上搜索平均快约 36 倍 |
-| **跨平台、模型自选** | Windows、macOS、Linux 三端，不绑定模型厂商 |
+| **编码交付**             | 在真实 Git 仓库里规划、改代码、跑测试、提交。Agentic、Plan、Debug、Deep Review、长程任务 |
+| **办公交付**             | 调研、写作、演示文稿、会议纪要、报告                                                     |
+| **桌面执行层**           | 浏览器、终端、桌面软件、文件系统、远程工作区                                             |
+| **四层可定制**           | 自定义 Agent → MCP / Skills / Hooks → Mini App → 源码级改造                              |
+| **跨平台、模型自选**     | Windows、macOS、Linux 三端，不绑定模型厂商                                               |
 
 ---
 
@@ -64,16 +53,9 @@
 
 ## 安装
 
-**直接下载** —— 前往 [Releases](https://github.com/GCWing/BitFun/releases/latest) 下载最新桌面端安装包，安装后配置模型即可开始使用。
+**直接下载** —— 前往 [Releases](https://gitcode.com/OpenHarmonyPCDeveloper/BitFun/releases) 下载最新桌面端安装包，安装后配置模型即可开始使用。
 
 **或从源码运行：**
-
-```bash
-pnpm install
-pnpm run desktop:dev
-```
-
-前置依赖：[Node.js](https://nodejs.org/) 22.12+（推荐 LTS）、[pnpm](https://pnpm.io/) 10.15.0（建议通过 Corepack 使用）、[Rust 工具链](https://rustup.rs/)、[Tauri 前置依赖](https://v2.tauri.app/start/prerequisites/)。更多说明见 [CONTRIBUTING_CN.md](./CONTRIBUTING_CN.md)。
 
 ### 第一次运行
 
@@ -88,10 +70,10 @@ pnpm run desktop:dev
 
 两类复杂工作：在真实仓库里完成编码交付，在资料和文件中完成办公交付。遇到需要浏览器、桌面软件、终端或远程环境的任务时，它可以进入真实工作现场。
 
-| 场景 | 目标交付 | 典型能力 |
-| --- | --- | --- |
-| **编码** | 从真实仓库推进到可合并结果。 | Agentic、Plan、Debug、测试、Git、Deep Review、长程任务、Benchmark。 |
-| **办公** | 从资料推进到实用的文字和视觉交付物。 | 调研、演示文稿、总结、写作、会议纪要、报告。 |
+| 场景     | 目标交付                             | 典型能力                                                            |
+| -------- | ------------------------------------ | ------------------------------------------------------------------- |
+| **编码** | 从真实仓库推进到可合并结果。         | Agentic、Plan、Debug、测试、Git、Deep Review、长程任务、Benchmark。 |
+| **办公** | 从资料推进到实用的文字和视觉交付物。 | 调研、演示文稿、总结、写作、会议纪要、报告。                        |
 
 **通用能力**
 
@@ -130,10 +112,10 @@ pnpm run desktop:dev
 
 ### 核心场景
 
-| 场景 | 目标交付 | 典型能力 |
-| --- | --- | --- |
+| 场景     | 目标交付                     | 典型能力                                                            |
+| -------- | ---------------------------- | ------------------------------------------------------------------- |
 | **编码** | 从真实仓库推进到可合并结果。 | Agentic、Plan、Debug、测试、Git、Deep Review、长程任务、Benchmark。 |
-| **办公** | 从资料推进到可交付文档。 | Research、PPT、DOCX、XLSX、PDF、总结、写作、会议纪要、报告。 |
+| **办公** | 从资料推进到可交付文档。     | Research、PPT、DOCX、XLSX、PDF、总结、写作、会议纪要、报告。        |
 
 ### 通用能力
 
@@ -142,64 +124,16 @@ pnpm run desktop:dev
 
 ![first_screen_screenshot_CN](./png/first_screen_screenshot_CN.png)
 
----
-
-## 开箱即用
-
-### 直接下载
-
-前往 [Releases](https://github.com/GCWing/BitFun/releases) 下载最新桌面端安装包，安装后配置模型即可开始使用。
-
-### 从源码运行
-
-**前置依赖：**
-
-- [Node.js](https://nodejs.org/) 22.12+（推荐 LTS）
-- [pnpm](https://pnpm.io/) 10.15.0（建议通过 Corepack 使用）
-- [Rust 工具链](https://rustup.rs/)
-- [Tauri 前置依赖](https://v2.tauri.app/start/prerequisites/)（桌面端开发需要）
-- [ohos-rs](https://ohos.rs/docs/basic/quick-start)
-- [DevEco Studio](https://developer.huawei.com/consumer/en/deveco-studio/)
-
-**运行指令：**
-
-```bash
-# 在根目录安装依赖
-pnpm install
-
-# 在根目录编译前端
-npm run build
-
-# 在 desktop 目录编译后端（.so）
-cd src/apps/desktop && cargo tauri ohos init && cargo tauri ohos build
-
-# 编译桌面前端
-cd src/web-ui && npm run build
-
-# 构建应用
-## 1. 复制前端资源
-cp src/web-ui/dist src/apps/ohos/entry/src/main/resources/resfile
-
-## 2. 复制应用可执行文件
-cp target/aarch64-unknow-linux-ohos/release/libbitfun_desktop_lib.so src/apps/ohos/entry/libs/arm64-v8a/libbitfun_desktop_lib.so  
-
-## 3. 使用 DevEco Studio 构建完整应用
-```
-
-更多开发说明见 [CONTRIBUTING_CN.md](./CONTRIBUTING_CN.md)。
-
----
-
 ## 定制你的 BitFun
 
 BitFun 的扩展路径从轻到重连续展开：
 
-| 层级 | 方式 | 适合场景 |
-| --- | --- | --- |
-| **L1** | Agent 自定义 | 定义角色、流程、约束和工具组合。 |
+| 层级   | 方式                                                       | 适合场景                                                                                                    |
+| ------ | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **L1** | Agent 自定义                                               | 定义角色、流程、约束和工具组合。                                                                            |
 | **L2** | MCP / Skills / [Hooks](docs/features/agent-hooks.zh-CN.md) | 接入外部工具和专业能力，并在 Agent 生命周期节点运行你自己的命令 —— 完全兼容 Codex Hooks，已有脚本无需适配。 |
-| **L3** | Mini App | 为任务生成专属界面、表单、面板或可视化。 |
-| **L4** | 源码级改造 | 修改工具、适配器、UI、Runtime 或产品形态。 |
+| **L3** | Mini App                                                   | 为任务生成专属界面、表单、面板或可视化。                                                                    |
+| **L4** | 源码级改造                                                 | 修改工具、适配器、UI、Runtime 或产品形态。                                                                  |
 
 你可以用 BitFun 的 Code Agent 来扩展 BitFun 本身。
 
@@ -219,7 +153,7 @@ BitFun 的扩展路径从轻到重连续展开：
 
 ## 社区与贡献
 
-有问题、想法或 Bug，欢迎到 [讨论区](https://github.com/GCWing/BitFun/discussions) 和 [Issues](https://github.com/GCWing/BitFun/issues) 交流。
+有问题、想法或 Bug，欢迎到 [讨论区](https://gitcode.com/OpenBitFun/bitfun_ade/discussions) 和 [Issues](https://gitcode.com/OpenBitFun/bitfun_ade/issues) 交流。
 
 欢迎 Star、Issue 和 PR。我们尤其关注：
 
