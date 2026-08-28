@@ -30,6 +30,7 @@ export const ConfirmDialogRenderer: React.FC = () => {
       showCancel={options.showCancel}
       preview={options.preview}
       previewMaxHeight={options.previewMaxHeight}
+      closeOnOverlayClick={options.closeOnOverlayClick}
     />
   );
 };

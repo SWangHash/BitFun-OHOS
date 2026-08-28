@@ -49,6 +49,8 @@ export interface ConfirmDialogProps {
   preview?: string;
   /** Max preview height */
   previewMaxHeight?: number;
+  /** Whether clicking the backdrop closes the dialog */
+  closeOnOverlayClick?: boolean;
 }
 
 const iconMap: Record<ConfirmDialogType, React.ReactNode> = {
@@ -77,6 +79,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   confirmLoading = false,
   preview,
   previewMaxHeight = 200,
+  closeOnOverlayClick = true,
 }) => {
   const { t } = useI18n('components');
   const titleId = useId();
@@ -103,17 +106,25 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   };
 
   const handleCancel = () => {
-    onCancel?.();
+    if (onCancel) {
+      onCancel();
+      return;
+    }
+    onClose();
+  };
+
+  const handleDismiss = () => {
     onClose();
   };
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={handleCancel}
+      onClose={handleDismiss}
       size="medium"
       showCloseButton={false}
       ariaLabelledBy={titleId}
+      closeOnOverlayClick={closeOnOverlayClick}
     >
       <div className={`confirm-dialog confirm-dialog--${type}`} data-bf-component="confirm-dialog" data-bf-part="root" data-bf-type={type}>
         <div className="confirm-dialog__icon" aria-hidden data-bf-component="confirm-dialog" data-bf-part="icon">
