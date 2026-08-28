@@ -6454,7 +6454,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         repositoryPath={chatStripRepositoryPath}
         workspaceLabel={chatStripWorkspaceLabel}
         executionTarget={effectiveTargetSession?.config.executionTarget}
-        voiceControl={voiceInput.phase === 'recording' ? <ComposerVoiceInputStatus controller={voiceInput} /> : null}
+        voiceControl={voiceInput.enabled ? <ComposerVoiceInputStatus controller={voiceInput} /> : null}
         dispatchControl={dispatchControl}
         worktreeControl={worktreeControl}
         deferPassiveGitRefresh={deferChatStripPassiveGitRefresh}
