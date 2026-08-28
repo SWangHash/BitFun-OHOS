@@ -258,6 +258,35 @@
   }
 }
 
+:root[data-bf-appearance="bitfun-tokyo-night"] .bitfun-chat-input {
+  --private-chat-input-send-dark-icon-rgb: 26, 27, 38;
+  --private-chat-input-send-dark-icon-strong-rgb: 16, 17, 28;
+  --private-chat-input-send-surface-rgb: 122, 162, 247;
+  --private-chat-input-send-surface-hover-rgb: 97, 131, 187;
+  --private-chat-input-send-surface-focus-start-rgb: 125, 207, 255;
+  --private-chat-input-send-surface-focus-end-rgb: 122, 162, 247;
+  --private-chat-input-send-surface-disabled-rgb: 120, 124, 153;
+  --private-chat-input-send-breathing-hover-glyph-rgb: 16, 17, 28;
+  --private-chat-input-send-inverse-surface-start-rgb: 30, 32, 46;
+  --private-chat-input-send-inverse-surface-end-rgb: 26, 27, 38;
+  --private-chat-input-send-inverse-text-rgb: 192, 202, 245;
+  --private-chat-input-send-inverse-hover-start-rgb: 51, 65, 85;
+  --private-chat-input-send-inverse-hover-end-rgb: 30, 32, 46;
+  --private-chat-input-send-inverse-hover-text-rgb: 192, 202, 245;
+  --private-chat-input-send-inverse-focus-start-rgb: 51, 65, 85;
+  --private-chat-input-send-inverse-focus-end-rgb: 30, 32, 46;
+  --private-chat-input-send-inverse-focus-text-rgb: 192, 202, 245;
+  --private-chat-input-send-inverse-disabled-bg-rgb: 30, 32, 46;
+  --private-chat-input-send-inverse-disabled-text-rgb: 120, 124, 153;
+  --private-chat-input-stop-inverse-glyph-start-rgb: 192, 202, 245;
+  --private-chat-input-stop-inverse-glyph-end-rgb: 169, 177, 214;
+  --private-chat-input-stop-inverse-hover-start-rgb: 51, 65, 85;
+  --private-chat-input-stop-inverse-hover-end-rgb: 30, 32, 46;
+  --private-chat-input-stop-inverse-hover-glyph-start-rgb: 192, 202, 245;
+  --private-chat-input-stop-inverse-hover-glyph-end-rgb: 169, 177, 214;
+  --private-chat-input-queued-badge-ring-rgb: 26, 27, 38;
+}
+
 :root[data-bf-appearance-mode="light"] .bitfun-chat-input__voice-pill-send.icon-btn,
 .light .bitfun-chat-input__voice-pill-send.icon-btn {
   &:not(:disabled) {

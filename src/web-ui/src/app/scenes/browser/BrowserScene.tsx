@@ -30,6 +30,7 @@ const BrowserScene: React.FC = () => {
     <div
       className="browser-scene"
       data-testid="browser-panel"
+      data-bf-component="browser-panel"
       data-bf-scene="browser"
       data-bf-part="root"
       data-bf-state={browser.isLoading ? 'loading' : undefined}
@@ -38,6 +39,7 @@ const BrowserScene: React.FC = () => {
         className="browser-scene__toolbar"
         onSubmit={handleSubmit}
         data-testid="browser-panel-title"
+        data-bf-component="browser-panel"
         data-bf-scene="browser"
         data-bf-part="toolbar"
       >
@@ -76,7 +78,7 @@ const BrowserScene: React.FC = () => {
             data-testid={browser.isLoading ? 'browser-loading-indicator' : undefined}
           />
         </IconButton>
-        <div className="browser-scene__address">
+        <div className="browser-scene__address" data-bf-component="browser-panel" data-bf-part="address">
           <Globe size={16} />
           <input
             type="text"
@@ -90,16 +92,18 @@ const BrowserScene: React.FC = () => {
       </form>
 
       {browser.error ? (
-        <div className="browser-scene__error" data-testid="browser-error-message" data-bf-scene="browser" data-bf-part="error">
+        <div className="browser-scene__error" data-testid="browser-error-message" data-bf-component="browser-panel" data-bf-scene="browser" data-bf-part="error">
           <AlertTriangle size={16} />
           <span>{browser.error}</span>
         </div>
       ) : null}
 
-      <div className="browser-scene__content" data-testid="browser-page-frame" data-bf-scene="browser" data-bf-part="content">
+      <div className="browser-scene__content" data-testid="browser-page-frame" data-bf-component="browser-panel" data-bf-scene="browser" data-bf-part="content">
         {!browser.isTauri ? (
           <iframe
             className="browser-scene__iframe"
+            data-bf-component="browser-panel"
+            data-bf-part="iframe"
             src={browser.currentUrl}
             title="Embedded Browser"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
@@ -108,9 +112,11 @@ const BrowserScene: React.FC = () => {
           <div
             ref={browser.viewportRef}
             className="browser-scene__webview-host"
+            data-bf-component="browser-panel"
+            data-bf-part="webviewHost"
             data-webview-label={browser.webviewLabel}
           >
-            <div className="browser-scene__webview-placeholder">
+            <div className="browser-scene__webview-placeholder" data-bf-component="browser-panel" data-bf-part="placeholder">
               <Globe size={20} />
               <span data-testid="browser-current-url">{browser.currentUrl}</span>
             </div>

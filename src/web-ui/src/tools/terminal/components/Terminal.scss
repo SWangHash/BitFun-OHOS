@@ -25,7 +25,8 @@
       }
 
       &:not(.allow-transparency) {
-        .xterm-viewport {
+        .xterm-viewport,
+        .xterm-screen {
           background-color: var(--bf-appearance-token-color-bg-scene);
         }
       }
