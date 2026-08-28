@@ -54,7 +54,7 @@ Writes code, produces documents, and drives the desktop — with Mini Apps, a Ru
 
 ## Install
 
-**Download a build** — grab the latest installer from [Releases](https://github.com/GCWing/BitFun/releases/latest), install it, configure your model, and you are ready to go.
+**Download a build** — grab the latest installer from [Releases](https://gitcode.com/OpenHarmonyPCDeveloper/BitFun/releases), install it, configure your model, and you are ready to go.
 
 ### First run
 
@@ -122,15 +122,6 @@ You can hand two kinds of complex work to BitFun: shipping code in real reposito
 - **Customization layer**: MCP, Skills, custom Agents, Mini Apps, and source-level extension let BitFun keep growing around your tools, roles, and interfaces.
 
 ![first_screen_screenshot](./png/first_screen_screenshot.png)
-
----
-
-## Ready Out of the Box
-
-### Download directly
-
-Go to [Releases](https://gitcode.com/OpenHarmonyPCDeveloper/BitFun/releases) to download the latest desktop installer. After installation, configure your model and start using BitFun.
-
 
 ## Customize Your BitFun
 
