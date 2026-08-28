@@ -1284,6 +1284,7 @@ pub async fn _run() {
                     && matches!(event, tauri::WindowEvent::Resized { .. })
                     && window.is_minimized().unwrap_or(false)
                 {
+                    #[cfg(not(target_env = "ohos"))]
                     appearance::keep_agent_companion_desktop_pet_visible(window.app_handle());
                 }
 
