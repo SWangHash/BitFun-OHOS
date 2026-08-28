@@ -146,5 +146,10 @@ screenshots = { workspace = true }
 enigo = { workspace = true }
 dark-light = { workspace = true }
 
+[target.'cfg(target_env = "ohos")'.dependencies]
+# Pure-Rust xz decoder: the OpenHarmony NDK ships liblzma.so without lzma.h,
+# so the C-backed xz2/lzma-sys path cannot build on the OHOS target.
+lzma-rs = { workspace = true }
+
 [lints]
 workspace = true
