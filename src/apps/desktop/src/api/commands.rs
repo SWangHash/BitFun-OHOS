@@ -3846,7 +3846,19 @@ fn extract_local_archive(
             )?;
         }
         #[cfg(target_env = "ohos")]
-        return Err("Unsupported archive format on this platform: tar.xz".to_string());
+        {
+            let file = std::fs::File::open(source_path)
+                .map_err(|e| format!("Failed to open '{}': {}", source_path.display(), e))?;
+            // The OpenHarmony NDK ships liblzma.so without lzma.h, so the
+            // C-backed xz2/lzma-sys path is unavailable on this target; use the
+            // pure-Rust decoder instead. Decode fully in memory (the staging
+            // directory below is on disk), then unpack the tar stream.
+            let mut decoded = Vec::new();
+            lzma_rs::xz_decompress(&mut std::io::BufReader::new(file), &mut decoded).map_err(
+                |e| format!("Failed to decompress xz '{}': {}", source_path.display(), e),
+            )?;
+            unpack_tar_to_staging(decoded.as_slice(), &staging.path, source_path, "tar.xz")?;
+        }
     } else if lower.ends_with(".tar.zst") || lower.ends_with(".tzst") {
         let file = std::fs::File::open(source_path)
             .map_err(|e| format!("Failed to open '{}': {}", source_path.display(), e))?;
@@ -4541,6 +4553,44 @@ mod archive_tests {
         assert_eq!(
             archive_destination_name("project.tar.gz").expect("archive destination"),
             "project"
+        );
+    }
+
+    /// OHOS-only round trip: pack a small tree into a tar.xz with the
+    /// pure-Rust lzma-rs codec (the only xz path available on this target) and
+    /// extract it through `extract_local_archive`, which routes through the
+    /// lzma-rs decoder in the OHOS branch of the `.tar.xz` handling.
+    #[cfg(target_env = "ohos")]
+    #[test]
+    fn ohos_tar_xz_round_trip_extracts_lzma_rs_archive() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let source = temp.path().join("project");
+        std::fs::create_dir_all(source.join("src")).expect("create source directories");
+        std::fs::write(source.join("src/main.rs"), "fn main() {}").expect("write source file");
+
+        // Build a tar archive in memory, then xz-compress it with lzma-rs.
+        let mut tar_bytes = Vec::new();
+        {
+            let mut builder = tar::Builder::new(&mut tar_bytes);
+            builder
+                .append_dir_all("project", &source)
+                .expect("append source directory");
+            builder.finish().expect("finish tar archive");
+        }
+        let mut xz_bytes = Vec::new();
+        lzma_rs::xz_compress(&mut std::io::Cursor::new(&tar_bytes), &mut xz_bytes)
+            .expect("xz compress with lzma-rs");
+        let archive_path = temp.path().join("project.tar.xz");
+        std::fs::write(&archive_path, &xz_bytes).expect("write tar.xz archive");
+
+        let destination = temp.path().join("project-out");
+        extract_local_archive(&archive_path, &destination, "project.tar.xz")
+            .expect("extract tar.xz archive");
+
+        assert_eq!(
+            std::fs::read_to_string(destination.join("project/src/main.rs"))
+                .expect("read extracted source file"),
+            "fn main() {}"
         );
     }
 }
