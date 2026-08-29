@@ -8,7 +8,7 @@ import { useEmbeddedBrowserWebview } from './useEmbeddedBrowserWebview';
 import './BrowserScene.scss';
 
 const log = createLogger('BrowserScene');
-const DEFAULT_URL = 'https://openbitfun.com/';
+const DEFAULT_URL = 'https://www.bitfun.work';
 
 const BrowserScene: React.FC = () => {
   const { t } = useTranslation('common');
