@@ -132,7 +132,7 @@ describe('feedback conversation contract', () => {
   it('sends replies with Enter while Ctrl+Enter inserts a newline and IME Enter is ignored', () => {
     const source = readSource('./FeedbackConversationView.tsx');
 
-    expect(source).toContain("event.key !== 'Enter' || isImeEnter(event)");
+    expect(source).toContain("event.key !== 'Enter' || isImeOwnedKey(event)");
     expect(source).toContain('if (event.ctrlKey)');
     expect(source).toContain("applyFeedbackInsertion(event.currentTarget, '\\n')");
     expect(source).toContain('event.currentTarget.form?.requestSubmit()');

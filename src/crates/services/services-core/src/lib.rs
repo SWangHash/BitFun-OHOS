@@ -33,6 +33,8 @@ pub mod markdown;
 pub mod permission_store;
 #[cfg(feature = "local-storage")]
 pub mod persistence;
+#[cfg(feature = "secure-credentials")]
+pub mod secure_credentials;
 #[cfg(feature = "process-runtime")]
 pub mod process_manager;
 #[cfg(feature = "process-runtime")]

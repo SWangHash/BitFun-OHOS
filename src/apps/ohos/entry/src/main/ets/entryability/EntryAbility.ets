@@ -20,7 +20,7 @@ import { CommonUtils } from '../utils/CommonUtils';
 import { runDeveco } from '../utils/DevecoStart';
 import { VoiceInputService } from '../services/VoiceInputService';
 import { FeedbackCredentialStore } from '../utils/FeedbackCredentialStore';
-import { MarketCredentialStore } from '../utils/MarketCredentialStore';
+import { SecureCredentialStore } from '../utils/SecureCredentialStore';
 import { WindowHostRequest, WindowHostService } from '../services/WindowHostService';
 import {
   BrowserWebviewService,
@@ -148,7 +148,7 @@ export default class EntryAbility extends RustAbility {
     const DOMAIN_NUMBER: number = 0xFF00;
     const TAG: string = '[BitfunUIAbilityComponents]';
     const feedbackCredentialStore = new FeedbackCredentialStore();
-    const marketCredentialStore = new MarketCredentialStore();
+    const secureCredentialStore = new SecureCredentialStore();
     windowStage.on('windowStageClose', () => {
       RustModule.notifyMainWindowCloseRequested();
       return true;
@@ -177,10 +177,16 @@ export default class EntryAbility extends RustAbility {
       _err: Error,
       arg: string
     ): Promise<string> => feedbackCredentialStore.handle(arg));
-    RustModule.registerArktsFunction('market_secure_credentials', async (
+    // Unified key->bytes secure credential vault. Subscription auth and
+    // MiniApp/appearance market services delegate to this single
+    // AssetStoreKit-backed store; alias formats are consumer-specific and
+    // do not collide inside the shared namespace. Feedback service still
+    // uses the dedicated `feedback_secure_credentials` function below
+    // until its multi-asset split logic migrates to the unified vault.
+    RustModule.registerArktsFunction('secure_credentials', async (
       _err: Error,
       arg: string
-    ): Promise<string> => marketCredentialStore.handle(arg));
+    ): Promise<string> => secureCredentialStore.handle(arg));
     RustModule.registerArktsFunction('open_dialog_file', async (err: Error, arg: string): Promise<string> => {
       let res = await CommonUtils.open_file_dialog(arg);
       return res;

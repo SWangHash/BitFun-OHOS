@@ -25,6 +25,7 @@ bitfun-agent-runtime = { path = "../../crates/execution/agent-runtime", features
 bitfun-runtime-ports = { path = "../../crates/contracts/runtime-ports", features = ["agent-api", "permission", "workspace-ports"] }
 bitfun-product-domains = { path = "../../crates/contracts/product-domains", features = ["appearance-market"] }
 bitfun-services-integrations = { path = "../../crates/services/services-integrations", features = ["canvas-runtime", "miniapp-market", "speech", "feedback", "privacy"] }
+bitfun-services-core = { path = "../../crates/services/services-core" }
 bitfun-core-types = { path = "../../crates/contracts/core-types" }
 bitfun-agent-tools = { path = "../../crates/execution/tool-contracts", features = ["element-token"] }
 bitfun-transport = { path = "../../crates/adapters/transport", features = ["tauri-adapter"] }
@@ -140,7 +141,14 @@ devtools = ["tauri/devtools", "bitfun-webdriver/embedded"]
 atspi = { workspace = true }
 leptess = { workspace = true }
 
+# Non-OHOS desktop hosts use the system keyring backend for the unified
+# SecureCredentialVault (subscription auth, MiniApp/appearance market,
+# feedback). OHOS does not enable `system-vault` because it has no D-Bus
+# Secret Service provider; the desktop host injects an ArkTS-backed vault
+# at startup instead.
 [target.'cfg(not(target_env = "ohos"))'.dependencies]
+bitfun-core = { path = "../../crates/assembly/core", features = ["system-vault"] }
+bitfun-services-integrations = { path = "../../crates/services/services-integrations", features = ["system-vault"] }
 xz2 = { workspace = true }
 screenshots = { workspace = true }
 enigo = { workspace = true }

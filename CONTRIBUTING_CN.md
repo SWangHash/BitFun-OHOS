@@ -12,37 +12,41 @@
 
 ### 环境准备
 
-- Node.js 22.12+（建议 LTS 版本）
-- pnpm 10.15.0（建议通过 Corepack 使用）
-- Rust toolchain（通过 rustup 安装）
-- 桌面端开发需准备 Tauri 依赖
+从源码运行
 
-BitFun 将本地 JavaScript 构建和 CI 统一到 Node.js 22.12+。仓库里的
-GitHub Actions 升级使用的是兼容 Node.js 24 的 action runtime，但项目脚本
-默认仍以 Node.js 22.12+ 为基线，除非局部指南另有说明。从旧 Node.js 版本切换
-后，请重新运行 `pnpm install`。
+**前置依赖：**
 
-#### 构建前置检查
+- [Node.js](https://nodejs.org/) 22.12+（推荐 LTS）
+- [pnpm](https://pnpm.io/) 10.15.0（建议通过 Corepack 使用）
+- [Rust 工具链](https://rustup.rs/)
+- [Tauri 前置依赖](https://v2.tauri.app/start/prerequisites/)（桌面端开发需要）
+- [ohos-rs](https://ohos.rs/docs/basic/quick-start)
+- [DevEco Studio](https://developer.huawei.com/consumer/en/deveco-studio/)
 
-当 `cargo check --workspace`、`cargo check -p bitfun-desktop` 或 pnpm 构建
-命令报出难以理解的错误（如 "resource path doesn't exist" 或 sherpa-onnx
-下载失败）时，运行前置检查以识别缺失的依赖并获取可操作的修复命令：
+**运行指令：**
 
 ```bash
-pnpm run check:build-prereqs           # 仅检查
-pnpm run check:build-prereqs -- --fix  # 尝试自动修复缺失的前置依赖
+# 在根目录安装依赖
+pnpm install
+
+# 在根目录编译前端
+npm run build
+
+# 在 desktop 目录编译后端（.so）
+cd src/apps/desktop && cargo tauri ohos init && cargo tauri ohos build
+
+# 编译桌面前端
+cd src/web-ui && npm run build
+
+# 构建应用
+## 1. 复制前端资源
+cp src/web-ui/dist src/apps/ohos/entry/src/main/resources/resfile
+
+## 2. 复制应用可执行文件
+cp target/aarch64-unknow-linux-ohos/release/libbitfun_desktop_lib.so src/apps/ohos/entry/libs/arm64-v8a/libbitfun_desktop_lib.so  
+
+## 3. 使用 DevEco Studio 构建完整应用
 ```
-
-检查项包括：
-
-- 缺少 `node_modules`（修复：`pnpm install`）
-- 缺少 `src/mobile-web/dist`（修复：`pnpm run prepare:mobile-web` —
-  bitfun-desktop 的 Tauri 构建脚本将该目录作为资源引用，缺失时
-  `cargo check -p bitfun-desktop` 和 `cargo check --workspace` 会失败）
-- 缺少 sherpa-onnx 预编译库（sherpa-onnx-sys 构建脚本会在构建时从
-  GitHub 下载；若网络连通性差导致下载失败，设置
-  `SHERPA_ONNX_LIB_DIR` 指向 `target/sherpa-onnx-prebuilt/` 下的预编译
-  lib 目录以使用本地副本）
 
 ### 安装依赖
 
@@ -92,6 +96,7 @@ DevTools；`Cmd/Ctrl + Shift + I` 切换 BitFun 元素检查器，`Cmd/Ctrl + Sh
 ## 重点关注的贡献方向
 
 1. 贡献好的想法/创意（功能、交互、视觉等），提交 Issue
+
    > 欢迎产品经理、UI 设计师通过 PI 快速提交创意，我们会帮助完善开发
 2. 优化 Agent 系统和效果
 3. 对提升系统稳定性和完善基础能力
@@ -103,13 +108,13 @@ DevTools；`Cmd/Ctrl + Shift + I` 切换 BitFun 元素检查器，`Cmd/Ctrl + Sh
 
 我们欢迎不仅限于功能或修复的 PR。示例包括：
 
-| 贡献方向 | 位置/文件 | 示例说明 |
-| --- | --- | --- |
-| Prompts | `src/crates/assembly/core/src/agentic/agents/prompts/` | 新增或优化提示词，并按需更新相关逻辑 |
-| Tools | `src/crates/assembly/core/src/agentic/tools/implementations/`、`src/crates/assembly/core/src/agentic/tools/registry.rs` | 新增工具实现，并在工具注册表中注册 |
-| Subagents | `src/crates/assembly/core/src/agentic/agents/custom_subagents/`、`src/crates/assembly/core/src/agentic/agents/registry.rs` | 新增子代理实现，并在子代理注册表中注册 |
-| 模式贡献 | `src/crates/assembly/core/src/agentic/agents/*_mode.rs`、`src/crates/assembly/core/src/agentic/agents/prompts/*_mode.md`、`src/web-ui/src/locales/*/settings/modes.json` | 新增/优化 Agent 模式（例如 Plan/Debug/Agentic 或自定义模式）的逻辑与提示词，并同步前端模式文案 |
-| Code Agent 与 AIIde 场景指南 | `website/src/docs/` | 补充流程、playbook 与真实场景说明（或从 `README.md` 链接） |
+| 贡献方向                     | 位置/文件                                                                                                                                                                | 示例说明                                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Prompts                      | `src/crates/assembly/core/src/agentic/agents/prompts/`                                                                                                                   | 新增或优化提示词，并按需更新相关逻辑                                                           |
+| Tools                        | `src/crates/assembly/core/src/agentic/tools/implementations/`、`src/crates/assembly/core/src/agentic/tools/registry.rs`                                                  | 新增工具实现，并在工具注册表中注册                                                             |
+| Subagents                    | `src/crates/assembly/core/src/agentic/agents/custom_subagents/`、`src/crates/assembly/core/src/agentic/agents/registry.rs`                                               | 新增子代理实现，并在子代理注册表中注册                                                         |
+| 模式贡献                     | `src/crates/assembly/core/src/agentic/agents/*_mode.rs`、`src/crates/assembly/core/src/agentic/agents/prompts/*_mode.md`、`src/web-ui/src/locales/*/settings/modes.json` | 新增/优化 Agent 模式（例如 Plan/Debug/Agentic 或自定义模式）的逻辑与提示词，并同步前端模式文案 |
+| Code Agent 与 AIIde 场景指南 | `website/src/docs/`                                                                                                                                                      | 补充流程、playbook 与真实场景说明（或从 `README.md` 链接）                                     |
 
 ### 开始前
 
@@ -149,14 +154,14 @@ UI 改动请附前后对比截图或短录屏，方便快速评审。
 
 常见本地检查：
 
-| 改动类型 | 常用验证 |
-| --- | --- |
-| 仓库元信息或 GitHub 配置 | `pnpm run check:repo-hygiene && pnpm run check:github-config && git diff --check` |
-| 前端运行时或 UI | `pnpm run type-check:web`；行为变化时再加最近的 focused test |
-| Mobile web | `pnpm --dir src/mobile-web run type-check` |
-| Rust 共享 runtime 或 services | `cargo check --workspace`；行为变化时再加 focused `cargo test` |
-| Desktop/Tauri 集成 | `cargo check -p bitfun-desktop` |
-| i18n 资源或契约 | 使用 `AGENTS.md` 中匹配的 i18n 验证行 |
+| 改动类型                      | 常用验证                                                                          |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| 仓库元信息或 GitHub 配置      | `pnpm run check:repo-hygiene && pnpm run check:github-config && git diff --check` |
+| 前端运行时或 UI               | `pnpm run type-check:web`；行为变化时再加最近的 focused test                      |
+| Mobile web                    | `pnpm --dir src/mobile-web run type-check`                                        |
+| Rust 共享 runtime 或 services | `cargo check --workspace`；行为变化时再加 focused `cargo test`                    |
+| Desktop/Tauri 集成            | `cargo check -p bitfun-desktop`                                                   |
+| i18n 资源或契约               | 使用 `AGENTS.md` 中匹配的 i18n 验证行                                             |
 
 UI 改动在有帮助时附截图或短录屏。无法运行相关检查时，在 PR 中说明原因，并提供风险更低的手动验证路径。
 
