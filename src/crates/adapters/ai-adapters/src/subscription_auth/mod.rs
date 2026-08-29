@@ -16,7 +16,7 @@ mod opencode;
 mod pkce;
 pub mod store;
 
-pub use store::{set_store_path_for_test, StoredCredential};
+pub use store::{set_subscription_credential_vault, set_store_path_for_test, StoredCredential};
 
 use crate::types::ProxyConfig;
 use anyhow::{anyhow, Context, Result};

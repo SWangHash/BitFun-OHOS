@@ -1,9 +1,15 @@
 use async_trait::async_trait;
+use bitfun_services_core::secure_credentials::SecureCredentialVault;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock};
 
+const MARKET_ALIAS: &str = "bitfun.market.credentials.v1";
+/// Keyring service namespace for MiniApp/appearance market entries.
+/// Preserved from the pre-unification layout so existing on-disk keychain
+/// entries continue to read back without a migration step. The OHOS
+/// ArkTS-backed vault ignores this — aliases already disambiguate within
+/// AssetStoreKit.
 const KEYRING_SERVICE: &str = "openbitfun.bitfun.miniapp-market.v1";
-const KEYRING_ENTRY: &str = "github-oauth";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,121 +27,103 @@ pub trait MarketCredentialStore: std::fmt::Debug + Send + Sync {
     async fn clear(&self) -> Result<(), String>;
 }
 
+/// Default `MarketCredentialStore` backed by a `SecureCredentialVault`.
+///
+/// The same `SecureCredentialVault` instance can be shared by the MiniApp
+/// and appearance market (both use the GitHub OAuth flow), subscription
+/// auth, and feedback services — alias formats are consumer-specific and
+/// do not collide inside the shared vault namespace. The market alias
+/// `bitfun.market.credentials.v1` matches the pre-unification layout so
+/// existing on-disk and keychain entries continue to read back without a
+/// migration step.
 #[derive(Debug)]
-pub struct SystemMarketCredentialStore;
+pub struct SystemMarketCredentialStore {
+    vault: Arc<dyn SecureCredentialVault>,
+}
+
+impl SystemMarketCredentialStore {
+    /// Construct a market credential store backed by `vault`. The desktop
+    /// host on OHOS passes the shared ArkTS-backed vault here; on macOS,
+    /// Windows, and Linux the default constructor wires a system keyring
+    /// vault.
+    pub fn with_vault(vault: Arc<dyn SecureCredentialVault>) -> Self {
+        Self { vault }
+    }
+}
 
 #[async_trait]
 impl MarketCredentialStore for SystemMarketCredentialStore {
     async fn load(&self) -> Result<Option<StoredMarketCredentials>, String> {
-        load_system_market_credentials().await
+        let Some(bytes) = self.vault.get_secret(MARKET_ALIAS).await? else {
+            return Ok(None);
+        };
+        serde_json::from_slice(&bytes)
+            .map(Some)
+            .map_err(|error| format!("parse market credentials: {error}"))
     }
 
     async fn save(&self, credentials: &StoredMarketCredentials) -> Result<(), String> {
-        save_system_market_credentials(credentials).await
+        let bytes = serde_json::to_vec(credentials)
+            .map_err(|error| format!("serialize market credentials: {error}"))?;
+        self.vault.set_secret(MARKET_ALIAS, &bytes).await
     }
 
     async fn clear(&self) -> Result<(), String> {
-        clear_system_market_credentials().await
+        self.vault.delete_secret(MARKET_ALIAS).await
     }
 }
 
+/// Returns the default market credential store backed by the system
+/// keyring vault. Used when no `SecureCredentialVault` is injected; the
+/// desktop host on OHOS injects an ArkTS-backed vault instead and calls
+/// `SystemMarketCredentialStore::with_vault` directly.
 pub fn system_market_credential_store() -> Arc<dyn MarketCredentialStore> {
-    Arc::new(SystemMarketCredentialStore)
+    static DEFAULT: OnceLock<Arc<dyn MarketCredentialStore>> = OnceLock::new();
+    DEFAULT
+        .get_or_init(|| {
+            Arc::new(SystemMarketCredentialStore::with_vault(default_vault()))
+                as Arc<dyn MarketCredentialStore>
+        })
+        .clone()
 }
 
-pub async fn load_market_credentials() -> Result<Option<StoredMarketCredentials>, String> {
-    load_system_market_credentials().await
-}
-
-pub async fn save_market_credentials(credentials: &StoredMarketCredentials) -> Result<(), String> {
-    save_system_market_credentials(credentials).await
-}
-
-pub async fn clear_market_credentials() -> Result<(), String> {
-    clear_system_market_credentials().await
-}
-
-fn keyring_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
-}
-
-fn open_entry() -> Result<keyring_core::Entry, String> {
-    if keyring_core::get_default_store().is_none() {
-        #[cfg(target_os = "macos")]
-        let store = apple_native_keyring_store::keychain::Store::new();
-        #[cfg(target_os = "windows")]
-        let store = windows_native_keyring_store::Store::new();
-        #[cfg(all(
-            unix,
-            not(any(target_os = "macos", target_os = "ios", target_os = "android"))
-        ))]
-        let store = zbus_secret_service_keyring_store::Store::new();
-        #[cfg(not(any(
-            target_os = "macos",
-            target_os = "windows",
-            all(
-                unix,
-                not(any(target_os = "macos", target_os = "ios", target_os = "android"))
-            )
-        )))]
-        let store: keyring_core::Result<std::sync::Arc<keyring_core::CredentialStore>> =
-            Err(keyring_core::Error::NoDefaultStore);
-
-        let store =
-            store.map_err(|error| format!("initialize system credential store: {error}"))?;
-        keyring_core::set_default_store(store);
+/// Constructs the default `SecureCredentialVault` for the market service
+/// namespace. On macOS, Windows, and Linux this is the system keyring
+/// vault; on OHOS this returns an unavailable vault (the desktop host is
+/// expected to inject an ArkTS-backed vault via
+/// `SystemMarketCredentialStore::with_vault` before the market client is
+/// constructed).
+fn default_vault() -> Arc<dyn SecureCredentialVault> {
+    #[cfg(feature = "system-vault")]
+    {
+        use bitfun_services_core::secure_credentials::SystemSecureCredentialVault;
+        return Arc::new(SystemSecureCredentialVault::new(KEYRING_SERVICE));
     }
-    keyring_core::Entry::new(KEYRING_SERVICE, KEYRING_ENTRY)
-        .map_err(|error| format!("open market credential entry: {error}"))
+    #[cfg(not(feature = "system-vault"))]
+    {
+        return Arc::new(UnavailableVault);
+    }
 }
 
-async fn load_system_market_credentials() -> Result<Option<StoredMarketCredentials>, String> {
-    tokio::task::spawn_blocking(move || {
-        let _guard = keyring_lock()
-            .lock()
-            .map_err(|_| "market credential lock poisoned".to_string())?;
-        let entry = open_entry()?;
-        let secret = match entry.get_secret() {
-            Ok(secret) => secret,
-            Err(keyring_core::Error::NoEntry) => return Ok(None),
-            Err(error) => return Err(format!("read market credentials: {error}")),
-        };
-        serde_json::from_slice(&secret)
-            .map(Some)
-            .map_err(|error| format!("parse market credentials: {error}"))
-    })
-    .await
-    .map_err(|error| format!("join market credential read: {error}"))?
-}
+/// Fallback vault for targets without the system keyring backend. The
+/// desktop host must inject a real vault via
+/// `SystemMarketCredentialStore::with_vault`; if it does not, every
+/// operation surfaces an explicit unavailable error rather than silently
+/// returning empty data.
+#[cfg(not(feature = "system-vault"))]
+#[derive(Debug)]
+struct UnavailableVault;
 
-async fn save_system_market_credentials(
-    credentials: &StoredMarketCredentials,
-) -> Result<(), String> {
-    let secret = serde_json::to_vec(credentials)
-        .map_err(|error| format!("serialize market credentials: {error}"))?;
-    tokio::task::spawn_blocking(move || {
-        let _guard = keyring_lock()
-            .lock()
-            .map_err(|_| "market credential lock poisoned".to_string())?;
-        open_entry()?
-            .set_secret(&secret)
-            .map_err(|error| format!("write market credentials: {error}"))
-    })
-    .await
-    .map_err(|error| format!("join market credential write: {error}"))?
-}
-
-async fn clear_system_market_credentials() -> Result<(), String> {
-    tokio::task::spawn_blocking(move || {
-        let _guard = keyring_lock()
-            .lock()
-            .map_err(|_| "market credential lock poisoned".to_string())?;
-        match open_entry()?.delete_credential() {
-            Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
-            Err(error) => Err(format!("delete market credentials: {error}")),
-        }
-    })
-    .await
-    .map_err(|error| format!("join market credential delete: {error}"))?
+#[cfg(not(feature = "system-vault"))]
+#[async_trait]
+impl SecureCredentialVault for UnavailableVault {
+    async fn get_secret(&self, _alias: &str) -> Result<Option<Vec<u8>>, String> {
+        Err("market credential vault unavailable: no system backend and no vault injected".to_string())
+    }
+    async fn set_secret(&self, _alias: &str, _secret: &[u8]) -> Result<(), String> {
+        Err("market credential vault unavailable: no system backend and no vault injected".to_string())
+    }
+    async fn delete_secret(&self, _alias: &str) -> Result<(), String> {
+        Err("market credential vault unavailable: no system backend and no vault injected".to_string())
+    }
 }

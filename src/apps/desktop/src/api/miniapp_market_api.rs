@@ -37,9 +37,14 @@ const MARKET_ACCOUNT_CHANGED_EVENT: &str = "miniapp-market-account-changed";
 async fn market_client() -> Result<MarketClient, String> {
     #[cfg(target_env = "ohos")]
     {
-        let store =
-            Arc::new(crate::api::ohos::market_credentials::OhosMarketCredentialStore::new());
-        return MarketClient::from_environment_with_credential_store(store)
+        use bitfun_services_integrations::miniapp_market::SystemMarketCredentialStore;
+        use std::sync::Arc;
+
+        let vault: Arc<dyn bitfun_services_core::secure_credentials::SecureCredentialVault> = Arc::new(
+            crate::api::ohos::secure_credentials::OhosSecureCredentialVault::new(),
+        );
+        let store = SystemMarketCredentialStore::with_vault(vault);
+        return MarketClient::from_environment_with_credential_store(Arc::new(store))
             .await
             .map_err(market_error);
     }

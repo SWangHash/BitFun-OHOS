@@ -861,7 +861,6 @@ name = "bitfun-ai-adapters"
 version = "0.2.19"
 dependencies = [
  "anyhow",
- "apple-native-keyring-store",
  "async-trait",
  "axum",
  "base64 0.22.1",
@@ -875,7 +874,6 @@ dependencies = [
  "fs2",
  "futures",
  "hex",
- "keyring-core",
  "libc",
  "log",
  "reqwest 0.13.4",
@@ -887,8 +885,6 @@ dependencies = [
  "tokio-util",
  "urlencoding",
  "uuid",
- "windows-native-keyring-store",
- "zbus-secret-service-keyring-store",
 ]
 
 [[package]]
@@ -1143,6 +1139,7 @@ dependencies = [
  "bitfun-product-domains",
  "bitfun-relay-service",
  "bitfun-runtime-ports",
+ "bitfun-services-core",
  "bitfun-services-integrations",
  "bitfun-transport",
  "bitfun-webdriver",
@@ -1538,6 +1535,7 @@ name = "bitfun-services-core"
 version = "0.2.19"
 dependencies = [
  "anyhow",
+ "apple-native-keyring-store",
  "async-trait",
  "base64 0.22.1",
  "bitfun-core-types",
@@ -1551,6 +1549,7 @@ dependencies = [
  "git2",
  "globset",
  "ignore",
+ "keyring-core",
  "libc",
  "log",
  "notify",
@@ -1567,6 +1566,8 @@ dependencies = [
  "which 8.0.5",
  "win32job",
  "windows 0.61.3",
+ "windows-native-keyring-store",
+ "zbus-secret-service-keyring-store",
  "zip 4.6.1",
 ]
 
@@ -1577,7 +1578,6 @@ dependencies = [
  "aes",
  "aes-gcm",
  "anyhow",
- "apple-native-keyring-store",
  "argon2",
  "async-trait",
  "base64 0.22.1",
@@ -1599,7 +1599,6 @@ dependencies = [
  "hex",
  "hostname",
  "image 0.25.10",
- "keyring-core",
  "libc",
  "local-ip-address",
  "log",
@@ -1641,9 +1640,7 @@ dependencies = [
  "uuid",
  "which 8.0.5",
  "windows 0.61.3",
- "windows-native-keyring-store",
  "x25519-dalek",
- "zbus-secret-service-keyring-store",
  "zip 4.6.1",
 ]
 
