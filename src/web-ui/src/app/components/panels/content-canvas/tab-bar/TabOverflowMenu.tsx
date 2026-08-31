@@ -1,8 +1,7 @@
 /**
  * TabOverflowMenu component.
- * Combines mission control entry and overflow tabs menu.
- * - Mission control without overflow: click to open mission control
- * - Overflow: show +N badge and dropdown; first item is mission control (if available)
+ * Combines the mission control trigger and overflow tabs menu.
+ * - Mission control always opens directly, including when tabs overflow
  * - Overflow without mission control: show overflow menu only
  */
 
@@ -27,6 +26,15 @@ export interface TabOverflowMenuProps {
   onReorderTab: (tabId: string, newIndex: number) => void;
   /** Open mission control (optional, only for primary group) */
   onOpenMissionControl?: () => void;
+}
+
+export function getTabOverflowTriggerAction(
+  hasMissionControl: boolean,
+  hasOverflow: boolean,
+): 'mission-control' | 'overflow-menu' | 'none' {
+  if (hasMissionControl) return 'mission-control';
+  if (hasOverflow) return 'overflow-menu';
+  return 'none';
 }
 
 export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
@@ -67,13 +75,15 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
 
   // Button click
   const handleButtonClick = useCallback(() => {
-    if (hasOverflow) {
+    const action = getTabOverflowTriggerAction(hasMissionControl, hasOverflow);
+    if (action === 'mission-control') {
+      setIsOpen(false);
+      onOpenMissionControl?.();
+    } else if (action === 'overflow-menu') {
       if (!isOpen) {
         updateMenuPosition();
       }
       setIsOpen(prev => !prev);
-    } else if (hasMissionControl) {
-      onOpenMissionControl?.();
     }
   }, [hasOverflow, hasMissionControl, isOpen, updateMenuPosition, onOpenMissionControl]);
 
@@ -103,12 +113,6 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isOpen]);
-
-  // Handle mission control click
-  const handleMissionControlClick = useCallback(() => {
-    onOpenMissionControl?.();
-    setIsOpen(false);
-  }, [onOpenMissionControl]);
 
   // Handle tab click
   const handleTabClick = useCallback((tabId: string) => {
@@ -185,7 +189,7 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
         </button>
       </Tooltip>
 
-      {isOpen && hasOverflow && createPortal(
+      {isOpen && hasOverflow && !hasMissionControl && createPortal(
         <div
           ref={menuRef}
           data-bf-component="canvas-tab-overflow"
@@ -197,25 +201,6 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
             left: `${menuPosition.left}px`,
           }}
         >
-          {/* Mission control entry - shown only when available */}
-          {hasMissionControl && (
-            <>
-              <div
-                data-bf-component="canvas-tab-overflow"
-                data-bf-part="missionControl"
-                className="canvas-tab-overflow-menu__mission-control"
-                onClick={handleMissionControlClick}
-              >
-                <LayoutGrid size={14} />
-                <span>{t('tabs.missionControl')}</span>
-                <kbd>⌘.</kbd>
-              </div>
-
-              {/* Divider */}
-              <div data-bf-component="canvas-tab-overflow" data-bf-part="divider" className="canvas-tab-overflow-menu__divider" />
-            </>
-          )}
-
           {/* Overflow tab list */}
           <div data-bf-component="canvas-tab-overflow" data-bf-part="list" className="canvas-tab-overflow-menu__list">
             {overflowTabs.map((tab) => {

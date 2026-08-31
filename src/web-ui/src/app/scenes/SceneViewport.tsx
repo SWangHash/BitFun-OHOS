@@ -304,7 +304,7 @@ function renderScene(
     case 'settings':
       return <SettingsScene />;
     case 'file-viewer':
-      return <FileViewerScene workspacePath={workspacePath} />;
+      return <FileViewerScene workspacePath={workspacePath} isActive={isActive} />;
     case 'profile':
       return <ProfileScene />;
     case 'agents':

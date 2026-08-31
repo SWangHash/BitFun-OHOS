@@ -90,7 +90,9 @@ export const EditorGroup: React.FC<EditorGroupProps> = ({
     tabId: string;
   } | null>(null);
   const isKeepAliveTab = useCallback((tab: EditorGroupState['tabs'][number]) =>
-    tab.content.type === 'terminal' || tab.content.type === 'image-viewer',
+    tab.content.type === 'terminal'
+      || tab.content.type === 'image-viewer'
+      || tab.content.type === 'browser',
   []);
   
   // Cache recently visited tabs (max 5) for instant switching
@@ -125,8 +127,8 @@ export const EditorGroup: React.FC<EditorGroupProps> = ({
     }
   }, [group.activeTabId, group.tabs, isKeepAliveTab]);
   
-  // Tabs to render (active + cached). Terminal and image tabs stay mounted so
-  // reopening them reuses the existing runtime state and decoded image.
+  // Tabs to render (active + cached). Terminal, image, and browser tabs stay
+  // mounted so session switches preserve their native runtime state.
   const tabsToRender = useMemo(() => {
     const result = group.tabs.filter(t =>
       isKeepAliveTab(t) ||

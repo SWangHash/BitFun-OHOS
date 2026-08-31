@@ -103,49 +103,6 @@
     }
   }
 
-  // Mission control entry (fixed first item)
-  &__mission-control {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    cursor: pointer;
-    color: var(--bf-appearance-token-color-text-primary);
-    transition: background-color 0.15s ease;
-
-    &:hover {
-      // Use accent-200 for clear hover in light/dark themes
-      background: var(--bf-appearance-token-color-accent-200);
-    }
-
-    span {
-      flex: 1;
-      font-size: 12px;
-      font-weight: 500;
-    }
-
-    kbd {
-      font-size: 10px;
-      padding: 2px 5px;
-      background: var(--bf-appearance-token-color-bg-secondary);
-      border: 1px solid var(--bf-appearance-token-border-base);
-      border-radius: 3px;
-      color: var(--bf-appearance-token-color-text-muted);
-      font-family: inherit;
-    }
-
-    svg {
-      color: var(--bf-appearance-token-color-accent-500);
-    }
-  }
-
-  // Divider
-  &__divider {
-    height: 1px;
-    margin: 4px 12px;
-    background: var(--bf-appearance-token-border-base);
-  }
-
   // Tab list
   &__list {
     padding: 4px 0;

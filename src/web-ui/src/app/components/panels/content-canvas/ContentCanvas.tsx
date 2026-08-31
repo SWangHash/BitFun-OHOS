@@ -116,7 +116,9 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
   const hasRenderableTabs = useMemo(() => {
     const groups = [primaryGroup, secondaryGroup, tertiaryGroup];
     return groups.some(group =>
-      group.tabs.some(tab => !tab.isHidden || tab.content.type === 'terminal')
+      group.tabs.some(tab =>
+        !tab.isHidden || tab.content.type === 'terminal' || tab.content.type === 'browser'
+      )
     );
   }, [primaryGroup, secondaryGroup, tertiaryGroup]);
 
