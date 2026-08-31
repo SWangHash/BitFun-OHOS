@@ -19,6 +19,7 @@ import type {
   WorkspaceSearchIndexTaskHandle,
 } from './tauri-commands';
 import { createLogger } from '@/shared/utils/logger';
+import { isTauriRuntime, isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 
 const log = createLogger('WorkspaceAPI');
 
@@ -1104,6 +1105,17 @@ export class WorkspaceAPI {
   async open_oh_file_dialog(
     opts: OhOpenDialogOptions = {},
   ): Promise<string | string[] | null> {
+    if (isTauriRuntime() && !isOpenHarmonyRuntime()) {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      return open({
+        directory: opts.directory,
+        multiple: opts.multiple,
+        title: opts.title,
+        defaultPath: opts.defaultPath,
+        filters: opts.filters?.map((f) => ({ name: f.name, extensions: f.extensions })),
+      });
+    }
+
     try {
       const raw = await api.invoke<string>('open_oh_file_dialog', {
         options: JSON.stringify(opts),
