@@ -857,6 +857,10 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
               isActive={isActive}
               initialUrl={content.data?.url}
               initialHtml={content.data?.html}
+              automationId={content.data?.automationId}
+              automationTitle={content.data?.automationTitle}
+              webviewLabel={content.data?.webviewLabel}
+              adoptExisting={content.data?.adoptExisting}
             />
           </React.Suspense>
         );

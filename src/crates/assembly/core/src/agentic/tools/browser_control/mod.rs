@@ -15,5 +15,6 @@ pub use actions::BrowserActions;
 pub use browser_launcher::BrowserLauncher;
 pub use cdp_client::CdpClient;
 pub use session_registry::{
-    BrowserSession, BrowserSessionRegistry, BrowserSessionState, DialogHandler,
+    BrowserSession, BrowserSessionBackend, BrowserSessionRegistry, BrowserSessionState,
+    DialogHandler,
 };

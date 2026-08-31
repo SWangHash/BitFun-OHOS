@@ -12,19 +12,31 @@ use crate::agentic::tools::browser_control::actions::{BrowserActions, MAX_WAIT_M
 use crate::agentic::tools::browser_control::browser_launcher::{
     BrowserKind, BrowserLauncher, LaunchResult, DEFAULT_CDP_PORT,
 };
+#[cfg(target_env = "ohos")]
+use crate::agentic::tools::browser_control::cdp_client::CdpEndpoint;
 use crate::agentic::tools::browser_control::cdp_client::{CdpClient, CdpPageInfo, CdpVersionInfo};
 use crate::agentic::tools::browser_control::session_registry::{
-    BrowserSession, BrowserSessionRegistry, BrowserSessionState, DialogHandler,
+    BrowserSession, BrowserSessionBackend, BrowserSessionRegistry, BrowserSessionState,
+    DialogHandler,
 };
 use crate::agentic::tools::framework::{
     Tool, ToolExposure, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult,
 };
 use crate::infrastructure::events::{get_global_event_system, BackendEvent};
+#[cfg(not(target_env = "ohos"))]
 use crate::service::config::{get_global_config_service, GlobalConfig};
 use crate::util::errors::{BitFunError, BitFunResult};
 use crate::util::types::ToolImageAttachment;
 use async_trait::async_trait;
 use bitfun_services_core::system::{truncate_with_marker, LocalSystemProvider};
+#[cfg(target_env = "ohos")]
+use bitfun_services_integrations::browser_control::{
+    close_arkweb_browser_webview, create_arkweb_browser_webview, default_arkweb_automation_target,
+    list_arkweb_automation_targets, register_arkweb_automation_target,
+    remove_arkweb_automation_target, set_default_arkweb_automation_target, ArkWebAutomationTarget,
+};
+#[cfg(target_env = "ohos")]
+use log::info;
 use serde_json::{json, Value};
 use std::sync::Arc;
 
@@ -37,8 +49,19 @@ use super::control_hub::{err_response, ControlHubError, ErrorCode};
 /// in-flight `wait` / lifecycle subscriptions.
 static BROWSER_SESSIONS: std::sync::OnceLock<Arc<BrowserSessionRegistry>> =
     std::sync::OnceLock::new();
+#[cfg(target_env = "ohos")]
+static BUILTIN_ARKWEB_RECONNECT_LOCK: std::sync::OnceLock<tokio::sync::Mutex<()>> =
+    std::sync::OnceLock::new();
 
 const OPEN_BUILT_IN_BROWSER_EVENT: &str = "agentic://open-built-in-browser";
+#[cfg(target_env = "ohos")]
+const CLOSE_BUILT_IN_BROWSER_EVENT: &str = "agentic://close-built-in-browser";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BrowserConnectBackend {
+    External,
+    Builtin,
+}
 
 /// `connect { mode: "headless" }` only attaches, it never launches. It must
 /// therefore not default to the logical port used by the `default` mode:
@@ -56,6 +79,11 @@ fn browser_sessions() -> Arc<BrowserSessionRegistry> {
     BROWSER_SESSIONS
         .get_or_init(|| Arc::new(BrowserSessionRegistry::new()))
         .clone()
+}
+
+#[cfg(target_env = "ohos")]
+fn builtin_arkweb_reconnect_lock() -> &'static tokio::sync::Mutex<()> {
+    BUILTIN_ARKWEB_RECONNECT_LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
 }
 
 pub struct ControlHubTool;
@@ -90,12 +118,395 @@ impl ControlHubTool {
         }
     }
 
+    fn browser_connect_backend_from_params(
+        params: &Value,
+    ) -> Result<BrowserConnectBackend, ControlHubError> {
+        match params.get("backend").and_then(Value::as_str) {
+            None | Some("external") | Some("browser") | Some("haitai") => {
+                Ok(BrowserConnectBackend::External)
+            }
+            Some("builtin") | Some("embedded") | Some("arkweb") => {
+                Ok(BrowserConnectBackend::Builtin)
+            }
+            Some(backend) => Err(ControlHubError::new(
+                ErrorCode::InvalidParams,
+                format!("Unknown browser backend '{backend}'. Valid backends: external, builtin"),
+            )),
+        }
+    }
+
+    async fn resolve_browser_session(session_id: Option<&str>) -> BitFunResult<BrowserSession> {
+        let registry = browser_sessions();
+        match registry.registered(session_id).await {
+            Ok(session) if session.client.is_connected() => Ok(session),
+            #[cfg(target_env = "ohos")]
+            Ok(session) if session.backend.is_builtin_arkweb() => {
+                let target = match &session.backend {
+                    BrowserSessionBackend::BuiltinArkWeb {
+                        automation_id,
+                        webview_label,
+                    } => ArkWebAutomationTarget {
+                        automation_id: automation_id.clone(),
+                        webview_label: webview_label.clone(),
+                        target_id: session.session_id.clone(),
+                    },
+                    BrowserSessionBackend::ExternalCdp => unreachable!(),
+                };
+                Self::reconnect_builtin_arkweb(target, Some(session.state)).await
+            }
+            Ok(_) => registry.get(session_id).await,
+            Err(error) => {
+                #[cfg(target_env = "ohos")]
+                {
+                    let target = match session_id {
+                        Some(session_id) => list_arkweb_automation_targets()
+                            .into_iter()
+                            .find(|target| target.target_id == session_id),
+                        None => default_arkweb_automation_target(),
+                    };
+                    if let Some(target) = target {
+                        return Self::reconnect_builtin_arkweb(target, None).await;
+                    }
+                }
+                Err(error)
+            }
+        }
+    }
+
+    #[cfg(target_env = "ohos")]
+    async fn reconnect_builtin_arkweb(
+        target: ArkWebAutomationTarget,
+        previous_state: Option<Arc<BrowserSessionState>>,
+    ) -> BitFunResult<BrowserSession> {
+        let _reconnect_guard = builtin_arkweb_reconnect_lock().lock().await;
+        let registry = browser_sessions();
+        if let Ok(session) = registry.registered(Some(&target.target_id)).await {
+            if session.client.is_connected() {
+                return Ok(session);
+            }
+        }
+
+        let endpoint = CdpEndpoint::arkweb_for_current_process();
+        let pages = CdpClient::list_pages_at(&endpoint).await?;
+        let page = pages.into_iter().find(|page| {
+            page.id == target.target_id
+                && page.page_type.as_deref() == Some("page")
+                && page.web_socket_debugger_url.is_some()
+        });
+        let Some(page) = page else {
+            registry.remove(&target.target_id).await;
+            remove_arkweb_automation_target(&target.target_id);
+            return Err(BitFunError::tool(format!(
+                "Built-in ArkWeb target '{}' no longer exists. Call browser.connect with backend 'builtin' to create a new page.",
+                target.target_id
+            )));
+        };
+        let ws_url = page.web_socket_debugger_url.as_deref().ok_or_else(|| {
+            BitFunError::tool("ArkWeb target has no WebSocket debugger URL".to_string())
+        })?;
+        let client = CdpClient::connect_at(&endpoint, ws_url).await?;
+        let session = BrowserSession {
+            session_id: target.target_id.clone(),
+            port: 0,
+            backend: BrowserSessionBackend::BuiltinArkWeb {
+                automation_id: target.automation_id,
+                webview_label: target.webview_label,
+            },
+            client: Arc::new(client),
+            state: previous_state.unwrap_or_else(|| Arc::new(BrowserSessionState::new())),
+        };
+        registry.register(session.clone()).await;
+        let _ = BrowserActions::new(session.client.as_ref())
+            .enable_observers()
+            .await;
+        info!(
+            "Reconnected built-in ArkWeb browser session: session_id={}",
+            session.session_id
+        );
+        Ok(session)
+    }
+
+    async fn registered_builtin_pages() -> BitFunResult<Vec<CdpPageInfo>> {
+        #[cfg(target_env = "ohos")]
+        {
+            let targets = list_arkweb_automation_targets();
+            if targets.is_empty() {
+                return Ok(Vec::new());
+            }
+            let target_ids: std::collections::HashSet<_> =
+                targets.into_iter().map(|target| target.target_id).collect();
+            let pages = CdpClient::list_pages_at(&CdpEndpoint::arkweb_for_current_process())
+                .await?
+                .into_iter()
+                .filter(|page| {
+                    target_ids.contains(&page.id) && page.page_type.as_deref() == Some("page")
+                })
+                .map(|mut page| {
+                    page.web_socket_debugger_url = None;
+                    page
+                })
+                .collect();
+            return Ok(pages);
+        }
+
+        #[cfg(not(target_env = "ohos"))]
+        {
+            let sessions = browser_sessions().sessions().await;
+            let mut pages = Vec::new();
+            for session in sessions {
+                if !session.backend.is_builtin_arkweb() || !session.client.is_connected() {
+                    continue;
+                }
+                let actions = BrowserActions::new(session.client.as_ref());
+                let url = actions.get_url().await.unwrap_or_default();
+                let title = actions.get_title().await.unwrap_or_default();
+                pages.push(CdpPageInfo {
+                    id: session.session_id,
+                    title,
+                    url,
+                    web_socket_debugger_url: None,
+                    page_type: Some("page".to_string()),
+                });
+            }
+            Ok(pages)
+        }
+    }
+
+    #[cfg(target_env = "ohos")]
+    async fn notify_builtin_browser_closed(automation_id: &str) {
+        let _ = get_global_event_system()
+            .emit(BackendEvent::Custom {
+                event_name: CLOSE_BUILT_IN_BROWSER_EVENT.to_string(),
+                payload: json!({ "automationId": automation_id }),
+            })
+            .await;
+    }
+
+    #[cfg(target_env = "ohos")]
+    async fn cleanup_builtin_browser(automation_id: &str, webview_label: &str) -> Option<String> {
+        let close_error = close_arkweb_browser_webview(webview_label).await.err();
+        Self::notify_builtin_browser_closed(automation_id).await;
+        close_error
+    }
+
+    #[cfg(target_env = "ohos")]
+    async fn connect_builtin_arkweb(
+        response_action: &str,
+        params: &Value,
+        context: &ToolUseContext,
+    ) -> BitFunResult<Vec<ToolResult>> {
+        if Self::browser_connect_mode_from_params(params) == "headless" {
+            return Ok(err_response(
+                "browser",
+                response_action,
+                ControlHubError::new(
+                    ErrorCode::InvalidParams,
+                    "The built-in ArkWeb backend cannot run in headless mode.",
+                )
+                .with_hint("Use backend: 'external' for an independently managed browser."),
+            ));
+        }
+        if params.get("port").is_some() || params.get("user_data_dir").is_some() {
+            return Ok(err_response(
+                "browser",
+                response_action,
+                ControlHubError::new(
+                    ErrorCode::InvalidParams,
+                    "The built-in ArkWeb backend does not accept port or user_data_dir.",
+                ),
+            ));
+        }
+
+        let raw_url = params.get("url").and_then(Value::as_str).unwrap_or("");
+        if raw_url.trim().is_empty() {
+            return Ok(err_response(
+                "browser",
+                response_action,
+                ControlHubError::new(
+                    ErrorCode::InvalidParams,
+                    format!("browser.{response_action} requires params.url."),
+                )
+                .with_hint("Pass an http(s) URL, e.g. { \"url\": \"https://example.com\" }."),
+            ));
+        }
+        let computer_use = Self::computer_use_available(context).await;
+        let url = match Self::normalize_builtin_browser_url(raw_url, computer_use) {
+            Ok(url) => url,
+            Err(error) => return Ok(err_response("browser", response_action, error)),
+        };
+        let title = params
+            .get("title")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("Browser")
+            .to_string();
+
+        let automation_id = uuid::Uuid::new_v4().simple().to_string();
+        let marker_title = format!("BitFun ArkWeb Agent {automation_id}");
+        let webview_label = format!("embedded-browser-panel-view-agent-{automation_id}");
+        let bootstrap_html = format!(
+            "<!doctype html><html><head><meta charset=\"utf-8\"><title>{marker_title}</title></head><body data-bitfun-automation-id=\"{automation_id}\"></body></html>"
+        );
+        if let Err(error) = create_arkweb_browser_webview(&webview_label, &bootstrap_html).await {
+            return Ok(err_response(
+                "browser",
+                response_action,
+                ControlHubError::new(
+                    ErrorCode::NotAvailable,
+                    format!("The OHOS host could not create the built-in ArkWeb: {error}"),
+                )
+                .with_hint(
+                    "The builtin backend requires the BitFun OHOS GUI host; CLI and detached targets must use backend: 'external'.",
+                ),
+            ));
+        }
+        let frontend_event_error = get_global_event_system()
+            .emit(BackendEvent::Custom {
+                event_name: OPEN_BUILT_IN_BROWSER_EVENT.to_string(),
+                payload: json!({
+                    "url": url,
+                    "title": title,
+                    "replaceExisting": false,
+                    "ownerSessionId": context.session_id,
+                    "ownerWorkspaceId": context.workspace.as_ref().and_then(|workspace| workspace.workspace_id.as_ref()),
+                    "ownerWorkspacePath": context.workspace_root().map(|path| path.to_string_lossy().to_string()),
+                    "automationId": automation_id,
+                    "automationTitle": marker_title,
+                    "webviewLabel": webview_label,
+                    "adoptExisting": true,
+                }),
+            })
+            .await
+            .err()
+            .map(|error| error.to_string());
+
+        let endpoint = CdpEndpoint::arkweb_for_current_process();
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+        let mut last_error = None;
+        let page = loop {
+            match CdpClient::list_pages_at(&endpoint).await {
+                Ok(pages) => {
+                    if let Some(page) = pages.into_iter().find(|page| {
+                        page.page_type.as_deref() == Some("page")
+                            && page.title == marker_title
+                            && page.web_socket_debugger_url.is_some()
+                    }) {
+                        break Some(page);
+                    }
+                }
+                Err(error) => last_error = Some(error.to_string()),
+            }
+            if tokio::time::Instant::now() >= deadline {
+                break None;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        };
+
+        let Some(page) = page else {
+            let cleanup_error = Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
+            let mut error = ControlHubError::new(
+                ErrorCode::NotAvailable,
+                "The built-in ArkWeb panel did not publish its CDP target within 10 seconds.",
+            )
+            .with_hint(
+                "The ArkWeb host was present but did not publish the requested target; retry after the BitFun window is ready.",
+            );
+            if let Some(last_error) = last_error {
+                error = error.with_hint(format!("Last ArkWeb endpoint error: {last_error}"));
+            }
+            if let Some(cleanup_error) = cleanup_error {
+                error = error.with_hint(format!("WebView cleanup also failed: {cleanup_error}"));
+            }
+            return Ok(err_response("browser", response_action, error));
+        };
+
+        if let Err(error) = CdpClient::validate_ohos_protocol_at(&endpoint).await {
+            Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
+            return Err(error);
+        }
+        let version = match CdpClient::get_version_at(&endpoint).await {
+            Ok(version) => version,
+            Err(error) => {
+                Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
+                return Err(error);
+            }
+        };
+        let Some(ws_url) = page.web_socket_debugger_url.as_deref() else {
+            Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
+            return Err(BitFunError::tool(
+                "ArkWeb target has no WebSocket debugger URL".to_string(),
+            ));
+        };
+        let client = match CdpClient::connect_at(&endpoint, ws_url).await {
+            Ok(client) => client,
+            Err(error) => {
+                Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
+                return Err(error);
+            }
+        };
+        let session = BrowserSession {
+            session_id: page.id.clone(),
+            port: 0,
+            backend: BrowserSessionBackend::BuiltinArkWeb {
+                automation_id: automation_id.clone(),
+                webview_label: webview_label.clone(),
+            },
+            client: Arc::new(client),
+            state: Arc::new(BrowserSessionState::new()),
+        };
+        register_arkweb_automation_target(ArkWebAutomationTarget {
+            automation_id: automation_id.clone(),
+            webview_label: webview_label.clone(),
+            target_id: session.session_id.clone(),
+        });
+        browser_sessions().register(session.clone()).await;
+        let actions = BrowserActions::new(session.client.as_ref());
+        let _ = actions.enable_observers().await;
+        if let Err(error) = actions.navigate(&url).await {
+            browser_sessions().remove(&session.session_id).await;
+            remove_arkweb_automation_target(&session.session_id);
+            Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
+            return Err(error);
+        }
+        let page_title = actions.get_title().await.unwrap_or(title);
+
+        let mut result = json!({
+            "success": true,
+            "browser": "BitFun Built-in ArkWeb",
+            "browser_mode": "embedded",
+            "browser_profile": "embedded",
+            "browser_version": version.browser,
+            "transport": "arkweb_abstract_socket",
+            "endpoint": endpoint.to_string(),
+            "session_id": session.session_id,
+            "page_url": url,
+            "page_title": page_title,
+            "observable_by_agent": true,
+            "webview_label": webview_label,
+            "status": "connected_builtin",
+        });
+        if let Some(error) = frontend_event_error {
+            result["warning"] = json!(format!(
+                "The page is controllable but the panel event was not delivered: {error}"
+            ));
+        }
+        Ok(vec![ToolResult::ok(
+            result,
+            Some(format!(
+                "Connected to the BitFun built-in ArkWeb via CDP (session {})",
+                session.session_id
+            )),
+        )])
+    }
+
     fn default_browser_connect_hints(kind: &BrowserKind, port: u16) -> Vec<String> {
         #[cfg(target_env = "ohos")]
         {
             let _ = (kind, port);
             return vec![
                 "OHOS browser control starts or attaches the Haitai browser through its local TCP CDP endpoint; it never uses hdc, a development machine, root, or port forwarding.".to_string(),
+                "To control a page inside BitFun instead, use browser.connect { backend: \"builtin\", url: \"https://...\" }; it attaches only to the newly-created ArkWeb panel through the app-local abstract socket.".to_string(),
                 "If Haitai is already running without CDP, browser.connect tries one hot-start and then returns NEEDS_RESTART; close Haitai completely and retry.".to_string(),
                 "After connecting, use browser.tab_new or browser.connect { url } with the task URL, then browser.snapshot/click/fill to drive the page through CDP.".to_string(),
             ];
@@ -288,8 +699,9 @@ Use this tool via `{ domain, action, params }` for browser automation, terminal 
   * `open_builtin { url, title?, replace_existing? }` — open an http(s) URL in BitFun's built-in right-side browser panel. This changes the BitFun UI only; it does not fetch page text for reasoning. The panel is display-only for the user — the agent cannot snapshot, read, or interact with it; use `connect` + `snapshot` when page content is needed.
 - Automation modes:
   * `connect { mode: "default", url? }` (default) — on desktop, use the current approved profile where available or BitFun's managed profile; on OHOS, start or attach Haitai with local TCP CDP on port 9222.
+  * `connect { backend: "builtin", url }` — on OHOS, create a dedicated BitFun ArkWeb panel and attach it through the app-local abstract CDP socket. Only that registered panel is exposed to browser actions; the BitFun application UI is never listed or attachable. This requires a live GUI on the OHOS host and returns `NOT_AVAILABLE` for detached/headless execution.
   * `connect { mode: "headless" }` — attach to an already-running headless browser on the headless test port 9223. This mode never starts a browser; when nothing is listening it returns `NOT_AVAILABLE` together with the exact launch command.
-  * `params.port` overrides the CDP port for `connect` and every other CDP action; OHOS passes it to Haitai's cmdArgs.
+  * `params.port` overrides the external CDP port for `connect` and every other external-browser CDP action; OHOS passes it to Haitai's cmdArgs. The built-in backend rejects port overrides.
 - Actions: open_builtin, connect, tab_new, navigate, back, forward, reload, snapshot, click, hover, fill, type, check, uncheck, select, press_key, scroll, auto_scroll, wait, get, get_text, get_url, get_title, get_html, screenshot, evaluate, fetch, cookies, set_cookies, set_file_input_files, cdp, network, console, errors, trace, dialog, read_article, close, list_pages, tab_query, switch_page, list_sessions.
 - Pausing:
   * `wait { duration_ms }` — pause for a fixed time, up to 60 minutes (`ms` and `seconds` are accepted spellings). This is the action to use when you must idle between rounds of work, e.g. `{ "duration_ms": 1800000 }` to resume in 30 minutes. It needs no browser session, and the result reports the `ms` actually waited, so check that figure before assuming the full pause happened.
@@ -812,6 +1224,34 @@ Branch on `ok` and `error.code`, not on English messages.
             .get("session_id")
             .and_then(|v| v.as_str())
             .map(str::to_string);
+        let current_session = if matches!(action, "connect" | "open_builtin") {
+            None
+        } else {
+            browser_sessions()
+                .registered(session_id_param.as_deref())
+                .await
+                .ok()
+        };
+        let requested_backend = if params.get("backend").is_some() {
+            match Self::browser_connect_backend_from_params(params) {
+                Ok(backend) => Some(backend),
+                Err(error) => return Ok(err_response("browser", action, error)),
+            }
+        } else {
+            None
+        };
+        #[cfg(target_env = "ohos")]
+        let has_recoverable_builtin = default_arkweb_automation_target().is_some();
+        #[cfg(not(target_env = "ohos"))]
+        let has_recoverable_builtin = false;
+        let use_builtin_backend = requested_backend
+            .map(|backend| backend == BrowserConnectBackend::Builtin)
+            .unwrap_or_else(|| {
+                current_session
+                    .as_ref()
+                    .map(|session| session.backend.is_builtin_arkweb())
+                    .unwrap_or(has_recoverable_builtin)
+            });
 
         let port = match params.get("port").and_then(|v| v.as_u64()) {
             Some(p) => p as u16,
@@ -826,11 +1266,16 @@ Branch on `ok` and `error.code`, not on English messages.
             // tab_new / switch_page) must reuse the connected session's port,
             // otherwise a headless session's follow-up calls fall back to the
             // headed browser's port.
-            None => browser_sessions()
-                .get(session_id_param.as_deref())
-                .await
-                .map(|s| s.port)
-                .unwrap_or(DEFAULT_CDP_PORT),
+            None => {
+                if requested_backend == Some(BrowserConnectBackend::External) {
+                    DEFAULT_CDP_PORT
+                } else {
+                    current_session
+                        .as_ref()
+                        .map(|session| session.port)
+                        .unwrap_or(DEFAULT_CDP_PORT)
+                }
+            }
         };
 
         match action {
@@ -861,6 +1306,9 @@ Branch on `ok` and `error.code`, not on English messages.
                             "url": url,
                             "title": title,
                             "replaceExisting": replace_existing,
+                            "ownerSessionId": context.session_id,
+                            "ownerWorkspaceId": context.workspace.as_ref().and_then(|workspace| workspace.workspace_id.as_ref()),
+                            "ownerWorkspacePath": context.workspace_root().map(|path| path.to_string_lossy().to_string()),
                         }),
                     })
                     .await
@@ -889,6 +1337,27 @@ Branch on `ok` and `error.code`, not on English messages.
 
             "connect" => {
                 let mode = Self::browser_connect_mode_from_params(params);
+                let backend = match Self::browser_connect_backend_from_params(params) {
+                    Ok(backend) => backend,
+                    Err(error) => return Ok(err_response("browser", "connect", error)),
+                };
+                if backend == BrowserConnectBackend::Builtin {
+                    #[cfg(target_env = "ohos")]
+                    return Self::connect_builtin_arkweb("connect", params, context).await;
+
+                    #[cfg(not(target_env = "ohos"))]
+                    return Ok(err_response(
+                        "browser",
+                        "connect",
+                        ControlHubError::new(
+                            ErrorCode::NotAvailable,
+                            "The builtin ArkWeb browser backend is available only on OHOS.",
+                        )
+                        .with_hint(
+                            "Use browser.connect with backend: 'external' on desktop platforms.",
+                        ),
+                    ));
+                }
 
                 #[cfg(target_env = "ohos")]
                 if mode == "headless" {
@@ -947,8 +1416,8 @@ Branch on `ok` and `error.code`, not on English messages.
                     .filter(|value| !value.is_empty())
                     .map(str::to_string);
                 if let Some(url) = initial_url.as_deref() {
-                    if (!Self::is_absolute_http_url(url)
-                        || url.chars().any(|character| character.is_whitespace()))
+                    if !Self::is_absolute_http_url(url)
+                        || url.chars().any(|character| character.is_whitespace())
                     {
                         return Ok(err_response(
                             "browser",
@@ -1183,6 +1652,7 @@ Branch on `ok` and `error.code`, not on English messages.
                         let session = BrowserSession {
                             session_id: page.id.clone(),
                             port,
+                            backend: BrowserSessionBackend::ExternalCdp,
                             client: Arc::new(client),
                             state: Arc::new(BrowserSessionState::new()),
                         };
@@ -1325,7 +1795,11 @@ Branch on `ok` and `error.code`, not on English messages.
             }
 
             "list_pages" => {
-                let pages = Self::browser_pages(port).await?;
+                let pages = if use_builtin_backend {
+                    Self::registered_builtin_pages().await?
+                } else {
+                    Self::browser_pages(port).await?
+                };
                 let default_id = browser_sessions().default_id().await;
                 let summary: Vec<Value> = pages
                     .iter()
@@ -1376,7 +1850,11 @@ Branch on `ok` and `error.code`, not on English messages.
                     .unwrap_or(20)
                     .max(1);
 
-                let pages = Self::browser_pages(port).await?;
+                let pages = if use_builtin_backend {
+                    Self::registered_builtin_pages().await?
+                } else {
+                    Self::browser_pages(port).await?
+                };
                 let default_id = browser_sessions().default_id().await;
                 let total = pages.len();
                 let filtered: Vec<Value> = pages
@@ -1426,6 +1904,20 @@ Branch on `ok` and `error.code`, not on English messages.
             }
 
             "tab_new" => {
+                if use_builtin_backend {
+                    #[cfg(target_env = "ohos")]
+                    return Self::connect_builtin_arkweb("tab_new", params, context).await;
+
+                    #[cfg(not(target_env = "ohos"))]
+                    return Ok(err_response(
+                        "browser",
+                        "tab_new",
+                        ControlHubError::new(
+                            ErrorCode::NotAvailable,
+                            "The builtin ArkWeb browser backend is available only on OHOS.",
+                        ),
+                    ));
+                }
                 let url = params.get("url").and_then(|v| v.as_str());
                 let activate = params
                     .get("activate")
@@ -1436,6 +1928,7 @@ Branch on `ok` and `error.code`, not on English messages.
                 let session = BrowserSession {
                     session_id: page.id.clone(),
                     port,
+                    backend: BrowserSessionBackend::ExternalCdp,
                     client: Arc::new(client),
                     state: Arc::new(BrowserSessionState::new()),
                 };
@@ -1483,7 +1976,34 @@ Branch on `ok` and `error.code`, not on English messages.
                 let mut reused = false;
                 let session = if registry.set_default(page_id).await.is_ok() {
                     reused = true;
-                    registry.get(Some(page_id)).await?
+                    Self::resolve_browser_session(Some(page_id)).await?
+                } else if use_builtin_backend {
+                    #[cfg(target_env = "ohos")]
+                    let is_registered_builtin = list_arkweb_automation_targets()
+                        .iter()
+                        .any(|target| target.target_id == page_id);
+                    #[cfg(not(target_env = "ohos"))]
+                    let is_registered_builtin = false;
+                    if !is_registered_builtin {
+                        return Ok(err_response(
+                            "browser",
+                            "switch_page",
+                            ControlHubError::new(
+                                ErrorCode::WrongTab,
+                                format!(
+                                    "Built-in ArkWeb page '{}' is not a registered controllable session.",
+                                    page_id
+                                ),
+                            )
+                            .with_hint(
+                                "Use browser.list_pages with backend: 'builtin' to inspect controllable built-in pages.",
+                            ),
+                        ));
+                    }
+                    let session = Self::resolve_browser_session(Some(page_id)).await?;
+                    registry.set_default(page_id).await?;
+                    reused = true;
+                    session
                 } else {
                     let pages = Self::browser_pages(port).await?;
                     let page = pages.iter().find(|p| p.id == page_id).ok_or_else(|| {
@@ -1493,6 +2013,7 @@ Branch on `ok` and `error.code`, not on English messages.
                     let session = BrowserSession {
                         session_id: page.id.clone(),
                         port,
+                        backend: BrowserSessionBackend::ExternalCdp,
                         client: Arc::new(client),
                         state: Arc::new(BrowserSessionState::new()),
                     };
@@ -1502,6 +2023,11 @@ Branch on `ok` and `error.code`, not on English messages.
                         .await;
                     session
                 };
+
+                #[cfg(target_env = "ohos")]
+                if session.backend.is_builtin_arkweb() {
+                    set_default_arkweb_automation_target(&session.session_id);
+                }
 
                 let mut activated = false;
                 let mut activate_warning: Option<String> = None;
@@ -1547,6 +2073,8 @@ Branch on `ok` and `error.code`, not on English messages.
             "list_sessions" | "network" | "network_requests" | "console" | "errors" | "trace" => {
                 match action {
                     "list_sessions" => {
+                        #[cfg(target_env = "ohos")]
+                        let _ = Self::resolve_browser_session(session_id_param.as_deref()).await;
                         let registry = browser_sessions();
                         let ids = registry.list().await;
                         let default = registry.default_id().await;
@@ -1564,7 +2092,8 @@ Branch on `ok` and `error.code`, not on English messages.
                         )])
                     }
                     "network" | "network_requests" => {
-                        let session = browser_sessions().get(session_id_param.as_deref()).await?;
+                        let session =
+                            Self::resolve_browser_session(session_id_param.as_deref()).await?;
                         let state = &session.state;
                         let sub = params.get("sub_command").and_then(|v| v.as_str());
                         match sub {
@@ -1626,7 +2155,8 @@ Branch on `ok` and `error.code`, not on English messages.
                         }
                     }
                     "console" => {
-                        let session = browser_sessions().get(session_id_param.as_deref()).await?;
+                        let session =
+                            Self::resolve_browser_session(session_id_param.as_deref()).await?;
                         let state = &session.state;
                         let sub = params.get("sub_command").and_then(|v| v.as_str());
                         if sub == Some("clear") {
@@ -1651,7 +2181,8 @@ Branch on `ok` and `error.code`, not on English messages.
                         )])
                     }
                     "errors" => {
-                        let session = browser_sessions().get(session_id_param.as_deref()).await?;
+                        let session =
+                            Self::resolve_browser_session(session_id_param.as_deref()).await?;
                         let state = &session.state;
                         let sub = params.get("sub_command").and_then(|v| v.as_str());
                         if sub == Some("clear") {
@@ -1676,7 +2207,8 @@ Branch on `ok` and `error.code`, not on English messages.
                         )])
                     }
                     "trace" => {
-                        let session = browser_sessions().get(session_id_param.as_deref()).await?;
+                        let session =
+                            Self::resolve_browser_session(session_id_param.as_deref()).await?;
                         let state = &session.state;
                         let sub = params.get("sub_command").and_then(|v| v.as_str());
                         match sub {
@@ -1731,7 +2263,7 @@ Branch on `ok` and `error.code`, not on English messages.
                 // Resolve a session: explicit `session_id` if present, else
                 // the registry's default. This replaces the prior "global
                 // singleton" pattern that was racy across concurrent tasks.
-                let session = browser_sessions().get(session_id_param.as_deref()).await?;
+                let session = Self::resolve_browser_session(session_id_param.as_deref()).await?;
                 let actions = BrowserActions::new(session.client.as_ref());
 
                 match action {
@@ -2363,6 +2895,30 @@ Branch on `ok` and `error.code`, not on English messages.
                     // context of subsequent actions. Snapshot / click / fill
                     // resolve elements across same-origin iframes directly.
                     "close" => {
+                        #[cfg(target_env = "ohos")]
+                        if let BrowserSessionBackend::BuiltinArkWeb {
+                            automation_id,
+                            webview_label,
+                        } = &session.backend
+                        {
+                            let close_error =
+                                Self::cleanup_builtin_browser(automation_id, webview_label).await;
+                            browser_sessions().remove(&session.session_id).await;
+                            remove_arkweb_automation_target(&session.session_id);
+                            let mut result = json!({
+                                "success": close_error.is_none(),
+                                "closed": close_error.is_none(),
+                                "session_id": session.session_id,
+                                "backend": "builtin",
+                            });
+                            if let Some(error) = close_error {
+                                result["warning"] = json!(error);
+                            }
+                            return Ok(vec![ToolResult::ok(
+                                result,
+                                Some("Built-in ArkWeb page closed".to_string()),
+                            )]);
+                        }
                         let result = actions.close_page().await?;
                         // After a close, drop the session so subsequent calls
                         // don't try to talk through a half-dead WebSocket.
@@ -2481,6 +3037,7 @@ Branch on `ok` and `error.code`, not on English messages.
     }
 }
 
+#[cfg(not(target_env = "ohos"))]
 fn parse_browser_kind(browser: &str) -> BitFunResult<BrowserKind> {
     #[cfg(target_env = "ohos")]
     {
@@ -3706,6 +4263,25 @@ mod control_hub_tests {
             ControlHubTool::normalize_builtin_browser_url("example.com", true).unwrap(),
             "https://example.com"
         );
+    }
+
+    #[test]
+    fn browser_connect_backend_parses_builtin_aliases_and_rejects_unknown_values() {
+        assert_eq!(
+            ControlHubTool::browser_connect_backend_from_params(&json!({})).unwrap(),
+            BrowserConnectBackend::External
+        );
+        for backend in ["builtin", "embedded", "arkweb"] {
+            assert_eq!(
+                ControlHubTool::browser_connect_backend_from_params(&json!({ "backend": backend }))
+                    .unwrap(),
+                BrowserConnectBackend::Builtin
+            );
+        }
+        assert!(ControlHubTool::browser_connect_backend_from_params(
+            &json!({ "backend": "unknown" })
+        )
+        .is_err());
     }
 
     #[tokio::test]

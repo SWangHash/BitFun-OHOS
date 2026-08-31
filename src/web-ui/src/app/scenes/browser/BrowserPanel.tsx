@@ -36,9 +36,21 @@ export interface BrowserPanelProps {
   initialUrl?: string;
   /** Optional raw HTML content to load instead of a URL (local HTML files). */
   initialHtml?: string;
+  automationId?: string;
+  automationTitle?: string;
+  webviewLabel?: string;
+  adoptExisting?: boolean;
 }
 
-const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, initialHtml }) => {
+const BrowserPanel: React.FC<BrowserPanelProps> = ({
+  isActive,
+  initialUrl,
+  initialHtml,
+  automationId,
+  automationTitle,
+  webviewLabel: requestedWebviewLabel,
+  adoptExisting,
+}) => {
   const { t } = useTranslation('common');
   const activeTabId = useSceneStore((s) => s.activeTabId);
   const shouldShowWebview = isActive && activeTabId === 'session';
@@ -50,9 +62,13 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, initi
     defaultUrl: DEFAULT_URL,
     initialUrl,
     initialHtml,
+    automationId,
+    automationTitle,
     isVisible: shouldShowWebview,
     labelPrefix: 'embedded-browser-panel-view',
     log,
+    requestedWebviewLabel,
+    adoptExistingWebview: adoptExisting,
   });
 
   const {
