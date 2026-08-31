@@ -1650,6 +1650,9 @@
     "dialogFailedTitle": "BitFun task stopped",
     "dialogFailedWithSession": "\"{{sessionTitle}}\" stopped unexpectedly. Return to BitFun to review the reason.",
     "dialogFailedFallback": "A BitFun session stopped unexpectedly. Return to BitFun to review the reason.",
+    "dialogCancelledTitle": "BitFun task cancelled",
+    "dialogCancelledWithSession": "\"{{sessionTitle}}\" was cancelled. Return to BitFun to continue.",
+    "dialogCancelledFallback": "A BitFun session was cancelled. Return to BitFun to continue.",
     "permissionRequestTitle": "BitFun requires approval",
     "permissionRequestBody": "An action is waiting for your approval.",
     "permissionRequestBatchBody": "{{count}} actions are waiting for your approval."

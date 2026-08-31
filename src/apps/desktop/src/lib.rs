@@ -2524,6 +2524,17 @@ async fn deliver_event_to_webview(
     session_event_journal: &SessionEventJournal,
 ) {
     let cursor = session_event_journal.record(&event);
+    // SystemError is filtered out of the frontend projection, so the web-ui's
+    // dialog-completion notification path never sees it. Surface it directly
+    // from the host when the window is minimized, so system-level errors are
+    // still reflected via an OS notification. Fire-and-forget so the event
+    // delivery loop is not blocked on the ArkTS round-trip.
+    if let AgenticEvent::SystemError { error, .. } = &event {
+        let error_text = error.clone();
+        tokio::spawn(async move {
+            crate::api::system_api::notify_system_error_if_minimized(&error_text).await;
+        });
+    }
     let Some(mut projected) = bitfun_events::project_agentic_frontend_event(event) else {
         log::warn!("Unhandled AgenticEvent type in desktop delivery");
         return;

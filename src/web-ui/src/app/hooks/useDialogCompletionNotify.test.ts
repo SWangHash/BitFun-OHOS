@@ -126,6 +126,10 @@ describe('buildDialogCompletionNotificationCopy', () => {
     if (key === 'notify.dialogFailedWithSession') {
       return `${options?.sessionTitle} stopped unexpectedly.`;
     }
+    if (key === 'notify.dialogCancelledTitle') return 'BitFun task cancelled';
+    if (key === 'notify.dialogCancelledWithSession') {
+      return `${options?.sessionTitle} was cancelled.`;
+    }
     return 'A BitFun session is ready.';
   };
 
@@ -164,6 +168,19 @@ describe('buildDialogCompletionNotificationCopy', () => {
     ).toEqual({
       title: 'BitFun task stopped',
       body: 'Browser control fix stopped unexpectedly.',
+    });
+  });
+
+  it('uses cancelled copy when the turn was cancelled', () => {
+    expect(
+      buildDialogCompletionNotificationCopy({
+        sessionTitle: 'Refactor plan',
+        cancelled: true,
+        t,
+      }),
+    ).toEqual({
+      title: 'BitFun task cancelled',
+      body: 'Refactor plan was cancelled.',
     });
   });
 });

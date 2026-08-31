@@ -1650,6 +1650,9 @@
     "dialogFailedTitle": "BitFun 任務已中斷",
     "dialogFailedWithSession": "「{{sessionTitle}}」已異常停止，可以回到 BitFun 查看原因。",
     "dialogFailedFallback": "有一個 BitFun 會話已異常停止，可以回到應用查看原因。",
+    "dialogCancelledTitle": "BitFun 任務已取消",
+    "dialogCancelledWithSession": "「{{sessionTitle}}」已取消，可以回到 BitFun 繼續。",
+    "dialogCancelledFallback": "有一個 BitFun 會話已取消，可以回到應用繼續。",
     "permissionRequestTitle": "BitFun 需要你的審批",
     "permissionRequestBody": "有一項操作正在等待你的審批。",
     "permissionRequestBatchBody": "有 {{count}} 項操作正在等待你的審批。"
