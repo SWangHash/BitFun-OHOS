@@ -1114,6 +1114,32 @@ pub async fn send_system_notification(
     Err("No notification provided".to_string())
 }
 
+/// When a system-level error occurs while the desktop window is minimized,
+/// surface it as an OS notification directly from the host (Rust -> ArkTS),
+/// bypassing the web-ui. `AgenticEvent::SystemError` is filtered out of the
+/// frontend projection, so the web-ui's dialog-completion notification path
+/// never sees it; this is the only path that reflects system errors while the
+/// app is minimized. On non-OHOS hosts the window-state query returns an error
+/// (no ArkTS function registered) and this no-ops, matching the stub
+/// `send_system_notification` Tauri path.
+pub async fn notify_system_error_if_minimized(error: &str) {
+    let Ok(minimized) = crate::api::ohos::window::window_is_minimized().await else {
+        return;
+    };
+    if !minimized {
+        return;
+    }
+    // The error string may carry a multi-line trace; the notification body
+    // only needs the first line to be useful.
+    let body = error.lines().next().unwrap_or(error).to_string();
+    let payload = serde_json::json!({ "title": "BitFun system error", "body": body });
+    if let Err(e) =
+        crate::api::ohos::ohos_file_system::send_system_notification_ohos(payload.to_string()).await
+    {
+        log::warn!("Failed to send system-error notification: {e}");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

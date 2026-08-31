@@ -11,6 +11,7 @@ interface DialogCompletionNotificationInput {
 interface DialogCompletionNotificationCopyInput {
   sessionTitle?: string | null;
   success?: boolean | null;
+  cancelled?: boolean;
   finishReason?: string | null;
   t: (key: string, options?: Record<string, unknown>) => string;
 }
@@ -40,22 +41,36 @@ export function shouldSendDialogCompletionNotification({
 export function buildDialogCompletionNotificationCopy({
   sessionTitle,
   success,
+  cancelled,
   finishReason,
   t,
 }: DialogCompletionNotificationCopyInput): { title: string; body: string } {
   const trimmedTitle = sessionTitle?.trim();
   const failed = success === false;
+  // Cancelled takes precedence over failed/completed: a cancelled turn is a
+  // distinct terminal state the user should see as "cancelled", not "stopped".
+  const titleKey = cancelled
+    ? 'notify.dialogCancelledTitle'
+    : failed
+      ? 'notify.dialogFailedTitle'
+      : 'notify.dialogCompletedTitle';
+  const withSessionKey = cancelled
+    ? 'notify.dialogCancelledWithSession'
+    : failed
+      ? 'notify.dialogFailedWithSession'
+      : 'notify.dialogCompletedWithSession';
+  const fallbackKey = cancelled
+    ? 'notify.dialogCancelledFallback'
+    : failed
+      ? 'notify.dialogFailedFallback'
+      : 'notify.dialogCompletedFallback';
   const options = {
     sessionTitle: trimmedTitle,
     finishReason,
   };
 
   return {
-    title: failed
-      ? t('notify.dialogFailedTitle')
-      : t('notify.dialogCompletedTitle'),
-    body: trimmedTitle
-      ? t(failed ? 'notify.dialogFailedWithSession' : 'notify.dialogCompletedWithSession', options)
-      : t(failed ? 'notify.dialogFailedFallback' : 'notify.dialogCompletedFallback', options),
+    title: t(titleKey),
+    body: trimmedTitle ? t(withSessionKey, options) : t(fallbackKey, options),
   };
 }
