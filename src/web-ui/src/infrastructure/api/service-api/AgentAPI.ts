@@ -616,6 +616,17 @@ export interface OpenBuiltInBrowserEvent {
   url: string;
   title?: string;
   replaceExisting?: boolean;
+  ownerSessionId?: string;
+  ownerWorkspaceId?: string;
+  ownerWorkspacePath?: string;
+  automationId?: string;
+  automationTitle?: string;
+  webviewLabel?: string;
+  adoptExisting?: boolean;
+}
+
+export interface CloseBuiltInBrowserEvent {
+  automationId: string;
 }
 
 export interface TextChunkEvent extends AgenticEvent {
@@ -1502,6 +1513,10 @@ export class AgentAPI {
 
   onOpenBuiltInBrowser(callback: (event: OpenBuiltInBrowserEvent) => void): () => void {
     return api.listen<OpenBuiltInBrowserEvent>('agentic://open-built-in-browser', callback);
+  }
+
+  onCloseBuiltInBrowser(callback: (event: CloseBuiltInBrowserEvent) => void): () => void {
+    return api.listen<CloseBuiltInBrowserEvent>('agentic://close-built-in-browser', callback);
   }
 
   onImageAnalysisStarted(callback: (event: ImageAnalysisEvent) => void): () => void {

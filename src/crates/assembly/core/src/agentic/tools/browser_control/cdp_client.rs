@@ -2,20 +2,24 @@
 
 use crate::util::errors::{BitFunError, BitFunResult};
 use bitfun_services_integrations::browser_control::CdpEndpointProvider;
-pub use bitfun_services_integrations::browser_control::{CdpPageInfo, CdpVersionInfo};
+pub use bitfun_services_integrations::browser_control::{CdpEndpoint, CdpPageInfo, CdpVersionInfo};
 use futures::stream::{SplitSink, SplitStream};
 use futures::{SinkExt, StreamExt};
 use log::{debug, info, warn};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+#[cfg(target_env = "ohos")]
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, OnceLock, Weak};
 use std::time::Duration;
 #[cfg(target_env = "ohos")]
-use std::pin::Pin;
+use std::{ffi::OsString, os::unix::ffi::OsStringExt, path::PathBuf};
 #[cfg(target_env = "ohos")]
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
+#[cfg(target_env = "ohos")]
+use tokio::net::UnixStream;
 use tokio::sync::{broadcast, Mutex, RwLock};
 #[cfg(target_env = "ohos")]
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -75,11 +79,15 @@ struct CdpTransport {
     session_statuses: SessionStatuses,
     alive: Arc<AtomicBool>,
     reader_handle: tokio::task::JoinHandle<()>,
+    keepalive_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl Drop for CdpTransport {
     fn drop(&mut self) {
         self.reader_handle.abort();
+        if let Some(handle) = &self.keepalive_handle {
+            handle.abort();
+        }
     }
 }
 
@@ -118,9 +126,21 @@ impl CdpClient {
             .map_err(|error| BitFunError::tool(error.to_string()))
     }
 
+    pub async fn get_version_at(endpoint: &CdpEndpoint) -> BitFunResult<CdpVersionInfo> {
+        CdpEndpointProvider::get_version_at(endpoint)
+            .await
+            .map_err(|error| BitFunError::tool(error.to_string()))
+    }
+
     /// List all pages/tabs on a legacy fixed debug port.
     pub async fn list_pages(port: u16) -> BitFunResult<Vec<CdpPageInfo>> {
         CdpEndpointProvider::list_pages(port)
+            .await
+            .map_err(|error| BitFunError::tool(error.to_string()))
+    }
+
+    pub async fn list_pages_at(endpoint: &CdpEndpoint) -> BitFunResult<Vec<CdpPageInfo>> {
+        CdpEndpointProvider::list_pages_at(endpoint)
             .await
             .map_err(|error| BitFunError::tool(error.to_string()))
     }
@@ -130,12 +150,24 @@ impl CdpClient {
         let protocol = CdpEndpointProvider::get_protocol(port)
             .await
             .map_err(|error| BitFunError::tool(error.to_string()))?;
-        let domains = protocol
-            .get("domains")
-            .and_then(Value::as_array)
-            .ok_or_else(|| {
-                BitFunError::tool("OHOS CDP /json/protocol did not contain domains".to_string())
-            })?;
+        Self::validate_ohos_protocol_value(&protocol)
+    }
+
+    #[cfg(target_env = "ohos")]
+    pub async fn validate_ohos_protocol_at(endpoint: &CdpEndpoint) -> BitFunResult<()> {
+        let protocol = CdpEndpointProvider::get_protocol_at(endpoint)
+            .await
+            .map_err(|error| BitFunError::tool(error.to_string()))?;
+        Self::validate_ohos_protocol_value(&protocol)
+    }
+
+    #[cfg(target_env = "ohos")]
+    fn validate_ohos_protocol_value(protocol: &Value) -> BitFunResult<()> {
+        if protocol.get("domains").and_then(Value::as_array).is_none() {
+            return Err(BitFunError::tool(
+                "OHOS CDP /json/protocol did not contain domains".to_string(),
+            ));
+        }
         for required in ["DOM", "Runtime", "Page", "Input", "Network", "Target"] {
             if !protocol_has_domain(&protocol, required) {
                 return Err(BitFunError::tool(format!(
@@ -222,7 +254,12 @@ impl CdpClient {
     /// Connect to a specific page by its legacy WebSocket debugger URL.
     pub async fn connect(ws_url: &str) -> BitFunResult<Self> {
         info!("CDP connecting to page WebSocket");
-        Self::connect_with_timeout(ws_url, PAGE_CDP_CONNECT_TIMEOUT).await
+        Self::connect_with_timeout(ws_url, PAGE_CDP_CONNECT_TIMEOUT, None).await
+    }
+
+    pub async fn connect_at(endpoint: &CdpEndpoint, ws_url: &str) -> BitFunResult<Self> {
+        info!("CDP connecting to page WebSocket through {}", endpoint);
+        Self::connect_with_timeout(ws_url, PAGE_CDP_CONNECT_TIMEOUT, Some(endpoint)).await
     }
 
     /// Connect to a guarded browser-level endpoint and retain it under the
@@ -245,7 +282,7 @@ impl CdpClient {
             actual_port
         );
         let client = Arc::new(
-            Self::connect_with_timeout(ws_url, USER_PROFILE_APPROVAL_TIMEOUT)
+            Self::connect_with_timeout(ws_url, USER_PROFILE_APPROVAL_TIMEOUT, None)
                 .await
                 .map_err(|error| {
                     BitFunError::tool(format!(
@@ -308,8 +345,12 @@ impl CdpClient {
         browser_connections().write().await.remove(&logical_port);
     }
 
-    async fn connect_with_timeout(ws_url: &str, timeout: Duration) -> BitFunResult<Self> {
-        let (ws_stream, _) = tokio::time::timeout(timeout, Self::connect_stream(ws_url))
+    async fn connect_with_timeout(
+        ws_url: &str,
+        timeout: Duration,
+        endpoint: Option<&CdpEndpoint>,
+    ) -> BitFunResult<Self> {
+        let (ws_stream, _) = tokio::time::timeout(timeout, Self::connect_stream(ws_url, endpoint))
             .await
             .map_err(|_| {
                 BitFunError::tool("Timed out waiting for the CDP WebSocket connection".to_string())
@@ -333,11 +374,40 @@ impl CdpClient {
 
         let reader_handle = tokio::spawn(Self::reader_loop(
             stream,
+            sink.clone(),
             pending.clone(),
             event_channels.clone(),
             session_statuses.clone(),
             alive.clone(),
         ));
+
+        #[cfg(target_env = "ohos")]
+        let keepalive_handle = if matches!(endpoint, Some(CdpEndpoint::ArkWebAbstract { .. })) {
+            let keepalive_sink = sink.clone();
+            let keepalive_alive = alive.clone();
+            Some(tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(Duration::from_secs(15)).await;
+                    if !keepalive_alive.load(Ordering::SeqCst) {
+                        break;
+                    }
+                    let result = keepalive_sink
+                        .lock()
+                        .await
+                        .send(Message::Ping(Vec::new().into()))
+                        .await;
+                    if let Err(error) = result {
+                        warn!("ArkWeb CDP keepalive failed: {}", error);
+                        keepalive_alive.store(false, Ordering::SeqCst);
+                        break;
+                    }
+                }
+            }))
+        } else {
+            None
+        };
+        #[cfg(not(target_env = "ohos"))]
+        let keepalive_handle = None;
 
         Ok(Self {
             transport: Arc::new(CdpTransport {
@@ -348,6 +418,7 @@ impl CdpClient {
                 session_statuses,
                 alive,
                 reader_handle,
+                keepalive_handle,
             }),
             session_id: None,
             events: events_tx,
@@ -358,6 +429,7 @@ impl CdpClient {
     #[cfg(not(target_env = "ohos"))]
     async fn connect_stream(
         ws_url: &str,
+        _endpoint: Option<&CdpEndpoint>,
     ) -> Result<
         (
             WsSocket,
@@ -373,6 +445,7 @@ impl CdpClient {
     #[cfg(target_env = "ohos")]
     async fn connect_stream(
         ws_url: &str,
+        endpoint: Option<&CdpEndpoint>,
     ) -> Result<
         (
             WsSocket,
@@ -380,35 +453,78 @@ impl CdpClient {
         ),
         String,
     > {
-        let mut request = ws_url
+        let raw_request = ws_url
             .into_client_request()
             .map_err(|error| format!("invalid CDP WebSocket URL: {error}"))?;
+        let arkweb_path = match endpoint {
+            Some(CdpEndpoint::ArkWebAbstract { .. }) => raw_request
+                .uri()
+                .path_and_query()
+                .map(|value| value.as_str())
+                .unwrap_or("/")
+                .to_string(),
+            _ => String::new(),
+        };
+        let mut request = if arkweb_path.is_empty() {
+            raw_request
+        } else {
+            format!("ws://localhost{arkweb_path}")
+                .into_client_request()
+                .map_err(|error| format!("invalid ArkWeb CDP WebSocket URL: {error}"))?
+        };
         if request.uri().scheme_str() != Some("ws") {
             return Err(format!(
                 "unsupported CDP WebSocket scheme: {}",
                 request.uri().scheme_str().unwrap_or("<missing>")
             ));
         }
-        let host = request
-            .uri()
-            .host()
-            .ok_or_else(|| "CDP WebSocket URL has no host".to_string())?
-            .to_string();
-        let port = request.uri().port_u16().unwrap_or(80);
-        #[cfg(target_env = "ohos")]
-        {
-            let origin = format!("http://localhost:{port}")
-                .parse()
-                .map_err(|error| format!("invalid CDP Origin header: {error}"))?;
-            request.headers_mut().insert("Origin", origin);
-        }
-        let stream = TcpStream::connect((host.as_str(), port))
-            .await
-            .map_err(|error| error.to_string())?;
-        let stream: CdpStream = Box::pin(stream);
+        let stream: CdpStream = match endpoint {
+            Some(endpoint @ CdpEndpoint::ArkWebAbstract { .. }) => {
+                let origin = "http://localhost"
+                    .parse()
+                    .map_err(|error| format!("invalid ArkWeb CDP Origin header: {error}"))?;
+                request.headers_mut().insert("Origin", origin);
+                Box::pin(
+                    Self::connect_arkweb_stream(endpoint)
+                        .await
+                        .map_err(|error| error.to_string())?,
+                )
+            }
+            _ => {
+                let host = request
+                    .uri()
+                    .host()
+                    .ok_or_else(|| "CDP WebSocket URL has no host".to_string())?
+                    .to_string();
+                let port = request.uri().port_u16().unwrap_or(80);
+                let origin = format!("http://localhost:{port}")
+                    .parse()
+                    .map_err(|error| format!("invalid CDP Origin header: {error}"))?;
+                request.headers_mut().insert("Origin", origin);
+                Box::pin(
+                    TcpStream::connect((host.as_str(), port))
+                        .await
+                        .map_err(|error| error.to_string())?,
+                )
+            }
+        };
         client_async(request, stream)
             .await
             .map_err(|error| error.to_string())
+    }
+
+    #[cfg(target_env = "ohos")]
+    async fn connect_arkweb_stream(endpoint: &CdpEndpoint) -> std::io::Result<UnixStream> {
+        let CdpEndpoint::ArkWebAbstract { socket_name } = endpoint else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "CDP endpoint is not an ArkWeb abstract socket",
+            ));
+        };
+        let mut abstract_name = Vec::with_capacity(socket_name.len() + 1);
+        abstract_name.push(0);
+        abstract_name.extend_from_slice(socket_name.as_bytes());
+        UnixStream::connect(PathBuf::from(OsString::from_vec(abstract_name))).await
     }
 
     /// Subscribe to all CDP events. Filter on `method` at the call site.
@@ -633,6 +749,7 @@ impl CdpClient {
 
     async fn reader_loop(
         mut stream: WsStream,
+        sink: Arc<Mutex<WsSink>>,
         pending: PendingResponses,
         event_channels: EventChannels,
         session_statuses: SessionStatuses,
@@ -690,6 +807,12 @@ impl CdpClient {
                 Ok(Message::Close(_)) => {
                     debug!("CDP WebSocket closed by server");
                     break;
+                }
+                Ok(Message::Ping(payload)) => {
+                    if let Err(error) = sink.lock().await.send(Message::Pong(payload)).await {
+                        warn!("CDP WebSocket pong failed: {}", error);
+                        break;
+                    }
                 }
                 Err(error) => {
                     warn!("CDP WebSocket read error: {}", error);

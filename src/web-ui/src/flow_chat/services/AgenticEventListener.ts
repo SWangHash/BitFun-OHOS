@@ -23,6 +23,7 @@ import type {
   UserSteeringInjectedEvent,
   DeepReviewQueueStateChangedEvent,
   AcpContextUsageUpdatedEvent,
+  CloseBuiltInBrowserEvent,
   OpenBuiltInBrowserEvent,
   InterruptedDialogTurnEvent,
 } from '@/infrastructure/api/service-api/AgentAPI';
@@ -59,6 +60,7 @@ export interface AgenticEventCallbacks {
   onContextCompressionFailed?: (event: AgenticEvent) => void;
   onThreadGoalUpdated?: (event: { sessionId: string; goal?: Record<string, unknown> | null }) => void;
   onOpenBuiltInBrowser?: (event: OpenBuiltInBrowserEvent) => void;
+  onCloseBuiltInBrowser?: (event: CloseBuiltInBrowserEvent) => void;
   onSessionTitleGenerated?: (event: SessionTitleGeneratedEvent) => void;
   onSessionModelAutoMigrated?: (event: SessionModelAutoMigratedEvent) => void;
   onSessionReasoningPresetAutoCleared?: (
@@ -288,6 +290,14 @@ export class AgenticEventListener {
         this.unlistenFunctions.push(unlisten);
       }
 
+      if (callbacks.onCloseBuiltInBrowser) {
+        const unlisten = agentAPI.onCloseBuiltInBrowser((event) => {
+          logger.debug('Close built-in browser requested:', event);
+          callbacks.onCloseBuiltInBrowser?.(event);
+        });
+        this.unlistenFunctions.push(unlisten);
+      }
+
       if (callbacks.onSessionTitleGenerated) {
         const unlisten = agentAPI.onSessionTitleGenerated((event) => {
           logger.debug('Session title generated:', event);
@@ -427,6 +437,9 @@ export class AgenticEventListener {
         break;
       case 'agentic://open-built-in-browser':
         callbacks.onOpenBuiltInBrowser?.(payload as unknown as OpenBuiltInBrowserEvent);
+        break;
+      case 'agentic://close-built-in-browser':
+        callbacks.onCloseBuiltInBrowser?.(payload as unknown as CloseBuiltInBrowserEvent);
         break;
       case 'session_title_generated':
         callbacks.onSessionTitleGenerated?.(payload as unknown as SessionTitleGeneratedEvent);

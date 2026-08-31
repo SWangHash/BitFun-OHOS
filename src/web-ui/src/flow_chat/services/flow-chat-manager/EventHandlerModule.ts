@@ -33,6 +33,7 @@ import type {
   ModelRoundStartedEvent,
   ModelRoundCompletedEvent,
   ModelRoundAttemptSupersededEvent,
+  CloseBuiltInBrowserEvent,
   OpenBuiltInBrowserEvent,
   AcpContextUsageUpdatedEvent,
   SessionModelAutoMigratedEvent,
@@ -54,6 +55,8 @@ import { buildDeepReviewCapacityQueueStateFromEvent } from '../../utils/deepRevi
 import { useBackgroundCommandActivityStore } from '../../store/backgroundCommandActivityStore';
 import { useBackgroundSubagentActivityStore } from '../../store/backgroundSubagentActivityStore';
 import { createTab } from '@/shared/utils/tabUtils';
+import { cacheAgentCanvasTabForWorkspace } from '@/app/components/panels/content-canvas/stores';
+import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { splitFilePathAndContent } from '@/shared/utils/partialJsonParser';
 import { interruptedTurnRecoveryGate } from '../interruptedTurnRecoveryGate';
 
@@ -876,6 +879,9 @@ export async function initializeEventListeners(
     },
     onOpenBuiltInBrowser: (event) => {
       handleOpenBuiltInBrowser(event);
+    },
+    onCloseBuiltInBrowser: (event) => {
+      handleCloseBuiltInBrowser(event);
     },
     onSessionTitleGenerated: (event) => {
       handleSessionTitleGenerated(event);
@@ -2543,18 +2549,86 @@ function handleOpenBuiltInBrowser(event: OpenBuiltInBrowserEvent): void {
   const title = typeof event?.title === 'string' && event.title.trim()
     ? event.title.trim()
     : 'Browser';
-  const duplicateCheckKey = `browser-panel:${url}`;
+  const automationId = typeof event?.automationId === 'string' && event.automationId
+    ? event.automationId
+    : undefined;
+  const duplicateCheckKey = automationId
+    ? `browser-panel:automation:${automationId}`
+    : `browser-panel:${url}`;
+  const explicitOwnerWorkspaceId = typeof event?.ownerWorkspaceId === 'string'
+    ? event.ownerWorkspaceId.trim()
+    : '';
+  const ownerWorkspacePath = typeof event?.ownerWorkspacePath === 'string'
+    ? event.ownerWorkspacePath.trim()
+    : '';
+  const workspaceState = workspaceManager.getState();
+  const ownerWorkspaceId = explicitOwnerWorkspaceId || (
+    ownerWorkspacePath
+      ? Array.from(workspaceState.openedWorkspaces.values())
+        .find(workspace => workspace.rootPath === ownerWorkspacePath)?.id ?? ''
+      : ''
+  );
+  const panelData = {
+    url,
+    ownerSessionId: event.ownerSessionId,
+    ownerWorkspaceId: ownerWorkspaceId || undefined,
+    ownerWorkspacePath: ownerWorkspacePath || undefined,
+    automationId,
+    automationTitle: event.automationTitle,
+    webviewLabel: event.webviewLabel,
+    adoptExisting: event.adoptExisting,
+  };
+  const metadata = {
+    duplicateCheckKey,
+    ownerSessionId: event.ownerSessionId,
+    ownerWorkspaceId: ownerWorkspaceId || undefined,
+  };
+
+  const activeWorkspaceId = workspaceState.activeWorkspaceId;
+  if (ownerWorkspaceId && ownerWorkspaceId !== activeWorkspaceId) {
+    cacheAgentCanvasTabForWorkspace(ownerWorkspaceId, {
+      content: {
+        type: 'browser',
+        title,
+        data: panelData,
+        metadata,
+      },
+      checkDuplicate: true,
+      duplicateCheckKey,
+      replaceExisting: event?.replaceExisting !== false,
+    });
+    log.info('Routed built-in browser tab to inactive owner workspace', {
+      ownerWorkspaceId,
+      activeWorkspaceId,
+      ownerSessionId: event.ownerSessionId,
+    });
+    return;
+  }
 
   createTab({
     type: 'browser',
     title,
-    data: { url },
-    metadata: { duplicateCheckKey },
+    data: panelData,
+    metadata,
     checkDuplicate: true,
     duplicateCheckKey,
     replaceExisting: event?.replaceExisting !== false,
     mode: 'agent',
+    ensureVisible: true,
   });
+}
+
+function handleCloseBuiltInBrowser(event: CloseBuiltInBrowserEvent): void {
+  const automationId = typeof event?.automationId === 'string'
+    ? event.automationId.trim()
+    : '';
+  if (!automationId) {
+    log.warn('CloseBuiltInBrowser missing automationId', { event });
+    return;
+  }
+  window.dispatchEvent(new CustomEvent('bitfun-close-built-in-browser', {
+    detail: { automationId },
+  }));
 }
 
 export function handleDialogTurnComplete(

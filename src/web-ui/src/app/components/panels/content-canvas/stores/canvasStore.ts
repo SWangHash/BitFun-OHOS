@@ -1288,6 +1288,67 @@ export function switchAgentCanvasWorkspace(
   lastAgentCanvasSwitchTargetKey = to;
 }
 
+export interface AgentCanvasWorkspaceTabRequest {
+  content: PanelContent;
+  checkDuplicate?: boolean;
+  duplicateCheckKey?: string;
+  replaceExisting?: boolean;
+}
+
+function applyAgentCanvasWorkspaceTab(
+  store: ReturnType<typeof createCanvasStoreHook>,
+  request: AgentCanvasWorkspaceTabRequest,
+): void {
+  const state = store.getState();
+  if (request.checkDuplicate && request.duplicateCheckKey) {
+    const existing = state.findTabByMetadata({
+      duplicateCheckKey: request.duplicateCheckKey,
+    });
+    if (existing) {
+      if (request.replaceExisting) {
+        state.updateTabContent(existing.tab.id, existing.groupId, request.content);
+      }
+      store.getState().switchToTab(existing.tab.id, existing.groupId);
+      return;
+    }
+  }
+  state.addTab(request.content, 'active', state.activeGroupId);
+}
+
+/**
+ * Add a tab to an inactive workspace's cached Agent canvas without mutating
+ * the canvas currently shown to the user. The snapshot is restored normally
+ * when that workspace becomes active.
+ */
+export function cacheAgentCanvasTabForWorkspace(
+  workspaceId: string,
+  request: AgentCanvasWorkspaceTabRequest,
+): void {
+  const key = normalizeAgentWorkspaceKey(workspaceId);
+  const scratchStore = createCanvasStoreHook();
+  const existingSnapshot = agentWorkspaceSnapshots.get(key);
+  if (existingSnapshot) {
+    const snapshot = structuredClone(existingSnapshot);
+    scratchStore.setState({
+      primaryGroup: snapshot.primaryGroup,
+      secondaryGroup: snapshot.secondaryGroup,
+      tertiaryGroup: snapshot.tertiaryGroup,
+      activeGroupId: snapshot.activeGroupId,
+      layout: snapshot.layout,
+      isMissionControlOpen: false,
+      draggingTabId: null,
+      draggingFromGroupId: null,
+      closedTabs: snapshot.closedTabs,
+      maxClosedTabsHistory: snapshot.maxClosedTabsHistory,
+    });
+  }
+  applyAgentCanvasWorkspaceTab(scratchStore, request);
+  rememberAgentSnapshot(
+    key,
+    extractAgentPersistableState(scratchStore.getState()),
+  );
+}
+
 /** Drop cached canvas for a closed workspace (does not touch the live canvas unless user switches back). */
 export function removeAgentCanvasSnapshot(workspaceId: string): void {
   const key = normalizeAgentWorkspaceKey(workspaceId);

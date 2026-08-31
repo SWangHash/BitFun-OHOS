@@ -34,6 +34,7 @@
 
 use crate::agentic::tools::browser_control::cdp_client::{CdpClient, CdpEvent};
 use crate::util::errors::{BitFunError, BitFunResult};
+use log::{info, warn};
 use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -420,8 +421,24 @@ impl BrowserSessionState {
 pub struct BrowserSession {
     pub session_id: String,
     pub port: u16,
+    pub backend: BrowserSessionBackend,
     pub client: Arc<CdpClient>,
     pub state: Arc<BrowserSessionState>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BrowserSessionBackend {
+    ExternalCdp,
+    BuiltinArkWeb {
+        automation_id: String,
+        webview_label: String,
+    },
+}
+
+impl BrowserSessionBackend {
+    pub fn is_builtin_arkweb(&self) -> bool {
+        matches!(self, Self::BuiltinArkWeb { .. })
+    }
 }
 
 impl std::fmt::Debug for BrowserSession {
@@ -429,6 +446,7 @@ impl std::fmt::Debug for BrowserSession {
         f.debug_struct("BrowserSession")
             .field("session_id", &self.session_id)
             .field("port", &self.port)
+            .field("backend", &self.backend)
             .field("client", &"<CdpClient>")
             .finish()
     }
@@ -481,6 +499,10 @@ impl BrowserSessionRegistry {
         });
         let mut g = self.inner.write().await;
         let id = session.session_id.clone();
+        info!(
+            "Registering browser session: session_id={}, backend={:?}",
+            id, session.backend
+        );
         g.sessions.insert(id.clone(), session);
         g.default_id = Some(id);
     }
@@ -498,45 +520,55 @@ impl BrowserSessionRegistry {
         Ok(())
     }
 
-    /// Resolve a session id (or the current default) to a session.
-    ///
-    /// Also prunes entries whose underlying CDP WebSocket reader task has
-    /// terminated (the user closed the tab outside of our control). Without
-    /// the prune, the next `send` call would block until its 30-second
-    /// internal timeout — confusing the model with a `TIMEOUT` error code
-    /// that hides the real `WRONG_TAB` failure mode.
-    pub async fn get(&self, session_id: Option<&str>) -> BitFunResult<BrowserSession> {
-        // First pass: read-only resolve.
-        let resolved = {
-            let g = self.inner.read().await;
-            let id = match session_id {
-                Some(s) => s.to_string(),
-                None => g.default_id.clone().ok_or_else(|| {
-                    BitFunError::tool(
-                        "No browser session registered. Use action 'connect' first.".to_string(),
-                    )
-                })?,
-            };
-            g.sessions.get(&id).cloned().map(|s| (id, s))
+    /// Resolve a registered session id (or the current default) without
+    /// requiring its current transport to be alive. Built-in ArkWeb recovery
+    /// uses this to retain the target identity across a transient WebSocket
+    /// disconnect.
+    pub async fn registered(&self, session_id: Option<&str>) -> BitFunResult<BrowserSession> {
+        let g = self.inner.read().await;
+        let id = match session_id {
+            Some(session_id) => session_id.to_string(),
+            None => g.default_id.clone().ok_or_else(|| {
+                BitFunError::tool(
+                    "No browser session registered. Use action 'connect' first.".to_string(),
+                )
+            })?,
         };
-
-        let (id, session) = resolved.ok_or_else(|| {
+        g.sessions.get(&id).cloned().ok_or_else(|| {
             BitFunError::tool(
                 "Browser session is not connected. Use action 'connect' or 'switch_page'."
                     .to_string(),
             )
-        })?;
+        })
+    }
+
+    /// Resolve a session id (or the current default) to a live session.
+    ///
+    /// Prunes disconnected external entries so the next `send` does not wait
+    /// for its 30-second timeout. Built-in ArkWeb entries retain their target
+    /// descriptor because the WebView can outlive a transient CDP connection
+    /// and ControlHub can safely reattach to the same registered target.
+    pub async fn get(&self, session_id: Option<&str>) -> BitFunResult<BrowserSession> {
+        let session = self.registered(session_id).await?;
+        let id = session.session_id.clone();
 
         if !session.client.is_connected() {
-            // Best-effort eviction. Acquire the write lock only when we
-            // actually need to mutate the map.
-            let mut g = self.inner.write().await;
-            g.sessions.remove(&id);
-            if g.default_id.as_deref() == Some(id.as_str()) {
-                g.default_id = None;
+            warn!(
+                "Browser session transport disconnected: session_id={}, backend={:?}",
+                id, session.backend
+            );
+            // A built-in target is owned by the ArkWeb host, not by this
+            // WebSocket. Keep its descriptor/default id so ControlHub can
+            // reconnect to the same registered target on the next action.
+            if !session.backend.is_builtin_arkweb() {
+                let mut g = self.inner.write().await;
+                g.sessions.remove(&id);
+                if g.default_id.as_deref() == Some(id.as_str()) {
+                    g.default_id = None;
+                }
             }
             return Err(BitFunError::tool(format!(
-                "Browser session '{}' is no longer connected (the tab was likely closed). Call 'connect' or 'switch_page' to attach a new one.",
+                "Browser session '{}' is no longer connected. Call 'connect' or 'switch_page' to attach a new one.",
                 id
             )));
         }
@@ -560,6 +592,17 @@ impl BrowserSessionRegistry {
         let mut ids: Vec<String> = g.sessions.keys().cloned().collect();
         ids.sort();
         ids
+    }
+
+    /// Snapshot of registered sessions for backend-scoped tab discovery.
+    /// Built-in ArkWeb callers use this instead of enumerating every target
+    /// exposed by the process-wide DevTools socket, which also contains the
+    /// BitFun application UI.
+    pub async fn sessions(&self) -> Vec<BrowserSession> {
+        let g = self.inner.read().await;
+        let mut sessions: Vec<BrowserSession> = g.sessions.values().cloned().collect();
+        sessions.sort_by(|left, right| left.session_id.cmp(&right.session_id));
+        sessions
     }
 
     /// Current default session id, if any.

@@ -407,6 +407,10 @@ export class RustWebviewNodeController extends NodeController {
     if (this.rootNode && frameNode) {
       this.rootNode.removeChild(frameNode);
     }
+    // Removing the FrameNode only detaches it from the render tree. Dispose
+    // the BuilderNode as well so ArkWeb releases the renderer and its CDP
+    // target instead of keeping a detached page alive until process exit.
+    node.dispose();
     this.webviewList.delete(webTag);
     this.webviewData.delete(webTag);
     return true;

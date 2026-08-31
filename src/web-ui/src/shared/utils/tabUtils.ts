@@ -7,6 +7,7 @@ import { enqueuePendingTab } from '@/shared/services/pendingTabQueue';
 import { resolveAndFocusOpenTarget } from '@/shared/services/sceneOpenTargetResolver';
 import type { OpenSource } from '@/shared/services/sceneOpenTargetResolver';
 import { TAB_EVENTS } from '@/app/components/panels/content-canvas/types';
+import { useSceneStore } from '@/app/stores/sceneStore';
 export type TabTargetMode = 'agent' | 'project' | 'git';
 
 export interface TabCreationOptions {
@@ -19,6 +20,8 @@ export interface TabCreationOptions {
   replaceExisting?: boolean;
   /** Target canvas: agent (AuxPane), project (FileViewer), git (Git scene diff area) */
   mode?: TabTargetMode;
+  /** Focus the target scene and make its panel visible before creating the tab. */
+  ensureVisible?: boolean;
 }
 
 interface CreateTerminalTabOptions {
@@ -52,33 +55,48 @@ export function createTab(options: TabCreationOptions): void {
     checkDuplicate = false,
     duplicateCheckKey,
     replaceExisting = false,
-    mode = 'agent' 
+    mode = 'agent',
+    ensureVisible = false,
   } = options;
 
   const eventName =
     mode === 'project' ? 'project-create-tab' : mode === 'git' ? 'git-create-tab' : 'agent-create-tab';
 
-  const createTabEvent = new CustomEvent(eventName, {
-    detail: {
-      type,
-      title,
-      data,
-      metadata,
-      checkDuplicate,
-      duplicateCheckKey,
-      replaceExisting
-    }
-  });
+  const detail = {
+    type,
+    title,
+    data,
+    metadata,
+    checkDuplicate,
+    duplicateCheckKey,
+    replaceExisting,
+  };
+  const dispatchCreateTab = () => {
+    window.dispatchEvent(new CustomEvent(eventName, { detail }));
+  };
 
-  if (mode === 'agent' && isRightPanelCollapsed()) {
+  if (mode === 'agent' && ensureVisible) {
+    const sceneState = useSceneStore.getState();
+    const sceneJustOpened = !sceneState.openTabs.some(tab => tab.id === 'session');
+    sceneState.openScene('session');
     window.dispatchEvent(new CustomEvent(TAB_EVENTS.EXPAND_RIGHT_PANEL));
-    window.setTimeout(() => {
-      window.dispatchEvent(createTabEvent);
-    }, 300);
+    if (sceneJustOpened) {
+      enqueuePendingTab('agent', detail);
+      return;
+    }
+    // Scene activation and panel expansion both publish React layout updates.
+    // Dispatch after they have committed so the browser host has real bounds.
+    window.setTimeout(dispatchCreateTab, 300);
     return;
   }
 
-  window.dispatchEvent(createTabEvent);
+  if (mode === 'agent' && isRightPanelCollapsed()) {
+    window.dispatchEvent(new CustomEvent(TAB_EVENTS.EXPAND_RIGHT_PANEL));
+    window.setTimeout(dispatchCreateTab, 300);
+    return;
+  }
+
+  dispatchCreateTab();
 }
 
  
