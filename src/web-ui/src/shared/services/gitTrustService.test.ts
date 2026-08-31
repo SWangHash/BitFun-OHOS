@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TauriCommandError } from '@/infrastructure/api/errors/TauriCommandError';
 import {
+  describeGitTrustFailure,
   requestGitRepositoryTrust,
   resetGitTrustDecisions,
   withGitRepositoryTrustRecovery,
@@ -82,6 +83,18 @@ beforeEach(() => {
   successMock.mockReset();
   isPeerDeviceModeActiveMock.mockReset();
   isPeerDeviceModeActiveMock.mockReturnValue(false);
+});
+
+describe('describeGitTrustFailure', () => {
+  it('turns the stable repository trust code into localized copy', () => {
+    expect(describeGitTrustFailure(untrustedError())).toBe(
+      `panels/git:trust.required|${JSON.stringify({ path: REPOSITORY_PATH })}`,
+    );
+  });
+
+  it('leaves unrelated failures to the calling surface', () => {
+    expect(describeGitTrustFailure(new Error('provider unavailable'))).toBeUndefined();
+  });
 });
 
 describe('requestGitRepositoryTrust', () => {
