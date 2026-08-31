@@ -5,7 +5,12 @@ use bitfun_core::agentic::tools::browser_control::browser_launcher::{
 };
 use bitfun_core::agentic::tools::browser_control::cdp_client::CdpClient;
 use bitfun_core::service::config::{get_global_config_service, GlobalConfig};
+#[cfg(target_env = "ohos")]
+use bitfun_services_integrations::browser_control::{list_arkweb_automation_targets, CdpEndpoint};
 use serde::{Deserialize, Serialize};
+
+const BUILTIN_BROWSER_VALUE: &str = "builtin";
+const BUILTIN_BROWSER_LABEL: &str = "BitFun Built-in Browser";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,7 +44,13 @@ pub fn init_on_startup() {
         if !auto_connect_on_startup_enabled().await {
             return;
         }
-        let Ok(kind) = selected_browser_kind().await else {
+        let Ok(preference) = selected_browser_preference().await else {
+            return;
+        };
+        if is_builtin_browser_preference(&preference) {
+            return;
+        }
+        let Ok(kind) = BrowserLauncher::resolve_browser_kind(Some(&preference)) else {
             return;
         };
         let Some(endpoint) = BrowserLauncher::user_profile_debug_endpoint(&kind) else {
@@ -71,6 +82,38 @@ pub fn init_on_startup() {
     });
 }
 
+async fn selected_browser_preference() -> Result<String, String> {
+    let config = get_global_config_service()
+        .await
+        .map_err(|e| e.to_string())?
+        .get_config::<GlobalConfig>(None)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(config.ai.browser_control_preferred_browser)
+}
+
+fn is_builtin_browser_preference(preference: &str) -> bool {
+    #[cfg(target_env = "ohos")]
+    {
+        preference.trim().is_empty() || preference.eq_ignore_ascii_case(BUILTIN_BROWSER_VALUE)
+    }
+    #[cfg(not(target_env = "ohos"))]
+    {
+        let _ = preference;
+        false
+    }
+}
+
+fn canonical_browser_preference(preference: &str) -> String {
+    if is_builtin_browser_preference(preference) {
+        BUILTIN_BROWSER_VALUE.to_string()
+    } else if preference.trim().is_empty() {
+        "default".to_string()
+    } else {
+        preference.to_string()
+    }
+}
+
 async fn auto_connect_on_startup_enabled() -> bool {
     let Ok(service) = get_global_config_service().await else {
         return false;
@@ -83,14 +126,8 @@ async fn auto_connect_on_startup_enabled() -> bool {
 }
 
 async fn selected_browser_kind() -> Result<BrowserKind, String> {
-    let config = get_global_config_service()
-        .await
-        .map_err(|e| e.to_string())?
-        .get_config::<GlobalConfig>(None)
-        .await
-        .map_err(|e| e.to_string())?;
-    BrowserLauncher::resolve_browser_kind(Some(&config.ai.browser_control_preferred_browser))
-        .map_err(|e| e.to_string())
+    let preference = selected_browser_preference().await?;
+    BrowserLauncher::resolve_browser_kind(Some(&preference)).map_err(|e| e.to_string())
 }
 
 #[derive(Debug, Serialize)]
@@ -113,11 +150,18 @@ pub async fn browser_control_list_browsers() -> Result<BrowserControlBrowsersRes
     #[cfg(target_env = "ohos")]
     {
         return Ok(BrowserControlBrowsersResponse {
-            options: vec![BrowserControlBrowserOption {
-                value: "haitai".to_string(),
-                label: "Haitai Browser".to_string(),
-                installed: true,
-            }],
+            options: vec![
+                BrowserControlBrowserOption {
+                    value: BUILTIN_BROWSER_VALUE.to_string(),
+                    label: BUILTIN_BROWSER_LABEL.to_string(),
+                    installed: true,
+                },
+                BrowserControlBrowserOption {
+                    value: "haitai".to_string(),
+                    label: "Haitai Browser".to_string(),
+                    installed: true,
+                },
+            ],
         });
     }
 
@@ -179,6 +223,41 @@ pub struct BrowserControlStatusResponse {
     pub browser_version: Option<String>,
     pub port: u16,
     pub page_count: usize,
+    pub selected_browser: String,
+}
+
+#[cfg(target_env = "ohos")]
+async fn builtin_browser_status(preference: &str) -> Result<BrowserControlStatusResponse, String> {
+    let targets = list_arkweb_automation_targets();
+    let target_ids: std::collections::HashSet<_> = targets
+        .iter()
+        .map(|target| target.target_id.as_str())
+        .collect();
+    let endpoint = CdpEndpoint::arkweb_for_current_process();
+    let pages = CdpClient::list_pages_at(&endpoint)
+        .await
+        .unwrap_or_default();
+    let page_count = pages
+        .iter()
+        .filter(|page| {
+            page.page_type.as_deref() == Some("page") && target_ids.contains(page.id.as_str())
+        })
+        .count();
+    let version = CdpClient::get_version_at(&endpoint)
+        .await
+        .ok()
+        .and_then(|version| version.browser);
+    Ok(BrowserControlStatusResponse {
+        cdp_available: page_count > 0,
+        default_cdp_supported: false,
+        default_cdp_enabled: false,
+        browser_ready: true,
+        browser_kind: BUILTIN_BROWSER_LABEL.to_string(),
+        browser_version: version,
+        port: 0,
+        page_count,
+        selected_browser: canonical_browser_preference(preference),
+    })
 }
 
 /// Check CDP browser control status.
@@ -187,7 +266,13 @@ pub async fn browser_control_get_status(
     request: BrowserControlStatusRequest,
 ) -> Result<BrowserControlStatusResponse, String> {
     let port = request.port;
-    let configured_kind = selected_browser_kind().await?;
+    let preference = selected_browser_preference().await?;
+    #[cfg(target_env = "ohos")]
+    if is_builtin_browser_preference(&preference) {
+        return builtin_browser_status(&preference).await;
+    }
+    let configured_kind = BrowserLauncher::resolve_browser_kind(Some(&preference))
+        .map_err(|error| error.to_string())?;
     let default_cdp_supported = BrowserLauncher::supports_default_cdp(&configured_kind);
     // Probe the live endpoint once and answer both questions from it: whether
     // the persistent setting is on, and whether there is something to attach to
@@ -270,6 +355,7 @@ pub async fn browser_control_get_status(
         browser_version: version,
         port,
         page_count,
+        selected_browser: canonical_browser_preference(&preference),
     })
 }
 
@@ -291,6 +377,8 @@ pub struct BrowserControlLaunchResponse {
     /// themselves because the platform cannot open a `chrome://` URL for them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub setup_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_from: Option<String>,
 }
 
 fn to_launch_response(kind: &BrowserKind, result: LaunchResult) -> BrowserControlLaunchResponse {
@@ -301,6 +389,7 @@ fn to_launch_response(kind: &BrowserKind, result: LaunchResult) -> BrowserContro
             message: None,
             browser_kind: kind.to_string(),
             setup_url: None,
+            fallback_from: None,
         },
         LaunchResult::Launched => BrowserControlLaunchResponse {
             success: true,
@@ -308,6 +397,7 @@ fn to_launch_response(kind: &BrowserKind, result: LaunchResult) -> BrowserContro
             message: None,
             browser_kind: kind.to_string(),
             setup_url: None,
+            fallback_from: None,
         },
         LaunchResult::UserProfileReady { .. } => BrowserControlLaunchResponse {
             success: false,
@@ -315,6 +405,7 @@ fn to_launch_response(kind: &BrowserKind, result: LaunchResult) -> BrowserContro
             message: None,
             browser_kind: kind.to_string(),
             setup_url: None,
+            fallback_from: None,
         },
         LaunchResult::UserProfileSetupRequired {
             instructions,
@@ -334,6 +425,7 @@ fn to_launch_response(kind: &BrowserKind, result: LaunchResult) -> BrowserContro
             message: Some(instructions),
             browser_kind: kind.to_string(),
             setup_url: Some(setup_url),
+            fallback_from: None,
         },
         LaunchResult::LaunchedButCdpNotReady { message, .. } => BrowserControlLaunchResponse {
             success: false,
@@ -341,6 +433,7 @@ fn to_launch_response(kind: &BrowserKind, result: LaunchResult) -> BrowserContro
             message: Some(message),
             browser_kind: kind.to_string(),
             setup_url: None,
+            fallback_from: None,
         },
         LaunchResult::BrowserRunningWithoutCdp { instructions, .. } => {
             BrowserControlLaunchResponse {
@@ -349,6 +442,7 @@ fn to_launch_response(kind: &BrowserKind, result: LaunchResult) -> BrowserContro
                 message: Some(instructions),
                 browser_kind: kind.to_string(),
                 setup_url: None,
+                fallback_from: None,
             }
         }
     }
@@ -375,6 +469,7 @@ async fn complete_launch(
                     message: Some(error.to_string()),
                     browser_kind: kind.to_string(),
                     setup_url: None,
+                    fallback_from: None,
                 });
             }
             Ok(BrowserControlLaunchResponse {
@@ -383,10 +478,56 @@ async fn complete_launch(
                 message: None,
                 browser_kind: kind.to_string(),
                 setup_url: None,
+                fallback_from: None,
             })
         }
         other => Ok(to_launch_response(kind, other)),
     }
+}
+
+fn builtin_ready_response(fallback_from: Option<String>) -> BrowserControlLaunchResponse {
+    BrowserControlLaunchResponse {
+        success: true,
+        status: if fallback_from.is_some() {
+            "fallback_builtin".into()
+        } else {
+            "builtin_ready".into()
+        },
+        message: None,
+        browser_kind: BUILTIN_BROWSER_LABEL.to_string(),
+        setup_url: None,
+        fallback_from,
+    }
+}
+
+#[cfg(target_env = "ohos")]
+async fn activate_builtin_fallback(
+    fallback_from: &BrowserKind,
+    reason: impl std::fmt::Display,
+) -> Result<BrowserControlLaunchResponse, String> {
+    match get_global_config_service().await {
+        Ok(service) => {
+            if let Err(error) = service
+                .set_config("ai.browser_control_preferred_browser", "")
+                .await
+            {
+                log::warn!(
+                    "Could not persist built-in browser fallback preference: {}",
+                    error
+                );
+            }
+        }
+        Err(error) => log::warn!(
+            "Could not access browser preference while falling back to the built-in browser: {}",
+            error
+        ),
+    }
+    log::warn!(
+        "Browser control falling back from {} to the built-in browser: {}",
+        fallback_from,
+        reason
+    );
+    Ok(builtin_ready_response(Some(fallback_from.to_string())))
 }
 
 /// Launch the user's default browser with CDP debug port.
@@ -395,7 +536,12 @@ pub async fn browser_control_launch(
     request: BrowserControlLaunchRequest,
 ) -> Result<BrowserControlLaunchResponse, String> {
     let port = request.port;
-    let kind = selected_browser_kind().await?;
+    let preference = selected_browser_preference().await?;
+    if is_builtin_browser_preference(&preference) {
+        return Ok(builtin_ready_response(None));
+    }
+    let kind = BrowserLauncher::resolve_browser_kind(Some(&preference))
+        .map_err(|error| error.to_string())?;
 
     if CdpClient::browser_connection_for_kind(port, &kind)
         .await
@@ -411,11 +557,30 @@ pub async fn browser_control_launch(
         CdpClient::remove_browser_connection(port).await;
     }
 
-    let result = BrowserLauncher::launch_with_cdp(&kind, port)
-        .await
-        .map_err(|e| e.to_string())?;
+    let result = match BrowserLauncher::launch_with_cdp(&kind, port).await {
+        Ok(result) => result,
+        Err(error) => {
+            #[cfg(target_env = "ohos")]
+            return activate_builtin_fallback(&kind, error).await;
 
-    complete_launch(&kind, port, result).await
+            #[cfg(not(target_env = "ohos"))]
+            return Err(error.to_string());
+        }
+    };
+
+    let response = complete_launch(&kind, port, result).await?;
+    #[cfg(target_env = "ohos")]
+    if !response.success {
+        return activate_builtin_fallback(
+            &kind,
+            response
+                .message
+                .as_deref()
+                .unwrap_or(response.status.as_str()),
+        )
+        .await;
+    }
+    Ok(response)
 }
 
 /// Open the selected browser's persistent guarded-CDP setting and wait for the
@@ -426,6 +591,10 @@ pub async fn browser_control_enable_default_cdp(
     request: BrowserControlLaunchRequest,
 ) -> Result<BrowserControlLaunchResponse, String> {
     let port = request.port;
+    let preference = selected_browser_preference().await?;
+    if is_builtin_browser_preference(&preference) {
+        return Ok(builtin_ready_response(None));
+    }
     let kind = selected_browser_kind().await?;
 
     if !BrowserLauncher::supports_default_cdp(&kind) {
@@ -438,6 +607,7 @@ pub async fn browser_control_enable_default_cdp(
             )),
             browser_kind: kind.to_string(),
             setup_url: None,
+            fallback_from: None,
         });
     }
 
@@ -463,6 +633,10 @@ pub async fn browser_control_restart_with_cdp(
     request: BrowserControlLaunchRequest,
 ) -> Result<BrowserControlLaunchResponse, String> {
     let port = request.port;
+    let preference = selected_browser_preference().await?;
+    if is_builtin_browser_preference(&preference) {
+        return Ok(builtin_ready_response(None));
+    }
     let kind = selected_browser_kind().await?;
 
     let result = BrowserLauncher::restart_with_cdp(&kind, port)

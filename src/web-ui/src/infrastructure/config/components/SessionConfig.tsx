@@ -73,6 +73,7 @@ type BrowserControlLaunchResponse = {
   message: string | null;
   browserKind: string;
   setupUrl?: string;
+  fallbackFrom?: string;
 };
 
 type BrowserControlBrowserOption = {
@@ -99,7 +100,7 @@ function resolveToolPermissionMode(config: ToolPermissionConfig): ToolPermission
   return config.interaction.auto_approve_ask ? 'auto' : 'ask';
 }
 
-const DEFAULT_BROWSER_CONTROL_BROWSER = IS_OHOS ? 'haitai' : 'default';
+const DEFAULT_BROWSER_CONTROL_BROWSER = IS_OHOS ? 'builtin' : 'default';
 
 export type SessionSettingsPanelVariant = 'personalization' | 'permissions';
 
@@ -199,6 +200,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
           browserVersion: string | null;
           port: number;
           pageCount: number;
+          selectedBrowser: string;
         }>('browser_control_get_status', { request: { port: 9222 } }),
         invoke<{ options: BrowserControlBrowserOption[] }>('browser_control_list_browsers'),
       ]);
@@ -209,6 +211,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
       setBrowserKind(s.browserKind);
       setBrowserVersion(s.browserVersion);
       setBrowserPageCount(s.pageCount);
+      setPreferredBrowser(s.selectedBrowser);
       setBrowserOptions(browsers.options);
     } catch (error) {
       log.error('browser_control_get_status failed', error);
@@ -274,9 +277,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
       setExecutionTimeout(execTimeout != null ? String(execTimeout) : '');
       setSubagentBatchExecutionPolicy(normalizeSubagentBatchExecutionPolicy(loadedSubagentBatchExecutionPolicy));
       if (debugConfigData) setDebugConfig(debugConfigData);
-      setPreferredBrowser(
-        IS_OHOS ? 'haitai' : browserControlPreferredBrowser || DEFAULT_BROWSER_CONTROL_BROWSER,
-      );
+      setPreferredBrowser(browserControlPreferredBrowser || DEFAULT_BROWSER_CONTROL_BROWSER);
       setBrowserAutoConnectOnStartup(browserControlAutoConnect === true);
       setToolPermissionConfig(normalizeToolPermissionConfig(loadedToolPermissionConfig));
       setShowPermissionModeControl(loadedPermissionModeControlVisibility !== false);
@@ -652,7 +653,17 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
   };
 
   const presentBrowserControlLaunchResult = (result: BrowserControlLaunchResponse) => {
-    if (result.success) {
+    if (result.status === 'fallback_builtin') {
+      setPreferredBrowser('builtin');
+      notificationService.info(
+        t('browserControl.fallbackToBuiltin', {
+          browser: result.fallbackFrom ?? result.browserKind,
+        }),
+        { duration: 8000 }
+      );
+    } else if (result.status === 'builtin_ready') {
+      notificationService.success(t('browserControl.builtinReady'), { duration: 3000 });
+    } else if (result.success) {
       notificationService.success(
         t('browserControl.connectSuccess', { browser: result.browserKind }),
         { duration: 3000 }
@@ -916,15 +927,21 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
   // A ready browser is not a failure state: BitFun attaches to it the moment
   // something needs it, so say that rather than the bare "not connected".
   const browserStatusLabel = browserCdpAvailable
-    ? `${browserKind} · ${browserPageCount} ${t('browserControl.tabs')}`
+    ? preferredBrowser === 'builtin'
+      ? `${t('browserControl.builtinConnected')} · ${browserPageCount} ${t('browserControl.tabs')}`
+      : `${browserKind} · ${browserPageCount} ${t('browserControl.tabs')}`
     : browserStatusLoading
       ? t('loading.text')
-      : browserReady
+      : preferredBrowser === 'builtin' && browserReady
+        ? t('browserControl.builtinReady')
+        : browserReady
         ? t('browserControl.readyNotConnected')
         : t('browserControl.notConnected');
   const browserSelectOptions: SelectOption[] = browserOptions.map((option) => ({
     value: option.value,
-    label: option.installed ? option.label : `${option.label} (${t('browserControl.notInstalled')})`,
+    label: option.installed
+      ? option.value === 'builtin' ? t('browserControl.builtinBrowser') : option.label
+      : `${option.label} (${t('browserControl.notInstalled')})`,
     disabled: !option.installed,
   }));
 
@@ -1467,8 +1484,6 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
         >
           {IS_TAURI_DESKTOP ? (
             <>
-              {/* Only show browser selector when CDP is not connected */}
-              {!browserCdpAvailable && (
               <ConfigPageRow
                 label={t('browserControl.preferredBrowser')}
                 description={t('browserControl.preferredBrowserDesc')}
@@ -1487,7 +1502,6 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                   />
                 </div>
               </ConfigPageRow>
-              )}
               {browserDefaultCdpSupported && (
                 <ConfigPageRow
                   label={t('browserControl.defaultCdp')}

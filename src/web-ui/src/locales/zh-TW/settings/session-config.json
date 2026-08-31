@@ -148,10 +148,16 @@
     "sectionTitle": "瀏覽器控制",
     "sectionDescription": "選擇 BitFun 使用的瀏覽器和連線方式。",
     "desktopOnly": "瀏覽器控制僅在 BitFun 桌面應用中可用。",
+    "preferredBrowser": "瀏覽器",
+    "preferredBrowserDesc": "預設使用 BitFun 內建瀏覽器；外部瀏覽器無法連線時會自動回退到內建瀏覽器。",
+    "builtinBrowser": "BitFun 內建瀏覽器",
+    "notInstalled": "未安裝",
     "status": "連接狀態",
     "statusDesc": "",
     "notConnected": "未連接",
     "readyNotConnected": "已就緒，使用時自動連接",
+    "builtinReady": "內建瀏覽器已就緒，使用時自動連接",
+    "builtinConnected": "內建瀏覽器已連接",
     "refreshStatus": "重新整理狀態",
     "connect": "連接瀏覽器",
     "defaultCdp": "使用現有瀏覽器",
@@ -164,6 +170,7 @@
     "defaultCdpEnablePrompt": "已開啟 {{browser}} 的 Remote debugging 設定頁（該頁面僅有英文）。請勾選 “Allow remote debugging for this browser instance”；BitFun 偵測到後會自動繼續連線，再請在瀏覽器中選擇「允許」。",
     "defaultCdpConnectPrompt": "正在連接你目前的 {{browser}}；請在瀏覽器彈出視窗中選擇「允許」。",
     "connectSuccess": "已連接 {{browser}}",
+    "fallbackToBuiltin": "無法連接 {{browser}}，已回退到內建瀏覽器",
     "connectFailed": "連接瀏覽器失敗",
     "userProfileSetupRequired": "{{browser}} 已開啟 Remote debugging 設定頁，但等待期間未偵測到開關生效。請勾選 “Allow remote debugging for this browser instance” 後再次點擊「啟用並連線」；目前的分頁和登入狀態會被保留。",
     "userProfileSetupManual": "請在 {{browser}} 中開啟 {{url}}，勾選 “Allow remote debugging for this browser instance”，然後再次點擊「啟用並連線」；目前的分頁和登入狀態會被保留。",
@@ -178,10 +185,7 @@
       "confirm": "重新啟動並連線",
       "restarting": "正在重新啟動..."
     },
-    "tabs": "個標籤頁",
-    "preferredBrowser": "瀏覽器",
-    "preferredBrowserDesc": "預設使用系統瀏覽器。",
-    "notInstalled": "未安裝"
+    "tabs": "個標籤頁"
   },
   "common": {
     "enable": "啟用"

@@ -23,7 +23,6 @@ use crate::agentic::tools::framework::{
     Tool, ToolExposure, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult,
 };
 use crate::infrastructure::events::{get_global_event_system, BackendEvent};
-#[cfg(not(target_env = "ohos"))]
 use crate::service::config::{get_global_config_service, GlobalConfig};
 use crate::util::errors::{BitFunError, BitFunResult};
 use crate::util::types::ToolImageAttachment;
@@ -133,6 +132,98 @@ impl ControlHubTool {
                 format!("Unknown browser backend '{backend}'. Valid backends: external, builtin"),
             )),
         }
+    }
+
+    #[cfg(any(target_env = "ohos", test))]
+    fn browser_connect_backend_from_preference(preference: &str) -> BrowserConnectBackend {
+        if matches!(
+            preference.trim().to_ascii_lowercase().as_str(),
+            "haitai" | "external" | "browser"
+        ) {
+            BrowserConnectBackend::External
+        } else {
+            BrowserConnectBackend::Builtin
+        }
+    }
+
+    #[cfg(any(target_env = "ohos", test))]
+    fn builtin_fallback_params(params: &Value) -> Value {
+        let mut builtin_params = params.clone();
+        if let Some(object) = builtin_params.as_object_mut() {
+            object.remove("backend");
+            object.remove("browser");
+            object.remove("port");
+            object.remove("user_data_dir");
+        }
+        builtin_params
+    }
+
+    async fn configured_browser_connect_backend(
+        params: &Value,
+    ) -> Result<BrowserConnectBackend, ControlHubError> {
+        if params.get("backend").is_some() {
+            return Self::browser_connect_backend_from_params(params);
+        }
+
+        #[cfg(target_env = "ohos")]
+        {
+            let preference = get_global_config_service()
+                .await
+                .map_err(|error| ControlHubError::new(ErrorCode::Internal, error.to_string()))?
+                .get_config::<GlobalConfig>(None)
+                .await
+                .map_err(|error| ControlHubError::new(ErrorCode::Internal, error.to_string()))?
+                .ai
+                .browser_control_preferred_browser;
+            return Ok(Self::browser_connect_backend_from_preference(&preference));
+        }
+
+        #[cfg(not(target_env = "ohos"))]
+        Self::browser_connect_backend_from_params(params)
+    }
+
+    #[cfg(target_env = "ohos")]
+    async fn connect_builtin_after_external_failure(
+        params: &Value,
+        context: &ToolUseContext,
+        reason: impl std::fmt::Display,
+    ) -> BitFunResult<Vec<ToolResult>> {
+        let reason = reason.to_string();
+        if let Ok(service) = get_global_config_service().await {
+            if let Err(error) = service
+                .set_config("ai.browser_control_preferred_browser", "")
+                .await
+            {
+                log::warn!(
+                    "Could not persist built-in browser fallback preference: {}",
+                    error
+                );
+            }
+        }
+        log::warn!(
+            "OHOS external browser connection failed; using built-in ArkWeb: {}",
+            reason
+        );
+        let builtin_params = Self::builtin_fallback_params(params);
+        let mut results = Self::connect_builtin_arkweb("connect", &builtin_params, context).await?;
+        for result in &mut results {
+            if let ToolResult::Result {
+                data,
+                result_for_assistant,
+                ..
+            } = result
+            {
+                if let Some(object) = data.as_object_mut() {
+                    object.insert("fallback_from".to_string(), json!("Haitai Browser"));
+                    object.insert("fallback_reason".to_string(), json!(reason));
+                    object.insert("status".to_string(), json!("fallback_builtin"));
+                }
+                *result_for_assistant = Some(format!(
+                    "Haitai Browser was unavailable, so BitFun connected to the built-in ArkWeb instead: {reason}"
+                ));
+            }
+        }
+        Ok(results)
     }
 
     async fn resolve_browser_session(session_id: Option<&str>) -> BitFunResult<BrowserSession> {
@@ -317,22 +408,20 @@ impl ControlHubTool {
             ));
         }
 
-        let raw_url = params.get("url").and_then(Value::as_str).unwrap_or("");
-        if raw_url.trim().is_empty() {
-            return Ok(err_response(
-                "browser",
-                response_action,
-                ControlHubError::new(
-                    ErrorCode::InvalidParams,
-                    format!("browser.{response_action} requires params.url."),
-                )
-                .with_hint("Pass an http(s) URL, e.g. { \"url\": \"https://example.com\" }."),
-            ));
-        }
+        let raw_url = params
+            .get("url")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("about:blank");
         let computer_use = Self::computer_use_available(context).await;
-        let url = match Self::normalize_builtin_browser_url(raw_url, computer_use) {
-            Ok(url) => url,
-            Err(error) => return Ok(err_response("browser", response_action, error)),
+        let url = if raw_url == "about:blank" {
+            raw_url.to_string()
+        } else {
+            match Self::normalize_builtin_browser_url(raw_url, computer_use) {
+                Ok(url) => url,
+                Err(error) => return Ok(err_response("browser", response_action, error)),
+            }
         };
         let title = params
             .get("title")
@@ -505,9 +594,8 @@ impl ControlHubTool {
         {
             let _ = (kind, port);
             return vec![
-                "OHOS browser control starts or attaches the Haitai browser through its local TCP CDP endpoint; it never uses hdc, a development machine, root, or port forwarding.".to_string(),
-                "To control a page inside BitFun instead, use browser.connect { backend: \"builtin\", url: \"https://...\" }; it attaches only to the newly-created ArkWeb panel through the app-local abstract socket.".to_string(),
-                "If Haitai is already running without CDP, browser.connect tries one hot-start and then returns NEEDS_RESTART; close Haitai completely and retry.".to_string(),
+                "OHOS defaults to BitFun's built-in ArkWeb through the app-local abstract CDP socket.".to_string(),
+                "Selecting Haitai in Settings uses its local TCP CDP endpoint; if that connection is unavailable, BitFun falls back to the built-in ArkWeb and updates the preference.".to_string(),
                 "After connecting, use browser.tab_new or browser.connect { url } with the task URL, then browser.snapshot/click/fill to drive the page through CDP.".to_string(),
             ];
         }
@@ -698,8 +786,8 @@ Use this tool via `{ domain, action, params }` for browser automation, terminal 
 - UI action:
   * `open_builtin { url, title?, replace_existing? }` — open an http(s) URL in BitFun's built-in right-side browser panel. This changes the BitFun UI only; it does not fetch page text for reasoning. The panel is display-only for the user — the agent cannot snapshot, read, or interact with it; use `connect` + `snapshot` when page content is needed.
 - Automation modes:
-  * `connect { mode: "default", url? }` (default) — on desktop, use the current approved profile where available or BitFun's managed profile; on OHOS, start or attach Haitai with local TCP CDP on port 9222.
-  * `connect { backend: "builtin", url }` — on OHOS, create a dedicated BitFun ArkWeb panel and attach it through the app-local abstract CDP socket. Only that registered panel is exposed to browser actions; the BitFun application UI is never listed or attachable. This requires a live GUI on the OHOS host and returns `NOT_AVAILABLE` for detached/headless execution.
+  * `connect { mode: "default", url? }` (default) — on desktop, use the current approved profile where available or BitFun's managed profile; on OHOS, use the browser selected in Settings (built-in ArkWeb by default, with automatic fallback from an unavailable external browser).
+  * `connect { backend: "builtin", url? }` — on OHOS, create a dedicated BitFun ArkWeb panel and attach it through the app-local abstract CDP socket. Only that registered panel is exposed to browser actions; the BitFun application UI is never listed or attachable. Without a URL it starts at `about:blank`. This requires a live GUI on the OHOS host and returns `NOT_AVAILABLE` for detached/headless execution.
   * `connect { mode: "headless" }` — attach to an already-running headless browser on the headless test port 9223. This mode never starts a browser; when nothing is listening it returns `NOT_AVAILABLE` together with the exact launch command.
   * `params.port` overrides the external CDP port for `connect` and every other external-browser CDP action; OHOS passes it to Haitai's cmdArgs. The built-in backend rejects port overrides.
 - Actions: open_builtin, connect, tab_new, navigate, back, forward, reload, snapshot, click, hover, fill, type, check, uncheck, select, press_key, scroll, auto_scroll, wait, get, get_text, get_url, get_title, get_html, screenshot, evaluate, fetch, cookies, set_cookies, set_file_input_files, cdp, network, console, errors, trace, dialog, read_article, close, list_pages, tab_query, switch_page, list_sessions.
@@ -1337,7 +1425,7 @@ Branch on `ok` and `error.code`, not on English messages.
 
             "connect" => {
                 let mode = Self::browser_connect_mode_from_params(params);
-                let backend = match Self::browser_connect_backend_from_params(params) {
+                let backend = match Self::configured_browser_connect_backend(params).await {
                     Ok(backend) => backend,
                     Err(error) => return Ok(err_response("browser", "connect", error)),
                 };
@@ -1450,19 +1538,10 @@ Branch on `ok` and `error.code`, not on English messages.
                         Err(error) => {
                             #[cfg(target_env = "ohos")]
                             {
-                                let error_text = error.to_string();
-                                let code = if error_text.contains("identity mismatch") {
-                                    ErrorCode::WrongBrowser
-                                } else {
-                                    ErrorCode::NotAvailable
-                                };
-                                return Ok(err_response(
-                                    "browser",
-                                    "connect",
-                                    ControlHubError::new(code, error_text).with_hints(
-                                        Self::default_browser_connect_hints(&kind, port),
-                                    ),
-                                ));
+                                return Self::connect_builtin_after_external_failure(
+                                    params, context, error,
+                                )
+                                .await;
                             }
 
                             #[cfg(not(target_env = "ohos"))]
@@ -1483,6 +1562,13 @@ Branch on `ok` and `error.code`, not on English messages.
                         )
                         .await
                         {
+                            #[cfg(target_env = "ohos")]
+                            return Self::connect_builtin_after_external_failure(
+                                params, context, error,
+                            )
+                            .await;
+
+                            #[cfg(not(target_env = "ohos"))]
                             return Ok(err_response(
                                 "browser",
                                 "connect",
@@ -1504,6 +1590,15 @@ Branch on `ok` and `error.code`, not on English messages.
                         instructions,
                         ..
                     } => {
+                        #[cfg(target_env = "ohos")]
+                        return Self::connect_builtin_after_external_failure(
+                            params,
+                            context,
+                            instructions,
+                        )
+                        .await;
+
+                        #[cfg(not(target_env = "ohos"))]
                         return Ok(err_response(
                             "browser",
                             "connect",
@@ -1547,15 +1642,44 @@ Branch on `ok` and `error.code`, not on English messages.
                     LaunchResult::AlreadyConnected
                     | LaunchResult::Launched
                     | LaunchResult::UserProfileReady { .. } => {
-                        let version = Self::browser_version(port).await?;
+                        let version = match Self::browser_version(port).await {
+                            Ok(version) => version,
+                            Err(error) => {
+                                #[cfg(target_env = "ohos")]
+                                return Self::connect_builtin_after_external_failure(
+                                    params, context, error,
+                                )
+                                .await;
+
+                                #[cfg(not(target_env = "ohos"))]
+                                return Err(error);
+                            }
+                        };
                         #[cfg(target_env = "ohos")]
-                        CdpClient::validate_ohos_protocol(port).await?;
+                        if let Err(error) = CdpClient::validate_ohos_protocol(port).await {
+                            return Self::connect_builtin_after_external_failure(
+                                params, context, error,
+                            )
+                            .await;
+                        }
                         if mode == "headless" {
                             if let Err(error) = Self::verify_headless_cdp_browser(&version, port) {
                                 return Ok(err_response("browser", "connect", error));
                             }
                         }
-                        let mut pages = Self::browser_pages(port).await?;
+                        let mut pages = match Self::browser_pages(port).await {
+                            Ok(pages) => pages,
+                            Err(error) => {
+                                #[cfg(target_env = "ohos")]
+                                return Self::connect_builtin_after_external_failure(
+                                    params, context, error,
+                                )
+                                .await;
+
+                                #[cfg(not(target_env = "ohos"))]
+                                return Err(error);
+                            }
+                        };
                         if let Some(url) = initial_url.as_deref() {
                             let already_open = pages.iter().any(|page| {
                                 page.page_type.as_deref() == Some("page")
@@ -1563,22 +1687,40 @@ Branch on `ok` and `error.code`, not on English messages.
                                     && page.web_socket_debugger_url.is_some()
                             });
                             if !already_open {
-                                let page = Self::create_browser_page(port, Some(url)).await.map_err(
-                                    |error| {
-                                        BitFunError::tool(format!(
-                                            "failed to open connect.url through Haitai CDP: {error}"
-                                        ))
-                                    },
-                                )?;
+                                let page = match Self::create_browser_page(port, Some(url)).await {
+                                    Ok(page) => page,
+                                    Err(error) => {
+                                        #[cfg(target_env = "ohos")]
+                                        return Self::connect_builtin_after_external_failure(
+                                            params, context, error,
+                                        )
+                                        .await;
+
+                                        #[cfg(not(target_env = "ohos"))]
+                                        return Err(BitFunError::tool(format!(
+                                            "failed to open connect.url through browser CDP: {error}"
+                                        )));
+                                    }
+                                };
                                 pages.push(page);
                             }
                         }
                         if pages.is_empty() {
-                            let page = Self::create_browser_page(port, None).await.map_err(|error| {
-                                BitFunError::tool(format!(
-                                    "Haitai CDP has no page target and could not create about:blank: {error}"
-                                ))
-                            })?;
+                            let page = match Self::create_browser_page(port, None).await {
+                                Ok(page) => page,
+                                Err(error) => {
+                                    #[cfg(target_env = "ohos")]
+                                    return Self::connect_builtin_after_external_failure(
+                                        params, context, error,
+                                    )
+                                    .await;
+
+                                    #[cfg(not(target_env = "ohos"))]
+                                    return Err(BitFunError::tool(format!(
+                                        "Browser CDP has no page target and could not create about:blank: {error}"
+                                    )));
+                                }
+                            };
                             pages.push(page);
                         }
                         let connected_browser = if mode == "headless" {
@@ -1648,7 +1790,19 @@ Branch on `ok` and `error.code`, not on English messages.
                             .ok_or_else(|| {
                                 BitFunError::tool("No browser pages found via CDP".to_string())
                             })?;
-                        let client = Self::connect_page(port, page).await?;
+                        let client = match Self::connect_page(port, page).await {
+                            Ok(client) => client,
+                            Err(error) => {
+                                #[cfg(target_env = "ohos")]
+                                return Self::connect_builtin_after_external_failure(
+                                    params, context, error,
+                                )
+                                .await;
+
+                                #[cfg(not(target_env = "ohos"))]
+                                return Err(error);
+                            }
+                        };
                         let session = BrowserSession {
                             session_id: page.id.clone(),
                             port,
@@ -1710,10 +1864,8 @@ Branch on `ok` and `error.code`, not on English messages.
                         if let Some(object) = result.as_object_mut() {
                             object.remove("port");
                             object.insert("transport".to_string(), json!("tcp_loopback"));
-                            object.insert(
-                                "endpoint".to_string(),
-                                json!(format!("127.0.0.1:{port}")),
-                            );
+                            object
+                                .insert("endpoint".to_string(), json!(format!("127.0.0.1:{port}")));
                             object.insert(
                                 "profile_scope".to_string(),
                                 json!("existing_haitai_profile"),
@@ -1757,7 +1909,17 @@ Branch on `ok` and `error.code`, not on English messages.
                         setup_url,
                         instructions,
                         ..
-                    } => Ok(err_response(
+                    } => {
+                        #[cfg(target_env = "ohos")]
+                        return Self::connect_builtin_after_external_failure(
+                            params,
+                            context,
+                            instructions,
+                        )
+                        .await;
+
+                        #[cfg(not(target_env = "ohos"))]
+                        Ok(err_response(
                         "browser",
                         "connect",
                         ControlHubError::new(
@@ -1770,27 +1932,44 @@ Branch on `ok` and `error.code`, not on English messages.
                         .with_hint(instructions)
                         .with_hint(format!("{} setup page: {setup_url}", kind))
                         .with_hints(Self::default_browser_connect_hints(&kind, port)),
-                    )),
-                    LaunchResult::LaunchedButCdpNotReady { message, .. } => Ok(err_response(
-                        "browser",
-                        "connect",
-                        ControlHubError::new(ErrorCode::Timeout, message.clone())
-                            .with_hints(Self::default_browser_connect_hints(&kind, port)),
-                    )),
-                    LaunchResult::BrowserRunningWithoutCdp { instructions, .. } => Ok(err_response(
+                    ))
+                    }
+                    LaunchResult::LaunchedButCdpNotReady { message, .. } => {
+                        #[cfg(target_env = "ohos")]
+                        return Self::connect_builtin_after_external_failure(
+                            params, context, message,
+                        )
+                        .await;
+
+                        #[cfg(not(target_env = "ohos"))]
+                        Ok(err_response(
+                            "browser",
+                            "connect",
+                            ControlHubError::new(ErrorCode::Timeout, message.clone())
+                                .with_hints(Self::default_browser_connect_hints(&kind, port)),
+                        ))
+                    }
+                    LaunchResult::BrowserRunningWithoutCdp { instructions, .. } => {
+                        #[cfg(target_env = "ohos")]
+                        return Self::connect_builtin_after_external_failure(
+                            params,
+                            context,
+                            instructions,
+                        )
+                        .await;
+
+                        #[cfg(not(target_env = "ohos"))]
+                        Ok(err_response(
                         "browser",
                         "connect",
                         ControlHubError::new(
                             ErrorCode::NotAvailable,
-                            if cfg!(target_env = "ohos") {
-                                "NEEDS_RESTART: Haitai is running without CDP. Close Haitai completely and retry browser.connect."
-                            } else {
-                                "The user's default browser is running without the test port enabled."
-                            },
+                            "The user's default browser is running without the test port enabled.",
                         )
                         .with_hint(instructions)
                         .with_hints(Self::default_browser_connect_hints(&kind, port)),
-                    )),
+                    ))
+                    }
                 }
             }
 
@@ -4282,6 +4461,39 @@ mod control_hub_tests {
             &json!({ "backend": "unknown" })
         )
         .is_err());
+    }
+
+    #[test]
+    fn browser_connect_backend_uses_builtin_for_empty_ohos_preference() {
+        for preference in ["", "builtin", "arkweb", "unknown"] {
+            assert_eq!(
+                ControlHubTool::browser_connect_backend_from_preference(preference),
+                BrowserConnectBackend::Builtin
+            );
+        }
+        for preference in ["haitai", "external", "browser", " HAITAI "] {
+            assert_eq!(
+                ControlHubTool::browser_connect_backend_from_preference(preference),
+                BrowserConnectBackend::External
+            );
+        }
+    }
+
+    #[test]
+    fn browser_builtin_fallback_removes_external_only_params() {
+        let params = ControlHubTool::builtin_fallback_params(&json!({
+            "backend": "external",
+            "browser": "haitai",
+            "port": 9222,
+            "user_data_dir": "/tmp/profile",
+            "url": "https://example.com",
+            "title": "Example"
+        }));
+        assert_eq!(params["url"], "https://example.com");
+        assert_eq!(params["title"], "Example");
+        for key in ["backend", "browser", "port", "user_data_dir"] {
+            assert!(params.get(key).is_none(), "{key} should not reach ArkWeb");
+        }
     }
 
     #[tokio::test]
