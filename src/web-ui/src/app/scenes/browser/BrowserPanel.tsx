@@ -11,7 +11,6 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Globe, RefreshCw, MousePointe
 import { useTranslation } from 'react-i18next';
 import { IconButton } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
-import { useSceneStore } from '@/app/stores/sceneStore';
 import { useContextStore } from '@/shared/context-system';
 import type { WebElementContext } from '@/shared/types/context';
 import { createInspectorScript, CANCEL_INSPECTOR_SCRIPT } from './browserInspectorScript';
@@ -52,8 +51,6 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({
   adoptExisting,
 }) => {
   const { t } = useTranslation('common');
-  const activeTabId = useSceneStore((s) => s.activeTabId);
-  const shouldShowWebview = isActive && activeTabId === 'session';
   const addContext = useContextStore((s) => s.addContext);
   const inspectorUnlistenRef = useRef<(() => void) | null>(null);
   const [isInspectorActive, setIsInspectorActive] = useState(false);
@@ -64,7 +61,7 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({
     initialHtml,
     automationId,
     automationTitle,
-    isVisible: shouldShowWebview,
+    isVisible: isActive,
     labelPrefix: 'embedded-browser-panel-view',
     log,
     requestedWebviewLabel,

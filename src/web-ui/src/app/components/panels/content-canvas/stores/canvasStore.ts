@@ -89,6 +89,9 @@ interface CanvasStoreActions {
   
   /** Show hidden tab */
   showTab: (tabId: string, groupId: EditorGroupId) => void;
+
+  /** Show only Agent browser tabs owned by the active chat session. */
+  syncSessionOwnedBrowserTabs: (activeSessionId: string | null) => void;
   
   // ==================== Drag Operations ====================
   
@@ -175,6 +178,12 @@ const getGroup = (draft: CanvasStoreState, groupId: EditorGroupId): EditorGroupS
 
 const getVisibleTabs = (group: EditorGroupState) => group.tabs.filter(t => !t.isHidden);
 const getVisibleCount = (group: EditorGroupState) => getVisibleTabs(group).length;
+
+const browserOwnerSessionId = (tab: Pick<CanvasTab, 'content'>): string | null => {
+  if (tab.content.type !== 'browser') return null;
+  const owner = tab.content.data?.ownerSessionId ?? tab.content.metadata?.ownerSessionId;
+  return typeof owner === 'string' && owner.trim() ? owner.trim() : null;
+};
 
 const ensureValidActiveTab = (group: EditorGroupState) => {
   const visibleTabs = getVisibleTabs(group);
@@ -833,6 +842,37 @@ const createCanvasStoreHook = () => create<CanvasStore>()(
           if (tab) {
             tab.isHidden = false;
             group.activeTabId = tabId;
+          }
+        });
+      },
+
+      syncSessionOwnedBrowserTabs: (activeSessionId) => {
+        set((draft) => {
+          const groups = [draft.primaryGroup, draft.secondaryGroup, draft.tertiaryGroup];
+          for (const group of groups) {
+            const activeTab = group.tabs.find(tab => tab.id === group.activeTabId);
+            const activeOwner = activeTab ? browserOwnerSessionId(activeTab) : null;
+            let preferredOwnedBrowser: typeof group.tabs[number] | undefined;
+
+            for (const tab of group.tabs) {
+              const owner = browserOwnerSessionId(tab);
+              if (owner === null) continue;
+              tab.isHidden = owner !== activeSessionId;
+              if (
+                !tab.isHidden
+                && (!preferredOwnedBrowser || tab.lastAccessedAt > preferredOwnedBrowser.lastAccessedAt)
+              ) {
+                preferredOwnedBrowser = tab;
+              }
+            }
+
+            if (activeOwner !== null) {
+              group.activeTabId = preferredOwnedBrowser?.id
+                ?? group.tabs.find(tab => !tab.isHidden)?.id
+                ?? null;
+            } else {
+              ensureValidActiveTab(group);
+            }
           }
         });
       },

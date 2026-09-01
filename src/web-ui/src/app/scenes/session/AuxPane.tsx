@@ -15,6 +15,7 @@ import { workspaceManager } from '@/infrastructure/services/business/workspaceMa
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
 import type { PanelContent as OldPanelContent } from '../../components/panels/base/types';
 import type { PanelContent } from '../../components/panels/content-canvas/types';
+import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { createLogger } from '@/shared/utils/logger';
 
 import './AuxPane.scss';
@@ -46,6 +47,7 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
     const findTabByMetadata = useCanvasStore(state => state.findTabByMetadata);
     const updateTabContent = useCanvasStore(state => state.updateTabContent);
     const closeAllTabs = useCanvasStore(state => state.closeAllTabs);
+    const syncSessionOwnedBrowserTabs = useCanvasStore(state => state.syncSessionOwnedBrowserTabs);
     const primaryGroup = useCanvasStore(state => state.primaryGroup);
     const secondaryGroup = useCanvasStore(state => state.secondaryGroup);
 
@@ -109,8 +111,21 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
         to: next ?? '(none)',
       });
       switchAgentCanvasWorkspace(prev ?? null, next ?? null);
+      syncSessionOwnedBrowserTabs(flowChatStore.getState().activeSessionId);
       prevWorkspaceIdRef.current = next;
-    }, [workspaceId]);
+    }, [syncSessionOwnedBrowserTabs, workspaceId]);
+
+    useEffect(() => {
+      let previousSessionId: string | null | undefined;
+      const sync = (sessionId: string | null) => {
+        if (sessionId === previousSessionId) return;
+        previousSessionId = sessionId;
+        syncSessionOwnedBrowserTabs(sessionId);
+      };
+
+      sync(flowChatStore.getState().activeSessionId);
+      return flowChatStore.subscribe(state => sync(state.activeSessionId));
+    }, [syncSessionOwnedBrowserTabs]);
 
     useEffect(() => {
       const removeListener = workspaceManager.addEventListener((event) => {
