@@ -64,4 +64,38 @@ describe('SystemAPI', () => {
       request: { enabled: true },
     });
   });
+  it('passes the complete text payload to the controller-local save command', async () => {
+    const request = {
+      title: 'Export review report',
+      defaultFileName: 'review.md',
+      content: '# Review\n\n- 完整内容',
+      filterName: 'Markdown',
+      extensions: ['md'],
+    };
+    invokeMock.mockResolvedValueOnce({
+      status: 'saved',
+      filePath: '/tmp/review.md',
+    });
+
+    await expect(systemAPI.saveTextFileWithDialog(request)).resolves.toEqual({
+      status: 'saved',
+      filePath: '/tmp/review.md',
+    });
+    expect(invokeMock).toHaveBeenCalledWith('save_text_file_dialog', { request });
+  });
+
+  it('preserves a cancelled save outcome', async () => {
+    const request = {
+      title: 'Export review report',
+      defaultFileName: 'review.md',
+      content: '# Review',
+      filterName: 'Markdown',
+      extensions: ['md'],
+    };
+    invokeMock.mockResolvedValueOnce({ status: 'cancelled' });
+
+    await expect(systemAPI.saveTextFileWithDialog(request)).resolves.toEqual({
+      status: 'cancelled',
+    });
+  });
 });

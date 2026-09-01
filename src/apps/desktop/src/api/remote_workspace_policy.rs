@@ -511,14 +511,8 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     ("export_config", RemoteWorkspacePolicy::LegacyUnaudited),
-    (
-        "list_local_models",
-        RemoteWorkspacePolicy::LocalOnly,
-    ),
-    (
-        "pull_local_model",
-        RemoteWorkspacePolicy::LocalOnly,
-    ),
+    ("list_local_models", RemoteWorkspacePolicy::LocalOnly),
+    ("pull_local_model", RemoteWorkspacePolicy::LocalOnly),
     (
         "pause_local_model_download",
         RemoteWorkspacePolicy::LocalOnly,
@@ -1749,6 +1743,7 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     ("save_session_turn", RemoteWorkspacePolicy::LegacyUnaudited),
+    ("save_text_file_dialog", RemoteWorkspacePolicy::LocalOnly),
     (
         "scan_workspace_info",
         RemoteWorkspacePolicy::LegacyUnaudited,

@@ -1,8 +1,8 @@
 /**
  * Browser fallback for "save as file" flows.
  *
- * The desktop build saves through the Tauri dialog + fs plugins; the browser
- * build has no filesystem, so it hands the payload to the download manager.
+ * The desktop build saves through its platform capability; the browser build
+ * has no filesystem, so it hands the payload to the download manager.
  */
 
 export function downloadTextFileInBrowser(

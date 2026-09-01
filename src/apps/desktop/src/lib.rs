@@ -749,9 +749,8 @@ pub async fn _run() {
         use bitfun_core::infrastructure::subscription_auth::set_subscription_credential_vault;
         use std::sync::Arc;
 
-        let vault: Arc<dyn bitfun_services_core::secure_credentials::SecureCredentialVault> = Arc::new(
-            api::ohos::secure_credentials::OhosSecureCredentialVault::new(),
-        );
+        let vault: Arc<dyn bitfun_services_core::secure_credentials::SecureCredentialVault> =
+            Arc::new(api::ohos::secure_credentials::OhosSecureCredentialVault::new());
         // Subscription auth shares the global injection seam; market
         // clients construct a per-instance wrapper around the same vault
         // in `miniapp_market_api.rs` and `appearance_market_api.rs`.
@@ -765,16 +764,16 @@ pub async fn _run() {
     // for the OHOS target.
     #[cfg(not(target_env = "ohos"))]
     {
+        use bitfun_services_core::screen_capture::{set_screen_capture, ScreenCapture};
         use std::sync::Arc;
-        use bitfun_services_core::screen_capture::{ScreenCapture, set_screen_capture};
         set_screen_capture(
-            Arc::new(api::screen_capture::SystemScreenCapture::new()) as Arc<dyn ScreenCapture>,
+            Arc::new(api::screen_capture::SystemScreenCapture::new()) as Arc<dyn ScreenCapture>
         );
     }
     #[cfg(target_env = "ohos")]
     {
+        use bitfun_services_core::screen_capture::{set_screen_capture, ScreenCapture};
         use std::sync::Arc;
-        use bitfun_services_core::screen_capture::{ScreenCapture, set_screen_capture};
         set_screen_capture(
             Arc::new(api::ohos::screen_capture::OhosScreenCapture::new()) as Arc<dyn ScreenCapture>,
         );
@@ -894,6 +893,11 @@ pub async fn _run() {
             );
             handle_secondary_launch(app);
         }));
+    }
+
+    #[cfg(not(target_env = "ohos"))]
+    {
+        builder = builder.plugin(tauri_plugin_dialog::init());
     }
 
     let app = builder
@@ -1863,6 +1867,7 @@ pub async fn _run() {
             api::terminal_api::terminal_get_history,
             get_system_info,
             get_app_version,
+            save_text_file_dialog,
             check_for_updates,
             install_update,
             api::system_api::open_html_file_in_browser,
