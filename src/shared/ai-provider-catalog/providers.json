@@ -315,7 +315,7 @@
         }
       ],
       "model_policy": {
-        "mode": "catalog",
+        "mode": "curated",
         "curated_models": [],
         "additional_models": []
       }
