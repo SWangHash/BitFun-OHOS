@@ -243,6 +243,128 @@ describe('CodeReviewToolCard', () => {
     expect(container.textContent).not.toContain('Large/high-risk change');
   });
 
+  it('renders valid review text when legacy arrays contain non-string items', () => {
+    const toolItem: FlowToolItem = {
+      id: 'tool-malformed-legacy-arrays',
+      type: 'tool',
+      timestamp: Date.now(),
+      toolName: 'submit_code_review',
+      status: 'completed',
+      toolCall: {
+        id: 'call-malformed-legacy-arrays',
+        input: {},
+      },
+      toolResult: {
+        success: true,
+        result: {
+          summary: {
+            overall_assessment: 'One fix is required.',
+            risk_level: 'medium',
+            recommended_action: 'request_changes',
+          },
+          issues: [],
+          positive_points: [{ text: 'Invalid object' }, 'Clear adapter boundary.'],
+          remediation_plan: [{ plan: 'Invalid object' }, 'Add the missing guard.'],
+        },
+      },
+    };
+    const config: ToolCardConfig = {
+      toolName: 'submit_code_review',
+      displayName: 'Code Review',
+      icon: 'REVIEW',
+      requiresConfirmation: false,
+      resultDisplayType: 'detailed',
+    };
+
+    expect(() => {
+      act(() => {
+        root.render(
+          <CodeReviewToolCard
+            toolItem={toolItem}
+            config={config}
+            sessionId="review-session"
+          />,
+        );
+      });
+    }).not.toThrow();
+
+    act(() => {
+      container.querySelector('.preview-toggle-btn')?.dispatchEvent(
+        new window.Event('click', { bubbles: true }),
+      );
+    });
+
+    expect(container.textContent).toContain('Add the missing guard.');
+    expect(container.textContent).toContain('Code Strengths');
+    expect(container.textContent).not.toContain('Invalid object');
+  });
+
+  it('renders a restored review when issue string fields have malformed types', () => {
+    const toolItem: FlowToolItem = {
+      id: 'tool-malformed-issue-title',
+      type: 'tool',
+      timestamp: Date.now(),
+      toolName: 'submit_code_review',
+      status: 'completed',
+      toolCall: {
+        id: 'call-malformed-issue-title',
+        input: {},
+      },
+      toolResult: {
+        success: true,
+        result: {
+          summary: {
+            overall_assessment: 'One fix is required.',
+            risk_level: 'high',
+            recommended_action: 'request_changes',
+          },
+          issues: [{
+            severity: 'high',
+            certainty: 'confirmed',
+            title: { text: 'Object-shaped title' },
+            description: 'The branch is inverted.',
+            suggestion: { text: 'Flip the branch.' },
+          }],
+          positive_points: [],
+          report_sections: {
+            remediation_groups: {
+              must_fix: ['Add the missing guard.'],
+            },
+          },
+        },
+      },
+    };
+    const config: ToolCardConfig = {
+      toolName: 'submit_code_review',
+      displayName: 'Code Review',
+      icon: 'REVIEW',
+      requiresConfirmation: false,
+      resultDisplayType: 'detailed',
+    };
+
+    expect(() => {
+      act(() => {
+        root.render(
+          <CodeReviewToolCard
+            toolItem={toolItem}
+            config={config}
+            sessionId="review-session"
+          />,
+        );
+      });
+    }).not.toThrow();
+
+    act(() => {
+      container.querySelector('.preview-toggle-btn')?.dispatchEvent(
+        new window.Event('click', { bubbles: true }),
+      );
+    });
+
+    expect(container.textContent).toContain('Issues (1)');
+    expect(container.textContent).toContain('Add the missing guard.');
+    expect(container.textContent).not.toContain('Object-shaped title');
+  });
+
   it('updates coverage reliability when session metadata arrives after render', () => {
     flowState.current = {
       sessions: new Map<string, unknown>([

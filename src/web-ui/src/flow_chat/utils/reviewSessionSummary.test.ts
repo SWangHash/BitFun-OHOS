@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Session } from '../types/flow-chat';
 import {
+  buildReviewRemediationItems,
+  type CodeReviewRemediationData,
+} from './codeReviewRemediation';
+import {
   collectReviewChangedFiles,
   findLatestCodeReviewResultState,
   findLatestCodeReviewResult,
@@ -153,6 +157,68 @@ describe('reviewSessionSummary', () => {
       status: 'invalid',
       reason: 'unreadable_submit_code_review',
     });
+  });
+
+  it('normalizes malformed issue fields while restoring a persisted review result', () => {
+    const reviewSession = session({
+      dialogTurns: [{
+        id: 'turn-1',
+        sessionId: 'review-child',
+        userMessage: { id: 'user-1', content: 'review', timestamp: 1 },
+        modelRounds: [{
+          id: 'round-1',
+          index: 0,
+          isStreaming: false,
+          isComplete: true,
+          status: 'completed',
+          startTime: 1,
+          items: [{
+            id: 'review-result',
+            type: 'tool',
+            timestamp: 2,
+            status: 'completed',
+            toolName: 'submit_code_review',
+            toolCall: { id: 'tool-1', input: {} },
+            toolResult: {
+              success: true,
+              result: {
+                summary: {
+                  overall_assessment: 'Needs one safe fix.',
+                  risk_level: 'high',
+                  recommended_action: 'request_changes',
+                },
+                issues: [{
+                  severity: 'high',
+                  title: { text: 'Object-shaped title' },
+                  description: 'The branch is inverted.',
+                }],
+                report_sections: {
+                  remediation_groups: {
+                    must_fix: ['Add the missing guard.'],
+                  },
+                },
+              },
+            },
+          }],
+        }],
+        status: 'completed',
+        startTime: 1,
+      }],
+    });
+
+    const state = findLatestCodeReviewResultState(reviewSession);
+    expect(state.status).toBe('valid');
+    if (state.status !== 'valid') {
+      throw new Error('Expected a valid normalized review result');
+    }
+
+    expect(state.result.issues).toEqual([{
+      severity: 'high',
+      description: 'The branch is inverted.',
+    }]);
+    expect(() => buildReviewRemediationItems(
+      state.result as CodeReviewRemediationData,
+    )).not.toThrow();
   });
 
   it('uses snapshot changed files before falling back to review issue files or requested files', () => {

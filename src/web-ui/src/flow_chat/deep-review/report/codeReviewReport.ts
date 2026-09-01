@@ -60,6 +60,169 @@ export interface CodeReviewIssue {
   validation_note?: string;
 }
 
+const REVIEW_ISSUE_SEVERITIES = new Set<ReviewIssueSeverity>([
+  'critical',
+  'high',
+  'medium',
+  'low',
+  'info',
+]);
+const REVIEW_ISSUE_CERTAINTIES = new Set<ReviewIssueCertainty>([
+  'confirmed',
+  'likely',
+  'possible',
+]);
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+/** Normalize one untrusted issue while preserving every valid field. */
+export function normalizeCodeReviewIssue(value: unknown): CodeReviewIssue | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const severity = typeof raw.severity === 'string' &&
+    REVIEW_ISSUE_SEVERITIES.has(raw.severity as ReviewIssueSeverity)
+    ? raw.severity as ReviewIssueSeverity
+    : undefined;
+  const certainty = typeof raw.certainty === 'string' &&
+    REVIEW_ISSUE_CERTAINTIES.has(raw.certainty as ReviewIssueCertainty)
+    ? raw.certainty as ReviewIssueCertainty
+    : undefined;
+  const suggestion = raw.suggestion === null
+    ? null
+    : optionalString(raw.suggestion);
+  const line = raw.line === null || (typeof raw.line === 'number' && Number.isInteger(raw.line))
+    ? raw.line
+    : undefined;
+
+  return {
+    ...(severity ? { severity } : {}),
+    ...(certainty ? { certainty } : {}),
+    ...(optionalString(raw.category) !== undefined ? { category: raw.category as string } : {}),
+    ...(optionalString(raw.file) !== undefined ? { file: raw.file as string } : {}),
+    ...(line !== undefined ? { line } : {}),
+    ...(optionalString(raw.title) !== undefined ? { title: raw.title as string } : {}),
+    ...(optionalString(raw.description) !== undefined
+      ? { description: raw.description as string }
+      : {}),
+    ...(suggestion !== undefined ? { suggestion } : {}),
+    ...(optionalString(raw.source_reviewer) !== undefined
+      ? { source_reviewer: raw.source_reviewer as string }
+      : {}),
+    ...(optionalString(raw.validation_note) !== undefined
+      ? { validation_note: raw.validation_note as string }
+      : {}),
+  };
+}
+
+/** Normalize the issue list at persisted/model-result boundaries. */
+export function normalizeCodeReviewIssues(value: unknown): CodeReviewIssue[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map(normalizeCodeReviewIssue)
+    .filter((issue): issue is CodeReviewIssue => issue !== null);
+}
+
+function normalizeStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
+function normalizeCodeReviewReportSections(value: unknown): CodeReviewReportSectionsData | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const normalized: CodeReviewReportSectionsData = {};
+  const executiveSummary = normalizeStringArray(raw.executive_summary);
+  const coverageNotes = normalizeStringArray(raw.coverage_notes);
+  if (executiveSummary) {
+    normalized.executive_summary = executiveSummary;
+  }
+  if (coverageNotes) {
+    normalized.coverage_notes = coverageNotes;
+  }
+
+  const rawRemediationGroups = raw.remediation_groups;
+  if (
+    rawRemediationGroups &&
+    typeof rawRemediationGroups === 'object' &&
+    !Array.isArray(rawRemediationGroups)
+  ) {
+    const groups = rawRemediationGroups as Record<string, unknown>;
+    const remediationGroups: NonNullable<CodeReviewReportSectionsData['remediation_groups']> = {};
+    for (const id of ['must_fix', 'should_improve', 'verification'] as const) {
+      const entries = normalizeStringArray(groups[id]);
+      if (entries) {
+        remediationGroups[id] = entries;
+      }
+    }
+    if (Array.isArray(groups.needs_decision)) {
+      remediationGroups.needs_decision = groups.needs_decision
+        .map(normalizeDecisionEntry)
+        .filter((entry): entry is DecisionContext => entry !== null);
+    }
+    normalized.remediation_groups = remediationGroups;
+  }
+
+  const rawStrengthGroups = raw.strength_groups;
+  if (
+    rawStrengthGroups &&
+    typeof rawStrengthGroups === 'object' &&
+    !Array.isArray(rawStrengthGroups)
+  ) {
+    const groups = rawStrengthGroups as Record<string, unknown>;
+    const strengthGroups: NonNullable<CodeReviewReportSectionsData['strength_groups']> = {};
+    for (const id of [
+      'architecture',
+      'maintainability',
+      'tests',
+      'security',
+      'performance',
+      'user_experience',
+      'other',
+    ] as const) {
+      const entries = normalizeStringArray(groups[id]);
+      if (entries) {
+        strengthGroups[id] = entries;
+      }
+    }
+    normalized.strength_groups = strengthGroups;
+  }
+
+  return normalized;
+}
+
+/** Preserve the report shape while replacing untrusted nested values with safe DTOs. */
+export function normalizeCodeReviewReportData(value: unknown): CodeReviewReportData | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !('summary' in value)) {
+    return null;
+  }
+
+  const report = value as CodeReviewReportData;
+  const normalizedReport: CodeReviewReportData = {
+    ...report,
+    issues: normalizeCodeReviewIssues(report.issues),
+  };
+  const reportSections = normalizeCodeReviewReportSections(report.report_sections);
+  if (reportSections) {
+    normalizedReport.report_sections = reportSections;
+  } else {
+    delete normalizedReport.report_sections;
+  }
+  return normalizedReport;
+}
+
 export interface CodeReviewReviewer {
   name: string;
   specialty: string;
@@ -96,12 +259,45 @@ export interface DecisionContext {
   recommendation?: number;
 }
 
-/** Normalize a raw `needs_decision` entry to a DecisionContext object. */
-export function normalizeDecisionEntry(entry: string | DecisionContext): DecisionContext {
+/** Normalize an untrusted `needs_decision` entry to a DecisionContext object. */
+export function normalizeDecisionEntry(entry: unknown): DecisionContext | null {
   if (typeof entry === 'string') {
-    return { question: entry, plan: entry };
+    const text = entry.trim();
+    return text ? { question: text, plan: text } : null;
   }
-  return entry;
+
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+    return null;
+  }
+
+  const raw = entry as Record<string, unknown>;
+  const question = typeof raw.question === 'string' ? raw.question.trim() : '';
+  const plan = typeof raw.plan === 'string' ? raw.plan.trim() : '';
+  if (!question || !plan) {
+    return null;
+  }
+
+  const options = Array.isArray(raw.options)
+    ? raw.options
+        .filter((option): option is string => typeof option === 'string')
+        .map((option) => option.trim())
+        .filter(Boolean)
+    : undefined;
+  const tradeoffs = typeof raw.tradeoffs === 'string' && raw.tradeoffs.trim()
+    ? raw.tradeoffs.trim()
+    : undefined;
+  const recommendation = typeof raw.recommendation === 'number' &&
+    Number.isInteger(raw.recommendation)
+    ? raw.recommendation
+    : undefined;
+
+  return {
+    question,
+    plan,
+    ...(options?.length ? { options } : {}),
+    ...(tradeoffs ? { tradeoffs } : {}),
+    ...(recommendation !== undefined ? { recommendation } : {}),
+  };
 }
 
 export interface CodeReviewReportData {
@@ -230,12 +426,19 @@ export interface DeepReviewRetryableSlice {
   capacityReason?: string;
 }
 
-function nonEmpty(values?: Array<string | undefined | null>): string[] {
+function nonEmpty(values?: unknown): string[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
   const seen = new Set<string>();
   const result: string[] = [];
 
-  for (const value of values ?? []) {
-    const trimmed = value?.trim();
+  for (const value of values) {
+    if (typeof value !== 'string') {
+      continue;
+    }
+    const trimmed = value.trim();
     if (!trimmed || seen.has(trimmed)) {
       continue;
     }

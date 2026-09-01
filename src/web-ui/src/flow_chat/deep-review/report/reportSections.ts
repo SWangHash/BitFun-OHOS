@@ -37,12 +37,19 @@ const DEGRADED_REVIEWER_STATUSES = new Set([
   'skipped',
 ]);
 
-function nonEmpty(values?: Array<string | undefined | null>): string[] {
+function nonEmpty(values?: unknown): string[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
   const seen = new Set<string>();
   const result: string[] = [];
 
-  for (const value of values ?? []) {
-    const trimmed = value?.trim();
+  for (const value of values) {
+    if (typeof value !== 'string') {
+      continue;
+    }
+    const trimmed = value.trim();
     if (!trimmed || seen.has(trimmed)) {
       continue;
     }
@@ -130,7 +137,9 @@ function buildReviewerStats(reviewers: CodeReviewReviewer[] = []): ReviewReviewe
 function buildPartialReviewerCoverageNotes(reviewers: CodeReviewReviewer[] = []): string[] {
   return reviewers
     .map((reviewer) => {
-      const partialOutput = reviewer.partial_output?.trim();
+      const partialOutput = typeof reviewer.partial_output === 'string'
+        ? reviewer.partial_output.trim()
+        : '';
       if (!partialOutput || !PARTIAL_TIMEOUT_REVIEWER_STATUSES.has(reviewer.status)) {
         return null;
       }
@@ -149,11 +158,19 @@ export function buildCodeReviewReportSections(report: CodeReviewReportData): Rev
       RemediationGroupId,
       (string | DecisionContext)[] | undefined,
     ][]) {
-      if (!entries) continue;
-      normalizedRemediationGroups[key] = entries.map((entry) => {
+      if (!Array.isArray(entries)) continue;
+      normalizedRemediationGroups[key] = nonEmpty(entries.map((entry) => {
         if (typeof entry === 'string') return entry;
-        return entry.plan;
-      });
+        if (
+          key === 'needs_decision' &&
+          entry &&
+          typeof entry === 'object' &&
+          typeof entry.plan === 'string'
+        ) {
+          return entry.plan;
+        }
+        return undefined;
+      }));
     }
   }
 
@@ -162,7 +179,9 @@ export function buildCodeReviewReportSections(report: CodeReviewReportData): Rev
   const executiveSummary = nonEmpty(structuredSections?.executive_summary);
   const coverageNotes = nonEmpty(structuredSections?.coverage_notes);
   const partialReviewerCoverageNotes = buildPartialReviewerCoverageNotes(report.reviewers);
-  const confidenceNote = report.summary?.confidence_note?.trim();
+  const confidenceNote = typeof report.summary?.confidence_note === 'string'
+    ? report.summary.confidence_note.trim()
+    : undefined;
 
   return {
     executiveSummary: executiveSummary.length > 0
