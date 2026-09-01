@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Tooltip } from '@/component-library';
 import { notificationService } from '@/shared/notification-system';
 import { createMarkdownEditorTab } from '@/shared/utils/tabUtils';
-import { downloadMarkdownInBrowser } from '@/shared/utils/browserDownload';
+import { saveTextFileWithDialog } from '@/infrastructure/services/infra/saveTextFileWithDialog';
 import {
   formatCodeReviewReportMarkdown,
   type CodeReviewReportData,
@@ -29,10 +29,6 @@ function timestampForFileName(): string {
     .replace(/[:.]/g, '-')
     .replace('T', '_')
     .slice(0, 19);
-}
-
-function isTauriDesktop(): boolean {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
 }
 
 export const CodeReviewReportExportActions: React.FC<CodeReviewReportExportActionsProps> = ({
@@ -148,25 +144,18 @@ export const CodeReviewReportExportActions: React.FC<CodeReviewReportExportActio
     event.stopPropagation();
     setSaving(true);
     try {
-      if (isTauriDesktop()) {
-        const [{ save }, { writeFile }] = await Promise.all([
-          import('@tauri-apps/plugin-dialog'),
-          import('@tauri-apps/plugin-fs'),
-        ]);
-        const filePath = await save({
-          title: t('toolCards.codeReview.export.saveDialogTitle'),
-          defaultPath: fileName,
-          filters: [{
-            name: 'Markdown',
-            extensions: ['md'],
-          }],
-        });
-        if (!filePath) {
-          return;
-        }
-        await writeFile(filePath, new TextEncoder().encode(markdown));
-      } else {
-        downloadMarkdownInBrowser(fileName, markdown);
+      const result = await saveTextFileWithDialog({
+        title: t('toolCards.codeReview.export.saveDialogTitle'),
+        defaultFileName: fileName,
+        content: markdown,
+        mimeType: 'text/markdown;charset=utf-8',
+        filter: {
+          name: 'Markdown',
+          extensions: ['md'],
+        },
+      });
+      if (result.status === 'cancelled') {
+        return;
       }
       notificationService.success(t('toolCards.codeReview.export.saveSuccess'));
     } catch {

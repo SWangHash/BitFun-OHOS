@@ -43,6 +43,8 @@ static LOCAL_ONLY_COMMANDS: &[&str] = &[
     "restart_app",
     "check_for_updates",
     "install_update",
+    // Native save dialogs and their destinations belong to the controller.
+    "save_text_file_dialog",
     "appearance_market_browse",
     "appearance_market_download_release",
     "appearance_market_get_listing",

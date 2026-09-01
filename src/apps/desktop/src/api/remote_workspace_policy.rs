@@ -1749,6 +1749,7 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     ("save_session_turn", RemoteWorkspacePolicy::LegacyUnaudited),
+    ("save_text_file_dialog", RemoteWorkspacePolicy::LocalOnly),
     (
         "scan_workspace_info",
         RemoteWorkspacePolicy::LegacyUnaudited,

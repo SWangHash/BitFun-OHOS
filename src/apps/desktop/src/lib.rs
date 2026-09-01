@@ -867,6 +867,11 @@ pub async fn _run() {
         }));
     }
 
+    #[cfg(not(target_env = "ohos"))]
+    {
+        builder = builder.plugin(tauri_plugin_dialog::init());
+    }
+
     let app = builder
         .plugin(logging::build_log_command_plugin())
         .plugin(logging::build_log_handoff_plugin(log_targets))
@@ -1834,6 +1839,7 @@ pub async fn _run() {
             api::terminal_api::terminal_get_history,
             get_system_info,
             get_app_version,
+            save_text_file_dialog,
             check_for_updates,
             install_update,
             api::system_api::open_html_file_in_browser,
