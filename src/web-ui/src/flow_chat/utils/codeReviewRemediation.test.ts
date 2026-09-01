@@ -3,6 +3,7 @@ import {
   buildReviewRemediationItems,
   buildSelectedReviewRemediationPrompt,
   getDefaultSelectedRemediationIds,
+  type CodeReviewRemediationData,
 } from './codeReviewRemediation';
 
 describe('buildReviewRemediationItems', () => {
@@ -17,6 +18,35 @@ describe('buildReviewRemediationItems', () => {
     expect(result[0].plan).toBe('Fix issue 1');
     expect(result[1].id).toBe('remediation-1');
     expect(result[1].plan).toBe('Fix issue 2');
+  });
+
+  it('ignores non-string remediation_plan entries from untrusted tool results', () => {
+    const reviewData = {
+      summary: { recommended_action: 'request_changes' },
+      remediation_plan: [
+        { plan: 'Object-shaped legacy entry' },
+        '  Fix the valid issue  ',
+        7,
+        null,
+      ],
+    } as unknown as CodeReviewRemediationData;
+
+    expect(() => buildReviewRemediationItems(reviewData)).not.toThrow();
+    expect(buildReviewRemediationItems(reviewData)).toEqual([
+      expect.objectContaining({
+        id: 'remediation-1',
+        plan: 'Fix the valid issue',
+      }),
+    ]);
+  });
+
+  it('treats a non-array remediation_plan as empty', () => {
+    const reviewData = {
+      remediation_plan: { plan: 'Invalid container' },
+    } as unknown as CodeReviewRemediationData;
+
+    expect(() => buildReviewRemediationItems(reviewData)).not.toThrow();
+    expect(buildReviewRemediationItems(reviewData)).toEqual([]);
   });
 
   it('builds items from structured remediation groups', () => {
@@ -35,6 +65,58 @@ describe('buildReviewRemediationItems', () => {
     expect(result.length).toBeGreaterThan(0);
     expect(result.some((item) => item.groupId === 'must_fix')).toBe(true);
     expect(result.some((item) => item.groupId === 'should_improve')).toBe(true);
+  });
+
+  it('ignores malformed structured remediation entries', () => {
+    const reviewData = {
+      report_sections: {
+        remediation_groups: {
+          must_fix: [{ plan: 'Invalid object in a string-only group' }, 'Valid fix'],
+          needs_decision: [
+            { question: 'Choose a strategy', plan: 'Use the safe strategy', options: ['Safe', 7] },
+            { question: 'Missing a string plan', plan: 7 },
+          ],
+        },
+      },
+    } as unknown as CodeReviewRemediationData;
+
+    expect(() => buildReviewRemediationItems(reviewData)).not.toThrow();
+    expect(buildReviewRemediationItems(reviewData).map((item) => item.plan)).toEqual([
+      'Valid fix',
+      'Use the safe strategy',
+    ]);
+  });
+
+  it('ignores a non-array structured remediation group', () => {
+    const reviewData = {
+      report_sections: {
+        remediation_groups: {
+          must_fix: { plan: 'Invalid container' },
+        },
+      },
+    } as unknown as CodeReviewRemediationData;
+
+    expect(() => buildReviewRemediationItems(reviewData)).not.toThrow();
+    expect(buildReviewRemediationItems(reviewData)).toEqual([]);
+  });
+
+  it('normalizes non-string issue titles before matching remediation items', () => {
+    const reviewData = {
+      issues: [{ title: { text: 'Object-shaped title' } }],
+      report_sections: {
+        remediation_groups: {
+          must_fix: ['Add the missing guard'],
+        },
+      },
+    } as unknown as CodeReviewRemediationData;
+
+    expect(() => buildReviewRemediationItems(reviewData)).not.toThrow();
+    expect(buildReviewRemediationItems(reviewData)).toEqual([
+      expect.objectContaining({
+        plan: 'Add the missing guard',
+        issueIndex: 0,
+      }),
+    ]);
   });
 
   it('marks must_fix items as default selected', () => {

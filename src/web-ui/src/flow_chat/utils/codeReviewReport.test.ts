@@ -6,6 +6,8 @@ import {
   extractDeepReviewRetryableSlices,
   formatCodeReviewReportMarkdown,
   getDefaultExpandedCodeReviewSectionIds,
+  normalizeCodeReviewReportData,
+  type CodeReviewReportData,
 } from './codeReviewReport';
 import type {
   ReviewTeamManifestMember,
@@ -294,6 +296,55 @@ describe('codeReviewReport', () => {
     expect(sections.strengthGroups).toEqual([
       { id: 'other', items: ['Tests cover the changed service.'] },
     ]);
+  });
+
+  it('drops non-string legacy report entries instead of throwing', () => {
+    const report = {
+      summary: {
+        overall_assessment: 'One valid item remains.',
+        risk_level: 'medium',
+        recommended_action: 'request_changes',
+      },
+      issues: [],
+      positive_points: [{ text: 'Invalid object' }, '  Clear adapter boundary.  ', 7],
+      remediation_plan: [{ plan: 'Invalid object' }, '  Add the missing guard.  ', null],
+    } as unknown as CodeReviewReportData;
+
+    expect(() => buildCodeReviewReportSections(report)).not.toThrow();
+    expect(buildCodeReviewReportSections(report)).toMatchObject({
+      remediationGroups: [{ id: 'must_fix', items: ['Add the missing guard.'] }],
+      strengthGroups: [{ id: 'other', items: ['Clear adapter boundary.'] }],
+    });
+  });
+
+  it('treats malformed report array containers as empty', () => {
+    const report = {
+      summary: {
+        overall_assessment: 'Malformed optional arrays should not hide the report.',
+        risk_level: 'medium',
+        recommended_action: 'request_changes',
+      },
+      issues: [],
+      positive_points: { text: 'Invalid container' },
+      remediation_plan: { plan: 'Invalid container' },
+      report_sections: {
+        remediation_groups: {
+          must_fix: { plan: 'Invalid container' },
+        },
+      },
+    } as unknown as CodeReviewReportData;
+
+    expect(() => buildCodeReviewReportSections(report)).not.toThrow();
+    expect(buildCodeReviewReportSections(report)).toMatchObject({
+      remediationGroups: [],
+      strengthGroups: [],
+    });
+
+    const normalized = normalizeCodeReviewReportData(report);
+    expect(normalized?.report_sections).toEqual({
+      remediation_groups: {},
+    });
+    expect(() => formatCodeReviewReportMarkdown(normalized!)).not.toThrow();
   });
 
   it('surfaces partial review output in coverage notes', () => {
