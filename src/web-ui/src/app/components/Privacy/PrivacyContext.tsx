@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import {
   disabledPrivacyStatus,
   privacyAPI,
@@ -6,10 +6,6 @@ import {
   type PrivacyEffectiveMode,
   type PrivacyStatus,
 } from '@/infrastructure/api/service-api/PrivacyAPI';
-import { isTauriRuntime } from '@/infrastructure/runtime';
-import { createLogger } from '@/shared/utils/logger';
-
-const log = createLogger('PrivacyContext');
 
 interface PrivacyContextValue {
   status: PrivacyStatus | null;
@@ -80,16 +76,6 @@ export const PrivacyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }),
     [accept, applyCollectionPolicy, enterNotAccepted, initialize, markViewed, refresh, status],
   );
-
-  // Initialize privacy state silently so the collection policy and management
-  // views are ready without interrupting first launch with a consent dialog.
-  useEffect(() => {
-    if (!isTauriRuntime()) return;
-    void initialize().catch(error => {
-      log.warn('Privacy initialization failed', error);
-    });
-  }, [initialize]);
-
   return <PrivacyContext.Provider value={value}>{children}</PrivacyContext.Provider>;
 };
 

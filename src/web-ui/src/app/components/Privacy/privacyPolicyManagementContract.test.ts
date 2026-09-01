@@ -21,6 +21,7 @@ describe('OpenHarmony privacy policy management contract', () => {
   it('keeps collection disabled when withdrawal persistence or full-mode application fails', () => {
     const native = readSource('../../../../../apps/desktop/src/api/privacy_api.rs');
     const dialog = readSource('./PrivacyStatementDialog.tsx');
+    const gate = readSource('./PrivacyGate.tsx');
 
     const withdraw = native.slice(
       native.indexOf('pub async fn privacy_enter_not_accepted'),
@@ -32,6 +33,8 @@ describe('OpenHarmony privacy policy management contract', () => {
     expect(withdraw).not.toContain('suspend_for_privacy');
     expect(dialog).toContain("operationError === 'withdraw'");
     expect(dialog).toContain("operationError === 'apply'");
+    expect(gate).toContain('applyRetryRequired');
+    expect(gate).toContain("applyCollectionPolicy('full', locale)");
     expect(`${native}\n${dialog}`).not.toContain('quitApp');
   });
 

@@ -1,3 +1,29 @@
+.bitfun-privacy-resource-error {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  padding: 28px;
+  text-align: center;
+
+  p { margin: 0; }
+
+  p {
+    max-width: 560px;
+    color: var(--bf-appearance-token-color-text-secondary);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+}
+
+.bitfun-privacy-gate__loading-icon { animation: bitfun-privacy-spin 1s linear infinite; }
+
+.bitfun-privacy-loading {
+  position: fixed;
+  inset: auto 16px 16px auto;
+  z-index: 10001;
+  color: var(--bf-appearance-token-color-text-muted);
+}
+
 .bitfun-privacy-dialog__metadata {
   display: flex;
   flex-wrap: wrap;
@@ -29,10 +55,38 @@
   }
 }
 
+.bitfun-privacy-consent-dialog__intro {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--bf-appearance-token-border-subtle);
+  color: var(--bf-appearance-token-color-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.bitfun-privacy-consent-dialog__footer {
+  display: grid;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--bf-appearance-token-border-subtle);
+}
+
+.bitfun-privacy-gate__consent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.bitfun-privacy-gate__actions,
 .bitfun-privacy-dialog__actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.bitfun-privacy-gate__configuration-error {
+  color: var(--bf-appearance-token-color-error);
+  font-size: 12px;
 }
 
 .bitfun-privacy-document {
@@ -68,13 +122,6 @@
   flex-direction: column;
   min-height: min(72vh, 680px);
   max-height: 82vh;
-}
-
-.bitfun-privacy-dialog__body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  flex-direction: column;
 }
 
 .bitfun-privacy-dialog__metadata {
@@ -116,8 +163,17 @@
 }
 
 @media (max-width: 620px) {
+  .bitfun-privacy-gate__consent-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .bitfun-privacy-gate__actions > button { flex: 1; }
   .bitfun-privacy-dialog__consent {
     align-items: stretch;
     flex-direction: column;
   }
+}
+
+@keyframes bitfun-privacy-spin {
+  to { transform: rotate(360deg); }
 }

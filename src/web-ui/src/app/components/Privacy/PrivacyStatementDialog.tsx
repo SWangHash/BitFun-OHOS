@@ -4,7 +4,6 @@ import { useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
 import { PrivacyDocument } from './PrivacyDocument';
 import { usePrivacy } from './PrivacyContext';
-import './Privacy.scss';
 
 const log = createLogger('PrivacyStatementDialog');
 
@@ -155,12 +154,7 @@ export const PrivacyStatementDialog: React.FC<PrivacyStatementDialogProps> = ({
         contentClassName="bitfun-privacy-dialog"
         showCloseButton={!busy}
       >
-        <div
-          className="bitfun-privacy-dialog__body"
-          data-bf-component="privacy-dialog"
-          data-bf-part="root"
-        >
-        <div className="bitfun-privacy-dialog__metadata" data-bf-component="privacy-dialog" data-bf-part="metadata">
+        <div className="bitfun-privacy-dialog__metadata">
           <span>
             {t('privacy.effectiveAt', {
               date: formatDate(new Date(policy.effectiveAt), { dateStyle: 'long' }),
@@ -176,7 +170,7 @@ export const PrivacyStatementDialog: React.FC<PrivacyStatementDialogProps> = ({
           ) : null}
         </div>
         {variant === 'about' ? (
-          <div className="bitfun-privacy-dialog__mode" role="status" data-bf-component="privacy-dialog" data-bf-part="mode">
+          <div className="bitfun-privacy-dialog__mode" role="status">
             <strong>{t(fullMode ? 'privacy.fullMode' : 'privacy.notAcceptedMode')}</strong>
             <span>
               {t(
@@ -187,16 +181,16 @@ export const PrivacyStatementDialog: React.FC<PrivacyStatementDialogProps> = ({
             </span>
           </div>
         ) : null}
-        <div className="bitfun-privacy-dialog__document" data-bf-component="privacy-dialog" data-bf-part="document">
+        <div className="bitfun-privacy-dialog__document">
           <PrivacyDocument content={policy.content} />
         </div>
         {errorMessage ? (
-          <div className="bitfun-privacy-dialog__error" data-bf-component="privacy-dialog" data-bf-part="error">
+          <div className="bitfun-privacy-dialog__error">
             <Alert type="error" message={errorMessage} showIcon />
           </div>
         ) : null}
         {variant === 'about' ? (
-          <div className="bitfun-privacy-dialog__actions" data-bf-component="privacy-dialog" data-bf-part="actions">
+          <div className="bitfun-privacy-dialog__actions">
             {fullMode ? (
               <Button
                 variant="danger"
@@ -210,7 +204,7 @@ export const PrivacyStatementDialog: React.FC<PrivacyStatementDialogProps> = ({
                 {t('privacy.retryFullMode')}
               </Button>
             ) : (
-              <div className="bitfun-privacy-dialog__consent" data-bf-component="privacy-dialog" data-bf-part="consent">
+              <div className="bitfun-privacy-dialog__consent">
                 <Checkbox
                   checked={checked}
                   disabled={busy}
@@ -228,7 +222,6 @@ export const PrivacyStatementDialog: React.FC<PrivacyStatementDialogProps> = ({
             )}
           </div>
         ) : null}
-        </div>
       </Modal>
       <ConfirmDialog
         isOpen={confirmWithdraw}
