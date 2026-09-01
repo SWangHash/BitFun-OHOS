@@ -439,7 +439,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
                 >
                   {t('about.openSource')}
                 </button>
-                <span className="bitfun-about-dialog__link-sep">路</span>
+                <span className="bitfun-about-dialog__link-sep">·</span>
                 <button
                     className="bitfun-about-dialog__link"
                     onClick={openPrivacyStatement}
