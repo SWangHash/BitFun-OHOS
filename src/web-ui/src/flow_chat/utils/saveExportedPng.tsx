@@ -3,6 +3,12 @@ import { workspaceAPI } from '@/infrastructure/api';
 import { i18nService } from '@/infrastructure/i18n';
 import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
+import {
+  describeShareStatus,
+  isFileShareSupported,
+  shareLocalFile,
+  type FileShareMode,
+} from '../services/fileShare';
 
 const log = createLogger('saveExportedPng');
 
@@ -91,34 +97,110 @@ export async function revealExportedFile(filePath: string): Promise<void> {
   }
 }
 
+/**
+ * Share an exported local file with a nearby HarmonyOS device through the
+ * system Share Kit. Surfaces a notification that matches the share outcome:
+ * `dismissed`/`ok` → success, `pending_knock` → info ("tap your device…"),
+ * `unsupported` → warning, anything else → error. No-op on non-OHOS hosts
+ * (`shareLocalFile` returns `unsupported` there).
+ *
+ * Exported so the Markdown/session transcript export path can share the same
+ * UX without duplicating the result-to-notification mapping.
+ */
+export async function shareExportedFile(filePath: string, mode: FileShareMode): Promise<void> {
+  if (!isFileShareSupported()) {
+    notificationService.warning(i18nService.t('flow-chat:fileShare.unsupported'));
+    return;
+  }
+  const result = await shareLocalFile(filePath, mode);
+  const status = describeShareStatus(result);
+  if (status === 'ok' || status === 'dismissed') {
+    notificationService.success(i18nService.t('flow-chat:fileShare.dismissed'));
+    return;
+  }
+  if (status === 'pending_knock') {
+    notificationService.info(i18nService.t('flow-chat:fileShare.pendingKnock'));
+    return;
+  }
+  if (status === 'unsupported') {
+    notificationService.warning(i18nService.t('flow-chat:fileShare.unsupported'));
+    return;
+  }
+  log.error('Share failed', { filePath, mode, error: result.error });
+  notificationService.error(i18nService.t('flow-chat:fileShare.failed'));
+}
+
+/** Whether the share-to-nearby button should be rendered in export toasts. */
+export function shouldShowShareButton(): boolean {
+  return isFileShareSupported();
+}
+
 /** Surface the export success notification appropriate for the save result. */
 export function notifyPngExportSuccess(result: SavePngResult): void {
   const filePath = result.filePath;
   if (filePath) {
-    const plainSuccessMessage = i18nService.t('flow-chat:exportImage.exportSuccess', { filePath });
-    const successPrefix = i18nService.t('flow-chat:exportImage.exportSuccessPrefix');
-    notificationService.success(plainSuccessMessage, {
-      messageNode: (
-        <>
-          {successPrefix}
-          <button
-            type="button"
-            className="notification-item__path-link"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              void revealExportedFile(filePath);
-            }}
-          >
-            {filePath}
-          </button>
-        </>
-      ),
-    });
+    notifyExportSuccessWithActions(
+      filePath,
+      i18nService.t('flow-chat:exportImage.exportSuccess', { filePath }),
+      i18nService.t('flow-chat:exportImage.exportSuccessPrefix'),
+    );
     return;
   }
 
   // Browser/webview download: the runtime managed the destination, so surface
   // a download-complete message without a revealable filesystem path.
   notificationService.success(i18nService.t('flow-chat:exportImage.exportDownloaded'));
+}
+
+/**
+ * Surface an export-success toast with a Reveal-in-Explorer action and, when
+ * the runtime supports Share-to-nearby (OpenHarmony host), a Share action.
+ * Shared by the PNG image export and the Markdown transcript export so both
+ * paths surface the same affordance set without duplicating the JSX.
+ *
+ * `plainMessage` is the full success string shown when message nodes are not
+ * supported by the toast host; `prefix` is the leading text placed before the
+ * path button. The path button itself and the optional share link are added
+ * here.
+ */
+export function notifyExportSuccessWithActions(
+  filePath: string,
+  plainMessage: string,
+  prefix: string,
+): void {
+  const shareLabel = i18nService.t('flow-chat:fileShare.button');
+  notificationService.success(plainMessage, {
+    messageNode: (
+      <>
+        {prefix}
+        <button
+          type="button"
+          className="notification-item__path-link"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void revealExportedFile(filePath);
+          }}
+        >
+          {filePath}
+        </button>
+        {shouldShowShareButton() && (
+          <>
+            {' · '}
+            <button
+              type="button"
+              className="notification-item__path-link"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                void shareExportedFile(filePath, 'discover');
+              }}
+            >
+              {shareLabel}
+            </button>
+          </>
+        )}
+      </>
+    ),
+  });
 }

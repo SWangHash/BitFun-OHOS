@@ -612,6 +612,13 @@ mod tests {
             tokendance.model_policy.curated_models,
             ["glm-5.2", "deepseek-v4-flash", "deepseek-v4-pro"]
         );
+        let ollama = overlay
+            .providers
+            .iter()
+            .find(|provider| provider.id == "ollama")
+            .expect("ollama");
+        assert_eq!(ollama.model_policy.mode, ModelPolicyMode::Curated);
+        assert!(ollama.model_policy.curated_models.is_empty());
     }
 
     #[test]

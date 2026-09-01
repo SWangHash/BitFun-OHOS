@@ -1417,6 +1417,20 @@
     "exporting": "正在导出...",
     "exportToImage": "导出为图片"
   },
+  "fileShare": {
+    "button": "分享到附近设备",
+    "discover": "通过系统面板分享",
+    "knock": "触碰两台设备分享",
+    "pendingKnock": "请将你的设备与另一台设备轻触以分享",
+    "dismissed": "分享面板已关闭",
+    "failed": "分享失败",
+    "unsupported": "当前运行环境不支持分享到附近设备"
+  },
+  "sessionShare": {
+    "button": "会话文件",
+    "title": "本会话写入的文件",
+    "footerHint": "本会话内 agent 写入或编辑的文件"
+  },
   "turnFailure": {
     "showDetails": "显示技术详情",
     "hideDetails": "隐藏技术详情",

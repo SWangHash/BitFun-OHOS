@@ -11,6 +11,7 @@ import { Tooltip, IconButton, Input } from '@/component-library';
 import { useTranslation } from 'react-i18next';
 import { SessionFilesBadge } from './SessionFilesBadge';
 import { SessionTreePopover, type SessionTreeSelection } from './SessionTreePopover';
+import { SessionShareFilesButton } from './SessionShareFilesButton';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance';
 import { computeFixedPopoverPosition } from '@/shared/utils/fixedPopoverViewport';
@@ -534,6 +535,10 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
           onSelectSession={onOpenSessionTreeSession}
           hasActiveDescendants={hasActiveSessionTreeDescendants}
           onCancelSession={onCancelSessionTreeSession}
+          t={t}
+        />
+        <SessionShareFilesButton
+          sessionId={sessionId}
           t={t}
         />
         <div

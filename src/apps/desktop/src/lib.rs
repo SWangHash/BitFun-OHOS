@@ -62,7 +62,8 @@ use tauri_plugin_window_state::{AppHandleExt, StateFlags, WindowExt};
 pub use api::*;
 
 use crate::ohos::ohos_file_system::{
-    open_oh_file_dialog, save_file_to_downloads_ohos, send_system_notification_ohos, set_theme_mode,
+    open_oh_file_dialog, save_file_to_downloads_ohos, send_system_notification_ohos,
+    set_theme_mode, share_file_ohos,
 };
 use crate::ohos::window::{
     center_ohos, close_window, current_monitor_ohos, handle_max_window, handle_min_window,
@@ -755,6 +756,28 @@ pub async fn _run() {
         // clients construct a per-instance wrapper around the same vault
         // in `miniapp_market_api.rs` and `appearance_market_api.rs`.
         set_subscription_credential_vault(vault);
+    }
+
+    // Inject the screen-capture backend used by the MiniApp "截取当前画面"
+    // feature. Non-OHOS targets use the `screenshots`-crate backend; OHOS
+    // uses the ArkTS-bridged backend (`screenshot.capture()` +
+    // `PixelMap.readPixels`) because the `screenshots` crate does not build
+    // for the OHOS target.
+    #[cfg(not(target_env = "ohos"))]
+    {
+        use std::sync::Arc;
+        use bitfun_services_core::screen_capture::{ScreenCapture, set_screen_capture};
+        set_screen_capture(
+            Arc::new(api::screen_capture::SystemScreenCapture::new()) as Arc<dyn ScreenCapture>,
+        );
+    }
+    #[cfg(target_env = "ohos")]
+    {
+        use std::sync::Arc;
+        use bitfun_services_core::screen_capture::{ScreenCapture, set_screen_capture};
+        set_screen_capture(
+            Arc::new(api::ohos::screen_capture::OhosScreenCapture::new()) as Arc<dyn ScreenCapture>,
+        );
     }
 
     let step_started = Instant::now();
@@ -2095,6 +2118,7 @@ pub async fn _run() {
             set_theme_mode,
             save_file_to_downloads_ohos,
             send_system_notification_ohos,
+            share_file_ohos,
             open_external_ohos,
             set_always_on_top_ohos,
             set_decorations_ohos,
