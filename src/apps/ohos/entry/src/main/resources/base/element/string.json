@@ -58,6 +58,10 @@
         {
             "name": "permission_window_topmost_reason",
             "value": "Used to keep the floating toolbar window above other application windows"
+        },
+        {
+            "name": "permission_screen_capture_reason",
+            "value": "Used to capture the application window screenshot for MiniApp market submissions"
         }
     ]
 }

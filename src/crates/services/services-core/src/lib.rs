@@ -35,6 +35,8 @@ pub mod permission_store;
 pub mod persistence;
 #[cfg(feature = "secure-credentials")]
 pub mod secure_credentials;
+#[cfg(feature = "screen-capture")]
+pub mod screen_capture;
 #[cfg(feature = "process-runtime")]
 pub mod process_manager;
 #[cfg(feature = "process-runtime")]

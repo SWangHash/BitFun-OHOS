@@ -20,6 +20,7 @@ import { CommonUtils } from '../utils/CommonUtils';
 import { runDeveco } from '../utils/DevecoStart';
 import { VoiceInputService } from '../services/VoiceInputService';
 import { FeedbackCredentialStore } from '../utils/FeedbackCredentialStore';
+import { ScreenCaptureStore } from '../utils/ScreenCaptureStore';
 import { SecureCredentialStore } from '../utils/SecureCredentialStore';
 import { WindowHostRequest, WindowHostService } from '../services/WindowHostService';
 import {
@@ -30,6 +31,7 @@ import {
   BoundsRequest,
   LabelRequest,
 } from '../services/BrowserWebviewService';
+import { FileShareRequest, FileShareService } from '../services/FileShareService';
 
 
 const DOMAIN = 0x0000;
@@ -149,6 +151,7 @@ export default class EntryAbility extends RustAbility {
     const TAG: string = '[BitfunUIAbilityComponents]';
     const feedbackCredentialStore = new FeedbackCredentialStore();
     const secureCredentialStore = new SecureCredentialStore();
+    const screenCaptureStore = new ScreenCaptureStore(this.context);
     windowStage.on('windowStageClose', () => {
       RustModule.notifyMainWindowCloseRequested();
       return true;
@@ -187,6 +190,15 @@ export default class EntryAbility extends RustAbility {
       _err: Error,
       arg: string
     ): Promise<string> => secureCredentialStore.handle(arg));
+    // OHOS screen-capture backend for the MiniApp "截取当前画面" feature
+    // (and, eventually, the Computer Use screenshot subsystem). Delegates to
+    // `screenshot.capture()` + `PixelMap.readPixels`; needs
+    // `ohos.permission.CUSTOM_SCREEN_CAPTURE`. Failures degrade loudly as a
+    // `{ status: 'error', code }` response.
+    RustModule.registerArktsFunction('screen_capture', async (
+      _err: Error,
+      arg: string
+    ): Promise<string> => screenCaptureStore.handle(arg));
     RustModule.registerArktsFunction('open_dialog_file', async (err: Error, arg: string): Promise<string> => {
       let res = await CommonUtils.open_file_dialog(arg);
       return res;
@@ -597,6 +609,13 @@ export default class EntryAbility extends RustAbility {
       return this.readSystemColorMode();
     });
     this.voiceInputService.setContext(this.context);
+    // FileShareService needs the UIAbilityContext to call
+    // `systemShare.ShareController.show()` on the discover path. Set once at
+    // window-stage creation; the same singleton stays valid for the ability
+    // lifetime. The knock path does not need the context (it arms a pending
+    // file consumed by the knockShare listener), but set it unconditionally
+    // so a later discover call after a knock does not race on missing state.
+    FileShareService.getInstance().setContext(this.context);
     RustModule.registerArktsFunction('ohos_speech_start', async (err: Error, arg: string): Promise<string> => {
       try {
         return await this.voiceInputService.start(arg);
@@ -614,6 +633,34 @@ export default class EntryAbility extends RustAbility {
     });
     RustModule.registerArktsFunction('ohos_speech_cancel', async (err: Error, _arg: string): Promise<string> => {
       return await this.voiceInputService.cancel('');
+    });
+    // Share a BitFun-generated/exported file with a nearby HarmonyOS device
+    // through the system Share Kit. `arg` is a JSON `FileShareRequest`
+    // (`{ path, mode: 'knock' | 'discover', title?, description? }`); the
+    // service returns a JSON `FileShareResult` envelope (`{ ok, error?,
+    // status? }`). `knock` arms a pending file consumed by the knockShare
+    // listener below; `discover` opens the system share panel and resolves on
+    // dismiss. Mirrors `save_file_to_downloads_ohos` routing: single-string
+    // arg, single-string JSON return. Non-OHOS hosts return `unsupported`.
+    RustModule.registerArktsFunction('share_file_ohos', async (err: Error, arg: string): Promise<string> => {
+      const fileShare = FileShareService.getInstance();
+      let req: FileShareRequest;
+      try {
+        req = JSON.parse(arg) as FileShareRequest;
+      } catch (error) {
+        const be = error as BusinessError;
+        hilog.error(DOMAIN_NUMBER, TAG, 'share_file_ohos invalid json: ' + be.message);
+        return JSON.stringify({ ok: false, error: 'invalid_request: ' + be.message });
+      }
+      const result: string = await fileShare.handle(req);
+      // Refresh knockShare listener state to match the new pending-or-remote
+      // posture: a knock arms a pending file, so the listener must be on even
+      // when remoteUrl is empty; remoteUrl-only callers keep their existing
+      // gating through send_remote_url / send_remote_dialog_status.
+      if (req.mode === 'knock') {
+        this.shareListening();
+      }
+      return result;
     });
     return super.onWindowStageCreate(windowStage);
   }
@@ -640,7 +687,14 @@ export default class EntryAbility extends RustAbility {
 
   private shareListening() {
     hilog.info(0x0000, 'vnext', 'shareListening');
-    if (this.remoteUrl.length != 0 && !this.shareStatus) {
+    // Activate the knockShare listener when either a remote URL is armed by
+    // `send_remote_url` / `send_remote_dialog_status`, OR a knock file is
+    // armed by `share_file_ohos` (mode='knock'). The listener callback below
+    // prefers the pending file; without that gating, a knock that arrived
+    // before any URL was armed would be silently dropped.
+    const fileShare = FileShareService.getInstance();
+    const hasPayload = this.remoteUrl.length != 0 || fileShare.hasPendingFile();
+    if (hasPayload && !this.shareStatus) {
       harmonyShare.on('knockShare', this.sendOnlyCallback);
       this.shareStatus = true;
     }
@@ -650,6 +704,21 @@ export default class EntryAbility extends RustAbility {
     this.shareStatus = false;
   }
   private sendOnlyCallback = (sharableTable: harmonyShare.SharableTarget) => {
+    // Prefer a knock-armed file (set by `share_file_ohos` with mode='knock')
+    // over the remote URL. Falling back to the URL preserves the existing
+    // HYPERLINK share behavior added by `send_remote_url`; if neither is
+    // armed the knock is a no-op so the device state stays clean.
+    const fileShare = FileShareService.getInstance();
+    const pending = fileShare.takePendingFile();
+    if (pending !== null) {
+      try {
+        sharableTable.share(fileShare.buildSharedData(pending));
+      } catch (e) {
+        const be = e as BusinessError;
+        hilog.error(DOMAIN, 'vnext', `knock share(file) failed: code=${be.code}, msg=${be.message}`);
+      }
+      return;
+    }
     if (this.remoteUrl.length != 0) {
       let content = this.remoteUrl;
       let shareData: systemShare.SharedData = new systemShare.SharedData({
@@ -660,7 +729,7 @@ export default class EntryAbility extends RustAbility {
       });
       sharableTable.share(shareData)
     } else {
-      hilog.error(DOMAIN, 'vnext', 'sendOnlyCallback error: remote url is empty');
+      hilog.error(DOMAIN, 'vnext', 'sendOnlyCallback error: no pending file or remote url');
     }
   }
 }

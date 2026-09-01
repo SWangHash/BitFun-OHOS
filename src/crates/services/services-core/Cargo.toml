@@ -169,6 +169,12 @@ system-vault = [
     "dep:windows-native-keyring-store",
     "dep:zbus-secret-service-keyring-store",
 ]
+# Unified screen-capture abstraction shared by the MiniApp "截取当前画面"
+# feature and (eventually) the Computer Use screenshot subsystem. The
+# concrete backend is injected by the desktop host: the `screenshots`-crate
+# backend on macOS/Windows/Linux, and an ArkTS-bridged backend on HarmonyOS
+# (where the `screenshots` crate does not build).
+screen-capture = ["dep:async-trait", "dep:tokio", "tokio/rt"]
 
 [dev-dependencies]
 filetime = { workspace = true }

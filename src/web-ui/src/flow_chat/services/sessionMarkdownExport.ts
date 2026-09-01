@@ -6,10 +6,13 @@
  */
 
 import { sessionAPI } from '@/infrastructure/api/service-api/SessionAPI';
+import { workspaceAPI } from '@/infrastructure/api';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { i18nService } from '@/infrastructure/i18n';
 import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { downloadMarkdownInBrowser } from '@/shared/utils/browserDownload';
+import { notifyExportSuccessWithActions } from '../utils/saveExportedPng';
 import type { DialogTurnData } from '@/shared/types/session-history';
 import {
   collectPersistedTurn,
@@ -133,11 +136,33 @@ export async function exportSessionToMarkdown(
         return { status: 'cancelled' };
       }
       await writeFile(filePath, new TextEncoder().encode(markdown));
-      notificationService.success(
+      notifyExportSuccessWithActions(
+        filePath,
         i18nService.t('flow-chat:transcriptExport.exportSuccess', { filePath }),
-        { duration: 4000 }
+        i18nService.t('flow-chat:transcriptExport.exportSuccess', { filePath: '' }),
       );
       return { status: 'saved', filePath };
+    }
+
+    if (isOpenHarmonyRuntime()) {
+      // On OpenHarmony the Tauri dialog/fs plugins are not wired; route
+      // through the native `save_file_to_downloads_ohos` ArkTS bridge to
+      // write the transcript under <Download>/BitFun/, then surface the
+      // same Reveal + Share-to-nearby notification the PNG export uses.
+      // Errors degrade to the browser-download path so a failed native save
+      // does not block the export entirely.
+      try {
+        const dataBase64 = bufferToBase64(new TextEncoder().encode(markdown));
+        const filePath = await workspaceAPI.saveFileToDownloadsOhos(fileName, dataBase64);
+        notifyExportSuccessWithActions(
+          filePath,
+          i18nService.t('flow-chat:transcriptExport.exportSuccess', { filePath }),
+          i18nService.t('flow-chat:transcriptExport.exportSuccess', { filePath: '' }),
+        );
+        return { status: 'saved', filePath };
+      } catch (error) {
+        log.warn('OHOS native save failed; falling back to browser download', { error });
+      }
     }
 
     downloadMarkdownInBrowser(fileName, markdown);
@@ -155,4 +180,13 @@ export async function exportSessionToMarkdown(
     notificationService.error(i18nService.t('flow-chat:transcriptExport.exportFailed'));
     return { status: 'failed' };
   }
+}
+
+/** Encode bytes as a base64 string without pulling in Node Buffer. */
+function bufferToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
