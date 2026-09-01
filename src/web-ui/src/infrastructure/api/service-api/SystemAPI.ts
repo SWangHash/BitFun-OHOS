@@ -29,6 +29,18 @@ export interface SystemInfoResponse {
   osVersion: string | null;
 }
 
+export interface SaveTextFileDialogRequest {
+  title: string;
+  defaultFileName: string;
+  content: string;
+  filterName: string;
+  extensions: string[];
+}
+
+export type SaveTextFileDialogResult =
+  | { status: 'saved'; filePath: string }
+  | { status: 'cancelled'; filePath?: undefined };
+
 /** Close-button behavior values (matches `app.close_button_behavior` config key). */
 export type CloseBehavior = 'quit' | 'minimize_to_tray' | 'ask';
 
@@ -128,7 +140,28 @@ export class SystemAPI {
     }
   }
 
-   
+  /**
+   * Desktop host capability: ask the person at this device for a destination,
+   * then write the complete UTF-8 text payload there. The command is kept on
+   * the controller in Peer Device Mode because download destinations belong to
+   * the machine showing the dialog.
+   */
+  async saveTextFileWithDialog(
+    request: SaveTextFileDialogRequest,
+  ): Promise<SaveTextFileDialogResult> {
+    try {
+      return await api.invoke('save_text_file_dialog', { request });
+    } catch (error) {
+      throw createTauriCommandError('save_text_file_dialog', error, {
+        title: request.title,
+        defaultFileName: request.defaultFileName,
+        filterName: request.filterName,
+        extensions: request.extensions,
+        contentLength: request.content.length,
+      });
+    }
+  }
+
   async showInFolder(path: string): Promise<void> {
     try {
       await api.invoke('show_in_folder', { 

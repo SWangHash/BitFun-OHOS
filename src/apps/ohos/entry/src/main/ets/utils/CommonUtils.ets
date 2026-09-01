@@ -1,8 +1,10 @@
 import { bundleManager } from "@kit.AbilityKit";
 import hilog from "@ohos.hilog";
 import filePicker from '@ohos.file.picker';
+import fs from '@ohos.file.fs';
 import fileUri from "@ohos.file.fileuri";
 import pasteboard from '@ohos.pasteboard';
+import { util } from '@kit.ArkTS';
 import { Err, Ok, Result } from "./Result";
 
 export class CommonUtils {
@@ -93,6 +95,42 @@ export class CommonUtils {
       return JSON.stringify({ paths });
     } catch (e) {
       return JSON.stringify({ error: 'open file or folder failed: ' + e });
+    }
+  }
+
+  static async save_text_file_dialog(arg: string): Promise<string> {
+    let opts: SaveTextFileOptions;
+    try {
+      opts = JSON.parse(arg) as SaveTextFileOptions;
+    } catch (e) {
+      return JSON.stringify({ status: 'failed', error: 'Invalid save text file request: ' + e });
+    }
+
+    const defaultFileName = (opts.defaultFileName ?? '').trim();
+    if (defaultFileName.length === 0) {
+      return JSON.stringify({ status: 'failed', error: 'Missing default file name.' });
+    }
+
+    let file: fs.File | undefined = undefined;
+    try {
+      const saveOptions = new filePicker.DocumentSaveOptions();
+      saveOptions.newFileNames = [defaultFileName];
+      const uris = await new filePicker.DocumentViewPicker().save(saveOptions);
+      if (!uris || uris.length === 0) {
+        return JSON.stringify({ status: 'cancelled' });
+      }
+
+      const uri = uris[0];
+      file = fs.openSync(uri, fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      const content = new util.TextEncoder().encodeInto(opts.content ?? '');
+      fs.writeSync(file.fd, content.buffer);
+      return JSON.stringify({ status: 'saved', filePath: uri });
+    } catch (e) {
+      return JSON.stringify({ status: 'failed', error: 'Failed to save text file: ' + e });
+    } finally {
+      if (file) {
+        fs.closeSync(file);
+      }
     }
   }
 
@@ -200,4 +238,9 @@ interface PickerOptions {
   directory?: boolean;
   filters?: PickerFilter[];
   defaultPath?: string;
+}
+
+interface SaveTextFileOptions {
+  defaultFileName?: string;
+  content?: string;
 }

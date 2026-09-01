@@ -149,6 +149,7 @@ leptess = { workspace = true }
 [target.'cfg(not(target_env = "ohos"))'.dependencies]
 bitfun-core = { path = "../../crates/assembly/core", features = ["system-vault"] }
 bitfun-services-integrations = { path = "../../crates/services/services-integrations", features = ["system-vault"] }
+tauri-plugin-dialog = { workspace = true }
 xz2 = { workspace = true }
 screenshots = { workspace = true }
 enigo = { workspace = true }

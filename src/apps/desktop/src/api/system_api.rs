@@ -9,6 +9,8 @@ use bitfun_core::service::system;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, Position, Size, State};
 #[cfg(not(target_env = "ohos"))]
+use tauri_plugin_dialog::DialogExt;
+#[cfg(not(target_env = "ohos"))]
 use tauri_plugin_opener::OpenerExt;
 #[cfg(not(target_env = "ohos"))]
 use tauri_plugin_updater::UpdaterExt;
@@ -265,6 +267,120 @@ pub async fn get_app_version(
 ) -> Result<String, String> {
     let _ = request;
     Ok(app.package_info().version.to_string())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveTextFileDialogRequest {
+    pub title: String,
+    pub default_file_name: String,
+    pub content: String,
+    pub filter_name: String,
+    pub extensions: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveTextFileDialogResponse {
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_path: Option<String>,
+}
+
+#[cfg(any(target_env = "ohos", test))]
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OhosSaveTextFileDialogResponse {
+    status: String,
+    file_path: Option<String>,
+    error: Option<String>,
+}
+
+fn write_exported_text_file(path: &Path, content: &str) -> Result<(), String> {
+    std::fs::write(path, content.as_bytes()).map_err(|error| {
+        format!(
+            "Failed to write exported text file '{}': {error}",
+            path.display()
+        )
+    })
+}
+
+#[cfg(any(target_env = "ohos", test))]
+fn parse_ohos_save_text_file_response(raw: &str) -> Result<SaveTextFileDialogResponse, String> {
+    let response: OhosSaveTextFileDialogResponse = serde_json::from_str(raw)
+        .map_err(|error| format!("Invalid HarmonyOS save dialog response: {error}"))?;
+    match response.status.as_str() {
+        "saved" => response
+            .file_path
+            .filter(|path| !path.trim().is_empty())
+            .map(|file_path| SaveTextFileDialogResponse {
+                status: "saved".to_string(),
+                file_path: Some(file_path),
+            })
+            .ok_or_else(|| "HarmonyOS save dialog returned no destination".to_string()),
+        "cancelled" => Ok(SaveTextFileDialogResponse {
+            status: "cancelled".to_string(),
+            file_path: None,
+        }),
+        "failed" => Err(response
+            .error
+            .filter(|message| !message.trim().is_empty())
+            .unwrap_or_else(|| "HarmonyOS failed to save the text file".to_string())),
+        other => Err(format!(
+            "Unexpected HarmonyOS save dialog status: {other}"
+        )),
+    }
+}
+
+/// Ask the person at this device for a destination and write the complete
+/// UTF-8 text payload there. This is controller-local even for remote
+/// workspaces and Peer Device Mode: the native dialog makes the local write
+/// explicit instead of silently reusing a workspace path from another host.
+#[tauri::command]
+pub async fn save_text_file_dialog(
+    app: AppHandle,
+    request: SaveTextFileDialogRequest,
+) -> Result<SaveTextFileDialogResponse, String> {
+    #[cfg(target_env = "ohos")]
+    {
+        let _ = app;
+        let payload = serde_json::to_string(&request)
+            .map_err(|error| format!("Failed to encode HarmonyOS save request: {error}"))?;
+        let raw = bitfun_core::util::call_arkts_string_function(
+            "save_text_file_dialog",
+            payload,
+        )
+        .await?;
+        parse_ohos_save_text_file_response(&raw)
+    }
+
+    #[cfg(not(target_env = "ohos"))]
+    {
+        let extension_refs: Vec<&str> = request.extensions.iter().map(String::as_str).collect();
+        let mut dialog = app
+            .dialog()
+            .file()
+            .set_title(request.title)
+            .set_file_name(request.default_file_name);
+        if !request.filter_name.trim().is_empty() && !extension_refs.is_empty() {
+            dialog = dialog.add_filter(request.filter_name, &extension_refs);
+        }
+
+        let Some(file_path) = dialog.blocking_save_file() else {
+            return Ok(SaveTextFileDialogResponse {
+                status: "cancelled".to_string(),
+                file_path: None,
+            });
+        };
+        let path = file_path
+            .into_path()
+            .map_err(|error| format!("Failed to resolve export destination: {error}"))?;
+        write_exported_text_file(&path, &request.content)?;
+        Ok(SaveTextFileDialogResponse {
+            status: "saved".to_string(),
+            file_path: Some(path.to_string_lossy().into_owned()),
+        })
+    }
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -1227,6 +1343,55 @@ mod tests {
             HEALTHY_THROUGHPUT - 1
         ));
         assert!(!prefer_mirror(&github, None, HEALTHY_THROUGHPUT - 1));
+    }
+
+    #[test]
+    fn exported_text_writer_preserves_the_complete_utf8_payload() {
+        let directory = tempfile::tempdir().expect("temporary export directory");
+        let path = directory.path().join("review.md");
+        let markdown = "# Review\n\n- complete finding\n- 完整内容\n";
+
+        write_exported_text_file(&path, markdown).expect("text export should succeed");
+
+        assert_eq!(std::fs::read_to_string(path).unwrap(), markdown);
+    }
+
+    #[test]
+    fn exported_text_writer_propagates_a_real_filesystem_failure() {
+        let directory = tempfile::tempdir().expect("temporary export directory");
+
+        let error = write_exported_text_file(directory.path(), "# Review")
+            .expect_err("writing to a directory must fail");
+
+        assert!(error.contains("Failed to write exported text file"));
+    }
+
+    #[test]
+    fn harmony_save_dialog_response_distinguishes_saved_cancelled_and_failed() {
+        assert_eq!(
+            parse_ohos_save_text_file_response(
+                r#"{"status":"saved","filePath":"file://docs/review.md"}"#,
+            )
+            .unwrap(),
+            SaveTextFileDialogResponse {
+                status: "saved".to_string(),
+                file_path: Some("file://docs/review.md".to_string()),
+            }
+        );
+        assert_eq!(
+            parse_ohos_save_text_file_response(r#"{"status":"cancelled"}"#).unwrap(),
+            SaveTextFileDialogResponse {
+                status: "cancelled".to_string(),
+                file_path: None,
+            }
+        );
+        assert_eq!(
+            parse_ohos_save_text_file_response(
+                r#"{"status":"failed","error":"permission denied"}"#,
+            )
+            .unwrap_err(),
+            "permission denied"
+        );
     }
 
     use super::*;
