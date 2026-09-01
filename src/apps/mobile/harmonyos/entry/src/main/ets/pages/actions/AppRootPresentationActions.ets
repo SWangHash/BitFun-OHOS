@@ -84,6 +84,7 @@ export interface SidebarPresentationActions {
   readonly archive: (session: RemoteSession, archived: boolean) => void;
   readonly exportSession: (session: RemoteSession) => void;
   readonly deleteSession: (session: RemoteSession) => void;
+  readonly pin: (session: RemoteSession) => void;
 }
 
 export interface SettingsPresentationActions {
@@ -141,7 +142,8 @@ export function emptyAppRootPresentationActions(): AppRootPresentationActions {
     onSidebar: {
       close: () => {}, newChat: () => {}, enterCode: () => {}, connectDesktop: () => {},
       settings: () => {}, openAccount: () => {},
-      openSession: () => {}, archive: () => {}, exportSession: () => {}, deleteSession: () => {}
+      openSession: () => {}, archive: () => {}, exportSession: () => {}, deleteSession: () => {},
+      pin: () => {}
     },
     onSettings: {
       close: () => {}, addConnection: () => {}, disconnect: () => {}, reconnect: () => {}, openAccount: () => {},

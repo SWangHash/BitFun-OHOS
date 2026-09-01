@@ -55,3 +55,90 @@ pub fn reveal_in_oh_explorer(path: String)  -> Result<(), String> {
     function.call(Ok(path),ThreadsafeFunctionCallMode::NonBlocking);
     Ok(())
 }
+
+/// Save a binary blob to the HarmonyOS Download directory and return the
+/// resolved file path so the web-ui can reveal it (parity with the desktop
+/// `downloadDir` + `writeFile` save path). The ArkTS side decodes the base64
+/// payload and writes it via `fileIo` under the app's
+/// `READ_WRITE_DOWNLOAD_DIRECTORY` permission; `reveal_in_explorer` (already
+/// registered) opens the file manager at the returned path.
+///
+/// `arg` is a JSON string `{ "fileName", "dataBase64" }` (the OHOS command
+/// convention — single string arg, same as `set_theme_mode`); the ArkTS
+/// callback returns the saved file path.
+#[tauri::command]
+pub async fn save_file_to_downloads_ohos(arg: String) -> Result<String, String> {
+    let function = {
+        let lock = JS_THREADSAFE_FUNCTION.read();
+        lock.get("save_file_to_downloads_ohos").cloned()
+    };
+    let Some(function) = function else {
+        return Err("The Arkts has not register the function".to_owned());
+    };
+    // call_async + promise.await so the ArkTS callback's return value (the saved
+    // file path) reaches the web-ui, mirroring `set_theme_mode`.
+    let promise = function
+        .call_async(Ok(arg))
+        .await
+        .map_err(|e| e.to_string())?;
+    let result = promise.await.map_err(|e| e.to_string())?;
+    Ok(result)
+}
+
+/// Send an OS-level notification on HarmonyOS via the Notification Kit. The
+/// ArkTS side calls `notificationManager.requestEnableNotification()` (prompts
+/// once, idempotent afterwards) then `notificationManager.publish` with a
+/// basic-text content. `arg` is a JSON string `{ "title", "body" }`; the
+/// ArkTS callback returns "" on success. Mirrors `set_theme_mode` routing.
+#[tauri::command]
+pub async fn send_system_notification_ohos(arg: String) -> Result<String, String> {
+    let function = {
+        let lock = JS_THREADSAFE_FUNCTION.read();
+        lock.get("send_system_notification_ohos").cloned()
+    };
+    let Some(function) = function else {
+        return Err("The Arkts has not register the function".to_owned());
+    };
+    let promise = function
+        .call_async(Ok(arg))
+        .await
+        .map_err(|e| e.to_string())?;
+    let result = promise.await.map_err(|e| e.to_string())?;
+    Ok(result)
+}
+
+/// Share a BitFun-generated/exported local file with a nearby HarmonyOS device
+/// through the system Share Kit. `arg` is a JSON `FileShareRequest` string —
+/// `{ "path": string, "mode": "knock" | "discover", "title"?, "description"? }` —
+/// mirroring `save_file_to_downloads_ohos`'s single-string convention.
+///
+/// The ArkTS callback (registered as `share_file_ohos` in
+/// `EntryAbility.onWindowStageCreate`) constructs a `systemShare.SharedData`
+/// with the file URI + UTD resolved from the file extension, then either:
+/// - `discover` — opens `systemShare.ShareController.show()` and resolves on
+///   the panel `dismiss` callback with `{ ok: true, status: "dismissed" }`;
+/// - `knock` — arms a pending file consumed by the existing
+///   `harmonyShare.on('knockShare', ...)` listener the next time two devices
+///   tap, resolving immediately with `{ ok: true, status: "pending_knock" }`.
+///
+/// Returns a JSON `FileShareResult` envelope on success and an `Err` only when
+/// the ArkTS bridge itself is missing (non-OHOS host). Web UI callers gate on
+/// the platform capability check before invoking; a missing bridge here is
+/// treated as explicit `unsupported` rather than routed through desktop
+/// fallback (per `platform-portability-design.md` §4).
+#[tauri::command]
+pub async fn share_file_ohos(arg: String) -> Result<String, String> {
+    let function = {
+        let lock = JS_THREADSAFE_FUNCTION.read();
+        lock.get("share_file_ohos").cloned()
+    };
+    let Some(function) = function else {
+        return Err("The Arkts has not register the function".to_owned());
+    };
+    let promise = function
+        .call_async(Ok(arg))
+        .await
+        .map_err(|e| e.to_string())?;
+    let result = promise.await.map_err(|e| e.to_string())?;
+    Ok(result)
+}

@@ -57,7 +57,8 @@ export struct AppSidebarSurface {
       onOpenSession: this.actions.onSidebar.openSession,
       onArchiveSession: this.actions.onSidebar.archive,
       onExportSession: this.actions.onSidebar.exportSession,
-      onDeleteSession: this.actions.onSidebar.deleteSession
+      onDeleteSession: this.actions.onSidebar.deleteSession,
+      onTogglePinSession: this.actions.onSidebar.pin
     })
   }
 

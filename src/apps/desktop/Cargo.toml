@@ -25,7 +25,7 @@ bitfun-agent-runtime = { path = "../../crates/execution/agent-runtime", features
 bitfun-runtime-ports = { path = "../../crates/contracts/runtime-ports", features = ["agent-api", "permission", "workspace-ports"] }
 bitfun-product-domains = { path = "../../crates/contracts/product-domains", features = ["appearance-market"] }
 bitfun-services-integrations = { path = "../../crates/services/services-integrations", features = ["canvas-runtime", "miniapp-market", "speech", "feedback", "privacy"] }
-bitfun-services-core = { path = "../../crates/services/services-core" }
+bitfun-services-core = { path = "../../crates/services/services-core", features = ["screen-capture"] }
 bitfun-core-types = { path = "../../crates/contracts/core-types" }
 bitfun-agent-tools = { path = "../../crates/execution/tool-contracts", features = ["element-token"] }
 bitfun-transport = { path = "../../crates/adapters/transport", features = ["tauri-adapter"] }

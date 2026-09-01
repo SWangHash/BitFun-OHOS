@@ -1418,6 +1418,20 @@
     "exporting": "Exporting...",
     "exportToImage": "Export as Image"
   },
+  "fileShare": {
+    "button": "Share to nearby",
+    "discover": "Share via system panel",
+    "knock": "Tap two devices to share",
+    "pendingKnock": "Tap your device against another to share",
+    "dismissed": "Share panel closed",
+    "failed": "Share failed",
+    "unsupported": "Sharing to nearby devices is not supported on this runtime"
+  },
+  "sessionShare": {
+    "button": "Session files",
+    "title": "Files written this session",
+    "footerHint": "Files the agent wrote or edited in this session"
+  },
   "turnFailure": {
     "showDetails": "Show technical details",
     "hideDetails": "Hide technical details",
