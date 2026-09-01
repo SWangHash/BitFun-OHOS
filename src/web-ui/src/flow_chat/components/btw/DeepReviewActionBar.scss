@@ -126,8 +126,9 @@
 
   /* Status header */
   &__status {
-    display: flex;
-    align-items: center;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
     gap: 6px;
     padding-right: 136px;
   }
@@ -154,12 +155,14 @@
   }
 
   &__status-title {
+    min-width: 0;
     font-weight: 600;
     font-size: var(--bf-appearance-token-tool-card-action-font-size);
     color: var(--bf-appearance-token-color-text-primary);
   }
 
   &__error-message {
+    grid-column: 2;
     min-width: 0;
     max-height: min(180px, 30vh);
     font-size: var(--bf-appearance-token-tool-card-action-font-size);
