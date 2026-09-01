@@ -955,11 +955,17 @@ impl AgentSessionManagementPort for ScheduledSessionManagementPort {
     }
 }
 
-#[async_trait::async_trait]
-impl AgentSessionClosePort for ScheduledSessionManagementPort {
-    async fn discard_transient_session(
+#[derive(Clone, Copy)]
+enum SessionReleaseKind {
+    DiscardTransient,
+    UnloadPersisted,
+}
+
+impl ScheduledSessionManagementPort {
+    async fn release_session(
         &self,
-        request: bitfun_runtime_ports::AgentTransientSessionDiscardRequest,
+        request: bitfun_runtime_ports::AgentSessionReleaseRequest,
+        kind: SessionReleaseKind,
     ) -> bitfun_runtime_ports::PortResult<bool> {
         bitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
             bitfun_runtime_ports::PortError::new(
@@ -994,26 +1000,55 @@ impl AgentSessionClosePort for ScheduledSessionManagementPort {
         if cleanup_budget.is_zero() {
             return Err(bitfun_runtime_ports::PortError::new(
                 bitfun_runtime_ports::PortErrorKind::Timeout,
-                "Session close deadline was exhausted before transient resource cleanup",
+                "Session close deadline was exhausted before resource release",
             ));
         }
-        tokio::time::timeout(
-            cleanup_budget,
-            self.coordinator.discard_transient_session(
-                std::path::Path::new(&request.workspace_path),
-                request.remote_connection_id.as_deref(),
-                request.remote_ssh_host.as_deref(),
-                &request.session_id,
-            ),
-        )
+        tokio::time::timeout(cleanup_budget, async {
+            match kind {
+                SessionReleaseKind::DiscardTransient => {
+                    self.coordinator
+                        .discard_transient_session(
+                            std::path::Path::new(&request.workspace_path),
+                            request.remote_connection_id.as_deref(),
+                            request.remote_ssh_host.as_deref(),
+                            &request.session_id,
+                        )
+                        .await
+                }
+                SessionReleaseKind::UnloadPersisted => {
+                    session_manager
+                        .unload_session_from_memory(&request.session_id)
+                        .await
+                }
+            }
+        })
         .await
         .map_err(|_| {
             bitfun_runtime_ports::PortError::new(
                 bitfun_runtime_ports::PortErrorKind::Timeout,
-                "Transient Session resource cleanup exceeded the Session close deadline",
+                "Session resource release exceeded the Session close deadline",
             )
         })?
         .map_err(map_session_close_error)
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentSessionClosePort for ScheduledSessionManagementPort {
+    async fn discard_transient_session(
+        &self,
+        request: bitfun_runtime_ports::AgentSessionReleaseRequest,
+    ) -> bitfun_runtime_ports::PortResult<bool> {
+        self.release_session(request, SessionReleaseKind::DiscardTransient)
+            .await
+    }
+
+    async fn unload_persisted_session(
+        &self,
+        request: bitfun_runtime_ports::AgentSessionReleaseRequest,
+    ) -> bitfun_runtime_ports::PortResult<bool> {
+        self.release_session(request, SessionReleaseKind::UnloadPersisted)
+            .await
     }
 }
 
@@ -1651,7 +1686,6 @@ impl CoreServiceAgentRuntime {
         turn_settlement: Arc<dyn AgentTurnSettlementPort>,
         session_lineage: Arc<dyn AgentSessionLineagePort>,
         services: bitfun_runtime_services::RuntimeServices,
-        harness_registry: bitfun_harness::HarnessRegistry,
     ) -> Result<AgentRuntime, String> {
         let dialog_turn: Arc<dyn AgentDialogTurnPort> = scheduler.clone();
         Self::product_agent_runtime_with_dialog_turn(
@@ -1664,7 +1698,6 @@ impl CoreServiceAgentRuntime {
             Some(turn_settlement),
             Some(session_lineage),
             services,
-            harness_registry,
         )
     }
 
@@ -1673,7 +1706,6 @@ impl CoreServiceAgentRuntime {
         scheduler: Arc<DialogScheduler>,
         event_source: AgentEventSource,
         services: bitfun_runtime_services::RuntimeServices,
-        harness_registry: bitfun_harness::HarnessRegistry,
     ) -> Result<AgentRuntime, String> {
         let dialog_turn: Arc<dyn AgentDialogTurnPort> =
             Arc::new(RejectBusyAgentDialogTurnPort(scheduler.clone()));
@@ -1687,7 +1719,6 @@ impl CoreServiceAgentRuntime {
             None,
             None,
             services,
-            harness_registry,
         )
     }
 
@@ -1699,7 +1730,6 @@ impl CoreServiceAgentRuntime {
         session_usage: Arc<dyn AgentSessionUsagePort>,
         turn_settlement: Arc<dyn AgentTurnSettlementPort>,
         services: bitfun_runtime_services::RuntimeServices,
-        harness_registry: bitfun_harness::HarnessRegistry,
     ) -> Result<AgentRuntime, String> {
         let dialog_turn: Arc<dyn AgentDialogTurnPort> = scheduler.clone();
         Self::product_agent_runtime_with_dialog_turn(
@@ -1712,7 +1742,6 @@ impl CoreServiceAgentRuntime {
             Some(turn_settlement),
             None,
             services,
-            harness_registry,
         )
     }
 
@@ -1726,7 +1755,6 @@ impl CoreServiceAgentRuntime {
         turn_settlement: Option<Arc<dyn AgentTurnSettlementPort>>,
         session_lineage: Option<Arc<dyn AgentSessionLineagePort>>,
         services: bitfun_runtime_services::RuntimeServices,
-        harness_registry: bitfun_harness::HarnessRegistry,
     ) -> Result<AgentRuntime, String> {
         let submission: Arc<dyn AgentSubmissionPort> = coordinator.clone();
         let session_management =
@@ -1788,7 +1816,6 @@ impl CoreServiceAgentRuntime {
         };
         builder
             .with_services(services)
-            .with_harness_registry(Arc::new(harness_registry))
             .build()
             .map_err(|error| error.to_string())
     }
@@ -2121,6 +2148,7 @@ impl RemoteDialogRuntimeHost for CoreRemoteDialogRuntimeHost<'_> {
             .submit_dialog_turn(AgentDialogTurnRequest {
                 session_id: submission.session_id,
                 message: submission.content,
+                output_schema: None,
                 original_message: None,
                 turn_id: Some(submission.turn_id),
                 execution: Default::default(),

@@ -17,6 +17,9 @@ use crate::agentic::session::transcript_render::{
 use crate::agentic::session::{
     CoreSessionStorePort, SessionPromptCache, TokenAnchor, PROMPT_CACHE_SCHEMA_VERSION,
 };
+use crate::agentic::session::{
+    EvidenceLedgerEvent, PersistedEvidenceLedgerFile, EVIDENCE_LEDGER_SCHEMA_VERSION,
+};
 use crate::agentic::skill_agent_snapshot::TurnSkillAgentSnapshot;
 use crate::infrastructure::PathManager;
 use crate::service::config::get_global_config_service;
@@ -485,6 +488,8 @@ pub struct PersistenceManager {
     #[cfg(test)]
     fail_next_session_state_write: std::sync::Mutex<Option<String>>,
     #[cfg(test)]
+    fail_next_evidence_ledger_write: std::sync::Mutex<Option<String>>,
+    #[cfg(test)]
     fail_next_session_metadata_write: std::sync::Mutex<Option<String>>,
     #[cfg(test)]
     fail_next_session_metadata_rollback: std::sync::Mutex<Option<String>>,
@@ -499,6 +504,8 @@ impl PersistenceManager {
             path_manager,
             #[cfg(test)]
             fail_next_session_state_write: std::sync::Mutex::new(None),
+            #[cfg(test)]
+            fail_next_evidence_ledger_write: std::sync::Mutex::new(None),
             #[cfg(test)]
             fail_next_session_metadata_write: std::sync::Mutex::new(None),
             #[cfg(test)]
@@ -527,6 +534,14 @@ impl PersistenceManager {
             .fail_next_session_state_write
             .lock()
             .expect("session state fault lock") = Some(session_id.to_string());
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_next_evidence_ledger_write_for_test(&self, session_id: &str) {
+        *self
+            .fail_next_evidence_ledger_write
+            .lock()
+            .expect("evidence ledger fault lock") = Some(session_id.to_string());
     }
 
     #[cfg(test)]
@@ -606,6 +621,12 @@ impl PersistenceManager {
 
     fn state_path(&self, workspace_path: &Path, session_id: &str) -> PathBuf {
         self.session_layout(workspace_path).state_path(session_id)
+    }
+
+    fn evidence_ledger_path(&self, workspace_path: &Path, session_id: &str) -> PathBuf {
+        self.session_layout(workspace_path)
+            .session_dir(session_id)
+            .join("evidence-ledger.json")
     }
 
     fn prompt_cache_path(&self, workspace_path: &Path, session_id: &str) -> PathBuf {
@@ -1559,6 +1580,152 @@ impl PersistenceManager {
             .await
     }
 
+    pub(crate) async fn load_evidence_ledger_events(
+        &self,
+        workspace_path: &Path,
+        session_id: &str,
+    ) -> BitFunResult<Vec<EvidenceLedgerEvent>> {
+        Self::validate_session_id(session_id)?;
+        let path = self.evidence_ledger_path(workspace_path, session_id);
+        let file = JsonFileStore
+            .read_locked_optional::<PersistedEvidenceLedgerFile>(&path)
+            .await
+            .map_err(Self::json_store_error)?;
+        file.map(|file| {
+            file.validated_events(session_id)
+                .map_err(|error| BitFunError::parse(error.to_string()))
+        })
+        .transpose()
+        .map(Option::unwrap_or_default)
+    }
+
+    pub(crate) async fn append_evidence_ledger_event(
+        &self,
+        workspace_path: &Path,
+        event: &EvidenceLedgerEvent,
+    ) -> BitFunResult<Vec<EvidenceLedgerEvent>> {
+        Self::validate_session_id(&event.session_id)?;
+        let _session_write =
+            self.lock_session_write_operation(workspace_path, &event.session_id)?;
+        self.ensure_runtime_for_write(workspace_path).await?;
+        let persistence_lock = self
+            .get_session_persistence_lock(workspace_path, &event.session_id)
+            .await;
+        let _persistence_guard = persistence_lock.lock().await;
+        self.ensure_session_dir(workspace_path, &event.session_id)
+            .await?;
+
+        #[cfg(test)]
+        {
+            let mut fault = self
+                .fail_next_evidence_ledger_write
+                .lock()
+                .expect("evidence ledger fault lock");
+            if fault.as_deref() == Some(event.session_id.as_str()) {
+                *fault = None;
+                return Err(BitFunError::io("Injected evidence ledger write failure"));
+            }
+        }
+
+        let path = self.evidence_ledger_path(workspace_path, &event.session_id);
+        let _file_lock = JsonFileStore
+            .acquire_cross_process_lock(&path)
+            .await
+            .map_err(Self::json_store_error)?;
+        let mut file = JsonFileStore
+            .read_optional::<PersistedEvidenceLedgerFile>(&path)
+            .await
+            .map_err(Self::json_store_error)?
+            .unwrap_or_else(|| PersistedEvidenceLedgerFile::new(event.session_id.clone()));
+        file.append(event.clone())
+            .map_err(|error| BitFunError::parse(error.to_string()))?;
+        file.schema_version = EVIDENCE_LEDGER_SCHEMA_VERSION;
+        JsonFileStore
+            .write_atomic_strict(&path, &file)
+            .await
+            .map_err(Self::json_store_error)?;
+        file.validated_events(&event.session_id)
+            .map_err(|error| BitFunError::parse(error.to_string()))
+    }
+
+    pub(crate) async fn retain_evidence_ledger_events(
+        &self,
+        workspace_path: &Path,
+        session_id: &str,
+        surviving_turn_ids: &std::collections::HashSet<String>,
+    ) -> BitFunResult<Option<Vec<EvidenceLedgerEvent>>> {
+        Self::validate_session_id(session_id)?;
+        let _session_write = self.lock_session_write_operation(workspace_path, session_id)?;
+        let persistence_lock = self
+            .get_session_persistence_lock(workspace_path, session_id)
+            .await;
+        let _persistence_guard = persistence_lock.lock().await;
+
+        let path = self.evidence_ledger_path(workspace_path, session_id);
+        let _file_lock = JsonFileStore
+            .acquire_cross_process_lock(&path)
+            .await
+            .map_err(Self::json_store_error)?;
+        if !path.exists() {
+            return Ok(None);
+        }
+        let Some(mut file) = JsonFileStore
+            .read_optional::<PersistedEvidenceLedgerFile>(&path)
+            .await
+            .map_err(Self::json_store_error)?
+        else {
+            return Err(BitFunError::io(format!(
+                "Evidence ledger disappeared while retaining: {}",
+                path.display()
+            )));
+        };
+        let retained = file
+            .retain_turn_ids(session_id, surviving_turn_ids)
+            .map_err(|error| BitFunError::parse(error.to_string()))?;
+        file.schema_version = EVIDENCE_LEDGER_SCHEMA_VERSION;
+        JsonFileStore
+            .write_atomic_strict(&path, &file)
+            .await
+            .map_err(Self::json_store_error)?;
+        Ok(Some(retained))
+    }
+
+    /// Write a complete evidence ledger sidecar for a session. Used by session
+    /// branching to copy inherited evidence into the fork target. The caller
+    /// must already hold the session write lock for `session_id`.
+    pub(crate) async fn save_evidence_ledger_events(
+        &self,
+        workspace_path: &Path,
+        session_id: &str,
+        events: Vec<EvidenceLedgerEvent>,
+    ) -> BitFunResult<()> {
+        Self::validate_session_id(session_id)?;
+        let persistence_lock = self
+            .get_session_persistence_lock(workspace_path, session_id)
+            .await;
+        let _persistence_guard = persistence_lock.lock().await;
+        self.ensure_session_dir(workspace_path, session_id).await?;
+        let path = self.evidence_ledger_path(workspace_path, session_id);
+        let _file_lock = JsonFileStore
+            .acquire_cross_process_lock(&path)
+            .await
+            .map_err(Self::json_store_error)?;
+        let file = PersistedEvidenceLedgerFile {
+            schema_version: EVIDENCE_LEDGER_SCHEMA_VERSION,
+            session_id: session_id.to_string(),
+            events,
+        };
+        // Validate before writing so a bad session_id on an event is caught.
+        file.clone()
+            .validated_events(session_id)
+            .map_err(|error| BitFunError::parse(error.to_string()))?;
+        JsonFileStore
+            .write_atomic_strict(&path, &file)
+            .await
+            .map_err(Self::json_store_error)?;
+        Ok(())
+    }
+
     pub async fn load_prompt_cache(
         &self,
         workspace_path: &Path,
@@ -2158,10 +2325,14 @@ impl PersistenceManager {
         stored_state: Option<StoredSessionStateFile>,
         turns: &[DialogTurnData],
     ) -> Session {
+        let legacy_minimal = stored_state
+            .as_ref()
+            .is_some_and(|value| value.config.legacy_minimal_agent);
         let mut config = stored_state
             .as_ref()
             .map(|value| value.config.clone())
             .unwrap_or_default();
+        config.legacy_minimal_agent = false;
         if config.workspace_path.is_none() {
             config.workspace_path = metadata.workspace_path.clone();
         }
@@ -2190,7 +2361,11 @@ impl PersistenceManager {
         Session {
             session_id: metadata.session_id.clone(),
             session_name: metadata.session_name.clone(),
-            agent_type: metadata.agent_type.clone(),
+            agent_type: if legacy_minimal {
+                "minimal".to_string()
+            } else {
+                metadata.agent_type.clone()
+            },
             last_user_dialog_agent_type: stored_state
                 .as_ref()
                 .and_then(|value| value.last_user_dialog_agent_type.clone())
@@ -2512,21 +2687,26 @@ impl PersistenceManager {
         let mut summaries = Vec::with_capacity(metadata_list.len());
 
         for metadata in metadata_list {
-            let (state, reasoning_preset) = self
+            let (state, reasoning_preset, legacy_minimal) = self
                 .load_stored_session_state(workspace_path, &metadata.session_id)
                 .await?
                 .map(|value| {
                     (
                         sanitize_persisted_session_state(&value.runtime_state),
                         value.config.reasoning_preset,
+                        value.config.legacy_minimal_agent,
                     )
                 })
-                .unwrap_or((SessionState::Idle, None));
+                .unwrap_or((SessionState::Idle, None, false));
 
             summaries.push(SessionSummary {
                 session_id: metadata.session_id,
                 session_name: metadata.session_name,
-                agent_type: metadata.agent_type,
+                agent_type: if legacy_minimal {
+                    "minimal".to_string()
+                } else {
+                    metadata.agent_type
+                },
                 model_id: (!metadata.model_name.trim().is_empty()).then_some(metadata.model_name),
                 reasoning_preset,
                 last_user_dialog_agent_type: metadata.last_user_dialog_agent_type,
@@ -4115,9 +4295,12 @@ mod tests {
         build_turn_catalog, context_snapshot_payload_stats, current_unix_secs,
         is_well_formed_turn_catalog, placeholder_turn_catalog_entry, truncate_turn_catalog_preview,
         turn_catalog_entry, PendingSessionDirectory, PersistenceManager, StoredDialogTurnFile,
-        SESSION_REFERENCE_TRANSCRIPT_CHAR_LIMIT, SESSION_TURN_CATALOG_PREVIEW_CHAR_LIMIT,
+        StoredSessionStateFile, SESSION_REFERENCE_TRANSCRIPT_CHAR_LIMIT,
+        SESSION_TURN_CATALOG_PREVIEW_CHAR_LIMIT,
     };
-    use crate::agentic::core::{Message, Session, SessionConfig, SessionKind, ToolResult};
+    use crate::agentic::core::{
+        CompressionState, Message, Session, SessionConfig, SessionKind, SessionState, ToolResult,
+    };
     use crate::agentic::memories::db::{MemoryDatabase, MemoryRow, MEMORY_PHASE2_GLOBAL_JOB_KEY};
     use crate::agentic::session::revert::{
         SessionRevertPhase, SessionRevertState, SESSION_REVERT_SCHEMA_VERSION,
@@ -4167,6 +4350,37 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.path);
         }
+    }
+
+    #[test]
+    fn legacy_minimal_profile_restores_as_minimal_mode_and_clears_the_marker() {
+        let metadata = SessionMetadata::new(
+            "legacy-minimal".to_string(),
+            "Legacy Minimal".to_string(),
+            "agentic".to_string(),
+            "model".to_string(),
+        );
+        let stored_state = StoredSessionStateFile {
+            schema_version: 1,
+            config: SessionConfig {
+                legacy_minimal_agent: true,
+                ..SessionConfig::default()
+            },
+            snapshot_session_id: None,
+            last_user_dialog_agent_type: None,
+            last_submitted_agent_type: None,
+            compression_state: CompressionState::default(),
+            runtime_state: SessionState::Idle,
+        };
+
+        let restored = PersistenceManager::build_session_from_persisted_parts(
+            metadata,
+            Some(stored_state),
+            &[],
+        );
+
+        assert_eq!(restored.agent_type, "minimal");
+        assert!(!restored.config.legacy_minimal_agent);
     }
 
     #[tokio::test]

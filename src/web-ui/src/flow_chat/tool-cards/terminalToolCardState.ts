@@ -1,3 +1,5 @@
+import type { PeerHostCapabilities, PeerHostKind } from '@/infrastructure/peer-device/PeerConnectionManager';
+
 export type TerminalWaitingMessageKey =
   | 'toolCards.terminal.receivingParams'
   | 'toolCards.terminal.executingCommand';
@@ -30,6 +32,13 @@ interface GetTerminalViewStateParams {
   interruptRequested: boolean;
   showConfirmButtons: boolean;
   wasInterrupted: boolean;
+  /**
+   * Whether the current host advertises the `cancel_tool` capability. When
+   * false (e.g. a peer host without per-tool interrupt support), the
+   * Interrupt button is hidden so the UI never offers an ineffective action.
+   * Local and full-peer hosts set this to true.
+   */
+  canCancelTool: boolean;
 }
 
 function deriveDisplayPhase(params: {
@@ -81,6 +90,43 @@ function deriveDisplayPhase(params: {
   };
 }
 
+/**
+ * Resolve whether the currently rendered surface can actually cancel a running
+ * tool, so the Terminal Interrupt button is only offered when it will work.
+ *
+ * - Local surface: always `true`.
+ * - `cancelTool === true`: advertised by the host → `true`.
+ * - `cancelTool === false`: host explicitly unsupported → `false`.
+ * - `cancelTool === null` (older host that did not advertise the field): resolve
+ *   by `hostKind`. An old Desktop always implemented `cancel_tool` (`true`); an
+ *   old CLI never did (`false`), so the button is hidden instead of failing
+ *   silently when the user clicks Interrupt. `hostKind === null` (truly
+ *   unknown / still probing) stays optimistic.
+ *
+ * See PR #2428 round 5 #1.
+ */
+export function resolveCanCancelTool(
+  peerActive: boolean,
+  capabilities: PeerHostCapabilities | null,
+): boolean {
+  if (!peerActive) {
+    return true;
+  }
+  if (capabilities === null) {
+    return true;
+  }
+  if (capabilities.cancelTool === true) {
+    return true;
+  }
+  if (capabilities.cancelTool === false) {
+    return false;
+  }
+  // cancelTool === null: older host, field absent — decide by host kind.
+  return capabilities.hostKind !== 'cli';
+}
+
+export type { PeerHostKind };
+
 export function getTerminalViewState(
   params: GetTerminalViewStateParams,
 ): TerminalViewState {
@@ -91,6 +137,7 @@ export function getTerminalViewState(
     interruptRequested,
     showConfirmButtons,
     wasInterrupted,
+    canCancelTool,
   } = params;
   const isRunning = status === 'running';
   const isLoading =
@@ -98,7 +145,10 @@ export function getTerminalViewState(
     status === 'streaming' ||
     status === 'receiving' ||
     status === 'running';
-  const showInterruptButton = isRunning && !interruptRequested;
+  // Never offer an interrupt the host can't act on. A peer host that doesn't
+  // implement `cancel_tool` would otherwise leave the target command running
+  // while the controller just restored the button and logged an error.
+  const showInterruptButton = isRunning && !interruptRequested && canCancelTool;
 
   let statusLabel: TerminalViewState['statusLabel'] = null;
   let statusClassName: TerminalViewState['statusClassName'] = null;

@@ -485,7 +485,7 @@ pub struct RestartAppRequest {}
 #[allow(unreachable_code)]
 pub async fn restart_app(app: AppHandle, request: RestartAppRequest) -> Result<(), String> {
     let _ = request;
-    crate::save_main_window_state(&app);
+    crate::save_main_window_state(&app, "restart_app");
     crate::perform_process_exit_cleanup().await;
     crate::crash_diagnostics::mark_clean_shutdown("restart_app");
     log::info!("Desktop restart authorized after graceful shutdown");
@@ -808,7 +808,7 @@ async fn call_ohos_window_host(name: &str) -> Result<(), String> {
 #[tauri::command]
 pub async fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
     log::info!("Quit requested via quit_app command");
-    crate::save_main_window_state(&app);
+    crate::save_main_window_state(&app, "quit_app_command");
     crate::perform_process_exit_cleanup().await;
     log::info!("Desktop exit authorized after graceful shutdown: reason=quit_app_command");
     crate::perform_process_exit_cleanup();

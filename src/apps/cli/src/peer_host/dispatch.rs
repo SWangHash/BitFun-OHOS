@@ -158,6 +158,33 @@ mod tests {
                     value.pointer("/capabilities/token_usage_statistics"),
                     Some(&json!(true))
                 );
+                assert_eq!(
+                    value.pointer("/capabilities/cancel_tool"),
+                    Some(&json!(true))
+                );
+                assert_eq!(
+                    value.pointer("/capabilities/tool_catalog"),
+                    Some(&json!(true))
+                );
+            }
+            other => panic!("unexpected response: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn peer_mode_ping_advertises_cli_host_type() {
+        // An older CLI did not advertise `cancel_tool`/`tool_catalog`; the
+        // `host_type: "cli"` field lets the controller resolve those missing
+        // capabilities as unsupported instead of optimistically invoking a
+        // command the CLI never implemented. See PR #2428 round 5 #1.
+        let resp = handle_host_invoke("peer_mode_ping", json!({})).await;
+        match resp {
+            RemoteResponse::HostInvokeResult {
+                ok: true,
+                value: Some(value),
+                error: None,
+            } => {
+                assert_eq!(value.get("host_type").and_then(|v| v.as_str()), Some("cli"));
             }
             other => panic!("unexpected response: {other:?}"),
         }
@@ -186,6 +213,30 @@ mod tests {
         );
         assert_eq!(dispatch_target_verb("dispatch_submit"), None);
         assert_eq!(dispatch_target_verb("dispatch_target_unknown"), None);
+    }
+
+    /// `cancel_tool` and `get_all_tools_info` were previously unimplemented on
+    /// the CLI peer host, so a controller rendering a CLI Peer session saw an
+    /// ineffective Interrupt button and an empty tool list. They are now
+    /// implemented in `commands::dialog::cancel_tool` and
+    /// `commands::tools::get_all_tools_info`; this test pins that neither is
+    /// refused by the local-only or CLI-unsupported gate before reaching the
+    /// implemented handler. A future regression that removes the handler but
+    /// leaves the command routable would land in the unsupported fallthrough
+    /// branch, not here — that is caught by the capability advertisement +
+    /// frontend gate instead.
+    #[test]
+    fn cancel_tool_and_tool_catalog_are_not_refused_before_dispatch() {
+        for command in ["cancel_tool", "get_all_tools_info"] {
+            assert!(
+                !is_local_only_command(command),
+                "{command} must be routable to the peer host"
+            );
+            assert!(
+                !is_cli_unsupported_command(command),
+                "{command} must reach its implemented handler, not the unsupported gate"
+            );
+        }
     }
 
     #[tokio::test]

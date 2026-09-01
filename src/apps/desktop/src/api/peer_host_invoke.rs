@@ -100,9 +100,10 @@ static LOCAL_ONLY_COMMANDS: &[&str] = &[
     "remote_connect_weixin_qr_poll",
     "remote_connect_get_bot_verbose_mode",
     "remote_connect_set_bot_verbose_mode",
-    // This-machine computer-use / OS permission prompts
-    "computer_use_request_permissions",
-    "computer_use_open_system_settings",
+    // Computer-use OS permission prompts + system-settings are intentionally NOT
+    // local-only: under Desktop Peer Mode they must run on the peer host B (B
+    // surfaces B's own OS permission prompts / settings), reached via
+    // bridge_via_webview. CLI Peer refuses them in deny.rs. See SessionConfig.
     // Detached dispatch uses controller-owned SSH credentials and observers.
     "dispatch_list_targets",
     "dispatch_probe_target",
@@ -145,6 +146,62 @@ static LOCAL_ONLY_COMMANDS: &[&str] = &[
     // That decision stays with the person at that machine; a controller can
     // still read `git_get_repository_trust` and relay the manual command.
     "git_trust_repository",
+    // Controller app-shell state mirrored from the FE deny list. An older or
+    // non-Web-UI controller can still HostInvoke these onto this peer, so the
+    // peer host must refuse them independently of the FE optimization. Keep in
+    // sync with `src/web-ui/.../adapters/peer-device-adapter.ts`
+    // LOCAL_ONLY_COMMANDS and `src/apps/cli/src/peer_host/deny.rs`.
+    // UI locale writes the controller's config and rebuilds THIS machine's
+    // macOS menubar/tray; routing it to a peer writes the wrong config.
+    "i18n_get_current_language",
+    "i18n_set_language",
+    "i18n_get_supported_languages",
+    "i18n_get_config",
+    "i18n_set_config",
+    // Announcement scheduler/state: get_pending / get_tips run the scheduler
+    // (mutate app_open_count + persist); seen / dismiss / never-show write
+    // controller announcement state. Refused on the peer.
+    "get_pending_announcements",
+    "get_announcement_tips",
+    "mark_announcement_seen",
+    "dismiss_announcement",
+    "never_show_announcement",
+    "trigger_announcement",
+    // Companion pets live on the controller's desktop; the import zip path is
+    // picked by a local dialog on the controller and is not readable here.
+    "list_agent_companion_pets",
+    "import_agent_companion_pet_package",
+    "delete_agent_companion_pet_package",
+    // Insights is the controller's own usage report: it reads the controller's
+    // session history and writes the HTML to the controller's user_data_dir.
+    "generate_insights",
+    "get_latest_insights",
+    "load_insights_report",
+    "has_insights_data",
+    "cancel_insights_generation",
+    // IDE control events drive the controller window's panels; the result
+    // report must settle on the controller's transport, not here.
+    "report_ide_control_result",
+    // Controller app-shell / local-device commands (embedded webview/DevTools/
+    // desktop-pet/diagnostics) operate on the controller's OWN surfaces and a
+    // peer host has no implementation for them, so they stay local-only.
+    //
+    // NOTE: the runtime-owning Browser Control and Computer Use commands are
+    // NOT local-only — they run the agent Tool, so under Desktop Peer Mode they
+    // route to the peer host B via bridge_via_webview (reads B's own browser
+    // and OS). CLI Peer refuses them in deny.rs and the UI gates the section on
+    // host type. See SessionConfig + cli deny.rs.
+    "browser_webview_create",
+    "browser_webview_eval",
+    "browser_webview_navigate",
+    "browser_webview_reload",
+    "browser_webview_set_bounds",
+    "debug_devtools_available",
+    "debug_open_devtools",
+    "resize_agent_companion_desktop_pet",
+    "show_agent_companion_desktop_pet",
+    "hide_agent_companion_desktop_pet",
+    "append_flow_chat_diagnostics",
 ];
 
 static PENDING: OnceLock<Mutex<HashMap<String, oneshot::Sender<HostInvokeBridgeResult>>>> =
@@ -364,10 +421,25 @@ pub async fn peer_mode_ping() -> Result<Value, String> {
         "peer": true,
         "device_id": current_device_id_for_peer()
             .unwrap_or_else(|_| "unknown".to_string()),
+        // Declares which kind of host answered so the controller can resolve
+        // capabilities that an older host did not advertise. An older Desktop
+        // (pre-`50b76516`) omits `cancel_tool`/`tool_catalog` but still reports
+        // `host_type: "desktop"` — and Desktop has always implemented both — so
+        // the controller keeps the Interrupt button / tool list. An older CLI
+        // reports `host_type: "cli"` and never implemented them, so the
+        // controller gates them off instead of showing an action that silently
+        // fails. See PR #2428 round 5 #1.
+        "host_type": "desktop",
         "capabilities": {
             "idempotent_dialog_submit": true,
             "targeted_session_rollback": true,
             "token_usage_statistics": true,
+            // Desktop implements both per-tool cancel and the tool catalog
+            // (agentic_api::cancel_tool, tool_api::get_all_tools_info), so the
+            // controller can gate the Terminal Interrupt button and the tool
+            // catalog UI on these the same way it does on the CLI peer host.
+            "cancel_tool": true,
+            "tool_catalog": true,
         },
     }))
 }
@@ -470,6 +542,10 @@ mod tests {
     async fn peer_ping_advertises_mutation_capabilities() {
         let value = peer_mode_ping().await.expect("peer ping");
         assert_eq!(
+            value.get("host_type").and_then(Value::as_str),
+            Some("desktop")
+        );
+        assert_eq!(
             value
                 .pointer("/capabilities/idempotent_dialog_submit")
                 .and_then(Value::as_bool),
@@ -484,6 +560,18 @@ mod tests {
         assert_eq!(
             value
                 .pointer("/capabilities/token_usage_statistics")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            value
+                .pointer("/capabilities/cancel_tool")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            value
+                .pointer("/capabilities/tool_catalog")
                 .and_then(Value::as_bool),
             Some(true)
         );

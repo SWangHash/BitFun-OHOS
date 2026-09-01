@@ -128,6 +128,32 @@ Important notes:
         file_permission_intents("edit", [path], context)
     }
 
+    async fn validate_non_relaxable_input(
+        &self,
+        input: &Value,
+        context: Option<&ToolUseContext>,
+    ) -> Option<ValidationResult> {
+        let path = input
+            .get("path")
+            .and_then(Value::as_str)
+            .filter(|path| !path.is_empty())?;
+        let force = input.get("force").and_then(Value::as_bool).unwrap_or(false);
+        if input
+            .get("recursive")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            crate::agentic::execution::edit_constraint_guard::check_recursive_delete(
+                context, path, force,
+            )
+            .await
+        } else {
+            crate::agentic::execution::edit_constraint_guard::check_delete(
+                context, "Delete", "delete", path, force,
+            )
+        }
+    }
+
     async fn validate_input(
         &self,
         input: &Value,
@@ -338,7 +364,7 @@ Important notes:
                 &resolved.logical_path,
                 vec![resolved.logical_path.clone()],
             )
-            .await;
+            .await?;
 
         // Remote workspace path: delete via shell command
         if resolved.uses_remote_workspace_backend() {

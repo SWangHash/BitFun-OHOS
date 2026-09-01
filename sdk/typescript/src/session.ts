@@ -4,8 +4,10 @@ import type {
   SessionCloseParams,
   SessionCreateParams,
   SessionCreateResult,
+  SessionResumeParams,
 } from "./internal/wire/index.js";
 import type { JsonRpcConnection } from "./internal/json-rpc.js";
+import { normalizeInput } from "./internal/input.js";
 import { withTimeout } from "./internal/deadline.js";
 import { isConnectionUnusableError, SdkError } from "./errors.js";
 import { Query } from "./query.js";
@@ -14,6 +16,7 @@ import type { SessionCreateInput, SessionLifetime, TurnInput } from "./types.js"
 export class Sessions {
   readonly #connection: JsonRpcConnection;
   readonly #cwd: string;
+  readonly #modelId: string;
   readonly #onQuery: (query: Query) => Query;
   readonly #onSession: (session: Session) => void;
   readonly #ensureClientOpen: () => void;
@@ -22,6 +25,7 @@ export class Sessions {
   static forClient(
     connection: JsonRpcConnection,
     cwd: string,
+    modelId: string,
     onQuery: (query: Query) => Query,
     onSession: (session: Session) => void,
     ensureClientOpen: () => void,
@@ -29,6 +33,7 @@ export class Sessions {
     return new Sessions(
       connection,
       cwd,
+      modelId,
       onQuery,
       onSession,
       ensureClientOpen,
@@ -38,12 +43,14 @@ export class Sessions {
   private constructor(
     connection: JsonRpcConnection,
     cwd: string,
+    modelId: string,
     onQuery: (query: Query) => Query,
     onSession: (session: Session) => void,
     ensureClientOpen: () => void,
   ) {
     this.#connection = connection;
     this.#cwd = cwd;
+    this.#modelId = modelId;
     this.#onQuery = onQuery;
     this.#onSession = onSession;
     this.#ensureClientOpen = ensureClientOpen;
@@ -55,13 +62,28 @@ export class Sessions {
       sessionName: input.sessionName ?? null,
       agent: input.agent ?? null,
       cwd: this.#cwd,
-      model: input.model ?? null,
+      model: this.#modelId,
     };
     const created = await this.#connection.request<SessionCreateResult>(
       "session/create",
       params,
     );
     const session = Session.create(this.#connection, created, this.#onQuery);
+    this.#onSession(session);
+    return session;
+  }
+
+  async resume(sessionId: string): Promise<Session> {
+    this.#ensureClientOpen();
+    if (sessionId.trim().length === 0) {
+      throw new Error("sessionId must not be empty");
+    }
+    const params: SessionResumeParams = { sessionId };
+    const resumed = await this.#connection.request<SessionCreateResult>(
+      "session/resume",
+      params,
+    );
+    const session = Session.create(this.#connection, resumed, this.#onQuery);
     this.#onSession(session);
     return session;
   }
@@ -108,8 +130,11 @@ export class Session {
 
   async startTurn(input: TurnInput): Promise<Query> {
     this.#ensureOpen();
+    const normalized = normalizeInput(input.prompt);
     const params: QueryStartParams = {
-      prompt: input.prompt,
+      prompt: normalized.prompt,
+      images: normalized.images,
+      outputSchema: input.outputSchema,
       sessionId: this.id,
     };
     const started = await this.#connection.request<QueryStartResult>(

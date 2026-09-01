@@ -637,19 +637,21 @@ mod tests {
 
     #[cfg(feature = "product-full")]
     #[test]
-    fn product_capability_provider_plan_covers_registry_manifest_in_order() {
+    fn product_capability_provider_plan_covers_registry_manifest_without_owning_order() {
         let assembly = bitfun_product_capabilities::default_product_capability_assembly();
-        let provider_tools = assembly
+        let mut provider_tools = assembly
             .tool_provider_group_plan()
             .iter()
             .flat_map(|group| group.tool_names())
             .map(|tool_name| tool_name.to_string())
             .collect::<Vec<_>>();
+        let mut registry_tools = create_tool_registry().get_tool_names();
+        provider_tools.sort();
+        registry_tools.sort();
 
         assert_eq!(
-            provider_tools,
-            create_tool_registry().get_tool_names(),
-            "provider-based assembly must preserve the existing builtin registry order"
+            provider_tools, registry_tools,
+            "provider-based assembly must cover the existing builtin registry manifest"
         );
     }
 
@@ -668,10 +670,17 @@ mod tests {
                 "core.basic",
                 "core.agent",
                 "core.session",
+                "core.git",
+                "core.web",
+                "core.mcp",
+                "core.computer-use",
+                "core.review",
+                "core.miniapp",
+                "core.canvas",
                 "core.integration",
                 "core.openharmony"
             ],
-            "provider groups must stay stable until concrete tool-pack owners exist"
+            "provider groups must preserve the reviewed atomic ownership order"
         );
     }
 
@@ -708,6 +717,31 @@ mod tests {
                 "runtime assembly must preserve snapshot wrapping for {tool_name}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn product_registered_edit_preserves_non_relaxable_validation() {
+        let registry = ProductToolRuntime::default()
+            .create_registry()
+            .expect("the default runtime plan must materialize");
+        let edit = registry
+            .get_tool("Edit")
+            .expect("Edit tool should be registered");
+        let input = json!({
+            "file_path": "tests/existing.rs",
+            "old_string": "old",
+            "force": true
+        });
+
+        let ordinary = edit.validate_input(&input, None).await;
+        assert_eq!(ordinary.message.as_deref(), Some("new_string is required"));
+        assert!(!ordinary.blocks_input_rewrite());
+
+        let invariant = edit
+            .validate_non_relaxable_input(&input, None)
+            .await
+            .expect("snapshot-wrapped Edit must forward its non-relaxable guard");
+        assert!(invariant.blocks_input_rewrite());
     }
 
     #[test]

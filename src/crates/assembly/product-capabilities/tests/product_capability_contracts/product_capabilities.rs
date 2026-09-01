@@ -1,9 +1,7 @@
-use bitfun_harness::{HarnessCapability, HarnessInput, HarnessStepKind, HarnessWorkflow};
 use bitfun_product_capabilities::{
     agent_runtime_baseline_tool_plan, default_product_assembly_plan,
     default_product_capability_assembly, default_product_capability_registry,
-    default_product_harness_registry, product_assembly_plan_for_profile,
-    product_delivery_profile_entries, product_harness_registry_for_profile, DeliveryProfile,
+    product_assembly_plan_for_profile, product_delivery_profile_entries, DeliveryProfile,
     ProductAssembler, ProductAssemblyError, ProductAssemblyInput, ProductCapabilityBuildError,
     ProductCapabilityId, ProductCapabilityPack, ProductCapabilityRegistry,
     ProductCoreDependencyMode, ProductFeatureGroup, ProductRuntimeAssembly,
@@ -38,13 +36,7 @@ fn agent_runtime_baseline_tool_plan_requests_only_baseline_feature_owners() {
             .iter()
             .map(|provider| provider.provider_id())
             .collect::<Vec<_>>(),
-        [
-            "core.basic",
-            "core.agent",
-            "core.canvas",
-            "core.session",
-            "core.integration",
-        ]
+        ["core.basic", "core.agent", "core.session",]
     );
 }
 
@@ -121,6 +113,13 @@ fn default_capability_registry_preserves_product_tool_provider_order() {
             "core.basic",
             "core.agent",
             "core.session",
+            "core.git",
+            "core.web",
+            "core.mcp",
+            "core.computer-use",
+            "core.review",
+            "core.miniapp",
+            "core.canvas",
             "core.integration",
             "core.openharmony",
         ]
@@ -128,64 +127,7 @@ fn default_capability_registry_preserves_product_tool_provider_order() {
 }
 
 #[test]
-fn default_capability_registry_preserves_legacy_harness_routes() {
-    let registry = default_product_harness_registry().expect("harness registry should build");
-
-    assert_eq!(
-        registry.provider_ids(),
-        vec!["core.deep_review", "core.deep_research", "core.miniapp"]
-    );
-    assert_eq!(
-        registry.workflows(),
-        vec![
-            HarnessWorkflow::DeepReview,
-            HarnessWorkflow::DeepResearch,
-            HarnessWorkflow::MiniApp,
-        ]
-    );
-}
-
-#[tokio::test]
-async fn product_harness_provider_plans_legacy_facade_without_execution() {
-    let registry = default_product_harness_registry().expect("harness registry should build");
-    let provider = registry
-        .provider_for_workflow(HarnessWorkflow::DeepResearch)
-        .expect("DeepResearch should be registered");
-
-    let plan = provider
-        .plan(
-            Default::default(),
-            HarnessInput::new(HarnessWorkflow::DeepResearch, "research current question"),
-        )
-        .await
-        .expect("DeepResearch harness should produce a legacy route plan");
-
-    assert_eq!(plan.steps().len(), 1);
-    assert_eq!(plan.steps()[0].kind(), HarnessStepKind::LegacyFacade);
-    assert_eq!(
-        plan.steps()[0].target(),
-        "bitfun-core::agentic::agents::definitions::modes::deep_research"
-    );
-
-    assert!(
-        provider.execute(Default::default(), plan).await.is_err(),
-        "product-capabilities must not claim concrete workflow execution ownership"
-    );
-}
-
-#[test]
-fn product_harness_registry_can_be_built_from_explicit_delivery_profile() {
-    let registry = product_harness_registry_for_profile(DeliveryProfile::Cli)
-        .expect("profile-scoped product harness registry should build");
-
-    assert_eq!(
-        registry.provider_ids(),
-        vec!["core.deep_review", "core.deep_research", "core.miniapp"]
-    );
-}
-
-#[test]
-fn capability_packs_describe_service_tool_and_harness_requirements() {
+fn capability_packs_describe_service_and_tool_requirements() {
     let registry = default_product_capability_registry();
 
     let capability_ids = registry
@@ -208,64 +150,34 @@ fn capability_packs_describe_service_tool_and_harness_requirements() {
     assert!(service_capabilities.contains(&RuntimeServiceCapability::FileSystem));
     assert!(service_capabilities.contains(&RuntimeServiceCapability::Workspace));
     assert!(service_capabilities.contains(&RuntimeServiceCapability::Events));
-
-    let harness_capabilities = registry
-        .harness_provider_descriptors()
-        .into_iter()
-        .map(|descriptor| {
-            (
-                descriptor.provider_id(),
-                descriptor.workflow(),
-                descriptor.capabilities().to_vec(),
-            )
-        })
-        .collect::<Vec<_>>();
-
-    assert_eq!(
-        harness_capabilities,
-        vec![
-            (
-                "core.deep_review",
-                HarnessWorkflow::DeepReview,
-                vec![
-                    HarnessCapability::Plan,
-                    HarnessCapability::ReviewGate,
-                    HarnessCapability::PostProcessor,
-                ],
-            ),
-            (
-                "core.deep_research",
-                HarnessWorkflow::DeepResearch,
-                vec![HarnessCapability::Plan, HarnessCapability::PostProcessor],
-            ),
-            (
-                "core.miniapp",
-                HarnessWorkflow::MiniApp,
-                vec![HarnessCapability::Plan, HarnessCapability::Artifact],
-            ),
-        ]
-    );
 }
 
 #[test]
 fn product_assembly_plan_keeps_full_capabilities_only_for_core_compatibility_profiles() {
-    let shared_capabilities = vec![
+    let full_capabilities = vec![
         "code-agent",
         "deep-review",
         "deep-research",
         "miniapp",
     ];
-    let expected_tool_groups = vec![
+    let full_tool_groups = vec![
         "core.basic",
         "core.agent",
         "core.session",
+        "core.git",
+        "core.web",
+        "core.mcp",
+        "core.computer-use",
+        "core.review",
+        "core.miniapp",
+        "core.canvas",
         "core.integration",
         "core.openharmony",
     ];
 
     for profile in [DeliveryProfile::ProductFull, DeliveryProfile::Desktop] {
         let plan = product_assembly_plan_for_profile(profile);
-        let mut expected_capabilities = shared_capabilities.clone();
+        let mut expected_capabilities = full_capabilities.clone();
         expected_capabilities.push("voice-input");
 
         assert_eq!(plan.profile(), profile);
@@ -284,7 +196,7 @@ fn product_assembly_plan_keeps_full_capabilities_only_for_core_compatibility_pro
                 .iter()
                 .map(|group| group.provider_id())
                 .collect::<Vec<_>>(),
-            expected_tool_groups,
+            full_tool_groups,
             "{profile} must preserve current tool provider groups"
         );
     }
@@ -303,8 +215,8 @@ fn product_assembly_plan_keeps_full_capabilities_only_for_core_compatibility_pro
                 .iter()
                 .map(|capability_id| capability_id.id())
                 .collect::<Vec<_>>(),
-            shared_capabilities,
-            "{profile} must not select desktop-only voice input"
+            vec!["code-agent"],
+            "{profile} must select only the headless CodeAgent capability"
         );
         assert_eq!(
             plan.capability_assembly()
@@ -312,8 +224,16 @@ fn product_assembly_plan_keeps_full_capabilities_only_for_core_compatibility_pro
                 .iter()
                 .map(|group| group.provider_id())
                 .collect::<Vec<_>>(),
-            expected_tool_groups,
-            "{profile} must preserve current tool provider groups"
+            vec![
+                "core.basic",
+                "core.agent",
+                "core.session",
+                "core.git",
+                "core.web",
+                "core.mcp",
+                "core.computer-use",
+            ],
+            "{profile} must assemble only generic Agent Runtime tool groups"
         );
     }
 }
@@ -350,12 +270,6 @@ fn no_direct_core_profiles_do_not_select_product_full_runtime_capabilities() {
                 .tool_provider_group_plan()
                 .is_empty(),
             "{profile} must not materialize product-full tool groups"
-        );
-        assert!(
-            plan.capability_assembly()
-                .harness_provider_descriptors()
-                .is_empty(),
-            "{profile} must not register product-full harness routes"
         );
     }
 }
@@ -520,8 +434,9 @@ fn product_assembly_plan_exposes_build_feature_groups_explicitly() {
             ProductFeatureGroup::Git,
             ProductFeatureGroup::BrowserWeb,
             ProductFeatureGroup::Mcp,
-            ProductFeatureGroup::MiniApp,
             ProductFeatureGroup::ComputerUse,
+            ProductFeatureGroup::MiniApp,
+            ProductFeatureGroup::Canvas,
         ]
     );
     assert_eq!(
@@ -533,8 +448,9 @@ fn product_assembly_plan_exposes_build_feature_groups_explicitly() {
             "git",
             "browser-web",
             "mcp",
-            "miniapp",
             "computer-use",
+            "miniapp",
+            "canvas",
         ]
     );
 }
@@ -554,16 +470,30 @@ fn product_assembly_plan_reports_service_availability_by_capability() {
         .filter(|entry| entry.status() == ProductServiceCapabilityStatus::Unavailable)
         .collect::<Vec<_>>();
 
-    assert_eq!(unavailable.len(), 2);
+    assert_eq!(unavailable.len(), 4);
     assert_eq!(
         unavailable[0].requirement(),
+        ProductServiceCapabilityRequirement::new(
+            ProductCapabilityId::CodeAgent,
+            RuntimeServiceCapability::Git,
+        )
+    );
+    assert_eq!(
+        unavailable[1].requirement(),
+        ProductServiceCapabilityRequirement::new(
+            ProductCapabilityId::CodeAgent,
+            RuntimeServiceCapability::Network,
+        )
+    );
+    assert_eq!(
+        unavailable[2].requirement(),
         ProductServiceCapabilityRequirement::new(
             ProductCapabilityId::DeepReview,
             RuntimeServiceCapability::Git,
         )
     );
     assert_eq!(
-        unavailable[1].requirement(),
+        unavailable[3].requirement(),
         ProductServiceCapabilityRequirement::new(
             ProductCapabilityId::DeepResearch,
             RuntimeServiceCapability::Network,
@@ -584,6 +514,14 @@ fn product_runtime_assembly_reports_runtime_service_capability_gaps() {
             ProductServiceCapabilityRequirement::new(
                 ProductCapabilityId::CodeAgent,
                 RuntimeServiceCapability::Terminal,
+            ),
+            ProductServiceCapabilityRequirement::new(
+                ProductCapabilityId::CodeAgent,
+                RuntimeServiceCapability::Git,
+            ),
+            ProductServiceCapabilityRequirement::new(
+                ProductCapabilityId::CodeAgent,
+                RuntimeServiceCapability::Network,
             ),
             ProductServiceCapabilityRequirement::new(
                 ProductCapabilityId::DeepReview,
@@ -625,10 +563,6 @@ fn product_assembler_builds_runtime_parts_from_explicit_profile_input() {
         .expect("complete service set should assemble product runtime parts");
 
     assert_eq!(parts.plan().profile(), DeliveryProfile::Cli);
-    assert_eq!(
-        parts.harness_registry().provider_ids(),
-        vec!["core.deep_review", "core.deep_research", "core.miniapp"]
-    );
     assert!(parts.missing_service_requirements().is_empty());
     assert!(parts
         .services()
@@ -754,6 +688,14 @@ fn product_assembler_reports_missing_services_without_building_runtime_parts() {
                     RuntimeServiceCapability::Terminal,
                 ),
                 ProductServiceCapabilityRequirement::new(
+                    ProductCapabilityId::CodeAgent,
+                    RuntimeServiceCapability::Git,
+                ),
+                ProductServiceCapabilityRequirement::new(
+                    ProductCapabilityId::CodeAgent,
+                    RuntimeServiceCapability::Network,
+                ),
+                ProductServiceCapabilityRequirement::new(
                     ProductCapabilityId::DeepReview,
                     RuntimeServiceCapability::Git,
                 ),
@@ -786,12 +728,11 @@ fn product_assembler_allows_no_direct_core_profiles_without_product_services() {
         assert!(parts.plan().capability_set().ids().is_empty());
         assert!(parts.service_availability().is_empty());
         assert!(parts.missing_service_requirements().is_empty());
-        assert!(parts.harness_registry().provider_ids().is_empty());
     }
 }
 
 #[test]
-fn default_capability_assembly_keeps_service_tool_and_harness_facts_together() {
+fn default_capability_assembly_keeps_service_and_tool_facts_together() {
     let assembly = default_product_capability_assembly();
 
     let capability_ids = assembly
@@ -836,19 +777,16 @@ fn default_capability_assembly_keeps_service_tool_and_harness_facts_together() {
             "core.basic",
             "core.agent",
             "core.session",
+            "core.git",
+            "core.web",
+            "core.mcp",
+            "core.computer-use",
+            "core.review",
+            "core.miniapp",
+            "core.canvas",
             "core.integration",
             "core.openharmony"
         ]
-    );
-
-    let harness_provider_ids = assembly
-        .harness_provider_descriptors()
-        .iter()
-        .map(|descriptor| descriptor.provider_id())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        harness_provider_ids,
-        vec!["core.deep_review", "core.deep_research", "core.miniapp"]
     );
 }
 
@@ -866,6 +804,14 @@ fn capability_assembly_reports_missing_services_without_concrete_runtime_depende
     assert_eq!(
         missing,
         vec![
+            ProductServiceCapabilityRequirement::new(
+                ProductCapabilityId::CodeAgent,
+                RuntimeServiceCapability::Git,
+            ),
+            ProductServiceCapabilityRequirement::new(
+                ProductCapabilityId::CodeAgent,
+                RuntimeServiceCapability::Network,
+            ),
             ProductServiceCapabilityRequirement::new(
                 ProductCapabilityId::DeepReview,
                 RuntimeServiceCapability::Git,
@@ -896,11 +842,6 @@ fn capability_registry_rejects_unknown_tool_provider_groups() {
     )];
 
     let registry = ProductCapabilityRegistry::new(BROKEN_PACKS);
-    let harness_registry = registry
-        .build_harness_registry()
-        .expect("harness registry should not depend on tool provider group validity");
-    assert!(harness_registry.provider_ids().is_empty());
-
     let error = registry
         .try_tool_provider_group_plan()
         .expect_err("unknown provider groups must not be silently dropped");

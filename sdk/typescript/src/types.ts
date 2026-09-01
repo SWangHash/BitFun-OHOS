@@ -1,15 +1,39 @@
+export type AgentModelProvider =
+  | "openai"
+  | "responses"
+  | "anthropic"
+  | "gemini";
+
+export interface AgentModelOptions {
+  provider: AgentModelProvider;
+  model: string;
+  apiKey: string;
+  baseUrl?: string;
+}
+
 export interface AgentClientOptions {
   cwd: string;
-  /** Native `bitfun-sdk-host` path. Platform packages will provide this later. */
+  /** Advanced absolute-path override for the package-local native Host. */
   hostPath?: string;
   /** Deadline for the SDK Host initialize handshake. */
   initializeTimeoutMs?: number;
+  /** Process-lifetime model credentials installed into this Host connection. */
+  model: AgentModelOptions;
 }
 
 export interface AgentCapabilities {
   query: boolean;
   sessions: boolean;
   cancellation: boolean;
+  eventStream: boolean;
+  toolEvents: boolean;
+  imageInput: boolean;
+  permissionResponses: boolean;
+  structuredOutput: boolean;
+  usage: boolean;
+  customTools: boolean;
+  hooks: boolean;
+  mcpConfiguration: boolean;
 }
 
 export type SdkErrorCode =
@@ -61,22 +85,30 @@ export interface SdkErrorDetails {
   recovery?: RecoveryAction;
 }
 
-export type SessionLifetime = "connection";
+export type SessionLifetime = "connection" | "durable";
+
+export type UserInput =
+  | { type: "text"; text: string }
+  | { type: "local_image"; path: string };
+
+export type Input = string | readonly UserInput[];
+
+export type JsonSchema = Record<string, unknown>;
 
 export interface QueryInput {
-  prompt: string;
+  prompt: Input;
   agent?: string;
-  model?: string;
+  outputSchema?: JsonSchema;
 }
 
 export interface SessionCreateInput {
   sessionName?: string;
   agent?: string;
-  model?: string;
 }
 
 export interface TurnInput {
-  prompt: string;
+  prompt: Input;
+  outputSchema?: JsonSchema;
 }
 
 export interface Turn {
@@ -94,10 +126,58 @@ export interface AssistantTextDelta {
   text: string;
 }
 
+export interface ToolEvent {
+  type: "tool_event";
+  queryId: string;
+  sessionId: string;
+  turnId: string;
+  operationId: string;
+  sequence: number;
+  toolCallId: string;
+  toolName: string;
+  status: "started" | "progress" | "completed" | "failed" | "cancelled";
+  progress?: number;
+  durationMs?: number;
+}
+
+export interface PermissionSource {
+  kind: "tool_call" | "provider" | "extension";
+  identity: string;
+}
+
+export interface PermissionRequestEvent {
+  type: "permission_request";
+  queryId: string;
+  sessionId: string;
+  turnId: string;
+  operationId: string;
+  sequence: number;
+  requestId: string;
+  action: string;
+  resources: readonly string[];
+  source: PermissionSource;
+  toolCallId?: string;
+  responseTimeoutMs: number;
+}
+
+export type PermissionDecision = "allow_once" | "allow_always" | "reject";
+
+export interface PermissionResponse {
+  decision: PermissionDecision;
+  feedback?: string;
+}
+
 export type ResultStatus = "completed" | "failed" | "cancelled";
 
 export interface ResultError extends SdkErrorDetails {
   message: string;
+}
+
+export interface Usage {
+  inputTokens: number;
+  outputTokens?: number;
+  totalTokens: number;
+  cachedTokens?: number;
 }
 
 export interface Result {
@@ -108,7 +188,13 @@ export interface Result {
   operationId: string;
   status: ResultStatus;
   outputText: string;
+  structuredOutput?: unknown;
+  usage?: Usage;
   error?: ResultError;
 }
 
-export type QueryStreamItem = AssistantTextDelta | Result;
+export type QueryStreamItem =
+  | AssistantTextDelta
+  | ToolEvent
+  | PermissionRequestEvent
+  | Result;

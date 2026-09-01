@@ -1660,7 +1660,8 @@
       "workingDirectory": "Working directory:",
       "exitCode": "Exit code: {{code}}",
       "commandInterrupted": "Command interrupted",
-      "executionFailed": "Command execution failed"
+      "executionFailed": "Command execution failed",
+      "interruptFailed": "Could not interrupt the command. The host may not support per-tool cancel, or the request failed."
     },
     "runCode": {
       "title": "Run Code",
@@ -2001,6 +2002,9 @@
       "preparingDelete": "Preparing to delete session {{session}}",
       "deletingSession": "Deleting session {{session}}",
       "deletedSession": "Deleted session {{session}}",
+      "preparingRename": "Preparing to rename {{session}} to {{name}}",
+      "renamingSession": "Renaming {{session}} to {{name}}",
+      "renamedSession": "Renamed {{session}} to {{name}}",
       "preparingList": "Preparing to list sessions",
       "listingSessions": "Listing sessions",
       "listedSessions": "Found {{count}} sessions",

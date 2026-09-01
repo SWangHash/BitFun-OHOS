@@ -1,11 +1,21 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import { basename, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { AgentClient, SdkError } from "../src/index.js";
 import { createAgentClient } from "../src/internal/client.js";
+import { resolveHostPath } from "../src/internal/host-path.js";
 import { forceKillTree, startManagedHost } from "../src/internal/managed-host.js";
+import type { AgentClientOptions } from "../src/types.js";
+
+const model = {
+  provider: "openai" as const,
+  model: "fixture-model",
+  apiKey: "fixture-secret",
+  baseUrl: "http://127.0.0.1:43123/v1",
+};
 
 test("the managed transport owns one child Host process", async () => {
   const fixture = fileURLToPath(
@@ -16,7 +26,7 @@ test("the managed transport owns one child Host process", async () => {
     args: [fixture],
     cwd: process.cwd(),
   });
-  const client = await createAgentClient(transport, { cwd: process.cwd() });
+  const client = await createAgentClient(transport, { cwd: process.cwd(), model });
 
   assert.ok(client instanceof AgentClient);
   await client.close();
@@ -30,6 +40,7 @@ test("AgentClient.start reports a missing Host before an operation begins", asyn
       hostPath: fileURLToPath(
         new URL("../../../../test/fixtures/missing-host", import.meta.url),
       ),
+      model,
     }),
     (error: unknown) => {
       assert.ok(error instanceof SdkError);
@@ -39,6 +50,100 @@ test("AgentClient.start reports a missing Host before an operation begins", asyn
       return true;
     },
   );
+});
+
+test("the Host resolver uses the package-local executable without environment fallback", () => {
+  const previousHostPath = process.env.BITFUN_SDK_HOST_PATH;
+  process.env.BITFUN_SDK_HOST_PATH = process.execPath;
+  try {
+    const executableName = process.platform === "win32" ? "bitfun-sdk-host.exe" : "bitfun-sdk-host";
+    const expectedHost = fileURLToPath(
+      new URL(
+        `../native/${process.platform}-${process.arch}/${executableName}`,
+        import.meta.url,
+      ),
+    );
+    assert.equal(resolveHostPath(), expectedHost);
+    assert.notEqual(resolveHostPath(), process.execPath);
+  } finally {
+    if (previousHostPath === undefined) {
+      delete process.env.BITFUN_SDK_HOST_PATH;
+    } else {
+      process.env.BITFUN_SDK_HOST_PATH = previousHostPath;
+    }
+  }
+});
+
+test("AgentClient.start rejects a relative Host override before spawning", async () => {
+  await assert.rejects(
+    AgentClient.start({
+      cwd: dirname(process.execPath),
+      hostPath: basename(process.execPath),
+      initializeTimeoutMs: 100,
+      model,
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof SdkError);
+      assert.equal(error.code, "invalid_request");
+      assert.equal(error.stage, "initialize");
+      assert.equal(error.outcomeCertainty, "not_started");
+      assert.doesNotMatch(String(error.stack), /fixture-secret/);
+      return true;
+    },
+  );
+});
+
+test("AgentClient.start rejects invalid model options before spawning a Host", async (context) => {
+  const missingHost = fileURLToPath(
+    new URL("../../../../test/fixtures/missing-host", import.meta.url),
+  );
+  const cases: Array<{ name: string; options: unknown }> = [
+    {
+      name: "missing model",
+      options: { cwd: process.cwd(), hostPath: missingHost },
+    },
+    {
+      name: "blank model",
+      options: { cwd: process.cwd(), hostPath: missingHost, model: { ...model, model: " " } },
+    },
+    {
+      name: "blank API key",
+      options: { cwd: process.cwd(), hostPath: missingHost, model: { ...model, apiKey: " " } },
+    },
+    {
+      name: "unsupported provider",
+      options: {
+        cwd: process.cwd(),
+        hostPath: missingHost,
+        model: { ...model, provider: "unsupported" },
+      },
+    },
+    {
+      name: "invalid base URL",
+      options: {
+        cwd: process.cwd(),
+        hostPath: missingHost,
+        model: { ...model, baseUrl: "not an absolute URL" },
+      },
+    },
+  ];
+
+  for (const fixture of cases) {
+    await context.test(fixture.name, async () => {
+      await assert.rejects(
+        AgentClient.start(fixture.options as AgentClientOptions),
+        (error: unknown) => {
+          assert.ok(error instanceof SdkError);
+          assert.equal(error.code, "invalid_request");
+          assert.equal(error.stage, "initialize");
+          assert.equal(error.retryable, false);
+          assert.equal(error.outcomeCertainty, "not_started");
+          assert.doesNotMatch(String(error.stack), /fixture-secret/);
+          return true;
+        },
+      );
+    });
+  }
 });
 
 test("forced managed Host cleanup reclaims its descendant process tree", async () => {

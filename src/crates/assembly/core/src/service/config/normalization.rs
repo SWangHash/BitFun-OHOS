@@ -48,6 +48,9 @@ pub fn normalize_config_value(config: Value) -> ConfigNormalizationResult {
             diagnostics,
         };
     }
+
+    normalize_incompatible_telemetry_value(&mut value, &mut diagnostics);
+
     if previous_schema < u64::from(CURRENT_CONFIG_SCHEMA_VERSION) {
         if let Some(root) = value.as_object_mut() {
             root.insert(
@@ -71,6 +74,33 @@ pub fn normalize_config_value(config: Value) -> ConfigNormalizationResult {
         value,
         diagnostics,
     }
+}
+
+fn normalize_incompatible_telemetry_value(
+    config: &mut Value,
+    diagnostics: &mut Vec<ConfigDiagnostic>,
+) {
+    let Some(telemetry) = config
+        .get_mut("app")
+        .and_then(Value::as_object_mut)
+        .and_then(|app| app.get_mut("telemetry"))
+    else {
+        return;
+    };
+
+    if telemetry.is_boolean() {
+        return;
+    }
+
+    *telemetry = Value::Bool(false);
+    diagnostics.push(ConfigDiagnostic {
+        path: "app.telemetry".to_string(),
+        message: "Disabled an unsupported telemetry configuration during compatibility recovery"
+            .to_string(),
+        code: "CONFIG_TELEMETRY_DOWNGRADED".to_string(),
+        severity: ConfigDiagnosticSeverity::Warning,
+        recoverability: ConfigDiagnosticRecoverability::AutoFix,
+    });
 }
 
 pub fn reject_unsupported_schema(diagnostics: &[ConfigDiagnostic]) -> BitFunResult<()> {
@@ -212,6 +242,12 @@ fn diagnose_reference_repair(
         severity: ConfigDiagnosticSeverity::Warning,
         recoverability: ConfigDiagnosticRecoverability::AutoFix,
     });
+}
+
+#[derive(Clone, Copy)]
+enum MissingSlotPolicy {
+    FillFromFirstCapableModel,
+    Preserve,
 }
 
 /// Reconciles every product model reference against both enablement and the
@@ -361,12 +397,12 @@ pub fn reconcile_model_references(config: &mut GlobalConfig) -> ModelReferenceRe
     let mut reconcile_slot = |slot: &mut Option<String>,
                               path: &str,
                               capability: ModelCapability,
-                              fill_when_missing: bool| {
+                              missing_policy: MissingSlotPolicy| {
         let previous = slot.clone();
         let valid = previous
             .as_deref()
             .is_some_and(|id| enabled_model_with_capability(&snapshot, id, capability.clone()));
-        if valid || (previous.is_none() && !fill_when_missing) {
+        if valid || (previous.is_none() && matches!(missing_policy, MissingSlotPolicy::Preserve)) {
             return;
         }
         let replacement = first_enabled_model_with_capability(&snapshot, capability);
@@ -390,37 +426,37 @@ pub fn reconcile_model_references(config: &mut GlobalConfig) -> ModelReferenceRe
         &mut config.ai.default_models.primary,
         "ai.default_models.primary",
         ModelCapability::TextChat,
-        true,
+        MissingSlotPolicy::FillFromFirstCapableModel,
     );
     reconcile_slot(
         &mut config.ai.default_models.fast,
         "ai.default_models.fast",
         ModelCapability::TextChat,
-        true,
+        MissingSlotPolicy::Preserve,
     );
     reconcile_slot(
         &mut config.ai.default_models.image_understanding,
         "ai.default_models.image_understanding",
         ModelCapability::ImageUnderstanding,
-        false,
+        MissingSlotPolicy::Preserve,
     );
     reconcile_slot(
         &mut config.ai.default_models.image_generation,
         "ai.default_models.image_generation",
         ModelCapability::ImageGeneration,
-        false,
+        MissingSlotPolicy::Preserve,
     );
     reconcile_slot(
         &mut config.ai.default_models.search,
         "ai.default_models.search",
         ModelCapability::Search,
-        false,
+        MissingSlotPolicy::Preserve,
     );
     reconcile_slot(
         &mut config.ai.default_models.speech_recognition,
         "ai.default_models.speech_recognition",
         ModelCapability::SpeechRecognition,
-        false,
+        MissingSlotPolicy::Preserve,
     );
 
     result.invalidated_model_ids = invalidated.into_iter().collect();
@@ -509,6 +545,38 @@ mod tests {
             Some("speech")
         );
         assert!(result.default_models_changed);
+    }
+
+    #[test]
+    fn missing_fast_slot_is_preserved_and_resolves_to_primary() {
+        let mut config = GlobalConfig::default();
+        config.ai.models = vec![
+            AIModelConfig {
+                id: "first-text".to_string(),
+                enabled: true,
+                category: ModelCategory::GeneralChat,
+                capabilities: vec![ModelCapability::TextChat],
+                ..AIModelConfig::default()
+            },
+            AIModelConfig {
+                id: "primary-text".to_string(),
+                enabled: true,
+                category: ModelCategory::GeneralChat,
+                capabilities: vec![ModelCapability::TextChat],
+                ..AIModelConfig::default()
+            },
+        ];
+        config.ai.default_models.primary = Some("primary-text".to_string());
+        config.ai.default_models.fast = None;
+
+        let result = reconcile_model_references(&mut config);
+
+        assert_eq!(config.ai.default_models.fast, None);
+        assert_eq!(
+            config.ai.resolve_model_selection("fast").as_deref(),
+            Some("primary-text")
+        );
+        assert!(!result.default_models_changed);
     }
 
     #[test]

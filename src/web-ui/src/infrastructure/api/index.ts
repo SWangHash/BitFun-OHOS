@@ -23,7 +23,6 @@ import { aiApi } from './service-api/AIApi';
 import { toolAPI } from './service-api/ToolAPI';
 import { agentAPI } from './service-api/AgentAPI';
 import { systemAPI } from './service-api/SystemAPI';
-import { projectAPI } from './service-api/ProjectAPI';
 import { diffAPI } from './service-api/DiffAPI';
 import { snapshotAPI } from './service-api/SnapshotAPI';
 import { globalAPI } from './service-api/GlobalAPI';
@@ -33,7 +32,6 @@ import { permissionAPI } from './service-api/PermissionAPI';
 import { pageAPI } from './service-api/PageAPI';
 import { gitAPI } from './service-api/GitAPI';
 import { gitAgentAPI } from './service-api/GitAgentAPI';
-import { gitRepoHistoryAPI, type GitRepoHistory } from './service-api/GitRepoHistoryAPI';
 import { sessionAPI } from './service-api/SessionAPI';
 import { i18nAPI } from './service-api/I18nAPI';
 import { btwAPI } from './service-api/BtwAPI';
@@ -47,7 +45,7 @@ import { feedbackAPI } from './service-api/FeedbackAPI';
 import { localModelApi } from './service-api/LocalModelAPI';
 
 // Export API modules
-export { feedbackAPI, workspaceAPI, configAPI, aiApi, toolAPI, agentAPI, systemAPI, projectAPI, diffAPI, snapshotAPI, globalAPI, contextAPI, cronAPI, permissionAPI, pageAPI, gitAPI, gitAgentAPI, gitRepoHistoryAPI, sessionAPI, i18nAPI, btwAPI, editorAiAPI, reviewPlatformAPI, insightsApi, tokenUsageStatisticsApi, speechAPI, worktreeAPI, localModelApi };
+export {feedbackAPI, workspaceAPI, configAPI, aiApi, toolAPI, agentAPI, systemAPI, diffAPI, snapshotAPI, globalAPI, contextAPI, cronAPI, permissionAPI, pageAPI, gitAPI, gitAgentAPI, sessionAPI, i18nAPI, btwAPI, editorAiAPI, reviewPlatformAPI, insightsApi, tokenUsageStatisticsApi, speechAPI, worktreeAPI };
 export { TokenUsageStatisticsUnavailableError } from './tokenUsageStatisticsApi';
 export * from './service-api/ReviewPlatformAPI';
 
@@ -63,7 +61,6 @@ export type {
 } from './tokenUsageStatisticsApi';
 
 // Export types
-export type { GitRepoHistory };
 export type { CheckForUpdatesResponse } from './service-api/SystemAPI';
 
 // BitFun API collection: a single access point for all API modules.

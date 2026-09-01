@@ -1,6 +1,7 @@
 //! Agentic system assembly shared by CLI, ACP, and other hosts.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
 use log::info;
@@ -17,6 +18,16 @@ use crate::infrastructure::try_get_path_manager_arc;
 use crate::runtime_ownership::CoreRuntimeOwnership;
 use crate::service::token_usage::{TokenUsageService, TokenUsageSubscriber};
 pub use bitfun_product_capabilities::DeliveryProfile;
+
+fn session_manager_config_for_profile(
+    delivery_profile: DeliveryProfile,
+) -> session::SessionManagerConfig {
+    let mut config = session::SessionManagerConfig::default();
+    if delivery_profile == DeliveryProfile::Sdk {
+        config.session_idle_timeout = Duration::MAX;
+    }
+    config
+}
 
 /// Agentic runtime state shared by host adapters.
 #[derive(Clone)]
@@ -42,6 +53,8 @@ pub async fn init_agentic_system() -> Result<AgenticSystem> {
 /// Product composition roots call this before configuration canonicalization;
 /// later initialization verifies the same profile and rejects replacement.
 pub fn select_agentic_system_profile(delivery_profile: DeliveryProfile) -> Result<()> {
+    crate::agentic::agents::initialize_global_agent_registry_for_profile(delivery_profile)
+        .map_err(anyhow::Error::msg)?;
     tools::registry::initialize_global_tool_registry_for_profile(delivery_profile)
         .map(|_| ())
         .map_err(anyhow::Error::msg)
@@ -86,7 +99,7 @@ pub async fn init_agentic_system_for_profile_with_runtime_ownership(
     let session_manager = Arc::new(session::SessionManager::new(
         context_store,
         persistence_manager,
-        Default::default(),
+        session_manager_config_for_profile(delivery_profile),
     ));
 
     event_router.subscribe_internal(
@@ -120,12 +133,13 @@ pub async fn init_agentic_system_for_profile_with_runtime_ownership(
         tool_pipeline.clone(),
     ));
 
+    let execution_config = execution::execution_engine_config_from_global_config().await;
     let execution_engine = Arc::new(execution::ExecutionEngine::new(
         round_executor,
         event_queue.clone(),
         session_manager.clone(),
         context_compressor,
-        execution::ExecutionEngineConfig::default(),
+        execution_config,
     ));
 
     let coordinator = Arc::new(coordination::ConversationCoordinator::new(
@@ -164,4 +178,22 @@ pub async fn init_agentic_system_for_profile_with_runtime_ownership(
         event_queue,
         token_usage_service,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{session_manager_config_for_profile, DeliveryProfile};
+    use std::time::Duration;
+
+    #[test]
+    fn sdk_profile_keeps_attached_sessions_loaded_until_the_host_releases_them() {
+        assert_eq!(
+            session_manager_config_for_profile(DeliveryProfile::Sdk).session_idle_timeout,
+            Duration::MAX
+        );
+        assert_eq!(
+            session_manager_config_for_profile(DeliveryProfile::ProductFull).session_idle_timeout,
+            Duration::from_secs(3600)
+        );
+    }
 }

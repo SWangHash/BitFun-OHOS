@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-pub const AGENT_RUNTIME_SDK_API_VERSION: u32 = 6;
+pub const AGENT_RUNTIME_SDK_API_VERSION: u32 = 9;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -35,6 +35,7 @@ impl AgentRuntimeSdkCompatibility {
 }
 
 pub use crate::context_profile::{ContextProfile, ContextProfilePolicy, ModelCapabilityProfile};
+pub use crate::dialog_turn::TurnTokenUsage;
 pub use crate::event_source::{AgentEventReceiver, AgentEventSource, AgentSessionEventReceiver};
 pub use crate::permission::{
     PermissionReplyResolution, PermissionRequestEventReceiver, PermissionRequestManager,
@@ -64,10 +65,6 @@ pub use bitfun_core_types::SessionUsageReport;
 // on `bitfun-events` directly. These are the exact types the runtime's event
 // subscribers receive; the app-server forwards them as `agent/event` notifications.
 pub use bitfun_events::{AgenticEvent, AgenticEventEnvelope};
-pub use bitfun_harness::{
-    build_descriptor_harness_registry, HarnessCapability, HarnessProviderDescriptor,
-    HarnessRegistry, HarnessWorkflow,
-};
 pub use bitfun_runtime_ports::{
     AgentBackgroundResultRequest, AgentContextReloadPort, AgentDialogSteerRequest,
     AgentDialogTurnExecution, AgentDialogTurnPort, AgentDialogTurnRecoveryOutcome,
@@ -86,11 +83,11 @@ pub use bitfun_runtime_ports::{
     AgentSessionListRequest, AgentSessionManagementPort, AgentSessionModePort,
     AgentSessionModeUpdateRequest, AgentSessionModelPort, AgentSessionModelSelection,
     AgentSessionModelSelectionUpdateRequest, AgentSessionModelUpdateRequest,
-    AgentSessionRenameRequest, AgentSessionRevertPort, AgentSessionRevertRequest,
-    AgentSessionRevertResult, AgentSessionRollbackToTurnOutcome, AgentSessionRollbackToTurnRequest,
-    AgentSessionSummary, AgentSessionUsagePort, AgentSessionUsageRequest,
-    AgentSessionWorkspaceBinding, AgentSessionWorkspaceRequest, AgentSubmissionPort,
-    AgentSubmissionRequest, AgentSubmissionResult, AgentSubmissionSource,
+    AgentSessionReleaseRequest, AgentSessionRenameRequest, AgentSessionRevertPort,
+    AgentSessionRevertRequest, AgentSessionRevertResult, AgentSessionRollbackToTurnOutcome,
+    AgentSessionRollbackToTurnRequest, AgentSessionSummary, AgentSessionUsagePort,
+    AgentSessionUsageRequest, AgentSessionWorkspaceBinding, AgentSessionWorkspaceRequest,
+    AgentSubmissionPort, AgentSubmissionRequest, AgentSubmissionResult, AgentSubmissionSource,
     AgentThreadGoalCreateRequest, AgentThreadGoalDeliveryRequest, AgentThreadGoalGetRequest,
     AgentThreadGoalManagementPort, AgentThreadGoalUpdateStatusRequest,
     AgentTransientSessionDiscardRequest, AgentTurnCancellationPort, AgentTurnCancellationRequest,
@@ -307,11 +304,6 @@ impl AgentRuntimeBuilder {
         self
     }
 
-    pub fn with_harness_registry(mut self, registry: Arc<HarnessRegistry>) -> Self {
-        self.inner = self.inner.with_harness_registry(registry);
-        self
-    }
-
     pub fn with_hook_registry(mut self, registry: RuntimeHookRegistry) -> Self {
         self.inner = self.inner.with_hook_registry(registry);
         self
@@ -437,10 +429,6 @@ impl AgentRuntime {
         self.inner.registered_tool_names()
     }
 
-    pub fn harness_provider_ids(&self) -> Vec<&str> {
-        self.inner.harness_provider_ids()
-    }
-
     pub fn hook_registry(&self) -> &RuntimeHookRegistry {
         self.inner.hook_registry()
     }
@@ -489,6 +477,13 @@ impl AgentRuntime {
         request: AgentTransientSessionDiscardRequest,
     ) -> Result<bool, RuntimeError> {
         self.inner.discard_transient_session(request).await
+    }
+
+    pub async fn unload_persisted_session(
+        &self,
+        request: AgentSessionReleaseRequest,
+    ) -> Result<bool, RuntimeError> {
+        self.inner.unload_persisted_session(request).await
     }
 
     pub async fn list_sessions(

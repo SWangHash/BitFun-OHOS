@@ -623,26 +623,34 @@ pub fn create_main_window(
     match builder.build() {
         Ok(window) => {
             #[cfg(not(target_env = "ohos"))]
-            crate::restore_main_window_state(&window);
-            crate::webview_recovery::install(&window);
-            startup_trace.record_elapsed_step("native_window", "webview_build", build_started_at);
-            debug!(
+            {
+                let reapply_maximized = crate::restore_main_window_state(&window);
+                crate::webview_recovery::install(&window);
+                startup_trace.record_elapsed_step("native_window", "webview_build", build_started_at);
+                debug!(
                 "Main window creation step completed: step=build url_kind={} duration_ms={} total_duration_ms={}",
                 main_url_kind,
                 build_started_at.elapsed().as_millis(),
                 total_started_at.elapsed().as_millis()
             );
-            #[cfg(any(debug_assertions, feature = "devtools"))]
-            {
-                if std::env::var("BITFUN_OPEN_DEVTOOLS")
-                    .map(|v| v == "1")
-                    .unwrap_or(false)
+                #[cfg(any(debug_assertions, feature = "devtools"))]
                 {
-                    window.open_devtools();
+                    if std::env::var("BITFUN_OPEN_DEVTOOLS")
+                        .map(|v| v == "1")
+                        .unwrap_or(false)
+                    {
+                        window.open_devtools();
+                    }
                 }
-            }
 
-            show_main_window_for_startup(&window, total_started_at, startup_trace);
+                show_main_window_for_startup(
+                    &window,
+                    total_started_at,
+                    startup_trace,
+                    reapply_maximized,
+                );
+
+            }
         }
         Err(e) => {
             error!(
@@ -658,6 +666,7 @@ fn show_main_window_for_startup(
     window: &tauri::WebviewWindow,
     total_started_at: Instant,
     startup_trace: &DesktopStartupTrace,
+    reapply_maximized: bool,
 ) {
     #[cfg(not(target_env = "ohos"))]
     {
@@ -684,6 +693,28 @@ fn show_main_window_for_startup(
         focus_started_at.elapsed().as_millis(),
         total_started_at.elapsed().as_millis()
     );
+
+    // Maximize only after the window is visible: maximizing a hidden
+    // undecorated window on Windows is dropped on show and leaves a bogus
+    // normal-placement rect behind (see `main_window_restore_flags`).
+    if reapply_maximized {
+        match window.is_maximized() {
+            Ok(true) => {}
+            Ok(false) => {
+                if let Err(error) = window.maximize() {
+                    log::warn!(
+                        "Failed to re-apply persisted maximized state after main window show: {}",
+                        error
+                    );
+                }
+            }
+            Err(error) => {
+                log::warn!(
+                    "Failed to query main window maximized state after show: {}",
+                    error
+                )
+            }
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
@@ -14,6 +14,7 @@ import { GalleryZone } from '@/app/components';
 import '@/app/components/GalleryLayout/GalleryLayout.scss';
 import { Switch } from '@/component-library';
 import { configAPI } from '@/infrastructure/api/service-api/ConfigAPI';
+import { api } from '@/infrastructure/api/service-api/ApiClient';
 import type { AgentProfileConfigItem, ModeSkillInfo } from '@/infrastructure/config/types';
 import {
   buildSkillCoverageSourceMap,
@@ -26,6 +27,8 @@ import type { DynamicToolInfo } from '@/shared/types/agent-api';
 import { createLogger } from '@/shared/utils/logger';
 import { isUserSelectableToolName } from '@/shared/utils/toolVisibility';
 import { useNurseryStore } from '../nurseryStore';
+import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
+import { canQueryToolCatalogOnSurface } from '@/infrastructure/peer-device/peerCapabilityResolution';
 import './NurseryView.scss';
 
 const log = createLogger('AssistantDefaultsPage');
@@ -81,9 +84,21 @@ function formatSkillDisplayName(
 const AssistantDefaultsPage: React.FC = () => {
   const { t } = useTranslation('scenes/profile');
   const { openGallery } = useNurseryStore();
+  const peerDevice = usePeerDeviceModeOptional();
+  // Identity of the rendered surface, so A→B (same capability, same workspace)
+  // still reloads the catalog from B instead of keeping A's stale list while
+  // config mutations route to B. See PR #2428 #3.
+  const renderedPeerDeviceId = peerDevice?.peerMode.active
+    ? peerDevice.peerMode.deviceId
+    : null;
 
   const [assistantModeConfig, setAssistantModeConfig] = useState<AgentProfileConfigItem | null>(null);
   const [availableTools, setAvailableTools] = useState<ToolInfo[]>([]);
+  // Distinguish "host doesn't expose a catalog" / "read failed" / "really no
+  // tools" so the UI doesn't collapse all three into an empty list. See #2428 #5.
+  const [toolCatalogStatus, setToolCatalogStatus] = useState<
+    'available' | 'unsupported' | 'failed' | 'empty'
+  >('available');
   const [mcpServers, setMcpServers] = useState<MCPServerInfo[]>([]);
   const [modeSkills, setModeSkills] = useState<ModeSkillInfo[]>([]);
   const [toolsLoading, setToolsLoading] = useState<Record<string, boolean>>({});
@@ -91,6 +106,30 @@ const AssistantDefaultsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [detail, setDetail] = useState<TemplateDetail | null>(null);
+  const loadRequestIdRef = useRef(0);
+
+  // Whether the current host advertises the `tool_catalog` capability. Local
+  // always does; a peer host must answer `peer_mode_ping` with tool_catalog.
+  // While the capability is still being probed (null) we stay optimistic so the
+  // tool list doesn't disappear then reappear — a CLI Peer Host now implements
+  // get_all_tools_info, so the optimistic default is correct in the common case.
+  // An older CLI that didn't advertise the field is resolved via `hostKind`
+  // (cli → unsupported) by the shared helper, so the UI shows the unsupported
+  // state instead of masking a "not supported" error as an empty list. See PR
+  // #2428 round 5 #1.
+  const canQueryToolCatalog = canQueryToolCatalogOnSurface(
+    Boolean(peerDevice?.peerMode.active),
+    peerDevice?.currentPeerCapabilities ?? null,
+  );
+
+  // Writes (tool toggle, group toggle-all, reset) only make sense when the
+  // catalog loaded from this host. An unsupported or failed read would let the
+  // user toggle entries that don't reflect the runtime and save a config that
+  // the host can't act on. `empty` (catalog available, just no tools) keeps
+  // writes enabled because there is nothing to toggle anyway. See PR #2428
+  // round 5 #2.
+  const toolCatalogWritable = toolCatalogStatus === 'available' || toolCatalogStatus === 'empty';
+  const toolCatalogUnavailable = toolCatalogStatus === 'unsupported' || toolCatalogStatus === 'failed';
 
   const skillsEnabled = useMemo(
     () => modeSkills.filter((skill) => skill.effectiveEnabled),
@@ -180,27 +219,57 @@ const AssistantDefaultsPage: React.FC = () => {
   }, [mcpToolsByServer, mcpServers]);
 
   useEffect(() => {
+    const requestId = ++loadRequestIdRef.current;
+
     (async () => {
       setLoading(true);
       try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        const [modeConf, tools, skillList, servers] = await Promise.all([
+        // Skip the tool catalog invoke when the peer host cannot answer it,
+        // instead of swallowing the unsupported error as an empty list. The
+        // empty list then means "this host doesn't expose a catalog", not
+        // "the runtime has no tools".
+        let toolsPromise: Promise<{
+          tools: ToolInfo[];
+          status: 'available' | 'unsupported' | 'failed' | 'empty';
+        }>;
+        if (canQueryToolCatalog) {
+          toolsPromise = api.invoke<ToolInfo[]>('get_all_tools_info')
+            .then((tools) => ({
+              tools,
+              status: tools.length > 0 ? 'available' as const : 'empty' as const,
+            }))
+            .catch((error) => {
+              log.error('Failed to load tool catalog', { error });
+              return { tools: [] as ToolInfo[], status: 'failed' as const };
+            });
+        } else {
+          toolsPromise = Promise.resolve({
+            tools: [] as ToolInfo[],
+            status: 'unsupported' as const,
+          });
+        }
+        const [modeConf, toolCatalog, skillList, servers] = await Promise.all([
           configAPI.getAgentProfileConfig(ASSISTANT_MODE_ID).catch(() => null as AgentProfileConfigItem | null),
-          invoke<ToolInfo[]>('get_all_tools_info').catch(() => [] as ToolInfo[]),
+          toolsPromise,
           configAPI.getModeSkillConfigs({ modeId: ASSISTANT_MODE_ID }).catch(() => [] as ModeSkillInfo[]),
           MCPAPI.getServers().catch(() => [] as MCPServerInfo[]),
         ]);
+        if (requestId !== loadRequestIdRef.current) return;
+
         setAssistantModeConfig(modeConf);
-        setAvailableTools(tools);
+        setAvailableTools(toolCatalog.tools);
+        setToolCatalogStatus(toolCatalog.status);
         setModeSkills(skillList ?? []);
         setMcpServers(servers ?? []);
       } catch (e) {
         log.error('Failed to load assistant defaults config', e);
       } finally {
-        setLoading(false);
+        if (requestId === loadRequestIdRef.current) {
+          setLoading(false);
+        }
       }
     })();
-  }, []);
+  }, [canQueryToolCatalog, renderedPeerDeviceId]);
 
   useEffect(() => {
     if (!detail) return;
@@ -350,6 +419,7 @@ const AssistantDefaultsPage: React.FC = () => {
               size="small"
               checked={enabled}
               loading={toolsLoading[tool.name]}
+              disabled={!toolCatalogWritable || Boolean(toolsLoading[tool.name])}
               onChange={() => handleToolToggle(tool.name)}
               aria-label={tool.name}
             />
@@ -515,6 +585,7 @@ const AssistantDefaultsPage: React.FC = () => {
           <Switch
             size="small"
             checked={allOn}
+            disabled={!toolCatalogWritable}
             onChange={() => handleGroupToggleAll(toolNames)}
             aria-label={`Toggle all in ${label}`}
           />
@@ -563,6 +634,7 @@ const AssistantDefaultsPage: React.FC = () => {
                 size="small"
                 checked={enabled}
                 loading={toolsLoading[tool.name]}
+                disabled={!toolCatalogWritable || Boolean(toolsLoading[tool.name])}
                 onChange={() => handleToolToggle(tool.name)}
                 aria-label={tool.name}
               />
@@ -707,6 +779,7 @@ const AssistantDefaultsPage: React.FC = () => {
                   type="button"
                   className="gallery-plain-icon-btn"
                   onClick={handleResetTools}
+                  disabled={!toolCatalogWritable}
                   title={t('actions.reset')}
                   aria-label={t('actions.reset')}
                 >
@@ -715,7 +788,13 @@ const AssistantDefaultsPage: React.FC = () => {
               )}
             >
               {builtinTools.length === 0 ? (
-                <p className="nursery-empty">{t('empty.tools')}</p>
+                <p className="nursery-empty">
+                  {toolCatalogStatus === 'unsupported'
+                    ? t('empty.toolsUnsupported')
+                    : toolCatalogStatus === 'failed'
+                      ? t('empty.toolsFailed')
+                      : t('empty.tools')}
+                </p>
               ) : (
                 renderToolEnabledDisabledSplit(builtinToolsEnabled, builtinToolsDisabled, false)
               )}
@@ -724,10 +803,21 @@ const AssistantDefaultsPage: React.FC = () => {
             <GalleryZone
               title={t('nursery.template.mcpToolsSection')}
             >
-              {mcpServerIds.size === 0 ? (
+              {toolCatalogUnavailable ? (
                 <div className="tc-mcp-empty">
                   <Plug2 size={20} className="tc-mcp-empty__icon" />
-                  <span className="tc-mcp-empty__text">{t('nursery.template.mcpEmptyTitle')}</span>
+                  <span className="tc-mcp-empty__text">
+                    {toolCatalogStatus === 'unsupported'
+                      ? t('empty.toolsUnsupported')
+                      : t('empty.toolsFailed')}
+                  </span>
+                </div>
+              ) : mcpServerIds.size === 0 ? (
+                <div className="tc-mcp-empty">
+                  <Plug2 size={20} className="tc-mcp-empty__icon" />
+                  <span className="tc-mcp-empty__text">
+                    {t('nursery.template.mcpEmptyTitle')}
+                  </span>
                   <span className="tc-mcp-empty__hint">{t('nursery.template.mcpEmptyHint')}</span>
                 </div>
               ) : (

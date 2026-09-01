@@ -148,6 +148,7 @@ async fn submit_dialog_turn(state: &PeerHostState, args: &Value) -> Result<Value
         .submit_dialog_turn(AgentDialogTurnRequest {
             session_id: session_id.clone(),
             message: user_input,
+            output_schema: None,
             original_message: original_user_input,
             turn_id: Some(turn_id.clone()),
             execution: Default::default(),
@@ -221,6 +222,30 @@ pub(crate) async fn cancel_dialog_turn(
         })
         .await
         .map_err(|error| format!("Failed to cancel dialog turn: {}", error.into_message()))?;
+    Ok(json!({ "success": true }))
+}
+
+/// Cancel a single running tool execution on this host.
+///
+/// The controller renders Terminal cards for Turns this host owns, including
+/// the Interrupt button. Without this handler the `cancel_tool` HostInvoke
+/// command fell into the unsupported dispatch branch: the controller restored
+/// the button and logged an error while the target command kept running here.
+/// This reaches the Core-owned coordinator via the same compatibility surface
+/// the Desktop `cancel_tool` Tauri command uses — one level finer than
+/// `cancel_dialog_turn`.
+pub(crate) async fn cancel_tool(
+    state: &PeerHostState,
+    args: &Value,
+) -> Result<Value, String> {
+    let request = request_value(args);
+    let tool_use_id = get_string(request, "toolUseId")?;
+    let reason = optional_string(request, "reason")
+        .unwrap_or_else(|| "User cancelled".to_string());
+    state
+        .compatibility
+        .cancel_tool(&tool_use_id, reason)
+        .await?;
     Ok(json!({ "success": true }))
 }
 

@@ -33,7 +33,6 @@ import './UsageStatisticsConfig.scss';
 const SERIES_COLORS = {
   input: 'var(--bf-appearance-token-color-accent-500)',
   output: 'var(--bf-appearance-token-color-success)',
-  cacheCreation: 'var(--bf-appearance-token-color-warning)',
   cacheRead: 'var(--bf-appearance-token-color-cyan-500)',
   cacheHitRate: 'var(--bf-appearance-token-color-purple-500)',
 } as const;
@@ -366,13 +365,12 @@ interface TrendChartProps {
 }
 
 const TREND_SERIES: {
-  key: 'inputTokens' | 'outputTokens' | 'cacheReadTokens' | 'cacheWriteTokens';
+  key: 'inputTokens' | 'outputTokens' | 'cacheReadTokens';
   color: string;
   legendKey: string;
 }[] = [
   { key: 'inputTokens', color: SERIES_COLORS.input, legendKey: 'trend.legend.input' },
   { key: 'outputTokens', color: SERIES_COLORS.output, legendKey: 'trend.legend.output' },
-  { key: 'cacheWriteTokens', color: SERIES_COLORS.cacheCreation, legendKey: 'trend.legend.cacheCreation' },
   { key: 'cacheReadTokens', color: SERIES_COLORS.cacheRead, legendKey: 'trend.legend.cacheRead' },
 ];
 
@@ -391,6 +389,18 @@ function niceMax(value: number): number {
   return nice * magnitude;
 }
 
+function cacheHitRateForTrend(
+  point: UsageStatistics['trend'][number],
+): number | null {
+  if (point.cacheHitRate !== null) return point.cacheHitRate;
+
+  const isIdleBucket = point.inputTokens === 0
+    && point.outputTokens === 0
+    && point.cacheReadTokens === 0
+    && point.cacheWriteTokens === 0;
+  return isIdleBucket ? 0 : null;
+}
+
 const TrendChart: React.FC<TrendChartProps> = ({ points, granularity, timeZone }) => {
   const { t, formatDate } = useI18n('settings/usage-statistics');
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -404,7 +414,6 @@ const TrendChart: React.FC<TrendChartProps> = ({ points, granularity, timeZone }
       point.inputTokens,
       point.outputTokens,
       point.cacheReadTokens,
-      point.cacheWriteTokens,
     ), 0),
   );
   const yTicks = 4;
@@ -416,8 +425,8 @@ const TrendChart: React.FC<TrendChartProps> = ({ points, granularity, timeZone }
   const yFor = (value: number): number => (
     PAD_TOP + plotHeight - (value / maxTokens) * plotHeight
   );
-  const rateFor = (value: number | null): number | null => (
-    value === null ? null : PAD_TOP + plotHeight - value * plotHeight
+  const rateFor = (value: number): number => (
+    PAD_TOP + plotHeight - value * plotHeight
   );
 
   const xTickIndexes = useMemo(() => {
@@ -430,6 +439,27 @@ const TrendChart: React.FC<TrendChartProps> = ({ points, granularity, timeZone }
   if (points.length === 0) return null;
 
   const hovered = hoverIndex !== null ? points[hoverIndex] : null;
+  const hoveredHitRate = hovered ? cacheHitRateForTrend(hovered) : null;
+
+  // Synthesized idle buckets sit at 0% to keep ordinary idle stretches
+  // continuous. Active buckets without cache telemetry remain real gaps so
+  // the chart does not claim that an unsupported provider had a 0% hit rate.
+  const hitRateSegments: Array<Array<{ x: number; y: number }>> = [];
+  {
+    let current: Array<{ x: number; y: number }> = [];
+    points.forEach((point, index) => {
+      const rate = cacheHitRateForTrend(point);
+      if (rate === null) {
+        if (current.length > 0) {
+          hitRateSegments.push(current);
+          current = [];
+        }
+        return;
+      }
+      current.push({ x: xFor(index), y: rateFor(rate) });
+    });
+    if (current.length > 0) hitRateSegments.push(current);
+  }
 
   return (
     <div className="bitfun-usage-stats__trend">
@@ -490,22 +520,31 @@ const TrendChart: React.FC<TrendChartProps> = ({ points, granularity, timeZone }
           />
         ))}
 
-        {/* Cache hit rate (right axis, dashed) */}
-        <polyline
-          points={points
-            .map((point, index) => {
-              const y = rateFor(point.cacheHitRate);
-              return y === null ? '' : `${xFor(index)},${y}`;
-            })
-            .filter(Boolean)
-            .join(' ')}
-          fill="none"
-          stroke={SERIES_COLORS.cacheHitRate}
-          strokeWidth="2"
-          strokeDasharray="4 4"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
+        {/* Cache hit rate (right axis, dashed). */}
+        {hitRateSegments.map((segment, segmentIndex) =>
+          segment.length === 1 ? (
+            <circle
+              key={`rate-segment-${segmentIndex}`}
+              cx={segment[0].x}
+              cy={segment[0].y}
+              r="2.5"
+              fill={SERIES_COLORS.cacheHitRate}
+              data-cache-hit-rate-segment="point"
+            />
+          ) : (
+            <polyline
+              key={`rate-segment-${segmentIndex}`}
+              points={segment.map(point => `${point.x},${point.y}`).join(' ')}
+              fill="none"
+              stroke={SERIES_COLORS.cacheHitRate}
+              strokeWidth="2"
+              strokeDasharray="4 4"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              data-cache-hit-rate-segment="line"
+            />
+          ),
+        )}
 
         {/* Hover capture */}
         <rect
@@ -530,6 +569,30 @@ const TrendChart: React.FC<TrendChartProps> = ({ points, granularity, timeZone }
               y2={PAD_TOP + plotHeight}
               className="bitfun-usage-stats__trend-cursor"
             />
+            {/* Hover markers: one dot per series so small values stay visible
+                where a zero-baseline token axis would otherwise flatten them
+                (e.g. 276K next to a 20M peak). */}
+            {TREND_SERIES.map((series) => (
+              <circle
+                key={`hover-dot-${series.key}`}
+                cx={xFor(hoverIndex)}
+                cy={yFor(hovered[series.key])}
+                r="3.5"
+                fill={series.color}
+                stroke="var(--bf-appearance-token-element-bg-soft)"
+                strokeWidth="1"
+              />
+            ))}
+            {hoveredHitRate !== null && (
+              <circle
+                cx={xFor(hoverIndex)}
+                cy={rateFor(hoveredHitRate)}
+                r="3.5"
+                fill={SERIES_COLORS.cacheHitRate}
+                stroke="var(--bf-appearance-token-element-bg-soft)"
+                strokeWidth="1"
+              />
+            )}
             <g className="bitfun-usage-stats__trend-tooltip">
               <rect
                 x={Math.min(Math.max(xFor(hoverIndex) - 92, PAD_LEFT), CHART_WIDTH - PAD_RIGHT - 184)}
@@ -548,12 +611,12 @@ const TrendChart: React.FC<TrendChartProps> = ({ points, granularity, timeZone }
               {[
                 { label: t('trend.legend.input'), value: hovered.inputTokens, color: SERIES_COLORS.input },
                 { label: t('trend.legend.output'), value: hovered.outputTokens, color: SERIES_COLORS.output },
-                { label: t('trend.legend.cacheCreation'), value: hovered.cacheWriteTokens, color: SERIES_COLORS.cacheCreation },
                 { label: t('trend.legend.cacheRead'), value: hovered.cacheReadTokens, color: SERIES_COLORS.cacheRead },
                 {
                   label: t('trend.legend.cacheHitRate'),
-                  value: hovered.cacheHitRate === null ? null : `${Math.round(hovered.cacheHitRate * 100)}%`,
+                  value: hoveredHitRate,
                   color: SERIES_COLORS.cacheHitRate,
+                  isRate: true,
                 },
               ].map((row, index) => (
                 <text
@@ -563,7 +626,12 @@ const TrendChart: React.FC<TrendChartProps> = ({ points, granularity, timeZone }
                   className="bitfun-usage-stats__trend-tooltip-row"
                 >
                   <tspan fill={row.color}>● </tspan>
-                  {row.label}: {row.value === null ? '–' : formatTokens(row.value as number)}
+                  {row.label}:{' '}
+                  {row.isRate
+                    ? formatHitRate(row.value as number | null)
+                    : row.value === null
+                      ? '–'
+                      : formatTokens(row.value as number)}
                 </text>
               ))}
             </g>

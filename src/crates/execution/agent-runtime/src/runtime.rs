@@ -8,7 +8,6 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use bitfun_agent_tools::{ToolRegistry, ToolRegistryItem};
-use bitfun_harness::HarnessRegistry;
 use bitfun_runtime_ports::{
     AgentBackgroundResultRequest, AgentDialogSteerRequest, AgentDialogTurnPort,
     AgentDialogTurnRecoveryOutcome, AgentDialogTurnRecoveryRequest, AgentDialogTurnRequest,
@@ -25,11 +24,11 @@ use bitfun_runtime_ports::{
     AgentSessionLineageTranscriptRequest, AgentSessionListRequest, AgentSessionManagementPort,
     AgentSessionModePort, AgentSessionModeUpdateRequest, AgentSessionModelPort,
     AgentSessionModelSelectionUpdateRequest, AgentSessionModelUpdateRequest,
-    AgentSessionRenameRequest, AgentSessionRevertPort, AgentSessionRevertRequest,
-    AgentSessionRevertResult, AgentSessionRollbackToTurnOutcome, AgentSessionRollbackToTurnRequest,
-    AgentSessionSummary, AgentSessionUsagePort, AgentSessionUsageRequest,
-    AgentSessionWorkspaceBinding, AgentSessionWorkspaceRequest, AgentSubmissionPort,
-    AgentSubmissionRequest, AgentSubmissionResult, AgentSubmissionSource,
+    AgentSessionReleaseRequest, AgentSessionRenameRequest, AgentSessionRevertPort,
+    AgentSessionRevertRequest, AgentSessionRevertResult, AgentSessionRollbackToTurnOutcome,
+    AgentSessionRollbackToTurnRequest, AgentSessionSummary, AgentSessionUsagePort,
+    AgentSessionUsageRequest, AgentSessionWorkspaceBinding, AgentSessionWorkspaceRequest,
+    AgentSubmissionPort, AgentSubmissionRequest, AgentSubmissionResult, AgentSubmissionSource,
     AgentThreadGoalCreateRequest, AgentThreadGoalDeliveryRequest, AgentThreadGoalGetRequest,
     AgentThreadGoalManagementPort, AgentThreadGoalUpdateStatusRequest,
     AgentTransientSessionDiscardRequest, AgentTurnCancellationPort, AgentTurnCancellationRequest,
@@ -233,7 +232,6 @@ pub struct AgentRuntime {
     event_source: Option<AgentEventSource>,
     session_event_journal: Option<Arc<SessionEventJournal>>,
     tool_registry: Option<Arc<dyn RuntimeToolRegistry>>,
-    harness_registry: Option<Arc<HarnessRegistry>>,
     hook_registry: RuntimeHookRegistry,
     agent_registry: Option<Arc<dyn RuntimeAgentRegistry>>,
     mode_catalog: Option<Arc<dyn AgentModeCatalogPort>>,
@@ -407,10 +405,6 @@ impl std::fmt::Debug for AgentRuntime {
                 "tool_registry",
                 &self.tool_registry.as_ref().map(|_| "<RuntimeToolRegistry>"),
             )
-            .field(
-                "harness_registry",
-                &self.harness_registry.as_ref().map(|_| "<HarnessRegistry>"),
-            )
             .field("hook_count", &self.hook_registry.hooks().len())
             .field(
                 "agent_registry",
@@ -466,7 +460,6 @@ pub struct AgentRuntimeBuilder {
     event_source: Option<AgentEventSource>,
     session_event_journal: Option<Arc<SessionEventJournal>>,
     tool_registry: Option<Arc<dyn RuntimeToolRegistry>>,
-    harness_registry: Option<Arc<HarnessRegistry>>,
     hook_registry: RuntimeHookRegistry,
     agent_registry: Option<Arc<dyn RuntimeAgentRegistry>>,
     mode_catalog: Option<Arc<dyn AgentModeCatalogPort>>,
@@ -643,11 +636,6 @@ impl AgentRuntimeBuilder {
         self
     }
 
-    pub fn with_harness_registry(mut self, registry: Arc<HarnessRegistry>) -> Self {
-        self.harness_registry = Some(registry);
-        self
-    }
-
     pub fn with_hook_registry(mut self, registry: RuntimeHookRegistry) -> Self {
         self.hook_registry = registry;
         self
@@ -697,7 +685,6 @@ impl AgentRuntimeBuilder {
             event_source,
             session_event_journal,
             tool_registry,
-            harness_registry,
             hook_registry,
             agent_registry,
             mode_catalog,
@@ -736,7 +723,6 @@ impl AgentRuntimeBuilder {
             event_source,
             session_event_journal,
             tool_registry,
-            harness_registry,
             hook_registry,
             agent_registry,
             mode_catalog,
@@ -1064,13 +1050,6 @@ impl AgentRuntime {
         Ok(())
     }
 
-    pub fn harness_provider_ids(&self) -> Vec<&str> {
-        self.harness_registry
-            .as_ref()
-            .map(|registry| registry.provider_ids())
-            .unwrap_or_default()
-    }
-
     pub fn hook_registry(&self) -> &RuntimeHookRegistry {
         &self.hook_registry
     }
@@ -1172,6 +1151,23 @@ impl AgentRuntime {
                 ))
             })?
             .discard_transient_session(request)
+            .await
+            .map_err(RuntimeError::from)
+    }
+
+    pub async fn unload_persisted_session(
+        &self,
+        request: AgentSessionReleaseRequest,
+    ) -> Result<bool, RuntimeError> {
+        self.session_close
+            .as_ref()
+            .ok_or_else(|| {
+                RuntimeError::Port(PortError::new(
+                    PortErrorKind::NotAvailable,
+                    "agent session close port is not registered",
+                ))
+            })?
+            .unload_persisted_session(request)
             .await
             .map_err(RuntimeError::from)
     }
@@ -3516,6 +3512,7 @@ mod tests {
             .submit_dialog_turn(AgentDialogTurnRequest {
                 session_id: "session_1".to_string(),
                 message: "hello".to_string(),
+                output_schema: None,
                 original_message: None,
                 turn_id: Some("turn_1".to_string()),
                 execution: Default::default(),
@@ -3571,6 +3568,7 @@ mod tests {
             .submit_dialog_turn(AgentDialogTurnRequest {
                 session_id: "session_1".to_string(),
                 message: "hello".to_string(),
+                output_schema: None,
                 original_message: Some("hello".to_string()),
                 turn_id: Some("turn_1".to_string()),
                 execution: Default::default(),
@@ -3690,6 +3688,7 @@ mod tests {
             .submit_dialog_turn(AgentDialogTurnRequest {
                 session_id: "requested-session".to_string(),
                 message: "hello".to_string(),
+                output_schema: None,
                 original_message: None,
                 turn_id: Some("turn-1".to_string()),
                 execution: Default::default(),

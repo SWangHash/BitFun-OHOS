@@ -6,12 +6,14 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 pub const JSON_RPC_VERSION: &str = "2.0";
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 6;
 
 pub const METHOD_INITIALIZE: &str = "initialize";
 pub const METHOD_SESSION_CREATE: &str = "session/create";
+pub const METHOD_SESSION_RESUME: &str = "session/resume";
 pub const METHOD_QUERY_START: &str = "query/start";
 pub const METHOD_QUERY_CANCEL: &str = "query/cancel";
+pub const METHOD_PERMISSION_RESPOND: &str = "permission/respond";
 pub const METHOD_SESSION_CLOSE: &str = "session/close";
 pub const METHOD_SHUTDOWN: &str = "shutdown";
 pub const NOTIFICATION_QUERY_EVENT: &str = "query/event";
@@ -33,7 +35,7 @@ impl RequestId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct JsonRpcRequest {
     pub jsonrpc: String,
@@ -48,6 +50,18 @@ pub struct JsonRpcRequest {
     pub method: String,
     #[serde(default = "empty_object")]
     pub params: serde_json::Value,
+}
+
+impl std::fmt::Debug for JsonRpcRequest {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("JsonRpcRequest")
+            .field("jsonrpc", &self.jsonrpc)
+            .field("id", &self.id)
+            .field("method", &self.method)
+            .field("params", &"<redacted>")
+            .finish()
+    }
 }
 
 impl JsonRpcRequest {
@@ -164,13 +178,36 @@ impl<T> JsonRpcNotification<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct InitializeParams {
     pub protocol_version: u32,
     pub client_info: ClientInfo,
     pub capabilities: ClientCapabilities,
+    pub model: TemporaryModelConfig,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum TemporaryModelProvider {
+    Openai,
+    Responses,
+    Anthropic,
+    Gemini,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct TemporaryModelConfig {
+    pub provider: TemporaryModelProvider,
+    pub model: String,
+    pub api_key: String,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    #[serde(default)]
+    pub base_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -186,6 +223,7 @@ pub struct ClientInfo {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct ClientCapabilities {
     pub server_notifications: bool,
+    pub permission_responses: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -196,15 +234,17 @@ pub struct InitializeResult {
     pub runtime_version: String,
     pub stability: Stability,
     pub capabilities: HostCapabilities,
+    pub model_id: String,
 }
 
 impl InitializeResult {
-    pub fn current(runtime_version: impl Into<String>) -> Self {
+    pub fn current(runtime_version: impl Into<String>, model_id: impl Into<String>) -> Self {
         Self {
             protocol_version: PROTOCOL_VERSION,
             runtime_version: runtime_version.into(),
             stability: Stability::NotDelivered,
             capabilities: HostCapabilities::current(),
+            model_id: model_id.into(),
         }
     }
 }
@@ -223,14 +263,17 @@ pub enum Stability {
 pub struct HostCapabilities {
     pub session_create: bool,
     pub session_create_lifetime: SessionLifetime,
+    pub session_resume: bool,
     pub query: bool,
     pub query_cancel: bool,
     pub session_close: bool,
     pub event_stream: bool,
+    pub tool_events: bool,
+    pub image_input: bool,
     pub structured_output: bool,
     pub usage: bool,
     pub custom_tools: bool,
-    pub permission_callbacks: bool,
+    pub permission_responses: bool,
     pub hooks: bool,
     pub mcp_configuration: bool,
     pub prestarted_transport: bool,
@@ -240,15 +283,18 @@ impl HostCapabilities {
     pub const fn current() -> Self {
         Self {
             session_create: true,
-            session_create_lifetime: SessionLifetime::Connection,
+            session_create_lifetime: SessionLifetime::Durable,
+            session_resume: true,
             query: true,
             query_cancel: true,
             session_close: true,
             event_stream: true,
-            structured_output: false,
-            usage: false,
+            tool_events: true,
+            image_input: true,
+            structured_output: true,
+            usage: true,
             custom_tools: false,
-            permission_callbacks: false,
+            permission_responses: true,
             hooks: false,
             mcp_configuration: false,
             prestarted_transport: false,
@@ -263,6 +309,8 @@ impl HostCapabilities {
 pub enum SessionLifetime {
     /// Created and deleted by this Host connection.
     Connection,
+    /// Persisted by the Agent Runtime and resumable by a later Host process.
+    Durable,
 }
 
 fn deserialize_optional_request_id<'de, D>(deserializer: D) -> Result<Option<RequestId>, D::Error>
@@ -369,6 +417,13 @@ pub struct SessionCreateParams {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct SessionResumeParams {
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCreateResult {
     pub session_id: String,
@@ -409,6 +464,11 @@ impl SessionCreateResult {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct QueryStartParams {
     pub prompt: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<String>,
+    #[cfg_attr(feature = "ts", ts(optional, type = "Record<string, unknown>"))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_schema: Option<serde_json::Value>,
     #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(default)]
     pub session_id: Option<String>,
@@ -460,6 +520,55 @@ pub struct QueryCancelResult {
     pub requested: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum PermissionDecision {
+    AllowOnce,
+    AllowAlways,
+    Reject,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct PermissionRespondParams {
+    pub query_id: String,
+    pub session_id: String,
+    pub turn_id: String,
+    pub operation_id: String,
+    pub request_id: String,
+    pub decision: PermissionDecision,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    #[serde(default)]
+    pub feedback: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionRespondResult {
+    pub request_id: String,
+    pub accepted: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum PermissionSourceKind {
+    ToolCall,
+    Provider,
+    Extension,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionSource {
+    pub kind: PermissionSourceKind,
+    pub identity: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -502,11 +611,49 @@ pub struct QueryEventParams {
     pub event: QueryEvent,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(
+    tag = "type",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 pub enum QueryEvent {
-    AssistantTextDelta { text: String },
+    AssistantTextDelta {
+        text: String,
+    },
+    ToolEvent {
+        tool_call_id: String,
+        tool_name: String,
+        status: ToolEventStatus,
+        #[cfg_attr(feature = "ts", ts(optional))]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        progress: Option<f32>,
+        #[cfg_attr(feature = "ts", ts(optional))]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        duration_ms: Option<u64>,
+    },
+    PermissionRequest {
+        request_id: String,
+        action: String,
+        resources: Vec<String>,
+        source: PermissionSource,
+        #[cfg_attr(feature = "ts", ts(optional))]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        tool_call_id: Option<String>,
+        response_timeout_ms: u64,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum ToolEventStatus {
+    Started,
+    Progress,
+    Completed,
+    Failed,
+    Cancelled,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -530,13 +677,33 @@ pub struct QueryResultParams {
     pub output: QueryOutput,
     #[cfg_attr(feature = "ts", ts(optional))]
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<QueryUsage>,
+    #[cfg_attr(feature = "ts", ts(optional))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<QueryResultError>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct QueryUsage {
+    pub input_tokens: usize,
+    #[cfg_attr(feature = "ts", ts(optional))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<usize>,
+    pub total_tokens: usize,
+    #[cfg_attr(feature = "ts", ts(optional))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_tokens: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct QueryOutput {
     pub text: String,
+    #[cfg_attr(feature = "ts", ts(optional, type = "unknown"))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub structured: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

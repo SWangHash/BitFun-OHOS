@@ -43,26 +43,32 @@ test("Rust wire export produces executable validators for every type", async () 
   }
 
   const initializeResult = {
-    protocolVersion: 1,
+    protocolVersion: 6,
     runtimeVersion: "0.1.0",
     stability: "not_delivered",
     capabilities: {
       sessionCreate: true,
-      sessionCreateLifetime: "connection",
+      sessionCreateLifetime: "durable",
+      sessionResume: true,
       query: true,
       queryCancel: true,
       sessionClose: true,
       eventStream: true,
-      structuredOutput: false,
-      usage: false,
+      toolEvents: true,
+      imageInput: true,
+      structuredOutput: true,
+      usage: true,
       customTools: false,
-      permissionCallbacks: false,
+      permissionResponses: true,
       hooks: false,
       mcpConfiguration: false,
       prestartedTransport: false,
     },
+    modelId: "sdk:openai:resolved",
   };
   assert.equal(validators.isInitializeResult(initializeResult), true);
+  const { modelId: _modelId, ...initializeResultWithoutModel } = initializeResult;
+  assert.equal(validators.isInitializeResult(initializeResultWithoutModel), false);
   assert.equal(
     validators.isInitializeResult({ ...initializeResult, unexpected: true }),
     false,

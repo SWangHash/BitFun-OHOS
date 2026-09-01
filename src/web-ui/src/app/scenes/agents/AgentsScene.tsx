@@ -215,6 +215,7 @@ const AgentsHomeView: React.FC = () => {
     filteredAgents,
     loading,
     availableTools,
+    toolCatalogStatus,
     configuredModels = [],
     getModeProfile,
     getAgentSkills,
@@ -235,6 +236,18 @@ const AgentsHomeView: React.FC = () => {
     filterType: agentFilterType,
     t,
   });
+
+  // Tool-catalog load state from the host (available / unsupported / failed /
+  // empty). When the host doesn't expose a catalog or the read failed, the
+  // tools tab must say so instead of rendering as "no tools". Writes are gated
+  // off too — toggling against a failed catalog would save a config the host
+  // can't act on. See PR #2428 round 5 #2.
+  const toolCatalogWritable = toolCatalogStatus === 'available' || toolCatalogStatus === 'empty';
+  const toolCatalogMessage = toolCatalogStatus === 'unsupported'
+    ? t('agentsOverview.toolsUnsupported')
+    : toolCatalogStatus === 'failed'
+      ? t('agentsOverview.toolsFailed')
+      : null;
 
   useGallerySceneAutoRefresh({
     sceneId: 'agents',
@@ -582,7 +595,9 @@ const AgentsHomeView: React.FC = () => {
       await CustomAgentAPI.deleteCustomAgent(id, workspacePath || undefined);
       notification.success(t('agentsOverview.deleteSuccess', { name }));
       closeAgentDetails();
-      await loadAgents();
+      // CustomAgentAPI emits `custom-agent:updated` after the delete; the
+      // useAgentsList subscriber owns the single refresh so two overlapping
+      // catalog loads cannot race their status snapshots.
     } catch (e) {
       notification.error(
         `${t('agentsOverview.deleteFailed')}${e instanceof Error ? e.message : String(e)}`,
@@ -590,7 +605,7 @@ const AgentsHomeView: React.FC = () => {
     } finally {
       setDeletingAgent(false);
     }
-  }, [selectedAgent, closeAgentDetails, loadAgents, notification, t, workspacePath]);
+  }, [selectedAgent, closeAgentDetails, notification, t, workspacePath]);
 
   const canManageCustomAgent = Boolean(
     selectedAgent
@@ -1090,8 +1105,10 @@ const AgentsHomeView: React.FC = () => {
                         <Button
                           variant="secondary"
                           size="small"
+                          disabled={currentCapabilityTab === 'tools' && !toolCatalogWritable}
                           onClick={() => {
                             if (currentCapabilityTab === 'tools') {
+                              if (!toolCatalogWritable) return;
                               setPendingTools([...selectedAgentTools]);
                               setToolsEditing(true);
                               return;
@@ -1132,14 +1149,18 @@ const AgentsHomeView: React.FC = () => {
                 ) : null}
 
                 {currentCapabilityTab === 'tools' ? (
-                  selectedAgent.agentKind === 'mode' && toolsEditing ? (
+                  toolCatalogMessage ? (
+                    <span className="agent-card__empty-inline" data-testid="agent-detail-tools-catalog-status">
+                      {toolCatalogMessage}
+                    </span>
+                  ) : selectedAgent.agentKind === 'mode' && toolsEditing ? (
                     <ToolGroupPicker
                       tools={agentProfileAvailableTools}
                       selectedToolNames={pendingTools ?? selectedAgentTools}
                       userGroups={userToolGroups}
                       onSelectionChange={setPendingTools}
                       onSaveUserGroups={saveUserToolGroups}
-                      disabled={savingTools}
+                      disabled={savingTools || !toolCatalogWritable}
                       testId="agent-detail-tool-groups"
                     />
                   ) : (

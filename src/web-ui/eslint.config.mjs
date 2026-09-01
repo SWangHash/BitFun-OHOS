@@ -18,9 +18,57 @@ export default tseslint.config(
       'src/**/*.example.tsx',
       'src/component-library/components/registry.tsx',
       'src/component-library/preview/**',
-      'src/shared/context-system/core/types/**',
-      'src/shared/context-menu-system/examples/**',
     ],
+  },
+  {
+    // Adapter-layer fence: business Tauri commands must reach the platform
+    // only through ApiClient (api.invoke). Direct `invoke` from
+    // '@tauri-apps/api/core' is reserved for the adapter implementations in
+    // adapters/** (and the peer-device host bridge, which intentionally runs
+    // outside the routed transport — see PeerHostInvokeBridge). This is the
+    // executable form of "front end calls go through the adapter layer";
+    // reintroducing a direct invoke elsewhere fails the build.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      'src/infrastructure/api/adapters/**',
+      // PeerHostInvokeBridge runs on the HOST side of Peer-Device Mode: it
+      // executes *dynamic* command names forwarded from the peer device via a
+      // raw Tauri invoke. ApiClient is already routed to the peer adapter at
+      // this point, so routing through it would be wrong. This is the one
+      // intentional exception to the adapter-layer fence.
+      'src/infrastructure/peer-device/PeerHostInvokeBridge.tsx',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@tauri-apps/api/core'],
+              importNames: ['invoke'],
+              message:
+                '业务命令必须经 api.invoke(ApiClient) 统一适配层,不可直接 import invoke。' +
+                '如需直连平台 invoke,放到 adapters/ 内并经 api 暴露。',
+            },
+          ],
+        },
+      ],
+      // no-restricted-imports only covers static ImportDeclaration in ESLint 9;
+      // dynamic `import('@tauri-apps/api/core')` to grab `invoke` bypasses it.
+      // Block the same surface with an ImportExpression selector so a future
+      // dynamic-import bypass fails the build too. Same ignores (adapters/** +
+      // PeerHostInvokeBridge) apply via this block's ignores; exceptions must be
+      // added with an owner comment, like the static rule.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ImportExpression[source.value='@tauri-apps/api/core']",
+          message:
+            '业务命令必须经 api.invoke(ApiClient) 统一适配层,不可动态 import invoke。' +
+            '如需直连平台 invoke,放到 adapters/ 内并经 api 暴露。',
+        },
+      ],
+    },
   },
   {
     files: ['src/**/*.{ts,tsx}'],
@@ -84,6 +132,19 @@ export default tseslint.config(
           caughtErrorsIgnorePattern: '^_',
         },
       ],
+    },
+  },
+  {
+    // Pre-existing legacy: context-system type impls use class components
+    // that call React Hooks (a pattern predating the adapter fence). Exempt
+    // ONLY the noisy legacy rule here — the adapter fence
+    // (no-restricted-imports / no-restricted-syntax) still applies to this
+    // directory, so a direct or dynamic `invoke` import from
+    // '@tauri-apps/api/core' here fails the build just like anywhere else.
+    // This was previously a global ignore that let the whole fence be bypassed.
+    files: ['src/shared/context-system/core/types/**/*.{ts,tsx}'],
+    rules: {
+      'react-hooks/rules-of-hooks': 'off',
     },
   },
   {

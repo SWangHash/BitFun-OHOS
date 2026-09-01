@@ -1799,10 +1799,32 @@ pub fn normalize_host_path(path: &str) -> String {
         .to_string()
 }
 
+/// Returns a Windows drive path without an invalid POSIX-style leading slash.
+/// Non-Windows hosts leave the same spelling available for POSIX path semantics.
+pub fn strip_invalid_windows_drive_path_prefix(path: &str) -> Option<&str> {
+    #[cfg(windows)]
+    {
+        let bytes = path.as_bytes();
+        if bytes.len() >= 4
+            && bytes[0] == b'/'
+            && bytes[1].is_ascii_alphabetic()
+            && bytes[2] == b':'
+            && matches!(bytes[3], b'/' | b'\\')
+        {
+            return Some(&path[1..]);
+        }
+    }
+
+    let _ = path;
+    None
+}
+
 pub fn resolve_host_path_with_workspace(
     path: &str,
     workspace_root: Option<&Path>,
 ) -> Result<String, ToolPathContractError> {
+    let path = strip_invalid_windows_drive_path_prefix(path).unwrap_or(path);
+
     if Path::new(path).is_absolute() {
         Ok(normalize_host_path(path))
     } else {
@@ -2449,6 +2471,21 @@ pub struct ValidationResult {
     pub meta: Option<Value>,
 }
 
+impl ValidationResult {
+    /// Whether this rejection represents an invariant that an input rewrite
+    /// must not relax. Ordinary schema or formatting failures intentionally
+    /// remain repairable by a PreToolUse hook.
+    pub fn blocks_input_rewrite(&self) -> bool {
+        !self.result
+            && self
+                .meta
+                .as_ref()
+                .and_then(|meta| meta.get("blocks_input_rewrite"))
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+    }
+}
+
 impl Default for ValidationResult {
     fn default() -> Self {
         Self {
@@ -2523,6 +2560,26 @@ impl ToolResult {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn validation_result_only_blocks_rewrites_when_explicitly_marked() {
+        let repairable = ValidationResult {
+            result: false,
+            message: Some("repairable".to_string()),
+            error_code: Some(400),
+            meta: None,
+        };
+        let non_relaxable = ValidationResult {
+            result: false,
+            message: Some("protected".to_string()),
+            error_code: Some(403),
+            meta: Some(json!({ "blocks_input_rewrite": true })),
+        };
+
+        assert!(!repairable.blocks_input_rewrite());
+        assert!(non_relaxable.blocks_input_rewrite());
+        assert!(!ValidationResult::default().blocks_input_rewrite());
+    }
 
     struct TestTool {
         name: &'static str,

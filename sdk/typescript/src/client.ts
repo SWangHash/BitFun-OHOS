@@ -1,12 +1,28 @@
 import type { InitializeResult, QueryStartParams, QueryStartResult } from "./internal/wire/index.js";
 import type { JsonRpcConnection } from "./internal/json-rpc.js";
+import { resolveHostPath } from "./internal/host-path.js";
+import { normalizeInput } from "./internal/input.js";
+import { SdkError } from "./errors.js";
 import { Query } from "./query.js";
 import { Session, Sessions } from "./session.js";
-import type { AgentCapabilities, AgentClientOptions, QueryInput } from "./types.js";
+import type {
+  AgentCapabilities,
+  AgentClientOptions,
+  AgentModelOptions,
+  QueryInput,
+} from "./types.js";
+
+const SUPPORTED_MODEL_PROVIDERS = new Set([
+  "openai",
+  "responses",
+  "anthropic",
+  "gemini",
+]);
 
 export class AgentClient {
   readonly #connection: JsonRpcConnection;
-  readonly #options: AgentClientOptions;
+  readonly #cwd: string;
+  readonly #modelId: string;
   readonly capabilities: AgentCapabilities;
   readonly sessions: Sessions;
   readonly #queries = new Set<Query>();
@@ -15,17 +31,8 @@ export class AgentClient {
   #closePromise?: Promise<void>;
 
   static async start(options: AgentClientOptions): Promise<AgentClient> {
-    const hostPath = options.hostPath ?? process.env.BITFUN_SDK_HOST_PATH;
-    if (hostPath === undefined || hostPath.length === 0) {
-      const { SdkError } = await import("./errors.js");
-      throw new SdkError("SDK Host executable is unavailable", {
-        code: "not_found",
-        stage: "initialize",
-        retryable: false,
-        correlationId: "local:host_start",
-        outcomeCertainty: "not_started",
-      });
-    }
+    validateModelOptions(options.model as unknown);
+    const hostPath = resolveHostPath(options.hostPath);
     const [{ createAgentClient }, { startManagedHost }] = await Promise.all([
       import("./internal/client.js"),
       import("./internal/managed-host.js"),
@@ -44,19 +51,30 @@ export class AgentClient {
 
   private constructor(
     connection: JsonRpcConnection,
-    options: AgentClientOptions,
+    options: Pick<AgentClientOptions, "cwd">,
     initialized: InitializeResult,
   ) {
     this.#connection = connection;
-    this.#options = options;
+    this.#cwd = options.cwd;
+    this.#modelId = initialized.modelId;
     this.capabilities = Object.freeze({
       query: initialized.capabilities.query,
       sessions: initialized.capabilities.sessionCreate,
       cancellation: initialized.capabilities.queryCancel,
+      eventStream: initialized.capabilities.eventStream,
+      toolEvents: initialized.capabilities.toolEvents,
+      imageInput: initialized.capabilities.imageInput,
+      permissionResponses: initialized.capabilities.permissionResponses,
+      structuredOutput: initialized.capabilities.structuredOutput,
+      usage: initialized.capabilities.usage,
+      customTools: initialized.capabilities.customTools,
+      hooks: initialized.capabilities.hooks,
+      mcpConfiguration: initialized.capabilities.mcpConfiguration,
     });
     this.sessions = Sessions.forClient(
       connection,
-      options.cwd,
+      this.#cwd,
+      this.#modelId,
       (query) => this.#trackQuery(query),
       (session) => this.#trackSession(session),
       () => this.#ensureOpen(),
@@ -66,7 +84,7 @@ export class AgentClient {
   /** @internal */
   static create(
     connection: JsonRpcConnection,
-    options: AgentClientOptions,
+    options: Pick<AgentClientOptions, "cwd">,
     initialized: InitializeResult,
   ): AgentClient {
     return new AgentClient(connection, options, initialized);
@@ -74,13 +92,16 @@ export class AgentClient {
 
   async query(input: QueryInput): Promise<Query> {
     this.#ensureOpen();
+    const normalized = normalizeInput(input.prompt);
     const params: QueryStartParams = {
-      prompt: input.prompt,
+      prompt: normalized.prompt,
+      images: normalized.images,
+      outputSchema: input.outputSchema,
       sessionId: null,
       sessionName: null,
       agent: input.agent ?? null,
-      cwd: this.#options.cwd,
-      model: input.model ?? null,
+      cwd: this.#cwd,
+      model: this.#modelId,
     };
     const started = await this.#connection.request<QueryStartResult>(
       "query/start",
@@ -151,4 +172,57 @@ export class AgentClient {
     this.#ownedSessions.add(session);
     session.onClosed(() => this.#ownedSessions.delete(session));
   }
+}
+
+function validateModelOptions(value: unknown): asserts value is AgentModelOptions {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    invalidModel("model is required");
+  }
+  const model = value as Record<string, unknown>;
+  if (
+    typeof model.provider !== "string" ||
+    !SUPPORTED_MODEL_PROVIDERS.has(model.provider)
+  ) {
+    invalidModel("model.provider is unsupported");
+  }
+  if (typeof model.model !== "string" || model.model.trim().length === 0) {
+    invalidModel("model.model is required");
+  }
+  if (typeof model.apiKey !== "string" || model.apiKey.trim().length === 0) {
+    invalidModel("model.apiKey is required");
+  }
+  if (model.baseUrl === undefined) {
+    return;
+  }
+  const invalidBaseUrl =
+    "model.baseUrl must be an absolute http or https URL without credentials, query, or fragment";
+  if (typeof model.baseUrl !== "string") {
+    invalidModel(invalidBaseUrl);
+  }
+  let url: URL;
+  try {
+    url = new URL(model.baseUrl);
+  } catch {
+    invalidModel(invalidBaseUrl);
+  }
+  if (
+    (url.protocol !== "http:" && url.protocol !== "https:") ||
+    url.hostname.length === 0 ||
+    url.username.length > 0 ||
+    url.password.length > 0 ||
+    url.search.length > 0 ||
+    url.hash.length > 0
+  ) {
+    invalidModel(invalidBaseUrl);
+  }
+}
+
+function invalidModel(message: string): never {
+  throw new SdkError(message, {
+    code: "invalid_request",
+    stage: "initialize",
+    retryable: false,
+    correlationId: "local:model_validation",
+    outcomeCertainty: "not_started",
+  });
 }

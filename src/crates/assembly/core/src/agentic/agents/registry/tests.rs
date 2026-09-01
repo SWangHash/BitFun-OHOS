@@ -234,6 +234,7 @@ async fn review_lookup_cold_loads_the_requested_project_registry() {
 fn top_level_modes_default_to_auto() {
     for agent_type in [
         "agentic",
+        "minimal",
         "Multitask",
         "Cowork",
         "Plan",
@@ -321,6 +322,28 @@ async fn computer_use_is_builtin_subagent_not_mode() {
     );
 }
 
+#[tokio::test]
+async fn minimal_is_a_builtin_mode_with_the_focused_manifest() {
+    let registry = AgentRegistry::new();
+    let modes = registry.get_modes_info().await;
+    let minimal = modes
+        .iter()
+        .find(|agent| agent.id == "minimal")
+        .expect("Minimal should be registered as a built-in mode");
+
+    assert_eq!(
+        minimal.default_tools,
+        vec![
+            "Read",
+            "Edit",
+            "Write",
+            "ExecCommand",
+            "WriteStdin",
+            "ExecControl",
+        ]
+    );
+}
+
 #[test]
 fn every_builtin_primary_mode_defaults_to_the_thread_goal_lifecycle() {
     for spec in builtin_agent_specs()
@@ -328,6 +351,9 @@ fn every_builtin_primary_mode_defaults_to_the_thread_goal_lifecycle() {
         .filter(|spec| spec.category == AgentCategory::Mode)
     {
         let mode = (spec.factory)();
+        if !mode.include_implicit_thread_goal_tools() {
+            continue;
+        }
         let default_tools = mode.default_tools();
         for tool_name in THREAD_GOAL_TOOL_NAMES {
             assert!(
@@ -390,6 +416,47 @@ fn memory_phase2_hidden_agent_is_registered() {
 
     assert_eq!(agent.id(), "MemoryPhase2");
     assert_eq!(agent.name(), "Memory Phase 2");
+}
+
+#[test]
+fn sdk_agent_registry_excludes_desktop_product_workflows() {
+    let registry = AgentRegistry::for_profile(bitfun_product_capabilities::DeliveryProfile::Sdk);
+    let plan = bitfun_product_capabilities::product_assembly_plan_for_profile(
+        bitfun_product_capabilities::DeliveryProfile::Sdk,
+    );
+
+    for product_agent in [
+        "DeepResearch",
+        "ResearchSpecialist",
+        "DeepReview",
+        "CodeReview",
+        "ReviewWorker",
+        "ReviewJudge",
+        "ReviewFixer",
+    ] {
+        assert!(
+            !registry.check_agent_exists(product_agent),
+            "SDK registry must not contain {product_agent}"
+        );
+    }
+    for code_agent in plan.agent_ids() {
+        assert!(
+            registry.check_agent_exists(code_agent),
+            "SDK registry must contain {code_agent}"
+        );
+    }
+}
+
+#[test]
+fn product_full_agent_registry_preserves_the_complete_builtin_catalog() {
+    let mut selected =
+        AgentRegistry::for_profile(bitfun_product_capabilities::DeliveryProfile::ProductFull)
+            .agent_ids(RuntimeAgentRegistryQuery::default());
+    let mut compatibility = AgentRegistry::new().agent_ids(RuntimeAgentRegistryQuery::default());
+    selected.sort();
+    compatibility.sort();
+
+    assert_eq!(selected, compatibility);
 }
 
 #[test]

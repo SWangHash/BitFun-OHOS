@@ -34,6 +34,7 @@ pub mod startup_trace;
 #[cfg(not(target_env = "ohos"))]
 pub mod tray;
 mod webview_recovery;
+mod window_state_support;
 
 use bitfun_agent_runtime::sdk::{attach_session_event_cursor, SessionEventJournal};
 use bitfun_core::agentic::tools::computer_use_capability::set_computer_use_desktop_available;
@@ -347,7 +348,33 @@ pub(crate) fn e2e_storage_guard_enabled() -> bool {
 
 #[cfg(not(target_env = "ohos"))]
 fn main_window_state_flags() -> StateFlags {
-    StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED | StateFlags::FULLSCREEN
+    main_window_geometry_state_flags() | StateFlags::MAXIMIZED
+}
+
+fn main_window_geometry_state_flags() -> StateFlags {
+    StateFlags::SIZE | StateFlags::POSITION | StateFlags::FULLSCREEN
+}
+
+/// Restore deliberately excludes `MAXIMIZED` on Windows: maximizing a hidden
+/// undecorated window does not survive `show()` and leaves Windows tracking a
+/// bogus normal-placement rect. Other platforms use the plugin's complete
+/// restore behavior.
+#[cfg(target_os = "windows")]
+fn main_window_restore_flags() -> StateFlags {
+    main_window_geometry_state_flags()
+}
+
+#[cfg(not(target_os = "windows"))]
+fn main_window_restore_flags() -> StateFlags {
+    main_window_state_flags()
+}
+
+fn persist_main_window_state(app: &tauri::AppHandle, reason: &str) -> Result<(), String> {
+    persist_main_window_state_with_flags(app, reason, main_window_state_flags())
+}
+
+fn persist_main_window_geometry_state(app: &tauri::AppHandle, reason: &str) -> Result<(), String> {
+    persist_main_window_state_with_flags(app, reason, main_window_geometry_state_flags())
 }
 
 fn persist_main_window_state(app: &tauri::AppHandle) -> Result<(), String> {
@@ -372,9 +399,12 @@ pub(crate) fn save_main_window_state(app: &tauri::AppHandle) {
             return;
         }
 
-        if let Err(error) = persist_main_window_state(app) {
-            log::warn!("Failed to save main window state: {}", error);
-        }
+        if let Err(error) = persist_main_window_state(app, reason) {
+            log::warn!(
+                "Failed to save main window state: reason={}, error={}",
+                reason,
+                error
+        );
     }
 }
 
@@ -389,7 +419,7 @@ pub(crate) fn set_main_window_transient_geometry(
 
         // Capture the latest normal bounds before toolbar mode starts resizing
         // the shared native window.
-        persist_main_window_state(app).map_err(|error| {
+        persist_main_window_state(app, "transient_geometry_enter_capture").map_err(|error| {
             format!(
                 "Failed to save main window state before transient geometry: {}",
                 error
@@ -400,7 +430,7 @@ pub(crate) fn set_main_window_transient_geometry(
     }
 
     MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.store(false, Ordering::SeqCst);
-    persist_main_window_state(app).map_err(|error| {
+    persist_main_window_state(app, "transient_geometry_exit_persist").map_err(|error| {
         format!(
             "Failed to save restored main window state after transient geometry: {}",
             error
@@ -413,10 +443,17 @@ fn has_standard_main_window_size(width: f64, height: f64) -> bool {
 }
 
 #[cfg(not(target_env = "ohos"))]
-pub(crate) fn restore_main_window_state(window: &tauri::WebviewWindow) {
-    if let Err(error) = window.restore_state(main_window_state_flags()) {
+pub(crate) fn restore_main_window_state(window: &tauri::WebviewWindow) -> bool {
+    if let Err(error) = window.restore_state(main_window_restore_flags()) {
         log::warn!("Failed to restore main window state: {}", error);
     }
+
+    #[cfg(target_os = "windows")]
+    let reapply_maximized =
+        window_state_support::read_persisted_main_maximized(window.app_handle()).unwrap_or(false);
+
+    #[cfg(not(target_os = "windows"))]
+    let reapply_maximized = false;
 
     let is_maximized = window.is_maximized().unwrap_or(false);
     let is_fullscreen = window.is_fullscreen().unwrap_or(false);
@@ -447,7 +484,10 @@ pub(crate) fn restore_main_window_state(window: &tauri::WebviewWindow) {
                         log::warn!("Failed to center reset main window: {}", error);
                     }
                     if resize_succeeded {
-                        if let Err(error) = persist_main_window_state(window.app_handle()) {
+                        if let Err(error) = persist_main_window_geometry_state(
+                            window.app_handle(),
+                            "startup_geometry_repair",
+                        ) {
                             log::warn!("Failed to persist repaired main window state: {}", error);
                         }
                     }
@@ -468,22 +508,8 @@ pub(crate) fn restore_main_window_state(window: &tauri::WebviewWindow) {
     ))) {
         log::warn!("Failed to set main window minimum size: {}", error);
     }
-}
 
-#[cfg(test)]
-mod main_window_geometry_tests {
-    use super::has_standard_main_window_size;
-
-    #[test]
-    fn floating_toolbar_sizes_are_not_valid_main_window_sizes() {
-        assert!(!has_standard_main_window_size(440.0, 680.0));
-        assert!(!has_standard_main_window_size(700.0, 140.0));
-    }
-
-    #[test]
-    fn default_client_size_is_a_valid_main_window_size() {
-        assert!(has_standard_main_window_size(1200.0, 800.0));
-    }
+    reapply_maximized
 }
 
 #[tauri::command]
@@ -502,7 +528,7 @@ pub struct OhosPlatform {
 impl Default for OhosPlatform {
     fn default() -> Self {
         Self {
-            version: "6.0.0".to_string(),
+            version: "6.1.0".to_string(),
             devic_type: "2in1".to_string(),
             api_level: 12,
             feature: vec![
@@ -1313,7 +1339,7 @@ pub async fn _run() {
                 if window.label() == "main"
                     && matches!(event, tauri::WindowEvent::CloseRequested { .. })
                 {
-                    save_main_window_state(window.app_handle());
+                    save_main_window_state(window.app_handle(), "close_requested");
                 }
 
                 if let tauri::WindowEvent::CloseRequested { api: _api, .. } = event {
@@ -2215,22 +2241,7 @@ async fn init_agentic_system() -> anyhow::Result<(
         tool_pipeline.clone(),
     ));
 
-    // Get execution config from global settings
-    let exec_config = match bitfun_core::service::config::get_global_config_service().await {
-        Ok(config_service) => {
-            match config_service
-                .get_config::<bitfun_core::service::config::types::GlobalConfig>(None)
-                .await
-            {
-                Ok(global_config) => execution::ExecutionEngineConfig {
-                    max_rounds: global_config.ai.max_rounds,
-                    ..Default::default()
-                },
-                Err(_) => Default::default(),
-            }
-        }
-        Err(_) => Default::default(),
-    };
+    let execution_config = execution::execution_engine_config_from_global_config().await;
 
     let execution_engine = Arc::new(execution::ExecutionEngine::new(
         round_executor,
@@ -2480,7 +2491,7 @@ pub(crate) fn request_desktop_exit(app: &tauri::AppHandle, exit_code: i32, reaso
     if DESKTOP_EXIT_REQUESTED.swap(true, Ordering::AcqRel) {
         return;
     }
-    save_main_window_state(app);
+    save_main_window_state(app, reason);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         perform_process_exit_cleanup().await;
@@ -2515,6 +2526,14 @@ fn configure_workspace_search_daemon_env() -> Option<std::path::PathBuf> {
     path
 }
 
+/// Return the session whose durable metadata must be synchronized for an event.
+fn session_changed_id_for_sync(event: &AgenticEvent) -> Option<&str> {
+    match event {
+        AgenticEvent::SessionTitleGenerated { session_id, .. } => Some(session_id),
+        _ => None,
+    }
+}
+
 /// Deliver one event to the WebView and, when peer controllers are attached,
 /// fan it out to paired devices. Text chunks arrive here already coalesced by
 /// `TextChunkCoalescer`.
@@ -2523,6 +2542,9 @@ async fn deliver_event_to_webview(
     event: AgenticEvent,
     session_event_journal: &SessionEventJournal,
 ) {
+    if let Some(session_id) = session_changed_id_for_sync(&event) {
+        api::remote_connect_api::notify_session_changed(session_id, "");
+    }
     let cursor = session_event_journal.record(&event);
     // SystemError is filtered out of the frontend projection, so the web-ui's
     // dialog-completion notification path never sees it. Surface it directly
@@ -3110,6 +3132,21 @@ mod event_loop_driver_tests {
             attempt_index: None,
             text: text.to_string(),
         }
+    }
+
+    #[test]
+    fn session_title_events_request_durable_session_sync() {
+        let title_event = AgenticEvent::SessionTitleGenerated {
+            session_id: "renamed-session".to_string(),
+            title: "Renamed".to_string(),
+            method: "manual".to_string(),
+        };
+
+        assert_eq!(
+            session_changed_id_for_sync(&title_event),
+            Some("renamed-session")
+        );
+        assert_eq!(session_changed_id_for_sync(&text_chunk("hello")), None);
     }
 
     /// Regression test for the P1 scheduling issue: the window timer is only

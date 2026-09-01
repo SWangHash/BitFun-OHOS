@@ -1,6 +1,7 @@
 import type {
   ErrorData,
   InitializeResult,
+  PermissionRespondResult,
   QueryCancelResult,
   QueryEventParams,
   QueryResultParams,
@@ -12,6 +13,7 @@ import type {
 import {
   isErrorData as isGeneratedErrorData,
   isInitializeResult,
+  isPermissionRespondResult,
   isQueryCancelResult,
   isQueryEventParams,
   isQueryResultParams,
@@ -34,11 +36,14 @@ export function validateResponseResult<T>(method: string, value: unknown): T {
     case "initialize":
       return validateInitializeResult(value) as T;
     case "session/create":
+    case "session/resume":
       return validateSessionCreateResult(value) as T;
     case "query/start":
       return validateQueryStartResult(value) as T;
     case "query/cancel":
       return validateQueryCancelResult(value) as T;
+    case "permission/respond":
+      return validatePermissionRespondResult(value) as T;
     case "session/close":
       return validateSessionCloseResult(value) as T;
     case "shutdown":
@@ -93,8 +98,11 @@ function validateInitializeResult(value: unknown): InitializeResult {
     value,
     "initialize result",
   );
-  if (!Number.isSafeInteger(result.protocolVersion)) {
-    throw new Error("SDK Host initialize protocol version is invalid");
+  if (
+    !Number.isSafeInteger(result.protocolVersion) ||
+    !isNonEmptyString(result.modelId)
+  ) {
+    throw new Error("SDK Host initialize protocol version or model id is invalid");
   }
   return result;
 }
@@ -127,6 +135,18 @@ function validateQueryCancelResult(value: unknown): QueryCancelResult {
   );
   if (!hasQueryIdentity(result)) {
     throw new Error("SDK Host Query cancel identity is invalid");
+  }
+  return result;
+}
+
+function validatePermissionRespondResult(value: unknown): PermissionRespondResult {
+  const result = validateWireValue(
+    isPermissionRespondResult,
+    value,
+    "permission response result",
+  );
+  if (!isNonEmptyString(result.requestId) || !result.accepted) {
+    throw new Error("SDK Host permission response result is invalid");
   }
   return result;
 }

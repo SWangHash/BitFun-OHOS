@@ -27,8 +27,8 @@ pub use definitions::custom::{CustomMode, CustomSubagent, CustomSubagentKind};
 pub(crate) use definitions::external::ExternalProvidedAgent;
 pub use definitions::hidden::{CodeReviewAgent, DeepReviewAgent, GenerateDocAgent};
 pub use definitions::modes::{
-    AgenticMode, ClawMode, CoworkMode, DebugMode, DeepResearchMode, MultitaskMode, PlanMode,
-    TeamMode,
+    AgenticMode, ClawMode, CoworkMode, DebugMode, DeepResearchMode, MinimalMode, MultitaskMode,
+    PlanMode, TeamMode,
 };
 pub use definitions::review::{ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent};
 pub use definitions::shared::ReadonlySubagent;
@@ -44,6 +44,7 @@ pub use prompt_builder::{
 pub use registry::catalog::{builtin_agent_specs, BuiltinAgentSpec};
 #[cfg(feature = "external-sources")]
 pub(crate) use registry::external_subagent_runtime_key;
+pub(crate) use registry::initialize_global_agent_registry_for_profile;
 pub use registry::types::{
     subagent_source_from_custom_kind, AgentCategory, AgentInfo, AgentSource, AgentToolPolicy,
     CustomSubagentConfig, SubAgentSource, SubagentListScope, SubagentQueryContext,
@@ -257,6 +258,16 @@ pub trait Agent: Send + Sync + 'static {
 
     /// Get the list of default tools for this agent
     fn default_tools(&self) -> Vec<String>;
+
+    /// Whether deferred MCP tools may extend this agent's configured tool set.
+    fn include_dynamic_mcp_tools(&self) -> bool {
+        true
+    }
+
+    /// Whether the mode receives the main-session goal lifecycle implicitly.
+    fn include_implicit_thread_goal_tools(&self) -> bool {
+        true
+    }
 
     /// Per-agent exposure overrides for allowed tools.
     ///

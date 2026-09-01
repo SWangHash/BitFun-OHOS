@@ -49,17 +49,23 @@ const requiredTypes = [
   "HostCapabilities",
   "InitializeParams",
   "InitializeResult",
+  "PermissionRespondParams",
+  "PermissionRespondResult",
   "QueryCancelParams",
   "QueryCancelResult",
   "QueryEventParams",
   "QueryResultParams",
   "QueryStartParams",
   "QueryStartResult",
+  "QueryUsage",
   "SessionCloseParams",
   "SessionCloseResult",
   "SessionCreateParams",
   "SessionCreateResult",
+  "SessionResumeParams",
   "ShutdownResult",
+  "TemporaryModelConfig",
+  "TemporaryModelProvider",
 ];
 const missing = requiredTypes.filter((type) => !files.includes(type));
 if (missing.length > 0) {

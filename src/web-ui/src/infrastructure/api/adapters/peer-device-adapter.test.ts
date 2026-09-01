@@ -42,6 +42,84 @@ describe('isPeerLocalOnlyCommand', () => {
   it('keeps native main-window geometry control on the controller computer', () => {
     expect(isPeerLocalOnlyCommand('set_main_window_transient_geometry')).toBe(true);
   });
+
+  it('keeps controller app-shell locale on the controller device', () => {
+    expect(isPeerLocalOnlyCommand('i18n_get_current_language')).toBe(true);
+    expect(isPeerLocalOnlyCommand('i18n_set_language')).toBe(true);
+    expect(isPeerLocalOnlyCommand('i18n_get_supported_languages')).toBe(true);
+    expect(isPeerLocalOnlyCommand('i18n_get_config')).toBe(true);
+    expect(isPeerLocalOnlyCommand('i18n_set_config')).toBe(true);
+  });
+
+  it('keeps announcement scheduler and state on the controller device', () => {
+    expect(isPeerLocalOnlyCommand('get_pending_announcements')).toBe(true);
+    expect(isPeerLocalOnlyCommand('get_announcement_tips')).toBe(true);
+    expect(isPeerLocalOnlyCommand('mark_announcement_seen')).toBe(true);
+    expect(isPeerLocalOnlyCommand('dismiss_announcement')).toBe(true);
+    expect(isPeerLocalOnlyCommand('never_show_announcement')).toBe(true);
+    expect(isPeerLocalOnlyCommand('trigger_announcement')).toBe(true);
+  });
+
+  it('keeps companion-pet import and preview on the controller device', () => {
+    expect(isPeerLocalOnlyCommand('list_agent_companion_pets')).toBe(true);
+    expect(isPeerLocalOnlyCommand('import_agent_companion_pet_package')).toBe(true);
+    expect(isPeerLocalOnlyCommand('delete_agent_companion_pet_package')).toBe(true);
+  });
+
+  it('keeps insights generation, progress and report on the controller device', () => {
+    expect(isPeerLocalOnlyCommand('generate_insights')).toBe(true);
+    expect(isPeerLocalOnlyCommand('get_latest_insights')).toBe(true);
+    expect(isPeerLocalOnlyCommand('load_insights_report')).toBe(true);
+    expect(isPeerLocalOnlyCommand('has_insights_data')).toBe(true);
+    expect(isPeerLocalOnlyCommand('cancel_insights_generation')).toBe(true);
+  });
+
+  it('keeps IDE control result reporting on the controller device', () => {
+    expect(isPeerLocalOnlyCommand('report_ide_control_result')).toBe(true);
+  });
+
+  it('keeps controller webview/devtools/desktop-pet/diagnostics on the controller device', () => {
+    // These previously hit the local Tauri host via dynamic invoke(); routing
+    // them to a peer would regress (peer host does not implement them, and
+    // they drive the controller's own embedded surfaces).
+    expect(isPeerLocalOnlyCommand('browser_webview_create')).toBe(true);
+    expect(isPeerLocalOnlyCommand('browser_webview_eval')).toBe(true);
+    expect(isPeerLocalOnlyCommand('browser_webview_navigate')).toBe(true);
+    expect(isPeerLocalOnlyCommand('browser_webview_reload')).toBe(true);
+    expect(isPeerLocalOnlyCommand('browser_webview_set_bounds')).toBe(true);
+    expect(isPeerLocalOnlyCommand('debug_devtools_available')).toBe(true);
+    expect(isPeerLocalOnlyCommand('debug_open_devtools')).toBe(true);
+    expect(isPeerLocalOnlyCommand('resize_agent_companion_desktop_pet')).toBe(true);
+    expect(isPeerLocalOnlyCommand('show_agent_companion_desktop_pet')).toBe(true);
+    expect(isPeerLocalOnlyCommand('hide_agent_companion_desktop_pet')).toBe(true);
+    expect(isPeerLocalOnlyCommand('append_flow_chat_diagnostics')).toBe(true);
+  });
+
+  it('routes Browser Control and Computer Use to the host that runs the Tool', () => {
+    // Browser Control / Computer Use run the agent Tool, so they must reach the
+    // host that executes it: Desktop Peer B bridges them to its own webview
+    // (reads B's browser/OS), CLI Peer refuses them in deny.rs, and the UI
+    // gates the section on host type. They must NOT be LOCAL_ONLY, otherwise
+    // config is written to the peer while status/launch/repair run on the
+    // controller (split across hosts). See PR #2428 review #4 issue #1.
+    expect(isPeerLocalOnlyCommand('browser_control_launch')).toBe(false);
+    expect(isPeerLocalOnlyCommand('browser_control_list_browsers')).toBe(false);
+    expect(isPeerLocalOnlyCommand('browser_control_get_status')).toBe(false);
+    expect(isPeerLocalOnlyCommand('browser_control_restart_with_cdp')).toBe(false);
+    expect(isPeerLocalOnlyCommand('browser_control_enable_default_cdp')).toBe(false);
+    expect(isPeerLocalOnlyCommand('computer_use_get_status')).toBe(false);
+    expect(isPeerLocalOnlyCommand('computer_use_request_permissions')).toBe(false);
+    expect(isPeerLocalOnlyCommand('computer_use_open_system_settings')).toBe(false);
+    // But the embedded browser_webview_* surface stays controller-local.
+    expect(isPeerLocalOnlyCommand('browser_webview_create')).toBe(true);
+  });
+
+  it('keeps file-tree path checks routed to the peer surface', () => {
+    // check_path_exists is the one CLI-Peer-supported routed command: the path
+    // comes from the rendered surface's file tree, so it must stay peer-routed.
+    expect(isPeerLocalOnlyCommand('check_path_exists')).toBe(false);
+    expect(peerInvokePriorityFor('check_path_exists')).toBe('high');
+  });
 });
 
 describe('peerInvokePriorityFor', () => {
@@ -99,6 +177,14 @@ describe('peerInvokePriorityFor', () => {
     expect(peerInvokePriorityFor('terminal_signal')).toBe('high');
   });
 
+  it('ranks per-tool cancel high so Interrupt is not queued behind normal work', () => {
+    // A long-running shell keeps producing side effects until the cancel
+    // reaches the host; it must take the reserved high-priority slot, not the
+    // normal queue that saturated reads/mutations can block. See PR #2428 #2.
+    expect(peerInvokePriorityFor('cancel_tool')).toBe('high');
+    expect(peerInvokePriorityFor('cancel_dialog_turn')).toBe('high');
+  });
+
   it('retries only idempotent Peer reads', () => {
     expect(isPeerRetryableReadCommand('list_persisted_sessions_page')).toBe(true);
     expect(isPeerRetryableReadCommand('get_opened_workspaces')).toBe(true);
@@ -107,6 +193,28 @@ describe('peerInvokePriorityFor', () => {
     expect(isPeerRetryableReadCommand('start_dialog_turn')).toBe(false);
     expect(isPeerRetryableReadCommand('delete_session')).toBe(false);
     expect(isPeerRetryableReadCommand('respond_permission')).toBe(false);
+  });
+
+  it('does not retry side-effecting announcement get_* commands', () => {
+    // These run the scheduler (mutate app_open_count + persist) and must never
+    // be auto-retried by the peer read path, where retries would multiply the
+    // side effect.
+    expect(isPeerRetryableReadCommand('get_pending_announcements')).toBe(false);
+    expect(isPeerRetryableReadCommand('get_announcement_tips')).toBe(false);
+  });
+
+  it('retries Browser Control / Computer Use status reads but not their mutations', () => {
+    // The pure reads start with `browser_`/`computer_`, not `get_`/`read_`/
+    // `list_`, so they are listed explicitly; the side-effecting commands in
+    // the same family stay non-retryable mutations. See PR #2428 round 5 #3.
+    expect(isPeerRetryableReadCommand('browser_control_get_status')).toBe(true);
+    expect(isPeerRetryableReadCommand('browser_control_list_browsers')).toBe(true);
+    expect(isPeerRetryableReadCommand('computer_use_get_status')).toBe(true);
+    expect(isPeerRetryableReadCommand('browser_control_launch')).toBe(false);
+    expect(isPeerRetryableReadCommand('browser_control_restart_with_cdp')).toBe(false);
+    expect(isPeerRetryableReadCommand('browser_control_enable_default_cdp')).toBe(false);
+    expect(isPeerRetryableReadCommand('computer_use_request_permissions')).toBe(false);
+    expect(isPeerRetryableReadCommand('computer_use_open_system_settings')).toBe(false);
   });
 
   it('retries only mutations with an explicit host idempotency identity', () => {
@@ -222,6 +330,56 @@ describe('PeerDeviceTransportAdapter queue', () => {
       'terminal_write',
       'ssh_is_connected',
     ]);
+  });
+
+  it('dispatches cancel_tool immediately when the non-high slot is busy', async () => {
+    // The Terminal Interrupt button calls cancel_tool; a long-running shell on
+    // the peer keeps producing side effects until the cancel lands. cancel_tool
+    // is high-priority, so it takes the reserved high slot and dispatches even
+    // while a normal-priority mutation occupies the single non-high slot.
+    const started: string[] = [];
+    const normalGate = createDeferred<void>();
+
+    const deviceRpc = vi.fn(async (_target: string, commandJson: string) => {
+      const parsed = JSON.parse(commandJson) as { command: string };
+      started.push(parsed.command);
+      if (parsed.command === 'set_config') {
+        await normalGate.promise;
+      }
+      return JSON.stringify({
+        resp: 'host_invoke_result',
+        ok: true,
+        value: parsed.command === 'set_config' ? {} : { ok: true },
+      });
+    });
+
+    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc, {}, 2);
+    await adapter.connect();
+
+    // One normal-priority mutation occupies the single non-high slot
+    // (maxConcurrent 2 → one slot reserved for high).
+    const normal1 = adapter.request('set_config', { request: { path: 'a' } });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(started).toEqual(['set_config']);
+    expect(adapter.getActiveCountsForTest()).toEqual({
+      total: 1,
+      high: 0,
+      normal: 1,
+      low: 0,
+    });
+
+    // Interrupt fires while the normal slot is busy. It must start on the
+    // reserved high slot without waiting for the mutation to finish.
+    const cancel = adapter.request('cancel_tool', { request: { toolUseId: 'tu-1' } });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(started).toEqual(['set_config', 'cancel_tool']);
+    expect(adapter.getActiveCountsForTest().high).toBe(1);
+
+    await cancel;
+    normalGate.resolve();
+    await normal1;
   });
 
   it('sends split-endpoint file reads as direct peer commands', async () => {

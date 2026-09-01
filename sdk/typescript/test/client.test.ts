@@ -5,11 +5,49 @@ import test from "node:test";
 
 import { AgentClient, SdkError } from "../src/index.js";
 import { createAgentClient } from "../src/internal/client.js";
+import type {
+  AgentClientOptions,
+  Input,
+  QueryInput,
+  SessionCreateInput,
+  UserInput,
+} from "../src/types.js";
 
-test("a Query streams ordered events and returns the Host terminal Result", async () => {
+const clientOptions = {
+  cwd: "D:/workspace/project",
+  hostPath: process.execPath,
+  model: {
+    provider: "openai" as const,
+    model: "fixture-model",
+    apiKey: "fixture-secret",
+    baseUrl: "http://127.0.0.1:43123/v1",
+  },
+} satisfies AgentClientOptions;
+
+const packageHostOptions = {
+  cwd: "D:/workspace/project",
+  model: clientOptions.model,
+} satisfies AgentClientOptions;
+
+// @ts-expect-error Query model selection is bound at AgentClient.start.
+const queryModelOverride: QueryInput = { prompt: "hello", model: "attempted-override" };
+// @ts-expect-error Session model selection is bound at AgentClient.start.
+const sessionModelOverride: SessionCreateInput = { model: "attempted-override" };
+void queryModelOverride;
+void sessionModelOverride;
+void packageHostOptions;
+
+const multimodalInput: Input = [
+  { type: "text", text: "hello" },
+  { type: "local_image", path: "screenshots/fixture.png" },
+] satisfies UserInput[];
+void multimodalInput;
+
+test("a Query streams tool and permission events before the terminal Result", async () => {
   const clientToHost = new PassThrough();
   const hostToClient = new PassThrough();
-  const host = runFixtureHost(clientToHost, hostToClient);
+  const initializeRequests: unknown[] = [];
+  const host = runFixtureHost(clientToHost, hostToClient, initializeRequests);
   const client = await createAgentClient(
     {
       readable: hostToClient,
@@ -19,27 +57,112 @@ test("a Query streams ordered events and returns the Host terminal Result", asyn
         await host;
       },
     },
-    { cwd: "D:/workspace/project" },
+    clientOptions,
   );
 
   assert.ok(client instanceof AgentClient);
-  const query = await client.query({ prompt: "hello" });
+  assert.equal(initializeRequests.length, 1);
+  assert.deepEqual(initializeRequests[0], {
+    protocolVersion: 6,
+    clientInfo: { name: "@bitfun/agent-sdk", version: "0.0.0" },
+    capabilities: {
+      serverNotifications: true,
+      permissionResponses: true,
+    },
+    model: {
+      provider: "openai",
+      model: "fixture-model",
+      apiKey: "fixture-secret",
+      baseUrl: "http://127.0.0.1:43123/v1",
+    },
+  });
+  const query = await client.query({
+    prompt: [
+      { type: "text", text: "hello" },
+      { type: "local_image", path: "screenshots/fixture.png" },
+      { type: "text", text: "focus on the layout" },
+    ],
+    outputSchema: {
+      type: "object",
+      properties: { summary: { type: "string" } },
+      required: ["summary"],
+    },
+    model: "attempted-override",
+  } as QueryInput);
   assert.equal(query.id, "query-1");
   assert.equal(query.operationId, "operation-1");
   assert.deepEqual(query.turn, { id: "turn-1", sessionId: "session-1" });
+  assert.deepEqual(client.capabilities, {
+    query: true,
+    sessions: true,
+    cancellation: true,
+    eventStream: true,
+    toolEvents: true,
+    imageInput: true,
+    permissionResponses: true,
+    structuredOutput: true,
+    usage: true,
+    customTools: false,
+    hooks: false,
+    mcpConfiguration: false,
+  });
   const items = [];
   for await (const item of query) {
     items.push(item);
+    if (item.type === "permission_request") {
+      await query.respondPermission(item.requestId, { decision: "allow_once" });
+      await assert.rejects(
+        query.respondPermission(item.requestId, { decision: "allow_once" }),
+        /unknown, expired, or already answered/,
+      );
+    }
   }
 
   assert.deepEqual(items, [
+    {
+      type: "tool_event",
+      queryId: "query-1",
+      sessionId: "session-1",
+      turnId: "turn-1",
+      operationId: "operation-1",
+      sequence: 1,
+      toolCallId: "tool-1",
+      toolName: "Read",
+      status: "started",
+    },
+    {
+      type: "permission_request",
+      queryId: "query-1",
+      sessionId: "session-1",
+      turnId: "turn-1",
+      operationId: "operation-1",
+      sequence: 2,
+      requestId: "permission-1",
+      action: "read",
+      resources: ["README.md"],
+      source: { kind: "tool_call", identity: "Read" },
+      toolCallId: "tool-1",
+      responseTimeoutMs: 120_000,
+    },
+    {
+      type: "tool_event",
+      queryId: "query-1",
+      sessionId: "session-1",
+      turnId: "turn-1",
+      operationId: "operation-1",
+      sequence: 3,
+      toolCallId: "tool-1",
+      toolName: "Read",
+      status: "completed",
+      durationMs: 12,
+    },
     {
       type: "assistant_text_delta",
       queryId: "query-1",
       sessionId: "session-1",
       turnId: "turn-1",
       operationId: "operation-1",
-      sequence: 1,
+      sequence: 4,
       text: "fixture result",
     },
     {
@@ -50,6 +173,13 @@ test("a Query streams ordered events and returns the Host terminal Result", asyn
       operationId: "operation-1",
       status: "completed",
       outputText: "fixture result",
+      structuredOutput: { summary: "fixture result" },
+      usage: {
+        inputTokens: 100,
+        outputTokens: 25,
+        totalTokens: 125,
+        cachedTokens: 40,
+      },
     },
   ]);
   assert.equal((await query.result()).outputText, "fixture result");
@@ -73,14 +203,21 @@ test("an explicit Session starts Turns on the existing client connection", async
         await host;
       },
     },
-    { cwd: "D:/workspace/project" },
+    clientOptions,
   );
 
-  const session = await client.sessions.create({ agent: "agentic" });
+  const session = await client.sessions.create({
+    agent: "agentic",
+    model: "attempted-override",
+  } as SessionCreateInput);
   assert.equal(session.id, "session-explicit");
   assert.equal(session.agent, "agentic");
+  assert.equal(session.lifetime, "durable");
 
-  const query = await session.startTurn({ prompt: "continue" });
+  const query = await session.startTurn({
+    prompt: [{ type: "local_image", path: "screenshots/continued.webp" }],
+    outputSchema: { type: "object" },
+  });
   assert.equal((await query.result()).outputText, "continued");
   await session.close();
   assert.equal(typeof session[Symbol.asyncDispose], "function");
@@ -90,6 +227,37 @@ test("an explicit Session starts Turns on the existing client connection", async
     "initialize",
     "session/create",
     "query/start",
+    "session/close",
+    "shutdown",
+  ]);
+});
+
+test("a durable Session resumes on a new client connection", async () => {
+  const clientToHost = new PassThrough();
+  const hostToClient = new PassThrough();
+  const methods: string[] = [];
+  const host = runResumeFixtureHost(clientToHost, hostToClient, methods);
+  const client = await createAgentClient(
+    {
+      readable: hostToClient,
+      writable: clientToHost,
+      close: async () => {
+        clientToHost.end();
+        await host;
+      },
+    },
+    clientOptions,
+  );
+
+  const session = await client.sessions.resume("session-persisted");
+  assert.equal(session.id, "session-persisted");
+  assert.equal(session.lifetime, "durable");
+  await session.close();
+  await client.close();
+
+  assert.deepEqual(methods, [
+    "initialize",
+    "session/resume",
     "session/close",
     "shutdown",
   ]);
@@ -111,7 +279,7 @@ test("Query cancel and close are idempotent and the Host Result remains authorit
         await host;
       },
     },
-    { cwd: "D:/workspace/project" },
+    clientOptions,
   );
 
   const query = await client.query({ prompt: "wait" });
@@ -146,7 +314,7 @@ test("leaving Query iteration early cancels and settles the Turn", async () => {
         await host;
       },
     },
-    { cwd: "D:/workspace/project" },
+    clientOptions,
   );
 
   const query = await client.query({ prompt: "stream" });
@@ -175,7 +343,7 @@ test("Host loss rejects an accepted Query with unknown outcome instead of fabric
         await host;
       },
     },
-    { cwd: "D:/workspace/project" },
+    clientOptions,
   );
 
   const query = await client.query({ prompt: "may have side effects" });
@@ -189,6 +357,36 @@ test("Host loss rejects an accepted Query with unknown outcome instead of fabric
   await assert.rejects(query[Symbol.asyncIterator]().next(), SdkError);
 
   await client.close();
+  assert.equal(transportClosed, true);
+});
+
+test("an empty initialized model id fails the connection closed", async () => {
+  const clientToHost = new PassThrough();
+  const hostToClient = new PassThrough();
+  let transportClosed = false;
+  const host = runEmptyModelIdFixtureHost(clientToHost, hostToClient);
+
+  await assert.rejects(
+    createAgentClient(
+      {
+        readable: hostToClient,
+        writable: clientToHost,
+        close: async () => {
+          transportClosed = true;
+          clientToHost.end();
+          await host;
+        },
+      },
+      clientOptions,
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof SdkError);
+      assert.equal(error.code, "process_lost");
+      assert.equal(error.stage, "protocol");
+      assert.equal(error.outcomeCertainty, "unknown");
+      return true;
+    },
+  );
   assert.equal(transportClosed, true);
 });
 
@@ -206,7 +404,7 @@ test("AgentClient.close settles owned Queries before shutting down its connectio
         await host;
       },
     },
-    { cwd: "D:/workspace/project" },
+    clientOptions,
   );
 
   const query = await client.query({ prompt: "still running" });
@@ -234,7 +432,7 @@ test("Host operation errors preserve stable SDK error facts", async () => {
         await host;
       },
     },
-    { cwd: "D:/workspace/project" },
+    clientOptions,
   );
 
   await assert.rejects(client.query({ prompt: "requires auth" }), (error: unknown) => {
@@ -264,7 +462,7 @@ test("unknown Host error facts fail the protocol closed", async () => {
         await host;
       },
     },
-    { cwd: "D:/workspace/project" },
+    clientOptions,
   );
 
   await assert.rejects(client.query({ prompt: "invalid error" }), (error: unknown) => {
@@ -289,7 +487,7 @@ test("ambiguous JSON-RPC response envelopes fail the protocol closed", async () 
         await host;
       },
     },
-    { cwd: "D:/workspace/project" },
+    clientOptions,
   );
 
   await assert.rejects(client.query({ prompt: "reject ambiguous response" }), (error: unknown) => {
@@ -356,7 +554,7 @@ test("unknown Query event and Result status fail the protocol closed", async (co
             await host;
           },
         },
-        { cwd: "D:/workspace/project" },
+        clientOptions,
       );
 
       try {
@@ -377,6 +575,7 @@ test("unknown Query event and Result status fail the protocol closed", async (co
 async function runFixtureHost(
   requests: PassThrough,
   responses: PassThrough,
+  initializeRequests: unknown[],
 ): Promise<void> {
   const lines = createInterface({ input: requests, crlfDelay: Infinity });
   for await (const line of lines) {
@@ -386,33 +585,52 @@ async function runFixtureHost(
       params: Record<string, unknown>;
     };
     if (request.method === "initialize") {
+      initializeRequests.push(request.params);
       write(responses, {
         jsonrpc: "2.0",
         id: request.id,
         result: {
-          protocolVersion: 1,
+          protocolVersion: 6,
           runtimeVersion: "0.2.17",
           stability: "not_delivered",
           capabilities: {
             sessionCreate: true,
-            sessionCreateLifetime: "connection",
+            sessionCreateLifetime: "durable",
+            sessionResume: true,
             query: true,
             queryCancel: true,
             sessionClose: true,
             eventStream: true,
-            structuredOutput: false,
-            usage: false,
+            toolEvents: true,
+            imageInput: true,
+            structuredOutput: true,
+            usage: true,
             customTools: false,
-            permissionCallbacks: false,
+            permissionResponses: true,
             hooks: false,
             mcpConfiguration: false,
             prestartedTransport: false,
           },
+          modelId: "sdk:openai:resolved",
         },
       });
       continue;
     }
     if (request.method === "query/start") {
+      assert.deepEqual(request.params, {
+        prompt: "hello\n\nfocus on the layout",
+        images: ["screenshots/fixture.png"],
+        outputSchema: {
+          type: "object",
+          properties: { summary: { type: "string" } },
+          required: ["summary"],
+        },
+        sessionId: null,
+        sessionName: null,
+        agent: null,
+        cwd: "D:/workspace/project",
+        model: "sdk:openai:resolved",
+      });
       write(responses, {
         jsonrpc: "2.0",
         id: request.id,
@@ -435,6 +653,77 @@ async function runFixtureHost(
           turnId: "turn-1",
           operationId: "operation-1",
           sequence: 1,
+          event: {
+            type: "tool_event",
+            toolCallId: "tool-1",
+            toolName: "Read",
+            status: "started",
+          },
+        },
+      });
+      write(responses, {
+        jsonrpc: "2.0",
+        method: "query/event",
+        params: {
+          queryId: "query-1",
+          sessionId: "session-1",
+          turnId: "turn-1",
+          operationId: "operation-1",
+          sequence: 2,
+          event: {
+            type: "permission_request",
+            requestId: "permission-1",
+            action: "read",
+            resources: ["README.md"],
+            source: { kind: "tool_call", identity: "Read" },
+            toolCallId: "tool-1",
+            responseTimeoutMs: 120_000,
+          },
+        },
+      });
+      continue;
+    }
+    if (request.method === "permission/respond") {
+      assert.deepEqual(request.params, {
+        queryId: "query-1",
+        sessionId: "session-1",
+        turnId: "turn-1",
+        operationId: "operation-1",
+        requestId: "permission-1",
+        decision: "allow_once",
+      });
+      write(responses, {
+        jsonrpc: "2.0",
+        id: request.id,
+        result: { requestId: "permission-1", accepted: true },
+      });
+      write(responses, {
+        jsonrpc: "2.0",
+        method: "query/event",
+        params: {
+          queryId: "query-1",
+          sessionId: "session-1",
+          turnId: "turn-1",
+          operationId: "operation-1",
+          sequence: 3,
+          event: {
+            type: "tool_event",
+            toolCallId: "tool-1",
+            toolName: "Read",
+            status: "completed",
+            durationMs: 12,
+          },
+        },
+      });
+      write(responses, {
+        jsonrpc: "2.0",
+        method: "query/event",
+        params: {
+          queryId: "query-1",
+          sessionId: "session-1",
+          turnId: "turn-1",
+          operationId: "operation-1",
+          sequence: 4,
           event: { type: "assistant_text_delta", text: "fixture result" },
         },
       });
@@ -447,7 +736,16 @@ async function runFixtureHost(
           turnId: "turn-1",
           operationId: "operation-1",
           status: "completed",
-          output: { text: "fixture result" },
+          output: {
+            text: "fixture result",
+            structured: { summary: "fixture result" },
+          },
+          usage: {
+            inputTokens: 100,
+            outputTokens: 25,
+            totalTokens: 125,
+            cachedTokens: 40,
+          },
         },
       });
       continue;
@@ -495,7 +793,7 @@ async function runSessionFixtureHost(
         sessionName: null,
         agent: "agentic",
         cwd: "D:/workspace/project",
-        model: null,
+        model: "sdk:openai:resolved",
       });
       write(responses, {
         jsonrpc: "2.0",
@@ -504,14 +802,16 @@ async function runSessionFixtureHost(
           sessionId: "session-explicit",
           sessionName: "Explicit",
           agent: "agentic",
-          lifetime: "connection",
+          lifetime: "durable",
         },
       });
       continue;
     }
     if (request.method === "query/start") {
       assert.deepEqual(request.params, {
-        prompt: "continue",
+        prompt: "",
+        images: ["screenshots/continued.webp"],
+        outputSchema: { type: "object" },
         sessionId: "session-explicit",
       });
       write(responses, {
@@ -549,6 +849,59 @@ async function runSessionFixtureHost(
         jsonrpc: "2.0",
         id: request.id,
         result: { sessionId: "session-explicit", unloaded: true },
+      });
+      continue;
+    }
+    if (request.method === "shutdown") {
+      write(responses, {
+        jsonrpc: "2.0",
+        id: request.id,
+        result: { accepted: true },
+      });
+      responses.end();
+      return;
+    }
+    throw new Error(`Unexpected fixture method: ${request.method}`);
+  }
+}
+
+async function runResumeFixtureHost(
+  requests: PassThrough,
+  responses: PassThrough,
+  methods: string[],
+): Promise<void> {
+  const lines = createInterface({ input: requests, crlfDelay: Infinity });
+  for await (const line of lines) {
+    const request = JSON.parse(line) as {
+      id: number;
+      method: string;
+      params: Record<string, unknown>;
+    };
+    methods.push(request.method);
+    if (request.method === "initialize") {
+      write(responses, initializeResponse(request.id));
+      continue;
+    }
+    if (request.method === "session/resume") {
+      assert.deepEqual(request.params, { sessionId: "session-persisted" });
+      write(responses, {
+        jsonrpc: "2.0",
+        id: request.id,
+        result: {
+          sessionId: "session-persisted",
+          sessionName: "Persisted",
+          agent: "agentic",
+          lifetime: "durable",
+          workspacePath: "D:/workspace/project",
+        },
+      });
+      continue;
+    }
+    if (request.method === "session/close") {
+      write(responses, {
+        jsonrpc: "2.0",
+        id: request.id,
+        result: { sessionId: "session-persisted", unloaded: true },
       });
       continue;
     }
@@ -807,6 +1160,23 @@ async function runClientCloseFixtureHost(
   }
 }
 
+async function runEmptyModelIdFixtureHost(
+  requests: PassThrough,
+  responses: PassThrough,
+): Promise<void> {
+  const lines = createInterface({ input: requests, crlfDelay: Infinity });
+  for await (const line of lines) {
+    const request = JSON.parse(line) as { id: number; method: string };
+    assert.equal(request.method, "initialize");
+    const response = initializeResponse(request.id) as {
+      result: { modelId: string };
+    };
+    response.result.modelId = "";
+    write(responses, response);
+  }
+  responses.end();
+}
+
 async function runOperationErrorFixtureHost(
   requests: PassThrough,
   responses: PassThrough,
@@ -989,24 +1359,28 @@ function initializeResponse(id: number): unknown {
     jsonrpc: "2.0",
     id,
     result: {
-      protocolVersion: 1,
+      protocolVersion: 6,
       runtimeVersion: "0.2.17",
       stability: "not_delivered",
       capabilities: {
         sessionCreate: true,
-        sessionCreateLifetime: "connection",
+        sessionCreateLifetime: "durable",
+        sessionResume: true,
         query: true,
         queryCancel: true,
         sessionClose: true,
         eventStream: true,
-        structuredOutput: false,
-        usage: false,
+        toolEvents: true,
+        imageInput: true,
+        structuredOutput: true,
+        usage: true,
         customTools: false,
-        permissionCallbacks: false,
+        permissionResponses: true,
         hooks: false,
         mcpConfiguration: false,
         prestartedTransport: false,
       },
+      modelId: "sdk:openai:resolved",
     },
   };
 }
