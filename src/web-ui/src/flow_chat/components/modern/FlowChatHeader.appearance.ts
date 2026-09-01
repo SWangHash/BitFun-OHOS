@@ -24,6 +24,12 @@ export const flowChatHeaderAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'sessionTreeMenu' },
     { id: 'sessionTreeMenuItem' },
     { id: 'sessionTreeState' },
+    { id: 'shareFiles' },
+    { id: 'shareFilesTrigger' },
+    { id: 'shareFilesPanel' },
+    { id: 'shareFilesHeader' },
+    { id: 'shareFilesList' },
+    { id: 'shareFilesItem' },
   ],
   facets: [
     {

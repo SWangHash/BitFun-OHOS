@@ -49,6 +49,8 @@ pub mod remote_workspace_policy;
 pub mod review_platform_api;
 pub mod runtime_api;
 pub mod search_api;
+#[cfg(not(target_env = "ohos"))]
+pub mod screen_capture;
 pub mod session_api;
 pub mod session_storage_path;
 pub mod skill_api;
