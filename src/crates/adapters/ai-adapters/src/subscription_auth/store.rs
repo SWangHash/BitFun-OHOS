@@ -32,10 +32,12 @@ const CLEANUP_JOURNAL_VERSION: u8 = 1;
 const KEYRING_SERVICE: &str = "openbitfun.bitfun.subscription-auth.v1";
 const STORE_FILE_LOCK_TIMEOUT: Duration = Duration::from_secs(10);
 const STORE_FILE_LOCK_RETRY_INTERVAL: Duration = Duration::from_millis(25);
-// Windows Credential Manager limits a generic credential blob to 2560 bytes.
-// Leave headroom for platform-store implementations and split every logical
-// secret so a long JWT or refresh token remains portable across all hosts.
-const SECRET_CHUNK_BYTES: usize = 2_048;
+// HarmonyOS AssetStoreKit limits `asset.Tag.SECRET` to 1024 bytes. The OHOS
+// bridge stores each raw chunk as base64 text, so 768 input bytes expand to
+// exactly 1024 bytes. This is narrower than the 2560-byte Windows Credential
+// Manager limit and is therefore the portable ceiling across current hosts.
+const OHOS_ASSET_SECRET_BYTES: usize = 1_024;
+const SECRET_CHUNK_BYTES: usize = OHOS_ASSET_SECRET_BYTES / 4 * 3;
 
 /// A single credential assembled in memory after its secret material has been
 /// read from the platform credential vault.
@@ -430,11 +432,7 @@ fn current_vault() -> Arc<dyn SecureCredentialVault> {
             return Arc::new(TestSubscriptionVault);
         }
     }
-    if let Some(vault) = vault_override()
-        .read()
-        .ok()
-        .and_then(|guard| guard.clone())
-    {
+    if let Some(vault) = vault_override().read().ok().and_then(|guard| guard.clone()) {
         return vault;
     }
     #[cfg(feature = "system-vault")]
@@ -462,13 +460,22 @@ struct UnavailableVault;
 #[async_trait::async_trait]
 impl SecureCredentialVault for UnavailableVault {
     async fn get_secret(&self, _alias: &str) -> Result<Option<Vec<u8>>, String> {
-        Err("subscription credential vault unavailable: no system backend and no vault injected".to_string())
+        Err(
+            "subscription credential vault unavailable: no system backend and no vault injected"
+                .to_string(),
+        )
     }
     async fn set_secret(&self, _alias: &str, _secret: &[u8]) -> Result<(), String> {
-        Err("subscription credential vault unavailable: no system backend and no vault injected".to_string())
+        Err(
+            "subscription credential vault unavailable: no system backend and no vault injected"
+                .to_string(),
+        )
     }
     async fn delete_secret(&self, _alias: &str) -> Result<(), String> {
-        Err("subscription credential vault unavailable: no system backend and no vault injected".to_string())
+        Err(
+            "subscription credential vault unavailable: no system backend and no vault injected"
+                .to_string(),
+        )
     }
 }
 
@@ -477,6 +484,7 @@ impl SecureCredentialVault for UnavailableVault {
 /// [`set_store_path_for_test`] is called, so existing tests do not need to
 /// know about the new `SecureCredentialVault` trait.
 #[cfg(test)]
+#[derive(Debug)]
 struct TestSubscriptionVault;
 
 #[cfg(test)]
@@ -490,12 +498,7 @@ impl SecureCredentialVault for TestSubscriptionVault {
         test_secrets()
             .lock()
             .map_err(|_| "subscription test vault lock poisoned".to_string())
-            .map(|vault| {
-                vault
-                    .get(&path)
-                    .and_then(|items| items.get(alias))
-                    .cloned()
-            })
+            .map(|vault| vault.get(&path).and_then(|items| items.get(alias)).cloned())
     }
 
     async fn set_secret(&self, alias: &str, secret: &[u8]) -> Result<(), String> {
@@ -1117,6 +1120,28 @@ fn secret_chunks(secret: &str) -> Vec<Vec<u8>> {
         .chunks(SECRET_CHUNK_BYTES)
         .map(<[u8]>::to_vec)
         .collect()
+}
+
+#[cfg(test)]
+mod secret_chunk_tests {
+    use super::*;
+    use base64::Engine as _;
+
+    #[test]
+    fn chunks_fit_ohos_asset_store_after_base64_encoding() {
+        let secret = "x".repeat(SECRET_CHUNK_BYTES * 2 + 1);
+        let chunks = secret_chunks(&secret);
+
+        assert_eq!(
+            chunks.iter().map(Vec::len).collect::<Vec<_>>(),
+            [768, 768, 1]
+        );
+        assert_eq!(secret_part_count(&secret), chunks.len() as u32);
+        for chunk in chunks {
+            let encoded = base64::engine::general_purpose::STANDARD.encode(chunk);
+            assert!(encoded.len() <= OHOS_ASSET_SECRET_BYTES);
+        }
+    }
 }
 
 async fn read_chunked_field(
