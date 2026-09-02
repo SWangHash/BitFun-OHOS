@@ -537,13 +537,16 @@ fn normalize_base_url(url: &str) -> String {
 mod tests {
     use bitfun_core_types::{ProviderCatalogModelSource, ProviderCatalogSource};
 
-    use super::{parse_overlay, resolve_builtin_provider_catalog, trusted_models_dev_binding};
+    use super::{
+        parse_overlay, resolve_builtin_provider_catalog, trusted_models_dev_binding,
+        ModelPolicyMode,
+    };
     use bitfun_ai_adapters::models_dev::ModelsDevCatalog;
 
     #[test]
     fn overlay_is_valid_and_keeps_product_endpoint_decisions() {
         let overlay = parse_overlay().expect("valid overlay");
-        assert_eq!(overlay.providers.len(), 13);
+        assert_eq!(overlay.providers.len(), 14);
         let openbitfun = overlay
             .providers
             .iter()
@@ -618,6 +621,7 @@ mod tests {
             .find(|provider| provider.id == "ollama")
             .expect("ollama");
         assert_eq!(ollama.model_policy.mode, ModelPolicyMode::Curated);
+        assert!(ollama.catalog_provider_ids.is_empty());
         assert!(ollama.model_policy.curated_models.is_empty());
     }
 
@@ -772,7 +776,7 @@ mod tests {
             "bundle".to_string(),
             ProviderCatalogSource::Bundle,
         );
-        assert_eq!(resolved.providers.len(), 13);
+        assert_eq!(resolved.providers.len(), 14);
         assert!(resolved
             .providers
             .iter()
