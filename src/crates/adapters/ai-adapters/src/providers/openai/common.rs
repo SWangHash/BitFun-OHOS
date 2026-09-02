@@ -27,9 +27,8 @@ struct OpenAIModelEntry {
 
 pub(crate) fn apply_headers(client: &AIClient, builder: RequestBuilder) -> RequestBuilder {
     shared::apply_header_policy(client, builder, |mut builder| {
-        builder = builder
-            .header("Content-Type", "application/json");
-        
+        builder = builder.header("Content-Type", "application/json");
+
         // When the API key is empty or whitespace-only, do not set the
         // Authorization header. This allows local model services (e.g. Ollama)
         // that do not require authentication to work without a dummy key.
@@ -193,6 +192,7 @@ struct CodexBackendModelEntry {
 }
 
 const DEFAULT_CODEX_MODELS: &[&str] = &[
+    "gpt-5.6",
     "gpt-5.5",
     "gpt-5.4-mini",
     "gpt-5.4",
@@ -208,6 +208,7 @@ pub(crate) fn is_known_codex_reasoning_model(model_id: &str) -> bool {
 }
 
 const FORWARD_COMPAT_CODEX_MODELS: &[(&str, &[&str])] = &[
+    ("gpt-5.6", &["gpt-5.5", "gpt-5.4"]),
     ("gpt-5.5", &["gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex"]),
     ("gpt-5.4-mini", &["gpt-5.3-codex", "gpt-5.2-codex"]),
     ("gpt-5.4", &["gpt-5.3-codex", "gpt-5.2-codex"]),
@@ -471,7 +472,7 @@ pub(crate) fn convert_tools_flat(
 
 #[cfg(test)]
 mod tests {
-    use super::{attach_tools, is_known_codex_reasoning_model};
+    use super::{add_forward_compat_codex_models, attach_tools, is_known_codex_reasoning_model};
     use serde_json::json;
 
     #[test]
@@ -491,10 +492,20 @@ mod tests {
 
     #[test]
     fn codex_reasoning_model_table_is_exact_and_case_insensitive() {
+        assert!(is_known_codex_reasoning_model("GPT-5.6"));
         assert!(is_known_codex_reasoning_model("GPT-5.5"));
         assert!(is_known_codex_reasoning_model("gpt-5-codex"));
         assert!(!is_known_codex_reasoning_model("gpt-9-unknown"));
         assert!(!is_known_codex_reasoning_model("gpt-5.5-proxy"));
+    }
+
+    #[test]
+    fn codex_model_discovery_backfills_current_model_from_previous_generation() {
+        let mut models = vec!["gpt-5.5".to_string()];
+
+        add_forward_compat_codex_models(&mut models);
+
+        assert_eq!(models, ["gpt-5.5", "gpt-5.6"]);
     }
 
     #[test]
