@@ -1329,6 +1329,9 @@ async fn fetch_skill_market(
         .map_err(|e| format!("Failed to query skill market: {}", e))?;
 
     if !response.status().is_success() {
+        if response.status().is_client_error() {
+            return Ok(Vec::new());
+        }
         return Err(format!(
             "Skill market request failed with status {}",
             response.status()
