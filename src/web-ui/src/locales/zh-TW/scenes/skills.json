@@ -71,7 +71,8 @@
     "errorPrefix": "市場載入失敗: ",
     "errors": {
       "loadFailed": "載入技能失敗，請檢查網路後重試",
-      "loadMoreFailed": "載入更多失敗，請檢查網路後重試"
+      "loadMoreFailed": "載入更多失敗，請檢查網路後重試",
+      "tooShort": "關鍵詞太短，請至少輸入 2 個字符"
     },
     "empty": {
       "noMatch": "沒有找到匹配的市場技能",

@@ -71,7 +71,8 @@
     "errorPrefix": "Failed to load marketplace: ",
     "errors": {
       "loadFailed": "Failed to load skills. Please check your network and try again.",
-      "loadMoreFailed": "Failed to load more skills. Please check your network and try again."
+      "loadMoreFailed": "Failed to load more skills. Please check your network and try again.",
+      "tooShort": "Search term too short. Enter at least 2 characters."
     },
     "empty": {
       "noMatch": "No matching marketplace skills found",
