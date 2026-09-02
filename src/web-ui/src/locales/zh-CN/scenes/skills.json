@@ -71,7 +71,8 @@
     "errorPrefix": "市场加载失败: ",
     "errors": {
       "loadFailed": "加载技能失败，请检查网络后重试",
-      "loadMoreFailed": "加载更多失败，请检查网络后重试"
+      "loadMoreFailed": "加载更多失败，请检查网络后重试",
+      "tooShort": "关键词太短，请至少输入 2 个字符"
     },
     "empty": {
       "noMatch": "没有找到匹配的市场技能",
