@@ -71,18 +71,25 @@ export function useSkillMarket({
     if (capabilityEpoch === null) {
       return;
     }
+    if (query && query.trim().length < 2) {
+      setMarketLoading(false);
+      setMarketError('market.errors.tooShort');
+      return;
+    }
     const requestId = ++marketRequestIdRef.current;
 
     setMarketLoading(true);
     setMarketError(null);
     setCurrentPage(0);
     try {
-      const skillList = await fetchSkills(query, pageSize, 0);
+      const fetchBatch = pageSize + 1;
+      const skillList = await fetchSkills(query, fetchBatch, 0);
       if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
         return;
       }
-      setMarketSkills(skillList);
-      setHasMore(skillList.length >= pageSize);
+      const displaySkills = skillList.slice(0, pageSize);
+      setMarketSkills(displaySkills);
+      setHasMore(skillList.length > pageSize);
     } catch (err) {
       if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
         return;
@@ -173,47 +180,48 @@ export function useSkillMarket({
     }
 
     const requestId = ++marketRequestIdRef.current;
-    // Advance the page immediately so the user sees the page turn (with
-    // skeletons) right away, instead of freezing on the current page.
-    setCurrentPage(nextPage);
-
     try {
       setLoadingMore(true);
-      // Real offset pagination: fetch only the next page slice from the
-      // backend; no re-fetching of previously loaded items, no grow-limit.
       const remainingBudget = Math.max(0, MAX_TOTAL_SKILLS - displayMarketSkills.length);
       if (remainingBudget < pageSize) {
         setHasMore(false);
         return;
       }
-      const skillList = await fetchSkills(searchQuery || undefined, pageSize, nextOffset);
+      const fetchBatch = pageSize + 1;
+      const skillList = await fetchSkills(searchQuery || undefined, fetchBatch, nextOffset);
       if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
         return;
       }
-      if (skillList.length > 0) {
-        setMarketSkills((prev) => {
-          // Append new items, deduping by installId to avoid duplicate cards
-          // if the backend returned overlap.
-          const seen = new Set(prev.map((s) => s.installId));
-          const fresh = skillList.filter((s) => {
-            if (seen.has(s.installId)) {
-              return false;
-            }
-            seen.add(s.installId);
-            return true;
-          });
-          return [...prev, ...fresh];
-        });
+      if (skillList.length === 0) {
+        setHasMore(false);
+        return;
       }
-      setHasMore(skillList.length >= pageSize);
+      const displaySkills = skillList.slice(0, pageSize);
+      const existingIds = new Set(marketSkills.map((s) => s.installId));
+      const added = displaySkills.filter((s) => !existingIds.has(s.installId));
+
+      if (added.length === 0) {
+        setHasMore(false);
+        return;
+      }
+
+      setMarketSkills((prev) => [...prev, ...added]);
+
+      const updatedTotal = marketSkills.length + added.length;
+      if (nextPage * pageSize >= updatedTotal) {
+        setHasMore(false);
+        return;
+      }
+
+      setCurrentPage(nextPage);
+      const itemsOnThisPage = Math.min(pageSize, updatedTotal - nextPage * pageSize);
+      setHasMore(itemsOnThisPage >= pageSize && skillList.length > pageSize);
     } catch (err) {
       if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
         return;
       }
       log.error('Failed to load more skills', err);
       notification.error(t('market.errors.loadMoreFailed'));
-      // Roll back to the previous page on failure.
-      setCurrentPage(currentPage);
     } finally {
       if (requestId === marketRequestIdRef.current && capabilityIsCurrent(capabilityEpoch)) {
         setLoadingMore(false);
