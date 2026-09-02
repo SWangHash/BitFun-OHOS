@@ -638,6 +638,7 @@ const AgentsHomeView: React.FC = () => {
               size="small"
               clearable
               prefixIcon={<></>}
+              inputTestId="gallery-search-input"
               suffixContent={(
                 <button
                   type="button"
@@ -728,7 +729,7 @@ const AgentsHomeView: React.FC = () => {
                         agentFilterLevel === key && 'gallery-cat-chip--active',
                       ].filter(Boolean).join(' ')}
                       onClick={() => setAgentFilterLevel(agentFilterLevel === key ? 'all' : key)}
-                      data-testid="agents-source-filter"
+                      data-testid={`agents-source-filter-${key}`}
                       data-agent-source={key}
                     >
                       <span>{label}</span>
@@ -749,7 +750,7 @@ const AgentsHomeView: React.FC = () => {
                         agentFilterType === key && 'gallery-cat-chip--active',
                       ].filter(Boolean).join(' ')}
                       onClick={() => setAgentFilterType(agentFilterType === key ? 'all' : key)}
-                      data-testid="agents-kind-filter"
+                      data-testid={`agents-kind-filter-${key}`}
                       data-agent-kind={key}
                     >
                       <span>{label}</span>

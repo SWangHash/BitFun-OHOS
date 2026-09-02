@@ -9,6 +9,7 @@ export interface SwitchProps extends Omit<React.InputHTMLAttributes<HTMLInputEle
   checkedText?: string;
   uncheckedText?: string;
   className?: string;
+  testId?: string;
 }
 
 export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
@@ -22,6 +23,7 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
       uncheckedText,
       disabled = false,
       className = '',
+      testId,
       checked,
       children,
       ...props
@@ -44,7 +46,7 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
     ].filter(Boolean).join(' ');
 
     return (
-      <label className={containerClass} data-bf-component="switch" data-bf-part="root" data-bf-size={size} data-bf-state={[checked && 'checked', isDisabled && 'disabled', loading && 'loading'].filter(Boolean).join(' ') || undefined}>
+      <label data-testid={testId} className={containerClass} data-bf-component="switch" data-bf-part="root" data-bf-size={size} data-bf-state={[checked && 'checked', isDisabled && 'disabled', loading && 'loading'].filter(Boolean).join(' ') || undefined}>
         <div className="bitfun-switch__wrapper" data-bf-component="switch" data-bf-part="wrapper">
           <input
             {...props}

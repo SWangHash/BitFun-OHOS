@@ -52,6 +52,7 @@ const ShellNavWorkspaceSwitcher: React.FC<ShellNavWorkspaceSwitcherProps> = ({
           ref={workspaceTriggerRef}
           type="button"
           className={`bitfun-shell-nav__workspace-trigger${workspaceMenuOpen ? ' is-active' : ''}${hasMultipleWorkspaces ? ' is-switchable' : ''}`}
+          data-testid="shell-workspace-trigger"
           onClick={onToggle}
           aria-haspopup={hasMultipleWorkspaces ? 'menu' : undefined}
           aria-expanded={hasMultipleWorkspaces ? workspaceMenuOpen : undefined}

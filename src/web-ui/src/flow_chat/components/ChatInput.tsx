@@ -5439,7 +5439,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   });
 
   const renderActionButton = () => {
-    if (!derivedState) return <span className="bitfun-chat-input__send-action" data-bf-component="chat-input" data-bf-part="sendButton" data-bf-action="send" data-bf-state="disabled"><IconButton className="bitfun-chat-input__send-button" disabled size="small"><ArrowUp size={11} /></IconButton></span>;
+    if (!derivedState) return <span className="bitfun-chat-input__send-action" data-bf-component="chat-input" data-bf-part="sendButton" data-bf-action="send" data-bf-state="disabled"><IconButton className="bitfun-chat-input__send-button" data-testid="chat-input-send-btn" disabled size="small"><ArrowUp size={11} /></IconButton></span>;
 
     const { sendButtonMode, hasQueuedInput } = derivedState;
 
@@ -5490,6 +5490,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         <span className="bitfun-chat-input__send-action" data-bf-component="chat-input" data-bf-part="sendButton" data-bf-action="retry" data-bf-state={isModelSwitching || isModeChangePending || caps.transferInFlight ? 'disabled' : undefined}>
           <IconButton
             className="bitfun-chat-input__send-button bitfun-chat-input__send-button--retry"
+            data-testid="chat-input-retry-btn"
             onClick={() => void handleSendOrCancel()}
             disabled={isModelSwitching || isModeChangePending || caps.transferInFlight}
             tooltip={t('input.retry')}
@@ -6087,6 +6088,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                       <Tooltip content={t('chatInput.addBoostTooltip')}>
                         <IconButton
                           className="bitfun-chat-input__agent-boost-add"
+                          data-testid="chat-input-agent-boost-add"
                           variant="ghost"
                           size="xs"
                           aria-haspopup="menu"

@@ -63,6 +63,8 @@ export interface SelectProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 
   onOpenChange?: (isOpen: boolean) => void;
   triggerTestId?: string;
   dropdownTestId?: string;
+  clearTestId?: string;
+  searchInputTestId?: string;
   triggerAriaLabel?: string;
   triggerAriaLabelledBy?: string;
   triggerAriaDescribedBy?: string;
@@ -114,6 +116,8 @@ export const Select: React.FC<SelectProps> = ({
   onOpenChange,
   triggerTestId,
   dropdownTestId,
+  clearTestId,
+  searchInputTestId,
   triggerAriaLabel,
   triggerAriaLabelledBy,
   triggerAriaDescribedBy,
@@ -642,6 +646,7 @@ export const Select: React.FC<SelectProps> = ({
             ref={searchInputRef}
             type="text"
             className="select__search-input"
+            data-testid={searchInputTestId ?? 'select-search-input'}
             role="combobox"
             aria-label={resolvedSearchPlaceholder}
             aria-autocomplete="list"
@@ -690,6 +695,7 @@ export const Select: React.FC<SelectProps> = ({
             <button
               type="button"
               className="select__search-clear"
+              data-testid="select-search-clear"
               tabIndex={isOpen ? 0 : -1}
               onClick={(e) => {
                 e.stopPropagation();
@@ -837,7 +843,7 @@ export const Select: React.FC<SelectProps> = ({
             </span>
           )}
           {clearable && !loading && (multiple ? (selectedValue as any[]).length > 0 : selectedValue) && (
-            <span className="select__clear" onClick={handleClear} data-bf-component="select" data-bf-part="clear">×</span>
+            <span className="select__clear" data-testid={clearTestId ?? 'select-clear'} onClick={handleClear} data-bf-component="select" data-bf-part="clear">×</span>
           )}
           <span className={`select__arrow ${isOpen ? 'select__arrow--open' : ''}`} data-bf-component="select" data-bf-part="arrow">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">

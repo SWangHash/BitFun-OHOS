@@ -280,6 +280,7 @@ const ShellNav: React.FC = () => {
               <button
                 type="button"
                 className="bitfun-shell-nav__split-button-main"
+                data-testid="shell-split-main"
                 onClick={() => { void handleCreateManualTerminal(); }}
               >
                 <Plus size={14} />
@@ -289,6 +290,7 @@ const ShellNav: React.FC = () => {
               <button
                 type="button"
                 className="bitfun-shell-nav__split-button-toggle"
+                data-testid="shell-split-toggle"
                 onClick={handleToggleCreateMenu}
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
@@ -319,6 +321,7 @@ const ShellNav: React.FC = () => {
                   key={shell.key}
                   type="button"
                   className="bitfun-shell-nav__dropdown-item"
+                  data-testid={`shell-dropdown-create-${shell.key}`}
                   role="menuitem"
                   onClick={() => { void handleCreateManualTerminal(shell.shellType); }}
                 >
@@ -327,7 +330,7 @@ const ShellNav: React.FC = () => {
                 </button>
               ))}
               {shellMenuItems.length > 0 ? <div className="bitfun-shell-nav__dropdown-separator" /> : null}
-              <button type="button" data-bf-component="shell-nav" data-bf-part="menuItem" className="bitfun-shell-nav__dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); void handleRefresh(); }}>
+              <button type="button" data-bf-component="shell-nav" data-bf-part="menuItem" className="bitfun-shell-nav__dropdown-item" data-testid="shell-dropdown-refresh-btn" role="menuitem" onClick={() => { setMenuOpen(false); void handleRefresh(); }}>
                 <RefreshCw size={14} />
                 <span>{t('nav.shell.actions.refresh')}</span>
               </button>
@@ -368,6 +371,7 @@ const ShellNav: React.FC = () => {
               type="button"
               variant="secondary"
               size="small"
+              data-testid="shell-quick-create-btn"
               onClick={() => { void handleCreateManualTerminal(); }}
             >
               <Plus size={14} aria-hidden />

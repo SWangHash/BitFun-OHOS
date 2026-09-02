@@ -64,7 +64,7 @@ const CoreAgentCard: React.FC<CoreAgentCardProps> = ({
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && openDetails()}
       aria-label={agent.name}
-      data-testid="agent-list-item"
+      data-testid={`agent-list-item-${agent.id || agent.name}`}
       data-agent-id={agent.id}
       data-agent-name={agent.name}
       data-agent-kind={agent.agentKind}
@@ -74,7 +74,7 @@ const CoreAgentCard: React.FC<CoreAgentCardProps> = ({
           <Icon size={28} strokeWidth={1.6} />
         </div>
         <div className="core-agent-card__top-info" data-bf-component="core-agent-card" data-bf-part="headerInfo">
-          <span className="core-agent-card__name" data-bf-component="core-agent-card" data-bf-part="name" data-testid="agent-list-item-title">{agent.name}</span>
+          <span className="core-agent-card__name" data-bf-component="core-agent-card" data-bf-part="name" data-testid={`agent-list-item-title-${agent.id || agent.name}`}>{agent.name}</span>
           <span className="core-agent-card__role" data-bf-component="core-agent-card" data-bf-part="role">
             <Sparkles size={10} strokeWidth={2} />
             {meta.role}
@@ -83,7 +83,7 @@ const CoreAgentCard: React.FC<CoreAgentCardProps> = ({
       </div>
 
       <div className="core-agent-card__body" data-bf-component="core-agent-card" data-bf-part="body">
-        <p className="core-agent-card__desc" data-bf-component="core-agent-card" data-bf-part="description" data-testid="agent-list-item-description">
+        <p className="core-agent-card__desc" data-bf-component="core-agent-card" data-bf-part="description" data-testid={`agent-list-item-description-${agent.id || agent.name}`}>
           {getAgentDescription(t, agent)}
         </p>
       </div>

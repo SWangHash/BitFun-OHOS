@@ -28,6 +28,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onClose }) => {
           <Tooltip content={t('tabs.close')}>
             <button
               className="canvas-empty-state__close-btn"
+              data-testid="canvas-empty-close-btn"
               onClick={handleClose}
             >
               <X size={14} />

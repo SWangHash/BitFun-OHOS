@@ -93,6 +93,7 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
           key={example.id}
           data-bf-component="cowork-example-cards"
           data-bf-part="card"
+          data-testid={`cowork-example-card-${example.id}`}
           className="bitfun-cowork-example-cards__card"
           variant="subtle"
           interactive
@@ -127,6 +128,7 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
               <IconButton
                 variant="ghost"
                 size="xs"
+                data-testid="cowork-examples-add-plugin-btn"
                 onClick={onAddPlugin}
                 aria-label={t('coworkExamples.addPlugin')}
               >
@@ -138,6 +140,7 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
             <IconButton
               variant="ghost"
               size="xs"
+              data-testid="cowork-examples-refresh-btn"
               onClick={handleRefresh}
               aria-label={t('coworkExamples.refresh')}
             >
@@ -149,6 +152,7 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
               <IconButton
                 variant="ghost"
                 size="xs"
+                data-testid="cowork-examples-close-btn"
                 onClick={onClose}
                 aria-label={t('coworkExamples.close')}
               >

@@ -440,6 +440,7 @@ const MainNav: React.FC<MainNavProps> = ({
         data-bf-component="nav-panel"
         data-bf-part="workspaceMenuItem"
         role="menuitem"
+        data-testid="nav-workspace-menu-open-project"
         onClick={() => { closeWorkspaceMenu(); void handleOpenProject(); }}
       >
         <FolderOpen size={13} />
@@ -451,6 +452,7 @@ const MainNav: React.FC<MainNavProps> = ({
         data-bf-component="nav-panel"
         data-bf-part="workspaceMenuItem"
         role="menuitem"
+        data-testid="nav-workspace-menu-new-project"
         onClick={() => { closeWorkspaceMenu(); handleNewProject(); }}
       >
         <FolderPlus size={13} />
@@ -462,6 +464,7 @@ const MainNav: React.FC<MainNavProps> = ({
         data-bf-component="nav-panel"
         data-bf-part="workspaceMenuItem"
         role="menuitem"
+        data-testid="nav-workspace-menu-remote-ssh"
         onClick={handleOpenRemoteSSH}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -490,7 +493,7 @@ const MainNav: React.FC<MainNavProps> = ({
               role="menuitem"
               title={tooltip}
               onClick={() => { void handleSwitchWorkspace(workspace.id); }}
-              data-testid="nav-workspace-menu-recent-workspace"
+              data-testid={`nav-workspace-menu-recent-${workspace.id}`}
               data-workspace-id={workspace.id}
             >
               <FolderOpen size={13} aria-hidden="true" />

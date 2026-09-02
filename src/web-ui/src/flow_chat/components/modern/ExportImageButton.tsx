@@ -513,6 +513,7 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
     <Tooltip content={isExporting ? i18nService.t('flow-chat:exportImage.exporting') : i18nService.t('flow-chat:exportImage.exportToImage')} placement="top">
       <button
         className={`model-round-item__action-btn model-round-item__export-btn ${className}`}
+        data-testid={`model-round-export-btn-${turnId}`}
         data-bf-component="export-image"
         data-bf-part="trigger"
         data-bf-state={isExporting ? 'exporting' : undefined}

@@ -781,13 +781,13 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
                 <button
                   ref={copyButtonRef}
                   className={`model-round-item__action-btn model-round-item__copy-btn ${copied ? 'copied' : ''}`}
+                  data-testid={`model-round-copy-btn-${turnId}`}
                   onClick={() => setIsCopyMenuOpen(current => !current)}
                   tabIndex={shouldRevealFooter ? 0 : -1}
                   disabled={!shouldRevealFooter}
                   aria-haspopup="menu"
                   aria-expanded={isCopyMenuOpen}
                   aria-label={copied ? t('modelRound.copiedDialog') : t('modelRound.copyDialog')}
-                  data-testid="model-round-copy-btn"
                  data-bf-component="model-round-item" data-bf-part="action" data-bf-state={copied ? 'copied' : undefined}>
                   {copied ? <Check size={14} /> : <Copy size={14} />}
                 </button>
