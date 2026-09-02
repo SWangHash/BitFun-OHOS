@@ -86,7 +86,7 @@ pub fn mcp_reconnect_runtime_decision(
 
     if matches!(
         status,
-        MCPServerStatus::Reconnecting | MCPServerStatus::Failed
+        MCPServerStatus::Reconnecting
     ) {
         return MCPReconnectRuntimeDecision::Retry;
     }
