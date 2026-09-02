@@ -1979,6 +1979,9 @@ $_section-header-height: 24px;
   color: var(--bf-appearance-token-color-text-primary);
   font-family: var(--bf-appearance-token-font-family-sans);
   font-size: var(--bf-appearance-token-font-size-sm);
+  // Keep a stable cursor across the whole menu surface (items + dividers),
+  // so hovering near a divider does not flicker between pointer and auto.
+  cursor: default;
   transform-origin: bottom left;
   animation: bitfun-footer-menu-in $motion-fast $easing-decelerate forwards;
 
@@ -1991,6 +1994,10 @@ $_section-header-height: 24px;
   height: 1px;
   margin: $size-gap-1 $size-gap-2;
   background: var(--bf-appearance-token-border-subtle);
+  // Inherit the menu's default cursor instead of falling back to auto,
+  // preventing cursor flicker when moving between an item (pointer) and the
+  // divider gap.
+  cursor: default;
 }
 
 .bitfun-nav-panel__footer-menu-item {

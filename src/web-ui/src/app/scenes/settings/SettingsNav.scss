@@ -105,7 +105,7 @@
     width: 100%;
     position: relative;
     transition: color $motion-fast $easing-standard,
-                background $motion-fast $easing-standard;
+      background $motion-fast $easing-standard;
 
     &:hover {
       color: var(--bf-appearance-token-color-text-primary);

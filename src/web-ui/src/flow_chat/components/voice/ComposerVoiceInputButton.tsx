@@ -47,8 +47,13 @@ interface ComposerVoiceInputStatusProps {
 
 export function ComposerVoiceInputStatus({ controller }: ComposerVoiceInputStatusProps) {
   const { t } = useTranslation('flow-chat');
-  if (!controller.enabled || (controller.phase !== 'recording' && controller.phase !== 'preparing' && controller.phase !== 'transcribing')) {
+  if (!controller.enabled) {
     return null;
+  }
+
+  const active = controller.phase !== 'idle';
+  if (!active) {
+    return <div className="bitfun-chat-input__voice-status-row" aria-hidden="true" />;
   }
 
   return (
@@ -57,6 +62,7 @@ export function ComposerVoiceInputStatus({ controller }: ComposerVoiceInputStatu
       data-bf-component="composer-voice-input"
       data-bf-part="status"
       data-bf-phase={controller.phase}
+      aria-hidden={controller.phase !== 'recording' || undefined}
     >
       <span
         className="bitfun-chat-input__voice-recording-hint"
@@ -65,7 +71,7 @@ export function ComposerVoiceInputStatus({ controller }: ComposerVoiceInputStatu
         role="status"
         aria-live="polite"
       >
-        {controller.phase === 'recording' ? t('input.voiceInput.recording') : controller.tooltip}
+        {controller.phase === 'recording' ? t('input.voiceInput.recording') : ''}
       </span>
     </div>
   );

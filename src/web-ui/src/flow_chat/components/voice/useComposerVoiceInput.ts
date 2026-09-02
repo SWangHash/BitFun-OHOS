@@ -57,17 +57,14 @@ function isMediaCaptureSupported(): boolean {
 }
 
 function isPermissionDeniedError(error: unknown): boolean {
-  return error instanceof DOMException && (
-    error.name === 'NotAllowedError' ||
-    error.name === 'PermissionDeniedError'
-  );
+  const name = error instanceof DOMException || (error && typeof error === 'object' && 'name' in error)
+    ? (error as { name?: unknown }).name
+    : undefined;
+  return name === 'NotAllowedError' || name === 'PermissionDeniedError';
 }
 
 function resolveErrorMessage(error: unknown, permissionDenied: string, fallback: string): string {
-  if (error instanceof DOMException && (
-    error.name === 'NotAllowedError' ||
-    error.name === 'PermissionDeniedError'
-  )) {
+  if (isPermissionDeniedError(error)) {
     return permissionDenied;
   }
   const detail = error instanceof Error ? error.message : String(error);
@@ -127,6 +124,7 @@ export function useComposerVoiceInput({
   const cancelRecordingRef = useRef<(() => Promise<void>) | null>(null);
   const recordingLimitTimerRef = useRef<number | null>(null);
   const lowVolumeStartedAtRef = useRef<number | null>(null);
+  const microphonePermissionDeniedRef = useRef(false);
   const liveTextRef = useRef('');
   const pendingLiveTextRef = useRef('');
   const liveTextBaseRef = useRef('');
@@ -360,6 +358,7 @@ export function useComposerVoiceInput({
     }
 
     sessionRef.current = session;
+    setPhase('recording');
     appendErrorRef.current = null;
     flushBufferedChunks(session);
   }, [flushBufferedChunks]);
@@ -539,6 +538,10 @@ export function useComposerVoiceInput({
       openVoiceInputSettings();
       return;
     }
+    if (microphonePermissionDeniedRef.current) {
+      notificationService.info(t('input.voiceInput.permissionDenied'));
+      return;
+    }
 
     setPhase('preparing');
     setCompletionMode(null);
@@ -572,33 +575,25 @@ export function useComposerVoiceInput({
       }
 
       log.debug('Voice input startup requested', { modelInstalled });
-      let recorder: VoiceInputRecorder = { stop: async () => {} };
-      if (!isOpenHarmonyRuntime()) {
-        try {
-          recorder = await createVoiceInputRecorder({
-            targetSampleRate: DEFAULT_SPEECH_SAMPLE_RATE,
-            chunkDurationMs: RECORDING_CHUNK_DURATION_MS,
-            microphoneDeviceId: voiceSettings.microphone_device_id || undefined,
-            onChunk: enqueueChunk,
-            onLevel: updateAudioLevel,
-            onDeviceEnded: () => {
-              if (activeRecordingIdRef.current !== recordingId) return;
-              log.warn('Voice input microphone disconnected during recording');
-              notificationService.error(t('input.voiceInput.deviceDisconnected'));
-              void cancelRecordingRef.current?.();
-            },
-            onStartupTiming: timing => {
-              log.debug('Voice input recorder startup stage completed', timing);
-            },
-          });
-        } catch (micError) {
-          if (isTauriRuntime() && isPermissionDeniedError(micError)) {
-            log.info('Voice input getUserMedia denied on this runtime; falling back to the system speechRecognizer');
-          } else {
-            throw micError;
-          }
-        }
-      } else {
+      const recorder: VoiceInputRecorder = isOpenHarmonyRuntime()
+        ? { stop: async () => {} }
+        : await createVoiceInputRecorder({
+          targetSampleRate: DEFAULT_SPEECH_SAMPLE_RATE,
+          chunkDurationMs: RECORDING_CHUNK_DURATION_MS,
+          microphoneDeviceId: voiceSettings.microphone_device_id || undefined,
+          onChunk: enqueueChunk,
+          onLevel: updateAudioLevel,
+          onDeviceEnded: () => {
+            if (activeRecordingIdRef.current !== recordingId) return;
+            log.warn('Voice input microphone disconnected during recording');
+            notificationService.error(t('input.voiceInput.deviceDisconnected'));
+            void cancelRecordingRef.current?.();
+          },
+          onStartupTiming: timing => {
+            log.debug('Voice input recorder startup stage completed', timing);
+          },
+        });
+      if (isOpenHarmonyRuntime()) {
         log.debug('Using HarmonyOS native speech recognizer audio capture');
       }
       if (activeRecordingIdRef.current !== recordingId) {
@@ -608,7 +603,6 @@ export function useComposerVoiceInput({
         return;
       }
       recorderRef.current = recorder;
-      setPhase('recording');
       recordingLimitTimerRef.current = window.setTimeout(() => {
         if (activeRecordingIdRef.current === recordingId && recorderRef.current) {
           void stopAndTranscribe('transcribe');
@@ -654,6 +648,11 @@ export function useComposerVoiceInput({
               log.warn('Failed to stop recorder after session creation failure', { error: stopError });
             });
           }
+          if (isPermissionDeniedError(error)) {
+            microphonePermissionDeniedRef.current = true;
+            notificationService.error(t('input.voiceInput.permissionDenied'));
+            return;
+          }
           if (isModelMissingError(error)) {
             setModelInstalled(false);
             notificationService.warning(t('input.voiceInput.modelMissing'));
@@ -664,6 +663,9 @@ export function useComposerVoiceInput({
         });
     } catch (error) {
       log.error('Failed to start voice input', { error });
+      if (isPermissionDeniedError(error)) {
+        microphonePermissionDeniedRef.current = true;
+      }
       activeRecordingIdRef.current += 1;
       const session = sessionRef.current as SpeechInputSession | null;
       sessionRef.current = null;

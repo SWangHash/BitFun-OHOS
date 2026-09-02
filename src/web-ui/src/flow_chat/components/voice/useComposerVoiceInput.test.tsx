@@ -16,6 +16,8 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const mocks = vi.hoisted(() => ({
   finishText: 'Transcribed request',
   recorderStop: vi.fn(async () => undefined),
+  createVoiceInputRecorder: vi.fn(),
+  startInputSession: vi.fn(async () => ({ sessionId: 'voice-session-1' })),
   finishInputSession: vi.fn(),
   cancelInputSession: vi.fn(async () => undefined),
   notificationInfo: vi.fn(),
@@ -41,7 +43,7 @@ vi.mock('@/infrastructure/api', () => ({
     })),
     onModelStatusChanged: vi.fn(() => () => undefined),
     onTranscription: vi.fn(() => () => undefined),
-    startInputSession: vi.fn(async () => ({ sessionId: 'voice-session-1' })),
+    startInputSession: mocks.startInputSession,
     appendAudioChunk: vi.fn(async () => undefined),
     finishInputSession: mocks.finishInputSession,
     cancelInputSession: mocks.cancelInputSession,
@@ -100,9 +102,7 @@ vi.mock('@/shared/utils/logger', () => ({
 }));
 
 vi.mock('@/infrastructure/speech/voiceInputAudio', () => ({
-  createVoiceInputRecorder: vi.fn(async () => ({
-    stop: mocks.recorderStop,
-  })),
+  createVoiceInputRecorder: mocks.createVoiceInputRecorder,
 }));
 
 interface ProbeProps {
@@ -128,6 +128,7 @@ describe('useComposerVoiceInput completion modes', () => {
   let focusInputSoon: ReturnType<typeof vi.fn>;
   let replaceText: ReturnType<typeof vi.fn>;
   let submitText: ReturnType<typeof vi.fn>;
+  let getUserMedia: ReturnType<typeof vi.fn>;
   const currentText = 'Existing draft';
 
   beforeEach(async () => {
@@ -139,6 +140,9 @@ describe('useComposerVoiceInput completion modes', () => {
       audioDurationSeconds: 1,
     }));
     mocks.recorderStop.mockClear();
+    mocks.createVoiceInputRecorder.mockReset();
+    mocks.createVoiceInputRecorder.mockResolvedValue({ stop: mocks.recorderStop });
+    mocks.startInputSession.mockClear();
     mocks.finishInputSession.mockClear();
     mocks.cancelInputSession.mockClear();
     mocks.notificationInfo.mockClear();
@@ -148,9 +152,10 @@ describe('useComposerVoiceInput completion modes', () => {
     replaceText = vi.fn();
     submitText = vi.fn(async () => undefined);
     controller = undefined;
+    getUserMedia = vi.fn();
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
-      value: { getUserMedia: vi.fn() },
+      value: { getUserMedia },
     });
     host = document.createElement('div');
     document.body.appendChild(host);
@@ -229,32 +234,24 @@ describe('useComposerVoiceInput completion modes', () => {
     expect(mocks.notificationInfo).not.toHaveBeenCalled();
   });
 
-  it('keeps the idle control actionable when microphone capture is unavailable', async () => {
+  it('reports microphone permission denial without entering recording', async () => {
+    mocks.createVoiceInputRecorder.mockRejectedValueOnce(
+      Object.assign(new Error('permission denied'), { name: 'NotAllowedError' }),
+    );
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
-      value: undefined,
-    });
-    await act(async () => {
-      root.render(
-        <Probe
-          activateInput={activateInput}
-          focusInputSoon={focusInputSoon}
-          getCurrentText={() => currentText}
-          replaceText={replaceText}
-          submitText={submitText}
-          onController={(next) => { controller = next; }}
-        />,
-      );
-      await Promise.resolve();
+      value: { getUserMedia: vi.fn() },
     });
 
-    expect(controller?.disabled).toBe(false);
     await act(async () => {
       controller?.toggle();
       await Promise.resolve();
+      await Promise.resolve();
     });
 
-    expect(controller?.phase).toBe('recording');
-    expect(mocks.notificationError).not.toHaveBeenCalled();
+    expect(controller?.phase).toBe('idle');
+    expect(mocks.notificationError).toHaveBeenCalledOnce();
+    expect(mocks.notificationError.mock.calls[0][0]).not.toContain('Recording');
+    expect(mocks.startInputSession).not.toHaveBeenCalled();
   });
 });
