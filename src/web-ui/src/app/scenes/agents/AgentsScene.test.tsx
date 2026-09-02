@@ -267,7 +267,7 @@ describeWithJsdom('AgentsScene', () => {
       'utf8',
     );
 
-    expect(sceneSource.match(/<GalleryGrid\b[^>]*\bminCardWidth=\{360\}[^>]*>/g)).toHaveLength(2);
+    expect(sceneSource.match(/<GalleryGrid\b[^>]*\bminCardWidth=\{360\}[^>]*>/g)).toHaveLength(3);
     expect(agentCardStyles).toMatch(/\.agent-card \{\s+width: 100%;\s+min-width: 0;/);
     expect(coreCardSurfaceStyles).toMatch(/width: 100%;\s+min-width: 0;/);
     expect(agentCardStyles).not.toContain('width: 360px;');

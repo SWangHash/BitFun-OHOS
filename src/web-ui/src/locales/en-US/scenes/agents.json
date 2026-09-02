@@ -45,6 +45,17 @@
       }
     }
   },
+  "industryAgentsZone": {
+    "title": "Industry Agents",
+    "subtitle": "Professional agents for vertical domains with built-in domain workflows.",
+    "badge": "Industry",
+    "empty": "No industry agents available",
+    "workflowLabel": "Built-in domain workflow",
+    "qtMigration": {
+      "name": "QT Migration Expert",
+      "description": "Qt 5.12/5.15 to HarmonyOS migration: assess -> 8-step code migration -> build -> deploy -> verify -> issue-fixing loop, with fully visualized task progress."
+    }
+  },
   "agentsZone": {
     "title": "Agents Overview",
     "subtitle": "Browse all agents and sub-agents, then manage tools and skills directly.",
@@ -345,6 +356,7 @@
     "Plan": "Plan mode: create detailed task plans and execution steps",
     "Debug": "Debug mode: systematically diagnose and fix errors in code",
     "Claw": "Claw mode: extract and integrate information from external sources",
-    "Team": "Team mode: coordinate multiple agents to collaboratively complete complex tasks"
+    "Team": "Team mode: coordinate multiple agents to collaboratively complete complex tasks",
+    "QtMigration": "Qt 5.12/5.15 to HarmonyOS migration: assess -> 8-step code migration -> build -> deploy -> verify -> issue-fixing loop, with fully visualized task progress."
   }
 }

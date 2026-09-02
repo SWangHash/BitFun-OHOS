@@ -865,7 +865,8 @@
       "Cowork": "Cowork",
       "ComputerUse": "Computer Use",
       "DeepResearch": "Deep Research",
-      "Team": "Team"
+      "Team": "Team",
+      "QtMigration": "QT Migration Expert"
     },
     "openFolder": "Open folder…",
     "selectWorkspaceTitle": "Select workspace directory",
@@ -1779,6 +1780,14 @@
       "completed": "Completed",
       "submittedWaiting": "Submitted, waiting for processing",
       "submitting": "Submitting...",
+      "submitFailed": "Submission failed. Check the inputs and try again.",
+      "submitPathNotFound": "The {{field}} path does not exist: {{path}}",
+      "fieldName": {
+        "source_project": "Source project",
+        "output_project": "Output project",
+        "toolchain": "Migration toolchain",
+        "template": "Project template"
+      },
       "waitingAnswer": "Waiting for answer",
       "questionsCount": "{{count}} questions",
       "answerAllBeforeSubmit": "Please answer all questions before submitting",
@@ -1790,7 +1799,12 @@
       "loadingQuestions": "Receiving questions…",
       "other": "Other",
       "customInputHint": "Provide custom text input",
-      "pleaseSpecify": "Please specify..."
+      "pleaseSpecify": "Please specify...",
+      "browsePath": "Pick a path from the file manager",
+      "qtMigration": {
+        "pathsIntro": "The prompt does not specify migration paths. Please confirm the four required path settings first.",
+        "pathsHint": "💡 Add the four paths to your prompt to skip the setup."
+      }
     },
     "think": {
       "analysis": "Thinking Analysis",

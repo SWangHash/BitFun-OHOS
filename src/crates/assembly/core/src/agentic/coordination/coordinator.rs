@@ -54,6 +54,7 @@ use crate::agentic::side_question::build_btw_user_input;
 use crate::agentic::skill_agent_snapshot::{
     diff_skill_agent_snapshot, resolve_skill_agent_snapshot, TurnSkillAgentSnapshot,
 };
+use crate::agentic::tools::implementations::analyze_migration_request_tool::AnalyzeMigrationRequestTool;
 use crate::agentic::tools::pipeline::{
     PrimaryModelFacts, SubagentParentInfo, ToolExecutionContext, ToolExecutionOptions, ToolPipeline,
 };
@@ -2035,6 +2036,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     }),
                     id: outcome.compression_id.clone(),
                 },
+                question_request: None,
                 tool_result: Some(ToolResultData {
                     result: serde_json::json!({
                         "compression_count": outcome.compression_count,
@@ -2121,6 +2123,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     }),
                     id: compression_id,
                 },
+                question_request: None,
                 tool_result: Some(ToolResultData {
                     result: serde_json::json!({ "error": error }),
                     success: false,
@@ -5978,7 +5981,15 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         );
 
         let turn_index = self.session_manager.get_turn_count(&session_id);
+        let migration_enabled = effective_agent_type == "QtMigration"
+            && AnalyzeMigrationRequestTool::analyze_request(&original_user_input)["taskType"]
+                .as_str()
+                == Some("app_migration");
         let mut skill_agent_context_vars = HashMap::new();
+        skill_agent_context_vars.insert(
+            "qt_migration_enabled".to_string(),
+            migration_enabled.to_string(),
+        );
         if user_message_metadata
             .as_ref()
             .and_then(|metadata| metadata.get("acp_transport"))
@@ -6278,6 +6289,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         context_vars.insert(
             "original_user_input".to_string(),
             original_user_input.clone(),
+        );
+        context_vars.insert(
+            "qt_migration_enabled".to_string(),
+            migration_enabled.to_string(),
         );
         // Constraint revocation changes a user-authored safety boundary. Only
         // submissions from an external user surface can authorize that change;
@@ -11440,6 +11455,21 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         timeout_seconds: Option<u64>,
     ) -> BitFunResult<SubagentResult> {
         let request = self.prepare_subagent_execution_request(request).await?;
+        // Subagents inherit the parent's migration admission context so the
+        // intake gate constrains delegated side effects even when the
+        // subagent's own agent_type is not QtMigration. Only fork/fresh spawns
+        // carry a parent; agent_id re-dispatch (send_input) already targets an
+        // existing child session.
+        if let Some(child_session_id) = request.target_session_id() {
+            if let Some(parent_info) = request.subagent_parent_info.as_ref() {
+                self.get_session_manager()
+                    .seed_forked_intake_state(&parent_info.session_id, child_session_id)
+                    .await;
+                self.get_session_manager()
+                    .seed_forked_migration_active(&parent_info.session_id, child_session_id)
+                    .await;
+            }
+        }
         let Some(scheduler) = get_global_scheduler() else {
             return self
                 .execute_prepared_hidden_subagent(request, cancel_token, timeout_seconds)
@@ -11560,6 +11590,19 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             return Err(BitFunError::Cancelled(
                 "Background subagent start was cancelled".to_string(),
             ));
+        }
+        // Background subagents inherit the parent migration admission context too,
+        // so delegated side effects stay gated even when the background
+        // subagent's agent_type is not QtMigration.
+        if let Some(child_session_id) = request.target_session_id() {
+            if let Some(parent_info) = request.subagent_parent_info.as_ref() {
+                self.get_session_manager()
+                    .seed_forked_intake_state(&parent_info.session_id, child_session_id)
+                    .await;
+                self.get_session_manager()
+                    .seed_forked_migration_active(&parent_info.session_id, child_session_id)
+                    .await;
+            }
         }
         let subagent_dialog_turn_id = request.ensure_dialog_turn_id();
         let subagent_session_id = request
@@ -12105,6 +12148,115 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     /// Get SessionManager reference (for advanced features like mode management)
     pub fn get_session_manager(&self) -> &Arc<SessionManager> {
         &self.session_manager
+    }
+
+    /// Re-validate and persist a QtMigration template answer group before the
+    /// waiting AskUserQuestion tool call resumes.
+    ///
+    /// - Template/version/placeholder validation is backend-owned; failures are
+    ///   returned as errors so the frontend can have the user re-fill instead of
+    ///   letting invalid answers reach the runtime or the model.
+    /// - On success the normalized path bindings are applied to the Session
+    ///   intake snapshot (fields advance to `Resolved`) via the single pure
+    ///   decision owner, then the answer group is delivered to the waiting tool.
+    async fn validate_and_apply_answers(
+        &self,
+        meta: &bitfun_agent_runtime::user_questions::PendingQuestionRequestMeta,
+        request: &bitfun_agent_runtime::sdk::AgentUserAnswersRequest,
+    ) -> bitfun_runtime_ports::PortResult<()> {
+        use bitfun_agent_runtime::intake_state::{
+            apply_validated_answers, validate_answers, IntakeStateSnapshot, INTAKE_REQUIRED_FIELDS,
+            QT_MIGRATION_OFFICIAL_VALUE,
+        };
+
+        let template_id = match meta.template_id.as_deref() {
+            Some(id) => id,
+            None => {
+                return Err(bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                    "Waiting question request carries no template id",
+                ));
+            }
+        };
+        let template_version = match meta.template_version.as_deref() {
+            Some(version) => version,
+            None => {
+                return Err(bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                    "Waiting question request carries no template version",
+                ));
+            }
+        };
+
+        // Backend-owned template existence/version check (fail closed).
+        let known_template = |template_id: &str, template_version: &str| {
+            bitfun_agent_runtime::question_templates::resolve_question_template_full(
+                template_id,
+                &std::collections::HashMap::new(),
+            )
+            .is_some_and(|resolved| resolved.template_version == template_version)
+        };
+
+        // Required fields come from the waiting template's presentation policy;
+        // fall back to the canonical minimum-input set defensively.
+        let required_fields: Vec<&str> = meta
+            .required_fields
+            .as_ref()
+            .map(|fields| fields.iter().map(String::as_str).collect())
+            .unwrap_or_else(|| INTAKE_REQUIRED_FIELDS.to_vec());
+
+        let normalized = validate_answers(
+            template_id,
+            template_version,
+            known_template,
+            &required_fields,
+            &request.answers,
+        )
+        .map_err(|error| {
+            bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                format!("Migration answers rejected: {error}"),
+            )
+        })?;
+
+        // Path existence check (local workspaces only; remote skips this).
+        let session_manager = self.get_session_manager();
+        let is_remote = session_manager
+            .get_session(&meta.session_id)
+            .map(|session| {
+                session.config.remote_connection_id.is_some()
+                    || session.config.remote_ssh_host.is_some()
+            })
+            .unwrap_or(false);
+        if !is_remote {
+            for (field, value) in &normalized {
+                if value == QT_MIGRATION_OFFICIAL_VALUE {
+                    continue;
+                }
+                if !std::path::Path::new(value).exists() {
+                    // Stable machine-parseable code so the web card can render
+                    // a localized message (code + field id + path).
+                    return Err(bitfun_runtime_ports::PortError::new(
+                        bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                        format!("qt_migration_path_not_found: field={field}; path={value}"),
+                    ));
+                }
+            }
+        }
+
+        // Persist the normalized bindings into the Session intake snapshot
+        // before waking the tool, so downstream gates and restore see them.
+        let current = session_manager
+            .intake_state(&meta.session_id)
+            .unwrap_or_else(IntakeStateSnapshot::empty);
+        let updated = apply_validated_answers(&current, &normalized);
+        session_manager
+            .remember_intake_state(&meta.session_id, updated)
+            .await;
+
+        crate::agentic::tools::user_input_manager::get_user_input_manager()
+            .send_answer(&request.tool_id, request.answers.clone())
+            .map_err(user_input_port_error)
     }
 
     /// Set global coordinator (called during initialization)
@@ -13587,7 +13739,25 @@ impl bitfun_agent_runtime::sdk::AgentInteractionResponsePort for ConversationCoo
         &self,
         request: bitfun_agent_runtime::sdk::AgentUserAnswersRequest,
     ) -> bitfun_runtime_ports::PortResult<()> {
-        crate::agentic::tools::user_input_manager::get_user_input_manager()
+        let user_input_manager =
+            crate::agentic::tools::user_input_manager::get_user_input_manager();
+
+        // QtMigration intake wiring: template-backed waiting requests carry the
+        // request meta so answers are re-validated against the exact template
+        // and persisted into the Session intake snapshot before the waiting
+        // tool call resumes. Validation failures surface to the frontend as an
+        // error instead of delivering answers.
+        if let Some(meta) = user_input_manager.pending_meta(&request.tool_id) {
+            if let Some(template_id) = meta.template_id.as_deref() {
+                if template_id
+                    == bitfun_agent_runtime::question_templates::QT_MIGRATION_PATHS_TEMPLATE_ID
+                {
+                    return self.validate_and_apply_answers(&meta, &request).await;
+                }
+            }
+        }
+
+        user_input_manager
             .send_answer(&request.tool_id, request.answers)
             .map_err(user_input_port_error)
     }
@@ -15293,6 +15463,165 @@ mod tests {
         assert_eq!(
             stale_answer.message,
             format!("Tool error: Waiting channel not found: {answer_tool_id}")
+        );
+    }
+
+    #[tokio::test]
+    async fn qt_migration_answers_are_validated_and_persisted_into_session_intake() {
+        use bitfun_agent_runtime::intake_state::FieldResolutionState;
+        use bitfun_agent_runtime::sdk::{AgentInteractionResponsePort, AgentUserAnswersRequest};
+
+        let (coordinator, session_manager) = test_coordinator();
+        let session = session_manager
+            .create_session(
+                "Qt Migration".to_string(),
+                "QtMigration".to_string(),
+                SessionConfig {
+                    workspace_path: Some(".".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect("session should be created");
+        let session_id = session.session_id.clone();
+
+        // 1. Valid answer group: must be delivered to the waiting tool AND
+        // written into the Session intake snapshot. Local answers must use
+        // paths that actually exist (the backend re-checks existence).
+        let sandbox = tempfile::tempdir().expect("temp sandbox for migration paths");
+        let source_project = sandbox.path().join("myqt");
+        let output_project = sandbox.path().join("hm-out");
+        let toolchain = sandbox.path().join("ohos-sdk");
+        let template = sandbox.path().join("qt-hm-template-1");
+        for path in [&source_project, &output_project, &toolchain, &template] {
+            std::fs::create_dir_all(path).expect("sandbox path");
+        }
+        let valid_tool_id = format!("qt-answer-{}", uuid::Uuid::new_v4());
+        let (sender, receiver) = tokio::sync::oneshot::channel::<
+            bitfun_agent_runtime::user_questions::UserInputResponse,
+        >();
+        let meta = bitfun_agent_runtime::user_questions::PendingQuestionRequestMeta {
+            session_id: session_id.clone(),
+            template_id: Some(
+                bitfun_agent_runtime::question_templates::QT_MIGRATION_PATHS_TEMPLATE_ID
+                    .to_string(),
+            ),
+            template_version: Some(
+                bitfun_agent_runtime::question_templates::QT_MIGRATION_PATHS_TEMPLATE_VERSION
+                    .to_string(),
+            ),
+            required_fields: Some(
+                ["source_project", "output_project", "toolchain", "template"]
+                    .map(str::to_string)
+                    .to_vec(),
+            ),
+        };
+        let _registration = crate::agentic::tools::user_input_manager::get_user_input_manager()
+            .register_question(
+                meta.into_pending_question(
+                    valid_tool_id.clone(),
+                    None,
+                    None,
+                    serde_json::json!({ "questions": [] }),
+                ),
+                sender,
+            );
+
+        let valid_answers = serde_json::json!({
+            "source_project": source_project.to_string_lossy(),
+            "output_project": output_project.to_string_lossy(),
+            "toolchain": toolchain.to_string_lossy(),
+            "template": template.to_string_lossy()
+        });
+        AgentInteractionResponsePort::submit_user_answers(
+            &coordinator,
+            AgentUserAnswersRequest {
+                tool_id: valid_tool_id.clone(),
+                answers: valid_answers.clone(),
+            },
+        )
+        .await
+        .expect("valid migration answers must be accepted");
+
+        assert_eq!(
+            receiver.await.expect("receive answers").answers,
+            valid_answers
+        );
+
+        let intake = session_manager
+            .intake_state(&session_id)
+            .expect("intake snapshot must be persisted");
+        for field in ["source_project", "output_project", "toolchain", "template"] {
+            assert_eq!(
+                intake.fields[field].state,
+                FieldResolutionState::Resolved,
+                "field {field} should be Resolved after confirmed answers"
+            );
+            assert!(
+                intake.fields[field]
+                    .value
+                    .as_deref()
+                    .is_some_and(|value| !value.is_empty()),
+                "field {field} should carry a concrete value"
+            );
+        }
+
+        // 2. Placeholder-only answers: must be rejected before delivery, and
+        // the waiting channel must remain pending for a corrected re-submit.
+        let invalid_tool_id = format!("qt-answer-invalid-{}", uuid::Uuid::new_v4());
+        let (invalid_sender, _invalid_receiver) = tokio::sync::oneshot::channel::<
+            bitfun_agent_runtime::user_questions::UserInputResponse,
+        >();
+        let invalid_meta = bitfun_agent_runtime::user_questions::PendingQuestionRequestMeta {
+            session_id: session_id.clone(),
+            template_id: Some(
+                bitfun_agent_runtime::question_templates::QT_MIGRATION_PATHS_TEMPLATE_ID
+                    .to_string(),
+            ),
+            template_version: Some(
+                bitfun_agent_runtime::question_templates::QT_MIGRATION_PATHS_TEMPLATE_VERSION
+                    .to_string(),
+            ),
+            required_fields: Some(
+                ["source_project", "output_project", "toolchain", "template"]
+                    .map(str::to_string)
+                    .to_vec(),
+            ),
+        };
+        let _invalid_registration =
+            crate::agentic::tools::user_input_manager::get_user_input_manager().register_question(
+                invalid_meta.into_pending_question(
+                    invalid_tool_id.clone(),
+                    None,
+                    None,
+                    serde_json::json!({ "questions": [] }),
+                ),
+                invalid_sender,
+            );
+
+        let rejection = AgentInteractionResponsePort::submit_user_answers(
+            &coordinator,
+            AgentUserAnswersRequest {
+                tool_id: invalid_tool_id.clone(),
+                answers: serde_json::json!({
+                    "source_project": "默认路径",
+                    "output_project": "D:/out/hm",
+                    "toolchain": "D:/sdk/ohos",
+                    "template": "qt-hm-template-1"
+                }),
+            },
+        )
+        .await
+        .expect_err("placeholder answers must be rejected");
+
+        assert_eq!(
+            rejection.kind,
+            bitfun_runtime_ports::PortErrorKind::InvalidRequest
+        );
+        // The failed channel is still pending so the user can correct the input.
+        assert!(
+            crate::agentic::tools::user_input_manager::get_user_input_manager()
+                .has_pending(&invalid_tool_id)
         );
     }
 

@@ -8546,6 +8546,10 @@ export class FlowChatStore {
               type: 'tool' as const,
               toolName: tool.toolName,
               toolCall: tool.toolCall,
+              // Rehydrate the persisted AskUserQuestion payload so the card can
+              // render after a session restore even though the live
+              // ToolAwaitingUserInput event is not replayed.
+              questionRequest: tool.questionRequest,
               interruptionReason: normalizePersistedToolInterruptionReason(
                 tool.interruptionReason,
                 tool.status,

@@ -3031,6 +3031,7 @@ mod tests {
                         input: serde_json::json!({ "question": "confirm?" }),
                         id: "call-1".to_string(),
                     },
+                    question_request: None,
                     tool_result: None,
                     ai_intent: None,
                     start_time: 1_130,

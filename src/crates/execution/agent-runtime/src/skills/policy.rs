@@ -9,6 +9,7 @@ enum SkillModeId {
     Claw,
     ComputerUse,
     DeepResearch,
+    QtMigration,
     Other,
 }
 
@@ -21,6 +22,7 @@ impl SkillModeId {
             "Claw" => Self::Claw,
             "ComputerUse" => Self::ComputerUse,
             "DeepResearch" => Self::DeepResearch,
+            "QtMigration" => Self::QtMigration,
             _ => Self::Other,
         }
     }
@@ -94,6 +96,19 @@ const OPEN_META_ONLY_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     rules: &[ENABLE_META],
 };
 
+const ENABLE_HARMONYOS: SkillPolicyRule = SkillPolicyRule {
+    selector: SkillSelector::Group(BuiltinSkillGroup::HarmonyOS),
+    effect: PolicyEffect::Enable,
+};
+
+/// QtMigration mode enables the managed HarmonyOS built-in skills (incl.
+/// `ohos-qt-skills`) so the Skill tool can actually load them; other built-in
+/// groups stay disabled by default.
+const QT_MIGRATION_POLICY: ModeSkillPolicy = ModeSkillPolicy {
+    builtin_default: PolicyEffect::Disable,
+    rules: &[ENABLE_META, ENABLE_HARMONYOS],
+};
+
 const AGENTIC_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Enable,
     rules: &[DISABLE_OFFICE, DISABLE_GSTACK, DISABLE_COMPUTER_USE],
@@ -115,6 +130,7 @@ fn policy_for_mode(mode_id: &str) -> ModeSkillPolicy {
         SkillModeId::CodingShared | SkillModeId::Claw => AGENTIC_POLICY,
         SkillModeId::Cowork => COWORK_POLICY,
         SkillModeId::Team => TEAM_POLICY,
+        SkillModeId::QtMigration => QT_MIGRATION_POLICY,
         SkillModeId::ComputerUse | SkillModeId::DeepResearch | SkillModeId::Other => {
             OPEN_META_ONLY_POLICY
         }
@@ -172,6 +188,29 @@ mod tests {
                 "agent-browser must stay opt-in for mode {mode_id}: ControlHub's browser domain is the default browser path"
             );
         }
+    }
+
+    #[test]
+    fn qt_migration_mode_enables_harmonyos_builtin_skills() {
+        // QtMigration must allow the managed ohos-qt-skills (HarmonyOS group)
+        // so the Skill tool can load it; otherwise the gate would permanently
+        // block because the skill policy rejects the call.
+        assert_eq!(
+            resolve_builtin_default_enabled("ohos-qt-skills", "QtMigration"),
+            Some(true),
+            "ohos-qt-skills must be enabled in QtMigration mode"
+        );
+        // Other HarmonyOS built-in skills are also enabled.
+        assert_eq!(
+            resolve_builtin_default_enabled("arkts-runtime-fix", "QtMigration"),
+            Some(true)
+        );
+        // Non-HarmonyOS built-in skills stay disabled by default.
+        assert_eq!(
+            resolve_builtin_default_enabled("agent-browser", "QtMigration"),
+            Some(false),
+            "agent-browser must stay opt-in in QtMigration mode"
+        );
     }
 
     #[test]

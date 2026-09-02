@@ -1314,6 +1314,50 @@ describe('sessionToVirtualItems explore grouping', () => {
     });
   });
 
+  it('projects resolved question payloads on active confirmation rounds after attachment', () => {
+    const baseTool = makeTool('question-tool', 'AskUserQuestion', 'pending_confirmation');
+    const initialRound = makeRound({
+      id: 'question-round',
+      items: [baseTool],
+      isStreaming: false,
+      isComplete: false,
+      status: 'pending_confirmation',
+    });
+    const initialSession = makeSession({
+      sessionId: 'question-sync-session',
+      dialogTurns: [{
+        ...makeSession().dialogTurns[0],
+        sessionId: 'question-sync-session',
+        modelRounds: [initialRound],
+        status: 'processing',
+      }],
+    });
+    const resolvedPayload = {
+      templateId: 'qt-migration-paths',
+      templateVersion: '1',
+      resolvedQuestions: [{ field: 'source_project' }],
+    };
+    const resolvedTool = { ...baseTool, questionRequest: resolvedPayload };
+    const updatedRound = { ...initialRound, items: [resolvedTool] };
+    const updatedSession = {
+      ...initialSession,
+      dialogTurns: [{ ...initialSession.dialogTurns[0], modelRounds: [updatedRound] }],
+    };
+
+    const initialItems = sessionToVirtualItems(initialSession);
+    const updatedItems = sessionToVirtualItems(updatedSession);
+    const initialModelRound = initialItems.find(item => item.type === 'model-round');
+    const updatedModelRound = updatedItems.find(item => item.type === 'model-round');
+
+    expect(initialModelRound).toBeDefined();
+    expect(updatedModelRound).toBeDefined();
+    expect(updatedModelRound).not.toBe(initialModelRound);
+    expect(updatedModelRound).toMatchObject({
+      data: {
+        items: [expect.objectContaining({ questionRequest: resolvedPayload })],
+      },
+    });
+  });
   it('reuses the projection for completed turns when a later active turn changes', () => {
     const completedTurn = {
       id: 'completed-turn',

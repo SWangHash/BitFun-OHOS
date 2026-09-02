@@ -3,16 +3,21 @@
 //! Allows AI to ask questions to users during execution and wait for answers
 
 use async_trait::async_trait;
+use bitfun_agent_runtime::question_templates::{
+    resolve_question_template_with_context, QtMigrationQuestionContext,
+};
 use bitfun_agent_runtime::user_questions::{
     ask_user_question_available_in_context, build_answered_user_question_result,
     build_cancelled_user_question_result, validate_ask_user_question_input, AskUserQuestionInput,
-    PendingUserQuestion, USER_INPUT_AVAILABLE_CONTEXT_KEY, USER_INPUT_MODEL_ROUND_CONTEXT_KEY,
+    PendingQuestionRequestMeta, PendingUserQuestion, ResolvedQuestionRequest,
+    USER_INPUT_AVAILABLE_CONTEXT_KEY, USER_INPUT_MODEL_ROUND_CONTEXT_KEY,
 };
 use log::{debug, warn};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::agentic::tools::framework::{Tool, ToolResult, ToolUseContext};
+use crate::agentic::tools::implementations::analyze_migration_request_tool::AnalyzeMigrationRequestTool;
 use crate::agentic::tools::user_input_manager::get_user_input_manager;
 use crate::infrastructure::events::event_system::{get_global_event_system, BackendEvent};
 use crate::util::errors::BitFunResult;
@@ -86,7 +91,8 @@ Usage notes:
 - This tool ends the current dialog turn and waits for the user's reply before the assistant continues
 - Put all questions you need into a single AskUserQuestion call instead of calling it repeatedly in one response
 - Users will always be able to select "Other" to provide custom text input
-- Use multiSelect: true to allow multiple answers to be selected for a question"#.to_string())
+- Use multiSelect: true to allow multiple answers to be selected for a question
+- When a question may need a custom value beyond the predefined choices (for example a file path, host, or version), set the optional `inputPlaceholder` field on that question to the placeholder text (e.g. "请填写您原始工程路径"). The UI then shows a text input below the options and prefers the typed value over the selected option."#.to_string())
     }
 
     fn short_description(&self) -> String {
@@ -139,6 +145,10 @@ Usage notes:
                                 "type": "boolean",
                                 "default": false,
                                 "description": "Optional. Defaults to false. Set to true to allow the user to select multiple options instead of just one. Use when choices are not mutually exclusive."
+                            },
+                            "inputPlaceholder": {
+                                "type": "string",
+                                "description": "Optional. When provided, the question shows a text input below the options with this placeholder text. The submitted answer prefers the typed value over the selected option. Use it when the user may need to provide a custom value (e.g. a path) beyond the predefined choices."
                             }
                         },
                         "required": [
@@ -150,12 +160,21 @@ Usage notes:
                     },
                     "minItems": 1,
                     "maxItems": 4,
-                    "description": "Questions to ask the user (1-4 questions)"
+                    "description": "Questions to ask the user (1-4 questions). May be an empty array when templateId is provided."
+                },
+                "templateId": {
+                    "type": "string",
+                    "description": "Optional. Reference to a static backend question template (e.g. \"qt-migration-paths\"). When provided, the questions are loaded from the template and any inline `questions` array is ignored. Prefer this over hand-writing questions when a fixed confirmation flow exists."
+                },
+                "candidates": {
+                    "type": "object",
+                    "description": "Optional. Map of field_id -> list of candidate paths probed by the Agent, used to fill option labels when templateId is provided. Fields without candidates get empty options and the UI shows only the text input. Only effective with templateId; ignored for inline questions.",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                    }
                 }
             },
-            "required": [
-                "questions"
-            ],
             "additionalProperties": false,
         })
     }
@@ -184,7 +203,8 @@ Usage notes:
         }
 
         // 1. Parse input parameters
-        let tool_input: AskUserQuestionInput =
+        let raw_input: Value = input.clone();
+        let mut tool_input: AskUserQuestionInput =
             serde_json::from_value(input.clone()).map_err(|e| {
                 crate::util::errors::BitFunError::Validation(format!(
                     "Failed to parse input parameters: {}",
@@ -192,8 +212,114 @@ Usage notes:
                 ))
             })?;
 
-        // 2. Validate question format
-        if let Err(error) = validate_ask_user_question_input(&tool_input) {
+        // 1b. Load questions (+ backend presentation policy + version) from a
+        // static backend template when templateId is referenced. Template
+        // content is backend-owned: the model cannot rephrase or drop fields,
+        // and inline `presentation` is never accepted from the model.
+        let mut resolved_request: Option<ResolvedQuestionRequest> = None;
+        if let Some(template_id) = &tool_input.template_id {
+            let mut candidates: std::collections::HashMap<String, Vec<String>> = input
+                .get("candidates")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+
+            let mut question_context = QtMigrationQuestionContext::default();
+
+            // Backend-owned candidate processing for Qt migration combines
+            // model-provided paths with paths discovered from local resources.
+            // The backend validates, deduplicates, sorts, and caps the final list.
+            if template_id.as_str()
+                == bitfun_agent_runtime::question_templates::QT_MIGRATION_PATHS_TEMPLATE_ID
+            {
+                let migration_enabled = context
+                    .custom_data
+                    .get("qt_migration_enabled")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                if !migration_enabled {
+                    return Err(crate::util::errors::BitFunError::Validation(
+                        "qt-migration-paths is available only for a classified Qt to HarmonyOS migration request".to_string(),
+                    ));
+                }
+                if let Some(workspace) = context.workspace_root() {
+                    if !context.is_remote() {
+                        let path_manager = crate::infrastructure::get_path_manager_arc();
+                        let probe = crate::agentic::tools::qt_migration_candidates::probe_qt_migration_candidates(
+                            workspace,
+                            &std::env::var("PATH").unwrap_or_default(),
+                            &path_manager.qt_migration_root_dir(),
+                            Some(
+                                &path_manager
+                                    .builtin_skills_dir()
+                                    .join(bitfun_agent_runtime::intake_state::OHOS_QT_SKILLS_DIR),
+                            ),
+                            &candidates,
+                        );
+                        question_context = QtMigrationQuestionContext {
+                            managed_toolchain_available: probe.managed_toolchain_available,
+                            managed_template_available: probe.managed_template_available,
+                        };
+                        candidates = probe.candidates;
+
+                        if let Some(services) = context.workspace_services() {
+                            let workspace_text = workspace.to_string_lossy();
+                            if let Ok(entries) = services.fs.read_dir(&workspace_text).await {
+                                let workspace_outputs = entries
+                                    .into_iter()
+                                    .filter(|entry| {
+                                        entry.is_dir
+                                            && !entry.is_symlink
+                                            && crate::agentic::tools::qt_migration_candidates::is_output_container_name(&entry.name)
+                                    })
+                                    .map(|entry| entry.path)
+                                    .collect::<Vec<_>>();
+                                let source_candidates = candidates
+                                    .get("source_project")
+                                    .cloned()
+                                    .unwrap_or_default();
+                                let model_outputs: Vec<String> = input
+                                    .get("candidates")
+                                    .and_then(|value| value.get("output_project"))
+                                    .and_then(|value| serde_json::from_value(value.clone()).ok())
+                                    .unwrap_or_default();
+                                let output_candidates = crate::agentic::tools::qt_migration_candidates::merge_workspace_output_candidates(
+                                    workspace,
+                                    &model_outputs,
+                                    &source_candidates,
+                                    &workspace_outputs,
+                                );
+                                candidates.insert("output_project".to_string(), output_candidates);
+                            }
+                        }
+                    }
+                }
+            }
+
+            let resolved =
+                resolve_question_template_with_context(template_id, &candidates, question_context)
+                    .ok_or_else(|| {
+                        crate::util::errors::BitFunError::Validation(format!(
+                            "Unknown AskUserQuestion template: {}",
+                            template_id
+                        ))
+                    })?;
+            tool_input.questions = resolved.questions.clone();
+            resolved_request = Some(ResolvedQuestionRequest {
+                raw_params: raw_input,
+                resolved_questions: resolved.questions,
+                presentation: Some(resolved.presentation),
+                template_id: Some(template_id.clone()),
+                template_version: Some(resolved.template_version),
+            });
+        }
+
+        // 2. Validate question format. Template-resolved questions are backend-owned
+        // and may carry a single candidate option (one probed path) next to the
+        // text input, so the strict 2-10 guard only applies to model-written
+        // questions.
+        if let Err(error) =
+            validate_ask_user_question_input(&tool_input, resolved_request.is_some())
+        {
             return Err(crate::util::errors::BitFunError::Validation(error));
         }
 
@@ -215,34 +341,61 @@ Usage notes:
             .get(USER_INPUT_MODEL_ROUND_CONTEXT_KEY)
             .and_then(Value::as_str)
             .map(str::to_string);
-        let questions = serde_json::to_value(&tool_input).unwrap_or_else(|_| json!({}));
 
         // 4. Create oneshot channel
         let (tx, rx) = tokio::sync::oneshot::channel();
 
         // 5. Register the channel together with the replayable request before
-        // emitting. The guard removes it if cancellation drops this Tool
-        // future, so later Surface snapshots cannot revive stale questions.
+        // emitting. The registration carries the template metadata bound at
+        // resolve time so answer submission can re-validate answers against
+        // the exact request; the guard removes it if cancellation drops this
+        // Tool future, so later Surface snapshots cannot revive stale questions.
         let manager = get_user_input_manager();
+        let pending_meta = PendingQuestionRequestMeta {
+            session_id: session_id.clone(),
+            template_id: resolved_request
+                .as_ref()
+                .and_then(|resolved| resolved.template_id.clone()),
+            template_version: resolved_request
+                .as_ref()
+                .and_then(|resolved| resolved.template_version.clone()),
+            required_fields: resolved_request
+                .as_ref()
+                .and_then(|resolved| resolved.presentation.as_ref())
+                .and_then(|presentation| presentation.required_fields.clone()),
+        };
+
+        // Send the resolved payload to the frontend: template-backed calls carry the
+        // immutable raw params plus resolvedQuestions/presentation/templateVersion;
+        // plain questions keep their original shape so existing consumers are
+        // unaffected.
+        let payload = if let Some(resolved) = &resolved_request {
+            serde_json::to_value(resolved).unwrap_or_else(|_| json!({}))
+        } else {
+            serde_json::to_value(&tool_input).unwrap_or_else(|_| json!({}))
+        };
         let _registration = manager.register_question(
-            PendingUserQuestion::new(
+            PendingUserQuestion::new_with_meta(
                 tool_id.clone(),
                 session_id.clone(),
                 context.dialog_turn_id.clone(),
                 model_round_id,
-                questions.clone(),
+                payload.clone(),
+                Some(pending_meta),
             ),
             tx,
         );
 
         // 6. Send backend event to notify frontend to display question card
         let event_system = get_global_event_system();
-
-        // Send complete questions array to frontend
+        debug!(
+            "AskUserQuestion emit ToolAwaitingUserInput: tool_id={}, template={:?}, question_count={}",
+            tool_id, tool_input.template_id, question_count
+        );
         let event = BackendEvent::ToolAwaitingUserInput {
             tool_id: tool_id.clone(),
             session_id,
-            questions,
+            questions: payload,
         };
 
         let _ = event_system.emit(event).await;
@@ -301,6 +454,66 @@ mod tests {
             runtime_tool_restrictions: Default::default(),
             runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
         }
+    }
+
+    fn context_with_original_user_input(input: &str) -> ToolUseContext {
+        context_with_custom_data(HashMap::from([(
+            "original_user_input".to_string(),
+            serde_json::Value::String(input.to_string()),
+        )]))
+    }
+
+    #[tokio::test]
+    async fn qt_migration_template_rejects_request_without_harmonyos_target() {
+        let tool = AskUserQuestionTool::new();
+        let context = context_with_original_user_input("将QT工程迁移");
+        let input = serde_json::json!({ "templateId": "qt-migration-paths" });
+
+        let error = tool
+            .call(&input, &context)
+            .await
+            .expect_err("incomplete migration intent must not show the path card");
+
+        assert!(error
+            .to_string()
+            .contains("available only for a classified Qt to HarmonyOS migration request"));
+    }
+
+    #[tokio::test]
+    async fn qt_migration_template_accepts_explicit_harmonyos_target() {
+        let tool = AskUserQuestionTool::new();
+        let unique = uuid::Uuid::new_v4().to_string();
+        let tool_id = format!("qt-question-{unique}");
+        let mut context = context_with_original_user_input("将QT工程迁移成鸿蒙工程");
+        context.custom_data.insert(
+            "qt_migration_enabled".to_string(),
+            serde_json::Value::Bool(true),
+        );
+        context.tool_call_id = Some(tool_id.clone());
+        let input = serde_json::json!({ "templateId": "qt-migration-paths" });
+
+        // Drive the tool future on its own task: it blocks on the user answer
+        // while the main task waits for the question to reach the mailbox.
+        let handle = tokio::spawn(async move { tool.call(&input, &context).await });
+
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if get_user_input_manager().has_pending(&tool_id) {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("explicit migration intent should reach the question mailbox");
+
+        assert!(get_user_input_manager().cancel(&tool_id));
+        let result = tokio::time::timeout(std::time::Duration::from_secs(5), handle)
+            .await
+            .expect("cancelled question should resume");
+        result
+            .expect("tool task must join")
+            .expect("template call should be accepted");
     }
 
     #[tokio::test]

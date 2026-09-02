@@ -258,6 +258,39 @@ impl PathManager {
         self.user_skills_dir().join(".system")
     }
 
+    /// Get the shared Qt migration resource root.
+    pub fn qt_migration_root_dir(&self) -> PathBuf {
+        Self::env_path("BITFUN_QT_MIGRATION_ROOT").unwrap_or_else(|| {
+            self.user_skills_dir()
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| self.user_root.clone())
+                .join("data")
+                .join("qt-migration")
+        })
+    }
+
+    /// Get installed Qt migration toolchains shared across workspaces.
+    pub fn qt_migration_toolchains_dir(&self) -> PathBuf {
+        self.qt_migration_root_dir().join("toolchains")
+    }
+
+    /// Get installed Qt migration templates shared across workspaces.
+    pub fn qt_migration_templates_dir(&self) -> PathBuf {
+        self.qt_migration_root_dir().join("templates")
+    }
+
+    /// Get temporary Qt migration downloads.
+    pub fn qt_migration_downloads_dir(&self) -> PathBuf {
+        self.user_skills_dir()
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| self.user_root.clone())
+            .join("cache")
+            .join("qt-migration")
+            .join("downloads")
+    }
+
     /// Get cache root directory: ~/.config/bitfun/cache/
     pub fn cache_root(&self) -> PathBuf {
         self.user_root.join("cache")
@@ -591,6 +624,9 @@ impl PathManager {
             self.user_agents_dir(),
             self.cache_root(),
             self.user_data_dir(),
+            self.qt_migration_toolchains_dir(),
+            self.qt_migration_templates_dir(),
+            self.qt_migration_downloads_dir(),
             self.user_models_dir(),
             self.speech_models_dir(),
             self.speech_model_downloads_dir(),
@@ -785,6 +821,27 @@ mod tests {
         assert_eq!(
             path_manager.resolve_assistant_workspace_dir(Some("demo"), None),
             base_dir.join("workspace-demo")
+        );
+    }
+
+    #[test]
+    fn qt_migration_paths_share_a_stable_user_scope() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let pm = PathManager::with_user_root_for_tests(temp.path().join("BitFun"));
+        let expected_root = pm
+            .user_skills_dir()
+            .parent()
+            .expect("skills directory has parent")
+            .join("data")
+            .join("qt-migration");
+        assert_eq!(pm.qt_migration_root_dir(), expected_root);
+        assert_eq!(
+            pm.qt_migration_toolchains_dir(),
+            expected_root.join("toolchains")
+        );
+        assert_eq!(
+            pm.qt_migration_templates_dir(),
+            expected_root.join("templates")
         );
     }
 

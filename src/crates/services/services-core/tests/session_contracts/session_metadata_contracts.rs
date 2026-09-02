@@ -49,6 +49,7 @@ fn tool_item(id: &str) -> ToolItemData {
             input: serde_json::json!({ "path": "README.md" }),
             id: format!("call-{id}"),
         },
+        question_request: None,
         tool_result: None,
         ai_intent: None,
         start_time: 0,

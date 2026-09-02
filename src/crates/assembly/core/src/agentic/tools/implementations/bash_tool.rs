@@ -161,7 +161,23 @@ impl BashTool {
     /// Build environment variables that suppress interactive behaviors
     /// (pagers, editors, prompts) so agent-driven commands never block.
     pub fn noninteractive_env() -> std::collections::HashMap<String, String> {
-        bash_noninteractive_env()
+        let mut env = bash_noninteractive_env();
+        let path_manager = crate::infrastructure::get_path_manager_arc();
+        env.insert(
+            "BITFUN_QT_MIGRATION_ROOT".to_string(),
+            path_manager
+                .qt_migration_root_dir()
+                .to_string_lossy()
+                .into_owned(),
+        );
+        env.insert(
+            "BITFUN_QT_MIGRATION_DOWNLOADS".to_string(),
+            path_manager
+                .qt_migration_downloads_dir()
+                .to_string_lossy()
+                .into_owned(),
+        );
+        env
     }
 
     /// Resolve shell configuration for the bash tool.
@@ -599,6 +615,17 @@ Usage notes:
     }
 
     async fn call(&self, input: &Value, context: &ToolUseContext) -> BitFunResult<Vec<ToolResult>> {
+        // Bash overrides Tool::call (it needs pre/post logic the default hook
+        // does not cover), so it must run the QtMigration admission gate
+        // explicitly before executing any command.
+        #[cfg(feature = "agent-runtime")]
+        {
+            if let Err(error) =
+                crate::agentic::tools::qt_migration_gate::check_admission(self.name(), context)
+            {
+                return Err(error);
+            }
+        }
         let start_time = Instant::now();
 
         // Get command parameter

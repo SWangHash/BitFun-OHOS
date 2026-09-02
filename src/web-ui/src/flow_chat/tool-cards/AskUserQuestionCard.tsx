@@ -3,11 +3,12 @@
  * Displays multiple questions, collects user answers and submits them
  */
 
-import React, { useState, useCallback, useMemo, useLayoutEffect, useRef } from 'react';
-import { Loader2, AlertCircle, ArrowUp, ChevronDown, ChevronRight } from 'lucide-react';
+import React, { useState, useCallback, useMemo, useLayoutEffect, useRef, useEffect } from 'react';
+import { Loader2, AlertCircle, ArrowUp, ChevronDown, ChevronRight, FolderSearch } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { FlowToolItem, ToolCardProps } from '../types/flow-chat';
 import { toolAPI } from '@/infrastructure/api/service-api/ToolAPI';
+import { pickWorkspaceDirectory } from '@/infrastructure/peer-device/pickWorkspaceDirectory';
 import { createLogger } from '@/shared/utils/logger';
 import { Button, Tooltip } from '@/component-library';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
@@ -16,9 +17,33 @@ import './AskUserQuestionCard.scss';
 
 const log = createLogger('AskUserQuestionCard');
 
+/**
+ * Backend rejection for a non-existent migration path. Stable machine format
+ * emitted by the coordinator: `qt_migration_path_not_found: field=<id>; path=<value>`.
+ */
+const PATH_NOT_FOUND_PATTERN =
+  /qt_migration_path_not_found:\s*field=([^;]+);\s*path=(.+)/;
+
+/** Static i18n keys for the migration field ids rejected by the backend. */
+const FIELD_LABEL_KEYS: Record<string, string> = {
+  source_project: 'toolCards.askUser.fieldName.source_project',
+  output_project: 'toolCards.askUser.fieldName.output_project',
+  toolchain: 'toolCards.askUser.fieldName.toolchain',
+  template: 'toolCards.askUser.fieldName.template',
+};
+
+function parsePathNotFoundRejection(
+  message: string,
+): { field: string; path: string } | null {
+  const match = PATH_NOT_FOUND_PATTERN.exec(message.trim());
+  if (!match) return null;
+  return { field: match[1].trim(), path: match[2].trim() };
+}
+
 interface QuestionOption {
   label: string;
   description: string;
+  value?: string;
 }
 
 interface QuestionData {
@@ -26,6 +51,12 @@ interface QuestionData {
   header: string;
   options: QuestionOption[];
   multiSelect: boolean;
+  /** When present, the question shows a text input below the options. */
+  inputPlaceholder?: string;
+  /** Field id the backend template binds the answer to (template questions). */
+  field?: string;
+  /** Backend-declared requiredness (template policy; only backend may set it). */
+  required?: boolean;
 }
 
 /** Renders option description with tooltip for truncated text */
@@ -58,13 +89,20 @@ const OptionDescription: React.FC<{ description: string }> = ({ description }) =
 function normalizeQuestionsFromParams(input: unknown): QuestionData[] {
   if (!input || typeof input !== 'object') return [];
   const raw = input as Record<string, unknown>;
-  const qs = raw.questions;
+  const qs = raw.questions ?? raw.resolvedQuestions;
   if (!Array.isArray(qs)) return [];
   return qs.map((q: any) => ({
     question: q.question || '',
     header: q.header || '',
-    options: Array.isArray(q.options) ? q.options : [],
+    options: Array.isArray(q.options) ? q.options.map((option: any) => ({
+      label: option?.label || '',
+      description: option?.description || '',
+      value: typeof option?.value === 'string' ? option.value : undefined,
+    })) : [],
     multiSelect: Boolean(q.multiSelect),
+    inputPlaceholder: typeof q.inputPlaceholder === 'string' && q.inputPlaceholder.trim() ? q.inputPlaceholder : undefined,
+    field: typeof q.field === 'string' && q.field.trim() ? q.field : undefined,
+    required: Boolean(q.required),
   }));
 }
 
@@ -93,9 +131,26 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   const { status, toolCall, toolResult, isParamsStreaming, partialParams } = toolItem;
 
   const paramsSource = partialParams || toolCall?.input;
+  const toolId = toolItem.id ?? toolCall?.id;
+
+  // The backend `toolawaitinguserinput` event carries the authoritative
+  // resolved payload. It sits on the tool item separately from `toolCall.input`
+  // (immutable model params kept for replay/audit) and takes precedence; plain
+  // questions fall back to the inline `questions` shape.
+  const questionSource =
+    (toolItem as unknown as { questionRequest?: unknown }).questionRequest ?? paramsSource;
+
+  // Template events expose `resolvedQuestions`; normalizeQuestionsFromParams
+  // accepts that envelope directly so the backend-resolved payload remains the
+  // single source of truth instead of falling back to empty raw questions.
+  const resolvedPayload = (questionSource as Record<string, unknown> | undefined);
+  const presentation = (resolvedPayload?.presentation ?? undefined) as
+    | { layout?: string; allowSkip?: boolean; introKey?: string; hintKey?: string; requiredFields?: string[] }
+    | undefined;
+
   const questions = useMemo(
-    () => normalizeQuestionsFromParams(paramsSource),
-    [paramsSource]
+    () => normalizeQuestionsFromParams(questionSource),
+    [questionSource]
   );
 
   const awaitingPayload = isAwaitingQuestionPayload(
@@ -108,9 +163,37 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   const [otherInputs, setOtherInputs] = useState<Record<number, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showCompletedSummary, setShowCompletedSummary] = useState(status === 'completed');
-  const toolId = toolItem.id ?? toolCall?.id;
+
+  // Options carry a display label ("默认路径"/"备选路径") plus the actual
+  // path in `description`. The submitted value must be the concrete path:
+  // fall back to the label only when no description is present (plain,
+  // non-template questions keep their label semantics).
+  const optionValue = useCallback((option: { label?: string; description?: string; value?: string }) => {
+    if (option?.value?.trim()) return option.value.trim();
+    const description = option?.description?.trim();
+    return description ? description : (option?.label ?? '');
+  }, []);
+
+  // Pre-select the first option for single-select questions with candidate
+  // options so the user sees a recommended default (Qt migration paths).
+  useEffect(() => {
+    if (awaitingPayload || status === 'completed') return;
+    setAnswers(prev => {
+      let changed = false;
+      const next = { ...prev };
+      questions.forEach((q, i) => {
+        if (next[i] === undefined && q.options.length > 0 && !q.multiSelect) {
+          next[i] = optionValue(q.options[0]);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [questions, awaitingPayload, status, optionValue]);
+
   const { cardRootRef, applyExpandedState } = useToolCardHeightContract({
     toolId,
     toolName: toolItem.toolName,
@@ -134,22 +217,50 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     }
   }, [applyExpandedState, isLastItem, showCompletedSummary, status]);
 
+  useLayoutEffect(() => {
+    setAnswers(prev => {
+      let changed = false;
+      const next = { ...prev };
+      questions.forEach((question, index) => {
+        if (next[index] !== undefined || question.options.length === 0) return;
+        next[index] = question.multiSelect
+          ? [optionValue(question.options[0])]
+          : optionValue(question.options[0]);
+        changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, [questions]);
+
   const isAllAnswered = useCallback(() => {
     if (questions.length === 0) return false;
     
     for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      // Questions with a custom input accept either a typed value or a selected
+      // option. The typed value takes precedence when both are present.
+      if (q.inputPlaceholder) {
+        const typed = (otherInputs[i] || '').trim();
+        const answer = answers[i];
+        if (!typed && (!answer || (Array.isArray(answer) && answer.length === 0))) return false;
+        continue;
+      }
       const answer = answers[i];
       if (!answer) return false;
       if (Array.isArray(answer) && answer.length === 0) return false;
       if (typeof answer === 'string' && answer === '') return false;
     }
     return true;
-  }, [answers, questions.length]);
+  }, [answers, otherInputs, questions]);
 
   const handleSingleChange = useCallback((questionIndex: number, value: string) => {
     setAnswers(prev => ({
       ...prev,
       [questionIndex]: value
+    }));
+    setOtherInputs(prev => ({
+      ...prev,
+      [questionIndex]: ''
     }));
   }, []);
 
@@ -171,26 +282,77 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       ...prev,
       [questionIndex]: value
     }));
-  }, []);
+    if (value.length > 0) {
+      setAnswers(prev => ({
+        ...prev,
+        [questionIndex]: questions[questionIndex]?.multiSelect ? [] : ''
+      }));
+    }
+  }, [questions]);
+
+  // Open a native directory picker (or the in-app peer browser in Peer Device
+  // Mode) and fill the path input with the selected folder. Falls back to
+  // manual typing when the dialog is unavailable (e.g. web preview).
+  const handleBrowsePath = useCallback(async (questionIndex: number, title: string) => {
+    const currentValue = otherInputs[questionIndex] || '';
+    let selected: string | null = null;
+    try {
+      selected = await pickWorkspaceDirectory({
+        title,
+        defaultPath: currentValue || undefined,
+      });
+    } catch (error) {
+      log.error('Path picker unavailable', { questionIndex, error });
+      return;
+    }
+    if (selected) {
+      setOtherInputs(prev => ({
+        ...prev,
+        [questionIndex]: selected
+      }));
+      setAnswers(prev => ({
+        ...prev,
+        [questionIndex]: questions[questionIndex]?.multiSelect ? [] : ''
+      }));
+    }
+  }, [otherInputs, questions]);
 
   const handleSubmit = useCallback(async () => {
     if (!isAllAnswered() || isSubmitting || isSubmitted) return;
 
     const toolId = toolItem.id;
     setIsSubmitting(true);
+    setSubmissionError(null);
     try {
       const processedAnswers: Record<string, string | string[]> = {};
       
       for (let i = 0; i < questions.length; i++) {
+        const question = questions[i];
+        // Template-backed questions are submitted by field id so the backend
+        // re-validation binds answers to the exact waiting request; plain
+        // questions keep the positional key.
+        const answerKey = question.field ?? String(i);
         const answer = answers[i];
         const otherInput = otherInputs[i] || '';
-        
+        const typed = otherInput.trim();
+
+        if (question.inputPlaceholder) {
+          if (typed) {
+            processedAnswers[answerKey] = typed;
+          } else if (Array.isArray(answer)) {
+            processedAnswers[answerKey] = answer.filter(v => v !== 'Other').join(', ');
+          } else {
+            processedAnswers[answerKey] = answer || '';
+          }
+          continue;
+        }
+
         if (Array.isArray(answer)) {
-          processedAnswers[String(i)] = answer.map(v => 
+          processedAnswers[answerKey] = answer.map(v => 
             v === 'Other' ? (otherInput || 'Other') : v
           );
         } else {
-          processedAnswers[String(i)] = answer === 'Other' ? (otherInput || 'Other') : answer;
+          processedAnswers[answerKey] = answer === 'Other' ? (otherInput || 'Other') : answer;
         }
       }
 
@@ -200,11 +362,27 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       
       setIsSubmitted(true);
     } catch (error) {
+      const rawMessage = error instanceof Error && error.message.trim()
+        ? error.message
+        : '';
+      const rejection = parsePathNotFoundRejection(rawMessage);
+      let message: string;
+      if (rejection) {
+        const fieldLabelKey = FIELD_LABEL_KEYS[rejection.field];
+        const fieldLabel = fieldLabelKey ? t(fieldLabelKey) : rejection.field;
+        message = t('toolCards.askUser.submitPathNotFound', {
+          field: fieldLabel,
+          path: rejection.path,
+        });
+      } else {
+        message = rawMessage || t('toolCards.askUser.submitFailed');
+      }
+      setSubmissionError(message);
       log.error('Failed to submit answers', { toolId, error });
     } finally {
       setIsSubmitting(false);
     }
-  }, [toolItem.id, answers, otherInputs, questions.length, isAllAnswered, isSubmitting, isSubmitted]);
+  }, [toolItem.id, answers, otherInputs, questions, isAllAnswered, isSubmitting, isSubmitted, t]);
 
   const getStatusIcon = () => {
     if (status === 'completed') {
@@ -239,6 +417,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   const renderQuestion = (q: QuestionData, questionIndex: number) => {
     const answer = getEffectiveAnswer(questionIndex);
     const otherInput = otherInputs[questionIndex] || '';
+    const hasCustomInput = Boolean(q.inputPlaceholder);
     
     const isOtherSelected = q.multiSelect 
       ? Array.isArray(answer) && answer.includes('Other')
@@ -261,9 +440,9 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
                   <input
                     type="checkbox"
                     name={inputName}
-                    value={option.label}
-                    checked={Array.isArray(answer) && answer.includes(option.label)}
-                    onChange={(e) => handleMultiChange(questionIndex, option.label, e.target.checked)}
+                    value={optionValue(option)}
+                    checked={Array.isArray(answer) && answer.includes(optionValue(option))}
+                    onChange={(e) => handleMultiChange(questionIndex, optionValue(option), e.target.checked)}
                     disabled={isSubmitted || status === 'completed' || Boolean(isParamsStreaming)}
                   />
                   <span className="custom-checkbox" />
@@ -273,8 +452,8 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
                   <input
                     type="radio"
                     name={inputName}
-                    value={option.label}
-                    checked={answer === option.label}
+                    value={optionValue(option)}
+                    checked={answer === optionValue(option)}
                     onChange={(e) => handleSingleChange(questionIndex, e.target.value)}
                     disabled={isSubmitted || status === 'completed' || Boolean(isParamsStreaming)}
                   />
@@ -285,10 +464,36 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
                 <div className="option-label-text">{option.label}</div>
                 <OptionDescription description={option.description} />
               </div>
+              {optIdx === 0 && (q.options.length > 1 || option.value === '__official__') && (
+                <span className="option-recommend-tag">推荐</span>
+              )}
             </label>
           ))}
           
-          {!isOtherSelected ? (
+          {hasCustomInput ? (
+            <div className="question-custom-input" data-bf-component="ask-user-question-card" data-bf-part="customInput">
+              <input
+                type="text"
+                className="custom-input-inline"
+                placeholder={q.inputPlaceholder}
+                value={otherInput}
+                onChange={(e) => handleOtherInputChange(questionIndex, e.target.value)}
+                disabled={isSubmitted || status === 'completed' || Boolean(isParamsStreaming)}
+              />
+              <button
+                type="button"
+                className="path-browse-button"
+                data-bf-component="ask-user-question-card"
+                data-bf-part="browse"
+                onClick={() => void handleBrowsePath(questionIndex, q.question)}
+                disabled={isSubmitted || status === 'completed' || Boolean(isParamsStreaming)}
+                title={t('toolCards.askUser.browsePath')}
+                aria-label={t('toolCards.askUser.browsePath')}
+              >
+                <FolderSearch size={14} />
+              </button>
+            </div>
+          ) : !isOtherSelected ? (
             <label className="option-label option-other" data-bf-component="ask-user-question-card" data-bf-part="option">
               {q.multiSelect ? (
                 <>
@@ -372,9 +577,18 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   };
 
   const getAnswerDisplay = (questionIndex: number): string => {
+    const question = questions[questionIndex];
     const answer = getEffectiveAnswer(questionIndex);
     const otherInput = otherInputs[questionIndex] || '';
-    
+    const typed = otherInput.trim();
+
+    if (question?.inputPlaceholder) {
+      if (typed) return typed;
+      if (!answer) return '';
+      if (Array.isArray(answer)) return answer.filter(v => v !== 'Other').join(', ');
+      return String(answer);
+    }
+
     if (!answer) return '';
     if (Array.isArray(answer)) {
       return answer.map(v => v === 'Other' ? otherInput || 'Other' : v).join(', ');
@@ -432,17 +646,29 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   }
 
   return (
-    <div data-bf-component="ask-user-question-card" data-bf-part="root"
-      data-bf-state={status === 'completed' ? 'completed' : undefined}
-      ref={cardRootRef}
-      data-tool-card-id={toolId ?? ''}
-      className={`ask-user-question-card status-${status}`}
-    >
+    <>
+      {presentation?.introKey ? (
+        <div
+          className="ask-user-question-intro"
+          data-bf-component="ask-user-question-card"
+          data-bf-part="intro"
+        >
+          {t(`toolCards.${presentation.introKey}`)}
+        </div>
+      ) : null}
+      <div data-bf-component="ask-user-question-card" data-bf-part="root"
+        data-bf-state={status === 'completed' ? 'completed' : undefined}
+        ref={cardRootRef}
+        data-tool-card-id={toolId ?? ''}
+        className={`ask-user-question-card status-${status}`}
+      >
       {!showCompletedSummary ? (
         <>
           <div className="card-header-row" data-bf-component="ask-user-question-card" data-bf-part="header">
             <div className="card-title">
-              <span className="questions-count">{t('toolCards.askUser.questionsCount', { count: questions.length })}</span>
+              <span className="questions-count">
+                {t('toolCards.askUser.questionsCount', { count: questions.length })}
+              </span>
             </div>
           </div>
 
@@ -450,7 +676,24 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
             {questions.map((q, idx) => renderQuestion(q, idx))}
           </div>
 
+          {submissionError ? (
+            <div
+              className="submission-error-message"
+              data-bf-component="ask-user-question-card"
+              data-bf-part="error"
+              role="alert"
+            >
+              <AlertCircle size={14} />
+              <span>{submissionError}</span>
+            </div>
+          ) : null}
+
           <div className="card-footer-row" data-bf-component="ask-user-question-card" data-bf-part="footer">
+            {presentation?.hintKey ? (
+              <div className="footer-hint" data-bf-component="ask-user-question-card" data-bf-part="hint">
+                {t(`toolCards.${presentation.hintKey}`)}
+              </div>
+            ) : null}
             <div className="footer-actions">
               <Button
                 variant="primary"
@@ -509,6 +752,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
           {renderResult()}
         </>
       )}
-    </div>
+      </div>
+    </>
   );
 };

@@ -220,6 +220,7 @@ import { skillCardAppearanceDescriptor } from '@/app/scenes/skills/components/Sk
 import { miniAppCardAppearanceDescriptor } from '@/app/scenes/miniapps/components/MiniAppCard.appearance';
 import { agentCardAppearanceDescriptor } from '@/app/scenes/agents/components/AgentCard.appearance';
 import { coreAgentCardAppearanceDescriptor } from '@/app/scenes/agents/components/CoreAgentCard.appearance';
+import { industryAgentCardAppearanceDescriptor } from '@/app/scenes/agents/components/IndustryAgentCard.appearance';
 import { agentCapabilityTooltipAppearanceDescriptor } from '@/app/scenes/agents/components/AgentCapabilityTooltip.appearance';
 import { gitNavAppearanceDescriptor } from '@/app/scenes/git/GitNav.appearance';
 import { fileViewerNavAppearanceDescriptor } from '@/app/scenes/file-viewer/FileViewerNav.appearance';
@@ -394,6 +395,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(miniAppCardAppearanceDescriptor)
     .registerComponent(agentCardAppearanceDescriptor)
     .registerComponent(coreAgentCardAppearanceDescriptor)
+    .registerComponent(industryAgentCardAppearanceDescriptor)
     .registerComponent(agentCapabilityTooltipAppearanceDescriptor)
     .registerComponent(gitNavAppearanceDescriptor)
     .registerComponent(fileViewerNavAppearanceDescriptor)

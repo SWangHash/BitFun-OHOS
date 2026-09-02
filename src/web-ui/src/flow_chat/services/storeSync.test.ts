@@ -76,6 +76,37 @@ describe('storeSync history session state', () => {
     syncMocks.modernState.clear.mockClear();
   });
 
+  it('auto syncs when an immutable session update creates a new reference', () => {
+    const initial = createSession({ isHistorical: false, historyState: 'ready' });
+    syncMocks.flowState.sessions = new Map([[initial.sessionId, initial]]);
+    syncMocks.flowState.activeSessionId = initial.sessionId;
+
+    const unsubscribe = startAutoSync();
+    syncMocks.modernState.setActiveSession.mockClear();
+
+    const updated = { ...initial, lastActiveAt: 2 };
+    syncMocks.flowState.sessions = new Map([[updated.sessionId, updated]]);
+    for (const listener of syncMocks.listeners) {
+      listener(syncMocks.flowState);
+    }
+    unsubscribe();
+
+    expect(syncMocks.modernState.setActiveSession).toHaveBeenCalledTimes(1);
+    expect(syncMocks.modernState.setActiveSession).toHaveBeenCalledWith(updated);
+  });
+
+  it('skips a manual sync when the modern store already has the same session reference', () => {
+    const session = createSession({ isHistorical: false, historyState: 'ready' });
+    syncMocks.flowState.sessions = new Map([[session.sessionId, session]]);
+    syncMocks.flowState.activeSessionId = session.sessionId;
+    syncMocks.modernState.activeSession = session;
+    syncMocks.modernState.virtualItems = [{}];
+
+    syncSessionToModernStore(session.sessionId);
+
+    expect(syncMocks.modernState.setActiveSession).not.toHaveBeenCalled();
+  });
+
   it('preserves historyState when syncing historical sessions to the modern store', () => {
     const session = createSession();
     syncMocks.flowState.sessions = new Map([[session.sessionId, session]]);

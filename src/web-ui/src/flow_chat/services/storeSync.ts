@@ -51,7 +51,8 @@ export function syncSessionToModernStore(sessionId: string): void {
   }
 
   const modernStore = useModernFlowChatStore.getState();
-  if (isSessionAlreadySynced(sessionId, session, modernStore)) {
+  const alreadySynced = isSessionAlreadySynced(sessionId, session, modernStore);
+  if (alreadySynced) {
     return;
   }
   modernStore.setActiveSession(session);

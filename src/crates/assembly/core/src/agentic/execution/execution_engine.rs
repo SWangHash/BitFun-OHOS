@@ -39,7 +39,7 @@ use crate::agentic::session::{
     INTERRUPTED_TURN_RESOLVED_MODEL_ID_METADATA_KEY,
 };
 use crate::agentic::skill_agent_snapshot::build_skill_agent_tool_listing_sections_from_snapshot;
-use crate::agentic::tools::implementations::{SkillTool, TaskTool};
+use crate::agentic::tools::implementations::{AnalyzeMigrationRequestTool, SkillTool, TaskTool};
 use crate::agentic::tools::product_runtime::{
     collect_product_loaded_deferred_tool_specs, GetToolSpecTool,
 };
@@ -525,6 +525,24 @@ pub struct ExecutionEngine {
     config: ExecutionEngineConfig,
     generation_messages: DashMap<(String, String), Vec<Message>>,
 }
+
+// QtMigration intake gate: only requests classified as `app_migration` by the
+// full analyzer receive migration input and skill constraints.
+const QT_MIGRATION_CONFIRM_INSTRUCTION: &str = r#"## 迁移前置输入（系统约束，必须立即执行）
+
+用户请求已分类为 Qt → HarmonyOS 应用迁移任务。在四项最小输入（source_project、output_project、toolchain、template）全部达到 Validated 之前，禁止执行任何迁移副作用（写文件、构建、部署、删除），禁止加载技能、禁止做任何其它事情。
+
+你的下一步必须且只能是调用 AskUserQuestion 工具，参数传入 {"templateId": "qt-migration-paths", "candidates": {...}}。在调用前可使用只读工具探测当前工作区；一旦发现用户当前指定或明确指代的 Qt 工程，必须把其工程目录或 `.pro` 文件路径放入 `candidates.source_project`，且置于数组第一项。不得只在分析文字中描述候选而省略 `candidates`。其他已探测候选也应按字段传入；不要自行构造 questions，不要在工具调用前后输出说明文字，也不能用纯文本提示代替工具调用。调用后等待用户提交答案。"#;
+
+// Engine-level constraint ensuring Qt migration work always uses the
+// `ohos-qt-skills` knowledge base. Gate semantics only: which skill must load
+// and that side effects are forbidden before the skill is loaded - not a copy
+// of the skill's domain flow.
+const QT_MIGRATION_SKILL_GATE_INSTRUCTION: &str = r#"## 必用技能（系统约束，必须遵守）
+
+这是一个 Qt → HarmonyOS(OpenHarmony) 迁移任务。在每个新的迁移任务开始前（包括同一会话中迁移另一个 Qt 工程），你**必须**先调用 Skill 工具加载技能 ohos-qt-skills，并遵循该技能当前版本的流程（以其 _index/_task-routing 与 procedural 页面为准）。上一次迁移任务中已经加载过的技能不满足本次任务的要求。
+
+技能未加载、技能不可用或加载失败时，禁止产生任何迁移副作用。领域流程细节本系统不重复提供，一律以 ohos-qt-skills 当前版本为唯一事实源。"#;
 
 impl ExecutionEngine {
     const AUTO_COMPRESSION_SAFETY_RESERVE_TOKENS: usize = 10_000;
@@ -3321,7 +3339,7 @@ impl ExecutionEngine {
         &self,
         agent_type: String,
         initial_messages: Vec<Message>,
-        context: ExecutionContext,
+        mut context: ExecutionContext,
         start_time: std::time::Instant,
     ) -> BitFunResult<ExecutionResult> {
         let dialog_turn_id = context.dialog_turn_id.clone();
@@ -3371,6 +3389,138 @@ impl ExecutionEngine {
             .get("original_user_input")
             .cloned()
             .unwrap_or_default();
+
+        // QtMigration requests are classified before any migration state or
+        // instructions are added. Non-migration prompts continue unchanged.
+        let mut initial_messages = initial_messages;
+        if agent_type == "QtMigration" && !original_user_input.trim().is_empty() {
+            let decision = AnalyzeMigrationRequestTool::analyze_request(&original_user_input);
+            let is_migration = decision["taskType"].as_str() == Some("app_migration");
+            context
+                .context
+                .insert("qt_migration_enabled".to_string(), is_migration.to_string());
+            initial_messages.insert(
+                0,
+                Message::user(format!(
+                    "当前轮是否启用 Qt 到鸿蒙迁移流程：{}。{}",
+                    if is_migration { "是" } else { "否" },
+                    if is_migration {
+                        "只有此状态为“是”时，才执行迁移专属输入收集、技能加载和迁移操作。"
+                    } else {
+                        "当前请求按普通 Agentic 请求处理，不要加载 ohos-qt-skills，不要调用 qt-migration-paths，也不要执行迁移专属输入收集。"
+                    }
+                )),
+            );
+            if is_migration {
+                let current_intake = self
+                    .session_manager
+                    .intake_state(&context.session_id)
+                    .unwrap_or_else(bitfun_agent_runtime::intake_state::IntakeStateSnapshot::empty);
+                let restarted_intake =
+                    bitfun_agent_runtime::intake_state::start_new_migration_intake(&current_intake);
+                let mut activated_intake =
+                    bitfun_agent_runtime::intake_state::activate_migration_intake(
+                        &restarted_intake,
+                    );
+                let prompt_starts_new_task = matches!(
+                    current_intake.status,
+                    bitfun_agent_runtime::intake_state::IntakeStatus::Ready
+                        | bitfun_agent_runtime::intake_state::IntakeStatus::Executing
+                ) && matches!(
+                    decision["fields"]["source_project"].as_str(),
+                    Some("missing") | Some("referenced") | Some("resolved")
+                );
+                if prompt_starts_new_task {
+                    activated_intake =
+                        bitfun_agent_runtime::intake_state::start_new_active_migration_intake(
+                            &current_intake,
+                        );
+                }
+                if activated_intake != current_intake {
+                    self.session_manager
+                        .remember_intake_state(&context.session_id, activated_intake.clone())
+                        .await;
+                }
+                self.session_manager
+                    .remember_migration_active(&context.session_id, true)
+                    .await;
+                // Try to bind paths resolved from the prompt directly to the
+                // intake, skipping the question card when all four fields are
+                // present and their paths exist on the local filesystem.
+                let resolved_paths = &decision["resolvedPaths"];
+                let is_remote = self
+                    .session_manager
+                    .get_session(&context.session_id)
+                    .map(|session| {
+                        session.config.remote_connection_id.is_some()
+                            || session.config.remote_ssh_host.is_some()
+                    })
+                    .unwrap_or(false);
+                let mut bound_intake = activated_intake.clone();
+                let mut all_bound = true;
+                if !is_remote && resolved_paths.is_object() {
+                    let mut bindings = std::collections::BTreeMap::new();
+                    for field in bitfun_agent_runtime::intake_state::INTAKE_REQUIRED_FIELDS {
+                        if let Some(path) = resolved_paths.get(field).and_then(|v| v.as_str()) {
+                            if std::path::Path::new(path).exists() {
+                                bindings.insert(field.to_string(), path.to_string());
+                            } else {
+                                all_bound = false;
+                            }
+                        } else {
+                            all_bound = false;
+                        }
+                    }
+                    if all_bound && !bindings.is_empty() {
+                        bound_intake = bitfun_agent_runtime::intake_state::apply_validated_answers(
+                            &activated_intake,
+                            &bindings,
+                        );
+                        self.session_manager
+                            .remember_intake_state(&context.session_id, bound_intake.clone())
+                            .await;
+                    }
+                }
+                let missing_or_referenced = prompt_starts_new_task
+                    || !all_bound
+                    || ["source_project", "output_project", "toolchain", "template"]
+                        .iter()
+                        .any(|key| {
+                            matches!(
+                                decision["fields"][key].as_str(),
+                                Some("missing") | Some("referenced")
+                            )
+                        });
+                info!(
+                    "QtMigration intake gate: app_migration request (turn={}, missing_or_referenced_fields={})",
+                    dialog_turn_id, missing_or_referenced
+                );
+                let mut instruction = String::new();
+                if missing_or_referenced {
+                    let pending_fields =
+                        ["source_project", "output_project", "toolchain", "template"]
+                            .iter()
+                            .filter(|key| {
+                                matches!(
+                                    decision["fields"][**key].as_str(),
+                                    Some("missing") | Some("referenced")
+                                )
+                            })
+                            .copied()
+                            .collect::<Vec<_>>()
+                            .join("、");
+                    instruction.push_str(QT_MIGRATION_CONFIRM_INSTRUCTION);
+                    instruction.push_str(&format!(
+                        "\n\n当前缺少或仅有引用而未提供具体路径/ID 的输入项：{}。\n",
+                        pending_fields
+                    ));
+                    instruction
+                        .push_str("\n\n输入收集完成后，迁移工作必须遵守下面的必用技能约束：\n");
+                }
+                instruction.push_str(QT_MIGRATION_SKILL_GATE_INSTRUCTION);
+                initial_messages.insert(0, Message::user(instruction));
+            }
+        }
 
         // Edit constraint guard: process each distinct user instruction once.
         // The fast extractor receives the active state so explicit additions

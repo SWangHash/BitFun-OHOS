@@ -122,6 +122,7 @@ function enrichCapabilities(agent: AgentWithCapabilities): AgentWithCapabilities
     if (id === 'deepresearch') return { ...agent, capabilities: [{ category: 'analysis', level: 5 }, { category: 'docs', level: 4 }] };
     if (id === 'multitask') return { ...agent, capabilities: codingAnalysisCapabilities() };
     if (id === 'team') return { ...agent, capabilities: analysisCapabilities() };
+    if (id === 'qtmigration') return { ...agent, capabilities: codingAnalysisCapabilities() };
   }
 
   if (id === 'explore' || id === 'filefinder' || id === 'researchspecialist') return { ...agent, capabilities: [{ category: 'analysis', level: 4 }] };

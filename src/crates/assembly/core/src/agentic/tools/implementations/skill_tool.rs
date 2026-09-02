@@ -14,6 +14,9 @@ use serde_json::{json, Value};
 
 // Use skills module
 use super::skills::{get_skill_registry, render_loaded_skill_for_assistant};
+use crate::agentic::tools::implementations::analyze_migration_request_tool::AnalyzeMigrationRequestTool;
+use bitfun_agent_runtime::intake_state::{IntakeStatus, LoadedSkillReceipt, OHOS_QT_SKILLS_DIR};
+use bitfun_agent_runtime::skills::BITFUN_SYSTEM_SKILL_SLOT;
 
 /// Skill tool
 pub struct SkillTool;
@@ -176,8 +179,26 @@ impl Tool for SkillTool {
     async fn validate_input(
         &self,
         input: &Value,
-        _context: Option<&ToolUseContext>,
+        context: Option<&ToolUseContext>,
     ) -> ValidationResult {
+        if let Some(context) = context {
+            if input
+                .get("command")
+                .and_then(Value::as_str)
+                .is_some_and(|name| {
+                    (name == OHOS_QT_SKILLS_DIR || name.ends_with("::ohos-qt-skills"))
+                        && context.custom_data.get("qt_migration_enabled")
+                            != Some(&Value::Bool(true))
+                })
+            {
+                return ValidationResult {
+                    result: false,
+                    message: Some("ohos-qt-skills is available only for a classified Qt to HarmonyOS migration request".to_string()),
+                    error_code: Some(400),
+                    meta: None,
+                };
+            }
+        }
         if input
             .get("command")
             .and_then(|v| v.as_str())
@@ -227,6 +248,30 @@ impl Tool for SkillTool {
             .get("command")
             .and_then(|v| v.as_str())
             .ok_or_else(|| BitFunError::tool("command is required".to_string()))?;
+
+        let is_qt_migration_skill =
+            skill_name == OHOS_QT_SKILLS_DIR || skill_name.ends_with("::ohos-qt-skills");
+        if is_qt_migration_skill {
+            let enabled = context
+                .custom_data
+                .get("qt_migration_enabled")
+                .and_then(Value::as_bool)
+                .unwrap_or_else(|| {
+                    context
+                        .custom_data
+                        .get("original_user_input")
+                        .and_then(Value::as_str)
+                        .is_some_and(|input| {
+                            AnalyzeMigrationRequestTool::analyze_request(input)["taskType"].as_str()
+                                == Some("app_migration")
+                        })
+                });
+            if !enabled {
+                return Err(BitFunError::tool(
+                    "ohos-qt-skills is available only for a classified Qt to HarmonyOS migration request".to_string(),
+                ));
+            }
+        }
 
         debug!("Skill tool executing skill: {}", skill_name);
 
@@ -308,6 +353,15 @@ impl Tool for SkillTool {
         let location_str = skill_data.location.as_str();
         let result_for_assistant = render_loaded_skill_for_assistant(&skill_data, use_stable_key);
 
+        record_qt_migration_skill_receipt(
+            &skill_data.key,
+            &skill_data.source_slot,
+            &skill_data.dir_name,
+            &skill_data.content,
+            context,
+        )
+        .await;
+
         let result = ToolResult::Result {
             data: json!({
                 "skill_name": skill_data.name,
@@ -324,6 +378,64 @@ impl Tool for SkillTool {
 
         Ok(vec![result])
     }
+}
+
+/// Record a Qt migration skill load receipt into the Session intake snapshot.
+/// Only the managed built-in `ohos-qt-skills` loaded from the `.system` source
+/// qualifies; other skills or name collisions produce no receipt. The receipt
+/// is attached to an existing intake only — if no intake exists yet the
+/// session is not an active migration, so there is nothing to attach the
+/// receipt to.
+async fn record_qt_migration_skill_receipt(
+    skill_key: &str,
+    source_slot: &str,
+    dir_name: &str,
+    content: &str,
+    context: &ToolUseContext,
+) {
+    if dir_name != OHOS_QT_SKILLS_DIR || source_slot != BITFUN_SYSTEM_SKILL_SLOT {
+        return;
+    }
+    let Some(session_id) = context.session_id.as_deref() else {
+        return;
+    };
+    let Some(coordinator) = crate::agentic::coordination::get_global_coordinator() else {
+        return;
+    };
+    let session_manager = coordinator.get_session_manager();
+    let Some(mut snapshot) = session_manager.intake_state(session_id) else {
+        return;
+    };
+    // Receipt is intake-driven (not agent_type), matching the gate: a subagent
+    // that inherited an activated intake may reload the skill and refresh its
+    // receipt even when its own agent_type is not QtMigration. A session
+    // without an activated intake is not a migration.
+    if snapshot.status == IntakeStatus::NotApplicable {
+        return;
+    }
+    snapshot.loaded_skill_receipt = Some(LoadedSkillReceipt {
+        skill_key: skill_key.to_string(),
+        source_slot: source_slot.to_string(),
+        dir_name: dir_name.to_string(),
+        content_hash: sha256_hex(content),
+    });
+    session_manager
+        .remember_intake_state(session_id, snapshot)
+        .await;
+}
+
+/// SHA-256 hex digest used for the skill content fingerprint in the load
+/// receipt. Stays in `skill_tool` so `agent-runtime` keeps no `sha2`
+/// dependency for the receipt data type.
+fn sha256_hex(content: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(content.as_bytes());
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect()
 }
 
 impl Default for SkillTool {

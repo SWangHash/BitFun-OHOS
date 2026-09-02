@@ -94,6 +94,10 @@ const CATALOG_PROMPT_SOURCES: &[(&str, &[u8])] = &[
         include_bytes!("../prompts/agents/plan_mode_ongoing_reminder.md"),
     ),
     (
+        "qt_migration_agent",
+        include_bytes!("../prompts/agents/qt_migration_agent.md"),
+    ),
+    (
         "research_specialist_agent",
         include_bytes!("../prompts/agents/research_specialist_agent.md"),
     ),

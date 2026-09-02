@@ -482,6 +482,10 @@ export function convertDialogTurnToBackendFormat(dialogTurn: DialogTurn, turnInd
               interruptionReason: toolItem.interruptionReason,
               toolCall: toolItem.toolCall || { input: {}, id: item.id },
               toolResult: toolItem.toolResult,
+              // Persist the backend-resolved question payload so a restored
+              // session can rebuild the AskUserQuestion card (the live
+              // ToolAwaitingUserInput event is not replayed on restore).
+              questionRequest: toolItem.questionRequest,
               aiIntent: toolItem.aiIntent,
               requiresConfirmation: toolItem.requiresConfirmation,
               userConfirmed: toolItem.userConfirmed,

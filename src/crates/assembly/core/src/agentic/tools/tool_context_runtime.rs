@@ -211,6 +211,22 @@ pub(crate) async fn call_with_tool_runtime_hooks(
     context: &ToolUseContext,
     call_impl: impl Future<Output = BitFunResult<Vec<ToolResult>>>,
 ) -> BitFunResult<Vec<ToolResult>> {
+    // QtMigration admission gate (dispatch-time). Only active for QtMigration
+    // sessions with an incomplete intake; zero overhead for the rest of the
+    // product.
+    #[cfg(feature = "agent-runtime")]
+    {
+        if let Err(error) =
+            crate::agentic::tools::qt_migration_gate::check_admission(tool_name, context)
+        {
+            log::debug!(
+                "QtMigration admission gate rejected tool: tool={}, session={:?}",
+                tool_name,
+                context.session_id
+            );
+            return Err(error);
+        }
+    }
     let result = if let Some(cancellation_token) = context.cancellation_token() {
         tokio::select! {
             result = call_impl => {
@@ -336,6 +352,22 @@ fn build_tool_context_custom_data(context: &ToolExecutionContext) -> HashMap<Str
         USER_INPUT_MODEL_ROUND_CONTEXT_KEY.to_string(),
         Value::String(context.round_id.clone()),
     );
+    extension_custom_data.insert(
+        "original_user_input".to_string(),
+        Value::String(
+            context
+                .context_vars
+                .get("original_user_input")
+                .cloned()
+                .unwrap_or_default(),
+        ),
+    );
+    if let Some(enabled) = context.context_vars.get("qt_migration_enabled") {
+        extension_custom_data.insert(
+            "qt_migration_enabled".to_string(),
+            Value::Bool(enabled == "true"),
+        );
+    }
     let deep_review_parent = context.subagent_parent_info.as_ref().map(|parent_info| {
         tool_context::DeepReviewToolParentContext {
             tool_call_id: parent_info.tool_call_id.as_str(),
@@ -1498,6 +1530,10 @@ mod task_context_tests {
         context_vars.insert("turn_index".to_string(), "7".to_string());
         context_vars.insert("acp_transport".to_string(), "true".to_string());
         context_vars.insert(
+            "original_user_input".to_string(),
+            "将Qt工程迁移成鸿蒙工程".to_string(),
+        );
+        context_vars.insert(
             USER_INPUT_AVAILABLE_CONTEXT_KEY.to_string(),
             "false".to_string(),
         );
@@ -1592,6 +1628,10 @@ mod task_context_tests {
             .runtime_tool_restrictions
             .is_tool_allowed("WebFetch"));
         assert!(!context.runtime_tool_restrictions.is_tool_allowed("Bash"));
+        assert_eq!(
+            context.custom_data["original_user_input"],
+            json!("将Qt工程迁移成鸿蒙工程")
+        );
         assert_eq!(context.custom_data["turn_index"], json!(7));
         assert_eq!(context.primary_model_facts().model_id, "primary-model");
         assert_eq!(context.primary_model_facts().api_format, "openai");

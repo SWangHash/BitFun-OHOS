@@ -44,6 +44,7 @@ import type { TranscriptExportScope } from '../../utils/dialogTranscriptExport';
 import { buildTranscriptExportLabels } from '../../utils/transcriptExportLabels';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
+import { areModelRoundItemPropsEqual } from './modelRoundItemMemo';
 import './ModelRoundItem.scss';
 import './SubagentItems.scss';
 
@@ -836,28 +837,7 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
       </TypewriterRevealGateProvider>
     );
   },
-  (prev, next) => {
-    // Streaming content accumulates, so always re-render.
-    if (next.round.isStreaming || prev.round.isStreaming) {
-      return false;
-    }
-
-    // In complete state, compare items array reference to detect tool state changes.
-    return (
-      prev.round.id === next.round.id &&
-      prev.round.items === next.round.items &&
-      prev.round.attempts === next.round.attempts &&
-      prev.round.attemptDiagnostics === next.round.attemptDiagnostics &&
-      prev.round.historyRounds === next.round.historyRounds &&
-      prev.isLastRound === next.isLastRound &&
-      prev.isTurnComplete === next.isTurnComplete &&
-      prev.expandedThinkingItemIds === next.expandedThinkingItemIds &&
-      prev.turnStartedAt === next.turnStartedAt &&
-      prev.turnEndedAt === next.turnEndedAt &&
-      prev.turnDurationMs === next.turnDurationMs &&
-      prev.turnTokenUsage === next.turnTokenUsage
-    );
-  }
+  areModelRoundItemPropsEqual
 );
 
 ModelRoundItem.displayName = 'ModelRoundItem';
