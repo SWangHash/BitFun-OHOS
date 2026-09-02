@@ -613,6 +613,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
           size="small"
           variant="secondary"
           className="asv__new-job"
+          data-testid="asv-new-job-btn"
           onClick={handleCreateNew}
           disabled={assistantWorkspaceMode ? !workspaceRef : targetKind === 'session' ? !canSave : !workspaceRef}
         >
@@ -739,6 +740,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
           <div className="asv__field-control" data-bf-component="scheduled-jobs-view" data-bf-part="fieldControl">
             <Input
               size="small"
+              data-testid="asv-schedule-name-input"
               value={draft.name}
               onChange={e => {
                 const name = e.currentTarget.value;
@@ -759,11 +761,12 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
             <div className="asv__control-grid asv__control-grid--schedule">
               <Select
                 size="small"
+                triggerTestId="asv-schedule-kind-select"
                 value={draft.scheduleKind}
                 options={[
-                  { value: 'at', label: t('nav.scheduledJobs.scheduleKinds.at') },
-                  { value: 'every', label: t('nav.scheduledJobs.scheduleKinds.every') },
-                  { value: 'cron', label: t('nav.scheduledJobs.scheduleKinds.cron') },
+                  { value: 'at', label: t('nav.scheduledJobs.scheduleKinds.at'), testId: 'asv-schedule-kind-option-at' },
+                  { value: 'every', label: t('nav.scheduledJobs.scheduleKinds.every'), testId: 'asv-schedule-kind-option-every' },
+                  { value: 'cron', label: t('nav.scheduledJobs.scheduleKinds.cron'), testId: 'asv-schedule-kind-option-cron' },
                 ]}
                 onChange={value => {
                   setValidationErrors(current => ({
@@ -785,6 +788,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
                 <Switch
                   size="small"
                   checked={draft.enabled}
+                  data-testid="asv-toggle-switch-input"
                   onChange={e => {
                     const enabled = e.currentTarget.checked;
                     setDraft(c => ({ ...c, enabled }));
@@ -828,6 +832,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
                 <div className="asv__control-grid asv__control-grid--interval">
                   <Input
                     size="small"
+                    data-testid="asv-schedule-interval-input"
                     type="number"
                     value={draft.everyValue}
                     error={validationErrors.everyValue}
@@ -876,6 +881,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
               <div className="asv__field-control" data-bf-component="scheduled-jobs-view" data-bf-part="fieldControl">
                 <Input
                   size="small"
+                  data-testid="asv-schedule-cron-input"
                   value={draft.expr}
                   error={validationErrors.cronExpr}
                   onChange={e => {
@@ -897,6 +903,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
               <div className="asv__field-control" data-bf-component="scheduled-jobs-view" data-bf-part="fieldControl">
                 <Input
                   size="small"
+                  data-testid="asv-schedule-timezone-input"
                   value={draft.tz}
                   onChange={e => {
                     const tz = e.currentTarget.value;
@@ -924,6 +931,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
                 searchable
                 clearable
                 className="asv__session-select"
+                triggerTestId="asv-schedule-session-select"
                 dropdownClassName="asv__session-select-dropdown"
                 onChange={value => {
                   setValidationErrors(current => ({ ...current, sessionId: false }));
@@ -994,6 +1002,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
           <div className="asv__field-control" data-bf-component="scheduled-jobs-view" data-bf-part="fieldControl">
             <Textarea
               className="asv__prompt-textarea"
+              data-testid="asv-schedule-textarea"
               value={draft.text}
               onChange={e => {
                 const text = e.currentTarget.value;
@@ -1014,6 +1023,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
             size="small"
             className="asv__action-btn asv__action-btn--ghost"
             variant="ghost"
+            data-testid="asv-cancel-btn"
             onClick={handleCloseEditor}
           >
             {t('nav.scheduledJobs.actions.cancel')}
@@ -1022,6 +1032,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
             size="small"
             className="asv__action-btn asv__action-btn--primary"
             variant="primary"
+            data-testid="asv-create-job-btn"
             onClick={() => { void handleSave(); }}
             disabled={!canSave}
             isLoading={saving}

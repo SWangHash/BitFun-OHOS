@@ -335,6 +335,7 @@ export const NotificationCenter: React.FC = () => {
         <div className="notification-center__item-actions">
           <button
             className="notification-center__item-expand"
+            data-testid={`notification-item-expand-${notification.id}`}
             onClick={(e) => {
               e.stopPropagation();
               handleNotificationClick(notification);
@@ -345,6 +346,7 @@ export const NotificationCenter: React.FC = () => {
           </button>
           <button
             className="notification-center__item-delete"
+            data-testid={`notification-item-delete-${notification.id}`}
             onClick={(e) => handleDeleteNotification(e, notification.id)}
             title={t('common:actions.delete')}
           >
@@ -369,6 +371,7 @@ export const NotificationCenter: React.FC = () => {
           <div className="notification-center__header-actions">
             <button
               className="notification-center__header-button"
+              data-testid="notification-mark-all-read"
               onClick={handleMarkAllRead}
               title={t('components:notificationCenter.actions.markAllRead')}
             >
@@ -376,6 +379,7 @@ export const NotificationCenter: React.FC = () => {
             </button>
             <button
               className="notification-center__header-button"
+              data-testid="notification-clear-all"
               onClick={handleClearAll}
               title={t('components:notificationCenter.actions.clearAll')}
             >
@@ -395,6 +399,7 @@ export const NotificationCenter: React.FC = () => {
         
         <div className="notification-center__search">
           <Search
+            inputTestId="notification-search-input"
             placeholder={t('components:notificationCenter.searchPlaceholder')}
             value={searchQuery}
             onChange={(val) => setSearchQuery(val)}
@@ -407,24 +412,28 @@ export const NotificationCenter: React.FC = () => {
         <div className="notification-center__filters">
           <button
             className={`notification-center__filter ${filter === 'all' ? 'is-active' : ''}`}
+            data-testid="notification-filter-all"
             onClick={() => setFilter('all')}
           >
             {t('components:notificationCenter.filters.all', { count: history.length })}
           </button>
           <button
             className={`notification-center__filter ${filter === 'error' ? 'is-active' : ''}`}
+            data-testid="notification-filter-error"
             onClick={() => setFilter('error')}
           >
             {t('common:status.error')}
           </button>
           <button
             className={`notification-center__filter ${filter === 'warning' ? 'is-active' : ''}`}
+            data-testid="notification-filter-warning"
             onClick={() => setFilter('warning')}
           >
             {t('common:status.warning')}
           </button>
           <button
             className={`notification-center__filter ${filter === 'info' ? 'is-active' : ''}`}
+            data-testid="notification-filter-info"
             onClick={() => setFilter('info')}
           >
             {t('common:status.info')}

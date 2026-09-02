@@ -738,6 +738,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                 data-bf-component="chat-input-workspace-strip"
                 data-bf-part="usageAction"
                 className="bitfun-chat-input-workspace-strip__usage-btn"
+                data-testid="chat-input-usage-btn"
                 variant="ghost"
                 size="xs"
                 type="button"

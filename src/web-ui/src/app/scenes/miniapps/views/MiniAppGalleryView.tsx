@@ -312,10 +312,11 @@ const MiniAppGalleryView: React.FC = () => {
         subtitle={t('subtitle')}
         actions={(
           <>
-            <Search value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} size="small" />
+            <Search value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} size="small" inputTestId="gallery-search-input" />
             <button
               type="button"
               className="gallery-action-btn gallery-action-btn--primary"
+              data-testid="gallery-import-folder-btn"
               onClick={handleAddFromFolder}
               disabled={loading}
               title={t('importFromFolder')}
@@ -325,6 +326,7 @@ const MiniAppGalleryView: React.FC = () => {
             <button
               type="button"
               className="gallery-action-btn"
+              data-testid="gallery-import-market-btn"
               onClick={() => void handleAddPackage()}
               disabled={loading}
               title={t('market.import.action')}
@@ -374,6 +376,7 @@ const MiniAppGalleryView: React.FC = () => {
                     <button
                       data-bf-component="miniapp-gallery-view"
                       data-bf-part="categoryFilter"
+                      data-testid={`gallery-cat-chip-${category}`}
                       key={category}
                       type="button"
                       className={[

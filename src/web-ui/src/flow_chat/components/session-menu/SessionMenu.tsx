@@ -107,6 +107,7 @@ export const SessionMenu: React.FC<SessionMenuProps> = ({ onOpenChange }) => {
           ].filter(Boolean).join(' ')}
           data-bf-component="session-menu"
           data-bf-part="trigger"
+          data-testid="fmc-session-menu-trigger"
           onClick={toggleMenu}
           aria-expanded={isMenuOpen}
           aria-haspopup="listbox"

@@ -25,6 +25,7 @@ export function ComposerVoiceInputButton({ controller }: ComposerVoiceInputButto
         <IconButton
           aria-label={controller.tooltip}
           className="bitfun-chat-input__voice-control"
+          data-testid="chat-input-voice-control"
           variant="ghost"
           size="xs"
           disabled={controller.disabled || busy}

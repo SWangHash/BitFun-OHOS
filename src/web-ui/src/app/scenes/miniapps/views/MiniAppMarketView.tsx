@@ -284,6 +284,7 @@ const MiniAppMarketView: React.FC = () => {
               onChange={setQuery}
               placeholder={t('market.search')}
               size="small"
+              inputTestId="gallery-search-input"
             />
             <MarketAccountControls
               loginOpen={loginOpen}

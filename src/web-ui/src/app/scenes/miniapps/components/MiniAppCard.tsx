@@ -64,6 +64,7 @@ const MiniAppCard: React.FC<MiniAppCardProps> = ({
 
   return (
     <div data-bf-component="mini-app-card" data-bf-part="root"
+      data-testid={`miniapp-card-${app.id}`}
       className={[
         'miniapp-card',
         isRunning && 'miniapp-card--running',
@@ -120,6 +121,7 @@ const MiniAppCard: React.FC<MiniAppCardProps> = ({
       <div className="miniapp-card__footer" data-bf-component="mini-app-card" data-bf-part="footer">
         <div className="miniapp-card__actions" data-bf-component="mini-app-card" data-bf-part="actions" onClick={(e) => e.stopPropagation()}>
           <button
+            data-testid={`miniapp-card-${app.id}-launch`}
             className="miniapp-card__action-btn miniapp-card__action-btn--primary"
             onClick={handleOpenClick}
             aria-label={t('card.start')}
@@ -138,6 +140,7 @@ const MiniAppCard: React.FC<MiniAppCardProps> = ({
             </button>
           ) : (
             <button
+              data-testid={`miniapp-card-${app.id}-delete`}
               className="miniapp-card__action-btn miniapp-card__action-btn--danger"
               onClick={handleDeleteClick}
               aria-label={t('card.delete')}

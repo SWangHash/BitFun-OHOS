@@ -339,6 +339,7 @@ const AssistantDefaultsPage: React.FC = () => {
             <button
               type="button"
               className="tc-tool-row__hit"
+              data-testid={`${isMcp ? 'mcp-tool-row' : 'tool-row'}-${tool.name}`}
               onClick={() => openToolDetail(tool, isMcp)}
             >
               <span className={`tc-tool-row__icon${isMcp ? ' tc-tool-row__icon--mcp' : ''}`}>
@@ -352,6 +353,8 @@ const AssistantDefaultsPage: React.FC = () => {
               loading={toolsLoading[tool.name]}
               onChange={() => handleToolToggle(tool.name)}
               aria-label={tool.name}
+              data-testid={`${isMcp ? 'mcp-tool-switch-input' : 'tool-switch-input'}-${tool.name}`}
+              testId={`${isMcp ? 'mcp-tool-switch' : 'tool-switch'}-${tool.name}`}
             />
           </div>
         );
@@ -410,6 +413,7 @@ const AssistantDefaultsPage: React.FC = () => {
             <button
               type="button"
               className="tc-skill-row__hit"
+              data-testid={`skill-row-${skill.key}`}
               onClick={() => openSkillDetail(skill)}
             >
               <span className="tc-skill-row__name">{displayName}</span>
@@ -424,6 +428,8 @@ const AssistantDefaultsPage: React.FC = () => {
               disabled={skillsLoading[skill.key]}
               size="small"
               aria-label={displayName}
+              data-testid={`skill-switch-input-${skill.key}`}
+              testId={`skill-switch-${skill.key}`}
             />
           </div>
         );
@@ -472,6 +478,7 @@ const AssistantDefaultsPage: React.FC = () => {
           <button
             type="button"
             className="tc-group-header__toggle"
+            data-testid={`tool-group-toggle-${id}`}
             onClick={() => toggleCollapse(id)}
           >
             <ChevronDown
@@ -497,6 +504,7 @@ const AssistantDefaultsPage: React.FC = () => {
           <button
             type="button"
             className="tc-group-header__detail-btn"
+            data-testid={`tool-group-detail-btn-${mcpServerId}`}
             title={t('nursery.template.openServerDetail')}
             aria-label={t('nursery.template.openServerDetail')}
             onClick={(e) => {
@@ -517,6 +525,8 @@ const AssistantDefaultsPage: React.FC = () => {
             checked={allOn}
             onChange={() => handleGroupToggleAll(toolNames)}
             aria-label={`Toggle all in ${label}`}
+            data-testid="tool-group-toggle-all-input"
+            testId="tool-group-toggle-all"
           />
         )}
       </div>
@@ -545,6 +555,7 @@ const AssistantDefaultsPage: React.FC = () => {
             <button
               type="button"
               className="tc-template-detail__close"
+              data-testid="tool-detail-close-btn"
               onClick={() => setDetail(null)}
               aria-label={t('nursery.template.closeDetail')}
             >
@@ -565,6 +576,8 @@ const AssistantDefaultsPage: React.FC = () => {
                 loading={toolsLoading[tool.name]}
                 onChange={() => handleToolToggle(tool.name)}
                 aria-label={tool.name}
+                data-testid={`${isMcp ? 'mcp-tool-detail-switch-input' : 'tool-detail-switch-input'}-${tool.name}`}
+                testId={`${isMcp ? 'mcp-tool-detail-switch' : 'tool-detail-switch'}-${tool.name}`}
               />
             </div>
           </div>
@@ -590,6 +603,7 @@ const AssistantDefaultsPage: React.FC = () => {
             <button
               type="button"
               className="tc-template-detail__close"
+              data-testid="mcp-server-detail-close-btn"
               onClick={() => setDetail(null)}
               aria-label={t('nursery.template.closeDetail')}
             >
@@ -632,6 +646,7 @@ const AssistantDefaultsPage: React.FC = () => {
           <button
             type="button"
             className="tc-template-detail__close"
+            data-testid="skill-detail-close-btn"
             onClick={() => setDetail(null)}
             aria-label={t('nursery.template.closeDetail')}
           >
@@ -653,6 +668,8 @@ const AssistantDefaultsPage: React.FC = () => {
               disabled={skillsLoading[skill.key]}
               size="small"
               aria-label={skill.name}
+              data-testid={`skill-detail-switch-input-${skill.key}`}
+              testId={`skill-detail-switch-${skill.key}`}
             />
           </div>
         </div>
@@ -666,6 +683,7 @@ const AssistantDefaultsPage: React.FC = () => {
         <button
           type="button"
           className="nursery-page__back"
+          data-testid="nursery-back-btn"
           onClick={openGallery}
           aria-label={t('nursery.backToGallery')}
         >
@@ -706,6 +724,7 @@ const AssistantDefaultsPage: React.FC = () => {
                 <button
                   type="button"
                   className="gallery-plain-icon-btn"
+                  data-testid="gallery-reset-btn"
                   onClick={handleResetTools}
                   title={t('actions.reset')}
                   aria-label={t('actions.reset')}

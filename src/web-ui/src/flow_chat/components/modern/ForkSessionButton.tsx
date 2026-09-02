@@ -56,6 +56,7 @@ export const ForkSessionButton: React.FC<ForkSessionButtonProps> = ({
     >
       <button
         className="model-round-item__action-btn model-round-item__fork-btn"
+        data-testid={`model-round-fork-btn-${turnId}`}
         onClick={handleFork}
         disabled={isForking}
       >
