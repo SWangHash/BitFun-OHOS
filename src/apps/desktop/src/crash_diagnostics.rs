@@ -268,6 +268,16 @@ pub fn export_diagnostics_bundle() -> Result<DiagnosticsBundleInfo, String> {
     })
 }
 
+fn is_expected_microphone_permission_exit(path: &Path) -> bool {
+    let Ok(report) = read_json_file::<CrashReport>(path) else {
+        return false;
+    };
+    let text = format!("{} {}", report.location, report.message).to_ascii_lowercase();
+    ["microphone", "permission", "audio input", "media stream"]
+        .iter()
+        .any(|marker| text.contains(marker))
+}
+
 fn detect_previous_unexpected_exit(run_state_path: &Path) -> Option<UnexpectedExitInfo> {
     let state = read_json_file::<RunState>(run_state_path).ok()?;
     if state.clean_shutdown {
@@ -279,14 +289,19 @@ fn detect_previous_unexpected_exit(run_state_path: &Path) -> Option<UnexpectedEx
     } else {
         Some(state.session_log_dir.clone())
     };
-    let crash_report_path = session_log_dir
+    let crash_report_path_buf = session_log_dir
         .as_ref()
         .map(PathBuf::from)
         .map(|path| path.join(CRASH_REPORT_FILE))
-        .filter(|path| path.exists())
+        .filter(|path| path.exists());
+    let crash_report_path = crash_report_path_buf
+        .as_ref()
         .map(|path| path.to_string_lossy().to_string());
 
-    let category = if crash_report_path.is_some() {
+    let microphone_permission_exit = crash_report_path_buf
+        .as_deref()
+        .is_some_and(is_expected_microphone_permission_exit);
+    let category = if crash_report_path.is_some() && !microphone_permission_exit {
         UnexpectedExitCategory::Crash
     } else {
         UnexpectedExitCategory::UncleanShutdown

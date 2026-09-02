@@ -146,6 +146,11 @@ export class AppearanceRuntime {
     nextStyle.textContent = next.cssText;
     document.head.appendChild(nextStyle);
 
+    const previousRootMode = document.documentElement.getAttribute('data-bf-appearance-mode');
+    // Apply the mode selector immediately so fixed chrome does not wait for
+    // asynchronous renderer adapters.
+    document.documentElement.setAttribute('data-bf-appearance-mode', next.mode);
+
     const context: AppearanceRendererContext = {
       revision: next.revision,
       appearanceId: next.id,
@@ -161,6 +166,8 @@ export class AppearanceRuntime {
         await transaction.commit();
       }
     } catch (error) {
+      if (previousRootMode === null) document.documentElement.removeAttribute('data-bf-appearance-mode');
+      else document.documentElement.setAttribute('data-bf-appearance-mode', previousRootMode);
       nextStyle.remove();
       this.revokeAssetUrls(preparedAssets.urls);
       await this.rollbackRendererTransactions(startedTransactions);
@@ -168,12 +175,10 @@ export class AppearanceRuntime {
       throw error;
     }
 
-    const root = document.documentElement;
-    root.setAttribute('data-bf-appearance-root', 'true');
-    root.setAttribute('data-bf-appearance', next.id);
-    root.setAttribute('data-bf-appearance-mode', next.mode);
-    // Revision is the activation switch because every generated selector is revision-scoped.
-    root.setAttribute('data-bf-appearance-revision', String(next.revision));
+    document.documentElement.setAttribute('data-bf-appearance-root', 'true');
+    document.documentElement.setAttribute('data-bf-appearance', next.id);
+    document.documentElement.setAttribute('data-bf-appearance-mode', next.mode);
+    document.documentElement.setAttribute('data-bf-appearance-revision', String(next.revision));
     document.querySelectorAll<HTMLStyleElement>(`style[${STYLE_ATTRIBUTE}]`).forEach(node => {
       if (node !== nextStyle) node.remove();
     });
@@ -217,11 +222,14 @@ export class AppearanceRuntime {
       globals: previous?.globals ?? next.globals,
       assets: previous?.assets ?? {},
     };
-    return this.registry.getRendererAdapters().map(adapter => ({
-      id: adapter.id,
-      commit: () => this.applyRenderer(adapter, next.renderers, previous?.renderers, context),
-      rollback: () => this.applyRenderer(adapter, previous?.renderers, next.renderers, previousContext),
-    }));
+    return this.registry.getRendererAdapters()
+      .slice()
+      .sort((left, right) => Number(right.id === 'css-tokens') - Number(left.id === 'css-tokens'))
+      .map(adapter => ({
+        id: adapter.id,
+        commit: () => this.applyRenderer(adapter, next.renderers, previous?.renderers, context),
+        rollback: () => this.applyRenderer(adapter, previous?.renderers, next.renderers, previousContext),
+      }));
   }
 
   private async rollbackRendererTransactions(

@@ -564,7 +564,7 @@
     "voiceInput": {
       "start": "Start voice input",
       "stop": "Stop recording",
-      "recording": "Recording; click the microphone to stop",
+      "recording": "Recording, click the microphone to stop",
       "preparing": "Preparing microphone",
       "transcribing": "Transcribing",
       "disabled": "Voice input is disabled",

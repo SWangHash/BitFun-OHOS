@@ -703,7 +703,12 @@ export class AppearanceService {
       this.setSnapshot({ ...this.snapshot, appearances });
     }
 
-    const resolvedId = selected === SYSTEM_APPEARANCE_ID ? getSystemAppearanceId() : selected;
+    if (selected === SYSTEM_APPEARANCE_ID) {
+      await this.refreshNativeSystemAppearance();
+    }
+    const resolvedId = selected === SYSTEM_APPEARANCE_ID
+      ? (this.ohosSystemAppearanceId ?? getSystemAppearanceId())
+      : selected;
     const importedSelection = !getBuiltinAppearance(resolvedId);
     const importedEntry = importedSelection
       ? appearances.find(entry => entry.id === resolvedId && entry.source === 'imported')

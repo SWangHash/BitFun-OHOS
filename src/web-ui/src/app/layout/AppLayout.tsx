@@ -501,7 +501,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
                 confirmText: tCommon('closeDialog.quit'),
                 cancelText: tCommon('closeDialog.minimizeToTray'),
                 showCancel: true,
+                closeOnOverlayClick: true,
               });
+              if (closeChoice === 'dismissed') {
+                return;
+              }
               const selectedBehavior: CloseBehavior = closeChoice === 'confirm' ? 'quit' : 'minimize_to_tray';
               if (doNotAskAgain) {
                 try {

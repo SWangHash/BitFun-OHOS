@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 import type { ConfirmDialogType } from './ConfirmDialog';
 
-export type ConfirmDialogChoice = 'confirm' | 'secondary' | 'cancel';
+export type ConfirmDialogChoice = 'confirm' | 'secondary' | 'cancel' | 'dismissed';
 
 export interface ConfirmDialogOptions {
   /** Title */
@@ -29,6 +29,8 @@ export interface ConfirmDialogOptions {
   preview?: string;
   /** Max preview height */
   previewMaxHeight?: number;
+  /** Whether clicking the backdrop closes the dialog */
+  closeOnOverlayClick?: boolean;
 }
 
 interface ConfirmDialogState {
@@ -117,7 +119,7 @@ export const useConfirmDialogStore = create<ConfirmDialogState>((set, get) => ({
   close: () => {
     const { resolve } = get();
     if (resolve) {
-      resolve('cancel');
+      resolve('dismissed');
     }
     set({
       isOpen: false,
