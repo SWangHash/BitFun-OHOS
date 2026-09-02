@@ -322,9 +322,9 @@ pub fn exec_command_argv_for_shell(
 /// Builds argv for a reviewed one-shot command without loading shell profiles.
 ///
 /// This is intentionally separate from [`exec_command_argv_for_shell`]: Agent
-/// Exec keeps its login-shell and pipefail behavior, while reviewed expansion
-/// must not execute undisclosed profile or autorun content before the command
-/// the user approved.
+/// Exec loads the zsh interactive profile when zsh is selected, while reviewed
+/// expansion must not execute undisclosed profile or autorun content before the
+/// command the user approved.
 pub fn exec_command_argv_for_isolated_shell(
     shell_path: impl Into<String>,
     shell_kind: ExecCommandShellKind,
@@ -468,10 +468,14 @@ pub fn fallback_remote_exec_shell() -> ExecCommandRemoteShell {
 }
 
 pub fn exec_command_posix_shell_args(shell_kind: &ExecCommandShellKind) -> &'static [&'static str] {
-    if shell_kind.supports_pipefail() {
-        &["-o", "pipefail", "-lc"]
-    } else {
-        &["-lc"]
+    match shell_kind {
+        // zsh only reads ~/.zshrc for interactive shells. ExecCommand still
+        // remains a one-shot process; -i makes the user's shell environment
+        // available without using the persistent terminal integration session.
+        ExecCommandShellKind::Zsh if shell_kind.supports_pipefail() => &["-o", "pipefail", "-ilc"],
+        ExecCommandShellKind::Zsh => &["-ilc"],
+        _ if shell_kind.supports_pipefail() => &["-o", "pipefail", "-lc"],
+        _ => &["-lc"],
     }
 }
 
@@ -1229,10 +1233,12 @@ mod tests {
         ] {
             let argv =
                 exec_command_argv_for_shell("/bin/shell", shell_kind.clone(), "false | tail -n 1");
-            assert_eq!(
-                argv,
+            let expected_args = if shell_kind == ExecCommandShellKind::Zsh {
+                ["/bin/shell", "-o", "pipefail", "-ilc", "false | tail -n 1"]
+            } else {
                 ["/bin/shell", "-o", "pipefail", "-lc", "false | tail -n 1"]
-            );
+            };
+            assert_eq!(argv, expected_args);
             assert_eq!(
                 exec_command_pipeline_failure_policy(&shell_kind),
                 "pipefail"
