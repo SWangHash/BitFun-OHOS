@@ -1,10 +1,24 @@
+/**
+ * @vitest-environment jsdom
+ */
+
 import React from 'react';
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CodeReviewReportExportActions } from './CodeReviewReportExportActions';
 import type { ReviewTeamRunManifest } from '@/shared/services/reviewTeamService';
 
-const formatCodeReviewReportMarkdownMock = vi.hoisted(() => vi.fn(() => '# Review'));
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+const EXPORTED_MARKDOWN = '# Review\n\n- complete finding\n- 完整内容';
+const formatCodeReviewReportMarkdownMock = vi.hoisted(() => vi.fn());
+const saveTextFileWithDialogMock = vi.hoisted(() => vi.fn());
+const notificationServiceMock = vi.hoisted(() => ({
+  error: vi.fn(),
+  success: vi.fn(),
+}));
 
 function Icon({ name }: { name: string }) {
   return <svg data-icon={name} />;
@@ -46,14 +60,15 @@ vi.mock('@/component-library', () => ({
 }));
 
 vi.mock('@/shared/notification-system', () => ({
-  notificationService: {
-    error: vi.fn(),
-    success: vi.fn(),
-  },
+  notificationService: notificationServiceMock,
 }));
 
 vi.mock('@/shared/utils/tabUtils', () => ({
   createMarkdownEditorTab: vi.fn(),
+}));
+
+vi.mock('@/infrastructure/services/infra/saveTextFileWithDialog', () => ({
+  saveTextFileWithDialog: (...args: unknown[]) => saveTextFileWithDialogMock(...args),
 }));
 
 vi.mock('../utils/codeReviewReport', () => ({
@@ -61,6 +76,39 @@ vi.mock('../utils/codeReviewReport', () => ({
 }));
 
 describe('CodeReviewReportExportActions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    formatCodeReviewReportMarkdownMock.mockReturnValue(EXPORTED_MARKDOWN);
+    saveTextFileWithDialogMock.mockResolvedValue({
+      status: 'saved',
+      filePath: '/tmp/review.md',
+    });
+  });
+
+  async function clickSave(): Promise<void> {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    try {
+      await act(async () => {
+        root.render(
+          <CodeReviewReportExportActions
+            reviewData={{ summary: { recommended_action: 'approve' } }}
+          />,
+        );
+      });
+      const button = container.querySelector<HTMLButtonElement>('[aria-label="Save Markdown"]');
+      expect(button).not.toBeNull();
+      await act(async () => {
+        button?.click();
+        await new Promise(resolve => window.setTimeout(resolve, 0));
+      });
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  }
+
   it('uses the same copy icon as other copy buttons', () => {
     const html = renderToStaticMarkup(
       <CodeReviewReportExportActions reviewData={{ summary: { recommended_action: 'approve' } }} />,
@@ -158,5 +206,40 @@ describe('CodeReviewReportExportActions', () => {
       }),
       { runManifest: undefined },
     );
+  });
+
+  it('saves the complete Markdown payload and reports success', async () => {
+    await clickSave();
+
+    expect(saveTextFileWithDialogMock).toHaveBeenCalledWith(expect.objectContaining({
+      defaultFileName: expect.stringMatching(/\.md$/),
+      content: EXPORTED_MARKDOWN,
+      mimeType: 'text/markdown;charset=utf-8',
+      filter: { name: 'Markdown', extensions: ['md'] },
+    }));
+    expect(notificationServiceMock.success).toHaveBeenCalledWith(
+      'toolCards.codeReview.export.saveSuccess',
+    );
+    expect(notificationServiceMock.error).not.toHaveBeenCalled();
+  });
+
+  it('keeps cancellation silent', async () => {
+    saveTextFileWithDialogMock.mockResolvedValueOnce({ status: 'cancelled' });
+
+    await clickSave();
+
+    expect(notificationServiceMock.success).not.toHaveBeenCalled();
+    expect(notificationServiceMock.error).not.toHaveBeenCalled();
+  });
+
+  it('reports a real save failure without claiming success', async () => {
+    saveTextFileWithDialogMock.mockRejectedValueOnce(new Error('disk full'));
+
+    await clickSave();
+
+    expect(notificationServiceMock.error).toHaveBeenCalledWith(
+      'toolCards.codeReview.export.saveFailed',
+    );
+    expect(notificationServiceMock.success).not.toHaveBeenCalled();
   });
 });
