@@ -88,6 +88,17 @@ impl MCPServerManager {
                 );
             }
             Err(e) => {
+                // Override Failed→Reconnecting — the reconnect monitor is
+                // still retrying, so the UI should show Reconnecting, not
+                // Failed. This path is only reached for servers that were
+                // previously connected (status was Reconnecting before the
+                // attempt); first-time connection failures stay Failed
+                // because mcp_reconnect_runtime_decision only retries
+                // Reconnecting, not Failed.
+                let _ = self
+                    .runtime
+                    .set_process_status(server_id, MCPServerStatus::Reconnecting)
+                    .await;
                 warn!(
                     "MCP reconnect failed: server_name={} server_id={} attempt={} next_retry_in={}s error={}",
                     server_name,

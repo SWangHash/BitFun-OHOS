@@ -4,7 +4,7 @@
     "description": "下载并管理本地运行的AI模型（如Ollama）。"
   },
   "service": {
-    "unavailable": "本地模型服务未运行，请先启动Ollama或其他兼容服务以使用本地模型。"
+    "unavailable": "本地模型服务未运行，请先启动Ollama或其他兼容服务以使用本地模型。如系统设置->系统->本地AI模型管理。"
   },
   "status": {
     "downloaded": "已下载",

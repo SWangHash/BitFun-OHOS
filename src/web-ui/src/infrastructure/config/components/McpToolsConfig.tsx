@@ -1007,7 +1007,7 @@ const McpToolsConfig: React.FC = () => {
 
   const isStopped = (status: string) => {
     const s = status.toLowerCase();
-    return s.includes('stopped') || s.includes('failed') || s.includes('auth');
+    return s.includes('stopped') || s.includes('failed') || s.includes('auth') || s.includes('uninitialized');
   };
 
   const getServerStatusLabel = (status: string) => {

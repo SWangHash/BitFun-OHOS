@@ -318,6 +318,20 @@ impl MCPServerRuntimeState {
         Ok(process.status().await)
     }
 
+    /// Force-set the process status. Used by the reconnect monitor to show
+    /// `Reconnecting` instead of `Failed` between retry attempts.
+    pub async fn set_process_status(
+        &self,
+        server_id: &str,
+        status: MCPServerStatus,
+    ) -> MCPRuntimeResult<()> {
+        let process = self.get_process(server_id).await.ok_or_else(|| {
+            MCPRuntimeError::not_found(format!("MCP server not found: {server_id}"))
+        })?;
+        process.write().await.force_status(status).await;
+        Ok(())
+    }
+
     pub async fn process_status_message(
         &self,
         server_id: &str,
