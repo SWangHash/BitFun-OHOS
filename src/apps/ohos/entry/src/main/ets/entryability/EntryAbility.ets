@@ -270,9 +270,21 @@ export default class EntryAbility extends RustAbility {
           "uri": url
         }
         if (/^https?:\/\//i.test(url)) {
-          want.bundleName = 'com.haitai.htbrowser';
-          want.moduleName = 'pc_entry';
-          want.abilityName = 'EntryAbility';
+          try {
+            want.bundleName = 'com.haitai.htbrowser';
+            want.moduleName = 'pc_entry';
+            want.abilityName = 'EntryAbility';
+            await this.context.startAbility(want);
+            hilog.info(201, 'vnext', `open url succeed (haitai): ${url}`);
+            return `start ability succeed with ${url}`;
+          } catch (haitaiError) {
+            hilog.info(201, 'vnext', `haitai browser unavailable, falling back to system browser: ${haitaiError.code}`);
+            want = {
+              "action": "ohos.want.action.viewData",
+              "entities": ["entity.system.browsable"],
+              "uri": url
+            };
+          }
         }
         await this.context.startAbility(want);
         hilog.info(201, 'vnext', `open url succeed: ${url}`);
