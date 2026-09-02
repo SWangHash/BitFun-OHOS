@@ -250,20 +250,28 @@ impl MCPServerProcess {
         self.set_status(MCPServerStatus::Starting).await;
         self.remote_url = Some(url.to_string());
 
-        let connection = Arc::new(
-            MCPConnection::new_remote_with_data_dir_and_timeouts(
-                data_dir,
-                &self.id,
-                url.to_string(),
-                config.headers.clone(),
-                config.remote_oauth_enabled(),
-                config.timeouts,
-            )
-            .await
-            .map_err(|error| {
-                MCPRuntimeError::mcp(redact_sensitive_value(&error.to_string(), Some(url)))
-            })?,
-        );
+        let connection = match MCPConnection::new_remote_with_data_dir_and_timeouts(
+            data_dir,
+            &self.id,
+            url.to_string(),
+            config.headers.clone(),
+            config.remote_oauth_enabled(),
+            config.timeouts,
+        )
+        .await
+        {
+            Ok(conn) => Arc::new(conn),
+            Err(error) => {
+                let redacted = redact_sensitive_value(&error.to_string(), Some(url));
+                error!(
+                    "Remote MCP server connection failed: name={} id={} error={}",
+                    self.name, self.id, redacted
+                );
+                self.set_status_with_error(MCPServerStatus::Failed, Some(redacted.clone()))
+                    .await;
+                return Err(MCPRuntimeError::mcp(redacted));
+            }
+        };
         self.connection = Some(connection.clone());
         self.start_time = Some(Instant::now());
 
@@ -378,19 +386,19 @@ impl MCPServerProcess {
         self.set_status_with_error(status, None).await;
     }
 
-    async fn set_status_with_error(&self, status: MCPServerStatus, error: Option<String>) {
-        let mut current_status = self.status.write().await;
-        *current_status = status;
-        let mut last_error_message = self.last_error_message.write().await;
-        *last_error_message = error;
-    }
-
     /// Force-set the process status. Used by the reconnect monitor to override
     /// `Failed` with `Reconnecting` after a reconnect attempt fails, so the UI
     /// shows "Reconnecting" instead of "Failed" while the monitor keeps retrying.
     pub async fn force_status(&self, status: MCPServerStatus) {
         let mut current_status = self.status.write().await;
         *current_status = status;
+    }
+
+    async fn set_status_with_error(&self, status: MCPServerStatus, error: Option<String>) {
+        let mut current_status = self.status.write().await;
+        *current_status = status;
+        let mut last_error_message = self.last_error_message.write().await;
+        *last_error_message = error;
     }
 
     /// Gets status.
