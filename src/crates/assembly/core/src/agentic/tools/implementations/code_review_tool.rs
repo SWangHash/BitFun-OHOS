@@ -465,6 +465,160 @@ impl CodeReviewTool {
     ) -> BitFunResult<()> {
         deep_review_report::persist_deep_review_cache(context, cache_value).await
     }
+
+    fn normalize_string_array_field(input: &mut Value, field: &str, fallback: Value) {
+        let Some(value) = input.get_mut(field) else {
+            warn!("CodeReview tool missing {field} field, using default values");
+            input[field] = fallback;
+            return;
+        };
+
+        let Some(items) = value.as_array_mut() else {
+            warn!("CodeReview tool received a non-array {field} field, using default values");
+            *value = fallback;
+            return;
+        };
+
+        let original_len = items.len();
+        items.retain(Value::is_string);
+        let removed = original_len.saturating_sub(items.len());
+        if removed > 0 {
+            warn!("CodeReview tool dropped {removed} non-string item(s) from {field}");
+        }
+    }
+
+    fn normalize_issues_field(input: &mut Value) {
+        let Some(value) = input.get_mut("issues") else {
+            warn!("CodeReview tool missing issues field, using default values");
+            input["issues"] = json!([]);
+            return;
+        };
+
+        let Some(items) = value.as_array_mut() else {
+            warn!("CodeReview tool received a non-array issues field, using default values");
+            *value = json!([]);
+            return;
+        };
+
+        let original_len = items.len();
+        let mut removed_fields = 0usize;
+        items.retain_mut(|item| {
+            let Some(issue) = item.as_object_mut() else {
+                return false;
+            };
+
+            for field in [
+                "severity",
+                "certainty",
+                "category",
+                "file",
+                "title",
+                "description",
+                "source_reviewer",
+                "validation_note",
+            ] {
+                if issue.get(field).is_some_and(|value| !value.is_string()) {
+                    issue.remove(field);
+                    removed_fields += 1;
+                }
+            }
+            if issue
+                .get("suggestion")
+                .is_some_and(|value| !value.is_string() && !value.is_null())
+            {
+                issue.remove("suggestion");
+                removed_fields += 1;
+            }
+            if issue
+                .get("line")
+                .is_some_and(|value| !value.is_i64() && !value.is_u64() && !value.is_null())
+            {
+                issue.remove("line");
+                removed_fields += 1;
+            }
+            true
+        });
+
+        let removed_items = original_len.saturating_sub(items.len());
+        if removed_items > 0 {
+            warn!("CodeReview tool dropped {removed_items} non-object issue item(s)");
+        }
+        if removed_fields > 0 {
+            warn!("CodeReview tool dropped {removed_fields} malformed issue field(s)");
+        }
+    }
+
+    fn normalize_report_sections_field(input: &mut Value) {
+        let Some(value) = input.get_mut("report_sections") else {
+            return;
+        };
+
+        let Some(sections) = value.as_object_mut() else {
+            warn!("CodeReview tool received a non-object report_sections field, using defaults");
+            *value = json!({});
+            return;
+        };
+
+        let mut malformed_containers = 0usize;
+        let mut removed_items = 0usize;
+
+        for field in ["executive_summary", "coverage_notes"] {
+            let Some(entries) = sections.get_mut(field) else {
+                continue;
+            };
+            let Some(items) = entries.as_array_mut() else {
+                *entries = json!([]);
+                malformed_containers += 1;
+                continue;
+            };
+
+            let original_len = items.len();
+            items.retain(Value::is_string);
+            removed_items += original_len.saturating_sub(items.len());
+        }
+
+        for group_field in ["remediation_groups", "strength_groups"] {
+            let Some(groups_value) = sections.get_mut(group_field) else {
+                continue;
+            };
+            let Some(groups) = groups_value.as_object_mut() else {
+                *groups_value = json!({});
+                malformed_containers += 1;
+                continue;
+            };
+
+            for (group_id, entries) in groups {
+                let Some(items) = entries.as_array_mut() else {
+                    *entries = json!([]);
+                    malformed_containers += 1;
+                    continue;
+                };
+
+                let allow_decision_context =
+                    group_field == "remediation_groups" && group_id == "needs_decision";
+                let original_len = items.len();
+                items.retain(|entry| {
+                    entry.is_string()
+                        || (allow_decision_context
+                            && entry.as_object().is_some_and(|decision| {
+                                decision.get("question").is_some_and(Value::is_string)
+                                    && decision.get("plan").is_some_and(Value::is_string)
+                            }))
+                });
+                removed_items += original_len.saturating_sub(items.len());
+            }
+        }
+
+        if malformed_containers > 0 {
+            warn!(
+                "CodeReview tool replaced {malformed_containers} malformed report section container(s)"
+            );
+        }
+        if removed_items > 0 {
+            warn!("CodeReview tool dropped {removed_items} malformed report section item(s)");
+        }
+    }
+
     /// Validate and fill missing fields with default values
     ///
     /// When AI-returned data is missing certain fields, fill with default values to avoid entire review failure
@@ -513,17 +667,11 @@ impl CodeReviewTool {
             input["evidence_status"] = json!("failed");
         }
 
-        // Fill issues default values
-        if input.get("issues").is_none() {
-            warn!("CodeReview tool missing issues field, using default values");
-            input["issues"] = json!([]);
-        }
+        Self::normalize_issues_field(input);
 
-        // Fill positive_points default values
-        if input.get("positive_points").is_none() {
-            warn!("CodeReview tool missing positive_points field, using default values");
-            input["positive_points"] = json!(["None"]);
-        }
+        Self::normalize_string_array_field(input, "positive_points", json!(["None"]));
+
+        Self::normalize_report_sections_field(input);
 
         if deep_review {
             let managed_review = run_manifest.is_some_and(|manifest| {
@@ -555,9 +703,7 @@ impl CodeReviewTool {
             deep_review_report::apply_review_evidence_guardrail(input, run_manifest);
         }
 
-        if input.get("remediation_plan").is_none() {
-            input["remediation_plan"] = json!([]);
-        }
+        Self::normalize_string_array_field(input, "remediation_plan", json!([]));
 
         if input.get("schema_version").is_none() {
             input["schema_version"] = json!(1);
@@ -806,6 +952,162 @@ mod tests {
             })
         );
         assert_eq!(input["evidence_status"], "failed");
+    }
+
+    #[test]
+    fn malformed_legacy_text_arrays_drop_non_string_items() {
+        let mut input = json!({
+            "summary": {
+                "overall_assessment": "One fix is required",
+                "risk_level": "medium",
+                "recommended_action": "request_changes"
+            },
+            "issues": [],
+            "positive_points": ["Clear adapter boundary", { "text": "invalid" }, 7],
+            "remediation_plan": [
+                { "plan": "Fix the invalid branch" },
+                "Add the missing guard",
+                null
+            ]
+        });
+
+        CodeReviewTool::validate_and_fill_defaults(&mut input, false, None, None);
+
+        assert_eq!(input["positive_points"], json!(["Clear adapter boundary"]));
+        assert_eq!(input["remediation_plan"], json!(["Add the missing guard"]));
+    }
+
+    #[test]
+    fn malformed_issue_fields_are_removed_before_results_are_persisted() {
+        let mut input = json!({
+            "summary": {
+                "overall_assessment": "One fix is required",
+                "risk_level": "medium",
+                "recommended_action": "request_changes"
+            },
+            "issues": [
+                {
+                    "severity": "high",
+                    "certainty": "confirmed",
+                    "category": 7,
+                    "file": ["src/app.ts"],
+                    "line": "12",
+                    "title": { "text": "Invalid title" },
+                    "description": "The branch is inverted.",
+                    "suggestion": { "text": "Flip the branch." },
+                    "source_reviewer": false,
+                    "validation_note": ["invalid"]
+                },
+                "invalid issue",
+                {
+                    "severity": "low",
+                    "title": "Valid title",
+                    "suggestion": null,
+                    "line": 24
+                }
+            ],
+            "positive_points": [],
+            "remediation_plan": []
+        });
+
+        CodeReviewTool::validate_and_fill_defaults(&mut input, false, None, None);
+
+        assert_eq!(
+            input["issues"],
+            json!([
+                {
+                    "severity": "high",
+                    "certainty": "confirmed",
+                    "description": "The branch is inverted."
+                },
+                {
+                    "severity": "low",
+                    "title": "Valid title",
+                    "suggestion": null,
+                    "line": 24
+                }
+            ])
+        );
+    }
+
+    #[test]
+    fn malformed_result_containers_use_safe_defaults() {
+        let mut input = json!({
+            "summary": {
+                "overall_assessment": "No validated findings",
+                "risk_level": "low",
+                "recommended_action": "approve"
+            },
+            "issues": { "title": "invalid" },
+            "positive_points": { "text": "invalid" },
+            "remediation_plan": "invalid"
+        });
+
+        CodeReviewTool::validate_and_fill_defaults(&mut input, false, None, None);
+
+        assert_eq!(input["positive_points"], json!(["None"]));
+        assert_eq!(input["remediation_plan"], json!([]));
+        assert_eq!(input["issues"], json!([]));
+    }
+
+    #[test]
+    fn malformed_report_section_groups_are_normalized_before_persisting() {
+        let mut input = json!({
+            "summary": {
+                "overall_assessment": "One fix is required",
+                "risk_level": "medium",
+                "recommended_action": "request_changes"
+            },
+            "issues": [],
+            "positive_points": [],
+            "remediation_plan": [],
+            "report_sections": {
+                "executive_summary": { "text": "Invalid container" },
+                "remediation_groups": {
+                    "must_fix": { "plan": "Invalid container" },
+                    "should_improve": ["Keep this item", 7],
+                    "needs_decision": [
+                        {
+                            "question": "Choose a migration path",
+                            "plan": "Document the selected path"
+                        },
+                        { "plan": "Missing question" },
+                        false
+                    ]
+                },
+                "strength_groups": {
+                    "tests": "Invalid container",
+                    "architecture": ["Clear boundary", null]
+                },
+                "coverage_notes": ["Focused verification only", { "text": "Invalid item" }]
+            }
+        });
+
+        CodeReviewTool::validate_and_fill_defaults(&mut input, false, None, None);
+
+        assert_eq!(input["report_sections"]["executive_summary"], json!([]));
+        assert_eq!(
+            input["report_sections"]["remediation_groups"],
+            json!({
+                "must_fix": [],
+                "should_improve": ["Keep this item"],
+                "needs_decision": [{
+                    "question": "Choose a migration path",
+                    "plan": "Document the selected path"
+                }]
+            })
+        );
+        assert_eq!(
+            input["report_sections"]["strength_groups"],
+            json!({
+                "tests": [],
+                "architecture": ["Clear boundary"]
+            })
+        );
+        assert_eq!(
+            input["report_sections"]["coverage_notes"],
+            json!(["Focused verification only"])
+        );
     }
 
     #[tokio::test]

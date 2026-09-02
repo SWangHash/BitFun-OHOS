@@ -4,7 +4,7 @@ import type {
   RemediationGroupId,
   ReviewMode,
 } from './codeReviewReport';
-import { normalizeDecisionEntry } from './codeReviewReport';
+import { normalizeCodeReviewIssues, normalizeDecisionEntry } from './codeReviewReport';
 
 export interface CodeReviewRemediationSummary {
   overall_assessment?: string;
@@ -135,7 +135,7 @@ function buildStructuredRemediationItems(
     return [];
   }
 
-  const issues = reviewData.issues;
+  const issues = normalizeCodeReviewIssues(reviewData.issues);
   const items: ReviewRemediationItem[] = [];
   let globalIssueOffset = 0;
 
@@ -149,8 +149,12 @@ function buildStructuredRemediationItems(
     for (const raw of rawEntries) {
       // Normalize: needs_decision entries may be structured objects or plain strings
       const isDecision = groupId === 'needs_decision';
-      const normalized = isDecision ? normalizeDecisionEntry(raw as string | DecisionContext) : null;
-      const plan = isDecision && normalized ? normalized.plan : String(raw).trim();
+      const normalized = isDecision ? normalizeDecisionEntry(raw) : null;
+      const plan = isDecision
+        ? normalized?.plan ?? ''
+        : typeof raw === 'string'
+          ? raw.trim()
+          : '';
       if (!plan) {
         continue;
       }
@@ -185,15 +189,20 @@ export function buildReviewRemediationItems(
   }
 
   const items: ReviewRemediationItem[] = [];
+  const plans = Array.isArray(reviewData.remediation_plan) ? reviewData.remediation_plan : [];
+  const issues = normalizeCodeReviewIssues(reviewData.issues);
 
-  (reviewData.remediation_plan ?? []).forEach((plan, index) => {
+  plans.forEach((plan, index) => {
+    if (typeof plan !== 'string') {
+      return;
+    }
     const trimmedPlan = plan.trim();
     if (!trimmedPlan) {
       return;
     }
 
-    const issue = reviewData.issues?.[index];
-    const issueIndex = issue ? index : findMatchingIssueIndex(trimmedPlan, reviewData.issues, index);
+    const issue = issues?.[index];
+    const issueIndex = issue ? index : findMatchingIssueIndex(trimmedPlan, issues, index);
     items.push({
       id: `remediation-${index}`,
       index,

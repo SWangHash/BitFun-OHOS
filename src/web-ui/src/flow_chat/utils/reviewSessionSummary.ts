@@ -1,4 +1,5 @@
 import type { FlowToolItem, Session } from '../types/flow-chat';
+import { normalizeCodeReviewReportData } from './codeReviewReport';
 import { getEffectiveToolName } from './toolInvocationIdentity';
 
 export interface CodeReviewSummaryData {
@@ -49,7 +50,7 @@ function parseReviewResult(result: unknown): CodeReviewResultData | null {
   }
 
   if (typeof result === 'object' && 'summary' in result) {
-    return result as CodeReviewResultData;
+    return normalizeCodeReviewReportData(result) as CodeReviewResultData | null;
   }
 
   return null;
