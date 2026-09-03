@@ -22,6 +22,7 @@ members = [
     "src/crates/adapters/opencode-plugin-host",
     "src/crates/adapters/claude-code-adapter",
     "src/crates/adapters/codex-adapter",
+    "src/crates/adapters/matrix-adapter",
     "src/crates/adapters/static-hook-support",
     "src/crates/adapters/webdriver",
     "src/crates/adapters/transport",
@@ -133,6 +134,9 @@ hex = "0.4"
 chardetng = "0.1.17"
 encoding_rs = "0.8.35"
 url = "2"
+
+# Internal adapter crates (path-pinned for workspace = true consumers)
+bitfun-matrix-adapter = { path = "src/crates/adapters/matrix-adapter" }
 
 # HTTP client
 reqwest = { version = "0.13.4", default-features = false }

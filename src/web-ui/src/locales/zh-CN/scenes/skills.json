@@ -1,4 +1,14 @@
 {
+  "skillsCenter": "技能中心",
+  "searchSkills": "搜索技能...",
+  "addSkill": "添加技能",
+  "sortBy": "排序",
+  "defaultSort": "默认",
+  "totalSkills": "{{count}} 个 Skills",
+  "installSkill": "安装技能",
+  "viewDetails": "查看详情",
+  "builtIn": "内置",
+  "suites": "套件",
   "nav": {
     "title": "技能",
     "summary": "在本地已安装技能与外部技能市场之间快速切换查看。",
@@ -27,7 +37,7 @@
     "searchPlaceholder": "搜索已安装技能和市场技能..."
   },
   "installed": {
-    "titleAll": "已安装技能",
+    "titleAll": "已安装",
     "subtitleAll": "管理所有已安装的用户级和项目级技能",
     "titleUser": "用户级技能",
     "subtitleUser": "全局安装的用户级技能",
@@ -102,7 +112,10 @@
     },
     "detail": {
       "installsLabel": "安装量",
-      "linkLabel": "链接"
+      "linkLabel": "链接",
+      "versionLabel": "版本",
+      "orgLabel": "组织",
+      "tagsLabel": "标签"
     }
   },
   "suite": {
@@ -205,6 +218,8 @@
   },
   "list": {
     "loading": "加载中...",
+    "noMore": "没有更多了",
+    "loadMoreFailed": "加载失败，请重试",
     "errorPrefix": "加载失败: ",
     "loadFailed": "技能加载失败",
     "retry": "重试",
@@ -258,5 +273,52 @@
     "enabled": "启用",
     "disabled": "禁用",
     "revealPathFailed": "无法在资源管理器中打开: {{error}}"
+  },
+  "matrix": {
+    "tabLabel": "格物市场",
+    "title": "OpenHarmony 格物市场技能",
+    "subtitle": "从 OpenHarmony 格物市场浏览并安装 Agent Skills。",
+    "searchPlaceholder": "搜索 Matrix 技能...",
+    "resultsInfo": "共 {{count}} 个技能",
+    "empty": {
+      "noSkills": "未找到 Matrix 技能"
+    },
+    "tags": {
+      "loading": "正在加载标签...",
+      "empty": "暂无标签",
+      "clear": "清除筛选",
+      "expand": "展开更多标签",
+      "collapse": "收起标签"
+    },
+    "sections": {
+      "featured": "精品集",
+      "byTag": "按标签",
+      "byCategory": "按分类",
+      "byOrganization": "按组织"
+    },
+    "featured": {
+      "hint": "显示全部精品技能"
+    },
+    "categories": {
+      "loading": "正在加载分类...",
+      "empty": "暂无分类"
+    },
+    "organizations": {
+      "loading": "正在加载组织...",
+      "empty": "暂无组织"
+    },
+    "item": {
+      "install": "安装",
+      "installing": "安装中...",
+      "installed": "已安装",
+      "installedTooltip": "本地已安装"
+    },
+    "messages": {
+      "installSuccess": "Matrix 技能 \"{{name}}\" 已安装到 {{path}}",
+      "installFailed": "无法安装 \"{{name}}\": {{error}}"
+    },
+    "errors": {
+      "loadFailed": "加载技能失败，请检查网络后重试"
+    }
   }
 }

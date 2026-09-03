@@ -37,7 +37,7 @@ export function canDeleteSkill(skill: SkillInfo): boolean {
 
   const sourceId = skill.sourceId?.trim().toLowerCase();
   if (sourceId) {
-    return sourceId === 'bitfun' || sourceId === 'bitfun-system';
+    return sourceId === 'bitfun' || sourceId === 'bitfun-system' || sourceId === 'matrix';
   }
 
   return skill.sourceSlot?.trim().toLowerCase().startsWith('bitfun') ?? false;

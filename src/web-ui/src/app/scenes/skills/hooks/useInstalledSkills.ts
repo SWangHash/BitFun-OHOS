@@ -270,6 +270,15 @@ export function useInstalledSkills({
     }
 
     setSavingGlobalSkillKey(skill.key);
+    setGloballyDisabledSkillKeys((prev) => {
+      const next = new Set(prev);
+      if (enabled) {
+        next.delete(skill.key);
+      } else {
+        next.add(skill.key);
+      }
+      return next;
+    });
     try {
       const settings = await configAPI.setGlobalSkillDisabled({
         skillKey: skill.key,
@@ -291,6 +300,15 @@ export function useInstalledSkills({
       if (!capabilityIsCurrent(capabilityEpoch)) {
         return false;
       }
+      setGloballyDisabledSkillKeys((prev) => {
+        const next = new Set(prev);
+        if (enabled) {
+          next.add(skill.key);
+        } else {
+          next.delete(skill.key);
+        }
+        return next;
+      });
       log.error('Failed to update global Skill availability', {
         skillKey: skill.key,
         enabled,

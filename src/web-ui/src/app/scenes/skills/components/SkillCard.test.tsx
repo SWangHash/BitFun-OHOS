@@ -6,27 +6,25 @@ import { describe, expect, it } from 'vitest';
 import SkillCard from './SkillCard';
 
 describe('SkillCard Appearance contract', () => {
-  it('exposes variant, meta, action tone, and disabled state', () => {
+  it('exposes avatar, name, description, leftContent, action, and disabled state', () => {
     const html = renderToStaticMarkup(
       <SkillCard
-        name="Canvas"
-        iconKind="market"
-        meta={<span>12</span>}
-        actions={[{
-          id: 'download',
-          icon: <span>Download</span>,
-          ariaLabel: 'Download',
-          tone: 'primary',
+        name="agent-browser"
+        description="Browse the web"
+        leftContent={<span>12</span>}
+        rightAction={{
+          label: 'Install',
           disabled: true,
           onClick: () => undefined,
-        }]}
+        }}
       />,
     );
 
-    expect(html).toContain('data-bf-variant="market"');
-    expect(html).toContain('data-bf-part="meta"');
+    expect(html).toContain('data-bf-part="avatar"');
+    expect(html).toContain('data-bf-part="name"');
+    expect(html).toContain('data-bf-part="description"');
+    expect(html).toContain('data-bf-part="leftContent"');
     expect(html).toContain('data-bf-part="action"');
-    expect(html).toContain('data-bf-tone="primary"');
-    expect(html).toContain('data-bf-state="disabled"');
+    expect(html).toContain('disabled');
   });
 });

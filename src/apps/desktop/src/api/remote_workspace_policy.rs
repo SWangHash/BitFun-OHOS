@@ -320,6 +320,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         "check_git_isolation",
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
+    (
+        "check_matrix_skill_checksum",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
     ("check_path_exists", RemoteWorkspacePolicy::LegacyUnaudited),
     (
         "choose_external_mcp_conflict_command",
@@ -939,6 +943,7 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         "install_acp_client_cli",
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
+    ("install_matrix_skill", RemoteWorkspacePolicy::LocalOnly),
     ("install_update", RemoteWorkspacePolicy::WorkspaceAgnostic),
     (
         "list_agent_companion_pets",
@@ -989,6 +994,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         "list_manageable_subagents",
         RemoteWorkspacePolicy::RemoteRouted,
     ),
+    ("list_matrix_categories", RemoteWorkspacePolicy::LocalOnly),
+    ("list_matrix_organizations", RemoteWorkspacePolicy::LocalOnly),
+    ("list_matrix_tags", RemoteWorkspacePolicy::LocalOnly),
+    ("list_matrix_skills", RemoteWorkspacePolicy::LocalOnly),
     ("list_mcp_prompts", RemoteWorkspacePolicy::LegacyUnaudited),
     ("list_mcp_resources", RemoteWorkspacePolicy::LegacyUnaudited),
     ("list_miniapps", RemoteWorkspacePolicy::LegacyUnaudited),

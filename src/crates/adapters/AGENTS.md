@@ -17,6 +17,7 @@ services.
 | `dsh-adapter` | DeepSeek Harness (`dsh`) bundle/profile source projection for managed packages; static preview only | [AGENTS.md](dsh-adapter/AGENTS.md) |
 | `claude-code-adapter` | Runtime-free Claude Code user Instructions, Command, Subagent, MCP, and Hook source semantics with redacted projection | [AGENTS.md](claude-code-adapter/AGENTS.md) |
 | `codex-adapter` | Runtime-free Codex user Instructions, Subagent, MCP, and Hook source semantics with redacted projection | [AGENTS.md](codex-adapter/AGENTS.md) |
+| `matrix-adapter` | OpenHarmony Matrix market protocol translation (tags / skills / categories / organizations / install / checksum) + skill ZIP install to `~/.bitfun/skills/matrix/<enName>/`. Intentionally also owns concrete HTTP transport (a service-layer concern) instead of splitting into a separate `services-integrations/matrix` crate; the deviation is justified by the user requirement "代码尽量独立" (code should be as independent as possible) and is documented in `plan.md` Complexity Tracking. | [AGENTS.md](matrix-adapter/AGENTS.md) |
 | `static-hook-support` | Shared bounded/redacting static-source utilities plus the JSON/TOML Hook parser used by sibling ecosystem adapters; no ecosystem policy or runtime | inherited |
 | `transport` | Event transport adapters plus protocol-neutral bounded JSON encoding and TypeScript message/JSON-RPC mechanics shared by current hosts | [AGENTS.md](transport/AGENTS.md) |
 | `webdriver` | Embedded WebDriver protocol and browser automation adapter | [AGENTS.md](webdriver/AGENTS.md) |

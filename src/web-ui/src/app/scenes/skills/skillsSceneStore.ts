@@ -26,7 +26,11 @@ export const useSkillsSceneStore = create<SkillsSceneState>((set) => ({
   hideDuplicates: false,
   isAddFormOpen: false,
   suiteModeId: 'agentic',
-  setSearchDraft: (value) => set({ searchDraft: value }),
+  setSearchDraft: (value) => set(
+    value.trim() === ''
+      ? { searchDraft: value, marketQuery: '' }
+      : { searchDraft: value },
+  ),
   submitMarketQuery: () => set((state) => ({ marketQuery: state.searchDraft.trim() })),
   setInstalledFilter: (filter) => set({ installedFilter: filter }),
   setHideDuplicates: (hide) => set({ hideDuplicates: hide }),

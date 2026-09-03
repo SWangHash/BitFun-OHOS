@@ -1,4 +1,14 @@
 {
+  "skillsCenter": "Skills Center",
+  "searchSkills": "Search skills...",
+  "addSkill": "Add Skill",
+  "sortBy": "Sort",
+  "defaultSort": "Default",
+  "totalSkills": "{{count}} Skills",
+  "installSkill": "Install",
+  "viewDetails": "View Details",
+  "builtIn": "Built-in",
+  "suites": "Suites",
   "nav": {
     "title": "Skills",
     "summary": "Browse installed skills locally and jump to the external marketplace section.",
@@ -27,7 +37,7 @@
     "searchPlaceholder": "Search installed and marketplace skills..."
   },
   "installed": {
-    "titleAll": "Installed Skills",
+    "titleAll": "Installed",
     "subtitleAll": "Manage all installed user-level and project-level skills",
     "titleUser": "User Skills",
     "subtitleUser": "Globally installed user-level skills",
@@ -102,7 +112,10 @@
     },
     "detail": {
       "installsLabel": "Installs",
-      "linkLabel": "Link"
+      "linkLabel": "Link",
+      "versionLabel": "Version",
+      "orgLabel": "Organization",
+      "tagsLabel": "Tags"
     }
   },
   "suite": {
@@ -206,6 +219,8 @@
   "list": {
     "loading": "Loading...",
     "errorPrefix": "Failed to load: ",
+    "noMore": "No more results",
+    "loadMoreFailed": "Load failed. Please retry.",
     "loadFailed": "Could not load skills",
     "retry": "Retry",
     "desktopUnavailable": "Manage skills in Desktop.",
@@ -258,5 +273,52 @@
     "enabled": "enabled",
     "disabled": "disabled",
     "revealPathFailed": "Could not open in file explorer: {{error}}"
+  },
+  "matrix": {
+    "tabLabel": "Gewu Market",
+    "title": "OpenHarmony Matrix Skills",
+    "subtitle": "Browse and install Agent Skills from the OpenHarmony Matrix market.",
+    "searchPlaceholder": "Search Matrix skills...",
+    "resultsInfo": "{{count}} skills available",
+    "empty": {
+      "noSkills": "No Matrix skills found"
+    },
+    "tags": {
+      "loading": "Loading tags...",
+      "empty": "No tags available",
+      "clear": "Clear filters",
+      "expand": "Show more tags",
+      "collapse": "Show fewer tags"
+    },
+    "sections": {
+      "featured": "Featured",
+      "byTag": "By Tag",
+      "byCategory": "By Category",
+      "byOrganization": "By Organization"
+    },
+    "featured": {
+      "hint": "Showing all featured skills"
+    },
+    "categories": {
+      "loading": "Loading categories...",
+      "empty": "No categories available"
+    },
+    "organizations": {
+      "loading": "Loading organizations...",
+      "empty": "No organizations available"
+    },
+    "item": {
+      "install": "Install",
+      "installing": "Installing...",
+      "installed": "Installed",
+      "installedTooltip": "Already installed locally"
+    },
+    "messages": {
+      "installSuccess": "Matrix skill \"{{name}}\" installed to {{path}}",
+      "installFailed": "Failed to install \"{{name}}\": {{error}}"
+    },
+    "errors": {
+      "loadFailed": "Failed to load skills. Please check your network and try again."
+    }
   }
 }

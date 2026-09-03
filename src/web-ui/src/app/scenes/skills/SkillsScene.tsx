@@ -8,6 +8,7 @@ import {
   Filter,
   FolderOpen,
   Layers,
+  Loader2,
   Package,
   Plus,
   Puzzle,
@@ -22,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge, Button, ConfirmDialog, Input, Modal, Search, Select, Switch } from '@/component-library';
 import { GalleryDetailModal } from '@/app/components';
 import type { SkillInfo, SkillLevel, SkillMarketItem } from '@/infrastructure/config/types';
+import type { MatrixSkillSummary } from '@/infrastructure/api/service-api/MatrixSkillAPI';
 import {
   buildSkillCoverageSourceMap,
   canDeleteSkill,
@@ -38,8 +40,11 @@ import { createLogger } from '@/shared/utils/logger';
 import { getCardGradient } from '@/shared/utils/cardGradients';
 import { useInstalledSkills } from './hooks/useInstalledSkills';
 import { useSkillMarket } from './hooks/useSkillMarket';
+import { useMatrixSkillMarket } from './hooks/useMatrixSkillMarket';
 import SkillCard from './components/SkillCard';
+import SkillsLoadMoreSentinel from './components/SkillsLoadMoreSentinel';
 import SkillsSuiteView from './components/SkillsSuiteView';
+import MatrixMarketView from './components/MatrixMarketView';
 import './SkillsScene.scss';
 import { useSkillsSceneStore, type InstalledFilter } from './skillsSceneStore';
 import { useGallerySceneAutoRefresh } from '@/app/hooks/useGallerySceneAutoRefresh';
@@ -52,7 +57,7 @@ function formatDisplayPath(path: string): string {
     '/storage/Users/currentUser/appdata/el2/base/com.develop.opensource.ohpcd.bitfun/files/bitfun'
   );
 }
-type SkillTab = 'installed' | 'discover';
+type SkillTab = 'installed' | 'discover' | 'matrix';
 
 const INSTALLED_PAGE_SIZE = 12;
 
@@ -98,6 +103,7 @@ const SkillsScene: React.FC = () => {
   const [selectedDetail, setSelectedDetail] = useState<
     | { type: 'installed'; skillKey: string }
     | { type: 'market'; skill: SkillMarketItem }
+    | { type: 'matrix'; skill: MatrixSkillSummary }
     | null
   >(null);
 
@@ -109,6 +115,14 @@ const SkillsScene: React.FC = () => {
 
   const installedSkillNames = useMemo(
     () => new Set(installed.skills.map((skill) => skill.name)),
+    [installed.skills],
+  );
+  const installedMatrixEnNames = useMemo(
+    () => new Set(
+      installed.skills
+        .filter((skill) => skill.sourceId === 'matrix')
+        .map((skill) => skill.dirName),
+    ),
     [installed.skills],
   );
   const coverageSourceBySkillKey = useMemo(
@@ -123,6 +137,7 @@ const SkillsScene: React.FC = () => {
     [installed.skills, selectedDetail],
   );
   const selectedMarketSkill = selectedDetail?.type === 'market' ? selectedDetail.skill : null;
+  const selectedMatrixSkill = selectedDetail?.type === 'matrix' ? selectedDetail.skill : null;
 
   useEffect(() => {
     if (selectedDetail?.type === 'installed' && !installed.loading && !selectedInstalledSkill) {
@@ -143,38 +158,19 @@ const SkillsScene: React.FC = () => {
   const market = useSkillMarket({
     searchQuery: marketQuery,
     installedSkillNames,
-    pageSize: 15,
+    pageSize: 12,
     enabled: desktopConfigAvailable,
     onInstalledChanged: async () => {
       await installed.loadSkills(true);
     },
   });
-  const installedSkillAriaLabel = useCallback((skill: SkillInfo) => {
-    const source = getSkillSourceLabel(skill, t('list.item.unknownSource'));
-    const scope = market.isRemoteWorkspace
-      ? skill.level === 'user'
-        ? t('list.item.localUser')
-        : t('list.item.remoteProject')
-      : skill.level === 'user'
-        ? t('list.item.user')
-        : t('list.item.project');
-    return [
-      skill.name,
-      source,
-      scope,
-      skill.level === 'user'
-        ? installed.globallyDisabledSkillKeys.has(skill.key)
-          ? t('list.item.globalDisabled')
-          : t('list.item.globalEnabled')
-        : null,
-      skill.isShadowed
-        ? t('list.item.shadowedTooltip', {
-            source: coverageSourceBySkillKey.get(skill.key) ?? t('list.item.unknownSource'),
-          })
-        : null,
-    ].filter(Boolean).join('. ');
-  }, [coverageSourceBySkillKey, installed.globallyDisabledSkillKeys, market.isRemoteWorkspace, t]);
-
+  const matrix = useMatrixSkillMarket({
+    enabled: desktopConfigAvailable,
+    installedEnNames: installedMatrixEnNames,
+    onInstalledChanged: async () => {
+      await installed.loadSkills(true);
+    },
+  });
   const refetchSkillsScene = useCallback(async () => {
     await Promise.all([installed.loadSkills(true), market.refresh()]);
   }, [installed, market]);
@@ -185,6 +181,15 @@ const SkillsScene: React.FC = () => {
   });
 
   const canRevealSkillPath = !isRemoteWorkspace(workspaceManager.getState().currentWorkspace);
+
+  const openExternalUrl = useCallback(async (url: string) => {
+    try {
+      const { systemAPI } = await import('@/infrastructure/api');
+      await systemAPI.openExternal(url);
+    } catch {
+      window.open(url, '_blank');
+    }
+  }, []);
 
   const handleRevealSkillPath = useCallback(
     async (path: string) => {
@@ -236,6 +241,19 @@ const SkillsScene: React.FC = () => {
 
   return (
     <div className="bitfun-skills-scene" data-testid="agent-skill-panel" data-bf-scene="skills" data-bf-part="root" data-bf-tab={activeTab}>
+      <div className="skills-header" data-bf-scene="skills" data-bf-part="skillsHeader">
+        <h1 className="skills-header__title">{t('skillsCenter')}</h1>
+        <button
+          type="button"
+          className="skills-header__add-btn"
+          data-testid="skills-add-btn"
+          disabled={!desktopConfigAvailable}
+          onClick={toggleAddForm}
+        >
+          <Plus size={14} />
+          <span>{t('addSkill')}</span>
+        </button>
+      </div>
       <div className="skills-tabs-bar" data-testid="skills-tabs" data-bf-scene="skills" data-bf-part="header" data-bf-tab={activeTab}>
         <div className="skills-tabs-bar__tabs" data-bf-scene="skills" data-bf-part="tabs">
           <button
@@ -248,7 +266,6 @@ const SkillsScene: React.FC = () => {
             data-bf-tab="installed"
             data-bf-state={activeTab === 'installed' ? 'active' : undefined}
           ><span>{t('installed.titleAll')}</span></button>
-          <span className="skills-tabs-bar__divider" data-bf-scene="skills" data-bf-part="tabDivider" />
           <button
             type="button"
             className={`skills-tabs-bar__tab ${activeTab === 'discover' ? 'is-active' : ''}`}
@@ -260,7 +277,60 @@ const SkillsScene: React.FC = () => {
             data-bf-tab="discover"
             data-bf-state={activeTab === 'discover' ? 'active' : undefined}
           ><span>{t('market.title')}</span></button>
+          <button
+            type="button"
+            className={`skills-tabs-bar__tab ${activeTab === 'matrix' ? 'is-active' : ''}`}
+            disabled={!desktopConfigAvailable}
+            onClick={() => setActiveTab('matrix')}
+          ><span>{t('matrix.tabLabel')}</span></button>
         </div>
+        {desktopConfigAvailable && (
+          <div className="skills-tabs-bar__actions">
+            {activeTab === 'installed' && (
+              <button
+                type="button"
+                className={`skills-main__chip-btn${hideDuplicates ? ' is-active' : ''}`}
+                data-testid="skills-duplicates-chip"
+                onClick={() => setHideDuplicates(!hideDuplicates)}
+                data-bf-scene="skills"
+                data-bf-part="filterAction"
+                data-bf-state={hideDuplicates ? 'active' : undefined}
+              >
+                <Filter size={13} />
+                <span>{t('toolbar.hideDuplicates')}</span>
+              </button>
+            )}
+            <div className="skills-tabs-bar__search" data-bf-scene="skills" data-bf-part="sceneSearch">
+              <Search
+                inputTestId="skills-search-input"
+                value={activeTab === 'matrix'
+                  ? matrix.keyword
+                  : activeTab === 'discover'
+                    ? searchDraft
+                    : installedSearch}
+                onChange={activeTab === 'matrix'
+                  ? matrix.setKeyword
+                  : activeTab === 'discover'
+                    ? setSearchDraft
+                    : setInstalledSearch}
+                onSearch={activeTab === 'discover'
+                  ? submitMarketQuery
+                  : activeTab === 'matrix'
+                    ? matrix.submitKeyword
+                    : undefined}
+                onClear={activeTab === 'discover'
+                  ? submitMarketQuery
+                  : activeTab === 'matrix'
+                    ? matrix.submitKeyword
+                    : () => setInstalledSearch('')}
+                placeholder={t('searchSkills')}
+                size="small"
+                clearable
+                enterToSearch={activeTab !== 'installed'}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="skills-page" data-bf-scene="skills" data-bf-part="content" data-bf-tab={activeTab}>
@@ -268,9 +338,6 @@ const SkillsScene: React.FC = () => {
         {activeTab === 'installed' && (
           <div className="skills-installed" data-bf-scene="skills" data-bf-part="installed">
             {desktopConfigAvailable && <aside className="skills-sidebar" data-bf-scene="skills" data-bf-part="sidebar">
-              <div className="skills-sidebar__header" data-bf-scene="skills" data-bf-part="sidebarHeader">
-                <h2 className="skills-sidebar__title" data-bf-scene="skills" data-bf-part="sidebarTitle">{t('installed.titleAll')}</h2>
-              </div>
               <nav className="skills-sidebar__nav" data-bf-scene="skills" data-bf-part="sidebarNav">
                 {CATEGORIES.map((cat) => {
                   const count = installed.counts[cat.id];
@@ -314,42 +381,6 @@ const SkillsScene: React.FC = () => {
                 <SkillsSuiteView />
               ) : (
                 <>
-                  <div className="skills-main__toolbar" data-bf-scene="skills" data-bf-part="toolbar">
-                    <Search
-                      className="skills-main__toolbar-search"
-                      inputTestId="skills-search-input"
-                      value={installedSearch}
-                      onChange={setInstalledSearch}
-                      onClear={() => setInstalledSearch('')}
-                      placeholder={t('toolbar.searchPlaceholder')}
-                      size="small"
-                      clearable
-                    />
-                    <button
-                      type="button"
-                      className={`skills-main__chip-btn${hideDuplicates ? ' is-active' : ''}`}
-                      data-testid="skills-duplicates-chip"
-                      onClick={() => setHideDuplicates(!hideDuplicates)}
-                      data-bf-scene="skills"
-                      data-bf-part="filterAction"
-                      data-bf-state={hideDuplicates ? 'active' : undefined}
-                    >
-                      <Filter size={13} />
-                      <span>{t('toolbar.hideDuplicates')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="skills-main__add-btn"
-                      data-testid="skills-add-btn"
-                      onClick={toggleAddForm}
-                      data-bf-scene="skills"
-                      data-bf-part="addAction"
-                    >
-                      <Plus size={13} />
-                      <span>{t('toolbar.addTooltip')}</span>
-                    </button>
-                  </div>
-
                   {installed.loading && (
                     <div className="skills-main__loading" aria-busy="true" aria-label={t('list.loading')} data-bf-scene="skills" data-bf-part="loading">
                       {Array.from({ length: 8 }).map((_, i) => (
@@ -392,110 +423,36 @@ const SkillsScene: React.FC = () => {
                   {!installed.loading && !installed.error && (
                     <>
                       <div className="skills-main__grid" data-testid="skill-list" data-bf-scene="skills" data-bf-part="list">
-                        {pagedInstalledSkills.map((skill, index) => (
-                          <div
-                            key={skill.key}
-                            className={[
-                              'skills-card',
-                              skill.isShadowed && 'is-shadowed',
-                              skill.level === 'user'
-                                && installed.globallyDisabledSkillKeys.has(skill.key)
-                                && 'is-globally-disabled',
-                            ].filter(Boolean).join(' ')}
-                            style={{ '--surface-stagger-index': index } as React.CSSProperties}
-                            onClick={() => setSelectedDetail({ type: 'installed', skillKey: skill.key })}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                setSelectedDetail({ type: 'installed', skillKey: skill.key });
-                              }
-                            }}
-                            aria-label={installedSkillAriaLabel(skill)}
-                            data-testid={`skill-list-item-${skill.key}`}
-                            data-skill-key={skill.key}
-                            data-skill-id={skill.key}
-                            data-skill-name={skill.name}
-                            data-skill-level={skill.level}
-                            data-skill-builtin={skill.isBuiltin ? 'true' : 'false'}
-                            data-bf-scene="skills"
-                            data-bf-part="installedCard"
-                            data-bf-level={skill.level}
-                            data-bf-state={[
-                              skill.isShadowed && 'shadowed',
-                              skill.isBuiltin && 'builtin',
-                            ].filter(Boolean).join(' ') || undefined}
-                          >
-                            <div className="skills-card__top" data-bf-scene="skills" data-bf-part="installedCardTop">
-                              <div className="skills-card__icon" data-bf-scene="skills" data-bf-part="installedCardIcon">
-                                <Puzzle size={18} strokeWidth={1.6} />
-                              </div>
-                              <div className="skills-card__info" data-bf-scene="skills" data-bf-part="installedCardInfo">
-                                <span className="skills-card__name" data-testid={`skill-list-item-title-${skill.key}`} data-bf-scene="skills" data-bf-part="installedCardName">{skill.name}</span>
-                                {skill.description?.trim() && (
-                                  <span className="skills-card__desc" data-testid={`skill-list-item-description-${skill.key}`} data-bf-scene="skills" data-bf-part="installedCardDescription">{skill.description}</span>
-                                )}
-                              </div>
-                              <div className="skills-card__status-badges">
-                                {skill.isBuiltin && (
-                                  <Badge variant="accent">
-                                    <ShieldCheck size={11} />
-                                    {t('list.item.builtin')}
-                                  </Badge>
-                                )}
-                                {skill.level === 'user'
-                                  && installed.globallyDisabledSkillKeys.has(skill.key) && (
-                                  <Badge variant="neutral">
-                                    {t('list.item.globalDisabled')}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="skills-card__meta" data-bf-scene="skills" data-bf-part="installedCardMeta">
-                              <Badge variant="neutral">
-                                {getSkillSourceLabel(skill, t('list.item.unknownSource'))}
-                              </Badge>
-                              <Badge
-                                variant={skill.level === 'user' ? 'info' : 'purple'}
-                              >
-                                {skill.level === 'user'
-                                  ? <User size={11} />
-                                  : <FolderOpen size={11} />}
-                                {market.isRemoteWorkspace
-                                  ? skill.level === 'user'
-                                    ? t('list.item.localUser')
-                                    : t('list.item.remoteProject')
-                                  : skill.level === 'user'
-                                    ? t('list.item.user')
-                                    : t('list.item.project')}
-                              </Badge>
-                              {skill.isShadowed && (
-                                <span title={t('list.item.shadowedTooltip', {
-                                  source: coverageSourceBySkillKey.get(skill.key)
-                                    ?? t('list.item.unknownSource'),
-                                })}>
-                                  <Badge variant="warning">
-                                    <ShieldAlert size={11} />
-                                    {t('list.item.shadowed')}
-                                  </Badge>
-                                </span>
-                              )}
-                            </div>
-
-                            <div
-                              className="skills-card__actions"
-                              onClick={(e) => e.stopPropagation()}
-                              onKeyDown={(e) => e.stopPropagation()}
-                              data-bf-scene="skills"
-                              data-bf-part="installedCardActions"
-                            >
-                              {skill.level === 'user' && (
-                                <div className="skills-card__global-toggle">
+                        {pagedInstalledSkills.map((skill, index) => {
+                          const canDelete = canDeleteSkill(skill);
+                          const isGloballyDisabled = skill.level === 'user'
+                            && installed.globallyDisabledSkillKeys.has(skill.key);
+                          return (
+                            <SkillCard
+                              key={skill.key}
+                              data-testid={`skill-list-item-${skill.key}`}
+                              data-skill-key={skill.key}
+                              data-skill-id={skill.key}
+                              data-skill-name={skill.name}
+                              data-skill-installed="true"
+                              data-skill-level={skill.level}
+                              data-skill-builtin={skill.isBuiltin ? 'true' : 'false'}
+                              name={skill.name}
+                              description={skill.description}
+                              className={[
+                                skill.isShadowed && 'is-shadowed',
+                                isGloballyDisabled && 'is-globally-disabled',
+                              ].filter(Boolean).join(' ') || undefined}
+                              style={{ '--surface-stagger-index': index } as React.CSSProperties}
+                              headerRight={skill.level === 'user' ? (
+                                <span
+                                  className="skill-card__toggle-wrap"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                >
                                   <Switch
                                     size="small"
-                                    checked={!installed.globallyDisabledSkillKeys.has(skill.key)}
+                                    checked={!isGloballyDisabled}
                                     loading={installed.savingGlobalSkillKey === skill.key}
                                     disabled={installed.savingGlobalSkillKey !== null}
                                     aria-label={t('list.item.globalToggleLabel', { name: skill.name })}
@@ -503,33 +460,55 @@ const SkillsScene: React.FC = () => {
                                       void installed.handleGlobalSkillToggle(skill, event.target.checked);
                                     }}
                                   />
-                                </div>
+                                </span>
+                              ) : undefined}
+                              leftContent={(
+                                <>
+                                  <Badge variant="neutral">
+                                    {getSkillSourceLabel(skill, t('list.item.unknownSource'))}
+                                  </Badge>
+                                  <Badge variant={skill.level === 'user' ? 'info' : 'purple'}>
+                                    {skill.level === 'user' ? t('list.item.user') : t('list.item.project')}
+                                  </Badge>
+                                  {skill.isBuiltin && (
+                                    <Badge variant="accent">
+                                      <ShieldCheck size={11} />
+                                      {t('list.item.builtin')}
+                                    </Badge>
+                                  )}
+                                  {skill.isShadowed && (
+                                    <span title={t('list.item.shadowedTooltip', {
+                                      source: coverageSourceBySkillKey.get(skill.key)
+                                        ?? t('list.item.unknownSource'),
+                                    })}>
+                                      <Badge variant="warning">{t('list.item.shadowed')}</Badge>
+                                    </span>
+                                  )}
+                                </>
                               )}
-                              <Button
-                                variant="ghost"
-                                size="small"
-                                data-testid={`skill-card-detail-${skill.key}`}
-                                onClick={() => setSelectedDetail({ type: 'installed', skillKey: skill.key })}
-                              >
-                                <span>{t('list.item.detail')}</span>
-                                <ArrowRight size={12} />
-                              </Button>
-                              {canDeleteSkill(skill) && (
+                              rightAction={{
+                                label: t('list.item.detail'),
+                                icon: <ArrowRight size={12} />,
+                                onClick: () => setSelectedDetail({ type: 'installed', skillKey: skill.key }),
+                              }}
+                              afterAction={canDelete ? (
                                 <button
                                   type="button"
                                   className="skills-card__delete"
-                                  onClick={() => setDeleteTarget(skill)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteTarget(skill);
+                                  }}
                                   aria-label={t('list.item.deleteTooltip')}
                                   title={t('list.item.deleteTooltip')}
-                                  data-bf-scene="skills"
-                                  data-bf-part="installedCardDelete"
                                 >
                                   <Trash2 size={13} />
                                 </button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                              ) : undefined}
+                              onOpenDetails={() => setSelectedDetail({ type: 'installed', skillKey: skill.key })}
+                            />
+                          );
+                        })}
                       </div>
 
                       {installedFiltered.length > 0 && installedTotalPages > 1 && (
@@ -537,7 +516,6 @@ const SkillsScene: React.FC = () => {
                           <button
                             type="button"
                             className="skills-installed__page-btn"
-                            data-testid="skills-installed-prev-btn"
                             onClick={() => setInstalledListPage((p) => Math.max(0, p - 1))}
                             disabled={currentInstalledPage === 0}
                             aria-label={t('market.pagination.prev')}
@@ -555,7 +533,6 @@ const SkillsScene: React.FC = () => {
                           <button
                             type="button"
                             className="skills-installed__page-btn"
-                            data-testid="skills-installed-next-btn"
                             onClick={() => setInstalledListPage((p) => Math.min(installedTotalPages - 1, p + 1))}
                             disabled={currentInstalledPage >= installedTotalPages - 1}
                             aria-label={t('market.pagination.next')}
@@ -576,29 +553,6 @@ const SkillsScene: React.FC = () => {
 
         {desktopConfigAvailable && activeTab === 'discover' && (
           <div className="skills-discover" data-bf-scene="skills" data-bf-part="discover">
-            <div className="skills-discover__hero" data-bf-scene="skills" data-bf-part="discoverHero">
-              <div className="skills-discover__hero-content" data-bf-scene="skills" data-bf-part="discoverHeroContent">
-                <h1 className="skills-discover__title" data-bf-scene="skills" data-bf-part="discoverTitle">{t('market.title')}</h1>
-                <p className="skills-discover__subtitle" data-bf-scene="skills" data-bf-part="discoverSubtitle">
-                  {t('market.subtitle')}
-                </p>
-                <div className="skills-discover__search-wrapper" data-bf-scene="skills" data-bf-part="discoverSearch">
-                  <Search
-                    className="skills-discover__search"
-                    inputTestId="skills-discover-search-input"
-                    value={searchDraft}
-                    onChange={setSearchDraft}
-                    onSearch={submitMarketQuery}
-                    onClear={submitMarketQuery}
-                    placeholder={t('market.searchPlaceholder')}
-                    size="medium"
-                    clearable
-                    enterToSearch
-                  />
-                </div>
-              </div>
-            </div>
-
             <div className="skills-discover__content" data-bf-scene="skills" data-bf-part="discoverContent">
               {market.marketLoading && (
                 <div className="skills-discover__grid" aria-busy="true" aria-label={t('list.loading')} data-bf-scene="skills" data-bf-part="loading">
@@ -621,28 +575,14 @@ const SkillsScene: React.FC = () => {
                 </div>
               )}
 
-              {!market.marketLoading && !market.marketError && market.loadingMore && (
-                <div className="skills-discover__grid" aria-busy="true" aria-label={t('list.loading')} data-bf-scene="skills" data-bf-part="loading">
-                  {Array.from({ length: 12 }).map((_, i) => (
-                    <div
-                      key={`mkt-page-sk-${i}`}
-                      className="skills-discover__skeleton-card"
-                      style={{ '--surface-stagger-index': i } as React.CSSProperties}
-                      data-bf-scene="skills"
-                      data-bf-part="skeleton"
-                    />
-                  ))}
-                </div>
-              )}
-
-              {!market.marketLoading && !market.marketError && !market.loadingMore && market.marketSkills.length === 0 && (
+              {!market.marketLoading && !market.marketError && market.marketSkills.length === 0 && (
                 <div className="skills-discover__empty" data-testid="skill-list-empty" data-bf-scene="skills" data-bf-part="empty">
                   <Package size={28} strokeWidth={1.5} />
                   <span>{marketQuery ? t('market.empty.noMatch') : t('market.empty.noSkills')}</span>
                 </div>
               )}
 
-              {!market.marketLoading && !market.marketError && !market.loadingMore && market.marketSkills.length > 0 && (
+              {!market.marketLoading && !market.marketError && market.marketSkills.length > 0 && (
                 <>
                   {marketQuery && (
                     <div className="skills-discover__results-info" data-bf-scene="skills" data-bf-part="resultsInfo">
@@ -653,7 +593,7 @@ const SkillsScene: React.FC = () => {
                   )}
 
                   <div className="skills-discover__grid" data-testid="skill-list" data-bf-scene="skills" data-bf-part="list">
-                    {market.marketSkills.map((skill, index) => {
+                    {market.marketSkills.map((skill) => {
                       const isInstalled = installedSkillNames.has(skill.name);
                       const isDownloading = market.downloadingPackage === skill.installId;
                       return (
@@ -666,96 +606,116 @@ const SkillsScene: React.FC = () => {
                           data-skill-installed={isInstalled ? 'true' : 'false'}
                           name={skill.name}
                           description={skill.description}
-                          index={index}
-                          accentSeed={skill.installId}
-                          iconKind="market"
-                          badges={isInstalled ? (
-                            <Badge variant="success">
-                              <CheckCircle2 size={11} />
-                              {t('market.item.installed')}
-                            </Badge>
-                          ) : null}
-                          meta={(
-                            <span className="bitfun-skills-scene__market-meta">
+                          leftContent={(
+                            <span className="skills-card__count">
                               <TrendingUp size={12} />
                               {skill.installs ?? 0}
                             </span>
                           )}
-                          actions={[
-                            {
-                              id: 'download',
-                              icon: isInstalled ? <CheckCircle2 size={13} /> : <Download size={13} />,
-                              ariaLabel: isInstalled ? t('market.item.installed') : t('market.item.downloadProject'),
-                              title: isDownloading
-                                ? t('market.item.downloading')
-                                : (isInstalled ? t('market.item.installedTooltip') : t('market.item.downloadProject')),
-                              disabled:
-                                isDownloading
-                                || !market.hasWorkspace
-                                || market.isRemoteWorkspace
-                                || market.isAssistantWorkspace
-                                || isInstalled,
-                              tone: isInstalled ? 'success' : 'primary',
-                              onClick: () => void market.handleDownload(skill, 'project'),
-                            },
-                          ]}
+                          rightAction={{
+                            label: isInstalled ? t('market.item.installed') : t('installSkill'),
+                            icon: isInstalled ? <CheckCircle2 size={13} /> : <Download size={13} />,
+                            disabled:
+                              isDownloading
+                              || !market.hasWorkspace
+                              || market.isRemoteWorkspace
+                              || market.isAssistantWorkspace
+                              || isInstalled,
+                            onClick: () => void market.handleDownload(skill, 'project'),
+                          }}
                           onOpenDetails={() => setSelectedDetail({ type: 'market', skill })}
                         />
-                      );
-                    })}
-                  </div>
+                       );
+                     })}
+                   </div>
 
-                  {(market.totalPages > 1 || market.hasMore) && (
-                    <div className="skills-discover__pagination" data-bf-scene="skills" data-bf-part="pagination">
-                      <button
-                        type="button"
-                        className="skills-discover__page-btn"
-                        data-testid="skills-discover-prev-btn"
-                        onClick={market.goToPrevPage}
-                        disabled={market.currentPage === 0 || market.loadingMore}
-                        aria-label={t('market.pagination.prev')}
-                        data-bf-scene="skills"
-                        data-bf-part="pageButton"
-                      >
-                        <ChevronLeft size={14} />
-                      </button>
-                      <span className="skills-discover__page-info" data-bf-scene="skills" data-bf-part="pageInfo">
-                        {market.hasMore
-                          ? t('market.pagination.infoMore', { current: market.currentPage + 1 })
-                          : t('market.pagination.info', { current: market.currentPage + 1, total: market.totalPages })}
-                      </span>
-                      <button
-                        type="button"
-                        className="skills-discover__page-btn"
-                        data-testid="skills-discover-next-btn"
-                        onClick={() => void market.goToNextPage()}
-                        disabled={(!market.hasMore && market.currentPage >= market.totalPages - 1) || market.loadingMore}
-                        aria-label={t('market.pagination.next')}
-                        data-bf-scene="skills"
-                        data-bf-part="pageButton"
-                      >
-                        <ChevronRight size={14} />
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
+                   <SkillsLoadMoreSentinel
+                     active={market.hasMore && !market.loadingMore && !market.loadMoreError}
+                     onLoad={() => void market.goToNextPage()}
+                   />
+                   {market.loadingMore && (
+                     <div className="skills-load-more-row">
+                       <Loader2 className="skills-load-more-spinner" size={14} />
+                       <span>{t('list.loading')}</span>
+                     </div>
+                   )}
+                   {market.loadMoreError && (
+                     <div className="skills-load-more-row">
+                       <span>{t('list.loadMoreFailed')}</span>
+                       <button
+                         type="button"
+                         className="skills-load-more-retry"
+                         onClick={() => market.retryLoadMore()}
+                       >
+                         {t('list.retry')}
+                       </button>
+                     </div>
+                   )}
+                   {!market.loadingMore && !market.loadMoreError && !market.hasMore && (
+                     <div className="skills-load-more-row">
+                       <span>{t('list.noMore')}</span>
+                     </div>
+                   )}
+                 </>
+               )}
+             </div>
+           </div>
+         )}
+
+        {desktopConfigAvailable && activeTab === 'matrix' && (
+          <MatrixMarketView
+            tags={matrix.tags}
+            tagsLoading={matrix.tagsLoading}
+            tagsError={matrix.tagsError}
+            selectedTagIds={matrix.selectedTagIds}
+            onToggleTag={matrix.toggleTag}
+            onClearTags={matrix.clearTags}
+            categories={matrix.categories}
+            categoriesLoading={matrix.categoriesLoading}
+            categoriesError={matrix.categoriesError}
+            selectedCategoryId={matrix.selectedCategoryId}
+            onToggleCategory={matrix.toggleCategory}
+            organizations={matrix.organizations}
+            organizationsLoading={matrix.organizationsLoading}
+            organizationsError={matrix.organizationsError}
+            selectedOrgId={matrix.selectedOrgId}
+            onToggleOrganization={matrix.toggleOrganization}
+            activeSection={matrix.activeSection}
+            onSelectSection={matrix.selectSection}
+            hasWorkspace={matrix.hasWorkspace}
+            isRemoteWorkspace={matrix.isRemoteWorkspace}
+            isAssistantWorkspace={matrix.isAssistantWorkspace}
+             skills={matrix.skills}
+             totalCount={matrix.totalCount}
+             skillsLoading={matrix.skillsLoading}
+             skillsError={matrix.skillsError}
+             hasMore={matrix.hasMore}
+             loadingMore={matrix.loadingMore}
+             loadMoreError={matrix.loadMoreError}
+             onLoadMore={() => void matrix.loadMore()}
+             onRetryLoadMore={() => matrix.retryLoadMore()}
+             installingEnName={matrix.installingEnName}
+            installError={matrix.installError}
+            onInstall={matrix.handleInstall}
+            onOpenDetails={(skill) => setSelectedDetail({ type: 'matrix', skill })}
+            installedEnNames={installedMatrixEnNames}
+          />
         )}
       </div>
 
       <GalleryDetailModal
         isOpen={desktopConfigAvailable && Boolean(selectedDetail)}
         onClose={() => setSelectedDetail(null)}
-        icon={selectedMarketSkill ? <Package size={24} strokeWidth={1.6} /> : <Puzzle size={24} strokeWidth={1.6} />}
+        icon={selectedMarketSkill || selectedMatrixSkill ? <Package size={24} strokeWidth={1.6} /> : <Puzzle size={24} strokeWidth={1.6} />}
         iconGradient={getCardGradient(
           selectedInstalledSkill?.name
           ?? selectedMarketSkill?.installId
           ?? selectedMarketSkill?.name
+          ?? selectedMatrixSkill?.id
+          ?? selectedMatrixSkill?.enName
           ?? 'skill'
         )}
-        title={selectedInstalledSkill?.name ?? selectedMarketSkill?.name ?? ''}
+        title={selectedInstalledSkill?.name ?? selectedMarketSkill?.name ?? selectedMatrixSkill?.name ?? selectedMatrixSkill?.enName ?? ''}
         badges={selectedInstalledSkill ? (
           <>
             {selectedInstalledSkill.isShadowed && (
@@ -791,7 +751,7 @@ const SkillsScene: React.FC = () => {
             {t('market.item.installed')}
           </Badge>
         ) : null}
-        description={selectedInstalledSkill?.description ?? selectedMarketSkill?.description}
+        description={selectedInstalledSkill?.description ?? selectedMarketSkill?.description ?? selectedMatrixSkill?.description}
         testId="skill-detail-panel"
         titleTestId="skill-detail-title"
         descriptionTestId="skill-detail-description"
@@ -800,6 +760,11 @@ const SkillsScene: React.FC = () => {
           <span className="bitfun-skills-scene__market-meta">
             <TrendingUp size={12} />
             {selectedMarketSkill.installs ?? 0}
+          </span>
+        ) : selectedMatrixSkill ? (
+          <span className="bitfun-skills-scene__market-meta">
+            <TrendingUp size={12} />
+            {selectedMatrixSkill.download ?? 0}
           </span>
         ) : null}
         actions={selectedInstalledSkill && canDeleteSkill(selectedInstalledSkill) ? (
@@ -833,7 +798,7 @@ const SkillsScene: React.FC = () => {
                     {t('market.item.downloadProject')}
                   </Button>
                 )}
-                {(market.isRemoteWorkspace || market.isAssistantWorkspace) && (
+                {(!market.hasWorkspace || market.isRemoteWorkspace || market.isAssistantWorkspace) && (
                   <p className="bitfun-skills-scene__modal-project-hint">
                     {t('messages.noWorkspace')}
                   </p>
@@ -846,6 +811,46 @@ const SkillsScene: React.FC = () => {
                   disabled={market.downloadingPackage === selectedMarketSkill.installId}
                 >
                   {t('market.item.downloadUser')}
+                </Button>
+              </>
+            )}
+          </>
+        ) : selectedMatrixSkill ? (
+          <>
+            {installedMatrixEnNames.has(selectedMatrixSkill.enName) ? (
+              <Button variant="secondary" size="small" disabled>
+                {t('matrix.item.installed')}
+              </Button>
+            ) : (
+              <>
+                {!matrix.isRemoteWorkspace && !matrix.isAssistantWorkspace && (
+                  <Button
+                    variant="primary"
+                    size="small"
+                    onClick={() => void matrix.handleInstall(selectedMatrixSkill, 'project')}
+                    disabled={
+                      matrix.installingEnName === selectedMatrixSkill.enName || !matrix.hasWorkspace
+                    }
+                  >
+                    {matrix.installingEnName === selectedMatrixSkill.enName
+                      ? t('matrix.item.installing')
+                      : t('market.item.downloadProject')}
+                  </Button>
+                )}
+                {(!matrix.hasWorkspace || matrix.isRemoteWorkspace || matrix.isAssistantWorkspace) && (
+                  <p className="bitfun-skills-scene__modal-project-hint">
+                    {t('messages.noWorkspace')}
+                  </p>
+                )}
+                <Button
+                  variant={matrix.isRemoteWorkspace ? 'primary' : 'secondary'}
+                  size="small"
+                  onClick={() => void matrix.handleInstall(selectedMatrixSkill, 'user')}
+                  disabled={matrix.installingEnName === selectedMatrixSkill.enName}
+                >
+                  {matrix.installingEnName === selectedMatrixSkill.enName
+                    ? t('matrix.item.installing')
+                    : t('market.item.downloadUser')}
                 </Button>
               </>
             )}
@@ -897,6 +902,49 @@ const SkillsScene: React.FC = () => {
           </div>
         ) : null}
 
+        {selectedMatrixSkill ? (
+          <>
+            {(() => {
+              const repo = selectedMatrixSkill.repository;
+              return repo ? (
+                <div className="bitfun-skills-scene__detail-row">
+                  <span className="bitfun-skills-scene__detail-label">{t('market.detail.linkLabel')}</span>
+                  <button
+                    type="button"
+                    className="bitfun-skills-scene__detail-link"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      void openExternalUrl(repo);
+                    }}
+                  >
+                    {repo}
+                  </button>
+                </div>
+              ) : null;
+            })()}
+            {selectedMatrixSkill.version && (
+              <div className="bitfun-skills-scene__detail-row">
+                <span className="bitfun-skills-scene__detail-label">{t('market.detail.versionLabel')}</span>
+                <span className="bitfun-skills-scene__detail-value">{selectedMatrixSkill.version}</span>
+              </div>
+            )}
+            {selectedMatrixSkill.organization?.name && (
+              <div className="bitfun-skills-scene__detail-row">
+                <span className="bitfun-skills-scene__detail-label">{t('market.detail.orgLabel')}</span>
+                <span className="bitfun-skills-scene__detail-value">{selectedMatrixSkill.organization.name}</span>
+              </div>
+            )}
+            {selectedMatrixSkill.tags && selectedMatrixSkill.tags.length > 0 && (
+              <div className="bitfun-skills-scene__detail-row">
+                <span className="bitfun-skills-scene__detail-label">{t('market.detail.tagsLabel')}</span>
+                <span className="bitfun-skills-scene__detail-value">
+                  {selectedMatrixSkill.tags.map((tag) => tag.name).join(', ')}
+                </span>
+              </div>
+            )}
+          </>
+        ) : null}
+
         {selectedMarketSkill ? (
           <div className="bitfun-skills-scene__detail-row">
             <span className="bitfun-skills-scene__detail-label">{t('market.detail.installsLabel')}</span>
@@ -907,24 +955,17 @@ const SkillsScene: React.FC = () => {
         {selectedMarketSkill?.url ? (
           <div className="bitfun-skills-scene__detail-row">
             <span className="bitfun-skills-scene__detail-label">{t('market.detail.linkLabel')}</span>
-            <a
-              href={selectedMarketSkill.url}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
               className="bitfun-skills-scene__detail-link"
               data-testid="skills-detail-external-link"
               onClick={async (e) => {
                 e.preventDefault();
-                try {
-                  const { systemAPI } = await import('@/infrastructure/api');
-                  await systemAPI.openExternal(selectedMarketSkill.url);
-                } catch {
-                  window.open(selectedMarketSkill.url, '_blank');
-                }
+                await openExternalUrl(selectedMarketSkill.url);
               }}
             >
               {selectedMarketSkill.url}
-            </a>
+            </button>
           </div>
         ) : null}
       </GalleryDetailModal>

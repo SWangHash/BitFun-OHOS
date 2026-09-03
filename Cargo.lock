@@ -1157,6 +1157,7 @@ dependencies = [
  "bitfun-core",
  "bitfun-core-types",
  "bitfun-events",
+ "bitfun-matrix-adapter",
  "bitfun-product-domains",
  "bitfun-relay-service",
  "bitfun-runtime-ports",
@@ -1274,6 +1275,22 @@ dependencies = [
  "async-trait",
  "thiserror 2.0.19",
  "tokio",
+]
+
+[[package]]
+name = "bitfun-matrix-adapter"
+version = "0.2.19"
+dependencies = [
+ "futures",
+ "log",
+ "reqwest 0.13.4",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.19",
+ "tokio",
+ "urlencoding",
+ "zip 4.6.1",
 ]
 
 [[package]]

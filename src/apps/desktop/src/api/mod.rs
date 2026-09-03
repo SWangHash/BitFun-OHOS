@@ -33,6 +33,7 @@ pub mod i18n_api;
 pub mod insights_api;
 pub mod lsp_api;
 pub mod lsp_workspace_api;
+pub mod matrix_skill_api;
 pub mod mcp_api;
 pub mod miniapp_agent_api;
 pub mod miniapp_api;
@@ -68,3 +69,4 @@ pub mod workspace_activation;
 pub mod worktree_api;
 
 pub use app_state::{AppState, AppStatistics, HealthStatus, RemoteWorkspace};
+pub use matrix_skill_api::*;

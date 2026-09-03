@@ -112,7 +112,10 @@ fn can_delete_owned_skill(source_id: &str, source_slot: &str, is_builtin: bool) 
 
     let source_id = source_id.trim().to_ascii_lowercase();
     if !source_id.is_empty() {
-        return matches!(source_id.as_str(), "bitfun" | "bitfun-system");
+        return matches!(
+            source_id.as_str(),
+            "bitfun" | "bitfun-system" | "matrix"
+        );
     }
 
     let source_slot = source_slot.trim().to_ascii_lowercase();
@@ -1122,6 +1125,7 @@ mod skill_delete_policy_tests {
             "bitfun-system",
             false
         ));
+        assert!(can_delete_owned_skill("matrix", "bitfun", false));
         assert!(!can_delete_owned_skill(
             "bitfun-system",
             "bitfun-system",
