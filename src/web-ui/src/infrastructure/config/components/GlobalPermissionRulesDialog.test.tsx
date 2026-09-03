@@ -33,10 +33,26 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@/component-library', () => ({
-  Modal: ({ isOpen, children }: { isOpen: boolean; children: React.ReactNode }) => (
-    isOpen ? <div role="dialog">{children}</div> : null
+vi.mock('@bitfun/ui', () => ({
+  Icon: ({ name, ...props }: { name: string } & React.HTMLAttributes<HTMLSpanElement>) => <span data-icon={name} {...props} />,
+  FormSection: ({
+    children,
+    title,
+    actions,
+    ...props
+  }: React.HTMLAttributes<HTMLElement> & { title?: React.ReactNode; actions?: React.ReactNode }) => (
+    <section {...props}>{title}{actions}{children}</section>
   ),
+  FieldGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+  Tooltip: ({ children }: React.PropsWithChildren) => <>{children}</>,
+  Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) => (
+    open ? <div role="dialog">{children}</div> : null
+  ),
+  DialogBody: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  DialogClose: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button type="button" {...props} />,
+  DialogHeader: ({ children }: React.PropsWithChildren) => <header>{children}</header>,
+  DialogHeading: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  DialogTitle: ({ children }: React.PropsWithChildren) => <h2>{children}</h2>,
   Button: ({ children, disabled, onClick }: {
     children: React.ReactNode;
     disabled?: boolean;
@@ -52,22 +68,6 @@ vi.mock('@/component-library', () => ({
   }) => (
     <button type="button" aria-label={ariaLabel} disabled={disabled} onClick={onClick}>{children}</button>
   ),
-  Select: ({ value, options, disabled, onChange, 'aria-label': ariaLabel }: {
-    value: string;
-    options: Array<{ value: string; label: string }>;
-    disabled?: boolean;
-    onChange?: (value: string) => void;
-    'aria-label'?: string;
-  }) => (
-    <select
-      value={value}
-      aria-label={ariaLabel}
-      disabled={disabled}
-      onChange={(event) => onChange?.(event.target.value)}
-    >
-      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </select>
-  ),
   Input: ({ value, disabled, onChange, 'aria-label': ariaLabel }: {
     value: string;
     disabled?: boolean;
@@ -75,6 +75,22 @@ vi.mock('@/component-library', () => ({
     'aria-label'?: string;
   }) => (
     <input value={value} aria-label={ariaLabel} disabled={disabled} onInput={onChange} />
+  ),
+  Select: ({ value, options, disabled, onValueChange, 'aria-label': ariaLabel }: {
+    value: string;
+    options: Array<{ value: string; label: string }>;
+    disabled?: boolean;
+    onValueChange?: (value: string) => void;
+    'aria-label'?: string;
+  }) => (
+    <select
+      value={value}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onChange={(event) => onValueChange?.(event.target.value)}
+    >
+      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+    </select>
   ),
 }));
 
@@ -160,7 +176,8 @@ describe('GlobalPermissionRulesDialog', () => {
       effect.dispatchEvent(new Event('change', { bubbles: true }));
       action.value = 'external_directory';
       action.dispatchEvent(new Event('change', { bubbles: true }));
-      resource.value = 'C:/trusted';
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
+        ?.set?.call(resource, 'C:/trusted');
       resource.dispatchEvent(new Event('input', { bubbles: true }));
       await Promise.resolve();
     });

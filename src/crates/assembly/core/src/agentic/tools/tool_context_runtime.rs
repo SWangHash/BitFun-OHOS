@@ -95,8 +95,8 @@ impl ToolUseContext {
         self.workspace.as_ref().map(|binding| binding.root_path())
     }
 
-    /// Main project root used by project-scoped orchestration tools. File,
-    /// terminal, and Git tools must continue to use [`Self::workspace_root`].
+    /// Main project root used by project-scoped orchestration tools. File and
+    /// command tools must continue to use [`Self::workspace_root`].
     pub fn project_workspace_root(&self) -> Option<&Path> {
         self.workspace
             .as_ref()
@@ -149,6 +149,10 @@ impl ToolUseContext {
         self.runtime_handles.cancellation_token()
     }
 
+    pub fn round_injection_preemption_token(&self) -> Option<&CancellationToken> {
+        self.runtime_handles.round_injection_preemption_token()
+    }
+
     pub fn workspace_services(&self) -> Option<&WorkspaceServices> {
         self.runtime_handles.workspace_services()
     }
@@ -193,6 +197,7 @@ impl ToolUseContext {
                 workspace_services,
                 None,
                 None,
+                None,
                 remote_exec_port,
             ),
         }
@@ -226,7 +231,7 @@ pub(crate) async fn call_with_tool_runtime_hooks(
     };
 
     if result.is_ok() {
-        post_call_hooks::record_successful_tool_call(tool_name, input, context);
+        post_call_hooks::record_successful_tool_call(tool_name, input, context).await;
     }
 
     result
@@ -250,6 +255,7 @@ pub(crate) fn build_tool_use_context_for_task(
         Some(task.tool_call.tool_id.clone()),
         computer_use_host,
         cancellation_token,
+        task.round_injection_preemption_token.clone(),
     )
 }
 
@@ -258,6 +264,7 @@ pub(crate) fn build_tool_use_context_for_execution_context(
     tool_call_id: Option<String>,
     computer_use_host: Option<ComputerUseHostRef>,
     cancellation_token: CancellationToken,
+    round_injection_preemption_token: Option<CancellationToken>,
 ) -> ToolUseContext {
     ToolUseContext {
         tool_call_id,
@@ -272,6 +279,7 @@ pub(crate) fn build_tool_use_context_for_execution_context(
         runtime_handles: core_tool_runtime_handles(
             context.workspace_services.clone(),
             Some(cancellation_token),
+            round_injection_preemption_token,
             context.terminal_port.clone(),
             context.remote_exec_port.clone(),
         ),
@@ -283,6 +291,9 @@ pub(crate) fn build_tool_description_context(
     agent_type: &str,
     workspace: Option<&WorkspaceBinding>,
     workspace_services: Option<&WorkspaceServices>,
+    session_id: Option<&str>,
+    terminal_port: Option<&Arc<dyn TerminalPort>>,
+    remote_exec_port: Option<&Arc<dyn RemoteExecPort>>,
     primary_model_facts: Option<&PrimaryModelFacts>,
     context_vars: &HashMap<String, String>,
     runtime_tool_restrictions: &ToolRuntimeRestrictions,
@@ -296,7 +307,7 @@ pub(crate) fn build_tool_description_context(
     ToolUseContext {
         tool_call_id: None,
         agent_type: Some(agent_type.to_string()),
-        session_id: None,
+        session_id: session_id.map(str::to_string),
         dialog_turn_id: None,
         workspace: workspace.cloned(),
         loaded_deferred_tool_specs: Vec::new(),
@@ -304,7 +315,13 @@ pub(crate) fn build_tool_description_context(
         custom_data,
         computer_use_host: None,
         runtime_tool_restrictions: runtime_tool_restrictions.clone(),
-        runtime_handles: core_tool_runtime_handles(workspace_services.cloned(), None, None, None),
+        runtime_handles: core_tool_runtime_handles(
+            workspace_services.cloned(),
+            None,
+            None,
+            terminal_port.cloned(),
+            remote_exec_port.cloned(),
+        ),
     }
 }
 
@@ -319,10 +336,12 @@ fn canvas_storage_for_workspace(
 fn core_tool_runtime_handles(
     workspace_services: Option<WorkspaceServices>,
     cancellation_token: Option<CancellationToken>,
+    round_injection_preemption_token: Option<CancellationToken>,
     terminal_port: Option<Arc<dyn TerminalPort>>,
     remote_exec_port: Option<Arc<dyn RemoteExecPort>>,
 ) -> ToolRuntimeHandles {
     ToolRuntimeHandles::new(workspace_services, cancellation_token)
+        .with_round_injection_preemption_token(round_injection_preemption_token)
         .with_terminal_port(terminal_port)
         .with_remote_exec_port(remote_exec_port)
 }
@@ -383,6 +402,34 @@ fn build_tool_context_custom_data(context: &ToolExecutionContext) -> HashMap<Str
 }
 
 impl ToolUseContext {
+    /// Select IO once from the already-authorized path. Workspace tools share
+    /// their algorithms; only this boundary knows whether bytes are local or
+    /// supplied by the Session's SSH provider. Runtime artifact URIs continue
+    /// to address controller-owned storage even in a remote Session.
+    pub fn file_system_for_path(
+        &self,
+        resolved: &ToolPathResolution,
+    ) -> BitFunResult<Arc<dyn crate::agentic::workspace::WorkspaceFileSystem>> {
+        match resolved.backend {
+            ToolPathBackend::RemoteWorkspace if !self.is_remote() => Err(BitFunError::tool(
+                "Remote file access requires a remote Session workspace binding".to_string(),
+            )),
+            ToolPathBackend::RemoteWorkspace => self
+                .workspace_services()
+                .map(|services| Arc::clone(&services.fs))
+                .ok_or_else(|| {
+                    BitFunError::tool("Remote workspace file system is unavailable".to_string())
+                }),
+            ToolPathBackend::Local if !self.is_remote() && !resolved.is_runtime_artifact() => {
+                Ok(self
+                    .workspace_services()
+                    .map(|services| Arc::clone(&services.fs))
+                    .unwrap_or_else(|| Arc::new(crate::agentic::workspace::LocalWorkspaceFs)))
+            }
+            ToolPathBackend::Local => Ok(Arc::new(crate::agentic::workspace::LocalWorkspaceFs)),
+        }
+    }
+
     pub fn ws_fs(&self) -> Option<&dyn crate::agentic::workspace::WorkspaceFileSystem> {
         self.workspace_services().map(|s| s.fs.as_ref())
     }
@@ -580,8 +627,8 @@ impl ToolUseContext {
         )?;
 
         // Remote SSH workspaces stay contained to the opened project tree. Local desktop
-        // sessions may use any host path the OS user can access (Bash already has the same
-        // reach); optional `path_policy` roots still apply via `enforce_path_operation`.
+        // sessions may use any host path the OS user can access (ExecCommand already has the
+        // same reach); optional `path_policy` roots still apply via `enforce_path_operation`.
         if self.is_remote()
             && !is_remote_posix_path_within_root(&resolved_path, &workspace_root_owned)
         {
@@ -827,9 +874,10 @@ mod context_facts_tests {
             computer_use_host: None,
             runtime_tool_restrictions: ToolRuntimeRestrictions {
                 allowed_tool_names: BTreeSet::from(["Read".to_string()]),
-                denied_tool_names: BTreeSet::from(["Bash".to_string()]),
+                denied_tool_names: BTreeSet::from(["ExecCommand".to_string()]),
                 denied_tool_messages: Default::default(),
                 path_policy: Default::default(),
+                miniapp_context_scope: None,
             },
             runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
         };
@@ -843,7 +891,9 @@ mod context_facts_tests {
         assert_eq!(facts.workspace_kind, Some(ToolWorkspaceKind::Local));
         assert_eq!(facts.workspace_root.as_deref(), Some("/repo/project"));
         assert!(facts.runtime_tool_restrictions.is_tool_allowed("Read"));
-        assert!(!facts.runtime_tool_restrictions.is_tool_allowed("Bash"));
+        assert!(!facts
+            .runtime_tool_restrictions
+            .is_tool_allowed("ExecCommand"));
 
         let value = serde_json::to_value(&facts).expect("serialize context facts");
         assert!(value.get("unlockedCollapsedTools").is_none());
@@ -866,15 +916,16 @@ mod context_facts_tests {
             session_id: Some("session-runtime".to_string()),
             dialog_turn_id: Some("turn-runtime".to_string()),
             workspace: Some(WorkspaceBinding::new(None, PathBuf::from("/repo/runtime"))),
-            loaded_deferred_tool_specs: vec![loaded_spec("WebFetch"), loaded_spec("Git")],
+            loaded_deferred_tool_specs: vec![loaded_spec("WebFetch"), loaded_spec("Worktree")],
             primary_model_facts: PrimaryModelFacts::default(),
             custom_data,
             computer_use_host: None,
             runtime_tool_restrictions: ToolRuntimeRestrictions {
                 allowed_tool_names: BTreeSet::from(["Read".to_string(), "GetToolSpec".to_string()]),
-                denied_tool_names: BTreeSet::from(["Bash".to_string()]),
+                denied_tool_names: BTreeSet::from(["ExecCommand".to_string()]),
                 denied_tool_messages: Default::default(),
                 path_policy: Default::default(),
+                miniapp_context_scope: None,
             },
             runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::new(
                 None,
@@ -891,7 +942,9 @@ mod context_facts_tests {
         assert!(facts
             .runtime_tool_restrictions
             .is_tool_allowed("GetToolSpec"));
-        assert!(!facts.runtime_tool_restrictions.is_tool_allowed("Bash"));
+        assert!(!facts
+            .runtime_tool_restrictions
+            .is_tool_allowed("ExecCommand"));
 
         let value = serde_json::to_value(&facts).expect("serialize runtime context facts");
         for runtime_only_field in [
@@ -1012,6 +1065,63 @@ mod path_resolution_tests {
             runtime_tool_restrictions: ToolRuntimeRestrictions::default(),
             runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
         }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn file_system_selection_never_reads_local_files_for_unavailable_remote_workspace() {
+        let root = std::env::temp_dir().join(format!("bitfun-fs-route-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let file = root.join("sentinel.txt");
+        std::fs::write(&file, "controller-only").unwrap();
+        let path = file.to_string_lossy();
+        let local = local_context(root.to_string_lossy().as_ref());
+        let local_path = local.resolve_tool_path(&path).unwrap();
+        assert_eq!(
+            local
+                .file_system_for_path(&local_path)
+                .unwrap()
+                .read_file(&local_path.resolved_path)
+                .await
+                .unwrap(),
+            b"controller-only"
+        );
+        let remote = remote_context("/remote/workspace", None);
+        let remote_path = remote.resolve_tool_path(&path).unwrap();
+        let error = remote.file_system_for_path(&remote_path).err().unwrap();
+        assert!(error
+            .to_string()
+            .contains("Remote workspace file system is unavailable"));
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "controller-only");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn file_system_selection_preserves_session_provider_and_local_artifact_boundary() {
+        use std::sync::Arc;
+        let mut context = remote_context("/remote/workspace", None);
+        let services = crate::agentic::workspace::local_workspace_services("/unused".into());
+        let provider = Arc::clone(&services.fs);
+        context.runtime_handles =
+            bitfun_runtime_ports::ToolRuntimeHandles::new(Some(services), None);
+        let workspace_file = context.resolve_tool_path("source.txt").unwrap();
+        assert!(Arc::ptr_eq(
+            &provider,
+            &context.file_system_for_path(&workspace_file).unwrap()
+        ));
+
+        context.session_id = Some("route-test".into());
+        context.custom_data.insert(
+            "__bitfun_test_runtime_root".into(),
+            serde_json::json!(std::env::temp_dir().join("bitfun-route-artifacts")),
+        );
+        let artifact = context
+            .resolve_tool_path("bitfun://current-session/artifacts/output.txt")
+            .unwrap();
+        assert!(!Arc::ptr_eq(
+            &provider,
+            &context.file_system_for_path(&artifact).unwrap()
+        ));
     }
 
     fn context_with_restrictions(
@@ -1221,6 +1331,7 @@ mod path_resolution_tests {
             temp_root.to_string_lossy().as_ref(),
             ToolRuntimeRestrictions {
                 path_policy: ToolPathPolicy {
+                    read_roots: vec![allowed_root.to_string_lossy().to_string()],
                     write_roots: vec![allowed_root.to_string_lossy().to_string()],
                     ..Default::default()
                 },
@@ -1234,6 +1345,9 @@ mod path_resolution_tests {
         context
             .enforce_path_operation(ToolPathOperation::Write, &allowed)
             .expect("path within configured root should be allowed");
+        context
+            .enforce_path_operation(ToolPathOperation::Read, &allowed)
+            .expect("read path within configured root should be allowed");
 
         let blocked = context
             .resolve_tool_path(&temp_root.join("blocked/file.txt").to_string_lossy())
@@ -1243,6 +1357,10 @@ mod path_resolution_tests {
             .expect_err("path outside configured root should be blocked");
 
         assert!(err.to_string().contains("is not allowed for write"));
+        let err = context
+            .enforce_path_operation(ToolPathOperation::Read, &blocked)
+            .expect_err("read path outside configured root should be blocked");
+        assert!(err.to_string().contains("is not allowed for read"));
 
         let _ = std::fs::remove_dir_all(&temp_root);
     }
@@ -1436,6 +1554,9 @@ mod context_builder_tests {
             "coding",
             None,
             None,
+            None,
+            None,
+            None,
             Some(&PrimaryModelFacts::new(
                 "model_1",
                 "vision-model",
@@ -1562,9 +1683,10 @@ mod task_context_tests {
                 allowed_tools: vec!["WebFetch".to_string()],
                 runtime_tool_restrictions: ToolRuntimeRestrictions {
                     allowed_tool_names: BTreeSet::from(["WebFetch".to_string()]),
-                    denied_tool_names: BTreeSet::from(["Bash".to_string()]),
+                    denied_tool_names: BTreeSet::from(["ExecCommand".to_string()]),
                     denied_tool_messages: Default::default(),
                     path_policy: Default::default(),
+                    miniapp_context_scope: None,
                 },
                 steering_interrupt: None,
                 workspace_services: None,
@@ -1593,7 +1715,9 @@ mod task_context_tests {
         assert!(context
             .runtime_tool_restrictions
             .is_tool_allowed("WebFetch"));
-        assert!(!context.runtime_tool_restrictions.is_tool_allowed("Bash"));
+        assert!(!context
+            .runtime_tool_restrictions
+            .is_tool_allowed("ExecCommand"));
         assert_eq!(context.custom_data["turn_index"], json!(7));
         assert_eq!(context.primary_model_facts().model_id, "primary-model");
         assert_eq!(context.primary_model_facts().api_format, "openai");

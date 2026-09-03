@@ -97,6 +97,13 @@ export interface AiModelInfo {
 
 // ─── Agent bridge types ───────────────────────────────────────────────────────
 
+export interface AgentContextFile {
+  /** Plain file name exposed through a host-owned virtual snapshot under `.miniapp-context`. */
+  name: string;
+  /** UTF-8 app-supplied context treated as untrusted data by the Agent prompt. */
+  content: string;
+}
+
 export interface AgentRunOptions {
   runId?: string;
   sessionName?: string;
@@ -115,10 +122,15 @@ export interface AgentRunOptions {
    */
   appDataWorkspace?: string;
   /**
-   * Model selector for the hidden Cowork session (`auto` / `primary` / `fast`
-   * or a concrete model config id). Applied on create and on session reuse.
+   * Model selector for the hidden Cowork session (`primary`, `fast`, or a
+   * concrete model config id). Applied on create and on session reuse.
    */
   model?: string;
+  /**
+   * Bounded context files exposed through a host-owned immutable virtual snapshot.
+   * Marketplace Agents may Read/Grep only that exact per-run scope.
+   */
+  contextFiles?: AgentContextFile[];
 }
 
 export interface AgentRunStartedResult {
@@ -735,6 +747,7 @@ export class MiniAppAPI {
           sessionId: options?.sessionId,
           appDataWorkspace: options?.appDataWorkspace,
           model: options?.model,
+          contextFiles: options?.contextFiles,
         }
       });
     } catch (error) {

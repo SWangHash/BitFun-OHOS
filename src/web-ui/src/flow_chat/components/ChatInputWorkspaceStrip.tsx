@@ -1,13 +1,24 @@
 /**
- * Workspace label + Git branch (left) and optional usage report control (right).
+ * Two fixed rails in the composer's upper context band.
+ *
+ * The left rail is the situation the session is in — its workspace and branch,
+ * followed by the local/remote execution target. Worktree isolation is a local
+ * target mode. The right rail is the contract for the next turn — how much
+ * confirmation it asks for and how
+ * much context is left. Nothing is centered and no column template is
+ * conditional, so a control appearing or disappearing cannot move the rest of
+ * the track.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  Activity,
   Check,
+  ChevronLeft,
+  ChevronRight,
+  Circle,
+  Clock3,
   EyeOff,
   GitBranch,
   RefreshCw,
@@ -18,17 +29,22 @@ import {
   Square,
   SquareCheck,
 } from 'lucide-react';
-import { ThreadGoalStripButton } from './thread-goal/ThreadGoalStripButton';
-import type { ThreadGoalSnapshot } from '../services/goalService';
-import { Tooltip, IconButton } from '@/component-library';
+import { Menu, MenuItem, MenuSection, MenuSeparator } from '@bitfun/ui';
+import { Tooltip } from '@bitfun/ui';
+import { BranchQuickSwitch } from '@/tools/git/components/BranchQuickSwitch';
 import { useGitState } from '@/tools/git/hooks/useGitState';
 import type { SessionExecutionTarget } from '@/infrastructure/api/service-api/WorktreeAPI';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
+import {
+  getWorkspaceDisplayName,
+  useOptionalWorkspaceContext,
+} from '@/infrastructure/contexts/WorkspaceContext';
 import { useI18n } from '@/infrastructure/i18n';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import { DispatchResultDialog } from '@/features/dispatch/DispatchResultDialog';
 import { DispatchTargetPicker } from '@/features/dispatch/DispatchTargetPicker';
 import type { DispatchSelection, DispatchTarget } from '@/features/dispatch/types';
+import { formatCompactTokenCount } from '../utils/tokenUsageDisplay';
 import './ChatInputWorkspaceStrip.scss';
 
 export interface ChatInputWorkspaceStripProps {
@@ -36,15 +52,11 @@ export interface ChatInputWorkspaceStripProps {
   repositoryPath: string;
   /** Resolved display name (workspace title or folder basename). */
   workspaceLabel: string;
-  /** Session usage report (/usage) — icon on the right when visible. */
+  /** Session usage report (/usage) — context ring on the right rail. */
   usageReport?: {
     visible: boolean;
-    onOpen: () => void;
-  };
-  /** Thread goal menu (/goal) — icon on the right when visible. */
-  threadGoal?: {
-    visible: boolean;
-    goal: ThreadGoalSnapshot | null;
+    currentTokens: number;
+    maxTokens: number;
     onOpen: () => void;
   };
   /** Native-tool permission mode for this session, exposed as a compact strip control. */
@@ -59,6 +71,7 @@ export interface ChatInputWorkspaceStripProps {
     saving?: boolean;
     disabled?: boolean;
     options?: Array<Exclude<ChatInputPermissionMode, 'acp'>>;
+    /** Scope owned by the primary radio list, such as the current session. */
     scopeLabel?: string;
     /**
      * The session chose its own mode instead of following the default. Shown so
@@ -77,7 +90,7 @@ export interface ChatInputWorkspaceStripProps {
     /** Whether `nextTurnMode` currently belongs to the active turn. */
     activeTurn?: boolean;
     onChange?: (mode: Exclude<ChatInputPermissionMode, 'acp'>) => void | Promise<void>;
-    /** Updates the one-off mode; re-picking the selected one clears it. */
+    /** Updates the one-off mode exposed through the secondary scope menu. */
     onChangeForNextTurn?: (
       mode: Exclude<ChatInputPermissionMode, 'acp'>,
     ) => void | Promise<void>;
@@ -88,7 +101,7 @@ export interface ChatInputWorkspaceStripProps {
   /** Resolved target bound to the active session. */
   executionTarget?: SessionExecutionTarget;
   /**
-   * Per-session worktree isolation, rendered next to the branch for Git workspaces.
+   * Per-session worktree isolation, exposed as a local execution-target mode.
    * Omitted when the session cannot host a worktree at all (remote, no session).
    */
   worktreeControl?: {
@@ -141,7 +154,6 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
   repositoryPath,
   workspaceLabel,
   usageReport,
-  threadGoal,
   permissionControl,
   deferPassiveGitRefresh = false,
   executionTarget,
@@ -152,11 +164,19 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
   const { t } = useTranslation('flow-chat');
   const { t: tWorktrees } = useI18n('worktrees');
   const { t: tCommon } = useI18n('common');
+  const workspaceContext = useOptionalWorkspaceContext();
   const permissionRootRef = useRef<HTMLDivElement>(null);
   const permissionTriggerRef = useRef<HTMLButtonElement>(null);
   const permissionMenuRef = useRef<HTMLDivElement>(null);
   const [permissionMenuOpen, setPermissionMenuOpen] = useState(false);
+  const [permissionMenuView, setPermissionMenuView] = useState<'session' | 'turn'>('session');
+  const permissionMenuFocusTargetRef = useRef<string | null>(null);
   const [resultDialogOpen, setResultDialogOpen] = useState(false);
+  const workspaceTriggerRef = useRef<HTMLButtonElement>(null);
+  const workspaceMenuRef = useRef<HTMLDivElement>(null);
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const branchTriggerRef = useRef<HTMLButtonElement>(null);
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const permissionMenuLayout = useAnchoredPopoverPosition({
     open: permissionMenuOpen,
     anchorRef: permissionTriggerRef,
@@ -164,7 +184,15 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
     preferredPlacement: 'top',
     alignment: 'end',
     gap: 7,
-    layoutRevision: `${permissionControl?.options?.length ?? 0}:${Boolean(permissionControl?.onHide)}`,
+    layoutRevision: `${permissionMenuView}:${permissionControl?.options?.length ?? 0}:${Boolean(permissionControl?.onHide)}`,
+  });
+  const workspaceMenuLayout = useAnchoredPopoverPosition({
+    open: workspaceMenuOpen,
+    anchorRef: workspaceTriggerRef,
+    popoverRef: workspaceMenuRef,
+    preferredPlacement: 'top',
+    alignment: 'start',
+    gap: 7,
   });
   const trimmedPath = repositoryPath.trim();
   const label = workspaceLabel.trim();
@@ -191,47 +219,89 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
   }, [refreshBasic, trimmedPath]);
 
   const showUsage = usageReport?.visible && !!usageReport.onOpen;
-  const showGoal = threadGoal?.visible && !!threadGoal.onOpen;
   const showPermission = !!permissionControl;
   const showDispatchResult = !!dispatchControl?.syncableJobId;
   const isWorktree = !!executionTarget?.worktreeId;
   const worktreeEnabled = worktreeControl?.enabled ?? isWorktree;
   const worktreeEnabledRef = useRef(worktreeEnabled);
   worktreeEnabledRef.current = worktreeEnabled;
-  // Dispatch delivers work as a Git worktree of the controller's repository, so
-  // it is only meaningful where a worktree itself is — the same condition the
-  // isolation toggle uses, evaluated from the same Git probe.
+  // Remote dispatch still requires Git, but the local execution target is a
+  // useful breadcrumb for every workspace. In a plain folder the picker stays
+  // visible and locked, so the strip does not lose its middle breadcrumb or
+  // accidentally offer an unsupported remote action.
+  //
   // A repository Git refuses to read for ownership reasons is still a
   // repository: `isRepository` only turns true after a status call the
   // ownership gate blocks, so leaving it out would hide the Git controls on
   // exactly the workspace whose problem the user has to act on.
   const isGitWorkspace = isRepository || repositoryTrustRequired || isWorktree || worktreeEnabled;
   const showWorktreeToggle = !!worktreeControl && isGitWorkspace;
+  const showDispatchPicker = !!dispatchControl;
+  const dispatchPickerLocked = !!dispatchControl && (dispatchControl.locked || !isGitWorkspace);
+  const permissionModeLabels = {
+    ask: t('chatInput.permissionMode.ask.label'),
+    auto: t('chatInput.permissionMode.auto.label'),
+    full_access: t('chatInput.permissionMode.fullAccess.label'),
+    reject: t('chatInput.permissionMode.reject.label'),
+    acp: t('chatInput.permissionMode.acp.label'),
+  } satisfies Record<ChatInputPermissionMode, string>;
   const showDispatchPicker = !!dispatchControl && isGitWorkspace;
   const showRightActions =
     showDispatchPicker || showDispatchResult || showPermission || showUsage || showGoal || !!voiceControl;
   const permissionCopy = {
     ask: {
-      label: t('chatInput.permissionMode.ask.label'),
+      label: permissionModeLabels.ask,
       description: t('chatInput.permissionMode.ask.description'),
     },
     auto: {
-      label: t('chatInput.permissionMode.auto.label'),
+      label: permissionModeLabels.auto,
       description: t('chatInput.permissionMode.auto.description'),
     },
     full_access: {
-      label: t('chatInput.permissionMode.fullAccess.label'),
+      label: permissionModeLabels.full_access,
       description: t('chatInput.permissionMode.fullAccess.description'),
     },
     reject: {
-      label: t('chatInput.permissionMode.reject.label'),
+      label: permissionModeLabels.reject,
       description: t('chatInput.permissionMode.reject.description'),
     },
     acp: {
-      label: t('chatInput.permissionMode.acp.label'),
+      label: permissionModeLabels.acp,
       description: t('chatInput.permissionMode.acp.tooltip'),
     },
-  } satisfies Record<ChatInputPermissionMode, { label: string; description: string }>;
+  } satisfies Record<ChatInputPermissionMode, {
+    label: string;
+    description: string;
+  }>;
+
+  const closePermissionMenu = useCallback(() => {
+    permissionMenuFocusTargetRef.current = null;
+    setPermissionMenuOpen(false);
+    setPermissionMenuView('session');
+  }, []);
+
+  const openPermissionTurnMenu = useCallback((focusTarget: string) => {
+    permissionMenuFocusTargetRef.current = focusTarget;
+    setPermissionMenuView('turn');
+  }, []);
+
+  const returnToPermissionSessionMenu = useCallback(() => {
+    permissionMenuFocusTargetRef.current = 'chat-input-permission-turn-scope';
+    setPermissionMenuView('session');
+  }, []);
+
+  useEffect(() => {
+    if (!permissionMenuOpen || !permissionMenuFocusTargetRef.current) return;
+
+    const focusTarget = permissionMenuFocusTargetRef.current;
+    permissionMenuFocusTargetRef.current = null;
+    const frame = window.requestAnimationFrame(() => {
+      permissionMenuRef.current
+        ?.querySelector<HTMLButtonElement>(`[data-testid="${focusTarget}"]`)
+        ?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [permissionMenuOpen, permissionMenuView]);
 
   useEffect(() => {
     if (!permissionMenuOpen) return;
@@ -242,12 +312,19 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
         !permissionRootRef.current?.contains(target)
         && !permissionMenuRef.current?.contains(target)
       ) {
-        setPermissionMenuOpen(false);
+        closePermissionMenu();
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setPermissionMenuOpen(false);
+        event.preventDefault();
+        event.stopPropagation();
+        if (permissionMenuView === 'turn') {
+          returnToPermissionSessionMenu();
+        } else {
+          closePermissionMenu();
+          permissionTriggerRef.current?.focus();
+        }
       }
     };
 
@@ -257,12 +334,57 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [permissionMenuOpen]);
+  }, [
+    closePermissionMenu,
+    permissionMenuOpen,
+    permissionMenuView,
+    returnToPermissionSessionMenu,
+  ]);
+
+  useEffect(() => {
+    if (!workspaceMenuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (
+        !workspaceTriggerRef.current?.contains(target)
+        && !workspaceMenuRef.current?.contains(target)
+      ) {
+        setWorkspaceMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setWorkspaceMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [workspaceMenuOpen]);
 
   const dispatchBranch = dispatchControl?.locked
     && worktreeControl?.lockedReason === 'dispatch'
     ? dispatchControl?.branch?.trim()
     : undefined;
+  // A managed worktree/dispatch branch is part of the session execution
+  // target. Only the ordinary workspace branch is mutable from this strip;
+  // changing a managed target behind its lifecycle owner would leave the
+  // session binding and cleanup metadata describing a different checkout.
+  const branchSwitchable = !dispatchBranch
+    && !isWorktree
+    && isRepository
+    && !!currentBranch?.trim()
+    && !!trimmedPath;
+
+  useEffect(() => {
+    setBranchMenuOpen(false);
+  }, [branchSwitchable, currentBranch, trimmedPath]);
+
   const branchTooltipContent = useMemo(
     () =>
       dispatchBranch
@@ -277,11 +399,14 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
     [currentBranch, dispatchBranch, isRepository, repositoryTrustRequired, t],
   );
 
-  if (!label && !showRightActions) {
+  const hasContextRail = !!label || showDispatchPicker;
+  const hasNextRail = showPermission || showUsage || showDispatchResult;
+  if (!hasContextRail && !hasNextRail) {
     return null;
   }
 
   const branchLabel = dispatchBranch
+    || (branchSwitchable ? currentBranch?.trim() : undefined)
     || executionTarget?.branch?.trim()
     || (isWorktree && currentBranch?.trim())
     || (isWorktree && executionTarget?.baseCommit
@@ -291,6 +416,10 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
       : '—');
 
   const workspaceTooltipContent = trimmedPath || label;
+  const switchableWorkspaces = workspaceContext?.openedWorkspacesList ?? [];
+  // Same rule as the shell nav switcher: a single open workspace has nothing
+  // to switch to, so the name stays a fact rather than offering a dead menu.
+  const workspaceSwitchable = !!workspaceContext && switchableWorkspaces.length > 1;
   const worktreeToggleDisabled = !!worktreeControl?.locked;
   let worktreeTooltip = tWorktrees('strip.toggleOffDescription');
   if (worktreeControl?.lockedReason === 'dispatch') {
@@ -331,428 +460,633 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
         )
       : permissionOverridden
         ? t('chatInput.permissionMode.currentSessionOverride', { mode: permissionModeLabel })
-        : t('chatInput.permissionMode.current', { mode: permissionModeLabel });
+      : t('chatInput.permissionMode.current', { mode: permissionModeLabel });
   const PermissionIcon = PERMISSION_MODE_ICONS[permissionDisplayMode];
-  const showPermissionLabel = permissionMode !== 'acp';
+  const PermissionSessionIcon = PERMISSION_MODE_ICONS[permissionMode];
+  const permissionTurnScopeLabel = t(permissionActiveTurn
+    ? 'chatInput.permissionMode.activeTurnScope'
+    : 'chatInput.permissionMode.turnScope');
+  const permissionSessionScopeLabel = permissionControl?.scopeLabel
+    ?? t('chatInput.permissionMode.globalScope');
+  const permissionTurnSettingsLabel = t(permissionActiveTurn
+    ? 'chatInput.permissionMode.activeTurnSettings'
+    : 'chatInput.permissionMode.turnSettings');
+  const permissionMenuScopeLabel = permissionMenuView === 'session'
+    ? permissionSessionScopeLabel
+    : permissionTurnScopeLabel;
+  const permissionTurnFocusTarget = permissionNextTurnMode
+    && permissionNextTurnMode !== 'acp'
+    && permissionModes.includes(permissionNextTurnMode)
+    ? `chat-input-permission-next-turn-${permissionNextTurnMode}`
+    : 'chat-input-permission-follow-session';
+  const usageCurrentTokens = Number.isFinite(usageReport?.currentTokens)
+    ? Math.max(0, Math.round(usageReport?.currentTokens ?? 0))
+    : 0;
+  const usageMaxTokens = Number.isFinite(usageReport?.maxTokens)
+    ? Math.max(0, Math.round(usageReport?.maxTokens ?? 0))
+    : 0;
+  const usagePercentage = usageMaxTokens > 0
+    ? Math.min(100, Math.max(0, Math.round((usageCurrentTokens / usageMaxTokens) * 100)))
+    : 0;
+  const usageTooltip = `${formatCompactTokenCount(usageCurrentTokens)}/${formatCompactTokenCount(usageMaxTokens)} ${usagePercentage}%`;
+  const usageDash = `${((usagePercentage / 100) * 62.83).toFixed(2)} 62.83`;
 
-  const handleWorktreeToggle = () => {
+  const handleWorktreeChange = (enabled: boolean) => {
     if (!worktreeControl || worktreeToggleDisabled) {
       return;
     }
-    const nextEnabled = !worktreeEnabledRef.current;
-    worktreeEnabledRef.current = nextEnabled;
-    worktreeControl.onChange(nextEnabled);
+    if (worktreeEnabledRef.current === enabled) {
+      return;
+    }
+    worktreeEnabledRef.current = enabled;
+    worktreeControl.onChange(enabled);
   };
 
-  const split = !!label && showRightActions;
-  const actionsOnly = !label && showRightActions;
+  const handleWorktreeToggle = () => {
+    handleWorktreeChange(!worktreeEnabledRef.current);
+  };
 
-  return (
-    <div data-bf-component="chat-input-workspace-strip" data-bf-part="root"
-      className={[
-        'bitfun-chat-input-workspace-strip',
-        split && 'bitfun-chat-input-workspace-strip--split',
-        actionsOnly && 'bitfun-chat-input-workspace-strip--actions-only',
-      ]
-        .filter(Boolean)
-        .join(' ')}
-      data-testid="chat-input-workspace-strip"
-    >
-      {label ? (
-        <div data-bf-component="chat-input-workspace-strip" data-bf-part="main" className="bitfun-chat-input-workspace-strip__main">
-          <Tooltip content={workspaceTooltipContent} placement="top">
-            <span className="bitfun-chat-input-workspace-strip__chip bitfun-chat-input-workspace-strip__chip--workspace">
-              <span data-bf-component="chat-input-workspace-strip" data-bf-part="workspace" className="bitfun-chat-input-workspace-strip__workspace">{label}</span>
-            </span>
-          </Tooltip>
-          <span className="bitfun-chat-input-workspace-strip__sep" aria-hidden>
-            {' / '}
-          </span>
-          <Tooltip content={branchTooltipContent} placement="top">
-            <span className="bitfun-chat-input-workspace-strip__chip bitfun-chat-input-workspace-strip__chip--branch">
-              <GitBranch
-                className="bitfun-chat-input-workspace-strip__branch-icon"
-                size={11}
-                strokeWidth={2}
-                aria-hidden
-              />
-              <span data-bf-component="chat-input-workspace-strip" data-bf-part="branch" className="bitfun-chat-input-workspace-strip__branch">{branchLabel}</span>
-            </span>
-          </Tooltip>
-          {showWorktreeToggle ? (
-            <Tooltip content={worktreeTooltip} placement="top">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={worktreeEnabled}
-                aria-label={tWorktrees('strip.toggleLabel')}
-                className={[
-                  'bitfun-chat-input-workspace-strip__chip',
-                  'bitfun-chat-input-workspace-strip__chip--worktree',
-                  worktreeEnabled && 'bitfun-chat-input-workspace-strip__chip--worktree-on',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                disabled={worktreeToggleDisabled}
-                data-testid="chat-input-worktree-toggle"
-                data-worktree-enabled={worktreeEnabled ? 'true' : 'false'}
-                data-worktree-materialized={isWorktree ? 'true' : 'false'}
-                onClick={handleWorktreeToggle}
-              >
-                {worktreeEnabled ? (
-                  <SquareCheck
-                    className="bitfun-chat-input-workspace-strip__worktree-icon"
-                    size={11}
-                    strokeWidth={2}
-                    aria-hidden
-                  />
-                ) : (
-                  <Square
-                    className="bitfun-chat-input-workspace-strip__worktree-icon"
-                    size={11}
-                    strokeWidth={2}
-                    aria-hidden
-                  />
-                )}
-                <span className="bitfun-chat-input-workspace-strip__worktree-label">
-                  {tWorktrees('strip.toggleLabel')}
-                </span>
-              </button>
-            </Tooltip>
-          ) : null}
-        </div>
-      ) : null}
-
-      {showRightActions ? (
-        <div
-          className="bitfun-chat-input-workspace-strip__actions"
+  // The ordinary workspace branch doubles as a picker. Managed worktree and
+  // detached-dispatch branches stay facts because their lifecycle owner must
+  // remain the only writer of that execution target.
+  const renderBranchChip = () => {
+    const contents = (
+      <>
+        <GitBranch
+          className="bitfun-chat-input-workspace-strip__branch-icon"
+          size={12}
+          strokeWidth={1.8}
+          aria-hidden
+        />
+        <span
           data-bf-component="chat-input-workspace-strip"
-          data-bf-part="actions"
+          data-bf-part="branch"
+          className="bitfun-chat-input-workspace-strip__branch"
         >
-          {voiceControl ? (
-            <div className="bitfun-chat-input-workspace-strip__voice-control">
-              {voiceControl}
-            </div>
-          ) : null}
-          {showDispatchPicker && dispatchControl ? (
-            <DispatchTargetPicker
-              target={dispatchControl.target}
-              sourceWorkspacePath={dispatchControl.sourceWorkspacePath}
-              locked={dispatchControl.locked}
-              onSelectLocal={dispatchControl.onSelectLocal}
-              onSelectTarget={dispatchControl.onSelectTarget}
-            />
-          ) : null}
-          {dispatchControl?.syncableJobId ? (
-            <>
-              <Tooltip content={tCommon('dispatch.syncTitle')} placement="top">
-                <button
-                  type="button"
-                  className="bitfun-chat-input-workspace-strip__dispatch-result"
-                  onClick={() => setResultDialogOpen(true)}
-                  data-testid="dispatch-sync-trigger"
-                >
-                  <RefreshCw size={11} strokeWidth={2} aria-hidden />
-                  <span>{tCommon('dispatch.syncAction')}</span>
-                </button>
-              </Tooltip>
-              <DispatchResultDialog
-                open={resultDialogOpen}
-                jobId={dispatchControl.syncableJobId}
-                branch={dispatchControl.branch}
-                baselineWorktreePath={dispatchControl.baselineWorktreePath}
-                baselineMissing={dispatchControl.baselineMissing}
-                targetLabel={dispatchControl.target.kind !== 'local'
-                  ? dispatchControl.target.displayName
-                  : undefined}
-                onClose={() => setResultDialogOpen(false)}
-              />
-            </>
-          ) : null}
-          {showPermission ? (
-            <div
-              ref={permissionRootRef}
-              data-bf-component="chat-input-workspace-strip"
-              data-bf-part="permission"
-              className="bitfun-chat-input-workspace-strip__permission"
-            >
-              <Tooltip content={permissionTooltip} placement="top">
-                <button
-                  ref={permissionTriggerRef}
-                  type="button"
-                  className={[
-                    'bitfun-chat-input-workspace-strip__permission-trigger',
-                    `bitfun-chat-input-workspace-strip__permission-trigger--${permissionDisplayMode}`,
-                    permissionMenuOpen && 'bitfun-chat-input-workspace-strip__permission-trigger--open',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  aria-label={permissionTooltip}
-                  aria-haspopup={permissionDisabled ? undefined : 'menu'}
-                  aria-expanded={permissionDisabled ? undefined : permissionMenuOpen}
-                  disabled={permissionDisabled}
-                  data-testid="chat-input-permission-trigger"
-                  data-permission-mode={permissionDisplayMode}
-                  data-permission-overridden={permissionOverridden ? 'true' : undefined}
-                  data-permission-next-turn={permissionNextTurnArmed ? 'true' : undefined}
-                  data-permission-active-turn={permissionActiveTurn ? 'true' : undefined}
+          {branchLabel}
+        </span>
+      </>
+    );
+
+    if (!branchSwitchable || !currentBranch?.trim()) {
+      return (
+        <Tooltip content={branchTooltipContent} placement="top">
+          <span className="bitfun-chat-input-workspace-strip__chip bitfun-chat-input-workspace-strip__chip--branch">
+            {contents}
+          </span>
+        </Tooltip>
+      );
+    }
+
+    return (
+      <>
+        <Tooltip content={branchTooltipContent} placement="top">
+          <button
+            ref={branchTriggerRef}
+            type="button"
+            className="bitfun-chat-input-workspace-strip__chip bitfun-chat-input-workspace-strip__chip--branch bitfun-chat-input-workspace-strip__chip--branch-switchable"
+            aria-label={t('workspaceStrip.branchSwitchLabel', { branch: branchLabel })}
+            aria-haspopup="listbox"
+            aria-expanded={branchMenuOpen}
+            data-testid="chat-input-branch-trigger"
+            onClick={event => {
+              event.stopPropagation();
+              setBranchMenuOpen(open => !open);
+            }}
+          >
+            {contents}
+          </button>
+        </Tooltip>
+        <BranchQuickSwitch
+          isOpen={branchMenuOpen}
+          onClose={() => setBranchMenuOpen(false)}
+          repositoryPath={trimmedPath}
+          currentBranch={currentBranch.trim()}
+          anchorRef={branchTriggerRef}
+          onSwitchSuccess={() => {
+            void refreshBasic();
+          }}
+        />
+      </>
+    );
+  };
+
+  // The workspace names where the session lives; with more than one workspace
+  // open it doubles as the switcher. Either way it wears the track's pill so
+  // the row keeps one rhythm — only the hover fill says whether it answers.
+  const renderWorkspaceControl = () => {
+    if (!workspaceSwitchable || !workspaceContext) {
+      return (
+        <Tooltip content={workspaceTooltipContent} placement="top">
+          <span data-bf-component="chat-input-workspace-strip" data-bf-part="workspace" className="bitfun-chat-input-workspace-strip__workspace">
+            <span className="bitfun-chat-input-workspace-strip__workspace-name">{label}</span>
+          </span>
+        </Tooltip>
+      );
+    }
+
+    return (
+      <>
+        <Tooltip content={tCommon('header.switchWorkspace')} placement="top">
+          <button
+            ref={workspaceTriggerRef}
+            type="button"
+            data-bf-component="chat-input-workspace-strip"
+            data-bf-part="workspace"
+            className="bitfun-chat-input-workspace-strip__workspace bitfun-chat-input-workspace-strip__workspace--switchable"
+            aria-haspopup="menu"
+            aria-expanded={workspaceMenuOpen}
+            data-testid="chat-input-workspace-trigger"
+            onClick={event => {
+              event.stopPropagation();
+              setWorkspaceMenuOpen(open => !open);
+            }}
+          >
+            <span className="bitfun-chat-input-workspace-strip__workspace-name">{label}</span>
+          </button>
+        </Tooltip>
+        {workspaceMenuOpen ? createPortal(
+          <Menu
+            ref={workspaceMenuRef}
+            data-bf-component="chat-input-workspace-strip"
+            data-bf-part="workspaceMenu"
+            data-bf-state="open"
+            data-bf-placement={workspaceMenuLayout?.placement ?? 'top'}
+            className="bitfun-chat-input-workspace-strip__workspace-menu"
+            style={{
+              top: `${workspaceMenuLayout?.top ?? 0}px`,
+              left: `${workspaceMenuLayout?.left ?? 0}px`,
+              visibility: workspaceMenuLayout ? 'visible' : 'hidden',
+            }}
+            aria-label={tCommon('header.switchWorkspace')}
+            data-testid="chat-input-workspace-menu"
+            autoFocusFirstItem
+          >
+            {switchableWorkspaces.map(workspace => {
+              const isActive = workspace.id === workspaceContext.activeWorkspace?.id;
+              return (
+                <MenuItem
+                  key={workspace.id}
+                  role="menuitemradio"
+                  checked={isActive}
+                  data-bf-component="chat-input-workspace-strip"
+                  data-bf-part="workspaceOption"
+                  data-bf-state={isActive ? 'active' : undefined}
+                  data-testid={`chat-input-workspace-option-${workspace.id}`}
+                  metadata={isActive ? <Check size={13} strokeWidth={2.2} aria-hidden /> : null}
                   onClick={event => {
                     event.stopPropagation();
-                    if (!permissionDisabled) {
-                      setPermissionMenuOpen(open => !open);
+                    setWorkspaceMenuOpen(false);
+                    if (!isActive) {
+                      void workspaceContext.setActiveWorkspace(workspace.id);
                     }
                   }}
                 >
-                  <PermissionIcon size={12} strokeWidth={2} aria-hidden />
-                  {showPermissionLabel ? (
-                    <span className="bitfun-chat-input-workspace-strip__permission-label">
-                      {permissionModeLabel}
-                    </span>
-                  ) : null}
-                  {/* Only a one-off override gets a dot: a session-level choice
-                      is already legible from the label the trigger shows, and
-                      marking both made every customized session look pending. */}
-                  {permissionNextTurnArmed ? (
-                    <span
-                      className="bitfun-chat-input-workspace-strip__permission-next-turn-dot"
-                      data-testid="chat-input-permission-next-turn-dot"
-                      aria-hidden
-                    />
-                  ) : null}
-                </button>
-              </Tooltip>
+                  {getWorkspaceDisplayName(workspace)}
+                </MenuItem>
+              );
+            })}
+          </Menu>,
+          getAppearanceOverlayHost(),
+        ) : null}
+      </>
+    );
+  };
 
-              {permissionMenuOpen && permissionMode !== 'acp' ? createPortal(
-                <div
-                  ref={permissionMenuRef}
-                  data-bf-component="chat-input-workspace-strip"
-                  data-bf-part="permissionMenu"
-                  data-bf-state="open"
-                  data-bf-placement={permissionMenuLayout?.placement ?? 'top'}
-                  className="bitfun-chat-input-workspace-strip__permission-menu"
-                  style={{
-                    top: `${permissionMenuLayout?.top ?? 0}px`,
-                    left: `${permissionMenuLayout?.left ?? 0}px`,
-                    visibility: permissionMenuLayout ? 'visible' : 'hidden',
-                  }}
-                  role="menu"
-                  aria-label={t('chatInput.permissionMode.menuLabel')}
-                  data-testid="chat-input-permission-menu"
-                >
-                  <div className="bitfun-chat-input-workspace-strip__permission-menu-header">
-                    <span>{t('chatInput.permissionMode.menuLabel')}</span>
-                    <span>
-                      {permissionControl.scopeLabel ?? t('chatInput.permissionMode.globalScope')}
-                    </span>
-                  </div>
-                  <div data-bf-component="chat-input-workspace-strip" data-bf-part="permissionOptions" className="bitfun-chat-input-workspace-strip__permission-options">
-                    {permissionModes.map(mode => {
-                      const selected = permissionMode === mode;
-                      const copy = permissionCopy[mode];
-                      const armed = permissionNextTurnMode === mode;
-                      const OptionIcon = PERMISSION_MODE_ICONS[mode];
-                      return (
-                        <div
-                          key={mode}
-                          data-bf-component="chat-input-workspace-strip"
-                          data-bf-part="permissionOptionRow"
-                          data-bf-state={[selected && 'selected', armed && 'armed']
-                            .filter(Boolean)
-                            .join(' ') || undefined}
-                          className={[
-                            'bitfun-chat-input-workspace-strip__permission-option-row',
-                            selected && 'bitfun-chat-input-workspace-strip__permission-option-row--selected',
-                            armed && 'bitfun-chat-input-workspace-strip__permission-option-row--armed',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
-                        >
-                          {/* The description moved to a tooltip to keep the menu
-                              compact, so it is repeated in the accessible name
-                              rather than being dropped for screen readers. */}
-                          <Tooltip content={copy.description} placement="left">
-                            <button data-bf-component="chat-input-workspace-strip" data-bf-part="permissionOption"
-                              data-bf-state={selected ? 'selected' : undefined}
-                              type="button"
-                              role="menuitemradio"
-                              aria-checked={selected}
-                              aria-label={`${copy.label} — ${copy.description}`}
-                              className="bitfun-chat-input-workspace-strip__permission-option"
-                              disabled={permissionControl.saving}
-                              data-testid={`chat-input-permission-option-${mode}`}
-                              onClick={event => {
-                                event.stopPropagation();
-                                setPermissionMenuOpen(false);
-                                void permissionControl.onChange?.(mode);
-                              }}
-                            >
-                              <OptionIcon
-                                size={13}
-                                strokeWidth={2}
-                                className={`bitfun-chat-input-workspace-strip__permission-option-icon bitfun-chat-input-workspace-strip__permission-option-icon--${mode}`}
-                                aria-hidden
-                              />
-                              <span className="bitfun-chat-input-workspace-strip__permission-option-label">
-                                {copy.label}
-                              </span>
-                            </button>
-                          </Tooltip>
-                          {/* One trailing slot: the checkmark reports session
-                              state, the one-off chip reports a temporary
-                              override, and they never claim it together. */}
-                          <span
-                            data-bf-component="chat-input-workspace-strip"
-                            data-bf-part="permissionOptionTrailing"
-                            className="bitfun-chat-input-workspace-strip__permission-option-trailing"
-                          >
-                            {selected ? (
-                              <Check
-                                size={14}
-                                strokeWidth={2.2}
-                                className="bitfun-chat-input-workspace-strip__permission-option-check"
-                                data-testid={`chat-input-permission-selected-${mode}`}
-                                aria-hidden
-                              />
-                            ) : null}
-                            {permissionControl.onChangeForNextTurn ? (
-                              <Tooltip
-                                content={t(permissionActiveTurn
-                                  ? 'chatInput.permissionMode.activeTurnOnly'
-                                  : 'chatInput.permissionMode.nextTurnOnly', {
-                                  mode: copy.label,
-                                })}
-                                placement="top"
-                              >
-                                <button
-                                  type="button"
-                                  role="menuitemcheckbox"
-                                  aria-checked={armed}
-                                  aria-label={t(permissionActiveTurn
-                                    ? 'chatInput.permissionMode.activeTurnOnly'
-                                    : 'chatInput.permissionMode.nextTurnOnly', {
-                                    mode: copy.label,
-                                  })}
-                                  data-bf-component="chat-input-workspace-strip"
-                                  data-bf-part="permissionOptionNextTurn"
-                                  data-bf-state={armed ? 'armed' : undefined}
-                                  className={[
-                                    'bitfun-chat-input-workspace-strip__permission-option-next-turn',
-                                    armed && 'bitfun-chat-input-workspace-strip__permission-option-next-turn--armed',
-                                  ]
-                                    .filter(Boolean)
-                                    .join(' ')}
-                                  disabled={permissionControl.saving}
-                                  data-testid={`chat-input-permission-next-turn-${mode}`}
-                                  onClick={event => {
-                                    event.stopPropagation();
-                                    setPermissionMenuOpen(false);
-                                    void permissionControl.onChangeForNextTurn?.(mode);
-                                  }}
-                                >
-                                  {t(permissionActiveTurn
-                                    ? 'chatInput.permissionMode.activeTurnOnlyShort'
-                                    : 'chatInput.permissionMode.nextTurnOnlyShort')}
-                                </button>
-                              </Tooltip>
-                            ) : null}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {permissionOverridden && permissionControl.onResetToDefault ? (
-                    <>
-                      <div className="bitfun-chat-input-workspace-strip__permission-menu-divider" role="separator" />
-                      <div className="bitfun-chat-input-workspace-strip__permission-action-row">
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="bitfun-chat-input-workspace-strip__permission-visibility-action"
-                          data-testid="chat-input-permission-reset-default"
-                          disabled={permissionControl.saving}
+  const renderWorktreeToggle = () => (showWorktreeToggle ? (
+    <Tooltip content={worktreeTooltip} placement="top">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={worktreeEnabled}
+        aria-label={tWorktrees('strip.toggleLabel')}
+        className={[
+          'bitfun-chat-input-workspace-strip__worktree-toggle',
+          worktreeEnabled && 'bitfun-chat-input-workspace-strip__worktree-toggle--on',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        disabled={worktreeToggleDisabled}
+        data-testid="chat-input-worktree-toggle"
+        data-worktree-enabled={worktreeEnabled ? 'true' : 'false'}
+        data-worktree-materialized={isWorktree ? 'true' : 'false'}
+        onClick={handleWorktreeToggle}
+      >
+        {worktreeEnabled ? (
+          <SquareCheck size={12} strokeWidth={1.8} aria-hidden />
+        ) : (
+          <Square size={12} strokeWidth={1.8} aria-hidden />
+        )}
+        <span className="bitfun-chat-input-workspace-strip__worktree-label">
+          {tWorktrees('strip.toggleLabel')}
+        </span>
+      </button>
+    </Tooltip>
+  ) : null);
+
+  // A hairline parts the workspace/branch coordinate from the execution
+  // destination. Worktree isolation belongs inside the local destination
+  // menu, so it no longer creates a third statement on this rail.
+  const renderDivider = (key: string) => (
+    <span
+      key={key}
+      data-bf-component="chat-input-workspace-strip"
+      data-bf-part="divider"
+      className="bitfun-chat-input-workspace-strip__divider"
+      aria-hidden
+    />
+  );
+
+  const renderPermissionModeOption = (
+    mode: Exclude<ChatInputPermissionMode, 'acp'>,
+    selectionScope: 'session' | 'turn',
+  ) => {
+    const oneOff = selectionScope === 'turn';
+    const selected = oneOff
+      ? permissionNextTurnMode === mode
+      : permissionMode === mode;
+    const copy = permissionCopy[mode];
+    const OptionIcon = PERMISSION_MODE_ICONS[mode];
+    const accessibleLabel = oneOff
+      ? t(permissionActiveTurn
+          ? 'chatInput.permissionMode.activeTurnOnly'
+          : 'chatInput.permissionMode.nextTurnOnly', {
+          mode: copy.label,
+        })
+      : `${copy.label} — ${copy.description}`;
+    const optionTestId = oneOff
+      ? `chat-input-permission-next-turn-${mode}`
+      : `chat-input-permission-option-${mode}`;
+    const selectedTestId = oneOff
+      ? `chat-input-permission-next-turn-selected-${mode}`
+      : `chat-input-permission-selected-${mode}`;
+
+    return (
+      <Tooltip
+        key={`${selectionScope}-${mode}`}
+        content={copy.description}
+        placement="left"
+      >
+        <MenuItem
+          role="menuitemradio"
+          checked={selected}
+          aria-label={accessibleLabel}
+          leading={(
+            <OptionIcon
+              size={13}
+              strokeWidth={2}
+              className={`bitfun-chat-input-workspace-strip__permission-option-icon bitfun-chat-input-workspace-strip__permission-option-icon--${mode}`}
+              aria-hidden
+            />
+          )}
+          metadata={selected ? (
+            <Check
+              size={14}
+              strokeWidth={2.2}
+              data-testid={selectedTestId}
+              aria-hidden
+            />
+          ) : null}
+          disabled={permissionControl?.saving}
+          data-testid={optionTestId}
+          onClick={event => {
+            event.stopPropagation();
+            closePermissionMenu();
+            if (oneOff) {
+              if (!selected) void permissionControl?.onChangeForNextTurn?.(mode);
+            } else {
+              void permissionControl?.onChange?.(mode);
+            }
+          }}
+        >
+          {copy.label}
+        </MenuItem>
+      </Tooltip>
+    );
+  };
+
+  return (
+    <div data-bf-component="chat-input-workspace-strip" data-bf-part="root"
+      className="bitfun-chat-input-workspace-strip"
+      data-testid="chat-input-workspace-strip"
+    >
+      <div
+        data-bf-component="chat-input-workspace-strip"
+        data-bf-part="context"
+        className="bitfun-chat-input-workspace-strip__context"
+      >
+        {label ? (
+          <span className="bitfun-chat-input-workspace-strip__location">
+            {renderWorkspaceControl()}
+            {renderBranchChip()}
+          </span>
+        ) : null}
+        {showDispatchPicker && label ? renderDivider('context-target') : null}
+        {showDispatchPicker && dispatchControl ? (
+          <DispatchTargetPicker
+            target={dispatchControl.target}
+            sourceWorkspacePath={dispatchControl.sourceWorkspacePath}
+            locked={dispatchPickerLocked}
+            localWorktreeControl={showWorktreeToggle && worktreeControl ? {
+              enabled: worktreeEnabled,
+              locked: worktreeToggleDisabled,
+              label: tWorktrees('strip.newWorktree'),
+              description: worktreeTooltip,
+              onChange: handleWorktreeChange,
+            } : undefined}
+            onSelectLocal={dispatchControl.onSelectLocal}
+            onSelectTarget={dispatchControl.onSelectTarget}
+          />
+        ) : null}
+        {!showDispatchPicker && showWorktreeToggle
+          ? renderDivider('context-isolation')
+          : null}
+        {!showDispatchPicker ? renderWorktreeToggle() : null}
+      </div>
+
+      <div
+        data-bf-component="chat-input-workspace-strip"
+        data-bf-part="next"
+        className="bitfun-chat-input-workspace-strip__next"
+      >
+        {dispatchControl?.syncableJobId ? (
+          <>
+            <Tooltip content={tCommon('dispatch.syncTitle')} placement="top">
+              <button
+                type="button"
+                className="bitfun-chat-input-workspace-strip__dispatch-result"
+                onClick={() => setResultDialogOpen(true)}
+                data-testid="dispatch-sync-trigger"
+              >
+                <RefreshCw size={12} strokeWidth={1.8} aria-hidden />
+                <span>{tCommon('dispatch.syncAction')}</span>
+              </button>
+            </Tooltip>
+            <DispatchResultDialog
+              open={resultDialogOpen}
+              jobId={dispatchControl.syncableJobId}
+              branch={dispatchControl.branch}
+              baselineWorktreePath={dispatchControl.baselineWorktreePath}
+              baselineMissing={dispatchControl.baselineMissing}
+              targetLabel={dispatchControl.target.kind !== 'local'
+                ? dispatchControl.target.displayName
+                : undefined}
+              onClose={() => setResultDialogOpen(false)}
+            />
+          </>
+        ) : null}
+        {showPermission && permissionControl ? (
+          <div
+            ref={permissionRootRef}
+            data-bf-component="chat-input-workspace-strip"
+            data-bf-part="permission"
+            className="bitfun-chat-input-workspace-strip__permission"
+          >
+            <Tooltip content={permissionTooltip} placement="top">
+              <button
+                ref={permissionTriggerRef}
+                type="button"
+                className={[
+                  'bitfun-chat-input-workspace-strip__permission-trigger',
+                  `bitfun-chat-input-workspace-strip__permission-trigger--${permissionDisplayMode}`,
+                  permissionMenuOpen && 'bitfun-chat-input-workspace-strip__permission-trigger--open',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                aria-label={permissionTooltip}
+                aria-haspopup={permissionDisabled ? undefined : 'menu'}
+                aria-expanded={permissionDisabled ? undefined : permissionMenuOpen}
+                disabled={permissionDisabled}
+                data-testid="chat-input-permission-trigger"
+                data-permission-mode={permissionDisplayMode}
+                data-permission-overridden={permissionOverridden ? 'true' : undefined}
+                data-permission-next-turn={permissionNextTurnArmed ? 'true' : undefined}
+                data-permission-active-turn={permissionActiveTurn ? 'true' : undefined}
+                onClick={event => {
+                  event.stopPropagation();
+                  if (!permissionDisabled) {
+                    if (permissionMenuOpen) {
+                      closePermissionMenu();
+                    } else {
+                      setPermissionMenuView('session');
+                      setPermissionMenuOpen(true);
+                    }
+                  }
+                }}
+              >
+                <PermissionIcon
+                  className="bitfun-chat-input-workspace-strip__permission-overview-icon"
+                  size={12}
+                  strokeWidth={1.8}
+                  aria-hidden
+                />
+                <span className="bitfun-chat-input-workspace-strip__permission-label">
+                  {permissionModeLabel}
+                </span>
+                {/* Only a one-off override gets a dot: a session-level choice
+                    is already legible from the label the trigger shows, and
+                    marking both made every customized session look pending. */}
+                {permissionNextTurnArmed ? (
+                  <span
+                    className="bitfun-chat-input-workspace-strip__permission-next-turn-dot"
+                    data-testid="chat-input-permission-next-turn-dot"
+                    aria-hidden
+                  />
+                ) : null}
+              </button>
+            </Tooltip>
+
+            {permissionMenuOpen && permissionMode !== 'acp' ? createPortal(
+              <Menu
+                ref={permissionMenuRef}
+                data-bf-component="chat-input-workspace-strip"
+                data-bf-part="permissionMenu"
+                data-bf-state="open"
+                data-bf-placement={permissionMenuLayout?.placement ?? 'top'}
+                className="bitfun-chat-input-workspace-strip__permission-menu"
+                style={{
+                  top: `${permissionMenuLayout?.top ?? 0}px`,
+                  left: `${permissionMenuLayout?.left ?? 0}px`,
+                  visibility: permissionMenuLayout ? 'visible' : 'hidden',
+                }}
+                aria-label={`${t('chatInput.permissionMode.menuLabel')} · ${permissionMenuScopeLabel}`}
+                data-testid="chat-input-permission-menu"
+                autoFocusFirstItem
+                onKeyDown={event => {
+                  if (
+                    permissionMenuView === 'turn'
+                    && (event.key === 'ArrowLeft' || event.key === 'Escape')
+                  ) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    returnToPermissionSessionMenu();
+                  }
+                }}
+              >
+                {permissionMenuView === 'session' ? (
+                  <>
+                    <MenuSection
+                      title={`${t('chatInput.permissionMode.menuLabel')} · ${permissionSessionScopeLabel}`}
+                      data-bf-component="chat-input-workspace-strip"
+                      data-bf-part="permissionOptions"
+                    >
+                      {permissionModes.map(mode => renderPermissionModeOption(mode, 'session'))}
+                    </MenuSection>
+                    {permissionControl.onChangeForNextTurn ? (
+                      <>
+                        <MenuSeparator />
+                        <MenuItem
+                          leading={<Clock3 size={14} strokeWidth={2} aria-hidden />}
+                          metadata={permissionNextTurnArmed ? permissionModeLabel : undefined}
+                          shortcut={<ChevronRight size={14} strokeWidth={2} aria-hidden />}
+                          aria-haspopup="menu"
+                          data-testid="chat-input-permission-turn-scope"
                           onClick={event => {
                             event.stopPropagation();
-                            setPermissionMenuOpen(false);
+                            openPermissionTurnMenu(permissionTurnFocusTarget);
+                          }}
+                          onKeyDown={event => {
+                            if (event.key !== 'ArrowRight') return;
+                            event.preventDefault();
+                            event.stopPropagation();
+                            openPermissionTurnMenu(permissionTurnFocusTarget);
+                          }}
+                        >
+                          {permissionTurnSettingsLabel}
+                        </MenuItem>
+                      </>
+                    ) : null}
+                    {permissionOverridden && permissionControl.onResetToDefault ? (
+                      <>
+                        <MenuSeparator />
+                        <MenuItem
+                          data-testid="chat-input-permission-reset-default"
+                          disabled={permissionControl.saving}
+                          actions={permissionControl.onOpenDefaultSettings ? [{
+                            id: 'open-default-settings',
+                            label: t('chatInput.permissionMode.openDefaultSettings'),
+                            icon: <Settings size={13} strokeWidth={2} aria-hidden />,
+                            testId: 'chat-input-permission-open-default-settings',
+                            onClick: event => {
+                              event.stopPropagation();
+                              closePermissionMenu();
+                              permissionControl.onOpenDefaultSettings?.();
+                            },
+                          }] : []}
+                          onClick={event => {
+                            event.stopPropagation();
+                            closePermissionMenu();
                             void permissionControl.onResetToDefault?.();
                           }}
                         >
                           {t('chatInput.permissionMode.resetToDefault')}
-                        </button>
-                        {permissionControl.onOpenDefaultSettings ? (
-                          <Tooltip
-                            content={t('chatInput.permissionMode.openDefaultSettings')}
-                            placement="top"
-                          >
-                            <button
-                              type="button"
-                              role="menuitem"
-                              aria-label={t('chatInput.permissionMode.openDefaultSettings')}
-                              className="bitfun-chat-input-workspace-strip__permission-action-settings"
-                              data-testid="chat-input-permission-open-default-settings"
-                              onClick={event => {
-                                event.stopPropagation();
-                                setPermissionMenuOpen(false);
-                                permissionControl.onOpenDefaultSettings?.();
-                              }}
-                            >
-                              <Settings size={13} strokeWidth={2} aria-hidden />
-                            </button>
-                          </Tooltip>
-                        ) : null}
-                      </div>
-                    </>
-                  ) : null}
-                  {permissionControl.onHide ? (
-                    <>
-                      <div className="bitfun-chat-input-workspace-strip__permission-menu-divider" role="separator" />
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="bitfun-chat-input-workspace-strip__permission-visibility-action"
-                        data-testid="chat-input-permission-hide-control"
-                        onClick={event => {
-                          event.stopPropagation();
-                          setPermissionMenuOpen(false);
-                          void permissionControl.onHide?.();
-                        }}
-                      >
-                        <EyeOff size={14} strokeWidth={2} aria-hidden />
-                        <span>{t('chatInput.permissionMode.hideControl')}</span>
-                      </button>
-                    </>
-                  ) : null}
-                </div>,
-                getAppearanceOverlayHost(),
-              ) : null}
-            </div>
-          ) : null}
-          {showGoal ? (
-            <ThreadGoalStripButton
-              goal={threadGoal.goal}
-              onOpen={threadGoal.onOpen}
-            />
-          ) : null}
-          {showUsage ? (
-            <Tooltip content={t('usage.runtime.tooltip')}>
-              <IconButton
-                data-bf-component="chat-input-workspace-strip"
-                data-bf-part="usageAction"
-                className="bitfun-chat-input-workspace-strip__usage-btn"
-                variant="ghost"
-                size="xs"
-                type="button"
-                aria-label={t('usage.runtime.open')}
-                onClick={e => {
-                  e.stopPropagation();
-                  usageReport.onOpen();
-                }}
-              >
-                <Activity size={14} strokeWidth={2} aria-hidden />
-              </IconButton>
-            </Tooltip>
-          ) : null}
-        </div>
-      ) : null}
+                        </MenuItem>
+                      </>
+                    ) : null}
+                    {permissionControl.onHide ? (
+                      <>
+                        <MenuSeparator />
+                        <MenuItem
+                          leading={<EyeOff size={14} strokeWidth={2} aria-hidden />}
+                          data-testid="chat-input-permission-hide-control"
+                          onClick={event => {
+                            event.stopPropagation();
+                            closePermissionMenu();
+                            void permissionControl.onHide?.();
+                          }}
+                        >
+                          {t('chatInput.permissionMode.hideControl')}
+                        </MenuItem>
+                      </>
+                    ) : null}
+                  </>
+                ) : (
+                  <MenuSection
+                    title={`${t('chatInput.permissionMode.menuLabel')} · ${permissionTurnScopeLabel}`}
+                    data-bf-component="chat-input-workspace-strip"
+                    data-bf-part="permissionOptions"
+                  >
+                    <MenuItem
+                      leading={<ChevronLeft size={14} strokeWidth={2} aria-hidden />}
+                      metadata={permissionCopy[permissionMode].label}
+                      aria-label={t('chatInput.permissionMode.backToSessionSettings')}
+                      data-testid="chat-input-permission-turn-back"
+                      onClick={event => {
+                        event.stopPropagation();
+                        returnToPermissionSessionMenu();
+                      }}
+                    >
+                      {permissionSessionScopeLabel}
+                    </MenuItem>
+                    <MenuSeparator />
+                    <MenuItem
+                      role="menuitemradio"
+                      checked={!permissionNextTurnArmed}
+                      aria-label={`${t('chatInput.permissionMode.followSessionMode')} — ${permissionCopy[permissionMode].label}`}
+                      leading={(
+                        <PermissionSessionIcon
+                          size={13}
+                          strokeWidth={2}
+                          className={`bitfun-chat-input-workspace-strip__permission-option-icon bitfun-chat-input-workspace-strip__permission-option-icon--${permissionMode}`}
+                          aria-hidden
+                        />
+                      )}
+                      metadata={!permissionNextTurnArmed ? (
+                        <Check
+                          size={14}
+                          strokeWidth={2.2}
+                          data-testid="chat-input-permission-follow-session-selected"
+                          aria-hidden
+                        />
+                      ) : null}
+                      disabled={permissionControl.saving}
+                      data-testid="chat-input-permission-follow-session"
+                      onClick={event => {
+                        event.stopPropagation();
+                        closePermissionMenu();
+                        if (permissionNextTurnMode && permissionNextTurnMode !== 'acp') {
+                          void permissionControl.onChangeForNextTurn?.(permissionNextTurnMode);
+                        }
+                      }}
+                    >
+                      {t('chatInput.permissionMode.followSessionMode')}
+                    </MenuItem>
+                    {permissionModes.map(mode => renderPermissionModeOption(mode, 'turn'))}
+                  </MenuSection>
+                )}
+              </Menu>,
+              getAppearanceOverlayHost(),
+            ) : null}
+          </div>
+        ) : null}
+        {showUsage ? (
+          <Tooltip content={usageTooltip}>
+            <button
+              data-bf-component="chat-input-workspace-strip"
+              data-bf-part="usageAction"
+              className="bitfun-chat-input-workspace-strip__usage-btn"
+              type="button"
+              aria-label={t('usage.runtime.open')}
+              onClick={e => {
+                e.stopPropagation();
+                usageReport.onOpen();
+              }}
+            >
+              <span className="bitfun-chat-input-workspace-strip__usage-ring" aria-hidden>
+                <Circle className="is-track" size={12} strokeWidth={3.2} />
+                {usagePercentage > 0 ? (
+                  <Circle
+                    className="is-value"
+                    size={12}
+                    strokeWidth={3.2}
+                    strokeDasharray={usageDash}
+                  />
+                ) : null}
+              </span>
+            </button>
+          </Tooltip>
+        ) : null}
+      </div>
     </div>
   );
 };

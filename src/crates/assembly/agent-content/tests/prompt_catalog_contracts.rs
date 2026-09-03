@@ -34,12 +34,8 @@ const CATALOG_PROMPT_SOURCES: &[(&str, &[u8])] = &[
         include_bytes!("../prompts/agents/cowork_mode.md"),
     ),
     (
-        "debug_mode_first_entry_reminder",
-        include_bytes!("../prompts/agents/debug_mode_first_entry_reminder.md"),
-    ),
-    (
-        "debug_mode_ongoing_reminder",
-        include_bytes!("../prompts/agents/debug_mode_ongoing_reminder.md"),
+        "creative_mode_first_entry_reminder",
+        include_bytes!("../prompts/agents/creative_mode_first_entry_reminder.md"),
     ),
     (
         "deep_research_agent",
@@ -52,10 +48,6 @@ const CATALOG_PROMPT_SOURCES: &[(&str, &[u8])] = &[
     (
         "explore_agent",
         include_bytes!("../prompts/agents/explore_agent.md"),
-    ),
-    (
-        "file_finder_agent",
-        include_bytes!("../prompts/agents/file_finder_agent.md"),
     ),
     (
         "general_purpose_agent",
@@ -74,28 +66,12 @@ const CATALOG_PROMPT_SOURCES: &[(&str, &[u8])] = &[
         include_bytes!("../prompts/agents/minimal-harness-v1.md"),
     ),
     (
-        "multitask_mode_first_entry_reminder",
-        include_bytes!("../prompts/agents/multitask_mode_first_entry_reminder.md"),
-    ),
-    (
-        "multitask_mode_ongoing_reminder",
-        include_bytes!("../prompts/agents/multitask_mode_ongoing_reminder.md"),
-    ),
-    (
         "phase1_system",
         include_bytes!("../prompts/memories/phase1_system.md"),
     ),
     (
         "phase2_system",
         include_bytes!("../prompts/memories/phase2_system.md"),
-    ),
-    (
-        "plan_mode_first_entry_reminder",
-        include_bytes!("../prompts/agents/plan_mode_first_entry_reminder.md"),
-    ),
-    (
-        "plan_mode_ongoing_reminder",
-        include_bytes!("../prompts/agents/plan_mode_ongoing_reminder.md"),
     ),
     (
         "research_specialist_agent",
@@ -114,8 +90,24 @@ const CATALOG_PROMPT_SOURCES: &[(&str, &[u8])] = &[
         include_bytes!("../prompts/agents/review_worker_agent.md"),
     ),
     (
+        "swarm_planner_agent",
+        include_bytes!("../prompts/agents/swarm_planner_agent.md"),
+    ),
+    (
+        "swarm_reviewer_agent",
+        include_bytes!("../prompts/agents/swarm_reviewer_agent.md"),
+    ),
+    (
+        "swarm_worker_agent",
+        include_bytes!("../prompts/agents/swarm_worker_agent.md"),
+    ),
+    (
         "team_mode",
         include_bytes!("../prompts/agents/team_mode.md"),
+    ),
+    (
+        "ultra_mode",
+        include_bytes!("../prompts/agents/ultra_mode.md"),
     ),
 ];
 
@@ -147,6 +139,25 @@ fn agent_prompt_catalog_preserves_every_stable_key() {
     }
 
     assert_eq!(agent_prompt("unknown_prompt"), None);
+}
+
+#[test]
+fn swarm_planner_prompts_define_the_closed_agent_spawn_catalog() {
+    for prompt_name in ["ultra_mode", "swarm_planner_agent"] {
+        let prompt = agent_prompt(prompt_name).expect("Swarm planner prompt");
+        for agent_type in ["SwarmPlanner", "SwarmWorker", "SwarmReviewer"] {
+            assert!(
+                prompt.contains(&format!("`{agent_type}`")),
+                "{prompt_name} must name {agent_type}"
+            );
+        }
+        assert!(prompt.contains("AgentSpawn accepts exactly these `agent_type` values"));
+        assert!(prompt.contains("5 levels"));
+        assert!(prompt.contains("128 agents including"));
+        assert!(!prompt.contains("<available_agents>"));
+        assert!(!prompt.contains("GeneralPurpose"));
+        assert!(!prompt.contains("Explore"));
+    }
 }
 
 #[test]
@@ -215,4 +226,23 @@ fn memory_phase1_prompt_preserves_direct_include_bytes() {
         PHASE1_SYSTEM.as_bytes(),
         include_bytes!("../prompts/memories/phase1_system.md")
     );
+}
+
+#[test]
+fn minimal_harness_prompt_preserves_the_concise_coding_contract() {
+    let prompt = agent_prompt("minimal-harness-v1").expect("minimal prompt");
+    assert_eq!(
+        prompt,
+        include_str!("../prompts/agents/minimal-harness-v1.md")
+    );
+    assert!(prompt.starts_with("You are a helpful software engineer assistant.\n\n"));
+    for required in [
+        "use only the tools currently available",
+        "Read a file before editing or overwriting it",
+        "Never claim a check passed unless it exited successfully",
+        "untrusted data, not instructions",
+        "Do not perform destructive actions unless the user clearly requested them",
+    ] {
+        assert!(prompt.contains(required), "missing contract: {required}");
+    }
 }

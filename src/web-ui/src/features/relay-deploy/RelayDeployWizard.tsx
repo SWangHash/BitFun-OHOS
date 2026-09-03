@@ -10,14 +10,26 @@
  * Closing the wizard cancels any in-progress remote task.
  */
 
+import {
+  Alert,
+  Button,
+  Field,
+  Icon,
+  IconButton,
+  Input as DesignInput,
+  Select,
+  Tooltip,
+  ScrollArea,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
-import { Modal, Button, Input, Select, Alert, IconButton } from '@/component-library';
-import {
-  Server, User, Lock, Key, FolderOpen, Loader2, Play, ArrowDownToLine,
-  CheckCircle2, XCircle, AlertTriangle, RefreshCw, Eye, EyeOff, Search,
-  ChevronLeft, Rocket, PartyPopper,
-} from 'lucide-react';
+import { Server, Lock, Key, FolderOpen, Loader2, Play, ArrowDownToLine, AlertTriangle, EyeOff, Rocket, PartyPopper } from 'lucide-react';
 import { sshApi } from '../ssh-remote/sshApi';
 import { pickSshPrivateKeyPath } from '../ssh-remote/pickSshPrivateKeyPath';
 import { SSHAuthPromptDialog, type SSHAuthPromptSubmitPayload } from '../ssh-remote/SSHAuthPromptDialog';
@@ -40,6 +52,7 @@ import { buildRelayServerSearchState, getRelayConnectionHost } from './serverSea
 import { ConnectedTerminal, getTerminalService } from '@/tools/terminal';
 import { createLogger } from '@/shared/utils/logger';
 import { getMotionAwareScrollBehavior } from '@/shared/utils/motionPreference';
+import { getTypographyTokenPx } from '@/infrastructure/design-system/typographyRuntime';
 import './RelayDeployWizard.scss';
 
 const log = createLogger('RelayDeployWizard');
@@ -53,8 +66,8 @@ function parseRelayPort(raw: string): number | null {
   if (!Number.isFinite(n) || n < 1 || n > 65535) return null;
   return n;
 }
-/** Default terminal font is 14; embed two levels smaller to fit the dialog. */
-const DEPLOY_TERMINAL_FONT_SIZE = 12;
+/** Use the compact design-system step for the embedded deployment terminal. */
+const DEPLOY_TERMINAL_FONT_SIZE = getTypographyTokenPx('font.size.xs');
 const DEPLOY_TERMINAL_OPTIONS = { fontSize: DEPLOY_TERMINAL_FONT_SIZE };
 
 type Step = 'connect' | 'preflight' | 'deploy' | 'register' | 'done';
@@ -727,20 +740,20 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
 
   // ── step renderers ───────────────────────────────────────────────────────
   const renderConnect = () => (
-    <div className="relay-deploy-wizard__scroll">
+    <ScrollArea className="relay-deploy-wizard__scroll">
       <p className="relay-deploy-wizard__desc">{t('relayDeploy.selectServerDesc')}</p>
 
       {hasSavedConnections && (
         <div className="relay-deploy-wizard__section">
           <div className="relay-deploy-wizard__section-header">
             <h3 className="relay-deploy-wizard__section-title">{t('ssh.remote.savedConnections')}</h3>
-            <Input
+            <DesignInput
               className="relay-deploy-wizard__search"
               value={savedSearch}
               onChange={(e) => setSavedSearch(e.target.value)}
               placeholder={t('actions.search')}
-              prefix={<Search size={14} />}
-              size="small"
+              leading={<Icon name="search" size="sm" />}
+              size="sm"
             />
           </div>
           <div className="relay-deploy-wizard__server-list">
@@ -764,7 +777,7 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
                     {conn.username}@{conn.host}:{conn.port}
                   </span>
                 </div>
-                <Button size="small" variant="primary" disabled={connecting}
+                <Button size="sm" variant="fill" disabled={connecting}
                   onClick={(e) => { e.stopPropagation(); handleQuickConnect(conn); }}>
                   <Play size={12} />
                 </Button>
@@ -778,13 +791,13 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
         <div className="relay-deploy-wizard__section">
           <div className="relay-deploy-wizard__section-header">
             <h3 className="relay-deploy-wizard__section-title">{t('ssh.remote.sshConfigHosts')}</h3>
-            <Input
+            <DesignInput
               className="relay-deploy-wizard__search"
               value={configSearch}
               onChange={(e) => setConfigSearch(e.target.value)}
               placeholder={t('actions.search')}
-              prefix={<Search size={14} />}
-              size="small"
+              leading={<Icon name="search" size="sm" />}
+              size="sm"
             />
           </div>
           <div className="relay-deploy-wizard__server-list">
@@ -808,9 +821,10 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
                     {entry.user || ''}@{entry.hostname || entry.host}:{entry.port || 22}
                   </span>
                 </div>
-                <Button size="small" variant="ghost" disabled={connecting}
-                  onClick={(e) => { e.stopPropagation(); handleFillFromConfig(entry); }}>
-                  <ArrowDownToLine size={12} />
+                <Button size="sm" variant="outline" disabled={connecting}
+                  onClick={(e) => { e.stopPropagation(); handleFillFromConfig(entry); }}
+                  leadingIcon={<ArrowDownToLine size={12} />}>
+
                   {t('ssh.remote.fillForm')}
                 </Button>
               </div>
@@ -832,77 +846,104 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
       >
         <div className="relay-deploy-wizard__row">
           <div className="relay-deploy-wizard__field relay-deploy-wizard__field--flex">
-            <Input label={t('ssh.remote.host')} value={formData.host}
-              onChange={(e) => setFormData((p) => ({ ...p, host: e.target.value }))}
-              prefix={<Server size={16} />} size="medium" disabled={connecting} />
+            <Field label={t('ssh.remote.host')} controlWidth="fill">
+              <DesignInput value={formData.host}
+                onChange={(e) => setFormData((p) => ({ ...p, host: e.target.value }))}
+                leading={<Server size={16} />} disabled={connecting} />
+            </Field>
           </div>
           <div className="relay-deploy-wizard__field relay-deploy-wizard__field--port">
-            <Input label={t('ssh.remote.port')} value={formData.port}
-              onChange={(e) => setFormData((p) => ({ ...p, port: e.target.value }))}
-              placeholder="22" size="medium" disabled={connecting} />
+            <Field label={t('ssh.remote.port')} controlWidth="fill">
+              <DesignInput value={formData.port}
+                onChange={(e) => setFormData((p) => ({ ...p, port: e.target.value }))}
+                placeholder="22" disabled={connecting} />
+            </Field>
           </div>
         </div>
         <div className="relay-deploy-wizard__field">
-          <Input label={t('ssh.remote.username')} value={formData.username}
-            onChange={(e) => setFormData((p) => ({ ...p, username: e.target.value }))}
-            prefix={<User size={16} />} size="medium" disabled={connecting} />
+          <Field label={t('ssh.remote.username')} controlWidth="fill">
+            <DesignInput value={formData.username}
+              onChange={(e) => setFormData((p) => ({ ...p, username: e.target.value }))}
+              leading={<Icon name="user" size="md" />} disabled={connecting} />
+          </Field>
         </div>
         <div className="relay-deploy-wizard__field">
           <label className="relay-deploy-wizard__label">{t('ssh.remote.authMethod')}</label>
           <Select options={authOptions} value={formData.authType}
-            onChange={(v) => setFormData((p) => ({ ...p, authType: String(v) as 'password' | 'privateKey' }))}
-            size="medium" disabled={connecting} />
+            onValueChange={(v) => setFormData((p) => ({ ...p, authType: String(v) as 'password' | 'privateKey' }))}
+            size="md" disabled={connecting} />
         </div>
         {formData.authType === 'password' && (
           <div className="relay-deploy-wizard__field">
-            <Input label={t('ssh.remote.password')} type={showPassword ? 'text' : 'password'}
-              value={formData.password}
-              onChange={(e) => setFormData((p) => ({ ...p, password: e.target.value }))}
-              prefix={<Lock size={16} />} size="medium" disabled={connecting}
-              suffix={
-                <button type="button" className="bitfun-input-toggle" onClick={() => setShowPassword((s) => !s)} tabIndex={-1}>
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              } />
+            <Field label={t('ssh.remote.password')} controlWidth="fill">
+              <DesignInput type={showPassword ? 'text' : 'password'}
+                value={formData.password}
+                onChange={(e) => setFormData((p) => ({ ...p, password: e.target.value }))}
+                leading={<Lock size={16} />} disabled={connecting}
+                trailing={
+                  <IconButton
+                    type="button"
+                    size="sm"
+                    variant="quiet"
+                    aria-label={showPassword ? t('ssh.remote.hidePassword') : t('ssh.remote.showPassword')}
+                    onClick={() => setShowPassword((s) => !s)}
+                    tabIndex={-1}
+                    icon={showPassword ? <EyeOff size={16} /> : <Icon name="eye" size="md" />}
+                  />
+                } />
+            </Field>
           </div>
         )}
         {formData.authType === 'privateKey' && (
           <>
             <div className="relay-deploy-wizard__field">
-              <Input label={t('ssh.remote.privateKeyPath')} value={formData.keyPath}
-                onChange={(e) => setFormData((p) => ({ ...p, keyPath: e.target.value }))}
-                placeholder="~/.ssh/id_rsa" prefix={<Key size={16} />} size="medium"
-                disabled={connecting}
-                suffix={
-                  <IconButton type="button" variant="ghost" size="small"
-                    tooltip={t('ssh.remote.browsePrivateKey')}
-                    aria-label={t('ssh.remote.browsePrivateKey')}
-                    disabled={connecting}
-                    onClick={() => void handleBrowsePrivateKey()}>
-                    <FolderOpen size={16} />
-                  </IconButton>
-                } />
+              <Field label={t('ssh.remote.privateKeyPath')} controlWidth="fill">
+                <DesignInput value={formData.keyPath}
+                  onChange={(e) => setFormData((p) => ({ ...p, keyPath: e.target.value }))}
+                  placeholder="~/.ssh/id_rsa" leading={<Key size={16} />}
+                  disabled={connecting}
+                  trailing={
+                    <Tooltip content={t('ssh.remote.browsePrivateKey')}>
+                      <IconButton
+                        type="button"
+                        size="sm"
+                        aria-label={t('ssh.remote.browsePrivateKey')}
+                        disabled={connecting}
+                        onClick={() => void handleBrowsePrivateKey()}
+                        icon={<FolderOpen size={16} />}
+                      />
+                    </Tooltip>
+                  } />
+              </Field>
             </div>
             <div className="relay-deploy-wizard__field">
-              <Input label={t('ssh.remote.passphrase')} type={showPassphrase ? 'text' : 'password'}
-                value={formData.passphrase}
-                onChange={(e) => setFormData((p) => ({ ...p, passphrase: e.target.value }))}
-                placeholder={t('ssh.remote.passphraseOptional')} size="medium" disabled={connecting}
-                suffix={
-                  <button type="button" className="bitfun-input-toggle" onClick={() => setShowPassphrase((s) => !s)} tabIndex={-1}>
-                    {showPassphrase ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                } />
+              <Field label={t('ssh.remote.passphrase')} controlWidth="fill">
+                <DesignInput type={showPassphrase ? 'text' : 'password'}
+                  value={formData.passphrase}
+                  onChange={(e) => setFormData((p) => ({ ...p, passphrase: e.target.value }))}
+                  placeholder={t('ssh.remote.passphraseOptional')} disabled={connecting}
+                  trailing={
+                    <IconButton
+                      type="button"
+                      size="sm"
+                      variant="quiet"
+                      aria-label={showPassphrase ? t('ssh.remote.hidePassword') : t('ssh.remote.showPassword')}
+                      onClick={() => setShowPassphrase((s) => !s)}
+                      tabIndex={-1}
+                      icon={showPassphrase ? <EyeOff size={16} /> : <Icon name="eye" size="md" />}
+                    />
+                  } />
+              </Field>
             </div>
           </>
         )}
       </div>
 
       <div className="relay-deploy-wizard__actions">
-        <Button variant="secondary" size="small" onClick={onClose} disabled={connecting}>
+        <Button variant="outline" size="sm" onClick={onClose} disabled={connecting}>
           {t('actions.cancel')}
         </Button>
-        <Button variant="primary" size="small" onClick={handleFormConnect}
+        <Button variant="fill" size="sm" onClick={handleFormConnect}
           disabled={connecting || !formData.host.trim() || !formData.username.trim()}>
           {connecting ? (
             <><Loader2 size={14} className="spinning" />{t('ssh.remote.connecting')}</>
@@ -911,7 +952,7 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
           )}
         </Button>
       </div>
-    </div>
+    </ScrollArea>
   );
 
   const renderCheckRow = (
@@ -920,9 +961,9 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
     detail: string,
   ) => (
     <div className="relay-deploy-wizard__check-row">
-      {ok === true && <CheckCircle2 size={15} className="relay-deploy-wizard__check-icon relay-deploy-wizard__check-icon--ok" />}
+      {ok === true && <Icon name="check-circle" size="sm" className="relay-deploy-wizard__check-icon relay-deploy-wizard__check-icon--ok" />}
       {ok === 'warn' && <AlertTriangle size={15} className="relay-deploy-wizard__check-icon relay-deploy-wizard__check-icon--warn" />}
-      {ok === false && <XCircle size={15} className="relay-deploy-wizard__check-icon relay-deploy-wizard__check-icon--fail" />}
+      {ok === false && <Icon name="xmark" size="sm" className="relay-deploy-wizard__check-icon relay-deploy-wizard__check-icon--fail" />}
       <span className="relay-deploy-wizard__check-label">{label}</span>
       <span className="relay-deploy-wizard__check-detail">{detail}</span>
     </div>
@@ -936,7 +977,7 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
     const dockerWarn = !!pf?.dockerInstalled && !dockerOk && pf.dockerAccessMode !== 'missing';
     const dockerWillInstall = !!pf && !pf.dockerInstalled && canInstallDocker;
     return (
-      <div className="relay-deploy-wizard__scroll">
+      <ScrollArea className="relay-deploy-wizard__scroll">
         <div className="relay-deploy-wizard__server-banner">
           <Server size={14} />
           <span>{serverLabel}</span>
@@ -951,7 +992,7 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
           <>
             {alreadyDeployed && (
               <div className="relay-deploy-wizard__notice relay-deploy-wizard__notice--info">
-                <CheckCircle2 size={18} />
+                <Icon name="check-circle" size="lg" />
                 <div className="relay-deploy-wizard__notice-text">
                   <span className="relay-deploy-wizard__notice-title">{t('relayDeploy.alreadyDeployedTitle')}</span>
                   <span className="relay-deploy-wizard__notice-desc">
@@ -965,16 +1006,16 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
 
             <div className="relay-deploy-wizard__port-row">
               <div className="relay-deploy-wizard__field relay-deploy-wizard__field--port">
-                <Input
-                  label={t('relayDeploy.relayPort')}
-                  type="number"
-                  value={relayPortInput}
-                  onChange={(e) => setRelayPortInput(e.target.value)}
-                  size="medium"
-                  disabled={taskRunning || preflightLoading}
-                  min={1}
-                  max={65535}
-                />
+                <Field label={t('relayDeploy.relayPort')} controlWidth="fill">
+                  <DesignInput
+                    type="number"
+                    value={relayPortInput}
+                    onChange={(e) => setRelayPortInput(e.target.value)}
+                    disabled={taskRunning || preflightLoading}
+                    min={1}
+                    max={65535}
+                  />
+                </Field>
               </div>
               <p className="relay-deploy-wizard__port-hint">{t('relayDeploy.relayPortHint')}</p>
             </div>
@@ -985,8 +1026,8 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
                 <Select
                   options={mirrorModeOptions}
                   value={mirrorMode}
-                  onChange={(value) => setMirrorMode(String(value) as RelayMirrorMode)}
-                  size="medium"
+                  onValueChange={(value) => setMirrorMode(String(value) as RelayMirrorMode)}
+                  size="md"
                   disabled={taskRunning || preflightLoading}
                 />
               </div>
@@ -1073,7 +1114,7 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
             )}
             {taskFailed && (
               <div className="relay-deploy-wizard__task-status relay-deploy-wizard__task-status--failed">
-                <XCircle size={14} />
+                <Icon name="xmark" size="sm" />
                 <span>{t('relayDeploy.dockerInstallFailed')}</span>
               </div>
             )}
@@ -1081,13 +1122,13 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
             <div className="relay-deploy-wizard__actions">
               {alreadyDeployed ? (
                 <>
-                  <Button variant="secondary" size="small" onClick={handleStartDeploy} disabled={taskRunning}>
-                    <Rocket size={14} />
+                  <Button variant="outline" size="sm" onClick={handleStartDeploy} disabled={taskRunning} leadingIcon={<Rocket size={14} />}>
+
                     {t('relayDeploy.redeploy')}
                   </Button>
                   <Button
-                    variant="primary"
-                    size="small"
+                    variant="fill"
+                    size="sm"
                     onClick={() => {
                       // Account creation must hit the running relay, not the
                       // (possibly different) redeploy listen port.
@@ -1097,23 +1138,25 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
                       setStep('register');
                     }}
                     disabled={taskRunning || !pf.relayHealthy}
+                    leadingIcon={<Icon name="user" size="sm" />}
                   >
-                    <User size={14} />
+
                     {t('relayDeploy.skipToRegister')}
                   </Button>
                 </>
               ) : (
                 <>
-                  <Button variant="secondary" size="small" onClick={handleBackToPreflight} disabled={taskRunning || preflightLoading}>
-                    <ChevronLeft size={14} />
+                  <Button variant="outline" size="sm" onClick={handleBackToPreflight} disabled={taskRunning || preflightLoading} leadingIcon={<Icon name="chevron-left" size="sm" />}>
+
                     {t('relayDeploy.back')}
                   </Button>
                   {!pf.dockerInstalled && !canInstallDocker && !taskRunning && (
                     <span className="relay-deploy-wizard__hint">{t('relayDeploy.dockerManualHint')}</span>
                   )}
-                  <Button variant="primary" size="small" onClick={handleStartDeploy}
-                    disabled={!canDeploy || taskRunning}>
-                    <Rocket size={14} />
+                  <Button variant="fill" size="sm" onClick={handleStartDeploy}
+                    disabled={!canDeploy || taskRunning}
+                    leadingIcon={<Rocket size={14} />}>
+
                     {t('relayDeploy.startDeploy')}
                   </Button>
                 </>
@@ -1121,12 +1164,12 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
             </div>
           </>
         )}
-      </div>
+      </ScrollArea>
     );
   };
 
   const renderDeploy = () => (
-    <div className="relay-deploy-wizard__scroll">
+    <ScrollArea className="relay-deploy-wizard__scroll">
       <div className="relay-deploy-wizard__server-banner">
         <Server size={14} />
         <span>{serverLabel}</span>
@@ -1143,7 +1186,7 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
         )}
         {taskStatus === 'succeeded' && (
           <>
-            <CheckCircle2 size={16} className="relay-deploy-wizard__check-icon--ok" />
+            <Icon name="check-circle" size="md" className="relay-deploy-wizard__check-icon--ok" />
             <div className="relay-deploy-wizard__task-header-text">
               <span className="relay-deploy-wizard__task-title">{t('relayDeploy.deploySucceeded')}</span>
             </div>
@@ -1151,7 +1194,7 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
         )}
         {taskStatus === 'failed' && (
           <>
-            <XCircle size={16} className="relay-deploy-wizard__check-icon--fail" />
+            <Icon name="xmark" size="md" className="relay-deploy-wizard__check-icon--fail" />
             <div className="relay-deploy-wizard__task-header-text">
               <span className="relay-deploy-wizard__task-title">{t('relayDeploy.deployFailed')}</span>
             </div>
@@ -1175,23 +1218,24 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
         </div>
       )}
       <div className="relay-deploy-wizard__actions">
-        <Button variant="secondary" size="small" onClick={handleBackToPreflight}
-          disabled={taskStatus === 'running'}>
-          <ChevronLeft size={14} />
+        <Button variant="outline" size="sm" onClick={handleBackToPreflight}
+          disabled={taskStatus === 'running'}
+          leadingIcon={<Icon name="chevron-left" size="sm" />}>
+
           {t('relayDeploy.back')}
         </Button>
         {taskStatus === 'failed' && (
-          <Button variant="primary" size="small" onClick={handleStartDeploy}>
-            <RefreshCw size={14} />
+          <Button variant="fill" size="sm" onClick={handleStartDeploy} leadingIcon={<Icon name="refresh" size="sm" />}>
+
             {t('relayDeploy.retry')}
           </Button>
         )}
       </div>
-    </div>
+    </ScrollArea>
   );
 
   const renderRegister = () => (
-    <div className="relay-deploy-wizard__scroll">
+    <ScrollArea className="relay-deploy-wizard__scroll">
       <div className="relay-deploy-wizard__server-banner">
         <Server size={14} />
         <span>{relayUrl}</span>
@@ -1215,7 +1259,7 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
         </button>
       </div>
       <div className="relay-deploy-wizard__notice relay-deploy-wizard__notice--info">
-        <User size={18} />
+        <Icon name="user" size="lg" />
         <div className="relay-deploy-wizard__notice-text">
           <span className="relay-deploy-wizard__notice-title">
             {regMode === 'create' ? t('relayDeploy.registerTitle') : t('relayDeploy.registerExistingTitle')}
@@ -1227,86 +1271,103 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
       </div>
       <div className="relay-deploy-wizard__form">
         <div className="relay-deploy-wizard__field">
-          <Input label={t('accountLogin.username')} type="text" value={regUsername}
-            onChange={(e) => setRegUsername(e.target.value)}
-            prefix={<User size={16} />} size="medium" disabled={regLoading} />
+          <Field label={t('accountLogin.username')} controlWidth="fill">
+            <DesignInput type="text" value={regUsername}
+              onChange={(e) => setRegUsername(e.target.value)}
+              leading={<Icon name="user" size="md" />} disabled={regLoading} />
+          </Field>
         </div>
         <div className="relay-deploy-wizard__field">
-          <Input label={t('accountLogin.password')} type={showRegPassword ? 'text' : 'password'}
-            value={regPassword} onChange={(e) => setRegPassword(e.target.value)}
-            prefix={<Lock size={16} />} size="medium" disabled={regLoading}
-            suffix={
-              <button type="button" className="bitfun-input-toggle" onClick={() => setShowRegPassword((s) => !s)} tabIndex={-1}>
-                {showRegPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            } />
+          <Field label={t('accountLogin.password')} controlWidth="fill">
+            <DesignInput type={showRegPassword ? 'text' : 'password'}
+              value={regPassword} onChange={(e) => setRegPassword(e.target.value)}
+              leading={<Lock size={16} />} disabled={regLoading}
+              trailing={
+                <IconButton
+                  type="button"
+                  size="sm"
+                  variant="quiet"
+                  aria-label={showRegPassword ? t('ssh.remote.hidePassword') : t('ssh.remote.showPassword')}
+                  onClick={() => setShowRegPassword((s) => !s)}
+                  tabIndex={-1}
+                  icon={showRegPassword ? <EyeOff size={16} /> : <Icon name="eye" size="md" />}
+                />
+              } />
+          </Field>
         </div>
         {regMode === 'create' && (
           <div className="relay-deploy-wizard__field">
-            <Input label={t('relayDeploy.confirmPassword')} type={showRegPassword ? 'text' : 'password'}
-              value={regConfirm} onChange={(e) => setRegConfirm(e.target.value)}
-              prefix={<Lock size={16} />} size="medium" disabled={regLoading} />
+            <Field label={t('relayDeploy.confirmPassword')} controlWidth="fill">
+              <DesignInput type={showRegPassword ? 'text' : 'password'}
+                value={regConfirm} onChange={(e) => setRegConfirm(e.target.value)}
+                leading={<Lock size={16} />} disabled={regLoading} />
+            </Field>
           </div>
         )}
       </div>
       <div className="relay-deploy-wizard__actions">
-        <Button variant="secondary" size="small" onClick={handleBackToPreflight} disabled={regLoading}>
-          <ChevronLeft size={14} />
+        <Button variant="outline" size="sm" onClick={handleBackToPreflight} disabled={regLoading} leadingIcon={<Icon name="chevron-left" size="sm" />}>
+
           {t('relayDeploy.back')}
         </Button>
         {regMode === 'create' ? (
-          <Button variant="primary" size="small" onClick={handleRegister}
+          <Button variant="fill" size="sm" onClick={handleRegister}
             disabled={regLoading || !regUsername.trim() || !regPassword || !regConfirm}>
             {regLoading ? (
               <><Loader2 size={14} className="spinning" />{t('relayDeploy.creatingAccount')}</>
             ) : (
-              <><User size={14} />{t('relayDeploy.createAccount')}</>
+              <><Icon name="user" size="sm" />{t('relayDeploy.createAccount')}</>
             )}
           </Button>
         ) : (
-          <Button variant="primary" size="small" onClick={handleUseExisting}
-            disabled={regLoading || !regUsername.trim() || !regPassword}>
-            <CheckCircle2 size={14} />
+          <Button variant="fill" size="sm" onClick={handleUseExisting}
+            disabled={regLoading || !regUsername.trim() || !regPassword}
+            leadingIcon={<Icon name="check-circle" size="sm" />}>
+
             {t('relayDeploy.finishAndLogin')}
           </Button>
         )}
       </div>
-    </div>
+    </ScrollArea>
   );
 
   const renderDone = () => (
-    <div className="relay-deploy-wizard__scroll">
+    <ScrollArea className="relay-deploy-wizard__scroll">
       <div className="relay-deploy-wizard__done">
         <PartyPopper size={32} className="relay-deploy-wizard__done-icon" />
         <span className="relay-deploy-wizard__done-title">{t('relayDeploy.doneTitle')}</span>
         <code className="relay-deploy-wizard__done-url">{relayUrl}</code>
         {verify && (
           <div className={`relay-deploy-wizard__verify ${verify.reachable ? 'ok' : 'failed'}`}>
-            {verify.reachable ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+            {verify.reachable ? <Icon name="check-circle" size="sm" /> : <AlertTriangle size={14} />}
             <span>{verify.reachable ? t('relayDeploy.verifyOk') : t('relayDeploy.verifyFailed')}</span>
           </div>
         )}
       </div>
       <div className="relay-deploy-wizard__actions">
-        <Button variant="primary" size="small" onClick={handleFinish}>
-          <CheckCircle2 size={14} />
+        <Button variant="fill" size="sm" onClick={handleFinish} leadingIcon={<Icon name="check-circle" size="sm" />}>
+
           {t('relayDeploy.finishAndLogin')}
         </Button>
       </div>
-    </div>
+    </ScrollArea>
   );
 
   return (
     <>
-      <Modal
-        isOpen={isOpen}
-        onClose={onClose}
-        title={t('relayDeploy.title')}
-        size="large"
-        showCloseButton
-        closeOnOverlayClick={false}
-        contentClassName="modal__content--fill-flex"
+      <Dialog
+        open={isOpen}
+        onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}
+        size="lg"
+        closeOnPointerOutside={false}
       >
+        <DialogHeader>
+          <DialogHeading>
+            <DialogTitle>{t('relayDeploy.title')}</DialogTitle>
+          </DialogHeading>
+          <DialogClose />
+        </DialogHeader>
+        <DialogBody inset="none">
         <div className="relay-deploy-wizard" data-bf-component="relay-deploy" data-bf-part="root">
           <div className="relay-deploy-wizard__steps" data-bf-component="relay-deploy" data-bf-part="steps">
             {steps.map((s, i) => (
@@ -1318,7 +1379,7 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
                   data-bf-state={[i === stepIndex && 'active', i < stepIndex && 'completed'].filter(Boolean).join(' ') || undefined}
                 >
                   <span className="relay-deploy-wizard__step-dot">
-                    {i < stepIndex ? <CheckCircle2 size={12} /> : i + 1}
+                    {i < stepIndex ? <Icon name="check-circle" size="xs" /> : i + 1}
                   </span>
                   <span className="relay-deploy-wizard__step-label">{s.label}</span>
                 </div>
@@ -1329,7 +1390,7 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
 
           {error && (
             <div className="relay-deploy-wizard__error-banner" data-bf-component="relay-deploy" data-bf-part="error">
-              <Alert type="error" message={error} closable onClose={() => setError(null)}
+              <Alert tone="error" message={error} closable onClose={() => setError(null)}
                 className="relay-deploy-wizard__error-alert" />
             </div>
           )}
@@ -1340,7 +1401,8 @@ export const RelayDeployWizard: React.FC<RelayDeployWizardProps> = ({
           {step === 'register' && renderRegister()}
           {step === 'done' && renderDone()}
         </div>
-      </Modal>
+              </DialogBody>
+      </Dialog>
 
       {credentialsPrompt && (
         <SSHAuthPromptDialog

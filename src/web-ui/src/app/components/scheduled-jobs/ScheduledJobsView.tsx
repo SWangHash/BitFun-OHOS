@@ -5,17 +5,9 @@
  * job list at top, inline editor expands below the selected job.
  */
 
+import { Icon, Button, Combobox, Switch, IconButton, Input, Select, Textarea, Tooltip } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { RefreshCw, Trash2 } from 'lucide-react';
-import {
-  Button,
-  IconButton,
-  Input,
-  Select,
-  Switch,
-  Textarea,
-  confirmDanger,
-} from '@/component-library';
+import { confirmDanger } from '@/infrastructure/confirm-dialog';
 import {
   cronAPI,
   type CreateCronJobRequest,
@@ -610,8 +602,8 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
         ) : null}
         <Button
           type="button"
-          size="small"
-          variant="secondary"
+          size="sm"
+          variant="outline"
           className="asv__new-job"
           onClick={handleCreateNew}
           disabled={assistantWorkspaceMode ? !workspaceRef : targetKind === 'session' ? !canSave : !workspaceRef}
@@ -624,7 +616,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
 
       {loading ? (
         <div className="asv__empty" data-bf-component="scheduled-jobs-view" data-bf-part="empty" data-bf-state="loading">
-          <RefreshCw size={14} className="asv__spin" />
+          <Icon name="refresh" size="sm" className="asv__spin" />
         </div>
       ) : sortedJobs.length === 0 && expandedJobId !== NEW_JOB_ID ? (
         <div className="asv__empty" data-bf-component="scheduled-jobs-view" data-bf-part="empty">
@@ -663,7 +655,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
                           role="presentation"
                         >
                           <Switch
-                            size="small"
+                            className="asv__switch"
                             checked={job.enabled}
                             onChange={e => {
                               void handleToggleEnabled(job, e.currentTarget.checked);
@@ -671,16 +663,16 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
                             aria-label={t('nav.scheduledJobs.actions.toggleEnabled')}
                           />
                         </div>
-                        <IconButton
-                          type="button"
-                          size="xs"
-                          variant="danger"
-                          aria-label={t('nav.scheduledJobs.actions.delete')}
-                          tooltip={t('nav.scheduledJobs.actions.delete')}
-                          onClick={e => { e.stopPropagation(); void handleDeleteJob(job); }}
-                        >
-                          <Trash2 size={13} />
-                        </IconButton>
+                        <Tooltip content={t('nav.scheduledJobs.actions.delete')}>
+                          <IconButton
+                            type="button"
+                            size="sm"
+                            tone="danger"
+                            aria-label={t('nav.scheduledJobs.actions.delete')}
+                            onClick={e => { e.stopPropagation(); void handleDeleteJob(job); }}
+                            icon={<Icon name="delete" size="lg" style={{ width: 13, height: 13 }} />}
+                          />
+                        </Tooltip>
                       </div>
                     </div>
                     <div className="asv__item-meta-row" data-bf-component="scheduled-jobs-view" data-bf-part="jobMeta">
@@ -738,15 +730,15 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
           </div>
           <div className="asv__field-control" data-bf-component="scheduled-jobs-view" data-bf-part="fieldControl">
             <Input
-              size="small"
               value={draft.name}
               onChange={e => {
                 const name = e.currentTarget.value;
                 setValidationErrors(current => ({ ...current, name: false }));
                 setDraft(c => ({ ...c, name }));
               }}
-              error={validationErrors.name}
+              invalid={validationErrors.name}
               placeholder={t('nav.scheduledJobs.placeholders.name')}
+              size="sm"
             />
           </div>
         </div>
@@ -758,14 +750,14 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
           <div className="asv__field-control" data-bf-component="scheduled-jobs-view" data-bf-part="fieldControl">
             <div className="asv__control-grid asv__control-grid--schedule">
               <Select
-                size="small"
+                size="sm"
                 value={draft.scheduleKind}
                 options={[
                   { value: 'at', label: t('nav.scheduledJobs.scheduleKinds.at') },
                   { value: 'every', label: t('nav.scheduledJobs.scheduleKinds.every') },
                   { value: 'cron', label: t('nav.scheduledJobs.scheduleKinds.cron') },
                 ]}
-                onChange={value => {
+                onValueChange={value => {
                   setValidationErrors(current => ({
                     ...current,
                     at: false,
@@ -783,7 +775,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
               <div className="asv__toggle-card" data-bf-component="scheduled-jobs-view" data-bf-part="toggle">
                 <span className="asv__toggle-label">{t('nav.scheduledJobs.fields.enabled')}</span>
                 <Switch
-                  size="small"
+                  className="asv__switch"
                   checked={draft.enabled}
                   onChange={e => {
                     const enabled = e.currentTarget.checked;
@@ -827,25 +819,25 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
               <div className="asv__field-control" data-bf-component="scheduled-jobs-view" data-bf-part="fieldControl">
                 <div className="asv__control-grid asv__control-grid--interval">
                   <Input
-                    size="small"
                     type="number"
                     value={draft.everyValue}
-                    error={validationErrors.everyValue}
+                    invalid={validationErrors.everyValue}
                     onChange={e => {
                       const everyValue = e.currentTarget.value;
                       setValidationErrors(current => ({ ...current, everyValue: false }));
                       setDraft(c => ({ ...c, everyValue }));
                     }}
                     placeholder="1"
+                    size="sm"
                   />
                   <Select
-                    size="small"
+                    size="sm"
                     value={draft.everyUnit}
                     options={INTERVAL_UNIT_OPTIONS.map(unit => ({
                       value: unit,
                       label: t(`nav.scheduledJobs.intervalUnits.${unit}`),
                     }))}
-                    onChange={value => {
+                    onValueChange={value => {
                       setDraft(c => ({ ...c, everyUnit: value as IntervalUnit }));
                     }}
                   />
@@ -875,15 +867,15 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
               </div>
               <div className="asv__field-control" data-bf-component="scheduled-jobs-view" data-bf-part="fieldControl">
                 <Input
-                  size="small"
                   value={draft.expr}
-                  error={validationErrors.cronExpr}
+                  invalid={validationErrors.cronExpr}
                   onChange={e => {
                     const expr = e.currentTarget.value;
                     setValidationErrors(current => ({ ...current, cronExpr: false }));
                     setDraft(c => ({ ...c, expr }));
                   }}
                   placeholder="0 8 * * *"
+                  size="sm"
                 />
                 <span className="asv__field-note">
                   {t('nav.scheduledJobs.hints.cronExpr')}
@@ -896,13 +888,13 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
               </div>
               <div className="asv__field-control" data-bf-component="scheduled-jobs-view" data-bf-part="fieldControl">
                 <Input
-                  size="small"
                   value={draft.tz}
                   onChange={e => {
                     const tz = e.currentTarget.value;
                     setDraft(c => ({ ...c, tz }));
                   }}
                   placeholder={t('nav.scheduledJobs.placeholders.timezone')}
+                  size="sm"
                 />
               </div>
             </div>
@@ -915,17 +907,15 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
               <span className="asv__field-label">{t('nav.scheduledJobs.fields.session')}</span>
             </div>
             <div className="asv__field-control" data-bf-component="scheduled-jobs-view" data-bf-part="fieldControl">
-              <Select
-                size="small"
+              <Combobox
+                size="sm"
                 options={sessionOptions}
                 value={draft.sessionId}
-                error={validationErrors.sessionId}
-                allowCustomValue
-                searchable
+                invalid={validationErrors.sessionId}
+                onCreateValue={value => value}
                 clearable
                 className="asv__session-select"
-                dropdownClassName="asv__session-select-dropdown"
-                onChange={value => {
+                onValueChange={value => {
                   setValidationErrors(current => ({ ...current, sessionId: false }));
                   setDraft(c => ({ ...c, sessionId: String(value) }));
                 }}
@@ -939,23 +929,14 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
               <span className="asv__field-label">{t('nav.scheduledJobs.fields.agentType')}</span>
             </div>
             <div className="asv__field-control" data-bf-component="scheduled-jobs-view" data-bf-part="fieldControl">
-              <Select
-                size="small"
+              <Combobox
+                size="sm"
                 options={workspaceAgentOptions}
                 value={draft.agentType}
-                error={validationErrors.agentType}
+                invalid={validationErrors.agentType}
                 disabled={workspaceKind === WorkspaceKind.Assistant}
                 className="asv__agent-select"
-                dropdownClassName="asv__agent-select-dropdown"
-                renderOption={option => (
-                  <div className="asv__agent-option">
-                    <span className="asv__agent-option-label">{option.label}</span>
-                    {option.description ? (
-                      <span className="asv__agent-option-description">{option.description}</span>
-                    ) : null}
-                  </div>
-                )}
-                onChange={value => {
+                onValueChange={value => {
                   const agentType = String(value);
                   setValidationErrors(current => ({ ...current, agentType: false }));
                   setDraft(c => ({ ...c, agentType }));
@@ -970,14 +951,13 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
               <span className="asv__field-label">{t('nav.scheduledJobs.fields.session')}</span>
             </div>
             <div className="asv__field-control" data-bf-component="scheduled-jobs-view" data-bf-part="fieldControl">
-              <Select
-                size="small"
+              <Combobox
+                size="sm"
                 options={sessionOptions}
                 value={draft.sessionId}
-                error={validationErrors.sessionId}
-                allowCustomValue
-                searchable
-                onChange={value => {
+                invalid={validationErrors.sessionId}
+                onCreateValue={value => value}
+                onValueChange={value => {
                   setValidationErrors(current => ({ ...current, sessionId: false }));
                   setDraft(c => ({ ...c, sessionId: String(value) }));
                 }}
@@ -994,13 +974,14 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
           <div className="asv__field-control" data-bf-component="scheduled-jobs-view" data-bf-part="fieldControl">
             <Textarea
               className="asv__prompt-textarea"
+              rows={4}
               value={draft.text}
               onChange={e => {
                 const text = e.currentTarget.value;
                 setValidationErrors(current => ({ ...current, text: false }));
                 setDraft(c => ({ ...c, text }));
               }}
-              error={validationErrors.text}
+              invalid={validationErrors.text}
               autoResize
               showCount
               maxLength={4000}
@@ -1011,20 +992,20 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
 
         <div className="asv__form-actions" data-bf-component="scheduled-jobs-view" data-bf-part="formActions">
           <Button
-            size="small"
-            className="asv__action-btn asv__action-btn--ghost"
-            variant="ghost"
+            size="sm"
+            className="asv__action-btn"
+            variant="outline"
             onClick={handleCloseEditor}
           >
             {t('nav.scheduledJobs.actions.cancel')}
           </Button>
           <Button
-            size="small"
-            className="asv__action-btn asv__action-btn--primary"
-            variant="primary"
+            size="sm"
+            className="asv__action-btn"
+            variant="fill"
             onClick={() => { void handleSave(); }}
             disabled={!canSave}
-            isLoading={saving}
+            loading={saving}
           >
             {selectedJobId
               ? t('nav.scheduledJobs.actions.save')

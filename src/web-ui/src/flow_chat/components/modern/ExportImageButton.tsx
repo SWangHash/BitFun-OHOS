@@ -9,16 +9,18 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
 import { Image, Loader2 } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import { FlowChatStore } from '../../store/FlowChatStore';
 import { notificationService } from '@/shared/notification-system';
 import { FlowTextBlock } from '../FlowTextBlock';
 import { FlowToolCard } from '../FlowToolCard';
+import { Icon, Tooltip } from '@bitfun/ui';
 import type { DialogTurn, FlowTextItem, FlowToolItem, FlowThinkingItem } from '../../types/flow-chat';
 import { i18nService } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
-import { getBuiltinAppearanceCssToken } from '@/infrastructure/appearance/builtins/catalog';
+import { getBuiltinAppearanceThemeToken } from '@/infrastructure/appearance/builtins/catalog';
 import { withTimeout } from '@/shared/utils/timing';
 import { savePngBlob, notifyPngExportSuccess } from '../../utils/saveExportedPng';
 import { ModelThinkingDisplay } from '../../tool-cards/ModelThinkingDisplay';
@@ -228,8 +230,8 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
       
       // Read the resolved appearance background color.
       const computedStyle = getComputedStyle(document.documentElement);
-      const bgColor = computedStyle.getPropertyValue('--bf-appearance-token-color-bg-scene').trim()
-        || getBuiltinAppearanceCssToken('--bf-appearance-token-color-bg-scene');
+      const bgColor = computedStyle.getPropertyValue('--bf-color-surface-scene').trim()
+        || getBuiltinAppearanceThemeToken('--bf-color-surface-scene');
 
       // Pre-load the logo as an HTMLImageElement. We do NOT try to embed it
       // inside the captured DOM (unreliable with <img>/data URLs inside an
@@ -344,9 +346,12 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
           if (node.classList?.contains('model-round-item__footer')) return false;
           if (node.classList?.contains('user-message-item__actions')) return false;
           if (node.classList?.contains('tool-card__actions')) return false;
-          if (node.classList?.contains('base-tool-card__confirm-actions')) return false;
-          if (node.classList?.contains('base-tool-card-expanded')) return false;
-          if (node.classList?.contains('compact-tool-card-expanded')) return false;
+          if (
+            node.matches?.(
+              '[data-bf-component="flow-chat-tool-card"][data-bf-part="actionRegion"], '
+              + '[data-bf-component="flow-chat-tool-card"][data-bf-part="expanded"]',
+            )
+          ) return false;
         }
         return true;
       };
@@ -522,7 +527,9 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
           ? i18nService.t('flow-chat:exportImage.exporting')
           : i18nService.t('flow-chat:exportImage.exportToImage')}
       >
-        {isExporting ? <Loader2 size={14} className="spinning" /> : <Image size={14} />}
+        {isExporting
+          ? <Icon name="progress-25" size="sm" className="spinning" />
+          : <Icon name="image" size="sm" />}
       </button>
     </Tooltip>
   );

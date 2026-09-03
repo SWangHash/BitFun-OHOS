@@ -6,9 +6,9 @@
 import React, { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { ChevronDown, ChevronRight, ChevronUp, Package } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { CubeLoading, IconButton } from '../../component-library';
+import { Disclosure, Spinner } from '@bitfun/ui';
 import type { ToolCardProps } from '../types/flow-chat';
-import { BaseToolCard, ToolCardHeader } from './BaseToolCard';
+import { ProminentToolCard, ProminentToolCardHeader } from '@bitfun/ui/flow-chat';
 import { createLogger } from '@/shared/utils/logger';
 import { MCPAPI, MCP_APPS_PROTOCOL_VERSION, type McpUiResourceCsp, type McpUiResourcePermissions, type McpUiMessageParams, type McpUiMessageResult, type McpAppMessageEvent, type McpAppMessageResponseEvent } from '@/infrastructure/api/service-api/MCPAPI';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
@@ -81,7 +81,7 @@ const sanitizeMcpToolInput = (input: unknown): unknown => {
   if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') return parsed;
 
   return Object.fromEntries(
-    Object.entries(parsed).filter(([key]) => !key.startsWith('_'))
+    Object.entries(parsed).filter(([key]) => !key.startsWith('_')),
   );
 };
 
@@ -223,19 +223,21 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
   });
   const [resolvedToolInfo, setResolvedToolInfo] = useState<ToolInfo | null>(null);
   const toolInputIsIncomplete = Boolean(
-    isParamsStreaming ||
-    (toolCall?.input && typeof toolCall.input === 'object' && (
+    isParamsStreaming
+    || (toolCall?.input && typeof toolCall.input === 'object' && (
       toolCall.input._early_detection === true || toolCall.input._partial_params === true
-    ))
+    )),
   );
   const displayToolInput = useMemo(
     () => sanitizeMcpToolInput(toolCall?.input),
-    [toolCall?.input]
+    [toolCall?.input],
   );
   const hasToolInput = !toolInputIsIncomplete && hasVisibleMcpToolInput(displayToolInput);
   const formattedToolInput = useMemo(
-    () => isExpanded && isInputExpanded && hasToolInput ? formatMcpToolInput(displayToolInput) : null,
-    [displayToolInput, hasToolInput, isExpanded, isInputExpanded]
+    () => isExpanded && isInputExpanded && hasToolInput
+      ? formatMcpToolInput(displayToolInput)
+      : null,
+    [displayToolInput, hasToolInput, isExpanded, isInputExpanded],
   );
 
   const getResultData = (): MCPToolResult | null => {
@@ -685,8 +687,8 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
     applyExpandedState(isExpanded, nextExpanded, setIsExpanded);
   }, [applyExpandedState, isExpanded]);
 
-  const toggleInputExpanded = useCallback(() => {
-    setIsInputExpanded((expanded) => !expanded);
+  const handleInputOpenChange = useCallback((open: boolean) => {
+    setIsInputExpanded(open);
     dispatchToolCardToggle();
   }, [dispatchToolCardToggle]);
 
@@ -697,32 +699,20 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
     return t('toolCards.mcp.executionFailed');
   };
 
-  const handleCardClick = useCallback((e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.closest('.preview-toggle-btn')) {
-      return;
-    }
-    
-    if (hasExpandableDetails) {
-      toggleExpanded();
-    }
-  }, [hasExpandableDetails, toggleExpanded]);
-
   const renderToolIcon = () => {
     return <Package size={16} />;
   };
 
   const renderStatusIcon = () => {
     if (isLoading) {
-      return <CubeLoading size="small" />;
+      return <Spinner size="sm" />;
     }
     return null;
   };
 
   const renderHeader = () => (
-    <ToolCardHeader
-      icon={renderToolIcon()}
-      iconClassName="mcp-icon"
+    <ProminentToolCardHeader
+      icon={<span className="mcp-icon">{renderToolIcon()}</span>}
       action={isFailed ? t('toolCards.mcp.failedLabel') : t('toolCards.mcp.actionLabel')}
       content={
         <span className="mcp-tool-info" data-bf-component="mcp-tool-display" data-bf-part="info">
@@ -736,28 +726,11 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
               {contentSummary}
             </span>
           )}
-          
           {isFailed && (
             <div className="error-expand-indicator">
               <span className="error-text">Failed</span>
             </div>
           )}
-
-          {hasExpandableDetails && (
-            <IconButton
-              className="preview-toggle-btn"
-              variant="ghost"
-              size="xs"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleExpanded();
-              }}
-              tooltip={isExpanded ? t('toolCards.common.collapseContent') : t('toolCards.common.expandContent')}
-            >
-              {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            </IconButton>
-          )}
-
         </>
       }
       statusIcon={renderStatusIcon()}
@@ -765,10 +738,10 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
   );
 
   const renderExpandedContent = () => {
-    const hasResultContent = resultData?.content && resultData.content.length > 0;
+    const hasRenderableResultContent = resultData?.content && resultData.content.length > 0;
     const hasMcpApp = mcpAppState?.html;
     const hasMcpAppState = Boolean(mcpAppState);
-    if (!hasResultContent && !hasMcpApp && !hasToolInput) {
+    if (!hasRenderableResultContent && !hasMcpApp && !hasToolInput) {
       return null;
     }
 
@@ -778,27 +751,16 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
         data-bf-component="mcp-tool-display"
         data-bf-part="input"
       >
-        <button
-          type="button"
-          className="mcp-input-toggle"
-          aria-expanded={isInputExpanded}
-          onClick={(event) => {
-            event.stopPropagation();
-            toggleInputExpanded();
-          }}
-        >
-          {isInputExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          <span className="mcp-input-label">{t('toolCards.common.inputParams')}</span>
-        </button>
-        <SmoothHeightCollapse
-          isOpen={isInputExpanded}
-          className="mcp-input-collapse"
-          durationMs={FLOWCHAT_COLLAPSE_DURATION_MS}
+        <Disclosure
+          className="mcp-input-disclosure"
+          open={isInputExpanded}
+          onOpenChange={handleInputOpenChange}
+          summary={t('toolCards.common.inputParams')}
         >
           {formattedToolInput !== null && (
             <pre className="mcp-input-code">{formattedToolInput}</pre>
           )}
-        </SmoothHeightCollapse>
+        </Disclosure>
       </div>
     ) : null;
 
@@ -810,7 +772,7 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
           <div className="content-item content-item-mcp-app" data-bf-component="mcp-tool-display" data-bf-part="item">
             {mcpAppState.loading && (
               <div className="mcp-app-loading" data-bf-component="mcp-tool-display" data-bf-part="loading" data-bf-state="loading">
-                <CubeLoading size="small" />
+                <Spinner size="sm" />
                 <span>{t('toolCards.mcp.loadingApp')}</span>
               </div>
             )}
@@ -882,10 +844,10 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
       data-tool-card-id={toolId ?? ''}
       style={{ '--private-mcp-tool-identity-color': APPEARANCE_DOMAIN_TOKENS.toolIdentity.mcp } as React.CSSProperties}
     >
-      <BaseToolCard
+      <ProminentToolCard
         status={status}
         isExpanded={isExpanded}
-        onClick={handleCardClick}
+        onClick={hasExpandableDetails ? toggleExpanded : undefined}
         className="mcp-tool-display"
         header={renderHeader()}
         expandedContent={renderExpandedContent()}
@@ -893,6 +855,7 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
         isFailed={isFailed}
         allowExpandedWhenFailed={isFailed && hasToolInput}
         requiresConfirmation={needsConfirmation}
+        toggleTestId="mcp-tool-card-toggle"
       />
     </div>
   );

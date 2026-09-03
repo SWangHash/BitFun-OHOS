@@ -18,10 +18,12 @@ export interface RemoteSessionViewModelHooks {
   readonly onRouteHome: () => void;
   readonly onStopPolling: () => void;
   readonly onStartPolling: () => void;
+  readonly onNudgePolling: () => void;
   readonly onResetTimeline: (sessionId: string) => void;
   readonly onClearRemoteFiles: () => void;
   readonly onKnownStateReset: () => void;
   readonly onLoadActiveMessages: () => Promise<void>;
+  readonly onCreatedSession: (session: SessionSummary) => Promise<void>;
   readonly onRefreshSessions: () => Promise<void>;
   readonly onSelectWorkspace: (path: string) => Promise<void>;
 }
@@ -42,6 +44,10 @@ export class RemoteSessionViewModel {
   // session raises the busy flag, so without this the flag an open sets would
   // read, to the next tap, as a run in progress.
   private openInFlight: number = 0;
+  // Only the latest selection may start polling after a shared or delayed
+  // transcript request settles. This is separate from the loading gate token:
+  // the gate owns presentation, while this generation owns lifecycle effects.
+  private openGeneration: number = 0;
 
   constructor(
     pageState: RemotePageState,
@@ -96,16 +102,17 @@ export class RemoteSessionViewModel {
     agentType: string,
     instruction: string = '',
     onRouteChat: (sessionId: string) => void = this.hooks.onRouteChat,
-    modelId: string = ''
+    modelId: string = '',
+    routeBeforeCreate: boolean = true
   ): Promise<void> {
     if (this.hooks.isBusy() || !this.hooks.remoteAvailable()) {
       return;
     }
     const previousSession: SessionSummary = this.copySession(this.pageState.activeSession);
-    this.beginSessionCreation(onRouteChat);
+    this.beginSessionCreation(onRouteChat, routeBeforeCreate);
     try {
       const created = await this.performCreateSession(agentType, instruction, onRouteChat, modelId);
-      if (!created) {
+      if (!created && routeBeforeCreate) {
         this.restoreAfterFailedCreation(previousSession, onRouteChat);
       }
     } finally {
@@ -121,7 +128,7 @@ export class RemoteSessionViewModel {
     modelId: string,
     workspacePath: string = ''
   ): Promise<SessionSummary | undefined> {
-    return await this.sessions.create(
+    const created = await this.sessions.create(
       agentType,
       this.hooks.isBusy(),
       this.hooks.remoteAvailable(),
@@ -131,17 +138,29 @@ export class RemoteSessionViewModel {
         this.hooks.onKnownStateReset();
         this.hooks.onResetTimeline(session.sessionId);
         onRouteChat(session.sessionId);
+        // The create surface has already handed its optimistic instruction to
+        // the remote projection. Do not cover it with a loading veil while the
+        // empty initial transcript and first turn are being synchronized.
+        this.pageState.setConversationLoading(false);
         // Same ordering as openSession: whatever the new session already has to
         // show goes up first. The model picker needs no request of its own —
         // the poll started here carries the catalog back with it.
         await this.hooks.onLoadActiveMessages();
         this.hooks.onStartPolling();
-        await this.refreshSessions();
+        await this.hooks.onCreatedSession(session);
       },
       instruction,
       modelId,
       workspacePath
     );
+    if (created && (created.initialTurnId || '').length > 0) {
+      // The first poll may have observed the newly allocated session before
+      // send_message reached the host and backed off as idle. Wake it as soon
+      // as the initial turn is accepted instead of hiding up to ten seconds of
+      // otherwise available streaming output.
+      this.hooks.onNudgePolling();
+    }
+    return created;
   }
 
   async createSessionInWorkspace(
@@ -149,17 +168,18 @@ export class RemoteSessionViewModel {
     instruction: string = '',
     agentType: string = 'code',
     onRouteChat: (sessionId: string) => void = this.hooks.onRouteChat,
-    modelId: string = ''
+    modelId: string = '',
+    routeBeforeCreate: boolean = true
   ): Promise<void> {
     if (this.hooks.isBusy() || !this.hooks.remoteAvailable()) {
       return;
     }
     const previousSession: SessionSummary = this.copySession(this.pageState.activeSession);
-    this.beginSessionCreation(onRouteChat);
+    this.beginSessionCreation(onRouteChat, routeBeforeCreate);
     let created: SessionSummary | undefined;
     try {
       created = await this.performCreateSession(agentType, instruction, onRouteChat, modelId, path);
-      if (!created) {
+      if (!created && routeBeforeCreate) {
         this.restoreAfterFailedCreation(previousSession, onRouteChat);
       }
     } finally {
@@ -168,11 +188,16 @@ export class RemoteSessionViewModel {
     }
   }
 
-  private beginSessionCreation(onRouteChat: (sessionId: string) => void): void {
+  private beginSessionCreation(
+    onRouteChat: (sessionId: string) => void,
+    routeBeforeCreate: boolean
+  ): void {
     this.hooks.onStopPolling();
     this.pageState.setPendingSessionId('');
     this.pageState.setConversationLoading(true);
-    onRouteChat('');
+    if (routeBeforeCreate) {
+      onRouteChat('');
+    }
   }
 
   private restoreAfterFailedCreation(
@@ -218,6 +243,12 @@ export class RemoteSessionViewModel {
       RemoteLogger.info(`session open ignored session=${RemoteSessionViewModel.shortId(item.id)} busy=${isBusy ? '1' : '0'} available=${remoteAvailable ? '1' : '0'}`);
       return;
     }
+    if (this.openInFlight > 0 && this.pageState.activeSession.sessionId === item.id) {
+      RemoteLogger.info(
+        `session open coalesced session=${RemoteSessionViewModel.shortId(item.id)}`
+      );
+      return;
+    }
     // Bracketing the open: every stage between this line and the transcript
     // reaching the screen logs, so the gap that the user feels can be pinned on
     // one of them rather than inferred from the two ends.
@@ -230,6 +261,7 @@ export class RemoteSessionViewModel {
     // transcript is cached it lands before the gate opens and the pane goes
     // straight from one conversation to the next.
     const loadingToken = this.openLoadingGate.arm();
+    const openGeneration = ++this.openGeneration;
     onRouteChat(item.id);
     RemoteLogger.info(`session open routed session=${RemoteSessionViewModel.shortId(item.id)}`);
     this.openInFlight += 1;
@@ -257,7 +289,8 @@ export class RemoteSessionViewModel {
           // measured against this device it pushed the transcript from ~2.4s
           // out to ~5.5s.
           await this.hooks.onLoadActiveMessages();
-          if (this.pageState.activeSession.sessionId === session.sessionId) {
+          if (openGeneration === this.openGeneration &&
+            this.pageState.activeSession.sessionId === session.sessionId) {
             this.hooks.onStartPolling();
           }
         }

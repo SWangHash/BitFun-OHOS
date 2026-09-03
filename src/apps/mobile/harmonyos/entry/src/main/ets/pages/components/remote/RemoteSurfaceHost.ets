@@ -1,3 +1,4 @@
+import { MobileDesignTypography } from '../../../generated/MobileDesignTokens';
 import { RemoteI18n } from '../../../i18n/RemoteI18n';
 import { RemoteSession } from '../../../model/RemoteModels';
 import { RemoteLogger } from '../../../services/RemoteLogger';
@@ -19,7 +20,7 @@ import {
   SettingsPlacementPolicy,
   SettingsSheetKind
 } from '../../policy/SettingsPlacementPolicy';
-import { CARD, GREEN, INK, LINE, MUTED, PAGE_BG, PRIMARY_ACTION, PRIMARY_ACTION_TEXT, RED } from '../Theme';
+import { CARD, STATUS_SUCCESS, INK, LINE, MUTED, PAGE_BG, PRIMARY_ACTION, CONTENT_ON_ACTION, STATUS_DANGER } from '../Theme';
 
 export enum RemoteSurfaceMode {
   Master = 'master',
@@ -139,7 +140,7 @@ export struct RemoteSurfaceHost {
     Row({ space: 6 }) {
       this.StatusIndicator()
       Text(this.statusText())
-        .fontSize(14)
+        .fontSize(MobileDesignTypography.bodyMedium.size)
         .fontWeight(FontWeight.Medium)
         .fontColor(MUTED)
         .maxLines(1)
@@ -147,9 +148,9 @@ export struct RemoteSurfaceHost {
         .layoutWeight(1)
       if (this.canReconnect()) {
         Text(RemoteI18n.t('remote.settings.reconnect'))
-          .fontSize(13)
+          .fontSize(MobileDesignTypography.bodySmall.size)
           .fontWeight(FontWeight.Medium)
-          .fontColor(PRIMARY_ACTION_TEXT)
+          .fontColor(CONTENT_ON_ACTION)
           .height(28)
           .padding({ left: 12, right: 12 })
           .backgroundColor(PRIMARY_ACTION)
@@ -189,11 +190,11 @@ export struct RemoteSurfaceHost {
       .borderRadius(24)
       .border({ width: 1, color: LINE })
       Text(RemoteI18n.t('remote.connectTitle'))
-        .fontSize(18).fontWeight(FontWeight.Bold).fontColor(INK).textAlign(TextAlign.Center)
+        .fontSize(MobileDesignTypography.headlineSmall.size).fontWeight(FontWeight.Bold).fontColor(INK).textAlign(TextAlign.Center)
       Text(RemoteI18n.t('remote.connectText'))
-        .fontSize(13).lineHeight(20).fontColor(MUTED).textAlign(TextAlign.Center)
+        .fontSize(MobileDesignTypography.bodySmall.size).lineHeight(MobileDesignTypography.bodySmall.lineHeight).fontColor(MUTED).textAlign(TextAlign.Center)
       Text(RemoteI18n.t('connect.connect'))
-        .width(136).height(44).fontSize(15).fontColor(PRIMARY_ACTION_TEXT)
+        .width(136).height(44).fontSize(MobileDesignTypography.titleSmall.size).fontColor(CONTENT_ON_ACTION)
         .backgroundColor(PRIMARY_ACTION).textAlign(TextAlign.Center).borderRadius(22)
         .onClick(() => this.actions.onRemoteHome.connectWorkspace())
     }
@@ -232,9 +233,9 @@ export struct RemoteSurfaceHost {
         LoadingProgress().width(28).height(28).color(MUTED).margin({ bottom: 8 })
       }
       Text(this.compactTitle())
-        .fontSize(20).fontWeight(FontWeight.Bold).fontColor(INK).textAlign(TextAlign.Center)
+        .fontSize(MobileDesignTypography.headlineMedium.size).fontWeight(FontWeight.Bold).fontColor(INK).textAlign(TextAlign.Center)
       Text(this.compactText())
-        .fontSize(14).lineHeight(21).fontColor(MUTED).maxLines(2)
+        .fontSize(MobileDesignTypography.bodyMedium.size).lineHeight(MobileDesignTypography.bodyMedium.lineHeight).fontColor(MUTED).maxLines(2)
         .textOverflow({ overflow: TextOverflow.Ellipsis }).textAlign(TextAlign.Center)
         .constraintSize({ maxWidth: 280 })
       // Starting a session needs a desktop on the other end, so while the link
@@ -242,16 +243,16 @@ export struct RemoteSurfaceHost {
       // back up.
       if (this.canReconnect()) {
         Text(RemoteI18n.t('remote.settings.reconnect'))
-          .width(148).height(46).fontSize(15).fontWeight(FontWeight.Medium)
-          .fontColor(PRIMARY_ACTION_TEXT).backgroundColor(PRIMARY_ACTION)
+          .width(148).height(46).fontSize(MobileDesignTypography.titleSmall.size).fontWeight(FontWeight.Medium)
+          .fontColor(CONTENT_ON_ACTION).backgroundColor(PRIMARY_ACTION)
           .textAlign(TextAlign.Center).borderRadius(23).margin({ top: 12 })
           .onClick(() => this.actions.onRemoteHome.reconnect())
       } else {
         Text(RemoteI18n.t('remote.startSession'))
-          .width(148).height(46).fontSize(15).fontWeight(FontWeight.Medium)
-          .fontColor(PRIMARY_ACTION_TEXT).backgroundColor(PRIMARY_ACTION)
+          .width(148).height(46).fontSize(MobileDesignTypography.titleSmall.size).fontWeight(FontWeight.Medium)
+          .fontColor(CONTENT_ON_ACTION).backgroundColor(PRIMARY_ACTION)
           .textAlign(TextAlign.Center).borderRadius(23).margin({ top: 12 })
-          .onClick(() => this.actions.onRemoteHome.createAssistant())
+          .onClick(() => this.createSession('code'))
       }
     }
     .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
@@ -268,8 +269,8 @@ export struct RemoteSurfaceHost {
           Blank().width(48).height(48)
         }
         Column({ space: 4 }) {
-          Text(RemoteI18n.t('remote.chats')).fontSize(20).fontWeight(FontWeight.Bold).fontColor(INK)
-          Text(this.desktopName()).fontSize(13).fontColor(MUTED).maxLines(1)
+          Text(RemoteI18n.t('remote.chats')).fontSize(MobileDesignTypography.headlineMedium.size).fontWeight(FontWeight.Bold).fontColor(INK)
+          Text(this.desktopName()).fontSize(MobileDesignTypography.bodySmall.size).fontColor(MUTED).maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
         .layoutWeight(1).alignItems(HorizontalAlign.Center)
@@ -282,8 +283,8 @@ export struct RemoteSurfaceHost {
         if (this.isInitialLoading()) {
           LoadingProgress().width(28).height(28).color(MUTED).margin({ bottom: 8 })
         }
-        Text(this.placeholderTitle()).fontSize(22).fontWeight(FontWeight.Bold).fontColor(INK)
-        Text(this.statusText()).fontSize(14).fontColor(MUTED).maxLines(2)
+        Text(this.placeholderTitle()).fontSize(MobileDesignTypography.headlineLarge.size).fontWeight(FontWeight.Bold).fontColor(INK)
+        Text(this.statusText()).fontSize(MobileDesignTypography.bodyMedium.size).fontColor(MUTED).maxLines(2)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
       }
       .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
@@ -345,10 +346,7 @@ export struct RemoteSurfaceHost {
   }
 
   private createAssistantSession(): void {
-    if (this.compact) {
-      this.actions.onSidebar.close();
-    }
-    this.actions.onRemoteHome.createAssistant();
+    this.createSession('code');
   }
 
   /**
@@ -403,9 +401,9 @@ export struct RemoteSurfaceHost {
   }
 
   private statusColor(): ResourceColor {
-    if (this.remotePageState.connectionState === 'connected') return GREEN;
+    if (this.remotePageState.connectionState === 'connected') return STATUS_SUCCESS;
     if (this.remotePageState.connectionState === 'failed' || this.remotePageState.connectionState === 'disconnected') {
-      return RED;
+      return STATUS_DANGER;
     }
     return MUTED;
   }

@@ -4,9 +4,9 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { X, Merge } from 'lucide-react';
+import { Button, Icon, IconButton, KeyHint, ScrollArea, useDismissibleLayer } from '@bitfun/ui';
+import { Merge } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useDismissibleLayer } from '@/infrastructure/hooks/useDismissibleLayer';
 import { ThumbnailCard } from './ThumbnailCard';
 import { SearchFilter } from './SearchFilter';
 import { useCanvasStore } from '../stores';
@@ -43,10 +43,11 @@ export const MissionControl: React.FC<MissionControlProps> = ({
   const togglePinTab = useCanvasStore(state => state.togglePinTab);
   const setSplitMode = useCanvasStore(state => state.setSplitMode);
   useDismissibleLayer({
+    dismissOnPointerOutside: false,
     enabled: isOpen,
+    layerRef: rootRef,
     scope: 'canvas',
     onDismiss: onClose,
-    id: 'canvas-mission-control',
   });
 
   // Organize tabs by group
@@ -198,21 +199,23 @@ export const MissionControl: React.FC<MissionControlProps> = ({
           <h2 className="canvas-mission-control__title">{t('tabs.missionControl')}</h2>
           <div data-bf-component="mission-control" data-bf-part="headerActions" className="canvas-mission-control__header-actions">
             {hasMultipleGroups && (
-              <button
-                className="canvas-mission-control__merge-btn"
+              <Button
+                variant="outline"
+                size="sm"
+                leadingIcon={<Merge />}
                 onClick={handleMergeAll}
                 title={t('canvas.mergeAllGroups')}
               >
-                <Merge size={14} />
-                <span>{t('canvas.mergeAll')}</span>
-              </button>
+                {t('canvas.mergeAll')}
+              </Button>
             )}
-            <button
-              className="canvas-mission-control__close-btn"
+            <IconButton
+              size="sm"
+              aria-label={t('tooltip.close')}
+              icon={<Icon name="xmark" size="lg" />}
               onClick={onClose}
-            >
-              <X size={14} />
-            </button>
+              title={t('tooltip.close')}
+            />
           </div>
         </div>
 
@@ -257,7 +260,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({
         </div>
 
         {/* Thumbnail grid - unified display */}
-        <div data-bf-component="mission-control" data-bf-part="grid" className="canvas-mission-control__grid">
+        <ScrollArea data-bf-component="mission-control" data-bf-part="grid" className="canvas-mission-control__grid">
           {filteredTabs.length > 0 ? (
             filteredTabs.map(({ tab, groupId }) => (
               <ThumbnailCard
@@ -281,13 +284,13 @@ export const MissionControl: React.FC<MissionControlProps> = ({
               )}
             </div>
           )}
-        </div>
+        </ScrollArea>
 
         {/* Footer hint */}
         <div data-bf-component="mission-control" data-bf-part="footer" className="canvas-mission-control__footer">
           <span>{t('canvas.clickToSwitch')}</span>
           <div data-bf-component="mission-control" data-bf-part="separator" className="canvas-mission-control__separator" />
-          <span><kbd>Esc</kbd> {t('canvas.exit')}</span>
+          <span><KeyHint>Esc</KeyHint> {t('canvas.exit')}</span>
         </div>
       </div>
     </div>

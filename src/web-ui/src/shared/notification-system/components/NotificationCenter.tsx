@@ -1,8 +1,16 @@
  
 
 import React, { useState, useMemo } from 'react';
-import { X, CheckCheck, Trash2, XCircle, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
-import { Search, Modal } from '@/component-library';
+import { CheckCheck, Loader2 } from 'lucide-react';
+import {
+  Icon,
+  IconButton,
+  ScrollArea,
+  SearchField,
+  Dialog,
+  DialogBody,
+  DialogHeader,
+} from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import { useNotificationHistory, useCenterOpen, useAllProgressNotifications, useAllLoadingNotifications } from '../hooks/useNotificationState';
 import { notificationService } from '../services/NotificationService';
@@ -325,9 +333,9 @@ export const NotificationCenter: React.FC = () => {
               <div className="notification-center__item-technical-title">
                 {t('errors:boundary.technicalDetails')}
               </div>
-              <pre className="notification-center__item-technical-body">
-                {technicalDetails}
-              </pre>
+              <ScrollArea className="notification-center__item-technical-body">
+                <pre>{technicalDetails}</pre>
+              </ScrollArea>
             </div>
           )}
         </div>
@@ -341,14 +349,14 @@ export const NotificationCenter: React.FC = () => {
             }}
             title={isExpanded ? t('common:actions.collapse') : t('common:actions.expand')}
           >
-            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {isExpanded ? <Icon name="chevron-up" size="sm" /> : <Icon name="chevron-down" size="sm" />}
           </button>
           <button
             className="notification-center__item-delete"
             onClick={(e) => handleDeleteNotification(e, notification.id)}
             title={t('common:actions.delete')}
           >
-            <XCircle size={16} />
+            <Icon name="xmark" size="md" />
           </button>
         </div>
       </div>
@@ -356,50 +364,62 @@ export const NotificationCenter: React.FC = () => {
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleClose}
-      showCloseButton={false}
-      size="large"
+    <Dialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => { if (!nextOpen) handleClose(); }}
+      size="lg"
     >
+      <DialogHeader>
+      </DialogHeader>
+      <DialogBody inset="none">
       <div className="notification-center" data-testid="notification-center" data-bf-component="notification" data-bf-part="centerRoot">
         
         <div className="notification-center__header" data-bf-component="notification" data-bf-part="centerHeader">
           <h2 className="notification-center__title">{t('components:notificationCenter.title')}</h2>
           <div className="notification-center__header-actions">
             <button
+              type="button"
               className="notification-center__header-button"
               onClick={handleMarkAllRead}
               title={t('components:notificationCenter.actions.markAllRead')}
+              aria-label={t('components:notificationCenter.actions.markAllRead')}
             >
               <CheckCheck size={16} />
             </button>
             <button
+              type="button"
               className="notification-center__header-button"
               onClick={handleClearAll}
               title={t('components:notificationCenter.actions.clearAll')}
+              aria-label={t('components:notificationCenter.actions.clearAll')}
             >
-              <Trash2 size={16} />
+              <Icon name="delete" size="md" />
             </button>
-            <button
-              className="notification-center__header-button"
+            <IconButton
+              className="notification-center__close"
+              icon={<Icon name="xmark" size="lg" />}
               onClick={handleClose}
+              size="md"
               title={t('common:actions.close')}
+              aria-label={t('common:actions.close')}
               data-testid="notification-center-close-btn"
-            >
-              <X size={16} />
-            </button>
+              data-bf-component="notification"
+              data-bf-part="centerClose"
+            />
           </div>
         </div>
 
         
         <div className="notification-center__search">
-          <Search
+          <SearchField
             placeholder={t('components:notificationCenter.searchPlaceholder')}
+            aria-label={t('components:notificationCenter.searchPlaceholder')}
+            leadingIcon={<Icon name="search" size="md" aria-hidden />}
             value={searchQuery}
-            onChange={(val) => setSearchQuery(val)}
-            clearable
-            size="medium"
+            onValueChange={(val) => setSearchQuery(val)}
+            clearLabel={t('components:search.clear')}
+            onClear={searchQuery ? () => setSearchQuery('') : undefined}
+            size="md"
           />
         </div>
 
@@ -432,7 +452,7 @@ export const NotificationCenter: React.FC = () => {
         </div>
 
         
-        <div className="notification-center__content" data-bf-component="notification" data-bf-part="centerList">
+        <ScrollArea className="notification-center__content" data-bf-component="notification" data-bf-part="centerList">
           
           {activeTaskNotifications.length > 0 && (
             <div className="notification-center__active-section" data-testid="notification-center-active-section">
@@ -479,9 +499,10 @@ export const NotificationCenter: React.FC = () => {
               )}
             </>
           )}
-        </div>
+        </ScrollArea>
       </div>
-    </Modal>
+          </DialogBody>
+    </Dialog>
   );
 };
 

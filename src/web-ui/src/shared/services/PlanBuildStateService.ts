@@ -2,25 +2,27 @@
  * Shared service managing plan build state across components.
  *
  * Centralizes build-state tracking, TodoWrite → file sync, and subscriber
- * notifications so that CreatePlanDisplay (chat card) and PlanViewer (editor)
+ * notifications so that PlanDisplay (chat card) and PlanViewer (editor)
  * stay in sync regardless of mount/unmount timing.
  */
 
-import yaml from 'yaml';
 import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
+import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import { createLogger } from '@/shared/utils/logger';
+import {
+  parsePlanMarkdown,
+  serializePlanMarkdown,
+  type PlanTodo,
+} from '@/shared/plan/planDocument';
 
 const log = createLogger('PlanBuildStateService');
 
-export interface PlanTodo {
-  id: string;
-  content: string;
-  status?: string;
-  dependencies?: string[];
+function yamlFrontmatter(content: string): string {
+  return content.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1].trim() ?? '';
 }
 
 export interface PlanBuildStateEvent {
-  type: 'build-started' | 'build-completed' | 'build-cancelled' | 'todos-updated';
+  type: 'build-started' | 'build-completed' | 'build-cancelled' | 'build-stopped' | 'todos-updated';
   /** Whether the plan is still building after this event. */
   isBuilding: boolean;
   /** Updated todo list (present for todos-updated and build-completed). */
@@ -34,11 +36,28 @@ export interface PlanBuildStateEvent {
 export type BuildStateCallback = (event: PlanBuildStateEvent) => void;
 
 interface BuildEntry {
+  sessionId: string;
+  turnId: string;
   todoIds: Set<string>;
   /** Original file path (preserves platform separators for API calls). */
   planFilePath: string;
+  workspacePath: string;
+  remoteConnectionId?: string;
   startedAt: number;
 }
+
+export interface PlanFileRef {
+  planFilePath: string;
+  workspacePath?: string;
+  remoteConnectionId?: string;
+}
+
+export interface StartPlanBuildRequest extends PlanFileRef {
+  sessionId: string;
+  todoIds: string[];
+}
+
+type PlanFileTarget = string | PlanFileRef;
 
 class PlanBuildStateService {
   private static instance: PlanBuildStateService;
@@ -65,25 +84,40 @@ class PlanBuildStateService {
 
   // ==================== Public API ====================
 
-  /** Mark a plan as building and notify all subscribers. */
-  startBuild(planFilePath: string, todoIds: string[]): void {
-    const key = this.normalizePath(planFilePath);
+  /** Mark a plan as building and return the turn ID that must own the build. */
+  startBuild(request: StartPlanBuildRequest): string | null {
+    const todoIds = request.todoIds.filter(id => id.trim().length > 0);
+    if (todoIds.length === 0) {
+      log.warn('Ignored plan build without valid todo IDs', {
+        planFilePath: request.planFilePath,
+        sessionId: request.sessionId,
+      });
+      return null;
+    }
+
+    const turnId = `dialog_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    const key = this.targetKey(request);
     this.buildingPlans.set(key, {
+      sessionId: request.sessionId,
+      turnId,
       todoIds: new Set(todoIds),
-      planFilePath,
+      planFilePath: request.planFilePath,
+      workspacePath: request.workspacePath ?? '',
+      remoteConnectionId: request.remoteConnectionId,
       startedAt: Date.now(),
     });
     this.notify(key, { type: 'build-started', isBuilding: true });
+    return turnId;
   }
 
   /** Check whether a plan is currently building. */
-  isBuildActive(planFilePath: string): boolean {
-    return this.buildingPlans.has(this.normalizePath(planFilePath));
+  isBuildActive(target: PlanFileTarget): boolean {
+    return this.buildingPlans.has(this.targetKey(target));
   }
 
   /** Cancel a build (e.g. on error) and notify subscribers. */
-  cancelBuild(planFilePath: string): void {
-    const key = this.normalizePath(planFilePath);
+  cancelBuild(target: PlanFileTarget): void {
+    const key = this.targetKey(target);
     if (this.buildingPlans.has(key)) {
       this.buildingPlans.delete(key);
       this.notify(key, { type: 'build-cancelled', isBuilding: false });
@@ -94,8 +128,8 @@ class PlanBuildStateService {
    * Subscribe to build-state changes for a plan file.
    * Returns an unsubscribe function.
    */
-  subscribe(planFilePath: string, callback: BuildStateCallback): () => void {
-    const key = this.normalizePath(planFilePath);
+  subscribe(target: PlanFileTarget, callback: BuildStateCallback): () => void {
+    const key = this.targetKey(target);
     if (!this.subscribers.has(key)) {
       this.subscribers.set(key, new Set());
     }
@@ -113,21 +147,32 @@ class PlanBuildStateService {
   }
 
   /** Mark a file as being written to suppress watcher reloads. */
-  markFileWriting(filePath: string): void {
-    const key = this.normalizePath(filePath);
+  markFileWriting(target: PlanFileTarget): void {
+    const key = this.targetKey(target);
     this.writingFiles.add(key);
     setTimeout(() => this.writingFiles.delete(key), 1000);
   }
 
   /** Check whether a file is currently being written. */
-  isFileWriting(filePath: string): boolean {
-    return this.writingFiles.has(this.normalizePath(filePath));
+  isFileWriting(target: PlanFileTarget): boolean {
+    return this.writingFiles.has(this.targetKey(target));
   }
 
   // ==================== Internal ====================
 
   private normalizePath(path: string): string {
     return path.replace(/\\/g, '/');
+  }
+
+  private targetKey(target: PlanFileTarget): string {
+    if (typeof target === 'string') {
+      return `local::${this.normalizePath(target)}`;
+    }
+    return [
+      target.remoteConnectionId ?? 'local',
+      this.normalizePath(target.workspacePath ?? ''),
+      this.normalizePath(target.planFilePath),
+    ].join('::');
   }
 
   private notify(key: string, event: PlanBuildStateEvent): void {
@@ -140,6 +185,10 @@ class PlanBuildStateService {
   private setupGlobalListeners(): void {
     window.addEventListener('bitfun:todowrite-update', this.handleTodoWriteUpdate);
     window.addEventListener('bitfun:dialog-cancelled', this.handleDialogCancelled);
+    agentAPI.onDialogTurnCompleted(this.handleDialogTurnSettled);
+    agentAPI.onDialogTurnFailed(this.handleDialogTurnSettled);
+    agentAPI.onDialogTurnCancelled(this.handleDialogTurnSettled);
+    agentAPI.onDialogTurnInterrupted(this.handleDialogTurnSettled);
   }
 
   /**
@@ -153,36 +202,42 @@ class PlanBuildStateService {
       todos: Array<{ id: string; content: string; status: string }>;
       merge: boolean;
     }>;
-    const { todos: incomingTodos } = customEvent.detail;
+    const { sessionId, todos: incomingTodos } = customEvent.detail;
 
-    if (!incomingTodos.length) return;
+    if (!sessionId || !incomingTodos.length) return;
 
     for (const [key, entry] of this.buildingPlans.entries()) {
+      if (entry.sessionId !== sessionId || entry.turnId !== customEvent.detail.turnId) continue;
       const matchedTodos = incomingTodos.filter(t => entry.todoIds.has(t.id));
       if (matchedTodos.length === 0) continue;
 
       try {
-        const content = await workspaceAPI.readFileContent(entry.planFilePath);
+        const content = await workspaceAPI.readFileContent(
+          entry.planFilePath,
+          undefined,
+          entry.remoteConnectionId,
+        );
+        const parsed = parsePlanMarkdown(content);
 
-        const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-        if (!frontmatterMatch) {
-          log.warn('Failed to parse plan file frontmatter', { filePath: entry.planFilePath });
-          continue;
-        }
-
-        const parsed = yaml.parse(frontmatterMatch[1]);
-        const planContent = content.replace(/^---\n[\s\S]*?\n---\n*/, '').trim();
-
-        const updatedTodos: PlanTodo[] = (parsed.todos || []).map((todo: PlanTodo) => {
+        const updatedTodos: PlanTodo[] = parsed.todos.map((todo) => {
           const incoming = incomingTodos.find(t => t.id === todo.id);
           return incoming ? { ...todo, status: incoming.status } : todo;
         });
 
-        const updatedFrontmatter = yaml.stringify({ ...parsed, todos: updatedTodos });
-        const updatedContent = `---\n${updatedFrontmatter}---\n\n${planContent}`;
+        const updatedContent = serializePlanMarkdown(parsed, { todos: updatedTodos });
+        const updatedDocument = parsePlanMarkdown(updatedContent);
 
-        this.markFileWriting(entry.planFilePath);
-        await workspaceAPI.writeFileContent('', entry.planFilePath, updatedContent);
+        this.markFileWriting({
+          planFilePath: entry.planFilePath,
+          workspacePath: entry.workspacePath,
+          remoteConnectionId: entry.remoteConnectionId,
+        });
+        await workspaceAPI.writeFileContent(
+          entry.workspacePath,
+          entry.planFilePath,
+          updatedContent,
+          entry.remoteConnectionId,
+        );
 
         const allCompleted = updatedTodos.every(t => t.status === 'completed');
 
@@ -194,8 +249,8 @@ class PlanBuildStateService {
           type: allCompleted ? 'build-completed' : 'todos-updated',
           isBuilding: !allCompleted,
           updatedTodos,
-          updatedFrontmatter: updatedFrontmatter.trim(),
-          planContent,
+          updatedFrontmatter: yamlFrontmatter(updatedContent),
+          planContent: updatedDocument.planContent,
         });
       } catch (error) {
         log.error('Failed to sync todo status', { filePath: entry.planFilePath, error });
@@ -203,14 +258,37 @@ class PlanBuildStateService {
     }
   };
 
-  /** Cancel all active builds when a dialog is cancelled. */
-  private handleDialogCancelled = (): void => {
-    if (this.buildingPlans.size === 0) return;
+  /** Stop a build when the exact turn that owns it reaches any terminal state. */
+  private handleDialogTurnSettled = (event: {
+    sessionId?: string;
+    session_id?: string;
+    turnId?: string;
+    turn_id?: string;
+  }): void => {
+    const sessionId = event.sessionId ?? event.session_id;
+    const turnId = event.turnId ?? event.turn_id;
+    if (!sessionId || !turnId) return;
 
-    for (const key of Array.from(this.buildingPlans.keys())) {
-      this.notify(key, { type: 'build-cancelled', isBuilding: false });
+    for (const [key, entry] of this.buildingPlans.entries()) {
+      if (entry.sessionId !== sessionId || entry.turnId !== turnId) continue;
+      this.notify(key, { type: 'build-stopped', isBuilding: false });
+      this.buildingPlans.delete(key);
     }
-    this.buildingPlans.clear();
+  };
+
+  /** Cancel active builds owned by the cancelled session. */
+  private handleDialogCancelled = (event: Event): void => {
+    const sessionId = (event as CustomEvent<{ sessionId?: unknown }>).detail?.sessionId;
+    if (typeof sessionId !== 'string' || !sessionId) {
+      log.warn('Ignored dialog cancellation without a session ID');
+      return;
+    }
+
+    for (const [key, entry] of this.buildingPlans.entries()) {
+      if (entry.sessionId !== sessionId) continue;
+      this.notify(key, { type: 'build-cancelled', isBuilding: false });
+      this.buildingPlans.delete(key);
+    }
   };
 }
 

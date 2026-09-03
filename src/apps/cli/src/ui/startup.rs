@@ -30,7 +30,6 @@ use crate::config::CliConfig;
 /// - Model/Agent/Session/Skill/Subagent selector popups
 /// - Random tips
 use anyhow::{anyhow, Result};
-use bitfun_core_types::model::ModelMutation;
 use bitfun_product_domains::agent_catalog::{SkillSummary, SubagentSummary};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
@@ -313,6 +312,12 @@ impl StartupPage {
     /// Get the currently selected agent type
     pub(crate) fn agent_type(&self) -> &str {
         &self.agent_type
+    }
+
+    pub(crate) fn selected_agent_route_key(&self) -> Option<String> {
+        self.selected_agent_mode()
+            .map(|mode| mode.route_key)
+            .filter(|route_key| !route_key.is_empty())
     }
 
     /// Set a model ID override (from `--model` flag) for display and session
@@ -2017,6 +2022,7 @@ impl StartupPage {
             .into_iter()
             .map(|m| AgentItem {
                 id: m.id,
+                route_key: (!m.route_key.is_empty()).then_some(m.route_key),
                 description: m.description,
             })
             .collect();
@@ -2729,12 +2735,14 @@ mod logo_contract_tests {
     fn external_or_unknown_startup_modes_do_not_change_the_shared_default() {
         let local = TuiAgentMode {
             id: "agentic".to_string(),
+            route_key: "agentic".to_string(),
             description: String::new(),
             model_id: None,
             is_external: false,
         };
         let external = TuiAgentMode {
             id: "reviewer".to_string(),
+            route_key: "external::reviewer".to_string(),
             description: String::new(),
             model_id: None,
             is_external: true,

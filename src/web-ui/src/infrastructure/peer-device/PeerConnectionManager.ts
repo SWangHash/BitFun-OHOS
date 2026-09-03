@@ -45,6 +45,12 @@ export interface PeerHostCapabilities {
   readonly idempotentDialogSubmit: boolean;
   readonly targetedSessionRollback: boolean;
   readonly tokenUsageStatistics: boolean;
+  /** MiniApp Agent runs accept immutable virtual context-file snapshots. */
+  readonly miniAppAgentContextFilesV1: boolean;
+  /** Typed ProductControl HostInvoke, including shared config read-back. */
+  readonly productControlV1?: boolean;
+  readonly productControlNativeV1?: boolean;
+  readonly productControlPresentationV1?: boolean;
   /**
    * Host implements `cancel_tool` (per-tool interrupt). Gates the Terminal
    * Interrupt button. `null` = the host's `peer_mode_ping` did not advertise
@@ -129,6 +135,10 @@ interface PeerModePingResult {
     idempotent_dialog_submit?: boolean;
     targeted_session_rollback?: boolean;
     token_usage_statistics?: boolean;
+    miniapp_agent_context_files_v1?: boolean;
+    product_control_v1?: boolean;
+    product_control_native_v1?: boolean;
+    product_control_presentation_v1?: boolean;
     cancel_tool?: boolean;
     tool_catalog?: boolean;
   };
@@ -138,6 +148,10 @@ const NO_CAPABILITIES: PeerHostCapabilities = {
   idempotentDialogSubmit: false,
   targetedSessionRollback: false,
   tokenUsageStatistics: false,
+  miniAppAgentContextFilesV1: false,
+  productControlV1: false,
+  productControlNativeV1: false,
+  productControlPresentationV1: false,
   // Unknown (not yet probed) — not the same as `false` (probed, unsupported).
   // Consumers treat `null` optimistically so an unprobed host is not gated off.
   cancelTool: null,
@@ -389,6 +403,8 @@ export class PeerConnectionManager {
       supportsIdempotentDialogSubmit: entry.capabilities.idempotentDialogSubmit,
       supportsTargetedSessionRollback: entry.capabilities.targetedSessionRollback,
       supportsTokenUsageStatistics: entry.capabilities.tokenUsageStatistics,
+      supportsMiniAppAgentContextFilesV1: entry.capabilities.miniAppAgentContextFilesV1,
+      supportsProductControlV1: entry.capabilities.productControlV1,
     });
     entry.health = 'ready';
     this.scheduleKeepalive(entry);
@@ -460,6 +476,11 @@ export class PeerConnectionManager {
       idempotentDialogSubmit: caps?.idempotent_dialog_submit === true,
       targetedSessionRollback: caps?.targeted_session_rollback === true,
       tokenUsageStatistics: caps?.token_usage_statistics === true,
+      miniAppAgentContextFilesV1: caps?.miniapp_agent_context_files_v1 === true,
+      productControlV1: caps?.product_control_v1 === true,
+      productControlNativeV1: caps?.product_control_native_v1 === true,
+      productControlPresentationV1:
+        caps?.product_control_presentation_v1 === true,
       cancelTool,
       toolCatalog,
       hostKind,
@@ -521,6 +542,8 @@ export class PeerConnectionManager {
         supportsIdempotentDialogSubmit: capabilities.idempotentDialogSubmit,
         supportsTargetedSessionRollback: capabilities.targetedSessionRollback,
         supportsTokenUsageStatistics: capabilities.tokenUsageStatistics,
+        supportsMiniAppAgentContextFilesV1: capabilities.miniAppAgentContextFilesV1,
+        supportsProductControlV1: capabilities.productControlV1,
       });
       entry.consecutiveFailures = 0;
       const recovered = entry.health !== 'ready';
@@ -691,6 +714,7 @@ function capabilitiesEqual(
   return a.idempotentDialogSubmit === b.idempotentDialogSubmit &&
     a.targetedSessionRollback === b.targetedSessionRollback &&
     a.tokenUsageStatistics === b.tokenUsageStatistics &&
+    a.miniAppAgentContextFilesV1 === b.miniAppAgentContextFilesV1 &&
     a.cancelTool === b.cancelTool &&
     a.toolCatalog === b.toolCatalog &&
     a.hostKind === b.hostKind;

@@ -38,6 +38,8 @@ use crate::util::timing::elapsed_ms_u64;
 use bitfun_runtime_ports::{
     SessionTurnLoadRequest, SessionTurnLoadTiming, SessionTurnWindowRequest,
 };
+#[cfg(feature = "product-search")]
+use bitfun_services_core::session_search::SessionSearchSqliteIndex;
 use bitfun_services_core::{
     json_store::{JsonFileStore, JsonFileStoreError},
     session::{
@@ -579,6 +581,31 @@ impl PersistenceManager {
             return workspace_path.to_path_buf();
         }
         self.path_manager.project_sessions_dir(workspace_path)
+    }
+
+    #[cfg(feature = "product-search")]
+    async fn invalidate_session_search(&self, workspace_path: &Path, session_id: &str) {
+        let index = SessionSearchSqliteIndex::new(self.project_sessions_dir(workspace_path));
+        if let Err(error) = index.invalidate_session_if_present(session_id).await {
+            warn!(
+                "Failed to invalidate derived Session search index: session_id={} error={}",
+                session_id, error
+            );
+        }
+    }
+
+    #[cfg(feature = "product-search")]
+    async fn remove_session_from_search(&self, workspace_path: &Path, session_id: &str) {
+        let index = SessionSearchSqliteIndex::new(self.project_sessions_dir(workspace_path));
+        if !index.path().exists() {
+            return;
+        }
+        if let Err(error) = index.remove_session(session_id).await {
+            warn!(
+                "Failed to remove Session from derived search index: session_id={} error={}",
+                session_id, error
+            );
+        }
     }
 
     /// Hold this across a multi-step Session write that is not already owned by
@@ -2390,6 +2417,30 @@ impl PersistenceManager {
         }
     }
 
+    /// Read identity/config facts without loading dialog content or restoring a
+    /// runtime. Callers needing a stable view hold the Session read permit.
+    pub(crate) async fn load_session_header(
+        &self,
+        storage_path: &Path,
+        session_id: &str,
+    ) -> BitFunResult<Session> {
+        Self::validate_session_id(session_id)?;
+        let metadata = self
+            .load_session_metadata(storage_path, session_id)
+            .await?
+            .ok_or_else(|| {
+                BitFunError::NotFound(format!("Session metadata not found: {session_id}"))
+            })?;
+        let state = self
+            .load_stored_session_state(storage_path, session_id)
+            .await?;
+        Ok(Self::build_session_from_persisted_parts(
+            metadata,
+            state,
+            &[],
+        ))
+    }
+
     /// Load session and return the persisted turns read while rebuilding the session header.
     pub async fn load_session_with_turns(
         &self,
@@ -2673,6 +2724,9 @@ impl PersistenceManager {
             .get_session_persistence_lock(workspace_path, session_id)
             .await;
         let _persistence_guard = persistence_lock.lock().await;
+        #[cfg(feature = "product-search")]
+        self.remove_session_from_search(workspace_path, session_id)
+            .await;
         self.session_metadata_store(workspace_path)
             .delete_session_dir_and_index(session_id)
             .await
@@ -3265,6 +3319,10 @@ impl PersistenceManager {
             }
         }
 
+        #[cfg(feature = "product-search")]
+        self.invalidate_session_search(workspace_path, &turn.session_id)
+            .await;
+
         let file = StoredDialogTurnFile {
             schema_version: SESSION_STORAGE_SCHEMA_VERSION,
             turn: turn.clone(),
@@ -3612,6 +3670,9 @@ impl PersistenceManager {
             .get_session_persistence_lock(workspace_path, session_id)
             .await;
         let _persistence_guard = persistence_lock.lock().await;
+        #[cfg(feature = "product-search")]
+        self.invalidate_session_search(workspace_path, session_id)
+            .await;
         if !self.turns_dir(workspace_path, session_id).exists() {
             if self.turn_catalog_path(workspace_path, session_id).exists() {
                 if let Err(error) = self
@@ -4161,6 +4222,9 @@ impl PersistenceManager {
             .get_session_persistence_lock(workspace_path, session_id)
             .await;
         let _persistence_guard = persistence_lock.lock().await;
+        #[cfg(feature = "product-search")]
+        self.invalidate_session_search(workspace_path, session_id)
+            .await;
         let turns = self.load_session_turns(workspace_path, session_id).await?;
         let mut deleted = 0usize;
 
@@ -4227,6 +4291,9 @@ impl PersistenceManager {
             .get_session_persistence_lock(workspace_path, session_id)
             .await;
         let _persistence_guard = persistence_lock.lock().await;
+        #[cfg(feature = "product-search")]
+        self.invalidate_session_search(workspace_path, session_id)
+            .await;
         let turns = self.load_session_turns(workspace_path, session_id).await?;
         let mut deleted = 0usize;
 
@@ -6102,7 +6169,7 @@ mod tests {
             async move {
                 manager
                     .update_session_metadata(&workspace_path, &session_id, |metadata| {
-                        metadata.agent_type = "Plan".to_string();
+                        metadata.agent_type = "Cowork".to_string();
                     })
                     .await
             }
@@ -6140,7 +6207,7 @@ mod tests {
             .await
             .expect("metadata should load")
             .expect("metadata should exist");
-        assert_eq!(metadata.agent_type, "Plan");
+        assert_eq!(metadata.agent_type, "Cowork");
         assert_eq!(metadata.turn_count, 1);
     }
 
@@ -6508,7 +6575,7 @@ mod tests {
             Message::assistant("hello".to_string()),
             Message::tool_result(ToolResult {
                 tool_id: "tool-1".to_string(),
-                tool_name: "Bash".to_string(),
+                tool_name: "ExecCommand".to_string(),
                 effective_tool_name: None,
                 result: serde_json::json!({ "output": "x".repeat(40) }),
                 result_for_assistant: Some("assistant summary".to_string()),
@@ -6524,7 +6591,10 @@ mod tests {
         assert_eq!(stats.raw_result_string_chars, 40);
         assert_eq!(stats.result_for_assistant_chars, 17);
         assert_eq!(stats.largest_raw_result_chars, 40);
-        assert_eq!(stats.largest_raw_result_path, "message[1].Bash.output");
+        assert_eq!(
+            stats.largest_raw_result_path,
+            "message[1].ExecCommand.output"
+        );
         assert!(!stats.largest_raw_result_path.contains(&"x".repeat(40)));
     }
 

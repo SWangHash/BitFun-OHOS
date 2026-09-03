@@ -40,7 +40,6 @@ async function closeAgentCompanionDesktopPet(): Promise<void> {
   }
 
   await aiExperienceConfigService.saveSettings({
-    ...settings,
     enable_agent_companion: false,
   });
   log.info('Agent companion disabled from pet context menu');
@@ -48,7 +47,7 @@ async function closeAgentCompanionDesktopPet(): Promise<void> {
 
 async function openAgentCompanionPetSettings(): Promise<void> {
   const { quickActions } = await import('@/shared/services/ide-control');
-  quickActions.openSettings('session-personalization');
+  quickActions.openSettings({ pageId: 'application.pet' });
   await api.invoke('show_main_window');
   log.info('Agent companion settings opened from pet context menu');
 }

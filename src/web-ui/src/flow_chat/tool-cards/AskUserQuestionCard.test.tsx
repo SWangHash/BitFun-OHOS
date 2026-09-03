@@ -19,17 +19,6 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@/component-library', () => ({
-  Button: ({
-    children,
-    isLoading: _isLoading,
-    ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { isLoading?: boolean }) => (
-    <button type="button" {...props}>{children}</button>
-  ),
-  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
 vi.mock('@/infrastructure/api/service-api/ToolAPI', () => ({
   toolAPI: {
     submitUserAnswers: vi.fn(),
@@ -126,8 +115,8 @@ describe('AskUserQuestionCard', () => {
         />,
       );
     });
-    expect(container.querySelector('.questions-container')).not.toBeNull();
-    expect(container.querySelector('.completed-summary')).toBeNull();
+    expect(container.querySelector('[data-bf-component="ask-user"] [data-bf-part="body"]')).not.toBeNull();
+    expect(container.querySelector('button[data-bf-part="summary"]')).toBeNull();
 
     act(() => {
       root.render(
@@ -138,8 +127,8 @@ describe('AskUserQuestionCard', () => {
         />,
       );
     });
-    expect(container.querySelector('.questions-container')).not.toBeNull();
-    expect(container.querySelector('.completed-summary')).toBeNull();
+    expect(container.querySelector('[data-bf-component="ask-user"] [data-bf-part="body"]')).not.toBeNull();
+    expect(container.querySelector('button[data-bf-part="summary"]')).toBeNull();
 
     act(() => {
       root.render(
@@ -150,7 +139,173 @@ describe('AskUserQuestionCard', () => {
         />,
       );
     });
-    expect(container.querySelector('.completed-summary')).not.toBeNull();
+    expect(container.querySelector('button[data-bf-part="summary"]')).not.toBeNull();
+  });
+
+  it('restores an unsubmitted answer after the session card is remounted', () => {
+    act(() => {
+      root.render(
+        <AskUserQuestionCard
+          toolItem={questionTool('pending_confirmation')}
+          config={config}
+          sessionId="session-a"
+          isLastItem
+        />,
+      );
+    });
+
+    const radio = container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]');
+    expect(radio).not.toBeNull();
+    act(() => radio?.click());
+    expect(radio?.checked).toBe(true);
+
+    act(() => root.render(null));
+    act(() => {
+      root.render(
+        <AskUserQuestionCard
+          toolItem={questionTool('pending_confirmation')}
+          config={config}
+          sessionId="session-b"
+          isLastItem
+        />,
+      );
+    });
+    expect(
+      container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked,
+    ).toBe(false);
+
+    act(() => root.render(null));
+    act(() => {
+      root.render(
+        <AskUserQuestionCard
+          toolItem={questionTool('pending_confirmation')}
+          config={config}
+          sessionId="session-a"
+          isLastItem
+        />,
+      );
+    });
+    expect(
+      container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked,
+    ).toBe(true);
+  });
+
+  it('restores an unsubmitted custom input after the card is remounted', () => {
+    const renderCard = () => {
+      root.render(
+        <AskUserQuestionCard
+          toolItem={questionTool('pending_confirmation')}
+          config={config}
+          sessionId="session-a"
+          isLastItem
+        />,
+      );
+    };
+
+    act(renderCard);
+    const otherRadio = container.querySelector<HTMLInputElement>('input[value="Other"]');
+    expect(otherRadio).not.toBeNull();
+    act(() => otherRadio?.click());
+
+    const customInput = container.querySelector<HTMLInputElement>('[data-bf-part="custom-input"] input');
+    expect(customInput).not.toBeNull();
+    act(() => {
+      if (customInput) {
+        setInputValue(customInput, 'CockroachDB');
+      }
+    });
+    expect(customInput?.value).toBe('CockroachDB');
+
+    act(() => root.render(null));
+    act(renderCard);
+
+    expect(container.querySelector<HTMLInputElement>('input[value="Other"]')?.checked).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('[data-bf-part="custom-input"] input')?.value).toBe('CockroachDB');
+  });
+
+  it('keeps the custom input mounted and focused during Chinese IME composition', () => {
+    act(() => {
+      root.render(
+        <AskUserQuestionCard
+          toolItem={questionTool('pending_confirmation')}
+          config={config}
+          sessionId="session-a"
+          isLastItem
+        />,
+      );
+    });
+
+    const otherRadio = container.querySelector<HTMLInputElement>('input[value="Other"]');
+    act(() => otherRadio?.click());
+
+    const customInput = container.querySelector<HTMLInputElement>('[data-bf-part="custom-input"] input');
+    expect(customInput).not.toBeNull();
+    act(() => {
+      customInput?.focus();
+      customInput?.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      if (customInput) {
+        setInputValue(customInput, 'n');
+        setInputValue(customInput, '');
+      }
+    });
+
+    expect(container.querySelector('[data-bf-part="custom-input"] input')).toBe(customInput);
+    expect(document.activeElement).toBe(customInput);
+    expect(container.querySelector<HTMLInputElement>('input[value="Other"]')?.checked).toBe(true);
+
+    act(() => {
+      if (customInput) {
+        setInputValue(customInput, '你');
+        customInput.dispatchEvent(new CompositionEvent('compositionend', {
+          bubbles: true,
+          data: '你',
+        }));
+      }
+    });
+
+    expect(container.querySelector<HTMLInputElement>('[data-bf-part="custom-input"] input')?.value).toBe('你');
+    expect(document.activeElement).toBe(customInput);
+  });
+
+  it('deselects a blank multi-select Other answer and omits it from submission', async () => {
+    act(() => {
+      root.render(
+        <AskUserQuestionCard
+          toolItem={questionTool('pending_confirmation', true)}
+          config={config}
+          sessionId="session-a"
+          isLastItem
+        />,
+      );
+    });
+
+    const databaseCheckbox = container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]');
+    const otherCheckbox = container.querySelector<HTMLInputElement>('input[value="Other"]');
+    act(() => {
+      databaseCheckbox?.click();
+      otherCheckbox?.click();
+    });
+
+    const customInput = container.querySelector<HTMLInputElement>('[data-bf-part="custom-input"] input');
+    expect(customInput).not.toBeNull();
+    act(() => {
+      if (customInput) {
+        setInputValue(customInput, 'Custom database');
+        setInputValue(customInput, '');
+      }
+    });
+
+    expect(container.querySelector<HTMLInputElement>('input[value="Other"]')?.checked).toBe(false);
+    expect(container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked).toBe(true);
+
+    const submitButton = container.querySelector<HTMLButtonElement>('[data-bf-part="submit"] button');
+    expect(submitButton?.disabled).toBe(false);
+    await act(async () => submitButton?.click());
+
+    expect(toolAPI.submitUserAnswers).toHaveBeenCalledWith(
+      'question-tool-1',
+      { 0: ['PostgreSQL'] },
+    );
   });
 
   it('restores an unsubmitted answer after the session card is remounted', () => {

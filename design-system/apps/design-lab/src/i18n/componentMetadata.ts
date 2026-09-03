@@ -1,0 +1,82 @@
+import type { MessageKey } from "./messages";
+import type { TranslateParams } from "./core.mjs";
+
+type Translate = (key: MessageKey, params?: TranslateParams) => string;
+
+const categoryKeys: Readonly<Record<string, MessageKey>> = {
+  action: "meta.category.action",
+  feedback: "meta.category.feedback",
+  "flow-chat": "meta.category.flowChat",
+  form: "meta.category.form",
+  navigation: "meta.category.navigation",
+  primitive: "meta.category.primitive",
+};
+
+const descriptionKeys: Readonly<Record<string, MessageKey>> = {
+  ActionCard: "component.ActionCard.description",
+  ActionItem: "component.ActionItem.description",
+  ActivityItem: "component.ActivityItem.description",
+  AgentControlToolCard: "component.AgentControlToolCard.description",
+  AgentWaitToolCard: "component.AgentWaitToolCard.description",
+  AmbientToolCard: "component.AmbientToolCard.description",
+  Button: "component.Button.description",
+  Card: "component.Card.description",
+  CommandToolCard: "component.CommandToolCard.description",
+  Composer: "component.Composer.description",
+  Combobox: "component.Combobox.description",
+  ConfirmDialog: "component.ConfirmDialog.description",
+  ContextCompressionToolCard: "component.ContextCompressionToolCard.description",
+  DefaultToolCard: "component.DefaultToolCard.description",
+  DirectoryListToolCard: "component.DirectoryListToolCard.description",
+  Field: "component.Field.description",
+  FieldGroup: "component.FieldGroup.description",
+  FileDiffToolCard: "component.FileDiffToolCard.description",
+  FileOperationToolCard: "component.FileOperationToolCard.description",
+  GetToolSpecToolCard: "component.GetToolSpecToolCard.description",
+  GitToolCard: "component.GitToolCard.description",
+  GlobSearchToolCard: "component.GlobSearchToolCard.description",
+  GrepSearchToolCard: "component.GrepSearchToolCard.description",
+  IconButton: "component.IconButton.description",
+  Input: "component.Input.description",
+  KeyHint: "component.KeyHint.description",
+  LoadingState: "component.LoadingState.description",
+  Menu: "component.Menu.description",
+  Dialog: "component.Dialog.description",
+  Sheet: "component.Sheet.description",
+  NavigationPanel: "component.NavigationPanel.description",
+  PageDeployToolCard: "component.PageDeployToolCard.description",
+  PageHeader: "component.PageHeader.description",
+  PagePublishToolCard: "component.PagePublishToolCard.description",
+  ProminentToolCard: "component.ProminentToolCard.description",
+  ReadFileToolCard: "component.ReadFileToolCard.description",
+  ReviewSummaryToolCard: "component.ReviewSummaryToolCard.description",
+  RunCodeToolCard: "component.RunCodeToolCard.description",
+  SearchField: "component.SearchField.description",
+  SegmentedControl: "component.SegmentedControl.description",
+  SessionControlToolCard: "component.SessionControlToolCard.description",
+  SessionMessageToolCard: "component.SessionMessageToolCard.description",
+  SkillToolCard: "component.SkillToolCard.description",
+  Spinner: "component.Spinner.description",
+  Switch: "component.Switch.description",
+  TabGroup: "component.TabGroup.description",
+  TerminalControlToolCard: "component.TerminalControlToolCard.description",
+  TodoToolCard: "component.TodoToolCard.description",
+  Toolbar: "component.Toolbar.description",
+  Tooltip: "component.Tooltip.description",
+  ViewImageToolCard: "component.ViewImageToolCard.description",
+  WebFetchToolCard: "component.WebFetchToolCard.description",
+  WebSearchToolCard: "component.WebSearchToolCard.description",
+};
+
+export function getComponentCategoryLabel(category: string, t: Translate): string {
+  return t(categoryKeys[category] ?? "meta.category.other");
+}
+
+export function getComponentDescription(
+  name: string,
+  fallback: string,
+  t: Translate,
+): string {
+  const key = descriptionKeys[name];
+  return key ? t(key) : fallback;
+}

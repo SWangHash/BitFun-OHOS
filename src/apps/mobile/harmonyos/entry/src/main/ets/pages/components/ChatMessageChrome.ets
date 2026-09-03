@@ -1,7 +1,8 @@
+import { MobileDesignGeometry, MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { ConversationUiMessage } from '../state/ConversationUiModels';
 import { MessageImageGallery } from './ChatMessageContent';
-import { ACCENT, INK, MUTED, PRIMARY_ACTION_TEXT, RED, SOFT } from './Theme';
+import { ACCENT, INK, MUTED, CONTENT_ON_ACTION, STATUS_DANGER, SOFT } from './Theme';
 
 @ComponentV2
 export struct ChatTypingDots {
@@ -27,7 +28,7 @@ export struct ChatTypingDots {
         Text('•')
           .width(6)
           .height(18)
-          .fontSize(16)
+          .fontSize(MobileDesignTypography.bodyLarge.size)
           .fontColor(MUTED)
           .opacity(this.phase === index ? 1.0 : 0.34)
           .animation({ duration: 180, curve: Curve.EaseInOut })
@@ -47,11 +48,11 @@ export struct ChatMessageRetryAction {
   build() {
     Row({ space: 8 }) {
       Text(this.assistant ? RemoteI18n.t('generalChat.replyInterrupted') : RemoteI18n.t('chat.sendFailed'))
-        .fontSize(12)
-        .fontColor(RED)
+        .fontSize(MobileDesignTypography.labelSmall.size)
+        .fontColor(STATUS_DANGER)
       Text(RemoteI18n.t('common.retry'))
-        .fontSize(12)
-        .fontColor(PRIMARY_ACTION_TEXT)
+        .fontSize(MobileDesignTypography.labelSmall.size)
+        .fontColor(CONTENT_ON_ACTION)
         .height(28)
         .padding({ left: 10, right: 10 })
         .backgroundColor(ACCENT)
@@ -83,23 +84,28 @@ export struct ChatUserMessageBubble {
               MessageImageGallery({ images: this.item.images, userStyle: true })
             }
             if (this.visibleText().length > 0) {
-              Text(this.visibleText()).fontSize(14).lineHeight(20).fontColor(INK)
+              Text(this.visibleText()).fontSize(MobileDesignTypography.bodyMedium.size).lineHeight(MobileDesignTypography.bodyMedium.lineHeight).fontColor(INK)
             }
           }
-          .padding({ left: 10, right: 10, top: 10, bottom: 10 })
+          .padding({
+            left: MobileDesignGeometry.messageBubbleHorizontalPadding,
+            right: MobileDesignGeometry.messageBubbleHorizontalPadding,
+            top: MobileDesignGeometry.messageBubbleVerticalPadding,
+            bottom: MobileDesignGeometry.messageBubbleVerticalPadding
+          })
           .backgroundColor(SOFT)
-          .borderRadius(18)
+          .borderRadius(MobileDesignGeometry.messageBubbleRadius)
           .alignItems(HorizontalAlign.Start)
         }
         if (this.item.status === 'failed' && this.showRetryAction) {
           ChatMessageRetryAction({ retryText: this.item.text, onRetry: this.onRetryMessage })
         }
       }
-      .constraintSize({ maxWidth: '70%' })
+      .constraintSize({ maxWidth: MobileDesignGeometry.messageBubbleMaxWidth })
       .alignItems(HorizontalAlign.End)
     }
     .width('100%')
-    .padding({ top: 8, bottom: 12 })
+    .padding({ top: 2, bottom: 2 })
   }
 
   private visibleText(): string {

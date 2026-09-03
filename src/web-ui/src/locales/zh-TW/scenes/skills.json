@@ -28,7 +28,9 @@
   },
   "installed": {
     "titleAll": "已安裝技能",
+    "titleListAll": "全部技能",
     "subtitleAll": "管理所有已安裝的用戶級和項目級技能",
+    "titleBuiltin": "內建技能",
     "titleUser": "用戶級技能",
     "subtitleUser": "全局安裝的用戶級技能",
     "titleProject": "項目級技能",
@@ -37,7 +39,7 @@
   "toolbar": {
     "searchPlaceholder": "搜尋技能...",
     "addTooltip": "新增技能",
-    "hideDuplicates": "重複項"
+    "hideDuplicates": "隱藏重複項"
   },
   "filters": {
     "all": "全部",
@@ -118,6 +120,9 @@
       "meta": "Meta",
       "miniapp": "MiniApp",
       "canvas": "畫布",
+      "debugging": "偵錯",
+      "coordination": "協作調度",
+      "planning": "規劃",
       "gstack": "gstack",
       "harmonyos": "鴻蒙",
       "other": "其他"
@@ -130,14 +135,12 @@
     "manageGroups": "管理 Skill 分組",
     "modes": {
       "agentic": "agentic",
-      "cowork": "Cowork",
-      "team": "Team"
+      "cowork": "Cowork"
     },
     "modeDescriptions": {
       "agentic": "偏編碼的預設模式",
       "cowork": "辦公協作模式",
-      "claw": "助理模式",
-      "team": "團隊模式"
+      "claw": "助理模式"
     },
     "modeActions": {
       "reset": "重設 {{mode}}",
@@ -209,6 +212,12 @@
     "retry": "重試",
     "desktopUnavailable": "請在桌面端管理技能。",
     "remoteUnavailable": "遠端連線時暫不支援管理技能。",
+    "columns": {
+      "source": "來源",
+      "level": "級別",
+      "status": "狀態",
+      "actions": "操作"
+    },
     "empty": {
       "noMatch": "沒有找到匹配的技能",
       "noSkills": "還沒有設定任何技能"

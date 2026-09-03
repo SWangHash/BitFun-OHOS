@@ -1,6 +1,6 @@
+import { Combobox, Switch } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Select, Switch } from '@/component-library';
 import { useNotification, notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { aiExperienceConfigService, type AIExperienceSettings } from '../services/AIExperienceConfigService';
@@ -8,7 +8,7 @@ import { configManager } from '../services/ConfigManager';
 import type { AIModelConfig, TaskModelSelection, TaskModelsConfig } from '../types';
 import { ConfigPageRow, ConfigPageSection } from './common';
 import { type ModelSelectOption, useModelSelectPresentation } from './ModelSelectPresentation';
-import './AIFeaturesConfig.scss';
+import './RuntimeSettingsPages.scss';
 
 const log = createLogger('SessionTitleConfig');
 
@@ -29,13 +29,13 @@ function normalizeSelectValue(value: string | number | (string | number)[]): str
 }
 
 export const SessionTitleConfig: React.FC = () => {
-  const { t } = useTranslation('settings/ai-model');
+  const { t } = useTranslation('settings/models');
   const { success: notifySuccess, error: notifyError } = useNotification();
   const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState<AIExperienceSettings | null>(null);
   const [models, setModels] = useState<AIModelConfig[]>([]);
   const [taskModels, setTaskModels] = useState<TaskModelsConfig>(DEFAULT_TASK_MODELS);
-  const { buildModelOption, renderModelOption, renderModelValue } = useModelSelectPresentation();
+  const { buildModelOption } = useModelSelectPresentation();
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -92,7 +92,7 @@ export const SessionTitleConfig: React.FC = () => {
     const next = { ...settings, enable_session_title_generation: checked };
     setSettings(next);
     try {
-      await aiExperienceConfigService.saveSettings(next);
+      await aiExperienceConfigService.saveSettings({ enable_session_title_generation: checked });
       notifySuccess(t('sessionTitle.messages.saveSuccess'));
     } catch (error) {
       log.error('Failed to save session title enable setting', error);
@@ -143,21 +143,20 @@ export const SessionTitleConfig: React.FC = () => {
   return (
     <>
       <ConfigPageSection
-        className="bitfun-func-agent-config"
+        className="bitfun-runtime-settings"
         data-bf-component="session-title-config"
         data-bf-part="root"
         title={t('sessionTitle.title')}
         description={t('sessionTitle.subtitle')}
         extra={(
           <div
-            className="bitfun-func-agent-config__appearance-host"
+            className="bitfun-runtime-settings__appearance-host"
             data-bf-component="session-title-config"
             data-bf-part="enableControl"
           >
             <Switch
               checked={settings?.enable_session_title_generation ?? false}
               onChange={(e) => void updateEnabled(e.target.checked)}
-              size="small"
               disabled={isLoading || !settings}
               aria-label={t('sessionTitle.title')}
             />
@@ -170,22 +169,17 @@ export const SessionTitleConfig: React.FC = () => {
           align="center"
         >
           <div
-            className="bitfun-func-agent-config__appearance-host"
+            className="bitfun-runtime-settings__appearance-host"
             data-bf-component="session-title-config"
             data-bf-part="modelControl"
           >
-            <Select
-              size="small"
-              searchable
-              className="model-select-presentation__select"
-              dropdownClassName="model-select-presentation__dropdown"
+            <Combobox
+              size="sm"
               options={modelOptions}
               value={sessionTitleModelId}
-              onChange={(value) => void handleModelChange(normalizeSelectValue(value))}
-              renderOption={renderModelOption}
-              renderValue={renderModelValue}
+              onValueChange={(value) => void handleModelChange(normalizeSelectValue(value))}
               disabled={isLoading}
-              triggerTestId="settings-session-title-model-select"
+              data-testid="settings-session-title-model-select"
             />
           </div>
         </ConfigPageRow>

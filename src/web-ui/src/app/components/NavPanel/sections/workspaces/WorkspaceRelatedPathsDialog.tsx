@@ -1,5 +1,16 @@
+import {
+  Button,
+  Icon,
+  Input,
+  Textarea,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Button, Input, Modal, Textarea } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import {
@@ -11,7 +22,7 @@ import { sshApi } from '@/features/ssh-remote/sshApi';
 import RemoteFileBrowser from '@/features/ssh-remote/RemoteFileBrowser';
 import { createLogger } from '@/shared/utils/logger';
 import { isRemoteWorkspace, type RelatedPath, type WorkspaceInfo } from '@/shared/types';
-import { FolderOpen, Link2, Plus, Trash2 } from 'lucide-react';
+import { FolderOpen } from 'lucide-react';
 import './WorkspaceRelatedPathsDialog.scss';
 
 const log = createLogger('WorkspaceRelatedPathsDialog');
@@ -224,18 +235,21 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
 
   return (
     <>
-      <Modal
-        isOpen={isOpen}
-        onClose={() => {
-          if (!saving) {
-            onClose();
-          }
+      <Dialog
+        open={isOpen}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !saving) onClose();
         }}
-        title={t('nav.workspaces.relatedPaths.dialog.title')}
-        size="large"
-        contentInset
-        contentClassName="workspace-related-paths-dialog__modal"
+        size="lg"
       >
+        <DialogHeader>
+          <DialogHeading>
+            <DialogTitle>{t('nav.workspaces.relatedPaths.dialog.title')}</DialogTitle>
+          </DialogHeading>
+          <DialogClose />
+        </DialogHeader>
+        <DialogBody>
+          <div className="workspace-related-paths-dialog__modal">
         <div
           className="workspace-related-paths-dialog"
           data-bf-component="workspace-related-paths-dialog"
@@ -243,7 +257,7 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
         >
           <div data-bf-component="workspace-related-paths-dialog" data-bf-part="intro" className="workspace-related-paths-dialog__intro">
             <div className="workspace-related-paths-dialog__intro-icon">
-              <Link2 size={18} />
+              <Icon name="link" size="lg" />
             </div>
             <div data-bf-component="workspace-related-paths-dialog" data-bf-part="introCopy" className="workspace-related-paths-dialog__intro-copy">
               <div className="workspace-related-paths-dialog__intro-title">
@@ -285,7 +299,7 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
                       onClick={() => handleRemoveDraft(draft.id)}
                       aria-label={t('actions.remove')}
                     >
-                      <Trash2 size={14} />
+                      <Icon name="delete" size="sm" />
                     </button>
                   </div>
 
@@ -296,14 +310,14 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
                       onChange={event => setDraftValue(draft.id, 'path', event.target.value)}
                       placeholder={t('nav.workspaces.relatedPaths.dialog.pathPlaceholder')}
                       disabled={saving}
-                      variant="filled"
-                      size="small"
+                      size="sm"
                     />
                     <Button
                       type="button"
                       className="workspace-related-paths-dialog__select"
-                      variant="secondary"
-                      size="small"
+                      variant="outline"
+                      size="sm"
+                      leadingIcon={<FolderOpen />}
                       onClick={() =>
                         remoteWorkspace
                           ? setBrowsingIndex(index)
@@ -311,23 +325,26 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
                       }
                       disabled={saving || (remoteWorkspace && !connectionId)}
                     >
-                      <FolderOpen size={14} />
-                      <span>{t('actions.select')}</span>
+                      {t('actions.select')}
                     </Button>
                   </div>
 
-                  <Textarea
+                  <div
                     data-bf-component="workspace-related-paths-dialog"
                     data-bf-part="description"
                     className="workspace-related-paths-dialog__description"
-                    value={draft.description}
-                    onChange={event => setDraftValue(draft.id, 'description', event.target.value)}
-                    placeholder={t('nav.workspaces.relatedPaths.dialog.descriptionPlaceholder')}
-                    disabled={saving}
-                    autoResize
-                    rows={2}
-                    variant="outlined"
-                  />
+                  >
+                    <Textarea
+                      value={draft.description}
+                      onChange={event => setDraftValue(draft.id, 'description', event.target.value)}
+                      placeholder={t('nav.workspaces.relatedPaths.dialog.descriptionPlaceholder')}
+                      disabled={saving}
+                      layout="fill"
+                      resize="none"
+                      rows={2}
+                      variant="outlined"
+                    />
+                  </div>
                 </div>
               ))}
             </div>
@@ -411,21 +428,20 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
           <div data-bf-component="workspace-related-paths-dialog" data-bf-part="footer" className="workspace-related-paths-dialog__footer">
             <Button
               type="button"
-              className="workspace-related-paths-dialog__add"
-              variant="dashed"
-              size="small"
+              variant="outline"
+              size="sm"
+              leadingIcon={<Icon name="plus" size="lg" />}
               onClick={handleAddDraft}
               disabled={saving}
             >
-              <Plus size={14} />
-              <span>{t('nav.workspaces.relatedPaths.dialog.add')}</span>
+              {t('nav.workspaces.relatedPaths.dialog.add')}
             </Button>
 
             <div data-bf-component="workspace-related-paths-dialog" data-bf-part="footerActions" className="workspace-related-paths-dialog__footer-actions">
               <Button
                 type="button"
-                variant="secondary"
-                size="small"
+                variant="outline"
+                size="sm"
                 onClick={onClose}
                 disabled={saving}
               >
@@ -433,8 +449,8 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
               </Button>
               <Button
                 type="button"
-                variant="primary"
-                size="small"
+                variant="fill"
+                size="sm"
                 onClick={() => void handleSave()}
                 disabled={saving || hasInvalidDraft || isUnchanged}
               >
@@ -443,7 +459,9 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
             </div>
           </div>
         </div>
-      </Modal>
+                </div>
+                </DialogBody>
+      </Dialog>
 
       {remoteWorkspace && connectionId && browsingIndex !== null ? (
         <RemoteFileBrowser

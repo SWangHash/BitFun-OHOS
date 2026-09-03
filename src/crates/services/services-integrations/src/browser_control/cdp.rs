@@ -231,7 +231,7 @@ impl CdpEndpointProvider {
         } else {
             format!("http://127.0.0.1:{port}/json/new")
         };
-        let response = reqwest::Client::new()
+        let resp = crate::reqwest_client()
             .put(&endpoint)
             .timeout(CDP_HTTP_TIMEOUT)
             .send()

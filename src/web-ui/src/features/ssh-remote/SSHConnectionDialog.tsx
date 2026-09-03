@@ -3,36 +3,31 @@
  * Professional SSH connection dialog following BitFun design patterns
  */
 
+import {
+  Alert,
+  Button,
+  Field,
+  FieldGroup,
+  FieldRow,
+  FormSection,
+  Icon,
+  IconButton,
+  Input as DesignInput,
+  ScrollArea,
+  Select,
+  Tooltip,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { useSSHRemoteContext } from './SSHRemoteContext';
 import { SSHAuthPromptDialog, type SSHAuthPromptSubmitPayload } from './SSHAuthPromptDialog';
-import { Modal } from '@/component-library';
-import { Button } from '@/component-library';
-import { Input } from '@/component-library';
-import { Select } from '@/component-library';
-import { Alert } from '@/component-library';
-import { IconButton } from '@/component-library';
-import {
-  ArrowDownToLine,
-  CheckCircle2,
-  ChevronDown,
-  Eye,
-  EyeOff,
-  FolderOpen,
-  Key,
-  Loader2,
-  Lock,
-  Pencil,
-  Play,
-  Plus,
-  RefreshCw,
-  Search,
-  Server,
-  Trash2,
-  User,
-  XCircle,
-} from 'lucide-react';
+import { ArrowDownToLine, EyeOff, FolderOpen, Key, Loader2, Lock, Play, Server } from 'lucide-react';
 import type {
   ConnectionTestReport,
   ConnectionTestStage,
@@ -716,21 +711,24 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
 
   return (
     <>
-      <Modal
-        isOpen={open}
-        onClose={onClose}
-        title={t('ssh.remote.title') || 'SSH Remote'}
-        size="medium"
-        showCloseButton
-        closeOnOverlayClick={false}
-        overlayClassName="ssh-connection-dialog__modal-overlay"
-        contentClassName="modal__content--fill-flex"
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}
+        size="md"
+        closeOnPointerOutside={false}
       >
+        <DialogHeader>
+          <DialogHeading>
+            <DialogTitle>{t('ssh.remote.title') || 'SSH Remote'}</DialogTitle>
+          </DialogHeading>
+          <DialogClose />
+        </DialogHeader>
+        <DialogBody inset="none">
         <div className="ssh-connection-dialog" data-bf-component="ssh-remote" data-bf-part="connection">
           {error && (
             <div className="ssh-connection-dialog__error-banner" data-bf-component="ssh-remote" data-bf-part="connectionError">
               <Alert
-                type="error"
+                tone="error"
                 message={error}
                 closable
                 onClose={dismissError}
@@ -739,24 +737,27 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
             </div>
           )}
 
-          <div className="ssh-connection-dialog__scroll" data-bf-component="ssh-remote" data-bf-part="connectionContent">
+          <ScrollArea className="ssh-connection-dialog__scroll" data-bf-component="ssh-remote" data-bf-part="connectionContent">
           {/* Saved connections section */}
           {savedConnections.length > 0 && (
-            <div className="ssh-connection-dialog__section" data-bf-component="ssh-remote" data-bf-part="connectionSection">
-              <div className="ssh-connection-dialog__section-header">
-                <h3 className="ssh-connection-dialog__section-title">
-                  {t('ssh.remote.savedConnections')}
-                </h3>
-                <Input
+            <FormSection
+              className="ssh-connection-dialog__section"
+              data-bf-component="ssh-remote"
+              data-bf-part="connectionSection"
+              headingAs="h3"
+              title={<span className="ssh-connection-dialog__section-title">{t('ssh.remote.savedConnections')}</span>}
+              actions={(
+                <DesignInput
                   className="ssh-connection-dialog__search"
                   value={savedSearch}
                   onChange={(e) => setSavedSearch(e.target.value)}
                   placeholder={t('actions.search')}
-                  prefix={<Search size={14} />}
-                  size="small"
+                  leading={<Icon name="search" size="sm" />}
+                  size="sm"
                 />
-              </div>
-              <div className="ssh-connection-dialog__saved-list" data-bf-component="ssh-remote" data-bf-part="connectionList">
+              )}
+            >
+              <ScrollArea className="ssh-connection-dialog__saved-list" data-bf-component="ssh-remote" data-bf-part="connectionList">
                 {filteredSavedConnections.map((conn) => (
                   <div
                     key={conn.id}
@@ -778,60 +779,63 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
                       </span>
                     </div>
                     <div className="ssh-connection-dialog__saved-actions">
-                      <Button
-                        size="small"
-                        variant="ghost"
+                      <IconButton
+                        type="button"
+                        size="sm"
                         onClick={(e) => handleEditConnection(e, conn)}
                         disabled={isConnecting}
                         title={t('actions.edit') || 'Edit'}
-                      >
-                        <Pencil size={13} />
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="ghost"
+                        aria-label={t('actions.edit') || 'Edit'}
+                        icon={<Icon name="edit" size="xs" />}
+                      />
+                      <IconButton
+                        type="button"
+                        size="sm"
+                        tone="danger"
                         onClick={(e) => handleDeleteConnection(e, conn.id)}
                         disabled={isConnecting}
-                        className="ssh-connection-dialog__delete-btn"
                         title={t('actions.delete') || 'Delete'}
-                      >
-                        <Trash2 size={13} />
-                      </Button>
-                      <Button
-                        size="small"
+                        aria-label={t('actions.delete') || 'Delete'}
+                        icon={<Icon name="delete" size="lg" style={{ width: 13, height: 13 }} />}
+                      />
+                      <IconButton
+                        type="button"
+                        size="sm"
                         variant="primary"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleQuickConnect(conn);
                         }}
                         disabled={isConnecting || status === 'connecting'}
-                      >
-                        <Play size={12} />
-                      </Button>
+                        title={t('ssh.remote.connect')}
+                        aria-label={t('ssh.remote.connect')}
+                        icon={<Play size={12} />}
+                      />
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
+              </ScrollArea>
+            </FormSection>
           )}
 
           {/* SSH Config hosts section */}
           {sshConfigHosts.length > 0 && (
-            <div className="ssh-connection-dialog__section">
-              <div className="ssh-connection-dialog__section-header">
-                <h3 className="ssh-connection-dialog__section-title">
-                  {t('ssh.remote.sshConfigHosts') || 'SSH Config'}
-                </h3>
-                <Input
+            <FormSection
+              className="ssh-connection-dialog__section"
+              headingAs="h3"
+              title={<span className="ssh-connection-dialog__section-title">{t('ssh.remote.sshConfigHosts') || 'SSH Config'}</span>}
+              actions={(
+                <DesignInput
                   className="ssh-connection-dialog__search"
                   value={configSearch}
                   onChange={(e) => setConfigSearch(e.target.value)}
                   placeholder={t('actions.search')}
-                  prefix={<Search size={14} />}
-                  size="small"
+                  leading={<Icon name="search" size="sm" />}
+                  size="sm"
                 />
-              </div>
-              <div className="ssh-connection-dialog__saved-list">
+              )}
+            >
+              <ScrollArea className="ssh-connection-dialog__saved-list">
                 {filteredSSHConfigHosts.map((configHost) => (
                   <div
                     key={configHost.host}
@@ -854,23 +858,24 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
                     </div>
                     <div className="ssh-connection-dialog__saved-actions">
                       <Button
-                        size="small"
-                        variant="ghost"
+                        size="sm"
+                        variant="outline"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleFillFromConfig(configHost);
                         }}
                         disabled={isConnecting || status === 'connecting'}
                         title={t('ssh.remote.fillForm')}
+                        leadingIcon={<ArrowDownToLine size={12} />}
                       >
-                        <ArrowDownToLine size={12} />
+
                         {t('ssh.remote.fillForm')}
                       </Button>
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
+              </ScrollArea>
+            </FormSection>
           )}
 
           {/* Divider */}
@@ -881,8 +886,10 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
           )}
 
           {/* New connection form */}
-          <div
+          <FieldGroup
             ref={formRef}
+            appearance="plain"
+            dividers={false}
             className={[
               'ssh-connection-dialog__form',
               formHighlighted ? 'ssh-connection-dialog__form--highlighted' : '',
@@ -890,55 +897,54 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
             data-bf-component="ssh-remote"
             data-bf-part="connectionForm"
           >
-            <div className="ssh-connection-dialog__field">
+            <FieldRow padding="none" className="ssh-connection-dialog__field">
               <label className="ssh-connection-dialog__label">
                 {t('ssh.remote.targetType')}
               </label>
               <Select
                 options={targetOptions}
                 value={formData.targetType}
-                onChange={(value) => handleInputChange('targetType', String(value))}
-                size="medium"
-                dropdownClassName="ssh-connection-dialog__select-dropdown"
+                onValueChange={(value) => handleInputChange('targetType', String(value))}
+                size="md"
               />
-            </div>
+            </FieldRow>
 
             {!isLocalDockerTarget && (
               <>
             {/* Host and Port */}
-            <div className="ssh-connection-dialog__row ssh-connection-dialog__row--host">
+            <FieldRow padding="none" className="ssh-connection-dialog__row ssh-connection-dialog__row--host">
               <div className="ssh-connection-dialog__field ssh-connection-dialog__field--flex">
-                <Input
-                  label={t('ssh.remote.host')}
-                  value={formData.host}
-                  onChange={(e) => handleInputChange('host', e.target.value)}
-                  placeholder=""
-                  prefix={<Server size={16} />}
-                  size="medium"
-                />
+                <Field label={t('ssh.remote.host')} controlWidth="fill">
+                  <DesignInput
+                    value={formData.host}
+                    onChange={(e) => handleInputChange('host', e.target.value)}
+                    placeholder=""
+                    leading={<Server size={16} />}
+                  />
+                </Field>
               </div>
               <div className="ssh-connection-dialog__field ssh-connection-dialog__field--port">
-                <Input
-                  label={t('ssh.remote.port')}
-                  value={formData.port}
-                  onChange={(e) => handleInputChange('port', e.target.value)}
-                  placeholder="22"
-                  size="medium"
-                />
+                <Field label={t('ssh.remote.port')} controlWidth="fill">
+                  <DesignInput
+                    value={formData.port}
+                    onChange={(e) => handleInputChange('port', e.target.value)}
+                    placeholder="22"
+                  />
+                </Field>
               </div>
-            </div>
+            </FieldRow>
 
             {/* Username */}
-            <div className="ssh-connection-dialog__field">
-              <Input
-                label={t('ssh.remote.username')}
-                value={formData.username}
-                onChange={(e) => handleInputChange('username', e.target.value)}
-                placeholder=""
-                prefix={<User size={16} />}
-                size="medium"
-              />
-            </div>
+            <FieldRow padding="none" className="ssh-connection-dialog__field">
+              <Field label={t('ssh.remote.username')} controlWidth="fill">
+                <DesignInput
+                  value={formData.username}
+                  onChange={(e) => handleInputChange('username', e.target.value)}
+                  placeholder=""
+                  leading={<Icon name="user" size="md" />}
+                />
+              </Field>
+            </FieldRow>
               </>
             )}
 
@@ -951,14 +957,14 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
                     </label>
                     {formData.targetType !== 'containerSshd' && (
                       <Button
-                        variant="ghost"
-                        size="small"
+                        variant="outline"
+                        size="sm"
                         onClick={() => void handleListContainers()}
                         disabled={isListingContainers || isConnecting || status === 'connecting'}
                       >
                         {isListingContainers
                           ? <Loader2 size={13} className="ssh-connection-dialog__spinner" />
-                          : <RefreshCw size={13} />}
+                          : <Icon name="refresh" size="lg" style={{ width: 13, height: 13 }} />}
                         {t('ssh.remote.discoverContainers')}
                       </Button>
                     )}
@@ -970,16 +976,15 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
                         value: container.name,
                       }))}
                       value={formData.containerName}
-                      onChange={(value) => handleInputChange('containerName', String(value))}
-                      size="medium"
-                      dropdownClassName="ssh-connection-dialog__select-dropdown"
+                      onValueChange={(value) => handleInputChange('containerName', String(value))}
+                      size="md"
                     />
                   ) : (
-                    <Input
+                    <DesignInput
                       value={formData.containerName}
                       onChange={(e) => handleInputChange('containerName', e.target.value)}
                       placeholder={t('ssh.remote.containerNamePlaceholder')}
-                      size="medium"
+                      size="md"
                     />
                   )}
                 </div>
@@ -992,41 +997,40 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
                       <Select
                         options={containerAccessOptions}
                         value={formData.containerAccess}
-                        onChange={(value) => handleInputChange('containerAccess', String(value))}
-                        size="medium"
-                        dropdownClassName="ssh-connection-dialog__select-dropdown"
+                        onValueChange={(value) => handleInputChange('containerAccess', String(value))}
+                        size="md"
                       />
                       <div className="ssh-connection-dialog__hint">
                         {t('ssh.remote.containerAccessHint')}
                       </div>
                     </div>
                     <div className="ssh-connection-dialog__field">
-                      <Input
-                        label={t('ssh.remote.dockerPath')}
-                        value={formData.dockerPath}
-                        onChange={(e) => handleInputChange('dockerPath', e.target.value)}
-                        placeholder="docker"
-                        size="medium"
-                      />
+                      <Field label={t('ssh.remote.dockerPath')} controlWidth="fill">
+                        <DesignInput
+                          value={formData.dockerPath}
+                          onChange={(e) => handleInputChange('dockerPath', e.target.value)}
+                          placeholder="docker"
+                        />
+                      </Field>
                     </div>
                     <div className="ssh-connection-dialog__row">
                       <div className="ssh-connection-dialog__field ssh-connection-dialog__field--flex">
-                        <Input
-                          label={t('ssh.remote.containerShell')}
-                          value={formData.containerShell}
-                          onChange={(e) => handleInputChange('containerShell', e.target.value)}
-                          placeholder="/bin/sh"
-                          size="medium"
-                        />
+                        <Field label={t('ssh.remote.containerShell')} controlWidth="fill">
+                          <DesignInput
+                            value={formData.containerShell}
+                            onChange={(e) => handleInputChange('containerShell', e.target.value)}
+                            placeholder="/bin/sh"
+                          />
+                        </Field>
                       </div>
                       <div className="ssh-connection-dialog__field ssh-connection-dialog__field--flex">
-                        <Input
-                          label={t('ssh.remote.containerUser')}
-                          value={formData.containerUser}
-                          onChange={(e) => handleInputChange('containerUser', e.target.value)}
-                          placeholder={t('ssh.remote.optional')}
-                          size="medium"
-                        />
+                        <Field label={t('ssh.remote.containerUser')} controlWidth="fill">
+                          <DesignInput
+                            value={formData.containerUser}
+                            onChange={(e) => handleInputChange('containerUser', e.target.value)}
+                            placeholder={t('ssh.remote.optional')}
+                          />
+                        </Field>
                       </div>
                     </div>
                   </>
@@ -1044,152 +1048,161 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
             {!isLocalDockerTarget && (
               <>
             {/* Authentication Method */}
-            <div className="ssh-connection-dialog__field">
+            <FieldRow padding="none" className="ssh-connection-dialog__field">
               <label className="ssh-connection-dialog__label">
                 {t('ssh.remote.authMethod')}
               </label>
               <Select
                 options={authOptions}
                 value={formData.authType}
-                onChange={(value) => handleInputChange('authType', String(value))}
-                size="medium"
-                dropdownClassName="ssh-connection-dialog__select-dropdown"
+                onValueChange={(value) => handleInputChange('authType', String(value))}
+                size="md"
               />
-            </div>
+            </FieldRow>
 
             {/* Password */}
             {formData.authType === 'password' && (
-              <div className="ssh-connection-dialog__field">
-                <Input
-                  label={t('ssh.remote.password')}
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  placeholder=""
-                  prefix={<Lock size={16} />}
-                  size="medium"
-                  suffix={
-                    <button type="button" className="bitfun-input-toggle" onClick={() => setShowPassword(s => !s)} tabIndex={-1}>
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  }
-                />
-              </div>
+              <FieldRow padding="none" className="ssh-connection-dialog__field">
+                <Field label={t('ssh.remote.password')} controlWidth="fill">
+                  <DesignInput
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.password}
+                    onChange={(e) => handleInputChange('password', e.target.value)}
+                    placeholder=""
+                    leading={<Lock size={16} />}
+                    trailing={
+                      <IconButton
+                        type="button"
+                        size="sm"
+                        variant="quiet"
+                        aria-label={showPassword ? t('ssh.remote.hidePassword') : t('ssh.remote.showPassword')}
+                        onClick={() => setShowPassword(s => !s)}
+                        tabIndex={-1}
+                        icon={showPassword ? <EyeOff size={16} /> : <Icon name="eye" size="md" />}
+                      />
+                    }
+                  />
+                </Field>
+              </FieldRow>
             )}
 
             {/* Private Key */}
             {formData.authType === 'privateKey' && (
               <>
-                <div className="ssh-connection-dialog__field">
-                  <Input
-                    label={t('ssh.remote.privateKeyPath')}
-                    value={formData.keyPath}
-                    onChange={(e) => handleInputChange('keyPath', e.target.value)}
-                    placeholder="~/.ssh/id_rsa"
-                    prefix={<Key size={16} />}
-                    suffix={
-                      <IconButton
-                        type="button"
-                        variant="ghost"
-                        size="small"
-                        className="ssh-connection-dialog__browse-key"
-                        tooltip={t('ssh.remote.browsePrivateKey')}
-                        aria-label={t('ssh.remote.browsePrivateKey')}
-                        disabled={isConnecting || status === 'connecting'}
-                        onClick={() => void handleBrowsePrivateKey()}
-                      >
-                        <FolderOpen size={16} />
-                      </IconButton>
-                    }
-                    size="medium"
-                  />
-                </div>
-                <div className="ssh-connection-dialog__field">
-                  <Input
-                    label={t('ssh.remote.passphrase')}
-                    type={showPassphrase ? 'text' : 'password'}
-                    value={formData.passphrase}
-                    onChange={(e) => handleInputChange('passphrase', e.target.value)}
-                    placeholder={t('ssh.remote.passphraseOptional')}
-                    size="medium"
-                    suffix={
-                      <button type="button" className="bitfun-input-toggle" onClick={() => setShowPassphrase(s => !s)} tabIndex={-1}>
-                        {showPassphrase ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    }
-                  />
-                </div>
-                <div className="ssh-connection-dialog__field">
-                  <Input
-                    label={t('ssh.remote.certificatePath')}
-                    value={formData.certificatePath}
-                    onChange={(e) => handleInputChange('certificatePath', e.target.value)}
-                    placeholder={t('ssh.remote.certificatePathOptional')}
-                    suffix={
-                      <IconButton
-                        type="button"
-                        variant="ghost"
-                        size="small"
-                        className="ssh-connection-dialog__browse-key"
-                        tooltip={t('ssh.remote.browseCertificate')}
-                        aria-label={t('ssh.remote.browseCertificate')}
-                        disabled={isConnecting || status === 'connecting'}
-                        onClick={() => void handleBrowseCertificate()}
-                      >
-                        <FolderOpen size={16} />
-                      </IconButton>
-                    }
-                    size="medium"
-                  />
-                </div>
+                <FieldRow padding="none" className="ssh-connection-dialog__field">
+                  <Field label={t('ssh.remote.privateKeyPath')} controlWidth="fill">
+                    <DesignInput
+                      value={formData.keyPath}
+                      onChange={(e) => handleInputChange('keyPath', e.target.value)}
+                      placeholder="~/.ssh/id_rsa"
+                      leading={<Key size={16} />}
+                      trailing={
+                        <Tooltip content={t('ssh.remote.browsePrivateKey')}>
+                          <IconButton
+                            type="button"
+                            size="sm"
+                            className="ssh-connection-dialog__browse-key"
+                            aria-label={t('ssh.remote.browsePrivateKey')}
+                            disabled={isConnecting || status === 'connecting'}
+                            onClick={() => void handleBrowsePrivateKey()}
+                            icon={<FolderOpen size={16} />}
+                          />
+                        </Tooltip>
+                      }
+                    />
+                  </Field>
+                </FieldRow>
+                <FieldRow padding="none" className="ssh-connection-dialog__field">
+                  <Field label={t('ssh.remote.passphrase')} controlWidth="fill">
+                    <DesignInput
+                      type={showPassphrase ? 'text' : 'password'}
+                      value={formData.passphrase}
+                      onChange={(e) => handleInputChange('passphrase', e.target.value)}
+                      placeholder={t('ssh.remote.passphraseOptional')}
+                      trailing={
+                        <IconButton
+                          type="button"
+                          size="sm"
+                          variant="quiet"
+                          aria-label={showPassphrase ? t('ssh.remote.hidePassword') : t('ssh.remote.showPassword')}
+                          onClick={() => setShowPassphrase(s => !s)}
+                          tabIndex={-1}
+                          icon={showPassphrase ? <EyeOff size={16} /> : <Icon name="eye" size="md" />}
+                        />
+                      }
+                    />
+                  </Field>
+                </FieldRow>
+                <FieldRow padding="none" className="ssh-connection-dialog__field">
+                  <Field label={t('ssh.remote.certificatePath')} controlWidth="fill">
+                    <DesignInput
+                      value={formData.certificatePath}
+                      onChange={(e) => handleInputChange('certificatePath', e.target.value)}
+                      placeholder={t('ssh.remote.certificatePathOptional')}
+                      trailing={
+                        <Tooltip content={t('ssh.remote.browseCertificate')}>
+                          <IconButton
+                            type="button"
+                            size="sm"
+                            className="ssh-connection-dialog__browse-key"
+                            aria-label={t('ssh.remote.browseCertificate')}
+                            disabled={isConnecting || status === 'connecting'}
+                            onClick={() => void handleBrowseCertificate()}
+                            icon={<FolderOpen size={16} />}
+                          />
+                        </Tooltip>
+                      }
+                    />
+                  </Field>
+                </FieldRow>
               </>
             )}
 
             {formData.authType === 'agent' && (
               <>
-                <div className="ssh-connection-dialog__field">
-                  <Input
-                    label={t('ssh.remote.agentFingerprint')}
-                    value={formData.keyFingerprint}
-                    onChange={(e) => handleInputChange('keyFingerprint', e.target.value)}
-                    placeholder={t('ssh.remote.optional')}
-                    size="medium"
-                  />
-                </div>
-                <div className="ssh-connection-dialog__field">
-                  <Input
-                    label={t('ssh.remote.agentFallbackKey')}
-                    value={formData.fallbackKeyPath}
-                    onChange={(e) => handleInputChange('fallbackKeyPath', e.target.value)}
-                    placeholder={t('ssh.remote.optional')}
-                    size="medium"
-                  />
-                </div>
+                <FieldRow padding="none" className="ssh-connection-dialog__field">
+                  <Field label={t('ssh.remote.agentFingerprint')} controlWidth="fill">
+                    <DesignInput
+                      value={formData.keyFingerprint}
+                      onChange={(e) => handleInputChange('keyFingerprint', e.target.value)}
+                      placeholder={t('ssh.remote.optional')}
+                    />
+                  </Field>
+                </FieldRow>
+                <FieldRow padding="none" className="ssh-connection-dialog__field">
+                  <Field label={t('ssh.remote.agentFallbackKey')} controlWidth="fill">
+                    <DesignInput
+                      value={formData.fallbackKeyPath}
+                      onChange={(e) => handleInputChange('fallbackKeyPath', e.target.value)}
+                      placeholder={t('ssh.remote.optional')}
+                    />
+                  </Field>
+                </FieldRow>
               </>
             )}
 
             {formData.authType === 'keyboardInteractive' && (
-              <div className="ssh-connection-dialog__row">
+              <FieldRow padding="none" className="ssh-connection-dialog__row">
                 <div className="ssh-connection-dialog__field ssh-connection-dialog__field--flex">
-                  <Input
-                    label={t('ssh.remote.challengePassword')}
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => handleInputChange('password', e.target.value)}
-                    size="medium"
-                  />
+                  <Field label={t('ssh.remote.challengePassword')} controlWidth="fill">
+                    <DesignInput
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => handleInputChange('password', e.target.value)}
+                    />
+                  </Field>
                 </div>
                 <div className="ssh-connection-dialog__field ssh-connection-dialog__field--flex">
-                  <Input
-                    label={t('ssh.remote.verificationCode')}
-                    type="password"
-                    value={formData.verificationCode}
-                    onChange={(e) => handleInputChange('verificationCode', e.target.value)}
-                    placeholder={t('ssh.remote.optional')}
-                    size="medium"
-                  />
+                  <Field label={t('ssh.remote.verificationCode')} controlWidth="fill">
+                    <DesignInput
+                      type="password"
+                      value={formData.verificationCode}
+                      onChange={(e) => handleInputChange('verificationCode', e.target.value)}
+                      placeholder={t('ssh.remote.optional')}
+                    />
+                  </Field>
                 </div>
-              </div>
+              </FieldRow>
             )}
 
               </>
@@ -1203,40 +1216,36 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
                 onClick={() => setShowAdvancedSettings((visible) => !visible)}
               >
                 <span>{t('ssh.remote.advancedSettings')}</span>
-                <ChevronDown
-                  size={16}
-                  aria-hidden="true"
-                  className={[
+                <Icon name="chevron-down" size="md" aria-hidden="true" className={[
                     'ssh-connection-dialog__advanced-chevron',
                     showAdvancedSettings
                       ? 'ssh-connection-dialog__advanced-chevron--expanded'
                       : '',
-                  ].filter(Boolean).join(' ')}
-                />
+                  ].filter(Boolean).join(' ')} />
               </button>
 
               {showAdvancedSettings && (
-                <div className="ssh-connection-dialog__advanced-panel">
+                <FieldGroup appearance="subtle" className="ssh-connection-dialog__advanced-panel">
                   <div className="ssh-connection-dialog__field">
-                    <Input
-                      label={t('ssh.remote.connectionName')}
-                      value={formData.name}
-                      onChange={(e) => handleInputChange('name', e.target.value)}
-                      placeholder={t('ssh.remote.connectionNamePlaceholder')}
-                      size="medium"
-                    />
+                    <Field label={t('ssh.remote.connectionName')} controlWidth="fill">
+                      <DesignInput
+                        value={formData.name}
+                        onChange={(e) => handleInputChange('name', e.target.value)}
+                        placeholder={t('ssh.remote.connectionNamePlaceholder')}
+                      />
+                    </Field>
                   </div>
 
                   {!isLocalDockerTarget && (
                     <>
                       <div className="ssh-connection-dialog__field">
-                        <Input
-                          label={t('ssh.remote.proxyJump')}
-                          value={formData.proxyJump}
-                          onChange={(e) => handleInputChange('proxyJump', e.target.value)}
-                          placeholder={t('ssh.remote.proxyJumpPlaceholder')}
-                          size="medium"
-                        />
+                        <Field label={t('ssh.remote.proxyJump')} controlWidth="fill">
+                          <DesignInput
+                            value={formData.proxyJump}
+                            onChange={(e) => handleInputChange('proxyJump', e.target.value)}
+                            placeholder={t('ssh.remote.proxyJumpPlaceholder')}
+                          />
+                        </Field>
                         <div className="ssh-connection-dialog__hint">
                           {t('ssh.remote.proxyJumpHint')}
                         </div>
@@ -1259,42 +1268,42 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
                         </div>
                         <div className="ssh-connection-dialog__options-grid">
                           <div className="ssh-connection-dialog__field">
-                            <Input
-                              label={t('ssh.remote.connectTimeout')}
-                              value={formData.connectTimeoutSecs}
-                              onChange={(e) => handleInputChange('connectTimeoutSecs', e.target.value)}
-                              size="medium"
-                            />
+                            <Field label={t('ssh.remote.connectTimeout')} controlWidth="fill">
+                              <DesignInput
+                                value={formData.connectTimeoutSecs}
+                                onChange={(e) => handleInputChange('connectTimeoutSecs', e.target.value)}
+                              />
+                            </Field>
                           </div>
                           <div className="ssh-connection-dialog__field">
-                            <Input
-                              label={t('ssh.remote.authTimeout')}
-                              value={formData.authTimeoutSecs}
-                              onChange={(e) => handleInputChange('authTimeoutSecs', e.target.value)}
-                              size="medium"
-                            />
+                            <Field label={t('ssh.remote.authTimeout')} controlWidth="fill">
+                              <DesignInput
+                                value={formData.authTimeoutSecs}
+                                onChange={(e) => handleInputChange('authTimeoutSecs', e.target.value)}
+                              />
+                            </Field>
                           </div>
                           <div className="ssh-connection-dialog__field">
-                            <Input
-                              label={t('ssh.remote.authAttempts')}
-                              value={formData.authAttempts}
-                              onChange={(e) => handleInputChange('authAttempts', e.target.value)}
-                              size="medium"
-                            />
+                            <Field label={t('ssh.remote.authAttempts')} controlWidth="fill">
+                              <DesignInput
+                                value={formData.authAttempts}
+                                onChange={(e) => handleInputChange('authAttempts', e.target.value)}
+                              />
+                            </Field>
                           </div>
                           <div className="ssh-connection-dialog__field">
-                            <Input
-                              label={t('ssh.remote.connectAttempts')}
-                              value={formData.connectAttempts}
-                              onChange={(e) => handleInputChange('connectAttempts', e.target.value)}
-                              size="medium"
-                            />
+                            <Field label={t('ssh.remote.connectAttempts')} controlWidth="fill">
+                              <DesignInput
+                                value={formData.connectAttempts}
+                                onChange={(e) => handleInputChange('connectAttempts', e.target.value)}
+                              />
+                            </Field>
                           </div>
                         </div>
                       </div>
                     </>
                   )}
-                </div>
+                </FieldGroup>
               )}
             </div>
 
@@ -1310,8 +1319,8 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
                 {connectionTest.stages.map((stage) => (
                   <div key={stage.id} className="ssh-connection-dialog__test-stage">
                     {stage.success
-                      ? <CheckCircle2 size={14} />
-                      : <XCircle size={14} />}
+                      ? <Icon name="check-circle" size="sm" />
+                      : <Icon name="xmark" size="sm" />}
                     <span>{formatTestStageLabel(stage)}</span>
                     {stage.error && <span title={stage.error}>{stage.error}</span>}
                   </div>
@@ -1328,14 +1337,14 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
                 )}
               </div>
             )}
-          </div>
-          </div>
+          </FieldGroup>
+          </ScrollArea>
 
           {/* Actions */}
           <div className="ssh-connection-dialog__actions" data-bf-component="ssh-remote" data-bf-part="connectionActions">
             <Button
-              variant="secondary"
-              size="small"
+              variant="outline"
+              size="sm"
               onClick={() => void handleTestConnection()}
               disabled={isTesting || isConnecting || status === 'connecting'}
             >
@@ -1343,16 +1352,16 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
               {t('ssh.remote.testConnection')}
             </Button>
             <Button
-              variant="secondary"
-              size="small"
+              variant="outline"
+              size="sm"
               onClick={onClose}
               disabled={isConnecting || status === 'connecting'}
             >
               {t('actions.cancel')}
             </Button>
             <Button
-              variant="primary"
-              size="small"
+              variant="fill"
+              size="sm"
               onClick={handleConnect}
               disabled={
                 isConnecting
@@ -1369,14 +1378,15 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
                 </>
               ) : (
                 <>
-                  <Plus size={14} />
+                  <Icon name="plus" size="sm" />
                   {t('ssh.remote.connect')}
                 </>
               )}
             </Button>
           </div>
         </div>
-      </Modal>
+              </DialogBody>
+      </Dialog>
 
       {open && credentialsPrompt && (
         <SSHAuthPromptDialog

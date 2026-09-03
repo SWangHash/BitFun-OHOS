@@ -7,8 +7,8 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bf-appearance-token-color-bg-primary);
-  color: var(--bf-appearance-token-color-text-primary);
+  background: var(--bf-color-surface-canvas);
+  color: var(--bf-color-content-primary);
   overflow: hidden;
 
   // Loading and error states
@@ -31,34 +31,15 @@
       .error-icon {
         width: 48px;
         height: 48px;
-        color: var(--bf-appearance-token-color-error);
+        color: var(--bf-color-status-danger-content);
       }
 
       p {
-        color: var(--bf-appearance-token-color-text-secondary);
-        font-size: 14px;
+        color: var(--bf-color-content-secondary);
+        font-size: var(--bf-font-size-base);
         margin: 0;
       }
 
-      .retry-button {
-        padding: 8px 16px;
-        font-size: 13px;
-        color: var(--bf-appearance-token-color-text-primary);
-        background: var(--bf-appearance-token-color-bg-tertiary);
-        border: 1px solid var(--bf-appearance-token-border-base);
-        border-radius: 6px;
-        cursor: pointer;
-        transition:
-          transform 140ms cubic-bezier(0.23, 1, 0.32, 1),
-          background-color 140ms ease,
-          border-color 140ms ease,
-          color 140ms ease;
-
-        &:hover {
-          background: var(--bf-appearance-token-element-bg-hover);
-          border-color: var(--bf-appearance-token-border-medium);
-        }
-      }
     }
   }
 
@@ -68,19 +49,19 @@
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    background: var(--bf-appearance-token-color-bg-secondary);
-    border-bottom: 1px solid var(--bf-appearance-token-border-base);
+    background: var(--bf-color-surface-panel);
+    border-bottom: 1px solid var(--bf-color-border-default);
     flex-shrink: 0;
 
     &--collapsible {
       cursor: pointer;
 
       &:hover {
-        background: var(--bf-appearance-token-color-bg-tertiary);
+        background: var(--bf-color-surface-tertiary);
 
         .header-expand-indicator {
-          color: var(--bf-appearance-token-color-text-primary);
-          background: var(--bf-appearance-token-color-overlay-white-08);
+          color: var(--bf-color-content-primary);
+          background: color-mix(in srgb, var(--bf-color-content-on-dark) 8%, transparent);
         }
       }
     }
@@ -97,9 +78,9 @@
         justify-content: center;
         width: 18px;
         height: 18px;
-        color: var(--bf-appearance-token-color-text-muted);
+        color: var(--bf-color-content-muted);
         border-radius: 4px;
-        background: var(--bf-appearance-token-color-overlay-white-04);
+        background: color-mix(in srgb, var(--bf-color-content-on-dark) 4%, transparent);
         transition:
           background-color 0.15s ease,
           color 0.15s ease,
@@ -120,24 +101,24 @@
 
       .file-icon {
         flex-shrink: 0;
-        color: var(--bf-appearance-token-color-text-muted);
+        color: var(--bf-color-content-muted);
       }
 
       .file-name {
-        font-size: 14px;
-        font-weight: 500;
-        color: var(--bf-appearance-token-color-text-primary);
-        font-family: var(--bf-appearance-token-font-family-mono);
+        font-size: var(--bf-font-size-base);
+        font-weight: var(--bf-font-weight-medium);
+        color: var(--bf-color-content-primary);
+        font-family:var(--bf-font-family-mono);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
       .unsaved-indicator {
-        font-size: 11px;
-        color: var(--bf-appearance-token-color-warning);
+        font-size: var(--bf-font-size-meta);
+        color: var(--bf-color-status-warning-content);
         padding: 2px 6px;
-        background: var(--bf-appearance-token-color-warning-bg);
+        background: var(--bf-color-status-warning-surface);
         border-radius: 4px;
         margin-left: 4px;
       }
@@ -150,114 +131,24 @@
       flex-shrink: 0;
 
       .todos-count {
-        font-size: 11px;
-        font-weight: 500;
-        color: var(--bf-appearance-token-color-text-muted);
+        font-size: var(--bf-font-size-meta);
+        font-weight: var(--bf-font-weight-medium);
+        color: var(--bf-color-content-muted);
         padding: 2px 8px;
         border-radius: 999px;
-        border: 1px solid var(--bf-appearance-token-border-base);
-        background: var(--bf-appearance-token-color-bg-primary);
-        letter-spacing: 0.2px;
+        border: 1px solid var(--bf-color-border-default);
+        background: var(--bf-color-surface-canvas);
+        letter-spacing: var(--bf-letter-spacing-subtle);
       }
 
-      .edit-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 20px;
-        height: 20px;
-        padding: 0;
-        color: var(--bf-appearance-token-color-text-muted);
-        background: transparent;
-        border: 1px solid transparent;
-        border-radius: 4px;
-        cursor: pointer;
-        transition:
-          transform 140ms cubic-bezier(0.23, 1, 0.32, 1),
-          background-color 140ms ease,
-          border-color 140ms ease,
-          color 140ms ease;
-
-        &:hover {
-          color: var(--bf-appearance-token-color-text-primary);
-          background: var(--bf-appearance-token-color-bg-tertiary);
-          border-color: var(--bf-appearance-token-border-medium);
-        }
-
-        &--active {
-          color: var(--bf-appearance-token-color-info);
-          background: color-mix(in srgb, var(--bf-appearance-token-color-accent-600) 10%, transparent);
-          border-color: var(--bf-appearance-token-color-info);
-
-          &:hover {
-            color: var(--bf-appearance-token-color-info);
-            background: var(--bf-appearance-token-border-accent-subtle);
-          }
-        }
-      }
-    }
-  }
-
-  // Build button styles (for header)
-  .build-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--bf-appearance-token-color-static-white);
-    background: linear-gradient(135deg, var(--bf-appearance-token-color-warning) 0%, var(--bf-appearance-token-color-warning) 100%);
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition:
-      transform 0.15s ease,
-      background-color 0.15s ease,
-      box-shadow 0.15s ease,
-      opacity 0.15s ease;
-    box-shadow: 0 1px 2px var(--bf-appearance-token-color-overlay-black-12);
-
-    &:hover:not(:disabled) {
-      background: linear-gradient(135deg, var(--bf-appearance-token-color-warning) 0%, var(--bf-appearance-token-color-warning) 100%);
-      box-shadow: 0 2px 4px var(--bf-appearance-token-color-warning-border);
-    }
-
-    &:active:not(:disabled) {
-      transform: translateY(1px);
-    }
-
-    &:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
-    }
-
-    svg {
-      width: 14px;
-      height: 14px;
-    }
-
-    &--building {
-      background: linear-gradient(135deg, var(--bf-appearance-token-color-warning) 0%, var(--bf-appearance-token-color-warning) 100%);
-      cursor: wait;
-    }
-
-    &--built {
-      background: linear-gradient(135deg, var(--bf-appearance-token-color-success) 0%, var(--bf-appearance-token-color-success) 100%);
-      cursor: default;
-
-      &:hover {
-        background: linear-gradient(135deg, var(--bf-appearance-token-color-success) 0%, var(--bf-appearance-token-color-success) 100%);
-        box-shadow: 0 1px 2px var(--bf-appearance-token-color-overlay-black-12);
-      }
     }
   }
 
   // Todo Section
   .plan-viewer-todos {
     padding: 8px 12px;
-    background: var(--bf-appearance-token-color-bg-secondary);
-    border-bottom: 1px solid var(--bf-appearance-token-border-base);
+    background: var(--bf-color-surface-panel);
+    border-bottom: 1px solid var(--bf-color-border-default);
     flex-shrink: 0;
 
     .todo-inline-toolbar,
@@ -271,34 +162,6 @@
         margin-bottom: 0;
       }
 
-      .edit-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 22px;
-        height: 22px;
-        padding: 0;
-        color: var(--bf-appearance-token-color-text-muted);
-        background: transparent;
-        border: 1px solid transparent;
-        border-radius: 4px;
-        cursor: pointer;
-        transition:
-          transform 140ms cubic-bezier(0.23, 1, 0.32, 1),
-          background-color 140ms ease,
-          border-color 140ms ease,
-          color 140ms ease;
-
-        &:hover {
-          color: var(--bf-appearance-token-color-text-primary);
-          background: var(--bf-appearance-token-color-bg-tertiary);
-          border-color: var(--bf-appearance-token-border-base);
-        }
-
-        &--confirm {
-          color: var(--bf-appearance-token-color-success);
-        }
-      }
     }
 
     // YAML editor section
@@ -333,7 +196,7 @@
 
     &--trailing {
       border: none;
-      border-top: 1px dashed var(--bf-appearance-token-border-base);
+      border-top: 1px dashed var(--bf-color-border-default);
       background: transparent;
       padding: 6px 16px 10px;
 
@@ -360,93 +223,57 @@
         margin-top: 2px;
 
         &--pending {
-          color: var(--bf-appearance-token-color-text-muted);
+          color: var(--bf-color-content-muted);
           opacity: 0.5;
         }
 
         &--in-progress {
-          color: var(--bf-appearance-token-color-info);
+          color: var(--bf-color-status-info-content);
         }
 
         &--completed {
-          color: var(--bf-appearance-token-color-success);
+          color: var(--bf-color-status-success-content);
         }
 
         &--cancelled {
-          color: var(--bf-appearance-token-color-error);
+          color: var(--bf-color-status-danger-content);
           opacity: 0.6;
         }
       }
 
       .todo-content {
-        font-size: 13px;
-        line-height: 1.5;
-        color: var(--bf-appearance-token-color-text-secondary);
+        font-size: var(--bf-font-size-sm);
+        line-height: var(--bf-line-height-base);
+        color: var(--bf-color-content-secondary);
         flex: 1;
         min-width: 0;
       }
 
-      .todo-content-input {
+      .todo-content-input-field {
         flex: 1;
         min-width: 0;
-        font-size: 13px;
-        line-height: 1.5;
-        color: var(--bf-appearance-token-color-text-primary);
-        background: var(--bf-appearance-token-color-bg-primary);
-        border: 1px solid var(--bf-appearance-token-border-base);
-        border-radius: 4px;
-        padding: 4px 8px;
-        outline: none;
-
-        &:focus {
-          border-color: var(--bf-appearance-token-color-info);
-        }
-      }
-
-      .todo-delete-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 22px;
-        height: 22px;
-        border: 1px solid transparent;
-        border-radius: 4px;
-        background: transparent;
-        color: var(--bf-appearance-token-color-text-muted);
-        cursor: pointer;
-        transition:
-          transform 140ms cubic-bezier(0.23, 1, 0.32, 1),
-          background-color 140ms ease,
-          border-color 140ms ease,
-          color 140ms ease;
-
-        &:hover {
-          color: var(--bf-appearance-token-color-error);
-          background: var(--bf-appearance-token-color-error-bg);
-          border-color: var(--bf-appearance-token-color-error-border);
-        }
       }
 
       // Status styles
       &.status-pending {
         .todo-content {
-          color: var(--bf-appearance-token-color-text-secondary);
+          color: var(--bf-color-content-secondary);
         }
       }
 
       &.status-in_progress {
-        background: var(--bf-appearance-token-glass-blue-subtle);
+        background: color-mix(in srgb, var(--bf-color-accent-hover) 8%, transparent);
 
         .todo-content {
-          color: var(--bf-appearance-token-color-text-primary);
-          font-weight: 500;
+          color: var(--bf-color-content-primary);
+          font-weight: var(--bf-font-weight-medium);
         }
       }
 
       &.status-completed {
         .todo-content {
           text-decoration: line-through;
-          color: var(--bf-appearance-token-color-text-muted);
+          color: var(--bf-color-content-muted);
           opacity: 0.6;
         }
       }
@@ -456,7 +283,7 @@
 
         .todo-content {
           text-decoration: line-through;
-          color: var(--bf-appearance-token-color-text-muted);
+          color: var(--bf-color-content-muted);
         }
       }
     }

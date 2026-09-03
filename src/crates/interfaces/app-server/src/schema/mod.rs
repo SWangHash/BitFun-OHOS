@@ -16,4 +16,5 @@ pub use bitfun_app_server_protocol::event::{
 pub use bitfun_app_server_protocol::git::*;
 pub use bitfun_app_server_protocol::i18n::*;
 pub use bitfun_app_server_protocol::permission::*;
+pub use bitfun_app_server_protocol::search::*;
 pub use bitfun_app_server_protocol::session::*;

@@ -3,10 +3,11 @@
  * Shows a branch's commits and supports cherry-pick when applicable.
  */
 
+import { Button, Icon, IconButton, SearchField, Select, ScrollArea } from '@bitfun/ui';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Copy, RefreshCw, ChevronDown, ChevronUp, GitBranch, Square, CheckSquare } from 'lucide-react';
-import { Search, IconButton, Select, Button } from '@/component-library';
+import { Square, CheckSquare } from 'lucide-react';
+import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { gitAPI } from '@/infrastructure/api';
 import { useNotification } from '@/shared/notification-system';
 import type { GitGraphNode } from '@/infrastructure/api/service-api/GitAPI';
@@ -86,6 +87,7 @@ export const GitBranchHistoryView: React.FC<GitBranchHistoryViewProps> = ({
   onCherryPickSuccess
 }) => {
   const { t } = useTranslation('panels/git');
+  const { t: tComponents } = useI18n('components');
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -305,7 +307,7 @@ export const GitBranchHistoryView: React.FC<GitBranchHistoryViewProps> = ({
       <div className={`git-branch-history-view git-branch-history-view--error ${className}`} data-bf-component="git-branch-history" data-bf-part="root" data-bf-state="error">
         <div data-bf-component="git-branch-history" data-bf-part="error" className="git-branch-history-view__error">
           <p>{t('branchHistory.loadFailedWithMessage', { error })}</p>
-          <Button variant="secondary" size="small" onClick={loadCommits}>
+          <Button variant="outline" size="sm" onClick={loadCommits}>
             {t('branchHistory.retry')}
           </Button>
         </div>
@@ -339,15 +341,17 @@ export const GitBranchHistoryView: React.FC<GitBranchHistoryViewProps> = ({
             </div>
           )}
           
-          <Search
+          <SearchField
             data-bf-component="git-branch-history"
             data-bf-part="search"
             value={searchQuery}
-            onChange={setSearchQuery}
+            onValueChange={setSearchQuery}
+            leadingIcon={<Icon name="search" size="sm" aria-hidden />}
             placeholder={t('search.commits')}
-            size="small"
-            clearable
-            enterToSearch={false}
+            aria-label={t('search.commits')}
+            size="sm"
+            clearLabel={searchQuery ? tComponents('search.clear') : undefined}
+            onClear={searchQuery ? () => setSearchQuery('') : undefined}
             className="git-branch-history-view__search"
           />
           
@@ -358,10 +362,9 @@ export const GitBranchHistoryView: React.FC<GitBranchHistoryViewProps> = ({
                 ...uniqueAuthors.map(author => ({ label: author, value: author }))
               ]}
               value={authorFilter}
-              onChange={(val) => setAuthorFilter(val as string)}
-              placeholder={t('branchHistory.authorPlaceholder')}
-              size="small"
-              clearable={!!authorFilter}
+              onValueChange={(val) => setAuthorFilter(String(val))}
+              aria-label={t('branchHistory.authorPlaceholder')}
+              size="sm"
               className="git-branch-history-view__author-select"
             />
           )}
@@ -370,39 +373,30 @@ export const GitBranchHistoryView: React.FC<GitBranchHistoryViewProps> = ({
         <div data-bf-component="git-branch-history" data-bf-part="headerRight" className="git-branch-history-view__header-right">
           {canCherryPick && (
             <Button
-              size="small"
-              variant="primary"
+              size="sm"
+              variant="fill"
               onClick={handleCherryPick}
               disabled={isCherryPicking || selectedCommits.size === 0}
-              className="git-branch-history-view__cherry-pick-btn"
+              loading={isCherryPicking}
+              leadingIcon={<Icon name="git" size="sm" />}
             >
-              {isCherryPicking ? (
-                <>
-                  <div className="git-branch-history-view__spinner git-branch-history-view__spinner--small" />
-                  {t('branchHistory.cherryPickRunning')}
-                </>
-              ) : (
-                <>
-                  <GitBranch size={14} />
-                  {t('branchHistory.cherryPick')}
-                  {selectedCommits.size > 0 ? ` (${selectedCommits.size})` : ''}
-                </>
-              )}
+              {isCherryPicking
+                ? t('branchHistory.cherryPickRunning')
+                : `${t('branchHistory.cherryPick')}${selectedCommits.size > 0 ? ` (${selectedCommits.size})` : ''}`}
             </Button>
           )}
           
           <IconButton
-            size="xs"
-            variant="ghost"
+            aria-label={t('branchHistory.refresh')}
+            size="sm"
             onClick={loadCommits}
             title={t('branchHistory.refresh')}
-          >
-            <RefreshCw size={14} />
-          </IconButton>
+            icon={<Icon name="refresh" size="sm" />}
+          />
         </div>
       </div>
 
-      <div data-bf-component="git-branch-history" data-bf-part="content" className="git-branch-history-view__content">
+      <ScrollArea data-bf-component="git-branch-history" data-bf-part="content" className="git-branch-history-view__content">
         {filteredCommits.length === 0 ? (
           <div data-bf-component="git-branch-history" data-bf-part="empty" className="git-branch-history-view__empty">
             <p>{searchQuery ? t('empty.noMatchingCommits') : t('empty.noCommits')}</p>
@@ -466,18 +460,17 @@ export const GitBranchHistoryView: React.FC<GitBranchHistoryViewProps> = ({
                           title={copiedHash === commit.hash ? t('branchHistory.copied') : t('branchHistory.copy')}
                         >
                           {commit.hash.substring(0, 7)}
-                          <Copy size={9} className="git-branch-history-view__copy-icon" />
+                          <Icon name="duplicate" size="2xs" className="git-branch-history-view__copy-icon" />
                         </span>
                       </div>
                     </div>
                     
-                    <IconButton 
+                    <IconButton
+                      aria-label={isExpanded ? t('tooltips.collapseDetails') : t('tooltips.expandDetails')}
                       className="git-branch-history-view__expand-btn"
-                      size="xs"
-                      variant="ghost"
-                    >
-                      {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                    </IconButton>
+                      size="sm"
+                      icon={isExpanded ? <Icon name="chevron-up" size="sm" /> : <Icon name="chevron-down" size="sm" />}
+                    />
                   </div>
                   
                   {isExpanded && (
@@ -505,7 +498,7 @@ export const GitBranchHistoryView: React.FC<GitBranchHistoryViewProps> = ({
             })}
           </div>
         )}
-      </div>
+      </ScrollArea>
     </div>
   );
 };

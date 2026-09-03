@@ -1,15 +1,17 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { Icon, IconButton, Tooltip } from '@bitfun/ui';
 import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { shortcutManager } from '@/infrastructure/services/ShortcutManager';
 import { FILETREE_SHORTCUTS } from '@/shared/constants/shortcuts';
 import { Folder, FilePlus, FolderPlus, RefreshCw } from 'lucide-react';
+import { FilePlus, FolderPlus } from 'lucide-react';
 import { VirtualFileTree } from './VirtualFileTree';
 import { FileExplorerProps, FileSystemNode, FlatFileNode } from '../types';
 import { flattenFileTree } from '../utils/treeFlattening';
 import { getNewItemParentPath } from '../utils/getNewItemParentPath';
 import { i18nService, useI18n } from '@/infrastructure/i18n';
 import { expandedFoldersContains, pathsEquivalentFs } from '@/shared/utils/pathUtils';
-import { IconButton } from '@/component-library';
+
 import { filterTreeByPredicate, filterTreeBySearch } from '@/tools/file-explorer';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { commandExecutor } from '@/shared/context-menu-system/commands/CommandExecutor';
@@ -304,7 +306,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         tabIndex={0}
       >
         <div className="bitfun-file-explorer__empty">
-          <Folder size={48} className="bitfun-file-explorer__empty-icon" />
+          <Icon name="folder" size="lg" className="bitfun-file-explorer__empty-icon" />
           <p>{searchQuery ? t('fileTree.emptyFiltered') : t('fileTree.empty')}</p>
         </div>
       </div>
@@ -341,37 +343,34 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           }}
         >
           {onNewFile && (
-            <IconButton
-              size="xs"
-              variant="ghost"
-              onClick={handleNewFile}
-              tooltip={withShortcut(t('fileTree.newFile'), NEW_FILE_SHORTCUT)}
-              tooltipPlacement="bottom"
-            >
-              <FilePlus size={14} />
-            </IconButton>
+            <Tooltip content={t('fileTree.newFile')} placement="bottom">
+              <IconButton
+                size="sm"
+                aria-label={t('fileTree.newFile')}
+                icon={<FilePlus />}
+                onClick={handleNewFile}
+              />
+            </Tooltip>
           )}
           {onNewFolder && (
-            <IconButton
-              size="xs"
-              variant="ghost"
-              onClick={handleNewFolder}
-              tooltip={withShortcut(t('fileTree.newFolder'), NEW_FOLDER_SHORTCUT)}
-              tooltipPlacement="bottom"
-            >
-              <FolderPlus size={14} />
-            </IconButton>
+            <Tooltip content={t('fileTree.newFolder')} placement="bottom">
+              <IconButton
+                size="sm"
+                aria-label={t('fileTree.newFolder')}
+                icon={<FolderPlus />}
+                onClick={handleNewFolder}
+              />
+            </Tooltip>
           )}
           {onRefresh && (
-            <IconButton
-              size="xs"
-              variant="ghost"
-              onClick={handleRefresh}
-              tooltip={withShortcut(t('fileTree.refresh'), REFRESH_SHORTCUT)}
-              tooltipPlacement="bottom"
-            >
-              <RefreshCw size={14} />
-            </IconButton>
+            <Tooltip content={t('fileTree.refresh')} placement="bottom">
+              <IconButton
+                size="sm"
+                aria-label={t('fileTree.refresh')}
+                icon={<Icon name="refresh" size="lg" />}
+                onClick={handleRefresh}
+              />
+            </Tooltip>
           )}
         </div>
       )}

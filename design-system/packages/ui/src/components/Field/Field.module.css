@@ -1,0 +1,134 @@
+@layer bf.components {
+  .root {
+    display: grid;
+    min-inline-size: 0;
+    gap: var(--bf-layout-field-root-gap);
+    color: var(--bf-color-content-primary);
+  }
+
+  .root[data-orientation="horizontal"] {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--bf-layout-field-horizontal-gap);
+  }
+
+  .root[data-orientation="horizontal"][data-horizontal-gap="lg"] {
+    column-gap: var(--bf-layout-field-horizontal-gap-wide);
+  }
+
+  .root[data-orientation="horizontal"][data-label-width="sm"] {
+    grid-template-columns: var(--bf-layout-field-label-width-sm) auto;
+  }
+
+  .root[data-orientation="horizontal"][data-label-width="md"] {
+    grid-template-columns: var(--bf-layout-field-label-width-md) auto;
+  }
+
+  .root[data-orientation="horizontal"][data-label-width="lg"] {
+    grid-template-columns: minmax(0, var(--bf-layout-field-label-width-lg)) auto;
+  }
+
+  .root[data-orientation="horizontal"][data-control-width="fill"][data-label-width="auto"] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  }
+
+  .root[data-orientation="horizontal"][data-control-width="fill"][data-label-width="sm"] {
+    grid-template-columns: var(--bf-layout-field-label-width-sm) minmax(0, 1fr);
+  }
+
+  .root[data-orientation="horizontal"][data-control-width="fill"][data-label-width="md"] {
+    grid-template-columns: var(--bf-layout-field-label-width-md) minmax(0, 1fr);
+  }
+
+  .root[data-orientation="horizontal"][data-control-width="fill"][data-label-width="lg"] {
+    grid-template-columns: minmax(0, var(--bf-layout-field-label-width-lg)) minmax(0, 1fr);
+  }
+
+  .content {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--bf-layout-field-content-gap);
+  }
+
+  .labelRow {
+    display: flex;
+    align-items: center;
+    inline-size: 100%;
+    min-inline-size: 0;
+    gap: var(--bf-layout-field-label-action-gap);
+  }
+
+  .label {
+    display: inline-flex;
+    min-inline-size: 0;
+    align-items: center;
+    gap: var(--bf-layout-field-label-gap);
+    color: var(--bf-color-content-primary);
+    font-family:var(--bf-font-family-sans);
+    font-size: var(--bf-font-size-sm);
+    font-weight: var(--bf-font-weight-semibold);
+    line-height: var(--bf-line-height-tight);
+  }
+
+  .required {
+    color: var(--bf-color-accent-default);
+  }
+
+  .labelAction {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    margin-inline-start: auto;
+  }
+
+  .description {
+    color: var(--bf-color-content-muted);
+    font-family:var(--bf-font-family-sans);
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-regular);
+    line-height: var(--bf-line-height-base);
+  }
+
+  .error {
+    grid-column: 1 / -1;
+    color: var(--bf-color-status-danger-content);
+    font-family:var(--bf-font-family-sans);
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-regular);
+    line-height: var(--bf-line-height-base);
+  }
+
+  .control {
+    display: inline-flex;
+    min-inline-size: 0;
+    align-items: center;
+    gap: var(--bf-layout-field-control-gap);
+  }
+
+  .root[data-control-width="fill"] .control {
+    inline-size: 100%;
+  }
+
+  .root[data-control-width="fill"] .control > :not(.controlAdornment) {
+    flex: 1 1 auto;
+    inline-size: 100%;
+  }
+
+  .control > :not(.controlAdornment) {
+    min-inline-size: 0;
+  }
+
+  .controlAdornment {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+  }
+
+  @media (forced-colors: active) {
+    .required {
+      color: Highlight;
+    }
+  }
+}

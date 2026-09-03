@@ -1,3 +1,4 @@
+import { MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import {
   CodeSyntaxHighlightCache,
@@ -12,6 +13,7 @@ import {
   FilePreviewState
 } from '../state/FilePreviewState';
 import { MarkdownContent } from './MarkdownContent';
+import { NavigationBackButton } from './NavigationBackButton';
 import {
   CARD,
   CODE_COMMENT,
@@ -28,7 +30,8 @@ import {
   LINE,
   MUTED,
   PAGE_BG,
-  SOFT
+  SOFT,
+  TRANSPARENT,
 } from './Theme';
 
 @ComponentV2
@@ -43,10 +46,13 @@ export struct FilePreviewSurface {
   @Param downloadPath: string = '';
   @Param downloadedPath: string = '';
   @Param downloadStatus: string = '';
+  @Param previewExpanded: boolean = false;
+  @Param canToggleExpanded: boolean = false;
   @Event onClose: () => void = () => {};
   @Event onRefresh: () => void = () => {};
   @Event onDownload: (path: string) => void = (_path: string) => {};
   @Event onOpenLink: (reference: string, label: string) => void = (_reference: string, _label: string) => {};
+  @Event onToggleExpanded: () => void = () => {};
 
   aboutToDisappear(): void {
     this.clearRestoreScrollTimer();
@@ -66,27 +72,22 @@ export struct FilePreviewSurface {
   @Builder
   Header() {
     Row({ space: 10 }) {
-      Stack({ alignContent: Alignment.Center }) {
-        SymbolGlyph($r('sys.symbol.chevron_left'))
-          .fontSize(22)
-          .fontColor([INK])
-      }
-      .width(44)
-      .height(44)
-      .accessibilityText(RemoteI18n.t('common.close'))
-      .onClick(() => {
-        this.onClose();
+      NavigationBackButton({
+        controlSize: 44,
+        onBack: (): void => {
+          this.onClose();
+        }
       })
 
       Column({ space: 2 }) {
         Text(this.state.fileName || this.state.target.displayName || RemoteI18n.t('filePreview.title'))
-          .fontSize(16)
+          .fontSize(MobileDesignTypography.bodyLarge.size)
           .fontWeight(FontWeight.Medium)
           .fontColor(INK)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(this.headerDetail())
-          .fontSize(11)
+          .fontSize(MobileDesignTypography.labelSmall.size)
           .fontColor(MUTED)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -97,7 +98,7 @@ export struct FilePreviewSurface {
       if (this.isImageReady()) {
         Stack({ alignContent: Alignment.Center }) {
           Text('1:1')
-            .fontSize(12)
+            .fontSize(MobileDesignTypography.labelSmall.size)
             .fontWeight(FontWeight.Medium)
             .fontColor(this.isImageOriginalSize() ? CODE_FUNCTION : INK)
         }
@@ -108,6 +109,24 @@ export struct FilePreviewSurface {
         ))
         .onClick(() => {
           this.toggleImageSize();
+        })
+      }
+
+      if (this.canToggleExpanded) {
+        Stack({ alignContent: Alignment.Center }) {
+          SymbolGlyph(this.previewExpanded ?
+            $r('sys.symbol.arrow_down_right_and_arrow_up_left') :
+            $r('sys.symbol.arrow_up_left_and_arrow_down_right'))
+            .fontSize(20)
+            .fontColor([INK])
+        }
+        .width(44)
+        .height(44)
+        .accessibilityText(RemoteI18n.t(
+          this.previewExpanded ? 'filePreview.restoreSize' : 'filePreview.expand'
+        ))
+        .onClick(() => {
+          this.onToggleExpanded();
         })
       }
 
@@ -178,7 +197,7 @@ export struct FilePreviewSurface {
       Row() {
         Text(this.downloadStatus)
           .width('100%')
-          .fontSize(12)
+          .fontSize(MobileDesignTypography.labelSmall.size)
           .fontColor(MUTED)
           .maxLines(2)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -198,7 +217,7 @@ export struct FilePreviewSurface {
         .height(28)
         .color(MUTED)
       Text(RemoteI18n.t('filePreview.loading'))
-        .fontSize(14)
+        .fontSize(MobileDesignTypography.bodyMedium.size)
         .fontColor(MUTED)
     }
     .width('100%')
@@ -211,11 +230,11 @@ export struct FilePreviewSurface {
   OfflineLoadingState() {
     Column({ space: 10 }) {
       Text(RemoteI18n.t('filePreview.loadFailed'))
-        .fontSize(17)
+        .fontSize(MobileDesignTypography.titleMedium.size)
         .fontWeight(FontWeight.Medium)
         .fontColor(INK)
       Text(RemoteI18n.t('filePreview.offline'))
-        .fontSize(13)
+        .fontSize(MobileDesignTypography.bodySmall.size)
         .fontColor(MUTED)
         .textAlign(TextAlign.Center)
     }
@@ -230,12 +249,12 @@ export struct FilePreviewSurface {
   ErrorState() {
     Column({ space: 12 }) {
       Text(RemoteI18n.t('filePreview.loadFailed'))
-        .fontSize(17)
+        .fontSize(MobileDesignTypography.titleMedium.size)
         .fontWeight(FontWeight.Medium)
         .fontColor(INK)
       Text(this.state.errorText)
-        .fontSize(13)
-        .lineHeight(19)
+        .fontSize(MobileDesignTypography.bodySmall.size)
+        .lineHeight(MobileDesignTypography.bodySmall.lineHeight)
         .fontColor(MUTED)
         .textAlign(TextAlign.Center)
         .maxLines(4)
@@ -243,7 +262,7 @@ export struct FilePreviewSurface {
       if (this.state.errorRetryable) {
         Button(RemoteI18n.t('common.retry'))
           .height(42)
-          .fontSize(14)
+          .fontSize(MobileDesignTypography.bodyMedium.size)
           .fontColor(CARD)
           .backgroundColor(INK)
           .borderRadius(21)
@@ -268,16 +287,16 @@ export struct FilePreviewSurface {
         .fontSize(38)
         .fontColor([MUTED])
       Text(RemoteI18n.t('filePreview.unsupported'))
-        .fontSize(17)
+        .fontSize(MobileDesignTypography.titleMedium.size)
         .fontWeight(FontWeight.Medium)
         .fontColor(INK)
       Text(this.metadataDetail())
-        .fontSize(13)
+        .fontSize(MobileDesignTypography.bodySmall.size)
         .fontColor(MUTED)
         .textAlign(TextAlign.Center)
       Button(RemoteI18n.t('chat.download'))
         .height(42)
-        .fontSize(14)
+        .fontSize(MobileDesignTypography.bodyMedium.size)
         .fontColor(CARD)
         .backgroundColor(INK)
         .borderRadius(21)
@@ -300,7 +319,7 @@ export struct FilePreviewSurface {
       if (this.state.truncated) {
         Text(RemoteI18n.f('filePreview.truncated', RemoteUiState.formatBytes(this.state.loadedBytes)))
           .width('100%')
-          .fontSize(11)
+          .fontSize(MobileDesignTypography.labelSmall.size)
           .fontColor(MUTED)
           .padding({ left: 14, right: 14, top: 7, bottom: 7 })
           .backgroundColor(SOFT)
@@ -312,22 +331,23 @@ export struct FilePreviewSurface {
             Span(token.text)
               .fontColor(this.syntaxTokenColor(token.kind))
               .textBackgroundStyle({
-                color: this.isTargetLine(token.lineNumber) ? CODE_TARGET_BG : '#00000000'
+                color: this.isTargetLine(token.lineNumber) ? CODE_TARGET_BG : TRANSPARENT
               })
           }, (token: CodeSyntaxToken) => token.id)
         }
-          .fontSize(12)
-          .lineHeight(19)
+          .fontSize(MobileDesignTypography.bodySmall.size)
+          .lineHeight(MobileDesignTypography.bodySmall.lineHeight)
           .fontColor(INK)
           .fontFamily('monospace')
           .textSelectable(TextSelectableMode.SELECTABLE_UNFOCUSABLE)
-          .padding({ left: 14, right: 20, top: 14, bottom: 24 })
+          .padding({ left: 12, right: 12, top: 14, bottom: 24 })
           .constraintSize({ minWidth: '100%' })
       }
       .scrollable(ScrollDirection.FREE)
       .scrollBar(BarState.Auto)
       .layoutWeight(1)
       .width('100%')
+      .align(Alignment.TopStart)
       .onAppear(() => {
         this.restoreTextScroll();
       })
@@ -350,12 +370,14 @@ export struct FilePreviewSurface {
           this.onOpenLink(reference, label);
         }
       })
-        .padding({ left: 20, right: 20, top: 16, bottom: 28 })
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 16, bottom: 28 })
     }
     .scrollable(ScrollDirection.Vertical)
     .scrollBar(BarState.Auto)
     .layoutWeight(1)
     .width('100%')
+    .align(Alignment.TopStart)
     .onAppear(() => {
       this.restoreMarkdownScroll();
     })

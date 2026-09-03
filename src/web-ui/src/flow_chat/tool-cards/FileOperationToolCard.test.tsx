@@ -3,19 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { JSDOM } from 'jsdom';
 
+import { activateSurface, getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import { FileOperationToolCard } from './FileOperationToolCard';
-import { FlowChatContext } from '../components/modern/FlowChatContext';
-import type { FlowToolItem, Session, ToolCardConfig } from '../types/flow-chat';
-import {
-  clearHistorySessionOpenTransition,
-  clearRecentHistorySessionOpenIntent,
-  dispatchHistorySessionOpenIntent,
-} from '../services/sessionOpenIntent';
+import type { FlowToolItem, ToolCardConfig } from '../types/flow-chat';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const mocks = vi.hoisted(() => ({
-  currentWorkspace: undefined as undefined | { rootPath: string },
+  snapshotsAvailable: true,
+  emitSnapshotEvent: vi.fn(),
+  getOperationSummary: vi.fn(async () => null),
+  currentWorkspace: undefined as undefined | { rootPath: string; connectionId?: string },
   createDiffEditorTab: vi.fn(),
   openFile: vi.fn(),
   codePreviewProps: [] as Array<Record<string, unknown>>,
@@ -25,10 +23,15 @@ const mocks = vi.hoisted(() => ({
     modifiedContent: '',
     anchorLine: undefined,
   })),
-  useGitState: vi.fn(() => ({
-    isRepository: false,
-  })),
   typewriterMode: 'passthrough' as 'passthrough' | 'partial',
+  writePlanDisplayProps: [] as Array<Record<string, unknown>>,
+}));
+
+vi.mock('./WritePlanDisplay', () => ({
+  WritePlanDisplay: (props: Record<string, unknown>) => {
+    mocks.writePlanDisplayProps.push(props);
+    return <div data-testid="write-plan-display" />;
+  },
 }));
 
 vi.mock('../hooks/useTypewriter', () => ({
@@ -60,21 +63,10 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('../../component-library', () => ({
-  CubeLoading: () => <span data-testid="cube-loading" />,
-}));
-
-vi.mock('@/component-library', () => ({
-  CubeLoading: () => <span data-testid="cube-loading" />,
-  IconButton: ({ children, onClick }: { children: React.ReactNode; onClick?: React.MouseEventHandler }) => (
-    <button type="button" onClick={onClick}>{children}</button>
-  ),
-  ToolProcessingDots: () => <span data-testid="tool-processing-dots" />,
-  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
 vi.mock('../../tools/snapshot_system/hooks/useSnapshotState', () => ({
   useSnapshotState: () => ({
+    surfaceEpoch: getActiveSurfaceScope().epoch,
+    snapshotsAvailable: mocks.snapshotsAvailable,
     files: [],
     error: null,
     clearError: vi.fn(),
@@ -87,7 +79,7 @@ vi.mock('../../tools/snapshot_system/core/SnapshotEventBus', () => ({
   },
   SnapshotEventBus: {
     getInstance: () => ({
-      emit: vi.fn(),
+      emit: mocks.emitSnapshotEvent,
     }),
   },
 }));
@@ -119,7 +111,7 @@ vi.mock('../../shared/services/FileTabManager', () => ({
 vi.mock('../../infrastructure/api', () => ({
   snapshotAPI: {
     getOperationDiff: mocks.getOperationDiff,
-    getOperationSummary: vi.fn(async () => null),
+    getOperationSummary: mocks.getOperationSummary,
   },
 }));
 
@@ -129,22 +121,13 @@ vi.mock('../../infrastructure/contexts/WorkspaceContext', () => ({
   }),
 }));
 
-vi.mock('@/shared/notification-system', () => ({
-  notificationService: {
-    info: vi.fn(),
-  },
-}));
-
-vi.mock('@/tools/git/hooks/useGitState', () => ({
-  useGitState: mocks.useGitState,
-}));
-
 describe('FileOperationToolCard', () => {
   let dom: JSDOM;
   let container: HTMLDivElement;
   let root: Root;
 
   beforeEach(() => {
+    activateSurface('local');
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
       pretendToBeVisual: true,
     });
@@ -162,15 +145,15 @@ describe('FileOperationToolCard', () => {
     root = createRoot(container);
 
     mocks.currentWorkspace = undefined;
+    mocks.snapshotsAvailable = true;
+    mocks.emitSnapshotEvent.mockClear();
+    mocks.getOperationSummary.mockClear();
     mocks.createDiffEditorTab.mockReset();
     mocks.openFile.mockReset();
     mocks.codePreviewProps = [];
     mocks.inlineDiffPreviewProps = [];
     mocks.typewriterMode = 'passthrough';
-    mocks.useGitState.mockClear();
-    mocks.useGitState.mockReturnValue({
-      isRepository: false,
-    });
+    mocks.writePlanDisplayProps = [];
     mocks.getOperationDiff.mockReset();
     mocks.getOperationDiff.mockResolvedValue({
       originalContent: '',
@@ -179,171 +162,284 @@ describe('FileOperationToolCard', () => {
     });
   });
 
-  it('does not trigger passive git refresh while historical restore is pending', async () => {
-    mocks.currentWorkspace = { rootPath: 'D:/workspace/BitFun' };
-    const toolItem: FlowToolItem = {
-      id: 'tool-history',
-      type: 'tool',
-      toolName: 'Write',
-      status: 'completed',
+  it('keeps remote file results usable without summary, diff, or refresh snapshot requests', async () => {
+    mocks.snapshotsAvailable = false;
+    const config = {
+      toolName: 'Edit', displayName: 'Edit', icon: 'EDIT',
+      requiresConfirmation: false, resultDisplayType: 'detailed', displayMode: 'standard',
+    } as ToolCardConfig;
+    const running = {
+      id: 'remote-edit', type: 'tool', toolName: 'Edit', status: 'running',
       toolCall: {
-        id: 'call-history',
-        name: 'Write',
-        input: {
-          file_path: 'src/newFile.ts',
-          content: 'export const value = 1;',
-        },
-      },
-      toolResult: {
-        success: true,
-        result: {
-          file_path: 'src/newFile.ts',
-        },
+        id: 'remote-call', name: 'Edit',
+        input: { file_path: '/workspace/file.ts', old_string: 'old\n', new_string: 'new\nnext\n' },
       },
     } as FlowToolItem;
-
     await act(async () => {
-      root.render(
-        <FlowChatContext.Provider
-          value={{
-            sessionId: 'history-session',
-            activeSessionOverride: {
-              sessionId: 'history-session',
-              isHistorical: true,
-              contextRestoreState: 'pending',
-            } as Session,
-          }}
-        >
-          <FileOperationToolCard
-            toolItem={toolItem}
-            config={{} as ToolCardConfig}
-            sessionId="history-session"
-          />
-        </FlowChatContext.Provider>
-      );
+      root.render(<FileOperationToolCard toolItem={running} config={config} sessionId="ssh-session" />);
+    });
+    await act(async () => {
+      root.render(<FileOperationToolCard
+        toolItem={{ ...running, status: 'completed', endTime: 10, toolResult: { success: true, result: {} } }}
+        config={config} sessionId="ssh-session"
+      />);
     });
 
-    expect(mocks.useGitState).toHaveBeenCalledWith(expect.objectContaining({
-      repositoryPath: 'D:/workspace/BitFun',
-      isActive: false,
-      refreshOnMount: false,
-      refreshOnActive: false,
-      participateInWindowFocusRefresh: false,
-      layers: ['basic'],
+    expect(mocks.getOperationSummary).not.toHaveBeenCalled();
+    expect(mocks.emitSnapshotEvent).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-bf-change="added"]')?.textContent).toBe('+2');
+    expect(container.querySelector('[data-bf-change="removed"]')?.textContent).toBe('-1');
+    const openButton = container.querySelector('[data-testid="chat-file-change-open-file"]');
+    expect(openButton).not.toBeNull();
+    await act(async () => {
+      openButton?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+    expect(mocks.getOperationDiff).not.toHaveBeenCalled();
+    expect(mocks.openFile).toHaveBeenCalledWith(expect.objectContaining({
+      filePath: '/workspace/file.ts', mode: 'agent',
     }));
   });
 
-  it('keeps passive git refresh enabled for normal active sessions', async () => {
-    mocks.currentWorkspace = { rootPath: 'D:/workspace/BitFun' };
+  it('loads a recorded remote operation without enabling incomplete Session snapshots', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    mocks.snapshotsAvailable = false;
+    mocks.getOperationDiff.mockResolvedValueOnce({ originalContent: 'before', modifiedContent: 'after', anchorLine: undefined });
+    const config = {
+      toolName: 'Edit', displayName: 'Edit', icon: 'EDIT',
+      requiresConfirmation: false, resultDisplayType: 'detailed', displayMode: 'standard',
+    } as ToolCardConfig;
+    const item = {
+      id: 'recorded-remote-edit', type: 'tool', toolName: 'Edit', status: 'completed', endTime: 10,
+      toolCall: {
+        id: 'recorded-call', name: 'Edit',
+        input: { file_path: '/workspace/file.ts', old_string: 'old', new_string: 'new' },
+      },
+      toolResult: { success: true, result: { snapshot_recorded: true } },
+    } as FlowToolItem;
+    await act(async () => {
+      root.render(<FileOperationToolCard toolItem={item} config={config} sessionId="ssh-session" />);
+    });
+    expect(mocks.getOperationSummary).toHaveBeenCalledWith('ssh-session', 'recorded-call');
+    expect(mocks.emitSnapshotEvent).not.toHaveBeenCalled();
+    const openButton = container.querySelector('[data-testid="chat-file-change-open-file"]');
+    expect(openButton).not.toBeNull();
+    await act(async () => {
+      openButton?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+    expect(mocks.getOperationDiff).toHaveBeenCalledWith('ssh-session', '/workspace/file.ts', 'recorded-call');
+    await act(async () => { await vi.advanceTimersByTimeAsync(260); });
+    expect(mocks.createDiffEditorTab).toHaveBeenCalledWith(
+      '/workspace/file.ts', 'file.ts', 'before', 'after', true, 'agent', undefined, undefined, true,
+    );
+    expect(mocks.openFile).not.toHaveBeenCalled();
+
+    mocks.createDiffEditorTab.mockClear();
+    await act(async () => {
+      openButton?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+    activateSurface('peer-b');
+    await act(async () => { await vi.advanceTimersByTimeAsync(260); });
+    expect(mocks.createDiffEditorTab).not.toHaveBeenCalled();
+
+  });
+
+  it('replaces an existing remote diff with the selected operation on the same file', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    mocks.snapshotsAvailable = false;
+    const tabUtils = await vi.importActual<typeof import('../../shared/utils/tabUtils')>(
+      '../../shared/utils/tabUtils',
+    );
+    mocks.createDiffEditorTab.mockImplementation(tabUtils.createDiffEditorTab);
+    const events: Array<{ duplicateCheckKey: string; replaceExisting: boolean; data: { originalCode: string; modifiedCode: string; readOnly: boolean } }> = [];
+    window.addEventListener('agent-create-tab', event => {
+      events.push((event as CustomEvent).detail);
+    });
+    const config = {
+      toolName: 'Edit', displayName: 'Edit', icon: 'EDIT',
+      requiresConfirmation: false, resultDisplayType: 'detailed', displayMode: 'standard',
+    } as ToolCardConfig;
+    for (const operationId of ['operation-1', 'operation-2']) {
+      mocks.getOperationDiff.mockResolvedValueOnce({
+        originalContent: `${operationId} before`, modifiedContent: `${operationId} after`, anchorLine: undefined,
+      });
+      const item = {
+        id: operationId, type: 'tool', toolName: 'Edit', status: 'completed', endTime: 10,
+        toolCall: {
+          id: operationId, name: 'Edit',
+          input: { file_path: '/workspace/file.ts', old_string: 'old', new_string: 'new' },
+        },
+        toolResult: { success: true, result: { snapshot_recorded: true } },
+      } as FlowToolItem;
+      await act(async () => root.render(<FileOperationToolCard toolItem={item} config={config} sessionId="ssh-session" />));
+      await act(async () => {
+        container.querySelector('[data-testid="chat-file-change-open-file"]')
+          ?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      });
+      await act(async () => { await vi.advanceTimersByTimeAsync(260); });
+    }
+    expect(events).toHaveLength(2);
+    expect(events[0].duplicateCheckKey).toBe(events[1].duplicateCheckKey);
+    expect(events[1]).toMatchObject({
+      replaceExisting: true,
+      data: { originalCode: 'operation-2 before', modifiedCode: 'operation-2 after', readOnly: true },
+    });
+  });
+
+  it('routes only successful Write calls for .plan.md files to the plan display', async () => {
+    mocks.currentWorkspace = {
+      rootPath: 'D:/workspace/project',
+      connectionId: 'remote-1',
+    };
+    const content = '---\nname: Plan\noverview: Test the plan card.\ntodos: []\n---\n\n# Plan\n\nDetails.';
     const toolItem: FlowToolItem = {
-      id: 'tool-active',
+      id: 'tool-plan',
       type: 'tool',
       toolName: 'Write',
       status: 'completed',
       toolCall: {
-        id: 'call-active',
+        id: 'call-plan',
         name: 'Write',
         input: {
-          file_path: 'src/newFile.ts',
-          content: 'export const value = 1;',
+          payload: `+++ .bitfun/plans/test.plan.md\n${content}`,
+        },
+      },
+      toolResult: {
+        success: true,
+        result: { file_path: '.bitfun/plans/test.plan.md' },
+      },
+    } as FlowToolItem;
+
+    await act(async () => {
+      root.render(
+        <FileOperationToolCard
+          toolItem={toolItem}
+          config={{} as ToolCardConfig}
+          sessionId="session-1"
+        />,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="write-plan-display"]')).not.toBeNull();
+    expect(mocks.writePlanDisplayProps).toHaveLength(1);
+    expect(mocks.writePlanDisplayProps[0]).toMatchObject({
+      planFilePath: 'D:/workspace/project/.bitfun/plans/test.plan.md',
+      initialContent: content,
+      workspacePath: 'D:/workspace/project',
+      remoteConnectionId: 'remote-1',
+    });
+  });
+
+  it('keeps Edit calls for .plan.md files on the normal file operation card', async () => {
+    const toolItem: FlowToolItem = {
+      id: 'tool-plan-edit',
+      type: 'tool',
+      toolName: 'Edit',
+      status: 'completed',
+      toolCall: {
+        id: 'call-plan-edit',
+        name: 'Edit',
+        input: {
+          file_path: '.bitfun/plans/test.plan.md',
+          old_string: 'Old',
+          new_string: 'New',
+        },
+      },
+      toolResult: {
+        success: true,
+        result: { file_path: '.bitfun/plans/test.plan.md' },
+      },
+    } as FlowToolItem;
+
+    await act(async () => {
+      root.render(
+        <FileOperationToolCard
+          toolItem={toolItem}
+          config={{} as ToolCardConfig}
+          sessionId="session-1"
+        />,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="write-plan-display"]')).toBeNull();
+    expect(container.querySelector('[data-testid="chat-file-change-card"]')).not.toBeNull();
+  });
+
+  it('keeps failed .plan.md writes on the normal error card', async () => {
+    const toolItem: FlowToolItem = {
+      id: 'tool-plan-error',
+      type: 'tool',
+      toolName: 'Write',
+      status: 'error',
+      toolCall: {
+        id: 'call-plan-error',
+        name: 'Write',
+        input: {
+          payload: '+++ .bitfun/plans/test.plan.md\npartial',
+        },
+      },
+      toolResult: {
+        success: false,
+        error: 'Write failed',
+      },
+    } as FlowToolItem;
+
+    await act(async () => {
+      root.render(
+        <FileOperationToolCard
+          toolItem={toolItem}
+          config={{} as ToolCardConfig}
+          sessionId="session-1"
+        />,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="write-plan-display"]')).toBeNull();
+    expect(container.querySelector('[data-testid="chat-file-change-card"]')).not.toBeNull();
+  });
+
+  it('does not treat a successful fallback write as a completed plan', async () => {
+    const toolItem: FlowToolItem = {
+      id: 'tool-plan-fallback',
+      type: 'tool',
+      toolName: 'Write',
+      status: 'completed',
+      toolCall: {
+        id: 'call-plan-fallback',
+        name: 'Write',
+        input: {
+          payload: '+++ .bitfun/plans/test.plan.md\npartial',
         },
       },
       toolResult: {
         success: true,
         result: {
-          file_path: 'src/newFile.ts',
+          file_path: '.bitfun/tmp/write-callplanfallback.txt',
+          used_fallback_path: true,
         },
       },
     } as FlowToolItem;
 
     await act(async () => {
       root.render(
-        <FlowChatContext.Provider
-          value={{
-            sessionId: 'active-session',
-            activeSessionOverride: {
-              sessionId: 'active-session',
-              isHistorical: false,
-            } as Session,
-          }}
-        >
-          <FileOperationToolCard
-            toolItem={toolItem}
-            config={{} as ToolCardConfig}
-            sessionId="active-session"
-          />
-        </FlowChatContext.Provider>
+        <FileOperationToolCard
+          toolItem={toolItem}
+          config={{} as ToolCardConfig}
+          sessionId="session-1"
+        />,
       );
     });
 
-    expect(mocks.useGitState).toHaveBeenCalledWith(expect.objectContaining({
-      repositoryPath: 'D:/workspace/BitFun',
-      isActive: true,
-      refreshOnMount: true,
-      refreshOnActive: false,
-    }));
+    expect(container.querySelector('[data-testid="write-plan-display"]')).toBeNull();
+    expect(container.querySelector('[data-testid="chat-file-change-card"]')).not.toBeNull();
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+    activateSurface('local');
     act(() => {
       root.unmount();
     });
-    clearRecentHistorySessionOpenIntent();
-    clearHistorySessionOpenTransition();
     vi.unstubAllGlobals();
-  });
-
-  it('does not trigger passive git refresh during history open transition', async () => {
-    mocks.currentWorkspace = { rootPath: 'D:/workspace/BitFun' };
-    dispatchHistorySessionOpenIntent('history-session', 'History');
-    const toolItem: FlowToolItem = {
-      id: 'tool-transition',
-      type: 'tool',
-      toolName: 'Write',
-      status: 'completed',
-      toolCall: {
-        id: 'call-transition',
-        name: 'Write',
-        input: {
-          file_path: 'src/newFile.ts',
-          content: 'export const value = 1;',
-        },
-      },
-      toolResult: {
-        success: true,
-        result: {
-          file_path: 'src/newFile.ts',
-        },
-      },
-    } as FlowToolItem;
-
-    await act(async () => {
-      root.render(
-        <FlowChatContext.Provider
-          value={{
-            sessionId: 'history-session',
-            activeSessionOverride: {
-              sessionId: 'history-session',
-              isHistorical: true,
-              contextRestoreState: 'ready',
-            } as Session,
-          }}
-        >
-          <FileOperationToolCard
-            toolItem={toolItem}
-            config={{} as ToolCardConfig}
-            sessionId="history-session"
-          />
-        </FlowChatContext.Provider>
-      );
-    });
-
-    expect(mocks.useGitState).toHaveBeenCalledWith(expect.objectContaining({
-      repositoryPath: 'D:/workspace/BitFun',
-      isActive: false,
-      refreshOnMount: false,
-      refreshOnActive: false,
-    }));
   });
 
   it('renders failed write cards outside WorkspaceProvider', () => {
@@ -438,7 +534,7 @@ describe('FileOperationToolCard', () => {
       );
     });
 
-    const openButton = container.querySelector('.file-op-open-full-button') as HTMLButtonElement | null;
+    const openButton = container.querySelector('[data-testid="chat-file-change-open-file"]') as HTMLButtonElement | null;
     expect(openButton).not.toBeNull();
 
     await act(async () => {
@@ -457,7 +553,7 @@ describe('FileOperationToolCard', () => {
     }));
   });
 
-  it('opens a local diff for completed write cards without snapshot context', async () => {
+  it('renders only the expand and open-panel controls after change metadata', async () => {
     const toolItem: FlowToolItem = {
       id: 'tool-1',
       type: 'tool',
@@ -488,44 +584,108 @@ describe('FileOperationToolCard', () => {
       description: 'Write a file',
       displayMode: 'standard',
     };
+    const openInEditor = vi.fn();
 
     await act(async () => {
       root.render(
         <FileOperationToolCard
           toolItem={toolItem}
           config={config}
+          onOpenInEditor={openInEditor}
         />
       );
     });
 
-    const diffButton = container.querySelector('.file-op-diff-pill') as HTMLButtonElement | null;
-    expect(diffButton).not.toBeNull();
+    const contentRegion = container.querySelector(
+      '[data-bf-component="flow-chat-tool-card"][data-bf-part="content"]',
+    );
+    const extraRegion = container.querySelector(
+      '[data-bf-component="flow-chat-tool-card"][data-bf-part="extra"]',
+    );
+    const changeSummary = container.querySelector(
+      '[data-bf-component="flow-chat-tool-card"][data-bf-part="changeSummary"]',
+    );
+    expect(contentRegion?.querySelector('[data-testid="chat-file-change-path"]')).not.toBeNull();
+    expect(contentRegion?.querySelector('[data-bf-part="changeSummary"]')).toBeNull();
+    expect(extraRegion?.contains(changeSummary)).toBe(true);
+    expect(changeSummary?.querySelector('[data-bf-change="added"]')?.textContent).toBe('+1');
+    expect(changeSummary?.querySelector('[data-bf-change="removed"]')?.textContent).toBe('-0');
+    expect(changeSummary?.querySelector('svg')).toBeNull();
+
+    const actionRegion = container.querySelector(
+      '[data-bf-component="flow-chat-tool-card"][data-bf-part="actionRegion"]',
+    );
+    const actionButtons = Array.from(actionRegion?.querySelectorAll('button') ?? []);
+    const openButton = container.querySelector(
+      '[data-testid="chat-file-change-open-file"]',
+    ) as HTMLButtonElement | null;
+
+    expect(container.querySelector('[data-testid="chat-file-change-open-diff"]')).toBeNull();
+    expect(actionButtons).toHaveLength(2);
+    expect(actionButtons[0]?.getAttribute('data-bf-part')).toBe('affordanceButton');
+    expect(actionButtons[1]).toBe(openButton);
+    expect(openButton?.getAttribute('data-bf-affordance')).toBe('open-panel-right');
+    expect(openButton?.querySelector('[data-bf-icon="open-panel-right"]')).not.toBeNull();
+    expect(openButton?.closest('[data-bf-part="trailingActions"]')?.getAttribute('data-divider')).toBe('true');
 
     await act(async () => {
-      diffButton?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
-    });
-
-    await act(async () => {
-      dom.window.dispatchEvent(new dom.window.Event('tick'));
-      await new Promise(resolve => dom.window.setTimeout(resolve, 260));
+      openButton?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     });
 
     expect(mocks.getOperationDiff).not.toHaveBeenCalled();
-    expect(mocks.createDiffEditorTab).toHaveBeenCalledWith(
-      'src/newFile.ts',
-      'newFile.ts',
-      '',
-      'export const value = 1;\n',
-      false,
-      'agent',
-      undefined,
-      undefined,
-      false,
-      {
-        titleKind: 'diff',
-        duplicateKeyPrefix: 'diff',
+    expect(openInEditor).toHaveBeenCalledWith('src/newFile.ts');
+  });
+
+  it('places completed edit changes in the right-side summary without git decoration', async () => {
+    const toolItem: FlowToolItem = {
+      id: 'tool-edit',
+      type: 'tool',
+      toolName: 'Edit',
+      status: 'completed',
+      toolCall: {
+        id: 'call-edit',
+        name: 'Edit',
+        input: {
+          file_path: 'src/styles.css',
+          old_string: 'color: red;\n',
+          new_string: 'color: blue;\nbackground: white;\n',
+        },
       },
-    );
+      toolResult: {
+        success: true,
+        result: {
+          file_path: 'src/styles.css',
+        },
+      },
+    } as FlowToolItem;
+
+    await act(async () => {
+      root.render(
+        <FileOperationToolCard
+          toolItem={toolItem}
+          config={{
+            toolName: 'Edit',
+            displayName: 'Edit',
+            icon: 'EDIT',
+            requiresConfirmation: false,
+            resultDisplayType: 'detailed',
+            description: 'Edit a file',
+            displayMode: 'standard',
+          }}
+        />
+      );
+    });
+
+    const contentRegion = container.querySelector('[data-bf-part="content"]');
+    const extraRegion = container.querySelector('[data-bf-part="extra"]');
+    const changeSummary = extraRegion?.querySelector('[data-bf-part="changeSummary"]');
+
+    expect(contentRegion?.textContent).toContain('styles.css');
+    expect(contentRegion?.querySelector('[data-bf-part="changeSummary"]')).toBeNull();
+    expect(changeSummary?.querySelector('[data-bf-change="added"]')?.textContent).toBe('+2');
+    expect(changeSummary?.querySelector('[data-bf-change="removed"]')?.textContent).toBe('-1');
+    expect(changeSummary?.querySelector('svg')).toBeNull();
+    expect(container.querySelector('[data-testid="chat-file-change-open-diff"]')).toBeNull();
   });
 
   it('renders completed ACP file cards from result locations when input has no path', async () => {
@@ -623,7 +783,7 @@ describe('FileOperationToolCard', () => {
     expect(container.textContent).toContain(
       'Use Read to load the current contents of docs/report.md before calling Write on it.',
     );
-    expect(container.querySelector('.file-operation-card--guidance')).not.toBeNull();
+    expect(container.querySelector('[data-bf-part="error"] [data-guidance="true"]')).not.toBeNull();
   });
 
   it('renders edit guardrail blocks as guidance instead of hard failure', async () => {
@@ -673,7 +833,7 @@ describe('FileOperationToolCard', () => {
     expect(container.textContent).toContain(
       'Use Read to load the current contents of src/main.rs before calling Edit on it.',
     );
-    expect(container.querySelector('.file-operation-card--guidance')).not.toBeNull();
+    expect(container.querySelector('[data-bf-part="error"] [data-guidance="true"]')).not.toBeNull();
   });
 
   it('shows receiving content label while write content streams before file_path', async () => {
@@ -962,7 +1122,9 @@ describe('FileOperationToolCard', () => {
 
     mocks.inlineDiffPreviewProps = [];
 
-    const card = container.querySelector('.base-tool-card') as HTMLDivElement | null;
+    const card = container.querySelector(
+      '[data-bf-component="flow-chat-tool-card"][data-bf-part="surface"][data-bf-attention="prominent"]',
+    ) as HTMLDivElement | null;
     await act(async () => {
       card?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     });

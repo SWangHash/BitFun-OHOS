@@ -28,6 +28,9 @@ export interface GeneralChatConversationViewModelHooks {
   readonly latestUserMessageText: () => string;
   readonly syncTimeline: () => void;
   readonly refreshSessions: () => void;
+  readonly onTaskStarted?: (sessionId: string, turnId: string) => void;
+  readonly onTaskCompleted?: (sessionId: string, turnId: string) => void;
+  readonly onTaskStopped?: (sessionId: string, turnId: string) => void;
 }
 
 /** Owns General Chat stream state and publishes all updates through ConversationViewModel. */
@@ -94,17 +97,21 @@ export class GeneralChatConversationViewModel {
       this.flushDelta(sessionId);
       this.hooks.refreshSessions();
       if (this.stream.text().length > 0) {
-        this.finishStream(sessionId, result);
+        await this.finishStream(sessionId, result);
       } else {
+        const finalMessage = this.messageForActiveTurn(result.assistantMessage);
         this.resetStream();
         this.timeline.dispatch({ type: 'user_message', message: result.userMessage, persisted: true });
         this.timeline.dispatch({
           type: 'turn_finished',
           sessionId,
-          turnId: result.assistantMessage.turnId || this.hooks.currentActiveTurnId(),
-          message: result.assistantMessage
+          turnId: finalMessage.turnId || this.hooks.currentActiveTurnId(),
+          message: finalMessage
         });
-        await this.persistAssistantMessage(sessionId, result.assistantMessage);
+        await this.persistAssistantMessage(sessionId, finalMessage);
+        if (this.hooks.onTaskCompleted) {
+          this.hooks.onTaskCompleted(sessionId, finalMessage.turnId || '');
+        }
         this.hooks.syncTimeline();
         this.pageState.setBusy(false);
         this.pageState.setServiceState(GeneralChatServiceState.Ready);
@@ -122,6 +129,7 @@ export class GeneralChatConversationViewModel {
     }
     const hadStream = hasStream || this.pageState.activeTurnMessage.id.length > 0;
     const currentSessionId = this.stream.currentSessionId();
+    const currentTurnId = this.stream.currentTurnId() || this.hooks.currentActiveTurnId();
     const requestInFlight = this.stream.isRequestInFlight();
     if (cancelled && currentSessionId.length > 0) {
       this.flushDelta(currentSessionId);
@@ -129,6 +137,9 @@ export class GeneralChatConversationViewModel {
     if (hasStream) {
       this.stream.markRequestCancelled();
       this.command.cancelCurrentRequest();
+    }
+    if (hadStream && this.hooks.onTaskStopped) {
+      this.hooks.onTaskStopped(currentSessionId || this.pageState.activeSession.sessionId || '', currentTurnId);
     }
     this.stream.reset();
     if (cancelled && this.pageState.activeTurnMessage.id.length > 0) {
@@ -174,11 +185,15 @@ export class GeneralChatConversationViewModel {
 
   private beginStream(sessionId: string): void {
     const activeTurn = this.stream.begin(sessionId);
+    const turnId = activeTurn.turnId || activeTurn.id.replace('active-', '');
     this.timeline.dispatch({
       type: 'turn_started',
       sessionId,
-      turnId: activeTurn.turnId || activeTurn.id.replace('active-', '')
+      turnId
     });
+    if (this.hooks.onTaskStarted) {
+      this.hooks.onTaskStarted(sessionId, turnId);
+    }
     this.hooks.syncTimeline();
   }
 
@@ -206,26 +221,49 @@ export class GeneralChatConversationViewModel {
     this.hooks.syncTimeline();
   }
 
-  private finishStream(sessionId: string, result: GeneralChatSendResult): void {
+  private async finishStream(sessionId: string, result: GeneralChatSendResult): Promise<void> {
     const currentSessionId = this.stream.currentSessionId();
     const visible = this.hooks.isVisible(sessionId);
     RemoteLogger.info(`general chat finish check session=${this.shortId(sessionId)} current=${this.shortId(currentSessionId)} visible=${visible}`);
     if (currentSessionId !== sessionId && !visible) {
       return;
     }
+    const finalMessage = this.messageForActiveTurn(result.assistantMessage);
     this.timeline.dispatch({ type: 'user_message', message: result.userMessage, persisted: true });
     this.timeline.dispatch({
       type: 'turn_finished',
       sessionId,
-      turnId: result.assistantMessage.turnId || this.hooks.currentActiveTurnId(),
-      message: result.assistantMessage
+      turnId: finalMessage.turnId || this.hooks.currentActiveTurnId(),
+      message: finalMessage
     });
-    this.persistAssistantMessage(sessionId, result.assistantMessage);
+    await this.persistAssistantMessage(sessionId, finalMessage);
+    if (this.hooks.onTaskCompleted) {
+      this.hooks.onTaskCompleted(sessionId, finalMessage.turnId || '');
+    }
     this.hooks.syncTimeline();
     this.resetStream();
     this.pageState.setBusy(false);
     this.pageState.setServiceState(GeneralChatServiceState.Ready);
     this.pageState.setStatus(RemoteI18n.t('generalChat.ready'));
+  }
+
+  private messageForActiveTurn(message: ChatMessage): ChatMessage {
+    const turnId = this.stream.currentTurnId() || message.turnId;
+    return {
+      id: message.id,
+      role: message.role,
+      text: message.text,
+      status: message.status,
+      renderVersion: message.renderVersion,
+      turnId,
+      detail: message.detail,
+      error: message.error,
+      timestamp: message.timestamp,
+      thinking: message.thinking,
+      tools: message.tools,
+      items: message.items,
+      images: message.images
+    };
   }
 
   private async handleSendFailure(
@@ -234,6 +272,12 @@ export class GeneralChatConversationViewModel {
     images: SelectedImageAttachment[],
     err: Object
   ): Promise<void> {
+    if (this.hooks.onTaskStopped) {
+      this.hooks.onTaskStopped(
+        sessionId,
+        this.stream.currentTurnId() || this.hooks.currentActiveTurnId()
+      );
+    }
     this.stream.setRequestInFlight(false);
     if (this.stream.takeRequestCancelled()) {
       const finalMessage = this.stream.takePendingFinalMessage();
@@ -295,7 +339,7 @@ export class GeneralChatConversationViewModel {
 
   private localUserMessage(text: string, images: SelectedImageAttachment[]): ChatMessage {
     return {
-      id: Encoding.randomId('user'),
+      id: Encoding.randomId('optimistic-user'),
       turnId: '',
       role: 'user',
       text,

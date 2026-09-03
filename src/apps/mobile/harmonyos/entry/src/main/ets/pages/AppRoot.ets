@@ -41,7 +41,6 @@ struct AppRoot {
         navigationStack: this.runtime.navigationStack,
         remotePageState: this.runtime.remotePageState,
         deviceDirectoryState: this.runtime.deviceDirectoryState,
-        remoteCreateState: this.runtime.remoteCreateState,
         generalPageState: this.runtime.generalChatPageState,
         filePreviewState: this.runtime.filePreviewState,
         deviceId: this.runtime.remoteConnectionController.getDeviceId(),
@@ -52,8 +51,8 @@ struct AppRoot {
       // not be hidden behind whatever screen the phone happens to be on.
       WatchProvisionCard({
         state: this.runtime.watchProvisionState,
-        onApprove: () => {
-          void this.runtime.watchProvisionController.approve();
+        onApprove: (password: string) => {
+          void this.runtime.watchProvisionController.approve(password);
         },
         onReject: () => {
           void this.runtime.watchProvisionController.reject();

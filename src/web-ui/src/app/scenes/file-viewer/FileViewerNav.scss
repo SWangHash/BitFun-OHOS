@@ -1,30 +1,48 @@
-@use '../../../component-library/styles/tokens.scss' as *;
-
 .bitfun-file-viewer-nav {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  inline-size: 100%;
+  max-inline-size: none;
+  background: transparent;
+
+  &__panel-header {
+    padding: 0;
+  }
+
+  &__body {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  &__content {
+    padding: 0;
+    gap: 0;
+    flex: 1 1 auto;
+    min-block-size: 0;
+    height: 100%;
+  }
 
   &__header {
     display: flex;
     align-items: center;
-    gap: $size-gap-2;
+    gap: var(--bf-space-2);
     height: 32px;
-    padding: 0 $size-gap-2 0 $size-gap-3;
+    padding: 0 var(--bf-space-2) 0 var(--bf-space-3);
     border: none;
     cursor: pointer;
-    width: calc(100% - #{$size-gap-2} * 2);
+    width: calc(100% - var(--bf-space-2) * 2);
     text-align: left;
-    transition: background $motion-fast $easing-standard;
+    transition: background var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
   &__back-icon {
     display: flex;
     align-items: center;
     flex-shrink: 0;
     opacity: 1;
-    color: var(--bf-appearance-token-color-text-muted);
+    color: var(--bf-color-content-muted);
     opacity: 0.7;
-    transition: opacity $motion-fast $easing-standard;
+    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     .bitfun-file-viewer-nav__header:hover & {
       opacity: 1;
@@ -33,23 +51,23 @@
 
 
     &:hover {
-      background: var(--bf-appearance-token-element-bg-medium);
+      background: var(--bf-color-action-neutral-surface-hover);
     }
 
     &:active {
-      background: var(--bf-appearance-token-element-bg-strong);
+      background: var(--bf-color-action-neutral-surface-pressed);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--bf-appearance-token-color-accent-500);
+      outline: 2px solid var(--bf-color-accent-default);
       outline-offset: -1px;
     }
-    border-radius: $size-radius-base;
-    background: var(--bf-appearance-token-element-bg-soft);
-    margin: 0 $size-gap-2;
-    color: var(--bf-appearance-token-color-text-primary);
-    font-size: var(--bf-appearance-token-font-size-sm);
-    font-weight: 500;
+    border-radius: var(--bf-radius-base);
+    background: var(--bf-color-action-quiet-hover);
+    margin: 0 var(--bf-space-2);
+    color: var(--bf-color-content-primary);
+    font-size: var(--bf-font-size-sm);
+    font-weight: var(--bf-font-weight-medium);
     flex-shrink: 0;
   }
 
@@ -57,7 +75,7 @@
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    color: var(--bf-appearance-token-color-accent-500);
+    color: var(--bf-color-accent-default);
   }
 
   &__label {
@@ -65,7 +83,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    line-height: 1;
+    line-height: var(--bf-line-height-none);
   }
 
   &__actions {

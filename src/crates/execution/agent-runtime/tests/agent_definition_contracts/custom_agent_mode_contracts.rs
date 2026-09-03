@@ -71,6 +71,9 @@ fn custom_mode_defaults_generate_id_and_default_policy() {
         default_custom_agent_tools(CustomAgentKind::Mode)
     );
     assert!(parsed.definition.tools.contains(&"ListModels".to_string()));
+    for tool_name in ["get_goal", "create_goal", "update_goal"] {
+        assert!(parsed.definition.tools.iter().any(|tool| tool == tool_name));
+    }
     assert_eq!(parsed.definition.readonly, DEFAULT_CUSTOM_MODE_READONLY);
     assert_eq!(parsed.definition.model, DEFAULT_CUSTOM_MODE_MODEL);
     assert_eq!(
@@ -153,7 +156,7 @@ fn custom_mode_markdown_save_round_trips_custom_policy_and_model() {
         Some("Custom planning mode"),
         Some(vec!["Read".to_string(), "Grep".to_string()]),
         Some(true),
-        Some("primary"),
+        Some("fast"),
         Some(policy.clone()),
         CustomAgentLevel::User,
     ))
@@ -164,7 +167,7 @@ fn custom_mode_markdown_save_round_trips_custom_policy_and_model() {
 
     let saved = fs::read_to_string(&path).expect("saved mode should be readable");
     assert!(saved.contains("readonly: true"));
-    assert!(saved.contains("model: primary"));
+    assert!(saved.contains("model: fast"));
     assert!(saved.contains("user_context_policy:"));
     assert!(saved.contains("- workspace_instructions"));
     assert!(saved.contains("- Read"));
@@ -302,7 +305,7 @@ fn custom_agent_validation_filters_invalid_tools_and_falls_back_model() {
         CustomAgentValidationContext {
             valid_tools: &["Read".to_string(), "Grep".to_string()],
             readonly_tools: &["Read".to_string()],
-            valid_models: &["auto".to_string(), "primary".to_string()],
+            valid_models: &["primary".to_string()],
         },
     );
 

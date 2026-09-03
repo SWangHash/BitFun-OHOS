@@ -1,7 +1,12 @@
+import {
+  Button,
+  Dialog,
+  DialogBody,
+  DialogClose,
+} from '@bitfun/ui';
 import React, { useCallback, useState } from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Button, Modal } from '@/component-library';
 import type {
   ReviewStrategyLevel,
   ReviewTeamRunManifest,
@@ -176,15 +181,15 @@ export function useDeepReviewConsent(): DeepReviewConsentControls {
   }, [t]);
 
   const deepReviewConsentDialog = pendingConsent ? (
-    <Modal
-      isOpen={true}
-      onClose={() => void settleConsent(false)}
-      size="large"
-      closeOnOverlayClick={false}
-      showCloseButton={false}
-      contentClassName="deep-review-consent-modal"
-      ariaLabel={t('deepReviewConsent.windowTitle')}
+    <Dialog
+      open
+      onOpenChange={(nextOpen) => { if (!nextOpen) void settleConsent(false); }}
+      size="lg"
+      closeOnPointerOutside={false}
+      aria-label={t('deepReviewConsent.windowTitle')}
     >
+      <DialogBody inset="none">
+        <div className="deep-review-consent-modal">
       <div data-bf-component="deep-review-consent-dialog" data-bf-part="root" className="deep-review-consent">
         <div data-bf-component="deep-review-consent-dialog" data-bf-part="header" className="deep-review-consent__header">
           <div data-bf-component="deep-review-consent-dialog" data-bf-part="heading" className="deep-review-consent__heading">
@@ -196,16 +201,12 @@ export function useDeepReviewConsent(): DeepReviewConsentControls {
               {t('deepReviewConsent.body')}
             </p>
           </div>
-          <button
-            type="button"
+          <DialogClose
             data-bf-component="deep-review-consent-dialog"
             data-bf-part="close"
             className="deep-review-consent__close"
             aria-label={t('deepReviewConsent.cancel')}
-            onClick={() => void settleConsent(false)}
-          >
-            <X size={16} />
-          </button>
+          />
         </div>
 
         {pendingConsent.launchContext?.sessionConcurrencyGuard?.highActivity && (
@@ -231,15 +232,15 @@ export function useDeepReviewConsent(): DeepReviewConsentControls {
         <div data-bf-component="deep-review-consent-dialog" data-bf-part="footer" className="deep-review-consent__footer">
           <div data-bf-component="deep-review-consent-dialog" data-bf-part="actions" className="deep-review-consent__actions">
             <Button
-              variant="secondary"
-              size="small"
+              variant="outline"
+              size="sm"
               onClick={() => void settleConsent(false)}
             >
               {t('deepReviewConsent.cancel')}
             </Button>
             <Button
-              variant="primary"
-              size="small"
+              variant="fill"
+              size="sm"
               onClick={() => void settleConsent(true)}
             >
               {t('deepReviewConsent.confirm')}
@@ -247,7 +248,9 @@ export function useDeepReviewConsent(): DeepReviewConsentControls {
           </div>
         </div>
       </div>
-    </Modal>
+            </div>
+            </DialogBody>
+    </Dialog>
   ) : null;
 
   return {

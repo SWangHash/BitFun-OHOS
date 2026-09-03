@@ -7,10 +7,11 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ChevronLeft, ChevronRight, Globe, RefreshCw, MousePointer2 } from 'lucide-react';
+import { Icon, IconButton, Input } from '@bitfun/ui';
+import { AlertTriangle, MousePointer2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { IconButton } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
+import { useSceneStore } from '@/app/stores/sceneStore';
 import { useContextStore } from '@/shared/context-system';
 import type { WebElementContext } from '@/shared/types/context';
 import { createInspectorScript, CANCEL_INSPECTOR_SCRIPT } from './browserInspectorScript';
@@ -39,6 +40,8 @@ export interface BrowserPanelProps {
   automationTitle?: string;
   webviewLabel?: string;
   adoptExisting?: boolean;
+  /** Correlates a host open request with this exact native WebView target. */
+  openRequestId?: string;
 }
 
 const BrowserPanel: React.FC<BrowserPanelProps> = ({
@@ -50,7 +53,10 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({
   webviewLabel: requestedWebviewLabel,
   adoptExisting,
 }) => {
+const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openRequestId }) => {
   const { t } = useTranslation('common');
+  const activeTabId = useSceneStore((s) => s.activeTabId);
+  const shouldShowWebview = isActive && activeTabId === 'session';
   const addContext = useContextStore((s) => s.addContext);
   const inspectorUnlistenRef = useRef<(() => void) | null>(null);
   const [isInspectorActive, setIsInspectorActive] = useState(false);
@@ -66,6 +72,7 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({
     log,
     requestedWebviewLabel,
     adoptExistingWebview: adoptExisting,
+    openRequestId,
   });
 
   const {
@@ -178,45 +185,38 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({
       <form data-bf-component="browser-panel" data-bf-part="toolbar" className="browser-panel__toolbar" onSubmit={handleSubmit} data-testid="browser-panel-title">
         <IconButton
           type="button"
-          variant="ghost"
-          size="small"
+          size="sm"
           onClick={goBack}
           aria-label={t('nav.back')}
+          icon={<Icon name="chevron-left" size="lg" />}
           data-testid="browser-back-button"
-        >
-          <ChevronLeft size={14} />
-        </IconButton>
+        />
         <IconButton
           type="button"
-          variant="ghost"
-          size="small"
+          size="sm"
           onClick={goForward}
           aria-label={t('nav.forward')}
+          icon={<Icon name="chevron-right" size="lg" />}
           data-testid="browser-forward-button"
-        >
-          <ChevronRight size={14} />
-        </IconButton>
+        />
         <IconButton
           type="button"
-          variant="ghost"
-          size="small"
+          size="sm"
           onClick={reload}
           disabled={isLoading}
           aria-label={t('actions.refresh')}
+          icon={(
+            <Icon name="refresh" size="lg" className={isLoading ? 'browser-panel__spinning' : undefined} data-testid={isLoading ? 'browser-loading-indicator' : undefined} />
+          )}
           data-testid="browser-refresh-button"
-        >
-          <RefreshCw
-            size={14}
-            className={isLoading ? 'browser-panel__spinning' : undefined}
-            data-testid={isLoading ? 'browser-loading-indicator' : undefined}
-          />
-        </IconButton>
+        />
         <div data-bf-component="browser-panel" data-bf-part="address" className="browser-panel__address">
-          <Globe size={16} />
-          <input
+          <Input
+            className="browser-panel__address-field"
             type="text"
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onValueChange={setInputValue}
+            leading={<Icon name="browser" size="md" />}
             placeholder={t('browserView.addressPlaceholder', { exampleUrl: 'https://example.com' })}
             spellCheck={false}
             data-testid="browser-url-input"
@@ -225,14 +225,13 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({
         {isTauri && (
           <IconButton
             type="button"
-            variant="ghost"
-            size="small"
+            size="sm"
             onClick={() => void handleInspector()}
             aria-label={isInspectorActive ? t('browserView.stopElementSelection') : t('browserView.startElementSelection')}
+            aria-pressed={isInspectorActive}
             className={isInspectorActive ? 'browser-panel__inspector-btn--active' : undefined}
-          >
-            <MousePointer2 size={14} />
-          </IconButton>
+            icon={<MousePointer2 />}
+          />
         )}
       </form>
 
@@ -262,7 +261,7 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({
             data-webview-label={webviewLabel}
           >
             <div data-bf-component="browser-panel" data-bf-part="placeholder" className="browser-panel__webview-placeholder">
-              <Globe size={20} />
+              <Icon name="browser" size="lg" />
               <span data-testid="browser-current-url">{currentUrl}</span>
             </div>
           </div>

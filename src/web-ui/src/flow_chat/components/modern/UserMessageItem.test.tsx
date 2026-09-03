@@ -139,9 +139,13 @@ vi.mock('@/infrastructure/event-bus', () => ({
   },
 }));
 
-vi.mock('@/component-library', () => ({
-  ReproductionStepsBlock: ({ steps }: { steps: string }) => <div>{steps}</div>,
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('@/infrastructure/confirm-dialog', async importOriginal => ({
+  ...await importOriginal<typeof import('@/infrastructure/confirm-dialog')>(),
   confirmDanger: componentLibraryMock.confirmDanger,
 }));
 

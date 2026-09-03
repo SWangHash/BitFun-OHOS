@@ -3,9 +3,9 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 export const userMessageItemAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'user-message-item',
   parts: [
-    { id: 'root' }, { id: 'timestamp' }, { id: 'main' }, { id: 'content' },
+    { id: 'root' }, { id: 'main' }, { id: 'content' },
     { id: 'steeringTag' }, { id: 'actions' }, { id: 'images' }, { id: 'image' },
-    { id: 'blocks' }, { id: 'lightbox' }, { id: 'loading' },
+    { id: 'lightbox' }, { id: 'loading' },
   ],
   states: [
     { id: 'expanded', selector: { kind: 'self', suffix: '[data-bf-state~="expanded"]' } },

@@ -14,7 +14,7 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 
 
 SCHEMA = "bitfun.appearance"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 REGISTRY_PATH = Path(__file__).resolve().parent.parent / "references" / "appearance-registry.json"
 MANIFEST_NAME = "appearance.json"
 MAX_ARCHIVE_BYTES = 96 * 1024 * 1024
@@ -30,7 +30,7 @@ MAX_PIXELS = 50_000_000
 ID_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$")
 VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")
 REFERENCE_PATTERN = re.compile(
-    r"^globals\.(colors|lengths|numbers|durations|easings|fontFamilies|shadows)\.[a-z][a-zA-Z0-9.-]*$"
+    r"^globals\.(colors|lengths|numbers|durations|easings|shadows)\.[a-z][a-zA-Z0-9.-]*$"
 )
 ASSET_PATH_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_./-]*$")
 FORBIDDEN_RENDERER_TEXT = re.compile(r"(?:https?://|javascript:|data:|url\s*\(|</?[a-z]|[{};])", re.I)
@@ -60,8 +60,7 @@ STYLE_PROPERTIES = {
     "borderStyle", "borderRadius", "borderTopLeftRadius", "borderTopRightRadius",
     "borderBottomRightRadius", "borderBottomLeftRadius", "boxSizing", "outlineColor",
     "outlineWidth", "outlineOffset", "outlineStyle", "boxShadow", "opacity",
-    "fontFamily", "fontSize", "fontWeight", "lineHeight", "fontStyle",
-    "fontVariantNumeric", "letterSpacing", "textAlign", "verticalAlign", "textIndent",
+    "textAlign", "verticalAlign", "textIndent",
     "textDecoration", "textTransform", "textOverflow", "whiteSpace", "wordBreak",
     "overflowWrap", "display", "flexDirection", "flexWrap", "flexGrow", "flexShrink",
     "flexBasis", "alignItems", "alignContent", "alignSelf", "justifyContent",
@@ -86,8 +85,7 @@ PAINT_PROPERTIES = {
     "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "borderStyle",
     "borderRadius", "borderTopLeftRadius", "borderTopRightRadius",
     "borderBottomRightRadius", "borderBottomLeftRadius", "outlineColor", "outlineWidth",
-    "outlineOffset", "outlineStyle", "boxShadow", "opacity", "fontFamily", "fontSize",
-    "fontWeight", "fontStyle", "fontVariantNumeric", "lineHeight", "letterSpacing",
+    "outlineOffset", "outlineStyle", "boxShadow", "opacity",
     "textAlign", "verticalAlign", "textIndent", "textDecoration", "textTransform",
     "textOverflow", "whiteSpace", "wordBreak", "overflowWrap", "cursor", "transition",
     "transform", "filter", "backdropBlur", "objectFit", "objectPosition",
@@ -129,9 +127,9 @@ COLOR_PROPERTIES = {
 }
 LENGTH_PROPERTIES = {
     "borderWidth", "borderTopWidth", "borderRightWidth", "borderBottomWidth",
-    "borderLeftWidth", "borderRadius", "outlineWidth", "outlineOffset", "fontSize",
+    "borderLeftWidth", "borderRadius", "outlineWidth", "outlineOffset",
     "borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius",
-    "borderBottomLeftRadius", "letterSpacing", "textIndent", "gap", "rowGap",
+    "borderBottomLeftRadius", "textIndent", "gap", "rowGap",
     "columnGap", "width", "minWidth", "maxWidth", "height", "minHeight", "maxHeight",
     "padding", "paddingBlock", "paddingInline", "paddingTop", "paddingRight",
     "paddingBottom", "paddingLeft", "margin", "marginBlock", "marginInline", "marginTop",
@@ -139,7 +137,7 @@ LENGTH_PROPERTIES = {
     "top", "right", "bottom", "left", "backdropBlur",
 }
 NUMBER_PROPERTIES = {
-    "opacity", "fontWeight", "lineHeight", "flexGrow", "flexShrink", "gridColumnSpan",
+    "opacity", "flexGrow", "flexShrink", "gridColumnSpan",
     "gridRowSpan", "zIndex", "order",
 }
 
@@ -150,8 +148,6 @@ ENUM_VALUES: dict[str, set[str]] = {
     "backgroundPosition": {"center", "top", "right", "bottom", "left"},
     "backgroundRepeat": {"repeat", "repeat-x", "repeat-y", "no-repeat"},
     "boxSizing": {"content-box", "border-box"},
-    "fontStyle": {"normal", "italic"},
-    "fontVariantNumeric": {"normal", "tabular-nums"},
     "textAlign": {"left", "center", "right", "start", "end"},
     "verticalAlign": {"baseline", "sub", "super", "text-top", "text-bottom", "middle", "top", "bottom"},
     "textDecoration": {"none", "underline", "line-through"},
@@ -229,7 +225,7 @@ def load_registry() -> dict[str, Any]:
         registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise AppearanceError(f"Could not load bundled Appearance registry: {error}") from error
-    if registry.get("schema") != "bitfun.appearance.registry" or registry.get("schemaVersion") != 1:
+    if registry.get("schema") != "bitfun.appearance.registry" or registry.get("schemaVersion") != 2:
         raise AppearanceError("Bundled Appearance registry has an unsupported schema")
     return registry
 
@@ -247,7 +243,9 @@ class ManifestValidator:
         self.components = {item["id"]: item for item in registry.get("components", [])}
         self.scenes = {item["id"]: item for item in registry.get("scenes", [])}
         self.renderers = set(registry.get("renderers", []))
-        self.css_tokens = set(registry.get("cssTokenNames", []))
+        self.theme_tokens = set(registry.get("themeTokenNames", []))
+        self.scoped_theme_tokens = set(registry.get("scopedThemeTokenNames", []))
+        self.theme_scope_ids = set(registry.get("themeScopeIds", []))
         self.widget_vars = set(registry.get("widgetVariableNames", []))
         self.errors: list[dict[str, str]] = []
         self.warnings: list[dict[str, str]] = []
@@ -330,7 +328,6 @@ class ManifestValidator:
             "numbers": self.validate_number,
             "durations": self.validate_duration,
             "easings": self.validate_easing,
-            "fontFamilies": self.validate_font_family,
             "shadows": self.validate_shadow,
         }
         for group, entries in value.items():
@@ -562,8 +559,6 @@ class ManifestValidator:
                 else:
                     for index, shadow in enumerate(prop_value):
                         self.validate_shadow(shadow, f"{prop_path}.{index}")
-            elif prop == "fontFamily":
-                self.validate_font_family(prop_value, prop_path)
             elif prop == "transition":
                 self.validate_transition(prop_value, prop_path)
             elif prop == "transform":
@@ -699,16 +694,6 @@ class ManifestValidator:
             return
         self.error(path, "INVALID_EASING", "Easing must be a supported structured easing value")
 
-    def validate_font_family(self, value: Any, path: str) -> None:
-        if self.validate_reference(value, "fontFamilies", path):
-            return
-        if not is_record(value) or value.get("kind") != "fontFamily" or not isinstance(value.get("families"), list) or not 1 <= len(value["families"]) <= 8:
-            self.error(path, "INVALID_FONT_FAMILY", "Font family must contain between 1 and 8 local family names")
-            return
-        for index, family in enumerate(value["families"]):
-            if not isinstance(family, str) or not re.fullmatch(r"[\w .-]{1,80}", family) or FORBIDDEN_RENDERER_TEXT.search(family):
-                self.error(f"{path}.families.{index}", "INVALID_FONT_FAMILY_NAME", "Invalid local font family name")
-
     def validate_shadow(self, value: Any, path: str) -> None:
         if self.validate_reference(value, "shadows", path) or (is_record(value) and value.get("kind") == "none"):
             return
@@ -815,8 +800,8 @@ class ManifestValidator:
                 self.scan_renderer_text(item, f"{path}.{key}")
 
     def validate_renderer_settings(self, renderer_id: str, settings: Mapping[str, Any]) -> list[str]:
-        if renderer_id == "css-tokens":
-            return self.validate_css_tokens(settings)
+        if renderer_id == "theme-tokens":
+            return self.validate_theme_tokens(settings)
         if renderer_id == "monaco":
             return self.validate_monaco(settings)
         if renderer_id == "xterm":
@@ -829,21 +814,45 @@ class ManifestValidator:
             return self.validate_canvas(settings)
         return [f"Unsupported renderer: {renderer_id}"]
 
-    def validate_css_tokens(self, settings: Mapping[str, Any]) -> list[str]:
+    def validate_theme_token_map(
+        self,
+        tokens: Any,
+        allowed_names: set[str],
+        path: str,
+    ) -> list[str]:
         errors: list[str] = []
-        tokens = settings.get("tokens")
-        background = settings.get("background")
-        if not is_record(tokens) or not isinstance(background, str):
-            return ["css-tokens settings must contain tokens and background"]
+        if not is_record(tokens):
+            return [f"{path} must be an object"]
         for name, value in tokens.items():
-            if name not in self.css_tokens:
-                errors.append(f"Unsupported CSS token name: {name}")
+            if name not in allowed_names:
+                errors.append(f"Unsupported {path} token name: {name}")
             if not isinstance(value, str) or not value or len(value) > 512:
-                errors.append(f"CSS token {name} must be a non-empty string of at most 512 characters")
+                errors.append(f"{path} token {name} must be a non-empty string of at most 512 characters")
             elif CSS_TOKEN_FORBIDDEN.search(value):
-                errors.append(f"CSS token {name} contains a forbidden value")
-        if CSS_TOKEN_FORBIDDEN.search(background):
-            errors.append("css-tokens background contains a forbidden value")
+                errors.append(f"{path} token {name} contains a forbidden value")
+        return errors
+
+    def validate_theme_tokens(self, settings: Mapping[str, Any]) -> list[str]:
+        errors: list[str] = []
+        for key in settings:
+            if key not in ("tokens", "scopes"):
+                errors.append(f"Unknown setting: {key}")
+        errors.extend(self.validate_theme_token_map(settings.get("tokens"), self.theme_tokens, "root"))
+        scopes = settings.get("scopes")
+        if scopes is None:
+            return errors
+        if not is_record(scopes):
+            errors.append("scopes must be an object")
+            return errors
+        for scope_id, tokens in scopes.items():
+            if scope_id not in self.theme_scope_ids:
+                errors.append(f"Unknown theme token scope: {scope_id}")
+                continue
+            errors.extend(self.validate_theme_token_map(
+                tokens,
+                self.scoped_theme_tokens,
+                f"scope {scope_id}",
+            ))
         return errors
 
     def validate_monaco(self, settings: Mapping[str, Any]) -> list[str]:
@@ -904,7 +913,7 @@ class ManifestValidator:
     def validate_xterm(self, settings: Mapping[str, Any]) -> list[str]:
         errors: list[str] = []
         for key in settings:
-            if key not in ("surfaces", "fontWeight", "fontWeightBold"):
+            if key != "surfaces":
                 errors.append(f"Unknown setting: {key}")
         surfaces = settings.get("surfaces")
         if not is_record(surfaces):
@@ -915,10 +924,6 @@ class ManifestValidator:
                     errors.append(f"Unknown xterm surface: {key}")
             errors.extend(self.validate_xterm_colors(surfaces.get("terminal"), "surfaces.terminal"))
             errors.extend(self.validate_xterm_colors(surfaces.get("output"), "surfaces.output"))
-        if settings.get("fontWeight") not in ("normal", "500"):
-            errors.append("fontWeight is invalid")
-        if settings.get("fontWeightBold") not in ("bold", "700"):
-            errors.append("fontWeightBold is invalid")
         return errors
 
     def validate_mermaid(self, settings: Mapping[str, Any]) -> list[str]:
@@ -1701,7 +1706,7 @@ def command_contract(args: argparse.Namespace, registry: Mapping[str, Any]) -> N
         print(json.dumps(sorted(STYLE_PROPERTIES), indent=2))
         return
     if args.action == "tokens":
-        key = "cssTokenNames" if args.token_kind == "css" else "widgetVariableNames"
+        key = "themeTokenNames" if args.token_kind == "theme" else "widgetVariableNames"
         print("\n".join(registry.get(key, [])))
         return
     if args.kind == "renderers":
@@ -1754,7 +1759,7 @@ def create_parser() -> argparse.ArgumentParser:
     contract_show.add_argument("kind", choices=("components", "scenes"))
     contract_show.add_argument("id")
     contract_tokens = contract_sub.add_parser("tokens")
-    contract_tokens.add_argument("token_kind", choices=("css", "widget"))
+    contract_tokens.add_argument("token_kind", choices=("theme", "widget"))
     contract_sub.add_parser("properties")
     return parser
 

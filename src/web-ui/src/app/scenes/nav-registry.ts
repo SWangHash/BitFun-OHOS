@@ -22,24 +22,21 @@ type LazyNavComponent = ReturnType<typeof lazy<ComponentType>>;
 const loadSettingsNav = async () => {
   const [navModule] = await Promise.all([
     import('./settings/SettingsNav'),
-    import('./settings/settingsTabI18n').then((m) => m.preloadSettingsShellI18n()),
+    import('./settings/settingsRegistry').then((module) => module.preloadSettingsShell()),
   ]);
   return navModule;
 };
 const loadFileViewerNav = () => import('./file-viewer/FileViewerNav');
-const loadShellNav = () => import('./shell/ShellNav');
 
 const SCENE_NAV_REGISTRY: Partial<Record<SceneTabId, LazyNavComponent>> = {
   settings: lazy(loadSettingsNav),
   'file-viewer': lazy(loadFileViewerNav),
-  shell: lazy(loadShellNav),
   // terminal: lazy(() => import('./terminal/TerminalNav')),
 };
 
 const SCENE_NAV_LOADERS: Partial<Record<SceneTabId, () => Promise<unknown>>> = {
   settings: loadSettingsNav,
   'file-viewer': loadFileViewerNav,
-  shell: loadShellNav,
 };
 
 /**

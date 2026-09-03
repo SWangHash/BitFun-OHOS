@@ -1,14 +1,13 @@
 //! Desktop appearance bootstrap and window creation.
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{OnceLock, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 use std::time::Instant;
 
 use bitfun_core::infrastructure::try_get_path_manager_arc;
 use bitfun_core::service::config::types::GlobalConfig;
 use log::{debug, error, warn};
 use tauri::webview::PageLoadEvent;
-use tauri::{Manager, Url, WebviewUrl};
+use tauri::{Manager, WebviewUrl};
 
 use crate::startup_trace::DesktopStartupTrace;
 
@@ -26,29 +25,6 @@ static STARTUP_APPEARANCE_BOOTSTRAP_MANIFEST: OnceLock<StartupAppearanceBootstra
 
 const STARTUP_APPEARANCE_BOOTSTRAP_JSON: &str =
     include_str!("generated/startup_appearance_bootstrap.json");
-
-struct MainWebviewNavigationPolicy {
-    first_page_navigation: AtomicBool,
-}
-
-impl MainWebviewNavigationPolicy {
-    fn new() -> Self {
-        Self {
-            first_page_navigation: AtomicBool::new(true),
-        }
-    }
-
-    fn should_allow(&self, url: &Url) -> bool {
-        // Wry invokes the same callback for top-level and iframe navigations on
-        // macOS, but it does not expose the target frame here. MiniApps use
-        // parent-created Blob documents, while srcdoc/empty iframe documents
-        // use the two local about: targets below. Allowing only these local
-        // document URLs keeps network and app reloads behind the one-shot gate.
-        let is_embedded_document = url.scheme() == "blob"
-            || (url.scheme() == "about" && matches!(url.path(), "blank" | "srcdoc"));
-        is_embedded_document || self.first_page_navigation.swap(false, Ordering::SeqCst)
-    }
-}
 
 fn agent_companion_window_ops() -> &'static tokio::sync::Mutex<()> {
     AGENT_COMPANION_WINDOW_OPS.get_or_init(|| tokio::sync::Mutex::new(()))
@@ -415,14 +391,20 @@ impl AppearanceConfig {
                     
                     root.setAttribute('data-bf-appearance', '{id}');
                     root.setAttribute('data-bf-appearance-mode', '{appearance_mode}');
-                    
-                    root.style.setProperty('--bf-appearance-token-color-bg-primary', '{bg_primary}');
-                    root.style.setProperty('--bf-appearance-token-color-bg-secondary', '{bg_secondary}');
-                    root.style.setProperty('--bf-appearance-token-color-bg-tertiary', '{bg_primary}');
-                    root.style.setProperty('--bf-appearance-token-color-bg-workbench', '{bg_primary}');
-                    root.style.setProperty('--bf-appearance-token-color-bg-scene', '{bg_scene}');
-                    root.style.setProperty('--bf-appearance-token-color-text-primary', '{text_primary}');
-                    root.style.setProperty('--bf-appearance-token-color-accent-500', '{accent_color}');
+                    root.setAttribute('data-bf-design-system-root', '');
+                    root.setAttribute('data-color-scheme', '{appearance_mode}');
+                    root.setAttribute('data-contrast', 'standard');
+                    root.setAttribute('data-density', 'compact');
+
+                    root.style.setProperty('--bf-color-surface-canvas', '{bg_primary}');
+                    root.style.setProperty('--bf-color-surface-panel', '{bg_secondary}');
+                    root.style.setProperty('--bf-color-surface-tertiary', '{bg_primary}');
+                    root.style.setProperty('--bf-color-surface-workbench', '{bg_primary}');
+                    root.style.setProperty('--bf-color-surface-scene', '{bg_scene}');
+                    root.style.setProperty('--bf-color-surface-chrome', '{bg_primary}');
+                    root.style.setProperty('--bf-color-content-primary', '{text_primary}');
+                    root.style.setProperty('--bf-color-content-muted', '{text_muted}');
+                    root.style.setProperty('--bf-color-accent-default', '{accent_color}');
                     root.style.backgroundColor = '{bg_primary}';
                     
                     if (document.body) {{
@@ -451,6 +433,7 @@ impl AppearanceConfig {
             bg_secondary = self.bg_secondary,
             bg_scene = self.bg_scene,
             text_primary = self.text_primary,
+            text_muted = self.text_muted,
             accent_color = self.accent_color,
             startup_trace_id_json = startup_trace_id_json,
             perf_trace_enabled = perf_trace_enabled,
@@ -502,10 +485,14 @@ mod startup_appearance_tests {
         assert!(script.contains("__BITFUN_BOOTSTRAP_APPEARANCE_SELECTION__"));
         assert!(script.contains("data-bf-appearance"));
         assert!(script.contains("data-bf-appearance-mode"));
-        assert!(script.contains("--bf-appearance-token-color-bg-primary"));
-        assert!(script.contains("--bf-appearance-token-color-bg-scene"));
-        assert!(script.contains("--bf-appearance-token-color-text-primary"));
-        assert!(script.contains("--bf-appearance-token-color-accent-500"));
+        assert!(script.contains("data-bf-design-system-root"));
+        assert!(script.contains("data-color-scheme"));
+        assert!(script.contains("--bf-color-surface-canvas"));
+        assert!(script.contains("--bf-color-surface-scene"));
+        assert!(script.contains("--bf-color-content-primary"));
+        assert!(script.contains("--bf-color-content-muted"));
+        assert!(script.contains("--bf-color-accent-default"));
+        assert!(!script.contains("--bf-appearance-token-"));
         let retired_bootstrap_global = ["__BITFUN_BOOTSTRAP", "THEME"].join("_");
         let retired_background_token = ["--", "color-bg-"].concat();
         let retired_text_token = ["--", "color-text-"].concat();
@@ -536,6 +523,7 @@ pub fn create_main_window(
     startup_trace_id: &str,
     startup_trace: &DesktopStartupTrace,
     workspace_startup_state: Option<serde_json::Value>,
+    frontend_workbench: Arc<crate::frontend_workbench::FrontendWorkbenchManager>,
 ) {
     let total_started_at = Instant::now();
     let bootstrap_config = AppearanceConfig::load_startup_bootstrap_config();
@@ -566,7 +554,7 @@ pub fn create_main_window(
             }
         }
     } else {
-        WebviewUrl::App("index.html".into())
+        frontend_workbench.active_frontend_url()
     };
     let main_url_kind = match &main_url {
         WebviewUrl::External(_) => "external",
@@ -596,14 +584,15 @@ pub fn create_main_window(
             }
         });
 
-    // Keep the native drag-drop handler enabled on the main window. External
-    // files are delivered through Webview::onDragDropEvent with real paths;
-    // disabling it makes browser File.path unavailable and drops appear inert.
+    // Keep HTML5 drag-and-drop working inside the webview for desktop UI drag targets.
+    builder = builder.disable_drag_drop_handler();
 
-    // Block top-level webview reloads after the initial page while allowing the
-    // local iframe documents used by sandboxed MiniApps.
-    let navigation_policy = MainWebviewNavigationPolicy::new();
-    builder = builder.on_navigation(move |url| navigation_policy.should_allow(url));
+    // The Desktop host arms each exact Creative preview/rollback transition.
+    // Page-driven navigations remain blocked, including in development where
+    // the initial Vite origin differs from the packaged-frontend protocol.
+    let navigation_workbench = Arc::clone(&frontend_workbench);
+    builder =
+        builder.on_navigation(move |url| navigation_workbench.should_allow_main_navigation(url));
 
     #[cfg(target_os = "macos")]
     {
@@ -649,7 +638,6 @@ pub fn create_main_window(
                     startup_trace,
                     reapply_maximized,
                 );
-
             }
         }
         Err(e) => {
@@ -728,12 +716,7 @@ fn app_url(path: &str) -> WebviewUrl {
             }
         }
     } else {
-        let app_path = if path.starts_with('?') {
-            format!("index.html{}", path)
-        } else {
-            path.to_string()
-        };
-        WebviewUrl::App(app_path.into())
+        crate::frontend_workbench::custom_frontend_url(path)
     }
 }
 
@@ -1134,55 +1117,5 @@ pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
             total_started_at.elapsed().as_millis()
         );
         Ok(())
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::MainWebviewNavigationPolicy;
-        use tauri::Url;
-
-        fn url(value: &str) -> Url {
-            value.parse().expect("test URL should be valid")
-        }
-
-        #[test]
-        fn main_webview_navigation_allows_only_the_first_page_navigation() {
-            let policy = MainWebviewNavigationPolicy::new();
-
-            assert!(policy.should_allow(&url("http://localhost:1422/")));
-            assert!(!policy.should_allow(&url("http://localhost:1422/")));
-            assert!(!policy.should_allow(&url("https://example.com/")));
-            assert!(!policy.should_allow(&url("data:text/html,blocked")));
-        }
-
-        #[test]
-        fn main_webview_navigation_allows_local_iframe_documents_without_consuming_initial_page() {
-            let policy = MainWebviewNavigationPolicy::new();
-
-            assert!(policy.should_allow(&url(
-                "blob:http://localhost:1422/65b60dd8-a501-47c2-b7fd-aa99af720dc6"
-            )));
-            assert!(policy.should_allow(&url("about:blank")));
-            assert!(policy.should_allow(&url("about:srcdoc")));
-            assert!(policy.should_allow(&url("tauri://localhost/index.html")));
-            assert!(!policy.should_allow(&url("tauri://localhost/index.html")));
-        }
-
-        #[test]
-        fn main_webview_navigation_keeps_iframe_documents_available_after_initial_page() {
-            let policy = MainWebviewNavigationPolicy::new();
-
-            assert!(policy.should_allow(&url("tauri://localhost/index.html")));
-            assert!(policy.should_allow(&url(
-                "blob:tauri://localhost/f5445ef0-5b0b-42b0-9540-276a0012ae56"
-            )));
-            assert!(policy.should_allow(&url("about:blank")));
-            assert!(!policy.should_allow(&url("tauri://localhost/index.html")));
-        }
-    }
-
-    #[cfg(target_env = "ohos")]
-    {
-        Err("Failed to show main window".to_string())
     }
 }

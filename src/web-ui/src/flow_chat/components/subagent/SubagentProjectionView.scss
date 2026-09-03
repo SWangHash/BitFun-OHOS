@@ -13,7 +13,7 @@
 
 .subagent-projection-container--expanded {
   max-height: min(48vh, 640px);
-  padding: var(--bf-appearance-token-flowchat-card-expanded-pad-y) var(--bf-appearance-token-flowchat-card-expanded-pad-x);
+  padding: var(--bf-control-flow-chat-card-expanded-padding-block) var(--bf-control-flow-chat-card-expanded-padding-inline);
 }
 
 .subagent-projection-container--collapsed {
@@ -40,8 +40,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-size: 12px;
-  color: var(--bf-appearance-token-color-text-secondary);
+  font-size: var(--bf-font-size-xs);
+  color: var(--bf-color-content-secondary);
 }
 
 .subagent-projection-text__message {
@@ -49,11 +49,5 @@
 }
 
 .subagent-projection-text__expand-btn {
-  border: 0;
-  background: transparent;
-  color: var(--bf-appearance-token-color-accent-500);
-  cursor: pointer;
-  padding: 0;
-  font: inherit;
-  white-space: nowrap;
+  flex-shrink: 0;
 }

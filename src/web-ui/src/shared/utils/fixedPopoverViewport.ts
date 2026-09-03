@@ -5,7 +5,7 @@
 
 export const DEFAULT_POPOVER_VIEWPORT_PADDING = 8;
 
-export type FixedPopoverPlacement = 'top' | 'bottom' | 'left' | 'right';
+export type FixedPopoverPlacement = 'top' | 'bottom';
 
 // 'start' aligns the menu's left edge with the anchor's left edge; 'end'
 // aligns the right edges instead, for anchors that sit near the window's
@@ -77,6 +77,32 @@ const clampFixedPopoverTopInViewport = (
   return clamp(preferredTop, padding, viewportHeight - padding - menuHeight);
 };
 
+/**
+ * Horizontal placement on its own, for a popover that anchors its vertical axis
+ * to an edge instead of to a measured height.
+ */
+export function computeFixedPopoverLeftInViewport(
+  anchorRect: FixedPopoverAnchorRect,
+  menuWidth: number,
+  viewportWidth: number,
+  options: { padding?: number; alignment?: FixedPopoverAlignment } = {},
+): number {
+  const { padding = DEFAULT_POPOVER_VIEWPORT_PADDING, alignment = 'start' } = options;
+
+  // Without a measured right edge an end-aligned menu has nothing to align
+  // to, so it degrades to the start edge rather than to a wrong position.
+  const preferredLeft = alignment === 'end' && typeof anchorRect.right === 'number'
+    ? anchorRect.right - menuWidth
+    : anchorRect.left;
+
+  return clampFixedPopoverLeftInViewport(
+    preferredLeft,
+    menuWidth,
+    viewportWidth,
+    padding,
+  );
+}
+
 export function computeFixedPopoverPositionInViewport(
   anchorRect: FixedPopoverAnchorRect,
   menuWidth: number,
@@ -106,12 +132,10 @@ export function computeFixedPopoverPositionInViewport(
       gap,
       padding,
     ),
-    left: clampFixedPopoverLeftInViewport(
-      preferredLeft,
-      menuWidth,
-      viewport.width,
+    left: computeFixedPopoverLeftInViewport(anchorRect, menuWidth, viewport.width, {
       padding,
-    ),
+      alignment,
+    }),
   };
 }
 

@@ -30,7 +30,6 @@ where
 #[serde(rename_all = "camelCase")]
 pub struct FontPreferenceSnapshot {
     pub ui_size: UiFontSizeSnapshot,
-    pub flow_chat: FlowChatFontSnapshot,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,14 +38,6 @@ pub struct UiFontSizeSnapshot {
     pub level: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_px: Option<u32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FlowChatFontSnapshot {
-    pub mode: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub base_px: Option<u32>,
 }
 
 /// Global configuration structure - matches the frontend `GlobalConfig` exactly.
@@ -167,6 +158,13 @@ pub struct AppConfig {
     #[serde(default)]
     pub flow_chat: AppFlowChatConfig,
     pub ai_experience: AIExperienceConfig,
+    /// Controller-owned end-to-end realtime voice conversation settings.
+    ///
+    /// This is deliberately a sibling of `ai_experience`: generic AI
+    /// experience mutations can be routed to a peer host, while the dedicated
+    /// realtime speech commands always resolve this value on the controller.
+    #[serde(default)]
+    pub voice_call: VoiceCallConfig,
     /// User-defined keyboard shortcut overrides.
     /// Stored as opaque JSON so the backend remains schema-agnostic;
     /// the frontend owns the versioned format (StoredKeybindingsV1).
@@ -381,6 +379,39 @@ impl Default for VoiceInputConfig {
     }
 }
 
+/// Controller-local full-duplex voice-call preferences.
+///
+/// The API key crosses only the controller-local settings IPC; starting a
+/// session resolves it in the Desktop adapter, so it is never forwarded to a
+/// remote workspace or peer HostInvoke request. Session execution selected by
+/// a voice tool call can still target a remote workspace or peer through the
+/// normal Agent Runtime adapters.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct VoiceCallConfig {
+    pub enabled: bool,
+    pub provider: String,
+    pub api_key: String,
+    pub voice: String,
+    pub speed: i32,
+    pub loudness: i32,
+    pub microphone_device_id: String,
+}
+
+impl Default for VoiceCallConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            provider: "volcengine".to_string(),
+            api_key: String::new(),
+            voice: "zh_female_vv_jupiter_bigtts".to_string(),
+            speed: 0,
+            loudness: 0,
+            microphone_device_id: String::new(),
+        }
+    }
+}
+
 /// Domain request for atomically saving a cloud speech-recognition model and
 /// selecting it for voice input. Text-generation fields are intentionally not
 /// part of this contract.
@@ -432,8 +463,27 @@ pub struct AIExperienceConfig {
     /// Local speech-to-text settings for the chat composer.
     pub voice_input: VoiceInputConfig,
     /// User-defined quick actions (post-coding menu); persisted for the web UI.
-    #[serde(default)]
+    #[serde(default = "default_quick_actions")]
     pub quick_actions: Vec<AiExperienceQuickAction>,
+}
+
+fn default_quick_actions() -> Vec<AiExperienceQuickAction> {
+    [
+        ("commit", "Commit", "Commit all current code changes"),
+        (
+            "create_pr",
+            "Create PR",
+            "Create a Pull Request for the current branch",
+        ),
+    ]
+    .into_iter()
+    .map(|(id, label, prompt)| AiExperienceQuickAction {
+        id: id.to_string(),
+        label: label.to_string(),
+        prompt: prompt.to_string(),
+        enabled: true,
+    })
+    .collect()
 }
 
 /// User-selected Agent companion pet package.
@@ -452,15 +502,15 @@ pub struct AgentCompanionPetSelection {
 
 fn default_agent_companion_pet() -> Option<AgentCompanionPetSelection> {
     Some(AgentCompanionPetSelection {
-        id: "bitfun".to_string(),
-        display_name: "Bitfun".to_string(),
+        id: "blue-golden".to_string(),
+        display_name: "困困".to_string(),
         description: Some(
-            "BitFun's mascot — Bifang, a figure from Chinese mythology said to live on Mount Zhang'e. In the Classic of Mountains and Seas (Shan Hai Jing · Western Mountains), Bifang is described as crane-like with one foot, blue feathers marked with red, and a white beak.".to_string(),
+            "A sweet, round-faced blue-golden shaded cat with wide bright eyes and soft silver-blue fur warmed by creamy-gold highlights.".to_string(),
         ),
         source: "preset".to_string(),
-        package_path: "/agent-companion-pets/bitfun".to_string(),
-        spritesheet_path: "/agent-companion-pets/bitfun/spritesheet.webp".to_string(),
-        spritesheet_mime_type: "image/webp".to_string(),
+        package_path: "/agent-companion-pets/blue-golden".to_string(),
+        spritesheet_path: "/agent-companion-pets/blue-golden/spritesheet.png".to_string(),
+        spritesheet_mime_type: "image/png".to_string(),
     })
 }
 
@@ -517,10 +567,17 @@ impl Default for AppearanceConfig {
 pub struct EditorConfig {
     pub font_size: u32,
     pub font_family: String,
+    pub font_weight: String,
     pub line_height: f64,
+    pub cursor_style: String,
+    pub cursor_blinking: String,
+    pub render_whitespace: String,
+    pub render_line_highlight: String,
     pub tab_size: u32,
     pub insert_spaces: bool,
     pub word_wrap: String,
+    pub scroll_beyond_last_line: bool,
+    pub smooth_scrolling: bool,
     pub line_numbers: String,
     pub minimap: MinimapConfig,
     pub auto_save: String,
@@ -528,6 +585,8 @@ pub struct EditorConfig {
     pub format_on_save: bool,
     pub format_on_paste: bool,
     pub trim_auto_whitespace: bool,
+    pub semantic_highlighting: bool,
+    pub bracket_pair_colorization: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -684,10 +743,16 @@ impl Default for SubagentModelDefaultsConfig {
     fn default() -> Self {
         Self {
             default_selection: default_subagent_model_selection(),
-            builtin: HashMap::from([(
-                "GeneralPurpose".to_string(),
-                SubagentModelSelection::fixed("primary"),
-            )]),
+            builtin: HashMap::from([
+                (
+                    "GeneralPurpose".to_string(),
+                    SubagentModelSelection::fixed("primary"),
+                ),
+                (
+                    "ResearchSpecialist".to_string(),
+                    SubagentModelSelection::Inherit,
+                ),
+            ]),
             fork: SubagentModelSelection::Inherit,
         }
     }
@@ -721,7 +786,7 @@ impl AgentModelDefaultsConfig {
 impl Default for AgentModelDefaultsConfig {
     fn default() -> Self {
         Self {
-            mode: "auto".to_string(),
+            mode: "primary".to_string(),
             subagents: SubagentModelDefaultsConfig::default(),
         }
     }
@@ -890,6 +955,10 @@ pub struct AIConfig {
     #[serde(default = "default_subagent_max_concurrency")]
     pub subagent_max_concurrency: usize,
 
+    /// Maximum number of Swarm workers and reviewers that may execute concurrently.
+    #[serde(default = "default_swarm_max_concurrency")]
+    pub swarm_max_concurrency: usize,
+
     /// Scheduling policy for multiple subagent launch calls in the same model batch.
     #[serde(default = "default_subagent_batch_execution_policy")]
     pub subagent_batch_execution_policy: SubagentBatchExecutionPolicy,
@@ -918,10 +987,6 @@ pub struct AIConfig {
     /// provider confirms a normal tool-use completion.
     #[serde(default = "default_true")]
     pub allow_tool_json_repair: bool,
-
-    /// Debug-mode configuration (log path, language templates, etc.).
-    #[serde(default)]
-    pub debug_mode_config: DebugModeConfig,
 
     /// Allow Computer use (desktop automation) when the desktop host is available (all session modes).
     #[serde(default)]
@@ -1160,6 +1225,10 @@ fn default_subagent_max_concurrency() -> usize {
     5
 }
 
+fn default_swarm_max_concurrency() -> usize {
+    16
+}
+
 fn default_memory_max_raw_memories_for_consolidation() -> usize {
     64
 }
@@ -1216,227 +1285,6 @@ pub const DEFAULT_MAX_ROUNDS: usize = 0;
 
 fn default_max_rounds() -> usize {
     DEFAULT_MAX_ROUNDS
-}
-
-/// Debug-mode configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct DebugModeConfig {
-    /// Custom log path (relative to the workspace; default: `.bitfun/debug.log`).
-    pub log_path: String,
-
-    /// Ingest server port.
-    pub ingest_port: u16,
-
-    /// Enabled languages (auto-detected based on project type when empty).
-    pub enabled_languages: Vec<String>,
-
-    /// Debug template configuration per language.
-    pub language_templates: HashMap<String, LanguageDebugTemplate>,
-}
-
-impl Default for DebugModeConfig {
-    fn default() -> Self {
-        Self {
-            log_path: ".bitfun/debug.log".to_string(),
-            ingest_port: 7242,
-            enabled_languages: Vec::new(),
-            language_templates: Self::default_language_templates(),
-        }
-    }
-}
-
-impl DebugModeConfig {
-    /// Returns the default language templates.
-    ///
-    /// Core languages (JavaScript) are enabled by default and cannot be disabled;
-    /// they are included in the static prompt.
-    /// Other languages (Python/Rust/Go/Java) are disabled by default and can be enabled as needed.
-    pub fn default_language_templates() -> HashMap<String, LanguageDebugTemplate> {
-        let mut templates = HashMap::new();
-
-        templates.insert("javascript".to_string(), LanguageDebugTemplate {
-            language: "javascript".to_string(),
-            display_name: "JavaScript / TypeScript".to_string(),
-            enabled: false,
-            instrumentation_template: r#"fetch('http://127.0.0.1:{PORT}/ingest/{SESSION_ID}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'{LOCATION}',message:'{MESSAGE}',data:{DATA},timestamp:Date.now(),sessionId:'{SESSION_ID}',hypothesisId:'{HYPOTHESIS_ID}',runId:'{RUN_ID}'})}).catch(()=>{});"#.to_string(),
-            region_start: "// #region agent log".to_string(),
-            region_end: "// #endregion".to_string(),
-            notes: vec![
-                "Send logs to the ingest server via HTTP POST.".to_string(),
-                "{DATA} must be replaced with a JavaScript object expression.".to_string(),
-            ],
-        });
-
-        templates.insert("python".to_string(), LanguageDebugTemplate {
-            language: "python".to_string(),
-            display_name: "Python".to_string(),
-            enabled: false,
-            instrumentation_template: r#"import json, time, os
-with open(os.path.join(os.getcwd(), '{LOG_PATH}'), 'a', encoding='utf-8') as _f:
-    _f.write(json.dumps({"location": "{LOCATION}", "message": "{MESSAGE}", "data": {DATA}, "timestamp": int(time.time()*1000), "sessionId": "{SESSION_ID}", "hypothesisId": "{HYPOTHESIS_ID}", "runId": "{RUN_ID}"}, ensure_ascii=False) + '\n')"#.to_string(),
-            region_start: "# region agent log".to_string(),
-            region_end: "# endregion".to_string(),
-            notes: vec![
-                "Append NDJSON logs directly to workspace LOG_PATH.".to_string(),
-                "Use ensure_ascii=False to preserve non-ASCII characters.".to_string(),
-                "{DATA} must be a Python expression (e.g., {\"var\": var} or locals()).".to_string(),
-                "Imports only need to be declared once at the top.".to_string(),
-            ],
-        });
-
-        templates.insert("rust".to_string(), LanguageDebugTemplate {
-            language: "rust".to_string(),
-            display_name: "Rust".to_string(),
-            enabled: false,
-            instrumentation_template: r##"{
-    use std::fs::OpenOptions;
-    use std::io::Write;
-    use std::time::{SystemTime, UNIX_EPOCH};
-    if let Ok(mut _f) = OpenOptions::new().create(true).append(true).open("{LOG_PATH}") {
-        let _ts = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
-        let _ = writeln!(_f, r#"{{"location":"{LOCATION}","message":"{MESSAGE}","data":{},"timestamp":{},"sessionId":"{SESSION_ID}","hypothesisId":"{HYPOTHESIS_ID}","runId":"{RUN_ID}"}}"#, serde_json::json!({DATA}), _ts);
-    }
-}"##.to_string(),
-            region_start: "// #region agent log".to_string(),
-            region_end: "// #endregion".to_string(),
-            notes: vec![
-                "Append NDJSON logs directly to LOG_PATH.".to_string(),
-                "Requires serde_json: cargo add serde_json.".to_string(),
-                "{DATA} must be a Rust expression (e.g., {\"var\": var}).".to_string(),
-                "Use in sync code; for async code use tokio::fs.".to_string(),
-            ],
-        });
-
-        templates.insert("go".to_string(), LanguageDebugTemplate {
-            language: "go".to_string(),
-            display_name: "Go".to_string(),
-            enabled: false,
-            instrumentation_template: r#"func() {
-	f, err := os.OpenFile("{LOG_PATH}", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err == nil {
-		defer f.Close()
-		data, _ := json.Marshal(map[string]interface{}{"location": "{LOCATION}", "message": "{MESSAGE}", "data": {DATA}, "timestamp": time.Now().UnixMilli(), "sessionId": "{SESSION_ID}", "hypothesisId": "{HYPOTHESIS_ID}", "runId": "{RUN_ID}"})
-		f.Write(append(data, '\n'))
-	}
-}()"#.to_string(),
-            region_start: "// #region agent log".to_string(),
-            region_end: "// #endregion".to_string(),
-            notes: vec![
-                "Use an immediately-invoked anonymous function; can be inserted anywhere.".to_string(),
-                "Append NDJSON logs directly to LOG_PATH.".to_string(),
-                "Import \"os\", \"encoding/json\", and \"time\".".to_string(),
-                "{DATA} must be a Go expression (e.g., map[string]interface{}{\"var\": var}).".to_string(),
-            ],
-        });
-
-        templates.insert("java".to_string(), LanguageDebugTemplate {
-            language: "java".to_string(),
-            display_name: "Java".to_string(),
-            enabled: false,
-            instrumentation_template: r#"try {
-    java.nio.file.Files.writeString(
-        java.nio.file.Path.of("{LOG_PATH}"),
-        String.format("{\"location\":\"{LOCATION}\",\"message\":\"{MESSAGE}\",\"data\":%s,\"timestamp\":%d,\"sessionId\":\"{SESSION_ID}\",\"hypothesisId\":\"{HYPOTHESIS_ID}\",\"runId\":\"{RUN_ID}\"}%n",
-            new com.google.gson.Gson().toJson({DATA}), System.currentTimeMillis()),
-        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
-} catch (Exception _e) { /* debug log */ }"#.to_string(),
-            region_start: "// #region agent log".to_string(),
-            region_end: "// #endregion".to_string(),
-            notes: vec![
-                "Append NDJSON logs directly to LOG_PATH.".to_string(),
-                "Requires Gson (or use Jackson).".to_string(),
-                "{DATA} must be a Java object (e.g., Map.of(\"var\", var)).".to_string(),
-                "Java 11+ can use Files.writeString; older versions use Files.write + getBytes().".to_string(),
-            ],
-        });
-
-        templates
-    }
-
-    /// Returns relevant templates based on detected project languages.
-    pub fn get_templates_for_languages(
-        &self,
-        detected_languages: &[String],
-    ) -> Vec<&LanguageDebugTemplate> {
-        let target_languages: Vec<&str> = if !self.enabled_languages.is_empty() {
-            self.enabled_languages.iter().map(|s| s.as_str()).collect()
-        } else {
-            detected_languages.iter().map(|s| s.as_str()).collect()
-        };
-
-        let language_mapping: HashMap<&str, &str> = [
-            ("typescript", "javascript"),
-            ("javascript", "javascript"),
-            ("python", "python"),
-            ("rust", "rust"),
-            ("go", "go"),
-            ("java", "java"),
-            ("kotlin", "java"),
-        ]
-        .into_iter()
-        .collect();
-
-        let mut result = Vec::new();
-        let mut seen = std::collections::HashSet::new();
-
-        for lang in &target_languages {
-            let template_lang = language_mapping.get(lang).unwrap_or(lang);
-            if !seen.contains(template_lang) {
-                if let Some(template) = self.language_templates.get(*template_lang) {
-                    if template.enabled {
-                        result.push(template);
-                        seen.insert(template_lang);
-                    }
-                }
-            }
-        }
-
-        result
-    }
-}
-
-/// Language debug template.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct LanguageDebugTemplate {
-    /// Language identifier (javascript, python, rust, go, java).
-    pub language: String,
-
-    /// Display name.
-    pub display_name: String,
-
-    /// Whether this language template is enabled (when enabled, user-defined templates override
-    /// built-in logic).
-    pub enabled: bool,
-
-    /// Instrumentation code template.
-    /// Placeholders: {LOCATION}, {MESSAGE}, {DATA}, {PORT}, {SESSION_ID}, {HYPOTHESIS_ID},
-    /// {RUN_ID}, {LOG_PATH}
-    pub instrumentation_template: String,
-
-    /// Region marker start.
-    pub region_start: String,
-
-    /// Region marker end.
-    pub region_end: String,
-
-    /// Special notes.
-    pub notes: Vec<String>,
-}
-
-impl Default for LanguageDebugTemplate {
-    fn default() -> Self {
-        Self {
-            language: String::new(),
-            display_name: String::new(),
-            enabled: false,
-            instrumentation_template: String::new(),
-            region_start: "// #region agent log".to_string(),
-            region_end: "// #endregion".to_string(),
-            notes: Vec::new(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -1590,6 +1438,8 @@ pub enum SubscriptionProvider {
     Codex,
     Antigravity,
     Opencode,
+    Grok,
+    Hermes,
 }
 
 /// OpenCode API product selected for a subscription-authenticated model.
@@ -1604,7 +1454,7 @@ pub enum OpenCodePlan {
 /// Where to obtain the runtime auth material for an `AIModelConfig`.
 ///
 /// Stored on disk as `{"type":"api_key"}` or
-/// `{"type":"subscription","provider":"codex"|"antigravity"|"opencode"}`.
+/// `{"type":"subscription","provider":"codex"|"antigravity"|"opencode"|"grok"|"hermes"}`.
 /// OpenCode models may additionally persist `"plan":"zen"|"go"`; an absent
 /// plan preserves the legacy Zen Chat Completions behavior.
 /// Tokens live in the subscription auth store and are resolved at request time.
@@ -1836,6 +1686,7 @@ impl Default for AppConfig {
             },
             flow_chat: AppFlowChatConfig::default(),
             ai_experience: AIExperienceConfig::default(),
+            voice_call: VoiceCallConfig::default(),
             keybindings: None,
             user_tool_groups: UserToolGroupsConfig::default(),
             user_skill_groups: UserSkillGroupsConfig::default(),
@@ -1879,7 +1730,7 @@ impl Default for AIExperienceConfig {
             agent_companion_pet: default_agent_companion_pet(),
             enable_workspace_search: false,
             voice_input: VoiceInputConfig::default(),
-            quick_actions: Vec::new(),
+            quick_actions: default_quick_actions(),
         }
     }
 }
@@ -1889,10 +1740,17 @@ impl Default for EditorConfig {
         Self {
             font_size: 14,
             font_family: "Consolas, \"Courier New\", monospace".to_string(),
+            font_weight: "normal".to_string(),
             line_height: 1.5,
+            cursor_style: "line".to_string(),
+            cursor_blinking: "smooth".to_string(),
+            render_whitespace: "selection".to_string(),
+            render_line_highlight: "line".to_string(),
             tab_size: 2,
             insert_spaces: true,
             word_wrap: "off".to_string(),
+            scroll_beyond_last_line: false,
+            smooth_scrolling: true,
             line_numbers: "on".to_string(),
             minimap: MinimapConfig {
                 enabled: true,
@@ -1904,6 +1762,8 @@ impl Default for EditorConfig {
             format_on_save: true,
             format_on_paste: true,
             trim_auto_whitespace: true,
+            semantic_highlighting: true,
+            bracket_pair_colorization: true,
         }
     }
 }
@@ -1959,6 +1819,7 @@ impl Default for AIConfig {
             review_teams: default_review_team_configs(),
             review_team_rate_limit_status: default_review_team_rate_limit_status(),
             subagent_max_concurrency: default_subagent_max_concurrency(),
+            swarm_max_concurrency: default_swarm_max_concurrency(),
             subagent_batch_execution_policy: default_subagent_batch_execution_policy(),
             proxy: ProxyConfig::default(),
             stream_idle_timeout_secs: default_stream_idle_timeout(),
@@ -1966,7 +1827,6 @@ impl Default for AIConfig {
             tool_execution_timeout_secs: default_tool_execution_timeout(),
             enable_deferred_tool_loading: default_enable_deferred_tool_loading(),
             allow_tool_json_repair: true,
-            debug_mode_config: DebugModeConfig::default(),
             computer_use_enabled: false,
             browser_control_preferred_browser: String::new(),
             browser_control_auto_connect_on_startup: false,
@@ -2327,12 +2187,48 @@ mod tests {
     use bitfun_runtime_ports::ToolPermissionConfig;
 
     #[test]
+    fn legacy_app_config_defaults_realtime_voice_call() {
+        let config: AppConfig = serde_json::from_value(serde_json::json!({}))
+            .expect("legacy app config should deserialize");
+
+        assert!(config.voice_call.enabled);
+        assert_eq!(config.voice_call.provider, "volcengine");
+        assert!(config.voice_call.api_key.is_empty());
+        assert_eq!(config.voice_call.voice, "zh_female_vv_jupiter_bigtts");
+    }
+
+    #[test]
     fn prevent_sleep_defaults_to_disabled() {
         assert!(!AppConfig::default().prevent_sleep);
 
         let config: AppConfig =
             serde_json::from_value(serde_json::json!({})).expect("empty app config should default");
         assert!(!config.prevent_sleep);
+    }
+
+    #[test]
+    fn font_preferences_ignore_retired_flow_chat_data_without_reemitting_it() {
+        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
+            "font": {
+                "uiSize": {
+                    "level": "large"
+                },
+                "flowChat": {
+                    "mode": "independent",
+                    "basePx": 20
+                }
+            }
+        }))
+        .expect("config with retired FlowChat font data should remain readable");
+
+        let font = config
+            .font
+            .as_ref()
+            .expect("global font preference should load");
+        assert_eq!(font.ui_size.level, "large");
+
+        let serialized = serde_json::to_value(&config).expect("config should serialize");
+        assert!(serialized["font"].get("flowChat").is_none());
     }
 
     #[test]
@@ -2366,6 +2262,47 @@ mod tests {
         assert_eq!(
             serde_json::from_value::<AuthConfig>(serialized).expect("Go auth should roundtrip"),
             go
+        );
+    }
+
+    #[test]
+    fn grok_subscription_auth_roundtrips_without_opencode_plan() {
+        let grok = AuthConfig::Subscription {
+            provider: SubscriptionProvider::Grok,
+            plan: None,
+        };
+        let serialized = serde_json::to_value(&grok).expect("Grok auth should serialize");
+        assert_eq!(
+            serialized,
+            serde_json::json!({
+                "type": "subscription",
+                "provider": "grok"
+            })
+        );
+        assert_eq!(
+            serde_json::from_value::<AuthConfig>(serialized).expect("Grok auth should deserialize"),
+            grok
+        );
+    }
+
+    #[test]
+    fn hermes_subscription_auth_roundtrips_without_opencode_plan() {
+        let hermes = AuthConfig::Subscription {
+            provider: SubscriptionProvider::Hermes,
+            plan: None,
+        };
+        let serialized = serde_json::to_value(&hermes).expect("Hermes auth should serialize");
+        assert_eq!(
+            serialized,
+            serde_json::json!({
+                "type": "subscription",
+                "provider": "hermes"
+            })
+        );
+        assert_eq!(
+            serde_json::from_value::<AuthConfig>(serialized)
+                .expect("Hermes auth should deserialize"),
+            hermes
         );
     }
 
@@ -2633,7 +2570,7 @@ mod tests {
     }
 
     #[test]
-    fn defaults_agent_companion_pet_to_bitfun() {
+    fn defaults_agent_companion_pet_to_blue_golden() {
         let config: AIExperienceConfig =
             serde_json::from_value(serde_json::json!({})).expect("empty config should default");
 
@@ -2641,13 +2578,14 @@ mod tests {
             .agent_companion_pet
             .as_ref()
             .expect("default companion pet should be present");
-        assert_eq!(pet.id, "bitfun");
-        assert_eq!(pet.display_name, "Bitfun");
-        assert_eq!(pet.package_path, "/agent-companion-pets/bitfun");
+        assert_eq!(pet.id, "blue-golden");
+        assert_eq!(pet.display_name, "困困");
+        assert_eq!(pet.package_path, "/agent-companion-pets/blue-golden");
         assert_eq!(
             pet.spritesheet_path,
-            "/agent-companion-pets/bitfun/spritesheet.webp"
+            "/agent-companion-pets/blue-golden/spritesheet.png"
         );
+        assert_eq!(pet.spritesheet_mime_type, "image/png");
     }
 
     #[test]
@@ -2685,6 +2623,20 @@ mod tests {
             serialized["agent_companion_pet"]["spritesheetPath"],
             "/agent-companion-pets/boxcat/spritesheet.webp"
         );
+    }
+
+    #[test]
+    fn quick_action_defaults_do_not_replace_an_explicit_legacy_empty_list() {
+        let absent: AIExperienceConfig = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(absent.quick_actions.len(), 2);
+        let cleared: AIExperienceConfig = serde_json::from_value(serde_json::json!({
+            "quick_actions": []
+        }))
+        .unwrap();
+        assert!(cleared.quick_actions.is_empty());
+        let round_trip: AIExperienceConfig =
+            serde_json::from_value(serde_json::to_value(cleared).unwrap()).unwrap();
+        assert!(round_trip.quick_actions.is_empty());
     }
 
     #[test]
@@ -2871,6 +2823,7 @@ mod tests {
         assert!(config.enable_deferred_tool_loading);
         assert!(config.allow_tool_json_repair);
         assert_eq!(config.subagent_max_concurrency, 5);
+        assert_eq!(config.swarm_max_concurrency, 16);
         assert_eq!(
             config.subagent_batch_execution_policy,
             SubagentBatchExecutionPolicy::ForceParallel
@@ -2885,7 +2838,7 @@ mod tests {
         assert_eq!(review_team.strategy_level, "normal");
         assert!(review_team.member_strategy_overrides.is_empty());
         assert_eq!(config.review_team_rate_limit_status, serde_json::json!({}));
-        assert_eq!(config.agent_model_defaults.mode, "auto");
+        assert_eq!(config.agent_model_defaults.mode, "primary");
         assert_eq!(
             config.agent_model_defaults.subagents.default_selection,
             SubagentModelSelection::fixed("fast")
@@ -2897,6 +2850,14 @@ mod tests {
                 .builtin
                 .get("GeneralPurpose"),
             Some(&SubagentModelSelection::fixed("primary"))
+        );
+        assert_eq!(
+            config
+                .agent_model_defaults
+                .subagents
+                .builtin
+                .get("ResearchSpecialist"),
+            Some(&SubagentModelSelection::Inherit)
         );
         assert_eq!(
             config.agent_model_defaults.subagents.fork,
@@ -2947,6 +2908,78 @@ mod tests {
             defaults.builtin_subagent_selection("GeneralPurpose"),
             SubagentModelSelection::fixed("fast")
         );
+    }
+
+    #[test]
+    fn research_specialist_inherits_parent_unless_explicitly_overridden() {
+        let mut defaults = AgentModelDefaultsConfig::default();
+
+        assert_eq!(
+            defaults.builtin_subagent_selection("ResearchSpecialist"),
+            SubagentModelSelection::Inherit
+        );
+
+        defaults.subagents.builtin.insert(
+            "ResearchSpecialist".to_string(),
+            SubagentModelSelection::fixed("fast"),
+        );
+        assert_eq!(
+            defaults.builtin_subagent_selection("ResearchSpecialist"),
+            SubagentModelSelection::fixed("fast")
+        );
+    }
+
+    #[test]
+    fn legacy_editor_config_defaults_new_persisted_visual_fields() {
+        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
+            "editor": {
+                "font_size": 16,
+                "font_family": "Legacy Mono",
+                "line_height": 1.4
+            }
+        }))
+        .expect("legacy editor config should remain readable");
+
+        assert_eq!(config.editor.font_size, 16);
+        assert_eq!(config.editor.font_family, "Legacy Mono");
+        assert_eq!(config.editor.font_weight, "normal");
+        assert_eq!(config.editor.cursor_style, "line");
+        assert_eq!(config.editor.cursor_blinking, "smooth");
+        assert_eq!(config.editor.render_whitespace, "selection");
+        assert_eq!(config.editor.render_line_highlight, "line");
+        assert!(!config.editor.scroll_beyond_last_line);
+        assert!(config.editor.smooth_scrolling);
+        assert!(config.editor.semantic_highlighting);
+        assert!(config.editor.bracket_pair_colorization);
+    }
+
+    #[test]
+    fn editor_visual_fields_survive_a_persisted_round_trip() {
+        let mut config = GlobalConfig::default();
+        config.editor.font_weight = "bold".to_string();
+        config.editor.cursor_style = "block-outline".to_string();
+        config.editor.cursor_blinking = "solid".to_string();
+        config.editor.render_whitespace = "all".to_string();
+        config.editor.render_line_highlight = "gutter".to_string();
+        config.editor.scroll_beyond_last_line = true;
+        config.editor.smooth_scrolling = false;
+        config.editor.semantic_highlighting = false;
+        config.editor.bracket_pair_colorization = false;
+
+        let restored: GlobalConfig = serde_json::from_value(
+            serde_json::to_value(config).expect("editor config should serialize"),
+        )
+        .expect("editor config should deserialize");
+
+        assert_eq!(restored.editor.font_weight, "bold");
+        assert_eq!(restored.editor.cursor_style, "block-outline");
+        assert_eq!(restored.editor.cursor_blinking, "solid");
+        assert_eq!(restored.editor.render_whitespace, "all");
+        assert_eq!(restored.editor.render_line_highlight, "gutter");
+        assert!(restored.editor.scroll_beyond_last_line);
+        assert!(!restored.editor.smooth_scrolling);
+        assert!(!restored.editor.semantic_highlighting);
+        assert!(!restored.editor.bracket_pair_colorization);
     }
 
     #[test]
@@ -3045,6 +3078,7 @@ mod tests {
         assert_eq!(config.stream_ttft_timeout_secs, Some(600));
         assert!(config.allow_tool_json_repair);
         assert_eq!(config.subagent_max_concurrency, 5);
+        assert_eq!(config.swarm_max_concurrency, 16);
         assert_eq!(
             config.subagent_batch_execution_policy,
             SubagentBatchExecutionPolicy::ForceParallel
@@ -3136,6 +3170,24 @@ mod tests {
         .expect("config with subagent_max_concurrency should deserialize");
 
         assert_eq!(config.subagent_max_concurrency, 9);
+    }
+
+    #[test]
+    fn deserializes_explicit_swarm_max_concurrency() {
+        let config: AIConfig = serde_json::from_value(serde_json::json!({
+            "models": [],
+            "func_agent_models": {},
+            "default_models": {},
+            "agent_profiles": {},
+            "swarm_max_concurrency": 24,
+            "proxy": {
+                "enabled": false,
+                "url": ""
+            }
+        }))
+        .expect("config with swarm_max_concurrency should deserialize");
+
+        assert_eq!(config.swarm_max_concurrency, 24);
     }
 
     #[test]

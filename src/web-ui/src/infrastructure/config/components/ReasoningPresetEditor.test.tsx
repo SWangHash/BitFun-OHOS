@@ -9,7 +9,8 @@ import type { ModelsDevReasoningCatalog } from '@/infrastructure/api/service-api
 import type { ReasoningCatalogProjection, ReasoningConfig } from '../types';
 import ReasoningPresetEditor from './ReasoningPresetEditor';
 
-vi.mock('react-i18next', () => ({
+vi.mock('react-i18next', async importOriginal => ({
+  ...await importOriginal<typeof import('react-i18next')>(),
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) => (
       typeof options?.presets === 'string'
@@ -20,19 +21,22 @@ vi.mock('react-i18next', () => ({
 }));
 
 interface SelectSpyProps {
-  triggerAriaLabel?: string;
-  value?: string | number | (string | number)[] | null;
+  'aria-label'?: string;
+  value?: string | number | null;
   options?: Array<{ label: string; value: string | number }>;
-  onChange?: (value: string | number | (string | number)[]) => void;
+  onValueChange?: (value: string | number) => void;
+  onCreateValue?: (value: string) => string | number | void;
   disabled?: boolean;
-  searchable?: boolean;
   clearable?: boolean;
-  allowCustomValue?: boolean;
 }
 
 const selectProps: Record<string, SelectSpyProps> = {};
 
-vi.mock('@/component-library', () => ({
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
+  ScrollArea: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+  Icon: ({ name, ...props }: { name: string } & React.HTMLAttributes<HTMLSpanElement>) => <span data-icon={name} {...props} />,
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Button: ({
     children,
     ...props
@@ -45,15 +49,18 @@ vi.mock('@/component-library', () => ({
   }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button type="button" {...props}>{children}</button>
   ),
-  Select: (props: SelectSpyProps) => {
-    const label = props.triggerAriaLabel ?? '';
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  NumberInput: () => <input type="number" />,
+  Switch: () => <input type="checkbox" />,
+  Combobox: (props: SelectSpyProps) => {
+    const label = props['aria-label'] ?? '';
     selectProps[label] = props;
     return (
       <select
         aria-label={label}
         value={typeof props.value === 'string' ? props.value : ''}
         disabled={props.disabled}
-        onChange={(event) => props.onChange?.(event.target.value)}
+        onChange={(event) => props.onValueChange?.(event.target.value)}
       >
         {props.options?.map(option => (
           <option key={String(option.value)} value={String(option.value)}>{option.label}</option>
@@ -61,11 +68,23 @@ vi.mock('@/component-library', () => ({
       </select>
     );
   },
-  Switch: () => <input type="checkbox" />,
-  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-  NumberInput: () => <input type="number" />,
+  Select: (props: SelectSpyProps) => {
+    const label = props['aria-label'] ?? '';
+    selectProps[label] = props;
+    return (
+      <select
+        aria-label={label}
+        value={typeof props.value === 'string' ? props.value : ''}
+        disabled={props.disabled}
+        onChange={(event) => props.onValueChange?.(event.target.value)}
+      >
+        {props.options?.map(option => (
+          <option key={String(option.value)} value={String(option.value)}>{option.label}</option>
+        ))}
+      </select>
+    );
+  },
   Textarea: () => <textarea />,
-  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 const modelsDevReasoningCatalog: ModelsDevReasoningCatalog = {
@@ -153,18 +172,16 @@ describe('ReasoningPresetEditor models-dev binding', () => {
     expect(provider).toBeTruthy();
     expect(provider?.options?.map(o => o.value)).toEqual(['', 'deepseek', 'github-copilot']);
     expect(provider?.value).toBe('');
-    expect(provider?.searchable).toBe(true);
     expect(provider?.clearable).toBe(true);
-    expect(provider?.allowCustomValue).toBe(true);
+    expect(provider?.onCreateValue?.('custom')).toBe('custom');
   });
 
   it('lists only reasoning-capable models of the selected provider', () => {
     render({ catalog: { source: 'models_dev', provider: 'deepseek', model: '' }, presets: [] });
     const model = selectProps['reasoningPresets.catalogModel'];
     expect(model?.options?.map(o => o.value)).toEqual(['deepseek-v4-flash', 'deepseek-v4-pro']);
-    expect(model?.searchable).toBe(true);
     expect(model?.clearable).toBe(true);
-    expect(model?.allowCustomValue).toBe(true);
+    expect(model?.onCreateValue?.('custom')).toBe('custom');
   });
 
   it('returns empty model options for an unknown provider', () => {
@@ -215,16 +232,14 @@ describe('ReasoningPresetEditor models-dev binding', () => {
     expect(model?.value).toBe('gpt-5.1-codex');
   });
 
-  it('enables searchable, clearable and allowCustomValue on both binding selects', () => {
+  it('keeps both bindings clearable and gives custom values an explicit creation callback', () => {
     render();
     const provider = selectProps['reasoningPresets.catalogProvider'];
     const model = selectProps['reasoningPresets.catalogModel'];
-    expect(provider?.searchable).toBe(true);
     expect(provider?.clearable).toBe(true);
-    expect(provider?.allowCustomValue).toBe(true);
-    expect(model?.searchable).toBe(true);
+    expect(provider?.onCreateValue?.('provider')).toBe('provider');
     expect(model?.clearable).toBe(true);
-    expect(model?.allowCustomValue).toBe(true);
+    expect(model?.onCreateValue?.('model')).toBe('model');
   });
 
   it('clears the model when the provider changes', () => {
@@ -236,7 +251,7 @@ describe('ReasoningPresetEditor models-dev binding', () => {
     const provider = selectProps['reasoningPresets.catalogProvider'];
     expect(provider).toBeTruthy();
     act(() => {
-      provider?.onChange?.('github-copilot');
+      provider?.onValueChange?.('github-copilot');
     });
     expect(onChange).toHaveBeenCalledTimes(1);
     const updated = onChange.mock.calls[0][0] as ReasoningConfig;
@@ -253,7 +268,7 @@ describe('ReasoningPresetEditor models-dev binding', () => {
     const provider = selectProps['reasoningPresets.catalogProvider'];
     expect(provider).toBeTruthy();
     act(() => {
-      provider?.onChange?.('');
+      provider?.onValueChange?.('');
     });
     const updated = onChange.mock.calls[0][0] as ReasoningConfig;
     expect(updated.catalog).toEqual({ source: 'auto' });
@@ -268,7 +283,7 @@ describe('ReasoningPresetEditor models-dev binding', () => {
     const model = selectProps['reasoningPresets.catalogModel'];
     expect(model).toBeTruthy();
     act(() => {
-      model?.onChange?.('');
+      model?.onValueChange?.('');
     });
     const updated = onChange.mock.calls[0][0] as ReasoningConfig;
     expect(updated.catalog).toEqual({ source: 'auto' });
@@ -292,7 +307,7 @@ describe('ReasoningPresetEditor models-dev binding', () => {
     );
     const provider = selectProps['reasoningPresets.catalogProvider'];
     act(() => {
-      provider?.onChange?.('');
+      provider?.onValueChange?.('');
     });
     const updated = onChange.mock.calls[0][0] as ReasoningConfig;
     expect(updated.catalog).toEqual({ source: 'auto' });
@@ -317,7 +332,7 @@ describe('ReasoningPresetEditor models-dev binding', () => {
     );
     const model = selectProps['reasoningPresets.catalogModel'];
     act(() => {
-      model?.onChange?.('');
+      model?.onValueChange?.('');
     });
     const updated = onChange.mock.calls[0][0] as ReasoningConfig;
     expect(updated.catalog).toEqual({ source: 'auto' });
@@ -342,7 +357,7 @@ describe('ReasoningPresetEditor models-dev binding', () => {
     );
     const provider = selectProps['reasoningPresets.catalogProvider'];
     act(() => {
-      provider?.onChange?.('deepseek');
+      provider?.onValueChange?.('deepseek');
     });
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -365,7 +380,7 @@ describe('ReasoningPresetEditor models-dev binding', () => {
     );
     const model = selectProps['reasoningPresets.catalogModel'];
     act(() => {
-      model?.onChange?.('gpt-5.1-codex');
+      model?.onValueChange?.('gpt-5.1-codex');
     });
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -380,7 +395,7 @@ describe('ReasoningPresetEditor models-dev binding', () => {
     const source = selectProps['reasoningPresets.catalogSource'];
     expect(source).toBeTruthy();
     act(() => {
-      source?.onChange?.('models_dev');
+      source?.onValueChange?.('models_dev');
     });
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -395,7 +410,7 @@ describe('ReasoningPresetEditor models-dev binding', () => {
     );
     const provider = selectProps['reasoningPresets.catalogProvider'];
     act(() => {
-      provider?.onChange?.('');
+      provider?.onValueChange?.('');
     });
     const updated = onChange.mock.calls[0][0] as ReasoningConfig;
     expect(updated.catalog).toEqual({ source: 'auto' });

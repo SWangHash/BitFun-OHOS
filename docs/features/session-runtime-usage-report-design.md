@@ -107,8 +107,7 @@ Models
 gpt-5.4:          8 req, 183,420 input, 21,908 output
 
 Tools
-Bash:             14 calls, 2m 31s, 2 errors
-Git:              5 calls, 42s
+ExecCommand:      19 calls, 3m 13s, 2 errors
 Write/Edit:       7 calls, 1m 08s
 ```
 
@@ -151,9 +150,9 @@ Current implemented Markdown shape:
 | gpt-5.4 | 8 | 183,420 | 21,908 | 205,328 |
 
 ### Slowest Work
-1. Bash `pnpm run build:web` - 1m 42s
+1. ExecCommand `pnpm run build:web` - 1m 42s
 2. Context compression - 28s
-3. Git `fetch origin main` - 19s
+3. ExecCommand `git fetch origin main` - 19s
 ```
 
 The detailed visual report exists alongside the Markdown snapshot. It uses the structured DTO when present and falls back to the Markdown snapshot for historical/local-only reports.
@@ -316,7 +315,7 @@ Required change:
 
 Missing:
 
-- Git can happen through the dedicated Git tool or through Bash/terminal commands.
+- Git now runs through ExecCommand; persisted legacy sessions may still contain dedicated Git or Bash calls.
 
 Required change:
 
@@ -373,7 +372,7 @@ Required change:
 - Use locale keys in `src/web-ui/src/locales/*/flow-chat.json` or a new localized report namespace.
 - Render Desktop reports from structured data through the frontend i18n layer, not from hard-coded backend prose.
 - CLI can start with English if the CLI has no locale pipeline, but the report DTO should not make localization impossible later.
-- Use existing component-library and theme tokens for colors; do not hard-code status colors except through semantic variables.
+- Use `@bitfun/ui` and semantic theme tokens for colors; do not hard-code status colors except through semantic variables.
 
 ### 11. Report scope and workspace identity
 
@@ -947,7 +946,7 @@ This section turns the milestone plan into implementation-sized tasks. Each task
 - P0 reports tokens and available timing only. P0 does not introduce charts, cross-session summaries, or live header UI.
 - Runtime metrics collection must be append-only or summary-only; do not add per-token persistence.
 - Shared report logic belongs in its current platform-agnostic Rust owner. Desktop, server, and CLI keep only their entry adapters.
-- Desktop UI must use existing i18n, theme tokens, and component-library primitives.
+- Desktop UI must use existing i18n, semantic theme tokens, and `@bitfun/ui` primitives.
 - Every report field that can be incomplete must carry coverage metadata instead of silently showing `0`.
 - Existing file diff behavior must not change while adding report links.
 - Report APIs must be scoped by workspace identity and remote identity, not only by session id.
@@ -1384,8 +1383,8 @@ Steps:
 1. Persist or emit queue wait, preflight, confirmation wait, execution, and total duration for completed tools.
 2. Include best-effort total duration for failed and cancelled tools.
 3. Add a report-only classifier for tool categories.
-4. Classify dedicated Git tool calls as `git`.
-5. Classify terminal calls as `git` only when the normalized command clearly invokes Git.
+4. Classify legacy dedicated Git tool calls as `git`.
+5. Classify ExecCommand and legacy terminal calls as `git` only when the normalized command clearly invokes Git.
 6. Classify file operations by tool name and snapshot operation metadata.
 7. When SubagentScheduler or budget governance events exist, consume their queued/running/retry/backoff summaries as runtime facts instead of inferring them from tool names.
 
@@ -1407,8 +1406,8 @@ Risks and mitigations:
 
 Verification:
 
-- Unit tests for Git tool classification.
-- Unit tests for Bash Git command classification and false positives.
+- Unit tests for legacy Git tool classification.
+- Unit tests for ExecCommand Git command classification and false positives.
 - Existing tool lifecycle tests still pass.
 
 ### Task 10: File-change report integration

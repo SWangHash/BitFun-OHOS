@@ -13,7 +13,7 @@
   min-height: min(640px, calc(100vh - 96px));
   max-height: min(640px, calc(100vh - 96px));
   overflow: hidden;
-  font-family: inherit;
+  font-family:var(--bf-font-family-sans);
 
   // ── step indicator ──────────────────────────────────────────────────────
   &__steps {
@@ -21,7 +21,7 @@
     align-items: center;
     gap: 6px;
     padding: 4px 16px 10px;
-    border-bottom: 1px solid var(--bf-appearance-token-border-subtle);
+    border-bottom: 1px solid var(--bf-color-border-subtle);
     flex-shrink: 0;
   }
 
@@ -29,20 +29,20 @@
     display: flex;
     align-items: center;
     gap: 5px;
-    color: var(--bf-appearance-token-color-text-muted);
+    color: var(--bf-color-content-muted);
 
     &.active {
-      color: var(--bf-appearance-token-color-accent-500);
+      color: var(--bf-color-accent-default);
 
       .relay-deploy-wizard__step-dot {
-        border-color: var(--bf-appearance-token-color-accent-500);
-        background: var(--bf-appearance-token-color-accent-500);
-        color: var(--bf-appearance-token-color-static-white);
+        border-color: var(--bf-color-accent-default);
+        background: var(--bf-color-accent-default);
+        color: var(--bf-color-content-on-dark);
       }
     }
 
     &.completed {
-      color: var(--bf-appearance-token-color-success);
+      color: var(--bf-color-status-success-content);
     }
   }
 
@@ -53,22 +53,22 @@
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    border: 1px solid var(--bf-appearance-token-border-base);
-    font-size: 10px;
-    font-weight: 600;
+    border: 1px solid var(--bf-color-border-default);
+    font-size: var(--bf-font-size-micro);
+    font-weight: var(--bf-font-weight-semibold);
     flex-shrink: 0;
   }
 
   &__step-label {
-    font-size: 11px;
-    font-weight: 500;
+    font-size: var(--bf-font-size-meta);
+    font-weight: var(--bf-font-weight-medium);
     white-space: nowrap;
   }
 
   &__step-connector {
     flex: 1;
     height: 1px;
-    background: var(--bf-appearance-token-border-subtle);
+    background: var(--bf-color-border-subtle);
     min-width: 8px;
   }
 
@@ -76,11 +76,11 @@
   &__error-banner {
     flex-shrink: 0;
     padding: 8px 16px 10px;
-    border-bottom: 1px solid var(--bf-appearance-token-border-subtle);
-    background: var(--bf-appearance-token-color-bg-primary);
+    border-bottom: 1px solid var(--bf-color-border-subtle);
+    background: var(--bf-color-surface-canvas);
   }
 
-  &__error-alert.alert {
+  &__error-alert {
     padding: 8px 10px;
     align-items: center;
   }
@@ -88,7 +88,6 @@
   &__scroll {
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
     padding: 10px 0 6px;
     display: flex;
     flex-direction: column;
@@ -97,9 +96,9 @@
   &__desc {
     margin: 0;
     padding: 0 16px 10px;
-    font-size: 12px;
-    color: var(--bf-appearance-token-color-text-secondary);
-    line-height: 1.5;
+    font-size: var(--bf-font-size-xs);
+    color: var(--bf-color-content-secondary);
+    line-height: var(--bf-line-height-base);
   }
 
   &__section {
@@ -117,11 +116,11 @@
 
   &__section-title {
     margin: 0;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--bf-appearance-token-color-text-muted);
+    font-size: var(--bf-font-size-meta);
+    font-weight: var(--bf-font-weight-semibold);
+    color: var(--bf-color-content-muted);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--bf-letter-spacing-wider);
   }
 
   &__search {
@@ -139,8 +138,8 @@
     place-items: center;
     min-height: 42px;
     padding: 8px 10px;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-size: 12px;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-xs);
     text-align: center;
   }
 
@@ -150,14 +149,14 @@
     gap: 8px;
     padding: 7px 10px;
     border-radius: 6px;
-    background: var(--bf-appearance-token-color-bg-secondary);
-    border: 1px solid var(--bf-appearance-token-border-subtle);
+    background: var(--bf-color-surface-panel);
+    border: 1px solid var(--bf-color-border-subtle);
     cursor: pointer;
     transition: border-color 0.15s;
 
-    &:hover { border-color: var(--bf-appearance-token-color-accent-500); }
+    &:hover { border-color: var(--bf-color-accent-default); }
 
-    &--config:hover { border-color: var(--bf-appearance-token-border-base); }
+    &--config:hover { border-color: var(--bf-color-border-default); }
   }
 
   &__server-icon {
@@ -167,8 +166,8 @@
     width: 26px;
     height: 26px;
     border-radius: 6px;
-    background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 12%, transparent);
-    color: var(--bf-appearance-token-color-accent-500);
+    background: color-mix(in srgb, var(--bf-color-accent-default) 12%, transparent);
+    color: var(--bf-color-accent-default);
     flex-shrink: 0;
   }
 
@@ -180,18 +179,18 @@
   }
 
   &__server-name {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--bf-appearance-token-color-text-primary);
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-medium);
+    color: var(--bf-color-content-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   &__server-detail {
-    font-size: 10px;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-family: var(--bf-appearance-token-font-family-mono);
+    font-size: var(--bf-font-size-micro);
+    color: var(--bf-color-content-muted);
+    font-family:var(--bf-font-family-mono);
   }
 
   &__divider {
@@ -199,15 +198,15 @@
     align-items: center;
     gap: 10px;
     padding: 10px 16px;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-size: 11px;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-meta);
 
     &::before,
     &::after {
       content: '';
       flex: 1;
       height: 1px;
-      background: var(--bf-appearance-token-border-subtle);
+      background: var(--bf-color-border-subtle);
     }
   }
 
@@ -218,7 +217,7 @@
     padding: 8px 16px;
     border-radius: 8px;
     scroll-margin-top: 8px;
-    transition: background-color var(--bf-appearance-token-motion-fast) var(--bf-appearance-token-easing-standard);
+    transition: background-color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &--highlighted {
       animation: relay-deploy-form-reveal 1.2s ease-out;
@@ -235,15 +234,15 @@
     flex: 1;
     padding: 6px 10px;
     border-radius: 6px;
-    border: 1px solid var(--bf-appearance-token-border-subtle);
-    background: var(--bf-appearance-token-color-bg-secondary);
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: 12px;
+    border: 1px solid var(--bf-color-border-subtle);
+    background: var(--bf-color-surface-panel);
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-xs);
     cursor: pointer;
     transition: border-color 0.15s, color 0.15s;
 
     &:hover:not(:disabled) {
-      color: var(--bf-appearance-token-color-text-primary);
+      color: var(--bf-color-content-primary);
     }
 
     &:disabled {
@@ -252,9 +251,9 @@
     }
 
     &.is-active {
-      border-color: var(--bf-appearance-token-color-accent-500);
-      color: var(--bf-appearance-token-color-accent-500);
-      font-weight: 600;
+      border-color: var(--bf-color-accent-default);
+      color: var(--bf-color-accent-default);
+      font-weight: var(--bf-font-weight-semibold);
     }
   }
 
@@ -272,9 +271,9 @@
   }
 
   &__label {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--bf-appearance-token-color-text-secondary);
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-medium);
+    color: var(--bf-color-content-secondary);
     margin-bottom: 4px;
   }
 
@@ -286,19 +285,13 @@
     flex-shrink: 0;
     margin-top: auto;
     padding: 12px 16px 8px;
-    background: var(--bf-appearance-token-color-bg-primary);
+    background: var(--bf-color-surface-canvas);
 
-    .btn.btn-sm {
-      height: 28px;
-      min-height: 28px;
-      padding: 0 10px;
-      font-size: 11px;
-    }
   }
 
   &__hint {
-    font-size: 11px;
-    color: var(--bf-appearance-token-color-text-muted);
+    font-size: var(--bf-font-size-meta);
+    color: var(--bf-color-content-muted);
     margin-right: auto;
   }
 
@@ -310,11 +303,11 @@
     margin: 0 16px 10px;
     padding: 6px 10px;
     border-radius: 6px;
-    background: var(--bf-appearance-token-color-bg-secondary);
-    border: 1px solid var(--bf-appearance-token-border-subtle);
-    font-size: 11px;
-    font-family: var(--bf-appearance-token-font-family-mono);
-    color: var(--bf-appearance-token-color-text-secondary);
+    background: var(--bf-color-surface-panel);
+    border: 1px solid var(--bf-color-border-subtle);
+    font-size: var(--bf-font-size-meta);
+    font-family:var(--bf-font-family-mono);
+    color: var(--bf-color-content-secondary);
   }
 
   &__checking {
@@ -323,8 +316,8 @@
     justify-content: center;
     gap: 8px;
     padding: 32px 16px;
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: 12px;
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-xs);
 
     // Match terminal pane height so swap does not jump the dialog.
     &--terminal {
@@ -332,8 +325,8 @@
       min-height: 320px;
       height: 320px;
       border-radius: 6px;
-      border: 1px solid var(--bf-appearance-token-border-subtle);
-      background: var(--bf-appearance-token-color-bg-secondary);
+      border: 1px solid var(--bf-color-border-subtle);
+      background: var(--bf-color-surface-panel);
       box-sizing: border-box;
     }
   }
@@ -343,7 +336,7 @@
     flex-direction: column;
     gap: 2px;
     margin: 0 16px 10px;
-    border: 1px solid var(--bf-appearance-token-border-subtle);
+    border: 1px solid var(--bf-color-border-subtle);
     border-radius: 6px;
     overflow: hidden;
   }
@@ -353,31 +346,31 @@
     align-items: center;
     gap: 8px;
     padding: 6px 10px;
-    font-size: 12px;
-    background: var(--bf-appearance-token-color-bg-primary);
+    font-size: var(--bf-font-size-xs);
+    background: var(--bf-color-surface-canvas);
 
     &:not(:last-child) {
-      border-bottom: 1px solid var(--bf-appearance-token-border-subtle);
+      border-bottom: 1px solid var(--bf-color-border-subtle);
     }
   }
 
   &__check-icon {
     flex-shrink: 0;
 
-    &--ok { color: var(--bf-appearance-token-color-success); }
-    &--warn { color: var(--bf-appearance-token-color-warning); }
-    &--fail { color: var(--bf-appearance-token-color-error); }
+    &--ok { color: var(--bf-color-status-success-content); }
+    &--warn { color: var(--bf-color-status-warning-content); }
+    &--fail { color: var(--bf-color-status-danger-content); }
   }
 
   &__check-label {
-    font-weight: 500;
-    color: var(--bf-appearance-token-color-text-primary);
+    font-weight: var(--bf-font-weight-medium);
+    color: var(--bf-color-content-primary);
     flex-shrink: 0;
   }
 
   &__check-detail {
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: 11px;
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-meta);
     overflow: hidden;
     text-overflow: ellipsis;
   }
@@ -392,9 +385,9 @@
 
   &__port-hint {
     margin: 0 0 6px;
-    font-size: 11px;
-    color: var(--bf-appearance-token-color-text-muted);
-    line-height: 1.4;
+    font-size: var(--bf-font-size-meta);
+    color: var(--bf-color-content-muted);
+    line-height: var(--bf-line-height-ui);
     flex: 1;
     min-width: 160px;
   }
@@ -414,9 +407,9 @@
 
   &__mirror-hint {
     margin: 0 0 6px;
-    font-size: 11px;
-    color: var(--bf-appearance-token-color-text-muted);
-    line-height: 1.4;
+    font-size: var(--bf-font-size-meta);
+    color: var(--bf-color-content-muted);
+    line-height: var(--bf-line-height-ui);
     flex: 1;
     min-width: 200px;
   }
@@ -428,22 +421,22 @@
     margin: 0 16px 10px;
     padding: 10px 12px;
     border-radius: 8px;
-    font-size: 12px;
+    font-size: var(--bf-font-size-xs);
 
     &--info {
-      background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 8%, var(--bf-appearance-token-color-bg-secondary));
-      border: 1px solid color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 25%, transparent);
-      color: var(--bf-appearance-token-color-text-primary);
+      background: color-mix(in srgb, var(--bf-color-accent-default) 8%, var(--bf-color-surface-panel));
+      border: 1px solid color-mix(in srgb, var(--bf-color-accent-default) 25%, transparent);
+      color: var(--bf-color-content-primary);
 
-      svg { color: var(--bf-appearance-token-color-accent-500); flex-shrink: 0; margin-top: 1px; }
+      svg { color: var(--bf-color-accent-default); flex-shrink: 0; margin-top: 1px; }
     }
 
     &--warn {
-      background: color-mix(in srgb, var(--bf-appearance-token-color-warning) 10%, var(--bf-appearance-token-color-bg-secondary));
-      border: 1px solid color-mix(in srgb, var(--bf-appearance-token-color-warning) 35%, transparent);
-      color: var(--bf-appearance-token-color-text-primary);
+      background: color-mix(in srgb, var(--bf-color-status-warning-content) 10%, var(--bf-color-surface-panel));
+      border: 1px solid color-mix(in srgb, var(--bf-color-status-warning-content) 35%, transparent);
+      color: var(--bf-color-content-primary);
 
-      svg { color: var(--bf-appearance-token-color-warning); flex-shrink: 0; margin-top: 1px; }
+      svg { color: var(--bf-color-status-warning-content); flex-shrink: 0; margin-top: 1px; }
     }
   }
 
@@ -454,21 +447,21 @@
   }
 
   &__notice-title {
-    font-weight: 600;
+    font-weight: var(--bf-font-weight-semibold);
   }
 
   &__notice-desc {
-    font-size: 11px;
-    color: var(--bf-appearance-token-color-text-secondary);
-    line-height: 1.5;
+    font-size: var(--bf-font-size-meta);
+    color: var(--bf-color-content-secondary);
+    line-height: var(--bf-line-height-base);
   }
 
   // ── embedded remote PTY ─────────────────────────────────────────────────
   &__terminal {
     margin: 0 16px 10px;
     border-radius: 6px;
-    border: 1px solid var(--bf-appearance-token-border-subtle);
-    background: var(--bf-appearance-token-color-bg-secondary);
+    border: 1px solid var(--bf-color-border-subtle);
+    background: var(--bf-color-surface-panel);
     overflow: hidden;
     // Fixed geometry — avoids modal jump from flex growth / xterm measure.
     flex: 0 0 auto;
@@ -485,7 +478,7 @@
       height: 100%;
       // Slightly denser than default panel terminal (fontSize 12 via options).
       .xterm {
-        font-size: 12px;
+        font-size: var(--bf-font-size-xs);
       }
     }
 
@@ -500,12 +493,12 @@
     margin: 0 16px 10px;
     padding: 10px 12px;
     border-radius: 6px;
-    background: var(--bf-appearance-token-color-bg-secondary);
-    border: 1px solid var(--bf-appearance-token-border-subtle);
-    font-family: var(--bf-appearance-token-font-family-mono);
-    font-size: 10.5px;
-    line-height: 1.5;
-    color: var(--bf-appearance-token-color-text-secondary);
+    background: var(--bf-color-surface-panel);
+    border: 1px solid var(--bf-color-border-subtle);
+    font-family:var(--bf-font-family-mono);
+    font-size: var(--bf-font-size-meta);
+    line-height: var(--bf-line-height-base);
+    color: var(--bf-color-content-secondary);
     white-space: pre-wrap;
     word-break: break-all;
     overflow-y: auto;
@@ -523,12 +516,12 @@
     align-items: center;
     gap: 6px;
     padding: 0 16px 8px;
-    font-size: 12px;
-    color: var(--bf-appearance-token-color-text-secondary);
+    font-size: var(--bf-font-size-xs);
+    color: var(--bf-color-content-secondary);
     flex-shrink: 0;
     min-height: 22px;
 
-    &--failed { color: var(--bf-appearance-token-color-error); }
+    &--failed { color: var(--bf-color-status-danger-content); }
   }
 
   &__task-header {
@@ -538,8 +531,8 @@
     margin: 0 16px 10px;
     padding: 10px 12px;
     border-radius: 8px;
-    background: var(--bf-appearance-token-color-bg-secondary);
-    border: 1px solid var(--bf-appearance-token-border-subtle);
+    background: var(--bf-color-surface-panel);
+    border: 1px solid var(--bf-color-border-subtle);
     flex-shrink: 0;
     // Reserve status block so running → failed does not shift layout.
     min-height: 52px;
@@ -555,15 +548,15 @@
   }
 
   &__task-title {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--bf-appearance-token-color-text-primary);
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-semibold);
+    color: var(--bf-color-content-primary);
   }
 
   &__task-desc {
-    font-size: 11px;
-    color: var(--bf-appearance-token-color-text-secondary);
-    line-height: 1.5;
+    font-size: var(--bf-font-size-meta);
+    color: var(--bf-color-content-secondary);
+    line-height: var(--bf-line-height-base);
   }
 
   // ── done ────────────────────────────────────────────────────────────────
@@ -577,35 +570,35 @@
   }
 
   &__done-icon {
-    color: var(--bf-appearance-token-color-accent-500);
+    color: var(--bf-color-accent-default);
   }
 
   &__done-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--bf-appearance-token-color-text-primary);
+    font-size: var(--bf-font-size-base);
+    font-weight: var(--bf-font-weight-semibold);
+    color: var(--bf-color-content-primary);
   }
 
   &__done-url {
     padding: 5px 12px;
     border-radius: 6px;
-    background: var(--bf-appearance-token-color-bg-secondary);
-    border: 1px solid var(--bf-appearance-token-border-subtle);
-    font-family: var(--bf-appearance-token-font-family-mono);
-    font-size: 12px;
-    color: var(--bf-appearance-token-color-accent-500);
+    background: var(--bf-color-surface-panel);
+    border: 1px solid var(--bf-color-border-subtle);
+    font-family:var(--bf-font-family-mono);
+    font-size: var(--bf-font-size-xs);
+    color: var(--bf-color-accent-default);
   }
 
   &__verify {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: var(--bf-font-size-xs);
     max-width: 100%;
-    line-height: 1.5;
+    line-height: var(--bf-line-height-base);
 
-    &.ok { color: var(--bf-appearance-token-color-success); }
-    &.failed { color: var(--bf-appearance-token-color-warning); }
+    &.ok { color: var(--bf-color-status-success-content); }
+    &.failed { color: var(--bf-color-status-warning-content); }
 
     svg { flex-shrink: 0; }
   }
@@ -622,10 +615,10 @@
 
 @keyframes relay-deploy-form-reveal {
   0% {
-    background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 14%, transparent);
+    background: color-mix(in srgb, var(--bf-color-accent-default) 14%, transparent);
   }
   40% {
-    background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 8%, transparent);
+    background: color-mix(in srgb, var(--bf-color-accent-default) 8%, transparent);
   }
   100% {
     background: transparent;

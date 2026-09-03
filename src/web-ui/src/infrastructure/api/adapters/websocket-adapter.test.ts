@@ -31,6 +31,7 @@ describe('resolveWsMethod', () => {
     // `policy` -- see `agentic_api.rs::start_dialog_turn` for the desktop path.
     expect(resolveWsMethod('start_dialog_turn')).toBe('agent/submitDialogTurn');
     expect(resolveWsMethod('cancel_dialog_turn')).toBe('agent/cancelTurn');
+    expect(resolveWsMethod('search_session_content')).toBe('search/sessionContent');
     // Permission surface: reply/list/grants map to the app-server permission
     // methods. `subscribe_permission_requests` is satisfied by the
     // `permission://event` push in web mode; mapping it to list fetches the
@@ -143,11 +144,13 @@ describe('resolveWsMethod', () => {
     // because the table is a plain object). Track B Batch 1 added config write +
     // i18n and the P0 Session/Config control plane. Atomic cloud-speech save
     // config validation, and live reasoning projection raise the count to 34.
-    // The read-only Git ownership-trust probe makes 35.
+    // The read-only Git ownership-trust probe makes 35, and this branch's
+    // session-content search makes 36 — the two arrived on separate branches,
+    // so the count only reaches 36 once main is merged in.
     expect(AGENT_COMMAND_SCHEMA.start_dialog_turn.method).toBe(
       'agent/submitDialogTurn'
     );
-    expect(Object.keys(AGENT_COMMAND_SCHEMA).length).toBe(35);
+    expect(Object.keys(AGENT_COMMAND_SCHEMA).length).toBe(36);
 
     // Touch the locals so noUnusedLocals does not flag them under vitest's
     // transformed build (tsc --noEmit is the real gate; this is belt-and-suspenders).

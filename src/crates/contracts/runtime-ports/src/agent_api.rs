@@ -10,6 +10,8 @@ pub const OUTPUT_SCHEMA_CONTEXT_KEY: &str = "bitfun_output_schema";
 pub struct AgentSessionCreateRequest {
     pub session_name: String,
     pub agent_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_route_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workspace_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -232,9 +234,12 @@ pub struct AgentSessionModelSelectionUpdateRequest {
 pub struct AgentSessionModeUpdateRequest {
     pub session_id: String,
     pub mode_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_route_key: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct AgentModeCatalogQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -247,6 +252,8 @@ pub struct AgentModeCatalogQuery {
 #[serde(rename_all = "camelCase")]
 pub struct AgentModeCatalogEntry {
     pub id: String,
+    #[serde(default)]
+    pub route_key: String,
     pub description: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
@@ -402,6 +409,24 @@ pub struct AgentTurnSettlementRequest {
     pub session_id: String,
     pub turn_id: String,
     pub wait_timeout_ms: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentTurnSettlementStatus {
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentTurnSettlementResult {
+    pub status: AgentTurnSettlementStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub final_response: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finish_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1388,6 +1413,9 @@ pub struct AgentSessionLineageEntry {
     pub parent_tool_call_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subagent_type: Option<String>,
+    /// Parent-scoped semantic handle assigned when this subagent was launched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1594,6 +1622,7 @@ pub trait AgentSessionModePort: Send + Sync {
     async fn update_session_mode(&self, request: AgentSessionModeUpdateRequest) -> PortResult<()>;
 }
 
+#[async_trait::async_trait]
 #[async_trait::async_trait]
 pub trait AgentSessionCompactionPort: Send + Sync {
     async fn start_session_compaction(
@@ -1807,8 +1836,10 @@ pub trait AgentSessionUsagePort: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AgentTurnSettlementPort: Send + Sync {
-    async fn wait_for_turn_settlement(&self, request: AgentTurnSettlementRequest)
-        -> PortResult<()>;
+    async fn wait_for_turn_settlement(
+        &self,
+        request: AgentTurnSettlementRequest,
+    ) -> PortResult<AgentTurnSettlementResult>;
 }
 
 #[async_trait::async_trait]
@@ -2054,9 +2085,38 @@ pub trait SessionTranscriptReader: Send + Sync {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::sync::Mutex;
 
+    use super::*;
+
+    #[test]
+    fn turn_settlement_result_serializes_authoritative_terminal_facts() {
+        let result = AgentTurnSettlementResult {
+            status: AgentTurnSettlementStatus::Completed,
+            final_response: Some("final answer".to_string()),
+            finish_reason: Some("complete".to_string()),
+        };
+
+        assert_eq!(
+            serde_json::to_value(&result).expect("serialize turn settlement result"),
+            serde_json::json!({
+                "status": "completed",
+                "finalResponse": "final answer",
+                "finishReason": "complete",
+            })
+        );
+        assert_eq!(
+            serde_json::from_value::<AgentTurnSettlementResult>(serde_json::json!({
+                "status": "cancelled"
+            }))
+            .expect("deserialize turn settlement result"),
+            AgentTurnSettlementResult {
+                status: AgentTurnSettlementStatus::Cancelled,
+                final_response: None,
+                finish_reason: None,
+            }
+        );
+    }
     #[test]
     fn session_revert_contract_preserves_authoritative_transcript_and_composer_intent() {
         let result = AgentSessionRevertResult {
@@ -3241,6 +3301,7 @@ mod tests {
                 parent_session_id: Some("root_1".to_string()),
                 parent_tool_call_id: Some("tool_1".to_string()),
                 subagent_type: Some("explore".to_string()),
+                agent_id: Some("parser-review".to_string()),
                 workspace_path: Some("/workspace/project".to_string()),
                 remote_connection_id: Some("conn-1".to_string()),
                 remote_ssh_host: Some("host-1".to_string()),
@@ -3289,6 +3350,17 @@ mod tests {
         assert_eq!(snapshot_json["rootSessionId"], "root_1");
         assert_eq!(snapshot_json["sessions"][0]["status"], "completed");
         assert_eq!(snapshot_json["sessions"][0]["parentSessionId"], "root_1");
+        assert_eq!(snapshot_json["sessions"][0]["agentId"], "parser-review");
+
+        let legacy_entry = serde_json::from_value::<AgentSessionLineageEntry>(serde_json::json!({
+            "sessionId": "legacy-child",
+            "sessionName": "Legacy child",
+            "agentType": "explore",
+            "createdAtMs": 1,
+            "status": "completed"
+        }))
+        .expect("legacy lineage entries without agentId remain readable");
+        assert!(legacy_entry.agent_id.is_none());
         assert_eq!(
             snapshot_json["sessions"][0]["unreadCompletion"],
             "interrupted"

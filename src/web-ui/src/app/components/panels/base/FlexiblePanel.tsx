@@ -1,9 +1,9 @@
 import React, { useCallback, memo } from 'react';
-import { Download, Copy, X, AlertCircle } from 'lucide-react';
-import { IconButton } from '@/component-library';
-import { Markdown as MarkdownRenderer } from '@/component-library/components/Markdown/Markdown';
+import { Icon, IconButton, Tooltip } from '@bitfun/ui';
+import { AlertCircle } from 'lucide-react';
+
+import { MarkdownRenderer } from '@/infrastructure/markdown';
 import { useI18n } from '@/infrastructure/i18n';
-import { getFileIconType } from '@/infrastructure/language-detection';
 import { createLogger } from '@/shared/utils/logger';
 import { globalEventBus } from '@/infrastructure/event-bus';
 
@@ -432,9 +432,6 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
         const fileName = editorData.fileName || content.title;
         const editorLanguage = editorData.language;
         const editorWorkspacePath = editorData.workspacePath || workspacePath;
-        const isBinaryPreview = ['archive', 'binary'].includes(
-          getFileIconType(fileName)
-        );
         const syncGenerativeWidgetToolResult = async (nextWidgetCode: string, persistToSession: boolean) => {
           const source = editorData._source;
           if (
@@ -504,8 +501,7 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
             workspacePath={editorWorkspacePath}
             fileName={fileName}
             language={editorLanguage}
-            readOnly={isBinaryPreview || editorData.readOnly || false}
-            readEncoding={isBinaryPreview ? 'text-preview' : undefined}
+            readOnly={editorData.readOnly || false}
             autoSave={editorData.autoSave === true}
             autoSaveDelayMs={typeof editorData.autoSaveDelayMs === 'number' ? editorData.autoSaveDelayMs : undefined}
             showLineNumbers={editorData.showLineNumbers !== false}
@@ -600,11 +596,9 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
             originalContent={originalCode}
             modifiedContent={modifiedCode}
             filePath={diffFilePath}
-            workspacePath={workspacePath || diffMigrationContext?.workspacePath}
             revealLine={diffData.revealLine}
             readOnly={false}
             renderSideBySide={true}
-            enableLsp={true}
             onSave={async (content) => {
               try {
                 const targetWorkspacePath = workspacePath || diffMigrationContext?.workspacePath;
@@ -854,13 +848,10 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
         return (
           <React.Suspense fallback={<div className="bitfun-flexible-panel__loading" data-bf-component="flexible-panel" data-bf-part="loading" data-bf-state="loading">{t('flexiblePanel.loading.terminal')}</div>}>
             <BrowserPanel
+              key={content.data?.openRequestId ?? 'browser-panel'}
               isActive={isActive}
               initialUrl={content.data?.url}
-              initialHtml={content.data?.html}
-              automationId={content.data?.automationId}
-              automationTitle={content.data?.automationTitle}
-              webviewLabel={content.data?.webviewLabel}
-              adoptExisting={content.data?.adoptExisting}
+              openRequestId={content.data?.openRequestId}
             />
           </React.Suspense>
         );
@@ -1002,32 +993,35 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
           <div className="bitfun-flexible-panel__header-right" data-bf-component="flexible-panel" data-bf-part="headerActions">
             {content && content.type !== 'empty' && (
               <>
-                <IconButton
-                  size="xs"
-                  onClick={handleCopy}
-                  tooltip={t('flexiblePanel.actions.copyContent')}
-                >
-                  <Copy size={14} />
-                </IconButton>
+                <Tooltip content={t('flexiblePanel.actions.copyContent')}>
+                  <IconButton
+                    size="sm"
+                    aria-label={t('flexiblePanel.actions.copyContent')}
+                    icon={<Icon name="duplicate" size="lg" />}
+                    onClick={handleCopy}
+                  />
+                </Tooltip>
 
-                <IconButton
-                  size="xs"
-                  onClick={handleDownload}
-                  tooltip={t('flexiblePanel.actions.downloadContent')}
-                >
-                  <Download size={14} />
-                </IconButton>
+                <Tooltip content={t('flexiblePanel.actions.downloadContent')}>
+                  <IconButton
+                    size="sm"
+                    aria-label={t('flexiblePanel.actions.downloadContent')}
+                    icon={<Icon name="download" size="lg" />}
+                    onClick={handleDownload}
+                  />
+                </Tooltip>
               </>
             )}
-            
-            <IconButton
-              size="xs"
-              variant="danger"
-              onClick={handleClose}
-              tooltip={t('flexiblePanel.actions.close')}
-            >
-              <X size={14} />
-            </IconButton>
+
+            <Tooltip content={t('flexiblePanel.actions.close')}>
+              <IconButton
+                size="sm"
+                tone="danger"
+                aria-label={t('flexiblePanel.actions.close')}
+                icon={<Icon name="xmark" size="lg" />}
+                onClick={handleClose}
+              />
+            </Tooltip>
           </div>
         </div>
       )}

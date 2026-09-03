@@ -1,13 +1,7 @@
- 
-
-@use '../../../../component-library/styles/tokens.scss' as *;
-
-
-
 .bitfun-context-list {
   display: flex;
   flex-direction: column;
-  gap: $size-gap-2;
+  gap: var(--bf-space-2);
   width: 100%;
   
   
@@ -16,16 +10,16 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 $size-gap-2;
+    padding: 0 var(--bf-space-2);
   }
   
   &__title {
     display: flex;
     align-items: center;
-    gap: $size-gap-2;
-    font-size: var(--bf-appearance-token-font-size-sm);
-    font-weight: $font-weight-medium;
-    color: var(--bf-appearance-token-color-text-secondary);
+    gap: var(--bf-space-2);
+    font-size: var(--bf-font-size-sm);
+    font-weight: var(--bf-font-weight-medium);
+    color: var(--bf-color-content-secondary);
   }
   
   &__count {
@@ -35,41 +29,12 @@
     min-width: 20px;
     height: 18px;
     padding: 0 6px;
-    font-size: 11px;
-    font-weight: $font-weight-semibold;
-    color: var(--bf-appearance-token-color-text-primary);
-    background: var(--bf-appearance-token-element-bg-medium);
-    border: 1px solid var(--bf-appearance-token-border-subtle);
-    border-radius: $size-radius-full;
-  }
-  
-  &__clear-btn {
-    display: flex;
-    align-items: center;
-    gap: $size-gap-1;
-    padding: 4px 8px;
-    font-size: var(--bf-appearance-token-font-size-xs);
-    font-weight: $font-weight-medium;
-    color: var(--bf-appearance-token-color-text-muted);
-    background: transparent;
-    border: 1px solid var(--bf-appearance-token-border-subtle);
-    border-radius: $size-radius-sm;
-    cursor: pointer;
-    transition:
-      background-color $motion-fast $easing-standard,
-      border-color $motion-fast $easing-standard,
-      color $motion-fast $easing-standard,
-      opacity $motion-fast $easing-standard,
-      transform $motion-fast $easing-standard;
-    
-    &:active {
-      transform: scale(0.98);
-    }
-
-    &:disabled {
-      cursor: default;
-      opacity: 0.45;
-    }
+    font-size: var(--bf-font-size-meta);
+    font-weight: var(--bf-font-weight-semibold);
+    color: var(--bf-color-content-primary);
+    background: var(--bf-color-action-neutral-surface-hover);
+    border: 1px solid var(--bf-color-border-subtle);
+    border-radius: var(--bf-radius-pill);
   }
   
   
@@ -78,9 +43,8 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    overflow-y: auto;
     overflow-x: hidden;
-    padding: 0 $size-gap-2;
+    padding: 0 var(--bf-space-2);
     
   }
   
@@ -91,9 +55,9 @@
     opacity: 1;
     transform: translateX(0);
     transition:
-      grid-template-rows 160ms $easing-decelerate,
-      opacity 110ms $easing-standard,
-      transform 140ms $easing-decelerate;
+      grid-template-rows 160ms var(--bf-motion-easing-decelerate),
+      opacity 110ms var(--bf-motion-easing-standard),
+      transform 140ms var(--bf-motion-easing-decelerate);
 
     @starting-style {
       opacity: 0;
@@ -117,7 +81,7 @@
     }
 
     > .bitfun-context-card {
-      margin-bottom: $size-gap-2;
+      margin-bottom: var(--bf-space-2);
     }
   }
   
@@ -132,36 +96,28 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: $size-gap-8;
+    padding: var(--bf-space-8);
     text-align: center;
   }
   
   &__empty-icon {
-    color: var(--bf-appearance-token-color-text-disabled);
-    margin-bottom: $size-gap-3;
+    color: var(--bf-color-content-disabled);
+    margin-bottom: var(--bf-space-3);
   }
   
   &__empty-text {
-    font-size: var(--bf-appearance-token-font-size-base);
-    font-weight: $font-weight-medium;
-    color: var(--bf-appearance-token-color-text-muted);
-    margin: 0 0 $size-gap-1;
+    font-size: var(--bf-font-size-base);
+    font-weight: var(--bf-font-weight-medium);
+    color: var(--bf-color-content-muted);
+    margin: 0 0 var(--bf-space-1);
   }
   
   &__empty-hint {
-    font-size: var(--bf-appearance-token-font-size-xs);
-    color: var(--bf-appearance-token-color-text-disabled);
+    font-size: var(--bf-font-size-xs);
+    color: var(--bf-color-content-disabled);
     margin: 0;
     max-width: 300px;
-    line-height: 1.5;
-  }
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .bitfun-context-list__clear-btn:not(:disabled):hover {
-    background: var(--bf-appearance-token-color-error-bg);
-    border-color: var(--bf-appearance-token-color-error-border);
-    color: var(--bf-appearance-token-color-error);
+    line-height: var(--bf-line-height-base);
   }
 }
 

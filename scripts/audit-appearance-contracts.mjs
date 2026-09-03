@@ -4,10 +4,12 @@ import ts from 'typescript';
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const sourceRoot = path.join(repoRoot, 'src', 'web-ui', 'src');
-const componentRoot = path.join(sourceRoot, 'component-library', 'components');
 const sceneRoot = path.join(sourceRoot, 'app', 'scenes');
 const registryFile = path.join(sourceRoot, 'infrastructure', 'appearance', 'registry', 'defaultAppearanceRegistry.ts');
 const retiredOwnershipFile = path.join(sourceRoot, 'infrastructure', 'appearance', 'registry', 'appearanceSourceOwnership.ts');
+const externalAppearanceContractFiles = [
+  path.join(repoRoot, 'design-system', 'packages', 'ui', 'src', 'components', 'ConfirmDialog', 'ConfirmDialog.tsx'),
+];
 const crossBoundaryRoots = [
   path.join(repoRoot, 'MiniApp'),
   path.join(repoRoot, 'tests', 'e2e', 'specs'),
@@ -300,11 +302,22 @@ function datasetPropertyForAttribute(attribute) {
   return attribute.replace(/^data-/, '').replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 }
 
+const sharedToolCardHostTags = new Set([
+  'AmbientToolCard',
+  'CommandToolCard',
+  'ContextCompressionToolCard',
+  'FileOperationCardView',
+  'FileOperationToolCard',
+  'ProminentToolCard',
+  'ReadFileToolCard',
+]);
+
 function analyzeStyledOwnerContract(file, source, visualClassIds) {
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let hasIntrinsicContract = false;
-  let hasBaseToolCardContract = false;
+  let hasSharedToolCardContract = false;
   let hasConfigPageLayoutContract = false;
+  let hasProductAppearanceHostContract = false;
   let styledIntrinsicNodeCount = 0;
   const declaredPartIds = new Set();
   const usedVisualClassIds = new Set();
@@ -317,10 +330,17 @@ function analyzeStyledOwnerContract(file, source, visualClassIds) {
 
   const visit = node => {
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const productSurface = jsxLiteralAttribute(node, 'data-bf-product-component');
       const surface = jsxLiteralAttribute(node, 'data-bf-component')
+        ?? productSurface
         ?? jsxLiteralAttribute(node, 'data-bf-scene');
-      const part = jsxLiteralAttribute(node, 'data-bf-part');
-      if (part) declaredPartIds.add(part);
+      const part = productSurface
+        ? jsxLiteralAttribute(node, 'data-bf-product-part')
+        : jsxLiteralAttribute(node, 'data-bf-part');
+      const standardPart = jsxLiteralAttribute(node, 'data-bf-part');
+      const productPart = jsxLiteralAttribute(node, 'data-bf-product-part');
+      if (standardPart) declaredPartIds.add(standardPart);
+      if (productPart) declaredPartIds.add(productPart);
       if (intrinsicName(node)) {
         if (jsxAttribute(node, 'className').present) styledIntrinsicNodeCount += 1;
         if (surface && part) {
@@ -329,11 +349,14 @@ function analyzeStyledOwnerContract(file, source, visualClassIds) {
       }
 
       const tagName = jsxTagName(node);
-      if (tagName === 'BaseToolCard') {
-        hasBaseToolCardContract = true;
+      if (sharedToolCardHostTags.has(tagName)) {
+        hasSharedToolCardContract = true;
       }
       if (tagName === 'ConfigPageLayout' && surface && part) {
         hasConfigPageLayoutContract = true;
+      }
+      if (tagName === 'Menu' && productSurface && productPart) {
+        hasProductAppearanceHostContract = true;
       }
     }
     if (ts.isStringLiteralLike(node)) collectVisualClassIds(node.text);
@@ -346,8 +369,9 @@ function analyzeStyledOwnerContract(file, source, visualClassIds) {
 
   return {
     hasIntrinsicContract,
-    hasBaseToolCardContract,
+    hasSharedToolCardContract,
     hasConfigPageLayoutContract,
+    hasProductAppearanceHostContract,
     styledIntrinsicNodeCount,
     declaredPartIds,
     usedVisualClassIds,
@@ -358,6 +382,9 @@ const sourceFiles = walk(sourceRoot);
 const sources = new Map(sourceFiles.map(file => [file, fs.readFileSync(file, 'utf8')]));
 const productionSources = [...sources.entries()].filter(([file]) => !/\.(?:test|spec)\.[jt]sx?$/.test(file));
 const productionCodeSources = productionSources.filter(([file]) => /\.(?:ts|tsx)$/.test(file));
+const externalAppearanceContractSources = externalAppearanceContractFiles
+  .filter(file => fs.existsSync(file))
+  .map(file => [file, fs.readFileSync(file, 'utf8')]);
 const aggregate = productionSources.map(([, source]) => source).join('\n');
 const registeredSource = fs.readFileSync(registryFile, 'utf8');
 const registeredComponentExports = new Set(
@@ -413,6 +440,8 @@ for (const [file, source] of productionCodeSources) {
       states,
       facets,
       kind: registeredAsScene ? 'scene' : 'component',
+      componentAttribute: body.match(/\bcomponentAttribute:\s*['"](data-bf-(?:component|product-component))['"]/)?.[1]
+        ?? 'data-bf-component',
     });
   }
 }
@@ -430,81 +459,116 @@ const domSurfaceDynamicStates = new Set();
 const domSurfaceFacets = new Map(descriptors.map(descriptor => [descriptor.id, new Map()]));
 let domContractCount = 0;
 
-for (const [file, source] of productionCodeSources.filter(([candidate]) => candidate.endsWith('.tsx'))) {
+const domContractSources = [
+  ...productionCodeSources
+    .filter(([candidate]) => candidate.endsWith('.tsx'))
+    .map(([file, source]) => [file, source, true]),
+  ...externalAppearanceContractSources.map(([file, source]) => [file, source, false]),
+];
+
+for (const [file, source, strictContractOwnership] of domContractSources) {
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const visit = node => {
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
       const component = jsxAttribute(node, 'data-bf-component');
+      const productComponent = jsxAttribute(node, 'data-bf-product-component');
       const scene = jsxAttribute(node, 'data-bf-scene');
       const part = jsxAttribute(node, 'data-bf-part');
-      const state = jsxAttribute(node, 'data-bf-state');
+      const productPart = jsxAttribute(node, 'data-bf-product-part');
       const location = ast.getLineAndCharacterOfPosition(node.getStart(ast));
       const sourceLocation = `${relative(file)}:${location.line + 1}`;
       const surfaceAttributeCount = Number(component.present) + Number(scene.present);
 
-      if (surfaceAttributeCount > 1) {
-        failures.push(`${sourceLocation}: DOM node cannot declare both data-bf-component and data-bf-scene`);
-      }
-      if (surfaceAttributeCount !== Number(part.present)) {
-        failures.push(`${sourceLocation}: Appearance surface and part attributes must be declared together on the same DOM node`);
-      }
-      if (component.present && component.value === null) {
-        failures.push(`${sourceLocation}: data-bf-component must use a string literal`);
-      }
-      if (scene.present && scene.value === null) {
-        failures.push(`${sourceLocation}: data-bf-scene must use a string literal`);
-      }
-      if (part.present && part.value === null) {
-        failures.push(`${sourceLocation}: data-bf-part must use a string literal`);
+      if (strictContractOwnership) {
+        if (surfaceAttributeCount > 1) {
+          failures.push(`${sourceLocation}: DOM node cannot declare both data-bf-component and data-bf-scene`);
+        }
+        if (surfaceAttributeCount !== Number(part.present)) {
+          failures.push(`${sourceLocation}: Appearance surface and part attributes must be declared together on the same DOM node`);
+        }
+        if (Number(productComponent.present) !== Number(productPart.present)) {
+          failures.push(`${sourceLocation}: Product Appearance surface and part attributes must be declared together on the same DOM node`);
+        }
+        if (component.present && component.value === null) {
+          failures.push(`${sourceLocation}: data-bf-component must use a string literal`);
+        }
+        if (productComponent.present && productComponent.value === null) {
+          failures.push(`${sourceLocation}: data-bf-product-component must use a string literal`);
+        }
+        if (scene.present && scene.value === null) {
+          failures.push(`${sourceLocation}: data-bf-scene must use a string literal`);
+        }
+        if (part.present && part.value === null) {
+          failures.push(`${sourceLocation}: data-bf-part must use a string literal`);
+        }
+        if (productPart.present && productPart.value === null) {
+          failures.push(`${sourceLocation}: data-bf-product-part must use a string literal`);
+        }
       }
 
-      const surfaceId = component.value ?? scene.value;
-      if (surfaceId && part.value) {
-        if (forbiddenAggregateItemSurfaces.has(surfaceId) && part.value === 'item') {
+      const contracts = [
+        { surface: component, part, kind: 'component', attribute: 'data-bf-component' },
+        { surface: productComponent, part: productPart, kind: 'component', attribute: 'data-bf-product-component' },
+        { surface: scene, part, kind: 'scene', attribute: 'data-bf-scene' },
+      ];
+      for (const contract of contracts) {
+        const surfaceId = contract.surface.value;
+        if (!surfaceId || !contract.part.value) continue;
+        if (forbiddenAggregateItemSurfaces.has(surfaceId) && contract.part.value === 'item') {
           failures.push(`${sourceLocation}: aggregate Appearance contract ${surfaceId}.item is forbidden; the visible owner must declare a dedicated surface`);
         }
-        domContractCount += 1;
         const descriptor = descriptorsById.get(surfaceId);
-        const domKind = component.value ? 'component' : 'scene';
         if (!descriptor) {
-          failures.push(`${sourceLocation}: unknown Appearance ${domKind} id ${surfaceId}`);
+          if (strictContractOwnership) {
+            failures.push(`${sourceLocation}: unknown Appearance ${contract.kind} id ${surfaceId}`);
+          }
+          continue;
+        }
+        const expectedAttribute = descriptor.kind === 'scene'
+          ? 'data-bf-scene'
+          : descriptor.componentAttribute;
+        if (contract.attribute !== expectedAttribute) {
+          if (strictContractOwnership) {
+            failures.push(`${sourceLocation}: Appearance surface ${surfaceId} must use ${expectedAttribute}`);
+          }
+          continue;
+        }
+        domContractCount += 1;
+        if (descriptor.kind !== contract.kind) {
+          failures.push(`${sourceLocation}: ${surfaceId} is registered as a ${descriptor.kind}, not a ${contract.kind}`);
+        }
+        if (!descriptor.parts.includes(contract.part.value)) {
+          failures.push(`${sourceLocation}: unknown Appearance part ${surfaceId}.${contract.part.value}`);
         } else {
-          if (descriptor.kind !== domKind) {
-            failures.push(`${sourceLocation}: ${surfaceId} is registered as a ${descriptor.kind}, not a ${domKind}`);
+          domSurfaceParts.get(surfaceId)?.add(contract.part.value);
+        }
+        const stateAttribute = jsxAttributeStringLiterals(node, 'data-bf-state');
+        if (stateAttribute.present && stateAttribute.dynamic) {
+          domSurfaceDynamicStates.add(surfaceId);
+        }
+        const stateValues = stateAttribute.values
+          .flatMap(value => value.split(/\s+/).filter(Boolean));
+        stateValues.forEach(stateId => {
+          domSurfaceStates.get(surfaceId)?.add(stateId);
+          const knownStateTokens = descriptor.states.map(candidate => (
+            candidate.suffix?.match(/\[data-bf-state~=["']([^"']+)["']\]/)?.[1] ?? candidate.id
+          ));
+          if (!knownStateTokens.includes(stateId)) {
+            failures.push(`${sourceLocation}: unknown Appearance state ${surfaceId}.${stateId}`);
           }
-          if (!descriptor.parts.includes(part.value)) {
-            failures.push(`${sourceLocation}: unknown Appearance part ${surfaceId}.${part.value}`);
-          } else {
-            domSurfaceParts.get(surfaceId)?.add(part.value);
-          }
-          const stateAttribute = jsxAttributeStringLiterals(node, 'data-bf-state');
-          if (stateAttribute.present && stateAttribute.dynamic) {
-            domSurfaceDynamicStates.add(surfaceId);
-          }
-          const stateValues = stateAttribute.values
-            .flatMap(value => value.split(/\s+/).filter(Boolean));
-          stateValues.forEach(stateId => {
-            domSurfaceStates.get(surfaceId)?.add(stateId);
-            const knownStateTokens = descriptor.states.map(candidate => (
-              candidate.suffix?.match(/\[data-bf-state~=["']([^"']+)["']\]/)?.[1] ?? candidate.id
-            ));
-            if (!knownStateTokens.includes(stateId)) {
-              failures.push(`${sourceLocation}: unknown Appearance state ${surfaceId}.${stateId}`);
+        });
+        for (const facet of descriptor.facets) {
+          const facetAttribute = jsxAttributeStringLiterals(node, facet.attribute);
+          if (!facetAttribute.present) continue;
+          const facetEntry = domSurfaceFacets.get(surfaceId)?.get(facet.attribute) ?? { dynamic: false, values: new Set() };
+          facetEntry.dynamic ||= facetAttribute.dynamic;
+          facetAttribute.values.forEach(value => facetEntry.values.add(value));
+          domSurfaceFacets.get(surfaceId)?.set(facet.attribute, facetEntry);
+          facetAttribute.values.forEach(value => {
+            if (!facet.values.includes(value)) {
+              failures.push(`${sourceLocation}: unknown Appearance facet value ${surfaceId}.${facet.id}.${value}`);
             }
           });
-          for (const facet of descriptor.facets) {
-            const facetAttribute = jsxAttributeStringLiterals(node, facet.attribute);
-            if (!facetAttribute.present) continue;
-            const facetEntry = domSurfaceFacets.get(surfaceId)?.get(facet.attribute) ?? { dynamic: false, values: new Set() };
-            facetEntry.dynamic ||= facetAttribute.dynamic;
-            facetAttribute.values.forEach(value => facetEntry.values.add(value));
-            domSurfaceFacets.get(surfaceId)?.set(facet.attribute, facetEntry);
-            facetAttribute.values.forEach(value => {
-              if (!facet.values.includes(value)) {
-                failures.push(`${sourceLocation}: unknown Appearance facet value ${surfaceId}.${facet.id}.${value}`);
-              }
-            });
-          }
         }
       }
     }
@@ -571,14 +635,6 @@ for (const descriptor of descriptors) {
   }
 }
 
-for (const directory of fs.readdirSync(componentRoot, { withFileTypes: true }).filter(entry => entry.isDirectory())) {
-  const absolute = path.join(componentRoot, directory.name);
-  const productionTsx = walk(absolute).filter(file => file.endsWith('.tsx') && !/\.(?:test|spec)\.tsx$/.test(file));
-  if (productionTsx.length > 0 && !fs.existsSync(path.join(absolute, 'appearance.ts'))) {
-    failures.push(`${relative(absolute)}: production component directory must own appearance.ts`);
-  }
-}
-
 for (const sceneFile of walk(sceneRoot).filter(file => file.endsWith('Scene.tsx') && !/\.(?:test|spec)\.tsx$/.test(file))) {
   const appearanceFile = path.join(path.dirname(sceneFile), 'appearance.ts');
   if (!fs.existsSync(appearanceFile)) {
@@ -596,7 +652,6 @@ for (const sceneFile of walk(sceneRoot).filter(file => file.endsWith('Scene.tsx'
 
 const visualEntryPoints = new Set([
   'main.tsx',
-  'component-library/preview/main.tsx',
   'tools/bitfun-canvas/runtime/entry.tsx',
 ]);
 const styledProductionTsx = productionCodeSources.filter(([file, source]) => {
@@ -615,14 +670,26 @@ for (const [file, source] of productionSources) {
   }
   for (const match of source.matchAll(/&(__[A-Za-z_][\w-]*)/g)) allVisualClassIds.add(match[1]);
 }
-const baseToolCardSource = sources.get(path.join(sourceRoot, 'flow_chat', 'tool-cards', 'BaseToolCard.tsx')) ?? '';
-if (!baseToolCardSource.includes('data-bf-component="tool-card"')
-  || !baseToolCardSource.includes('data-bf-part="root"')
-  || !baseToolCardSource.includes('data-bf-part="surface"')
-  || !baseToolCardSource.includes('data-bf-part="header"')
-  || !baseToolCardSource.includes('data-bf-part="expanded"')
-  || !baseToolCardSource.includes('data-bf-part="error"')) {
-  failures.push('BaseToolCard must project the shared multi-part tool-card Appearance contract');
+const flowChatToolCardFile = path.join(
+  repoRoot,
+  'design-system',
+  'packages',
+  'ui',
+  'src',
+  'flow-chat',
+  'tool-cards',
+  'FlowChatToolCard.tsx',
+);
+const flowChatToolCardSource = fs.existsSync(flowChatToolCardFile)
+  ? fs.readFileSync(flowChatToolCardFile, 'utf8')
+  : '';
+if (!flowChatToolCardSource.includes('data-bf-component="flow-chat-tool-card"')
+  || !flowChatToolCardSource.includes('data-bf-part="root"')
+  || !flowChatToolCardSource.includes('data-bf-part="surface"')
+  || !flowChatToolCardSource.includes('data-bf-part="header"')
+  || !flowChatToolCardSource.includes('part: "error" | "expanded"')
+  || !flowChatToolCardSource.includes('data-bf-part={part}')) {
+  failures.push('@bitfun/ui FlowChat tool cards must project the shared multi-part Appearance contract');
 }
 const configPageLayoutSource = sources.get(path.join(sourceRoot, 'infrastructure', 'config', 'components', 'common', 'ConfigPageLayout.tsx')) ?? '';
 if (!configPageLayoutSource.includes('...props')
@@ -635,8 +702,9 @@ for (const [file, source] of styledProductionTsx) {
   const visualClassIds = importedVisualClassIds(file, source);
   const contract = analyzeStyledOwnerContract(file, source, visualClassIds);
   if (!contract.hasIntrinsicContract
-    && !contract.hasBaseToolCardContract
-    && !contract.hasConfigPageLayoutContract) {
+    && !contract.hasSharedToolCardContract
+    && !contract.hasConfigPageLayoutContract
+    && !contract.hasProductAppearanceHostContract) {
     failures.push(`${relative(file)}: styled production component must expose a direct DOM Appearance contract or an approved host-forwarded contract`);
     continue;
   }
@@ -662,7 +730,8 @@ for (const [file, source] of productionCodeSources.filter(([candidate]) => candi
   if (styledProductionTsx.some(([styledFile]) => styledFile === file)) continue;
   const contract = analyzeStyledOwnerContract(file, source, allVisualClassIds);
   if (contract.usedVisualClassIds.size < 8 || contract.hasIntrinsicContract
-    || contract.hasBaseToolCardContract || contract.hasConfigPageLayoutContract) continue;
+    || contract.hasSharedToolCardContract || contract.hasConfigPageLayoutContract
+    || contract.hasProductAppearanceHostContract) continue;
   warnings.push(`${relative(file)}: uses ${contract.usedVisualClassIds.size} shared visual classes without a direct Appearance contract; review whether it needs a dedicated surface`);
 }
 
@@ -685,9 +754,9 @@ for (const [file, source] of adapterFiles) {
   }
 }
 
-const cssTokenAdapterSource = fs.readFileSync(path.join(sourceRoot, 'infrastructure', 'appearance', 'adapters', 'CssTokenAppearanceAdapter.ts'), 'utf8');
-if (!cssTokenAdapterSource.includes('APPEARANCE_CSS_TOKEN_NAMES') || cssTokenAdapterSource.includes("startsWith(ALLOWED_TOKEN_PREFIX)")) {
-  failures.push('CssTokenAppearanceAdapter must validate against the closed host token registry');
+const themeTokenAdapterSource = fs.readFileSync(path.join(sourceRoot, 'infrastructure', 'appearance', 'adapters', 'ThemeTokenAppearanceAdapter.ts'), 'utf8');
+if (!themeTokenAdapterSource.includes('APPEARANCE_ROOT_TOKEN_NAMES') || themeTokenAdapterSource.includes("startsWith(ALLOWED_TOKEN_PREFIX)")) {
+  failures.push('ThemeTokenAppearanceAdapter must validate against the closed canonical token registry');
 }
 const widgetAdapterSource = fs.readFileSync(path.join(sourceRoot, 'infrastructure', 'appearance', 'adapters', 'WidgetAppearanceAdapter.ts'), 'utf8');
 if (!widgetAdapterSource.includes('WIDGET_APPEARANCE_VARIABLE_NAMES')) {
@@ -724,7 +793,7 @@ for (const [file, source] of productionSources) {
   if (/\bThemeService\b|\bthemeService\b|\buseTheme\b|\buseThemeStore\b|ThemeAppearanceBridge/.test(source)) {
     failures.push(`${relative(file)}: legacy Theme runtime reference is forbidden`);
   }
-  if (/data-theme(?:-type)?|data-bf-theme|bitfun\/request-theme|themeChange|onThemeChange/.test(source)) {
+  if (/data-theme(?:-type)?|data-bf-theme(?!-scope(?=$|[="'\]\s]))|bitfun\/request-theme|themeChange|onThemeChange/.test(source)) {
     failures.push(`${relative(file)}: legacy Theme DOM or bridge contract is forbidden`);
   }
   if (/--(?:color|border|element|git-color|scrollbar|shadow|blur|size|opacity|motion|easing|font|line-height|btn|flowchat|scene)-/.test(source)) {

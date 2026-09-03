@@ -8,34 +8,61 @@
   "goManage": "前往管理",
   "loading": "加载中…",
   "page": {
-    "title": "专业智能体",
-    "subtitle": "查看与管理核心模式、Agent 与 Sub-Agent，配置工具与 Skills。",
+    "title": "智能体",
+    "subtitle": "管理智能体及其执行框架，让不同任务使用合适的能力组合。",
     "searchPlaceholder": "搜索 Agent 名称或描述…",
     "newAgent": "新建 Agent"
   },
   "nav": {
-    "coreAgents": "核心智能体",
-    "agents": "Agent"
+    "harness": "Agent Harness",
+    "coreAgents": "已接入 Agent",
+    "agents": "智能体"
+  },
+  "harnessZone": {
+    "title": "Agent Harness",
+    "subtitle": "决定根 Agent 如何组织任务、调用工具、协同智能体并整合结果。",
+    "gearLabel": "{{level}} 档",
+    "creativeTrack": "创意方向",
+    "profiles": {
+      "minimal": {
+        "name": "极简",
+        "purpose": "精简流程，快速推进，适合轻量任务。"
+      },
+      "balanced": {
+        "name": "标准",
+        "purpose": "平衡效率与质量，适用于大多数日常工作。"
+      },
+      "ultimate": {
+        "name": "极致",
+        "purpose": "深度拆解与智能协同，适合复杂与高价值任务。"
+      },
+      "creative": {
+        "name": "创造",
+        "purpose": "面向创新与探索，支持更灵活的执行与产出方式。"
+      }
+    }
   },
   "filters": {
     "source": "来源",
     "kind": "类型",
+    "anySource": "来源不限",
+    "anyKind": "类型不限",
     "builtin": "内置",
     "user": "用户",
     "project": "项目",
     "external": "外部",
-    "mode": "Agent",
-    "subagent": "Sub-Agent"
+    "mode": "可直接调用",
+    "subagent": "协作 Agent"
   },
   "coreAgentsZone": {
-    "title": "核心智能体",
-    "subtitle": "平台内置的核心 Agent，覆盖主流 AI 工作流，开箱即用。",
+    "title": "已接入 Agent",
+    "subtitle": "当前已经可以配置的 Runtime Agent；迁移期间仍会显示旧 Mode 接线。",
     "empty": "暂未检测到核心智能体",
     "roleLabel": "主要应用 · ",
     "computerUseDisabledBadge": "已在设置中禁用",
     "modes": {
       "agentic": {
-        "role": "编码专业智能体"
+        "role": "编码智能体"
       },
       "cowork": {
         "role": "办公智能体"
@@ -46,14 +73,24 @@
     }
   },
   "agentsZone": {
-    "title": "Agent 总览",
-    "subtitle": "查看所有 Agent / Sub-Agent，并直接管理工具与 Skills。",
+    "title": "智能体",
+    "subtitle": "统一查看内置、用户、项目和外部智能体，点击卡片查看与配置能力。",
     "empty": {
       "noAgents": "当前没有可用的 Agent",
       "noMatch": "没有匹配的 Agent"
     }
   },
   "agentCard": {
+    "status": {
+      "connected": "已接入"
+    },
+    "metrics": {
+      "tools": "工具",
+      "skills": "技能",
+      "collaboration": "协作",
+      "capabilities": "能力",
+      "model": "模型"
+    },
     "badges": {
       "agent": "Agent",
       "userMode": "用户 Agent",
@@ -80,7 +117,6 @@
       "inherit": "继承父会话",
       "fast": "快速模型",
       "primary": "主力模型",
-      "auto": "自动选择",
       "updateFailed": "更新 Sub-Agent 模型失败"
     }
   },
@@ -96,6 +132,20 @@
     "filterUser": "用户级",
     "filterProject": "项目级",
     "backToOverview": "返回总览",
+    "detail": {
+      "configuration": "配置",
+      "basicInfo": "基本信息",
+      "basicInfoHint": "Agent 的身份、用途与运行属性",
+      "behaviorContext": "行为与上下文",
+      "behaviorContextHint": "执行侧重点与共享配置关系",
+      "name": "Agent 名称",
+      "source": "来源",
+      "type": "类型",
+      "followUp": "连续对话",
+      "description": "用途描述",
+      "supported": "支持",
+      "unsupported": "不支持"
+    },
     "capabilities": "能力配置",
     "tools": "工具",
     "toolsReset": "重置默认",
@@ -155,6 +205,9 @@
       "meta": "Meta",
       "miniapp": "MiniApp",
       "canvas": "画布",
+      "debugging": "调试",
+      "coordination": "协作调度",
+      "planning": "规划",
       "gstack": "gstack",
       "harmonyos": "鸿蒙",
       "other": "其他"
@@ -241,7 +294,7 @@
     "editAgent": "编辑",
     "deleteAgent": "删除",
     "externalActions": "外部 Agent",
-    "manageExternalAgent": "前往外部 AI 应用管理",
+    "manageExternalAgent": "前往生态兼容管理",
     "deleteConfirm": "确定删除自定义 Agent「{{name}}」？此操作不可恢复。",
     "deleteSuccess": "已删除「{{name}}」",
     "deleteFailed": "删除失败：",
@@ -256,16 +309,16 @@
       "save": "保存",
       "updateSuccess": "已保存「{{name}}」",
       "updateFailed": "保存失败：",
+      "basicInformation": "基础信息",
       "kind": "类型",
       "kindAgentTooltip": "创建后可在对话输入框的模式选择器中作为独立模式直接选择。",
       "kindSubagentTooltip": "创建后主 Agent 可通过委派它完成子任务；不会作为可直接选择的模式。",
-      "id": "ID",
-      "idPlaceholder": "用于配置和路由的稳定标识符",
+      "id": "Agent ID",
+      "idPlaceholder": "用于模型识别、配置和路由，创建后不可修改",
       "idRequired": "ID 不能为空",
       "idFormat": "只能以字母开头，包含字母/数字/下划线/连字符",
-      "name": "名称",
-      "namePlaceholder": "界面展示名称",
-      "nameRequired": "名称不能为空",
+      "name": "名称（选填）",
+      "namePlaceholder": "仅用于展示，留空时使用 Agent ID",
       "level": "级别",
       "modeUserOnly": "当前版本中，自定义 mode 仅支持用户级。",
       "description": "描述",
@@ -276,13 +329,15 @@
       "promptRequired": "系统提示词不能为空",
       "readonly": "只读模式",
       "model": "模型",
-      "modelPlaceholder": "可填写 inherit、auto、fast 或具体模型 ID",
+      "modelPlaceholder": "可填写 inherit、primary、fast 或具体模型 ID",
       "modelRequired": "模型不能为空",
       "tools": "工具",
       "toolsOptional": "可选",
       "toolsHint": "（{{optionalLabel}}，不选则使用默认）",
       "contextPolicy": "运行时上下文",
-      "contextPolicyHint": "（选择注入到提示词中的工作区上下文片段）",
+      "contextPolicyHint": "（选择 Agent 运行时自动注入的工作区上下文）",
+      "contextPreviewLabel": "运行时自动注入",
+      "contextPreviewEmpty": "未选择任何工作区上下文",
       "contextWorkspaceContext": "工作区上下文",
       "contextWorkspaceContextTooltip": "加入当前工作区身份和会话级概况，帮助 Agent 知道自己正在处理哪个项目。",
       "contextWorkspaceInstructions": "工作区说明",
@@ -337,16 +392,12 @@
     "ComputerUse": "计算机使用模式：能够操作浏览器、桌面应用和文件系统",
     "DeepResearch": "深度研究智能体：对复杂主题进行系统性调研和分析",
     "Explore": "探索智能体：快速浏览代码库，理解项目结构和关键文件",
-    "FileFinder": "文件查找智能体：根据需求定位相关文件和代码片段",
     "CodeReview": "代码审查智能体：对代码进行质量检查和改进建议",
     "DeepReview": "严格审核兼容模式：仅在历史会话或命令需要时执行最高强度的审核流程",
     "GenerateDoc": "文档生成智能体：自动生成代码文档和说明",
     "Init": "初始化智能体：帮助设置项目结构和初始配置",
     "ReviewFixer": "审查修复智能体：根据审查结果自动修复代码问题",
-    "Multitask": "多任务模式：将工作拆为正交分支，并在合适时并行使用子智能体推进",
-    "Plan": "规划模式：制定详细的任务计划和执行步骤",
-    "Debug": "调试模式：系统性地诊断和修复代码中的错误",
     "Claw": "抓取模式：从外部源提取和整合信息",
-    "Team": "团队模式：协调多个智能体协同完成复杂任务"
+    "Ultra": "群体规划模式：将复杂工作拆成边界清晰的智能体任务，协调执行并汇总审查结果"
   }
 }

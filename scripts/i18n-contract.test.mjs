@@ -270,9 +270,12 @@ test('web-ui synchronous i18nService.t namespaces stay in the bootstrap set', ()
 test('web-ui slash command picker distinguishes all commands from quick actions', () => {
   const source = readText('src/web-ui/src/flow_chat/components/ChatInput.tsx');
   const allCommandsStart = source.indexOf("if (slashCommandState.kind === 'all')");
-  const allCommandsEnd = source.indexOf('if (!canSwitchModes)', allCommandsStart);
+  const allCommandsEnd = source.indexOf(
+    "if (slashCommandState.kind === 'skills')",
+    allCommandsStart,
+  );
   assert.notEqual(allCommandsStart, -1, 'ChatInput should render an all-command slash picker state');
-  assert.notEqual(allCommandsEnd, -1, 'ChatInput all-command branch should stay before the mode-only branch');
+  assert.notEqual(allCommandsEnd, -1, 'ChatInput all-command branch should stay before the skills-only branch');
 
   const allCommandsBlock = source.slice(allCommandsStart, allCommandsEnd);
   assert.match(
@@ -584,12 +587,15 @@ test('i18n audit can emit a machine-readable governance report', { concurrency: 
   }
 });
 
-auditIntegrationTest('i18n audit reports same-text zh-TW copy with a l10n signal', { concurrency: false }, () => {
-  const localePath = 'src/web-ui/src/locales/zh-TW/settings/acp-agents.json';
+auditIntegrationTest('i18n audit reports same-text zh-TW copy with a terminology signal', { concurrency: false }, () => {
+  const localePath = 'src/web-ui/src/locales/zh-TW/settings/external-apps.json';
   const reportPath = 'scripts/.tmp-i18n-l10n-signal-report.json';
   const absoluteReportPath = path.join(root, reportPath);
   const source = readText(localePath);
-  const fixture = source.replace('"learnMore": "瞭解更多"', '"learnMore": "了解更多"');
+  const fixture = source.replace(
+    '"summary": "有 {{count}} 項內容需要注意，請查看詳細資料以瞭解影響範圍。"',
+    '"summary": "有 {{count}} 项内容需要注意，请查看详情了解影响范围。"',
+  );
 
   assert.notEqual(fixture, source, 'test fixture should introduce same-text zh-TW terminology debt');
   fs.rmSync(absoluteReportPath, { force: true });
@@ -603,8 +609,8 @@ auditIntegrationTest('i18n audit reports same-text zh-TW copy with a l10n signal
       assert.ok(
         report.l10nQualityCandidates.some((entry) => (
           entry.surface === 'web-ui' &&
-          entry.namespace === 'settings/acp-agents' &&
-          entry.key === 'actions.learnMore' &&
+          entry.namespace === 'settings/external-apps' &&
+          entry.key === 'diagnostics.summary' &&
           entry.locale === 'zh-TW' &&
           entry.comparisonLocale === 'zh-CN' &&
           entry.signal?.type === 'terminology' &&
@@ -615,8 +621,8 @@ auditIntegrationTest('i18n audit reports same-text zh-TW copy with a l10n signal
       assert.ok(
         report.sameTextLocaleInventory.some((entry) => (
           entry.surface === 'web-ui' &&
-          entry.namespace === 'settings/acp-agents' &&
-          entry.key === 'actions.learnMore' &&
+          entry.namespace === 'settings/external-apps' &&
+          entry.key === 'diagnostics.summary' &&
           entry.locale === 'zh-TW' &&
           entry.comparisonLocale === 'zh-CN' &&
           entry.signalType === 'terminology' &&
@@ -732,10 +738,7 @@ auditIntegrationTest('web-ui uses shared terms for stable navigation and feature
       'flow-chat:welcome.workspace',
       'scenes/skills:suite.modes.claw',
       'settings:title',
-      'settings:configCenter.title',
-      'settings/review:overview.badge',
       'settings:workspace.title',
-      'settings/lsp:tabs.settings',
     ]);
     const webUiDuplicates = report.sharedTermDuplicates
       .filter((entry) => entry.surface === 'web-ui' && migratedResourceKeys.has(entry.resourceKey))
@@ -759,8 +762,6 @@ auditIntegrationTest('web-ui uses shared terms for stable navigation and feature
       'toolCards.sessionMessage.workspace',
       'welcome.workspace',
       'suite.modes.claw',
-      'configCenter.title',
-      'overview.badge',
       'workspace.title',
     ];
     const webUiSourceFiles = listFiles(path.join(root, 'src', 'web-ui', 'src'), (file) => (

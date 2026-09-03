@@ -5,13 +5,14 @@
  * Config linkage:
  * - Model selection is shared across all future mode sessions through
  *   ai.agent_model_defaults.mode. Delegated subagents keep separate defaults.
- * - Supports 'auto' | 'primary' | 'fast' | specific model IDs
+ * - Supports 'primary' | 'fast' | specific model IDs
  */
 
-import React, { useState, useEffect, useId, useRef, useCallback, useMemo, useSyncExternalStore } from 'react';
+import { Menu, MenuItem, MenuSection, MenuSeparator, OverflowText } from '@bitfun/ui';
+import React, { useState, useEffect, useId, useRef, useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
-import { ChevronDown, Check, Settings, Zap } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Check, RotateCcw, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
@@ -21,16 +22,12 @@ import {
   type ReasoningCatalogProjection,
 } from '@/infrastructure/api/service-api/AIApi';
 import { ACPClientAPI, type AcpSessionOptions } from '@/infrastructure/api/service-api/ACPClientAPI';
-import {
-  getProviderDisplayName,
-  getProviderTemplateId,
-} from '@/infrastructure/config/services/modelConfigs';
+import { getProviderDisplayName, getProviderGroupKey } from '@/infrastructure/config/services/modelConfigs';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import type { AIModelConfig, AgentModelDefaultsConfig, DefaultModelsConfig } from '@/infrastructure/config/types';
-import { Switch, Tooltip } from '@/component-library';
-import { PresenceBoundary } from '@/component-library/components/PresenceBoundary';
+import { Tooltip } from '@bitfun/ui';
+import { RetainedMountBoundary } from '@/shared/presence';
 import { notificationService } from '@/shared/notification-system';
-import { openModelSettings } from '@/app/services/openModelSettings';
 import { FlowChatStore } from '../store/FlowChatStore';
 import { getModelMaxTokens } from '../services/flow-chat-manager/SessionModule';
 import { acpClientIdFromAgentType } from '../utils/acpSession';
@@ -44,13 +41,19 @@ import {
 import { sessionProjectWorkspacePath } from '../utils/sessionWorkspace';
 import {
   buildContextUsageTooltip,
+  buildModelSelectorTooltipDetails,
   type ContextUsageSource,
+  type ModelSelectorTooltipDetails,
 } from '../utils/tokenUsageDisplay';
 import { createLogger } from '@/shared/utils/logger';
 import { getModelSelectorDropdownLayout } from './modelSelectorDropdownPosition';
-import type { FixedPopoverPlacement } from '@/shared/utils/fixedPopoverViewport';
 import { AcpModeSelector } from './AcpModeSelector';
-import { ReasoningPresetSelector } from './ReasoningPresetSelector';
+import {
+  ReasoningIntensityMark,
+  ReasoningPresetSelector,
+  presetDisplayLabel,
+  reasoningIntensityLevel,
+} from './ReasoningPresetSelector';
 import {
   getRecentReasoningPreset,
   setRecentReasoningPreset,
@@ -92,7 +95,7 @@ interface ModelSelectorProps {
   /** Custom class name. */
   className?: string;
   /** Preferred dropdown placement relative to the trigger. */
-  dropdownPlacement?: FixedPopoverPlacement;
+  dropdownPlacement?: 'top' | 'bottom';
   /** Current session ID (used to update the selected session model). */
   sessionId?: string;
   /** Whether the active input target is a Task subagent session. */
@@ -113,40 +116,89 @@ interface ModelSelectorProps {
   persistSharedModeDefault?: boolean;
   /** Whether lifecycle ownership currently prevents Session setting changes. */
   disabled?: boolean;
+  /** Compact trigger treatment supplied by the owning composer. */
+  reasoningTriggerPresentation?: 'meter' | 'label';
 }
 
 interface ModelInfo {
   id: string;
   /** User-defined configuration name (AIModelConfig.name). */
   configName: string;
+  /** Optional label used by symbolic selectors such as Primary and Fast. */
+  displayName?: string;
   /** Actual model identifier (AIModelConfig.model_name). */
   modelName: string;
   providerName: string;
   provider: string;
-  providerId?: string;
+  /** Provider instance this model is configured under, used to group the menu. */
+  providerKey?: string;
   contextWindow?: number;
+  maxOutputTokens?: number;
 }
 
-type ModelOptionKind = 'auto' | 'primary-alias' | 'fast-alias' | 'acp-model' | 'model';
-type ModelRole = 'auto' | 'primary' | 'fast' | 'normal';
-
-function getProviderLocatorId(
-  config: Partial<Pick<AIModelConfig, 'provider' | 'base_url'>> | null | undefined
-): string | undefined {
-  if (!config) return undefined;
-  return getProviderTemplateId(config) || config.provider || undefined;
+/** One provider instance and the chat models configured under it. */
+interface ProviderGroupInfo {
+  key: string;
+  providerName: string;
+  models: ModelInfo[];
 }
+
+type NativeSubmenuKind = 'models' | 'reasoning';
+type ModelSelectorLevelDirection = 'none' | 'forward' | 'back';
+
+const NATIVE_SUBMENU_GAP = 5;
+const NATIVE_SUBMENU_FALLBACK_WIDTH = 228;
+const NATIVE_SUBMENU_FALLBACK_HEIGHT = 320;
+const NATIVE_SUBMENU_VIEWPORT_PADDING = 8;
+
+const clampToRange = (value: number, min: number, max: number): number => (
+  Math.min(Math.max(value, min), Math.max(min, max))
+);
+
+const ModelSelectorTooltipContent: React.FC<{ details: ModelSelectorTooltipDetails }> = ({ details }) => (
+  <div className="bitfun-model-selector__tooltip">
+    {details.rows.map(row => (
+      <div key={row.key} className="bitfun-model-selector__tooltip-row">
+        <span className="bitfun-model-selector__tooltip-label">{row.label}</span>
+        <span className="bitfun-model-selector__tooltip-value">{row.value}</span>
+      </div>
+    ))}
+    {details.warning ? (
+      <div className="bitfun-model-selector__tooltip-warning">{details.warning}</div>
+    ) : null}
+  </div>
+);
+
+const ModelSelectorMenuLevel: React.FC<{
+  children: React.ReactNode;
+  direction: ModelSelectorLevelDirection;
+}> = ({ children, direction }) => (
+  <div
+    className="bitfun-model-selector__level"
+    data-bf-component="model-selector"
+    data-bf-part="level"
+    data-direction={direction}
+  >
+    <div
+      className="bitfun-model-selector__list"
+      data-bf-component="model-selector"
+      data-bf-part="list"
+    >
+      <MenuSection>{children}</MenuSection>
+    </div>
+  </div>
+);
 
 // Helper: identify special model IDs.
-const isSpecialModel = (value: string): value is 'auto' | 'primary' | 'fast' => {
-  return value === 'auto' || value === 'primary' || value === 'fast';
+const isSpecialModel = (value: string): value is 'primary' | 'fast' => {
+  return value === 'primary' || value === 'fast';
 };
 
 function resolveConcreteModelId(
   modelId: string,
   defaultModels: DefaultModelsConfig,
 ): string | undefined {
-  if (modelId === 'auto' || modelId === 'primary') return defaultModels.primary ?? undefined;
+  if (modelId === 'primary') return defaultModels.primary ?? undefined;
   if (modelId === 'fast') return defaultModels.fast ?? defaultModels.primary ?? undefined;
   return modelId || undefined;
 }
@@ -189,27 +241,27 @@ const buildResolvedModelTooltipText = (
 
 const getModelDisplayLabel = (model: ModelInfo | null, fallback: string): string => {
   if (!model) return fallback;
-  if (isSpecialModel(model.id)) return model.configName;
-  return model.modelName || model.configName || fallback;
+  return model.displayName || model.modelName || model.configName || fallback;
 };
 
 const getModelTooltipText = (model: ModelInfo | null, fallback: string): string => {
   if (!model) return fallback;
-  if (model.id === 'auto') return model.providerName;
   if (isSpecialModel(model.id)) {
     return buildResolvedModelTooltipText(model.modelName, model, fallback);
   }
   return buildModelMetaText(model);
 };
 
-const buildAutoModelInfo = (
+const buildSymbolicModelInfo = (
+  modelId: 'primary' | 'fast',
   t: (key: string) => string,
 ): ModelInfo => ({
-  id: 'auto',
-  configName: t('modelSelector.autoModel'),
-  modelName: t('modelSelector.autoModel'),
-  providerName: t('modelSelector.autoModelDesc'),
-  provider: 'auto',
+  id: modelId,
+  configName: t(modelId === 'primary' ? 'modelSelector.primaryModel' : 'modelSelector.fastModel'),
+  displayName: t(modelId === 'primary' ? 'modelSelector.primaryModel' : 'modelSelector.fastModel'),
+  modelName: t(modelId === 'primary' ? 'modelSelector.primaryModel' : 'modelSelector.fastModel'),
+  providerName: t(modelId === 'primary' ? 'modelSelector.primaryModelDesc' : 'modelSelector.fastModelDesc'),
+  provider: 'symbolic',
 });
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
@@ -253,15 +305,22 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   modeDefaultModelId,
   persistSharedModeDefault = true,
   disabled = false,
+  reasoningTriggerPresentation = 'meter',
 }) => {
   const { t } = useTranslation('flow-chat');
   const [allModels, setAllModels] = useState<AIModelConfig[]>([]);
   const [modelCatalog, setModelCatalog] = useState<AIModelCatalog | null>(null);
   const [defaultModels, setDefaultModels] = useState<DefaultModelsConfig>({});
-  const [modeModel, setModeModel] = useState('auto');
+  const [modeModel, setModeModel] = useState('primary');
   const [acpOptions, setAcpOptions] = useState<AcpSessionOptions | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [keyboardNavigationOpen, setKeyboardNavigationOpen] = useState(false);
+  /** Provider whose models the menu is currently showing; null is the provider level. */
+  const [activeProviderKey, setActiveProviderKey] = useState<string | null>(null);
+  /** Click-open detail menu beside the stable native settings summary. */
+  const [nativeSubmenu, setNativeSubmenu] = useState<NativeSubmenuKind | null>(null);
+  /** Which way the provider level stepped inside the model submenu. */
+  const [levelDirection, setLevelDirection] = useState<ModelSelectorLevelDirection>('none');
   const [loading, setLoading] = useState(false);
   const [reasoningLoading, setReasoningLoading] = useState(false);
   const acpRestoreToastShownRef = useRef<string | null>(null);
@@ -269,8 +328,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const portalDropdownRef = useRef<HTMLDivElement>(null);
+  const nativeSubmenuRef = useRef<HTMLDivElement>(null);
+  const nativeModelMenuItemRef = useRef<HTMLButtonElement>(null);
+  const nativeReasoningMenuItemRef = useRef<HTMLButtonElement>(null);
+  const focusNativeSubmenuOnOpenRef = useRef(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+  const nativeSubmenuId = useId();
 
   useEffect(() => {
     onLoadingChange?.(loading || reasoningLoading);
@@ -280,6 +344,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     position: 'fixed',
     visibility: 'hidden',
   });
+  const [nativeSubmenuStyle, setNativeSubmenuStyle] = useState<React.CSSProperties>({
+    position: 'fixed',
+    visibility: 'hidden',
+  });
+  const [nativeSubmenuPlacement, setNativeSubmenuPlacement] = useState<'left' | 'right'>('right');
   const [resolvedDropdownPlacement, setResolvedDropdownPlacement] = useState(dropdownPlacement);
   const activeSession = sessionId ? FlowChatStore.getInstance().getState().sessions.get(sessionId) : undefined;
   const sessionReasoningPreset = useSyncExternalStore(
@@ -324,7 +393,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
       setAllModels(models);
       setDefaultModels(defaultModelsData);
-      setModeModel(agentModelDefaults?.mode?.trim() || 'auto');
+      setModeModel(agentModelDefaults?.mode?.trim() || 'primary');
       await loadModelCatalog();
 
       log.debug('Configuration loaded', {
@@ -447,9 +516,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
       if (dropdownRef.current && !dropdownRef.current.contains(target)
-          && portalDropdownRef.current && !portalDropdownRef.current.contains(target)) {
+          && portalDropdownRef.current && !portalDropdownRef.current.contains(target)
+          && !nativeSubmenuRef.current?.contains(target)) {
         setDropdownOpen(false);
         setKeyboardNavigationOpen(false);
+        setNativeSubmenu(null);
+        setActiveProviderKey(null);
       }
     };
 
@@ -513,6 +585,74 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     };
   }, [dropdownOpen, dropdownPlacement]);
 
+  // Native model and reasoning choices are separate click-open flyouts. Keep
+  // them anchored to their summary row even though both menus are portalled.
+  useLayoutEffect(() => {
+    if (!dropdownOpen || !nativeSubmenu) return;
+
+    const updatePosition = () => {
+      const anchor = nativeSubmenu === 'models'
+        ? nativeModelMenuItemRef.current
+        : nativeReasoningMenuItemRef.current;
+      const submenu = nativeSubmenuRef.current;
+      if (!anchor || !submenu) return;
+
+      const anchorRect = anchor.getBoundingClientRect();
+      const submenuRect = submenu.getBoundingClientRect();
+      const submenuWidth = submenuRect.width
+        || submenu.offsetWidth
+        || submenu.scrollWidth
+        || NATIVE_SUBMENU_FALLBACK_WIDTH;
+      const submenuHeight = submenuRect.height
+        || submenu.offsetHeight
+        || submenu.scrollHeight
+        || NATIVE_SUBMENU_FALLBACK_HEIGHT;
+      const preferredLeft = anchorRect.right + NATIVE_SUBMENU_GAP;
+      const opensRight = preferredLeft + submenuWidth
+        <= window.innerWidth - NATIVE_SUBMENU_VIEWPORT_PADDING;
+
+      setNativeSubmenuPlacement(opensRight ? 'right' : 'left');
+      setNativeSubmenuStyle({
+        position: 'fixed',
+        left: clampToRange(
+          opensRight
+            ? preferredLeft
+            : anchorRect.left - NATIVE_SUBMENU_GAP - submenuWidth,
+          NATIVE_SUBMENU_VIEWPORT_PADDING,
+          window.innerWidth - submenuWidth - NATIVE_SUBMENU_VIEWPORT_PADDING,
+        ),
+        top: clampToRange(
+          anchorRect.top - 4,
+          NATIVE_SUBMENU_VIEWPORT_PADDING,
+          window.innerHeight - submenuHeight - NATIVE_SUBMENU_VIEWPORT_PADDING,
+        ),
+        maxHeight: Math.max(
+          80,
+          window.innerHeight - NATIVE_SUBMENU_VIEWPORT_PADDING * 2,
+        ),
+        visibility: 'visible',
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    const resizeObserver = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(updatePosition);
+    const anchor = nativeSubmenu === 'models'
+      ? nativeModelMenuItemRef.current
+      : nativeReasoningMenuItemRef.current;
+    if (anchor) resizeObserver?.observe(anchor);
+    if (nativeSubmenuRef.current) resizeObserver?.observe(nativeSubmenuRef.current);
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+      resizeObserver?.disconnect();
+    };
+  }, [activeProviderKey, dropdownOpen, nativeSubmenu]);
+
   const acpAvailableModels = useMemo((): ModelInfo[] => {
     if (!isAcpSession || !acpOptions) return [];
     return acpOptions.availableModels.map(model => ({
@@ -521,7 +661,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       modelName: model.name,
       providerName: getAcpModelProviderName(model) ?? (acpClientId ? `${acpClientId} ACP` : 'ACP'),
       provider: 'acp',
-      providerId: acpClientId || 'acp',
     }));
   }, [acpClientId, acpOptions, isAcpSession]);
 
@@ -533,7 +672,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       modelName: acpOptions.currentModelId,
       providerName: acpClientId ? `${acpClientId} ACP` : 'ACP',
       provider: 'acp',
-      providerId: acpClientId || 'acp',
     };
   }, [acpAvailableModels, acpClientId, acpOptions?.currentModelId, isAcpSession]);
 
@@ -561,6 +699,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               providerName: getProviderDisplayName(localModel),
               provider: localModel.provider,
               contextWindow: localModel.context_window,
+              maxOutputTokens: localModel.max_tokens,
             }
           : {
               id: modelId,
@@ -631,70 +770,63 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     () => resolveAcpModeState(acpOptions?.configOptions ?? []),
     [acpOptions?.configOptions],
   );
-
+  
   const getCurrentModelId = useCallback((): string => {
     // Session-owned model takes priority so that each session remembers
     // its own model selection independently.
     const sessionModelName = activeSession?.config.modelName?.trim();
     if (sessionModelName) {
       if (isSpecialModel(sessionModelName)) {
-        if (sessionModelName === 'auto') {
-          return 'auto';
-        }
-        const actualModelId = defaultModels[sessionModelName];
-        return allModels.some(model => model.id === actualModelId)
+        const actualModelId = resolveConcreteModelId(sessionModelName, defaultModels);
+        return allModels.some(model => model.enabled !== false && model.id === actualModelId)
           ? sessionModelName
-          : 'auto';
+          : 'primary';
       }
-      return allModels.some(model => model.id === sessionModelName)
+      return allModels.some(model => model.enabled !== false && model.id === sessionModelName)
         ? sessionModelName
-        : 'auto';
+        : 'primary';
     }
 
     if (targetIsSubagent) {
-      return 'auto';
+      return 'primary';
     }
 
     // Legacy sessions created without a model selector fall back to the current
     // mode default until they are migrated by the send path.
     const configuredModelId = modeDefaultModelId?.trim() || modeModel;
-    if (configuredModelId === 'auto') return 'auto';
     if (configuredModelId === 'primary' || configuredModelId === 'fast') {
-      const actualModelId = defaultModels[configuredModelId];
-      const model = allModels.find(m => m.id === actualModelId);
-      return model ? configuredModelId : 'auto';
+      const actualModelId = resolveConcreteModelId(configuredModelId, defaultModels);
+      const model = allModels.find(m => m.enabled !== false && m.id === actualModelId);
+      return model ? configuredModelId : 'primary';
     }
-    const model = allModels.find(m => m.id === configuredModelId);
-    return model ? configuredModelId : 'auto';
+    const model = allModels.find(m => m.enabled !== false && m.id === configuredModelId);
+    return model ? configuredModelId : 'primary';
   }, [allModels, modeDefaultModelId, modeModel, defaultModels, activeSession?.config.modelName, targetIsSubagent]);
 
   const currentModel = useMemo((): ModelInfo | null => {
     const modelId = getCurrentModelId();
 
-    if (modelId === 'auto') {
-      return buildAutoModelInfo(t);
-    }
-
     if (modelId === 'primary' || modelId === 'fast') {
-      const actualModelId = defaultModels[modelId];
-      if (!actualModelId) return buildAutoModelInfo(t);
+      const actualModelId = resolveConcreteModelId(modelId, defaultModels);
+      if (!actualModelId) return buildSymbolicModelInfo(modelId, t);
 
       const model = allModels.find(m => m.id === actualModelId);
-      if (!model) return buildAutoModelInfo(t);
+      if (!model) return buildSymbolicModelInfo(modelId, t);
 
       return {
         id: modelId,
-        configName: modelId === 'primary' ? t('modelSelector.primaryModel') : t('modelSelector.fastModel'),
+        configName: model.name,
+        displayName: modelId === 'primary' ? t('modelSelector.primaryModel') : t('modelSelector.fastModel'),
         modelName: model.model_name,
         providerName: getProviderDisplayName(model),
         provider: model.provider,
-        providerId: getProviderLocatorId(model),
         contextWindow: model.context_window,
+        maxOutputTokens: model.max_tokens,
       };
     }
 
     const model = allModels.find(m => m.id === modelId);
-    if (!model) return buildAutoModelInfo(t);
+    if (!model) return buildSymbolicModelInfo('primary', t);
 
     return {
       id: model.id || '',
@@ -702,8 +834,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       modelName: model.model_name,
       providerName: getProviderDisplayName(model),
       provider: model.provider,
-      providerId: getProviderLocatorId(model),
       contextWindow: model.context_window,
+      maxOutputTokens: model.max_tokens,
     };
   }, [getCurrentModelId, allModels, defaultModels, t]);
   
@@ -721,13 +853,122 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         modelName: m.model_name,
         providerName: getProviderDisplayName(m),
         provider: m.provider,
-        providerId: getProviderLocatorId(m),
+        providerKey: getProviderGroupKey(m),
         contextWindow: m.context_window,
+        maxOutputTokens: m.max_tokens,
       }));
   }, [allModels]);
 
+  /**
+   * Configuration order is preserved so a provider does not move between
+   * openings, and so the models inside one provider keep the order the user
+   * arranged them in on the settings page.
+   */
+  const providerGroups = useMemo((): ProviderGroupInfo[] => {
+    const groups: ProviderGroupInfo[] = [];
+    const groupsByKey = new Map<string, ProviderGroupInfo>();
+
+    for (const model of availableModels) {
+      const key = model.providerKey || model.id;
+      const existing = groupsByKey.get(key);
+      if (existing) {
+        existing.models.push(model);
+        continue;
+      }
+      const group: ProviderGroupInfo = {
+        key,
+        providerName: model.providerName,
+        models: [model],
+      };
+      groupsByKey.set(key, group);
+      groups.push(group);
+    }
+
+    return groups;
+  }, [availableModels]);
+
+  const activeProviderGroup = activeProviderKey
+    ? providerGroups.find(group => group.key === activeProviderKey) ?? null
+    : null;
+
+  const focusPreferredNativeSubmenuItem = useCallback(() => {
+    const submenu = nativeSubmenuRef.current;
+    const preferredItem = submenu?.querySelector<HTMLButtonElement>(
+      'button[role="menuitemradio"][aria-checked="true"], button[data-provider-key][data-selected="true"]',
+    );
+    const firstItem = submenu?.querySelector<HTMLButtonElement>(
+      'button[role="menuitemradio"]:not(:disabled), button[role="menuitem"]:not(:disabled)',
+    );
+    (preferredItem ?? firstItem)?.focus();
+  }, []);
+
+  const openNativeSubmenu = useCallback((kind: NativeSubmenuKind, moveFocus: boolean) => {
+    focusNativeSubmenuOnOpenRef.current = moveFocus;
+    setActiveProviderKey(null);
+    setLevelDirection('none');
+    if (nativeSubmenu === kind && moveFocus && !activeProviderKey) {
+      focusNativeSubmenuOnOpenRef.current = false;
+      focusPreferredNativeSubmenuItem();
+    }
+    setNativeSubmenu(kind);
+  }, [activeProviderKey, focusPreferredNativeSubmenuItem, nativeSubmenu]);
+
+  const closeNativeSubmenu = useCallback((restoreFocus: boolean) => {
+    const anchor = nativeSubmenu === 'models'
+      ? nativeModelMenuItemRef.current
+      : nativeReasoningMenuItemRef.current;
+    focusNativeSubmenuOnOpenRef.current = false;
+    setActiveProviderKey(null);
+    setNativeSubmenu(null);
+    setLevelDirection('none');
+    if (restoreFocus) anchor?.focus();
+  }, [nativeSubmenu]);
+
+  const toggleNativeSubmenu = useCallback((kind: NativeSubmenuKind) => {
+    if (nativeSubmenu === kind) {
+      closeNativeSubmenu(false);
+      return;
+    }
+    openNativeSubmenu(kind, false);
+  }, [closeNativeSubmenu, nativeSubmenu, openNativeSubmenu]);
+
+  const openProviderLevel = useCallback((providerKey: string) => {
+    setActiveProviderKey(providerKey);
+    setLevelDirection('forward');
+  }, []);
+
+  const closeProviderLevel = useCallback(() => {
+    setActiveProviderKey(null);
+    setLevelDirection('back');
+  }, []);
+
+  // Reopening starts with only the stable summary. A provider removed while
+  // its submenu is open must not leave the model flyout on a missing level.
+  useEffect(() => {
+    if (!dropdownOpen) {
+      setActiveProviderKey(null);
+      setNativeSubmenu(null);
+      setLevelDirection('none');
+      return;
+    }
+    if (nativeSubmenu !== 'models' && activeProviderKey) {
+      setActiveProviderKey(null);
+      return;
+    }
+    if (activeProviderKey && !activeProviderGroup) {
+      closeProviderLevel();
+    }
+  }, [activeProviderGroup, activeProviderKey, closeProviderLevel, dropdownOpen, nativeSubmenu]);
+
   const currentNativeModelId = getCurrentModelId();
   const concreteModelId = resolveConcreteModelId(currentNativeModelId, defaultModels);
+  /** Provider that owns the pinned model, so the provider level can mark it. */
+  const selectedProviderKey = useMemo((): string | null => {
+    if (isSpecialModel(currentNativeModelId)) return null;
+    return providerGroups.find(
+      group => group.models.some(model => model.id === currentNativeModelId),
+    )?.key ?? null;
+  }, [currentNativeModelId, providerGroups]);
   const currentReasoningProjection = useMemo((): ReasoningCatalogProjection | null => {
     if (!concreteModelId) return null;
     return modelCatalog?.models.find(model => model.id === concreteModelId)?.reasoning ?? null;
@@ -736,6 +977,27 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     && currentReasoningProjection.presets?.some(preset => preset.id === sessionReasoningPreset)
     ? sessionReasoningPreset
     : undefined;
+  const orderedReasoningPresets = useMemo(
+    () => currentReasoningProjection?.status === 'known'
+      ? [...(currentReasoningProjection.presets ?? [])].sort((left, right) => left.order - right.order)
+      : [],
+    [currentReasoningProjection],
+  );
+  const selectedReasoningDescriptor = orderedReasoningPresets.find(
+    preset => preset.id === selectedReasoningPreset,
+  );
+  const defaultReasoningDescriptor = orderedReasoningPresets.find(
+    preset => preset.id === currentReasoningProjection?.default_preset,
+  );
+  const effectiveReasoningDescriptor = selectedReasoningDescriptor ?? defaultReasoningDescriptor;
+  const currentReasoningLabel = effectiveReasoningDescriptor
+    ? presetDisplayLabel(effectiveReasoningDescriptor, orderedReasoningPresets, t)
+    : t('reasoningSelector.auto');
+  const reasoningPresetLabels = orderedReasoningPresets.map(preset => (
+    presetDisplayLabel(preset, orderedReasoningPresets, t)
+  ));
+  const hasNativeReasoningSettings = Boolean(sessionId && orderedReasoningPresets.length > 0);
+  const nativeSettingsAreDefault = currentNativeModelId === 'primary' && !selectedReasoningPreset;
 
   useEffect(() => {
     if (
@@ -757,11 +1019,17 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       ? recentPreset
       : undefined;
   }, [defaultModels, modelCatalog]);
-
-  const handleSelectModel = useCallback(async (modelId: string) => {
+  
+  const handleSelectModel = useCallback(async (
+    modelId: string,
+    options?: { resetReasoning?: boolean },
+  ) => {
     if (disabled || loading || reasoningLoading) return;
 
-    if (portalDropdownRef.current?.contains(document.activeElement)) {
+    if (
+      portalDropdownRef.current?.contains(document.activeElement)
+      || nativeSubmenuRef.current?.contains(document.activeElement)
+    ) {
       triggerRef.current?.focus();
     }
     setLoading(true);
@@ -777,7 +1045,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     const previousReasoningPreset = sessionId
       ? store.getState().sessions.get(sessionId)?.config.reasoningPreset
       : undefined;
-    const nextReasoningPreset = recentPresetForModel(modelId);
+    const nextReasoningPreset = options?.resetReasoning
+      ? undefined
+      : recentPresetForModel(modelId);
     let sessionModelWrittenOptimistically = false;
 
     try {
@@ -845,8 +1115,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     } catch (error) {
       log.error('Failed to switch model', error);
       // Only a previously pinned selection can be restored: the store has no
-      // way to express "never pinned", and forcing 'auto' there would claim a
-      // binding the session does not have either.
+      // way to express "never pinned" without claiming a session binding.
       if (sessionId && sessionModelWrittenOptimistically && previousSessionModelName) {
         store.updateSessionModelName(sessionId, previousSessionModelName);
       }
@@ -875,6 +1144,17 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     sessionId,
     t,
     targetIsSubagent,
+  ]);
+
+  const handleResetNativeSettings = useCallback(() => {
+    if (nativeSettingsAreDefault || disabled || loading || reasoningLoading) return;
+    void handleSelectModel('primary', { resetReasoning: true });
+  }, [
+    disabled,
+    handleSelectModel,
+    loading,
+    nativeSettingsAreDefault,
+    reasoningLoading,
   ]);
 
   const handleSelectReasoningPreset = useCallback(async (presetId: string | null) => {
@@ -942,6 +1222,17 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     t,
     targetIsSubagent,
   ]);
+
+  const handleSelectReasoningPresetFromMenu = useCallback((presetId: string | null) => {
+    if (
+      portalDropdownRef.current?.contains(document.activeElement)
+      || nativeSubmenuRef.current?.contains(document.activeElement)
+    ) {
+      triggerRef.current?.focus();
+    }
+    setDropdownOpen(false);
+    void handleSelectReasoningPreset(presetId);
+  }, [handleSelectReasoningPreset]);
 
   const handleSetAcpFastMode = useCallback(async (enabled: boolean) => {
     if (disabled || loading || !acpFastMode || !acpClientId || !sessionId) return;
@@ -1069,34 +1360,85 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     }
   }, [dropdownOpen, isAcpSession, loadAcpOptions]);
 
+  const handleNativeSubmenuTriggerKeyDown = useCallback((
+    kind: NativeSubmenuKind,
+    event: React.KeyboardEvent<HTMLButtonElement>,
+  ) => {
+    if (event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    event.stopPropagation();
+    openNativeSubmenu(kind, true);
+  }, [openNativeSubmenu]);
+
   const handleDropdownKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.defaultPrevented) return;
+
     if (event.key === 'Escape') {
       event.preventDefault();
+      if (!externalSelection && !isAcpSession && nativeSubmenu) {
+        closeNativeSubmenu(true);
+        return;
+      }
       triggerRef.current?.focus();
       setDropdownOpen(false);
       return;
     }
 
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+    if (event.key === 'ArrowRight') {
+      const focusedElement = document.activeElement as HTMLElement | null;
+      const focusedTarget = focusedElement?.dataset?.modelMenuTarget;
+      if (!externalSelection && !isAcpSession) {
+        if (focusedTarget === 'models') {
+          event.preventDefault();
+          openNativeSubmenu('models', true);
+          return;
+        }
+        if (focusedTarget === 'reasoning') {
+          event.preventDefault();
+          openNativeSubmenu('reasoning', true);
+          return;
+        }
+      }
+    }
+
+  }, [
+    closeNativeSubmenu,
+    externalSelection,
+    isAcpSession,
+    nativeSubmenu,
+    openNativeSubmenu,
+  ]);
+
+  const handleNativeSubmenuKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.defaultPrevented) return;
+
+    if (event.key === 'Escape' || event.key === 'ArrowLeft') {
+      event.preventDefault();
+      event.stopPropagation();
+      if (activeProviderKey) {
+        closeProviderLevel();
+      } else {
+        closeNativeSubmenu(true);
+      }
       return;
     }
 
-    const items = Array.from(
-      event.currentTarget.querySelectorAll<HTMLButtonElement>(
-        'button[role="menuitemradio"]:not(:disabled)',
-      ),
-    );
-    if (items.length === 0) return;
-
-    event.preventDefault();
-    const activeIndex = items.indexOf(document.activeElement as HTMLButtonElement);
-    let nextIndex = activeIndex;
-    if (event.key === 'Home') nextIndex = 0;
-    if (event.key === 'End') nextIndex = items.length - 1;
-    if (event.key === 'ArrowDown') nextIndex = activeIndex < 0 ? 0 : (activeIndex + 1) % items.length;
-    if (event.key === 'ArrowUp') nextIndex = activeIndex < 0 ? items.length - 1 : (activeIndex - 1 + items.length) % items.length;
-    items[nextIndex]?.focus();
-  }, []);
+    if (event.key === 'ArrowRight' && nativeSubmenu === 'models' && !activeProviderKey) {
+      const focusedElement = document.activeElement as HTMLElement | null;
+      const focusedProviderKey = focusedElement?.dataset?.providerKey;
+      if (focusedProviderKey) {
+        event.preventDefault();
+        event.stopPropagation();
+        openProviderLevel(focusedProviderKey);
+      }
+    }
+  }, [
+    activeProviderKey,
+    closeNativeSubmenu,
+    closeProviderLevel,
+    nativeSubmenu,
+    openProviderLevel,
+  ]);
 
   useEffect(() => {
     if (!dropdownOpen || !keyboardNavigationOpen) return;
@@ -1104,10 +1446,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     const frameId = window.requestAnimationFrame(() => {
       const menu = portalDropdownRef.current;
       const selectedItem = menu?.querySelector<HTMLButtonElement>(
-        'button[role="menuitemradio"][aria-checked="true"]',
+        'button[role="menuitemradio"][aria-checked="true"], button[role="menuitem"][data-selected="true"]',
       );
       const firstItem = menu?.querySelector<HTMLButtonElement>(
-        'button[role="menuitemradio"]:not(:disabled)',
+        'button[role="menuitemradio"]:not(:disabled), button[role="menuitem"]:not(:disabled)',
       );
       (selectedItem ?? firstItem)?.focus();
     });
@@ -1115,26 +1457,59 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     return () => window.cancelAnimationFrame(frameId);
   }, [dropdownOpen, keyboardNavigationOpen]);
 
+  // Keyboard-opened flyouts receive focus. Provider steps also move focus
+  // because the clicked row is replaced inside the model flyout.
+  const previousNativeProviderKeyRef = useRef(activeProviderKey);
+  useLayoutEffect(() => {
+    const previousProviderKey = previousNativeProviderKeyRef.current;
+    previousNativeProviderKeyRef.current = activeProviderKey;
+    if (!dropdownOpen || !nativeSubmenu) return;
+    const providerLevelChanged = nativeSubmenu === 'models'
+      && previousProviderKey !== activeProviderKey;
+    if (!focusNativeSubmenuOnOpenRef.current && !providerLevelChanged) return;
+    focusNativeSubmenuOnOpenRef.current = false;
+
+    const menu = nativeSubmenuRef.current;
+    if (!menu) return;
+
+    if (activeProviderKey) {
+      const selectedModel = menu.querySelector<HTMLButtonElement>(
+        'button[role="menuitemradio"][aria-checked="true"]',
+      );
+      const firstModel = menu.querySelector<HTMLButtonElement>(
+        'button[role="menuitemradio"]:not(:disabled)',
+      );
+      (selectedModel ?? firstModel)?.focus();
+      return;
+    }
+
+    if (nativeSubmenu === 'models' && previousProviderKey) {
+      const providerRows = Array.from(
+        menu.querySelectorAll<HTMLButtonElement>('button[data-provider-key]'),
+      );
+      const targetRow = providerRows.find(
+        row => row.dataset.providerKey === previousProviderKey,
+      );
+      (targetRow ?? providerRows[0])?.focus();
+      return;
+    }
+
+    focusPreferredNativeSubmenuItem();
+  }, [
+    activeProviderKey,
+    dropdownOpen,
+    focusPreferredNativeSubmenuItem,
+    nativeSubmenu,
+  ]);
+
   useEffect(() => {
     if (!dropdownOpen && keyboardNavigationOpen) {
       triggerRef.current?.focus();
     }
   }, [dropdownOpen, keyboardNavigationOpen]);
-
-  const tokenPercentage = useMemo(() => {
-    if (!maxTokens || maxTokens <= 0 || !currentTokens) return 0;
-    return Math.min(Math.round((currentTokens / maxTokens) * 100), 100);
-  }, [currentTokens, maxTokens]);
-
-  const tokenStatusClass = useMemo(() => {
-    if (tokenPercentage >= 90) return 'critical';
-    if (tokenPercentage >= 70) return 'warning';
-    return '';
-  }, [tokenPercentage]);
-
+  
   const resolvedContextUsageSource: ContextUsageSource =
     contextUsageSource ?? (isAcpSession ? 'acp_context' : 'agent_prompt');
-
   if (externalSelection) {
     if (externalAvailableModels.length === 0) {
       return null;
@@ -1169,29 +1544,30 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             }}
             disabled={disabled || loading || externalSelection.disabled}
           >
-            <span className="bitfun-model-selector__name">
+            <OverflowText className="bitfun-model-selector__name">
               {getModelDisplayLabel(externalCurrentModel, externalCurrentModelId)}
-            </span>
+            </OverflowText>
             <ChevronDown size={10} className="bitfun-model-selector__chevron" />
           </button>
         </Tooltip>
 
-        {externalSelection.onSelectReasoningPreset && (
+        {externalSelection.onSelectReasoningPreset ? (
           <ReasoningPresetSelector
             projection={externalReasoningProjection}
             selectedPreset={externalSelection.selectedReasoningPreset === 'auto'
               ? undefined
               : externalSelection.selectedReasoningPreset}
+            triggerPresentation={reasoningTriggerPresentation}
             disabled={disabled || externalSelection.disabled}
             loading={false}
             dropdownPlacement={dropdownPlacement}
             onSelect={externalSelection.onSelectReasoningPreset}
           />
-        )}
+        ) : null}
 
-        <PresenceBoundary active={dropdownOpen}>
+        <RetainedMountBoundary present={dropdownOpen}>
           {createPortal(
-            <div
+            <Menu
             id={menuId}
             className="bitfun-model-selector__dropdown"
             ref={portalDropdownRef}
@@ -1202,49 +1578,34 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             data-open={dropdownOpen ? 'true' : 'false'}
             aria-hidden={!dropdownOpen}
             {...(!dropdownOpen ? { inert: '' } : {})}
-            role="menu"
             aria-label={t('modelSelector.modelSelection')}
             onKeyDown={handleDropdownKeyDown}
           >
-            <div className="bitfun-model-selector__dropdown-header">
-              <span>{t('modelSelector.modelSelection')}</span>
-              <span className="bitfun-model-selector__dropdown-hint">
-                {externalSelection.providerLabel}
-              </span>
-            </div>
-            <div className="bitfun-model-selector__list">
+            <MenuSection title={`${t('modelSelector.modelSelection')} · ${externalSelection.providerLabel}`}>
               {externalAvailableModels.map(model => {
                 const isSelected = externalCurrentModelId === model.id;
                 return (
                   <Tooltip key={model.id} content={model.providerName} placement="right">
-                    <button
-                      type="button"
+                    <MenuItem
                       role="menuitemradio"
-                      aria-checked={isSelected}
+                      checked={isSelected}
                       data-testid="chat-model-selector-option"
                       data-model-id={model.id}
                       data-model-name={model.modelName}
                       data-selected={isSelected ? 'true' : 'false'}
-                      className={`bitfun-model-selector__option ${isSelected ? 'bitfun-model-selector__option--selected' : ''}`}
+                      metadata={isSelected ? <Check size={14} aria-hidden /> : null}
                       onClick={() => handleSelectModel(model.id)}
                     >
-                      <div className="bitfun-model-selector__option-main">
-                        <span className="bitfun-model-selector__option-name">
-                          {model.modelName}
-                        </span>
-                      </div>
-                      {isSelected ? (
-                        <Check size={14} className="bitfun-model-selector__option-check" />
-                      ) : null}
-                    </button>
+                      {model.modelName}
+                    </MenuItem>
                   </Tooltip>
                 );
               })}
-            </div>
-            </div>,
+            </MenuSection>
+            </Menu>,
             document.body,
           )}
-        </PresenceBoundary>
+        </RetainedMountBoundary>
       </div>
     );
   }
@@ -1285,18 +1646,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       },
       t,
     });
-    // Whichever trigger is on screen carries the context readout; with no model
-    // trigger it rides along on the mode one instead of disappearing.
-    const contextUsageBadge = tokenPercentage > 0 ? (
-      <span
-        className={`bitfun-model-selector__ctx-usage${tokenStatusClass ? ` bitfun-model-selector__ctx-usage--${tokenStatusClass}` : ''}`}
-        data-bf-component="model-selector"
-        data-bf-part="contextUsage"
-      >
-        · {tokenPercentage}%
-      </span>
-    ) : null;
-
     return (
       <div data-bf-component="model-selector" data-bf-part="root" data-bf-state={dropdownOpen ? 'open' : undefined}
         ref={dropdownRef}
@@ -1327,15 +1676,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             }}
             disabled={disabled || loading}
            data-bf-component="model-selector" data-bf-part="trigger" data-bf-state={dropdownOpen ? 'open' : undefined}>
-            <span className="bitfun-model-selector__name" data-bf-component="model-selector" data-bf-part="name">
+            <OverflowText className="bitfun-model-selector__name" data-bf-component="model-selector" data-bf-part="name">
               {acpAvailableModels.length > 0
                 ? getModelDisplayLabel(acpCurrentModel, currentAcpModelId)
                 : t('modelSelector.fastMode')}
-            </span>
+            </OverflowText>
             {acpFastMode?.enabled && (
               <Zap size={9} className="bitfun-model-selector__fast-icon" />
             )}
-            {contextUsageBadge}
             <ChevronDown size={10} className="bitfun-model-selector__chevron" />
           </button>
         </Tooltip>
@@ -1349,25 +1697,26 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             loading={loading}
             dropdownPlacement={dropdownPlacement}
             onSelect={handleSelectAcpMode}
-            {...(showModelTrigger ? {} : { tooltip: acpTooltip, trailing: contextUsageBadge })}
+            {...(showModelTrigger ? {} : { tooltip: acpTooltip })}
           />
         )}
 
-        {acpReasoning && (
+        {acpReasoning ? (
           <ReasoningPresetSelector
             projection={acpReasoning.projection}
             selectedPreset={acpReasoning.selectedPreset}
+            triggerPresentation={reasoningTriggerPresentation}
             disabled={disabled || loading}
             loading={reasoningLoading}
             dropdownPlacement={dropdownPlacement}
             onSelect={handleSelectAcpReasoning}
           />
-        )}
+        ) : null}
 
         {showModelTrigger && (
-        <PresenceBoundary active={dropdownOpen}>
+        <RetainedMountBoundary present={dropdownOpen}>
           {createPortal(
-            <div
+            <Menu
             id={menuId}
             className="bitfun-model-selector__dropdown"
             data-bf-component="model-selector"
@@ -1380,39 +1729,28 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             data-open={dropdownOpen ? 'true' : 'false'}
             aria-hidden={!dropdownOpen}
             {...(!dropdownOpen ? { inert: '' } : {})}
-            role="menu"
             aria-label={acpDropdownTitle}
             onKeyDown={handleDropdownKeyDown}
           >
-            <div className="bitfun-model-selector__dropdown-header" data-bf-component="model-selector" data-bf-part="dropdownHeader">
-              <span>{acpDropdownTitle}</span>
-              <span className="bitfun-model-selector__dropdown-hint">
-                {acpClientId}
-              </span>
-            </div>
-
             {acpAvailableModels.length > 0 && (
-            <div className="bitfun-model-selector__list" data-bf-component="model-selector" data-bf-part="list">
+            <MenuSection title={`${acpDropdownTitle}${acpClientId ? ` · ${acpClientId}` : ''}`} data-bf-component="model-selector" data-bf-part="list">
               {acpAvailableModels.map(model => {
                 const isSelected = currentAcpModelId === model.id;
 
                 return (
                   <Tooltip key={model.id} content={buildModelMetaText(model)} placement="right">
-                    <button
-                      type="button"
+                    <MenuItem
                       role="menuitemradio"
-                      aria-checked={isSelected}
+                      checked={isSelected}
                       data-testid="chat-model-selector-option"
                       data-model-id={model.id}
                       data-model-name={model.modelName}
                       data-selected={isSelected ? 'true' : 'false'}
-                      data-option-kind={'acp-model' satisfies ModelOptionKind}
-                      data-model-role={'normal' satisfies ModelRole}
-                      data-provider-id={model.providerId || model.provider || ''}
-                      className={`bitfun-model-selector__option ${isSelected ? 'bitfun-model-selector__option--selected' : ''}`}
+                      className="bitfun-model-selector__option"
                       data-bf-component="model-selector"
                       data-bf-part="option"
                       data-bf-state={isSelected ? 'selected' : undefined}
+                      metadata={isSelected ? <Check size={14} aria-hidden /> : null}
                       onClick={() => handleSelectModel(model.id)}
                     >
                       <div className="bitfun-model-selector__option-main" data-bf-component="model-selector" data-bf-part="optionMain">
@@ -1423,44 +1761,37 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                           {model.providerName}
                         </span>
                       </div>
-                      {isSelected && (
-                        <Check size={14} className="bitfun-model-selector__option-check" />
-                      )}
-                    </button>
+                    </MenuItem>
                   </Tooltip>
                 );
               })}
-            </div>
+            </MenuSection>
             )}
 
             {acpFastMode && (
               <>
                 {acpAvailableModels.length > 0 && (
-                  <div className="bitfun-model-selector__divider" />
+                  <MenuSeparator />
                 )}
-                <div className="bitfun-model-selector__config-row" data-bf-component="model-selector" data-bf-part="configRow">
-                  <div className="bitfun-model-selector__config-copy">
-                    <span className="bitfun-model-selector__config-name">
-                      {t('modelSelector.fastMode')}
-                    </span>
-                    <span className="bitfun-model-selector__config-description">
-                      {t('modelSelector.fastModeDescription')}
-                    </span>
-                  </div>
-                  <Switch
-                    size="small"
+                <Tooltip content={t('modelSelector.fastModeDescription')} placement="right">
+                  <MenuItem
+                    role="menuitemcheckbox"
                     checked={acpFastMode.enabled}
-                    loading={loading}
-                    aria-label={t('modelSelector.fastMode')}
-                    onChange={event => { void handleSetAcpFastMode(event.target.checked); }}
-                  />
-                </div>
+                    disabled={loading}
+                    aria-busy={loading}
+                    leading={<Zap size={13} aria-hidden />}
+                    metadata={acpFastMode.enabled ? <Check size={14} aria-hidden /> : null}
+                    onClick={() => { void handleSetAcpFastMode(!acpFastMode.enabled); }}
+                  >
+                    {t('modelSelector.fastMode')}
+                  </MenuItem>
+                </Tooltip>
               </>
             )}
-            </div>,
+            </Menu>,
             getAppearanceOverlayHost()
           )}
-        </PresenceBoundary>
+        </RetainedMountBoundary>
         )}
       </div>
     );
@@ -1472,10 +1803,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
   const currentModelId = currentNativeModelId;
 
-  const fallbackTooltip = t('modelSelector.autoModelDesc');
-  const baseTooltip = getModelTooltipText(currentModel, fallbackTooltip);
-  const tooltipContent = buildContextUsageTooltip({
-    baseTooltip,
+  const fallbackTooltip = t('modelSelector.primaryModelDesc');
+  const tooltipDetails = buildModelSelectorTooltipDetails({
+    configName: currentModel?.configName ?? fallbackTooltip,
+    modelName: currentModel?.modelName,
+    contextWindow: currentModel?.contextWindow,
+    configuredMaxOutputTokens: currentModel?.maxOutputTokens,
     usage: {
       current: currentTokens,
       max: maxTokens,
@@ -1483,6 +1816,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     },
     t,
   });
+  const tooltipContent = <ModelSelectorTooltipContent details={tooltipDetails} />;
 
   return (
     <div data-bf-component="model-selector" data-bf-part="root" data-bf-state={dropdownOpen ? 'open' : undefined}
@@ -1510,222 +1844,336 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           }}
           disabled={disabled || loading || reasoningLoading}
          data-bf-component="model-selector" data-bf-part="trigger" data-bf-state={dropdownOpen ? 'open' : undefined}>
-          <span className="bitfun-model-selector__name" data-bf-component="model-selector" data-bf-part="name">
-            {getModelDisplayLabel(currentModel, t('modelSelector.autoModel'))}
-          </span>
-          <ChevronDown size={10} className="bitfun-model-selector__chevron" />
+          <OverflowText className="bitfun-model-selector__name" data-bf-component="model-selector" data-bf-part="name">
+            {getModelDisplayLabel(currentModel, t('modelSelector.primaryModel'))}
+          </OverflowText>
+          {hasNativeReasoningSettings && (
+            <span
+              className="bitfun-model-selector__trigger-reasoning"
+              data-testid="chat-model-selector-trigger-reasoning"
+              data-bf-component="model-selector"
+              data-bf-part="reasoningSummary"
+            >
+              {reasoningTriggerPresentation === 'label' ? (
+                currentReasoningLabel
+              ) : (
+                <ReasoningIntensityMark
+                  level={reasoningIntensityLevel(
+                    effectiveReasoningDescriptor,
+                    orderedReasoningPresets,
+                  )}
+                  compact
+                />
+              )}
+            </span>
+          )}
+          <ChevronDown
+            size={10}
+            className="bitfun-model-selector__chevron"
+            data-testid="chat-model-selector-dropdown-indicator"
+          />
         </button>
       </Tooltip>
 
-      {sessionId && (
-        <ReasoningPresetSelector
-          projection={currentReasoningProjection}
-          selectedPreset={selectedReasoningPreset}
-          disabled={disabled || loading}
-          loading={reasoningLoading}
-          dropdownPlacement={dropdownPlacement}
-          onSelect={handleSelectReasoningPreset}
-        />
-      )}
-
-      {tokenPercentage > 0 && (
-        <Tooltip content={tooltipContent}>
-          <span className={`bitfun-model-selector__ctx-usage${tokenStatusClass ? ` bitfun-model-selector__ctx-usage--${tokenStatusClass}` : ''}`} data-bf-component="model-selector" data-bf-part="contextUsage">
-            · {tokenPercentage}%
-          </span>
-        </Tooltip>
-      )}
-
-      <PresenceBoundary active={dropdownOpen}>
+      <RetainedMountBoundary present={dropdownOpen}>
         {createPortal(
-          <div
-          id={menuId}
-          className="bitfun-model-selector__dropdown"
-          data-bf-component="model-selector"
-          data-bf-part="dropdown"
-          ref={portalDropdownRef}
-          style={dropdownStyle}
-          data-testid="chat-model-selector-menu"
-          data-keyboard-open={keyboardNavigationOpen ? 'true' : 'false'}
-          data-placement={resolvedDropdownPlacement}
-          data-open={dropdownOpen ? 'true' : 'false'}
-          aria-hidden={!dropdownOpen}
-          {...(!dropdownOpen ? { inert: '' } : {})}
-          role="menu"
-          aria-label={t('modelSelector.modelSelection')}
-          onKeyDown={handleDropdownKeyDown}
-        >
-          <div className="bitfun-model-selector__dropdown-header" data-bf-component="model-selector" data-bf-part="dropdownHeader">
-            <span>{t('modelSelector.modelSelection')}</span>
-            <button
-              type="button"
-              className="bitfun-model-selector__settings-btn"
+          <Menu
+            id={menuId}
+            className="bitfun-model-selector__dropdown"
+            data-bf-component="model-selector"
+            data-bf-part="dropdown"
+            ref={portalDropdownRef}
+            style={dropdownStyle}
+            data-testid="chat-model-selector-menu"
+            data-keyboard-open={keyboardNavigationOpen ? 'true' : 'false'}
+            data-placement={resolvedDropdownPlacement}
+            data-open={dropdownOpen ? 'true' : 'false'}
+            data-menu-level="settings"
+            aria-hidden={!dropdownOpen}
+            {...(!dropdownOpen ? { inert: '' } : {})}
+            aria-label={t('modelSelector.modelSettings')}
+            onKeyDown={handleDropdownKeyDown}
+          >
+            <MenuSection
               data-testid="chat-model-selector-settings"
-              aria-label={t('modelSelector.openSettings')}
-              title={t('modelSelector.openSettings')}
-              data-bf-component="model-selector"
-              data-bf-part="settingsButton"
-              onClick={(event) => {
-                event.stopPropagation();
-                setDropdownOpen(false);
-                void openModelSettings();
-              }}
+              aria-label={t('modelSelector.modelSettings')}
             >
-              <Settings size={11} className="bitfun-model-selector__settings-btn-icon" />
-            </button>
-          </div>
+              <MenuItem
+                ref={nativeModelMenuItemRef}
+                className={`bitfun-model-selector__settings-item${nativeSubmenu === 'models' ? ' is-open' : ''}`}
+                data-testid="chat-model-selector-settings-model"
+                data-model-menu-target="models"
+                aria-haspopup="menu"
+                aria-expanded={nativeSubmenu === 'models'}
+                aria-controls={nativeSubmenu === 'models' ? nativeSubmenuId : undefined}
+                metadata={(
+                  <span className="bitfun-model-selector__settings-value">
+                    {getModelDisplayLabel(currentModel, t('modelSelector.primaryModel'))}
+                  </span>
+                )}
+                onClick={() => toggleNativeSubmenu('models')}
+                onKeyDown={(event) => handleNativeSubmenuTriggerKeyDown('models', event)}
+                shortcut={<ChevronRight size={14} aria-hidden />}
+              >
+                {t('modelSelector.model')}
+              </MenuItem>
 
-          <Tooltip content={t('modelSelector.autoModelDesc')} placement="right">
-            <button
-              type="button"
-              role="menuitemradio"
-              aria-checked={currentModelId === 'auto'}
-              data-testid="chat-model-selector-option"
-              data-model-id="auto"
-              data-model-name="auto"
-              data-selected={currentModelId === 'auto' ? 'true' : 'false'}
-              data-option-kind={'auto' satisfies ModelOptionKind}
-              data-model-role={'auto' satisfies ModelRole}
-              data-provider-id="auto"
-              className={`bitfun-model-selector__option bitfun-model-selector__option--special ${currentModelId === 'auto' ? 'bitfun-model-selector__option--selected' : ''}`}
-              data-bf-component="model-selector"
-              data-bf-part="option"
-              data-bf-state={currentModelId === 'auto' ? 'selected' : undefined}
-              onClick={() => handleSelectModel('auto')}
-            >
-              <div className="bitfun-model-selector__option-main" data-bf-component="model-selector" data-bf-part="optionMain">
-                <span className="bitfun-model-selector__option-name">{t('modelSelector.autoModel')}</span>
-              </div>
-              {currentModelId === 'auto' && (
-                <Check size={14} className="bitfun-model-selector__option-check" />
+              {hasNativeReasoningSettings && (
+                <MenuItem
+                  ref={nativeReasoningMenuItemRef}
+                  className={`bitfun-model-selector__settings-item${nativeSubmenu === 'reasoning' ? ' is-open' : ''}`}
+                  data-testid="chat-model-selector-settings-reasoning"
+                  data-model-menu-target="reasoning"
+                  aria-haspopup="menu"
+                  aria-expanded={nativeSubmenu === 'reasoning'}
+                  aria-controls={nativeSubmenu === 'reasoning' ? nativeSubmenuId : undefined}
+                  metadata={(
+                    <span className="bitfun-model-selector__settings-value">
+                      {currentReasoningLabel}
+                    </span>
+                  )}
+                  onClick={() => toggleNativeSubmenu('reasoning')}
+                  onKeyDown={(event) => handleNativeSubmenuTriggerKeyDown('reasoning', event)}
+                  shortcut={<ChevronRight size={14} aria-hidden />}
+                >
+                  {t('reasoningSelector.title')}
+                </MenuItem>
               )}
-            </button>
-          </Tooltip>
 
-          {(() => {
-            const primaryModel = allModels.find(m => m.id === defaultModels.primary);
-            const primaryTooltip = primaryModel
-              ? buildResolvedModelTooltipText(primaryModel.model_name, {
-                providerName: getProviderDisplayName(primaryModel),
-                contextWindow: primaryModel.context_window
-              }, t('modelSelector.autoModelDesc'))
-              : t('modelSelector.autoModelDesc');
-            return (
-              <Tooltip content={primaryTooltip} placement="right">
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={currentModelId === 'primary'}
-                  data-testid="chat-model-selector-option"
-                  data-model-id="primary"
-                  data-model-name={primaryModel?.model_name || 'primary'}
-                  data-selected={currentModelId === 'primary' ? 'true' : 'false'}
-                  data-option-kind={'primary-alias' satisfies ModelOptionKind}
-                  data-model-role={'primary' satisfies ModelRole}
-                  data-provider-id={getProviderLocatorId(primaryModel) || primaryModel?.provider || ''}
-                  data-resolved-model-id={primaryModel?.id || ''}
-                  data-resolved-model-name={primaryModel?.model_name || ''}
-                  data-resolved-provider-id={getProviderLocatorId(primaryModel) || primaryModel?.provider || ''}
-                  className={`bitfun-model-selector__option bitfun-model-selector__option--special ${currentModelId === 'primary' ? 'bitfun-model-selector__option--selected' : ''}`}
-                  data-bf-component="model-selector"
-                  data-bf-part="option"
-                  data-bf-state={currentModelId === 'primary' ? 'selected' : undefined}
-                  onClick={() => handleSelectModel('primary')}
-                >
-                  <div className="bitfun-model-selector__option-main" data-bf-component="model-selector" data-bf-part="optionMain">
-                    <span className="bitfun-model-selector__option-name">{t('modelSelector.primaryModel')}</span>
-                  </div>
-                  {currentModelId === 'primary' && (
-                    <Check size={14} className="bitfun-model-selector__option-check" />
-                  )}
-                </button>
-              </Tooltip>
-            );
-          })()}
+              <MenuSeparator />
 
-          {(() => {
-            const fastModel = allModels.find(m => m.id === defaultModels.fast);
-            const fastTooltip = fastModel
-              ? buildResolvedModelTooltipText(fastModel.model_name, {
-                providerName: getProviderDisplayName(fastModel),
-                contextWindow: fastModel.context_window
-              }, t('modelSelector.autoModelDesc'))
-              : t('modelSelector.autoModelDesc');
-            return (
-              <Tooltip content={fastTooltip} placement="right">
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={currentModelId === 'fast'}
-                  data-testid="chat-model-selector-option"
-                  data-model-id="fast"
-                  data-model-name={fastModel?.model_name || 'fast'}
-                  data-selected={currentModelId === 'fast' ? 'true' : 'false'}
-                  data-option-kind={'fast-alias' satisfies ModelOptionKind}
-                  data-model-role={'fast' satisfies ModelRole}
-                  data-provider-id={getProviderLocatorId(fastModel) || fastModel?.provider || ''}
-                  data-resolved-model-id={fastModel?.id || ''}
-                  data-resolved-model-name={fastModel?.model_name || ''}
-                  data-resolved-provider-id={getProviderLocatorId(fastModel) || fastModel?.provider || ''}
-                  className={`bitfun-model-selector__option bitfun-model-selector__option--special ${currentModelId === 'fast' ? 'bitfun-model-selector__option--selected' : ''}`}
-                  data-bf-component="model-selector"
-                  data-bf-part="option"
-                  data-bf-state={currentModelId === 'fast' ? 'selected' : undefined}
-                  onClick={() => handleSelectModel('fast')}
-                >
-                  <div className="bitfun-model-selector__option-main" data-bf-component="model-selector" data-bf-part="optionMain">
-                    <span className="bitfun-model-selector__option-name">{t('modelSelector.fastModel')}</span>
-                  </div>
-                  {currentModelId === 'fast' && (
-                    <Check size={14} className="bitfun-model-selector__option-check" />
-                  )}
-                </button>
-              </Tooltip>
-            );
-          })()}
-
-          <div className="bitfun-model-selector__divider" />
-
-          <div className="bitfun-model-selector__list" data-bf-component="model-selector" data-bf-part="list">
-            {availableModels.map(model => {
-              const isSelected = currentModelId === model.id;
-
-              return (
-                <Tooltip key={model.id} content={buildModelMetaText(model)} placement="right">
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={isSelected}
-                    data-testid="chat-model-selector-option"
-                    data-model-id={model.id}
-                    data-model-name={model.modelName}
-                    data-selected={isSelected ? 'true' : 'false'}
-                    data-option-kind={'model' satisfies ModelOptionKind}
-                    data-model-role={'normal' satisfies ModelRole}
-                    data-provider-id={model.providerId || model.provider || ''}
-                    className={`bitfun-model-selector__option ${isSelected ? 'bitfun-model-selector__option--selected' : ''}`}
-                    data-bf-component="model-selector"
-                    data-bf-part="option"
-                    data-bf-state={isSelected ? 'selected' : undefined}
-                    onClick={() => handleSelectModel(model.id)}
-                  >
-                    <div className="bitfun-model-selector__option-main" data-bf-component="model-selector" data-bf-part="optionMain">
-                      <span className="bitfun-model-selector__option-name">
-                        {model.modelName}
-                      </span>
-                    </div>
-                    {isSelected && (
-                      <Check size={14} className="bitfun-model-selector__option-check" />
-                    )}
-                  </button>
-                </Tooltip>
-              );
-            })}
-          </div>
-          </div>,
+              <MenuItem
+                className="bitfun-model-selector__settings-item bitfun-model-selector__settings-reset"
+                data-testid="chat-model-selector-settings-reset"
+                disabled={nativeSettingsAreDefault || disabled || loading || reasoningLoading}
+                onClick={handleResetNativeSettings}
+                shortcut={<RotateCcw size={14} />}
+              >
+                {t('modelSelector.resetToDefaults')}
+              </MenuItem>
+            </MenuSection>
+          </Menu>,
           getAppearanceOverlayHost()
         )}
-      </PresenceBoundary>
+      </RetainedMountBoundary>
+
+      {dropdownOpen && nativeSubmenu && createPortal(
+        <Menu
+          id={nativeSubmenuId}
+          ref={nativeSubmenuRef}
+          className="bitfun-model-selector__submenu"
+          style={nativeSubmenuStyle}
+          data-testid="chat-model-selector-submenu"
+          data-submenu-kind={nativeSubmenu}
+          data-menu-level={activeProviderGroup ? 'provider' : nativeSubmenu}
+          data-placement={nativeSubmenuPlacement}
+          data-bf-component="model-selector"
+          data-bf-part="dropdown"
+          aria-label={activeProviderGroup
+            ? activeProviderGroup.providerName
+            : nativeSubmenu === 'reasoning'
+              ? t('reasoningSelector.title')
+              : t('modelSelector.modelSelection')}
+          onKeyDown={handleNativeSubmenuKeyDown}
+        >
+          <ModelSelectorMenuLevel
+            key={activeProviderGroup ? `provider:${activeProviderGroup.key}` : nativeSubmenu}
+            direction={levelDirection}
+          >
+            {nativeSubmenu === 'reasoning' ? (
+              <>
+                <MenuItem
+                  role="menuitemradio"
+                  checked={!selectedReasoningDescriptor}
+                  data-testid="chat-model-selector-reasoning-option"
+                  data-preset-id="auto"
+                  data-bf-component="model-selector"
+                  data-bf-part="option"
+                  data-bf-state={!selectedReasoningDescriptor ? 'selected' : undefined}
+                  onClick={() => handleSelectReasoningPresetFromMenu(null)}
+                >
+                  {t('reasoningSelector.auto')}
+                </MenuItem>
+
+                {orderedReasoningPresets.map((preset, index) => {
+                  const isSelected = selectedReasoningDescriptor?.id === preset.id;
+                  const label = reasoningPresetLabels[index]
+                    ?? presetDisplayLabel(preset, orderedReasoningPresets, t);
+
+                  return (
+                    <MenuItem
+                      key={preset.id}
+                      role="menuitemradio"
+                      checked={isSelected}
+                      data-testid="chat-model-selector-reasoning-option"
+                      data-preset-id={preset.id}
+                      data-bf-component="model-selector"
+                      data-bf-part="option"
+                      data-bf-state={isSelected ? 'selected' : undefined}
+                      onClick={() => handleSelectReasoningPresetFromMenu(preset.id)}
+                    >
+                      {label}
+                    </MenuItem>
+                  );
+                })}
+              </>
+            ) : activeProviderGroup ? (
+              <>
+                <MenuItem
+                  data-testid="chat-model-selector-back"
+                  data-bf-component="model-selector"
+                  data-bf-part="back"
+                  aria-label={t('modelSelector.backToProviders')}
+                  leading={<ChevronLeft size={12} aria-hidden />}
+                  onClick={closeProviderLevel}
+                >
+                  {activeProviderGroup.providerName}
+                </MenuItem>
+
+                {activeProviderGroup.models.map(model => {
+                  const isSelected = currentModelId === model.id;
+
+                  return (
+                    <Tooltip key={model.id} content={buildModelMetaText(model)} placement="right">
+                      <MenuItem
+                        role="menuitemradio"
+                        checked={isSelected}
+                        data-testid="chat-model-selector-option"
+                        data-model-id={model.id}
+                        data-model-name={model.modelName}
+                        data-selected={isSelected ? 'true' : 'false'}
+                        data-bf-component="model-selector"
+                        data-bf-part="option"
+                        data-bf-state={isSelected ? 'selected' : undefined}
+                        metadata={isSelected ? <Check size={14} aria-hidden /> : null}
+                        onClick={() => handleSelectModel(model.id)}
+                      >
+                        {model.modelName}
+                      </MenuItem>
+                    </Tooltip>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                {providerGroups.map(group => {
+                  const isSelected = selectedProviderKey === group.key;
+                  const selectedModel = isSelected
+                    ? group.models.find(model => model.id === currentModelId) ?? null
+                    : null;
+
+                  return (
+                    <Tooltip
+                      key={group.key}
+                      content={`${group.providerName} · ${t('modelSelector.providerModelCount', { total: group.models.length })}`}
+                      placement="right"
+                    >
+                      <MenuItem
+                        aria-haspopup="menu"
+                        aria-expanded={false}
+                        data-testid="chat-model-selector-provider"
+                        data-provider-key={group.key}
+                        data-selected={isSelected ? 'true' : 'false'}
+                        data-bf-component="model-selector"
+                        data-bf-part="providerOption"
+                        data-bf-state={isSelected ? 'selected' : undefined}
+                        metadata={group.models.length}
+                        shortcut={<ChevronRight size={14} aria-hidden />}
+                        onClick={() => openProviderLevel(group.key)}
+                      >
+                        <div className="bitfun-model-selector__option-main" data-bf-component="model-selector" data-bf-part="optionMain">
+                          <span className="bitfun-model-selector__option-name">
+                            {group.providerName}
+                          </span>
+                          {selectedModel && (
+                            <span
+                              className="bitfun-model-selector__option-desc bitfun-model-selector__option-desc--selected-model"
+                              data-testid="chat-model-selector-provider-selected-model"
+                              data-model-id={selectedModel.id}
+                            >
+                              <span className="bitfun-model-selector__option-desc-label">
+                                {selectedModel.modelName}
+                              </span>
+                              <Check
+                                size={11}
+                                aria-hidden="true"
+                                className="bitfun-model-selector__option-selected-check"
+                                data-testid="chat-model-selector-provider-selected-check"
+                              />
+                            </span>
+                          )}
+                        </div>
+                      </MenuItem>
+                    </Tooltip>
+                  );
+                })}
+
+                <MenuSeparator />
+
+                {(() => {
+                  const primaryModel = allModels.find(m => m.id === defaultModels.primary);
+                  const primaryTooltip = primaryModel
+                    ? buildResolvedModelTooltipText(primaryModel.model_name, {
+                      providerName: getProviderDisplayName(primaryModel),
+                      contextWindow: primaryModel.context_window
+                    }, t('modelSelector.primaryModelDesc'))
+                    : t('modelSelector.primaryModelDesc');
+                  return (
+                    <Tooltip content={primaryTooltip} placement="right">
+                      <MenuItem
+                        role="menuitemradio"
+                        checked={currentModelId === 'primary'}
+                        data-testid="chat-model-selector-option"
+                        data-model-id="primary"
+                        data-model-name={primaryModel?.model_name || 'primary'}
+                        data-selected={currentModelId === 'primary' ? 'true' : 'false'}
+                        data-bf-component="model-selector"
+                        data-bf-part="option"
+                        data-bf-state={currentModelId === 'primary' ? 'selected' : undefined}
+                        metadata={currentModelId === 'primary' ? <Check size={14} aria-hidden /> : null}
+                        onClick={() => handleSelectModel('primary')}
+                      >
+                        {t('modelSelector.primaryModel')}
+                      </MenuItem>
+                    </Tooltip>
+                  );
+                })()}
+
+                {(() => {
+                  const fastModel = allModels.find(m => m.id === defaultModels.fast);
+                  const fastTooltip = fastModel
+                    ? buildResolvedModelTooltipText(fastModel.model_name, {
+                      providerName: getProviderDisplayName(fastModel),
+                      contextWindow: fastModel.context_window
+                    }, t('modelSelector.fastModelDesc'))
+                    : t('modelSelector.fastModelDesc');
+                  return (
+                    <Tooltip content={fastTooltip} placement="right">
+                      <MenuItem
+                        role="menuitemradio"
+                        checked={currentModelId === 'fast'}
+                        data-testid="chat-model-selector-option"
+                        data-model-id="fast"
+                        data-model-name={fastModel?.model_name || 'fast'}
+                        data-selected={currentModelId === 'fast' ? 'true' : 'false'}
+                        data-bf-component="model-selector"
+                        data-bf-part="option"
+                        data-bf-state={currentModelId === 'fast' ? 'selected' : undefined}
+                        metadata={currentModelId === 'fast' ? <Check size={14} aria-hidden /> : null}
+                        onClick={() => handleSelectModel('fast')}
+                      >
+                        {t('modelSelector.fastModel')}
+                      </MenuItem>
+                    </Tooltip>
+                  );
+                })()}
+
+              </>
+            )}
+          </ModelSelectorMenuLevel>
+        </Menu>,
+        getAppearanceOverlayHost()
+      )}
     </div>
   );
 };

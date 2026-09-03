@@ -13,14 +13,22 @@ pub use bitfun_core_types::{
     WorktreeSummary,
 };
 
+#[cfg(feature = "hook-function-runtime")]
+mod hook_function;
 #[cfg(feature = "workspace-ports")]
 mod local_workspace_snapshot;
 #[cfg(feature = "permission")]
 mod permission;
 #[cfg(feature = "plugin-runtime")]
 mod plugin;
+#[cfg(feature = "product-search")]
+mod product_search;
 #[cfg(feature = "script-tool-runtime")]
 mod script_tool;
+#[cfg(feature = "product-search")]
+pub use bitfun_product_domains::product_search::{
+    SessionContentSearchRequest, SessionContentSearchResponse,
+};
 #[cfg(feature = "permission")]
 pub use bitfun_product_domains::tool_permissions::{
     deserialize_optional_permission_mode, resolve_child_permission_policy, resolve_permission_mode,
@@ -34,6 +42,8 @@ pub use bitfun_product_domains::tool_permissions::{
     PermissionRuleset, PermissionRuntimeCeiling, PermissionRuntimeCeilingValidationError,
     ResolvedPermissionMode, ResolvedPermissionPolicy, ToolPermissionConfig,
 };
+#[cfg(feature = "hook-function-runtime")]
+pub use hook_function::*;
 #[cfg(feature = "workspace-ports")]
 pub use local_workspace_snapshot::{
     LocalWorkspaceSnapshotPort, LocalWorkspaceSnapshotSessionRequest, LocalWorkspaceSnapshotStats,
@@ -60,6 +70,8 @@ pub use plugin::{
     PluginRuntimeUnavailableReason, PluginSourceKind, PluginSourceRef, PluginStatusKind,
     PluginStatusSnapshot, PluginTargetRef, PluginTrustLevel, ProjectionOnlyPluginRuntimeClient,
 };
+#[cfg(feature = "product-search")]
+pub use product_search::ProductSearchPort;
 #[cfg(feature = "script-tool-runtime")]
 pub use script_tool::{
     ScriptToolDescriptor, ScriptToolExpectedExport, ScriptToolInvokeRequest,
@@ -247,9 +259,24 @@ pub trait ConfigReadPort: Send + Sync {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum DelegationScope {
+    Standard,
+    Swarm,
+}
+
+impl Default for DelegationScope {
+    fn default() -> Self {
+        Self::Standard
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct DelegationPolicy {
     pub allow_subagent_spawn: bool,
     pub nesting_depth: u8,
+    #[serde(default)]
+    pub scope: DelegationScope,
 }
 
 impl Default for DelegationPolicy {
@@ -263,13 +290,35 @@ impl DelegationPolicy {
         Self {
             allow_subagent_spawn: true,
             nesting_depth: 0,
+            scope: DelegationScope::Standard,
+        }
+    }
+
+    pub fn swarm_root() -> Self {
+        Self {
+            allow_subagent_spawn: true,
+            nesting_depth: 0,
+            scope: DelegationScope::Swarm,
         }
     }
 
     pub fn spawn_child(self) -> Self {
         Self {
-            allow_subagent_spawn: false,
+            allow_subagent_spawn: match self.scope {
+                DelegationScope::Standard => false,
+                DelegationScope::Swarm => self.allow_subagent_spawn,
+            },
             nesting_depth: self.nesting_depth.saturating_add(1),
+            scope: self.scope,
+        }
+    }
+
+    pub fn spawn_child_for(self, agent_type: &str) -> Self {
+        let is_swarm_planner = matches!(agent_type, "Ultra" | "SwarmPlanner");
+        Self {
+            allow_subagent_spawn: self.scope == DelegationScope::Swarm && is_swarm_planner,
+            nesting_depth: self.nesting_depth.saturating_add(1),
+            scope: self.scope,
         }
     }
 }
@@ -372,6 +421,19 @@ mod tests {
         assert!(!child.allow_subagent_spawn);
         assert_eq!(child.nesting_depth, 1);
         assert_eq!(child.spawn_child().nesting_depth, 2);
+    }
+
+    #[test]
+    fn swarm_delegation_allows_only_planners_to_recurse() {
+        let root = DelegationPolicy::swarm_root();
+        let planner = root.spawn_child_for("SwarmPlanner");
+        let worker = root.spawn_child_for("SwarmWorker");
+
+        assert!(planner.allow_subagent_spawn);
+        assert_eq!(planner.nesting_depth, 1);
+        assert_eq!(planner.scope, DelegationScope::Swarm);
+        assert!(!worker.allow_subagent_spawn);
+        assert_eq!(worker.nesting_depth, 1);
     }
 
     #[test]

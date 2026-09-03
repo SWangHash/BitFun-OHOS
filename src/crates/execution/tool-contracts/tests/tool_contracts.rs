@@ -28,9 +28,10 @@ use bitfun_agent_tools::{
     resolve_readonly_enabled_tools, resolve_tool_manifest_policy, resolve_tool_path_with_context,
     resolve_tool_path_with_context_roots, resolve_workspace_tool_path,
     sort_tool_manifest_definitions, summarize_get_tool_spec_deferred_tools,
-    tool_path_is_effectively_absolute, validate_deferred_tool_usage, validate_get_tool_spec_input,
-    validate_tool_allowed_by_list, validate_tool_execution_admission, CallDeferredToolInputError,
-    DynamicMcpToolInfo, DynamicToolInfo, GetToolSpecDeferredToolSummary, GetToolSpecExecutionError,
+    tool_path_is_effectively_absolute, tool_restrictions_for_delegation_policy,
+    validate_deferred_tool_usage, validate_get_tool_spec_input, validate_tool_allowed_by_list,
+    validate_tool_execution_admission, CallDeferredToolInputError, DynamicMcpToolInfo,
+    DynamicToolInfo, GetToolSpecDeferredToolSummary, GetToolSpecExecutionError,
     GetToolSpecExecutionPlan, GetToolSpecLoadObservation, GetToolSpecRuntime, InputValidator,
     LoadedDeferredToolSpec, PromptVisibleToolManifestItem, ResolvedToolInvocation,
     ToolContextFacts, ToolExecutionAdmissionRejection, ToolExecutionAdmissionRequest, ToolExposure,
@@ -395,6 +396,8 @@ fn acp_external_agent_bridge_preserves_tool_contract() {
         build_acp_external_agent_tool_definition(AcpExternalAgentToolDefinitionInput {
             client_id: "codex",
             display_name: Some("Codex"),
+            subagent_description: None,
+            best_for: None,
             read_only: false,
         });
 
@@ -410,6 +413,21 @@ fn acp_external_agent_bridge_preserves_tool_contract() {
         "Delegate a task to the external ACP agent 'Codex'."
     );
     assert!(!definition.read_only);
+
+    let profiled_definition =
+        build_acp_external_agent_tool_definition(AcpExternalAgentToolDefinitionInput {
+            client_id: "codex",
+            display_name: Some("Codex"),
+            subagent_description: Some("Implements complex code changes"),
+            best_for: Some("Cross-file refactors and difficult debugging"),
+            read_only: false,
+        });
+    assert!(profiled_definition
+        .description
+        .contains("Role: Implements complex code changes."));
+    assert!(profiled_definition
+        .description
+        .contains("Best suited for: Cross-file refactors and difficult debugging."));
 
     assert_eq!(
         acp_external_agent_tool_input_schema(),
@@ -787,6 +805,7 @@ fn runtime_restrictions_keep_allow_deny_semantics_without_core_dependency() {
         denied_tool_names: ["Write"].into_iter().map(str::to_string).collect(),
         denied_tool_messages: Default::default(),
         path_policy: Default::default(),
+        miniapp_context_scope: None,
     };
 
     assert!(restrictions.is_tool_allowed("Read"));
@@ -830,6 +849,23 @@ fn runtime_restrictions_surface_custom_deny_messages() {
         denied.to_string(),
         "Recursive subagent delegation is blocked. Use direct tools instead."
     );
+}
+
+#[test]
+fn delegation_restrictions_cover_all_agent_spawn_surfaces() {
+    let restrictions = tool_restrictions_for_delegation_policy(
+        bitfun_runtime_ports::DelegationPolicy::top_level().spawn_child(),
+    );
+
+    for tool_name in ["Task", "AgentSpawn"] {
+        let denied = restrictions
+            .ensure_tool_allowed(tool_name)
+            .expect_err("agent spawning should be denied for child delegation");
+        assert_eq!(
+            denied.to_string(),
+            "Recursive subagent delegation is blocked. Use direct tools instead."
+        );
+    }
 }
 
 #[test]
@@ -917,7 +953,7 @@ fn file_read_freshness_policy_preserves_read_edit_write_guardrails() {
     assert!(file_read_facts_content_matches(full_read, "alpha\n"));
     assert!(file_read_facts_are_fresh(full_read, "alpha\n", Some(200)));
     assert!(!file_read_facts_are_fresh(full_read, "beta\n", Some(200)));
-    assert!(file_read_facts_are_fresh(full_read, "beta\n", Some(50)));
+    assert!(!file_read_facts_are_fresh(full_read, "beta\n", Some(50)));
     assert!(!file_read_facts_are_fresh(full_read, "beta\n", None));
 
     let partial_read = FileReadFreshnessFacts {
@@ -935,12 +971,46 @@ fn file_read_freshness_policy_preserves_read_edit_write_guardrails() {
 }
 
 #[test]
+fn file_read_freshness_full_read_rejects_same_tick_and_restored_mtime_changes() {
+    let read = FileReadFreshnessFacts {
+        content: "alpha\nbeta",
+        timestamp_ms: 1_700_000_000_000,
+        is_full_file_read: true,
+    };
+    for modified in [
+        Some(read.timestamp_ms),
+        Some(read.timestamp_ms - 1_000),
+        None,
+    ] {
+        assert!(!file_read_facts_are_fresh(read, "alpha\nzeta\n", modified));
+        assert!(file_read_facts_are_fresh(
+            read,
+            "alpha\r\nbeta\r\n",
+            modified
+        ));
+    }
+    let partial = FileReadFreshnessFacts {
+        is_full_file_read: false,
+        ..read
+    };
+    assert!(file_read_facts_are_fresh(
+        partial,
+        "unobserved content",
+        Some(read.timestamp_ms)
+    ));
+    assert!(!file_read_facts_are_fresh(
+        partial,
+        "unobserved content",
+        Some(read.timestamp_ms + 1_000)
+    ));
+}
+
+#[test]
 fn file_read_freshness_tolerates_read_tool_trailing_newline_reconstruction_gap() {
     // The cached "last Read result" content is rebuilt from cat -n-style
     // output via a line-split/join, which drops a trailing newline even when
-    // the file on disk ends with one. Remote workspaces have no mtime to
-    // short-circuit this comparison, so every full-file Edit/Write on a
-    // trailing-newline file (the common case) must still be considered fresh.
+    // the file on disk ends with one. Every full-file Edit/Write on a
+    // trailing-newline file must still be considered fresh.
     let cached_without_trailing_newline = FileReadFreshnessFacts {
         content: "alpha\nbeta",
         timestamp_ms: 100,
@@ -1042,6 +1112,7 @@ fn runtime_restrictions_keep_current_snake_case_wire_shape() {
         "allowed_tool_names": ["Read"],
         "denied_tool_names": ["Write"],
         "path_policy": {
+            "read_roots": ["context"],
             "write_roots": ["src"],
             "edit_roots": ["docs"],
             "delete_roots": ["target/generated"]
@@ -1052,6 +1123,7 @@ fn runtime_restrictions_keep_current_snake_case_wire_shape() {
         serde_json::from_value(value.clone()).expect("deserialize restrictions");
     assert!(restrictions.is_tool_allowed("Read"));
     assert!(!restrictions.is_tool_allowed("Write"));
+    assert_eq!(restrictions.path_policy.read_roots, vec!["context"]);
     assert_eq!(restrictions.path_policy.write_roots, vec!["src"]);
     assert_eq!(restrictions.path_policy.edit_roots, vec!["docs"]);
     assert_eq!(
@@ -1061,6 +1133,26 @@ fn runtime_restrictions_keep_current_snake_case_wire_shape() {
 
     let round_trip = serde_json::to_value(&restrictions).expect("serialize restrictions");
     assert_eq!(round_trip, value);
+}
+
+#[test]
+fn runtime_restrictions_accept_legacy_path_policy_without_read_roots() {
+    let legacy = json!({
+        "allowed_tool_names": ["Read"],
+        "denied_tool_names": [],
+        "path_policy": {
+            "write_roots": ["src"],
+            "edit_roots": [],
+            "delete_roots": []
+        }
+    });
+    let restrictions: ToolRuntimeRestrictions =
+        serde_json::from_value(legacy).expect("legacy restrictions should deserialize");
+    assert!(restrictions.path_policy.read_roots.is_empty());
+    assert!(restrictions.miniapp_context_scope.is_none());
+    let round_trip = serde_json::to_value(restrictions).expect("serialize restrictions");
+    assert!(round_trip["path_policy"].get("read_roots").is_none());
+    assert!(round_trip.get("miniapp_context_scope").is_none());
 }
 
 #[test]
@@ -1926,9 +2018,9 @@ fn prompt_visible_manifest_builder_omits_deferred_tools_from_provider_manifest()
             json!({ "type": "object", "properties": { "path": { "type": "string" } } }),
         )),
         PromptVisibleToolManifestItem::Direct(ToolManifestDefinition::new(
-            "Bash",
+            "ExecCommand",
             "Run shell commands.",
-            json!({ "type": "object", "properties": { "command": { "type": "string" } } }),
+            json!({ "type": "object", "properties": { "cmd": { "type": "string" } } }),
         )),
     ]);
 
@@ -1937,11 +2029,11 @@ fn prompt_visible_manifest_builder_omits_deferred_tools_from_provider_manifest()
             .iter()
             .map(|definition| definition.name.as_str())
             .collect::<Vec<_>>(),
-        vec!["Bash", "Read"]
+        vec!["ExecCommand", "Read"]
     );
     assert_eq!(definitions[0].description, "Run shell commands.");
     assert_eq!(
-        definitions[0].parameters["properties"]["command"]["type"],
+        definitions[0].parameters["properties"]["cmd"]["type"],
         json!("string")
     );
 }

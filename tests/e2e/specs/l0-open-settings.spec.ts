@@ -38,80 +38,156 @@ describe('L0 Settings Panel', () => {
 
       await browser.pause(1500);
 
-      // Settings is now in NavPanel footer menu (not header)
-      const moreBtn = await $('.bitfun-nav-panel__footer-btn--icon');
-      const moreBtnExists = await moreBtn.isExisting();
+      const settingsButton = await $('[data-testid="nav-footer-settings-item"]');
+      const settingsButtonVisible = await settingsButton.isDisplayed();
 
-      console.log('[L0] More options button found:', moreBtnExists);
-      expect(moreBtnExists).toBe(true);
+      console.log('[L0] Persistent settings button visible:', settingsButtonVisible);
+      expect(settingsButtonVisible).toBe(true);
+      await saveStepScreenshot('l0-settings-footer-entry');
+    });
 
-      // Click to open menu
-      await moreBtn.click();
-      await browser.pause(500);
-      await saveStepScreenshot('l0-settings-menu-opened');
+    it('should align upper and lower main navigation item typography', async function () {
+      expect(hasWorkspace).toBe(true);
 
-      // Find settings menu item
-      const menuItems = await $$('.bitfun-nav-panel__footer-menu-item');
-      console.log(`[L0] Found ${menuItems.length} menu items`);
-      expect(menuItems.length).toBeGreaterThan(0);
+      const comparison = await browser.execute(() => {
+        const upperItem = document.querySelector<HTMLElement>(
+          '[data-testid="nav-assistant-manager"]',
+        );
+        const lowerItem = document.querySelector<HTMLElement>(
+          '[data-testid="nav-session-item"]:not([data-session-active="true"]) .bitfun-nav-panel__inline-item-label',
+        );
 
-      // Find the settings item (has Settings icon)
-      let settingsItem = null;
-      for (const item of menuItems) {
-        const html = await item.getHTML();
-        if (html.includes('Settings') || html.includes('settings')) {
-          settingsItem = item;
-          break;
+        if (!upperItem || !lowerItem) {
+          return null;
         }
+
+        const typeStyle = (element: HTMLElement) => {
+          const style = window.getComputedStyle(element);
+          return {
+            fontFamily: style.fontFamily,
+            fontSize: style.fontSize,
+            fontStyle: style.fontStyle,
+            fontWeight: style.fontWeight,
+            letterSpacing: style.letterSpacing,
+            lineHeight: style.lineHeight,
+            textTransform: style.textTransform,
+          };
+        };
+
+        return {
+          upper: typeStyle(upperItem),
+          lower: typeStyle(lowerItem),
+        };
+      });
+
+      expect(comparison).not.toBeNull();
+      if (!comparison) {
+        return;
       }
 
-      expect(settingsItem).not.toBeNull();
-      console.log('[L0] Settings menu item found');
-
-      // Close menu
-      const backdrop = await $('.bitfun-nav-panel__footer-backdrop');
-      if (await backdrop.isExisting()) {
-        await backdrop.click();
-        await browser.pause(500);
-      }
+      expect(comparison.upper).toEqual(comparison.lower);
+      await saveStepScreenshot('l0-main-navigation-typography-aligned');
     });
   });
 
   describe('Settings panel interaction', () => {
-    it('should open and close settings panel', async function () {
+    it('should open the settings list and then the settings panel', async function () {
       expect(hasWorkspace).toBe(true);
 
-      // Open more options menu
-      const moreBtn = await $('.bitfun-nav-panel__footer-btn--icon');
-      await moreBtn.click();
-      await browser.pause(500);
+      console.log('[L0] Opening settings list...');
+      const settingsButton = await $('[data-testid="nav-footer-settings-item"]');
+      await settingsButton.click();
+      const settingsMenu = await $('[data-testid="nav-settings-menu"]');
+      await settingsMenu.waitForDisplayed({ timeout: 10000 });
+      expect(await settingsMenu.isDisplayed()).toBe(true);
 
-      // Click settings menu item
-      const menuItems = await $$('.bitfun-nav-panel__footer-menu-item');
-      let settingsItem = null;
-      for (const item of menuItems) {
-        const html = await item.getHTML();
-        if (html.includes('Settings') || html.includes('settings')) {
-          settingsItem = item;
-          break;
-        }
-      }
-
-      expect(settingsItem).not.toBeNull();
-
-      console.log('[L0] Opening settings...');
-      await settingsItem!.click();
-      await browser.pause(2000);
+      const openSettingsItem = await $('[data-testid="nav-settings-open-item"]');
+      await openSettingsItem.click();
 
       // Check for settings scene
       const settingsScene = await $('.bitfun-settings-scene');
-      const sceneExists = await settingsScene.isExisting();
+      await settingsScene.waitForDisplayed({ timeout: 10000 });
+      const sceneExists = await settingsScene.isDisplayed();
 
       console.log('[L0] Settings scene opened:', sceneExists);
       expect(sceneExists).toBe(true);
       if (sceneExists) {
         await saveStepScreenshot('l0-settings-panel-opened');
       }
+    });
+
+    it('should match the main navigation typography and row rhythm', async function () {
+      expect(hasWorkspace).toBe(true);
+
+      const comparison = await browser.execute(() => {
+        const mainItem = document.querySelector<HTMLElement>(
+          '[data-testid="nav-assistant-manager"]',
+        );
+        const settingsItem = document.querySelector<HTMLElement>(
+          '.bitfun-settings-nav__item:not(.is-active)',
+        );
+        const lowerItem = document.querySelector<HTMLElement>(
+          '[data-testid="nav-session-item"]:not([data-session-active="true"]) .bitfun-nav-panel__inline-item-label',
+        );
+        const activeSettingsItem = document.querySelector<HTMLElement>(
+          '.bitfun-settings-nav__item.is-active',
+        );
+        const mainCategory = document.querySelector<HTMLElement>(
+          '.bitfun-nav-panel__section-label',
+        );
+        const settingsCategory = document.querySelector<HTMLElement>(
+          '.bitfun-settings-nav__category-label',
+        );
+
+        if (!mainItem || !settingsItem || !lowerItem || !activeSettingsItem || !mainCategory || !settingsCategory) {
+          return null;
+        }
+
+        const typeStyle = (element: HTMLElement) => {
+          const style = window.getComputedStyle(element);
+          return {
+            fontFamily: style.fontFamily,
+            fontSize: style.fontSize,
+            fontStyle: style.fontStyle,
+            fontWeight: style.fontWeight,
+            letterSpacing: style.letterSpacing,
+            lineHeight: style.lineHeight,
+            textTransform: style.textTransform,
+          };
+        };
+        const rowStyle = (element: HTMLElement) => {
+          const style = window.getComputedStyle(element);
+          return {
+            borderRadius: style.borderRadius,
+            height: element.getBoundingClientRect().height,
+            paddingLeft: style.paddingLeft,
+            paddingRight: style.paddingRight,
+          };
+        };
+
+        return {
+          mainItemType: typeStyle(mainItem),
+          settingsItemType: typeStyle(settingsItem),
+          lowerItemType: typeStyle(lowerItem),
+          activeSettingsWeight: window.getComputedStyle(activeSettingsItem).fontWeight,
+          mainCategoryType: typeStyle(mainCategory),
+          settingsCategoryType: typeStyle(settingsCategory),
+          mainRow: rowStyle(mainItem),
+          settingsRow: rowStyle(settingsItem),
+        };
+      });
+
+      expect(comparison).not.toBeNull();
+      if (!comparison) {
+        return;
+      }
+
+      expect(comparison.mainItemType).toEqual(comparison.lowerItemType);
+      expect(comparison.settingsItemType).toEqual(comparison.lowerItemType);
+      expect(comparison.settingsCategoryType).toEqual(comparison.mainCategoryType);
+      expect(comparison.activeSettingsWeight).toBe('600');
+      expect(comparison.settingsRow).toEqual(comparison.mainRow);
+      await saveStepScreenshot('l0-settings-navigation-aligned');
     });
   });
 

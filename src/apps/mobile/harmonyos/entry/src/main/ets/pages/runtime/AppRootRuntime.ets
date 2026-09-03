@@ -1,9 +1,12 @@
-import { RemoteSession } from '../../model/RemoteModels';
+import { RemoteSession, SessionSummary } from '../../model/RemoteModels';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { ConnectionErrorPolicy } from '../../services/ConnectionErrorPolicy';
 import { CloudAccountDevice } from '../../services/CloudAccountClient';
 import { RemoteLogger } from '../../services/RemoteLogger';
-import { stampRemoteSessionsDevice } from '../../services/RemoteSessionIdentity';
+import {
+  stampRemoteSessionsDevice,
+  stampRemoteSessionsWorkspace
+} from '../../services/RemoteSessionIdentity';
 import { RemoteUiState } from '../../services/RemoteUiState';
 import { AppRootHostPort } from '../host/AppRootHostAdapter';
 import { CONNECT_INTENT_SCAN } from '../state/AppShellState';
@@ -26,6 +29,8 @@ import {
 const DEVICE_PRESENCE_MAX_AGE_MS: number = 15000;
 
 export class AppRootRuntime extends AppRootRuntimeComposition {
+  private directorySelectionVersion: number = 0;
+
   constructor(host: AppRootHostPort) {
     super(host);
   }
@@ -69,6 +74,7 @@ export class AppRootRuntime extends AppRootRuntimeComposition {
 
   onPageShow(): void {
     RemoteLogger.info(`page show state=${(this.remotePageState.connectionState as ConnectionState)} route=${this.appShellViewModel.currentRoute()}`);
+    this.taskCompletionNotificationController.onForeground();
     this.remoteActivityViewModel.resume();
     // Idempotent: covers the pairing that happened after the last cold start.
     void this.startWatchProvisioning();
@@ -79,7 +85,17 @@ export class AppRootRuntime extends AppRootRuntimeComposition {
   onPageHide(): void {
     RemoteLogger.info(`page hide state=${(this.remotePageState.connectionState as ConnectionState)} route=${this.appShellViewModel.currentRoute()}`);
     this.settingsController.stopPresencePolling();
-    this.remoteActivityViewModel.invalidate();
+    const activeRemoteTurn = this.remotePageState.activeTurnMessage;
+    if (this.isRemoteConversationContext(this.remotePageState.activeSession.sessionId)) {
+      this.trackRemoteTaskCompletion(this.remotePageState.activeSession.sessionId, activeRemoteTurn);
+    }
+    const keepRemotePolling = this.taskCompletionNotificationController.isTracking('remote');
+    const watchingCompletion = this.taskCompletionNotificationController.onBackground();
+    if (keepRemotePolling && watchingCompletion) {
+      this.remoteActivityViewModel.suspendKeepingActiveTurnPoll();
+    } else {
+      this.remoteActivityViewModel.invalidate();
+    }
     this.remoteConnectionCoordinator.invalidate();
     this.remotePageState.setBusy(false);
     this.generalChatDraftLifecycleController.persistVisible(this.generalChatPageState.chatInput);
@@ -88,6 +104,7 @@ export class AppRootRuntime extends AppRootRuntimeComposition {
   aboutToDisappear(): void {
     this.settingsController.stopPresencePolling();
     this.watchProvisionController.stop();
+    this.taskCompletionNotificationController.stop();
     this.remoteActivityViewModel.invalidate();
     this.remoteConnectionCoordinator.invalidate();
     this.remotePageState.setBusy(false);
@@ -233,6 +250,84 @@ export class AppRootRuntime extends AppRootRuntimeComposition {
     await this.selectWorkspace(path);
   }
 
+  async selectDirectoryDevice(deviceId: string): Promise<void> {
+    const selectionVersion = ++this.directorySelectionVersion;
+    // Selecting an already disclosed device is a local collapse. The remote
+    // control target remains connected; only its workspace tree is hidden.
+    // Bumping the version first also prevents an earlier async selection from
+    // reopening the row after this second tap.
+    if (this.deviceDirectoryState.collapseIfSelected(deviceId)) {
+      return;
+    }
+    await this.deviceDirectoryViewModel.selectDevice(deviceId);
+    if (selectionVersion !== this.directorySelectionVersion) {
+      return;
+    }
+    const entry = this.deviceDirectoryState.find(deviceId);
+    if (entry && !entry.online && !this.isConnectedDirectoryTarget(deviceId)) {
+      return;
+    }
+    try {
+      await this.conversationController.ensureRemoteControlTarget(deviceId);
+      if (selectionVersion !== this.directorySelectionVersion) {
+        return;
+      }
+      this.filePreviewController.close();
+      if (this.appShellState.wideLayout) {
+        await this.enterRemoteSurfaceWide();
+      } else {
+        // A device row is also the disclosure control for its workspaces. Keep
+        // the compact drawer visible so selecting it can reveal that content;
+        // entering Remote from any other compact entry point still dismisses
+        // the drawer through the method's default behavior.
+        await this.enterRemoteSurfaceCompact(false);
+      }
+      this.appShellViewModel.replaceRouteWithoutAnimation(AppRoute.RemoteHome);
+    } catch (err) {
+      RemoteLogger.warn(`device directory switch failed device=${deviceId}: ${String(err)}`);
+    }
+  }
+
+  async openWorkspacePickerOnDevice(deviceId: string): Promise<void> {
+    await this.deviceDirectoryViewModel.selectDevice(deviceId);
+    const entry = this.deviceDirectoryState.find(deviceId);
+    if (entry && !entry.online && !this.isConnectedDirectoryTarget(deviceId)) {
+      return;
+    }
+    if (this.isConnectedDirectoryTarget(deviceId)) {
+      await this.remoteWorkspaceViewModel.loadRecentWorkspacesInBackground();
+    }
+  }
+
+  async retryDirectoryDevice(deviceId: string): Promise<void> {
+    if (this.isConnectedDirectoryTarget(deviceId)) {
+      await this.remoteWorkspaceViewModel.loadRecentWorkspacesInBackground();
+      return;
+    }
+    await this.deviceDirectoryViewModel.retryDevice(deviceId);
+  }
+
+  async loadWorkspaceSessionsOnDevice(deviceId: string, path: string): Promise<void> {
+    const targetDeviceId = deviceId.trim();
+    const targetPath = path.trim();
+    if (targetDeviceId.length === 0 || targetPath.length === 0) {
+      return;
+    }
+    if (this.isConnectedDirectoryTarget(targetDeviceId)) {
+      const sessions = await this.sessionManager.listSessionsForWorkspace(targetPath, 50);
+      this.deviceDirectoryViewModel.captureWorkspaceSessions(targetDeviceId, targetPath, sessions);
+      this.remoteWorkspaceSessions = this.replaceWorkspaceSessions(targetPath, sessions);
+      this.publishRemoteWorkspaceSessions();
+      return;
+    }
+    await this.deviceDirectoryViewModel.loadWorkspaceSessions(targetDeviceId, targetPath);
+  }
+
+  private isConnectedDirectoryTarget(deviceId: string): boolean {
+    return deviceId === this.remotePageState.controlTargetDeviceId &&
+      RemoteUiState.canUseRemote((this.remotePageState.connectionState as ConnectionState));
+  }
+
   async selectAssistant(path: string): Promise<void> {
     this.filePreviewController.close();
     await this.remoteWorkspaceViewModel.selectAssistant(path);
@@ -283,8 +378,10 @@ export class AppRootRuntime extends AppRootRuntimeComposition {
    * session the user was last in, and otherwise rests on the Remote landing
    * surface rather than opening the create composer for them.
    */
-  async enterRemoteSurfaceCompact(): Promise<void> {
-    this.closeAppSidebar();
+  async enterRemoteSurfaceCompact(closeSidebar: boolean = true): Promise<void> {
+    if (closeSidebar) {
+      this.closeAppSidebar();
+    }
     if (AppRouteContract.isRemoteRoute(this.appShellViewModel.currentRoute())) {
       return;
     }
@@ -346,14 +443,72 @@ export class AppRootRuntime extends AppRootRuntimeComposition {
     }, 220);
   }
 
-  applyDiscoveredWorkspaceSessions(all: RemoteSession[]): void {
-    this.remoteWorkspaceSessions = all;
-    const deviceId = this.remotePageState.controlTargetDeviceId || this.remotePageState.desktopId;
-    const current = stampRemoteSessionsDevice(this.remotePageState.sessions, deviceId);
-    const extras = stampRemoteSessionsDevice(
-      all.filter((item: RemoteSession) => item.workspacePath !== this.remotePageState.workspacePath),
-      deviceId
+  /**
+   * Reconciles the workspace row that owns a newly created remote session.
+   *
+   * Creating from the sidebar deliberately does not switch the desktop's
+   * active workspace. A normal session refresh therefore still lists the old
+   * active workspace and cannot discover the new row. Publish the confirmed
+   * create immediately, then refresh the workspace named by the response.
+   */
+  async reconcileCreatedRemoteSession(session: SessionSummary): Promise<void> {
+    const workspacePath = session.workspacePath.trim();
+    if (workspacePath.length === 0 || workspacePath === this.remotePageState.workspacePath) {
+      await this.remoteSessionViewModel.refreshSessions();
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const created: RemoteSession = {
+      id: session.sessionId,
+      title: session.title,
+      agentType: session.agentType,
+      status: 'active',
+      updatedAt: now,
+      createdAt: now,
+      messageCount: session.initialTurnId ? 1 : 0,
+      workspacePath
+    };
+    this.remoteWorkspaceSessions = this.replaceWorkspaceSessions(
+      workspacePath,
+      this.mergeSessions([created], this.sessionsForWorkspace(workspacePath))
     );
+    this.publishRemoteWorkspaceSessions();
+
+    try {
+      const refreshed = await this.sessionManager.listSessionsForWorkspace(workspacePath, 50);
+      const containsCreated = refreshed.some((item: RemoteSession): boolean => item.id === session.sessionId);
+      this.remoteWorkspaceSessions = this.replaceWorkspaceSessions(
+        workspacePath,
+        containsCreated ? refreshed : this.mergeSessions([created], refreshed)
+      );
+      this.publishRemoteWorkspaceSessions();
+    } catch (err) {
+      // The create already succeeded and is on screen. Keep that confirmed row
+      // instead of turning a follow-up list failure into a false create error.
+      RemoteLogger.warn(`created session workspace refresh failed path=${workspacePath}: ${String(err)}`);
+    }
+  }
+
+  private sessionsForWorkspace(path: string): RemoteSession[] {
+    return this.remotePageState.sessions.filter((item: RemoteSession): boolean => item.workspacePath === path);
+  }
+
+  private replaceWorkspaceSessions(path: string, replacement: RemoteSession[]): RemoteSession[] {
+    const preserved = this.remotePageState.sessions.filter((item: RemoteSession): boolean => {
+      return item.workspacePath !== path;
+    });
+    return replacement.concat(preserved);
+  }
+
+  private publishRemoteWorkspaceSessions(): void {
+    const currentPath = this.remotePageState.workspacePath;
+    const current = this.remotePageState.sessions.filter((item: RemoteSession): boolean => {
+      return (item.workspacePath || currentPath) === currentPath;
+    });
+    const extras = this.remoteWorkspaceSessions.filter((item: RemoteSession): boolean => {
+      return item.workspacePath !== currentPath;
+    });
     this.publishRemoteSessions(this.mergeSessions(current, extras), this.remotePageState.hasMoreSessions);
   }
 
@@ -367,9 +522,17 @@ export class AppRootRuntime extends AppRootRuntimeComposition {
    */
   publishRemoteSessions(sessions: RemoteSession[], hasMore: boolean): void {
     const deviceId = this.remotePageState.controlTargetDeviceId || this.remotePageState.desktopId;
-    const stamped = stampRemoteSessionsDevice(sessions, deviceId);
+    const scoped = stampRemoteSessionsWorkspace(sessions, this.remotePageState.workspacePath);
+    const stamped = stampRemoteSessionsDevice(scoped, deviceId);
     this.remotePageState.setSessions(stamped, hasMore);
     this.remoteSessionListCache.save(stamped, hasMore);
+    const currentPath = this.remotePageState.workspacePath;
+    if (currentPath.length > 0) {
+      const currentSessions = stamped.filter((item: RemoteSession): boolean => {
+        return (item.workspacePath || '') === currentPath;
+      });
+      this.deviceDirectoryViewModel.captureWorkspaceSessions(deviceId, currentPath, currentSessions);
+    }
     this.deviceDirectoryViewModel.captureLive(
       deviceId,
       this.remotePageState.recentWorkspaces,

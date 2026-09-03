@@ -1574,7 +1574,7 @@ fn commit_exists(repo: &Path, commit: &str) -> Result<bool> {
 }
 
 fn git_command(dir: &Path) -> Command {
-    let mut command = process_manager::create_command("git");
+    let mut command = bitfun_services_core::process_manager::create_command("git");
     command
         .current_dir(dir)
         // A detached dispatch worker has nobody to answer a credential or

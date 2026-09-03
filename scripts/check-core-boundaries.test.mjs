@@ -1,5 +1,6 @@
-import { access, readFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -8,6 +9,7 @@ import assert from 'node:assert/strict';
 import {
   collectCargoMetadataGraph,
   collectCargoMetadataPackages,
+  discoverCargoManifestPaths,
   findCargoLayerViolations,
   findFeatureGatedTestTargetViolations,
   findProductEntrypointCoreFeatureViolations,
@@ -69,6 +71,76 @@ const MODULES = [
 ];
 
 const TEST_ROOT = join('C:', 'repo');
+
+test('tool-runtime search regex stays available without enabling HTML extractors', () => {
+  const rule = requiredContentRules.find(
+    rule => rule.path === 'src/crates/execution/tool-execution/Cargo.toml',
+  );
+  assert.ok(rule);
+  const manifest = `[features]
+default = []
+web-readable = ["dep:htmd", "dep:legible", "dep:readability-js"]
+[dependencies]
+regex = { workspace = true }
+htmd = { version = "0.5.4", optional = true }
+legible = { version = "0.4.2", optional = true }
+readability-js = { version = "0.1.5", optional = true }
+`;
+  const accepts = text => rule.patterns.every(({ regex }) => regex.test(text));
+  assert.ok(accepts(manifest));
+  assert.equal(accepts(manifest.replace(
+    'regex = { workspace = true }',
+    'regex = { workspace = true, optional = true }',
+  )), false);
+  for (const dependency of ['htmd', 'legible', 'readability-js']) {
+    assert.equal(accepts(manifest.replace(
+      new RegExp(`(${dependency} = \\{[^}]*), optional = true`), '$1',
+    )), false, `${dependency} must remain optional`);
+  }
+  assert.equal(accepts(manifest.replace(
+    'web-readable = [', 'web-readable = ["dep:regex", ',
+  )), false);
+});
+
+test('workspace file tools reject new per-tool SSH implementations', async () => {
+  for (const tool of ['file_read_tool', 'file_write_tool', 'file_edit_tool', 'delete_file_tool', 'ls_tool']) {
+    const path = `src/crates/assembly/core/src/agentic/tools/implementations/${tool}.rs`;
+    const rule = forbiddenContentRules.find(rule => rule.path === path);
+    assert.ok(rule, `${tool} must retain its provider boundary guard`);
+    const source = await readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+    assert.deepEqual(findForbiddenContentMatches(source, rule.patterns), []);
+    for (const mutation of [
+      'if context.is_remote() { return call_remote(); }',
+      'resolved.uses_remote_workspace_backend()',
+      'context.ws_shell().unwrap().exec(command)',
+      'write_local_file(request)',
+      'build_remote_delete_command(path, recursive)',
+    ]) {
+      assert.ok(findForbiddenContentMatches(`${source}\n${mutation}`, rule.patterns).length > 0,
+        `${tool} must reject ${mutation}`);
+    }
+  }
+});
+
+test('Cargo manifest discovery ignores nested local-agent worktrees', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'bitfun-core-boundaries-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await Promise.all([
+    mkdir(join(root, 'src', 'crate'), { recursive: true }),
+    mkdir(join(root, '.claude', 'worktrees', 'other'), { recursive: true }),
+    mkdir(join(root, '.cursor', 'worktrees', 'other'), { recursive: true }),
+  ]);
+  await Promise.all([
+    writeFile(join(root, 'Cargo.toml'), '[workspace]\n'),
+    writeFile(join(root, 'src', 'crate', 'Cargo.toml'), '[package]\nname="kept"\nversion="0.1.0"\n'),
+    writeFile(join(root, '.claude', 'worktrees', 'other', 'Cargo.toml'), '[package]\nname="ignored-claude"\nversion="0.1.0"\n'),
+    writeFile(join(root, '.cursor', 'worktrees', 'other', 'Cargo.toml'), '[package]\nname="ignored-cursor"\nversion="0.1.0"\n'),
+  ]);
+
+  const manifests = discoverCargoManifestPaths(root)
+    .map((manifest) => manifest.slice(root.length + 1).replaceAll('\\', '/'));
+  assert.deepEqual(manifests, ['Cargo.toml', 'src/crate/Cargo.toml']);
+});
 
 test('App Server TypeScript capability is owned by the protocol crate and independent from RPC', () => {
   const appServerTs = coreClosedFeatureProfileRules.find(
@@ -164,6 +236,71 @@ test('Agent Runtime leaf capabilities have one managed feature and source contra
       `Agent Runtime root must reject mutation: ${mutation}`,
     );
   }
+});
+
+test('Server canonical Agent Runtime ownership is protected by source boundary rules', async () => {
+  const bootstrapPath = 'src/apps/server/src/bootstrap.rs';
+  const mainPath = 'src/apps/server/src/main.rs';
+  const bootstrapRequired = requiredContentRules.find((rule) => rule.path === bootstrapPath);
+  const bootstrapForbidden = forbiddenContentRules.find((rule) => rule.path === bootstrapPath);
+  const mainRequired = requiredContentRules.find((rule) => rule.path === mainPath);
+  const mainForbidden = forbiddenContentRules.find((rule) => rule.path === mainPath);
+
+  assert.ok(bootstrapRequired, 'Server bootstrap must have a required ownership contract');
+  assert.ok(bootstrapForbidden, 'Server bootstrap must reject duplicate Runtime assembly');
+  assert.ok(mainRequired, 'Server main must retain the product event owner');
+  assert.ok(mainForbidden, 'Server main must reject an unowned event source');
+
+  const [bootstrapSource, mainSource] = await Promise.all([
+    readFile(new URL('../src/apps/server/src/bootstrap.rs', import.meta.url), 'utf8'),
+    readFile(new URL('../src/apps/server/src/main.rs', import.meta.url), 'utf8'),
+  ]);
+  for (const pattern of bootstrapRequired.patterns) {
+    assert.match(bootstrapSource, pattern.regex, pattern.message);
+  }
+  for (const pattern of mainRequired.patterns) {
+    assert.match(mainSource, pattern.regex, pattern.message);
+  }
+  assert.match(
+    'let queue = EventQueue::new(Default::default());',
+    bootstrapForbidden.patterns[0].regex,
+  );
+  assert.match(
+    'let source = AgentEventSource::new(event_queue);',
+    mainForbidden.patterns[0].regex,
+  );
+});
+
+test('TLS source boundaries reject bypasses of the centralized provider owner', () => {
+  const integrationsRule = forbiddenContentUnderRules.find((rule) =>
+    rule.path === 'src/crates/services/services-integrations/src'
+      && rule.reason.includes('provider-initializing Reqwest constructors'));
+  const providerRule = forbiddenContentUnderRules.find((rule) =>
+    rule.path === 'src'
+      && rule.reason.includes('only owner allowed to install'));
+  assert.ok(integrationsRule, 'integration Reqwest constructors must be guarded');
+  assert.ok(providerRule, 'direct Rustls provider installation must be guarded');
+
+  assert.ok(integrationsRule.patterns.some((pattern) => pattern.regex.test(
+    'use reqwest::Client;\nfn client() { let _ = Client::builder(); }',
+  )));
+  assert.ok(integrationsRule.patterns.some((pattern) => pattern.regex.test(
+    'use reqwest::{Client as HttpClient, Url};\nfn client() { let _ = HttpClient::new(); }',
+  )));
+  assert.ok(integrationsRule.patterns.some((pattern) => pattern.regex.test(
+    'fn client() { let _ = reqwest::ClientBuilder::new(); }',
+  )));
+  assert.ok(integrationsRule.patterns.some((pattern) => pattern.regex.test(
+    'use reqwest as http;\nfn client() { let _ = http::Client::new(); }',
+  )));
+  assert.match(
+    'rustls::crypto::ring::default_provider().install_default();',
+    providerRule.patterns[0].regex,
+  );
+  assert.doesNotMatch(
+    'unrelated_component.install_default();',
+    providerRule.patterns[0].regex,
+  );
 });
 
 test('Core and ACP defaults preserve their explicit assembly contracts', async () => {
@@ -266,8 +403,10 @@ test('portable contract crates expose only capability-local feature slices', asy
       'default',
       'agent-api',
       'git-port',
+      'hook-function-runtime',
       'permission',
       'plugin-runtime',
+      'product-search',
       'remote-exec-port',
       'remote-workspace-ports',
       'runtime-event-port',
@@ -279,9 +418,13 @@ test('portable contract crates expose only capability-local feature slices', asy
     ]),
   );
   assert.deepEqual(runtimePortFeatures['agent-api'], ['dep:bitfun-core-types']);
+  assert.deepEqual(runtimePortFeatures['hook-function-runtime'], []);
   assert.deepEqual(runtimePortFeatures['plugin-runtime'], []);
+  assert.deepEqual(runtimePortFeatures['product-search'], ['dep:bitfun-product-domains']);
   assert.deepEqual(runtimePortFeatures['script-tool-runtime'], []);
-  assert.deepEqual(new Set(runtimePortFeatures['workspace-ports']), new Set(['dep:anyhow', 'dep:tokio-util']));
+  // Workspace byte readers expose AsyncRead/AsyncSeek without selecting a
+  // process, network, scheduler, or full Tokio runtime at the contract layer.
+  assert.deepEqual(new Set(runtimePortFeatures['workspace-ports']), new Set(['dep:anyhow', 'dep:tokio-util', 'dep:tokio', 'tokio/io-util']));
   assert.deepEqual(runtimePortFeatures['terminal-port'], ['dep:tokio']);
   assert.deepEqual(runtimePortFeatures['remote-exec-port'], ['dep:tokio']);
   assert.deepEqual(
@@ -318,6 +461,7 @@ test('runtime-port capability source gates protect modules and public exports', 
     ['remote-workspace-ports', 'remote_workspace_ports'],
     ['runtime-event-port', 'runtime_event_port'],
     ['git-port', 'git_port'],
+    ['product-search', 'product_search'],
     ['tool-runtime-handles', 'tool_runtime_handles'],
   ]) {
     assert.match(patterns, new RegExp(`${feature}.*mod ${moduleName}`));
@@ -346,7 +490,8 @@ test('runtime-ports async dependencies stay behind their exact port owners', () 
   );
   assert.deepEqual(
     ownersByDependency.get('tokio'),
-    new Set(['remote-exec-port', 'terminal-port']),
+    // WorkspaceReader exposes AsyncRead/AsyncSeek through the workspace IO port.
+    new Set(['remote-exec-port', 'terminal-port', 'workspace-ports']),
   );
 });
 
@@ -372,7 +517,7 @@ test('Core feature-free dependencies stay attached to their exact runtime owners
   assert.deepEqual(ownersByDependency.get('unic-langid'), new Set(['i18n-runtime']));
   assert.deepEqual(
     ownersByDependency.get('tokio-util'),
-    new Set(['agent-runtime', 'debug-log']),
+    new Set(['agent-runtime']),
   );
 });
 
@@ -395,13 +540,14 @@ test('Services Core feature-free dependencies stay behind exact text and async I
   assert.deepEqual(
     ownersByDependency.get('tokio'),
     new Set([
+      'credential-vault',
       'diff',
       'filesystem',
       'json-io',
       'local-storage',
-      'lsp',
       'permission',
       'process-runtime',
+      'session-search',
       'workspace-instructions',
       'workspace-runtime',
       'workspace-text-runtime',
@@ -480,8 +626,10 @@ const RUNTIME_PORT_FEATURE_PROFILES = {
   default: [],
   'agent-api': ['dep:bitfun-core-types'],
   'git-port': [],
+  'hook-function-runtime': [],
   permission: ['dep:bitfun-product-domains'],
   'plugin-runtime': [],
+  'product-search': ['dep:bitfun-product-domains'],
   'remote-exec-port': ['dep:tokio'],
   'remote-workspace-ports': [],
   'runtime-event-port': [],
@@ -495,7 +643,7 @@ const RUNTIME_PORT_FEATURE_PROFILES = {
     'bitfun-core-types/ts',
     'bitfun-product-domains?/ts',
   ],
-  'workspace-ports': ['dep:anyhow', 'dep:tokio-util'],
+  'workspace-ports': ['dep:anyhow', 'dep:tokio-util', 'dep:tokio', 'tokio/io-util'],
 };
 
 const AGENT_TOOL_FEATURE_PROFILES = {
@@ -699,7 +847,6 @@ test('contract and AI adapter tests keep reviewed feature and failure-domain top
       name: 'core_type_contracts',
       path: 'tests/core_type_contracts.rs',
       leaves: [
-        'tests/core_type_contracts/lsp_contracts.rs',
         'tests/core_type_contracts/session_contracts.rs',
         'tests/core_type_contracts/session_usage_contracts.rs',
         'tests/core_type_contracts/surface_contracts.rs',
@@ -721,6 +868,11 @@ test('contract and AI adapter tests keep reviewed feature and failure-domain top
       name: 'git_port_contracts',
       path: 'tests/git_port_contracts.rs',
       requiredFeatures: ['git-port'],
+    },
+    {
+      name: 'hook_function_runtime_contracts',
+      path: 'tests/hook_function_runtime_contracts.rs',
+      requiredFeatures: ['hook-function-runtime'],
     },
     {
       name: 'script_tool_port_contracts',
@@ -750,6 +902,7 @@ test('contract and AI adapter tests keep reviewed feature and failure-domain top
         'tests/external_source_contracts/external_hook_catalog_contracts.rs',
         'tests/external_source_contracts/external_hook_contribution_contracts.rs',
         'tests/external_source_contracts/external_source_contracts.rs',
+        'tests/external_source_contracts/plugin_capability_contracts.rs',
         'tests/external_source_contracts/workspace_reference_contracts.rs',
       ],
       requiredFeatures: ['external-sources'],
@@ -1168,6 +1321,7 @@ test('Core product-full explicitly assembles service and tool capability owners'
     'tools-mcp',
     'tools-browser-web',
     'tools-computer-use',
+    'tools-creation',
     'tools-image-analysis',
     'tools-miniapp',
     'tools-canvas',
@@ -1535,7 +1689,6 @@ const SDK_HOST_REVIEWED_CORE_FEATURES = [
   'agent-runtime',
   'document-read',
   'subscription-auth',
-  'lsp',
   'external-sources',
   'tools-basic',
   'tools-git',
@@ -1553,6 +1706,7 @@ const ACP_REVIEWED_CORE_FEATURES = [
 
 const CLI_REVIEWED_CORE_FEATURES = [
   ...ACP_REVIEWED_CORE_FEATURES,
+  'product-search',
   'remote-connect',
   'plugin-runtime',
   'opencode-plugin-host',
@@ -1564,6 +1718,16 @@ const APP_SERVER_REVIEWED_CORE_FEATURES = [
   'i18n-runtime',
   'remote-connect',
 ];
+
+test('OpenCode Plugin Host keeps retired LSP outside its feature closure', () => {
+  const rule = coreClosedFeatureProfileRules.find(
+    (candidate) => candidate.manifestPath === 'src/crates/assembly/core/Cargo.toml'
+      && candidate.featureName === 'opencode-plugin-host',
+  );
+
+  assert.ok(rule, 'opencode-plugin-host feature closure rule');
+  assert.equal(rule.requiredFeatureRefs.includes('lsp'), false);
+});
 
 test('SDK Host Core capability closure keeps every reviewed owner', () => {
   const core = packageAt('bitfun-core', 'src/crates/assembly/core/Cargo.toml');
@@ -1596,7 +1760,6 @@ test('SDK Host closure rejects unreviewed capability owners below Core', () => {
     ['bitfun-services-integrations', 'src/crates/services/services-integrations/Cargo.toml', 'remote-ssh-concrete'],
     ['bitfun-services-integrations', 'src/crates/services/services-integrations/Cargo.toml', 'function-agents'],
     ['bitfun-services-integrations', 'src/crates/services/services-integrations/Cargo.toml', 'announcement'],
-    ['bitfun-services-integrations', 'src/crates/services/services-integrations/Cargo.toml', 'debug-log'],
     ['bitfun-services-integrations', 'src/crates/services/services-integrations/Cargo.toml', 'product-full'],
     ['bitfun-product-domains', 'src/crates/contracts/product-domains/Cargo.toml', 'function-agents'],
     ['bitfun-product-domains', 'src/crates/contracts/product-domains/Cargo.toml', 'product-full'],
@@ -2465,9 +2628,8 @@ test('CLI dependency closure includes build dependencies and excluded capabiliti
   const core = {
     ...packageAt('bitfun-core', 'src/crates/assembly/core/Cargo.toml'),
     features: {
-      'cli-everything': ['announcement', 'debug-log'],
+      'cli-everything': ['announcement'],
       announcement: [],
-      'debug-log': [],
     },
   };
   const bridge = packageAt('bridge', 'src/crates/assembly/bridge/Cargo.toml', [
@@ -2587,7 +2749,6 @@ test('services integrations Tokio owner contracts reject feature-union masking',
   );
   const mutations = [
     ['plugin-source', 'tokio/time', /plugin-source missing effective Tokio capabilities: time/],
-    ['privacy', 'tokio/fs', /privacy missing effective Tokio capabilities: fs/],
     ['mcp', 'tokio/process', /mcp missing effective Tokio capabilities: process/],
     ['miniapp-market', 'miniapp-runtime', /miniapp-market missing effective Tokio capabilities: fs/],
     ['function-agents', 'git', /function-agents missing effective Tokio capabilities: fs/],
@@ -2608,11 +2769,11 @@ test('services integrations Reqwest policy uses Cargo-decoded feature references
   const pkg = servicesIntegrationsPackage(`
 [features]
 reqwest = ["dep:reqwest"]
-announcement = ["reqwest", "reqwest/rustls"]
+announcement = ["reqwest", "reqwest/rustls-no-provider"]
 file-watch = ["reqwest?/__native-tls"]
-mcp = ["reqwest", "reqwest/rustls", "reqwest/json"]
-models-dev = ["reqwest", "reqwest/rustls", "reqwest/system-proxy"]
-speech = ["reqwest", "reqwest/rustls", "reqwest/http3"]
+mcp = ["reqwest", "reqwest/rustls-no-provider", "reqwest/json"]
+models-dev = ["reqwest", "reqwest/rustls-no-provider", "reqwest/system-proxy"]
+speech = ["reqwest", "reqwest/rustls-no-provider", "reqwest/http3"]
 `);
 
   const messages = findServicesIntegrationsReqwestFeatureViolations(pkg)
@@ -2623,6 +2784,26 @@ speech = ["reqwest", "reqwest/rustls", "reqwest/http3"]
   assert.match(messages, /mcp.*missing Reqwest feature reference reqwest\/stream/);
   assert.doesNotMatch(messages, /models-dev.*system-proxy/);
   assert.match(messages, /speech.*unreviewed Reqwest feature reference reqwest\/http3/);
+  assert.doesNotMatch(messages, /missing reqwest\/rustls\b/);
+  assert.doesNotMatch(messages, /unreviewed.*reqwest\/rustls-no-provider/);
+});
+
+test('every services integrations Reqwest owner activates the reviewed TLS provider', async () => {
+  const manifest = await readFile(
+    new URL('../src/crates/services/services-integrations/Cargo.toml', import.meta.url),
+    'utf8',
+  );
+  const mutated = removeFeatureValue(
+    manifest,
+    'review-platform',
+    'bitfun-services-core/tls-provider',
+  );
+  assert.notEqual(mutated, manifest, 'review-platform must own the TLS provider in the fixture');
+
+  const messages = findServicesIntegrationsReqwestFeatureViolations(
+    servicesIntegrationsPackage(mutated),
+  ).map((violation) => violation.message).join('\n');
+  assert.match(messages, /review-platform.*missing bitfun-services-core\/tls-provider/);
 });
 
 test('direct Reqwest clients reject extra decoded dependency and package features', () => {
@@ -2635,7 +2816,7 @@ test('direct Reqwest clients reject extra decoded dependency and package feature
       features: [
         'http2',
         'stream',
-        'rustls',
+        'rustls-no-provider',
         '__native-tls',
       ],
     }]),
@@ -2659,26 +2840,42 @@ test('direct Reqwest clients reject extra decoded dependency and package feature
 test('AI adapters Reqwest profile owns the supported SOCKS transport', () => {
   const baseFeatures = ['http2', 'json', 'stream'];
   const valid = {
-    ...packageAt('bitfun-ai-adapters', 'src/crates/adapters/ai-adapters/Cargo.toml', [{
-      name: 'reqwest',
-      kind: null,
-      optional: false,
-      uses_default_features: false,
-      features: [...baseFeatures, 'rustls', 'socks'],
-    }]),
+    ...packageAt('bitfun-ai-adapters', 'src/crates/adapters/ai-adapters/Cargo.toml', [
+      {
+        name: 'reqwest',
+        kind: null,
+        optional: false,
+        uses_default_features: false,
+        features: [...baseFeatures, 'rustls-no-provider', 'socks'],
+      },
+      {
+        name: 'bitfun-services-core',
+        kind: null,
+        optional: false,
+        features: ['tls-provider'],
+      },
+    ]),
     features: { 'subscription-auth': ['reqwest/form'] },
   };
   const missingSocks = {
     ...packageAt(
     'bitfun-ai-adapters',
     'src/crates/adapters/ai-adapters/Cargo.toml',
-    [{
-      name: 'reqwest',
-      kind: null,
-      optional: false,
-      uses_default_features: false,
-      features: [...baseFeatures, 'rustls'],
-    }],
+    [
+      {
+        name: 'reqwest',
+        kind: null,
+        optional: false,
+        uses_default_features: false,
+        features: [...baseFeatures, 'rustls-no-provider'],
+      },
+      {
+        name: 'bitfun-services-core',
+        kind: null,
+        optional: false,
+        features: ['tls-provider'],
+      },
+    ],
     ),
     features: { 'subscription-auth': ['reqwest/form'] },
   };
@@ -2751,8 +2948,11 @@ test('Reqwest consumers inherit the workspace version without duplicating featur
   assert.equal(rules.length, 7);
   for (const rule of rules) {
     const pattern = rule.patterns[0].regex;
-    assert.match('reqwest = { workspace = true, features = ["rustls"] }', pattern);
-    assert.doesNotMatch('reqwest = { version = "99", features = ["rustls"] }', pattern);
+    assert.match('reqwest = { workspace = true, features = ["rustls-no-provider"] }', pattern);
+    assert.doesNotMatch(
+      'reqwest = { version = "99", features = ["rustls-no-provider"] }',
+      pattern,
+    );
   }
 });
 
@@ -2855,7 +3055,7 @@ test('services integrations image codecs stay attached to exact product owners',
   assert.match(messages, /image shared Image activation alias must not select capabilities: png/);
 });
 
-test('services integrations WebSocket TLS stays attached to remote-connect', () => {
+test('services integrations WebSocket TLS stays attached to reviewed realtime owners', () => {
   const pkg = {
     ...packageAt('bitfun-services-integrations', 'src/crates/services/services-integrations/Cargo.toml', [{
       name: 'tokio-tungstenite',
@@ -2866,6 +3066,10 @@ test('services integrations WebSocket TLS stays attached to remote-connect', () 
     }]),
     features: {
       'remote-connect': [
+        'dep:tokio-tungstenite',
+        'tokio-tungstenite?/rustls-tls-native-roots',
+      ],
+      'speech-realtime': [
         'dep:tokio-tungstenite',
         'tokio-tungstenite?/rustls-tls-native-roots',
       ],
@@ -2945,6 +3149,11 @@ test('resolved Reqwest feature union rejects every native TLS backend alias', ()
         version: '0.12.28',
         features: ['rustls-tls', 'default-tls'],
       },
+      {
+        name: 'rustls',
+        version: '0.23.42',
+        features: ['ring', 'std'],
+      },
     ],
     { root: TEST_ROOT },
   );
@@ -2953,6 +3162,132 @@ test('resolved Reqwest feature union rejects every native TLS backend alias', ()
   const messages = violations.map((violation) => violation.message).join('\n');
   assert.match(messages, /__native-tls, native-tls-vendored-no-alpn/);
   assert.match(messages, /reqwest 0\.12\.28.*default-tls/);
+});
+
+test('resolved Reqwest feature union rejects the AWS-LC selecting Rustls alias', () => {
+  const violations = findResolvedReqwestNativeTlsViolations(
+    [{
+      name: 'reqwest',
+      version: '0.13.4',
+      features: ['rustls', 'rustls-no-provider'],
+    }, {
+      name: 'rustls',
+      version: '0.23.42',
+      features: ['ring', 'std'],
+    }],
+    { root: TEST_ROOT },
+  );
+
+  assert.equal(violations.length, 1);
+  assert.match(violations[0].message, /rustls.*AWS-LC/);
+});
+
+test('resolved Rustls feature union rejects multiple crypto providers', () => {
+  const violations = findResolvedReqwestNativeTlsViolations(
+    [
+      {
+        name: 'reqwest',
+        version: '0.13.4',
+        features: ['rustls-no-provider'],
+      },
+      {
+        name: 'rustls',
+        version: '0.23.42',
+        features: ['aws_lc_rs', 'ring', 'std'],
+      },
+    ],
+    { root: TEST_ROOT },
+  );
+
+  assert.equal(violations.length, 1);
+  assert.match(violations[0].message, /only the ring crypto provider.*aws_lc_rs, ring/);
+});
+
+test('resolved Rustls feature union normalizes and rejects AWS-LC aliases once', () => {
+  const violations = findResolvedReqwestNativeTlsViolations(
+    [
+      {
+        name: 'reqwest',
+        version: '0.13.4',
+        features: ['rustls-no-provider'],
+      },
+      {
+        name: 'rustls',
+        version: '0.23.42',
+        features: ['aws-lc-rs', 'aws_lc_rs', 'std'],
+      },
+    ],
+    { root: TEST_ROOT },
+  );
+
+  assert.equal(violations.length, 1);
+  assert.match(violations[0].message, /selects aws_lc_rs$/);
+});
+
+test('resolved Rustls feature union rejects providers split across Rustls versions', () => {
+  const violations = findResolvedReqwestNativeTlsViolations(
+    [
+      {
+        name: 'reqwest',
+        version: '0.13.4',
+        features: ['rustls-no-provider'],
+      },
+      {
+        name: 'rustls',
+        version: '0.23.42',
+        features: ['ring', 'std'],
+      },
+      {
+        name: 'rustls',
+        version: '0.22.4',
+        features: ['aws_lc_rs', 'std'],
+      },
+    ],
+    { root: TEST_ROOT },
+  );
+
+  assert.equal(violations.length, 1);
+  assert.match(violations[0].message, /only the ring crypto provider.*aws_lc_rs, ring/);
+});
+
+test('resolved Reqwest Rustls closure rejects a missing crypto provider', () => {
+  const violations = findResolvedReqwestNativeTlsViolations(
+    [{
+      name: 'reqwest',
+      version: '0.13.4',
+      features: ['rustls-no-provider'],
+    }],
+    { root: TEST_ROOT },
+  );
+
+  assert.equal(violations.length, 1);
+  assert.match(violations[0].message, /selects \(no provider\)/);
+});
+
+test('resolved Reqwest Rustls closure rejects linked AWS-LC packages', () => {
+  const violations = findResolvedReqwestNativeTlsViolations(
+    [
+      {
+        name: 'reqwest',
+        version: '0.13.4',
+        features: ['rustls-no-provider'],
+      },
+      {
+        name: 'rustls',
+        version: '0.23.42',
+        features: ['ring', 'std'],
+      },
+      {
+        name: 'aws-lc-rs',
+        version: '1.13.3',
+        features: [],
+      },
+    ],
+    { root: TEST_ROOT },
+  );
+
+  assert.equal(violations.length, 1);
+  assert.match(violations[0].message, /aws_lc_rs, ring/);
 });
 
 test('Cargo metadata Tokio policy catches table-style and renamed full dependencies', () => {
@@ -3383,6 +3718,40 @@ test('split core boundary check keeps self-test execution behavior', () => {
   assert.match(selfTest.stdout, /Core boundary check self-test passed\./);
 });
 
+test('Task execution boundary requires policy-aware child delegation', () => {
+  const executionRule = requiredContentRules.find(
+    (rule) => rule.path
+      === 'src/crates/assembly/core/src/agentic/tools/implementations/task/execution.rs'
+      && rule.patterns.some((pattern) => pattern.message.includes('background launches')),
+  );
+  assert.ok(executionRule, 'Task execution must have a required-content rule');
+
+  const backgroundRule = executionRule.patterns.find(
+    (pattern) => pattern.message.includes('background launches'),
+  );
+  const foregroundRule = executionRule.patterns.find(
+    (pattern) => pattern.message.includes('foreground execution'),
+  );
+  assert.ok(backgroundRule, 'background child delegation must be protected');
+  assert.ok(foregroundRule, 'foreground child delegation must be protected');
+  assert.match(
+    'let delegation_policy = child_delegation_policy(context, coordinator).await?;',
+    backgroundRule.regex,
+  );
+  assert.match(
+    'delegation_policy: child_delegation_policy(context, coordinator).await?',
+    foregroundRule.regex,
+  );
+  assert.doesNotMatch(
+    'delegation_policy: context.delegation_policy().spawn_child()',
+    backgroundRule.regex,
+  );
+  assert.doesNotMatch(
+    'delegation_policy: context.delegation_policy().spawn_child()',
+    foregroundRule.regex,
+  );
+});
+
 test('optional dependency ownership rejects undeclared direct feature owners', async () => {
   const {
     featureReferencesOptionalDependencyOwner,
@@ -3510,16 +3879,6 @@ test('services-core capability profiles keep heavy owners out of the empty profi
     'tokio/io-util',
     'tokio/rt',
   ]);
-  assert.deepEqual(profiles.get('lsp'), [
-    'dep:anyhow',
-    'dep:bitfun-core-types',
-    'dep:notify',
-    'dep:zip',
-    'process-runtime',
-    'tokio/fs',
-    'tokio/io-util',
-    'tokio/sync',
-  ]);
   assert.deepEqual(profiles.get('workspace-runtime'), [
     'dep:anyhow',
     'dep:async-trait',
@@ -3527,6 +3886,8 @@ test('services-core capability profiles keep heavy owners out of the empty profi
     'bitfun-runtime-ports/runtime-event-port',
     'bitfun-runtime-ports/workspace-ports',
     'dep:dunce',
+    // The concrete local provider restores modification times through WorkspaceFS.
+    'dep:filetime',
     'process-runtime',
     'tokio/fs',
     'tokio/io-util',
@@ -3604,7 +3965,6 @@ test('services-core Tokio capabilities stay owner-scoped', () => {
       'local-storage': [],
       'process-runtime': [],
       'workspace-instructions': [],
-      lsp: [],
       'workspace-runtime': [],
     },
   };
@@ -3619,10 +3979,6 @@ test('services-core Tokio capabilities stay owner-scoped', () => {
   assert.ok(
     messages.some((message) => message.includes('filesystem missing effective Tokio capabilities: fs')),
     'services-core must require filesystem to own tokio/fs',
-  );
-  assert.ok(
-    messages.some((message) => message.includes('lsp missing effective Tokio capabilities')),
-    'services-core must require lsp to declare its complete effective Tokio profile',
   );
 });
 
@@ -3639,6 +3995,7 @@ test('Services Core accepts only the reviewed feature-owned Tokio runtime graph'
       },
     ],
     features: {
+      'credential-vault': ['dep:tokio', 'tokio/fs', 'tokio/io-util', 'tokio/rt'],
       diff: ['dep:tokio', 'tokio/rt', 'tokio/time'],
       filesystem: ['dep:tokio', 'tokio/fs', 'tokio/rt'],
       'json-io': ['dep:tokio', 'tokio/fs', 'tokio/rt', 'tokio/sync', 'tokio/time'],
@@ -3650,6 +4007,7 @@ test('Services Core accepts only the reviewed feature-owned Tokio runtime graph'
         'tokio/time',
       ],
       permission: ['dep:tokio', 'tokio/rt'],
+      'session-search': ['dep:tokio', 'tokio/rt'],
       'process-runtime': [
         'dep:tokio',
         'tokio/io-util',
@@ -3659,7 +4017,6 @@ test('Services Core accepts only the reviewed feature-owned Tokio runtime graph'
       ],
       'workspace-instructions': ['dep:tokio', 'tokio/fs', 'tokio/io-util', 'tokio/rt'],
       'workspace-text-runtime': ['dep:tokio', 'tokio/rt'],
-      lsp: ['process-runtime', 'tokio/fs', 'tokio/io-util', 'tokio/sync'],
       'workspace-runtime': [
         'process-runtime',
         'tokio/fs',
@@ -3706,7 +4063,6 @@ test('Services Core Tokio owners cannot be hidden behind an unreviewed alias', (
       ],
       'workspace-instructions': ['dep:tokio', 'tokio/fs', 'tokio/io-util', 'tokio/rt'],
       'workspace-text-runtime': ['dep:tokio', 'tokio/rt'],
-      lsp: ['process-runtime', 'tokio/fs', 'tokio/io-util', 'tokio/sync'],
       'workspace-runtime': [
         'process-runtime',
         'tokio/fs',
@@ -3769,8 +4125,6 @@ test('Core Tokio capabilities cannot hide behind an unreviewed owner feature', (
       'agent-runtime': ['tokio/io-util', 'tokio/macros', 'tokio/rt', 'tokio/time'],
       'mcp-runtime': ['agent-runtime', 'tokio/rt-multi-thread'],
       'browser-control': ['tokio/net', 'tokio/rt', 'tokio/time'],
-      'debug-log': ['tokio/macros', 'tokio/net', 'tokio/rt', 'tokio/time'],
-      lsp: ['tokio/macros'],
       sneaky: ['agent-runtime', 'browser-control'],
     },
   };
@@ -3792,8 +4146,6 @@ test('reviewed Tokio aggregates cannot declare runtime capabilities directly', (
       'agent-runtime': ['tokio/io-util', 'tokio/macros', 'tokio/rt', 'tokio/time'],
       'mcp-runtime': ['agent-runtime', 'tokio/rt-multi-thread'],
       'browser-control': ['tokio/net', 'tokio/rt', 'tokio/time'],
-      'debug-log': ['tokio/macros', 'tokio/net', 'tokio/rt', 'tokio/time'],
-      lsp: ['tokio/macros'],
       'product-full': ['agent-runtime', 'tokio/net'],
     },
   };
@@ -3964,6 +4316,45 @@ test('capability contract consumers may inherit empty defaults but must select r
 
   assert.doesNotMatch(messages.join('\n'), /default-features = false/);
   assert.ok(messages.some((message) => /plugin-runtime/.test(message)));
+
+  // Shared file/search algorithms consume workspace IO, not the entire runtime API.
+  const toolRuntime = packageAt(
+    'tool-runtime',
+    'src/crates/execution/tool-execution/Cargo.toml',
+    [
+      pathDependency('src/crates/contracts/runtime-ports', {
+        name: 'bitfun-runtime-ports',
+        features: ['workspace-ports'],
+      }),
+      pathDependency('src/crates/execution/tool-contracts', {
+        name: 'bitfun-agent-tools',
+      }),
+    ],
+  );
+  const ioContractRules = capabilityContractDependencyRules.filter(
+    ({ packageName }) => ['bitfun-runtime-ports', 'bitfun-agent-tools'].includes(packageName),
+  );
+  assert.deepEqual(findTestCapabilityViolations(
+    cargoBoundaries.findCapabilityContractConsumerViolations,
+    [runtimePorts, agentTools, toolRuntime],
+    ioContractRules,
+  ), []);
+  for (const features of [[], ['workspace-ports', 'agent-api']]) {
+    const mutatedConsumer = {
+      ...toolRuntime,
+      dependencies: [
+        { ...toolRuntime.dependencies[0], features },
+        toolRuntime.dependencies[1],
+      ],
+    };
+    const violations = findTestCapabilityViolations(
+      cargoBoundaries.findCapabilityContractConsumerViolations,
+      [runtimePorts, agentTools, mutatedConsumer],
+      ioContractRules,
+    );
+    assert.ok(violations.some(({ message }) => /tool-runtime.*bitfun-runtime-ports/.test(message)),
+      `tool-runtime must retain exactly workspace-ports, not ${features.join(', ') || 'an empty edge'}`);
+  }
 });
 
 test('unreviewed consumers cannot add capability contract dependency edges', async () => {

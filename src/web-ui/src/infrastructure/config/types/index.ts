@@ -72,6 +72,8 @@ export interface AppConfig {
   notifications: NotificationConfig;
   flow_chat?: AppFlowChatConfig;
   ai_experience: AIExperienceConfig;
+  /** Controller-owned end-to-end realtime voice-call settings. */
+  voice_call?: VoiceCallSettings;
   user_tool_groups?: UserToolGroupsConfig;
   user_skill_groups?: UserSkillGroupsConfig;
 }
@@ -179,6 +181,16 @@ export interface VoiceInputSettings {
   microphone_device_id: string;
 }
 
+export interface VoiceCallSettings {
+  enabled: boolean;
+  provider: 'volcengine';
+  api_key: string;
+  voice: string;
+  speed: number;
+  loudness: number;
+  microphone_device_id: string;
+}
+
 export type ModelCapability =
   | 'text_chat'
   | 'function_calling'
@@ -240,15 +252,15 @@ export interface ModelMetadata {
 }
 
 export const CATEGORY_LABELS: Record<ModelCategory, string> = {
-  general_chat: t('settings/ai-model:category.general_chat'),
-  multimodal: t('settings/ai-model:category.multimodal'),
-  speech_recognition: t('settings/ai-model:category.speech_recognition')
+  general_chat: t('settings/models:category.general_chat'),
+  multimodal: t('settings/models:category.multimodal'),
+  speech_recognition: t('settings/models:category.speech_recognition')
 };
 
 export const CATEGORY_ICONS: Record<ModelCategory, string> = {
-  general_chat: t('settings/ai-model:categoryIcons.general_chat'),
-  multimodal: t('settings/ai-model:categoryIcons.multimodal'),
-  speech_recognition: t('settings/ai-model:categoryIcons.speech_recognition')
+  general_chat: t('settings/models:categoryIcons.general_chat'),
+  multimodal: t('settings/models:categoryIcons.multimodal'),
+  speech_recognition: t('settings/models:categoryIcons.speech_recognition')
 };
 
 export type CustomHeadersMode = 'replace' | 'merge';
@@ -288,7 +300,7 @@ export interface AIModelConfig {
 }
 
 /** Subscription provider for in-app OAuth auth. */
-export type SubscriptionProvider = 'codex' | 'antigravity' | 'opencode';
+export type SubscriptionProvider = 'codex' | 'antigravity' | 'opencode' | 'grok' | 'hermes';
 
 /** OpenCode billing/API product. Both plans reuse the same signed-in account. */
 export type OpenCodePlan = 'zen' | 'go';
@@ -346,7 +358,6 @@ export interface AIConfig {
   task_models: TaskModelsConfig;
   agent_profiles: Record<string, StoredAgentProfileConfigItem>;
   proxy: ProxyConfig;
-  debug_mode_config: DebugModeConfig;
   request_timeout: number;
   max_retries: number;
   temperature: number;
@@ -454,135 +465,6 @@ export interface SkillMarketDownloadResult {
   output: string;
 }
 
-export interface DebugModeConfig {
-  log_path: string;
-  ingest_port: number;
-  enabled_languages: string[];
-  language_templates: Record<string, LanguageDebugTemplate>;
-}
-
-
-export interface LanguageDebugTemplate {
-  language: string;
-  display_name: string;
-  enabled: boolean;
-  instrumentation_template: string;
-  region_start: string;
-  region_end: string;
-  notes: string[];
-}
-
-export const DEFAULT_DEBUG_MODE_CONFIG: DebugModeConfig = {
-  log_path: '.bitfun/debug.log',
-  ingest_port: 7242,
-  enabled_languages: [],
-  language_templates: {}
-};
-
-export const LANGUAGE_TEMPLATE_LABELS: Record<string, string> = {
-  javascript: t('settings/debug:languageLabels.javascript'),
-  python: t('settings/debug:languageLabels.python'),
-  rust: t('settings/debug:languageLabels.rust'),
-  go: t('settings/debug:languageLabels.go'),
-  java: t('settings/debug:languageLabels.java')
-};
-
-export const ALL_LANGUAGES = ['javascript', 'python', 'rust', 'go', 'java'] as const;
-
-export const DEFAULT_LANGUAGE_TEMPLATES: Record<string, LanguageDebugTemplate> = {
-  javascript: {
-    language: 'javascript',
-    display_name: t('settings/debug:languageLabels.javascript'),
-    enabled: false,
-    instrumentation_template: `fetch('http://127.0.0.1:{PORT}/ingest/{SESSION_ID}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'{LOCATION}',message:'{MESSAGE}',data:{DATA},timestamp:Date.now(),sessionId:'{SESSION_ID}',hypothesisId:'{HYPOTHESIS_ID}',runId:'{RUN_ID}'})}).catch(()=>{});`,
-    region_start: '// #region agent log',
-    region_end: '// #endregion',
-    notes: [
-      t('settings/debug:templates.noteItems.javascript.postToIngest'),
-      t('settings/debug:templates.noteItems.javascript.replaceData'),
-    ],
-  },
-  python: {
-    language: 'python',
-    display_name: t('settings/debug:languageLabels.python'),
-    enabled: false,
-    instrumentation_template: `import json, time, os
-with open(os.path.join(os.getcwd(), '{LOG_PATH}'), 'a', encoding='utf-8') as _f:
-    _f.write(json.dumps({"location": "{LOCATION}", "message": "{MESSAGE}", "data": {DATA}, "timestamp": int(time.time()*1000), "sessionId": "{SESSION_ID}", "hypothesisId": "{HYPOTHESIS_ID}", "runId": "{RUN_ID}"}, ensure_ascii=False) + '\\n')`,
-    region_start: '# region agent log',
-    region_end: '# endregion',
-    notes: [
-      t('settings/debug:templates.noteItems.python.appendNdjson'),
-      t('settings/debug:templates.noteItems.python.ensureAscii'),
-      t('settings/debug:templates.noteItems.python.replaceData'),
-      t('settings/debug:templates.noteItems.python.importOnce'),
-    ],
-  },
-  rust: {
-    language: 'rust',
-    display_name: t('settings/debug:languageLabels.rust'),
-    enabled: false,
-    instrumentation_template: `{
-    use std::fs::OpenOptions;
-    use std::io::Write;
-    use std::time::{SystemTime, UNIX_EPOCH};
-    if let Ok(mut _f) = OpenOptions::new().create(true).append(true).open("{LOG_PATH}") {
-        let _ts = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
-        let _ = writeln!(_f, r#"{{"location":"{LOCATION}","message":"{MESSAGE}","data":{},"timestamp":{},"sessionId":"{SESSION_ID}","hypothesisId":"{HYPOTHESIS_ID}","runId":"{RUN_ID}"}}"#, serde_json::json!({DATA}), _ts);
-    }
-}`,
-    region_start: '// #region agent log',
-    region_end: '// #endregion',
-    notes: [
-      t('settings/debug:templates.noteItems.rust.appendNdjson'),
-      t('settings/debug:templates.noteItems.rust.requireSerdeJson'),
-      t('settings/debug:templates.noteItems.rust.replaceData'),
-      t('settings/debug:templates.noteItems.rust.syncOnly'),
-    ],
-  },
-  go: {
-    language: 'go',
-    display_name: t('settings/debug:languageLabels.go'),
-    enabled: false,
-    instrumentation_template: `func() {
-	f, err := os.OpenFile("{LOG_PATH}", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err == nil {
-		defer f.Close()
-		data, _ := json.Marshal(map[string]interface{}{"location": "{LOCATION}", "message": "{MESSAGE}", "data": {DATA}, "timestamp": time.Now().UnixMilli(), "sessionId": "{SESSION_ID}", "hypothesisId": "{HYPOTHESIS_ID}", "runId": "{RUN_ID}"})
-		f.Write(append(data, '\\n'))
-	}
-}()`,
-    region_start: '// #region agent log',
-    region_end: '// #endregion',
-    notes: [
-      t('settings/debug:templates.noteItems.go.iife'),
-      t('settings/debug:templates.noteItems.go.appendNdjson'),
-      t('settings/debug:templates.noteItems.go.imports'),
-      t('settings/debug:templates.noteItems.go.replaceData'),
-    ],
-  },
-  java: {
-    language: 'java',
-    display_name: t('settings/debug:languageLabels.java'),
-    enabled: false,
-    instrumentation_template: `try {
-    java.nio.file.Files.writeString(
-        java.nio.file.Path.of("{LOG_PATH}"),
-        String.format("{\\"location\\":\\"{LOCATION}\\",\\"message\\":\\"{MESSAGE}\\",\\"data\\":%s,\\"timestamp\\":%d,\\"sessionId\\":\\"{SESSION_ID}\\",\\"hypothesisId\\":\\"{HYPOTHESIS_ID}\\",\\"runId\\":\\"{RUN_ID}\\"}%n",
-            new com.google.gson.Gson().toJson({DATA}), System.currentTimeMillis()),
-        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
-} catch (Exception _e) { /* debug log */ }`,
-    region_start: '// #region agent log',
-    region_end: '// #endregion',
-    notes: [
-      t('settings/debug:templates.noteItems.java.appendNdjson'),
-      t('settings/debug:templates.noteItems.java.requireGson'),
-      t('settings/debug:templates.noteItems.java.replaceData'),
-      t('settings/debug:templates.noteItems.java.writeString'),
-    ],
-  },
-};
-
 export interface SkillValidationResult {
   valid: boolean;
   name?: string;
@@ -660,6 +542,7 @@ export interface IConfigManager {
   validateConfig(): Promise<ConfigValidationResult>;
   exportConfig(): Promise<ConfigExport>;
   importConfig(config: ConfigExport): Promise<void>;
+  updateConfig<T>(path: string, update: (current: T) => T): Promise<T>;
   onConfigChange(callback: (path: string, oldValue: any, newValue: any) => void): () => void;
   refreshCache(): Promise<void>;
   clearCache(): void;

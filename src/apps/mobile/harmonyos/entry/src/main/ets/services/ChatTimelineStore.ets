@@ -127,11 +127,19 @@ export class ChatTimelineStore {
 
   setPersistedMessages(messages: ChatMessage[]): void {
     const persistedMessages = ChatTimelineStore.realMessages(messages);
+    const previousIds = new Set<string>();
+    this.state.persistedMessages.forEach((message: ChatMessage) => previousIds.add(message.id));
+    const newlyPersistedMessages = persistedMessages.filter((message: ChatMessage) => !previousIds.has(message.id));
+    const activeTurnCovered = this.coveredByPersistedMessage(this.state.activeTurn, persistedMessages) ||
+      this.coveredByNewAssistantContent(this.state.activeTurn, newlyPersistedMessages);
     this.state = {
       sessionId: this.state.sessionId,
       persistedMessages,
-      optimisticMessages: ChatTimelineStore.optimisticMessagesNotPersisted(this.state.optimisticMessages, persistedMessages),
-      activeTurn: this.coveredByPersistedMessage(this.state.activeTurn, persistedMessages) ? undefined : this.state.activeTurn,
+      optimisticMessages: ChatTimelineStore.optimisticMessagesNotPersisted(
+        this.state.optimisticMessages,
+        newlyPersistedMessages
+      ),
+      activeTurn: activeTurnCovered ? undefined : this.state.activeTurn,
       syncPhase: this.state.syncPhase,
       cursor: this.state.cursor,
       modelCatalog: this.state.modelCatalog,
@@ -140,12 +148,23 @@ export class ChatTimelineStore {
   }
 
   mergePersistedMessages(messages: ChatMessage[]): void {
-    const persistedMessages = RemoteUiState.mergeMessages(this.state.persistedMessages, ChatTimelineStore.realMessages(messages));
+    const incomingMessages = ChatTimelineStore.realMessages(messages);
+    const previousIds = new Set<string>();
+    this.state.persistedMessages.forEach((message: ChatMessage) => previousIds.add(message.id));
+    // Only this delivery can acknowledge an optimistic message. Replayed
+    // history with the same text must not consume a message the user just sent.
+    const newlyPersistedMessages = incomingMessages.filter((message: ChatMessage) => !previousIds.has(message.id));
+    const persistedMessages = RemoteUiState.mergeMessages(this.state.persistedMessages, incomingMessages);
+    const activeTurnCovered = this.coveredByPersistedMessage(this.state.activeTurn, persistedMessages) ||
+      this.coveredByNewAssistantContent(this.state.activeTurn, newlyPersistedMessages);
     this.state = {
       sessionId: this.state.sessionId,
       persistedMessages,
-      optimisticMessages: ChatTimelineStore.optimisticMessagesNotPersisted(this.state.optimisticMessages, persistedMessages),
-      activeTurn: this.coveredByPersistedMessage(this.state.activeTurn, persistedMessages) ? undefined : this.state.activeTurn,
+      optimisticMessages: ChatTimelineStore.optimisticMessagesNotPersisted(
+        this.state.optimisticMessages,
+        newlyPersistedMessages
+      ),
+      activeTurn: activeTurnCovered ? undefined : this.state.activeTurn,
       syncPhase: this.state.syncPhase,
       cursor: this.state.cursor,
       modelCatalog: this.state.modelCatalog,
@@ -194,6 +213,7 @@ export class ChatTimelineStore {
         text: existing.text,
         status: existing.status || 'active',
         detail: existing.detail,
+        error: existing.error,
         timestamp: existing.timestamp,
         thinking: existing.thinking,
         tools: existing.tools,
@@ -324,7 +344,9 @@ export class ChatTimelineStore {
 
   applySnapshot(snapshot: ChatSessionSnapshot): void {
     this.setCursor(snapshot.cursor);
-    if (snapshot.newMessages.length > 0) {
+    if (snapshot.messageSnapshot) {
+      this.setPersistedMessages(snapshot.messageSnapshot);
+    } else if (snapshot.newMessages.length > 0) {
       this.mergePersistedMessages(snapshot.newMessages);
     }
     this.setActiveTurn(snapshot.activeTurn);
@@ -388,6 +410,7 @@ export class ChatTimelineStore {
               text: active.text,
               status: 'completed',
               detail: active.detail,
+              error: active.error,
               timestamp: active.timestamp,
               thinking: active.thinking,
               tools: active.tools,
@@ -454,6 +477,7 @@ export class ChatTimelineStore {
       text: `${active.text || ''}${delta}`,
       status: 'active',
       detail: active.detail,
+      error: active.error,
       timestamp: active.timestamp,
       thinking: active.thinking,
       tools: active.tools,
@@ -480,6 +504,7 @@ export class ChatTimelineStore {
       text: active.text,
       status: 'active',
       detail: active.detail,
+      error: active.error,
       timestamp: active.timestamp,
       thinking: active.thinking,
       tools,
@@ -490,10 +515,19 @@ export class ChatTimelineStore {
   }
 
   static optimisticMessagesNotPersisted(optimisticMessages: ChatMessage[], persistedMessages: ChatMessage[]): ChatMessage[] {
+    // Consume acknowledgements one-to-one so two identical queued sends do not
+    // both disappear when the first persisted message arrives.
+    const acknowledgedPersistedIndexes = new Set<number>();
     return optimisticMessages.filter((pending: ChatMessage) => {
-      return !persistedMessages.some((message: ChatMessage) => {
-        return ChatTimelineStore.isPersistedUserDuplicate(pending, message);
+      const acknowledgedIndex = persistedMessages.findIndex((message: ChatMessage, index: number) => {
+        return !acknowledgedPersistedIndexes.has(index) &&
+          ChatTimelineStore.isPersistedUserDuplicate(pending, message);
       });
+      if (acknowledgedIndex < 0) {
+        return true;
+      }
+      acknowledgedPersistedIndexes.add(acknowledgedIndex);
+      return false;
     });
   }
 
@@ -511,6 +545,20 @@ export class ChatTimelineStore {
       return false;
     }
     return ChatTimelineStore.isActiveTurnCoveredByMessages(activeTurn, messages);
+  }
+
+  private coveredByNewAssistantContent(activeTurn: ChatMessage | undefined, messages: ChatMessage[]): boolean {
+    if (!activeTurn || activeTurn.id.length === 0) {
+      return false;
+    }
+    const activeText = (activeTurn.text || '').trim();
+    if (activeText.length === 0) {
+      return false;
+    }
+    return messages.some((message: ChatMessage) => {
+      return message.role === 'assistant' && ChatTimelineStore.hasDisplayableAssistantFinal(message) &&
+        (message.text || '').trim() === activeText;
+    });
   }
 
   private activeTurnForState(activeTurn: ChatMessage | undefined): ChatMessage | undefined {
@@ -613,6 +661,7 @@ export class ChatTimelineStore {
       text,
       status: incoming.status || previous.status,
       detail: incoming.detail,
+      error: incoming.error || previous.error,
       timestamp: incoming.timestamp || previous.timestamp,
       thinking: thinking.length > 0 ? thinking : undefined,
       tools,
@@ -745,7 +794,27 @@ export class ChatTimelineStore {
       return 0;
     };
     // A delayed poll must not move a completed tool back to running/pending.
-    return rank(incomingStatus) < rank(previousStatus) ? previous : incoming;
+    if (rank(incomingStatus) < rank(previousStatus)) {
+      return previous;
+    }
+    // Completion snapshots from older desktop builds may carry only status and
+    // result fields. Preserve the invocation metadata already observed while
+    // the tool was running so Task/subagent titles do not collapse to "Task".
+    return {
+      id: incoming.id !== undefined ? incoming.id : previous.id,
+      name: incoming.name !== undefined ? incoming.name : previous.name,
+      status: incoming.status !== undefined ? incoming.status : previous.status,
+      duration_ms: incoming.duration_ms !== undefined ? incoming.duration_ms : previous.duration_ms,
+      start_ms: incoming.start_ms !== undefined ? incoming.start_ms : previous.start_ms,
+      input_preview: (incoming.input_preview || '').length > 0 ? incoming.input_preview : previous.input_preview,
+      tool_input: incoming.tool_input !== undefined ? incoming.tool_input : previous.tool_input,
+      stdout: (incoming.stdout || '').length > 0 ? incoming.stdout : previous.stdout,
+      stderr: (incoming.stderr || '').length > 0 ? incoming.stderr : previous.stderr,
+      tool_output: incoming.tool_output !== undefined ? incoming.tool_output : previous.tool_output,
+      result_preview: (incoming.result_preview || '').length > 0 ? incoming.result_preview : previous.result_preview,
+      error_preview: (incoming.error_preview || '').length > 0 ? incoming.error_preview : previous.error_preview,
+      exit_code: incoming.exit_code !== undefined ? incoming.exit_code : previous.exit_code
+    };
   }
 
   private static isActiveTurnId(id: string): boolean {
@@ -765,9 +834,8 @@ export class ChatTimelineStore {
     if (activeTurn.turnId && activeTurn.turnId.length > 0 && message.id === `${activeTurn.turnId}_assistant`) {
       return true;
     }
-    const activeText = (activeTurn.text || '').trim();
-    const messageText = (message.text || '').trim();
-    return activeText.length > 0 && activeText === messageText;
+    return activeTurn.turnId !== undefined && activeTurn.turnId.length > 0 &&
+      message.turnId !== undefined && message.turnId === activeTurn.turnId;
   }
 
   private static shouldHoldCompletedTurn(activeTurn: ChatMessage): boolean {

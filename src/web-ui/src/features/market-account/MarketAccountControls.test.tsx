@@ -45,12 +45,22 @@ vi.mock('@/shared/notification-system', () => ({
   useNotification: () => ({ success: mocks.success, error: mocks.error }),
 }));
 
-vi.mock('@/component-library', () => ({
+vi.mock('@bitfun/ui', () => ({
   Avatar: ({ src, alt }: any) => <img src={src} alt={alt} />,
+  Icon: ({ name, ...props }: { name: string } & React.HTMLAttributes<HTMLSpanElement>) => <span data-icon={name} {...props} />,
   Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
-  Modal: ({ isOpen, title, children }: any) => isOpen ? (
-    <section role="dialog" aria-label={title}>{children}</section>
+  Menu: ({ children, ...props }: any) => <div role="menu" {...props}>{children}</div>,
+  MenuItem: ({ children, leading, ...props }: any) => (
+    <button type="button" role="menuitem" {...props}>{leading}{children}</button>
+  ),
+  Dialog: ({ open, children }: any) => open ? (
+    <section role="dialog">{children}</section>
   ) : null,
+  DialogBody: ({ children }: any) => <div>{children}</div>,
+  DialogClose: (props: any) => <button type="button" {...props} />,
+  DialogHeader: ({ children }: any) => <header>{children}</header>,
+  DialogHeading: ({ children }: any) => <div>{children}</div>,
+  DialogTitle: ({ children }: any) => <h2>{children}</h2>,
 }));
 
 describe('MarketAccountControls', () => {

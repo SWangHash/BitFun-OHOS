@@ -2,9 +2,19 @@
  * Dialog when a remote update is available (daily prompt or manual check).
  */
 
+import {
+  Button,
+  Icon,
+  ScrollArea,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useRef } from 'react';
-import { Modal, Button } from '@/component-library';
-import { Download } from 'lucide-react';
+;
 import { useI18n } from '@/infrastructure/i18n';
 import type { CheckForUpdatesResponse } from '@/infrastructure/api/service-api/SystemAPI';
 import './UpdateAvailableDialog.scss';
@@ -42,14 +52,18 @@ export const UpdateAvailableDialog: React.FC<UpdateAvailableDialogProps> = ({
   const notes = displayData.releaseNotes?.trim();
 
   return (
-    <Modal
-      isOpen={modalOpen}
-      onClose={onLater}
-      title={t('update.availableTitle')}
-      showCloseButton={true}
-      size="medium"
-      contentInset
+    <Dialog
+      open={modalOpen}
+      onOpenChange={(nextOpen) => { if (!nextOpen) onLater(); }}
+      size="md"
     >
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{t('update.availableTitle')}</DialogTitle>
+        </DialogHeading>
+        <DialogClose />
+      </DialogHeader>
+      <DialogBody>
       <div
         className="bitfun-update-available"
         data-bf-component="update"
@@ -67,7 +81,7 @@ export const UpdateAvailableDialog: React.FC<UpdateAvailableDialogProps> = ({
             data-bf-component="update"
             data-bf-part="leadIcon"
           >
-            <Download size={18} strokeWidth={2} />
+            <Icon name="download" size="lg" />
           </div>
           <p
             className="bitfun-update-available__subtitle"
@@ -103,37 +117,40 @@ export const UpdateAvailableDialog: React.FC<UpdateAvailableDialogProps> = ({
         {notes ? (
           <div className="bitfun-update-available__notes" data-bf-component="update" data-bf-part="notes">
             <div className="bitfun-update-available__notes-label" data-bf-component="update" data-bf-part="notesLabel">{t('update.releaseNotes')}</div>
-            <pre className="bitfun-update-available__notes-body" data-bf-component="update" data-bf-part="notesBody">{notes}</pre>
+            <ScrollArea className="bitfun-update-available__notes-body" data-bf-component="update" data-bf-part="notesBody">
+              <pre>{notes}</pre>
+            </ScrollArea>
           </div>
         ) : null}
 
         <div className="bitfun-update-available__actions" data-bf-component="update" data-bf-part="actions">
           {variant === 'daily' ? (
             <>
-              <Button variant="secondary" size="medium" onClick={onLater}>
+              <Button variant="outline" size="md" onClick={onLater}>
                 {t('update.later')}
               </Button>
               {onSkip ? (
-                <Button variant="ghost" size="medium" onClick={onSkip}>
+                <Button variant="outline" size="md" onClick={onSkip}>
                   {t('update.skipVersion')}
                 </Button>
               ) : null}
-              <Button variant="primary" size="medium" onClick={onInstall}>
+              <Button variant="fill" size="md" onClick={onInstall}>
                 {t('update.backgroundInstall')}
               </Button>
             </>
           ) : (
             <>
-              <Button variant="secondary" size="medium" onClick={onLater}>
+              <Button variant="outline" size="md" onClick={onLater}>
                 {t('update.cancel')}
               </Button>
-              <Button variant="primary" size="medium" onClick={onInstall}>
+              <Button variant="fill" size="md" onClick={onInstall}>
                 {t('update.backgroundInstall')}
               </Button>
             </>
           )}
         </div>
       </div>
-    </Modal>
+          </DialogBody>
+    </Dialog>
   );
 };

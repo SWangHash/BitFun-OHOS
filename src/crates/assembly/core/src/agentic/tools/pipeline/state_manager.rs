@@ -101,8 +101,23 @@ impl ToolStateManager {
         rejection: Option<ValidationResult>,
     ) -> bool {
         if let Some(mut task) = self.tasks.get_mut(tool_id) {
-            task.invocation.replace_effective_arguments(arguments);
+            task.invocation.effective_arguments = arguments;
             task.input_rewrite_rejection = rejection;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Update the tool-owned cooperative preemption token after final hook
+    /// arguments have determined the execution traits.
+    pub fn set_round_injection_preemption_token(
+        &self,
+        tool_id: &str,
+        token: Option<tokio_util::sync::CancellationToken>,
+    ) -> bool {
+        if let Some(mut task) = self.tasks.get_mut(tool_id) {
+            task.round_injection_preemption_token = token;
             true
         } else {
             false

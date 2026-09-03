@@ -24,7 +24,7 @@ async-trait = { workspace = true }
 base64 = { workspace = true, optional = true }
 bitfun-agent-stream = { path = "../../execution/agent-stream" }
 bitfun-core-types = { path = "../../contracts/core-types" }
-bitfun-services-core = { path = "../../services/services-core", optional = true }
+bitfun-services-core = { path = "../../services/services-core", features = ["tls-provider"] }
 chrono = { workspace = true }
 dirs = { workspace = true, optional = true }
 eventsource-stream = { workspace = true }
@@ -32,7 +32,7 @@ futures = { workspace = true }
 fs2 = { workspace = true, optional = true }
 libc = { workspace = true, optional = true }
 log = { workspace = true }
-reqwest = { workspace = true, features = ["http2", "json", "rustls", "socks", "stream", "system-proxy"] }
+reqwest = { workspace = true, features = ["http2", "json", "rustls-no-provider", "socks", "stream"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
@@ -43,20 +43,33 @@ tokio-util = { workspace = true }
 urlencoding = { workspace = true }
 uuid = { workspace = true, optional = true }
 
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring-core = { workspace = true, optional = true }
+windows-native-keyring-store = { workspace = true, optional = true }
+
+[target.'cfg(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android"))))'.dependencies]
+keyring-core = { workspace = true, optional = true }
+zbus-secret-service-keyring-store = { workspace = true, optional = true }
+
 [features]
 subscription-auth = [
     "dep:base64",
+    "bitfun-services-core/credential-vault",
     "bitfun-services-core/process-runtime",
     "bitfun-services-core/secure-credentials",
     "dep:dirs",
     "dep:fs2",
+    "dep:keyring-core",
     "dep:libc",
     "reqwest/form",
     "tokio/fs",
     "tokio/io-util",
     "tokio/net",
     "dep:uuid",
+    "dep:windows-native-keyring-store",
+    "dep:zbus-secret-service-keyring-store",
 ]
+
 # Enables the system keyring backend for `SecureCredentialVault` on macOS,
 # Windows, and Linux. The desktop host enables this on those targets; the
 # OHOS desktop build does not (it injects an ArkTS-backed vault instead).

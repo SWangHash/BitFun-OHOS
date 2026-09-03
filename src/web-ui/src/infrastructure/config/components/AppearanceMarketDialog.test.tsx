@@ -38,26 +38,64 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@/component-library', () => ({
-  Button: ({ children, isLoading: _isLoading, iconOnly: _iconOnly, ...props }: any) => (
+vi.mock('@bitfun/ui', () => ({
+  ScrollArea: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+  Icon: ({ name, ...props }: { name: string } & React.HTMLAttributes<HTMLSpanElement>) => <span data-icon={name} {...props} />,
+  Button: ({ children, isLoading: _isLoading, loading: _loading, iconOnly: _iconOnly, ...props }: any) => (
     <button {...props}>{children}</button>
   ),
-  Modal: ({ isOpen, title, titleExtra, children }: any) => isOpen ? (
-    <section role="dialog" aria-label={title}>{titleExtra}{children}</section>
-  ) : null,
-  Search: ({ value, onChange, onSearch, inputAriaLabel }: any) => (
+  Dialog: ({ open, children }: any) => open ? <section role="dialog">{children}</section> : null,
+  DialogBody: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  DialogClose: () => <button type="button" aria-label="Close" />,
+  DialogHeader: ({ children }: React.PropsWithChildren) => <header>{children}</header>,
+  DialogHeading: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  DialogTitle: ({ children }: React.PropsWithChildren) => <h2>{children}</h2>,
+  SearchField: ({ value, onValueChange, onSearch, 'aria-label': ariaLabel }: any) => (
     <input
-      aria-label={inputAriaLabel}
+      aria-label={ariaLabel}
       value={value}
-      onChange={event => onChange(event.target.value)}
+      onChange={event => onValueChange(event.target.value)}
       onKeyDown={event => event.key === 'Enter' && onSearch(event.currentTarget.value)}
     />
   ),
-  Select: () => <div />,
-  Input: ({ label, ...props }: any) => <label>{label}<input {...props} /></label>,
-  Textarea: ({ label, showCount: _showCount, ...props }: any) => (
-    <label>{label}<textarea {...props} /></label>
+  Select: ({ options, onValueChange, ...props }: any) => (
+    <select {...props} onChange={event => onValueChange?.(event.target.value)}>
+      {options.map((option: any) => (
+        <option key={option.value} value={option.value}>{option.label}</option>
+      ))}
+    </select>
   ),
+  Field: ({ label, children }: any) => <label>{label}{children}</label>,
+  Input: ({ leading, trailing, onChange, onValueChange, ...props }: any) => (
+    <span>
+      {leading}
+      <input
+        {...props}
+        onChange={event => {
+          onChange?.(event);
+          onValueChange?.(event.currentTarget.value);
+        }}
+      />
+      {trailing}
+    </span>
+  ),
+  Textarea: ({ label, hint, errorMessage, showCount: _showCount, onChange, onValueChange, ...props }: any) => (
+    <label>
+      {label}
+      <textarea
+        {...props}
+        onChange={event => {
+          onChange?.(event);
+          onValueChange?.(event.currentTarget.value);
+        }}
+      />
+      {hint ?? errorMessage}
+    </label>
+  ),
+  Tooltip: ({ children }: any) => <>{children}</>,
+}));
+
+vi.mock('@/infrastructure/confirm-dialog', () => ({
   confirmDialog: mocks.confirmDialog,
 }));
 

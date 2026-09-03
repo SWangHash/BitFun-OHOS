@@ -1,10 +1,18 @@
+import { MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
-import { CARD, GREEN, INK, LINE, MUTED, PAGE_BG, PRIMARY_ACTION_TEXT, RED, SOFT } from './Theme';
+import { CARD, INK, LINE, MUTED, PAGE_BG, SOFT, STATUS_DANGER } from './Theme';
 import { CloudAccountDevice } from '../../services/CloudAccountClient';
 import { RemotePermissionMode } from '../../model/RemoteModels';
 import { DefaultAccountAvatar } from './DefaultAccountAvatar';
 import { BitFunAccountLoginPage } from './BitFunAccountLoginPage';
-import { AccountDeviceSelectionPolicy } from '../policy/AccountDeviceSelectionPolicy';
+import { AccountProfilePanel } from './AccountProfilePanel';
+import { SheetCloseHeader } from './SheetCloseHeader';
+import { AppActionButton, AppActionStyle } from './AppActionButton';
+import { SHEET_HORIZONTAL_PADDING, SHEET_TOP_RADIUS } from './SheetLayout';
+import {
+  RemoteControlSettingsPage,
+  RemoteControlSettingsPagePolicy
+} from '../policy/RemoteControlSettingsPagePolicy';
 
 @ComponentV2
 export struct RemoteControlSettingsSheet {
@@ -35,74 +43,67 @@ export struct RemoteControlSettingsSheet {
   @Event onReconnect: () => void = () => {};
   @Local showProfile: boolean = false;
   @Local showLogin: boolean = false;
-  @Local accountDevices: CloudAccountDevice[] = [];
-  @Local accountDevicesBusy: boolean = false;
-  @Local accountDevicesError: string = '';
-  @Local switchingDeviceId: string = '';
   @Local permissionMode: RemotePermissionMode = 'ask';
   @Local permissionModeBusy: boolean = false;
   @Local permissionModeLoaded: boolean = false;
   @Local permissionModeError: string = '';
   @Local confirmFullAccess: boolean = false;
-  @Local logoutBusy: boolean = false;
 
   aboutToAppear(): void {
-    this.showProfile = this.openAccountOnAppear && this.isAccountAuthenticated();
-    this.showLogin = this.openAccountOnAppear && !this.isAccountAuthenticated();
-    if (this.isAccountAuthenticated()) {
-      this.refreshAccountDevices();
-    }
     if (this.canManagePermissions()) {
       this.refreshPermissionMode();
     }
   }
 
   build() {
-    Stack({ alignContent: Alignment.TopEnd }) {
-      if (this.showLogin || (this.showProfile && !this.isAccountAuthenticated())) {
+    Stack() {
+      if (this.currentPage() === 'login') {
         this.LoginPage()
-      } else if (this.showProfile) {
+      } else if (this.currentPage() === 'profile') {
         this.ProfilePage()
       } else {
         this.RemoteControlPage()
-      }
-      if (!this.showLogin && !this.showProfile) {
-        this.CloseButton()
       }
     }
     .width('100%')
     .height('100%')
     .backgroundColor(PAGE_BG)
-    .borderRadius({ topLeft: 34, topRight: 34 })
+    .borderRadius({ topLeft: SHEET_TOP_RADIUS, topRight: SHEET_TOP_RADIUS })
   }
 
   @Builder
   private RemoteControlPage() {
-    Scroll() {
-      Column({ space: 0 }) {
-        Text(RemoteI18n.t('remote.settings.title'))
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(INK)
-          .width('100%')
-          .height(56)
-          .textAlign(TextAlign.Center)
-          .margin({ bottom: 30 })
+    Column({ space: 0 }) {
+      SheetCloseHeader({
+        title: RemoteI18n.t('remote.settings.title'),
+        showDivider: true,
+        onClose: this.onClose
+      })
 
-        this.ProfileEntry()
+      Scroll() {
+        Column({ space: 0 }) {
+          this.ProfileEntry()
 
-        this.ConnectionSectionHeader()
-        this.CurrentControlCard()
-        this.OtherConnectionSection()
-        this.PermissionSectionHeader()
-        this.PermissionModeCard()
+          this.ConnectionSectionHeader()
+          this.CurrentControlCard()
+          this.OtherConnectionSection()
+          this.PermissionSectionHeader()
+          this.PermissionModeCard()
+        }
+        .width('100%')
+        .padding({
+          left: SHEET_HORIZONTAL_PADDING,
+          right: SHEET_HORIZONTAL_PADDING,
+          top: 22,
+          bottom: 42
+        })
       }
       .width('100%')
-      .padding({ left: 18, right: 18, top: 20, bottom: 42 })
+      .layoutWeight(1)
+      .scrollBar(BarState.Off)
     }
     .width('100%')
     .height('100%')
-    .scrollBar(BarState.Off)
   }
 
   @Builder
@@ -111,7 +112,7 @@ export struct RemoteControlSettingsSheet {
       DefaultAccountAvatar({ avatarSize: 34 })
       Text(this.isAccountAuthenticated() ? RemoteI18n.t('remote.settings.profile') :
         RemoteI18n.t('sidebar.signInBitFunAccount'))
-        .fontSize(18)
+        .fontSize(MobileDesignTypography.headlineSmall.size)
         .fontWeight(FontWeight.Medium)
         .fontColor(INK)
         .layoutWeight(1)
@@ -139,8 +140,9 @@ export struct RemoteControlSettingsSheet {
   private ConnectionSectionHeader() {
     Row() {
       Text(RemoteI18n.t('remote.settings.currentControl'))
-        .fontSize(18)
-        .fontWeight(FontWeight.Bold)
+        .fontSize(MobileDesignTypography.titleSmall.size)
+        .lineHeight(MobileDesignTypography.titleSmall.lineHeight)
+        .fontWeight(FontWeight.Medium)
         .fontColor(MUTED)
     }
     .width('100%')
@@ -161,16 +163,16 @@ export struct RemoteControlSettingsSheet {
           .opacity(0.58)
         Column({ space: 2 }) {
           Text(RemoteI18n.t('remote.settings.desktopProduct'))
-            .fontSize(14)
+            .fontSize(MobileDesignTypography.bodyMedium.size)
             .fontColor(MUTED)
           Text(this.connectionTitle())
-            .fontSize(18)
+            .fontSize(MobileDesignTypography.headlineSmall.size)
             .fontWeight(FontWeight.Medium)
             .fontColor(INK)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           Text(this.connectionDetail())
-            .fontSize(14)
+            .fontSize(MobileDesignTypography.bodyMedium.size)
             .fontColor(MUTED)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -197,11 +199,11 @@ export struct RemoteControlSettingsSheet {
           .height(20)
           .opacity(0.58)
         Text(RemoteI18n.t('remote.settings.connectionSource'))
-          .fontSize(14)
+          .fontSize(MobileDesignTypography.bodyMedium.size)
           .fontColor(MUTED)
         Blank()
         Text(this.connectionSourceLabel())
-          .fontSize(13)
+          .fontSize(MobileDesignTypography.bodySmall.size)
           .fontColor(INK)
           .padding({ left: 10, right: 10, top: 5, bottom: 5 })
           .backgroundColor(SOFT)
@@ -221,7 +223,7 @@ export struct RemoteControlSettingsSheet {
   private ConnectionAction() {
     if (this.isConnectedOrConnecting()) {
       Text(RemoteI18n.t('remote.settings.disconnect'))
-        .fontSize(14)
+        .fontSize(MobileDesignTypography.bodyMedium.size)
         .fontColor(INK)
         .padding({ left: 10, right: 10, top: 7, bottom: 7 })
         .backgroundColor(SOFT)
@@ -229,7 +231,7 @@ export struct RemoteControlSettingsSheet {
         .onClick(() => this.onDisconnect())
     } else if (this.hasConnectionProjection()) {
       Text(RemoteI18n.t('remote.settings.reconnect'))
-        .fontSize(14)
+        .fontSize(MobileDesignTypography.bodyMedium.size)
         .fontColor(INK)
         .padding({ left: 10, right: 10, top: 7, bottom: 7 })
         .backgroundColor(SOFT)
@@ -242,8 +244,9 @@ export struct RemoteControlSettingsSheet {
   private OtherConnectionSection() {
     Column({ space: 10 }) {
       Text(RemoteI18n.t('remote.settings.otherConnectionMethods'))
-        .fontSize(18)
-        .fontWeight(FontWeight.Bold)
+        .fontSize(MobileDesignTypography.titleSmall.size)
+        .lineHeight(MobileDesignTypography.titleSmall.lineHeight)
+        .fontWeight(FontWeight.Medium)
         .fontColor(MUTED)
         .width('100%')
         .height(42)
@@ -257,11 +260,11 @@ export struct RemoteControlSettingsSheet {
           .opacity(0.62)
         Column({ space: 2 }) {
           Text(RemoteI18n.t('remote.settings.qrConnect'))
-            .fontSize(16)
+            .fontSize(MobileDesignTypography.bodyLarge.size)
             .fontWeight(FontWeight.Medium)
             .fontColor(INK)
           Text(RemoteI18n.t('remote.settings.qrConnectBody'))
-            .fontSize(13)
+            .fontSize(MobileDesignTypography.bodySmall.size)
             .fontColor(MUTED)
             .maxLines(2)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -287,13 +290,14 @@ export struct RemoteControlSettingsSheet {
   private PermissionSectionHeader() {
     Row() {
       Text(RemoteI18n.t('remote.permissions.title'))
-        .fontSize(18)
-        .fontWeight(FontWeight.Bold)
+        .fontSize(MobileDesignTypography.titleSmall.size)
+        .lineHeight(MobileDesignTypography.titleSmall.lineHeight)
+        .fontWeight(FontWeight.Medium)
         .fontColor(MUTED)
       Blank()
       if (this.canManagePermissions()) {
         Text(RemoteI18n.t('common.refresh'))
-          .fontSize(14)
+          .fontSize(MobileDesignTypography.bodyMedium.size)
           .fontColor(this.permissionModeBusy ? MUTED : INK)
           .onClick(() => this.refreshPermissionMode())
       }
@@ -309,8 +313,8 @@ export struct RemoteControlSettingsSheet {
     Column() {
       Text(RemoteI18n.t('remote.permissions.scope'))
         .width('100%')
-        .fontSize(13)
-        .lineHeight(19)
+        .fontSize(MobileDesignTypography.bodySmall.size)
+        .lineHeight(MobileDesignTypography.bodySmall.lineHeight)
         .fontColor(MUTED)
         .padding({ left: 18, right: 18, top: 16, bottom: 8 })
 
@@ -335,8 +339,8 @@ export struct RemoteControlSettingsSheet {
       Text(this.permissionStatusText())
         .width('100%')
         .height(28)
-        .fontSize(12)
-        .fontColor(this.permissionModeError.length > 0 ? RED : MUTED)
+        .fontSize(MobileDesignTypography.labelSmall.size)
+        .fontColor(this.permissionModeError.length > 0 ? STATUS_DANGER : MUTED)
         .padding({ left: 18, right: 18, top: 4 })
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -367,13 +371,13 @@ export struct RemoteControlSettingsSheet {
       Column({ space: 3 }) {
         Text(label)
           .width('100%')
-          .fontSize(16)
+          .fontSize(MobileDesignTypography.bodyLarge.size)
           .fontWeight(FontWeight.Medium)
           .fontColor(INK)
         Text(description)
           .width('100%')
-          .fontSize(12)
-          .lineHeight(17)
+          .fontSize(MobileDesignTypography.labelSmall.size)
+          .lineHeight(MobileDesignTypography.labelSmall.lineHeight)
           .fontColor(MUTED)
           .maxLines(2)
       }
@@ -392,38 +396,36 @@ export struct RemoteControlSettingsSheet {
     Column({ space: 10 }) {
       Text(RemoteI18n.t('remote.permissions.fullAccessWarningTitle'))
         .width('100%')
-        .fontSize(15)
+        .fontSize(MobileDesignTypography.titleSmall.size)
         .fontWeight(FontWeight.Bold)
-        .fontColor(RED)
+        .fontColor(STATUS_DANGER)
       Text(RemoteI18n.t('remote.permissions.fullAccessWarningBody'))
         .width('100%')
-        .fontSize(13)
-        .lineHeight(19)
+        .fontSize(MobileDesignTypography.bodySmall.size)
+        .lineHeight(MobileDesignTypography.bodySmall.lineHeight)
         .fontColor(INK)
       Row({ space: 10 }) {
-        Button(RemoteI18n.t('remote.permissions.cancel'))
+        AppActionButton({
+          label: RemoteI18n.t('remote.permissions.cancel'),
+          style: AppActionStyle.Quiet,
+          actionHeight: 42,
+          onAction: (): void => { this.confirmFullAccess = false; }
+        })
           .layoutWeight(1)
-          .height(42)
-          .fontSize(14)
-          .fontColor(INK)
-          .backgroundColor(SOFT)
-          .borderRadius(21)
-          .onClick(() => { this.confirmFullAccess = false; })
-        Button(RemoteI18n.t('remote.permissions.confirmFullAccess'))
+        AppActionButton({
+          label: RemoteI18n.t('remote.permissions.confirmFullAccess'),
+          style: AppActionStyle.Destructive,
+          actionHeight: 42,
+          onAction: (): void => { void this.applyPermissionMode('full_access'); }
+        })
           .layoutWeight(1)
-          .height(42)
-          .fontSize(14)
-          .fontColor(PRIMARY_ACTION_TEXT)
-          .backgroundColor(RED)
-          .borderRadius(21)
-          .onClick(() => this.applyPermissionMode('full_access'))
       }
       .width('100%')
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 14, bottom: 16 })
     .backgroundColor(CARD)
-    .border({ width: 1, color: RED })
+    .border({ width: 1, color: STATUS_DANGER })
     .borderRadius(18)
     .margin({ left: 12, right: 12, bottom: 14 })
   }
@@ -432,11 +434,10 @@ export struct RemoteControlSettingsSheet {
   private LoginPage() {
     BitFunAccountLoginPage({
       cloudLogin: this.cloudLogin,
-      onBack: (): void => this.leaveAccountPage(),
+      onClose: (): void => this.leaveAccountPage(),
       onLoginSuccess: (): void => {
         this.showLogin = false;
         this.showProfile = true;
-        this.refreshAccountDevices(true);
       }
     })
   }
@@ -444,330 +445,26 @@ export struct RemoteControlSettingsSheet {
   @Builder
   private ProfilePage() {
     Scroll() {
-      Column({ space: 0 }) {
-        Row() {
-          Button() {
-            // Unsized on purpose: a forced square box wider than the chevron's
-            // natural advance box leaves the glyph drawn against its left edge,
-            // which reads as an arrow slipped off the centre of a round button.
-            SymbolGlyph($r('sys.symbol.chevron_left'))
-              .fontSize(23)
-              .fontColor([INK])
-          }
-            .width(44)
-            .height(44)
-            .padding(0)
-            .type(ButtonType.Circle)
-            .backgroundColor(CARD)
-            .onClick(() => {
-              this.leaveAccountPage();
-            })
-          Text(RemoteI18n.t('remote.settings.profile'))
-            .fontSize(20)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(INK)
-            .layoutWeight(1)
-            .textAlign(TextAlign.Center)
-          Blank().width(44)
-        }
-        .width('100%')
-        .height(56)
-        .margin({ bottom: 30 })
-
-        Column({ space: 10 }) {
-          DefaultAccountAvatar({ avatarSize: 70 })
-          Text(this.profileName())
-            .fontSize(22)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(INK)
-            .width('88%')
-            .textAlign(TextAlign.Center)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(this.profileIdentifier())
-            .fontSize(14)
-            .fontColor(MUTED)
-            .width('88%')
-            .textAlign(TextAlign.Center)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-        .width('100%')
-        .padding({ top: 24, bottom: 24 })
-        .backgroundColor(CARD)
-        .borderRadius(28)
-        .margin({ bottom: 24 })
-
-        this.AccountStatusCard()
-
-        this.DeviceManagementCard()
-
-        Text(RemoteI18n.t('remote.settings.profileDetails'))
-          .fontSize(18)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(MUTED)
-          .width('100%')
-          .margin({ left: 18, bottom: 8 })
-
-        Column() {
-          this.ProfileDetailRow(RemoteI18n.t('remote.settings.userId'), this.profileIdentifier())
-          Divider().strokeWidth(1).color(LINE).margin({ left: 18, right: 18 })
-          this.ProfileDetailRow(RemoteI18n.t('remote.settings.deviceId'), this.deviceId || '-')
-        }
-        .width('100%')
-        .backgroundColor(CARD)
-        .borderRadius(28)
-
-        if (this.isAccountAuthenticated()) {
-          this.LogoutAction()
-        }
-      }
-      .width('100%')
+      AccountProfilePanel({
+        accountUsername: this.accountUsername,
+        accountUserId: this.accountUserId,
+        fallbackUserId: this.userId,
+        deviceId: this.deviceId,
+        controlTargetDeviceId: this.controlTargetDeviceId,
+        connectionState: this.connectionState,
+        showNavigationHeader: true,
+        onBack: () => this.leaveAccountPage(),
+        onLoggedOut: () => this.leaveAccountPage(),
+        onReconnect: this.onReconnect,
+        cloudLogout: this.cloudLogout,
+        cloudListDevices: this.cloudListDevices,
+        cloudSelectDevice: this.cloudSelectDevice
+      })
       .padding({ left: 18, right: 18, top: 20, bottom: 42 })
     }
     .width('100%')
     .height('100%')
     .scrollBar(BarState.Off)
-  }
-
-  @Builder
-  private AccountStatusCard() {
-    Column({ space: 10 }) {
-      Row({ space: 10 }) {
-        Text(RemoteI18n.t('remote.settings.account'))
-          .fontSize(17)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(INK)
-        Blank()
-        Text(this.isAccountAuthenticated() ? RemoteI18n.t('remote.settings.accountSignedIn') :
-          RemoteI18n.t('remote.settings.accountNotSignedIn'))
-          .fontSize(14)
-          .fontColor(this.isAccountAuthenticated() ? GREEN : MUTED)
-      }
-      .width('100%')
-
-      Text(RemoteI18n.f('remote.settings.accountSignedInBody', this.accountUsername || this.accountUserId))
-        .fontSize(14)
-        .lineHeight(20)
-        .fontColor(MUTED)
-        .width('100%')
-    }
-    .width('100%')
-    .padding({ left: 18, right: 18, top: 16, bottom: 16 })
-    .backgroundColor(CARD)
-    .borderRadius(24)
-    .margin({ bottom: 24 })
-  }
-
-  @Builder
-  private LogoutAction() {
-    Row({ space: 14 }) {
-      SymbolGlyph($r('sys.symbol.arrow_right_and_square'))
-        .fontSize(22)
-        .fontColor([RED])
-        .width(24)
-        .height(24)
-      Text(this.logoutBusy ? RemoteI18n.t('remote.settings.accountLoggingOut') :
-        RemoteI18n.t('remote.settings.accountLogout'))
-        .fontSize(17)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(RED)
-    }
-    .width('100%')
-    .height(62)
-    .padding({ left: 20, right: 20 })
-    .backgroundColor(CARD)
-    .borderRadius(24)
-    .margin({ top: 30, bottom: 8 })
-    .opacity(this.logoutBusy ? 0.55 : 1)
-    .enabled(!this.logoutBusy)
-    .onClick(async () => {
-      this.logoutBusy = true;
-      try {
-        await this.cloudLogout();
-        this.showProfile = false;
-        this.showLogin = true;
-      } finally {
-        this.logoutBusy = false;
-      }
-    })
-  }
-
-  @Builder
-  private DeviceManagementCard() {
-    Column({ space: 8 }) {
-      Row() {
-        Text(RemoteI18n.t('remote.settings.deviceManagement'))
-          .fontSize(17).fontWeight(FontWeight.Bold).fontColor(INK)
-        Blank()
-        Text(this.accountDevicesBusy ? RemoteI18n.t('remote.settings.deviceLoading') :
-          RemoteI18n.t('remote.settings.deviceRefresh'))
-          .fontSize(13).fontColor(this.accountDevicesBusy ? MUTED : INK)
-          .onClick(async () => {
-            await this.refreshAccountDevices();
-          })
-      }.width('100%')
-      if (!this.isAccountAuthenticated()) {
-        Text(RemoteI18n.t('remote.settings.deviceLoginRequired'))
-          .fontSize(13).lineHeight(18).fontColor(MUTED).width('100%')
-      } else if (this.accountDevicesBusy && this.accountDevices.length === 0) {
-        Text(RemoteI18n.t('remote.settings.deviceLoading'))
-          .fontSize(13).fontColor(MUTED).width('100%')
-      } else if (this.desktopDevices().length === 0) {
-        Text(this.accountDevicesError || RemoteI18n.t('remote.settings.deviceEmpty'))
-          .fontSize(13).lineHeight(18).fontColor(MUTED).width('100%')
-      } else {
-        ForEach(this.desktopDevices(), (device: CloudAccountDevice) => {
-          this.AccountDeviceRow(device)
-        }, (device: CloudAccountDevice): string =>
-          `${device.deviceId}:${device.online ? 'online' : 'offline'}:${device.lastSeenAt || 0}:${device.deviceName}`)
-      }
-      if (this.accountDevicesError.length > 0 && this.desktopDevices().length > 0) {
-        Text(this.accountDevicesError)
-          .fontSize(13).lineHeight(18).fontColor(RED).width('100%')
-      }
-    }
-    .width('100%').padding({ left: 18, right: 18, top: 16, bottom: 16 })
-    .backgroundColor(CARD).borderRadius(24).margin({ bottom: 24 })
-  }
-
-  @Builder
-  private AccountDeviceRow(device: CloudAccountDevice) {
-    Row({ space: 12 }) {
-      SymbolGlyph($r('sys.symbol.desktop'))
-        .fontSize(20).fontColor([MUTED]).width(24).height(22).opacity(0.72)
-      Column({ space: 2 }) {
-        Text(device.deviceName || device.deviceId)
-          .fontSize(15).fontWeight(FontWeight.Medium).fontColor(INK)
-          .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(this.deviceStatus(device))
-          .fontSize(13).fontColor(device.online ? GREEN : MUTED)
-      }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-      if (this.shouldShowDeviceConnectAction(device)) {
-        Text(this.switchingDeviceId === device.deviceId ?
-          RemoteI18n.t('remote.settings.deviceConnecting') : RemoteI18n.t('connect.connect'))
-          .fontSize(14).fontColor(INK)
-          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-          .backgroundColor(SOFT).borderRadius(14)
-      }
-    }
-    .width('100%').height(54).alignItems(VerticalAlign.Center)
-    .opacity(this.canActivateAccountDevice(device) ? 1 : 0.68)
-    .onClick(() => {
-      void this.connectAccountDevice(device);
-    })
-  }
-
-  private async refreshAccountDevices(allowPendingLogin: boolean = false): Promise<void> {
-    if ((!this.isAccountAuthenticated() && !allowPendingLogin) || this.accountDevicesBusy) return;
-    this.accountDevicesBusy = true;
-    this.accountDevicesError = '';
-    try {
-      this.accountDevices = await this.cloudListDevices();
-    } catch (err) {
-      this.accountDevicesError = err instanceof Error ? err.message : RemoteI18n.t('remote.settings.deviceLoadFailed');
-    } finally {
-      this.accountDevicesBusy = false;
-    }
-  }
-
-  private desktopDevices(): CloudAccountDevice[] {
-    return this.accountDevices.filter((device: CloudAccountDevice): boolean =>
-      device.deviceId !== this.deviceId && device.deviceName !== 'HarmonyOS Phone');
-  }
-
-  private canActivateAccountDevice(device: CloudAccountDevice): boolean {
-    return AccountDeviceSelectionPolicy.canActivate(
-      device.online,
-      device.deviceId,
-      this.deviceId,
-      this.controlTargetDeviceId,
-      this.connectionState,
-      this.switchingDeviceId
-    );
-  }
-
-  private shouldShowDeviceConnectAction(device: CloudAccountDevice): boolean {
-    return AccountDeviceSelectionPolicy.shouldShowConnectAction(
-      device.online,
-      device.deviceId,
-      this.deviceId,
-      this.controlTargetDeviceId,
-      this.connectionState
-    );
-  }
-
-  private async connectAccountDevice(device: CloudAccountDevice): Promise<void> {
-    if (!this.canActivateAccountDevice(device)) {
-      return;
-    }
-    this.switchingDeviceId = device.deviceId;
-    this.accountDevicesError = '';
-    try {
-      if (AccountDeviceSelectionPolicy.canSelectOnline(
-        device.online, device.deviceId, this.deviceId, ''
-      )) {
-        await this.cloudSelectDevice(device);
-      } else {
-        this.onReconnect();
-      }
-    } catch (err) {
-      this.accountDevicesError = err instanceof Error ? err.message :
-        RemoteI18n.t('remote.settings.deviceSwitchFailed');
-    } finally {
-      this.switchingDeviceId = '';
-    }
-  }
-
-  private deviceStatus(device: CloudAccountDevice): string {
-    if (device.deviceId === this.deviceId) return RemoteI18n.t('remote.settings.deviceCurrent');
-    const presence = device.online ? RemoteI18n.t('remote.settings.deviceOnline') :
-      RemoteI18n.t('remote.settings.deviceOffline');
-    if (device.deviceId === this.controlTargetDeviceId && this.connectionState === 'connected') {
-      return `${RemoteI18n.t('remote.settings.deviceControlling')} · ${presence}`;
-    }
-    if (device.deviceId === this.controlTargetDeviceId) {
-      return `${RemoteI18n.t('connect.deviceLastUsed')} · ${presence}`;
-    }
-    return presence;
-  }
-
-  @Builder
-  private ProfileDetailRow(label: string, value: string) {
-    Row({ space: 16 }) {
-      Text(label)
-        .fontSize(16)
-        .fontColor(INK)
-      Blank()
-      Text(value)
-        .fontSize(14)
-        .fontColor(MUTED)
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .constraintSize({ maxWidth: 190 })
-    }
-    .width('100%')
-    .height(58)
-    .padding({ left: 18, right: 18 })
-  }
-
-  @Builder
-  private CloseButton() {
-    Button() {
-      SymbolGlyph($r('sys.symbol.xmark'))
-        .fontSize(21)
-        .fontColor([INK])
-    }
-    .width(50)
-    .height(50)
-    .padding(0)
-    .type(ButtonType.Circle)
-    .backgroundColor(CARD)
-    .shadow({ radius: 16, color: '#10000000', offsetY: 7 })
-    .margin({ top: 22, right: 18 })
-    .onClick(() => {
-      this.onClose();
-    })
   }
 
   private isConnectedOrConnecting(): boolean {
@@ -869,23 +566,17 @@ export struct RemoteControlSettingsSheet {
     return this.statusText || RemoteI18n.t('connection.disconnected');
   }
 
-  private profileName(): string {
-    return this.accountUsername || RemoteI18n.t('remote.settings.bitfunUser');
-  }
-
-  private profileIdentifier(): string {
-    return this.accountUserId || this.userId || this.deviceId || '-';
-  }
-
   private isAccountAuthenticated(): boolean {
     return this.accountUserId.trim().length > 0;
   }
 
-  @Monitor('accountUserId')
-  private handleAccountUserChanged(): void {
-    if (this.isAccountAuthenticated() && this.accountDevices.length === 0) {
-      this.refreshAccountDevices();
-    }
+  private currentPage(): RemoteControlSettingsPage {
+    return RemoteControlSettingsPagePolicy.resolve(
+      this.openAccountOnAppear,
+      this.showLogin,
+      this.showProfile,
+      this.isAccountAuthenticated()
+    );
   }
 
   private leaveAccountPage(): void {

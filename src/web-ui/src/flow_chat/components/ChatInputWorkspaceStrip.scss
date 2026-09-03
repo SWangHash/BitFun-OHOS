@@ -1,69 +1,160 @@
 /**
- * Narrow meta row in the gap under the floating chat input.
- * Collapsed: same width as the centered capsule (min(380px, 80%)), text left within that band.
- * Active: full input column width, left-aligned.
+ * Compact, borderless execution-status track above the composer surface.
+ *
+ * Two fixed rails, never a conditional column template: the left rail holds the
+ * situation and the right rail holds the next turn's contract. A control that
+ * appears or disappears grows or shrinks its own rail and cannot reflow the
+ * other one.
+ *
+ * The track has exactly two species and shape tells them apart. A *fact* is
+ * bare text with a muted 12px glyph and no hover body; an available workspace
+ * or branch switcher takes the same pill control as the rest of the track.
+ * Both species speak at one size — the ladder's meta step, a quiet footnote
+ * under the capsule above — and in one muted ink, so the row reads as a single
+ * hushed line of text and only shape and fill say what can be clicked. State
+ * is carried by color, never by an outline, because one bordered item in a
+ * borderless row reads as an error rather than a mode.
+ *
+ * Segments part on a hairline divider — a 10px vertical rule that groups
+ * without claiming anything about what sits either side of it. A slash stays
+ * banned: it claimed a path that a host, a workspace and a branch do not
+ * form. Inside one segment, grouping is spacing alone, at a fixed 2.5:1 —
+ * $track-item-gap between segments, $track-part-gap inside one.
  */
+@use '@/shared/styles/surface-recipes' as surfaces;
 
-@use '../../component-library/styles/tokens' as *;
+// The only two spacings on the track. Their ratio is what replaces the
+// separators: parts of one segment sit close, segments sit apart.
+$track-part-gap: 4px;
+$track-item-gap: 10px;
+
+// The single control shape. Full radius rather than a corner value: the
+// composer capsule directly above is a pill, and the track reads as its
+// footnote when the two agree.
+@mixin strip-control {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: $track-part-gap;
+  height: 18px;
+  min-width: 0;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--bf-color-content-muted);
+  font: inherit;
+  // The whole track speaks at one size: facts inherit it from the rail and
+  // controls restate it here. Shape — the pill and its hover fill — is what
+  // says a control is a control, so a label never needs a size of its own.
+  font-size: var(--bf-type-flow-meta-font-size);
+  line-height: var(--bf-line-height-none);
+  letter-spacing: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+    color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
+
+  &:hover:not(:disabled),
+  &[aria-expanded='true']:not(:disabled) {
+    background: var(--bf-color-action-quiet-hover);
+    color: var(--bf-color-content-secondary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--bf-color-accent-default);
+    outline-offset: 1px;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+
+  // One glyph size for the whole track, enforced here so component-owned
+  // icons land on the same rhythm without the strip reaching into them.
+  > svg {
+    flex: none;
+    width: 12px;
+    height: 12px;
+  }
+}
 
 .bitfun-chat-input-workspace-strip {
-  position: absolute;
-  bottom: 0;
-  z-index: 4;
+  position: relative;
+  z-index: 1;
   box-sizing: border-box;
   display: flex;
-  flex-direction: row;
   align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-
-  &--split {
-    justify-content: space-between;
-  }
-
-  &--actions-only {
-    justify-content: flex-end;
-  }
-  /* Room for descenders (g, y, p) */
-  /* Collapsed capsule uses 18px horizontal padding on `.bitfun-chat-input__box`; match so strip text lines up with pill content */
-  padding: 3px 18px 4px;
-  font-family: var(--bf-appearance-token-font-family-sans);
-  font-size: var(--bf-appearance-token-flowchat-font-size-xxs);
-  line-height: var(--bf-appearance-token-flowchat-support-line-height);
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  color: var(--bf-appearance-token-color-text-primary);
+  justify-content: space-between;
+  column-gap: 12px;
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family:var(--bf-font-family-sans);
+  font-size: var(--bf-type-flow-meta-font-size);
+  line-height: var(--bf-type-flow-support-line-height);
+  font-weight: var(--bf-font-weight-regular);
+  letter-spacing: var(--bf-letter-spacing-subtle);
+  color: var(--bf-color-content-muted);
   user-select: text;
   pointer-events: auto;
 
-  /* Always full-width — capsule is no longer narrowed in the new two-mode design */
-  left: 0;
-  right: 0;
-  transform: none;
   width: 100%;
   max-width: none;
-  padding: 3px calc(#{$size-gap-2} + 8px) 4px;
 
-  &__main {
+  // Left rail: where this session runs and what it is chasing. It takes the
+  // slack so the right rail keeps its natural width.
+  &__context {
     display: flex;
+    flex: 1 1 auto;
     align-items: center;
     justify-content: flex-start;
-    gap: 0;
+    gap: $track-item-gap;
     min-width: 0;
-    flex: 0 1 auto;
+    height: 18px;
+
+    // The picker ships a standalone accent-outlined look for use elsewhere.
+    // On the track it is one control among several, so it drops the outline
+    // and takes the shared pill like the rest of them.
+    .dispatch-target-picker__trigger {
+      @include strip-control;
+
+      max-width: 142px;
+
+      > span {
+        min-width: 0;
+        overflow: hidden;
+        padding-bottom: 1px;
+        text-overflow: ellipsis;
+      }
+    }
   }
 
-  &--split &__main {
-    flex: 1 1 auto;
-    max-width: 100%;
-  }
-
-  &__actions {
-    flex-shrink: 0;
+  // Right rail: what the next turn is allowed to do and how much room is left.
+  &__next {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: flex-end;
-    gap: 4px;
+    gap: $track-item-gap;
+    min-width: 0;
+    height: 18px;
+  }
+
+  // The group boundary. Hairline-thin and shorter than the pills it parts, so
+  // it structures the row without becoming a rail of its own.
+  &__divider {
+    flex: none;
+    width: 1px;
+    height: 10px;
+    background: var(--bf-color-field-border-hover);
+    opacity: 0.6;
   }
 
   &__voice-control {
@@ -86,240 +177,102 @@
   // One-click branch sync is a primary recovery/review path for remote work,
   // so it gets accent treatment rather than the muted default of other controls.
   &__dispatch-result {
-    box-sizing: border-box;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    height: 18px;
+    @include strip-control;
+
     max-width: 140px;
-    padding: 0 5px;
-    border: 1px solid color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 45%, transparent);
-    border-radius: $size-radius-sm;
-    background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 14%, transparent);
-    color: var(--bf-appearance-token-color-accent-500);
-    font: inherit;
-    font-size: var(--bf-appearance-token-flowchat-font-size-xxs);
-    line-height: 1;
-    cursor: pointer;
-    transition:
-      background-color $motion-fast $easing-standard,
-      border-color $motion-fast $easing-standard;
+    background: color-mix(in srgb, var(--bf-color-accent-default) 14%, transparent);
+    color: var(--bf-color-accent-default);
 
-    &:hover {
-      border-color: var(--bf-appearance-token-color-accent-500);
-      background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 22%, transparent);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--bf-appearance-token-color-accent-500);
-      outline-offset: 1px;
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--bf-color-accent-default) 22%, transparent);
+      color: var(--bf-color-accent-default);
     }
 
     > span {
+      min-width: 0;
       overflow: hidden;
+      padding-bottom: 1px;
       text-overflow: ellipsis;
-      white-space: nowrap;
     }
   }
 
   &__permission-trigger {
-    box-sizing: border-box;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    height: 18px;
-    min-width: 18px;
-    max-width: 124px;
-    padding: 0 5px;
-    border: 1px solid transparent;
-    border-radius: $size-radius-sm;
-    background: transparent;
-    color: var(--bf-appearance-token-color-text-muted);
-    font: inherit;
-    font-size: var(--bf-appearance-token-flowchat-font-size-xxs);
-    line-height: 1;
-    letter-spacing: 0;
-    cursor: pointer;
-    transition:
-      background-color $motion-fast $easing-standard,
-      border-color $motion-fast $easing-standard,
-      color $motion-fast $easing-standard;
+    @include strip-control;
+
+    position: relative;
+    max-width: 100%;
+    // The one control whose value decides what the next turn may do, so it is
+    // the row's anchor: it rests on a soft body before it is ever hovered,
+    // while the quieter controls around it stay ghost until touched.
+    background: var(--bf-color-action-quiet-hover);
 
     &:hover:not(:disabled),
     &--open:not(:disabled) {
-      background: var(--bf-appearance-token-element-bg-medium);
-      color: var(--bf-appearance-token-color-text-secondary);
+      background: var(--bf-color-action-neutral-surface-hover);
     }
 
-    &:focus-visible {
-      outline: 2px solid var(--bf-appearance-token-color-accent-500);
-      outline-offset: 1px;
-    }
-
-    &:disabled {
-      cursor: default;
-      opacity: 0.62;
-    }
-
-    &--acp {
-      width: 18px;
-      padding: 0;
-    }
-
-    &--ask {
-      border-color: var(--bf-appearance-token-color-success-border);
-      background: var(--bf-appearance-token-color-success-bg);
-      color: var(--bf-appearance-token-color-success);
-
-      &:hover:not(:disabled),
-      &.bitfun-chat-input-workspace-strip__permission-trigger--open {
-        border-color: color-mix(in srgb, var(--bf-appearance-token-color-success) 62%, transparent);
-        background: color-mix(in srgb, var(--bf-appearance-token-color-success) 17%, transparent);
-        color: var(--bf-appearance-token-color-success);
-      }
-    }
-
-    &--auto {
-      border-color: color-mix(in srgb, var(--bf-appearance-token-color-warning) 42%, transparent);
-      background: color-mix(in srgb, var(--bf-appearance-token-color-warning) 11%, transparent);
-      color: var(--bf-appearance-token-color-warning);
-
-      &:hover:not(:disabled),
-      &.bitfun-chat-input-workspace-strip__permission-trigger--open {
-        border-color: color-mix(in srgb, var(--bf-appearance-token-color-warning) 62%, transparent);
-        background: color-mix(in srgb, var(--bf-appearance-token-color-warning) 17%, transparent);
-        color: var(--bf-appearance-token-color-warning);
-      }
-    }
-
+    // Full access is the one mode whose risk must stay visible after the label
+    // is dropped on a narrow composer, so its soft body turns to the error
+    // tint — the track's only risk-coloured body, which is the point.
     &--full_access {
-      border-color: var(--bf-appearance-token-color-error-border);
-      background: var(--bf-appearance-token-color-error-bg);
-      color: var(--bf-appearance-token-color-error);
+      background: color-mix(in srgb, var(--bf-color-status-danger-content) 10%, transparent);
 
       &:hover:not(:disabled),
-      &.bitfun-chat-input-workspace-strip__permission-trigger--open {
-        border-color: color-mix(in srgb, var(--bf-appearance-token-color-error) 56%, transparent);
-        background: color-mix(in srgb, var(--bf-appearance-token-color-error) 15%, transparent);
-        color: var(--bf-appearance-token-color-error);
+      &--open:not(:disabled) {
+        background: color-mix(in srgb, var(--bf-color-status-danger-content) 16%, transparent);
       }
-    }
-
-    svg {
-      flex: none;
     }
   }
 
+  // The risk ramp lives on the trigger too, not only inside the menu: this is
+  // the one control on the strip whose wrong value is expensive.
+  &__permission-overview-icon {
+    color: var(--bf-color-content-muted);
+
+    .bitfun-chat-input-workspace-strip__permission-trigger--ask & {
+      color: var(--bf-color-status-success-content);
+    }
+
+    .bitfun-chat-input-workspace-strip__permission-trigger--auto & {
+      color: var(--bf-color-status-warning-content);
+    }
+
+    .bitfun-chat-input-workspace-strip__permission-trigger--full_access & {
+      color: var(--bf-color-status-danger-content);
+    }
+
+    .bitfun-chat-input-workspace-strip__permission-trigger--reject &,
+    .bitfun-chat-input-workspace-strip__permission-trigger--acp & {
+      color: var(--bf-color-content-muted);
+    }
+  }
+
+  // The anchor's label is a state word, so it carries the same weight the
+  // workspace name does on the opposite rail — the two subjects of the track.
   &__permission-label {
     min-width: 0;
+    max-width: 88px;
     overflow: hidden;
+    padding-bottom: 1px;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  // Scope is chosen per click: the row body writes the session, the trailing
-  // button arms the same mode for one submission only.
-  // The row owns the background so hover and selection cover the trailing
-  // controls as well; the inner button stays transparent.
-  &__permission-option-row {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding-right: 8px;
-    border-radius: $size-radius-sm;
-
-    &:hover,
-    &:focus-within {
-      background: var(--bf-appearance-token-element-bg-medium);
-    }
-
-    &--selected {
-      background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 9%, transparent);
-
-      &:hover,
-      &:focus-within {
-        background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 14%, transparent);
-      }
-    }
-  }
-
-  &__permission-option-trailing {
-    display: flex;
-    flex: none;
-    align-items: center;
-    min-width: 16px;
-    justify-content: flex-end;
-  }
-
-  &__permission-option-check {
-    flex: none;
-    color: var(--bf-appearance-token-color-accent-500);
-  }
-
-  // Session state and a temporary override share one slot, so the checkmark
-  // steps aside exactly when the one-off control claims it.
-  &__permission-option-row:hover &__permission-option-check,
-  &__permission-option-row:focus-within &__permission-option-check,
-  &__permission-option-row--armed &__permission-option-check {
-    display: none;
+    font-weight: var(--bf-font-weight-medium);
   }
 
   &__permission-option-icon {
     flex: none;
 
     &--ask {
-      color: var(--bf-appearance-token-color-success);
+      color: var(--bf-color-status-success-content);
     }
 
     &--auto {
-      color: var(--bf-appearance-token-color-warning);
+      color: var(--bf-color-status-warning-content);
     }
 
     &--full_access {
-      color: var(--bf-appearance-token-color-error);
+      color: var(--bf-color-status-danger-content);
     }
-  }
-
-  // Hidden until the row is hovered or focused so the menu stays compact; an
-  // armed one stays visible because a pending override must not be invisible.
-  &__permission-option-next-turn {
-    flex: none;
-    display: none;
-    padding: 1px 5px;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--bf-appearance-token-color-text-muted);
-    font: inherit;
-    font-size: var(--bf-appearance-token-flowchat-font-size-xxs);
-    line-height: 1.4;
-    white-space: nowrap;
-    cursor: pointer;
-
-    &:hover:not(:disabled),
-    &:focus-visible {
-      color: var(--bf-appearance-token-color-text-primary);
-      background: var(--bf-appearance-token-element-bg-medium);
-      outline: none;
-    }
-
-    &:disabled {
-      cursor: default;
-      opacity: 0.5;
-    }
-
-    &--armed {
-      display: inline-flex;
-      color: var(--bf-appearance-token-color-accent-500);
-      font-weight: 600;
-    }
-  }
-
-  &__permission-option-row:hover &__permission-option-next-turn,
-  &__permission-option-row:focus-within &__permission-option-next-turn {
-    display: inline-flex;
   }
 
   // Marks a pending one-off override. A session-level choice is not dotted:
@@ -329,418 +282,265 @@
     width: 4px;
     height: 4px;
     border-radius: 50%;
-    background: var(--bf-appearance-token-color-accent-500);
-  }
-
-  // The reset row keeps a trailing shortcut into the settings page that owns
-  // the default it follows, revealed on hover so the menu stays quiet.
-  &__permission-action-row {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    padding-right: 6px;
-    border-radius: $size-radius-sm;
-
-    &:hover,
-    &:focus-within {
-      background: var(--bf-appearance-token-element-bg-medium);
-    }
-
-    .bitfun-chat-input-workspace-strip__permission-visibility-action {
-      flex: 1 1 auto;
-      padding-right: 0;
-
-      &:hover,
-      &:focus-visible {
-        background: transparent;
-      }
-    }
-  }
-
-  &__permission-action-settings {
-    flex: none;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    border: 0;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--bf-appearance-token-color-text-muted);
-    cursor: pointer;
-
-    &:hover,
-    &:focus-visible {
-      color: var(--bf-appearance-token-color-text-primary);
-      background: var(--bf-appearance-token-element-bg-strong);
-      outline: none;
-    }
-  }
-
-  &__permission-action-row:hover &__permission-action-settings,
-  &__permission-action-row:focus-within &__permission-action-settings {
-    display: inline-flex;
+    background: var(--bf-color-accent-default);
   }
 
   &__permission-menu {
     position: fixed;
-    z-index: $z-popover;
-    box-sizing: border-box;
-    // Sized to the widest row now that mode descriptions are tooltips: the
-    // header's scope label (longest for dispatched sessions) rather than the
-    // option rows, which are single-line.
+    z-index: var(--bf-layer-popover);
     width: min(240px, calc(100vw - 16px));
-    max-height: calc(100vh - 16px);
-    overflow-y: auto;
-    padding: 6px;
-    border: 1px solid var(--bf-appearance-token-border-subtle);
-    border-radius: $size-radius-base;
-    background: var(--bf-appearance-token-color-bg-elevated);
-    box-shadow: var(--bf-appearance-token-shadow-lg);
-    color: var(--bf-appearance-token-color-text-primary);
-    font-family: var(--bf-appearance-token-font-family-sans);
-    font-size: var(--bf-appearance-token-flowchat-font-size-xxs);
-    user-select: none;
   }
 
-  &__permission-menu-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    min-height: 24px;
-    padding: 0 7px 4px;
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: var(--bf-appearance-token-flowchat-font-size-xxs);
-    font-weight: 600;
-    letter-spacing: 0;
+  &__usage-btn {
+    @include strip-control;
 
-    // A longer localized scope label truncates instead of wrapping the header
-    // onto a second line and reopening the width the tooltips just reclaimed.
-    span {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    span:first-child {
-      flex: none;
-    }
-
-    span:last-child {
-      min-width: 0;
-      color: var(--bf-appearance-token-color-text-muted);
-      font-weight: 400;
-    }
+    width: 18px;
+    padding: 0;
   }
 
-  &__permission-options {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  &__permission-menu-divider {
-    height: 1px;
-    margin: 6px 2px;
-    background: var(--bf-appearance-token-border-subtle);
-  }
-
-  &__permission-option {
-    display: flex;
-    flex: 1 1 auto;
-    align-items: center;
-    gap: 7px;
-    min-width: 0;
-    min-height: 30px;
-    padding: 5px 0 5px 8px;
-    border: 0;
-    border-radius: $size-radius-sm;
-    background: transparent;
-    color: var(--bf-appearance-token-color-text-primary);
-    font: inherit;
-    letter-spacing: 0;
-    text-align: left;
-    cursor: pointer;
-
-    &:focus-visible {
-      outline: none;
-    }
-
-    &:disabled {
-      cursor: wait;
-      opacity: 0.6;
-    }
-  }
-
-  &__permission-option-label {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--bf-appearance-token-color-text-primary);
-    font-size: var(--bf-appearance-token-flowchat-font-size-xs);
-    font-weight: 500;
-    line-height: 1.25;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &__permission-visibility-action {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    width: 100%;
-    min-height: 32px;
-    padding: 6px 8px;
-    border: 0;
-    border-radius: $size-radius-sm;
-    background: transparent;
-    color: var(--bf-appearance-token-color-text-secondary);
-    font: inherit;
-    font-size: var(--bf-appearance-token-flowchat-font-size-xs);
-    letter-spacing: 0;
-    text-align: left;
-    cursor: pointer;
-
-    &:hover,
-    &:focus-visible {
-      background: var(--bf-appearance-token-element-bg-medium);
-      color: var(--bf-appearance-token-color-text-primary);
-      outline: none;
-    }
-  }
-
-  &__goal-btn.icon-btn {
-    width: 16px;
-    height: 16px;
-    min-width: 16px;
-    border-radius: 50%;
-    opacity: 0.86;
+  &__usage-ring {
+    position: relative;
+    display: inline-flex;
+    flex: 0 0 12px;
+    width: 12px;
+    height: 12px;
 
     svg {
-      color: currentColor;
+      position: absolute;
+      inset: 0;
+      width: 12px;
+      height: 12px;
+    }
+
+    .is-track {
+      color: var(--bf-color-field-border-hover);
+    }
+
+    .is-value {
+      color: var(--bf-color-accent-default);
+      transform: rotate(-90deg);
+      transform-origin: center;
     }
   }
 
-  &__goal-btn--none.icon-btn {
-    color: var(--bf-appearance-token-color-text-muted);
-    opacity: 0.72;
-
-    &:hover:not(:disabled) {
-      transform: none;
-      border-radius: 50%;
-      background: color-mix(in srgb, var(--bf-appearance-token-color-text-muted) 12%, var(--bf-appearance-token-element-bg-medium));
-      color: var(--bf-appearance-token-color-text-secondary);
-      opacity: 1;
-    }
-  }
-
-  &__goal-btn--active.icon-btn {
-    color: var(--bf-appearance-token-color-warning);
-
-    &:hover:not(:disabled) {
-      transform: none;
-      border-radius: 50%;
-      background: color-mix(in srgb, var(--bf-appearance-token-color-warning) 12%, var(--bf-appearance-token-element-bg-medium));
-      color: var(--bf-appearance-token-color-warning);
-      opacity: 1;
-    }
-  }
-
-  &__goal-btn--complete.icon-btn {
-    color: var(--bf-appearance-token-color-success);
-
-    &:hover:not(:disabled) {
-      transform: none;
-      border-radius: 50%;
-      background: color-mix(in srgb, var(--bf-appearance-token-color-success) 12%, var(--bf-appearance-token-element-bg-medium));
-      color: var(--bf-appearance-token-color-success);
-      opacity: 1;
-    }
-  }
-
-  /* Keep the usage action compact, but large enough to read beside the strip text. */
-  &__usage-btn.icon-btn {
-    width: 16px;
-    height: 16px;
-    min-width: 16px;
-    border-radius: 50%;
-    opacity: 0.86;
-    color: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 62%, var(--bf-appearance-token-color-text-secondary));
-
-    &:hover:not(:disabled) {
-      transform: none;
-      border-radius: 50%;
-      background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 10%, var(--bf-appearance-token-element-bg-medium));
-      color: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 86%, var(--bf-appearance-token-color-text-primary));
-      opacity: 1;
-    }
-
-    &:active:not(:disabled) {
-      transform: none;
-    }
-
-    svg {
-      flex-shrink: 0;
-      width: 14px;
-      height: 14px;
-    }
+  // One coordinate, two parts. Held at the inner gap they read as a single
+  // phrase — "BitFun on 1.0.0-explore" — instead of two facts that happen to
+  // be adjacent, and the branch glyph joins them the way the slash used to,
+  // except this joiner says what the second part is.
+  &__location {
+    display: inline-flex;
+    align-items: center;
+    gap: $track-part-gap;
+    flex: 0 1 auto;
+    min-width: 0;
   }
 
   &__chip {
-    display: inline-flex;
-    min-width: 0;
     box-sizing: border-box;
-    border-radius: $size-radius-sm;
-    padding: 2px 6px;
-    margin: 0 -2px;
-    transition: background-color $motion-fast $easing-standard;
+    display: inline-flex;
+    align-items: center;
+    gap: $track-part-gap;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
     cursor: default;
 
-    &:hover {
-      background: var(--bf-appearance-token-element-bg-medium);
-    }
-
-    &--workspace {
-      align-items: baseline;
-      flex: 0 1 auto;
-      max-width: 65%;
-    }
-
     &--branch {
-      align-items: center;
       flex: 0 1 auto;
-      max-width: 35%;
-      gap: 3px;
+      max-width: 112px;
+      // The managed-worktree and dispatch variants remain inert facts, while
+      // the ordinary workspace variant adds the switchable modifier below.
+      height: 18px;
+      padding: 0 7px;
+      border-radius: 999px;
     }
 
-    /* Checkbox-style chip: reads as a control without competing with the branch. */
-    &--worktree {
-      align-items: center;
-      flex: none;
-      gap: 4px;
-      margin-left: 4px;
-      border: 1px solid var(--bf-appearance-token-border-subtle);
-      background: transparent;
-      color: var(--bf-appearance-token-color-text-muted);
-      font: inherit;
-      font-size: var(--bf-appearance-token-flowchat-font-size-xxs);
-      line-height: 1;
-      white-space: nowrap;
+    &--branch-switchable {
       cursor: pointer;
+      transition:
+        background-color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+        color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
-      &:hover:not(:disabled) {
-        background: var(--bf-appearance-token-element-bg-medium);
-        color: var(--bf-appearance-token-color-text-secondary);
+      &:hover:not(:disabled),
+      &[aria-expanded='true']:not(:disabled) {
+        background: var(--bf-color-action-quiet-hover);
+        color: var(--bf-color-content-secondary);
       }
 
       &:focus-visible {
-        outline: 2px solid var(--bf-appearance-token-color-accent-500);
+        outline: 2px solid var(--bf-color-accent-default);
         outline-offset: 1px;
       }
-
-      &:disabled {
-        cursor: default;
-        opacity: 0.55;
-      }
     }
+  }
 
-    &--worktree-on {
-      border-color: var(--bf-appearance-token-color-accent-500);
-      color: var(--bf-appearance-token-color-accent-500);
+  // Isolation switch. The rail gap already steps it away from the path; it is
+  // a control, not another segment.
+  &__worktree-toggle {
+    @include strip-control;
+
+    color: var(--bf-color-content-muted);
+
+    &--on {
+      color: var(--bf-color-accent-default);
+      // An engaged isolation is a state, not a resting control, so it keeps a
+      // whisper of the accent body the hover state will deepen.
+      background: color-mix(in srgb, var(--bf-color-accent-default) 8%, transparent);
 
       &:hover:not(:disabled) {
-        color: var(--bf-appearance-token-color-accent-500);
+        color: var(--bf-color-accent-default);
+        background: color-mix(in srgb, var(--bf-color-accent-default) 12%, transparent);
       }
     }
   }
 
   /*
-   * The UI font (Noto Sans SC) has CJK vertical metrics — 1.16em ascent against
-   * 0.32em descent — so `align-items: center` centers a line box whose glyphs sit
-   * ~0.06em below its middle. Beside the checkbox icon, which centers exactly,
-   * the label reads as low. The 1px bottom pad lifts the glyphs by half of it,
-   * matching what `__workspace` and `__branch` already carry; the icon still
-   * sets the 11px content box, so the chip's height is unchanged.
+   * Product sans faces have different vertical metrics across platform font
+   * profiles. Keep the shared 1px optical compensation on every text span so
+   * labels remain aligned with icons and with one another.
    */
   &__worktree-label {
     padding-bottom: 1px;
   }
 
-  &__worktree-icon {
-    flex-shrink: 0;
-    width: 11px;
-    height: 11px;
+  // The one thing on the track that is a subject rather than a qualifier, so
+  // it carries full weight either way. With more than one workspace open it is
+  // also the switcher; the pill metrics apply to both forms so a static
+  // workspace and a live one sit at exactly the same size.
+  &__workspace {
+    box-sizing: border-box;
+    display: inline-flex;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: $track-part-gap;
+    min-width: 0;
+    max-width: 180px;
+    height: 18px;
+    padding: 0 7px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
     color: inherit;
-
-    &.is-spinning {
-      animation: bitfun-chat-input-workspace-strip-spin 0.9s linear infinite;
-    }
+    font-family:var(--bf-font-family-sans);
+    font-size: inherit;
+    font-weight: var(--bf-font-weight-medium);
+    line-height: var(--bf-line-height-none);
+    white-space: nowrap;
+    cursor: default;
   }
 
-  &__workspace {
+  &__workspace-name {
     min-width: 0;
-    white-space: nowrap;
-    font-family: inherit;
-    font-weight: inherit;
     overflow: hidden;
     text-overflow: ellipsis;
     padding-bottom: 1px;
-    max-width: 100%;
-    color: var(--bf-appearance-token-color-text-primary);
   }
 
+  // Only the interactive form answers a click — the hover fill is the whole
+  // difference between a fact and a control here.
+  &__workspace--switchable {
+    cursor: pointer;
+    transition:
+      background-color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+      color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
+
+    &:hover:not(:disabled),
+    &[aria-expanded='true']:not(:disabled) {
+      background: var(--bf-color-action-quiet-hover);
+      color: var(--bf-color-content-secondary);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--bf-color-accent-default);
+      outline-offset: 1px;
+    }
+  }
+
+  // The track's one remaining fact glyph. It says "branch", which is exactly
+  // what "1.0.0-explore" cannot say on its own.
   &__branch-icon {
-    flex-shrink: 0;
-    width: 11px;
-    height: 11px;
-    color: var(--bf-appearance-token-color-text-muted);
-    opacity: 0.9;
+    flex: none;
+    width: 12px;
+    height: 12px;
+    color: var(--bf-color-content-muted);
   }
 
   &__branch {
     min-width: 0;
     white-space: nowrap;
-    font-family: inherit;
+    font-family:var(--bf-font-family-sans);
+    font-size: inherit;
     font-weight: inherit;
     flex: 1 1 auto;
     overflow: hidden;
     text-overflow: ellipsis;
     padding-bottom: 1px;
-    color: var(--bf-appearance-token-color-text-primary);
   }
 
-  &__sep {
-    flex: none;
-    padding: 0 3px;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-weight: 400;
+  // Shares the permission menu's floating surface so both popovers off this
+  // strip feel like one family; the layout is simpler — a single column of
+  // workspace names with a check on the active one.
+  &__workspace-menu {
+    position: fixed;
+    z-index: var(--bf-layer-popover);
+    width: min(220px, calc(100vw - 16px));
+  }
+
+}
+
+// Degradation is ordered by what a reader loses: prose first, then labels, and
+// never the colors or the numeric readings that carry state and risk.
+@media (max-width: 680px) {
+  .bitfun-chat-input-workspace-strip {
+    &__workspace {
+      max-width: 112px;
+    }
   }
 }
 
 @media (max-width: 560px) {
   .bitfun-chat-input-workspace-strip {
-    &__permission-trigger--auto,
-    &__permission-trigger--full_access {
+    &__permission-label {
+      display: none;
+    }
+
+    // A control that loses its label collapses to the same square target the
+    // context ring already is, so the row keeps one rhythm as it narrows
+    // instead of leaving lopsided pills behind.
+    &__permission-trigger {
       width: 18px;
       padding: 0;
     }
 
-    &__permission-label {
-      display: none;
+    &__chip--branch {
+      max-width: 84px;
     }
   }
 }
 
-@keyframes bitfun-chat-input-workspace-strip-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
+@media (max-width: 460px) {
+  .bitfun-chat-input-workspace-strip {
+    &__branch {
+      display: none;
+    }
 
-@media (prefers-reduced-motion: reduce) {
-  .bitfun-chat-input-workspace-strip__worktree-icon.is-spinning {
-    animation: none;
+    // The word goes, the checkbox and its state color do not.
+    &__worktree-label {
+      display: none;
+    }
+
+    &__worktree-toggle {
+      width: 18px;
+      padding: 0;
+    }
+
+    &__chip--branch-switchable {
+      width: 18px;
+      padding: 0;
+      justify-content: center;
+    }
   }
 }

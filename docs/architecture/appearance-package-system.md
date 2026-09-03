@@ -193,7 +193,8 @@ transform 等复杂值必须使用结构化对象，不能使用 CSS 字符串�
 
 ## Token 与 Material
 
-`globals` 提供 colors、lengths、numbers、durations、easings、fontFamilies 和 shadows。
+`globals` 提供 colors、lengths、numbers、durations、easings 和 shadows。字体体系由
+`@bitfun/design-tokens` 独占，不属于 Appearance 包的可覆盖协议。
 组件规则通过 `{ "kind": "ref", "path": "globals.colors.accent" }` 引用。
 
 编译器将全局 token 投影为 `--bf-appearance-*` 变量。`materials` 是带视觉角色的可复用样式定义：
@@ -427,7 +428,8 @@ Skin runtime、manifest 或文件格式。公网入口固定为 `market.openbitf
 市场稳定 DTO 和发布状态机由 `bitfun-product-domains::appearance_market` 拥有。独立
 `bitfun-skin-market` 服务使用自己的 SQLite、content-addressed package/preview artifacts、审核日志、
 retention 和备份；不与 MiniApp listing/release/submission 表共用 namespace。公开 Web 站只读。
-Desktop 投稿复用 MiniApp 市场系统 keyring 中的 GitHub Desktop token，Skin 服务只把 Bearer token
+Desktop 投稿复用 MiniApp 市场凭据存储中的 GitHub Desktop token；macOS 使用应用数据目录下的
+本地加密文件，避免系统钥匙串授权提示，Windows/Linux 仍使用各自的原生凭据存储。Skin 服务只把 Bearer token
 转发给受控的 MiniApp `/me` endpoint 做身份和管理员校验，不保存 OAuth secret、refresh token 或
 Cookie。
 

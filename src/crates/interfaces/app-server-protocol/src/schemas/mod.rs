@@ -13,6 +13,7 @@ pub mod mcp;
 pub mod method;
 pub mod model;
 pub mod permission;
+pub mod search;
 pub mod session;
 pub mod skill;
 pub mod subagent;

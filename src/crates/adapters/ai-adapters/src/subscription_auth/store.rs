@@ -1,17 +1,10 @@
 //! Persistence for subscription-account credentials.
 //!
-//! OAuth tokens and API keys are stored in the operating-system credential
-//! vault (macOS Keychain, Windows Credential Manager, or Linux Secret
-//! Service). The JSON file contains only non-secret account metadata and
-//! references used to discover the corresponding vault entries.
+//! OAuth tokens and API keys are stored outside the metadata JSON. macOS uses
+//! a prompt-free encrypted file vault in BitFun's application data directory;
+//! Windows and Linux continue to use their native credential stores.
 //!
 //! Path: `{dirs::config_dir()}/bitfun/data/subscription_auth.json`.
-//!
-//! The vault backend is injectable through
-//! [`set_subscription_credential_vault`]. The default backend is
-//! `SystemSecureCredentialVault` (keyring) on macOS, Windows, and Linux;
-//! the desktop host on HarmonyOS injects an ArkTS-backed vault at startup
-//! because OHOS has no D-Bus Secret Service provider.
 
 use anyhow::{anyhow, Context, Result};
 use bitfun_services_core::secure_credentials::SecureCredentialVault;
@@ -25,12 +18,10 @@ use std::time::Duration;
 
 const STORE_VERSION: u8 = 2;
 const CLEANUP_JOURNAL_VERSION: u8 = 1;
-/// Keyring service namespace for subscription-auth entries. Preserved from
-/// the pre-unification layout so existing on-disk keychain entries continue
-/// to read back without a migration step. The OHOS ArkTS-backed vault
-/// ignores this — aliases already disambiguate within AssetStoreKit.
+#[cfg(not(target_os = "macos"))]
 const KEYRING_SERVICE: &str = "openbitfun.bitfun.subscription-auth.v1";
 const STORE_FILE_LOCK_TIMEOUT: Duration = Duration::from_secs(10);
+const PROVIDER_REFRESH_LOCK_TIMEOUT: Duration = Duration::from_secs(40);
 const STORE_FILE_LOCK_RETRY_INTERVAL: Duration = Duration::from_millis(25);
 // Windows Credential Manager limits a generic credential blob to 2560 bytes.
 // Leave headroom for platform-store implementations and split every logical
@@ -38,7 +29,7 @@ const STORE_FILE_LOCK_RETRY_INTERVAL: Duration = Duration::from_millis(25);
 const SECRET_CHUNK_BYTES: usize = 2_048;
 
 /// A single credential assembled in memory after its secret material has been
-/// read from the platform credential vault.
+/// read from the credential vault.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StoredCredential {
@@ -371,6 +362,12 @@ fn failing_backup_cleanup() -> &'static Mutex<HashSet<PathBuf>> {
     PATHS.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
+#[cfg(not(target_os = "macos"))]
+fn native_keyring_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
 fn store_operation_lock() -> &'static tokio::sync::Mutex<()> {
     static LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
     &LOCK
@@ -573,6 +570,14 @@ impl Drop for StoreFileLock {
 struct StoreTransactionGuard {
     _file_lock: StoreFileLock,
     _process_lock: tokio::sync::MutexGuard<'static, ()>,
+}
+
+/// Cross-process lease for an OAuth provider whose refresh token rotates on
+/// use. It is separate from the short metadata transaction lock, so logout and
+/// login can still advance the provider revision while a network refresh is in
+/// flight; the refresh CAS will then fail instead of resurrecting stale state.
+pub(crate) struct ProviderRefreshLease {
+    _file_lock: StoreFileLock,
 }
 
 fn store_lock_path(metadata_path: &Path) -> PathBuf {
@@ -787,6 +792,31 @@ async fn acquire_store_transaction() -> Result<(PathBuf, StoreTransactionGuard)>
             _process_lock: process_lock,
         },
     ))
+}
+
+/// Serializes rotating-token refreshes for one provider across BitFun
+/// processes. The caller must reload the credential after acquiring the lease.
+pub(crate) async fn acquire_provider_refresh_lease(provider: &str) -> Result<ProviderRefreshLease> {
+    if provider.is_empty()
+        || !provider
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '-')
+    {
+        return Err(anyhow!("invalid subscription refresh-lease provider id"));
+    }
+    let metadata_path = store_path()?;
+    let stem = metadata_path
+        .file_stem()
+        .and_then(std::ffi::OsStr::to_str)
+        .ok_or_else(|| anyhow!("subscription credential path has no valid file stem"))?;
+    // `acquire_store_file_lock_with_timeout` replaces the extension with
+    // `.lock`, so place the provider in the file stem rather than extension.
+    let lease_seed = metadata_path.with_file_name(format!("{stem}-{provider}-refresh.seed"));
+    let file_lock =
+        acquire_store_file_lock_with_timeout(&lease_seed, PROVIDER_REFRESH_LOCK_TIMEOUT).await?;
+    Ok(ProviderRefreshLease {
+        _file_lock: file_lock,
+    })
 }
 
 /// Overrides the metadata path for tests. The override also switches secret
@@ -1064,6 +1094,47 @@ async fn read_secure_file(path: &Path) -> Result<SecureStoreFile> {
     parse_secure_file(&bytes, path)
 }
 
+#[cfg(not(target_os = "macos"))]
+fn open_native_keyring_entry(entry_name: &str) -> std::result::Result<keyring_core::Entry, String> {
+    if keyring_core::get_default_store().is_none() {
+        #[cfg(target_os = "windows")]
+        let store = windows_native_keyring_store::Store::new();
+        #[cfg(all(
+            unix,
+            not(any(target_os = "macos", target_os = "ios", target_os = "android"))
+        ))]
+        let store = zbus_secret_service_keyring_store::Store::new();
+        #[cfg(not(any(
+            target_os = "windows",
+            all(
+                unix,
+                not(any(target_os = "macos", target_os = "ios", target_os = "android"))
+            )
+        )))]
+        let store: keyring_core::Result<std::sync::Arc<keyring_core::CredentialStore>> =
+            Err(keyring_core::Error::NoDefaultStore);
+
+        // Unlike the keyring v1 facade, failed initialization leaves no sticky
+        // once flag. A later UI retry can reconnect to Linux Secret Service.
+        let store =
+            store.map_err(|error| format!("initialize system credential store: {error}"))?;
+        keyring_core::set_default_store(store);
+    }
+    keyring_core::Entry::new(KEYRING_SERVICE, entry_name)
+        .map_err(|error| format!("open system credential entry: {error}"))
+}
+
+#[cfg(target_os = "macos")]
+fn macos_credential_vault(
+    metadata_path: &Path,
+) -> bitfun_services_core::credential_vault::CredentialVault {
+    let parent = metadata_path.parent().unwrap_or_else(|| Path::new("."));
+    bitfun_services_core::credential_vault::CredentialVault::new(
+        parent.join(".subscription_auth_vault.key"),
+        parent.join("subscription_auth_vault.json"),
+    )
+}
+
 async fn get_secret_bytes(entry_name: &str) -> Result<Option<Vec<u8>>> {
     let vault = current_vault();
     vault
@@ -1084,6 +1155,45 @@ async fn get_legacy_password(provider: &str) -> Result<Option<String>> {
         .get_legacy_secret_text(provider)
         .await
         .map_err(vault_unavailable)
+    if let Some(path) = overridden_store_path() {
+        if test_vault_is_unavailable(&path) {
+            return Err(vault_unavailable("subscription test vault unavailable"));
+        }
+        return test_secrets()
+            .lock()
+            .map_err(|_| anyhow!("subscription test vault lock poisoned"))
+            .map(|vault| {
+                vault
+                    .get(&path)
+                    .and_then(|items| items.get(provider))
+                    .and_then(|bytes| String::from_utf8(bytes.clone()).ok())
+            });
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        return get_secret_bytes(provider)
+            .await
+            .map(|secret| secret.and_then(|bytes| String::from_utf8(bytes).ok()));
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let provider = provider.to_string();
+        tokio::task::spawn_blocking(move || {
+            let _guard = native_keyring_lock()
+                .lock()
+                .map_err(|_| "subscription keyring lock poisoned".to_string())?;
+            let entry = open_native_keyring_entry(&provider)?;
+            match entry.get_password() {
+                Ok(secret) => Ok(Some(secret)),
+                Err(keyring_core::Error::NoEntry) => Ok(None),
+                Err(err) => Err(format!("read legacy system credential entry: {err}")),
+            }
+        })
+        .await
+        .context("join legacy system credential read task")?
+        .map_err(vault_unavailable)
+    }
 }
 
 async fn set_secret_bytes(entry_name: &str, secret: Vec<u8>) -> Result<()> {
@@ -1098,6 +1208,49 @@ async fn set_secret_bytes(entry_name: &str, secret: Vec<u8>) -> Result<()> {
         .set_secret(entry_name, &secret)
         .await
         .map_err(vault_unavailable)
+    if let Some(path) = overridden_store_path() {
+        if test_vault_is_unavailable(&path) {
+            return Err(vault_unavailable("subscription test vault unavailable"));
+        }
+        if vault_write_should_fail(&path) {
+            return Err(vault_unavailable(
+                "injected subscription test vault write failure",
+            ));
+        }
+        let mut vault = test_secrets()
+            .lock()
+            .map_err(|_| anyhow!("subscription test vault lock poisoned"))?;
+        vault
+            .entry(path)
+            .or_default()
+            .insert(entry_name.to_string(), secret);
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let path = store_path()?;
+        return macos_credential_vault(&path)
+            .set(entry_name, &secret)
+            .await
+            .map_err(|error| vault_unavailable(error.to_string()));
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let entry_name = entry_name.to_string();
+        tokio::task::spawn_blocking(move || {
+            let _guard = native_keyring_lock()
+                .lock()
+                .map_err(|_| "subscription keyring lock poisoned".to_string())?;
+            let entry = open_native_keyring_entry(&entry_name)?;
+            entry
+                .set_secret(&secret)
+                .map_err(|err| format!("write system credential entry: {err}"))
+        })
+        .await
+        .context("join system credential write task")?
+        .map_err(vault_unavailable)
+    }
 }
 
 async fn delete_secret_entry(entry_name: &str) -> Result<()> {
@@ -1106,6 +1259,48 @@ async fn delete_secret_entry(entry_name: &str) -> Result<()> {
         .delete_secret(entry_name)
         .await
         .map_err(vault_unavailable)
+    if let Some(path) = overridden_store_path() {
+        if test_vault_is_unavailable(&path) {
+            return Err(vault_unavailable("subscription test vault unavailable"));
+        }
+        if vault_delete_should_fail(&path) {
+            return Err(vault_unavailable(
+                "injected subscription test vault delete failure",
+            ));
+        }
+        if let Ok(mut vault) = test_secrets().lock() {
+            if let Some(items) = vault.get_mut(&path) {
+                items.remove(entry_name);
+            }
+        }
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let path = store_path()?;
+        return macos_credential_vault(&path)
+            .remove(entry_name)
+            .await
+            .map_err(|error| vault_unavailable(error.to_string()));
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let entry_name = entry_name.to_string();
+        tokio::task::spawn_blocking(move || {
+            let _guard = native_keyring_lock()
+                .lock()
+                .map_err(|_| "subscription keyring lock poisoned".to_string())?;
+            let entry = open_native_keyring_entry(&entry_name)?;
+            match entry.delete_credential() {
+                Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
+                Err(err) => Err(format!("delete system credential entry: {err}")),
+            }
+        })
+        .await
+        .context("join system credential delete task")?
+        .map_err(vault_unavailable)
+    }
 }
 
 fn secret_chunks(secret: &str) -> Vec<Vec<u8>> {
@@ -1375,7 +1570,7 @@ async fn migrate_legacy_store(path: &Path, legacy: Store) -> Result<LoadState> {
                 );
             }
 
-            // A locked or temporarily unavailable native vault must not turn
+            // A temporarily unavailable credential vault must not turn
             // a retryable migration into permanent credential loss. Leave the
             // legacy file untouched and retry after the vault is available.
             if is_vault_unavailable(&error) {
@@ -1389,7 +1584,7 @@ async fn migrate_legacy_store(path: &Path, legacy: Store) -> Result<LoadState> {
                     provider_revisions: HashMap::new(),
                 });
             }
-            return Err(error.context("migrate subscription credential to the system vault"));
+            return Err(error.context("migrate subscription credential to the credential vault"));
         }
     }
 
@@ -1408,7 +1603,7 @@ async fn migrate_legacy_store(path: &Path, legacy: Store) -> Result<LoadState> {
             "finalize subscription credential migration cleanup journal failed; retrying later: {error:#}"
         );
     }
-    log::info!("subscription credentials migrated to the system credential vault");
+    log::info!("subscription credentials migrated to the credential vault");
     Ok(LoadState {
         credentials: legacy,
         requires_reauthentication: HashSet::new(),
@@ -1491,7 +1686,7 @@ pub(crate) async fn load_with_state() -> Result<LoadState> {
     load_with_state_unlocked(&path).await
 }
 
-/// Loads all credentials that are currently available from the system vault.
+/// Loads all credentials that are currently available from the credential vault.
 pub async fn load() -> Result<Store> {
     Ok(load_with_state().await?.credentials)
 }
@@ -1508,7 +1703,7 @@ pub(crate) async fn load_entry_with_revision(provider: &str) -> Result<Versioned
     let mut state = load_with_state().await?;
     if state.vault_unavailable.contains(provider) {
         return Err(anyhow!(
-            "system credential vault is locked or unavailable; unlock it and retry"
+            "credential vault is locked or unavailable; retry after the storage issue is resolved"
         ));
     }
     Ok(VersionedCredential {
@@ -1525,7 +1720,7 @@ pub(crate) async fn credential_revision(provider: &str) -> Result<u64> {
 }
 
 /// Inserts or replaces a provider credential. Secret material is committed to
-/// the platform vault before the non-secret metadata advertises the entry.
+/// the credential vault before the non-secret metadata advertises the entry.
 pub async fn upsert(provider: &str, credential: StoredCredential) -> Result<()> {
     match upsert_internal(provider, credential, None).await? {
         ConditionalCommitOutcome::Committed { .. } => Ok(()),
@@ -1601,7 +1796,7 @@ async fn upsert_internal(
     })
 }
 
-/// Removes one provider from both the native vault and metadata index.
+/// Removes one provider from both the credential vault and metadata index.
 pub(crate) async fn remove(provider: &str) -> Result<RemoveOutcome> {
     let (path, _transaction) = acquire_store_transaction().await?;
     let _ = load_with_state_unlocked(&path).await?;
@@ -1633,7 +1828,7 @@ pub(crate) async fn remove(provider: &str) -> Result<RemoveOutcome> {
     }
     if let Err(error) = reconcile_cleanup_journal(&path, &file.active_vault_entries()).await {
         return Ok(RemoveOutcome::CleanupPending(format!(
-            "native credential cleanup is pending; unlock the credential vault and retry: {error:#}"
+            "credential cleanup is pending; retry after the storage issue is resolved: {error:#}"
         )));
     }
     Ok(RemoveOutcome::Removed)
@@ -1768,6 +1963,8 @@ mod file_lock_tests {
     const LOCK_CHILD_METADATA_ENV: &str = "BITFUN_SUBAUTH_LOCK_CHILD_METADATA";
     const LOCK_CHILD_STARTED_ENV: &str = "BITFUN_SUBAUTH_LOCK_CHILD_STARTED";
     const LOCK_CHILD_OBSERVED_ENV: &str = "BITFUN_SUBAUTH_LOCK_CHILD_OBSERVED";
+    const CROSS_PROCESS_TEST_LOCK_TIMEOUT: Duration = Duration::from_secs(30);
+    const CROSS_PROCESS_TEST_PROCESS_TIMEOUT: Duration = Duration::from_secs(10);
 
     fn temporary_metadata_path(label: &str) -> PathBuf {
         std::env::temp_dir()
@@ -1776,6 +1973,19 @@ mod file_lock_tests {
                 uuid::Uuid::new_v4()
             ))
             .join("subscription_auth.json")
+    }
+
+    fn assert_store_file_lock_is_contended(metadata_path: &Path) {
+        let lock_path = store_lock_path(metadata_path);
+        let file = open_store_lock_file(&lock_path).expect("open contended transaction lock");
+        match fs2::FileExt::try_lock_exclusive(&file) {
+            Ok(()) => {
+                let _ = fs2::FileExt::unlock(&file);
+                panic!("child transaction unexpectedly acquired the parent lock");
+            }
+            Err(error) if error.raw_os_error() == fs2::lock_contended_error().raw_os_error() => {}
+            Err(error) => panic!("child transaction lock attempt failed unexpectedly: {error}"),
+        }
     }
 
     #[tokio::test]
@@ -1869,11 +2079,13 @@ mod file_lock_tests {
         let observed_path = PathBuf::from(
             std::env::var_os(LOCK_CHILD_OBSERVED_ENV).expect("child observed marker path"),
         );
-        std::fs::write(&started_path, b"started").expect("write child started marker");
+        assert_store_file_lock_is_contended(&metadata_path);
+        std::fs::write(&started_path, b"contended").expect("write child contention marker");
 
-        let _lock = acquire_store_file_lock_with_timeout(&metadata_path, Duration::from_secs(5))
-            .await
-            .expect("child transaction lock");
+        let _lock =
+            acquire_store_file_lock_with_timeout(&metadata_path, CROSS_PROCESS_TEST_LOCK_TIMEOUT)
+                .await
+                .expect("child transaction lock");
         // Keep a lock-regression failure inside the process-local test vault;
         // it must never touch the developer's native credential store.
         set_store_path_for_test(metadata_path.clone());
@@ -1926,14 +2138,13 @@ mod file_lock_tests {
         .spawn()
         .expect("spawn lock-contending child process");
 
-        tokio::time::timeout(Duration::from_secs(2), async {
+        tokio::time::timeout(CROSS_PROCESS_TEST_PROCESS_TIMEOUT, async {
             while !started_path.exists() {
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
         })
         .await
-        .expect("child should begin its transaction attempt");
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        .expect("child should observe the contended parent transaction lock");
         assert!(
             !observed_path.exists(),
             "child process must not reconcile while the parent transaction is uncommitted"
@@ -1951,7 +2162,7 @@ mod file_lock_tests {
         .expect("parent metadata commit");
         drop(first);
 
-        let status = tokio::time::timeout(Duration::from_secs(5), async {
+        let status = tokio::time::timeout(CROSS_PROCESS_TEST_PROCESS_TIMEOUT, async {
             loop {
                 if let Some(status) = child.try_wait().expect("poll child process") {
                     break status;

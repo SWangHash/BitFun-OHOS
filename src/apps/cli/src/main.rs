@@ -52,7 +52,7 @@ use modes::chat::ChatMode;
 use modes::exec::{ExecApprovalMode, ExecOutputFormat};
 
 pub(crate) const PLUGIN_HOST_LAUNCH_POLICY: bitfun_core::plugin_host::PluginHostLaunchPolicy =
-    bitfun_core::plugin_host::PluginHostLaunchPolicy::Disabled;
+    bitfun_core::plugin_host::PluginHostLaunchPolicy::Enabled;
 
 // ======================== Global MCP Service ========================
 
@@ -166,6 +166,11 @@ struct Cli {
     /// Specify the agent type for this session
     #[arg(long)]
     agent: Option<String>,
+
+    /// Select the Harness Profile for this session (minimal or balanced).
+    /// `minimal` is kept as a compatibility alias for agent type `minimal`.
+    #[arg(long, value_parser = ["minimal", "balanced"])]
+    harness_profile: Option<String>,
 }
 
 fn shared_tui_requested(shared: bool, command: &Option<Commands>) -> Result<bool> {
@@ -175,6 +180,38 @@ fn shared_tui_requested(shared: bool, command: &Option<Commands>) -> Result<bool
         ));
     }
     Ok(shared || matches!(command, Some(Commands::Chat { shared: true, .. })))
+}
+
+fn validate_global_harness_profile_scope(
+    harness_profile: Option<&str>,
+    command: &Option<Commands>,
+) -> Result<()> {
+    if harness_profile.is_none()
+        || matches!(
+            command,
+            None | Some(Commands::Chat { .. } | Commands::Exec { .. })
+        )
+    {
+        return Ok(());
+    }
+    Err(anyhow!(
+        "--harness-profile is supported only by interactive chat and headless exec; this command cannot silently fall back to Balanced"
+    ))
+}
+
+fn resolved_command_harness_profile(
+    global: &Option<String>,
+    command: Option<String>,
+) -> Option<String> {
+    command.or_else(|| global.clone())
+}
+
+fn agent_type_with_harness_profile(agent_type: String, harness_profile: Option<&str>) -> String {
+    match harness_profile {
+        Some("minimal") => "minimal".to_string(),
+        Some("balanced") | None => agent_type,
+        Some(other) => other.to_string(),
+    }
 }
 
 #[derive(Subcommand)]
@@ -188,6 +225,10 @@ enum Commands {
         /// Use the opt-in Shared Runtime for this interactive TUI
         #[arg(long)]
         shared: bool,
+
+        /// Harness Profile for this session (minimal or balanced).
+        #[arg(long, value_parser = ["minimal", "balanced"])]
+        harness_profile: Option<String>,
     },
 
     #[command(name = "__shared-runtime", hide = true)]
@@ -206,6 +247,10 @@ enum Commands {
         /// Agent type
         #[arg(short, long, default_value = "agentic")]
         agent: String,
+
+        /// Harness Profile for this session (minimal or balanced).
+        #[arg(long, value_parser = ["minimal", "balanced"])]
+        harness_profile: Option<String>,
 
         /// Continue the most recent session in the current workspace
         #[arg(short = 'c', long = "continue")]
@@ -602,6 +647,8 @@ enum ExternalConfigAction {
     Status,
     /// Enable or disable external compatibility
     SetEnabled {
+        /// Whether external compatibility is enabled
+        #[arg(action = clap::ArgAction::Set, value_parser = clap::value_parser!(bool))]
         enabled: bool,
         #[arg(long, value_enum, default_value = "project")]
         scope: ExternalPolicyScopeArg,
@@ -825,7 +872,16 @@ async fn initialize_core_services_for_deployment(
         bootstrap_profile,
         BootstrapProfile::Interactive | BootstrapProfile::Execution
     ) {
-        plugin_host_activation::ensure_configured_plugin_execution_supported().await?;
+        if let Err(error) =
+            plugin_host_activation::ensure_configured_plugin_execution_supported().await
+        {
+            bitfun_core::plugin_host::report_configured_plugin_activation_failure(
+                "CLI startup configuration",
+                Some(workspace_root),
+                error,
+            )
+            .await;
+        }
     }
     if bootstrap_profile.starts_plugin_host() {
         match bitfun_core::plugin_host::initialize_configured_plugin_host_with_log_file(
@@ -836,7 +892,14 @@ async fn initialize_core_services_for_deployment(
         {
             Ok(bitfun_core::plugin_host::PluginHostStartup::Disabled) => {}
             Ok(status) => tracing::info!("Plugin host initialization completed: {:?}", status),
-            Err(error) => tracing::error!("Failed to initialize configured plugin host: {error}"),
+            Err(error) => {
+                bitfun_core::plugin_host::report_configured_plugin_activation_failure(
+                    "CLI startup",
+                    Some(workspace_root),
+                    error,
+                )
+                .await;
+            }
         }
     }
     let path_manager = bitfun_core::infrastructure::try_get_path_manager_arc()
@@ -939,9 +1002,16 @@ async fn run_interactive(
     shared: bool,
     agent_override: Option<String>,
     model_id: Option<String>,
+    harness_profile: Option<String>,
     session_override: Option<String>,
 ) -> Result<()> {
     use ui::startup::{StartupPage, StartupResult};
+
+    if shared && harness_profile.is_some() {
+        anyhow::bail!(
+            "--harness-profile is not supported by the current Shared Runtime protocol; use embedded TUI"
+        );
+    }
 
     // 1. Initialize terminal and show loading screen
     let mut terminal = ui::init_terminal()?;
@@ -1040,12 +1110,13 @@ async fn run_interactive(
     } else {
         default_agent.clone()
     };
+    let effective_agent =
+        agent_type_with_harness_profile(effective_agent, harness_profile.as_deref());
 
     // If --continue or --session was given, skip the startup page and go directly
     // to chat with the resolved session.
     if let Some(ref session_spec) = session_override {
         let restore_session_id = resolve_startup_session_override(&agent, session_spec).await?;
-
         let mut chat_mode = ChatMode::new(
             config,
             effective_agent,
@@ -1092,11 +1163,17 @@ async fn run_interactive(
         StartupResult::Exit => unreachable!(),
     };
 
-    let agent_type = startup_page.agent_type().to_string();
+    let agent_type = harness_profile
+        .as_deref()
+        .map(|profile| {
+            agent_type_with_harness_profile(startup_page.agent_type().to_string(), Some(profile))
+        })
+        .unwrap_or_else(|| startup_page.agent_type().to_string());
     if matches!(startup_result, StartupResult::NewSession { .. }) {
-        if let Some(model_id) = startup_page.selected_model_id().map(str::to_string) {
-            agent
-                .ensure_session_with_model(&agent_type, Some(model_id))
+        let selected_model_id = startup_page.selected_model_id().map(str::to_string);
+        if selected_model_id.is_some() {
+            let _session_id = agent
+                .ensure_session_with_model(&agent_type, selected_model_id)
                 .await?;
         }
     }
@@ -1203,6 +1280,7 @@ async fn run_cli() -> Result<()> {
         }
         Err(error) => return Err(error),
     };
+    validate_global_harness_profile_scope(cli.harness_profile.as_deref(), &cli.command)?;
     let is_exec_mode = matches!(cli.command, Some(Commands::Exec { .. }));
     let is_dispatch_mode = is_dispatch_command(&cli.command);
     let is_daemon_run = matches!(
@@ -1245,7 +1323,11 @@ async fn run_cli() -> Result<()> {
     }
 
     match cli.command {
-        Some(Commands::Chat { agent, .. }) => {
+        Some(Commands::Chat {
+            agent,
+            harness_profile,
+            ..
+        }) => {
             // Interactive mode with startup page, scoped to the current directory.
             run_interactive(
                 config,
@@ -1254,6 +1336,7 @@ async fn run_cli() -> Result<()> {
                 use_shared_runtime,
                 cli.agent.clone(),
                 cli.model.clone(),
+                resolved_command_harness_profile(&cli.harness_profile, harness_profile),
                 None,
             )
             .await?;
@@ -1267,6 +1350,7 @@ async fn run_cli() -> Result<()> {
         Some(Commands::Exec {
             message,
             agent,
+            harness_profile,
             continue_last,
             resume,
             session,
@@ -1293,7 +1377,11 @@ async fn run_cli() -> Result<()> {
                 config,
                 root_handlers::ExecCommandArgs {
                     message,
-                    agent,
+                    agent: agent_type_with_harness_profile(
+                        agent,
+                        resolved_command_harness_profile(&cli.harness_profile, harness_profile)
+                            .as_deref(),
+                    ),
                     continue_last,
                     resume,
                     session,
@@ -1536,6 +1624,7 @@ async fn run_cli() -> Result<()> {
                 use_shared_runtime,
                 cli.agent.clone(),
                 cli.model.clone(),
+                cli.harness_profile.clone(),
                 session_override,
             )
             .await?;
@@ -1606,9 +1695,9 @@ async fn run_interactive_with_session(
 }
 
 fn main() {
-    // Install rustls CryptoProvider before any TLS-capable work (relay WS,
-    // reqwest rustls paths, Feishu wss). Required when both ring and aws-lc-rs
-    // are linked: rustls cannot auto-select a provider.
+    // Install the workspace-owned ring CryptoProvider before any TLS-capable
+    // work (relay WS, reqwest rustls paths, Feishu wss) so every client uses
+    // the same explicit process-level provider.
     bitfun_core::service::remote_connect::ensure_rustls_crypto_provider();
 
     let worker = std::thread::Builder::new()
@@ -1770,6 +1859,28 @@ mod external_config_command_tests {
             })
         ));
 
+        let enabled = Cli::try_parse_from([
+            "bitfun",
+            "config",
+            "external",
+            "set-enabled",
+            "true",
+            "--scope",
+            "global",
+        ])
+        .expect("parse external enabled value");
+        assert!(matches!(
+            enabled.command,
+            Some(Commands::Config {
+                action: ConfigAction::External {
+                    action: ExternalConfigAction::SetEnabled {
+                        enabled: true,
+                        scope: ExternalPolicyScopeArg::Global,
+                    }
+                }
+            })
+        ));
+
         let mode = Cli::try_parse_from([
             "bitfun",
             "config",
@@ -1838,8 +1949,8 @@ mod bootstrap_profile_tests {
     #[test]
     fn profiles_start_only_their_requested_background_services() {
         let cases = [
-            (BootstrapProfile::Interactive, true, true, false),
-            (BootstrapProfile::Execution, false, true, false),
+            (BootstrapProfile::Interactive, true, true, true),
+            (BootstrapProfile::Execution, false, true, true),
             (BootstrapProfile::Management, false, false, false),
         ];
 
@@ -2113,6 +2224,48 @@ mod dispatch_command_tests {
             .render_long_help()
             .to_string();
         assert!(!dispatch_help.contains("__run"));
+    }
+}
+
+#[cfg(test)]
+mod harness_profile_compatibility_tests {
+    use super::{agent_type_with_harness_profile, resolved_command_harness_profile, Cli, Commands};
+    use clap::Parser;
+
+    #[test]
+    fn minimal_profile_is_an_agent_type_compatibility_alias() {
+        assert_eq!(
+            agent_type_with_harness_profile("agentic".to_string(), Some("minimal")),
+            "minimal"
+        );
+        assert_eq!(
+            agent_type_with_harness_profile("Cowork".to_string(), Some("balanced")),
+            "Cowork"
+        );
+    }
+
+    #[test]
+    fn legacy_global_and_subcommand_forms_keep_precedence() {
+        let cli = Cli::try_parse_from([
+            "bitfun",
+            "--harness-profile",
+            "balanced",
+            "exec",
+            "--harness-profile",
+            "minimal",
+            "fix",
+        ])
+        .expect("legacy harness profile syntax should parse");
+        let Some(Commands::Exec {
+            harness_profile, ..
+        }) = cli.command
+        else {
+            panic!("expected exec command");
+        };
+        assert_eq!(
+            resolved_command_harness_profile(&cli.harness_profile, harness_profile).as_deref(),
+            Some("minimal")
+        );
     }
 }
 

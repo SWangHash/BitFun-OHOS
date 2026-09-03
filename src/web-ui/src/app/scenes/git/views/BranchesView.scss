@@ -10,7 +10,7 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--bf-appearance-token-border-subtle);
+    border-right: 1px solid var(--bf-color-border-subtle);
   }
 
   &__right {
@@ -24,7 +24,7 @@
   &__toolbar {
     flex-shrink: 0;
     padding: 8px;
-    border-bottom: 1px solid var(--bf-appearance-token-border-subtle);
+    border-bottom: 1px solid var(--bf-color-border-subtle);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -41,16 +41,8 @@
     white-space: nowrap;
   }
 
-  &__create-btn {
-    min-width: 120px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-
   &__list {
     flex: 1;
-    overflow-y: auto;
     padding: 8px;
   }
 
@@ -64,16 +56,16 @@
     cursor: pointer;
 
     &:hover {
-      background: var(--bf-appearance-token-element-bg-soft);
+      background: var(--bf-color-action-quiet-hover);
     }
 
     &--current {
-      background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 10%, transparent);
+      background: color-mix(in srgb, var(--bf-color-accent-default) 10%, transparent);
     }
 
     &--selected {
-      background: var(--bf-appearance-token-element-bg-soft);
-      outline: 1px solid var(--bf-appearance-token-border-subtle);
+      background: var(--bf-color-action-quiet-hover);
+      outline: 1px solid var(--bf-color-border-subtle);
     }
   }
 
@@ -85,8 +77,8 @@
   }
 
   &__name {
-    font-size: 13px;
-    color: var(--bf-appearance-token-color-text-primary);
+    font-size: var(--bf-font-size-sm);
+    color: var(--bf-color-content-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -94,9 +86,9 @@
 
   &__current-badge {
     flex-shrink: 0;
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--bf-appearance-token-color-accent-500);
+    font-size: var(--bf-font-size-micro);
+    font-weight: var(--bf-font-weight-semibold);
+    color: var(--bf-color-accent-default);
     text-transform: uppercase;
   }
 
@@ -108,8 +100,8 @@
   &__empty {
     padding: 16px;
     text-align: center;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-size: 13px;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-sm);
   }
 
   &__placeholder {
@@ -119,12 +111,12 @@
     justify-content: center;
     flex: 1;
     gap: 8px;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-size: 14px;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-base);
   }
 
   &__hint {
-    font-size: 12px;
+    font-size: var(--bf-font-size-xs);
     opacity: 0.8;
   }
 
@@ -132,7 +124,7 @@
   &__history-toolbar {
     flex-shrink: 0;
     padding: 8px;
-    border-bottom: 1px solid var(--bf-appearance-token-border-subtle);
+    border-bottom: 1px solid var(--bf-color-border-subtle);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -140,15 +132,14 @@
   }
 
   &__history-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--bf-appearance-token-color-text-primary);
+    font-size: var(--bf-font-size-sm);
+    font-weight: var(--bf-font-weight-semibold);
+    color: var(--bf-color-content-primary);
     margin-right: auto;
   }
 
   &__history-list {
     flex: 1;
-    overflow-y: auto;
     padding: 8px;
   }
 
@@ -158,8 +149,8 @@
     border: 1px solid transparent;
 
     &--expanded {
-      background: var(--bf-appearance-token-element-bg-soft);
-      border-color: var(--bf-appearance-token-border-subtle);
+      background: var(--bf-color-action-quiet-hover);
+      border-color: var(--bf-color-border-subtle);
     }
   }
 
@@ -177,7 +168,7 @@
     background: none;
     cursor: pointer;
     padding: 0;
-    color: var(--bf-appearance-token-color-text-muted);
+    color: var(--bf-color-content-muted);
   }
 
   &__commit-info {
@@ -186,16 +177,16 @@
   }
 
   &__commit-message {
-    font-size: 13px;
-    color: var(--bf-appearance-token-color-text-primary);
+    font-size: var(--bf-font-size-sm);
+    color: var(--bf-color-content-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   &__commit-meta {
-    font-size: 11px;
-    color: var(--bf-appearance-token-color-text-muted);
+    font-size: var(--bf-font-size-meta);
+    color: var(--bf-color-content-muted);
     margin-top: 2px;
   }
 
@@ -206,21 +197,21 @@
 
   &__commit-detail {
     padding: 8px 10px 10px 34px;
-    border-top: 1px solid var(--bf-appearance-token-border-subtle);
-    font-size: 12px;
+    border-top: 1px solid var(--bf-color-border-subtle);
+    font-size: var(--bf-font-size-xs);
   }
 
   &__commit-body {
     margin: 0 0 8px;
     white-space: pre-wrap;
     word-break: break-word;
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: 11px;
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-meta);
   }
 
   &__files {
-    font-size: 11px;
-    color: var(--bf-appearance-token-color-text-muted);
+    font-size: var(--bf-font-size-meta);
+    color: var(--bf-color-content-muted);
 
     ul {
       margin: 4px 0 0;

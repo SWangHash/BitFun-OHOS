@@ -192,6 +192,8 @@
 | Chat 模型选择按钮 | `chat-model-selector-btn` | 打开当前会话的模型选择器。 |
 | Chat 模型选择菜单 | `chat-model-selector-menu` | 模型选择下拉菜单根节点。 |
 | Chat 模型选择项 | `chat-model-selector-option` | 重复项。配合 `data-model-id`、`data-model-name` 和 `data-selected` 使用。 |
+| Chat 模型选择供应商项 | `chat-model-selector-provider` | 重复项。第一层的供应商行，点击后展开其模型。配合 `data-provider-key` 和 `data-selected` 使用。 |
+| Chat 模型选择返回按钮 | `chat-model-selector-back` | 从某个供应商的模型列表返回供应商列表。 |
 | Chat 用户消息 | `chat-user-message` | 重复的用户消息。配合 `data-turn-id`、`data-status` 和 `data-failed` 使用。 |
 | Chat 用户消息内容 | `chat-user-message-content` | 用户消息文本内容。配合 `data-turn-id` 使用。 |
 | Chat assistant 消息 | `chat-assistant-message` | 重复的模型轮次容器。配合 `data-turn-id`、`data-round-id`、`data-status`、`data-model-id`、`data-model-alias` 和 `data-streaming` 使用。 |
@@ -207,8 +209,8 @@
 | Chat shell 命令文本 | `chat-shell-command-text` | Shell 命令文本节点。 |
 | Chat shell 命令输出 | `chat-shell-command-output` | Shell 命令 stdout/stderr 或实时输出区域。 |
 | Chat shell 命令退出码 | `chat-shell-command-exit-code` | 退出码节点。包含 `data-exit-code` 和 `data-status`。 |
-| Chat shell 工具卡片 | `chat-shell-tool-card` | Bash 的外层 FlowToolCard wrapper。包含 `data-tool-name` 和 `data-tool-card-id`。 |
-| Chat shell 工具打开面板按钮 | `chat-shell-tool-open-panel` | 存在 terminal session 时，从 Bash ToolCard 打开关联终端面板。 |
+| Chat shell 工具卡片 | `chat-shell-tool-card` | ExecCommand 的外层 FlowToolCard wrapper。包含 `data-tool-name` 和 `data-tool-card-id`。 |
+| Chat shell 工具打开面板按钮 | `chat-shell-tool-open-panel` | 存在 terminal session 时，从 ExecCommand 卡片打开关联终端面板。 |
 | Chat browser 工具卡片 | `chat-browser-tool-card` | WebFetch 的外层 FlowToolCard wrapper。包含 `data-tool-name` 和 `data-tool-card-id`。 |
 | Chat 文件变更卡片 | `chat-file-change-card` | 文件操作卡片根节点。包含 `data-status`、`data-action`、`data-path` 和 `data-expanded`。 |
 | Chat 文件变更展开按钮 | `chat-file-change-toggle` | 文件操作卡片的展开/收起点击目标。 |
@@ -268,16 +270,12 @@
 | Appearance 语言选项 | `appearance-language-option` | 重复的语言下拉选项。包含 `data-locale-id`，并带有 Select 组件提供的 `data-selected`。 |
 | Appearance 主题选择器 | `appearance-theme-select` | Appearance 中 theme Select 的真实触发节点。 |
 | Appearance 外观选项 | `appearance-palette-option` | 重复的外观下拉选项。包含 `data-appearance-id`，并带有 Select 组件提供的 `data-selected`。 |
-| Appearance UI 字号分组 | `appearance-ui-font-level-group` | UI font size 预置级别按钮组根节点。 |
-| Appearance UI 字号按钮 | `appearance-ui-font-level-btn` | 重复的 UI font size 预置级别按钮。包含 `data-font-level` 和 `data-selected`。 |
+| Appearance UI 字号分组 | `appearance-ui-font-level-group` | UI font size 预置级别控件根节点。预置级别渲染为设计系统 SegmentedControl 分段，可通过 `[data-bf-part="segment"][data-bf-value="<level>"]` 定位，选中分段带 `aria-checked="true"`。 |
 | Appearance UI 自定义字号控制区 | `appearance-ui-font-custom-controls` | custom UI 字号控制区根节点，仅在 custom 激活时渲染。 |
 | Appearance UI 自定义字号输入框 | `appearance-ui-font-custom-input` | custom UI 字号 px 输入框。包含 `data-font-level="custom"`。 |
 | Appearance UI 自定义字号减一按钮 | `appearance-ui-font-custom-step-minus` | custom UI 字号减一按钮。 |
 | Appearance UI 自定义字号加一按钮 | `appearance-ui-font-custom-step-plus` | custom UI 字号加一按钮。 |
 | Appearance UI 字号预览区 | `appearance-ui-font-preview` | UI 字号预览区域。 |
-| Appearance Flow Chat 字号开关 | `appearance-flowchat-font-toggle` | Flow Chat 独立字号开关的真实 input 节点。 |
-| Appearance Flow Chat 字号选择器 | `appearance-flowchat-font-select` | Flow Chat 字号 Select 的真实触发节点。 |
-| Appearance Flow Chat 字号选项 | `appearance-flowchat-font-option` | 重复的 Flow Chat 字号下拉选项。包含 `data-font-px`，并带有 Select 组件提供的 `data-selected`。 |
 | Appearance 字体重置按钮 | `appearance-font-reset-btn` | 重置字体偏好到默认值。 |
 
 ## Shell Panel
@@ -298,7 +296,7 @@
 
 说明：
 
-- 独立 xterm 终端没有结构化的逐命令历史 DOM。测试应使用 `shell-command-output` 断言终端渲染输出，使用 `chat-shell-command-*` 断言结构化 Bash ToolCard。
+- 独立 xterm 终端没有结构化的逐命令历史 DOM。测试应使用 `shell-command-output` 断言终端渲染输出，使用 `chat-shell-command-*` 断言结构化 ExecCommand 卡片。
 - `shell-command-copy` 当前未暴露，因为活动终端复制能力基于选择/右键上下文菜单，并不是稳定可见按钮。
 
 ## Browser Panel

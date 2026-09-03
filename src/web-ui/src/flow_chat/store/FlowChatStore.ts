@@ -317,6 +317,8 @@ function sameDispatchTargetIdentity(
   }
 }
 
+// Retired built-in ids remain readable for historical sessions and older peer
+// hosts; new-session selection filters them from the current Agent catalog.
 const VALID_AGENT_TYPES = new Set([
   'agentic',
   'minimal',
@@ -325,8 +327,8 @@ const VALID_AGENT_TYPES = new Set([
   'Plan',
   'Cowork',
   'Claw',
-  'Team',
   'DeepResearch',
+  'Ultra',
 ]);
 const METADATA_LIST_RECENT_DEDUPE_TTL_MS = 1000;
 const HISTORICAL_SESSION_INITIAL_REMOTE_TAIL_TURN_COUNT = 3;
@@ -4387,7 +4389,7 @@ export class FlowChatStore {
       const session = prev.sessions.get(sessionId);
       if (!session) return prev;
 
-      const normalizedModelName = modelName.trim() || 'auto';
+      const normalizedModelName = modelName.trim() || 'primary';
       if (session.config.modelName?.trim() === normalizedModelName) {
         return prev;
       }
@@ -4434,7 +4436,7 @@ export class FlowChatStore {
   }
 
   /**
-   * Apply a backend `SessionModelAutoMigrated` notice as a compare-and-swap.
+   * Apply a backend `SessionModelFallbackApplied` notice as a compare-and-swap.
    *
    * The backend emits this while restoring a session whose persisted model is
    * gone. That restore is frequently triggered by the very model update the
@@ -4442,13 +4444,13 @@ export class FlowChatStore {
    * the newly picked model. Applying it blindly reverts the user's choice, and
    * the reverted value is what the next send pushes back to the backend.
    *
-   * Only migrate while the session still holds the model the backend migrated
-   * away from (or holds no selection yet). Mirrors the CLI guard in
+   * Only apply the fallback while the session still holds the model the backend
+   * replaced (or holds no selection yet). Mirrors the CLI guard in
    * `src/apps/cli/src/modes/chat/selection.rs`.
    *
-   * Returns whether the migration was applied.
+   * Returns whether the fallback was applied.
    */
-  public applySessionModelAutoMigration(
+  public applySessionModelFallback(
     sessionId: string,
     previousModelId: string,
     newModelId: string,
@@ -6799,6 +6801,7 @@ export class FlowChatStore {
       models: any[];
       defaultModels: Record<string, string>;
     }>,
+    includeArchived = false,
   ): Promise<void> {
     const scope = getActiveSurfaceScope();
     const [
@@ -6821,8 +6824,7 @@ export class FlowChatStore {
         if (existingSession) {
           return;
         }
-        // Skip archived sessions - they are managed in the settings page.
-        if (metadata.status === 'archived') {
+        if (!includeArchived && metadata.status === 'archived') {
           return;
         }
 
@@ -6940,6 +6942,67 @@ export class FlowChatStore {
     };
 
     await Promise.all(sessions.map(processSession));
+  }
+
+  /**
+   * Opt-in archived projection for navigation views. Normal session hydration
+   * keeps archived records out of the working set until this is requested.
+   */
+  public async loadArchivedSessionMetadata(
+    workspacePath: string,
+    remoteConnectionId?: string,
+    remoteSshHost?: string,
+  ): Promise<void> {
+    const { sessionAPI } = await import('@/infrastructure/api/service-api/SessionAPI');
+    const sessions = await sessionAPI.listArchivedSessions(
+      workspacePath,
+      remoteConnectionId,
+      remoteSshHost,
+    );
+    await this.processPersistedSessionMetadataList(
+      sessions,
+      workspacePath,
+      remoteConnectionId,
+      remoteSshHost,
+      undefined,
+      true,
+    );
+  }
+
+  /**
+   * Ensure a search/deep-link target has a metadata projection before the
+   * canonical session activation flow runs. This deliberately loads one
+   * authoritative record instead of teaching callers how to synthesize a
+   * FlowChat Session from persistence DTOs.
+   */
+  public async ensurePersistedSessionMetadata(
+    sessionId: string,
+    workspacePath: string,
+    remoteConnectionId?: string,
+    remoteSshHost?: string,
+  ): Promise<boolean> {
+    if (this.state.sessions.has(sessionId)) {
+      return true;
+    }
+
+    const { sessionAPI } = await import('@/infrastructure/api/service-api/SessionAPI');
+    const metadata = await sessionAPI.loadSessionMetadata(
+      sessionId,
+      workspacePath,
+      remoteConnectionId,
+      remoteSshHost,
+    );
+    if (!metadata || metadata.status === 'archived') {
+      return false;
+    }
+
+    await this.processPersistedSessionMetadataList(
+      [metadata],
+      workspacePath,
+      remoteConnectionId,
+      remoteSshHost,
+    );
+    return this.state.sessions.has(sessionId);
   }
 
   public async loadSessionMetadataPage(

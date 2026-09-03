@@ -27,6 +27,8 @@ import { MCPInteractionDialog } from '../components/MCPInteractionDialog/MCPInte
 import { workspaceAPI } from '@/infrastructure/api';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import type { CloseBehavior } from '@/infrastructure/api/service-api/SystemAPI';
+import { RetainedMountBoundary } from '@/shared/presence';
+import { confirmDialog } from '@/infrastructure/confirm-dialog';
 import { confirmDialogChoice, PresenceBoundary } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
 import { DailyAppUpdateGate } from '@/infrastructure/update';
@@ -207,7 +209,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
   }, [canUseNativeWindowControls, handleToggleFullscreen, isToolbarMode, showWindowFullscreenHint]);
   const activeSceneId = useSceneStore(s => s.activeTabId);
   const isAgentScene = activeSceneId === 'session';
-  const isWelcomeScene = activeSceneId === 'welcome';
+  const isWelcomeScene = activeSceneId === null;
 
   const isTransitioning = false;
   const transitionDir: TransitionDirection = null;
@@ -407,9 +409,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
           return;
         }
         log.error('FlowChatManager initialization failed', error);
-        // FlowChat initialization runs as part of workspace hydration. Keep
-        // failures in the log here; user-facing guidance belongs to the active
-        // chat surface after the user starts working, not to app startup.
+        import('@/shared/notification-system').then(({ notificationService }) => {
+          notificationService.error(t('appLayout.flowChatInitFailed'), { duration: 5000 });
+        });
       }
     };
 
@@ -616,32 +618,25 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
     return () => window.removeEventListener('toolbar-cancel-task', handleToolbarCancelTask);
   }, []);
 
-  // Create FlowChat session (toolbar / floating UI). detail.mode: 'cowork' → Cowork, else code (agentic).
-  const handleCreateFlowChatSession = React.useCallback(async (mode?: 'code' | 'cowork') => {
+  // Create one unified project session. Balanced Harness currently uses the
+  // existing agentic runtime path until the typed Harness contract lands.
+  const handleCreateFlowChatSession = React.useCallback(async () => {
     try {
       if (!currentWorkspace?.rootPath) {
         log.warn('Cannot create FlowChat session without an active workspace');
         return;
       }
       const flowChatManager = FlowChatManager.getInstance();
-      const setMode = useSessionModeStore.getState().setMode;
       const sessionConfig = flowChatSessionConfigForWorkspace(currentWorkspace);
-      if (mode === 'cowork') {
-        setMode('cowork');
-        await flowChatManager.createChatSession(sessionConfig, 'Cowork');
-      } else {
-        setMode('code');
-        await flowChatManager.createChatSession(sessionConfig, 'agentic');
-      }
+      await flowChatManager.createChatSession(sessionConfig, 'agentic');
     } catch (error) {
       log.error('Failed to create FlowChat session', error);
     }
   }, [currentWorkspace]);
 
   React.useEffect(() => {
-    const handler = (e: Event) => {
-      const mode = (e as CustomEvent<{ mode?: 'code' | 'cowork' }>).detail?.mode;
-      void handleCreateFlowChatSession(mode === 'cowork' ? 'cowork' : 'code');
+    const handler = () => {
+      void handleCreateFlowChatSession();
     };
     window.addEventListener('toolbar-create-session', handler);
     return () => window.removeEventListener('toolbar-create-session', handler);
@@ -699,8 +694,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
     return () => window.removeEventListener('bitfun:acp-session-creation', handler);
   }, [tCommon]);
 
-  // Prevent the webview from navigating to a dropped file when no owned drop
-  // target handles it. Feature drop zones subscribe through infrastructure.
+  // Global drag-and-drop
   React.useEffect(() => {
     const handleDragStart = (e: DragEvent) => {
       if (e.dataTransfer) {
@@ -715,11 +709,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
 
     document.addEventListener('dragstart', handleDragStart, true);
     document.addEventListener('dragover',  handleDragOver,  true);
+    document.addEventListener('dragenter', handleDragEnter, true);
     document.addEventListener('drop',      handleDrop,      true);
 
     return () => {
       document.removeEventListener('dragstart', handleDragStart, true);
       document.removeEventListener('dragover',  handleDragOver,  true);
+      document.removeEventListener('dragenter', handleDragEnter, true);
       document.removeEventListener('drop',      handleDrop,      true);
     };
   }, []);
@@ -809,7 +805,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
       </div>
 
       {/* Dialogs (previously owned by TitleBar) */}
-      <PresenceBoundary active={showNewProjectDialog}>
+      <RetainedMountBoundary present={showNewProjectDialog}>
         <Suspense fallback={null}>
           <NewProjectDialog
             isOpen={showNewProjectDialog}
@@ -822,16 +818,16 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
             }
           />
         </Suspense>
-      </PresenceBoundary>
-      <PresenceBoundary active={showAboutDialog}>
+      </RetainedMountBoundary>
+      <RetainedMountBoundary present={showAboutDialog}>
         <Suspense fallback={null}>
           <AboutDialog
             isOpen={showAboutDialog}
             onClose={() => setShowAboutDialog(false)}
           />
         </Suspense>
-      </PresenceBoundary>
-      <PresenceBoundary active={showWorkspaceStatus}>
+      </RetainedMountBoundary>
+      <RetainedMountBoundary present={showWorkspaceStatus}>
         <Suspense fallback={null}>
           <WorkspaceManager
             isVisible={showWorkspaceStatus}
@@ -839,7 +835,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
             onWorkspaceSelect={() => {}}
           />
         </Suspense>
-      </PresenceBoundary>
+      </RetainedMountBoundary>
       <MCPInteractionDialog />
       {isOpenHarmony && (
         <Suspense fallback={null}>

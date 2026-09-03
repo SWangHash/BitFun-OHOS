@@ -15,7 +15,7 @@ import React, { useMemo, memo, useRef, useEffect, useState, useCallback, useDefe
 import { getPrismLanguage } from '@/infrastructure/language-detection';
 import { useAppearance } from '@/infrastructure/appearance';
 import { getLoadedPrismSyntaxHighlighter, loadPrismSyntaxHighlighter } from '@/shared/utils/syntaxHighlighterLoader';
-import { buildCodePreviewPrismStyle, CODE_PREVIEW_FONT_FAMILY } from './codePreviewPrismTheme';
+import { buildCodePreviewPrismStyle } from './codePreviewPrismTheme';
 import './CodePreview.scss';
 
 export interface CodePreviewProps {
@@ -47,6 +47,7 @@ function detectLanguageFromPath(filePath: string): string {
   return getPrismLanguage(filePath);
 }
 
+// typography-audit: allow -- virtualization estimate only; rendered code uses type.flow.code
 const CODE_PREVIEW_STREAMING_LINE_HEIGHT_PX = 22;
 const STREAMING_TAIL_MIN_LINES = 4;
 const STREAMING_TAIL_MAX_LINES = 24;
@@ -207,9 +208,9 @@ export const CodePreview: React.FC<CodePreviewProps> = memo(({
       style: {
         display: 'block',
         backgroundColor: isHighlighted
-          ? 'color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 15%, transparent)'
+          ? 'color-mix(in srgb, var(--bf-color-accent-default) 15%, transparent)'
           : 'transparent',
-        borderLeft: isHighlighted ? '3px solid var(--bf-appearance-token-color-accent-500)' : '3px solid transparent',
+        borderLeft: isHighlighted ? '3px solid var(--bf-color-accent-default)' : '3px solid transparent',
         marginLeft: '-3px',
         paddingLeft: '3px',
         transition: 'background-color 0.15s ease, border-color 0.15s ease',
@@ -257,10 +258,10 @@ export const CodePreview: React.FC<CodePreviewProps> = memo(({
             }}
             codeTagProps={{
               style: {
-                fontFamily: CODE_PREVIEW_FONT_FAMILY,
-                fontSize: '12px',
-                lineHeight: '1.6',
-                fontWeight: 400,
+                fontFamily: 'var(--bf-type-flow-code-font-family)',
+                fontSize: 'var(--bf-type-flow-code-font-size)',
+                lineHeight: 'var(--bf-type-flow-code-line-height)',
+                fontWeight: 'var(--bf-type-flow-code-font-weight)',
               }
             }}
             lineNumberStyle={{
@@ -268,7 +269,7 @@ export const CodePreview: React.FC<CodePreviewProps> = memo(({
               paddingRight: '1em',
               textAlign: 'right',
               userSelect: 'none',
-              color: 'var(--bf-appearance-token-color-text-muted)',
+              color: 'var(--bf-color-content-muted)',
               opacity: isLight ? 0.88 : 0.6,
             }}
           >

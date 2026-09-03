@@ -2,9 +2,10 @@
 /** Git commit graph view (branch graph). */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Button, Icon, SearchField, ScrollArea } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
-import { GitBranch, ChevronUp, ChevronDown } from 'lucide-react';
-import { Search } from '@/component-library';
+import { Loader2 } from 'lucide-react';
+import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { gitAPI } from '@/infrastructure/api';
 import type { GitGraph, GitGraphNode } from '@/infrastructure/api/service-api/GitAPI';
 import { APPEARANCE_DOMAIN_TOKENS } from '@/infrastructure/appearance/appearanceDomainTokens';
@@ -42,6 +43,7 @@ export const GitGraphView: React.FC<GitGraphViewProps> = ({
   className = ''
 }) => {
   const { t } = useTranslation('panels/git');
+  const { t: tComponents } = useI18n('components');
   const { current: appearance } = useAppearance();
   const viewConfig = useMemo(() => ({ ...DEFAULT_CONFIG, ...config }), [config]);
 
@@ -261,7 +263,9 @@ export const GitGraphView: React.FC<GitGraphViewProps> = ({
       <div className={`git-graph-view git-graph-view--error ${className}`} data-bf-component="git-tool" data-bf-part="graphRoot" data-bf-state="error">
         <div className="git-graph-view__error" data-bf-component="git-tool" data-bf-part="graphStatus">
           <p>{t('graph.loadFailedWithMessage', { error })}</p>
-          <button onClick={loadGraphData}>{t('common.retry')}</button>
+          <Button variant="fill" size="sm" onClick={loadGraphData}>
+            {t('common.retry')}
+          </Button>
         </div>
       </div>
     );
@@ -287,7 +291,7 @@ export const GitGraphView: React.FC<GitGraphViewProps> = ({
           <h3>{t('graph.title')}</h3>
           {graphData.currentBranch && (
             <span className="git-graph-view__current-branch">
-              <GitBranch size={14} />
+              <Icon name="git" size="sm" />
               {graphData.currentBranch}
             </span>
           )}
@@ -306,16 +310,18 @@ export const GitGraphView: React.FC<GitGraphViewProps> = ({
             }
           }}
         >
-          <Search
+          <SearchField
             value={searchQuery}
-            onChange={handleSearch}
-            onSearch={goToNextMatch}
+            onValueChange={handleSearch}
             placeholder={t('graph.searchPlaceholder')}
-            size="small"
-            clearable
-            enterToSearch={false}
-            loading={searchQuery !== debouncedSearchQuery}
-            suffixContent={
+            aria-label={t('graph.searchPlaceholder')}
+            size="sm"
+            clearLabel={searchQuery ? tComponents('search.clear') : undefined}
+            onClear={searchQuery ? () => handleSearch('') : undefined}
+            leadingIcon={searchQuery !== debouncedSearchQuery
+              ? <Loader2 className="git-graph-view__search-loading" size={14} aria-hidden />
+              : <Icon name="search" size="sm" aria-hidden />}
+            trailing={
               searchFilter && debouncedSearchQuery && searchFilter.totalMatches > 0 ? (
                 <div className="git-graph-view__search-navigation">
                   <span className="git-graph-view__search-count">
@@ -327,7 +333,7 @@ export const GitGraphView: React.FC<GitGraphViewProps> = ({
                     title={t('graph.searchPrevious')}
                     disabled={searchFilter.totalMatches === 0}
                   >
-                    <ChevronUp size={14} />
+                    <Icon name="chevron-up" size="sm" />
                   </button>
                   <button
                     className="git-graph-view__search-nav-btn"
@@ -335,7 +341,7 @@ export const GitGraphView: React.FC<GitGraphViewProps> = ({
                     title={t('graph.searchNext')}
                     disabled={searchFilter.totalMatches === 0}
                   >
-                    <ChevronDown size={14} />
+                    <Icon name="chevron-down" size="sm" />
                   </button>
                 </div>
               ) : searchFilter && debouncedSearchQuery && searchFilter.totalMatches === 0 ? (
@@ -348,7 +354,7 @@ export const GitGraphView: React.FC<GitGraphViewProps> = ({
         </div>
       </div>
 
-      <div 
+      <ScrollArea 
         className="git-graph-view__content" 
         ref={containerRef}
         data-bf-component="git-tool"
@@ -394,7 +400,7 @@ export const GitGraphView: React.FC<GitGraphViewProps> = ({
             );
           })}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 };
@@ -447,7 +453,7 @@ function drawNodeWithInfo(
   const centerY = y + rowHeight / 2;
   const resolveLaneColor = (lane: number) => ensureMinimumContrast(
     resolveCanvasColor(colors[lane % colors.length]),
-    resolveCanvasColor('var(--bf-appearance-token-color-bg-primary)'),
+    resolveCanvasColor('var(--bf-color-surface-canvas)'),
     GIT_GRAPH_LANE_MIN_CONTRAST
   );
   const color = resolveLaneColor(node.lane);
@@ -534,7 +540,7 @@ function drawNodeWithInfo(
   
 
   if (state.isSelected) {
-    ctx.strokeStyle = resolveCanvasColor('var(--bf-appearance-token-color-static-white)');
+    ctx.strokeStyle = resolveCanvasColor('var(--bf-color-content-on-dark)');
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(x, centerY, nodeSize + 1.5, 0, Math.PI * 2);
@@ -598,7 +604,7 @@ function drawNodeWithInfo(
             ? APPEARANCE_DOMAIN_TOKENS.gitGraphLane[2]
             : APPEARANCE_DOMAIN_TOKENS.gitGraphLane[3]
       ),
-      resolveCanvasColor('var(--bf-appearance-token-color-static-white)'),
+      resolveCanvasColor('var(--bf-color-content-on-dark)'),
       GIT_GRAPH_LANE_MIN_CONTRAST
     );
     const text = displayName;
@@ -619,7 +625,7 @@ function drawNodeWithInfo(
 
     if (ref.isCurrent) {
       ctx.save();
-      ctx.fillStyle = resolveCanvasColor('var(--bf-appearance-token-color-static-white)');
+      ctx.fillStyle = resolveCanvasColor('var(--bf-color-content-on-dark)');
       ctx.beginPath();
       ctx.arc(refX + refWidth - 4, centerY - refHeight / 2 + 4, 2, 0, Math.PI * 2);
       ctx.fill();
@@ -628,7 +634,7 @@ function drawNodeWithInfo(
     
 
     ctx.save();
-    ctx.fillStyle = resolveCanvasColor('var(--bf-appearance-token-color-static-white)');
+    ctx.fillStyle = resolveCanvasColor('var(--bf-color-content-on-dark)');
     ctx.font = '500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
@@ -645,7 +651,7 @@ function drawNodeWithInfo(
   ctx.save();
   
 
-  ctx.fillStyle = resolveCanvasColor('var(--bf-appearance-token-color-text-primary)');
+  ctx.fillStyle = resolveCanvasColor('var(--bf-color-content-primary)');
   ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
@@ -666,7 +672,7 @@ function drawNodeWithInfo(
   const metaX = textX + ctx.measureText(displayText).width + 20;
 
 
-  ctx.fillStyle = resolveCanvasColor('var(--bf-appearance-token-color-text-muted)');
+  ctx.fillStyle = resolveCanvasColor('var(--bf-color-content-muted)');
   ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   
   let authorName = node.authorName;
@@ -686,7 +692,7 @@ function drawNodeWithInfo(
   const hashX = metaX + ctx.measureText(metaText).width + 16;
   const hashText = node.hash.substring(0, 7);
   
-  ctx.fillStyle = resolveCanvasColor('var(--bf-appearance-token-color-text-disabled)');
+  ctx.fillStyle = resolveCanvasColor('var(--bf-color-content-disabled)');
   ctx.font = '11px "SF Mono", "Monaco", "Courier New", monospace';
   ctx.fillText(hashText, hashX, centerY);
   

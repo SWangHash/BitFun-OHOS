@@ -2,9 +2,9 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bf-appearance-token-color-bg-primary);
-  color: var(--bf-appearance-token-color-text-primary);
-  font-family: var(--bf-appearance-token-font-family-sans);
+  background: var(--bf-color-surface-canvas);
+  color: var(--bf-color-content-primary);
+  font-family:var(--bf-font-family-sans);
 }
 
 .settings-header {
@@ -12,8 +12,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  border-bottom: 1px solid var(--bf-appearance-token-border-base);
-  background: var(--bf-appearance-token-color-bg-secondary);
+  border-bottom: 1px solid var(--bf-color-border-default);
+  background: var(--bf-color-surface-panel);
 }
 
 .header-left {
@@ -24,9 +24,9 @@
 
 .header-left h3 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--bf-appearance-token-color-text-primary);
+  font-size: var(--bf-font-size-2xl);
+  font-weight: var(--bf-font-weight-semibold);
+  color: var(--bf-color-content-primary);
 }
 
 .header-right {
@@ -41,10 +41,10 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  background: var(--bf-appearance-token-color-bg-tertiary);
-  border: 1px solid var(--bf-appearance-token-border-base);
+  background: var(--bf-color-surface-tertiary);
+  border: 1px solid var(--bf-color-border-default);
   border-radius: 4px;
-  color: var(--bf-appearance-token-color-text-secondary);
+  color: var(--bf-color-content-secondary);
   cursor: pointer;
   transition:
     background-color 0.2s ease,
@@ -53,8 +53,8 @@
 }
 
 .refresh-btn:hover:not(:disabled) {
-  background: var(--bf-appearance-token-element-bg-hover);
-  color: var(--bf-appearance-token-color-text-primary);
+  background: var(--bf-color-action-neutral-surface-hover);
+  color: var(--bf-color-content-primary);
 }
 
 .refresh-btn:disabled {
@@ -67,12 +67,12 @@
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: var(--bf-appearance-token-color-success-bg);
-  border: 1px solid var(--bf-appearance-token-color-success);
+  background: var(--bf-color-status-success-surface);
+  border: 1px solid var(--bf-color-status-success-content);
   border-radius: 4px;
-  color: var(--bf-appearance-token-color-success);
-  font-size: 12px;
-  font-weight: 500;
+  color: var(--bf-color-status-success-content);
+  font-size: var(--bf-font-size-xs);
+  font-weight: var(--bf-font-weight-medium);
   cursor: pointer;
   transition:
     background-color 0.2s ease,
@@ -81,8 +81,8 @@
 }
 
 .save-btn:hover:not(:disabled) {
-  background: var(--bf-appearance-token-color-success);
-  color: white;
+  background: var(--bf-color-status-success-content);
+  color: var(--bf-color-content-on-dark);
 }
 
 .save-btn:disabled {
@@ -95,20 +95,20 @@
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  font-size: 12px;
+  font-size: var(--bf-font-size-xs);
   border-bottom: 1px solid;
 }
 
 .status-banner.error {
-  background: var(--bf-appearance-token-color-error-bg);
-  color: var(--bf-appearance-token-color-error);
-  border-color: color-mix(in srgb, var(--bf-appearance-token-color-error) 20%, transparent);
+  background: var(--bf-color-status-danger-surface);
+  color: var(--bf-color-status-danger-content);
+  border-color: color-mix(in srgb, var(--bf-color-status-danger-content) 20%, transparent);
 }
 
 .status-banner.success {
-  background: var(--bf-appearance-token-color-success-bg);
-  color: var(--bf-appearance-token-color-success);
-  border-color: color-mix(in srgb, var(--bf-appearance-token-color-success) 20%, transparent);
+  background: var(--bf-color-status-success-surface);
+  color: var(--bf-color-status-success-content);
+  border-color: color-mix(in srgb, var(--bf-color-status-success-content) 20%, transparent);
 }
 
 .close-btn {
@@ -117,14 +117,14 @@
   border: none;
   color: inherit;
   cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
+  font-size: var(--bf-font-size-base);
+  line-height: var(--bf-line-height-none);
 }
 
 .settings-tabs {
   display: flex;
-  border-bottom: 1px solid var(--bf-appearance-token-border-base);
-  background: var(--bf-appearance-token-color-bg-secondary);
+  border-bottom: 1px solid var(--bf-color-border-default);
+  background: var(--bf-color-surface-panel);
 }
 
 .tab-btn {
@@ -135,9 +135,9 @@
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  color: var(--bf-appearance-token-color-text-secondary);
-  font-size: 13px;
-  font-weight: 500;
+  color: var(--bf-color-content-secondary);
+  font-size: var(--bf-font-size-sm);
+  font-weight: var(--bf-font-weight-medium);
   cursor: pointer;
   transition:
     background-color 0.2s ease,
@@ -146,18 +146,17 @@
 }
 
 .tab-btn:hover {
-  color: var(--bf-appearance-token-color-text-primary);
-  background: var(--bf-appearance-token-element-bg-hover);
+  color: var(--bf-color-content-primary);
+  background: var(--bf-color-action-neutral-surface-hover);
 }
 
 .tab-btn.active {
-  color: var(--bf-appearance-token-color-accent-500);
-  border-bottom-color: var(--bf-appearance-token-color-accent-500);
+  color: var(--bf-color-accent-default);
+  border-bottom-color: var(--bf-color-accent-default);
 }
 
 .settings-content {
   flex: 1;
-  overflow-y: auto;
   padding: 20px;
 }
 
@@ -168,7 +167,7 @@
 .settings-section {
   margin-bottom: 32px;
   padding-bottom: 24px;
-  border-bottom: 1px solid var(--bf-appearance-token-border-base);
+  border-bottom: 1px solid var(--bf-color-border-default);
 }
 
 .settings-section:last-child {
@@ -178,23 +177,23 @@
 
 .settings-section h4 {
   margin: 0 0 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--bf-appearance-token-color-text-primary);
+  font-size: var(--bf-font-size-base);
+  font-weight: var(--bf-font-weight-semibold);
+  color: var(--bf-color-content-primary);
 }
 
 .settings-section h5 {
   margin: 16px 0 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--bf-appearance-token-color-text-secondary);
+  font-size: var(--bf-font-size-xs);
+  font-weight: var(--bf-font-weight-semibold);
+  color: var(--bf-color-content-secondary);
 }
 
 .section-description {
   margin: 0 0 16px;
-  font-size: 12px;
-  color: var(--bf-appearance-token-color-text-secondary);
-  line-height: 1.4;
+  font-size: var(--bf-font-size-xs);
+  color: var(--bf-color-content-secondary);
+  line-height: var(--bf-line-height-ui);
 }
 
 .form-group {
@@ -206,20 +205,20 @@
   align-items: center;
   gap: 6px;
   margin-bottom: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--bf-appearance-token-color-text-secondary);
+  font-size: var(--bf-font-size-xs);
+  font-weight: var(--bf-font-weight-medium);
+  color: var(--bf-color-content-secondary);
 }
 
 .form-group input,
 .form-group select {
   width: 100%;
   padding: 8px 12px;
-  background: var(--bf-appearance-token-color-bg-tertiary);
-  border: 1px solid var(--bf-appearance-token-border-base);
+  background: var(--bf-color-surface-tertiary);
+  border: 1px solid var(--bf-color-border-default);
   border-radius: 4px;
-  color: var(--bf-appearance-token-color-text-primary);
-  font-size: 12px;
+  color: var(--bf-color-content-primary);
+  font-size: var(--bf-font-size-xs);
   transition:
     background-color 0.2s ease,
     border-color 0.2s ease,
@@ -229,18 +228,18 @@
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: var(--bf-appearance-token-color-accent-500);
-  background: var(--bf-appearance-token-element-bg-hover);
+  border-color: var(--bf-color-accent-default);
+  background: var(--bf-color-action-neutral-surface-hover);
 }
 
 .form-group input::placeholder {
-  color: var(--bf-appearance-token-color-text-secondary);
+  color: var(--bf-color-content-secondary);
 }
 
 .checkbox-group {
   padding: 12px;
-  background: var(--bf-appearance-token-color-bg-tertiary);
-  border: 1px solid var(--bf-appearance-token-border-base);
+  background: var(--bf-color-surface-tertiary);
+  border: 1px solid var(--bf-color-border-default);
   border-radius: 6px;
 }
 
@@ -260,9 +259,9 @@
 
 .field-description {
   margin: 4px 0 0;
-  font-size: 11px;
-  color: var(--bf-appearance-token-color-text-secondary);
-  line-height: 1.3;
+  font-size: var(--bf-font-size-meta);
+  color: var(--bf-color-content-secondary);
+  line-height: var(--bf-line-height-snug);
 }
 
 .form-row {
@@ -273,8 +272,8 @@
 
 .remote-config {
   padding: 16px;
-  background: var(--bf-appearance-token-color-bg-tertiary);
-  border: 1px solid var(--bf-appearance-token-border-base);
+  background: var(--bf-color-surface-tertiary);
+  border: 1px solid var(--bf-color-border-default);
   border-radius: 6px;
   margin-bottom: 16px;
 }
@@ -282,20 +281,20 @@
 .remote-config h5 {
   margin: 0 0 12px;
   padding: 4px 8px;
-  background: var(--bf-appearance-token-color-accent-100);
-  border: 1px solid var(--bf-appearance-token-color-accent-500);
+  background: var(--bf-color-action-secondary-background);
+  border: 1px solid var(--bf-color-accent-default);
   border-radius: 3px;
-  color: var(--bf-appearance-token-color-accent-500);
-  font-size: 11px;
-  font-weight: 600;
+  color: var(--bf-color-accent-default);
+  font-size: var(--bf-font-size-meta);
+  font-weight: var(--bf-font-weight-semibold);
   text-transform: uppercase;
   display: inline-block;
 }
 
 .branch-config {
   padding: 16px;
-  background: var(--bf-appearance-token-color-bg-tertiary);
-  border: 1px solid var(--bf-appearance-token-border-base);
+  background: var(--bf-color-surface-tertiary);
+  border: 1px solid var(--bf-color-border-default);
   border-radius: 6px;
   margin-bottom: 16px;
 }
@@ -303,12 +302,12 @@
 .branch-config h5 {
   margin: 0 0 12px;
   padding: 4px 8px;
-  background: var(--bf-appearance-token-color-success-bg);
-  border: 1px solid var(--bf-appearance-token-color-success);
+  background: var(--bf-color-status-success-surface);
+  border: 1px solid var(--bf-color-status-success-content);
   border-radius: 3px;
-  color: var(--bf-appearance-token-color-success);
-  font-size: 11px;
-  font-weight: 600;
+  color: var(--bf-color-status-success-content);
+  font-size: var(--bf-font-size-meta);
+  font-weight: var(--bf-font-weight-semibold);
   display: inline-block;
 }
 
@@ -338,23 +337,23 @@
 
 .error-state h3 {
   margin: 0 0 8px;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--bf-font-size-xl);
+  font-weight: var(--bf-font-weight-semibold);
 }
 
 .error-message {
-  font-size: 12px;
-  color: var(--bf-appearance-token-color-text-secondary);
+  font-size: var(--bf-font-size-xs);
+  color: var(--bf-color-content-secondary);
   margin: 4px 0 16px;
 }
 
 .retry-btn {
   padding: 8px 16px;
-  background: var(--bf-appearance-token-color-accent-500);
+  background: var(--bf-color-accent-default);
   border: none;
   border-radius: 4px;
-  color: white;
-  font-size: 12px;
+  color: var(--bf-color-content-on-dark);
+  font-size: var(--bf-font-size-xs);
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
@@ -366,7 +365,7 @@
 }
 
 .retry-btn:hover {
-  background: var(--bf-appearance-token-color-accent-600);
+  background: var(--bf-color-accent-hover);
 }
 
 @media (max-width: 768px) {
@@ -391,7 +390,7 @@
   }
   
   .tab-btn.active {
-    border-right-color: var(--bf-appearance-token-color-accent-500);
+    border-right-color: var(--bf-color-accent-default);
     border-bottom-color: transparent;
   }
   

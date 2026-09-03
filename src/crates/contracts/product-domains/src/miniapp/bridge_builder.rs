@@ -121,6 +121,8 @@ pub fn build_bridge_script(
     // Requires manifest permissions.agent.enabled = true; enforced host-side.
     // `opts.displayText` may carry the user's original request for the shared
     // chat surface while `prompt` remains the MiniApp's internal agent protocol.
+    // `opts.contextFiles` may carry bounded context published by the host as a
+    // per-run virtual read-only snapshot.
     agent: {{
       ensureSession:  (opts) => _rpc('agent.ensureSession', opts || {{}}),
       run:            (prompt, opts) => _rpc('agent.run', {{ prompt, ...(opts || {{}}) }}),
@@ -345,5 +347,5 @@ pub fn scroll_boundary_script() -> &'static str {
 
 /// Minimal MiniApp iframe first-paint contract before the host sends Appearance variables.
 pub fn build_miniapp_default_appearance_css() -> &'static str {
-    r#"<style id="bitfun-appearance-default">:root{color-scheme:light dark;background:transparent;}</style>"#
+    include_str!("generated/default_appearance_style.html")
 }

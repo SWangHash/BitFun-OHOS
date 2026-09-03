@@ -1,13 +1,24 @@
+import {
+  Button,
+  Checkbox,
+  Icon,
+  ScrollArea,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Archive, Bot, ClipboardList, Code2, FolderKanban, Loader2, Trash2 } from 'lucide-react';
-import { Button, Checkbox, Modal } from '@/component-library';
+import { Archive, Bot, FolderKanban, Loader2 } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n';
 import { sessionAPI } from '@/infrastructure/api/service-api/SessionAPI';
 import type { SessionMetadata } from '@/shared/types/session-history';
 import { sessionBelongsToWorkspaceNavRow, compareSessionMetadataForDisplay } from '@/flow_chat/utils/sessionOrdering';
 import { deriveSessionRelationshipFromMetadata, resolveSessionRelationship } from '@/flow_chat/utils/sessionMetadata';
 import { flowChatManager } from '@/flow_chat/services/FlowChatManager';
-import { confirmWarning } from '@/component-library/components/ConfirmDialog/confirmService';
+import { confirmWarning } from '@/infrastructure/confirm-dialog';
 import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import './WorkspaceSessionBatchModal.scss';
@@ -31,17 +42,14 @@ interface SessionBatchItem {
 
 const log = createLogger('WorkspaceSessionBatchModal');
 
-type SessionMode = 'code' | 'cowork' | 'claw';
+type SessionPresentation = 'project' | 'assistant';
 
-function resolveSessionMode(agentType: string | undefined): SessionMode {
+function resolveSessionPresentation(agentType: string | undefined): SessionPresentation {
   const normalized = agentType?.trim().toLowerCase() ?? '';
-  if (normalized === 'cowork') {
-    return 'cowork';
-  }
   if (normalized === 'claw') {
-    return 'claw';
+    return 'assistant';
   }
-  return 'code';
+  return 'project';
 }
 
 function buildSessionBatchItems(sessions: SessionMetadata[]): SessionBatchItem[] {
@@ -303,14 +311,22 @@ const WorkspaceSessionBatchModal: React.FC<WorkspaceSessionBatchModalProps> = ({
   ]);
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={isBusy ? () => {} : onClose}
-      title={t('nav.sessions.manage')}
-      size="xlarge"
-      contentClassName="modal__content--fill-flex workspace-session-batch-modal__content-shell"
-      closeOnOverlayClick={!isBusy}
+    <Dialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !isBusy) onClose();
+      }}
+      size="xl"
+      closeOnPointerOutside={!isBusy}
     >
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{t('nav.sessions.manage')}</DialogTitle>
+        </DialogHeading>
+        <DialogClose />
+      </DialogHeader>
+      <DialogBody inset="none">
+        <div className="workspace-session-batch-modal__content-shell">
       <div data-bf-component="workspace-session-batch-modal" data-bf-part="root" className="workspace-session-batch-modal">
         <div data-bf-component="workspace-session-batch-modal" data-bf-part="hero" className="workspace-session-batch-modal__hero">
           <div className="workspace-session-batch-modal__hero-icon">
@@ -337,8 +353,8 @@ const WorkspaceSessionBatchModal: React.FC<WorkspaceSessionBatchModalProps> = ({
               <div data-bf-component="workspace-session-batch-modal" data-bf-part="toolbarActions" className="workspace-session-batch-modal__toolbar-actions">
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="small"
+                  variant="outline"
+                  size="sm"
                   onClick={handleInvertSelection}
                   disabled={isBusy || allSessionIds.length === 0}
                 >
@@ -354,7 +370,7 @@ const WorkspaceSessionBatchModal: React.FC<WorkspaceSessionBatchModalProps> = ({
           </div>
         </div>
 
-        <div data-bf-component="workspace-session-batch-modal" data-bf-part="list" className="workspace-session-batch-modal__list">
+        <ScrollArea data-bf-component="workspace-session-batch-modal" data-bf-part="list" className="workspace-session-batch-modal__list">
           {isLoading ? (
             <div data-bf-component="workspace-session-batch-modal" data-bf-part="state" data-bf-state="loading" className="workspace-session-batch-modal__state">
               <Loader2 size={16} className="workspace-session-batch-modal__spinner" />
@@ -363,7 +379,7 @@ const WorkspaceSessionBatchModal: React.FC<WorkspaceSessionBatchModalProps> = ({
           ) : loadFailed ? (
             <div data-bf-component="workspace-session-batch-modal" data-bf-part="state" data-bf-state="error" className="workspace-session-batch-modal__state is-error">
               <span>{t('nav.sessions.batchLoadFailed')}</span>
-              <Button type="button" variant="secondary" size="small" onClick={() => { void loadSessions(); }}>
+              <Button type="button" variant="outline" size="sm" onClick={() => { void loadSessions(); }}>
                 {t('actions.retry')}
               </Button>
             </div>
@@ -374,13 +390,10 @@ const WorkspaceSessionBatchModal: React.FC<WorkspaceSessionBatchModalProps> = ({
           ) : (
             sessions.map(({ metadata, displayAsChild }) => {
               const isSelected = selectedSessionIds.has(metadata.sessionId);
-              const sessionMode = resolveSessionMode(metadata.agentType);
-              const SessionIcon =
-                sessionMode === 'cowork'
-                  ? ClipboardList
-                  : sessionMode === 'claw'
-                    ? Bot
-                    : Code2;
+              const sessionPresentation = resolveSessionPresentation(metadata.agentType);
+              const sessionGlyph = sessionPresentation === 'assistant'
+                ? <Bot size={15} />
+                : <Icon name="session" size="sm" />;
               return (
                 <label data-bf-component="workspace-session-batch-modal" data-bf-part="row"
                   data-bf-state={[isSelected && 'selected', displayAsChild && 'child'].filter(Boolean).join(' ') || undefined}
@@ -394,8 +407,8 @@ const WorkspaceSessionBatchModal: React.FC<WorkspaceSessionBatchModalProps> = ({
                       disabled={isBusy}
                     />
                   </div>
-                  <div className={`workspace-session-batch-modal__row-icon is-${sessionMode}`}>
-                    <SessionIcon size={15} />
+                  <div className={`workspace-session-batch-modal__row-icon is-${sessionPresentation}`}>
+                    {sessionGlyph}
                   </div>
                   <div data-bf-component="workspace-session-batch-modal" data-bf-part="rowContent" className="workspace-session-batch-modal__row-content">
                     <div className="workspace-session-batch-modal__row-head">
@@ -427,35 +440,40 @@ const WorkspaceSessionBatchModal: React.FC<WorkspaceSessionBatchModalProps> = ({
               );
             })
           )}
-        </div>
+        </ScrollArea>
 
         <div data-bf-component="workspace-session-batch-modal" data-bf-part="footer" className="workspace-session-batch-modal__footer">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={isBusy}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isBusy}>
             {t('actions.cancel')}
           </Button>
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
             onClick={() => { void handleArchiveSelected(); }}
             disabled={isBusy || selectedCount === 0}
-            isLoading={actionKind === 'archive'}
+            loading={actionKind === 'archive'}
+            leadingIcon={<Archive size={14} />}
           >
-            <Archive size={14} />
+
             <span>{t('nav.sessions.archiveSelected')}</span>
           </Button>
           <Button
             type="button"
-            variant="danger"
+            variant="fill"
+            tone="danger"
             onClick={() => { void handleDeleteSelected(); }}
             disabled={isBusy || selectedCount === 0}
-            isLoading={actionKind === 'delete'}
+            loading={actionKind === 'delete'}
+            leadingIcon={<Icon name="delete" size="sm" />}
           >
-            <Trash2 size={14} />
+
             <span>{t('nav.sessions.deleteSelected')}</span>
           </Button>
         </div>
       </div>
-    </Modal>
+            </div>
+            </DialogBody>
+    </Dialog>
   );
 };
 

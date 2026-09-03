@@ -12,7 +12,8 @@ import {
   ShieldCheck,
   Wrench,
 } from 'lucide-react';
-import { IconButton, MarkdownRenderer, Tooltip } from '@/component-library';
+import { MarkdownRenderer } from '@/infrastructure/markdown';
+import { Tooltip } from '@bitfun/ui';
 import { snapshotAPI } from '@/infrastructure/api';
 import type { SessionUsageReport } from '@/infrastructure/api/service-api/SessionAPI';
 import { globalEventBus } from '@/infrastructure/event-bus';
@@ -50,6 +51,7 @@ import {
 } from './usageReportUtils';
 import type { SessionUsagePanelTab } from './sessionUsagePanelTypes';
 import './SessionUsagePanel.scss';
+import { IconButton } from '@bitfun/ui';
 
 const log = createLogger('SessionUsagePanel');
 type UsageTranslator = (key: string, options?: Record<string, unknown>) => string;
@@ -159,13 +161,11 @@ export const SessionUsagePanel: React.FC<SessionUsagePanelProps> = ({
         <div className="session-usage-panel__fallback-toolbar" data-bf-component="session-usage-panel" data-bf-part="header">
           <Tooltip content={copied ? t('usage.actions.copied') : t('usage.actions.copyMarkdown')}>
             <IconButton
-              variant="ghost"
-              size="xs"
+              size="sm"
               onClick={handleCopy}
               aria-label={copied ? t('usage.actions.copied') : t('usage.actions.copyMarkdown')}
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-            </IconButton>
+              icon={copied ? <Check size={14} /> : <Copy size={14} />}
+            />
           </Tooltip>
         </div>
         <MarkdownRenderer content={markdown} />
@@ -230,13 +230,11 @@ export const SessionUsagePanel: React.FC<SessionUsagePanelProps> = ({
           <Tooltip content={copied ? t('usage.actions.copied') : t('usage.actions.copyMarkdown')}>
             <IconButton
               className="session-usage-panel__copy"
-              variant="ghost"
-              size="xs"
+              size="sm"
               onClick={handleCopy}
               aria-label={copied ? t('usage.actions.copied') : t('usage.actions.copyMarkdown')}
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-            </IconButton>
+              icon={copied ? <Check size={14} /> : <Copy size={14} />}
+            />
           </Tooltip>
         </div>
       </header>
@@ -347,13 +345,11 @@ function UsageMetaRow({
         <Tooltip content={copyLabel}>
           <IconButton
             className="session-usage-panel__meta-copy"
-            variant="ghost"
-            size="xs"
+            size="sm"
             onClick={onCopy}
             aria-label={copyLabel}
-          >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
-          </IconButton>
+            icon={copied ? <Check size={13} /> : <Copy size={13} />}
+          />
         </Tooltip>
       )}
     </div>
@@ -914,14 +910,12 @@ function UsageFiles({
         <Tooltip content={t('usage.actions.openFileDiff')}>
           <IconButton
             className="session-usage-panel__table-action"
-            variant="ghost"
-            size="xs"
+            size="sm"
             onClick={() => void handleOpenFileDiff(file)}
             disabled={openingDiffKey === diffKey}
             aria-label={t('usage.actions.openFileDiff')}
-          >
-            <GitCompare size={13} />
-          </IconButton>
+            icon={<GitCompare size={13} />}
+          />
         </Tooltip>
       ) : (
         <Tooltip content={t('usage.help.fileDiffUnavailable')}>

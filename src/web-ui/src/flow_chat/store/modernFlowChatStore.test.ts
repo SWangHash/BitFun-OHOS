@@ -21,7 +21,6 @@ vi.mock('../tool-cards/toolCardMetadata', () => ({
     'GetFileDiff',
     'GetToolSpec',
     'ReviewSessionSummary',
-    'TerminalControl',
     'SessionControl',
     'ExecControl',
     'AgentWait',
@@ -153,12 +152,47 @@ describe('sessionToVirtualItems explore grouping', () => {
     expect(items.map(item => item.type)).toEqual(['user-message', 'explore-group']);
   });
 
+  it('keeps Deep Research progress visible after its exploration tool settles', () => {
+    const session = makeSession({
+      sessionId: 'deep-research-progress',
+      dialogTurns: [{
+        id: 'turn-1',
+        sessionId: 'deep-research-progress',
+        userMessage: {
+          id: 'user-1',
+          content: 'Research this topic',
+          timestamp: 900,
+        },
+        modelRounds: [makeRound({
+          items: [
+            makeTextItem('phase-marker', '[[PHASE:phase-0-orient]]'),
+            makeTool('orientation-search', 'WebSearch'),
+          ],
+        })],
+        status: 'completed',
+        startTime: 900,
+      }],
+    });
+
+    const items = sessionToVirtualItems(session);
+
+    expect(items.map(item => item.type)).toEqual(['user-message', 'model-round']);
+    expect(items[1]).toMatchObject({
+      type: 'model-round',
+      data: {
+        items: expect.arrayContaining([
+          expect.objectContaining({ id: 'phase-marker' }),
+          expect.objectContaining({ id: 'orientation-search' }),
+        ]),
+      },
+    });
+  });
+
   it.each([
     'WebFetch',
     'GetFileDiff',
     'GetToolSpec',
     'ReviewSessionSummary',
-    'TerminalControl',
     'SessionControl',
     'ExecControl',
     'view_image',
@@ -215,7 +249,7 @@ describe('sessionToVirtualItems explore grouping', () => {
     },
   );
 
-  it.each(['Bash', 'Git', 'ExecCommand', 'TodoWrite', 'ContextCompression', 'Skill', 'SessionMessage'])(
+  it.each(['ExecCommand', 'TodoWrite', 'ContextCompression', 'Skill', 'SessionMessage'])(
     'keeps conditionally important %s rounds visible',
     (toolName) => {
       const session = makeSession({
@@ -524,6 +558,45 @@ describe('sessionToVirtualItems explore grouping', () => {
       [],
       ['thinking-1'],
     ]);
+  });
+
+  it('keeps a trailing reasoning summary collapsed in layout hints', () => {
+    const session = makeSession({
+      sessionId: 'summary-layout-session',
+      dialogTurns: [{
+        id: 'turn-1',
+        sessionId: 'summary-layout-session',
+        userMessage: {
+          id: 'user-1',
+          content: 'Help',
+          timestamp: 900,
+        },
+        modelRounds: [makeRound({
+          id: 'active-summary',
+          items: [{
+            id: 'summary-1',
+            type: 'thinking',
+            content: 'Inspecting the implementation',
+            reasoningKind: 'summary',
+            isStreaming: true,
+            isCollapsed: true,
+            timestamp: 1000,
+            status: 'streaming',
+          }],
+          isStreaming: true,
+          isComplete: false,
+          status: 'streaming',
+          renderHints: { disableExploreGrouping: true },
+        })],
+        status: 'processing',
+        startTime: 900,
+      }],
+    });
+
+    const modelRound = sessionToVirtualItems(session)
+      .find((item): item is ModelRoundVirtualItem => item.type === 'model-round');
+
+    expect(modelRound?.layoutHints?.expandedThinkingItemIds).toEqual([]);
   });
 
   it('appends a completion notice for abnormal completed turns', () => {

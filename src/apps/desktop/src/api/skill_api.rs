@@ -42,9 +42,24 @@ const MAX_MARKET_LIMIT: u32 = 500;
 const MARKET_DESC_FETCH_TIMEOUT_SECS: u64 = 4;
 const MARKET_DESC_FETCH_CONCURRENCY: usize = 12;
 const MARKET_DESC_MAX_LEN: usize = 220;
+const REMOTE_SKILL_DISCOVERY_TIMEOUT: Duration = Duration::from_secs(60);
 const MARKET_DESC_FETCH_DEADLINE_SECS: u64 = 15;
 
 static MARKET_DESCRIPTION_CACHE: OnceLock<RwLock<HashMap<String, String>>> = OnceLock::new();
+
+async fn await_remote_skill_discovery<T>(
+    operation: impl std::future::Future<Output = Result<T, String>>,
+    deadline: Duration,
+) -> Result<T, String> {
+    timeout(deadline, operation)
+        .await
+        .map_err(|_| {
+            format!(
+                "Remote Skill discovery timed out after {} seconds. Check the SSH/SFTP connection and retry.",
+                deadline.as_secs().max(1)
+            )
+        })?
+}
 
 /// Build a per-call HTTP client for the skill market listing/description
 /// paths. Uses BitFun's configured `ProxyConfig` when enabled (read live so
@@ -277,14 +292,20 @@ async fn get_all_skills_for_workspace_input(
     workspace_path: Option<&str>,
 ) -> Result<Vec<SkillInfo>, String> {
     if let Some((remote_root, entry)) = resolve_remote_workspace(state, workspace_path).await? {
-        let remote_fs = state
-            .get_remote_file_service_async()
-            .await
-            .map_err(|e| format!("Remote file service not available: {}", e))?;
-        let remote_workspace_fs = RemoteWorkspaceFs::new(entry.connection_id, remote_fs);
-        Ok(registry
-            .get_all_skills_for_remote_workspace(&remote_workspace_fs, &remote_root)
-            .await)
+        await_remote_skill_discovery(
+            async {
+                let remote_fs = state
+                    .get_remote_file_service_async()
+                    .await
+                    .map_err(|e| format!("Remote file service not available: {}", e))?;
+                let remote_workspace_fs = RemoteWorkspaceFs::new(entry.connection_id, remote_fs);
+                Ok(registry
+                    .get_all_skills_for_remote_workspace(&remote_workspace_fs, &remote_root)
+                    .await)
+            },
+            REMOTE_SKILL_DISCOVERY_TIMEOUT,
+        )
+        .await
     } else {
         Ok(registry
             .get_all_skills_for_workspace(workspace_root_from_input(workspace_path).as_deref())
@@ -299,15 +320,25 @@ async fn get_mode_skill_infos_for_workspace_input(
     workspace_path: Option<&str>,
 ) -> Result<Vec<ModeSkillInfo>, String> {
     if let Some((remote_root, entry)) = resolve_remote_workspace(state, workspace_path).await? {
-        let remote_fs = state
-            .get_remote_file_service_async()
-            .await
-            .map_err(|e| format!("Remote file service not available: {}", e))?;
-        let remote_workspace_fs =
-            RemoteWorkspaceFs::new(entry.connection_id.clone(), remote_fs.clone());
-        Ok(registry
-            .get_mode_skill_infos_for_remote_workspace(&remote_workspace_fs, &remote_root, mode_id)
-            .await)
+        await_remote_skill_discovery(
+            async {
+                let remote_fs = state
+                    .get_remote_file_service_async()
+                    .await
+                    .map_err(|e| format!("Remote file service not available: {}", e))?;
+                let remote_workspace_fs =
+                    RemoteWorkspaceFs::new(entry.connection_id.clone(), remote_fs.clone());
+                Ok(registry
+                    .get_mode_skill_infos_for_remote_workspace(
+                        &remote_workspace_fs,
+                        &remote_root,
+                        mode_id,
+                    )
+                    .await)
+            },
+            REMOTE_SKILL_DISCOVERY_TIMEOUT,
+        )
+        .await
     } else if let Some(workspace_root) = workspace_root_from_input(workspace_path) {
         Ok(registry
             .get_mode_skill_infos_for_workspace(Some(&workspace_root), mode_id)
@@ -1110,8 +1141,34 @@ pub async fn delete_skill(
 }
 
 #[cfg(test)]
-mod skill_delete_policy_tests {
-    use super::can_delete_owned_skill;
+mod tests {
+    use super::{await_remote_skill_discovery, can_delete_owned_skill};
+    use std::future;
+    use tokio::time::Duration;
+
+    #[tokio::test]
+    async fn remote_skill_discovery_returns_before_the_deadline() {
+        let result =
+            await_remote_skill_discovery(async { Ok(vec!["skill"]) }, Duration::from_secs(1))
+                .await
+                .expect("ready discovery should complete");
+
+        assert_eq!(result, vec!["skill"]);
+    }
+
+    #[tokio::test]
+    async fn remote_skill_discovery_times_out_with_recovery_guidance() {
+        let error = await_remote_skill_discovery(
+            future::pending::<Result<(), String>>(),
+            Duration::from_millis(1),
+        )
+        .await
+        .expect_err("stalled discovery should time out");
+
+        assert!(error.contains("Remote Skill discovery timed out"));
+        assert!(error.contains("SSH/SFTP connection"));
+        assert!(error.contains("retry"));
+    }
 
     #[test]
     fn only_bitfun_owned_non_builtin_skills_are_deletable() {
@@ -1311,6 +1368,8 @@ async fn fetch_skill_market(
     let base_url = api_base.trim_end_matches('/');
     let endpoint = format!("{}/api/search", base_url);
 
+    crate::ensure_rustls_crypto_provider();
+    let client = Client::new();
     // Over-fetch by `offset` so we can slice the requested page out of the
     // prefix without depending on whether skills.sh's legacy /api/search
     // honors an `offset`/`page` parameter. The legacy endpoint does not

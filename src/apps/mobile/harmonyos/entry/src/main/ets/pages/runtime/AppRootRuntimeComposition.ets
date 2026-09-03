@@ -4,6 +4,7 @@ import {
   RemotePermissionMode,
   RemoteQuestionAnswerPayload,
   RemoteSession,
+  RecentWorkspaceEntry,
   SelectedImageAttachment,
   SessionSummary,
   WorkspaceInfo
@@ -82,7 +83,6 @@ import { ConversationIntentDispatcher } from '../actions/ConversationIntentDispa
 import { GeneralChatPageState } from '../state/GeneralChatPageState';
 import { DeviceDirectoryState } from '../state/DeviceDirectoryState';
 import { RemotePageState } from '../state/RemotePageState';
-import { RemoteCreateSessionState } from '../state/RemoteCreateSessionState';
 import { WatchProvisionState } from '../state/WatchProvisionState';
 import {
   WatchProvisionController,
@@ -96,6 +96,11 @@ import { RemoteWorkspaceViewModel } from '../viewmodel/RemoteWorkspaceViewModel'
 import { RemoteSessionViewModel } from '../viewmodel/RemoteSessionViewModel';
 import { GeneralChatConversationViewModel } from '../viewmodel/GeneralChatConversationViewModel';
 import { ModelProviderGeneralChatAdapter } from '../../services/general-chat/ModelProviderGeneralChatAdapter';
+import { HarmonyTaskCompletionNotificationPort } from '../../services/HarmonyTaskCompletionNotificationPort';
+import {
+  TaskCompletionNotificationController,
+  TaskCompletionObservation
+} from '../../services/TaskCompletionNotificationController';
 
 export enum ConnectionState {
   Idle = 'idle',
@@ -117,13 +122,12 @@ export abstract class AppRootRuntimeComposition {
     this.host = host;
   }
 
-  abstract applyDiscoveredWorkspaceSessions(all: RemoteSession[]): void;
   abstract closeAppSidebar(): void;
   abstract connect(autoReconnect?: boolean, accountPassword?: string): Promise<void>;
   abstract currentActiveTurnId(): string;
   abstract disconnect(clearPairing: boolean): Promise<void>;
   abstract enterCompactLayout(): void;
-  abstract enterRemoteSurfaceCompact(): Promise<void>;
+  abstract enterRemoteSurfaceCompact(closeSidebar?: boolean): Promise<void>;
   abstract enterRemoteSurfaceWide(): Promise<void>;
   abstract exitActiveChat(): void;
   abstract failRemoteConnection(err: Object): void;
@@ -131,13 +135,18 @@ export abstract class AppRootRuntimeComposition {
   abstract hasRemoteBindingForResume(): boolean;
   abstract isRemoteConversationContext(sessionId: string): boolean;
   abstract mergeSessions(primary: RemoteSession[], extras: RemoteSession[]): RemoteSession[];
+  abstract loadWorkspaceSessionsOnDevice(deviceId: string, path: string): Promise<void>;
   abstract openAddConnectionFromSettings(): void;
   abstract openAppSidebar(): void;
   abstract openRemoteControlSettings(): void;
+  abstract openWorkspacePickerOnDevice(deviceId: string): Promise<void>;
   abstract pickImages(): Promise<void>;
   abstract publishRemoteSessions(sessions: RemoteSession[], hasMore: boolean): void;
+  abstract reconcileCreatedRemoteSession(session: SessionSummary): Promise<void>;
   abstract reconnect(): Promise<void>;
   abstract reconnectActiveRemote(): Promise<void>;
+  abstract retryDirectoryDevice(deviceId: string): Promise<void>;
+  abstract selectDirectoryDevice(deviceId: string): Promise<void>;
   abstract selectAssistant(path: string): Promise<void>;
   abstract selectWorkspace(path: string): Promise<void>;
   abstract selectWorkspaceOnDevice(path: string, deviceId?: string): Promise<void>;
@@ -146,6 +155,15 @@ export abstract class AppRootRuntimeComposition {
   abstract toggleVoiceInput(): Promise<void>;
 
   readonly sessionManager: RemoteSessionManager = new RemoteSessionManager();
+  readonly taskCompletionNotificationController: TaskCompletionNotificationController =
+    new TaskCompletionNotificationController(
+      new HarmonyTaskCompletionNotificationPort((): Context => this.host.context()),
+      (observation: TaskCompletionObservation): void => {
+        if (observation.source === 'remote') {
+          this.remoteChatPollingLifecycleController.stop();
+        }
+      }
+    );
   readonly workspaceRepository: RemoteWorkspaceRepository =
     new RemoteWorkspaceRepository(this.sessionManager);
   readonly workspaceCoordinator: RemoteWorkspaceCoordinator =
@@ -168,7 +186,6 @@ export abstract class AppRootRuntimeComposition {
   readonly generalChatPageState: GeneralChatPageState = new GeneralChatPageState();
   readonly remotePageState: RemotePageState = new RemotePageState();
   readonly deviceDirectoryState: DeviceDirectoryState = new DeviceDirectoryState();
-  readonly remoteCreateState: RemoteCreateSessionState = new RemoteCreateSessionState();
   readonly watchProvisionState: WatchProvisionState = new WatchProvisionState();
   private readonly watchProvisionPort: WatchProvisionPort = {
     // Two ways to reach a credential, and the phone's own account is the
@@ -177,8 +194,8 @@ export abstract class AppRootRuntimeComposition {
     // account of its own to mint from.
     canProvision: (): boolean => this.settingsController.canMintWatchCredential() ||
       this.canProvisionViaDesktop(),
-    provision: (deviceId: string, deviceName: string, requestId: string): Promise<WatchProvisionOutcome> =>
-      this.provisionWatchDevice(deviceId, deviceName, requestId)
+    provision: (deviceId: string, deviceName: string, requestId: string, password: string): Promise<WatchProvisionOutcome> =>
+      this.provisionWatchDevice(deviceId, deviceName, requestId, password)
   };
   readonly watchProvisionController: WatchProvisionController =
     new WatchProvisionController(this.watchProvisionState, this.watchProvisionPort);
@@ -205,9 +222,10 @@ export abstract class AppRootRuntimeComposition {
   private async provisionWatchDevice(
     deviceId: string,
     deviceName: string,
-    requestId: string
+    requestId: string,
+    password: string
   ): Promise<WatchProvisionOutcome> {
-    const minted = await this.settingsController.provisionWatchCredential(deviceId, deviceName, requestId);
+    const minted = await this.settingsController.provisionWatchCredential(deviceId, deviceName, requestId, password);
     if (minted) {
       return minted;
     }
@@ -217,6 +235,7 @@ export abstract class AppRootRuntimeComposition {
     const outcome = await this.sessionManager.provisionPeerDevice(deviceId, deviceName, requestId);
     return {
       ok: outcome.ok,
+      passwordRequired: false,
       // The desktop mints against the relay its room lives on, which is not
       // necessarily the one this phone's account is on.
       relayUrl: outcome.ok ? this.sessionManager.roomRelayEndpoint() : '',
@@ -231,7 +250,7 @@ export abstract class AppRootRuntimeComposition {
 
   private static provisionUnavailable(): WatchProvisionOutcome {
     return {
-      ok: false, relayUrl: '', token: '', userId: '', masterKeyBase64: '', deviceId: '',
+      ok: false, passwordRequired: false, relayUrl: '', token: '', userId: '', masterKeyBase64: '', deviceId: '',
       failure: '', desktopReported: false
     };
   }
@@ -371,6 +390,7 @@ export abstract class AppRootRuntimeComposition {
       this.workspaceCoordinator,
       {
         isRemoteAvailable: (): boolean => this.remoteConnectionController.ensureAvailable(),
+        remoteTargetId: (): string => this.remotePageState.controlTargetDeviceId,
         isBusy: (): boolean => this.remotePageState.isBusy,
         onBusy: (isBusy: boolean): void => {
           this.remotePageState.setBusy(isBusy);
@@ -382,8 +402,14 @@ export abstract class AppRootRuntimeComposition {
           this.remoteConnectionController.applyWorkspace(workspace);
           this.remoteSessionController.clearSessions();
         },
-        onSessionsDiscovered: (sessions: RemoteSession[]): void => {
-          this.applyDiscoveredWorkspaceSessions(sessions);
+        onCatalogLoading: (targetId: string): void => {
+          this.deviceDirectoryViewModel.beginLiveCatalog(targetId);
+        },
+        onCatalogLoaded: (targetId: string, workspaces: RecentWorkspaceEntry[]): void => {
+          this.deviceDirectoryViewModel.completeLiveCatalog(targetId, workspaces);
+        },
+        onCatalogFailed: (targetId: string): void => {
+          this.deviceDirectoryViewModel.failLiveCatalog(targetId);
         },
         onRefreshSessions: async (): Promise<void> => {
           await this.remoteSessionViewModel.refreshSessions();
@@ -491,6 +517,11 @@ export abstract class AppRootRuntimeComposition {
             this.chatTimelineStore.clearPendingActiveTurn(pendingActiveId);
             this.conversationController.syncRemoteTimeline();
           }
+          this.taskCompletionNotificationController.track({
+            source: 'remote',
+            sessionId: this.remotePageState.activeSession.sessionId || '',
+            turnId
+          });
           this.remoteChatPollingLifecycleController.nudge();
         },
         onSendFailed: (
@@ -582,6 +613,25 @@ export abstract class AppRootRuntimeComposition {
         },
         onSnapshot: (snapshot: RemoteChatPollingSnapshot) => {
           this.conversationController.applyRemoteSnapshot(snapshot);
+          if (snapshot.activeTurn && snapshot.activeTurn.id.length > 0) {
+            const status = (snapshot.activeTurn.status || '').toLowerCase();
+            if (status === 'failed' || status === 'error' || status === 'cancelled' || status === 'canceled') {
+              if (this.taskCompletionNotificationController.cancel('remote', snapshot.sessionId)) {
+                this.remoteChatPollingLifecycleController.stop();
+              }
+            } else {
+              this.trackRemoteTaskCompletion(snapshot.sessionId, snapshot.activeTurn);
+            }
+          } else if (snapshot.sessionState.toLowerCase() === 'idle' && snapshot.completedTurnId.length === 0 &&
+            this.taskCompletionNotificationController.cancel('remote', snapshot.sessionId)) {
+            this.remoteChatPollingLifecycleController.stop();
+          }
+          if (snapshot.completedTurnId.length > 0 &&
+            this.taskCompletionNotificationController.complete(
+              'remote', snapshot.sessionId, snapshot.completedTurnId
+            )) {
+            this.remoteChatPollingLifecycleController.stop();
+          }
         },
         onError: (error: Object) => {
           this.remotePageState.setStatusText(ConnectionErrorPolicy.errorText(error));
@@ -624,11 +674,15 @@ export abstract class AppRootRuntimeComposition {
         onRouteHome: (): void => this.appShellViewModel.replaceRouteWithoutAnimation(AppRoute.RemoteHome),
         onStopPolling: (): void => this.remoteChatPollingLifecycleController.stop(),
         onStartPolling: (): void => this.conversationController.startRemotePolling(),
+        onNudgePolling: (): void => this.remoteChatPollingLifecycleController.nudge(),
         onResetTimeline: (sessionId: string): void => this.conversationController.resetRemoteTimeline(sessionId),
         onClearRemoteFiles: (): void => this.remoteFileDownloadController.clear(),
         onKnownStateReset: (): void => this.conversationController.resetKnownRemoteState(),
         onLoadActiveMessages: async (): Promise<void> => {
           await this.conversationController.loadRemoteMessages();
+        },
+        onCreatedSession: async (session: SessionSummary): Promise<void> => {
+          await this.reconcileCreatedRemoteSession(session);
         },
         onRefreshSessions: async (): Promise<void> => {
           await this.remoteSessionController.refresh(
@@ -656,9 +710,29 @@ export abstract class AppRootRuntimeComposition {
         currentActiveTurnId: (): string => this.currentActiveTurnId(),
         latestUserMessageText: (): string => this.conversationController.latestUserMessageText(),
         syncTimeline: (): void => this.conversationController.syncGeneralTimeline(),
-        refreshSessions: (): void => this.generalChatCommandController.refreshSessions()
+        refreshSessions: (): void => this.generalChatCommandController.refreshSessions(),
+        onTaskStarted: (sessionId: string, turnId: string): void => {
+          this.taskCompletionNotificationController.track({ source: 'general', sessionId, turnId });
+        },
+        onTaskCompleted: (sessionId: string, turnId: string): void => {
+          this.taskCompletionNotificationController.complete('general', sessionId, turnId);
+        },
+        onTaskStopped: (sessionId: string, turnId: string): void => {
+          this.taskCompletionNotificationController.cancel('general', sessionId, turnId);
+        }
       }
     );
+
+  protected trackRemoteTaskCompletion(sessionId: string, activeTurn: ChatMessage): void {
+    const status = (activeTurn.status || '').toLowerCase();
+    if (status !== 'active' && status !== 'completed' && status !== 'done' && status !== 'success') {
+      return;
+    }
+    const explicitTurnId = (activeTurn.turnId || '').trim();
+    const turnId = explicitTurnId.length > 0 ? explicitTurnId :
+      (activeTurn.id.indexOf('active-') === 0 ? activeTurn.id.slice('active-'.length) : '');
+    this.taskCompletionNotificationController.track({ source: 'remote', sessionId, turnId });
+  }
   readonly remoteConnectionController: RemoteConnectionController =
     new RemoteConnectionController(
       this.remotePageState,
@@ -721,8 +795,11 @@ export abstract class AppRootRuntimeComposition {
           onBeforeControlTargetChange: (): void => {
             this.captureLiveControlTarget();
           },
+          onControlTargetLoading: (deviceId: string): void => {
+            this.deviceDirectoryViewModel.beginLiveCatalog(deviceId);
+          },
           onControlTargetChanged: (): void => {
-            this.captureLiveControlTarget();
+            this.activateLiveControlTarget();
           }
         }
       }
@@ -744,7 +821,6 @@ export abstract class AppRootRuntimeComposition {
     new ConversationController(
       this.generalChatPageState,
       this.remotePageState,
-      this.remoteCreateState,
       { currentRoute: (): AppRoute => this.appShellViewModel.currentRoute() },
       {
         timeline: this.chatTimelineStore,
@@ -856,35 +932,27 @@ export abstract class AppRootRuntimeComposition {
       createInPlace: (agentType: string): void => {
         this.conversationController.createRemoteSession(agentType, true);
       },
-      createAssistant: (): void => { this.conversationController.openRemoteCreateSession(); },
       createInWorkspace: (path: string, agentType: string, deviceId?: string): void => {
         this.conversationController.createRemoteSessionInWorkspace(path, agentType, false, deviceId);
       },
       createInWorkspaceInPlace: (path: string, agentType: string, deviceId?: string): void => {
         this.conversationController.createRemoteSessionInWorkspace(path, agentType, true, deviceId);
       },
-      toggleDirectoryDevice: (deviceId: string): void => {
-        void this.deviceDirectoryViewModel.toggleDevice(deviceId);
+      selectDirectoryDevice: (deviceId: string): void => {
+        void this.selectDirectoryDevice(deviceId);
+      },
+      addDirectoryWorkspace: (deviceId: string): void => {
+        void this.openWorkspacePickerOnDevice(deviceId);
       },
       retryDirectoryDevice: (deviceId: string): void => {
-        void this.deviceDirectoryViewModel.retryDevice(deviceId);
+        void this.retryDirectoryDevice(deviceId);
+      },
+      loadWorkspaceSessions: async (deviceId: string, path: string): Promise<void> => {
+        await this.loadWorkspaceSessionsOnDevice(deviceId, path);
       },
       openSession: (session: RemoteSession): void => this.conversationController.openHomeSession(session),
       openSessionInPlace: (session: RemoteSession): void => this.conversationController.openHomeSession(session, true),
       deleteSession: (session: RemoteSession): void => { this.conversationController.deleteHomeSession(session); }
-    },
-    onRemoteCreate: {
-      back: (): void => this.conversationController.closeRemoteCreateSession(),
-      toggleDevices: (): void => { this.conversationController.toggleRemoteCreateDevices(); },
-      toggleWorkspaces: (): void => { this.conversationController.toggleRemoteCreateWorkspaces(); },
-      selectDevice: (device: CloudAccountDevice): void => {
-        this.conversationController.selectRemoteCreateDevice(device);
-      },
-      selectWorkspace: (path: string): void => this.conversationController.selectRemoteCreateWorkspace(path),
-      draftChanged: (value: string): void => this.remoteCreateState.setDraft(value),
-      voiceInput: async (): Promise<void> => { await this.toggleVoiceInput(); },
-      selectModel: (modelId: string): void => this.remoteCreateState.setSelectedModelId(modelId),
-      send: (): void => { this.conversationController.submitRemoteCreateSession(); }
     },
     onSidebar: {
       close: (): void => this.closeAppSidebar(),
@@ -894,6 +962,9 @@ export abstract class AppRootRuntimeComposition {
       addDesktop: (): void => {
         this.closeAppSidebar();
         this.openConnectSheet(CONNECT_INTENT_SCAN);
+      },
+      refreshDevices: async (): Promise<void> => {
+        await this.settingsController.refreshAccountDevicesIfStale(0);
       },
       settings: (): void => { this.closeAppSidebar(); this.appShellState.openSettings('general'); },
       openAccount: (): void => {
@@ -968,6 +1039,15 @@ export abstract class AppRootRuntimeComposition {
   private captureLiveControlTarget(): void {
     const deviceId = this.remotePageState.controlTargetDeviceId || this.remotePageState.desktopId;
     this.deviceDirectoryViewModel.captureLive(
+      deviceId,
+      this.remotePageState.recentWorkspaces,
+      this.remotePageState.sessions
+    );
+  }
+
+  private activateLiveControlTarget(): void {
+    const deviceId = this.remotePageState.controlTargetDeviceId || this.remotePageState.desktopId;
+    this.deviceDirectoryViewModel.activateLive(
       deviceId,
       this.remotePageState.recentWorkspaces,
       this.remotePageState.sessions

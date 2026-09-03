@@ -22,6 +22,10 @@ const log = createLogger('PeerDeviceTransport');
 const LOCAL_ONLY_COMMANDS = new Set([
   'show_main_window',
   'hide_main_window_after_close_request',
+  'frontend_update_candidate_ready',
+  'get_frontend_update_status',
+  'confirm_frontend_update',
+  'rollback_frontend_update',
   'quit_app',
   'minimize_to_tray',
   'initialize_tray_after_startup',
@@ -77,6 +81,13 @@ const LOCAL_ONLY_COMMANDS = new Set([
   // Computer Use Tool, so Desktop Peer B surfaces B's own OS permission prompts
   // and settings panes. CLI Peer refuses them in deny.rs and the UI gates the
   // section on host type. See SessionConfig + peer_host_invoke + cli deny.rs.
+  // Native child-WebView lifecycle belongs to this controller window.
+  'browser_webview_set_agent_target_state',
+  // ProductControl presentation callbacks acknowledge this window's runtime.
+  // The command itself follows the peer product data plane.
+  'mark_bitfun_control_surface_ready',
+  'mark_bitfun_control_surface_unready',
+  'report_bitfun_control_result',
   // Detached dispatch uses this controller's SSH credentials and observer index.
   'dispatch_list_targets',
   'dispatch_probe_target',
@@ -129,6 +140,15 @@ const LOCAL_ONLY_COMMANDS = new Set([
   'speech_append_audio_chunk',
   'speech_finish_input_session',
   'speech_cancel_input_session',
+  'speech_start_realtime_session',
+  'speech_append_realtime_audio',
+  'speech_commit_realtime_audio',
+  'speech_send_realtime_tool_result',
+  'speech_speak_realtime_text',
+  'speech_cancel_realtime_response',
+  'speech_close_realtime_session',
+  'speech_get_realtime_config',
+  'speech_save_realtime_config',
   // UI locale is controller app-shell state: it writes the controller's config
   // file, rebuilds THIS machine's macOS menubar/tray, and drives the UI the user
   // is looking at. Routing it to a peer both writes the wrong config and rebuilds
@@ -216,6 +236,7 @@ const HIGH_PRIORITY_COMMANDS = new Set([
   'list_persisted_sessions',
   'list_persisted_sessions_page',
   'list_persisted_sessions_count',
+  'search_session_content',
   'get_session_lineage',
   'get_session_thread_goal',
   'touch_session_activity',
@@ -272,6 +293,7 @@ const RETRYABLE_READ_COMMANDS = new Set([
   'list_persisted_sessions',
   'list_persisted_sessions_page',
   'list_persisted_sessions_count',
+  'search_session_content',
   'get_session_lineage',
   'get_session_thread_goal',
   'get_opened_workspaces',
@@ -341,6 +363,24 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function requiresMiniAppAgentContextFilesV1(params: unknown): boolean {
+  const outer = asRecord(params);
+  if (!outer) {
+    return false;
+  }
+  const request = asRecord(outer.request) ?? outer;
+  for (const key of ['contextFiles', 'context_files']) {
+    if (!Object.prototype.hasOwnProperty.call(request, key)) {
+      continue;
+    }
+    const files = request[key];
+    if (files !== undefined && (!Array.isArray(files) || files.length > 0)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Mutations are retryable only when the peer can deduplicate the same logical
  * submission. Dialog turns carry a controller-generated turnId, which the
@@ -391,7 +431,6 @@ export function peerInvokePriorityFor(command: string): PeerInvokePriority {
   if (
     command.startsWith('git_') ||
     command.startsWith('ssh_') ||
-    command.startsWith('lsp_') ||
     command.startsWith('search_') ||
     command.startsWith('explorer_') ||
     command.startsWith('miniapp_') ||
@@ -453,6 +492,10 @@ export interface PeerDeviceTransportHooks {
   supportsTargetedSessionRollback?: boolean;
   /** Enables host-local usage statistics only when the target implements it. */
   supportsTokenUsageStatistics?: boolean;
+  /** Enables MiniApp Agent runs with immutable virtual context files. */
+  supportsMiniAppAgentContextFilesV1?: boolean;
+  /** Enables the versioned typed ProductControl HostInvoke contract. */
+  supportsProductControlV1?: boolean;
 }
 
 interface HostInvokeResultEnvelope {
@@ -584,6 +627,8 @@ export class PeerDeviceTransportAdapter implements ITransportAdapter {
       | 'supportsIdempotentDialogSubmit'
       | 'supportsTargetedSessionRollback'
       | 'supportsTokenUsageStatistics'
+      | 'supportsMiniAppAgentContextFilesV1'
+      | 'supportsProductControlV1'
     >,
   ): void {
     this.hooks = { ...this.hooks, ...capabilities };
@@ -661,6 +706,25 @@ export class PeerDeviceTransportAdapter implements ITransportAdapter {
     ) {
       throw new PeerProductCommandError(
         'token_usage_statistics_unsupported: The connected Peer host does not support usage statistics',
+      );
+    }
+
+    if (
+      action === 'miniapp_agent_run' &&
+      requiresMiniAppAgentContextFilesV1(params) &&
+      this.hooks.supportsMiniAppAgentContextFilesV1 !== true
+    ) {
+      throw new PeerProductCommandError(
+        'miniapp_agent_context_files_v1_unsupported: The connected Peer host does not support MiniApp Agent context files',
+      );
+    }
+
+    if (
+      action === 'product_control_invoke' &&
+      this.hooks.supportsProductControlV1 !== true
+    ) {
+      throw new PeerProductCommandError(
+        'product_control_v1_unsupported: The connected Peer host does not support the unified ProductControl contract',
       );
     }
 

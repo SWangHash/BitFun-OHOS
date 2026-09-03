@@ -1,6 +1,7 @@
 /**
  * Peer directory browser styles (controller-side in-app picker).
  */
+@use '@/shared/styles/surface-recipes' as surfaces;
 
 .peer-directory-browser-overlay {
   position: fixed;
@@ -8,7 +9,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bf-appearance-token-color-overlay-black-50);
+  background: var(--bf-color-overlay-scrim);
   backdrop-filter: blur(4px);
   z-index: 280;
   opacity: 1;
@@ -22,15 +23,13 @@
 }
 
 .peer-directory-browser {
+  @include surfaces.dialog;
+
   display: flex;
   flex-direction: column;
   height: 72vh;
   width: 90vw;
   max-width: 840px;
-  background: var(--bf-appearance-token-color-bg-secondary);
-  border: 1px solid var(--bf-appearance-token-border-subtle);
-  border-radius: 12px;
-  box-shadow: 0 24px 48px var(--bf-appearance-token-color-overlay-black-50);
   overflow: hidden;
   opacity: 1;
   transform: translateY(0) scale(1);
@@ -43,18 +42,18 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--bf-appearance-token-border-subtle);
+    padding-block: 14px;
+    padding-inline: 18px 14px;
+    border-bottom: 1px solid var(--bf-color-border-subtle);
   }
 
   &__header-title {
     margin: 0;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--bf-appearance-token-color-text-primary);
+    font-size: var(--bf-font-size-lg);
+    font-weight: var(--bf-font-weight-semibold);
+    color: var(--bf-color-content-primary);
   }
 
-  &__close-btn,
   &__tool-btn {
     display: inline-flex;
     align-items: center;
@@ -64,12 +63,12 @@
     border: none;
     border-radius: 6px;
     background: transparent;
-    color: var(--bf-appearance-token-color-text-muted);
+    color: var(--bf-color-content-muted);
     cursor: pointer;
 
     &:hover:not(:disabled) {
-      background: var(--bf-appearance-token-element-bg-subtle);
-      color: var(--bf-appearance-token-color-text-primary);
+      background: var(--bf-color-surface-subtle);
+      color: var(--bf-color-content-primary);
     }
 
     &:disabled {
@@ -83,7 +82,7 @@
     align-items: center;
     gap: 6px;
     padding: 10px 14px;
-    border-bottom: 1px solid var(--bf-appearance-token-border-subtle);
+    border-bottom: 1px solid var(--bf-color-border-subtle);
   }
 
   &__path {
@@ -91,15 +90,20 @@
     min-width: 0;
   }
 
+  &__path-input-field {
+    display: block;
+    width: 100%;
+  }
+
   &__path-display,
   &__path-input {
     width: 100%;
     box-sizing: border-box;
-    border: 1px solid var(--bf-appearance-token-border-subtle);
+    border: 1px solid var(--bf-color-border-subtle);
     border-radius: 6px;
-    background: var(--bf-appearance-token-color-bg-primary);
-    color: var(--bf-appearance-token-color-text-primary);
-    font-size: 12px;
+    background: var(--bf-color-surface-canvas);
+    color: var(--bf-color-content-primary);
+    font-size: var(--bf-font-size-xs);
     padding: 6px 10px;
     text-align: left;
   }
@@ -114,7 +118,6 @@
   &__body {
     flex: 1;
     min-height: 0;
-    overflow: auto;
     padding: 8px;
   }
 
@@ -124,11 +127,11 @@
     justify-content: center;
     gap: 8px;
     min-height: 160px;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-size: 13px;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-sm);
 
     &--error {
-      color: var(--bf-appearance-token-color-error);
+      color: var(--bf-color-status-danger-content);
       padding: 0 16px;
       text-align: center;
     }
@@ -155,18 +158,18 @@
     border: none;
     border-radius: 6px;
     background: transparent;
-    color: var(--bf-appearance-token-color-text-primary);
-    font-size: 13px;
+    color: var(--bf-color-content-primary);
+    font-size: var(--bf-font-size-sm);
     padding: 8px 10px;
     cursor: pointer;
     text-align: left;
 
     &:hover {
-      background: var(--bf-appearance-token-element-bg-subtle);
+      background: var(--bf-color-surface-subtle);
     }
 
     &.is-selected {
-      background: var(--bf-appearance-token-element-bg-soft);
+      background: var(--bf-color-action-quiet-hover);
     }
   }
 
@@ -176,7 +179,7 @@
     justify-content: space-between;
     gap: 12px;
     padding: 12px 16px;
-    border-top: 1px solid var(--bf-appearance-token-border-subtle);
+    border-top: 1px solid var(--bf-color-border-subtle);
   }
 
   &__selected {
@@ -185,8 +188,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-size: 12px;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-xs);
   }
 
   &__actions {

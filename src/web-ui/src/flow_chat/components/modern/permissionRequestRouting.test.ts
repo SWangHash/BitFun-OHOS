@@ -80,17 +80,22 @@ describe('permission request routing', () => {
       childRequest,
     ]);
     expect(selectPermissionRequestsOwnedBySession(requests, 'child-session')).toEqual([]);
+    const reviewChildRequest = request('review-child', 'review-child', 'review-tool');
     expect(selectPermissionRequestsOwnedBySession(
-      [request('review-child', 'review-child', 'review-tool')],
+      [reviewChildRequest],
       'review-child',
-    )).toEqual([
-      request('review-child', 'review-child', 'review-tool'),
-    ]);
+    )).toEqual([reviewChildRequest]);
   });
 
   it('does not expose a delegated child batch to the child surface', () => {
-    expect(selectActivePermissionBatchOwnedBySession([childRequest], 'child-session')).toBeUndefined();
-    expect(selectActivePermissionBatchOwnedBySession([childRequest], 'parent-session')).toEqual({
+    expect(selectActivePermissionBatchOwnedBySession(
+      [childRequest],
+      'child-session',
+    )).toBeUndefined();
+    expect(selectActivePermissionBatchOwnedBySession(
+      [childRequest],
+      'parent-session',
+    )).toEqual({
       sessionId: 'child-session',
       roundId: 'round-child',
       requests: [childRequest],

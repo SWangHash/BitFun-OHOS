@@ -73,6 +73,8 @@ export interface DownloadSkillMarketParams {
   workspacePath?: string;
 }
 
+const SKILL_CONFIG_REQUEST_TIMEOUT_MS = 60_000;
+
 
 export class ConfigAPI {
    
@@ -189,11 +191,15 @@ export class ConfigAPI {
    
   async importConfig(configData: any): Promise<void> {
     try {
-      await api.invoke('import_config', { 
+      const result = await api.invoke<{ success: boolean; errors: string[] }>('import_config', {
         request: { configData } 
       });
+      if (!result?.success) {
+        throw new Error(result?.errors?.join('; ') || 'Configuration import was not confirmed');
+      }
     } catch (error) {
-      throw createTauriCommandError('import_config', error, { configData });
+      // Imported documents can contain credentials; never attach them to errors.
+      throw createTauriCommandError('import_config', error);
     }
   }
 
@@ -314,7 +320,11 @@ export class ConfigAPI {
     workspacePath,
   }: GetSkillConfigsParams = {}): Promise<SkillInfo[]> {
     try {
-      return await api.invoke('get_skill_configs', { forceRefresh, workspacePath });
+      return await api.invoke(
+        'get_skill_configs',
+        { forceRefresh, workspacePath },
+        { timeout: SKILL_CONFIG_REQUEST_TIMEOUT_MS },
+      );
     } catch (error) {
       throw createTauriCommandError('get_skill_configs', error, { forceRefresh, workspacePath });
     }
@@ -327,7 +337,11 @@ export class ConfigAPI {
     workspacePath,
   }: GetModeSkillConfigsParams): Promise<ModeSkillInfo[]> {
     try {
-      return await api.invoke('get_mode_skill_configs', { modeId, forceRefresh, workspacePath });
+      return await api.invoke(
+        'get_mode_skill_configs',
+        { modeId, forceRefresh, workspacePath },
+        { timeout: SKILL_CONFIG_REQUEST_TIMEOUT_MS },
+      );
     } catch (error) {
       throw createTauriCommandError('get_mode_skill_configs', error, { modeId, forceRefresh, workspacePath });
     }

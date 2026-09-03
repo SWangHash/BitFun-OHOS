@@ -1,15 +1,22 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Zap, GitCommitHorizontal, GitPullRequest, Pencil, Trash2, Plus, Check } from 'lucide-react';
 import {
   Button,
-  ConfigPageLoading,
+  Icon,
   IconButton,
-  Modal,
-  Switch,
   Input,
+  Switch,
   Textarea,
-} from '@/component-library';
+  Tooltip,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Zap, GitCommitHorizontal, GitPullRequest } from 'lucide-react';
+import { ConfigLoadingState } from '@/infrastructure/config/components/common';
 import {
   ConfigPageHeader,
   ConfigPageLayout,
@@ -80,13 +87,18 @@ const ActionFormModal: React.FC<ActionFormModalProps> = ({ isOpen, target, onClo
   const isEdit = !!target;
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={isEdit ? t('modal.editTitle') : t('modal.addTitle')}
-      size="medium"
-      contentInset
+    <Dialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}
+      size="md"
     >
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{isEdit ? t('modal.editTitle') : t('modal.addTitle')}</DialogTitle>
+        </DialogHeading>
+        <DialogClose />
+      </DialogHeader>
+      <DialogBody>
       <div className="quick-actions-config__modal-body" onKeyDown={handleKeyDown} data-bf-component="quick-actions-config" data-bf-part="dialog">
         {target && (
           <div data-bf-component="quick-actions-config" data-bf-part="dialogIcon" className="quick-actions-config__modal-icon-preview">
@@ -126,21 +138,23 @@ const ActionFormModal: React.FC<ActionFormModalProps> = ({ isOpen, target, onClo
         </div>
 
         <div data-bf-component="quick-actions-config" data-bf-part="dialogFooter" className="quick-actions-config__modal-footer">
-          <Button variant="ghost" size="small" onClick={onClose}>
+          <Button variant="outline" size="sm" onClick={onClose}>
             {t('modal.cancel')}
           </Button>
           <Button
-            variant="primary"
-            size="small"
+            variant="fill"
+            size="sm"
             onClick={() => onSubmit(label.trim(), prompt.trim())}
             disabled={!canSubmit}
+            leadingIcon={<Icon name="check-line" size="sm" />}
           >
-            <Check size={14} />
+
             {isEdit ? t('modal.saveEdit') : t('modal.confirmAdd')}
           </Button>
         </div>
       </div>
-    </Modal>
+          </DialogBody>
+    </Dialog>
   );
 };
 
@@ -173,30 +187,27 @@ const ActionRow: React.FC<ActionRowProps> = ({ action, onToggle, onEdit, onDelet
         <Switch
           checked={action.enabled}
           onChange={() => onToggle(action.id)}
-          size="small"
         />
-        <IconButton
-          type="button"
-          size="small"
-          variant="ghost"
-          aria-label={t('edit.button')}
-          tooltip={t('edit.button')}
-          onClick={() => onEdit(action)}
-        >
-          <Pencil size={13} />
-        </IconButton>
-        {canDelete && (
+        <Tooltip content={t('edit.button')}>
           <IconButton
             type="button"
-            size="small"
-            variant="ghost"
-            aria-label={t('delete.button')}
-            tooltip={t('delete.button')}
-            onClick={() => onDelete(action.id)}
-            className="quick-actions-config__delete-btn"
-          >
-            <Trash2 size={13} />
-          </IconButton>
+            size="sm"
+            aria-label={t('edit.button')}
+            onClick={() => onEdit(action)}
+            icon={<Icon name="edit" size="xs" />}
+          />
+        </Tooltip>
+        {canDelete && (
+          <Tooltip content={t('delete.button')}>
+            <IconButton
+              type="button"
+              size="sm"
+              aria-label={t('delete.button')}
+              onClick={() => onDelete(action.id)}
+              className="quick-actions-config__delete-btn"
+              icon={<Icon name="delete" size="lg" style={{ width: 13, height: 13 }} />}
+            />
+          </Tooltip>
         )}
       </div>
     </div>
@@ -221,7 +232,7 @@ const QuickActionsConfig: React.FC = () => {
     try {
       const settings = await aiExperienceConfigService.getSettingsAsync();
       const stored = settings.quick_actions;
-      setActions((stored && stored.length > 0) ? stored : DEFAULT_QUICK_ACTIONS);
+      setActions(stored ?? DEFAULT_QUICK_ACTIONS);
     } catch (error) {
       log.error('Failed to load quick actions', error);
     } finally {
@@ -233,8 +244,7 @@ const QuickActionsConfig: React.FC = () => {
 
   const persist = useCallback(async (next: QuickAction[]) => {
     try {
-      const settings = await aiExperienceConfigService.getSettingsAsync();
-      await aiExperienceConfigService.saveSettings({ ...settings, quick_actions: next });
+      await aiExperienceConfigService.saveSettings({ quick_actions: next });
       setActions(next);
       notification.success(t('messages.saved'));
     } catch (error) {
@@ -274,7 +284,7 @@ const QuickActionsConfig: React.FC = () => {
       <ConfigPageLayout className="quick-actions-config" data-bf-component="quick-actions-config" data-bf-part="root">
         <ConfigPageHeader title={t('page.title')} subtitle={t('page.subtitle')} />
         <ConfigPageContent>
-          <ConfigPageLoading text={t('loading')} />
+          <ConfigLoadingState label={t('loading')} />
         </ConfigPageContent>
       </ConfigPageLayout>
     );
@@ -290,10 +300,7 @@ const QuickActionsConfig: React.FC = () => {
       <ConfigPageContent data-bf-component="quick-actions-config" data-bf-part="content" className="quick-actions-config__content">
 
         {/* ── Built-in actions ──────────────────────────────────────────── */}
-        <ConfigPageSection
-          title={t('sections.builtin.title')}
-          description={t('sections.builtin.description')}
-        >
+        <ConfigPageSection title={t('sections.builtin.title')}>
           <div data-bf-component="quick-actions-config" data-bf-part="list" className="quick-actions-config__list">
             {builtinActions.map(action => (
               <ActionRow
@@ -312,14 +319,14 @@ const QuickActionsConfig: React.FC = () => {
         {/* ── Custom actions ────────────────────────────────────────────── */}
         <ConfigPageSection
           title={t('sections.custom.title')}
-          description={t('sections.custom.description')}
           extra={
             <Button
-              size="small"
-              variant="secondary"
+              size="sm"
+              variant="outline"
               onClick={() => setModalTarget(null)}
+              leadingIcon={<Icon name="plus" size="sm" />}
             >
-              <Plus size={14} />
+
               {t('add.button')}
             </Button>
           }
@@ -330,11 +337,12 @@ const QuickActionsConfig: React.FC = () => {
                 <Zap size={20} className="quick-actions-config__empty-icon" />
                 <p>{t('sections.custom.empty')}</p>
                 <Button
-                  size="small"
-                  variant="secondary"
+                  size="sm"
+                  variant="outline"
                   onClick={() => setModalTarget(null)}
+                  leadingIcon={<Icon name="plus" size="sm" />}
                 >
-                  <Plus size={14} />
+
                   {t('add.button')}
                 </Button>
               </div>

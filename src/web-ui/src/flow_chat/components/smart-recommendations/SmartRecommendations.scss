@@ -3,8 +3,9 @@
  */
 
 .bitfun-smart-recommendations {
-  background: var(--bf-appearance-token-color-bg-secondary);
-  border: 1px solid var(--bf-appearance-token-border-base);
+  position: relative;
+  background: var(--bf-color-surface-panel);
+  border: 1px solid var(--bf-color-border-default);
   border-radius: 8px;
   padding: 12px 16px;
   margin-bottom: 12px;
@@ -14,110 +15,27 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    min-height: 24px;
+    padding-inline-end: 24px;
     margin-bottom: 10px;
   }
 
   &__title {
-    font-size: var(--bf-appearance-token-tool-card-action-font-size);
-    font-weight: 600;
-    color: var(--bf-appearance-token-color-text-primary);
+    font-size: var(--bf-type-flow-control-font-size);
+    font-weight: var(--bf-font-weight-semibold);
+    color: var(--bf-color-content-primary);
   }
 
   &__close {
-    background: none;
-    border: none;
-    padding: 4px;
-    cursor: pointer;
-    color: var(--bf-appearance-token-color-text-muted);
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition:
-      background-color 160ms ease,
-      color 160ms ease,
-      scale 120ms cubic-bezier(0.23, 1, 0.32, 1);
-
-    &:hover {
-      background: var(--bf-appearance-token-element-bg-hover);
-      color: var(--bf-appearance-token-color-text-primary);
-    }
+    position: absolute;
+    inset-block-start: 4px;
+    inset-inline-end: 4px;
   }
 
   &__actions {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-  }
-
-  &__action {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    border: 1px solid var(--bf-appearance-token-border-base);
-    border-radius: 6px;
-    background: var(--bf-appearance-token-color-bg-primary);
-    color: var(--bf-appearance-token-color-text-primary);
-    font-size: var(--bf-appearance-token-tool-card-action-font-size);
-    font-weight: 500;
-    cursor: pointer;
-    transition:
-      transform 120ms cubic-bezier(0.23, 1, 0.32, 1),
-      scale 120ms cubic-bezier(0.23, 1, 0.32, 1),
-      background-color 160ms ease,
-      border-color 160ms ease,
-      box-shadow 180ms ease,
-      opacity 160ms ease;
-    white-space: nowrap;
-
-    svg {
-      flex-shrink: 0;
-    }
-
-    &:hover:not(:disabled) {
-      background: var(--bf-appearance-token-element-bg-hover);
-      border-color: var(--bf-appearance-token-color-accent-500);
-      transform: translateY(-1px);
-      box-shadow: 0 2px 4px var(--bf-appearance-token-color-overlay-black-12);
-    }
-
-    &:active:not(:disabled) {
-      transform: translateY(0);
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-
-    // Primary button styles
-    &--primary {
-      background: var(--bf-appearance-token-color-accent-500);
-      color: white;
-      border-color: var(--bf-appearance-token-color-accent-500);
-
-      &:hover:not(:disabled) {
-        background: var(--bf-appearance-token-color-accent-600);
-        border-color: var(--bf-appearance-token-color-accent-600);
-      }
-    }
-
-    // Danger button styles
-    &--danger {
-      background: var(--bf-appearance-token-color-error);
-      color: white;
-      border-color: var(--bf-appearance-token-color-error);
-
-      &:hover:not(:disabled) {
-        background: var(--bf-appearance-token-color-error);
-        border-color: var(--bf-appearance-token-color-error);
-      }
-    }
-  }
-
-  &__loading {
-    animation: smart-recommendations-loading 1s ease-in-out infinite;
   }
 }
 
@@ -132,18 +50,8 @@
   }
 }
 
-@keyframes smart-recommendations-loading {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.3;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .bitfun-smart-recommendations,
-  .bitfun-smart-recommendations__loading {
+  .bitfun-smart-recommendations {
     animation: none;
   }
 }

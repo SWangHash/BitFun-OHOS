@@ -1,3 +1,5 @@
+import React from 'react';
+import { MarkdownRenderer } from '@/infrastructure/markdown';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MarkdownRenderer } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';

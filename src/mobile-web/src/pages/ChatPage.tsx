@@ -365,16 +365,16 @@ const FileCard: React.FC<FileCardProps> = ({ path, onGetFileInfo, onDownload }) 
     alignItems: 'center',
     gap: '10px',
     padding: '10px 14px',
-    border: '1px solid var(--border-subtle)',
+    border: '1px solid var(--bf-color-border-subtle)',
     borderRadius: '10px',
-    background: 'var(--element-bg-subtle)',
+    background: 'var(--bf-color-surface-subtle)',
     cursor: state.status === 'ready' || state.status === 'done' ? 'pointer' : 'default',
     maxWidth: '300px',
     verticalAlign: 'middle',
     transition: 'background 0.15s',
   };
 
-  const iconColor = 'var(--color-text-muted)';
+  const iconColor = 'var(--bf-color-content-muted)';
 
   if (state.status === 'loading') {
     return (
@@ -416,14 +416,14 @@ const FileCard: React.FC<FileCardProps> = ({ path, onGetFileInfo, onDownload }) 
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
-          color: 'var(--color-text-primary)',
+          color: 'var(--bf-color-content-primary)',
         }}>
           {name}
         </span>
         <span style={{
           display: 'block',
           fontSize: '0.75rem',
-          color: 'var(--color-text-muted)',
+          color: 'var(--bf-color-content-muted)',
           marginTop: '2px',
         }}>
           {formatFileSize(size)}
@@ -432,7 +432,7 @@ const FileCard: React.FC<FileCardProps> = ({ path, onGetFileInfo, onDownload }) 
       <span style={{
         flexShrink: 0,
         fontSize: '0.75rem',
-        color: isDone ? 'var(--color-success)' : 'var(--color-text-muted)',
+        color: isDone ? 'var(--bf-color-status-success-content)' : 'var(--bf-color-content-muted)',
       }}>
         {isDownloading ? `${Math.round((state as any).progress * 100)}%` : isDone ? '✓' : '↓'}
       </span>
@@ -484,7 +484,7 @@ const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, onFileDownlo
               },
             }}
             lineNumberStyle={{
-              color: 'var(--color-text-muted)',
+              color: 'var(--bf-color-content-muted)',
               paddingRight: '1em',
               textAlign: 'right' as const,
               userSelect: 'none' as const,
@@ -521,7 +521,7 @@ const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, onFileDownlo
             type="button"
             style={{
               cursor: 'pointer',
-              color: 'var(--color-accent-500)',
+              color: 'var(--bf-color-accent-default)',
               textDecoration: 'underline',
               background: 'none',
               border: 'none',
@@ -559,7 +559,7 @@ const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, onFileDownlo
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: 'var(--color-accent-500)', textDecoration: 'underline' }}
+              style={{ color: 'var(--bf-color-accent-default)', textDecoration: 'underline' }}
             >
               {children}
             </a>
@@ -729,13 +729,13 @@ const TodoCard: React.FC<{ tool: RemoteToolStatus }> = ({ tool }) => {
   const statusIcon = (s: string) => {
     switch (s) {
       case 'completed':
-        return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>;
+        return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--bf-color-status-success-content)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>;
       case 'in_progress':
-        return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="var(--color-accent-500)"/></svg>;
+        return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--bf-color-accent-default)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="var(--bf-color-accent-default)"/></svg>;
       case 'cancelled':
-        return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-error)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>;
+        return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--bf-color-status-danger-content)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>;
       default:
-        return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/></svg>;
+        return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--bf-color-content-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/></svg>;
     }
   };
 
@@ -923,9 +923,9 @@ const TaskToolCard: React.FC<{
                   return (
                     <div key={`sub-tool-${t.id}-${idx}`} className={`chat-task-card__step chat-task-card__step--tool ${isDone ? 'is-done' : isErr ? 'is-error' : 'is-running'}`}>
                       {isDone ? (
-                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="var(--color-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="var(--bf-color-status-success-content)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                       ) : isErr ? (
-                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="var(--color-error)" strokeWidth="2" strokeLinecap="round"/></svg>
+                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="var(--bf-color-status-danger-content)" strokeWidth="2" strokeLinecap="round"/></svg>
                       ) : (
                         <span className="chat-task-card__step-spinner" />
                       )}
@@ -1737,8 +1737,6 @@ const SparklesIcon: React.FC<{ className?: string; size?: number }> = ({ classNa
   </svg>
 );
 
-type ModelSelectionValue = 'auto' | 'primary' | 'fast' | string;
-
 function formatProviderName(provider: string): string {
   const normalized = provider.trim();
   if (!normalized) return 'Unknown';
@@ -1765,14 +1763,12 @@ function normalizeSelectedModelId(
   catalog: RemoteModelCatalog | null,
 ): string {
   const value = selectedModelId?.trim();
-  if (!value || value === 'auto' || value === 'default') return 'auto';
-  if (value === 'primary' || value === 'fast') {
-    const defaultId = value === 'primary'
-      ? catalog?.default_models?.primary
-      : catalog?.default_models?.fast;
-    return defaultId && resolveModelSelection(defaultId, catalog) ? value : 'auto';
+  if (!value || value === 'primary') return 'primary';
+  if (value === 'fast') {
+    const defaultId = catalog?.default_models?.fast;
+    return defaultId && resolveModelSelection(defaultId, catalog) ? value : 'primary';
   }
-  return resolveModelSelection(value, catalog) ? value : 'auto';
+  return resolveModelSelection(value, catalog) ? value : 'primary';
 }
 
 function loadLastSelectedModelId(): string | null {
@@ -1794,17 +1790,16 @@ function persistLastSelectedModelId(modelId: string): void {
 function resolvePreferredModelSelection(
   preferredModelId: string | null,
   catalog: RemoteModelCatalog | null,
-): { modelId: string | null; fellBackToAuto: boolean } {
+): { modelId: string | null; fallbackApplied: boolean } {
   const value = preferredModelId?.trim();
   if (!value) {
-    return { modelId: null, fellBackToAuto: false };
+    return { modelId: null, fallbackApplied: false };
   }
 
   const normalizedModelId = normalizeSelectedModelId(value, catalog);
-  const fellBackToAuto = normalizedModelId === 'auto' && value !== 'auto' && value !== 'default';
   return {
     modelId: normalizedModelId,
-    fellBackToAuto,
+    fallbackApplied: normalizedModelId !== value,
   };
 }
 
@@ -1821,7 +1816,7 @@ function resolveConcreteModelSelection(
   catalog: RemoteModelCatalog | null,
 ): RemoteModelConfig | null {
   const normalizedModelId = normalizeSelectedModelId(modelId, catalog);
-  if (normalizedModelId === 'auto' || normalizedModelId === 'primary') {
+  if (normalizedModelId === 'primary') {
     return resolveModelSelection(catalog?.default_models?.primary || '', catalog);
   }
   if (normalizedModelId === 'fast') {
@@ -1864,23 +1859,12 @@ function getSelectedModelInfo(
   enableThinking: boolean;
   reasoningEffort?: string;
 } {
-  if (selectedModelId === 'auto') {
-    const resolved = resolveConcreteModelSelection(selectedModelId, catalog);
-    return {
-      label: t('chat.modelAuto'),
-      meta: t('chat.modelAutoDesc'),
-      enableThinking: resolved?.reasoning?.status === 'known',
-      reasoningEffort: selectedReasoningLabel(resolved, catalog),
-    };
-  }
-
   if (selectedModelId === 'primary' || selectedModelId === 'fast') {
     const resolved = resolveConcreteModelSelection(selectedModelId, catalog);
     return {
-      label: resolved
-        ? (selectedModelId === 'primary' ? t('chat.modelPrimary') : t('chat.modelFast'))
-        : t('chat.modelAuto'),
-      meta: buildModelProviderMeta(resolved) || t('chat.modelAutoDesc'),
+      label: selectedModelId === 'primary' ? t('chat.modelPrimary') : t('chat.modelFast'),
+      meta: buildModelProviderMeta(resolved)
+        || t(selectedModelId === 'primary' ? 'chat.modelPrimaryDesc' : 'chat.modelFastDesc'),
       enableThinking: resolved?.reasoning?.status === 'known',
       reasoningEffort: selectedReasoningLabel(resolved, catalog),
     };
@@ -1889,8 +1873,8 @@ function getSelectedModelInfo(
   const resolved = resolveModelSelection(selectedModelId, catalog);
   if (!resolved) {
     return {
-      label: t('chat.modelAuto'),
-      meta: t('chat.modelAutoDesc'),
+      label: t('chat.modelPrimary'),
+      meta: t('chat.modelPrimaryDesc'),
       enableThinking: false,
     };
   }
@@ -1989,16 +1973,6 @@ const ModelSelectorPill: React.FC<{
         <div className="chat-model-selector__dropdown">
           <div className="chat-model-selector__header">{t('chat.modelSelection')}</div>
           <button
-            className={`chat-model-selector__option${normalizedSelectedModelId === 'auto' ? ' is-selected' : ''}`}
-            type="button"
-            onClick={() => void handleSelect('auto')}
-          >
-            <span className="chat-model-selector__option-main">
-              <span className="chat-model-selector__option-name">{t('chat.modelAuto')}</span>
-              <span className="chat-model-selector__option-meta">{t('chat.modelAutoDesc')}</span>
-            </span>
-          </button>
-          <button
             className={`chat-model-selector__option${normalizedSelectedModelId === 'primary' ? ' is-selected' : ''}`}
             type="button"
             onClick={() => void handleSelect('primary')}
@@ -2007,10 +1981,10 @@ const ModelSelectorPill: React.FC<{
               <span className="chat-model-selector__option-name">{t('chat.modelPrimary')}</span>
               <span className="chat-model-selector__option-meta chat-model-selector__option-meta--stacked">
                 <span className="chat-model-selector__option-meta-line">
-                  {getModelDisplayName(resolvedPrimaryModel) || t('chat.modelAuto')}
+                  {getModelDisplayName(resolvedPrimaryModel) || t('chat.modelPrimary')}
                 </span>
                 <span className="chat-model-selector__option-meta-line">
-                  {buildModelProviderMeta(resolvedPrimaryModel) || t('chat.modelAutoDesc')}
+                  {buildModelProviderMeta(resolvedPrimaryModel) || t('chat.modelPrimaryDesc')}
                 </span>
               </span>
             </span>
@@ -2024,10 +1998,10 @@ const ModelSelectorPill: React.FC<{
               <span className="chat-model-selector__option-name">{t('chat.modelFast')}</span>
               <span className="chat-model-selector__option-meta chat-model-selector__option-meta--stacked">
                 <span className="chat-model-selector__option-meta-line">
-                  {getModelDisplayName(resolvedFastModel) || t('chat.modelAuto')}
+                  {getModelDisplayName(resolvedFastModel) || t('chat.modelFast')}
                 </span>
                 <span className="chat-model-selector__option-meta-line">
-                  {buildModelProviderMeta(resolvedFastModel) || t('chat.modelAutoDesc')}
+                  {buildModelProviderMeta(resolvedFastModel) || t('chat.modelFastDesc')}
                 </span>
               </span>
             </span>
@@ -2156,11 +2130,6 @@ const ReasoningPresetPill: React.FC<{
   );
 };
 
-// ─── Agent Mode ─────────────────────────────────────────────────────────────
-
-type AgentMode = 'agentic' | 'Plan' | 'debug';
-const AGENT_MODE_ORDER: AgentMode[] = ['agentic', 'Plan', 'debug'];
-
 // ─── ChatPage ───────────────────────────────────────────────────────────────
 
 const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName, onBack, autoFocus }) => {
@@ -2178,24 +2147,11 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
   } = useMobileStore();
 
   const { isDark, toggleTheme } = useTheme();
-  const modeOptions: { id: AgentMode; label: string }[] = useMemo(() => ([
-    { id: 'agentic', label: t('chat.modeAgentic') },
-    { id: 'Plan', label: t('chat.modePlan') },
-    { id: 'debug', label: t('chat.modeDebug') },
-  ]), [t]);
   const messages = getMessages(sessionId);
   const [input, setInput] = useState('');
-  const [agentMode, setAgentMode] = useState<AgentMode>('agentic');
-
-  const cycleAgentMode = useCallback(() => {
-    setAgentMode(prev => {
-      const idx = AGENT_MODE_ORDER.indexOf(prev);
-      return AGENT_MODE_ORDER[(idx + 1) % AGENT_MODE_ORDER.length];
-    });
-  }, []);
   const [liveTitle, setLiveTitle] = useState(sessionName);
   const [modelCatalog, setModelCatalog] = useState<RemoteModelCatalog | null>(null);
-  const [selectedModelId, setSelectedModelId] = useState<string>('auto');
+  const [selectedModelId, setSelectedModelId] = useState<string>('primary');
   const [modelUpdating, setModelUpdating] = useState(false);
   const [pendingImages, setPendingImages] = useState<{ name: string; dataUrl: string }[]>([]);
   const [imageAnalyzing, setImageAnalyzing] = useState(false);
@@ -2292,7 +2248,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
       setOptimisticMsg(null);
       modelSelectionInitializedRef.current = false;
       setModelCatalog(null);
-      setSelectedModelId('auto');
+      setSelectedModelId('primary');
       setMessages(sessionId, []);
       setMenuMessage(null);
       setDeletingMsg(false);
@@ -2398,7 +2354,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
       setModelCatalog(catalog);
       if (!modelSelectionInitializedRef.current) {
         const preferredSelection = resolvePreferredModelSelection(loadLastSelectedModelId(), catalog);
-        const sessionModelId = normalizeSelectedModelId(catalog.session_model_id || 'auto', catalog);
+        const sessionModelId = normalizeSelectedModelId(catalog.session_model_id, catalog);
         const nextModelId = preferredSelection.modelId || sessionModelId;
 
         if (preferredSelection.modelId && preferredSelection.modelId !== sessionModelId) {
@@ -2412,20 +2368,20 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
             requestSeq !== modelCatalogRequestSeqRef.current
             || !isChatTargetCurrent(targetEpoch)
           ) return null;
-          const normalizedModelId = selection.model_id;
-          setSelectedModelId(normalizedModelId || 'auto');
+          const normalizedModelId = normalizeSelectedModelId(selection.model_id, catalog);
+          setSelectedModelId(normalizedModelId);
           setModelCatalog(current => current ? {
             ...current,
             session_model_id: normalizedModelId,
             session_reasoning_preset: selection.reasoning_preset,
           } : current);
-          if (preferredSelection.fellBackToAuto && (!normalizedModelId || normalizedModelId === 'auto')) {
-            persistLastSelectedModelId('auto');
+          if (preferredSelection.fallbackApplied) {
+            persistLastSelectedModelId(normalizedModelId);
           }
         } else {
-          setSelectedModelId(nextModelId || 'auto');
-          if (preferredSelection.fellBackToAuto && nextModelId === 'auto') {
-            persistLastSelectedModelId('auto');
+          setSelectedModelId(nextModelId);
+          if (preferredSelection.fallbackApplied) {
+            persistLastSelectedModelId(nextModelId);
           }
         }
         modelSelectionInitializedRef.current = true;
@@ -2453,20 +2409,20 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
             reasoning_preset: null,
           };
       if (!isChatTargetCurrent(targetEpoch)) return;
-      const normalizedModelId = selection.model_id;
-      setSelectedModelId(normalizedModelId || 'auto');
+      const normalizedModelId = normalizeSelectedModelId(selection.model_id, modelCatalog);
+      setSelectedModelId(normalizedModelId);
       setModelCatalog(current => current ? {
         ...current,
         session_model_id: normalizedModelId,
         session_reasoning_preset: selection.reasoning_preset,
       } : current);
-      persistLastSelectedModelId(normalizedModelId || 'auto');
+      persistLastSelectedModelId(normalizedModelId);
     } catch (err) {
       reportRemoteSessionError(err, setError);
     } finally {
       if (isChatTargetCurrent(targetEpoch)) setModelUpdating(false);
     }
-  }, [captureChatTargetEpoch, imageAnalyzing, isChatTargetCurrent, isStreaming, modelCatalog?.reasoning_preset_selection_supported, modelUpdating, sessionId, sessionMgr, setError]);
+  }, [captureChatTargetEpoch, imageAnalyzing, isChatTargetCurrent, isStreaming, modelCatalog, modelUpdating, sessionId, sessionMgr, setError]);
 
   const handleSelectReasoningPreset = useCallback(async (reasoningPreset: string | null) => {
     if (
@@ -2485,10 +2441,11 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
         reasoningPreset,
       );
       if (!isChatTargetCurrent(targetEpoch)) return;
-      setSelectedModelId(selection.model_id || 'auto');
+      const normalizedModelId = normalizeSelectedModelId(selection.model_id, modelCatalog);
+      setSelectedModelId(normalizedModelId);
       setModelCatalog(current => current ? {
         ...current,
-        session_model_id: selection.model_id,
+        session_model_id: normalizedModelId,
         session_reasoning_preset: selection.reasoning_preset,
       } : current);
     } catch (err) {
@@ -2496,7 +2453,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
     } finally {
       if (isChatTargetCurrent(targetEpoch)) setModelUpdating(false);
     }
-  }, [captureChatTargetEpoch, imageAnalyzing, isChatTargetCurrent, isStreaming, modelCatalog?.reasoning_preset_selection_supported, modelUpdating, selectedModelId, sessionId, sessionMgr, setError]);
+  }, [captureChatTargetEpoch, imageAnalyzing, isChatTargetCurrent, isStreaming, modelCatalog, modelUpdating, selectedModelId, sessionId, sessionMgr, setError]);
 
   useEffect(() => {
     if (!isStreaming) return;
@@ -2618,13 +2575,13 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
         })
       : undefined;
     try {
-      await sessionMgr.sendMessage(sessionId, text, agentMode, imageContexts);
+      await sessionMgr.sendMessage(sessionId, text, 'agentic', imageContexts);
       if (!isChatTargetCurrent(targetEpoch)) return;
       pollerRef.current?.nudge();
     } catch (e: any) {
       reportRemoteSessionError(e, setError);
     }
-  }, [agentMode, captureChatTargetEpoch, isChatTargetCurrent, menuMessage, sessionId, sessionMgr, setError]);
+  }, [captureChatTargetEpoch, isChatTargetCurrent, menuMessage, sessionId, sessionMgr, setError]);
 
   const handleDeleteMessage = useCallback(async () => {
     if (!menuMessage) return;
@@ -2694,7 +2651,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
     setHasMore(true);
     setIsLoadingMore(false);
     setModelCatalog(null);
-    setSelectedModelId('auto');
+    setSelectedModelId('primary');
   }, [sessionId]);
 
   useEffect(() => {
@@ -2745,7 +2702,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
         if (resp.model_catalog) {
           setModelCatalog(resp.model_catalog);
           setSelectedModelId(normalizeSelectedModelId(
-            resp.model_catalog.session_model_id || 'auto',
+            resp.model_catalog.session_model_id,
             resp.model_catalog,
           ));
         }
@@ -2872,7 +2829,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
       await sessionMgr.sendMessage(
         sessionId,
         text || t('chat.imageAttachmentFallback'),
-        agentMode,
+        'agentic',
         imageContexts,
       );
       if (!isChatTargetCurrent(targetEpoch)) return;
@@ -2888,7 +2845,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
         setOptimisticMsg(null);
       }
     }
-  }, [agentMode, captureChatTargetEpoch, imageAnalyzing, input, isChatTargetCurrent, isStreaming, pendingImages, sessionId, sessionMgr, setError, t]);
+  }, [captureChatTargetEpoch, imageAnalyzing, input, isChatTargetCurrent, isStreaming, pendingImages, sessionId, sessionMgr, setError, t]);
 
   const handleImageSelect = useCallback(() => {
     fileInputRef.current?.click();
@@ -2974,10 +2931,6 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
       e.preventDefault();
       handleSend();
     }
-    if (e.key === 'Tab' && e.shiftKey) {
-      e.preventDefault();
-      cycleAgentMode();
-    }
   };
 
   const handleCancel = async () => {
@@ -2988,23 +2941,6 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
       // best effort
     }
   };
-
-  // Listen at document level so the shortcut works even when the input is collapsed.
-  const cycleAgentModeRef = useRef(cycleAgentMode);
-  cycleAgentModeRef.current = cycleAgentMode;
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Tab' && e.shiftKey) {
-        const target = e.target as HTMLElement;
-        const tag = target?.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
-        e.preventDefault();
-        cycleAgentModeRef.current();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, []);
 
   const workspaceName = currentWorkspace?.project_name || currentWorkspace?.path?.split('/').pop() || '';
   const gitBranch = currentWorkspace?.git_branch;
@@ -3438,27 +3374,18 @@ const ChatPage: React.FC<ChatPageProps> = ({ sessionMgr, sessionId, sessionName,
             </div>
             <div className="chat-page__input-actions-right">
               {inputExpanded && (
-                <>
-                  <button
-                    className={`chat-page__mode-pill${agentMode !== 'agentic' ? ` chat-page__mode-pill--${agentMode}` : ''}`}
-                    onClick={cycleAgentMode}
-                    disabled={imageAnalyzing}
-                  >
-                    {modeOptions.find(m => m.id === agentMode)?.label}
-                  </button>
-                  <button
-                    className="chat-page__action-btn"
-                    onClick={handleImageSelect}
-                    disabled={imageAnalyzing || pendingImages.length >= 5}
-                    aria-label={t('common.attachImage')}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
-                      <circle cx="9" cy="9" r="2"/>
-                      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
-                    </svg>
-                  </button>
-                </>
+                <button
+                  className="chat-page__action-btn"
+                  onClick={handleImageSelect}
+                  disabled={imageAnalyzing || pendingImages.length >= 5}
+                  aria-label={t('common.attachImage')}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+                    <circle cx="9" cy="9" r="2"/>
+                    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+                  </svg>
+                </button>
               )}
               {imageAnalyzing ? (
                 <button className="chat-page__send-btn is-stop" aria-label={t('common.stop')} disabled>

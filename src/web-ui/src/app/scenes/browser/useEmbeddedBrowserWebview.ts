@@ -7,6 +7,7 @@ import { api } from '@/infrastructure/api/service-api/ApiClient';
 const WEBVIEW_RESIZE_DEBOUNCE_MS = 160;
 const WEBVIEW_BOUNDS_EPSILON = 1;
 const WEBVIEW_BOUNDS_WAIT_TIMEOUT_MS = 2000;
+const OVERLAY_SELECTOR = "[data-bf-component='dialog'][data-bf-part='overlay'], [data-bf-component='sheet'][data-bf-part='overlay'], .canvas-mission-control";
 export const BROWSER_WEBVIEW_BLOCKING_OVERLAY_SELECTOR = [
   '.modal-overlay',
   '.canvas-mission-control',
@@ -82,6 +83,7 @@ export interface UseEmbeddedBrowserWebviewOptions {
   isVisible: boolean;
   labelPrefix: string;
   log: BrowserLogger;
+  openRequestId?: string;
   requestedWebviewLabel?: string;
 }
 
@@ -163,8 +165,10 @@ async function injectBrowserPageScripts(label: string): Promise<void> {
   await evalWebview(label, `${BLANK_TARGET_INTERCEPT_SCRIPT};\n${STREAM_RENDER_OPTIMIZATION_SCRIPT};`);
 }
 
-async function navigateWebview(label: string, url: string): Promise<void> {
-  await api.invoke('browser_webview_navigate', { request: { label, url } });
+async function navigateWebview(label: string, url: string, openRequestId?: string): Promise<void> {
+  await api.invoke('browser_webview_navigate', {
+    request: { label, url, openRequestId },
+  });
 }
 
 async function reloadWebview(label: string): Promise<void> {
@@ -241,6 +245,24 @@ async function createBrowserWebview(
 ): Promise<BrowserWebviewHandle> {
   const { invoke } = await import('@tauri-apps/api/core');
   await invoke('browser_webview_create', {
+async function setAgentTargetState(
+  label: string,
+  active: boolean,
+  openRequestId?: string,
+): Promise<void> {
+  await api.invoke('browser_webview_set_agent_target_state', {
+    request: { label, active, openRequestId },
+  });
+}
+
+async function createBrowserWebview(
+  label: string,
+  url: string,
+  bounds: WebviewBounds,
+  openRequestId?: string,
+): Promise<BrowserWebviewHandle> {
+  const { Webview } = await import('@tauri-apps/api/webview');
+  await api.invoke('browser_webview_create', {
     request: {
       label,
       url,
@@ -249,6 +271,7 @@ async function createBrowserWebview(
       y: bounds.top,
       width: bounds.width,
       height: bounds.height,
+      openRequestId,
     },
   });
   return createCommandBasedBrowserWebviewHandle(label, invoke as TauriInvoke);
@@ -267,6 +290,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     log,
     requestedWebviewLabel,
   } = options;
+  const { defaultUrl, initialUrl, isVisible, labelPrefix, log, openRequestId } = options;
   const isTauri = useMemo(() => isTauriEnvironment(), []);
   const startUrl = initialUrl ?? defaultUrl;
   const initialHtmlRef = useRef<string | undefined>(initialHtml);
@@ -407,6 +431,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     if (!target) return;
 
     try {
+      await setAgentTargetState(target.label, false).catch(() => {});
       await target.close();
     } catch (closeError) {
       if (!isWebviewNotFoundError(closeError)) {
@@ -544,7 +569,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     if (!label || !webviewRef.current) return false;
 
     try {
-      await navigateWebview(label, url);
+      await navigateWebview(label, url, openRequestId);
       window.setTimeout(() => {
         if (webviewLabelRef.current === label) {
           void injectBrowserPageScripts(label).catch(() => {});
@@ -560,7 +585,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       log.warn('Navigate browser webview via existing instance failed', navigationError);
       return false;
     }
-  }, [log]);
+  }, [log, openRequestId]);
 
   const loadUrl = useCallback(async (rawUrl: string) => {
     const nextUrl = normalizeUrl(rawUrl, defaultUrl);
@@ -608,6 +633,8 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         }
       } else {
         await handle.hide().catch(() => {});
+        await handle.setFocus();
+        await setAgentTargetState(handle.label, true, openRequestId);
       }
     } catch (loadError) {
       const message = formatUnknownError(loadError);
@@ -621,6 +648,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       setIsLoading(false);
     }
   }, [createWebview, defaultUrl, isTauri, isVisible, log, navigateExistingWebview, readViewportBounds, syncWebviewBounds]);
+  }, [createWebview, defaultUrl, isTauri, isVisible, log, navigateExistingWebview, openRequestId, syncWebviewBounds]);
 
   const queueSync = useCallback(() => {
     if (resizeTimerRef.current !== null) window.clearTimeout(resizeTimerRef.current);

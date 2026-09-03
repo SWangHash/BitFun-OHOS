@@ -1,15 +1,15 @@
 import React from 'react';
-import { Badge as BitFunBadge } from '@/component-library/components/Badge';
-import { Button as BitFunButton } from '@/component-library/components/Button';
 import {
+  Button as BitFunButton,
   Card as BitFunCard,
   CardBody as BitFunCardBody,
   CardHeader as BitFunCardHeader,
-} from '@/component-library/components/Card';
-import { Empty as BitFunEmpty } from '@/component-library/components/Empty';
-import { Input as BitFunInput } from '@/component-library/components/Input';
-import { TabPane as BitFunTabPane, Tabs as BitFunTabs } from '@/component-library/components/Tabs';
-import { Tag as BitFunTag } from '@/component-library/components/Tag';
+  Empty as BitFunEmpty,
+  Field as DesignField,
+  Input as DesignInput,
+  StatusPill as DesignStatusPill,
+  TabGroup as DesignTabGroup,
+} from '@bitfun/ui';
 import type {
   CanvasButtonProps,
   CanvasCardBodyProps,
@@ -18,23 +18,36 @@ import type {
   CanvasEmptyProps,
   CanvasInputProps,
   CanvasPillProps,
-  CanvasTabsItem,
   CanvasTabsProps,
   CanvasTone,
 } from './types';
 
-function cardVariant(variant: CanvasCardProps['variant']): React.ComponentProps<typeof BitFunCard>['variant'] {
+function cardAppearance(variant: CanvasCardProps['variant']): React.ComponentProps<typeof BitFunCard>['appearance'] {
   if (variant === 'borderless') return 'subtle';
-  return variant ?? 'default';
+  if (variant === 'elevated' || variant === 'accent') return 'raised';
+  if (variant === 'default') return 'neutral';
+  return 'subtle';
+}
+
+function cardPadding(padding: CanvasCardProps['padding']): React.ComponentProps<typeof BitFunCard>['padding'] {
+  if (padding === 'small') return 'sm';
+  if (padding === 'medium' || padding === 'large') return 'md';
+  return 'none';
+}
+
+function cardRadius(radius: CanvasCardProps['radius']): React.ComponentProps<typeof BitFunCard>['radius'] {
+  if (radius === 'small') return 'sm';
+  if (radius === 'large') return 'lg';
+  return 'md';
 }
 
 export function Card({ variant, padding = 'medium', radius = 'small', style, ...props }: CanvasCardProps) {
   return (
     <BitFunCard
       {...props}
-      variant={cardVariant(variant)}
-      padding={variant === 'borderless' ? 'none' : padding}
-      radius={radius}
+      appearance={cardAppearance(variant)}
+      padding={variant === 'borderless' ? 'none' : cardPadding(padding)}
+      radius={cardRadius(radius)}
       style={{
         ...(variant === 'borderless' ? { background: 'transparent' } : null),
         ...style,
@@ -48,8 +61,8 @@ export function CardHeader({ children, title, subtitle, trailing, ...props }: Ca
     <BitFunCardHeader
       {...props}
       title={title ?? children}
-      subtitle={subtitle}
-      extra={trailing}
+      description={subtitle}
+      actions={trailing}
     />
   );
 }
@@ -59,104 +72,170 @@ export function CardBody(props: CanvasCardBodyProps) {
 }
 
 function buttonSize(size: CanvasButtonProps['size']): React.ComponentProps<typeof BitFunButton>['size'] {
-  if (size === 'sm') return 'small';
-  if (size === 'md') return 'medium';
-  if (size === 'lg') return 'large';
-  return size ?? 'medium';
+  if (size === 'sm' || size === 'small') return 'sm';
+  if (size === 'lg' || size === 'large') return 'lg';
+  return 'md';
 }
 
-export function Button({ variant = 'secondary', size, ...props }: CanvasButtonProps) {
+function buttonVariant(
+  variant: CanvasButtonProps['variant'],
+): React.ComponentProps<typeof BitFunButton>['variant'] {
+  if (variant === 'secondary' || variant === 'ghost') return 'outline';
+  return 'fill';
+}
+
+export function Button({ children, variant = 'secondary', size, ...props }: CanvasButtonProps) {
   return (
     <BitFunButton
       {...props}
-      variant={variant}
+      variant={buttonVariant(variant)}
       size={buttonSize(size)}
-    />
+    >
+      {children}
+    </BitFunButton>
   );
 }
 
 function pillTone(tone: CanvasTone | 'accent' | 'purple' | undefined, active: boolean) {
-  if (tone === 'danger' || tone === 'error') return { badge: 'error' as const, tag: 'red' as const };
-  if (tone === 'success') return { badge: 'success' as const, tag: 'green' as const };
-  if (tone === 'warning') return { badge: 'warning' as const, tag: 'yellow' as const };
-  if (tone === 'info') return { badge: 'info' as const, tag: 'blue' as const };
-  if (tone === 'purple') return { badge: 'purple' as const, tag: 'purple' as const };
-  if (tone === 'accent' || active) return { badge: 'accent' as const, tag: 'blue' as const };
-  return { badge: 'neutral' as const, tag: 'gray' as const };
-}
-
-function tagSize(size: CanvasPillProps['size']): React.ComponentProps<typeof BitFunTag>['size'] {
-  if (size === 'sm') return 'small';
-  if (size === 'md') return 'medium';
-  if (size === 'lg') return 'large';
-  return size ?? 'medium';
+  if (tone === 'danger' || tone === 'error') return 'danger' as const;
+  if (tone === 'success') return 'success' as const;
+  if (tone === 'warning') return 'warning' as const;
+  if (tone === 'info') return 'info' as const;
+  if (tone === 'purple' || tone === 'accent' || active) return 'accent' as const;
+  return 'neutral' as const;
 }
 
 export function Pill({
   children,
   active = false,
   tone,
-  size,
+  size: _size,
   leadingContent,
   keyboardHint,
   className,
   ...props
 }: CanvasPillProps) {
-  const resolvedTone = pillTone(tone, active);
-  const content = (
-    <>
-      {leadingContent}
-      {children}
-      {keyboardHint ? <span className="bitfun-canvas-adapter-pill__hint">{keyboardHint}</span> : null}
-    </>
-  );
-
-  if (active) {
-    return (
-      <BitFunBadge variant={resolvedTone.badge} className={className}>
-        {content}
-      </BitFunBadge>
-    );
-  }
-
   return (
-    <BitFunTag
+    <DesignStatusPill
       {...props}
-      color={resolvedTone.tag}
-      size={tagSize(size)}
-      rounded
+      tone={pillTone(tone, active)}
+      leading={leadingContent}
       className={className}
     >
-      {content}
-    </BitFunTag>
+      {children}
+      {keyboardHint ? <span className="bitfun-canvas-adapter-pill__hint">{keyboardHint}</span> : null}
+    </DesignStatusPill>
   );
 }
 
-function renderTabItems(items: CanvasTabsItem[]) {
-  return items.map(item => (
-    <BitFunTabPane
-      key={item.key}
-      tabKey={item.key}
-      label={item.label}
-      disabled={item.disabled}
-    >
-      {item.children}
-    </BitFunTabPane>
-  ));
-}
+export function Tabs({
+  items = [],
+  children,
+  activeKey,
+  defaultActiveKey,
+  onChange,
+  type = 'line',
+  size = 'medium',
+  stretch = false,
+  className,
+  style,
+}: CanvasTabsProps) {
+  const tabsId = React.useId();
+  const [internalActiveKey, setInternalActiveKey] = React.useState(
+    defaultActiveKey ?? items.find(item => !item.disabled)?.key ?? '',
+  );
+  const candidateKey = activeKey ?? internalActiveKey;
+  const selectedItem = items.find(item => item.key === candidateKey && !item.disabled)
+    ?? items.find(item => !item.disabled);
+  const selectedKey = selectedItem?.key ?? '';
 
-export function Tabs({ items, children, ...props }: CanvasTabsProps) {
+  if (items.length === 0) {
+    return <div className={className} style={style}>{children}</div>;
+  }
+
+  const handleValueChange = (key: string) => {
+    if (activeKey === undefined) setInternalActiveKey(key);
+    onChange?.(key);
+  };
+
   return (
-    <BitFunTabs {...props}>
-      {items ? renderTabItems(items) : children}
-    </BitFunTabs>
+    <div
+      className={['bitfun-canvas-adapter-tabs', className].filter(Boolean).join(' ')}
+      data-size={size}
+      data-stretch={stretch ? 'true' : 'false'}
+      data-type={type}
+      style={style}
+    >
+      <DesignTabGroup
+        items={items.map(item => ({
+          disabled: item.disabled,
+          id: `${tabsId}-tab-${item.key}`,
+          label: item.label,
+          panelId: `${tabsId}-panel`,
+          value: item.key,
+        }))}
+        value={selectedKey}
+        onValueChange={handleValueChange}
+      />
+      <div
+        aria-labelledby={`${tabsId}-tab-${selectedKey}`}
+        id={`${tabsId}-panel`}
+        role="tabpanel"
+      >
+        {selectedItem?.children}
+      </div>
+    </div>
   );
 }
 
-export function Input({ size, ...props }: CanvasInputProps) {
-  return <BitFunInput {...props} size={size} />;
+function designInputSize(size: CanvasInputProps['size']): 'sm' | 'md' | 'lg' {
+  if (size === 'small') return 'sm';
+  if (size === 'large') return 'lg';
+  return 'md';
 }
 
-export function Empty(props: CanvasEmptyProps) {
-  return <BitFunEmpty {...props} />;
+export function Input({
+  size,
+  label,
+  hint,
+  prefix,
+  suffix,
+  error,
+  errorMessage,
+  ...props
+}: CanvasInputProps) {
+  const control = (
+    <DesignInput
+      {...props}
+      invalid={error}
+      leading={prefix}
+      trailing={suffix}
+      size={designInputSize(size)}
+    />
+  );
+  const fieldError = error ? errorMessage : undefined;
+  if (label === undefined && hint === undefined && fieldError === undefined) {
+    return control;
+  }
+  return (
+    <DesignField label={label} description={hint} error={fieldError} controlWidth="fill">
+      {control}
+    </DesignField>
+  );
+}
+
+function emptyMediaSize(size: CanvasEmptyProps['imageSize']): React.ComponentProps<typeof BitFunEmpty>['imageSize'] {
+  if (size === 'small' || (typeof size === 'number' && size <= 32)) return 'sm';
+  if (size === 'large' || (typeof size === 'number' && size >= 48)) return 'lg';
+  return size === undefined ? undefined : 'md';
+}
+
+export function Empty({ imageSize, ...props }: CanvasEmptyProps) {
+  return (
+    <BitFunEmpty
+      {...props}
+      description={props.description ?? 'No data'}
+      imageSize={emptyMediaSize(imageSize)}
+    />
+  );
 }

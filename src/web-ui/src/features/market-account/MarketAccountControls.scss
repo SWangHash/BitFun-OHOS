@@ -1,5 +1,3 @@
-@use '../../component-library/styles/tokens' as *;
-
 .market-account-controls {
   position: relative;
   display: inline-flex;
@@ -14,18 +12,18 @@
   &__identity-trigger {
     display: inline-flex;
     align-items: center;
-    gap: $size-gap-1;
+    gap: var(--bf-space-1);
     max-width: 210px;
     min-height: 30px;
-    padding: 3px $size-gap-2 3px 4px;
-    border: 1px solid var(--bf-appearance-token-border-subtle);
-    border-radius: $size-radius-base;
-    background: var(--bf-appearance-token-color-bg-secondary);
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: var(--bf-appearance-token-font-size-sm);
+    padding: 3px var(--bf-space-2) 3px 4px;
+    border: 1px solid var(--bf-color-border-subtle);
+    border-radius: var(--bf-radius-base);
+    background: var(--bf-color-surface-panel);
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-sm);
     cursor: pointer;
 
-    > span:not(.bitfun-avatar) {
+    > .market-account-controls__identity-name {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -33,42 +31,37 @@
 
     > svg {
       flex: 0 0 auto;
-      color: var(--bf-appearance-token-color-text-muted);
+      color: var(--bf-color-content-muted);
     }
 
     &:hover {
-      border-color: var(--bf-appearance-token-border-base);
-      background: var(--bf-appearance-token-element-bg-subtle);
+      border-color: var(--bf-color-border-default);
+      background: var(--bf-color-surface-subtle);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--bf-appearance-token-color-accent-500);
+      outline: 2px solid var(--bf-color-accent-default);
       outline-offset: 2px;
     }
   }
 
+  /* Positioning-only overrides; the design-system Menu owns the surface look. */
   &__menu {
     position: fixed;
-    z-index: $z-popover;
-    width: max-content;
-    min-width: min(190px, calc(100vw - 16px));
-    max-width: min(230px, calc(100vw - 16px));
-    max-height: calc(100vh - 16px);
-    overflow-y: auto;
-    padding: $size-gap-2;
-    border: 1px solid var(--bf-appearance-token-border-base);
-    border-radius: $size-radius-base;
-    background: var(--bf-appearance-token-color-bg-elevated);
-    box-shadow: var(--bf-appearance-token-shadow-lg);
+    z-index: var(--bf-layer-popover);
+    inline-size: max-content;
+    min-inline-size: min(190px, calc(100vw - 16px));
+    max-inline-size: min(230px, calc(100vw - 16px));
+    max-block-size: calc(100vh - 16px);
   }
 
   &__profile {
     display: flex;
     align-items: center;
-    gap: $size-gap-2;
+    gap: var(--bf-space-2);
     min-width: 0;
-    padding: $size-gap-2;
-    border-bottom: 1px solid var(--bf-appearance-token-border-subtle);
+    padding: var(--bf-space-2);
+    border-bottom: 1px solid var(--bf-color-border-subtle);
 
     > div {
       display: flex;
@@ -85,35 +78,13 @@
     }
 
     strong {
-      color: var(--bf-appearance-token-color-text-primary);
-      font-size: var(--bf-appearance-token-font-size-sm);
+      color: var(--bf-color-content-primary);
+      font-size: var(--bf-font-size-sm);
     }
 
     span {
-      color: var(--bf-appearance-token-color-text-muted);
-      font-size: var(--bf-appearance-token-font-size-xs);
-    }
-  }
-
-  &__menu-item {
-    display: flex;
-    align-items: center;
-    gap: $size-gap-2;
-    width: 100%;
-    margin-top: $size-gap-1;
-    padding: $size-gap-2;
-    border: 0;
-    border-radius: $size-radius-sm;
-    background: transparent;
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: var(--bf-appearance-token-font-size-sm);
-    text-align: left;
-    cursor: pointer;
-
-    &:hover,
-    &:focus-visible {
-      background: var(--bf-appearance-token-element-bg-subtle);
-      color: var(--bf-appearance-token-color-text-primary);
+      color: var(--bf-color-content-muted);
+      font-size: var(--bf-font-size-xs);
     }
   }
 
@@ -125,8 +96,8 @@
 .market-account-login {
   display: grid;
   justify-items: center;
-  gap: $size-gap-4;
-  padding: $size-gap-5;
+  gap: var(--bf-space-4);
+  padding: var(--bf-space-5);
   text-align: center;
 
   &__mark {
@@ -134,53 +105,53 @@
     place-items: center;
     width: 54px;
     height: 54px;
-    border: 1px solid var(--bf-appearance-token-border-base);
+    border: 1px solid var(--bf-color-border-default);
     border-radius: 50%;
-    background: var(--bf-appearance-token-element-bg-subtle);
-    color: var(--bf-appearance-token-color-text-primary);
+    background: var(--bf-color-surface-subtle);
+    color: var(--bf-color-content-primary);
   }
 
   &__copy {
     display: grid;
-    gap: $size-gap-2;
+    gap: var(--bf-space-2);
 
     strong {
-      color: var(--bf-appearance-token-color-text-primary);
-      font-size: var(--bf-appearance-token-font-size-lg);
+      color: var(--bf-color-content-primary);
+      font-size: var(--bf-font-size-lg);
     }
 
     p {
       max-width: 390px;
       margin: 0;
-      color: var(--bf-appearance-token-color-text-secondary);
-      font-size: var(--bf-appearance-token-font-size-sm);
-      line-height: 1.55;
+      color: var(--bf-color-content-secondary);
+      font-size: var(--bf-font-size-sm);
+      line-height: var(--bf-line-height-comfortable);
     }
   }
 
   &__waiting {
     display: flex;
     align-items: center;
-    gap: $size-gap-2;
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: var(--bf-appearance-token-font-size-sm);
+    gap: var(--bf-space-2);
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-sm);
   }
 
   &__error {
     width: 100%;
     margin: 0;
-    padding: $size-gap-2 $size-gap-3;
-    border: 1px solid var(--bf-appearance-token-color-error);
-    border-radius: $size-radius-sm;
-    color: var(--bf-appearance-token-color-error);
-    font-size: var(--bf-appearance-token-font-size-sm);
+    padding: var(--bf-space-2) var(--bf-space-3);
+    border: 1px solid var(--bf-color-status-danger-content);
+    border-radius: var(--bf-radius-sm);
+    color: var(--bf-color-status-danger-content);
+    font-size: var(--bf-font-size-sm);
     text-align: left;
   }
 
   &__actions {
     display: flex;
     justify-content: flex-end;
-    gap: $size-gap-2;
+    gap: var(--bf-space-2);
     width: 100%;
   }
 }

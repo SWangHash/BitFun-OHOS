@@ -2,11 +2,11 @@
  * WorkspaceBody — main workspace container.
  *
  * Left-right layout:
- *   .nav-area   (240px, flex-column)
- *     NavBar        (38px — back/forward + drag + WindowControls)
+ *   .nav-area   (300px default, flex-column)
+ *     NavBar        (35px — back/forward + drag + WindowControls)
  *     NavPanel      (flex:1 — navigation sidebar)
  *   .scene-area (flex:1, flex-column)
- *     SceneBar      (38px — scene tab strip)
+ *     SceneTopBar   (scene tabs + active-scene chrome + WindowControls)
  *     SceneViewport (flex:1 — active scene content)
  */
 
@@ -14,13 +14,16 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useCurrentWorkspace } from '../../infrastructure/contexts/WorkspaceContext';
 import { NavBar } from '../components/NavBar';
 import NavPanel from '../components/NavPanel/NavPanel';
-import { SceneBar } from '../components/SceneBar';
+import { SceneChromeProvider, SceneTopBar } from '../components/SceneTopBar';
 import { SceneViewport } from '../scenes';
+import TerminalActionBridge from '../scenes/terminal/TerminalActionBridge';
+import { RealtimeVoiceCallButton } from '../../flow_chat/components/voice/RealtimeVoiceCallButton';
 import { useApp } from '../hooks/useApp';
+import { useSceneStore } from '../stores/sceneStore';
 import './WorkspaceBody.scss';
 
-const NAV_DEFAULT_WIDTH = 240;
-const NAV_MIN_WIDTH = 240;
+const NAV_DEFAULT_WIDTH = 300;
+const NAV_MIN_WIDTH = 216;
 const NAV_MAX_WIDTH = 480;
 const COLLAPSE_THRESHOLD = 64;
 
@@ -49,6 +52,7 @@ const WorkspaceBody: React.FC<WorkspaceBodyProps> = ({
 }) => {
   const { workspace: currentWorkspace } = useCurrentWorkspace();
   const { state, toggleLeftPanel } = useApp();
+  const activeSceneId = useSceneStore(sceneState => sceneState.activeTabId);
   const isNavCollapsed = state.layout.leftPanelCollapsed;
   const [navWidth, setNavWidth] = useState(NAV_DEFAULT_WIDTH);
   const navAreaRef = useRef<HTMLDivElement>(null);
@@ -158,6 +162,8 @@ const WorkspaceBody: React.FC<WorkspaceBodyProps> = ({
         <NavPanel className="bitfun-workspace-body__nav-panel" />
       </div>
 
+      <TerminalActionBridge />
+
       {/* Resize divider — placed at workspace-body level to avoid overflow:hidden clipping */}
       {!isNavCollapsed && (
         <div
@@ -172,19 +178,27 @@ const WorkspaceBody: React.FC<WorkspaceBodyProps> = ({
         />
       )}
 
-      {/* Right: scene tab bar + scene content */}
+      {/* Right: visual scene surface + any shell-level overlay */}
       <div className="bitfun-workspace-body__scene-area" data-bf-scene="workbench" data-bf-part="sceneArea">
-        <SceneBar
-          onMinimize={onMinimize}
-          onMaximize={onMaximize}
-          onClose={onClose}
-          isMaximized={isMaximized}
-          reserveNativeWindowControls={reserveNativeWindowControls}
-        />
-        <SceneViewport
-          workspacePath={currentWorkspace?.rootPath}
-          isEntering={isEntering}
-        />
+        <div
+          className="bitfun-workspace-body__scene-surface"
+          data-bf-scene="workbench"
+          data-bf-part="sceneSurface"
+        >
+          <SceneChromeProvider activeSceneId={activeSceneId}>
+            <SceneTopBar
+              onMinimize={onMinimize}
+              onMaximize={onMaximize}
+              onClose={onClose}
+              isMaximized={isMaximized}
+            />
+            <SceneViewport
+              workspacePath={currentWorkspace?.rootPath}
+              isEntering={isEntering}
+            />
+            <RealtimeVoiceCallButton />
+          </SceneChromeProvider>
+        </div>
         {sceneOverlay}
       </div>
     </div>

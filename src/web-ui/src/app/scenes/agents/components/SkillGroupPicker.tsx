@@ -1,22 +1,24 @@
-import React, { useMemo, useState } from 'react';
-import type { TFunction } from 'i18next';
-import {
-  ArrowDown,
-  ArrowUp,
-  Pencil,
-  Plus,
-  Settings2,
-  Trash2,
-} from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import {
   Button,
+  Icon,
   IconButton,
   Input,
-  Modal,
+  ScrollArea,
   Switch,
-  confirmDanger,
-} from '@/component-library';
+  Tooltip,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
+import React, { useMemo, useState } from 'react';
+import type { TFunction } from 'i18next';
+
+import { useTranslation } from 'react-i18next';
+
+import { confirmDanger } from '@/infrastructure/confirm-dialog';
 import type { UserSkillGroup } from '@/infrastructure/config/types';
 import { useNotification } from '@/shared/notification-system';
 import {
@@ -278,17 +280,24 @@ export const SkillGroupManagerModal: React.FC<SkillGroupManagerModalProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={() => {
-        closeEditor();
-        onClose();
+    <Dialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          closeEditor();
+          onClose();
+        }
       }}
-      title={t('agentsOverview.skillGroupPicker.manageTitle')}
-      size="large"
-      contentInset
-      testId="skill-group-manager"
+      size="lg"
+      data-testid="skill-group-manager"
     >
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{t('agentsOverview.skillGroupPicker.manageTitle')}</DialogTitle>
+        </DialogHeading>
+        <DialogClose />
+      </DialogHeader>
+      <DialogBody>
       <div className="skill-group-manager" data-bf-component="skill-group-picker" data-bf-part="manager">
         {isEditing ? (
           <div className="skill-group-manager__editor" data-bf-component="skill-group-picker" data-bf-part="managerEditor">
@@ -304,17 +313,19 @@ export const SkillGroupManagerModal: React.FC<SkillGroupManagerModalProps> = ({
                   }
                 }}
                 placeholder={t('agentsOverview.skillGroupPicker.groupNamePlaceholder')}
+                invalid={nameError}
                 inputSize="small"
                 error={nameError}
                 errorMessage={nameError ? t('agentsOverview.skillGroupPicker.validation.nameRequired') : undefined}
                 suffix={!nameError ? `${name.length}/${GROUP_NAME_MAX_LENGTH}` : undefined}
                 maxLength={GROUP_NAME_MAX_LENGTH}
                 disabled={saving}
+                size="sm"
               />
             </div>
             <div className="skill-group-manager__field">
               <span>{t('agentsOverview.skillGroupPicker.groupSkills')}</span>
-              <div className="skill-group-manager__token-grid" data-bf-component="skill-group-picker" data-bf-part="tokenGrid">
+              <ScrollArea className="skill-group-manager__token-grid" data-bf-component="skill-group-picker" data-bf-part="tokenGrid">
                 {selectableSkills.map((skill) => {
                   const selected = skillKeys.has(skill.key);
                   const tooltipFields = skillTooltipFields(skill, t);
@@ -346,13 +357,13 @@ export const SkillGroupManagerModal: React.FC<SkillGroupManagerModalProps> = ({
                     </AgentCapabilityTooltip>
                   );
                 })}
-              </div>
+              </ScrollArea>
             </div>
             <div className="skill-group-manager__footer">
-              <Button variant="ghost" size="small" onClick={closeEditor} disabled={saving}>
+              <Button variant="outline" size="sm" onClick={closeEditor} disabled={saving}>
                 {t('agentsOverview.cancel')}
               </Button>
-              <Button variant="primary" size="small" onClick={() => void saveEditor()} isLoading={saving}>
+              <Button variant="fill" size="sm" onClick={() => void saveEditor()} loading={saving}>
                 {isEditing && editingGroup
                   ? t('agentsOverview.skillGroupPicker.saveGroup')
                   : t('agentsOverview.skillGroupPicker.createGroup')}
@@ -363,15 +374,15 @@ export const SkillGroupManagerModal: React.FC<SkillGroupManagerModalProps> = ({
           <>
             <div className="skill-group-manager__head">
               <span>{t('agentsOverview.skillGroupPicker.manageSubtitle')}</span>
-              <Button variant="secondary" size="small" onClick={startCreate} disabled={saving}>
-                <Plus size={14} />
+              <Button variant="outline" size="sm" onClick={startCreate} disabled={saving} leadingIcon={<Icon name="plus" size="sm" />}>
+
                 {t('agentsOverview.skillGroupPicker.createGroup')}
               </Button>
             </div>
             {groups.length === 0 ? (
               <p className="skill-group-manager__empty">{t('agentsOverview.skillGroupPicker.noUserGroups')}</p>
             ) : (
-              <div className="skill-group-manager__list" data-bf-component="skill-group-picker" data-bf-part="managerList">
+              <ScrollArea className="skill-group-manager__list" data-bf-component="skill-group-picker" data-bf-part="managerList">
                 {groups.map((group, index) => {
                   const unavailable = unavailableUserSkillKeys(group, skills);
                   return (
@@ -386,60 +397,57 @@ export const SkillGroupManagerModal: React.FC<SkillGroupManagerModalProps> = ({
                         </span>
                       </div>
                       <div className="skill-group-manager__group-actions" data-bf-component="skill-group-picker" data-bf-part="groupActions">
-                        <IconButton
-                          type="button"
-                          size="small"
-                          variant="ghost"
-                          aria-label={t('agentsOverview.skillGroupPicker.moveUp')}
-                          tooltip={t('agentsOverview.skillGroupPicker.moveUp')}
-                          onClick={() => void moveGroup(index, -1)}
-                          disabled={saving || index === 0}
-                        >
-                          <ArrowUp size={13} />
-                        </IconButton>
-                        <IconButton
-                          type="button"
-                          size="small"
-                          variant="ghost"
-                          aria-label={t('agentsOverview.skillGroupPicker.moveDown')}
-                          tooltip={t('agentsOverview.skillGroupPicker.moveDown')}
-                          onClick={() => void moveGroup(index, 1)}
-                          disabled={saving || index === groups.length - 1}
-                        >
-                          <ArrowDown size={13} />
-                        </IconButton>
-                        <IconButton
-                          type="button"
-                          size="small"
-                          variant="ghost"
-                          aria-label={t('agentsOverview.skillGroupPicker.editGroup')}
-                          tooltip={t('agentsOverview.skillGroupPicker.editGroup')}
-                          onClick={() => startEdit(group)}
-                          disabled={saving}
-                        >
-                          <Pencil size={13} />
-                        </IconButton>
-                        <IconButton
-                          type="button"
-                          size="small"
-                          variant="ghost"
-                          aria-label={t('agentsOverview.skillGroupPicker.deleteGroup')}
-                          tooltip={t('agentsOverview.skillGroupPicker.deleteGroup')}
-                          onClick={() => void deleteGroup(group)}
-                          disabled={saving}
-                        >
-                          <Trash2 size={13} />
-                        </IconButton>
+                        <Tooltip content={t('agentsOverview.skillGroupPicker.moveUp')}>
+                          <IconButton
+                            type="button"
+                            size="sm"
+                            aria-label={t('agentsOverview.skillGroupPicker.moveUp')}
+                            onClick={() => void moveGroup(index, -1)}
+                            disabled={saving || index === 0}
+                            icon={<Icon name="arrow-up" size="xs" />}
+                          />
+                        </Tooltip>
+                        <Tooltip content={t('agentsOverview.skillGroupPicker.moveDown')}>
+                          <IconButton
+                            type="button"
+                            size="sm"
+                            aria-label={t('agentsOverview.skillGroupPicker.moveDown')}
+                            onClick={() => void moveGroup(index, 1)}
+                            disabled={saving || index === groups.length - 1}
+                            icon={<Icon name="arrow-down" size="lg" style={{ width: 13, height: 13 }} />}
+                          />
+                        </Tooltip>
+                        <Tooltip content={t('agentsOverview.skillGroupPicker.editGroup')}>
+                          <IconButton
+                            type="button"
+                            size="sm"
+                            aria-label={t('agentsOverview.skillGroupPicker.editGroup')}
+                            onClick={() => startEdit(group)}
+                            disabled={saving}
+                            icon={<Icon name="edit" size="xs" />}
+                          />
+                        </Tooltip>
+                        <Tooltip content={t('agentsOverview.skillGroupPicker.deleteGroup')}>
+                          <IconButton
+                            type="button"
+                            size="sm"
+                            aria-label={t('agentsOverview.skillGroupPicker.deleteGroup')}
+                            onClick={() => void deleteGroup(group)}
+                            disabled={saving}
+                            icon={<Icon name="delete" size="lg" style={{ width: 13, height: 13 }} />}
+                          />
+                        </Tooltip>
                       </div>
                     </div>
                   );
                 })}
-              </div>
+              </ScrollArea>
             )}
           </>
         )}
       </div>
-    </Modal>
+          </DialogBody>
+    </Dialog>
   );
 };
 
@@ -479,12 +487,13 @@ export const SkillGroupPicker: React.FC<SkillGroupPickerProps> = ({
           {t('agentsOverview.skillGroupPicker.selectedCount', { count: selectedCount })}
         </span>
         <Button
-          variant="ghost"
-          size="small"
+          variant="outline"
+          size="sm"
           onClick={() => setIsManagerOpen(true)}
           disabled={disabled}
+          leadingIcon={<Icon name="settings" size="sm" />}
         >
-          <Settings2 size={14} />
+
           {t('agentsOverview.skillGroupPicker.manageGroups')}
         </Button>
       </div>
@@ -507,8 +516,8 @@ export const SkillGroupPicker: React.FC<SkillGroupPickerProps> = ({
                     <div className="skill-group-picker__group-actions" data-bf-component="skill-group-picker" data-bf-part="groupActions">
                       {selectedInGroup > 0 && !allSelected ? (
                         <Button
-                          variant="ghost"
-                          size="small"
+                          variant="outline"
+                          size="sm"
                           onClick={() => onSelectionChange(
                             setSkillGroupSelection(selectedSkillKeys, skillGroupKeys(group), false),
                           )}
@@ -518,7 +527,6 @@ export const SkillGroupPicker: React.FC<SkillGroupPickerProps> = ({
                         </Button>
                       ) : null}
                       <Switch
-                        size="small"
                         checked={allSelected}
                         onChange={(event) => onSelectionChange(
                           setSkillGroupSelection(

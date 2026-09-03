@@ -6,7 +6,12 @@ import {
   SelectedImageAttachment,
   SessionSummary
 } from '../../model/RemoteModels';
-import { ChatTimelineItem, ChatTimelineRevisionTracker } from '../../services/ChatTimelineProjector';
+import {
+  ChatTimelineItem,
+  ObservableChatTimelineItem,
+  ChatTimelineRevisionTracker,
+  ChatTimelineRowStore
+} from '../../model/ChatTimelineModels';
 import { RemoteUiState } from '../../services/RemoteUiState';
 
 /** Shared observable state for General Chat and Remote Chat conversations. */
@@ -18,7 +23,7 @@ export class ConversationCoreState {
   @Trace optimisticMessages: ChatMessage[] = [];
   @Trace activeTurnMessage: ChatMessage = RemoteUiState.emptyActiveTurn();
   @Trace hasMoreMessages: boolean = false;
-  @Trace timelineItems: ChatTimelineItem[] = [];
+  @Trace timelineItems: ObservableChatTimelineItem[] = [];
   @Trace timelineRevision: number = 0;
   @Trace isBusy: boolean = false;
   @Trace modelCatalog: RemoteModelCatalog = RemoteUiState.emptyModelCatalog();
@@ -29,6 +34,7 @@ export class ConversationCoreState {
   @Trace isVoiceListening: boolean = false;
   private readonly defaultAgentType: string;
   private readonly timelineRevisionTracker: ChatTimelineRevisionTracker = new ChatTimelineRevisionTracker();
+  private readonly timelineRowStore: ChatTimelineRowStore = new ChatTimelineRowStore();
 
   constructor(defaultAgentType: string) {
     this.defaultAgentType = defaultAgentType;
@@ -68,7 +74,7 @@ export class ConversationCoreState {
       ConversationCoreState.copyMessage(activeTurnMessage) :
       RemoteUiState.emptyActiveTurn();
     this.hasMoreMessages = hasMoreMessages;
-    this.timelineItems = timelineItems.slice();
+    this.timelineItems = this.timelineRowStore.reconcile(timelineItems);
   }
 
   setHasMoreMessages(hasMoreMessages: boolean): void {
@@ -81,6 +87,7 @@ export class ConversationCoreState {
     this.activeTurnMessage = RemoteUiState.emptyActiveTurn();
     this.hasMoreMessages = false;
     this.timelineItems = [];
+    this.timelineRowStore.clear();
     this.timelineRevision = this.timelineRevisionTracker.reset();
   }
 
@@ -116,6 +123,24 @@ export class ConversationCoreState {
   clearComposer(): void {
     this.chatInput = '';
     this.selectedImages = [];
+  }
+
+  /**
+   * Drops the complete observable projection of one conversation context.
+   *
+   * Account logout, disconnect and workspace replacement must not rebuild this
+   * list field-by-field: leaving even one field behind makes the next surface
+   * look as if it still belongs to the previous identity.
+   */
+  reset(): void {
+    this.sessions = [];
+    this.clearActiveSession();
+    this.isBusy = false;
+    this.modelCatalog = RemoteUiState.emptyModelCatalog();
+    this.selectedModelId = '';
+    this.statusText = '';
+    this.clearComposer();
+    this.isVoiceListening = false;
   }
 
   setVoiceListening(isVoiceListening: boolean): void {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   gitRepositoryUntrustedPath,
   isGitRepositoryUntrustedError,
+  isNotAvailableError,
   isOutcomeUnknownError,
   isSessionInUseError,
   TauriCommandError,
@@ -60,6 +61,20 @@ describe('isOutcomeUnknownError', () => {
 
   it('does not infer unknown outcomes from human prose', () => {
     expect(isOutcomeUnknownError(new Error('The rename might have worked'))).toBe(false);
+  });
+});
+
+describe('isNotAvailableError', () => {
+  it('recognizes a stable unsupported capability prefix through wrappers', () => {
+    expect(
+      isNotAvailableError({
+        context: { originalError: 'not_available: future profile is unsupported' },
+      }),
+    ).toBe(true);
+  });
+
+  it('does not infer unsupported state from prose', () => {
+    expect(isNotAvailableError(new Error('This feature is unavailable'))).toBe(false);
   });
 });
 

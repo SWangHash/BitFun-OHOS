@@ -7,7 +7,6 @@ import React, { useMemo, useCallback, useRef, useEffect, useLayoutEffect, useSta
 import { useTranslation } from 'react-i18next';
 import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { FlowChatManager } from '@/flow_chat/services/FlowChatManager';
-import { useSessionModeStore } from '@/app/stores/sessionModeStore';
 import {
   VirtualMessageList,
   type FlowChatTurnNavigationStatus,
@@ -44,12 +43,7 @@ import {
   useVisibleTurnInfo,
   type VisibleTurnInfo,
 } from '../../store/modernFlowChatStore';
-import type {
-  FlowChatConfig,
-  DialogTurn,
-  Session,
-  SessionHistoryPresentation,
-} from '../../types/flow-chat';
+import type { Session, SessionHistoryPresentation } from '../../types/flow-chat';
 import type { SessionHistoryWindowDirection } from '../../store/FlowChatStore';
 import {
   FLOWCHAT_MESSAGE_SUBMITTED_EVENT,
@@ -64,7 +58,7 @@ import {
 import {
   useBackgroundSubagentActivityStore,
 } from '../../store/backgroundSubagentActivityStore';
-import { PresenceBoundary, type LineRange } from '@/component-library';
+import { type LineRange } from '@/shared/editor/LineRange';
 import { isChatPopupActive, subscribeChatPopupChange } from '../chatPopupState';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { flowChatSessionConfigForCurrentWorkspace } from '@/app/utils/projectSessionWorkspace';
@@ -74,7 +68,6 @@ import { createBackgroundCommandOutputTab, createReviewPlatformPullRequestDetail
 import { isAcpFlowSession } from '../../utils/acpSession';
 import { flowChatStore } from '../../store/FlowChatStore';
 import { openBtwSessionInAuxPane } from '../../services/btwSessionPane';
-import { resolveThreadGoalHeaderTitle } from '../../utils/threadGoalDisplay';
 import { hasActiveSessionLineageDescendants } from '../../utils/sessionLineage';
 import {
   findDialogTurn,
@@ -93,6 +86,7 @@ import {
   getHistorySessionOpenTransitionSnapshot,
   hasRenderableSessionContent,
   HISTORY_SESSION_OPEN_INTENT_EVENT,
+  subscribeHistorySessionOpenTransition,
   type HistorySessionOpenIntentDetail,
 } from '../../services/sessionOpenIntent';
 import {
@@ -109,7 +103,6 @@ import {
   type RenderedTranscriptRange,
 } from './flowChatLiveTailWindow';
 import './ModernFlowChatContainer.scss';
-import { PermissionRequestPanel } from './PermissionRequestPanel';
 import { pendingPermissionToolCallIdsForSession } from './permissionRequestRouting';
 import { usePermissionRequests } from './usePermissionRequests';
 import {
@@ -127,17 +120,18 @@ const log = createLogger('ModernFlowChatContainer');
 
 interface ModernFlowChatContainerProps {
   className?: string;
-  config?: Partial<FlowChatConfig>;
   isViewportActive?: boolean;
-  permissionPanelAboveChatInput?: boolean;
+  /** Whether the host-owned session right panel is open. */
+  isRightPanelOpen?: boolean;
+  /** Toggle the host-owned session right panel. */
+  onToggleRightPanel?: () => void;
   /** Host-owned replacement for the ordinary new-session WelcomePanel. */
   emptyState?: React.ReactNode;
 
-  // Callbacks compatible with the legacy version.
+  // Host-owned file, tab, and visualization actions.
   onFileViewRequest?: (filePath: string, fileName: string, lineRange?: LineRange) => void;
   onTabOpen?: (tabInfo: any, sessionId?: string, panelType?: string) => void;
   onOpenVisualization?: (type: string, data: any) => void;
-  onSwitchToChatPanel?: () => void;
 }
 
 interface FlowChatTurnSummary {
@@ -291,14 +285,13 @@ function backgroundCommandSummaryFromActivity(activity: BackgroundCommandActivit
 
 export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = ({
   className = '',
-  config,
   isViewportActive = true,
-  permissionPanelAboveChatInput = false,
+  isRightPanelOpen = false,
+  onToggleRightPanel,
   emptyState,
   onFileViewRequest,
   onTabOpen,
   onOpenVisualization,
-  onSwitchToChatPanel,
 }) => {
   const { t } = useTranslation('flow-chat');
   const canonicalVirtualItems = useVirtualItems();
@@ -466,36 +459,10 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     renderedHistoryPresentation,
   ]);
 
-  const {
-    requests: permissionRequests,
-    ownedRequests: ownedPermissionRequests,
-    ownedActiveBatch: activePermissionBatch,
-    respond: respondPermission,
-    respondBatch: respondPermissionBatch,
-  } = usePermissionRequests(activeSession?.sessionId);
-  const activePermissionPanelSnapshot = activeSession && activePermissionBatch
-    ? {
-        ownerSessionId: activeSession.sessionId,
-        batch: activePermissionBatch,
-        totalPendingCount: ownedPermissionRequests.length,
-        aboveChatInput: permissionPanelAboveChatInput,
-        onRespond: respondPermission,
-        onRespondBatch: respondPermissionBatch,
-      }
-    : null;
-  const retainedPermissionPanelSnapshotRef = useRef(activePermissionPanelSnapshot);
-  let renderedPermissionPanelSnapshot = activePermissionPanelSnapshot;
-  if (activePermissionPanelSnapshot) {
-    retainedPermissionPanelSnapshotRef.current = activePermissionPanelSnapshot;
-  } else if (
-    retainedPermissionPanelSnapshotRef.current?.ownerSessionId === activeSession?.sessionId
-  ) {
-    renderedPermissionPanelSnapshot = retainedPermissionPanelSnapshotRef.current;
-  } else {
-    // A retained exit belongs to its originating session. Never let it cross a
-    // session boundary with the new session's callbacks or surrounding props.
-    retainedPermissionPanelSnapshotRef.current = null;
-  }
+  // The transcript reads the pending list to mark the tool cards that are
+  // waiting; answering them belongs to the composer, which reads the same
+  // shared subscription.
+  const { requests: permissionRequests } = usePermissionRequests(activeSession?.sessionId);
   const visibleTurnInfo = useVisibleTurnInfo();
   const [queuedTurnNavigation, setQueuedTurnNavigation] = useState<QueuedTurnNavigation | null>(null);
   const [pendingHistoryOpenSession, setPendingHistoryOpenSession] = useState<HistorySessionOpenIntentDetail | null>(null);
@@ -858,6 +825,13 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     };
   }, []);
 
+  useEffect(() => subscribeHistorySessionOpenTransition(() => {
+    const transition = getHistorySessionOpenTransitionSnapshot();
+    setPendingHistoryOpenSession(current => (
+      current && transition?.sessionId !== current.sessionId ? null : current
+    ));
+  }), []);
+
   useEffect(() => {
     if (!pendingHistoryOpenSession) {
       return;
@@ -939,7 +913,6 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     onTabOpen,
     onHttpLinkClick: handleHttpLinkClick,
     onOpenVisualization,
-    onSwitchToChatPanel,
     onToolConfirm: handleToolConfirm,
     onToolReject: handleToolReject,
     sessionId: activeSessionId,
@@ -948,14 +921,6 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     isHistoricalSession: activeSessionIsHistorical,
     contextRestoreState: activeSessionContextRestoreState,
     allowUserMessageRollback,
-    config: {
-      enableMarkdown: true,
-      autoScroll: true,
-      showTimestamps: false,
-      maxHistoryRounds: 50,
-      enableVirtualScroll: true,
-      ...config,
-    },
     onExploreGroupToggle: handleExploreGroupToggle,
     onExpandGroup: handleExpandGroup,
     onExpandAllInTurn: handleExpandAllInTurn,
@@ -965,7 +930,6 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     onTabOpen,
     handleHttpLinkClick,
     onOpenVisualization,
-    onSwitchToChatPanel,
     handleToolConfirm,
     handleToolReject,
     activeSessionId,
@@ -974,7 +938,6 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     activeSessionIsHistorical,
     activeSessionContextRestoreState,
     allowUserMessageRollback,
-    config,
     handleExploreGroupToggle,
     handleExpandGroup,
     handleExpandAllInTurn,
@@ -994,19 +957,6 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     searchMatchIndices,
     searchCurrentMatchVirtualIndex,
   ]);
-
-  const resolveLocalCommandHeaderTitle = useCallback((metadata: DialogTurn['userMessage']['metadata']) => {
-    if (metadata?.localCommandKind === 'usage_report') {
-      return t('usage.title');
-    }
-    const threadGoalTitle = resolveThreadGoalHeaderTitle(
-      metadata as Record<string, unknown> | undefined
-    );
-    if (threadGoalTitle) {
-      return threadGoalTitle;
-    }
-    return null;
-  }, [t]);
 
   const turnSummaries = useMemo<FlowChatTurnSummary[]>(() => {
     if (!activeSession) {
@@ -1292,19 +1242,6 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
       turnRailItems.flatMap(turn => turn.turnId ? [turn.turnId] : []),
     );
   }, [turnRailItems]);
-
-  const currentHeaderMessage = useMemo(() => {
-    const turnId = effectiveVisibleTurnInfo?.turnId;
-    if (!turnId) {
-      return effectiveVisibleTurnInfo?.userMessage ?? '';
-    }
-    const turn = renderedTurns.find(item => item.id === turnId);
-    const localCommandTitle = resolveLocalCommandHeaderTitle(turn?.userMessage?.metadata);
-    if (localCommandTitle) {
-      return localCommandTitle;
-    }
-    return effectiveVisibleTurnInfo?.userMessage ?? '';
-  }, [effectiveVisibleTurnInfo?.turnId, effectiveVisibleTurnInfo?.userMessage, renderedTurns, resolveLocalCommandHeaderTitle]);
 
   const requestTurnNavigation = useCallback((turnId: string): FlowChatTurnNavigationStatus => {
     if (!isViewportActive) {
@@ -2405,7 +2342,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
       parentSessionId: selection.parentSessionId,
       workspacePath: selection.workspacePath || activeSession.workspacePath,
       sessionKind: 'subagent',
-      sessionTitle: selection.title,
+      sessionTitle: selection.displayTitle,
       agentType: selection.agentType,
       parentToolCallId: selection.parentToolCallId,
       subagentType: selection.subagentType,
@@ -2568,7 +2505,6 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     () => {
       void (async () => {
         try {
-          useSessionModeStore.getState().setMode('code');
           await FlowChatManager.getInstance().createChatSession(
             flowChatSessionConfigForCurrentWorkspace(activeWorkspace),
             'agentic',
@@ -2623,15 +2559,10 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
         data-bf-part="root"
       >
         <FlowChatHeader
-          currentTurn={effectiveVisibleTurnInfo?.turnIndex ?? 0}
-          totalTurns={effectiveVisibleTurnInfo?.totalTurns ?? 0}
-          currentUserMessage={currentHeaderMessage}
           visible={virtualItems.length > 0}
           sessionId={activeSession?.sessionId}
-          onJumpToCurrentTurn={() => {
-            const turnId = effectiveVisibleTurnInfo?.turnId;
-            if (turnId) navigateToTurn(turnId);
-          }}
+          isRightPanelOpen={isRightPanelOpen}
+          onToggleRightPanel={onToggleRightPanel}
           searchQuery={searchQuery}
           onSearchChange={handleSearchChange}
           searchMatchCount={searchMatches.length}
@@ -2656,20 +2587,6 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
           onClose={handleCloseBackgroundCommandInput}
           onSend={handleSendBackgroundCommandInput}
         />
-
-        <PresenceBoundary active={activePermissionPanelSnapshot != null}>
-          {renderedPermissionPanelSnapshot ? (
-            <PermissionRequestPanel
-              key={`${renderedPermissionPanelSnapshot.batch.sessionId}:${renderedPermissionPanelSnapshot.batch.roundId}`}
-              requests={renderedPermissionPanelSnapshot.batch.requests}
-              totalPendingCount={renderedPermissionPanelSnapshot.totalPendingCount}
-              aboveChatInput={renderedPermissionPanelSnapshot.aboveChatInput}
-              visible={activePermissionPanelSnapshot != null}
-              onRespond={renderedPermissionPanelSnapshot.onRespond}
-              onRespondBatch={renderedPermissionPanelSnapshot.onRespondBatch}
-            />
-          ) : null}
-        </PresenceBoundary>
 
         <div
           className="modern-flowchat-container__messages"

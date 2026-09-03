@@ -1,20 +1,17 @@
 /**
  * NotificationButton styles — TitleBar notification indicator.
  */
-
-@use '../../../component-library/styles/tokens.scss' as *;
-
 .bitfun-notification-btn {
   display: flex;
   align-items: center;
-  gap: $size-gap-1;
+  gap: var(--bf-space-1);
   border: none;
   background: transparent;
-  color: var(--bf-appearance-token-color-text-muted);
+  color: var(--bf-color-content-muted);
   cursor: pointer;
   padding: 4px 6px;
-  border-radius: $size-radius-sm;
-  font-size: var(--bf-appearance-token-font-size-xs);
+  border-radius: var(--bf-radius-sm);
+  font-size: var(--bf-font-size-xs);
   flex-shrink: 0;
   position: relative;
   transition:
@@ -23,13 +20,13 @@
     background 120ms ease;
 
   &:hover {
-    color: var(--bf-appearance-token-color-text-primary);
-    background: var(--bf-appearance-token-element-bg-soft);
+    color: var(--bf-color-content-primary);
+    background: var(--bf-color-action-quiet-hover);
   }
 
   &:active {
     transform: scale(0.94);
-    background: var(--bf-appearance-token-element-bg-medium);
+    background: var(--bf-color-action-neutral-surface-hover);
   }
 
   svg {
@@ -37,7 +34,7 @@
   }
 
   &__icon--has-message {
-    color: var(--bf-appearance-token-color-accent-400);
+    color: color-mix(in srgb, var(--bf-color-accent-default) 40%, transparent);
   }
 
   // ── Progress state ──────────────────────────────
@@ -48,8 +45,8 @@
   }
 
   &__progress-text {
-    font-size: var(--bf-appearance-token-font-size-xs);
-    color: var(--bf-appearance-token-color-text-secondary);
+    font-size: var(--bf-font-size-xs);
+    color: var(--bf-color-content-secondary);
     white-space: nowrap;
   }
 
@@ -63,6 +60,24 @@
     animation: notif-btn-spin 1s linear infinite;
   }
 
+  &__menu-status,
+  &__menu-count {
+    flex-shrink: 0;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__menu-count {
+    min-width: 18px;
+    padding: 1px 5px;
+    border-radius: var(--bf-radius-pill);
+    background: var(--bf-color-action-neutral-surface-hover);
+    color: var(--bf-color-content-primary);
+    line-height: var(--bf-line-height-tight);
+    text-align: center;
+  }
+
   // ── Tooltip ──────────────────────────────────────
   &__tooltip {
     position: absolute;
@@ -70,18 +85,18 @@
     left: 50%;
     transform: translateX(-50%);
     pointer-events: none;
-    z-index: $z-tooltip;
+    z-index: var(--bf-layer-tooltip);
     white-space: nowrap;
   }
 
   &__tooltip-content {
-    background: var(--bf-appearance-token-color-bg-elevated);
-    border: 1px solid var(--bf-appearance-token-border-medium);
-    border-radius: $size-radius-sm;
+    background: var(--bf-color-surface-raised);
+    border: 1px solid var(--bf-color-field-border-hover);
+    border-radius: var(--bf-radius-sm);
     padding: 4px 8px;
-    font-size: var(--bf-appearance-token-font-size-xs);
-    color: var(--bf-appearance-token-color-text-primary);
-    box-shadow: var(--bf-appearance-token-shadow-base);
+    font-size: var(--bf-font-size-xs);
+    color: var(--bf-color-content-primary);
+    box-shadow: var(--bf-shadow-base);
     max-width: 300px;
     overflow: hidden;
     text-overflow: ellipsis;

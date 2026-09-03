@@ -13,7 +13,7 @@ const warningMock = vi.hoisted(() => vi.fn());
 const successMock = vi.hoisted(() => vi.fn());
 const isPeerDeviceModeActiveMock = vi.hoisted(() => vi.fn(() => false));
 
-vi.mock('@/component-library/components/ConfirmDialog/confirmService', () => ({
+vi.mock('@/infrastructure/confirm-dialog', () => ({
   confirmWarning: confirmWarningMock,
 }));
 

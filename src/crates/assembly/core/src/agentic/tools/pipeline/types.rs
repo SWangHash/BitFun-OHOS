@@ -131,6 +131,9 @@ pub struct ToolTask {
     pub created_at: SystemTime,
     pub started_at: Option<SystemTime>,
     pub completed_at: Option<SystemTime>,
+    /// Tool-owned signal for ending a yieldable call at a round-injection
+    /// boundary. This is deliberately distinct from ordinary cancellation.
+    pub round_injection_preemption_token: Option<CancellationToken>,
 }
 
 impl ToolTask {
@@ -167,6 +170,7 @@ impl ToolTask {
             created_at: SystemTime::now(),
             started_at: None,
             completed_at: None,
+            round_injection_preemption_token: None,
         }
     }
 

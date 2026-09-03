@@ -1,7 +1,16 @@
+import {
+  Button,
+  ScrollArea,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import type { MiniAppPermissionDiff } from '@/infrastructure/api/service-api/MiniAppAPI';
-import { Button, Modal } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';
 
 interface MiniAppPermissionDiffDialogProps {
@@ -20,11 +29,13 @@ function PermissionList({ title, items }: { title: string; items: string[] }) {
   return (
     <section className="miniapp-permission-dialog__section">
       <h4>{title}</h4>
-      <ul>
-        {items.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
+      <ScrollArea className="miniapp-permission-dialog__list">
+        <ul>
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </ScrollArea>
     </section>
   );
 }
@@ -39,33 +50,40 @@ export const MiniAppPermissionDiffDialog: React.FC<MiniAppPermissionDiffDialogPr
   const { t } = useI18n('scenes/miniapp');
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={applying ? () => undefined : onCancel}
-      title={t('customize.permissionDialog.title')}
-      size="medium"
-      closeOnOverlayClick={!applying}
-      contentInset
-      overlayClassName="miniapp-permission-dialog"
+    <Dialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !applying) onCancel();
+      }}
+      size="md"
+      closeOnPointerOutside={!applying}
     >
-      <div className="miniapp-permission-dialog__body">
-        <div className="miniapp-permission-dialog__notice">
-          <AlertTriangle size={20} />
-          <p>{t('customize.permissionDialog.body')}</p>
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{t('customize.permissionDialog.title')}</DialogTitle>
+        </DialogHeading>
+        <DialogClose />
+      </DialogHeader>
+      <DialogBody className="miniapp-permission-dialog">
+        <div className="miniapp-permission-dialog__body">
+          <div className="miniapp-permission-dialog__notice">
+            <AlertTriangle size={20} />
+            <p>{t('customize.permissionDialog.body')}</p>
+          </div>
+          <PermissionList title={t('customize.permissionDialog.added')} items={diff?.added ?? []} />
+          <PermissionList title={t('customize.permissionDialog.expanded')} items={diff?.expanded ?? []} />
+          <PermissionList title={t('customize.permissionDialog.removed')} items={diff?.removed ?? []} />
+          <div className="miniapp-permission-dialog__actions">
+            <Button variant="outline" size="sm" onClick={onCancel} disabled={applying}>
+              {t('customize.permissionDialog.cancel')}
+            </Button>
+            <Button variant="fill" tone="danger" size="sm" onClick={onConfirm} loading={applying}>
+              {t('customize.permissionDialog.confirm')}
+            </Button>
+          </div>
         </div>
-        <PermissionList title={t('customize.permissionDialog.added')} items={diff?.added ?? []} />
-        <PermissionList title={t('customize.permissionDialog.expanded')} items={diff?.expanded ?? []} />
-        <PermissionList title={t('customize.permissionDialog.removed')} items={diff?.removed ?? []} />
-        <div className="miniapp-permission-dialog__actions">
-          <Button variant="secondary" size="small" onClick={onCancel} disabled={applying}>
-            {t('customize.permissionDialog.cancel')}
-          </Button>
-          <Button variant="danger" size="small" onClick={onConfirm} isLoading={applying}>
-            {t('customize.permissionDialog.confirm')}
-          </Button>
-        </div>
-      </div>
-    </Modal>
+      </DialogBody>
+    </Dialog>
   );
 };
 

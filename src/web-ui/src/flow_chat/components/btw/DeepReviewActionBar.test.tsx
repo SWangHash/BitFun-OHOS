@@ -40,7 +40,7 @@ vi.mock('react-i18next', async () => {
   };
 });
 
-vi.mock('@/component-library', () => ({
+vi.mock('@bitfun/ui', () => ({
   Button: ({
     children,
     disabled,
@@ -130,7 +130,7 @@ vi.mock('@/infrastructure/event-bus', () => ({
   },
 }));
 
-vi.mock('@/component-library/components/ConfirmDialog/confirmService', () => ({
+vi.mock('@/infrastructure/confirm-dialog', () => ({
   confirmWarning: confirmWarningMock,
 }));
 
@@ -568,7 +568,7 @@ describeWithJsdom('DeepReviewActionBar', () => {
     });
 
     const { useSettingsStore } = await import('@/app/scenes/settings/settingsStore');
-    expect(useSettingsStore.getState().activeTab).toBe('review');
+    expect(useSettingsStore.getState().activePageId).toBe('tools.execution');
   });
 
   it('sends backend queue control actions for event-driven capacity waits', async () => {

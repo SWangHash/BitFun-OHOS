@@ -2,8 +2,6 @@
   "permission": {
     "title": "需要授權",
     "subagentOwner": "{{subagent}} 子 Agent",
-    "feedbackLabel": "拒絕回饋",
-    "feedbackPlaceholder": "拒絕時可選填後續建議",
     "responseFailed": "權限回覆未能送達，請重試。",
     "allowOnce": "允許一次",
     "allowAlways": "始終允許",
@@ -21,11 +19,12 @@
       "public": "公開"
     },
     "reject": "拒絕",
+    "rejectWithReason": "附理由拒絕",
+    "rejectWithReasonTooltip": "以輸入框中的內容作為拒絕理由，送出後清空輸入框。",
+    "scopeLabel": "回覆範圍",
+    "scopeThis": "本次",
+    "scopeAll": "全部",
     "batchCount": "{{count}} 個授權請求",
-    "collapsePanel": "收起授權請求",
-    "expandPanel": "展開 {{count}} 個待處理的授權請求",
-    "current": "目前",
-    "pending": "等待中",
     "actions": {
       "read": "讀取檔案",
       "edit": "編輯檔案",
@@ -172,7 +171,9 @@
       "turns": "{{count}} 輪",
       "calls": "{{count}} 次呼叫",
       "operations": "{{count}} 次操作",
-      "tokens": "{{value}} Tokens"
+      "tokens": "{{value}} Tokens",
+      "tokenUsage": "Tokens 用量",
+      "dataDelayDisclaimer": "資料統計可能存在延遲，最終以系統記錄為準"
     },
     "loading": {
       "title": "正在產生用量報告",
@@ -528,11 +529,6 @@
     "promptSection": "所屬區域：{{section}}。",
     "promptFile": "關聯檔案：{{file}}{{line}}。"
   },
-  "modelConfigurationNotice": {
-    "title": "暫無可用的 AI 模型",
-    "description": "請先設定並啟用模型，然後開始對話。",
-    "action": "模型設定"
-  },
   "input": {
     "placeholder": "有什麼可以幫您...",
     "placeholderWithContext": "輸入消息，或拖放檔案新增上下文...",
@@ -546,8 +542,6 @@
     "cancelShortcut": "取消",
     "clear": "清空",
     "attach": "附加檔案",
-    "nativeDropRemoteUnsupported": "無法將本機檔案直接附加到遠端工作區，請先透過檔案面板上傳。",
-    "nativeDropFailed": "無法附加拖入的檔案。",
     "collapseInput": "收起輸入框",
     "expandInput": "展開輸入框",
     "retry": "重試",
@@ -565,12 +559,19 @@
     "voiceInput": {
       "start": "開始語音輸入",
       "stop": "停止錄音",
-      "recording": "正在錄音，點擊麥克風可停止錄製",
       "preparing": "正在準備麥克風",
       "transcribing": "正在轉寫",
       "disabled": "語音輸入已關閉",
       "unsupported": "目前無法使用麥克風",
       "modelMissing": "請先下載本地語音模型",
+      "setupRequired": "需下載 {{size}} 本機語音模型",
+      "setupRequiredUnknownSize": "需下載本機語音模型",
+      "downloadAndStart": "下載並開始",
+      "downloadingModel": "模型下載中 {{percent}}%",
+      "setupTooltip": "下載本機模型後開始語音輸入",
+      "downloadingTooltip": "正在下載本機語音模型",
+      "downloadFailed": "本機語音模型下載失敗",
+      "cancelSetup": "取消語音輸入設定",
       "cloudPending": "雲端轉寫已設定，但轉寫通路尚未接入",
       "permissionDenied": "麥克風權限被拒絕",
       "deviceDisconnected": "所選麥克風已中斷連線",
@@ -582,6 +583,7 @@
     }
   },
   "workspaceStrip": {
+    "branchSwitchLabel": "切換分支。目前分支：{{branch}}",
     "branchTooltipUnavailable": "非 Git 存放庫或目前無分支",
     "branchTooltipUntrusted": "該目錄屬於其他使用者，Git 拒絕讀取此存放庫。信任該目錄後即可看到分支。"
   },
@@ -694,8 +696,61 @@
         "submissionUnconfirmed": "暫時無法確認目標是否已收到任務。請稍後檢查任務狀態。"
       }
     },
-    "addBoostTooltip": "智能體模式、圖片或 Skill",
+    "harness": {
+      "selectorTooltip": "目前執行：{{name}}",
+      "fixedTooltip": "本工作階段使用 {{name}}，開始後已固定。",
+      "activateBalanced": "切換到標準 Harness",
+      "compatibilityShort": "相容模式",
+      "comingSoon": "開發中",
+      "comingSoonNotice": "「{{name}}」Harness 執行框架正在開發中。",
+      "legacySessionNotice": "該舊會話繼續使用原 Agent 執行模式；請新增會話使用 Agent Harness 執行框架。",
+      "sessionStartedNotice": "Harness 與主 Agent 在首輪開始前確定；如需切換，請新增會話。",
+      "newSessionConfirmation": {
+        "title": "使用「{{name}}」建立新工作階段？",
+        "message": "目前工作階段不會變更；新工作階段將使用「{{name}}」。",
+        "confirm": "建立新工作階段"
+      },
+      "unsupportedProfile": "不支援的 Harness（{{id}}）",
+      "unsupportedProfileNotice": "該工作階段使用目前版本無法執行的 {{id}}。請選擇受支援的 Harness。",
+      "profileChangeBusy": "請等待目前回合結束後再切換 Harness。",
+      "profileChangeOutcomeUnknown": "暫時無法確認 Harness 是否已切換，請重新整理工作階段後再重試。",
+      "profileUnavailable": "目前 BitFun Host 不支援該 Harness。",
+      "profileChangeFailed": "切換 Harness 失敗，請重試。",
+      "otherAgentsTitle": "智能體",
+      "otherAgentsEmpty": "目前沒有可用的主智能體",
+      "unavailable": "無法使用",
+      "agentUnavailable": "目前 Host 或設定不支援 {{name}}。",
+      "profiles": {
+        "minimal": { "name": "極簡" },
+        "balanced": { "name": "標準" },
+        "ultimate": { "name": "極致" },
+        "creative": { "name": "創造" },
+        "other": { "name": "智能體" }
+      }
+    },
+    "agents": {
+      "available": "可用",
+      "needsChanges": "需要變更",
+      "comingSoon": "開發中",
+      "comingSoonNotice": "直接呼叫「{{name}}」Agent 的能力正在開發中。",
+      "reviewUnavailable": "Review Agent 需要一個包含可審查變更的活動會話。",
+      "review": { "name": "Review" },
+      "cowork": { "name": "Cowork" },
+      "computerUse": { "name": "Computer Use" }
+    },
+    "addBoostTooltip": "指令、上下文、圖片或 Skill",
     "modeChangeFailed": "切換智能體模式失敗，請重試。",
+    "reasoningStatus": {
+      "levels": {
+        "none": "關閉",
+        "minimal": "極低",
+        "low": "低",
+        "medium": "標準",
+        "high": "高",
+        "xhigh": "極高",
+        "max": "最高"
+      }
+    },
     "permissionMode": {
       "menuLabel": "權限模式",
       "globalScope": "全域",
@@ -732,8 +787,12 @@
       "resetToDefault": "跟隨預設模式",
       "noSession": "請先開啟或新建工作階段，再變更其權限模式。",
       "turnScope": "僅下一則訊息",
+      "turnSettings": "下一則訊息設定",
+      "followSessionMode": "跟隨目前工作階段",
+      "backToSessionSettings": "返回目前工作階段權限設定",
       "currentTurnOverride": "權限：{{mode}}（僅下一則訊息）",
       "activeTurnScope": "目前輪次",
+      "activeTurnSettings": "目前輪次設定",
       "currentActiveTurnOverride": "權限：{{mode}}（僅目前輪次）",
       "nextTurnOnly": "僅下一則訊息使用「{{mode}}」",
       "nextTurnOnlyShort": "僅一次",
@@ -743,22 +802,18 @@
       "fullAccessWarningMessageActiveTurn": "完全存取會預設放行工具呼叫，不再逐次確認。此設定從目前輪次的後續模型輪次生效，專案規則與強制規則仍然生效。",
       "openDefaultSettings": "開啟權限設定"
     },
-    "addModeTooltip": "附加 Plan 或 Debug",
-    "boostSectionAgent": "智能體",
     "boostSectionContext": "上下文",
     "boostStartBtw": "發起側問",
     "boostNewSession": "新建會話",
     "boostAddContext": "引用檔案或資料夾",
     "boostSkills": "Skills",
-    "modeSection": "模式",
+    "boostAdditionalModes": "附加模式",
     "boostSkillsLoading": "正在載入 Skills…",
+    "boostSkillsLoadFailed": "Skills 載入失敗，點擊重試",
     "boostSkillsEmpty": "暫無已啟用的 Skill",
     "openSkillsLibrary": "管理 Skills…",
     "insertSkillLine": "Please use the Skill tool with command \"{{name}}\".",
-    "addModeMenuTitle": "附加模式",
-    "createCustomMode": "自訂模式",
-    "resetToAgentic": "恢復默認模式",
-    "noIncrementalModes": "暫無可附加模式",
+    "resetToAgentic": "移除目前 Agent",
     "defaultModeSetTooltip": "將 {{mode}} 設為新聊天預設模式",
     "defaultModeUnsetTooltip": "預設模式覆蓋已啟用，點擊清除",
     "defaultModeSet": "已將 {{mode}} 設為新聊天預設模式。",
@@ -819,7 +874,6 @@
     "reloadInstructionsDone": "指令將在下一則訊息時重新讀取。",
     "reloadFailed": "重新載入失敗",
     "currentMode": "目前模式: {{mode}}",
-    "noMatchingMode": "沒有匹配的模式",
     "noMatchingCommand": "沒有匹配的命令",
     "externalCommandContextUnsupported": "執行此委派命令前，請先移除輸入框中的附件與引用。",
     "nativeCommandChoiceNotSaved": "本次仍會執行該命令，但未能儲存這次衝突選擇。",
@@ -842,25 +896,19 @@
     "sendingToBtw": "側問會話：{{title}}",
     "modeDescriptions": {
       "agentic": "AI 主導執行，自動規劃和完成編碼任務，擁有完整的工具訪問能力",
-      "Multitask": "多工模式：將工作拆成正交分支，並在合適時主動並行調度子 Agent 推進",
       "Claw": "個人助理模式：面向個人工作區和日常事務，使用獨立的助理上下文",
-      "Plan": "先規劃後執行，先明確需求並制定實施計劃，再進行編碼",
-      "debug": "證據驅動的系統化調試：提出假設、收集運行時證據、精準定位並修復問題",
       "Cowork": "協作模式：先澄清再推進，輕量跟蹤進度，隨時驗證結果",
       "ComputerUse": "獨立電腦操作智能體：感知本機環境，操作應用、瀏覽器與系統介面",
       "DeepResearch": "深度研究：並行派發多個子 Agent 同時調研不同章節，快速生成高質量研究報告",
-      "Team": "虛擬工程團隊：CEO、工程經理、設計師、QA 負責人、安全官、發佈工程師 — 按完整衝刺流程協同工作"
+      "Ultra": "群體規劃模式：適合複雜任務，可能並行發起較多模型請求，從而增加 API 成本和供應商限流壓力"
     },
     "modeNames": {
       "agentic": "Agentic",
-      "Multitask": "Multitask",
       "Claw": "Claw",
-      "Plan": "Plan",
-      "debug": "Debug",
       "Cowork": "Cowork",
       "ComputerUse": "Computer Use",
       "DeepResearch": "Deep Research",
-      "Team": "Team"
+      "Ultra": "Ultra"
     },
     "openFolder": "開啟資料夾…",
     "selectWorkspaceTitle": "選擇工作區目錄",
@@ -1273,7 +1321,14 @@
     "searchNext": "下一個匹配結果",
     "searchClose": "關閉搜尋",
     "searchOpen": "搜尋消息",
-    "jumpToCurrentTurn": "跳轉到第 {{turn}} 輪",
+    "sessionOverview": "會話概覽",
+    "sessionOverviewActive": "會話概覽，有活動正在進行",
+    "sessionOverviewAgentsUnavailable": "目前沒有可用會話",
+    "sessionOverviewAgentsActive": "有 Agent 正在執行",
+    "sessionOverviewAgentsIdle": "查看 Agent 會話樹",
+    "sessionOverviewBackgroundRunning": "{{count}} 個正在執行",
+    "sessionOverviewBackgroundFinished": "{{count}} 個最近已結束",
+    "sessionOverviewPullRequests": "開啟工作區拉取請求",
     "agentTree": "Agents",
     "agentTreeLoading": "正在載入 Agent 會話樹...",
     "agentTreeEmpty": "目前會話沒有子 Agent",
@@ -1294,8 +1349,10 @@
       "error": "$t(shared:statuses.failed)",
       "idle": "閒置"
     },
+    "backgroundCommandOverview": "背景終端",
     "backgroundCommands": "背景命令（{{count}}）",
     "backgroundCommandEmpty": "目前沒有背景命令",
+    "backgroundTerminalEmpty": "目前沒有背景終端",
     "backgroundCommandUntitled": "背景命令",
     "backgroundCommandSession": "會話 #{{id}}",
     "backgroundCommandStatusRunning": "進行中",
@@ -1306,7 +1363,13 @@
     "backgroundCommandStopping": "正在終止命令",
     "backgroundCommandStopAll": "全部終止",
     "backgroundCommandStopFailed": "終止背景命令失敗。",
-    "pullRequests": "拉取請求"
+    "pullRequests": "拉取請求",
+    "pullRequestCount": "{{count}} 個拉取請求",
+    "pullRequestEmpty": "目前沒有拉取請求",
+    "pullRequestLoading": "正在載入拉取請求...",
+    "pullRequestNotGitRepository": "目前工作區不是 Git 倉庫",
+    "pullRequestWorkspaceUnavailable": "目前沒有可用工作區",
+    "pullRequestLoadFailed": "無法載入拉取請求，點擊重試。"
   },
   "backgroundCommandInput": {
     "title": "輸入命令內容",
@@ -1411,7 +1474,6 @@
     "generateFailed": "生成圖片失敗",
     "fileNamePrefix": "BitFun對話",
     "exportSuccess": "圖片已導出：{{filePath}}",
-    "exportDownloaded": "圖片已下載",
     "exportSuccessPrefix": "圖片已導出：",
     "exportFailed": "導出圖片失敗，請重試",
     "exporting": "正在導出...",
@@ -1427,6 +1489,40 @@
     "providerError": "服務商錯誤",
     "copy": "複製",
     "copied": "已複製"
+  },
+  "deepResearchProtocol": {
+    "phaseProgress": "{{current}} / {{total}}",
+    "phases": {
+      "orient": "理解問題並制定研究計畫",
+      "specialists": "並行蒐集多方證據",
+      "citations": "建立可信來源清單",
+      "debateRound1": "交叉質疑證據 · 第一輪",
+      "debateRound2": "交叉質疑證據 · 第二輪",
+      "factCheck": "核查衝突與存疑事實",
+      "arbitration": "綜合證據並作出裁決",
+      "report": "撰寫深度研究報告",
+      "complete": "深度研究已完成"
+    },
+    "subquestions": {
+      "title": "研究問題",
+      "count": "{{count}} 項"
+    },
+    "citations": {
+      "title": "已登記可信來源",
+      "count": "{{count}} 條",
+      "corroborated": "{{count}} 條已交叉驗證"
+    },
+    "verdicts": {
+      "title": "證據結論",
+      "count": "{{count}} 項",
+      "confidence": "信心度 {{value}}",
+      "status": {
+        "decided": "證據支持",
+        "contested": "仍有爭議",
+        "gap": "證據缺口",
+        "tentative": "暫定結論"
+      }
+    }
   },
   "modelRound": {
     "copyDialog": "複製對話",
@@ -1475,8 +1571,7 @@
       "tokens": "Token",
       "tokensUnavailable": "不可用",
       "tokenBreakdown": "共 {{total}}，輸入 {{input}}，輸出 {{output}}"
-    },
-    "aiDisclaimer": "以上內容均由 AI 生成，僅供參考"
+    }
   },
   "exploreRegion": {
     "readFiles_one": "讀取了 {{count}} 個檔案",
@@ -1523,7 +1618,7 @@
       "expandPreview": "展開預覽",
       "collapsePreview": "收起預覽",
       "openFullCodeHint": "開啟全量代碼",
-      "viewGitDiff": "查看 Diff",
+      "changeSummary": "新增 {{additions}} 行，刪除 {{deletions}} 行",
       "viewBaselineDiff": "查看基線 Diff"
     },
     "getFileDiff": {
@@ -1552,51 +1647,6 @@
     },
     "generativeWidget": {
       "exportFileNamePrefix": "BitFun組件"
-    },
-    "git": {
-      "title": "Git",
-      "commandFailed": "Git命令失敗",
-      "executionFailed": "Git命令執行失敗",
-      "failed": "失敗",
-      "confirmExecute": "確認執行",
-      "cancel": "取消",
-      "copyCommand": "複製 Git 命令",
-      "commandCopied": "Git 命令已複製",
-      "copyCommandFailed": "複製 Git 命令失敗",
-      "expandOutput": "展開輸出",
-      "collapseOutput": "收起輸出",
-      "noOutput": "(無輸出)",
-      "exitCode": "退出碼: {{code}}",
-      "duration": "耗時: {{time}}",
-      "directory": "目錄: {{dir}}",
-      "output": "輸出:",
-      "warning": "警告:",
-      "error": "錯誤:",
-      "operation": "操作: git {{op}}",
-      "args": "參數: {{args}}",
-      "status": "狀態",
-      "diff": "差異",
-      "log": "日誌",
-      "add": "暫存",
-      "commit": "提交",
-      "branch": "分支",
-      "checkout": "切換",
-      "switch": "切換",
-      "pull": "拉取",
-      "push": "推送",
-      "fetch": "獲取",
-      "merge": "合併",
-      "rebase": "變基",
-      "stash": "暫存",
-      "reset": "重設",
-      "restore": "恢復",
-      "show": "顯示",
-      "tag": "標籤",
-      "remote": "遠程",
-      "clone": "克隆",
-      "init": "初始化",
-      "blame": "追溯",
-      "cherryPick": "挑選"
     },
     "initMiniApp": {
       "title": "小應用",
@@ -1699,7 +1749,7 @@
     },
     "execProcess": {
       "executeCommand": "執行命令:",
-      "writeStdin": "寫入標準輸入:",
+      "writeStdin": "傳送輸入:",
       "pollProcess": "輪詢進程:",
       "interruptProcess": "中斷進程:",
       "killProcess": "終止進程:",
@@ -1728,6 +1778,8 @@
     },
     "plan": {
       "loadingPlan": "正在載入計劃...",
+      "invalidFormat": "計劃格式無效",
+      "invalidFormatDescription": "請開啟計劃檔案，檢查並修正 YAML 檔頭或 Markdown 內文。",
       "generating": "生成中...",
       "clickToOpenPlan": "點擊開啟計劃檔案",
       "saveToProject": "儲存到專案",
@@ -1785,6 +1837,7 @@
       "thinking": "思考中...",
       "preparing": "準備思考",
       "thinkingProcess": "思考過程",
+      "thinkingSummary": "思考總結",
       "thinkingComplete": "已完成思考",
       "thinkingCharacters": "思考了 {{count}} 字符"
     },
@@ -1842,6 +1895,15 @@
       "unknownTool": "未知工具",
       "descriptionLabel": "說明",
       "schemaLabel": "輸入 Schema"
+    },
+    "agentWait": {
+      "title": "等待子 Agent 完成",
+      "completed": "已收到 {{count}} 個結果",
+      "steered": "已提前結束等待",
+      "timedOut": "等待期限已到；仍有 {{count}} 個任務在執行",
+      "failed": "執行失敗",
+      "failedWithError": "執行失敗：{{error}}",
+      "steeringHint": "可以傳送引導訊息提前結束等待並讓 Agent 處理新指示"
     },
     "todoWrite": {
       "tasksCount": "{{count}} 項任務",
@@ -1978,16 +2040,6 @@
       "readingFile": "正在讀取",
       "preparingRead": "準備讀取"
     },
-    "terminalControl": {
-      "terminatingSession": "正在終止終端",
-      "sessionKilled": "終端已終止",
-      "killFailed": "終止終端失敗",
-      "preparingKill": "準備終止終端",
-      "interruptingSession": "正在中斷終端",
-      "sessionInterrupted": "終端已中斷",
-      "interruptFailed": "中斷終端失敗",
-      "preparingInterrupt": "準備中斷終端"
-    },
     "sessionControl": {
       "title": "會話",
       "currentWorkspace": "目前工作區",
@@ -2047,6 +2099,7 @@
       "noSummaryNotice": "本次壓縮沒有生成額外的總結內容。",
       "tokenChange": "{{before}} → {{after}} tokens",
       "savingsTag": "節省 {{saved}} · 壓縮率 {{ratio}}%",
+      "resultSummary": "壓縮後上下文長度 {{length}}（壓縮比例 {{ratio}}%）",
       "compressingContext": "正在壓縮上下文...",
       "compressionCount": "第 {{count}} 次壓縮"
     },
@@ -2123,6 +2176,7 @@
       "startNewChat": "開始新對話...",
       "openSessionMenu": "會話與新增",
       "moreMenu": "更多",
+      "newSessionItem": "新增會話",
       "newCodeSessionItem": "編程會話",
       "newCoworkSessionItem": "辦公會話"
     },
@@ -2416,11 +2470,16 @@
   "modelSelector": {
     "model": "模型",
     "modelExplanation": "模型說明",
+    "modelSettings": "模型設定",
     "modelSelection": "選擇模型",
-    "autoModel": "Auto",
-    "autoModelDesc": "自動路由最優模型",
     "primaryModel": "Primary 模型",
+    "primaryModelDesc": "使用已設定的主力模型",
     "fastModel": "Fast 模型",
+    "fastModelDesc": "使用已設定的快速模型",
+    "providerModelCount": "{{total}} 個模型",
+    "backToProviders": "返回供應商列表",
+    "backToSettings": "返回模型設定",
+    "resetToDefaults": "重設為預設設定",
     "fastMode": "Fast 模式",
     "fastModeDescription": "1.5 倍速度，消耗更多額度",
     "acpMode": "模式",
@@ -2428,11 +2487,18 @@
     "acpModeFailed": "切換模式失敗",
     "switchFailed": "切換模型失敗",
     "modelNotConfigured": "未設定",
-    "openSettings": "模型設定",
+    "tooltip": {
+      "configName": "設定名稱",
+      "modelName": "模型名稱",
+      "contextWindow": "上下文視窗",
+      "compressionTrigger": "壓縮觸發線",
+      "longContextWarning": "目前模型設定的上下文視窗超過 400K。超長上下文可能降低模型效果，建議將其調整到 300K 左右。"
+    },
     "contextUsage": {
       "agentPrompt": "上次請求輸入上下文: {{usage}}",
+      "agentPromptLabel": "上次請求輸入上下文",
       "acpContext": "ACP 回報上下文: {{usage}}",
-      "toolNote": "工具輸出在後續請求中可能會被摘要或截斷。"
+      "acpContextLabel": "ACP 回報上下文"
     }
   },
   "reasoningEffort": {
@@ -2449,21 +2515,22 @@
     "xhighDesc": "最大推理深度（較慢）"
   },
   "reasoningSelector": {
-    "title": "思考強度",
+    "title": "推理強度",
     "auto": "自動",
     "modelDefault": "模型預設值",
-    "current": "思考強度：{{preset}}",
-    "currentAuto": "思考強度：自動（{{preset}}）",
+    "current": "推理強度：{{preset}}",
+    "currentAuto": "推理強度：自動（{{preset}}）",
     "updateFailed": "更新思考預設失敗",
-    "source": {
-      "models_dev": "models.dev",
-      "adapter_fallback": "內置",
-      "model_config": "自定義"
-    },
-    "sourceTooltip": {
-      "models_dev": "根據 models.dev 的模型中繼資料自動產生",
-      "adapter_fallback": "BitFun 為此模型適配器內置的預設",
-      "model_config": "在此模型的自定義設定中定義"
+    "levels": {
+      "off": "關閉",
+      "on": "開啟",
+      "none": "關閉",
+      "minimal": "極低",
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "xhigh": "極高",
+      "max": "最高"
     }
   },
   "coworkScope": {
@@ -2494,6 +2561,11 @@
     "refresh": "換一換",
     "close": "關閉",
     "items": {
+      "desktop_cleanup": {
+        "title": "整理桌面截圖",
+        "description": "對最近的截圖分組、重新命名並歸檔。",
+        "prompt": "請幫我整理桌面上最近的截圖。\n\n第一步：先掃描我的桌面，統計有多少張截圖/圖片，並告訴我：\n\n- 總數量\n\n- 時間範圍（最早到最新）\n\n第二步：只關注最近 14 天的截圖。對每一張：\n\n- 識別它展示了什麼\n\n- 建議一個更描述性的檔案名\n\n- 建議它應該放到哪個資料夾（或是否可以刪除）\n\n把相似的截圖分組。開始任何改動之前，先把你的整理方案給我確認。\n\n我確認後：先只整理 10 個檔案作為預覽。如果總數超過 10 個，繼續之前先跟我確認是否要處理剩下的。"
+      },
       "vacation_plan": {
         "title": "計劃一下我的假期",
         "description": "把行程拆到每天，並考慮預算、交通與備選方案。",
@@ -2524,6 +2596,21 @@
         "description": "把討論內容結構化成結論、行動項與風險。",
         "prompt": "請幫我把會議內容整理成一份會議紀要。\n\n會議主題：\n參會人：\n時間：\n原始記錄（可粘貼）：\n\n請輸出：\n1) 會議結論（3-6 條）\n2) 決策項（Decision）\n3) 行動項（Action Items：負責人/截止時間/驗收標準）\n4) 風險與待確認問題（Open Questions）\n5) 下次會議建議議程"
       },
+      "reply_email": {
+        "title": "寫一封郵件回覆",
+        "description": "給出禮貌、清晰、可複製的郵件模板（含不同語氣版本）。",
+        "prompt": "請幫我寫一封郵件回覆。\n\n對方郵件內容（可粘貼）：\n我的目標（確認/拒絕/推進/澄清）：\n語氣（正式/友好/強硬但禮貌）：\n需要包含的資訊點：\n\n請輸出：\n1) 主題（Subject）建議\n2) 郵件正文（2 個版本：更正式/更簡潔）\n3) 需要對方確認的問題列表（如有）"
+      },
+      "make_docx": {
+        "title": "寫一份結構化文檔",
+        "description": "把資料整理成清晰、可複用的文檔。",
+        "prompt": "請幫我寫一份結構化文檔。\n\n文檔類型（PRD/方案/覆盤/報告/SOP）：\n受眾：\n語氣（正式/友好/簡潔）：\n必須包含的資訊點：\n期望長度：\n\n最終交付：\n1) 建議目錄結構\n2) 完整正文內容\n3) 將 Markdown 文檔儲存到 artifacts/"
+      },
+      "make_spreadsheet": {
+        "title": "做一張表格",
+        "description": "設計字段與公式，讓表格能自動彙總與複用。",
+        "prompt": "請幫我設計一張表格結構（字段 + 示例行），用於下面的用途：\n\n用途：\n資料來源：\n需要的統計口徑/彙總方式：\n輸出格式偏好（週報/儀表盤/清單）：\n\n請輸出：\n1) 推薦字段列表（含字段類型與說明）\n2) 示例資料（3-5 行）\n3) 常用公式/透視表建議\n4) 資料校驗與填表規範"
+      },
       "budget_plan": {
         "title": "做個預算規劃",
         "description": "把預算拆到類別與時間，並給出控制與覆盤方法。",
@@ -2536,24 +2623,24 @@
     "showAll": "顯示全部"
   },
   "pendingQueue": {
-    "title": "待發送 ({{count}})",
-    "hint": "目前對話結束後會按順序自動發送",
-    "editorHint": "⌘/Ctrl+Enter 儲存 · Esc 取消",
+    "title": "等待發送",
+    "label": "等待發送 {{count}}",
+    "attachmentCount": "{{count}} 個圖片附件",
+    "attachmentCount_one": "{{count}} 個圖片附件",
+    "attachmentCount_other": "{{count}} 個圖片附件",
     "emptyPlaceholder": "（空訊息）",
     "statusSending": "正在引導…",
     "statusFailed": "發送失敗 — 請編輯 / 立即發送 / 刪除以清除該項",
     "actions": {
       "edit": "編輯",
       "sendNow": "立即發送（引導）",
-      "delete": "刪除",
-      "saveEdit": "儲存（⌘/Ctrl+Enter）",
-      "cancelEdit": "取消（Esc）"
+      "delete": "刪除"
     },
     "tooltip": {
       "sendNow": "立即作為引導訊息插入目前對話"
     },
     "errors": {
-      "emptyContent": "訊息內容不能為空",
+      "composerNotEmpty": "請先發送或清空目前輸入與附件，再編輯這則等待發送的訊息",
       "sendNowFailed": "立即發送失敗，請稍後重試"
     }
   },
@@ -2583,9 +2670,7 @@
     }
   },
   "errors": {
-    "sendFailed": "傳送訊息失敗",
-    "thinkingProcessError": "思考過程錯誤",
-    "workspaceNotResolvable": "工作區資料夾不存在或已被移動"
+    "sendFailed": "傳送訊息失敗"
   },
   "actions": {
     "send": "傳送"

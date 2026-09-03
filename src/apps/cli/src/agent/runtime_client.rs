@@ -367,6 +367,7 @@ enum CliAgentRuntimeBackend {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CliAgentMode {
     pub(crate) id: String,
+    pub(crate) route_key: String,
     pub(crate) description: String,
     pub(crate) model_id: Option<String>,
     pub(crate) is_external: bool,
@@ -444,24 +445,43 @@ impl CliAgentRuntimeClient {
     /// consults the controller process's local registry.
     pub(crate) async fn available_agent_modes(&self) -> Result<Vec<CliAgentMode>> {
         match &self.backend {
-            CliAgentRuntimeBackend::Embedded(runtime) => runtime
-                .list_agent_modes(AgentModeCatalogQuery {
-                    workspace_root: Some(self.workspace_path_string()),
-                    include_external: true,
-                })
-                .await
-                .map(|modes| {
-                    modes
-                        .into_iter()
-                        .map(|mode| CliAgentMode {
-                            id: mode.id,
-                            description: mode.description,
-                            model_id: mode.model_id,
-                            is_external: mode.is_external,
-                        })
-                        .collect()
-                })
-                .map_err(|error| anyhow::anyhow!(error.into_message())),
+            CliAgentRuntimeBackend::Embedded(runtime) => {
+                let binding = self.current_workspace_binding();
+                if let Err(error) = self.ensure_embedded_plugin_workspace_ready(&binding).await {
+                    tracing::warn!(
+                        "Configured plugin activation failed while loading agent modes; continuing with native agents: {}",
+                        error
+                    );
+                }
+                let workspace = PathBuf::from(&binding.workspace_path);
+                if let Err(error) =
+                    bitfun_core::external_sources::ensure_external_source_workspace_snapshot(Some(
+                        &workspace,
+                    ))
+                    .await
+                {
+                    tracing::warn!("Failed to initialize external agent sources: {error}");
+                }
+                runtime
+                    .list_agent_modes(AgentModeCatalogQuery {
+                        workspace_root: Some(workspace.to_string_lossy().to_string()),
+                        include_external: true,
+                    })
+                    .await
+                    .map(|modes| {
+                        modes
+                            .into_iter()
+                            .map(|mode| CliAgentMode {
+                                id: mode.id,
+                                route_key: mode.route_key,
+                                description: mode.description,
+                                model_id: mode.model_id,
+                                is_external: mode.is_external,
+                            })
+                            .collect()
+                    })
+                    .map_err(|error| anyhow::anyhow!(error.into_message()))
+            }
             CliAgentRuntimeBackend::Shared(client) => {
                 let session_id = self.session_id.lock().await.clone();
                 match client
@@ -472,6 +492,7 @@ impl CliAgentRuntimeClient {
                         .into_iter()
                         .map(|mode| CliAgentMode {
                             id: mode.id,
+                            route_key: mode.route_key,
                             description: mode.description,
                             model_id: mode.model_id,
                             is_external: mode.is_external,
@@ -600,6 +621,13 @@ impl CliAgentRuntimeClient {
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .apply_binding(binding);
+    }
+
+    fn current_workspace_binding(&self) -> AgentSessionWorkspaceBinding {
+        self.workspace_paths
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .binding()
     }
 
     pub(crate) fn remote_workspace_scope(&self) -> (Option<String>, Option<String>) {
@@ -1066,9 +1094,20 @@ impl CliAgentRuntimeClient {
         session_id: &str,
         mode_id: &str,
     ) -> std::result::Result<(), SessionOperationError> {
+        self.update_session_mode_with_route(session_id, mode_id, None)
+            .await
+    }
+
+    pub(crate) async fn update_session_mode_with_route(
+        &self,
+        session_id: &str,
+        mode_id: &str,
+        route_key: Option<&str>,
+    ) -> std::result::Result<(), SessionOperationError> {
         let request = AgentSessionModeUpdateRequest {
             session_id: session_id.to_string(),
             mode_id: mode_id.to_string(),
+            agent_route_key: route_key.map(str::to_string),
         };
         match &self.backend {
             CliAgentRuntimeBackend::Embedded(runtime) => runtime
@@ -1296,7 +1335,7 @@ impl CliAgentRuntimeClient {
         };
         match &self.backend {
             CliAgentRuntimeBackend::Embedded(runtime) => {
-                runtime.wait_for_turn_settlement(request).await
+                runtime.wait_for_turn_settlement(request).await.map(|_| ())
             }
             CliAgentRuntimeBackend::Shared(client) => {
                 let result = client
@@ -1351,6 +1390,7 @@ impl CliAgentRuntimeClient {
                 AgentSessionCreateRequest {
                     session_name,
                     agent_type: effective_agent_type,
+                    agent_route_key: None,
                     workspace_path: Some(workspace.to_string_lossy().to_string()),
                     project_workspace_path: Some(project_workspace.to_string_lossy().to_string()),
                     execution_target: self.execution_target(),
@@ -1424,6 +1464,7 @@ impl CliAgentRuntimeClient {
                 AgentSessionCreateRequest {
                     session_name: Self::build_default_session_name(),
                     agent_type: agent_type.to_string(),
+                    agent_route_key: None,
                     workspace_path: Some(workspace_path),
                     project_workspace_path: Some(project_workspace_path),
                     execution_target: self.execution_target(),
@@ -1468,6 +1509,7 @@ impl CliAgentRuntimeClient {
         let request = AgentSessionCreateRequest {
             session_name: Self::build_default_session_name(),
             agent_type: agent_type.to_string(),
+            agent_route_key: None,
             workspace_path: Some(self.workspace_path_string()),
             project_workspace_path: None,
             execution_target: None,
@@ -1915,6 +1957,7 @@ impl CliAgentRuntimeClient {
         let request = AgentSessionCreateRequest {
             session_name: Self::build_default_session_name(),
             agent_type: agent_type.to_string(),
+            agent_route_key: None,
             workspace_path: Some(project_workspace_path.clone()),
             project_workspace_path: Some(project_workspace_path.clone()),
             execution_target: Some(SessionExecutionTarget::local(project_workspace_path)),
@@ -2686,7 +2729,7 @@ mod tests {
             ..session_summary("model-migration")
         };
         let restored = AgentSessionSummary {
-            model_id: Some("auto".to_string()),
+            model_id: Some("primary".to_string()),
             ..session_summary("model-migration")
         };
 
@@ -2696,7 +2739,7 @@ mod tests {
             notices,
             vec![SessionMigrationNotice::Model {
                 previous_id: "removed-model".to_string(),
-                restored_id: "auto".to_string(),
+                restored_id: "primary".to_string(),
             }]
         );
         assert!(notices[0].user_message().contains("unavailable"));
@@ -2762,10 +2805,10 @@ mod dual_backend_behavior_tests {
         AgentSessionWorkspaceRequest, AgentSubmissionPort, AgentSubmissionRequest,
         AgentSubmissionResult, AgentTurnCancellationPort, AgentTurnCancellationRequest,
         AgentTurnCancellationResult, AgentTurnSettlementPort, AgentTurnSettlementRequest,
-        AgenticEvent, DialogSubmitOutcome, PermissionReply, PermissionRequest,
-        PermissionRequestManager, PermissionRequestSource, PermissionRequestSourceKind, PortError,
-        PortErrorKind, PortResult, RuntimeError, SessionState, SessionTranscript,
-        SessionTranscriptReader, SessionTranscriptRequest,
+        AgentTurnSettlementResult, AgentTurnSettlementStatus, AgenticEvent, DialogSubmitOutcome,
+        PermissionReply, PermissionRequest, PermissionRequestManager, PermissionRequestSource,
+        PermissionRequestSourceKind, PortError, PortErrorKind, PortResult, RuntimeError,
+        SessionState, SessionTranscript, SessionTranscriptReader, SessionTranscriptRequest,
     };
     use bitfun_agent_runtime_ipc::{
         RuntimeInstanceIdentity, RuntimeIpcClient, RuntimeIpcClientError, RuntimeIpcErrorCode,
@@ -2774,6 +2817,7 @@ mod dual_backend_behavior_tests {
     use bitfun_runtime_ports::{
         ClockPort, PermissionAuditRecord, PermissionAuditStorePort, PermissionReplyStorePort,
         RuntimeServiceCapability, RuntimeServicePort, SessionExecutionTarget,
+        SessionExecutionTargetKind, WorktreeLifecycle,
     };
 
     use crate::shared_runtime::SharedRuntimeHandler;
@@ -2853,12 +2897,14 @@ mod dual_backend_behavior_tests {
         vec![
             AgentModeCatalogEntry {
                 id: "agentic".to_string(),
+                route_key: "agentic".to_string(),
                 description: "Primary workspace agent".to_string(),
                 model_id: Some("primary-model".to_string()),
                 is_external: false,
             },
             AgentModeCatalogEntry {
                 id: "workspace-plan".to_string(),
+                route_key: "external::workspace-plan".to_string(),
                 description: "Workspace plan agent".to_string(),
                 model_id: Some("plan-model".to_string()),
                 is_external: true,
@@ -3101,7 +3147,7 @@ mod dual_backend_behavior_tests {
         async fn wait_for_turn_settlement(
             &self,
             request: AgentTurnSettlementRequest,
-        ) -> PortResult<()> {
+        ) -> PortResult<AgentTurnSettlementResult> {
             match self
                 .state
                 .settlement_outcomes
@@ -3111,7 +3157,11 @@ mod dual_backend_behavior_tests {
                 .cloned()
             {
                 Some(Some(error)) => Err(error),
-                _ => Ok(()),
+                _ => Ok(AgentTurnSettlementResult {
+                    status: AgentTurnSettlementStatus::Completed,
+                    final_response: Some("fixture result".to_string()),
+                    finish_reason: Some("stop".to_string()),
+                }),
             }
         }
     }
@@ -3251,6 +3301,34 @@ mod dual_backend_behavior_tests {
                 Some(self.workspace.clone()),
             )
         }
+    }
+
+    #[test]
+    fn embedded_client_preserves_managed_workspace_binding() {
+        let root = tempfile::tempdir().expect("workspace root");
+        let workspace = dunce::canonicalize(root.path()).expect("canonical workspace");
+        let fixture = Fixture::new(&workspace);
+        let client = fixture.embedded_client();
+        let binding = AgentSessionWorkspaceBinding {
+            workspace_id: Some("workspace-1".to_string()),
+            workspace_path: workspace.join("managed-worktree").display().to_string(),
+            project_workspace_path: Some(workspace.display().to_string()),
+            execution_target: Some(SessionExecutionTarget {
+                kind: SessionExecutionTargetKind::ManagedWorktree,
+                worktree_id: Some("worktree-1".to_string()),
+                root_path: workspace.join("managed-worktree").display().to_string(),
+                base_ref: Some("main".to_string()),
+                base_commit: Some("123456789abcdef".to_string()),
+                branch: None,
+                lifecycle: Some(WorktreeLifecycle::Managed),
+            }),
+            remote_connection_id: None,
+            remote_ssh_host: None,
+        };
+
+        client.set_workspace_binding(&binding);
+
+        assert_eq!(client.current_workspace_binding(), binding);
     }
 
     async fn shared_backend(
@@ -3607,6 +3685,7 @@ mod dual_backend_behavior_tests {
         let create_request = AgentSessionCreateRequest {
             session_name: "remote-unsupported-session".to_string(),
             agent_type: "agentic".to_string(),
+            agent_route_key: None,
             workspace_path: Some(fixture.workspace.to_string_lossy().into_owned()),
             project_workspace_path: Some(fixture.workspace.to_string_lossy().into_owned()),
             execution_target: Some(SessionExecutionTarget::local(

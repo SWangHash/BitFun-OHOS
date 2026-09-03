@@ -21,11 +21,14 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@/component-library', () => ({
+vi.mock('@bitfun/ui', () => ({
+  IconButton: ({ icon, loading: _loading, size: _size, variant: _variant, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & {
+    icon?: ReactNode;
+    loading?: boolean;
+    size?: string;
+    variant?: string;
+  }) => <button {...props}>{icon}</button>,
   Tooltip: ({ children }: { children: ReactNode }) => children,
-  IconButton: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button {...props}>{children}</button>
-  ),
 }));
 
 vi.mock('@/infrastructure/api/service-api/AgentAPI', () => ({
@@ -59,6 +62,8 @@ vi.mock('../services/flow-chat-manager/PendingQueueModule', () => ({
         timestamp: 1,
         status: 'queued',
         retryCount: 0,
+        imageContexts: [{ id: 'image-1' }, { id: 'image-2' }, { id: 'image-3' }],
+        imageDisplayData: [{ id: 'image-1' }, { id: 'image-2' }, { id: 'image-3' }],
       },
     ],
     subscribe: () => () => undefined,
@@ -124,6 +129,24 @@ describe('PendingQueuePanel', () => {
     vi.clearAllMocks();
   });
 
+  it('shows the queue total separately from the current message attachment count', async () => {
+    await act(async () => {
+      root.render(
+        <PendingQueuePanel
+          sessionId="session-1"
+          onRestoreToComposer={() => true}
+        />,
+      );
+    });
+
+    const title = container.querySelector('[data-bf-part="title"]');
+    const attachmentBadge = container.querySelector('[data-bf-part="attachmentCount"]');
+
+    expect(title?.textContent).toBe('pendingQueue.title1');
+    expect(attachmentBadge?.textContent).toBe('3');
+    expect(attachmentBadge?.getAttribute('aria-label')).toBe('pendingQueue.attachmentCount');
+  });
+
   it('submits only one steering request while send-now is in flight', async () => {
     let resolveSteering: ((value: { steeringId: string }) => void) | undefined;
     mocks.steerDialogTurn.mockImplementation(
@@ -133,7 +156,12 @@ describe('PendingQueuePanel', () => {
     );
 
     await act(async () => {
-      root.render(<PendingQueuePanel sessionId="session-1" />);
+      root.render(
+        <PendingQueuePanel
+          sessionId="session-1"
+          onRestoreToComposer={() => true}
+        />,
+      );
     });
     const sendNowButton = container.querySelector<HTMLButtonElement>(
       'button[aria-label="pendingQueue.actions.sendNow"]',
@@ -152,5 +180,74 @@ describe('PendingQueuePanel', () => {
       resolveSteering?.({ steeringId: 'steering-1' });
       await Promise.resolve();
     });
+  });
+
+  it('keeps the message item display-only', async () => {
+    const onRestoreToComposer = vi.fn(() => true);
+    await act(async () => {
+      root.render(
+        <PendingQueuePanel
+          sessionId="session-1"
+          onRestoreToComposer={onRestoreToComposer}
+        />,
+      );
+    });
+
+    const preview = container.querySelector<HTMLElement>(
+      '.bitfun-pending-queue-panel__preview',
+    );
+    expect(preview).not.toBeNull();
+    expect(preview?.getAttribute('role')).toBeNull();
+    expect(preview?.getAttribute('tabindex')).toBeNull();
+
+    act(() => preview!.click());
+
+    expect(onRestoreToComposer).not.toHaveBeenCalled();
+    expect(mocks.queueRemove).not.toHaveBeenCalled();
+  });
+
+  it('restores from the edit action and removes only an accepted draft', async () => {
+    const onRestoreToComposer = vi.fn(() => true);
+    await act(async () => {
+      root.render(
+        <PendingQueuePanel
+          sessionId="session-1"
+          onRestoreToComposer={onRestoreToComposer}
+        />,
+      );
+    });
+
+    const editButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="pendingQueue.actions.edit"]',
+    );
+    expect(editButton).not.toBeNull();
+
+    act(() => editButton!.click());
+
+    expect(onRestoreToComposer).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'queued-1',
+      content: 'steer this turn',
+    }));
+    expect(mocks.queueRemove).toHaveBeenCalledWith('session-1', 'queued-1');
+  });
+
+  it('keeps the queued item when ChatInput rejects restoration', async () => {
+    const onRestoreToComposer = vi.fn(() => false);
+    await act(async () => {
+      root.render(
+        <PendingQueuePanel
+          sessionId="session-1"
+          onRestoreToComposer={onRestoreToComposer}
+        />,
+      );
+    });
+
+    const editButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="pendingQueue.actions.edit"]',
+    );
+    act(() => editButton!.click());
+
+    expect(onRestoreToComposer).toHaveBeenCalledTimes(1);
+    expect(mocks.queueRemove).not.toHaveBeenCalled();
   });
 });

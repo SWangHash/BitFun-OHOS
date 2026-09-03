@@ -14,6 +14,7 @@ export * from './service-api/PageAPI';
 export * from './service-api/SpeechAPI';
 export * from './service-api/FeedbackAPI';
 export * from './service-api/WorktreeAPI';
+export * from './service-api/ProductControlAPI';
 export * from './service-api/LocalModelAPI';
 
 // Import API modules
@@ -41,14 +42,16 @@ import { insightsApi } from './insightsApi';
 import { tokenUsageStatisticsApi } from './tokenUsageStatisticsApi';
 import { speechAPI } from './service-api/SpeechAPI';
 import { worktreeAPI } from './service-api/WorktreeAPI';
+import { productControlAPI } from './service-api/ProductControlAPI';
 import { feedbackAPI } from './service-api/FeedbackAPI';
 import { localModelApi } from './service-api/LocalModelAPI';
 
 // Export API modules
+export { workspaceAPI, configAPI, aiApi, toolAPI, agentAPI, systemAPI, productControlAPI, diffAPI, snapshotAPI, globalAPI, contextAPI, cronAPI, permissionAPI, pageAPI, gitAPI, gitAgentAPI, sessionAPI, i18nAPI, btwAPI, editorAiAPI, reviewPlatformAPI, insightsApi, tokenUsageStatisticsApi, speechAPI, worktreeAPI };
+export { TokenUsageStatisticsUnavailableError } from './tokenUsageStatisticsApi';
 export {feedbackAPI, workspaceAPI, configAPI, aiApi, toolAPI, agentAPI, systemAPI, diffAPI, snapshotAPI, globalAPI, contextAPI, cronAPI, permissionAPI, pageAPI, gitAPI, gitAgentAPI, sessionAPI, i18nAPI, btwAPI, editorAiAPI, reviewPlatformAPI, insightsApi, tokenUsageStatisticsApi, speechAPI, worktreeAPI };
 export { TokenUsageStatisticsUnavailableError } from './tokenUsageStatisticsApi';
 export * from './service-api/ReviewPlatformAPI';
-
 export type {
   TokenUsageStatisticsRequest,
   UsageAttributionStatus,
@@ -62,38 +65,3 @@ export type {
 
 // Export types
 export type { CheckForUpdatesResponse } from './service-api/SystemAPI';
-
-// BitFun API collection: a single access point for all API modules.
-export const bitfunAPI = {
-  workspace: workspaceAPI,
-  config: configAPI,
-  ai: aiApi,
-  tool: toolAPI,
-  agent: agentAPI,
-  system: systemAPI,
-  project: projectAPI,
-  diff: diffAPI,
-  snapshot: snapshotAPI,
-  global: globalAPI,
-  context: contextAPI,
-  cron: cronAPI,
-  permission: permissionAPI,
-  pages: pageAPI,
-  git: gitAPI,
-  gitAgent: gitAgentAPI,
-  gitRepoHistory: gitRepoHistoryAPI,
-  session: sessionAPI,
-  i18n: i18nAPI,
-  btw: btwAPI,
-  editorAi: editorAiAPI,
-  reviewPlatform: reviewPlatformAPI,
-  insights: insightsApi,
-  tokenUsageStatistics: tokenUsageStatisticsApi,
-  speech: speechAPI,
-  worktree: worktreeAPI,
-  feedback: feedbackAPI,
-  localModel: localModelApi,
-};
-
-// Default export
-export default bitfunAPI;

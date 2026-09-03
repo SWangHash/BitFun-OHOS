@@ -33,6 +33,10 @@ export interface AIExperienceSettings {
   quick_actions?: QuickAction[];
 }
 
+export type AIExperienceSettingsPatch = Partial<Omit<AIExperienceSettings, 'voice_input'>> & {
+  voice_input?: Partial<VoiceInputSettings>;
+};
+
 export type AgentCompanionDisplayMode = 'input' | 'desktop';
 
 export interface AgentCompanionPetSelection {
@@ -65,10 +69,7 @@ export const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
 const defaultSettings: AIExperienceSettings = {
   enable_session_title_generation: true,
   enable_visual_mode: false,
-  // Off by default: the desktop pet is opt-in. On HarmonyOS the in-app overlay
-  // also stays off until the user explicitly enables it in Settings >
-  // Personalization.
-  enable_agent_companion: false,
+  enable_agent_companion: true,
   agent_companion_display_mode: 'desktop',
   agent_companion_pet: DEFAULT_AGENT_COMPANION_PET,
   enable_workspace_search: false,
@@ -77,7 +78,7 @@ const defaultSettings: AIExperienceSettings = {
     provider: 'local',
     model_id: 'sensevoice-small-int8',
     default_language: 'auto',
-    max_recording_seconds: 8 * 60 * 60,
+    max_recording_seconds: 60,
     microphone_device_id: '',
   },
   quick_actions: DEFAULT_QUICK_ACTIONS,
@@ -91,10 +92,12 @@ function normalizeSettings(settings: AIExperienceSettings | null | undefined): A
       ...defaultSettings.voice_input,
       ...settings?.voice_input,
     },
+    quick_actions: settings?.quick_actions ?? DEFAULT_QUICK_ACTIONS,
   };
   if (merged.voice_input.max_recording_seconds === 60) {
     merged.voice_input.max_recording_seconds = defaultSettings.voice_input.max_recording_seconds;
   }
+
   // Legacy configs used null to mean the built-in SVG panda. Panda is now the default preset.
   if (!merged.agent_companion_pet) {
     merged.agent_companion_pet = DEFAULT_AGENT_COMPANION_PET;
@@ -134,10 +137,6 @@ export class AIExperienceConfigService {
     try {
       const settings = await configManager.getConfig<AIExperienceSettings>(CONFIG_PATH);
       const merged = normalizeSettings(settings);
-      // Seed quick_actions with defaults when the stored value is absent.
-      if (!merged.quick_actions || merged.quick_actions.length === 0) {
-        merged.quick_actions = DEFAULT_QUICK_ACTIONS;
-      }
       this.cachedSettings = merged;
     } catch (error) {
       log.warn('Failed to load config, using defaults', error);
@@ -170,12 +169,23 @@ export class AIExperienceConfigService {
   }
 
    
-  async saveSettings(settings: AIExperienceSettings): Promise<void> {
+  /** Save only the fields the caller edited, never a cached settings snapshot. */
+  async saveSettings(settings: AIExperienceSettingsPatch): Promise<void> {
     this.ensureConfigWatcher();
     try {
-      const normalized = normalizeSettings(settings);
-      await configManager.setConfig(CONFIG_PATH, normalized);
-      this.cachedSettings = normalized;
+      for (const [key, value] of Object.entries(settings)) {
+        if (value === undefined) continue;
+        if (key === 'voice_input' && value && typeof value === 'object') {
+          for (const [voiceKey, voiceValue] of Object.entries(value)) {
+            if (voiceValue !== undefined) {
+              await configManager.setConfig(`${CONFIG_PATH}.voice_input.${voiceKey}`, voiceValue);
+            }
+          }
+        } else {
+          await configManager.setConfig(`${CONFIG_PATH}.${key}`, value);
+        }
+      }
+      await this.loadSettings();
       this.notifyListeners();
     } catch (error) {
       log.error('Failed to save config', error);

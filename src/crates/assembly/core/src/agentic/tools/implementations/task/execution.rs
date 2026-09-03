@@ -1,4 +1,5 @@
 use super::*;
+use crate::agentic::agents::{is_swarm_delegate_agent_type, is_swarm_planner_agent_type};
 use crate::agentic::core::{SessionContinuationPolicy, SessionModelBindingPolicy};
 
 fn resolve_focused_review_model_selection(
@@ -17,6 +18,19 @@ fn external_subagent_model_override_requested(
     inherit_parent_model: bool,
 ) -> bool {
     model_id.is_some() || inherit_parent_model
+}
+
+pub(super) fn resolved_subagent_is_available(
+    available_agent_types: &[String],
+    logical_id: &str,
+    runtime_agent_key: &str,
+) -> bool {
+    available_agent_types
+        .iter()
+        .any(|candidate| candidate.eq_ignore_ascii_case(logical_id))
+        || available_agent_types
+            .iter()
+            .any(|candidate| candidate == runtime_agent_key)
 }
 
 fn build_deep_review_subagent_context(
@@ -94,6 +108,7 @@ struct BackgroundTaskStartRequest<'a> {
     coordinator: &'a std::sync::Arc<crate::agentic::coordination::ConversationCoordinator>,
     context: &'a ToolUseContext,
     context_mode: SubagentContextMode,
+    requested_agent_id: Option<String>,
     target_session_id: Option<String>,
     subagent_type: Option<String>,
     logical_subagent_type: Option<String>,
@@ -110,6 +125,43 @@ struct BackgroundTaskStartRequest<'a> {
     session_id: String,
     dialog_turn_id: String,
     external_generation_lease: Option<crate::agentic::agents::ExternalSubagentGenerationLease>,
+}
+
+async fn child_delegation_policy(
+    context: &ToolUseContext,
+    coordinator: &crate::agentic::coordination::ConversationCoordinator,
+    subagent_type: Option<&str>,
+    target_session_id: Option<&str>,
+) -> BitFunResult<bitfun_runtime_ports::DelegationPolicy> {
+    let target_type = target_session_id
+        .and_then(|session_id| coordinator.get_session_manager().get_session(session_id))
+        .map(|session| session.agent_type);
+    let parent_policy = context.delegation_policy();
+    if parent_policy.scope == bitfun_runtime_ports::DelegationScope::Swarm {
+        if let Some(target_type) = target_type.as_deref() {
+            let target_depth = match target_session_id {
+                Some(session_id) => coordinator
+                    .swarm_depth_for_session(session_id)
+                    .await?
+                    .ok_or_else(|| {
+                        BitFunError::tool(
+                            "Swarm agent session is missing its persisted tree node".to_string(),
+                        )
+                    })?,
+                None => parent_policy.nesting_depth,
+            };
+            return Ok(bitfun_runtime_ports::DelegationPolicy {
+                allow_subagent_spawn: target_type == "SwarmPlanner",
+                nesting_depth: target_depth,
+                scope: bitfun_runtime_ports::DelegationScope::Swarm,
+            });
+        }
+    }
+    Ok(context.delegation_policy().spawn_child_for(
+        subagent_type
+            .or(target_type.as_deref())
+            .unwrap_or("SwarmWorker"),
+    ))
 }
 
 impl TaskTool {
@@ -199,7 +251,11 @@ impl TaskTool {
             .resolve_agent_id(parent_session_id, agent_id)
             .await?;
         let cancelled_count = coordinator
-            .cancel_background_subagents_for_parent(parent_session_id, &target_session_id)
+            .cancel_background_subagents_for_parent(
+                parent_session_id,
+                &target_session_id,
+                invocation.cancel_descendants,
+            )
             .await?;
 
         Ok(vec![ToolResult::Result {
@@ -207,6 +263,7 @@ impl TaskTool {
                 "action": "cancel",
                 "status": "cancelled",
                 "agent_id": agent_id,
+                "cascade": invocation.cancel_descendants,
                 "cancelled_background_tasks": cancelled_count,
             }),
             result_for_assistant: Some(format!(
@@ -230,16 +287,53 @@ impl TaskTool {
             .ok_or_else(|| BitFunError::tool("coordinator not initialized".to_string()))?;
 
         let description = invocation.description.clone();
-        let mut prompt = invocation.prompt.clone().ok_or_else(|| {
-            BitFunError::tool(
-                "Required parameters: prompt and description. Missing prompt".to_string(),
-            )
-        })?;
+        let requested_agent_id = invocation.requested_agent_id.clone();
+        let mut prompt = invocation
+            .prompt
+            .clone()
+            .ok_or_else(|| BitFunError::tool("Required parameter missing: prompt".to_string()))?;
         let context_mode = invocation.context_mode;
         let target_session_id = match invocation.target_agent_id.as_deref() {
             Some(agent_id) => Some(coordinator.resolve_agent_id(&session_id, agent_id).await?),
             None => None,
         };
+        let parent_is_swarm_planner = context
+            .agent_type
+            .as_deref()
+            .is_some_and(is_swarm_planner_agent_type);
+        if let Some(requested_type) = invocation.subagent_type.as_deref() {
+            let requested_is_swarm = is_swarm_delegate_agent_type(requested_type);
+            if parent_is_swarm_planner && !requested_is_swarm {
+                return Err(BitFunError::tool(format!(
+                    "Swarm planners may launch only SwarmPlanner, SwarmWorker, or SwarmReviewer; got {requested_type}"
+                )));
+            }
+            if !parent_is_swarm_planner && requested_is_swarm {
+                return Err(BitFunError::tool(format!(
+                    "agent_type {requested_type} is available only inside an Ultra Swarm"
+                )));
+            }
+        }
+        if let Some(target_session_id) = target_session_id.as_deref() {
+            let target_agent_type = match coordinator
+                .get_session_manager()
+                .get_session(target_session_id)
+            {
+                Some(session) => session.agent_type,
+                None => {
+                    coordinator
+                        .ensure_subagent_session_loaded_for_reuse(target_session_id, &session_id)
+                        .await?
+                        .agent_type
+                }
+            };
+            let target_is_swarm = is_swarm_delegate_agent_type(&target_agent_type);
+            if parent_is_swarm_planner != target_is_swarm {
+                return Err(BitFunError::tool(
+                    "The target agent is outside the current delegation scope".to_string(),
+                ));
+            }
+        }
         let mut model_id = invocation.model_id.clone();
         let mut inherit_parent_model = invocation.inherit_parent_model;
         let mut timeout_seconds = invocation.timeout_seconds;
@@ -270,7 +364,7 @@ impl TaskTool {
                         .resolve_subagent_for_fresh_invocation(
                             &subagent_type,
                             context.workspace_root(),
-                            !context.is_remote(),
+                            !parent_is_swarm_planner && !context.is_remote(),
                         )
                         .ok_or_else(|| {
                             BitFunError::tool(format!(
@@ -278,9 +372,18 @@ impl TaskTool {
                                 subagent_type
                             ))
                         })?;
-                    if !all_agent_types.contains(&subagent_type)
-                        && !all_agent_types.contains(&binding.runtime_agent_key)
-                    {
+                    // External Agent routes are resolved using their canonical
+                    // case-insensitive logical id, but the model may emit a
+                    // different casing (for example `Explore` for the
+                    // plugin-registered `explore`). Validate against the
+                    // resolved logical id as well as the generation key so a
+                    // successful route lookup is not rejected by this second
+                    // check.
+                    if !resolved_subagent_is_available(
+                        &all_agent_types,
+                        &binding.logical_id,
+                        &binding.runtime_agent_key,
+                    ) {
                         return Err(BitFunError::tool(format!(
                             "subagent_type {} is not valid, must be one of: {}",
                             subagent_type,
@@ -697,6 +800,7 @@ impl TaskTool {
                 coordinator: &coordinator,
                 context,
                 context_mode,
+                requested_agent_id,
                 target_session_id,
                 subagent_type,
                 logical_subagent_type,
@@ -721,6 +825,7 @@ impl TaskTool {
             &coordinator,
             context,
             context_mode,
+            requested_agent_id,
             target_session_id,
             subagent_type,
             logical_subagent_type,
@@ -759,6 +864,7 @@ impl TaskTool {
             coordinator,
             context,
             context_mode,
+            requested_agent_id,
             target_session_id,
             subagent_type,
             logical_subagent_type,
@@ -781,8 +887,16 @@ impl TaskTool {
             session_id,
             dialog_turn_id,
         };
+        let delegation_policy = child_delegation_policy(
+            context,
+            coordinator,
+            subagent_type.as_deref(),
+            target_session_id.as_deref(),
+        )
+        .await?;
         let request = SubagentExecutionRequest {
             task_description: prepared_prompt,
+            requested_agent_id,
             context_mode,
             target_session_id,
             subagent_type,
@@ -795,7 +909,7 @@ impl TaskTool {
             subagent_parent_info: parent_info,
             context: subagent_context.unwrap_or_default(),
             permission_runtime_ceiling,
-            delegation_policy: context.delegation_policy().spawn_child(),
+            delegation_policy,
             external_generation_lease,
         };
         let coordinator = coordinator.clone();
@@ -833,6 +947,7 @@ impl TaskTool {
         coordinator: &std::sync::Arc<crate::agentic::coordination::ConversationCoordinator>,
         context: &ToolUseContext,
         context_mode: SubagentContextMode,
+        requested_agent_id: Option<String>,
         target_session_id: Option<String>,
         subagent_type: Option<String>,
         logical_subagent_type: Option<String>,
@@ -886,6 +1001,7 @@ impl TaskTool {
             );
             let request = SubagentExecutionRequest {
                 task_description: prepared_prompt.clone(),
+                requested_agent_id: requested_agent_id.clone(),
                 context_mode,
                 target_session_id: target_session_id.clone(),
                 subagent_type: subagent_type.clone(),
@@ -898,7 +1014,13 @@ impl TaskTool {
                 subagent_parent_info: parent_info,
                 context: subagent_context.clone().unwrap_or_default(),
                 permission_runtime_ceiling: permission_runtime_ceiling.clone(),
-                delegation_policy: context.delegation_policy().spawn_child(),
+                delegation_policy: child_delegation_policy(
+                    context,
+                    coordinator,
+                    subagent_type.as_deref(),
+                    target_session_id.as_deref(),
+                )
+                .await?,
                 external_generation_lease: external_generation_lease.clone(),
             };
             let coordinator = coordinator.clone();
@@ -1185,7 +1307,11 @@ impl TaskTool {
         if supports_follow_up {
             if let Some(subagent_session_id) = result.session_id() {
                 let agent_id = coordinator
-                    .agent_id_for_subagent_session(&session_id, subagent_session_id)
+                    .agent_id_for_subagent_session_with_requested_id(
+                        &session_id,
+                        subagent_session_id,
+                        requested_agent_id.as_deref(),
+                    )
                     .await?;
                 data["agent_id"] = json!(agent_id.clone());
                 result_for_assistant.push_str(&format!(

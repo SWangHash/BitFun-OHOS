@@ -32,6 +32,12 @@ describe('isPeerLocalOnlyCommand', () => {
     expect(isPeerLocalOnlyCommand('speech_start_input_session')).toBe(true);
     expect(isPeerLocalOnlyCommand('speech_append_audio_chunk')).toBe(true);
     expect(isPeerLocalOnlyCommand('speech_finish_input_session')).toBe(true);
+    expect(isPeerLocalOnlyCommand('speech_start_realtime_session')).toBe(true);
+    expect(isPeerLocalOnlyCommand('speech_append_realtime_audio')).toBe(true);
+    expect(isPeerLocalOnlyCommand('speech_send_realtime_tool_result')).toBe(true);
+    expect(isPeerLocalOnlyCommand('speech_close_realtime_session')).toBe(true);
+    expect(isPeerLocalOnlyCommand('speech_get_realtime_config')).toBe(true);
+    expect(isPeerLocalOnlyCommand('speech_save_realtime_config')).toBe(true);
   });
 
   it('keeps sleep-prevention controls on the controller computer', () => {
@@ -41,6 +47,20 @@ describe('isPeerLocalOnlyCommand', () => {
 
   it('keeps native main-window geometry control on the controller computer', () => {
     expect(isPeerLocalOnlyCommand('set_main_window_transient_geometry')).toBe(true);
+  });
+
+  it('keeps frontend confirmation and rollback on the controller window', () => {
+    expect(isPeerLocalOnlyCommand('frontend_update_candidate_ready')).toBe(true);
+    expect(isPeerLocalOnlyCommand('get_frontend_update_status')).toBe(true);
+    expect(isPeerLocalOnlyCommand('confirm_frontend_update')).toBe(true);
+    expect(isPeerLocalOnlyCommand('rollback_frontend_update')).toBe(true);
+  });
+
+  it('keeps ProductControl presentation callbacks local while routing commands to the peer', () => {
+    expect(isPeerLocalOnlyCommand('mark_bitfun_control_surface_ready')).toBe(true);
+    expect(isPeerLocalOnlyCommand('mark_bitfun_control_surface_unready')).toBe(true);
+    expect(isPeerLocalOnlyCommand('report_bitfun_control_result')).toBe(true);
+    expect(isPeerLocalOnlyCommand('product_control_invoke')).toBe(false);
   });
 
   it('keeps controller app-shell locale on the controller device', () => {
@@ -107,6 +127,7 @@ describe('isPeerLocalOnlyCommand', () => {
     expect(isPeerLocalOnlyCommand('browser_control_get_status')).toBe(false);
     expect(isPeerLocalOnlyCommand('browser_control_restart_with_cdp')).toBe(false);
     expect(isPeerLocalOnlyCommand('browser_control_enable_default_cdp')).toBe(false);
+    expect(isPeerLocalOnlyCommand('browser_control_disconnect')).toBe(false);
     expect(isPeerLocalOnlyCommand('computer_use_get_status')).toBe(false);
     expect(isPeerLocalOnlyCommand('computer_use_request_permissions')).toBe(false);
     expect(isPeerLocalOnlyCommand('computer_use_open_system_settings')).toBe(false);
@@ -213,6 +234,7 @@ describe('peerInvokePriorityFor', () => {
     expect(isPeerRetryableReadCommand('browser_control_launch')).toBe(false);
     expect(isPeerRetryableReadCommand('browser_control_restart_with_cdp')).toBe(false);
     expect(isPeerRetryableReadCommand('browser_control_enable_default_cdp')).toBe(false);
+    expect(isPeerRetryableReadCommand('browser_control_disconnect')).toBe(false);
     expect(isPeerRetryableReadCommand('computer_use_request_permissions')).toBe(false);
     expect(isPeerRetryableReadCommand('computer_use_open_system_settings')).toBe(false);
   });
@@ -236,7 +258,6 @@ describe('peerInvokePriorityFor', () => {
     expect(peerInvokePriorityFor('git_is_repository')).toBe('low');
     expect(peerInvokePriorityFor('ssh_is_connected')).toBe('low');
     expect(peerInvokePriorityFor('get_file_metadata')).toBe('low');
-    expect(peerInvokePriorityFor('lsp_detect_project')).toBe('low');
     expect(peerInvokePriorityFor('search_get_repo_status')).toBe('low');
     expect(peerInvokePriorityFor('load_canvas_artifact')).toBe('low');
     expect(peerInvokePriorityFor('get_file_tree')).toBe('low');
@@ -521,6 +542,105 @@ describe('PeerDeviceTransportAdapter queue', () => {
     await expect(adapter.request('get_token_usage_statistics', {
       request: { timeRange: 'today', granularity: 'hour' },
     })).resolves.toEqual(statistics);
+    expect(deviceRpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects MiniApp Agent context files before RPC when the Peer host lacks the versioned contract', async () => {
+    const deviceRpc = vi.fn();
+    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc);
+
+    await expect(adapter.request('miniapp_agent_run', {
+      request: {
+        appId: 'market-lens',
+        prompt: 'Analyze the data',
+        contextFiles: [{ name: 'market.json', content: '{"sentinel":true}' }],
+      },
+    })).rejects.toEqual(expect.objectContaining<Partial<PeerProductCommandError>>({
+      name: 'PeerProductCommandError',
+      message: expect.stringContaining('miniapp_agent_context_files_v1_unsupported'),
+    }));
+    expect(deviceRpc).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed MiniApp Agent context files before an older Peer can ignore them', async () => {
+    const deviceRpc = vi.fn();
+    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc);
+
+    await expect(adapter.request('miniapp_agent_run', {
+      request: {
+        appId: 'market-lens',
+        prompt: 'Analyze the data',
+        contextFiles: '{"not":"an array"}',
+      },
+    })).rejects.toEqual(expect.objectContaining<Partial<PeerProductCommandError>>({
+      name: 'PeerProductCommandError',
+      message: expect.stringContaining('miniapp_agent_context_files_v1_unsupported'),
+    }));
+    expect(deviceRpc).not.toHaveBeenCalled();
+  });
+
+  it('forwards MiniApp Agent context files after version negotiation', async () => {
+    const outcome = { sessionId: 'session-1', turnId: 'turn-1' };
+    const deviceRpc = vi.fn().mockResolvedValue(JSON.stringify({
+      resp: 'host_invoke_result',
+      ok: true,
+      value: outcome,
+    }));
+    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc, {
+      supportsMiniAppAgentContextFilesV1: true,
+    });
+
+    await expect(adapter.request('miniapp_agent_run', {
+      request: {
+        appId: 'market-lens',
+        prompt: 'Analyze the data',
+        contextFiles: [{ name: 'market.json', content: '{"sentinel":true}' }],
+      },
+    })).resolves.toEqual(outcome);
+    expect(deviceRpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps context-free MiniApp Agent runs compatible with older Peer hosts', async () => {
+    const deviceRpc = vi.fn().mockResolvedValue(JSON.stringify({
+      resp: 'host_invoke_result',
+      ok: true,
+      value: { sessionId: 'session-1', turnId: 'turn-1' },
+    }));
+    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc);
+
+    await expect(adapter.request('miniapp_agent_run', {
+      request: { appId: 'notes', prompt: 'Summarize this note' },
+    })).resolves.toEqual({ sessionId: 'session-1', turnId: 'turn-1' });
+    expect(deviceRpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects ProductControl before RPC when the Peer host lacks the versioned contract', async () => {
+    const deviceRpc = vi.fn();
+    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc);
+
+    await expect(adapter.request('product_control_invoke', {
+      request: { action: 'get', capabilityId: 'setting.tools.execution' },
+    })).rejects.toEqual(expect.objectContaining<Partial<PeerProductCommandError>>({
+      name: 'PeerProductCommandError',
+      message: expect.stringContaining('product_control_v1_unsupported'),
+    }));
+    expect(deviceRpc).not.toHaveBeenCalled();
+  });
+
+  it('forwards ProductControl after version negotiation', async () => {
+    const outcome = { capabilityId: 'setting.tools.execution', revision: 2 };
+    const deviceRpc = vi.fn().mockResolvedValue(JSON.stringify({
+      resp: 'host_invoke_result',
+      ok: true,
+      value: outcome,
+    }));
+    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc, {
+      supportsProductControlV1: true,
+    });
+
+    await expect(adapter.request('product_control_invoke', {
+      request: { action: 'get', capabilityId: 'setting.tools.execution' },
+    })).resolves.toEqual(outcome);
     expect(deviceRpc).toHaveBeenCalledTimes(1);
   });
 

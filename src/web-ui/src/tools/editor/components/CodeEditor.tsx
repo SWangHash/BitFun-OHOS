@@ -5,6 +5,7 @@
  * @module components/CodeEditor
  */
 
+import { Button } from '@bitfun/ui';
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
 import type * as monaco from 'monaco-editor';
@@ -13,11 +14,11 @@ import { getMonacoRuntime, monacoApi } from '../services/monacoRuntime';
 import { monacoModelManager } from '../services/MonacoModelManager';
 import { activeEditTargetService, createMonacoEditTarget } from '../services/ActiveEditTargetService';
 import { monacoAppearanceAdapter } from '@/infrastructure/appearance/adapters/MonacoAppearanceAdapter';
-import { useMonacoLsp } from '@/tools/lsp/hooks/useMonacoLsp';
-import { lspExtensionRegistry } from '@/tools/lsp/services/LspExtensionRegistry';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { EditorConfig as EditorConfigType } from '@/infrastructure/config/types';
+import { LoadingState } from '@bitfun/ui';
+import { getMonacoLanguage } from '@/infrastructure/language-detection';
 import { CubeLoading } from '@/component-library';
 import { getFileIconType, getMonacoLanguage } from '@/infrastructure/language-detection';
 import { createLogger } from '@/shared/utils/logger';
@@ -36,16 +37,25 @@ import {
   editorSyncContentSha256Hex,
   type DiskFileVersion,
 } from '../utils/diskFileVersion';
-import { confirmDialog } from '@/component-library/components/ConfirmDialog/confirmService';
+import { confirmDialog } from '@/infrastructure/confirm-dialog';
 import {
   isFileMissingFromMetadata,
   isLikelyFileNotFoundError,
 } from '@/shared/utils/fsErrorUtils';
 import { useI18n } from '@/infrastructure/i18n';
-import type { LineRange } from '@/component-library/components/Markdown';
+import { type LineRange } from '@/shared/editor/LineRange';
 import { EditorBreadcrumb } from './EditorBreadcrumb';
 import { EditorStatusBar } from './EditorStatusBar';
 import largeFileExpansionLabels from './largeFileExpansionLabels.json';
+import {
+  DEFAULT_EDITOR_FONT_FAMILY,
+  DEFAULT_EDITOR_FONT_SIZE,
+  DEFAULT_EDITOR_FONT_WEIGHT,
+  DEFAULT_EDITOR_INLAY_FONT_SIZE,
+  DEFAULT_EDITOR_LINE_HEIGHT,
+} from '../config/defaults';
+
+const log = createLogger('CodeEditor');
 import {
   GoToLinePopover,
   EncodingPopover,
@@ -84,8 +94,6 @@ export interface CodeEditorProps {
   onContentChange?: (content: string, hasChanges: boolean) => void;
   /** Save callback */
   onSave?: (content: string) => void;
-  /** Enable LSP support */
-  enableLsp?: boolean;
   /** Jump to line number (deprecated, use jumpToRange) */
   jumpToLine?: number;
   /** Jump to column (deprecated, use jumpToRange) */
@@ -174,7 +182,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   className = '',
   onContentChange,
   onSave,
-  enableLsp = true,
   jumpToLine,
   jumpToColumn,
   jumpToRange,
@@ -235,14 +242,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const [detectedLanguage, setDetectedLanguage] = useState(() => {
     return fileName ? detectLanguageFromFileName(fileName) : language;
   });
-  const [lspReady, setLspReady] = useState(false);
   const [monacoReady, setMonacoReady] = useState(false);
-  const [editorInstance, setEditorInstance] = useState<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [editorConfig, setEditorConfig] = useState<Partial<EditorConfigType>>({
-    font_size: 14,
-    font_family: "'Fira Code', Consolas, 'Courier New', monospace",
-    font_weight: 'normal',
-    line_height: 1.5,
+    font_size: DEFAULT_EDITOR_FONT_SIZE,
+    font_family: DEFAULT_EDITOR_FONT_FAMILY,
+    font_weight: DEFAULT_EDITOR_FONT_WEIGHT,
+    line_height: DEFAULT_EDITOR_LINE_HEIGHT,
     tab_size: 2,
     insert_spaces: true,
     word_wrap: 'off',
@@ -513,11 +518,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   // Sync font/config to editor when editorConfig changes (fixes late getConfig when opening from file tree)
   useEffect(() => {
     if (!monacoReady || !editorRef.current) return;
-    const fs = editorConfig.font_size ?? 14;
+    const fs = editorConfig.font_size ?? DEFAULT_EDITOR_FONT_SIZE;
     editorRef.current.updateOptions({
       fontSize: fs,
-      fontFamily: editorConfig.font_family || "'Fira Code', 'Noto Sans SC', Consolas, 'Courier New', monospace",
-      fontWeight: editorConfig.font_weight || 'normal',
+      fontFamily: editorConfig.font_family || DEFAULT_EDITOR_FONT_FAMILY,
+      fontWeight: editorConfig.font_weight || DEFAULT_EDITOR_FONT_WEIGHT,
       lineHeight: editorConfig.line_height ? Math.round(fs * editorConfig.line_height) : 0,
     });
   }, [monacoReady, editorConfig.font_size, editorConfig.font_family, editorConfig.font_weight, editorConfig.line_height]);
@@ -527,7 +532,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       const withUserIndent = userIndentRef.current
         ? { ...config, ...userIndentRef.current }
         : config;
-      const appliedFontSize = config.font_size ?? 14;
+      const appliedFontSize = config.font_size ?? DEFAULT_EDITOR_FONT_SIZE;
       const newConfig: Partial<EditorConfigType> = {
         ...withUserIndent,
         minimap: {
@@ -545,8 +550,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       if (editorRef.current) {
         editorRef.current.updateOptions({
           fontSize: appliedFontSize,
-          fontFamily: config.font_family || "'Fira Code', 'Noto Sans SC', Consolas, 'Courier New', monospace",
-          fontWeight: config.font_weight || 'normal',
+          fontFamily: config.font_family || DEFAULT_EDITOR_FONT_FAMILY,
+          fontWeight: config.font_weight || DEFAULT_EDITOR_FONT_WEIGHT,
           lineHeight: config.line_height 
             ? Math.round(appliedFontSize * config.line_height)
             : 0,
@@ -640,14 +645,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     };
   }, [filePath, largeFileMode, shouldBlockLargeFileExpansionClick]);
 
-  useMonacoLsp(
-    editorInstance,
-    detectedLanguage,
-    filePath,
-    enableLsp && lspReady && monacoReady && !largeFileMode,
-    workspacePath
-  );
-
   useEffect(() => {
     if (!containerRef.current) {
       return;
@@ -664,12 +661,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           return;
         }
         
-        let createFontSize = 14;
-        let createFontFamily = editorConfigRuntimeRef.current.font_family || "'Fira Code', 'Noto Sans SC', Consolas, 'Courier New', monospace";
-        let createFontWeight = editorConfigRuntimeRef.current.font_weight || 'normal';
+        let createFontSize = DEFAULT_EDITOR_FONT_SIZE;
+        let createFontFamily = editorConfigRuntimeRef.current.font_family || DEFAULT_EDITOR_FONT_FAMILY;
+        let createFontWeight = editorConfigRuntimeRef.current.font_weight || DEFAULT_EDITOR_FONT_WEIGHT;
         let createLineHeight = 0;
         const applyFontConfig = (c: Partial<EditorConfigType>) => {
-          createFontSize = c.font_size ?? 14;
+          createFontSize = c.font_size ?? DEFAULT_EDITOR_FONT_SIZE;
           createFontFamily = c.font_family || createFontFamily;
           createFontWeight = c.font_weight || createFontWeight;
           createLineHeight = c.line_height ? Math.round(createFontSize * c.line_height) : 0;
@@ -752,25 +749,17 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           definitionLinkOpensInPeek: false,
           inlayHints: {
             enabled: initialLargeFileMode ? 'off' : 'on',
-            fontSize: 12,
-            fontFamily: "'Fira Code', Consolas, 'Courier New', monospace",
+            fontSize: DEFAULT_EDITOR_INLAY_FONT_SIZE,
+            fontFamily: DEFAULT_EDITOR_FONT_FAMILY,
             padding: false
           },
 
-          hover: (() => {
-            // Only enable hover for languages with actual hover providers:
-            // - Languages supported by our LSP plugins
-            // - Languages with useful built-in Monaco hover (TS/JS)
-            const monacoHoverLanguages = ['typescript','javascript','typescriptreact','javascriptreact'];
-            const hasHoverSupport = lspExtensionRegistry.isFileSupported(filePath)
-              || monacoHoverLanguages.includes(detectedLanguage);
-            return {
-              enabled: hasHoverSupport,
-              delay: 100,
-              sticky: true,
-              above: false
-            };
-          })(),
+          hover: {
+            enabled: !initialLargeFileMode,
+            delay: 100,
+            sticky: true,
+            above: false
+          },
 
           quickSuggestions: {
             other: !initialLargeFileMode,
@@ -815,7 +804,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
         editor = monacoApi.editor.create(container, editorOptions);
         editorRef.current = editor;
-        setEditorInstance(editor);
         const editTarget = createMonacoEditTarget(editor);
         const unbindEditTarget = activeEditTargetService.bindTarget(editTarget);
         const focusDisposable = editor.onDidFocusEditorText(() => {
@@ -838,23 +826,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         // #endregion
         
         (container as any).__monacoEditor = editor;
-        
-        if (model) {
-          const { lspDocumentService } = await import('@/tools/lsp/services/LspDocumentService');
-          lspDocumentService.associateEditor(model.uri.toString(), editor);
-        }
-        
-        const hasContent = model && model.getValue().length > 0;
+
         setMonacoReady(true);
-        if (hasContent) {
-          setLspReady(true);
-        }
         const applyOptionsFromConfig = (c: Partial<EditorConfigType>) => {
-          const fs = c.font_size ?? 14;
+          const fs = c.font_size ?? DEFAULT_EDITOR_FONT_SIZE;
           editor!.updateOptions({
             fontSize: fs,
-            fontFamily: c.font_family || "'Fira Code', 'Noto Sans SC', Consolas, 'Courier New', monospace",
-            fontWeight: c.font_weight || 'normal',
+            fontFamily: c.font_family || DEFAULT_EDITOR_FONT_FAMILY,
+            fontWeight: c.font_weight || DEFAULT_EDITOR_FONT_WEIGHT,
             lineHeight: c.line_height ? Math.round(fs * c.line_height) : 0,
           });
         };
@@ -1034,10 +1013,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         }).catch(err => {
           log.error('Failed to load EditorReadyManager', err);
         });
-        
-        if (!loadingRef.current && contentRef.current) {
-          setLspReady(true);
-        }
 
       } catch (error) {
         log.error('Failed to initialize editor', error);
@@ -1066,15 +1041,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       }
       
       if (editorRef.current) {
-        if (modelRef.current) {
-          import('@/tools/lsp/services/LspDocumentService').then(({ lspDocumentService }) => {
-            lspDocumentService.disassociateEditor(modelRef.current!.uri.toString());
-          });
-        }
-        
         editorRef.current.dispose();
         editorRef.current = null;
-        setEditorInstance(null);
       }
 
       if (container) {
@@ -1102,40 +1070,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       applyExternalContentToModel(pendingModelContentRef.current);
     }
   }, [monacoReady, applyExternalContentToModel]);
-
-  useEffect(() => {
-    if (!content || lspReady) {
-      return;
-    }
-
-    let cancelled = false;
-    void (async () => {
-      if (!enableLsp || largeFileMode) {
-        if (!cancelled) {
-          setLspReady(true);
-        }
-        return;
-      }
-
-      try {
-        const { ensureWorkspaceLspInitialized, initializeLsp } = await import('@/tools/lsp/initializeLsp');
-        await initializeLsp();
-        if (lspExtensionRegistry.isFileSupported(filePath)) {
-          await ensureWorkspaceLspInitialized(workspacePath);
-        }
-      } catch (error) {
-        log.warn('Failed to initialize LSP on editor open', { filePath, workspacePath, error });
-      }
-
-      if (!cancelled) {
-        setLspReady(true);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [content, enableLsp, filePath, largeFileMode, lspReady, workspacePath]);
 
   useEffect(() => {
     if (modelRef.current && monacoReady) {
@@ -2020,161 +1954,94 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
     const unsubscribers: Array<() => void> = [];
 
-    const unsubGotoDef = globalEventBus.on('editor:goto-definition', async (data: any) => {
-      const isMatch = isSamePath(data.filePath || '', filePath || '');
-      
-      if (isMatch) {
-        try {
-          const position = editor.getPosition();
-          if (!position) {
-            return;
-          }
-          
-          const model = editor.getModel();
-          if (!model) {
-            return;
-          }
-          
-          const { GlobalAdapterRegistry } = await import('@/tools/lsp/services/MonacoLspAdapter');
-          const modelUri = model.uri.toString();
-          const adapter = GlobalAdapterRegistry.get(modelUri);
-          
-          if (!adapter) {
-            editor.trigger('keyboard', 'editor.action.revealDefinition', null);
-            return;
-          }
-          
-          const definition = await adapter.provideDefinition(model, position);
-          
-          if (!definition) {
-            return;
-          }
-          
-          const definitionUri = definition.uri.toString();
-          const currentUri = model.uri.toString();
-          
-          // Determine if it's a cross-file jump
-          if (definitionUri !== currentUri) {
-            // Cross-file jump: use unified file tab manager
-            const targetLine = definition.range.startLineNumber;
-            const targetColumn = definition.range.startColumn;
-            
-            // Use unified file tab manager to open file
-            const { fileTabManager } = await import('@/shared/services/FileTabManager');
-            fileTabManager.openFileAndJump(
-              definitionUri,
-              targetLine,
-              targetColumn,
-              { workspacePath }
-            );
-          } else {
-            // Same-file jump: use Monaco default behavior
-            editor.setPosition({
-              lineNumber: definition.range.startLineNumber,
-              column: definition.range.startColumn
-            });
-            editor.revealPositionInCenter({
-              lineNumber: definition.range.startLineNumber,
-              column: definition.range.startColumn
-            });
-            editor.focus();
-          }
-          
-        } catch (error) {
-          log.error('Goto definition failed', error);
-        }
+    const matchesEventFile = (data: { filePath?: string }): boolean =>
+      isSamePath(data.filePath || '', filePath || '');
+
+    const runSupportedEditorAction = async (
+      actionId: string,
+      failureMessage: string
+    ): Promise<void> => {
+      const action = editor.getAction(actionId);
+      if (!action?.isSupported()) {
+        return;
+      }
+      try {
+        await action.run();
+      } catch (error) {
+        log.error(failureMessage, error);
+      }
+    };
+
+    const unsubGotoDef = globalEventBus.on('editor:goto-definition', (data: any) => {
+      if (matchesEventFile(data)) {
+        void runSupportedEditorAction(
+          'editor.action.revealDefinition',
+          'Goto definition failed'
+        );
       }
     });
     unsubscribers.push(unsubGotoDef);
 
     const unsubGotoTypeDef = globalEventBus.on('editor:goto-type-definition', (data: any) => {
-      if (data.filePath === filePath) {
-        try {
-          editor.trigger('context-menu', 'editor.action.goToTypeDefinition', null);
-        } catch (error) {
-          log.error('Failed to trigger goToTypeDefinition', error);
-          const action = editor.getAction('editor.action.goToTypeDefinition');
-          if (action) {
-            action.run();
-          }
-        }
+      if (matchesEventFile(data)) {
+        void runSupportedEditorAction(
+          'editor.action.goToTypeDefinition',
+          'Goto type definition failed'
+        );
       }
     });
     unsubscribers.push(unsubGotoTypeDef);
 
-    const unsubFindRefs = globalEventBus.on('editor:find-references', async (data: any) => {
-      if (data.filePath === filePath) {
-        try {
-          editor.trigger('context-menu', 'editor.action.referenceSearch.trigger', null);
-        } catch (error) {
-          log.error('Find references failed', error);
-        }
+    const unsubFindRefs = globalEventBus.on('editor:find-references', (data: any) => {
+      if (matchesEventFile(data)) {
+        void runSupportedEditorAction(
+          'editor.action.referenceSearch.trigger',
+          'Find references failed'
+        );
       }
     });
     unsubscribers.push(unsubFindRefs);
 
     const unsubRename = globalEventBus.on('editor:rename-symbol', (data: any) => {
-      if (data.filePath === filePath) {
-        try {
-          editor.trigger('context-menu', 'editor.action.rename', null);
-        } catch (error) {
-          log.error('Failed to trigger rename', error);
-          const action = editor.getAction('editor.action.rename');
-          if (action) {
-            action.run();
-          }
-        }
+      if (matchesEventFile(data)) {
+        void runSupportedEditorAction('editor.action.rename', 'Rename symbol failed');
       }
     });
     unsubscribers.push(unsubRename);
 
     const unsubFormat = globalEventBus.on('editor:format-document', (data: any) => {
-      if (data.filePath === filePath) {
-        try {
-          editor.trigger('context-menu', 'editor.action.formatDocument', null);
-        } catch (error) {
-          log.error('Failed to trigger formatDocument', error);
-          const action = editor.getAction('editor.action.formatDocument');
-          if (action) {
-            action.run();
-          }
-        }
+      if (matchesEventFile(data)) {
+        void runSupportedEditorAction(
+          'editor.action.formatDocument',
+          'Format document failed'
+        );
       }
     });
     unsubscribers.push(unsubFormat);
 
     const unsubCodeAction = globalEventBus.on('editor:code-action', (data: any) => {
-      if (data.filePath === filePath) {
-        try {
-          editor.trigger('context-menu', 'editor.action.quickFix', null);
-        } catch (error) {
-          log.error('Failed to trigger quickFix', error);
-          const action = editor.getAction('editor.action.quickFix');
-          if (action) {
-            action.run();
-          }
-        }
+      if (matchesEventFile(data)) {
+        void runSupportedEditorAction('editor.action.quickFix', 'Quick fix failed');
       }
     });
     unsubscribers.push(unsubCodeAction);
 
     const unsubDocSymbols = globalEventBus.on('editor:document-symbols', (data: any) => {
-      if (data.filePath === filePath) {
-        const action = editor.getAction('editor.action.quickOutline');
-        if (action) {
-          action.run();
-        }
+      if (matchesEventFile(data)) {
+        void runSupportedEditorAction(
+          'editor.action.quickOutline',
+          'Open document symbols failed'
+        );
       }
     });
     unsubscribers.push(unsubDocSymbols);
 
     const unsubDocHighlight = globalEventBus.on('editor:document-highlight', (data: any) => {
-      if (data.filePath === filePath) {
-        const position = editor.getPosition();
-        if (position) {
-          editor.setPosition(position);
-          editor.focus();
-        }
+      if (matchesEventFile(data)) {
+        void runSupportedEditorAction(
+          'editor.action.wordHighlight.trigger',
+          'Highlight occurrences failed'
+        );
       }
     });
     unsubscribers.push(unsubDocHighlight);
@@ -2302,7 +2169,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     const newLanguage = detectLanguageFromFileName(fileName);
     if (newLanguage !== detectedLanguage) {
       setDetectedLanguage(newLanguage);
-      setLspReady(false);
     }
   }, [fileName, detectedLanguage, detectLanguageFromFileName]);
 
@@ -2354,13 +2220,21 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
       {loading && showLoadingOverlay && (
         <div className="code-editor-tool__loading-overlay" data-bf-component="editor-tool" data-bf-part="loading">
-          <CubeLoading size="medium" text={loadingOverlayText} />
+          <LoadingState size="md">{loadingOverlayText}</LoadingState>
         </div>
       )}
 
       {error && (
         <div className="code-editor-tool__error-overlay" data-bf-component="editor-tool" data-bf-part="error">
           <AlertCircle className="code-editor-tool__error-icon" />
+          <p className="code-editor-tool__error-message">{error}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadFileContent}
+          >
+            {t('editor.common.retry')}
+          </Button>
           <p className="code-editor-tool__error-message">{errorMessage}</p>
           {!isUnsupportedFileType && error !== FILE_TOO_LARGE_ERROR && (
             <button
@@ -2393,6 +2267,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         selectedLines={selection.lines}
         language={detectedLanguage}
         encoding={encoding}
+        tabSize={editorConfig.tab_size || 2}
+        insertSpaces={editorConfig.insert_spaces !== false}
+        isReadOnly={readOnly}
         isReadOnly={readOnly || largeFilePreview}
         lspStatus={
           enableLsp && lspExtensionRegistry.isFileSupported(filePath)

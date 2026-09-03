@@ -3,6 +3,7 @@ import { RemoteI18n } from '../main/ets/i18n/RemoteI18n';
 import { ChatSessionController, ChatSessionSnapshot } from '../main/ets/services/ChatSessionController';
 import { ChatComposerPolicy } from '../main/ets/services/ChatComposerPolicy';
 import { ChatTimelineItem, ChatTimelineProjector } from '../main/ets/services/ChatTimelineProjector';
+import { ChatTimelineRevisionTracker, ChatTimelineRowStore } from '../main/ets/model/ChatTimelineModels';
 import { ChatTimelineStore } from '../main/ets/services/ChatTimelineStore';
 import { ConversationEvent } from '../main/ets/services/ConversationEvent';
 import { AsyncLifecycleGate } from '../main/ets/services/AsyncLifecycleGate';
@@ -83,10 +84,10 @@ import { VoiceInputCallbacks, VoiceInputService } from '../main/ets/services/Voi
 import { AppShellState } from '../main/ets/pages/state/AppShellState';
 import { ConversationCoreState } from '../main/ets/pages/state/ConversationCoreState';
 import { GeneralChatPageState } from '../main/ets/pages/state/GeneralChatPageState';
-import { RemoteCreateSessionState } from '../main/ets/pages/state/RemoteCreateSessionState';
 import { RemotePageState } from '../main/ets/pages/state/RemotePageState';
 import { ConversationViewState } from '../main/ets/pages/state/ConversationViewState';
 import { ConversationController } from '../main/ets/pages/viewmodel/ConversationController';
+import { RemoteWorkspaceViewModel } from '../main/ets/pages/viewmodel/RemoteWorkspaceViewModel';
 import {
   GENERAL_CHAT_COMPOSER_CAPABILITIES,
   REMOTE_CHAT_COMPOSER_CAPABILITIES
@@ -179,16 +180,28 @@ export default function conversationStateUnitTest() {
       expect(items[0].type).assertEqual('empty_state');
     });
 
-    it('deduplicates optimistic user messages replaced by persisted messages', 0, () => {
+    it('deduplicates optimistic user messages confirmed with the same id', 0, () => {
       const items = ChatTimelineProjector.project([
-        chatMessage('remote-user-1', 'user', 'Explain this file')
+        chatMessage('message-user-1', 'user', 'Explain this file')
       ], [
-        chatMessage('msg-local-1', 'user', ' Explain this file ')
+        chatMessage('message-user-1', 'user', ' Explain this file ')
       ], chatMessage('', 'assistant', ''), false);
 
       expect(items.length).assertEqual(1);
-      expect(items[0].id).assertEqual('message-remote-user-1');
+      expect(items[0].id).assertEqual('message-message-user-1');
       expect(items[0].type).assertEqual('user_message');
+    });
+
+    it('keeps repeated user text when optimistic and historical ids differ', 0, () => {
+      const items = ChatTimelineProjector.project([
+        chatMessage('historical-user-1', 'user', '你是谁')
+      ], [
+        chatMessage('optimistic-user-2', 'user', '你是谁')
+      ], chatMessage('', 'assistant', ''), false);
+
+      expect(items.length).assertEqual(2);
+      expect(items[0].id).assertEqual('message-historical-user-1');
+      expect(items[1].id).assertEqual('pending-optimistic-user-2');
     });
 
     it('keeps optimistic image messages when persisted image payload differs', 0, () => {
@@ -205,24 +218,24 @@ export default function conversationStateUnitTest() {
     });
 
     it('keeps active turn until matching assistant message is persisted', 0, () => {
-      const activeTurn = chatMessage('active-turn-1', 'assistant', 'Done with the edit', 'completed');
+      const activeTurn = activeChatMessage('turn-1', 'Done with the edit', 'completed');
       const beforeFinal = ChatTimelineProjector.project([
         chatMessage('remote-user-1', 'user', 'Please edit')
       ], [], activeTurn, false);
       const afterFinal = ChatTimelineProjector.project([
         chatMessage('remote-user-1', 'user', 'Please edit'),
-        chatMessage('assistant-final-1', 'assistant', 'Done with the edit')
+        chatMessage('turn-1_assistant', 'assistant', 'Done with the edit')
       ], [], activeTurn, false);
 
       expect(beforeFinal.length).assertEqual(2);
       expect(beforeFinal[1].type).assertEqual('assistant_live_turn');
       expect(beforeFinal[1].isFinalizing).assertEqual(true);
       expect(afterFinal.length).assertEqual(2);
-      expect(afterFinal[1].id).assertEqual('message-assistant-final-1');
+      expect(afterFinal[1].id).assertEqual('message-turn-1_assistant');
       expect(afterFinal[1].type).assertEqual('assistant_message');
     });
 
-    it('updates active turn item id when visible content changes', 0, () => {
+    it('keeps active turn identity stable when visible content changes', 0, () => {
       const first = activeChatMessage('turn-stable-1', 'abc', 'active', 1);
       const second = activeChatMessage('turn-stable-1', 'abcdef', 'active', 2);
       const firstItems = ChatTimelineProjector.project([], [], first, false);
@@ -230,9 +243,26 @@ export default function conversationStateUnitTest() {
 
       expect(firstItems.length).assertEqual(1);
       expect(secondItems.length).assertEqual(1);
-      expect(firstItems[0].id.indexOf('active-turn-stable-1-')).assertEqual(0);
-      expect(secondItems[0].id.indexOf('active-turn-stable-1-')).assertEqual(0);
-      expect(secondItems[0].id === firstItems[0].id).assertFalse();
+      expect(firstItems[0].id).assertEqual('active-turn-stable-1');
+      expect(secondItems[0].id).assertEqual('active-turn-stable-1');
+      expect(ChatTimelineRevisionTracker.itemKey(firstItems[0]))
+        .assertEqual(ChatTimelineRevisionTracker.itemKey(secondItems[0]));
+      expect(ChatTimelineRevisionTracker.itemSignature(firstItems[0]) ===
+        ChatTimelineRevisionTracker.itemSignature(secondItems[0])).assertFalse();
+    });
+
+    it('keeps assistant row identity stable from live turn to persisted completion', 0, () => {
+      const activeTurn = activeChatMessage('turn-row-1', 'Streaming', 'active', 1);
+      const finalMessage = chatMessage('assistant-random-id', 'assistant', 'Completed');
+      finalMessage.turnId = 'turn-row-1';
+      finalMessage.status = 'completed';
+      const activeItems = ChatTimelineProjector.project([], [], activeTurn, false);
+      const finalItems = ChatTimelineProjector.project([finalMessage], [], activeTurn, false);
+
+      expect(activeItems.length).assertEqual(1);
+      expect(finalItems.length).assertEqual(1);
+      expect(ChatTimelineRevisionTracker.itemKey(activeItems[0]))
+        .assertEqual(ChatTimelineRevisionTracker.itemKey(finalItems[0]));
     });
 
     it('hides active turn when final assistant id matches turn id', 0, () => {
@@ -246,21 +276,38 @@ export default function conversationStateUnitTest() {
       expect(items[0].type).assertEqual('assistant_message');
     });
 
-    it('keeps active turn when matching persisted assistant has no final text yet', 0, () => {
+    it('uses one active row when matching persisted assistant has no final text yet', 0, () => {
       const activeTurn = activeChatMessage('turn-final-wait-1', 'final answer', 'completed');
       const pendingFinal = chatMessage('turn-final-wait-1_assistant', 'assistant', '');
       pendingFinal.text = 'Still reasoning';
       pendingFinal.thinking = 'Still reasoning';
       const items = ChatTimelineProjector.project([pendingFinal], [], activeTurn, false);
 
-      expect(items.length).assertEqual(2);
-      expect(items[1].type).assertEqual('assistant_live_turn');
-      expect(items[1].isFinalizing).assertEqual(true);
+      expect(items.length).assertEqual(1);
+      expect(items[0].type).assertEqual('assistant_live_turn');
+      expect(items[0].isFinalizing).assertEqual(true);
+      expect(ChatTimelineRevisionTracker.itemKey(items[0])).assertEqual('assistant_turn:turn-final-wait-1');
+    });
+
+    it('defensively reconciles duplicate assistant turn keys to one row', 0, () => {
+      const activeTurn = activeChatMessage('turn-row-duplicate-1', '', 'active');
+      const pendingFinal = chatMessage('turn-row-duplicate-1_assistant', 'assistant', 'Still reasoning');
+      pendingFinal.turnId = 'turn-row-duplicate-1';
+      pendingFinal.thinking = 'Still reasoning';
+      const persistedItems = ChatTimelineProjector.project([
+        pendingFinal
+      ], [], chatMessage('', 'assistant', ''), false);
+      const activeItems = ChatTimelineProjector.project([], [], activeTurn, false);
+      const rows = new ChatTimelineRowStore().reconcile([persistedItems[0], activeItems[0]]);
+
+      expect(rows.length).assertEqual(1);
+      expect(rows[0].type).assertEqual('assistant_live_turn');
+      expect(ChatTimelineRevisionTracker.itemKey(rows[0])).assertEqual('assistant_turn:turn-row-duplicate-1');
     });
 
     it('offers retry only for the latest unresolved failed message', 0, () => {
       const interrupted = chatMessage('assistant-failed-1', 'assistant', 'Partial reply', 'failed');
-      interrupted.detail = 'Retry prompt';
+      interrupted.error = 'Model request failed';
       const unresolved = ChatTimelineProjector.project([
         chatMessage('user-1', 'user', 'Retry prompt'),
         interrupted
@@ -272,12 +319,111 @@ export default function conversationStateUnitTest() {
       ], [], chatMessage('', 'assistant', ''), false);
 
       expect(unresolved[1].showRetryAction).assertTrue();
+      expect(unresolved[1].message ? unresolved[1].message!.detail : '').assertEqual('Retry prompt');
+      expect(unresolved[1].message ? unresolved[1].message!.error : '').assertEqual('Model request failed');
       expect(continued[1].showRetryAction).assertFalse();
       expect(continued[2].showRetryAction).assertFalse();
     });
   });
 
   describe('ChatTimelineStore', () => {
+    it('keeps persisted messages with different ids even when their text matches', 0, () => {
+      const merged = RemoteUiState.mergeMessages([
+        chatMessage('msg-historical-1', 'user', '你是谁')
+      ], [
+        chatMessage('msg-current-2', 'user', '你是谁')
+      ]);
+
+      expect(merged.length).assertEqual(2);
+      expect(merged[0].id).assertEqual('msg-historical-1');
+      expect(merged[1].id).assertEqual('msg-current-2');
+    });
+
+    it('appends a repeated user message and reconciles only its new acknowledgement', 0, () => {
+      const store = new ChatTimelineStore();
+      store.reset('session-repeat');
+      store.setPersistedMessages([
+        chatMessage('msg-historical-user', 'user', '你是谁'),
+        chatMessage('assistant-historical', 'assistant', '旧回复')
+      ]);
+      store.appendOptimisticMessage(chatMessage('optimistic-user-current', 'user', '你是谁'));
+
+      let items = store.project(false);
+      expect(items.length).assertEqual(3);
+      expect(items[2].id).assertEqual('pending-optimistic-user-current');
+
+      store.mergePersistedMessages([
+        chatMessage('msg-current-user', 'user', '你是谁')
+      ]);
+      const state = store.snapshot();
+      items = store.project(false);
+      expect(state.persistedMessages.length).assertEqual(3);
+      expect(state.optimisticMessages.length).assertEqual(0);
+      expect(items.length).assertEqual(3);
+      expect(items[0].id).assertEqual('message-msg-historical-user');
+      expect(items[2].id).assertEqual('message-msg-current-user');
+    });
+
+    it('reconciles identical queued user messages one acknowledgement at a time', 0, () => {
+      const remaining = ChatTimelineStore.optimisticMessagesNotPersisted([
+        chatMessage('optimistic-user-1', 'user', '继续'),
+        chatMessage('optimistic-user-2', 'user', '继续')
+      ], [
+        chatMessage('persisted-user-1', 'user', '继续')
+      ]);
+
+      expect(remaining.length).assertEqual(1);
+      expect(remaining[0].id).assertEqual('optimistic-user-2');
+    });
+
+    it('keeps one identical local message when one remote acknowledgement arrives', 0, () => {
+      const merged = RemoteUiState.mergeRemoteWithLocalOptimistic([
+        chatMessage('persisted-user-1', 'user', '继续')
+      ], [
+        chatMessage('optimistic-user-1', 'user', '继续'),
+        chatMessage('optimistic-user-2', 'user', '继续')
+      ]);
+
+      expect(merged.length).assertEqual(2);
+      expect(merged[0].id).assertEqual('persisted-user-1');
+      expect(merged[1].id).assertEqual('optimistic-user-2');
+    });
+
+    it('does not reconcile identical remote text when image payloads differ', 0, () => {
+      const merged = RemoteUiState.mergeRemoteWithLocalOptimistic([
+        chatMessageWithImage(
+          'persisted-user-image', 'user', '分析图片', 'remote.png', 'data:image/png;base64,remote'
+        )
+      ], [
+        chatMessageWithImage(
+          'optimistic-user-image', 'user', '分析图片', 'local.png', 'data:image/png;base64,local'
+        )
+      ]);
+
+      expect(merged.length).assertEqual(2);
+      expect(merged[1].id).assertEqual('optimistic-user-image');
+    });
+
+    it('does not hide an active reply that matches historical assistant text', 0, () => {
+      const store = new ChatTimelineStore();
+      store.reset('session-repeat-assistant');
+      store.setPersistedMessages([
+        chatMessage('assistant-historical', 'assistant', '相同回复')
+      ]);
+      store.setActiveTurn(activeChatMessage('turn-current', '相同回复'));
+
+      let state = store.snapshot();
+      expect(state.activeTurn ? state.activeTurn.id : '').assertEqual('active-turn-current');
+      expect(store.project(false).length).assertEqual(2);
+
+      store.mergePersistedMessages([
+        chatMessage('assistant-current', 'assistant', '相同回复')
+      ]);
+      state = store.snapshot();
+      expect(state.persistedMessages.length).assertEqual(2);
+      expect(state.activeTurn ? state.activeTurn.id : '').assertEqual('');
+    });
+
     it('updates same-id persisted messages when final content arrives later', 0, () => {
       const pendingFinal = chatMessage('assistant-final-same-id', 'assistant', '');
       pendingFinal.text = 'Still reasoning';
@@ -597,6 +743,42 @@ export default function conversationStateUnitTest() {
       expect(items[0].tool ? (items[0].tool.duration_ms || 0) : 0).assertEqual(50);
     });
 
+    it('preserves Task invocation metadata when a completion snapshot omits it', 0, () => {
+      const store = new ChatTimelineStore();
+      store.reset('session-1');
+      const first = activeChatMessage('turn-task-title-1', '');
+      first.items = [{
+        type: 'tool',
+        tool: {
+          id: 'task-1',
+          name: 'Task',
+          status: 'running',
+          input_preview: '{"description":"Read the README introduction"}'
+        }
+      }];
+      const second = activeChatMessage('turn-task-title-1', '', 'active', 2);
+      second.items = [{
+        type: 'tool',
+        tool: {
+          id: 'task-1',
+          name: 'Task',
+          status: 'completed',
+          result_preview: 'Done'
+        }
+      }];
+
+      store.setActiveTurn(first);
+      store.setActiveTurn(second);
+
+      const state = store.snapshot();
+      const items = state.activeTurn && state.activeTurn.items ? state.activeTurn.items : [];
+      const tool = items.length > 0 ? items[0].tool : undefined;
+      expect(tool ? (tool.status || '') : '').assertEqual('completed');
+      expect(tool ? (tool.input_preview || '') : '')
+        .assertEqual('{"description":"Read the README introduction"}');
+      expect(tool ? (tool.result_preview || '') : '').assertEqual('Done');
+    });
+
     it('clears active turn when persisted assistant id matches turn id', 0, () => {
       const store = new ChatTimelineStore();
       store.reset('session-1');
@@ -634,6 +816,20 @@ export default function conversationStateUnitTest() {
   });
 
   describe('MarkdownParser', () => {
+    it('parses document-leading YAML frontmatter without rendering its markers as dividers', 0, () => {
+      const blocks = MarkdownParser.parse(
+        '---\nname: BitFun\nvibe: calm\n---\n\n# Identity\n\nBody\n\n---\n\nTail'
+      );
+
+      expect(blocks.length).assertEqual(5);
+      expect(blocks[0].type).assertEqual('frontmatter');
+      expect(blocks[0].text).assertEqual('name: BitFun\nvibe: calm');
+      expect(blocks[1].type).assertEqual('heading');
+      expect(blocks[2].type).assertEqual('paragraph');
+      expect(blocks[3].type).assertEqual('divider');
+      expect(blocks[4].type).assertEqual('paragraph');
+    });
+
     it('parses common markdown blocks into stable block types', 0, () => {
       const blocks = MarkdownParser.parse('# Title\n\n- first\n- **second**\n\n> quote\n\n```ts\nconst value = 1;\n```\n\n| A | B |\n| --- | --- |\n| 1 | 2 |');
 
@@ -647,6 +843,10 @@ export default function conversationStateUnitTest() {
       expect(blocks[3].type).assertEqual('code');
       expect(blocks[3].language).assertEqual('ts');
       expect(blocks[4].type).assertEqual('table');
+      expect(blocks[4].tableRows.length).assertEqual(2);
+      expect(blocks[4].tableRows[0].header).assertTrue();
+      expect(blocks[4].tableRows[0].cells.length).assertEqual(2);
+      expect(blocks[4].tableRows[1].cells[1].text).assertEqual('2');
     });
 
     it('formats inline code, emphasis, and links without markdown control text', 0, () => {
@@ -661,30 +861,120 @@ export default function conversationStateUnitTest() {
       expect(blocks[0].inlines[5].type).assertEqual('link');
       expect(blocks[0].inlines[5].url).assertEqual('https://example.test');
     });
+
+    it('parses GFM table cells, alignment, escaped pipes, and inline formatting', 0, () => {
+      const blocks = MarkdownParser.parse(
+        '**Name** | Status | Note\n:--- | :---: | ---:\nBitFun | ~~old~~ | a \\| b'
+      );
+
+      expect(blocks.length).assertEqual(1);
+      expect(blocks[0].type).assertEqual('table');
+      expect(blocks[0].tableRows.length).assertEqual(2);
+      expect(blocks[0].tableRows[0].cells[0].inlines[0].type).assertEqual('strong');
+      expect(blocks[0].tableRows[0].cells[0].text).assertEqual('Name');
+      expect(blocks[0].tableRows[1].cells[1].inlines[0].type).assertEqual('delete');
+      expect(blocks[0].tableRows[1].cells[1].inlines[0].text).assertEqual('old');
+      expect(blocks[0].tableRows[1].cells[2].text).assertEqual('a | b');
+      expect(blocks[0].tableRows[0].cells[0].alignment).assertEqual('left');
+      expect(blocks[0].tableRows[0].cells[1].alignment).assertEqual('center');
+      expect(blocks[0].tableRows[0].cells[2].alignment).assertEqual('right');
+    });
+
+    it('parses task state, nested list depth, extended headings, fences, and autolinks', 0, () => {
+      const blocks = MarkdownParser.parse(
+        '##### Detail\n\nSetext title\n---\n\n- [x] done\n  - [ ] child\n\n~~~rust extra\nlet value = 1;\n~~~\n\nSee https://example.test/docs.'
+      );
+
+      expect(blocks[0].type).assertEqual('heading');
+      expect(blocks[0].level).assertEqual(5);
+      expect(blocks[1].type).assertEqual('heading');
+      expect(blocks[1].level).assertEqual(2);
+      expect(blocks[2].items[0].checked).assertEqual(1);
+      expect(blocks[2].items[1].checked).assertEqual(0);
+      expect(blocks[2].items[1].depth).assertEqual(1);
+      expect(blocks[3].type).assertEqual('code');
+      expect(blocks[3].language).assertEqual('rust');
+      expect(blocks[4].inlines[1].type).assertEqual('link');
+      expect(blocks[4].inlines[1].url).assertEqual('https://example.test/docs');
+    });
+
+    it('renders angle-bracket autolinks without their delimiters', 0, () => {
+      const blocks = MarkdownParser.parse('Open <https://example.test/docs> now.');
+
+      expect(blocks[0].text).assertEqual('Open https://example.test/docs now.');
+      expect(blocks[0].inlines.length).assertEqual(3);
+      expect(blocks[0].inlines[1].type).assertEqual('link');
+      expect(blocks[0].inlines[1].text).assertEqual('https://example.test/docs');
+      expect(blocks[0].inlines[1].url).assertEqual('https://example.test/docs');
+    });
+
+    it('handles soft and hard line breaks, escapes, and multi-backtick code spans', 0, () => {
+      const blocks = MarkdownParser.parse(
+        'soft\nline\n\nhard  \nbreak\n\nescaped \\*literal\\* and ``code ` span``'
+      );
+
+      expect(blocks[0].text).assertEqual('soft line');
+      expect(blocks[1].text).assertEqual('hard\nbreak');
+      expect(blocks[2].inlines[0].text).assertEqual('escaped *literal* and ');
+      expect(blocks[2].inlines[1].type).assertEqual('code');
+      expect(blocks[2].inlines[1].text).assertEqual('code ` span');
+    });
+
+    it('preserves nested quote and list presentation levels plus list continuation text', 0, () => {
+      const blocks = MarkdownParser.parse(
+        '> outer\n>> nested\n> outer again\n\n- first\n  continuation\n    - nested item'
+      );
+
+      expect(blocks[0].type).assertEqual('quote');
+      expect(blocks[0].level).assertEqual(1);
+      expect(blocks[1].level).assertEqual(2);
+      expect(blocks[1].text).assertEqual('nested');
+      expect(blocks[2].level).assertEqual(1);
+      expect(blocks[3].items[0].text).assertEqual('first continuation');
+      expect(blocks[3].items[1].depth).assertEqual(1);
+    });
+
+    it('changes the render key when a streaming markdown block grows', 0, () => {
+      const firstCode = MarkdownParser.parse('```text\nline 1');
+      const secondCode = MarkdownParser.parse('```text\nline 1\nline 2');
+      const firstParagraph = MarkdownParser.parse('streaming');
+      const secondParagraph = MarkdownParser.parse('streaming content');
+
+      expect(firstCode[0].id).assertEqual(secondCode[0].id);
+      expect(firstCode[0].renderKey === secondCode[0].renderKey).assertFalse();
+      expect(firstParagraph[0].id).assertEqual(secondParagraph[0].id);
+      expect(firstParagraph[0].renderKey === secondParagraph[0].renderKey).assertFalse();
+    });
+
+    it('keeps completed markdown block render keys stable while the active block grows', 0, () => {
+      const first = MarkdownParser.parse('Completed paragraph.\n\n```text\nline 1');
+      const second = MarkdownParser.parse('Completed paragraph.\n\n```text\nline 1\nline 2');
+
+      expect(first.length).assertEqual(2);
+      expect(second.length).assertEqual(2);
+      expect(first[0].renderKey).assertEqual(second[0].renderKey);
+      expect(first[1].id).assertEqual(second[1].id);
+      expect(first[1].renderKey === second[1].renderKey).assertFalse();
+    });
   });
 
   describe('ConversationController', () => {
     it('keeps composer state isolated while the visible route changes', 0, () => {
       const general = new GeneralChatPageState();
       const remote = new RemotePageState();
-      const remoteCreate = new RemoteCreateSessionState();
       let route = AppRoute.ChatHome;
       const controller = new ConversationController(
         general,
         remote,
-        remoteCreate,
         { currentRoute: (): AppRoute => route }
       );
 
       controller.setChatInput(AppRoute.ChatHome, 'general draft');
       controller.setChatInput(AppRoute.RemoteChat, 'remote draft');
-      controller.setChatInput(AppRoute.RemoteCreate, 'create draft');
 
       expect(controller.visibleChatInput()).assertEqual('general draft');
       route = AppRoute.RemoteChat;
       expect(controller.visibleChatInput()).assertEqual('remote draft');
-      route = AppRoute.RemoteCreate;
-      expect(controller.visibleChatInput()).assertEqual('create draft');
       expect(general.chatInput).assertEqual('general draft');
       expect(remote.chatInput).assertEqual('remote draft');
     });
@@ -692,22 +982,18 @@ export default function conversationStateUnitTest() {
     it('clears voice state for every conversation surface on teardown', 0, () => {
       const general = new GeneralChatPageState();
       const remote = new RemotePageState();
-      const remoteCreate = new RemoteCreateSessionState();
       const controller = new ConversationController(
         general,
         remote,
-        remoteCreate,
-        { currentRoute: (): AppRoute => AppRoute.RemoteCreate }
+        { currentRoute: (): AppRoute => AppRoute.RemoteChat }
       );
       controller.setVoiceListening(AppRoute.ChatHome, true);
       controller.setVoiceListening(AppRoute.RemoteChat, true);
-      controller.setVoiceListening(AppRoute.RemoteCreate, true);
 
       controller.clearAllVoiceListening();
 
       expect(general.isVoiceListening).assertFalse();
       expect(remote.isVoiceListening).assertFalse();
-      expect(remoteCreate.isVoiceListening).assertFalse();
     });
   });
 
@@ -834,6 +1120,43 @@ export default function conversationStateUnitTest() {
       expect(state.activeTurnMessage.text).assertEqual('Hello');
       expect(state.activeTurnMessage.renderVersion || 0).assertEqual(2);
       expect(state.hasRunningActiveTurn()).assertTrue();
+    });
+
+    it('retains observable timeline rows while streaming content changes', 0, () => {
+      const state = new GeneralChatPageState();
+      const firstMessage = activeChatMessage('turn-observable-1', '', 'active', 1);
+      const firstItems: ChatTimelineItem[] = [{
+        id: 'active-turn-observable-1',
+        type: 'assistant_live_turn',
+        message: firstMessage,
+        isStreaming: true,
+        isFinalizing: false
+      }];
+
+      state.setTimelineProjection([], [], firstMessage, false, firstItems);
+      const retainedRow = state.timelineItems[0];
+      const retainedMessage = retainedRow.message;
+
+      state.setTimelineProjection([], [], firstMessage, false, firstItems);
+      expect(state.timelineItems[0] === retainedRow).assertTrue();
+      expect(state.timelineItems[0].message === retainedMessage).assertTrue();
+
+      const completedMessage = activeChatMessage('turn-observable-1', 'UI NOW WORKS', 'completed', 2);
+      const completedItems: ChatTimelineItem[] = [{
+        id: 'active-turn-observable-1',
+        type: 'assistant_live_turn',
+        message: completedMessage,
+        isStreaming: false,
+        isFinalizing: true
+      }];
+
+      state.setTimelineProjection([], [], completedMessage, false, completedItems);
+
+      expect(state.timelineItems[0] === retainedRow).assertTrue();
+      expect(state.timelineItems[0].message?.text || '').assertEqual('UI NOW WORKS');
+      expect(state.timelineItems[0].message?.status || '').assertEqual('completed');
+      expect(state.timelineItems[0].isStreaming).assertFalse();
+      expect(state.timelineItems[0].isFinalizing).assertTrue();
     });
 
     it('owns ordinary chat composer projection', 0, () => {
@@ -1142,6 +1465,38 @@ export default function conversationStateUnitTest() {
   });
 
   describe('RemoteWorkspaceCoordinator', () => {
+    it('does not publish a workspace catalog after its target changes', 0, async () => {
+      const source = new FakeRemoteWorkspaceDataSource();
+      source.recent = [{
+        path: '/desk-a', name: 'Desk A', lastOpened: '', workspaceKind: 'normal'
+      }];
+      const state = new RemotePageState();
+      let targetId = 'desk-a';
+      const viewModel = new RemoteWorkspaceViewModel(
+        state,
+        new RemoteWorkspaceCoordinator(source),
+        {
+          isRemoteAvailable: (): boolean => true,
+          remoteTargetId: (): string => targetId,
+          isBusy: (): boolean => false,
+          onBusy: (_busy: boolean): void => {},
+          onStatus: (_status: string): void => {},
+          onWorkspaceSelected: (_workspace: WorkspaceInfo): void => {},
+          onCatalogLoading: (_targetId: string): void => {},
+          onCatalogLoaded: (_targetId: string, _workspaces: RecentWorkspaceEntry[]): void => {},
+          onCatalogFailed: (_targetId: string): void => {},
+          onRefreshSessions: async (): Promise<void> => {},
+          onConnectionFailure: (_error: Object): void => {}
+        }
+      );
+
+      const loading = viewModel.loadRecentWorkspacesInBackground();
+      targetId = 'desk-b';
+      await loading;
+
+      expect(state.recentWorkspaces.length).assertEqual(0);
+    });
+
     it('deduplicates sessions discovered across recent workspaces', 0, async () => {
       const source = new FakeRemoteWorkspaceDataSource();
       source.sessionsByPath.set('/one', [

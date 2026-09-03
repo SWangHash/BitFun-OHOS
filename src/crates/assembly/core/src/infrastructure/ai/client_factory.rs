@@ -436,6 +436,8 @@ fn to_adapter_provider(provider: SubscriptionProvider) -> AdapterProvider {
         SubscriptionProvider::Codex => AdapterProvider::Codex,
         SubscriptionProvider::Antigravity => AdapterProvider::Antigravity,
         SubscriptionProvider::Opencode => AdapterProvider::Opencode,
+        SubscriptionProvider::Grok => AdapterProvider::Grok,
+        SubscriptionProvider::Hermes => AdapterProvider::Hermes,
     }
 }
 
@@ -506,6 +508,12 @@ pub async fn apply_subscription_auth_with_options(
     let resolved = match auth {
         AuthConfig::ApiKey => return Ok(None),
         AuthConfig::Subscription { provider, plan } => {
+            let adapter_provider = to_adapter_provider(*provider);
+            if let Some(model) =
+                subscription_auth::runtime_model_override(adapter_provider, &ai_config.model)
+            {
+                ai_config.model = model.to_string();
+            }
             let resolved = match (*provider, *plan) {
                 (SubscriptionProvider::Opencode, Some(plan)) => {
                     subscription_auth::resolve_opencode_with_options(
@@ -515,9 +523,14 @@ pub async fn apply_subscription_auth_with_options(
                     )
                     .await
                 }
+                (SubscriptionProvider::Grok, None) => {
+                    subscription_auth::resolve_grok_with_options(&ai_config.model, options).await
+                }
+                (SubscriptionProvider::Hermes, None) => {
+                    subscription_auth::resolve_hermes_with_options(&ai_config.model, options).await
+                }
                 (_, None) => {
-                    subscription_auth::resolve_with_options(to_adapter_provider(*provider), options)
-                        .await
+                    subscription_auth::resolve_with_options(adapter_provider, options).await
                 }
                 (_, Some(plan)) => Err(anyhow!(
                     "OpenCode plan {plan:?} cannot be used with provider {provider:?}"
@@ -563,7 +576,7 @@ pub async fn apply_subscription_auth_with_options(
     Ok(resolved.expires_at)
 }
 
-/// List subscription accounts (Codex / Antigravity / OpenCode).
+/// List subscription accounts (Codex / Antigravity / OpenCode / xAI / Hermes).
 #[cfg(feature = "subscription-auth")]
 pub async fn list_subscription_accounts() -> Vec<subscription_auth::SubscriptionAccount> {
     subscription_auth::list_accounts().await
@@ -704,12 +717,12 @@ mod tests {
     #[test]
     fn concrete_reserved_model_ids_remain_exact_config_references() {
         let mut config = GlobalConfig::default();
-        config.ai.models = ["inherit", "primary", "fast", "auto", "default"]
+        config.ai.models = ["inherit", "primary", "fast", "default"]
             .into_iter()
             .map(|id| build_model(id, id, &format!("runtime-{id}")))
             .collect();
 
-        for id in ["inherit", "primary", "fast", "auto", "default"] {
+        for id in ["inherit", "primary", "fast", "default"] {
             assert_eq!(
                 config.ai.resolve_model_reference(id),
                 Some(id.to_string()),
@@ -733,8 +746,7 @@ mod tests {
     }
 
     #[test]
-    fn auto_model_selectors_normalize_to_primary_for_client_lookup() {
-        assert_eq!(classify_model_selector("auto"), ModelSelectorKind::Primary);
+    fn default_and_empty_selectors_normalize_to_primary_for_client_lookup() {
         assert_eq!(
             classify_model_selector(" default "),
             ModelSelectorKind::Primary

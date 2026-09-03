@@ -25,7 +25,7 @@ import { createLogger } from '@/shared/utils/logger';
 import { handleThreadGoalUpdated } from '../threadGoalEventService';
 import { resolveThreadGoalUserMessageDisplay } from '../../utils/threadGoalDisplay';
 import { cleanRemoteUserInput } from '../../utils/userInputText';
-import { effectiveToolInvocation, getEffectiveToolName } from '../../utils/toolInvocationIdentity';
+import { getEffectiveToolName } from '../../utils/toolInvocationIdentity';
 import { absoluteSessionTurnIndexForId } from '../../utils/flowChatTurnOrdinal';
 import type {
   DeepReviewQueueStateChangedEvent,
@@ -36,7 +36,7 @@ import type {
   CloseBuiltInBrowserEvent,
   OpenBuiltInBrowserEvent,
   AcpContextUsageUpdatedEvent,
-  SessionModelAutoMigratedEvent,
+  SessionModelFallbackAppliedEvent,
   SessionReasoningPresetAutoClearedEvent,
   SubagentSessionLinkedEvent,
   RecoverInterruptedDialogTurnResponse,
@@ -55,10 +55,15 @@ import { buildDeepReviewCapacityQueueStateFromEvent } from '../../utils/deepRevi
 import { useBackgroundCommandActivityStore } from '../../store/backgroundCommandActivityStore';
 import { useBackgroundSubagentActivityStore } from '../../store/backgroundSubagentActivityStore';
 import { createTab } from '@/shared/utils/tabUtils';
+import type { TabCreationOptions } from '@/shared/utils/tabUtils';
 import { cacheAgentCanvasTabForWorkspace } from '@/app/components/panels/content-canvas/stores';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { splitFilePathAndContent } from '@/shared/utils/partialJsonParser';
 import { interruptedTurnRecoveryGate } from '../interruptedTurnRecoveryGate';
+import {
+  clearHistorySessionOpenTransition,
+  clearRecentHistorySessionOpenIntent,
+} from '../sessionOpenIntent';
 
 const pendingImageAnalysisTurns = new Map<string, string>();
 import { 
@@ -176,6 +181,7 @@ export const __test_only__ = {
   handleDialogTurnInterrupted,
   handleDialogTurnRecovered,
   handleDialogTurnCancelled,
+  buildBuiltInBrowserTabOptions,
 };
 
 function shouldMarkUnreadCompletion(sessionId: string): boolean {
@@ -886,8 +892,8 @@ export async function initializeEventListeners(
     onSessionTitleGenerated: (event) => {
       handleSessionTitleGenerated(event);
     },
-    onSessionModelAutoMigrated: (event) => {
-      handleSessionModelAutoMigrated(event);
+    onSessionModelFallbackApplied: (event) => {
+      handleSessionModelFallbackApplied(event);
     },
     onSessionReasoningPresetAutoCleared: (event) => {
       handleSessionReasoningPresetAutoCleared(event);
@@ -1172,11 +1178,6 @@ function finalizeTurnCompletionState(
     log.debug('Skipping FINISHING_SETTLED transition', { currentState, sessionId, turnId });
   }
 
-  const dialogTurn = store.getState().sessions.get(sessionId)?.dialogTurns.find(t => t.id === turnId);
-  if (dialogTurn) {
-    appendPlanDisplayItemsIfNeeded(context, sessionId, turnId, dialogTurn);
-  }
-
   if (!runtimeOwnsTurnPersistence) {
     saveDialogTurnToDisk(context, sessionId, turnId).catch(error => {
       log.warn('Failed to save dialog turn (non-critical)', { sessionId, turnId, error });
@@ -1279,18 +1280,18 @@ function handleSessionTitleGenerated(event: any): void {
   reconcileBackgroundSubagentSession(sessionId);
 }
 
-function handleSessionModelAutoMigrated(event: SessionModelAutoMigratedEvent): void {
+function handleSessionModelFallbackApplied(event: SessionModelFallbackAppliedEvent): void {
   const { sessionId, previousModelId, newModelId, reason } = event;
   if (!sessionId || !newModelId) return;
 
   const store = FlowChatStore.getInstance();
-  const applied = store.applySessionModelAutoMigration(
+  const applied = store.applySessionModelFallback(
     sessionId,
     previousModelId ?? '',
     newModelId,
   );
   if (!applied) {
-    log.debug('Ignoring stale session model migration', {
+    log.debug('Ignoring stale session model fallback', {
       sessionId,
       previousModelId,
       newModelId,
@@ -1438,6 +1439,11 @@ function handleSessionDeleted(context: FlowChatContext, event: any): void {
   const store = FlowChatStore.getInstance();
   const removedSessionIds = store.getCascadeSessionIds(sessionId);
   if (removedSessionIds.length === 0) return;
+
+  removedSessionIds.forEach(removedSessionId => {
+    clearRecentHistorySessionOpenIntent(removedSessionId);
+    clearHistorySessionOpenTransition(removedSessionId);
+  });
 
   log.info('Remote session deleted', { sessionId });
   removedSessionIds.forEach(id => {
@@ -1930,7 +1936,15 @@ function handleDialogTurnStarted(context: FlowChatContext, event: any): void {
  * Handle text chunk event
  */
 function handleTextChunk(context: FlowChatContext, event: any): void {
-  const { sessionId, turnId, roundId, text, contentType = 'text', isThinkingEnd = false } = event;
+  const {
+    sessionId,
+    turnId,
+    roundId,
+    text,
+    contentType = 'text',
+    reasoningKind,
+    isThinkingEnd = false,
+  } = event;
   if (!shouldProcessEvent(sessionId, turnId, 'data', 'TextChunk')) {
     return;
   }
@@ -1971,6 +1985,7 @@ function handleTextChunk(context: FlowChatContext, event: any): void {
     attemptIndex: event.attemptIndex,
     text,
     contentType: contentType as 'text' | 'thinking',
+    reasoningKind,
     isThinkingEnd,
   };
   
@@ -2009,9 +2024,29 @@ export function processBatchedEvents(
       const { eventType } = parsed;
       
       if (eventType === 'text') {
-        const { sessionId, turnId, roundId, attemptId, attemptIndex, text, contentType, isThinkingEnd } = payload;
+        const {
+          sessionId,
+          turnId,
+          roundId,
+          attemptId,
+          attemptIndex,
+          text,
+          contentType,
+          reasoningKind,
+          isThinkingEnd,
+        } = payload;
         if (contentType === 'thinking') {
-          processThinkingChunkInternal(context, sessionId, turnId, roundId, text, isThinkingEnd, attemptId, attemptIndex);
+          processThinkingChunkInternal(
+            context,
+            sessionId,
+            turnId,
+            roundId,
+            text,
+            isThinkingEnd,
+            attemptId,
+            attemptIndex,
+            reasoningKind,
+          );
         } else {
           processNormalTextChunkInternal(context, sessionId, turnId, roundId, text, attemptId, attemptIndex);
         }
@@ -2539,16 +2574,24 @@ function handleThreadGoalUpdatedEvent(event: any): void {
   });
 }
 
-function handleOpenBuiltInBrowser(event: OpenBuiltInBrowserEvent): void {
+function buildBuiltInBrowserTabOptions(
+  event: OpenBuiltInBrowserEvent,
+): TabCreationOptions | null {
   const url = typeof event?.url === 'string' ? event.url.trim() : '';
-  if (!url) {
-    log.warn('OpenBuiltInBrowser missing url', { event });
-    return;
-  }
+  if (!url) return null;
 
   const title = typeof event?.title === 'string' && event.title.trim()
     ? event.title.trim()
     : 'Browser';
+  const requestId = typeof event?.requestId === 'string' && event.requestId.trim()
+    ? event.requestId.trim()
+    : undefined;
+  const replaceExisting = event?.replaceExisting !== false;
+  // Replacing uses one stable product surface. A true new-tab request gets a
+  // request-scoped key so identical URLs can still open as distinct targets.
+  const duplicateCheckKey = replaceExisting
+    ? 'browser-panel'
+    : `browser-panel:${requestId ?? url}`;
   const automationId = typeof event?.automationId === 'string' && event.automationId
     ? event.automationId
     : undefined;
@@ -2605,15 +2648,27 @@ function handleOpenBuiltInBrowser(event: OpenBuiltInBrowserEvent): void {
     return;
   }
 
-  createTab({
+  return {
     type: 'browser',
     title,
+    data: { url, openRequestId: requestId },
+    metadata: { duplicateCheckKey },
     data: panelData,
     metadata,
     checkDuplicate: true,
     duplicateCheckKey,
-    replaceExisting: event?.replaceExisting !== false,
+    replaceExisting,
     mode: 'agent',
+  };
+}
+
+function handleOpenBuiltInBrowser(event: OpenBuiltInBrowserEvent): void {
+  const options = buildBuiltInBrowserTabOptions(event);
+  if (!options) {
+    log.warn('OpenBuiltInBrowser missing url', { event });
+    return;
+  }
+  createTab(options);
     ensureVisible: true,
   });
 }
@@ -2910,12 +2965,7 @@ function handleDialogTurnCancelled(
     };
   });
   reconcileBackgroundSubagentSession(sessionId);
-   
-  const dialogTurn = session.dialogTurns.find(t => t.id === turnId);
-  if (dialogTurn) {
-    appendPlanDisplayItemsIfNeeded(context, sessionId, turnId, dialogTurn);
-  }
-  
+
   if (!runtimeOwnsTurnPersistence) {
     saveDialogTurnToDisk(context, sessionId, turnId).catch(err => {
       log.warn('Failed to save cancelled dialog turn', { sessionId, turnId, error: err });
@@ -3126,71 +3176,4 @@ export function projectDialogTurnRecovered(
       });
   }
   return true;
-}
-
-/**
- * Detect .plan.md files modified by Edit/Write in dialog turn
- */
-function detectModifiedPlanFiles(dialogTurn: DialogTurn): string[] {
-  const planFiles: string[] = [];
-  const createPlanFiles = new Set<string>();
-  
-  for (const round of dialogTurn.modelRounds) {
-    for (const item of round.items) {
-      if (item.type !== 'tool') continue;
-      const toolItem = item as FlowToolItem;
-      const effective = effectiveToolInvocation(toolItem.toolName, toolItem.toolCall?.input);
-      
-      if (effective.toolName === 'CreatePlan' && toolItem.toolResult?.success) {
-        const planPath = toolItem.toolResult.result?.plan_file_path;
-        if (planPath) createPlanFiles.add(planPath);
-      }
-      
-      if (['Edit', 'Write'].includes(effective.toolName) && toolItem.toolResult?.success) {
-        const input = effective.input as any;
-        const filePath = splitFilePathAndContent(input?.payload)?.filePath
-          || input?.file_path
-          || input?.target_file
-          || '';
-        if (filePath.endsWith('.plan.md')) {
-          planFiles.push(filePath);
-        }
-      }
-    }
-  }
-  
-  return [...new Set(planFiles)].filter(f => !createPlanFiles.has(f));
-}
-
-/**
- * Append PlanDisplay tool items if plan files were modified
- */
-function appendPlanDisplayItemsIfNeeded(
-  context: FlowChatContext,
-  sessionId: string,
-  turnId: string,
-  dialogTurn: DialogTurn
-): void {
-  const modifiedPlanFiles = detectModifiedPlanFiles(dialogTurn);
-  if (modifiedPlanFiles.length === 0) return;
-  
-  const lastRound = dialogTurn.modelRounds[dialogTurn.modelRounds.length - 1];
-  if (!lastRound) return;
-  
-  for (const planFilePath of modifiedPlanFiles) {
-    const planToolItem: FlowToolItem = {
-      id: `plan-display-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      type: 'tool',
-      toolName: 'CreatePlan',
-      toolCall: { input: {}, id: '' },
-      toolResult: {
-        result: { plan_file_path: planFilePath },
-        success: true
-      },
-      timestamp: Date.now(),
-      status: 'completed'
-    };
-    
-    context.flowChatStore.addModelRoundItem(sessionId, turnId, planToolItem, lastRound.id);
-  }
 }

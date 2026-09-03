@@ -36,7 +36,7 @@ Self-Hosted entries must open `RelayDeployWizard`, not an external README.
 ## Local rules
 
 - Do not call Tauri APIs directly from UI components; go through the adapter / infrastructure layer
-- Reuse existing theme, i18n, component-library, and Zustand stores before adding new frontend primitives
+- Reuse `@bitfun/ui`, design tokens, theme, i18n, and Zustand stores before adding new frontend primitives
 - Theme and color-token changes must follow
   `docs/architecture/theme-token-optimization.md`: failing audits should be
   fixed by reusing tokens, merging redundant values, or adding a scoped owner
@@ -76,13 +76,16 @@ pnpm run i18n:audit
 pnpm run i18n:generate && pnpm run i18n:contract:test && pnpm run i18n:audit
 pnpm run type-check:web && pnpm --dir src/web-ui run test:run src/infrastructure/i18n/core/I18nService.test.ts
 pnpm run motion:audit
-pnpm run type-check:web
+pnpm run check:web
 ```
 
 Use the first line for resource-only locale changes, the second for
 contract/shared-term changes, the third for i18n runtime/namespace-loading
 changes, the fourth for presentation or interaction-motion changes, and the
-fifth for ordinary Web UI code. The motion audit is an intent-review inventory,
-not a pass/fail gate; do not mechanically replace deliberate layout transitions
-or animate virtualized content. Rely on CI for full lint, build, and broad test
-coverage unless the local change specifically needs it.
+fifth for ordinary Web UI code. `check:web` runs type-check plus the same
+Appearance contract, theme color, and theme visual governance gates used by CI,
+so rendered DOM or styling regressions are caught locally. The motion audit is
+an intent-review inventory, not a pass/fail gate; do not mechanically replace
+deliberate layout transitions or animate virtualized content. Rely on CI for
+full lint, build, and broad test coverage unless the local change specifically
+needs it.

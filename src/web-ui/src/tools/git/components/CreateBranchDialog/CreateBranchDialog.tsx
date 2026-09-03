@@ -3,10 +3,24 @@
  * Provides a consistent UI for creating a new branch from an existing base branch.
  */
 
+import {
+  Button,
+  Field,
+  FieldGroup,
+  FieldRow,
+  Icon,
+  Input,
+  ScrollArea,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { GitBranch } from 'lucide-react';
-import { Button, Modal, Input } from '@/component-library';
+;
 import './CreateBranchDialog.scss';
 
 export interface CreateBranchDialogProps {
@@ -119,11 +133,23 @@ export const CreateBranchDialog: React.FC<CreateBranchDialogProps> = ({
   const canSubmit = branchName.trim().length > 0 && !error && !isCreating;
 
   return (
-    <Modal isOpen={isOpen} onClose={handleCancel} title={t('dialog.createNewBranch.title')} size="small">
+    <Dialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => { if (!nextOpen) handleCancel(); }}
+      size="sm"
+    >
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{t('dialog.createNewBranch.title')}</DialogTitle>
+        </DialogHeading>
+        <DialogClose />
+      </DialogHeader>
+      <DialogBody inset="none">
       <div className="bitfun-create-branch-dialog" onKeyDown={handleKeyDown} data-bf-component="git-tool" data-bf-part="createBranchDialog">
+      <ScrollArea className="bitfun-create-branch-dialog__scroll">
         <div className="bitfun-create-branch-dialog__base-info">
           <div className="bitfun-create-branch-dialog__base-label">
-            <GitBranch size={14} />
+            <Icon name="git" size="sm" />
             <span>{t('dialog.createNewBranch.baseBranch')}</span>
           </div>
           <div className="bitfun-create-branch-dialog__base-value">
@@ -131,53 +157,61 @@ export const CreateBranchDialog: React.FC<CreateBranchDialogProps> = ({
           </div>
         </div>
 
-        <div className="bitfun-create-branch-dialog__form">
-          <Input
-            label={t('dialog.createNewBranch.nameLabel')}
-            value={branchName}
-            onChange={handleInputChange}
-            placeholder={t('dialog.createNewBranch.namePlaceholder')}
-            disabled={isCreating}
-            autoFocus
-            error={!!error}
-            errorMessage={error}
-          />
-          <div className="bitfun-create-branch-dialog__hint">
-            <div>{t('dialog.createNewBranch.namingHintTitle')}</div>
-            <ul>
-              <li>
-                {t('dialog.createNewBranch.namingHints.featureLabel')} <code>{t('dialog.createNewBranch.namingHints.featureExample')}</code>
-              </li>
-              <li>
-                {t('dialog.createNewBranch.namingHints.bugfixLabel')} <code>{t('dialog.createNewBranch.namingHints.bugfixExample')}</code>
-              </li>
-              <li>
-                {t('dialog.createNewBranch.namingHints.hotfixLabel')} <code>{t('dialog.createNewBranch.namingHints.hotfixExample')}</code>
-              </li>
-              <li>
-                {t('dialog.createNewBranch.namingHints.releaseLabel')} <code>{t('dialog.createNewBranch.namingHints.releaseExample')}</code>
-              </li>
-            </ul>
-          </div>
-        </div>
+        <FieldGroup appearance="plain" dividers={false} className="bitfun-create-branch-dialog__form">
+          <FieldRow padding="none">
+            <Field
+              label={t('dialog.createNewBranch.nameLabel')}
+              controlWidth="fill"
+              error={error || undefined}
+            >
+              <Input
+                value={branchName}
+                onChange={handleInputChange}
+                placeholder={t('dialog.createNewBranch.namePlaceholder')}
+                disabled={isCreating}
+                autoFocus
+              />
+            </Field>
+          </FieldRow>
+          <FieldRow padding="none">
+            <div className="bitfun-create-branch-dialog__hint">
+              <div>{t('dialog.createNewBranch.namingHintTitle')}</div>
+              <ul>
+                <li>
+                  {t('dialog.createNewBranch.namingHints.featureLabel')} <code>{t('dialog.createNewBranch.namingHints.featureExample')}</code>
+                </li>
+                <li>
+                  {t('dialog.createNewBranch.namingHints.bugfixLabel')} <code>{t('dialog.createNewBranch.namingHints.bugfixExample')}</code>
+                </li>
+                <li>
+                  {t('dialog.createNewBranch.namingHints.hotfixLabel')} <code>{t('dialog.createNewBranch.namingHints.hotfixExample')}</code>
+                </li>
+                <li>
+                  {t('dialog.createNewBranch.namingHints.releaseLabel')} <code>{t('dialog.createNewBranch.namingHints.releaseExample')}</code>
+                </li>
+              </ul>
+            </div>
+          </FieldRow>
+        </FieldGroup>
 
         <div className="bitfun-create-branch-dialog__actions">
           <Button 
-            variant="secondary"
-            size="small"
+            variant="outline"
+            size="sm"
             onClick={handleCancel}
             disabled={isCreating}
           >
             {t('dialog.createNewBranch.cancel')}
           </Button>
           <Button 
-            variant="primary"
-            size="small"
+            variant="fill"
+            size="sm"
             onClick={handleConfirm}
             disabled={!canSubmit}
-            isLoading={isCreating}
+            loading={isCreating}
+            leadingIcon={<Icon name="git" size="sm" />}
           >
-            <GitBranch size={14} />
+
             {t('dialog.createNewBranch.confirm')}
           </Button>
         </div>
@@ -185,8 +219,10 @@ export const CreateBranchDialog: React.FC<CreateBranchDialogProps> = ({
         <div className="bitfun-create-branch-dialog__shortcuts">
           <span>Esc</span> {t('dialog.createNewBranch.cancel')} · <span>Enter</span> {t('dialog.createNewBranch.confirm')}
         </div>
+      </ScrollArea>
       </div>
-    </Modal>
+          </DialogBody>
+    </Dialog>
   );
 };
 

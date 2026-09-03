@@ -570,6 +570,11 @@ mod tests {
             "GetTime",
             "ListModels",
             "Task",
+            "AgentSpawn",
+            "AgentSendInput",
+            "AgentInterrupt",
+            "AgentList",
+            "AgentDelete",
             "AgentWait",
             "LaunchReviewAgent",
             "Skill",
@@ -578,15 +583,16 @@ mod tests {
             "get_goal",
             "create_goal",
             "update_goal",
-            "CreatePlan",
             "submit_code_review",
             "GetToolSpec",
             "CallDeferredTool",
+            "BitFunControl",
             "GetFileDiff",
             "SessionControl",
             "SessionMessage",
             "SessionHistory",
             "Cron",
+            "PortForward",
             "WebSearch",
             "WebFetch",
             "ListMCPResources",
@@ -594,12 +600,12 @@ mod tests {
             "ListMCPPrompts",
             "GetMCPPrompt",
             "GenerativeUI",
-            "Git",
             "Worktree",
             "ReviewPlatform",
             "InitMiniApp",
             "FinalizeMiniApp",
             "PublishMiniApp",
+            "FrontendWorkbench",
             "PublishAppearance",
             "PageDeploy",
             "PagePublish",
@@ -676,6 +682,14 @@ mod tests {
                 "core.computer-use",
                 "core.review",
                 "core.miniapp",
+                "core.creation",
+                "core.canvas",
+                "core.git",
+                "core.web",
+                "core.mcp",
+                "core.computer-use",
+                "core.review",
+                "core.miniapp",
                 "core.canvas",
                 "core.integration",
                 "core.openharmony"
@@ -709,6 +723,7 @@ mod tests {
                 .unwrap_or_else(|| panic!("{tool_name} tool should be registered"));
             let assistant_text = tool.render_result_for_assistant(&json!({
                 "success": true,
+                "snapshot_recorded": true,
                 "file_path": "workspace/demo.txt"
             }));
 
@@ -803,7 +818,6 @@ mod tests {
         assert!(registry.is_tool_deferred("GetFileDiff"));
         assert!(registry.is_tool_deferred("ListModels"));
         assert!(!registry.is_tool_deferred("GetToolSpec"));
-        assert!(registry.is_tool_deferred("Git"));
         assert!(registry.is_tool_deferred("Worktree"));
         assert!(registry.is_tool_deferred("ReviewPlatform"));
         assert!(!registry.is_tool_deferred("InitMiniApp"));
@@ -821,12 +835,12 @@ mod tests {
             registry.get_deferred_tool_names(),
             vec![
                 "ListModels",
-                "CreatePlan",
                 "GetFileDiff",
                 "SessionControl",
                 "SessionMessage",
                 "SessionHistory",
                 "Cron",
+                "PortForward",
                 "WebSearch",
                 "WebFetch",
                 "ListMCPResources",
@@ -834,7 +848,6 @@ mod tests {
                 "ListMCPPrompts",
                 "GetMCPPrompt",
                 "GenerativeUI",
-                "Git",
                 "Worktree",
                 "ReviewPlatform",
                 "ControlHub",
@@ -866,11 +879,11 @@ mod tests {
                 "Grep",
                 "GetTime",
                 "ListModels",
+                "AgentList",
                 "Skill",
                 "AskUserQuestion",
                 "TodoWrite",
                 "get_goal",
-                "CreatePlan",
                 "submit_code_review",
                 "GetToolSpec",
                 "GetFileDiff",
@@ -1112,6 +1125,7 @@ mod tests {
 
             let assistant_text = tool.render_result_for_assistant(&json!({
                 "success": true,
+                "snapshot_recorded": true,
                 "file_path": "workspace/demo.txt"
             }));
 
@@ -1119,6 +1133,16 @@ mod tests {
                 assistant_text.contains("snapshot system"),
                 "expected snapshot wrapper text for {tool_name}, got: {assistant_text}"
             );
+            for recorded in [Value::Null, Value::Bool(false)] {
+                let unrecorded_text = tool.render_result_for_assistant(&json!({
+                    "success": true, "snapshot_recorded": recorded,
+                    "file_path": "workspace/demo.txt"
+                }));
+                assert!(
+                    !unrecorded_text.contains("snapshot system"),
+                    "successful file mutation alone cannot claim snapshot coverage"
+                );
+            }
         }
 
         let read_text = registry

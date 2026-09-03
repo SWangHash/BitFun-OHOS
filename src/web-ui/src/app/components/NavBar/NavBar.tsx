@@ -1,7 +1,7 @@
 /**
  * NavBar — navigation history controls + window chrome.
  *
- * Sits at the top of the left column, same height as SceneBar (38px).
+ * Sits at the top of the left column as compact workbench chrome (35px).
  * Layout: [←][→]  <drag-region>  [_][□][×]
  *
  * - Back/Forward buttons mirror IDE navigation history.
@@ -10,14 +10,14 @@
  */
 
 import React, { useCallback, useMemo, useRef } from 'react';
-import { ArrowLeft, ArrowRight } from 'lucide-react';
-import { Tooltip } from '@/component-library';
+;
+
 import { useNavSceneStore } from '../../stores/navSceneStore';
 import { useI18n } from '../../../infrastructure/i18n';
-import { PanelLeftIcon } from '../TitleBar/PanelIcons';
 import { createLogger } from '@/shared/utils/logger';
 import { isMacOSDesktopRuntime, supportsNativeWindowDragging } from '@/infrastructure/runtime';
 import './NavBar.scss';
+import { Icon, Tooltip } from '@bitfun/ui';
 
 const log = createLogger('NavBar');
 
@@ -84,7 +84,7 @@ const NavBar: React.FC<NavBarProps> = ({
 
   if (isCollapsed) {
     return (
-      <div data-bf-component="nav-bar" data-bf-part="root" data-bf-state="collapsed" className={rootClassName} role="toolbar" aria-label={t('nav.aria.navControl')} onMouseDown={handleBarMouseDown} onDoubleClick={handleBarDoubleClick}>
+      <div data-bf-component="nav-bar" data-bf-part="root" data-bf-state="collapsed" data-bf-theme-scope="chrome" className={rootClassName} role="toolbar" aria-label={t('nav.aria.navControl')} onMouseDown={handleBarMouseDown} onDoubleClick={handleBarDoubleClick}>
         <Tooltip content={t('header.expandLeftPanel')} placement="bottom" followCursor>
           <button
             type="button"
@@ -94,7 +94,7 @@ const NavBar: React.FC<NavBarProps> = ({
             onClick={onExpandNav}
             aria-label={t('header.expandLeftPanel')}
           >
-            <PanelLeftIcon size={13} />
+            <Icon name="sidebar-left" size="sm" style={{ width: 13, height: 13 }} />
           </button>
         </Tooltip>
       </div>
@@ -102,7 +102,7 @@ const NavBar: React.FC<NavBarProps> = ({
   }
 
   return (
-    <div data-bf-component="nav-bar" data-bf-part="root" className={rootClassName} role="toolbar" aria-label={t('nav.aria.navControl')} onMouseDown={handleBarMouseDown} onDoubleClick={handleBarDoubleClick}>
+    <div data-bf-component="nav-bar" data-bf-part="root" data-bf-theme-scope="chrome" className={rootClassName} role="toolbar" aria-label={t('nav.aria.navControl')} onMouseDown={handleBarMouseDown} onDoubleClick={handleBarDoubleClick}>
       <Tooltip content={t('header.collapseLeftPanel')} placement="bottom" followCursor>
         <button
           type="button"
@@ -112,7 +112,7 @@ const NavBar: React.FC<NavBarProps> = ({
           onClick={onExpandNav}
           aria-label={t('header.collapseLeftPanel')}
         >
-          <PanelLeftIcon size={13} />
+          <Icon name="sidebar-left" size="sm" style={{ width: 13, height: 13 }} />
         </button>
       </Tooltip>
 
@@ -127,7 +127,7 @@ const NavBar: React.FC<NavBarProps> = ({
           aria-disabled={!canGoBack}
           aria-label={t('nav.back')}
         >
-          <ArrowLeft size={15} />
+          <Icon name="arrow-left" size="sm" />
         </button>
       </Tooltip>
 
@@ -141,7 +141,7 @@ const NavBar: React.FC<NavBarProps> = ({
           aria-disabled={!canGoForward}
           aria-label={t('nav.forward')}
         >
-          <ArrowRight size={15} />
+          <Icon name="arrow-right" size="sm" />
         </button>
       </Tooltip>
 

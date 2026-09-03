@@ -36,7 +36,6 @@ export const cliIntegrationTestTargets = [
 export const servicesCoreIntegrationTestTargets = [
   { name: 'markdown_owner_contracts', path: 'tests/markdown_owner_contracts.rs' },
   { name: 'declarative_workspace_instruction_contracts', path: 'tests/declarative_workspace_instruction_contracts.rs' },
-  { name: 'lsp_plugin_registry_contracts', path: 'tests/lsp_plugin_registry_contracts.rs' },
   { name: 'runtime_ownership_contracts', path: 'tests/runtime_ownership_contracts.rs' },
   { name: 'local_runtime_ports', path: 'tests/local_runtime_ports.rs' },
   { name: 'permission_store_contracts', path: 'tests/permission_store_contracts.rs' },
@@ -50,7 +49,6 @@ export const servicesCoreIntegrationTestTargets = [
 ];
 
 export const servicesIntegrationsIntegrationTestTargets = [
-  { name: 'debug_log_owner_contracts', path: 'tests/debug_log_owner_contracts.rs' },
   { name: 'script_tool_runtime', path: 'tests/script_tool_runtime.rs' },
   { name: 'announcement_contracts', path: 'tests/announcement_contracts.rs' },
   { name: 'file_watch_contracts', path: 'tests/file_watch_contracts.rs' },
@@ -131,7 +129,6 @@ export const coreTypesIntegrationTestTargets = [
     name: 'core_type_contracts',
     path: 'tests/core_type_contracts.rs',
     leaves: [
-      'tests/core_type_contracts/lsp_contracts.rs',
       'tests/core_type_contracts/session_contracts.rs',
       'tests/core_type_contracts/session_usage_contracts.rs',
       'tests/core_type_contracts/surface_contracts.rs',
@@ -154,6 +151,11 @@ export const runtimePortsIntegrationTestTargets = [
     name: 'git_port_contracts',
     path: 'tests/git_port_contracts.rs',
     requiredFeatures: ['git-port'],
+  },
+  {
+    name: 'hook_function_runtime_contracts',
+    path: 'tests/hook_function_runtime_contracts.rs',
+    requiredFeatures: ['hook-function-runtime'],
   },
   {
     name: 'script_tool_port_contracts',
@@ -184,6 +186,7 @@ export const productDomainsIntegrationTestTargets = [
       'tests/external_source_contracts/external_hook_catalog_contracts.rs',
       'tests/external_source_contracts/external_hook_contribution_contracts.rs',
       'tests/external_source_contracts/external_source_contracts.rs',
+      'tests/external_source_contracts/plugin_capability_contracts.rs',
       'tests/external_source_contracts/workspace_reference_contracts.rs',
     ],
     requiredFeatures: ['external-sources'],

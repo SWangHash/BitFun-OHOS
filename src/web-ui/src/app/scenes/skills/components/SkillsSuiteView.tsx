@@ -1,8 +1,8 @@
+import { Button, Icon, IconButton, ScrollArea, StatusPill } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Package, RefreshCw, RotateCcw, Settings2, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Package, RotateCcw, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Badge, Button } from '@/component-library';
-import { confirmDialog } from '@/component-library/components/ConfirmDialog/confirmService';
+import { confirmDialog } from '@/infrastructure/confirm-dialog';
 import { configAPI } from '@/infrastructure/api';
 import { useWorkspaceManagerSync } from '@/infrastructure/hooks/useWorkspaceManagerSync';
 import { useGallerySceneAutoRefresh } from '@/app/hooks/useGallerySceneAutoRefresh';
@@ -26,7 +26,6 @@ const SUITE_MODES = [
   { id: 'agentic', labelKey: 'suite.modes.agentic', descKey: 'suite.modeDescriptions.agentic' },
   { id: 'Cowork', labelKey: 'suite.modes.cowork', descKey: 'suite.modeDescriptions.cowork' },
   { id: 'Claw', labelKey: 'shared:agents.claw', descKey: 'suite.modeDescriptions.claw' },
-  { id: 'Team', labelKey: 'suite.modes.team', descKey: 'suite.modeDescriptions.team' },
 ] as const;
 
 type SuiteMode = typeof SUITE_MODES[number];
@@ -414,24 +413,24 @@ const SkillsSuiteView: React.FC = () => {
         </div>
         <div className="skills-suite__hero-actions" data-bf-scene="skills" data-bf-part="suiteHeroActions">
           <Button
-            variant="secondary"
-            size="small"
+            variant="outline"
+            size="sm"
+            leadingIcon={<Icon name="settings" size="xs" />}
             onClick={() => setIsGroupManagerOpen(true)}
             disabled={isSaving}
           >
-            <Settings2 size={13} />
-            <span>{t('suite.manageGroups')}</span>
+            {t('suite.manageGroups')}
           </Button>
           <Button
-            variant="secondary"
-            size="small"
+            variant="outline"
+            size="sm"
+            leadingIcon={<Icon name="refresh" size="lg" style={{ width: 13, height: 13 }} />}
             onClick={() => void refresh()}
             title={t('suite.refreshTooltip')}
             aria-label={t('suite.refreshTooltip')}
             disabled={loading || isSaving || hasUnsavedChanges}
           >
-            <RefreshCw size={13} />
-            <span>{t('suite.refreshAction')}</span>
+            {t('suite.refreshAction')}
           </Button>
         </div>
       </div>
@@ -459,24 +458,21 @@ const SkillsSuiteView: React.FC = () => {
             </button>
         ))}
         </div>
-        <Button
-          variant="secondary"
-          size="small"
+        <IconButton
+          size="sm"
           className="skills-suite__mode-reset"
-          iconOnly
-          isLoading={resettingModeId === suiteModeId}
+          loading={resettingModeId === suiteModeId}
           disabled={isSaving}
           onClick={() => { void resetMode(currentMode); }}
           title={t('suite.modeActions.reset', { mode: t(currentMode.labelKey) })}
           aria-label={t('suite.modeActions.reset', { mode: t(currentMode.labelKey) })}
-        >
-          <RotateCcw size={13} />
-        </Button>
+          icon={<RotateCcw size={13} />}
+        />
       </div>
 
       {loading && (
         <div className="skills-suite__loading" aria-busy="true" aria-label={t('suite.loading')} data-bf-scene="skills" data-bf-part="suiteLoading">
-          <RefreshCw size={16} className="skills-suite__loading-icon" />
+          <Icon name="refresh" size="md" className="skills-suite__loading-icon" />
           <span>{t('suite.loading')}</span>
         </div>
       )}
@@ -496,14 +492,11 @@ const SkillsSuiteView: React.FC = () => {
       )}
 
       {!loading && !error && suiteGroups.length > 0 && (
-        <div
+        <ScrollArea
           id={`skills-suite-panel-${suiteModeId}`}
           role="tabpanel"
           aria-labelledby={`skills-suite-tab-${suiteModeId}`}
           className="skills-suite__sections"
-          data-bf-scene="skills"
-          data-bf-part="suiteSections"
-          data-bf-mode={suiteModeId}
         >
           {suiteSections.map(([sectionLabel, sectionGroups]) => (
             <section key={sectionLabel} className="skills-suite__section" data-bf-scene="skills" data-bf-part="suiteSection">
@@ -536,7 +529,7 @@ const SkillsSuiteView: React.FC = () => {
                         <div className="skills-suite__group-title-wrap" data-bf-scene="skills" data-bf-part="suiteGroupTitleWrap">
                           <div className="skills-suite__group-title-row" data-bf-scene="skills" data-bf-part="suiteGroupTitleRow">
                             <span className="skills-suite__group-title" data-bf-scene="skills" data-bf-part="suiteGroupTitle">{group.label}</span>
-                            <Badge variant={groupStateVariant}>{groupStateLabel}</Badge>
+                            <StatusPill tone={groupStateVariant}>{groupStateLabel}</StatusPill>
                           </div>
                           <span className="skills-suite__group-count" data-bf-scene="skills" data-bf-part="suiteGroupCount">
                             {t('suite.groupCount', { total: group.totalCount })}
@@ -546,9 +539,9 @@ const SkillsSuiteView: React.FC = () => {
                         <div className="skills-suite__group-actions" data-bf-scene="skills" data-bf-part="suiteGroupActions">
                           {showSaveButton ? (
                             <Button
-                              variant="primary"
-                              size="small"
-                              isLoading={savingAction?.groupKey === group.id && savingAction.kind === 'save'}
+                              variant="fill"
+                              size="sm"
+                              loading={savingAction?.groupKey === group.id && savingAction.kind === 'save'}
                               disabled={isSaving}
                               onClick={() => void saveGroup(group)}
                             >
@@ -556,9 +549,9 @@ const SkillsSuiteView: React.FC = () => {
                             </Button>
                           ) : null}
                           <Button
-                            variant={allEnabled ? 'secondary' : 'primary'}
-                            size="small"
-                            isLoading={savingAction?.groupKey === group.id && savingAction.kind === 'toggle'}
+                            variant={allEnabled ? 'outline' : 'fill'}
+                            size="sm"
+                            loading={savingAction?.groupKey === group.id && savingAction.kind === 'toggle'}
                             disabled={isSaving}
                             onClick={() => void saveGroupVisibility(group, !allEnabled)}
                           >
@@ -648,7 +641,7 @@ const SkillsSuiteView: React.FC = () => {
               </div>
             </section>
           ))}
-        </div>
+        </ScrollArea>
       )}
       <SkillGroupManagerModal
         isOpen={isGroupManagerOpen}

@@ -55,6 +55,86 @@ const MAX_OPENCODE_CONFIGURED_POLICY_BYTES: usize = 64 * 1024;
 const OPENCODE_CONFIGURED_PRIORITY_BAND: usize =
     MAX_OPENCODE_CONFIGURED_SKILL_ROOTS * MAX_OPENCODE_CONFIGURED_SKILLS_PER_ROOT;
 
+const DEEP_RESEARCH_AGENT_ID: &str = "DeepResearch";
+const DEEP_RESEARCH_SKILL_NAME: &str = "deep-research";
+
+fn filter_implicitly_invocable_skills_for_agent(
+    skills: Vec<SkillInfo>,
+    agent_type: Option<&str>,
+) -> Vec<SkillInfo> {
+    let skills = filter_implicitly_invocable_skills(skills);
+    if agent_type != Some(DEEP_RESEARCH_AGENT_ID) {
+        return skills;
+    }
+
+    skills
+        .into_iter()
+        .filter(|skill| !skill.name.eq_ignore_ascii_case(DEEP_RESEARCH_SKILL_NAME))
+        .collect()
+}
+
+#[cfg(test)]
+mod implicit_invocation_policy_tests {
+    use super::{filter_implicitly_invocable_skills_for_agent, SkillInfo, SkillLocation};
+
+    fn skill(name: &str, allow_implicit_invocation: bool) -> SkillInfo {
+        SkillInfo {
+            key: format!("project::codex::{name}"),
+            name: name.to_string(),
+            description: String::new(),
+            path: format!("/workspace/.codex/skills/{name}"),
+            level: SkillLocation::Project,
+            source_slot: "codex".to_string(),
+            source_id: "codex".to_string(),
+            source_label: "Codex".to_string(),
+            dir_name: name.to_string(),
+            is_builtin: false,
+            group_key: None,
+            is_shadowed: false,
+            shadowed_by_key: None,
+            allow_implicit_invocation,
+            allow_user_invocation: true,
+            argument_hint: None,
+        }
+    }
+
+    #[test]
+    fn native_deep_research_hides_its_same_named_skill_from_implicit_listing() {
+        let skills = vec![
+            skill("deep-research", true),
+            skill("Deep-Research", true),
+            skill("fact-check", true),
+            skill("academic-deep-research", true),
+        ];
+
+        let filtered = filter_implicitly_invocable_skills_for_agent(skills, Some("DeepResearch"));
+
+        assert_eq!(filtered.len(), 2);
+        assert_eq!(filtered[0].name, "fact-check");
+        assert_eq!(filtered[1].name, "academic-deep-research");
+    }
+
+    #[test]
+    fn same_named_skill_remains_available_outside_native_deep_research() {
+        for agent_type in [Some("Cowork"), None] {
+            let skills = vec![skill("deep-research", true)];
+            let filtered = filter_implicitly_invocable_skills_for_agent(skills, agent_type);
+
+            assert_eq!(filtered.len(), 1);
+            assert_eq!(filtered[0].name, "deep-research");
+        }
+    }
+
+    #[test]
+    fn explicit_only_policy_still_applies_before_agent_specific_filtering() {
+        let skills = vec![skill("academic-deep-research", false)];
+
+        let filtered = filter_implicitly_invocable_skills_for_agent(skills, Some("DeepResearch"));
+
+        assert!(filtered.is_empty());
+    }
+}
+
 /// Global Skill registry instance
 static SKILL_REGISTRY: OnceLock<SkillRegistry> = OnceLock::new();
 
@@ -1243,10 +1323,41 @@ impl SkillRegistry {
 
     async fn apply_mode_filters_for_workspace(
         &self,
-        candidates: Vec<SkillCandidate>,
+        mut candidates: Vec<SkillCandidate>,
         workspace_root: Option<&Path>,
         agent_type: Option<&str>,
     ) -> Vec<SkillCandidate> {
+        #[cfg(feature = "opencode-plugin-host")]
+        {
+            let plugin_roots = crate::plugin_capability_publication::skill_roots_for_agent(
+                workspace_root,
+                agent_type,
+            )
+            .into_iter()
+            .map(|root| LocalConfiguredSkillRootContribution {
+                path: root.path,
+                scope:
+                    bitfun_product_domains::external_sources::ExternalSourceScope::WorkspaceLocal,
+                precedence: root.precedence,
+            })
+            .collect::<Vec<_>>();
+            if !plugin_roots.is_empty() {
+                let existing_paths = candidates
+                    .iter()
+                    .map(canonical_candidate_path)
+                    .collect::<HashSet<_>>();
+                let mut plugin_candidates =
+                    Self::scan_configured_opencode_candidates(plugin_roots).await;
+                plugin_candidates.retain(|candidate| {
+                    !existing_paths.contains(&canonical_candidate_path(candidate))
+                });
+                candidates = Self::merge_configured_opencode_candidates(
+                    candidates,
+                    plugin_candidates,
+                    workspace_root.is_some(),
+                );
+            }
+        }
         let globally_disabled_user_skills = Self::globally_disabled_user_skill_keys().await;
         let candidates =
             Self::filter_globally_disabled_candidates(candidates, &globally_disabled_user_skills);
@@ -1447,9 +1558,10 @@ impl SkillRegistry {
         workspace_root: Option<&Path>,
         agent_type: Option<&str>,
     ) -> Vec<SkillInfo> {
-        filter_implicitly_invocable_skills(
+        filter_implicitly_invocable_skills_for_agent(
             self.get_resolved_skills_for_workspace(workspace_root, agent_type)
                 .await,
+            agent_type,
         )
     }
 
@@ -1470,9 +1582,10 @@ impl SkillRegistry {
         remote_root: &str,
         agent_type: Option<&str>,
     ) -> Vec<SkillInfo> {
-        filter_implicitly_invocable_skills(
+        filter_implicitly_invocable_skills_for_agent(
             self.get_resolved_skills_for_remote_workspace(fs, remote_root, agent_type)
                 .await,
+            agent_type,
         )
     }
 
@@ -1597,6 +1710,8 @@ impl SkillRegistry {
         .map_err(|error| BitFunError::tool(error.to_string()))?;
         data.key = info.key;
         data.source_slot = info.source_slot;
+        data.source_id = info.source_id;
+        data.source_label = info.source_label;
         data.dir_name = info.dir_name;
         Ok(data)
     }
@@ -1636,6 +1751,8 @@ impl SkillRegistry {
         .map_err(|error| BitFunError::tool(error.to_string()))?;
         data.key = info.key;
         data.source_slot = info.source_slot;
+        data.source_id = info.source_id;
+        data.source_label = info.source_label;
         data.dir_name = info.dir_name;
         Ok(data)
     }
@@ -1667,6 +1784,8 @@ impl SkillRegistry {
         .map_err(|error| BitFunError::tool(error.to_string()))?;
         data.key = info.key;
         data.source_slot = info.source_slot;
+        data.source_id = info.source_id;
+        data.source_label = info.source_label;
         data.dir_name = info.dir_name;
         Ok(data)
     }
@@ -1706,6 +1825,8 @@ impl SkillRegistry {
         .map_err(|error| BitFunError::tool(error.to_string()))?;
         data.key = info.key;
         data.source_slot = info.source_slot;
+        data.source_id = info.source_id;
+        data.source_label = info.source_label;
         data.dir_name = info.dir_name;
         Ok(data)
     }

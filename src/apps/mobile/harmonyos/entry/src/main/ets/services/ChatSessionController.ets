@@ -19,6 +19,7 @@ export interface ChatSessionSnapshot {
   title: string;
   sessionState: string;
   newMessages: ChatMessage[];
+  messageSnapshot?: ChatMessage[];
   activeTurn?: ChatMessage;
   modelCatalog?: RemoteModelCatalog;
   shouldSyncAfterTurnEnded: boolean;
@@ -26,6 +27,8 @@ export interface ChatSessionSnapshot {
   // transcript it was handing out tails of is no longer the one on screen.
   // Nothing below can resume from an offset into a list that shrank.
   historyRewritten: boolean;
+  /** Exact completed turn whose terminal assistant is now durable. */
+  completedTurnId: string;
 }
 
 export interface ChatSessionControllerCallbacks {
@@ -34,11 +37,17 @@ export interface ChatSessionControllerCallbacks {
   canPoll: (sessionId: string) => boolean;
 }
 
+export interface ChatSessionControllerOptions {
+  /** Stabilization window before the first idle poll after selecting a session. */
+  initialPollDelayMs: number;
+}
+
 // Mobile streaming is projected from poll_session.active_turn snapshots.
 // The relay protocol remains request/response HTTP, not token-level SSE.
 export class ChatSessionController {
   private readonly sessionManager: RemoteSessionManager;
   private readonly callbacks: ChatSessionControllerCallbacks;
+  private readonly initialPollDelayMs: number;
   private sessionId: string = '';
   private cursor: ChatSessionCursor = {
     pollVersion: 0,
@@ -52,15 +61,21 @@ export class ChatSessionController {
   // Invalidates in-flight requests when the session or lifecycle changes.
   private generation: number = 0;
   private hasActiveRunningTurn: boolean = false;
+  private awaitingPersistedTurnId: string = '';
   private turnJustEndedAt: number = 0;
   private readonly activeIntervalMs: number = 350;
   private readonly settleIntervalMs: number = 500;
   private readonly idleIntervalMs: number = 10000;
   private readonly turnEndedGracePeriodMs: number = 5000;
 
-  constructor(sessionManager: RemoteSessionManager, callbacks: ChatSessionControllerCallbacks) {
+  constructor(
+    sessionManager: RemoteSessionManager,
+    callbacks: ChatSessionControllerCallbacks,
+    options?: ChatSessionControllerOptions
+  ) {
     this.sessionManager = sessionManager;
     this.callbacks = callbacks;
+    this.initialPollDelayMs = options ? Math.max(0, options.initialPollDelayMs) : 0;
   }
 
   start(sessionId: string, cursor: ChatSessionCursor, activeTurn?: ChatMessage): void {
@@ -73,10 +88,15 @@ export class ChatSessionController {
     };
     this.activeTurn = activeTurn && activeTurn.id.length > 0 ? activeTurn : undefined;
     this.hasActiveRunningTurn = this.isRunningTurn(this.activeTurn);
+    this.awaitingPersistedTurnId = this.isRunningTurn(this.activeTurn) || this.isCompletedTurn(this.activeTurn) ?
+      this.turnId(this.activeTurn) : '';
     this.turnJustEndedAt = 0;
     this.stopped = false;
     RemoteLogger.info(`poller start session=${ChatSessionController.shortId(sessionId)} active=${this.activeTurn ? this.activeTurn.id : ''}`);
-    this.scheduleNext(0);
+    // A subsequent selection cancels this timer in stop(). This small window
+    // keeps rapid cached-session taps from each putting an obsolete poll on the
+    // desktop's serial RPC queue. Explicit nudge() remains immediate.
+    this.scheduleNext(this.initialPollDelayMs);
   }
 
   stop(clearActiveTurn: boolean = true): void {
@@ -88,6 +108,7 @@ export class ChatSessionController {
     this.polling = false;
     this.stopped = true;
     this.hasActiveRunningTurn = false;
+    this.awaitingPersistedTurnId = '';
     this.turnJustEndedAt = 0;
     if (clearActiveTurn) {
       this.activeTurn = undefined;
@@ -183,7 +204,8 @@ export class ChatSessionController {
   private applyPollResult(result: PollSessionResult): void {
     const hadRunningTurn = this.hasActiveRunningTurn;
     const incomingMessages = result.newMessages || [];
-    const hasAssistantMessage = incomingMessages.some((message: ChatMessage) => {
+    const persistedProjection = result.messageSnapshot || incomingMessages;
+    const hasAssistantMessage = persistedProjection.some((message: ChatMessage) => {
       return message.role === 'assistant';
     });
     const historyRewritten = result.totalMessageCount > 0 &&
@@ -203,8 +225,16 @@ export class ChatSessionController {
 
     if (result.activeTurn && result.activeTurn.id.length > 0) {
       this.activeTurn = result.activeTurn;
+      if (this.isRunningTurn(result.activeTurn) || this.isCompletedTurn(result.activeTurn)) {
+        this.awaitingPersistedTurnId = this.turnId(result.activeTurn);
+      }
     } else if (result.changed && (hasAssistantMessage || this.shouldClearMissingActiveTurn(result))) {
       this.activeTurn = undefined;
+    }
+
+    const completedTurnId = this.persistedTerminalTurnId(persistedProjection);
+    if (completedTurnId.length > 0) {
+      this.awaitingPersistedTurnId = '';
     }
 
     const isRunningNow = this.isRunningTurn(this.activeTurn);
@@ -221,8 +251,10 @@ export class ChatSessionController {
       result.changed || activeTurnChanged,
       result,
       incomingMessages,
+      result.messageSnapshot,
       turnEndedNow || (isSettlingEndedTurn && !isRunningNow),
-      historyRewritten
+      historyRewritten,
+      completedTurnId
     );
   }
 
@@ -239,8 +271,10 @@ export class ChatSessionController {
     changed: boolean,
     result: PollSessionResult,
     newMessages: ChatMessage[],
+    messageSnapshot: ChatMessage[] | undefined,
     shouldSyncAfterTurnEnded: boolean,
-    historyRewritten: boolean
+    historyRewritten: boolean,
+    completedTurnId: string
   ): void {
     this.callbacks.onSnapshot({
       sessionId: this.sessionId,
@@ -253,10 +287,12 @@ export class ChatSessionController {
       title: result.title || '',
       sessionState: result.sessionState || '',
       newMessages,
+      messageSnapshot,
       activeTurn: this.activeTurn,
       modelCatalog: result.modelCatalog,
       shouldSyncAfterTurnEnded,
-      historyRewritten
+      historyRewritten,
+      completedTurnId
     });
   }
 
@@ -292,6 +328,45 @@ export class ChatSessionController {
 
   private isRunningTurn(turn?: ChatMessage): boolean {
     return !!turn && turn.id.length > 0 && (turn.status || '').toLowerCase() === 'active';
+  }
+
+  private isCompletedTurn(turn?: ChatMessage): boolean {
+    if (!turn || turn.id.length === 0) {
+      return false;
+    }
+    const status = (turn.status || '').toLowerCase();
+    return status === 'completed' || status === 'done' || status === 'success';
+  }
+
+  private persistedTerminalTurnId(messages: ChatMessage[]): string {
+    const expected = this.awaitingPersistedTurnId;
+    if (expected.length === 0) {
+      return '';
+    }
+    const matched = messages.some((message: ChatMessage) => {
+      if (message.role !== 'assistant' || !this.isTerminalMessage(message)) {
+        return false;
+      }
+      const messageTurnId = (message.turnId || '').trim();
+      return messageTurnId === expected || message.id === `${expected}_assistant`;
+    });
+    return matched ? expected : '';
+  }
+
+  private isTerminalMessage(message: ChatMessage): boolean {
+    const status = (message.status || '').toLowerCase();
+    return status === 'completed' || status === 'done' || status === 'success';
+  }
+
+  private turnId(turn?: ChatMessage): string {
+    if (!turn) {
+      return '';
+    }
+    const explicit = (turn.turnId || '').trim();
+    if (explicit.length > 0) {
+      return explicit;
+    }
+    return turn.id.indexOf('active-') === 0 ? turn.id.slice('active-'.length) : '';
   }
 
   private static shortId(value: string): string {

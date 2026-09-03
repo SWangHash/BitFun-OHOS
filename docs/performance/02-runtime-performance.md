@@ -5,6 +5,12 @@
 - 方法:Grep 系统性扫描典型反模式(clone 密集区、async 中同步 IO、`Regex::new` 非静态、`block_on`、`JSON.parse(JSON.stringify)`、`setInterval`、`structuredClone`、未节流事件监听、高频 `invoke`/`emit`),对每个可疑点精读上下文并论证调用频率后才收录;所有明显但经确认无害的候选项在文末"误报排除记录"中留档,避免后续重复审查。
 - 所有行号以当前 main 分支(48a003b73)为准。
 
+> 退役说明（2026-08）：本文是提交 `48a003b73` 的固定历史审阅证据。此后 BitFun LSP Runtime 已被完整删除，
+> 因此下文问题 #5 与任务 T3 已通过退役关闭，所述路径也不再存在。保留这些段落只为解释当时结论；不得据此恢复、
+> 优化或重新实现 LSP Runtime。
+>
+> 同期，鼠标跟随光效也已完整删除，因此问题 #20 已通过退役关闭；不得据此恢复或重新实现该功能。
+
 ---
 
 ## 一、发现总览表
@@ -31,8 +37,8 @@
 | 16 | R | 内容搜索每行无条件分配 String(未命中行也分配);结果收尾整体 clone | `crates/services/services-core/src/filesystem/tree.rs:1485-1491,1140,1275` | 中 | 低 |
 | 17 | R | grep 工具:每文件冗余 `is_file()` stat;输出 split→逐行 alloc→join 往返 | `crates/execution/tool-execution/src/search/grep_search.rs:743,776,835-840,875` | 中 | 低 |
 | 18 | F | 桌宠打字机:interval 依赖自身 setState 目标,每 28ms 销毁重建 effect + 全部气泡强制布局 | `web-ui/src/app/components/AgentCompanionDesktopPet/AgentCompanionDesktopPet.tsx:308-339` | 中 | 低 |
-| 19 | F | Tooltip 捕获阶段 scroll 监听未节流:2×getBoundingClientRect + 3×setState/滚动帧 | `web-ui/src/component-library/components/Tooltip/Tooltip.tsx:171-205,294-296` | 中 | 低 |
-| 20 | F | MouseGlow 每个 pointermove 在 rAF 之前执行 `composedPath()` + filter 建 2 个数组 | `web-ui/src/infrastructure/mouse-glow/core/MouseGlowService.ts:126-134` | 中 | 低 |
+| 19 | F | （已关闭）统一 Tooltip 定位通过 rAF 合并 scroll/resize 重算，每帧最多一次布局读取 | `design-system/packages/ui/src/components/Tooltip/Tooltip.tsx` | 不再适用 | 已关闭 |
+| 20 | F | （已关闭）历史鼠标跟随光效的 pointermove 分配问题；功能已退役 | 已删除 | 不再适用 | 已关闭 |
 | 21 | F/I | SnapshotAPI 逐 turn 串行 `get_turn_files`,长会话 N 次串行 IPC 往返 | `web-ui/src/infrastructure/api/service-api/SnapshotAPI.ts:514-531` | 中 | 低 |
 | 22 | R | PTY chunk `from_utf8_lossy(..).to_string()` 强制整串拷贝(最大 64KB);tap 分发逐个 clone | `crates/services/terminal/src/session/manager.rs:285,429` | 中低 | 低 |
 | 23 | R | `HeadTailText` 逐 char 推入 `VecDeque<char>`,10MB 构建日志 = 千万次操作 | `crates/services/terminal/src/exec.rs:934-959` | 中低 | 低 |
@@ -94,7 +100,7 @@ async fn emit(&self, event_name: &str, payload: serde_json::Value) -> anyhow::Re
     Ok(())
 }
 ```
-`PeerAwareEmitter` 包裹的是**全局** emitter(`lib.rs:2008-2015`)和 LSP workspace emitter(`lsp_workspace_api.rs:189-192`),即所有 backend→frontend 事件(终端 chunk、文件变更、LSP 诊断、工具进度)每条都吃一次 `serde_json::Value` 深拷贝(逐节点堆分配,非 memcpy)—— 而绝大多数用户从不开 Peer Mode。同构问题:`terminal_api.rs:347-359` 对每个终端事件(64KB 峰值,~200 次/秒/终端)无条件 `serde_json::to_value` 后才进守卫。
+`PeerAwareEmitter` 包裹的是**全局** emitter(`lib.rs:2008-2015`)和当时存在的 LSP workspace emitter(`lsp_workspace_api.rs:189-192`),即所有 backend→frontend 事件(终端 chunk、文件变更、LSP 诊断、工具进度)每条都吃一次 `serde_json::Value` 深拷贝(逐节点堆分配,非 memcpy)—— 而绝大多数用户从不开 Peer Mode。同构问题:`terminal_api.rs:347-359` 对每个终端事件(64KB 峰值,~200 次/秒/终端)无条件 `serde_json::to_value` 后才进守卫。
 
 **优化方案**:把 `should_fanout_peer_ui_event(event_name) && !attached_controllers().is_empty()` 判断提到 clone/to_value **之前**;不满足则 move payload 直接 emit,零拷贝。改动约 10 行,无语义变化,收益覆盖所有高频事件通道。
 
@@ -106,7 +112,9 @@ async fn emit(&self, event_name: &str, payload: serde_json::Value) -> anyhow::Re
 
 **优化方案**:`TranscriptStore.writers: HashMap<String, TranscriptWriter>` 已存在,补上常开的 `BufWriter<File>` 句柄;去掉每 chunk 的 open/close 与 `flush()`(改定时/会话结束 flush);整个写路径移到专用写线程 + mpsc 或 `spawn_blocking`。
 
-#### 5. LSP 诊断/响应的五连深拷贝【R,高】
+#### 5. LSP 诊断/响应的五连深拷贝【R,高；Runtime 已退役】
+
+> 历史项：以下描述只对应审阅提交 `48a003b73`。LSP Runtime 删除后，该优化任务已关闭，禁止实施或恢复相关代码。
 
 **问题**:一次 `publishDiagnostics` 通知,同一份 `Vec<Value>` 被拷贝 5 次:
 1. `process.rs:445` `diagnostics_arr.clone()`(`notif` 在 `:371` 已拥有,可 `Value::take` 移出);
@@ -119,7 +127,7 @@ async fn emit(&self, event_name: &str, payload: serde_json::Value) -> anyhow::Re
 
 **频率**:工作区打开时 rust-analyzer/tsserver 为数百文件连发诊断;编辑期每次防抖后触发。200 条诊断 ≈ 100KB Value 树 × 5 = 每条通知 500KB 逐节点分配/释放。
 
-**优化方案**:`process.rs:164` 改 `match message` 按值解构消除响应 clone;`:445` 用 `Value::take`;`workspace_manager` 缓存与事件间用 `Arc<Vec<Value>>` 共享;`diagnostics_cache` 提为独立 `Arc<RwLock<..>>` 摆脱外层 `lsp_manager` 锁。
+**历史优化方案（已关闭，不得实施）**:`process.rs:164` 改 `match message` 按值解构消除响应 clone;`:445` 用 `Value::take`;`workspace_manager` 缓存与事件间用 `Arc<Vec<Value>>` 共享;`diagnostics_cache` 提为独立 `Arc<RwLock<..>>` 摆脱外层 `lsp_manager` 锁。
 
 #### 6. 流式事件队列:每 delta 的分配与锁风暴【R,高】
 
@@ -188,7 +196,7 @@ async fn emit(&self, event_name: &str, payload: serde_json::Value) -> anyhow::Re
 
 - **桌宠打字机**(`AgentCompanionDesktopPet.tsx:308-339`):effect 依赖数组含 `typedOutputBySessionId` 而 interval 回调本身在改它 → 每 28ms 卸载重建 interval;`:335` 的 `useLayoutEffect` 同 deps,每 28ms 对所有输出元素写 `scrollTop`(强制布局)。目标文本改 `useRef`,deps 改 `[hasTypingOutput]`。
 - **Tooltip**(`Tooltip.tsx:294-296`):`visible` 期间捕获阶段监听全应用 scroll,`calculatePosition`(`:171-205`)每滚动帧 2 次 `getBoundingClientRect`(强制同步布局)+ 3 次 setState。rAF 合并 + `passive: true` + 三 state 合一。
-- **MouseGlow**(`MouseGlowService.ts:126-134`):`composedPath()` + `filter` 建数组发生在 rAF **之前**,120Hz 鼠标下每秒 240 次数组分配。把求值推迟到 rAF 内(缓存 `event.target`,`closest()` 定位即可)。
+- **鼠标跟随光效（已关闭）**：功能及全局指针监听已删除，无后续优化任务。
 - **SnapshotAPI**(`SnapshotAPI.ts:514-531`):`get_session_turns` 后 for-await **串行**逐 turn `get_turn_files`,百轮会话 = 百次串行 IPC。后端加批量命令 `get_turns_files(session_id, turn_indices[])`;短期先改 `Promise.all`。
 
 #### 22-24. 中低收益
@@ -221,7 +229,7 @@ async fn emit(&self, event_name: &str, payload: serde_json::Value) -> anyhow::Re
 |---|---|---|---|
 | T1 | PeerAwareEmitter/terminal 事件出口:把 `should_fanout_peer_ui_event && !attached_controllers().is_empty()` 提到 `payload.clone()`/`to_value` 之前,不满足则 move 零拷贝 | `apps/desktop/src/api/remote_connect_api.rs:558-561`、`terminal_api.rs:347-359` | 低 |
 | T2 | LS 工具:`list_directory_entries` 包 `spawn_blocking`(对齐 grep/glob);entry 增加 `is_symlink` 字段消除出队二次 stat;`Vec::with_capacity(limit)`;push 改 move | `crates/services/services-core/src/filesystem/listing.rs`、`assembly/core/src/agentic/tools/implementations/ls_tool.rs:292` | 低 |
-| T3 | LSP 消息零拷贝:`process.rs:164` `match &message`→`match message` 消除响应 clone;`:445` `Value::take`;`workspace_manager.rs:889-906` 缓存/事件共享 `Arc<Vec<Value>>`;`diagnostics_cache` 独立锁 | `crates/services/services-core/src/lsp/process.rs`、`assembly/core/src/service/lsp/workspace_manager.rs` | 中 |
+| T3（已关闭） | 历史 LSP 消息零拷贝方案；LSP Runtime 已退役，不得实施或恢复 | 已删除的 `crates/services/services-core/src/lsp/process.rs`、`assembly/core/src/service/lsp/workspace_manager.rs` | 不适用 |
 | T4 | 会话持久化:`sanitize_messages_for_persistence` 改 Cow 按需 clone;`to_string_pretty`→compact `to_writer`;加 200ms dirty-window 合批(保留 turn 结束强制落盘) | `assembly/core/src/agentic/persistence/manager.rs:646-654,1287-1298`、`services-core/src/json_store.rs:211` | 中(崩溃恢复语义需回归测试) |
 | T4b | (进阶)turn 快照改 JSONL 追加式,turn 结束/压缩时才全量重写 | 同上 + 读取端 | 高(格式迁移,需兼容旧快照) |
 | T5 | 文件树扫描:sort 前落地 `(entry, file_type, metadata)` 元组;Windows 权限复用 metadata;`canonicalize` 入 spawn_blocking;Vec 预分配;评估切换 `ignore::WalkBuilder` 并默认尊重 gitignore;合并 stats 复制版 | `services-core/src/filesystem/tree.rs:436-560,572-769,897` | 中(gitignore 默认值属行为变化,建议加开关) |

@@ -2,7 +2,6 @@
  * TabOverflowMenu component styles.
  * Combines mission control entry and overflow menu.
  */
-
 // Button wrapper
 .canvas-tab-panorama-wrapper {
   display: flex;
@@ -22,7 +21,7 @@
   border: 1px dashed transparent;
   border-radius: 4px;
   // Use text-secondary to ensure visibility in light/dark themes
-  color: var(--bf-appearance-token-color-text-secondary);
+  color: var(--bf-color-content-secondary);
   cursor: pointer;
   transition:
     transform 140ms cubic-bezier(0.23, 1, 0.32, 1),
@@ -31,14 +30,14 @@
     color 140ms ease;
 
   &:hover {
-    border-color: var(--bf-appearance-token-border-base);
-    color: var(--bf-appearance-token-color-text-primary);
+    border-color: var(--bf-color-border-default);
+    color: var(--bf-color-content-primary);
   }
 
   &.is-open {
     border-style: solid;
-    border-color: var(--bf-appearance-token-color-accent-500);
-    color: var(--bf-appearance-token-color-accent-500);
+    border-color: var(--bf-color-accent-default);
+    color: var(--bf-color-accent-default);
   }
 
   // Styles when overflow exists
@@ -61,34 +60,29 @@
 
   // Overflow count badge
   &__badge {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--bf-appearance-token-color-accent-500);
+    font-size: var(--bf-font-size-micro);
+    font-weight: var(--bf-font-weight-semibold);
+    color: var(--bf-color-accent-default);
     margin-left: 2px;
     transition: color 0.15s ease;
   }
 
   // Keep badge color on hover
   &:hover &__badge {
-    color: var(--bf-appearance-token-color-accent-500);
+    color: var(--bf-color-accent-default);
   }
 
   // Badge color when open
   &.is-open &__badge {
-    color: var(--bf-appearance-token-color-accent-500);
+    color: var(--bf-color-accent-default);
   }
 }
 
 // Overflow menu
 .canvas-tab-overflow-menu {
-  background: var(--bf-appearance-token-color-bg-elevated);
-  border: 1px solid var(--bf-appearance-token-border-base);
-  border-radius: 6px;
-  box-shadow: 0 8px 24px var(--bf-appearance-token-color-overlay-black-50);
+  --bf-overlay-menu-inline-size: min(280px, calc(100vw - 16px));
+  --bf-overlay-menu-max-block-size: min(360px, calc(100vh - 16px));
   min-width: 200px;
-  max-width: 280px;
-  max-height: 360px;
-  overflow: hidden;
   z-index: 99999;
   animation: menuSlideIn 0.12s ease-out;
 
@@ -103,62 +97,39 @@
     }
   }
 
+  // Mission control entry (fixed first item)
+  &__mission-control {
+    > span {
+      flex: 1;
+      font-size: var(--bf-font-size-xs);
+      font-weight: var(--bf-font-weight-medium);
+    }
+
+    svg {
+      color: var(--bf-color-accent-default);
+    }
+  }
+
+  // Divider
+  &__divider {
+    margin: 4px 12px;
+  }
+
   // Tab list
   &__list {
-    padding: 4px 0;
-    max-height: 280px;
-    overflow-y: auto;
-
-    &::-webkit-scrollbar {
-      width: 5px;
-    }
-
-    &::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background: var(--bf-appearance-token-scrollbar-thumb);
-      border-radius: 3px;
-    }
+    min-width: 0;
   }
 
   // Tab item
   &__item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    cursor: pointer;
-    transition: background-color 0.1s ease;
-
-    &:hover {
-      // Use element-bg-medium for clear hover in light/dark themes
-      // Light theme: blue-gray tint; dark theme: translucent white
-      background: var(--bf-appearance-token-element-bg-medium);
-
-      .canvas-tab-overflow-menu__item-close {
-        opacity: 1;
-      }
-    }
-
-    &.is-active {
-      // Use accent-100 as active background
-      background: var(--bf-appearance-token-color-accent-100);
-
-      .canvas-tab-overflow-menu__item-title {
-        color: var(--bf-appearance-token-color-accent-500);
-      }
-    }
-
     &-title {
       flex: 1;
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 12px;
-      color: var(--bf-appearance-token-color-text-primary);
+      font-size: var(--bf-font-size-xs);
+      color: var(--bf-color-content-primary);
 
       em {
         font-style: italic;
@@ -168,34 +139,9 @@
 
     &-dirty {
       flex-shrink: 0;
-      font-size: 8px;
-      color: var(--bf-appearance-token-color-warning);
+      font-size: var(--bf-font-size-3xs);
+      color: var(--bf-color-status-warning-content);
     }
 
-    &-close {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 16px;
-      height: 16px;
-      padding: 0;
-      background: none;
-      border: none;
-      color: var(--bf-appearance-token-color-text-muted);
-      cursor: pointer;
-      border-radius: 3px;
-      flex-shrink: 0;
-      opacity: 0;
-      transition:
-        transform 100ms cubic-bezier(0.23, 1, 0.32, 1),
-        background-color 100ms ease,
-        color 100ms ease,
-        opacity 100ms ease;
-
-      &:hover {
-        background: var(--bf-appearance-token-color-error-bg);
-        color: var(--bf-appearance-token-color-error);
-      }
-    }
   }
 }

@@ -1,22 +1,24 @@
-import React, { useMemo, useState } from 'react';
-import type { TFunction } from 'i18next';
-import {
-  ArrowDown,
-  ArrowUp,
-  Pencil,
-  Plus,
-  Settings2,
-  Trash2,
-} from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import {
   Button,
+  Icon,
   IconButton,
   Input,
-  Modal,
+  ScrollArea,
   Switch,
-  confirmDanger,
-} from '@/component-library';
+  Tooltip,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
+import React, { useMemo, useState } from 'react';
+import type { TFunction } from 'i18next';
+
+import { useTranslation } from 'react-i18next';
+
+import { confirmDanger } from '@/infrastructure/confirm-dialog';
 import type { UserToolGroup } from '@/infrastructure/config/types';
 import { useNotification } from '@/shared/notification-system';
 import {
@@ -259,17 +261,24 @@ const GroupManagerModal: React.FC<GroupManagerModalProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={() => {
-        closeEditor();
-        onClose();
+    <Dialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          closeEditor();
+          onClose();
+        }
       }}
-      title={t('agentsOverview.toolGroups.manageTitle')}
-      size="large"
-      contentInset
-      testId="tool-group-manager"
+      size="lg"
+      data-testid="tool-group-manager"
     >
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{t('agentsOverview.toolGroups.manageTitle')}</DialogTitle>
+        </DialogHeading>
+        <DialogClose />
+      </DialogHeader>
+      <DialogBody>
       <div className="tool-group-manager" data-bf-component="tool-group-picker" data-bf-part="manager">
         {isEditing ? (
           <div className="tool-group-manager__editor" data-bf-component="tool-group-picker" data-bf-part="managerEditor">
@@ -285,14 +294,14 @@ const GroupManagerModal: React.FC<GroupManagerModalProps> = ({
                   }
                 }}
                 placeholder={t('agentsOverview.toolGroups.groupNamePlaceholder')}
-                inputSize="small"
-                error={nameError}
+                invalid={nameError}
                 disabled={saving}
+                size="sm"
               />
             </div>
             <div className="tool-group-manager__field">
               <span>{t('agentsOverview.toolGroups.groupTools')}</span>
-              <div className="tool-group-manager__token-grid" data-bf-component="tool-group-picker" data-bf-part="tokenGrid">
+              <ScrollArea className="tool-group-manager__token-grid" data-bf-component="tool-group-picker" data-bf-part="tokenGrid">
                 {selectableTools.map((tool) => {
                   const selected = toolNames.has(tool.name);
                   const tooltipFields = toolTooltipFields(tool, t);
@@ -321,13 +330,13 @@ const GroupManagerModal: React.FC<GroupManagerModalProps> = ({
                     </AgentCapabilityTooltip>
                   );
                 })}
-              </div>
+              </ScrollArea>
             </div>
             <div className="tool-group-manager__footer">
-              <Button variant="ghost" size="small" onClick={closeEditor} disabled={saving}>
+              <Button variant="outline" size="sm" onClick={closeEditor} disabled={saving}>
                 {t('agentsOverview.cancel')}
               </Button>
-              <Button variant="primary" size="small" onClick={() => void saveEditor()} isLoading={saving}>
+              <Button variant="fill" size="sm" onClick={() => void saveEditor()} loading={saving}>
                 {isEditing && editingGroup
                   ? t('agentsOverview.toolGroups.saveGroup')
                   : t('agentsOverview.toolGroups.createGroup')}
@@ -338,15 +347,15 @@ const GroupManagerModal: React.FC<GroupManagerModalProps> = ({
           <>
             <div className="tool-group-manager__head">
               <span>{t('agentsOverview.toolGroups.manageSubtitle')}</span>
-              <Button variant="secondary" size="small" onClick={startCreate} disabled={saving}>
-                <Plus size={14} />
+              <Button variant="outline" size="sm" onClick={startCreate} disabled={saving} leadingIcon={<Icon name="plus" size="sm" />}>
+
                 {t('agentsOverview.toolGroups.createGroup')}
               </Button>
             </div>
             {groups.length === 0 ? (
               <p className="tool-group-manager__empty">{t('agentsOverview.toolGroups.noUserGroups')}</p>
             ) : (
-              <div className="tool-group-manager__list" data-bf-component="tool-group-picker" data-bf-part="managerList">
+              <ScrollArea className="tool-group-manager__list" data-bf-component="tool-group-picker" data-bf-part="managerList">
                 {groups.map((group, index) => {
                   const unavailable = unavailableUserToolNames(group, tools);
                   return (
@@ -361,60 +370,57 @@ const GroupManagerModal: React.FC<GroupManagerModalProps> = ({
                         </span>
                       </div>
                       <div className="tool-group-manager__group-actions" data-bf-component="tool-group-picker" data-bf-part="groupActions">
-                        <IconButton
-                          type="button"
-                          size="small"
-                          variant="ghost"
-                          aria-label={t('agentsOverview.toolGroups.moveUp')}
-                          tooltip={t('agentsOverview.toolGroups.moveUp')}
-                          onClick={() => void moveGroup(index, -1)}
-                          disabled={saving || index === 0}
-                        >
-                          <ArrowUp size={13} />
-                        </IconButton>
-                        <IconButton
-                          type="button"
-                          size="small"
-                          variant="ghost"
-                          aria-label={t('agentsOverview.toolGroups.moveDown')}
-                          tooltip={t('agentsOverview.toolGroups.moveDown')}
-                          onClick={() => void moveGroup(index, 1)}
-                          disabled={saving || index === groups.length - 1}
-                        >
-                          <ArrowDown size={13} />
-                        </IconButton>
-                        <IconButton
-                          type="button"
-                          size="small"
-                          variant="ghost"
-                          aria-label={t('agentsOverview.toolGroups.editGroup')}
-                          tooltip={t('agentsOverview.toolGroups.editGroup')}
-                          onClick={() => startEdit(group)}
-                          disabled={saving}
-                        >
-                          <Pencil size={13} />
-                        </IconButton>
-                        <IconButton
-                          type="button"
-                          size="small"
-                          variant="ghost"
-                          aria-label={t('agentsOverview.toolGroups.deleteGroup')}
-                          tooltip={t('agentsOverview.toolGroups.deleteGroup')}
-                          onClick={() => void deleteGroup(group)}
-                          disabled={saving}
-                        >
-                          <Trash2 size={13} />
-                        </IconButton>
+                        <Tooltip content={t('agentsOverview.toolGroups.moveUp')}>
+                          <IconButton
+                            type="button"
+                            size="sm"
+                            aria-label={t('agentsOverview.toolGroups.moveUp')}
+                            onClick={() => void moveGroup(index, -1)}
+                            disabled={saving || index === 0}
+                            icon={<Icon name="arrow-up" size="xs" />}
+                          />
+                        </Tooltip>
+                        <Tooltip content={t('agentsOverview.toolGroups.moveDown')}>
+                          <IconButton
+                            type="button"
+                            size="sm"
+                            aria-label={t('agentsOverview.toolGroups.moveDown')}
+                            onClick={() => void moveGroup(index, 1)}
+                            disabled={saving || index === groups.length - 1}
+                            icon={<Icon name="arrow-down" size="lg" style={{ width: 13, height: 13 }} />}
+                          />
+                        </Tooltip>
+                        <Tooltip content={t('agentsOverview.toolGroups.editGroup')}>
+                          <IconButton
+                            type="button"
+                            size="sm"
+                            aria-label={t('agentsOverview.toolGroups.editGroup')}
+                            onClick={() => startEdit(group)}
+                            disabled={saving}
+                            icon={<Icon name="edit" size="xs" />}
+                          />
+                        </Tooltip>
+                        <Tooltip content={t('agentsOverview.toolGroups.deleteGroup')}>
+                          <IconButton
+                            type="button"
+                            size="sm"
+                            aria-label={t('agentsOverview.toolGroups.deleteGroup')}
+                            onClick={() => void deleteGroup(group)}
+                            disabled={saving}
+                            icon={<Icon name="delete" size="lg" style={{ width: 13, height: 13 }} />}
+                          />
+                        </Tooltip>
                       </div>
                     </div>
                   );
                 })}
-              </div>
+              </ScrollArea>
             )}
           </>
         )}
       </div>
-    </Modal>
+          </DialogBody>
+    </Dialog>
   );
 };
 
@@ -450,12 +456,13 @@ export const ToolGroupPicker: React.FC<ToolGroupPickerProps> = ({
           {t('agentsOverview.toolGroups.selectedCount', { count: selectedCount })}
         </span>
         <Button
-          variant="ghost"
-          size="small"
+          variant="outline"
+          size="sm"
           onClick={() => setIsManagerOpen(true)}
           disabled={disabled}
+          leadingIcon={<Icon name="settings" size="sm" />}
         >
-          <Settings2 size={14} />
+
           {t('agentsOverview.toolGroups.manageGroups')}
         </Button>
       </div>
@@ -478,8 +485,8 @@ export const ToolGroupPicker: React.FC<ToolGroupPickerProps> = ({
                     <div className="tool-group-picker__group-actions" data-bf-component="tool-group-picker" data-bf-part="groupActions">
                       {selectedInGroup > 0 && !allSelected ? (
                         <Button
-                          variant="ghost"
-                          size="small"
+                          variant="outline"
+                          size="sm"
                           onClick={() => onSelectionChange(
                             setToolGroupSelection(selectedToolNames, groupToolNames(group), false),
                           )}
@@ -489,7 +496,6 @@ export const ToolGroupPicker: React.FC<ToolGroupPickerProps> = ({
                         </Button>
                       ) : null}
                       <Switch
-                        size="small"
                         checked={allSelected}
                         onChange={(event) => onSelectionChange(
                           setToolGroupSelection(

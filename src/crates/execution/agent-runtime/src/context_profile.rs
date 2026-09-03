@@ -38,7 +38,7 @@ impl ModelCapabilityProfile {
             return Self::Standard;
         };
         let normalized = model_id.to_ascii_lowercase();
-        if matches!(normalized.as_str(), "auto" | "fast" | "primary") {
+        if matches!(normalized.as_str(), "fast" | "primary") {
             return Self::Standard;
         }
 
@@ -207,7 +207,14 @@ impl ContextProfilePolicy {
 fn is_long_task_agent(agent_type: &str) -> bool {
     matches!(
         agent_type,
-        "agentic" | "Multitask" | "DeepReview" | "DeepResearch" | "ComputerUse" | "Team"
+        "agentic"
+            | "DeepReview"
+            | "DeepResearch"
+            | "ComputerUse"
+            | "Ultra"
+            | "SwarmPlanner"
+            | "SwarmWorker"
+            | "SwarmReviewer"
     ) || agent_type.starts_with("Review")
 }
 

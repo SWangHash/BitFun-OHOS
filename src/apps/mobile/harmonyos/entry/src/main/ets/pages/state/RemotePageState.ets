@@ -7,7 +7,7 @@ import {
   SelectedImageAttachment,
   SessionSummary
 } from '../../model/RemoteModels';
-import { ChatTimelineItem } from '../../services/ChatTimelineProjector';
+import { ChatTimelineItem, ObservableChatTimelineItem } from '../../model/ChatTimelineModels';
 import { RemoteUiState } from '../../services/RemoteUiState';
 import { ConversationCoreState } from './ConversationCoreState';
 
@@ -26,6 +26,7 @@ export class RemotePageState {
   @Trace accountUsername: string = '';
   @Trace accountUserId: string = '';
   @Trace authenticatedUserId: string = '';
+  @Trace hostCapabilities: string[] = [];
   @Trace controlTargetType: string = 'none';
   @Trace controlTargetDeviceId: string = '';
   @Trace controlTargetDeviceName: string = '';
@@ -64,7 +65,7 @@ export class RemotePageState {
   get optimisticMessages(): ChatMessage[] { return this.conversation.optimisticMessages; }
   get activeTurnMessage(): ChatMessage { return this.conversation.activeTurnMessage; }
   get hasMoreMessages(): boolean { return this.conversation.hasMoreMessages; }
-  get timelineItems(): ChatTimelineItem[] { return this.conversation.timelineItems; }
+  get timelineItems(): ObservableChatTimelineItem[] { return this.conversation.timelineItems; }
   get timelineRevision(): number { return this.conversation.timelineRevision; }
   get isBusy(): boolean { return this.conversation.isBusy; }
   get modelCatalog(): RemoteModelCatalog { return this.conversation.modelCatalog; }
@@ -130,6 +131,14 @@ export class RemotePageState {
 
   setAuthenticatedUserId(authenticatedUserId: string): void {
     this.authenticatedUserId = authenticatedUserId;
+  }
+
+  setHostCapabilities(capabilities: string[]): void {
+    this.hostCapabilities = capabilities.slice();
+  }
+
+  supportsHostCapability(capability: string): boolean {
+    return this.hostCapabilities.indexOf(capability) >= 0;
   }
 
   setStatusText(statusText: string): void {
@@ -307,6 +316,21 @@ export class RemotePageState {
     this.isConversationDismissed = false;
     this.isLoadingHome = false;
     this.sessionErrorText = '';
+    this.hostCapabilities = [];
+  }
+
+  /** Clears every conversation-scoped value when its remote identity ends. */
+  resetConversationContext(): void {
+    this.conversation.reset();
+    this.hasMoreSessions = false;
+    this.isLoadingSessions = false;
+    this.isLoadingConversation = false;
+    this.pendingSessionId = '';
+    this.isConversationDismissed = false;
+    this.isLoadingHome = false;
+    this.sessionErrorText = '';
+    this.hostCapabilities = [];
+    this.clearDownloadStatus();
   }
 
   clearWorkspaceActions(): void {

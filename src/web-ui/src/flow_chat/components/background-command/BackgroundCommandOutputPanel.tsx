@@ -1,6 +1,7 @@
+import { Button, IconButton } from '@bitfun/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ClipboardCopy, Copy, Keyboard, Loader2, Terminal } from 'lucide-react';
-import { Button, Checkbox, IconButton, Textarea, Tooltip } from '@/component-library';
+import { Checkbox, Textarea, Tooltip } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
 import { agentAPI } from '@/infrastructure/api';
 import type {
@@ -302,38 +303,35 @@ export const BackgroundCommandOutputPanel: React.FC<BackgroundCommandOutputPanel
             </div>
           </div>
           <div data-bf-component="background-command-output-panel" data-bf-part="headerActions" className="background-command-output-panel__header-actions">
-            <IconButton
-              variant="ghost"
-              size="small"
-              onClick={handleToggleInputEditor}
-              tooltip={canSendInput
+            <Tooltip content={canSendInput
                 ? t('backgroundCommandOutput.sendInput')
-                : t('backgroundCommandOutput.sendInputUnavailable')}
-              aria-label={t('backgroundCommandOutput.sendInput')}
-              disabled={!canSendInput}
-            >
-              <Keyboard size={14} aria-hidden="true" />
-            </IconButton>
-            <IconButton
-              variant="ghost"
-              size="small"
-              onClick={copyCommand}
-              tooltip={t('backgroundCommandOutput.copyCommand')}
-              aria-label={t('backgroundCommandOutput.copyCommand')}
-              disabled={!command}
-            >
-              <ClipboardCopy size={14} aria-hidden="true" />
-            </IconButton>
-            <IconButton
-              variant="ghost"
-              size="small"
-              onClick={copyOutput}
-              tooltip={t('backgroundCommandOutput.copy')}
-              aria-label={t('backgroundCommandOutput.copy')}
-              disabled={!displayedOutput}
-            >
-              <Copy size={14} aria-hidden="true" />
-            </IconButton>
+                : t('backgroundCommandOutput.sendInputUnavailable')}>
+              <IconButton
+                size="sm"
+                onClick={handleToggleInputEditor}
+                aria-label={t('backgroundCommandOutput.sendInput')}
+                disabled={!canSendInput}
+                icon={<Keyboard size={14} aria-hidden="true" />}
+              />
+            </Tooltip>
+            <Tooltip content={t('backgroundCommandOutput.copyCommand')}>
+              <IconButton
+                size="sm"
+                onClick={copyCommand}
+                aria-label={t('backgroundCommandOutput.copyCommand')}
+                disabled={!command}
+                icon={<ClipboardCopy size={14} aria-hidden="true" />}
+              />
+            </Tooltip>
+            <Tooltip content={t('backgroundCommandOutput.copy')}>
+              <IconButton
+                size="sm"
+                onClick={copyOutput}
+                aria-label={t('backgroundCommandOutput.copy')}
+                disabled={!displayedOutput}
+                icon={<Copy size={14} aria-hidden="true" />}
+              />
+            </Tooltip>
           </div>
         </header>
 
@@ -361,7 +359,7 @@ export const BackgroundCommandOutputPanel: React.FC<BackgroundCommandOutputPanel
             <span className="background-command-output-panel__sanitize-toggle-trigger">
               <Checkbox
                 className="background-command-output-panel__sanitize-toggle"
-                size="small"
+                size="sm"
                 checked={sanitizeOutput}
                 onChange={(event) => setSanitizeOutput(event.target.checked)}
                 label={t('backgroundCommandOutput.simplifiedView')}
@@ -427,7 +425,7 @@ export const BackgroundCommandOutputPanel: React.FC<BackgroundCommandOutputPanel
               <div data-bf-component="background-command-output-panel" data-bf-part="inputOptions" className="background-command-output-panel__input-options">
                 <Checkbox
                   className="background-command-output-panel__input-option"
-                  size="small"
+                  size="sm"
                   checked={inputAppendEnter}
                   onChange={(event) => setInputAppendEnter(event.target.checked)}
                   disabled={!canSendInput || isSendingInput}
@@ -435,7 +433,7 @@ export const BackgroundCommandOutputPanel: React.FC<BackgroundCommandOutputPanel
                 />
                 <Checkbox
                   className="background-command-output-panel__input-option"
-                  size="small"
+                  size="sm"
                   checked={maskInput}
                   onChange={(event) => setMaskInput(event.target.checked)}
                   disabled={!canSendInput || isSendingInput}
@@ -445,8 +443,8 @@ export const BackgroundCommandOutputPanel: React.FC<BackgroundCommandOutputPanel
               <div data-bf-component="background-command-output-panel" data-bf-part="inputActions" className="background-command-output-panel__input-editor-actions">
                 <Button
                   type="button"
-                  variant="secondary"
-                  size="small"
+                  variant="outline"
+                  size="sm"
                   onClick={handleCloseInputEditor}
                   disabled={isSendingInput}
                 >
@@ -454,9 +452,9 @@ export const BackgroundCommandOutputPanel: React.FC<BackgroundCommandOutputPanel
                 </Button>
                 <Button
                   type="submit"
-                  variant="primary"
-                  size="small"
-                  isLoading={isSendingInput}
+                  variant="fill"
+                  size="sm"
+                  loading={isSendingInput}
                   disabled={!canSubmitInput}
                 >
                   {t('backgroundCommandInput.send')}

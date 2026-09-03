@@ -13,15 +13,15 @@
     flex-direction: column;
     gap: 6px;
     padding: 10px;
-    border: 1px solid var(--bf-appearance-token-border-subtle);
+    border: 1px solid var(--bf-color-border-subtle);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--bf-appearance-token-element-bg-soft) 70%, transparent);
+    background: color-mix(in srgb, var(--bf-color-action-quiet-hover) 70%, transparent);
 
     code {
       min-width: 0;
-      color: var(--bf-appearance-token-color-text-primary);
-      font-size: 12px;
-      line-height: 1.5;
+      color: var(--bf-color-content-primary);
+      font-size: var(--bf-font-size-xs);
+      line-height: var(--bf-line-height-base);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -29,17 +29,17 @@
   }
 
   &__summary-label {
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: 11px;
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-meta);
   }
 
   &__textarea {
     .bitfun-textarea__field {
       min-height: 96px;
       resize: vertical;
-      font-family: var(--bf-appearance-token-font-family-mono);
-      font-size: 12px;
-      line-height: 1.5;
+      font-family:var(--bf-font-family-mono);
+      font-size: var(--bf-font-size-xs);
+      line-height: var(--bf-line-height-base);
     }
 
     &--masked .bitfun-textarea__field {
@@ -53,19 +53,19 @@
     gap: 12px;
 
     .bitfun-checkbox__label {
-      color: var(--bf-appearance-token-color-text-primary);
+      color: var(--bf-color-content-primary);
     }
 
     .bitfun-checkbox__description {
-      color: var(--bf-appearance-token-color-text-secondary);
+      color: var(--bf-color-content-secondary);
     }
   }
 
   &__note {
     margin: 0;
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: 12px;
-    line-height: 1.5;
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-xs);
+    line-height: var(--bf-line-height-base);
   }
 
   &__actions {

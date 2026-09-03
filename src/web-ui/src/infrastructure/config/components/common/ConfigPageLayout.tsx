@@ -1,5 +1,4 @@
- 
-
+ import { FieldGroup, FormSection, ScrollArea } from '@bitfun/ui';
 import React from 'react';
 import './ConfigPageLayout.scss';
 
@@ -17,11 +16,11 @@ export const ConfigPageLayout: React.FC<ConfigPageLayoutProps> = ({
   ...props
 }) => {
   return (
-    <div className={`bitfun-config-page-layout ${className}`} data-bf-component="config" data-bf-part="root" {...props}>
+    <ScrollArea className={`bitfun-config-page-layout ${className}`} data-bf-component="config" data-bf-part="root" {...props}>
       {children}
       {/* Real DOM spacer: keeps a guaranteed blank tail at the end of the scroll range. */}
       <div className="bitfun-config-page-layout__scroll-end-spacer" aria-hidden="true" />
-    </div>
+    </ScrollArea>
   );
 };
 
@@ -82,8 +81,8 @@ export interface ConfigPageSectionProps extends Omit<React.HTMLAttributes<HTMLEl
   extra?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
-  /** Disable when the section body removes its standard bordered surface chrome. */
-  mouseGlowSurface?: boolean;
+  /** Disable when children own the surface and the standard body background/radius should be removed. */
+  bodySurface?: boolean;
 }
 
 export const ConfigPageSection: React.FC<ConfigPageSectionProps> = ({
@@ -93,38 +92,44 @@ export const ConfigPageSection: React.FC<ConfigPageSectionProps> = ({
   extra,
   children,
   className = '',
-  mouseGlowSurface = true,
+  bodySurface = true,
   ...props
 }) => {
-  // A chrome-less body must drop the inset highlight too: the mouse glow treats any
-  // inset shadow as a visual boundary and would trace a box around empty space.
   const bodyClassName = [
     'bitfun-config-page-section__body',
-    !mouseGlowSurface && 'bitfun-config-page-section__body--flush',
+    !bodySurface && 'bitfun-config-page-section__body--flush',
   ].filter(Boolean).join(' ');
 
   return (
-    <section className={`bitfun-config-page-section ${className}`} data-bf-component="config" data-bf-part="section" {...props}>
-      <div className="bitfun-config-page-section__header" data-bf-component="config" data-bf-part="sectionHeader">
-        <div className="bitfun-config-page-section__heading">
-          <div className="bitfun-config-page-section__title-row">
-            <h3 className="bitfun-config-page-section__title" data-bf-component="config" data-bf-part="sectionTitle">{title}</h3>
-            {titleSuffix}
-          </div>
-          {description && (
-            <p className="bitfun-config-page-section__description" data-bf-component="config" data-bf-part="sectionDescription">{description}</p>
-          )}
-        </div>
-        {extra && (
-          <div className="bitfun-config-page-section__extra">
-            {extra}
-          </div>
-        )}
-      </div>
-      <div className={bodyClassName} data-bf-component="config" data-bf-part="sectionBody">
+    <FormSection
+      className={`bitfun-config-page-section ${className}`}
+      data-bf-component="config"
+      data-bf-part="section"
+      headingAs="h3"
+      title={(
+        <span className="bitfun-config-page-section__title-row" data-bf-component="config" data-bf-part="sectionHeader">
+          <span className="bitfun-config-page-section__title" data-bf-component="config" data-bf-part="sectionTitle">{title}</span>
+          {titleSuffix}
+        </span>
+      )}
+      description={description ? (
+        <span className="bitfun-config-page-section__description" data-bf-component="config" data-bf-part="sectionDescription">{description}</span>
+      ) : undefined}
+      actions={extra ? (
+        <div className="bitfun-config-page-section__extra">{extra}</div>
+      ) : undefined}
+      {...props}
+    >
+      <FieldGroup
+        appearance={bodySurface ? 'subtle' : 'plain'}
+        className={bodyClassName}
+        data-bf-component="config"
+        data-bf-part="sectionBody"
+        dividers={false}
+      >
         {children}
-      </div>
-    </section>
+      </FieldGroup>
+    </FormSection>
   );
 };
 
@@ -155,16 +160,20 @@ export const ConfigPageRow: React.FC<ConfigPageRowProps> = ({
   wide = false,
   balanced = false,
 }) => {
+  const hasControl = children !== null && children !== undefined && children !== false;
   const cls = [
     'bitfun-config-page-row',
     `bitfun-config-page-row--${align}`,
     multiline && 'bitfun-config-page-row--multiline',
     wide && 'bitfun-config-page-row--wide',
     balanced && 'bitfun-config-page-row--balanced',
+    !hasControl && 'bitfun-config-page-row--no-control',
     className,
   ].filter(Boolean).join(' ');
 
-  const gridStyle: React.CSSProperties | undefined = wide
+  const gridStyle: React.CSSProperties | undefined = !hasControl
+    ? { gridTemplateColumns: 'minmax(0, 1fr)' }
+    : wide
     ? { gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 8fr)' }
     : balanced
     ? { gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 3fr)' }
@@ -188,9 +197,11 @@ export const ConfigPageRow: React.FC<ConfigPageRowProps> = ({
           <div className="bitfun-config-page-row__description" data-bf-component="config" data-bf-part="rowDescription">{description}</div>
         ) : null}
       </div>
-      <div className="bitfun-config-page-row__control" data-bf-component="config" data-bf-part="rowControl">
-        {children}
-      </div>
+      {hasControl ? (
+        <div className="bitfun-config-page-row__control" data-bf-component="config" data-bf-part="rowControl">
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 };

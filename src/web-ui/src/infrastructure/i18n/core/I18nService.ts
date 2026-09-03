@@ -48,8 +48,7 @@ const bootstrapLocaleModules = import.meta.glob([
   '../../../locales/*/flow-chat.json',
   '../../../locales/*/panels/files.json',
   '../../../locales/*/panels/git.json',
-  '../../../locales/*/settings/ai-model.json',
-  '../../../locales/*/settings/lsp.json',
+  '../../../locales/*/settings/models.json',
   '../../../locales/*/tools.json',
 ], {
   eager: true,
@@ -235,7 +234,7 @@ export class I18nService {
         return;
       }
 
-      await this.changeLanguage(savedLocale);
+      await this.applyPersistedLanguage(savedLocale);
       logDuration(log, 'Backend locale applied after initialization', elapsedMs(startedAt), {
         data: {
         locale: savedLocale,
@@ -281,7 +280,8 @@ export class I18nService {
     try {
       await i18nAPI.setLanguage(locale);
     } catch (error) {
-      log.warn('Failed to save locale config', error);
+      log.error('Failed to commit locale through ProductControl', { locale, error });
+      throw error;
     }
   }
 
@@ -314,6 +314,31 @@ export class I18nService {
 
    
   async changeLanguage(locale: LocaleId): Promise<void> {
+    if (!isLocaleSupported(locale)) {
+      log.error('Unsupported locale', { locale });
+      throw new Error(`Unsupported locale: ${locale}`);
+    }
+    if (locale === this.currentLocaleId) {
+      log.debug('Locale unchanged, skipping', { locale });
+      return;
+    }
+
+    // Desktop ProductControl persists first, applies backend effects, asks the
+    // live Web UI to apply this locale, and only then acknowledges success.
+    // Web/server adapters without that effect channel still receive the same
+    // persistence result and apply locally below.
+    await this.saveCurrentLocale(locale);
+    if (this.currentLocaleId !== locale) {
+      await this.applyLanguage(locale);
+    }
+  }
+
+  /** Apply a locale that another product-control port already persisted. */
+  async applyPersistedLanguage(locale: LocaleId): Promise<void> {
+    await this.applyLanguage(locale);
+  }
+
+  private async applyLanguage(locale: LocaleId): Promise<void> {
     if (!isLocaleSupported(locale)) {
       log.error('Unsupported locale', { locale });
       throw new Error(`Unsupported locale: ${locale}`);
@@ -351,9 +376,6 @@ export class I18nService {
 
       
       store.setCurrentLanguage(locale);
-
-      
-      await this.saveCurrentLocale(locale);
 
       
       if (this.hooks.afterChange) {

@@ -36,6 +36,9 @@ const BUILTIN_SKILL_GROUP_ORDER = [
   'computer-use',
   'office',
   'canvas',
+  'debugging',
+  'coordination',
+  'planning',
   'gstack',
 ];
 
@@ -45,6 +48,9 @@ const BUILTIN_SKILL_GROUP_LABEL_KEYS: Record<string, string> = {
   meta: 'meta',
   miniapp: 'miniapp',
   canvas: 'canvas',
+  debugging: 'debugging',
+  coordination: 'coordination',
+  planning: 'planning',
   gstack: 'gstack',
 };
 

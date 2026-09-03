@@ -5,7 +5,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkspaceKind, WorkspaceType, type WorkspaceInfo } from '@/shared/types';
 
-vi.mock('@/component-library', () => ({
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
@@ -88,12 +89,12 @@ describe('AssistantSessionCreateMenu', () => {
     expect(onCreateAssistant).not.toHaveBeenCalled();
   });
 
-  it('lists the primary assistant first and creates a session for the selected assistant', () => {
+  it('lists the primary assistant first without a badge and creates a session for the selected assistant', () => {
     const { onCreateAssistant } = renderMenu();
 
     click('nav-assistant-session-menu-toggle');
     const items = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
-    expect(items.map(item => item.textContent)).toEqual(['MiraPrimary', 'Sage']);
+    expect(items.map(item => item.textContent)).toEqual(['Mira', 'Sage']);
 
     click('nav-assistant-session-menu-item-secondary');
     expect(onCreateAssistant).toHaveBeenCalledWith(secondaryAssistant);

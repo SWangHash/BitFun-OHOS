@@ -487,11 +487,11 @@ mod tests {
             tool_name: GET_TOOL_SPEC_TOOL_NAME.to_string(),
             tool_call: ToolCallData {
                 id: "call_1".to_string(),
-                input: json!({ "tool_name": "Git" }),
+                input: json!({ "tool_name": "Worktree" }),
             },
             tool_result: Some(ToolResultData {
                 result: json!({
-                    "name": "Git",
+                    "name": "Worktree",
                     "description": "full schema definition",
                     "input_schema": {
                         "type": "object",
@@ -536,7 +536,7 @@ mod tests {
                 .unwrap();
 
         assert!(transcript.contains("\"function\":{\"name\":\"GetToolSpec\""));
-        assert!(transcript.contains("\\\"tool_name\\\":\\\"Git\\\""));
+        assert!(transcript.contains("\\\"tool_name\\\":\\\"Worktree\\\""));
         assert!(transcript.contains("\"name\":\"GetToolSpec\""));
         assert!(transcript.contains("\"content\":\"[cleared]\""));
         assert!(!transcript.contains("full schema definition"));
@@ -689,6 +689,7 @@ mod tests {
         round.thinking_items.push(ThinkingItemData {
             id: "thinking_1".to_string(),
             content: "private reasoning".to_string(),
+            reasoning_kind: None,
             is_streaming: false,
             is_collapsed: true,
             timestamp: 1,

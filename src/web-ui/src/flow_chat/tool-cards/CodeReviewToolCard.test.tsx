@@ -30,7 +30,7 @@ vi.mock('react-i18next', async () => {
   };
 });
 
-vi.mock('@/component-library', () => ({
+vi.mock('@bitfun/ui', () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
@@ -219,7 +219,7 @@ describe('CodeReviewToolCard', () => {
       );
     });
     act(() => {
-      container.querySelector('.preview-toggle-btn')?.dispatchEvent(
+      container.querySelector('[data-bf-part="affordanceButton"]')?.dispatchEvent(
         new window.Event('click', { bubbles: true }),
       );
     });
@@ -293,7 +293,7 @@ describe('CodeReviewToolCard', () => {
       );
     });
     act(() => {
-      container.querySelector('.preview-toggle-btn')?.dispatchEvent(
+      container.querySelector('[data-bf-part="affordanceButton"]')?.dispatchEvent(
         new window.Event('click', { bubbles: true }),
       );
     });
@@ -366,7 +366,7 @@ describe('CodeReviewToolCard', () => {
       );
     });
     act(() => {
-      container.querySelector('.preview-toggle-btn')?.dispatchEvent(
+      container.querySelector('[data-bf-part="affordanceButton"]')?.dispatchEvent(
         new window.Event('click', { bubbles: true }),
       );
     });
@@ -429,7 +429,7 @@ describe('CodeReviewToolCard', () => {
     });
 
     act(() => {
-      container.querySelector('.preview-toggle-btn')?.dispatchEvent(
+      container.querySelector('[data-bf-part="affordanceButton"]')?.dispatchEvent(
         new window.Event('click', { bubbles: true }),
       );
     });
@@ -491,7 +491,7 @@ describe('CodeReviewToolCard', () => {
     });
 
     act(() => {
-      container.querySelector('.preview-toggle-btn')?.dispatchEvent(
+      container.querySelector('[data-bf-part="affordanceButton"]')?.dispatchEvent(
         new window.Event('click', { bubbles: true }),
       );
     });
@@ -545,7 +545,7 @@ describe('CodeReviewToolCard', () => {
       );
     });
     act(() => {
-      container.querySelector('.preview-toggle-btn')?.dispatchEvent(
+      container.querySelector('[data-bf-part="affordanceButton"]')?.dispatchEvent(
         new window.Event('click', { bubbles: true }),
       );
     });

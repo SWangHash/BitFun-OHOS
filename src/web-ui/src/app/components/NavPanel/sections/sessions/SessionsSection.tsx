@@ -6,9 +6,10 @@
  */
 
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Icon, IconButton, Input, Menu, MenuItem, Tooltip } from '@bitfun/ui';
 import { createPortal } from 'react-dom';
-import { Pencil, Trash2, Check, X, Bot, Code2, ClipboardList, Panda, MoreHorizontal, Loader2, Archive, Clock3, Copy, CircleHelp, FileDown, ChevronLeft } from 'lucide-react';
-import { IconButton, Input, PresenceBoundary, Tooltip } from '@/component-library';
+import { Bot, Loader2, Archive, FileDown } from 'lucide-react';
+import { RetainedMountBoundary } from '@/shared/presence';
 import { useI18n } from '@/infrastructure/i18n';
 import { flowChatStore } from '../../../../../flow_chat/store/FlowChatStore';
 import { flowChatManager } from '../../../../../flow_chat/services/FlowChatManager';
@@ -31,14 +32,21 @@ import {
 import { recordHistorySessionDiagnosticEvent } from '@/flow_chat/services/historySessionDiagnostics';
 import { resolveSessionRelationship } from '@/flow_chat/utils/sessionMetadata';
 import {
-  compareSessionsForNavStable,
   sessionBelongsToWorkspaceNavRow,
 } from '@/flow_chat/utils/sessionOrdering';
+import {
+  compareWorkspaceNavSessions,
+  DEFAULT_WORKSPACE_SESSION_FILTERS,
+  hasWorkspaceSessionFilters,
+  matchesWorkspaceSessionView,
+  useWorkspaceSessionViewStore,
+} from '../../workspaceSessionView';
 import { stateMachineManager } from '@/flow_chat/state-machine';
 import { SessionExecutionState } from '@/flow_chat/state-machine/types';
 import { i18nService } from '@/infrastructure/i18n';
 import { resolveSessionTitle } from '@/flow_chat/utils/sessionTitle';
 import { isSessionNavRowActive } from './sessionNavSelection';
+import { isSessionRowPointerTarget } from './sessionOpenPointer';
 import {
   deriveSessionReviewActivity,
   isReviewActivityBlocking,
@@ -51,7 +59,11 @@ import type {
 import { computeFixedPopoverPosition } from '@/shared/utils/fixedPopoverViewport';
 import { exportSessionToMarkdown } from '@/flow_chat/services/sessionMarkdownExport';
 import type { TranscriptExportScope } from '@/flow_chat/utils/dialogTranscriptExport';
-import { confirmWarning } from '@/component-library/components/ConfirmDialog/confirmService';
+import { confirmWarning } from '@/infrastructure/confirm-dialog';
+import {
+  AssistantAvatar,
+  type AssistantAvatarStatus,
+} from '@/app/components/AssistantAvatar';
 import { notificationService } from '@/shared/notification-system';
 import { copyTextToClipboard } from '@/shared/utils/textSelection';
 import { isOutcomeUnknownError } from '@/infrastructure/api/errors/TauriCommandError';
@@ -73,6 +85,7 @@ import {
 import {
   getEffectiveTopLevelSessionCount,
   getSessionBufferPrefetchLimit,
+  getSessionDisplayLimit,
   getSessionExpandToggleState,
   SESSIONS_LEVEL_0,
   SESSIONS_LEVEL_1,
@@ -161,6 +174,16 @@ const getReviewActivityBadge = (kind: 'review' | 'deep_review'): string =>
     },
   );
 
+export interface AssistantSessionPresentation {
+  kind: 'assistant';
+  assistant: {
+    id: string;
+    name: string;
+    avatar?: string | null;
+    emoji?: string | null;
+  };
+}
+
 interface SessionsSectionProps {
   workspaceId?: string;
   workspacePath?: string;
@@ -170,12 +193,24 @@ interface SessionsSectionProps {
   remoteSshHost?: string | null;
   isActiveWorkspace?: boolean;
   showCreateActions?: boolean;
-  /** When set (e.g. assistant workspace), session row tooltip includes this assistant name. */
-  assistantLabel?: string;
-  /** When false, hide the leading mode / running icon on each row (e.g. assistant detail page). */
-  showSessionModeIcon?: boolean;
+  /** Product presentation for assistant-owned sessions. Project sessions use the compact row. */
+  presentation?: AssistantSessionPresentation;
   /** Prevents startup metadata fetching while the surrounding section is collapsed. */
   isVisible?: boolean;
+  /** Apply the Workspace section's shared sorting and display preferences. */
+  useWorkspaceViewPreferences?: boolean;
+  /** Multiple project scopes used by the flat "all sessions" projection. */
+  workspaceScopes?: WorkspaceSessionScope[];
+  /** Navigation geometry for nested workspace rows versus the flat aggregate list. */
+  layout?: 'nested' | 'flat';
+}
+
+export interface WorkspaceSessionScope {
+  workspaceId: string;
+  workspaceName: string;
+  workspacePath: string;
+  remoteConnectionId?: string | null;
+  remoteSshHost?: string | null;
 }
 
 const SessionsSection: React.FC<SessionsSectionProps> = ({
@@ -184,11 +219,24 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
   remoteConnectionId = null,
   remoteSshHost = null,
   isActiveWorkspace = true,
-  assistantLabel,
-  showSessionModeIcon = true,
+  presentation,
   isVisible = true,
+  useWorkspaceViewPreferences = false,
+  workspaceScopes,
+  layout = 'nested',
 }) => {
   const { t } = useI18n('common');
+  const storedSessionOrdering = useWorkspaceSessionViewStore(state => state.ordering);
+  const storedSessionShow = useWorkspaceSessionViewStore(state => state.show);
+  const storedSessionFilters = useWorkspaceSessionViewStore(state => state.filters);
+  const sessionOrdering = useWorkspaceViewPreferences ? storedSessionOrdering : 'created';
+  const sessionShow = useWorkspaceViewPreferences ? storedSessionShow : 'all';
+  const sessionFilters = useWorkspaceViewPreferences
+    ? storedSessionFilters
+    : DEFAULT_WORKSPACE_SESSION_FILTERS;
+  const hasActiveSessionFilter = sessionShow !== 'all' || hasWorkspaceSessionFilters(sessionFilters);
+  const showAllWithoutLimit = layout === 'flat' && Boolean(workspaceScopes?.length);
+  const sessionListClassName = `bitfun-nav-panel__inline-list${layout === 'flat' ? ' is-flat-workspace-view' : ''}`;
   const { setActiveWorkspace, currentWorkspace } = useWorkspaceContext();
   const activeTabId = useSceneStore(s => s.activeTabId);
   const activeBtwSessionTab = useAgentCanvasStore(state => selectActiveBtwSessionTab(state as any));
@@ -203,8 +251,8 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [expandLevel, setExpandLevel] = useState<0 | 1 | 2>(0);
-  // Level-2 ("show all") renders in pages of 200 rows so a huge session
-  // history cannot mount thousands of un-virtualized rows at once.
+  // Grouped workspace history keeps its existing level-2 paging. The flat
+  // aggregate projection bypasses this display cap and streams every page in.
   const [level2DisplayCount, setLevel2DisplayCount] = useState(SESSIONS_LEVEL_2_PAGE);
 
   useEffect(() => {
@@ -227,6 +275,14 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
     isLoading: false,
     loadError: false,
   });
+  const [aggregateLoadState, setAggregateLoadState] = useState<{
+    isLoading: boolean;
+    failedScopeCount: number;
+  }>(() => ({
+    isLoading: showAllWithoutLimit && isVisible,
+    failedScopeCount: 0,
+  }));
+  const [aggregateReloadRequestId, setAggregateReloadRequestId] = useState(0);
   const [openMenuSessionId, setOpenMenuSessionId] = useState<string | null>(null);
   const [sessionMenuPosition, setSessionMenuPosition] = useState<{ top: number; left: number } | null>(null);
   /** Second level of the session menu: pick what a Markdown export includes. */
@@ -346,6 +402,102 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
       loadError: false,
     });
   }, [workspaceId, workspacePath, remoteConnectionId, remoteSshHost]);
+
+  const workspaceScopesKey = useMemo(
+    () => workspaceScopes?.map(scope => [
+      scope.workspaceId,
+      scope.workspacePath,
+      scope.remoteConnectionId ?? '',
+      scope.remoteSshHost ?? '',
+    ].join(':')).join('|') ?? '',
+    [workspaceScopes],
+  );
+
+  useEffect(() => {
+    if (!isVisible || !workspaceScopes?.length) {
+      setAggregateLoadState({ isLoading: false, failedScopeCount: 0 });
+      return;
+    }
+
+    let cancelled = false;
+    setAggregateLoadState({ isLoading: true, failedScopeCount: 0 });
+
+    const loadAllScopes = async () => {
+      const results = await Promise.allSettled(workspaceScopes.map(async scope => {
+        let cursor: string | undefined;
+        do {
+          const page = await flowChatStore.loadSessionMetadataPage(
+            scope.workspacePath,
+            SESSIONS_LEVEL_2_PAGE,
+            cursor,
+            scope.remoteConnectionId || undefined,
+            scope.remoteSshHost || undefined,
+            'sessions_nav_all_grouping',
+          );
+          if (cancelled) return;
+          cursor = page.hasMore ? page.nextCursor : undefined;
+        } while (cursor);
+
+        if (!sessionFilters.hideArchived && !cancelled) {
+          await flowChatStore.loadArchivedSessionMetadata(
+            scope.workspacePath,
+            scope.remoteConnectionId || undefined,
+            scope.remoteSshHost || undefined,
+          );
+        }
+      }));
+
+      if (cancelled) return;
+
+      let failedScopeCount = 0;
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') return;
+        failedScopeCount += 1;
+        const scope = workspaceScopes[index];
+        log.warn('Failed to load all-session workspace projection', {
+          error: result.reason,
+          workspacePath: scope?.workspacePath,
+          remote: Boolean(scope?.remoteConnectionId || scope?.remoteSshHost),
+        });
+      });
+      setAggregateLoadState({ isLoading: false, failedScopeCount });
+    };
+
+    void loadAllScopes().catch(error => {
+      if (!cancelled) {
+        log.warn('Failed to coordinate all-session workspace projection', { error });
+        setAggregateLoadState({
+          isLoading: false,
+          failedScopeCount: workspaceScopes.length,
+        });
+      }
+    });
+    return () => { cancelled = true; };
+  }, [
+    aggregateReloadRequestId,
+    isVisible,
+    sessionFilters.hideArchived,
+    workspaceScopes,
+    workspaceScopesKey,
+  ]);
+
+  useEffect(() => {
+    if (!isVisible || sessionFilters.hideArchived || workspaceScopes?.length || !workspacePath) return;
+    void flowChatStore.loadArchivedSessionMetadata(
+      workspacePath,
+      remoteConnectionId || undefined,
+      remoteSshHost || undefined,
+    ).catch(error => {
+      log.warn('Failed to load archived session projection', { error });
+    });
+  }, [
+    isVisible,
+    remoteConnectionId,
+    remoteSshHost,
+    sessionFilters.hideArchived,
+    workspacePath,
+    workspaceScopes,
+  ]);
 
   const loadMetadataPage = useCallback(
     async (
@@ -520,6 +672,27 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
     workspacePath,
   ]);
 
+  useEffect(() => {
+    const needsExpandedDataset = sessionOrdering !== 'updated' || hasActiveSessionFilter;
+    if (!needsExpandedDataset || !isVisible || !workspacePath) {
+      return;
+    }
+
+    setExpandLevel(2);
+    setLevel2DisplayCount(SESSIONS_LEVEL_2_PAGE);
+    void loadMetadataPage(
+      SESSIONS_LEVEL_2_PAGE,
+      undefined,
+      'sessions_nav_view_preferences',
+    );
+  }, [
+    isVisible,
+    loadMetadataPage,
+    sessionOrdering,
+    hasActiveSessionFilter,
+    workspacePath,
+  ]);
+
   // When sessions are archived, reset stale metadata so the expand toggle
   // doesn't linger with old counts after all sessions are gone.
   useEffect(() => {
@@ -624,13 +797,20 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
           if (s.sessionKind === 'subagent') {
             return false;
           }
+          if (workspaceScopes?.length) {
+            return workspaceScopes.some(scope => sessionBelongsToWorkspaceNavRow(
+              s,
+              scope.workspacePath,
+              scope.remoteConnectionId,
+              scope.remoteSshHost,
+            ));
+          }
           if (workspacePath) {
             return sessionBelongsToWorkspaceNavRow(s, workspacePath, remoteConnectionId, remoteSshHost);
           }
           return !s.workspacePath;
-        })
-        .sort(compareSessionsForNavStable),
-    [flowChatState.sessions, workspacePath, remoteConnectionId, remoteSshHost]
+        }),
+    [flowChatState.sessions, workspacePath, remoteConnectionId, remoteSshHost, workspaceScopes]
   );
 
   const { topLevelSessions: allTopLevelSessions, childrenByParent } = useMemo(() => {
@@ -650,35 +830,106 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
       }
     }
 
+    const compareForCurrentView = (left: Session, right: Session) =>
+      compareWorkspaceNavSessions(
+        left,
+        right,
+        sessionOrdering,
+        getTitle,
+        session => runningSessionIds.has(session.sessionId),
+      );
+
     for (const [pid, list] of childMap) {
-      childMap.set(pid, [...list].sort(compareSessionsForNavStable));
+      childMap.set(pid, [...list].sort(compareForCurrentView));
     }
 
     return {
-      topLevelSessions: [...parents].sort(compareSessionsForNavStable),
+      topLevelSessions: [...parents].sort(compareForCurrentView),
       childrenByParent: childMap,
     };
-  }, [sessions]);
+  }, [runningSessionIds, sessionOrdering, sessions]);
 
-  const topLevelSessions = allTopLevelSessions;
+  const topLevelSessions = useMemo(
+    () => allTopLevelSessions.filter(session => matchesWorkspaceSessionView(
+      session,
+      sessionShow,
+      sessionFilters,
+      runningSessionIds.has(session.sessionId),
+    )),
+    [allTopLevelSessions, runningSessionIds, sessionFilters, sessionShow],
+  );
+
+  const visibleChildrenByParent = useMemo(() => {
+    if (!hasActiveSessionFilter) return childrenByParent;
+
+    const filtered = new Map<string, Session[]>();
+    for (const [parentId, children] of childrenByParent) {
+      filtered.set(parentId, children.filter(session => matchesWorkspaceSessionView(
+        session,
+        sessionShow,
+        sessionFilters,
+        runningSessionIds.has(session.sessionId),
+      )));
+    }
+    return filtered;
+  }, [childrenByParent, hasActiveSessionFilter, runningSessionIds, sessionFilters, sessionShow]);
 
   const sessionDisplayLimit = useMemo(() => {
-    const total = topLevelSessions.length;
-    if (expandLevel === 2) return Math.min(total, level2DisplayCount);
-    if (total <= SESSIONS_LEVEL_0) return total;
-    if (expandLevel === 1) return Math.min(total, SESSIONS_LEVEL_1);
-    return SESSIONS_LEVEL_0;
-  }, [topLevelSessions.length, expandLevel, level2DisplayCount]);
+    return getSessionDisplayLimit({
+      loadedTopLevelCount: topLevelSessions.length,
+      expandLevel,
+      level2DisplayCount,
+      showAllWithoutLimit,
+    });
+  }, [topLevelSessions.length, expandLevel, level2DisplayCount, showAllWithoutLimit]);
 
-  const totalTopLevelSessionCount = getEffectiveTopLevelSessionCount(
-    metadataPageState.totalTopLevelCount,
-    metadataPageState.syncedTopLevelCount,
-    allTopLevelSessions.length,
-    metadataPageState.isLoading,
-  );
+  const totalTopLevelSessionCount = !hasActiveSessionFilter && !workspaceScopes?.length
+    ? getEffectiveTopLevelSessionCount(
+        metadataPageState.totalTopLevelCount,
+        metadataPageState.syncedTopLevelCount,
+        allTopLevelSessions.length,
+        metadataPageState.isLoading,
+      )
+    : topLevelSessions.length;
   const hasMoreUnloadedSessions =
-    allTopLevelSessions.length < totalTopLevelSessionCount;
+    !hasActiveSessionFilter && !workspaceScopes?.length && allTopLevelSessions.length < totalTopLevelSessionCount;
   const expandToggleState = getSessionExpandToggleState(totalTopLevelSessionCount, expandLevel);
+  // The visible label stays short ("Show more") and the remaining count rides in
+  // a trailing `+N` chip; screen readers get the full sentence via aria-label.
+  // Keyed off `action` so the label, the chevron direction and the CSS hook on
+  // data-session-nav-toggle-action can never disagree.
+  const expandToggleLabels = useMemo((): {
+    label: string;
+    ariaLabel: string;
+    remainingCount: number | null;
+  } => {
+    if (expandToggleState.action === 'show-more') {
+      const count = expandToggleState.collapsedRemainingCount;
+      return {
+        label: t('nav.sessions.showMoreLabel'),
+        ariaLabel: t('nav.sessions.showMore', { count }),
+        remainingCount: count,
+      };
+    }
+    if (expandToggleState.action === 'show-all') {
+      const count = expandToggleState.expandedRemainingCount;
+      return {
+        label: t('nav.sessions.showAllLabel'),
+        ariaLabel: t('nav.sessions.showAll', { count }),
+        remainingCount: count,
+      };
+    }
+    return {
+      label: t('nav.sessions.showLess'),
+      ariaLabel: t('nav.sessions.showLess'),
+      remainingCount: null,
+    };
+  }, [
+    expandToggleState.action,
+    expandToggleState.collapsedRemainingCount,
+    expandToggleState.expandedRemainingCount,
+    t,
+  ]);
 
   useEffect(() => {
     if (
@@ -777,11 +1028,11 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
     const out: Array<{ session: Session; level: 0 | 1 }> = [];
     for (const p of visibleParents) {
       out.push({ session: p, level: 0 });
-      const children = childrenByParent.get(p.sessionId) || [];
+      const children = visibleChildrenByParent.get(p.sessionId) || [];
       for (const c of children) out.push({ session: c, level: 1 });
     }
     return out;
-  }, [childrenByParent, sessionDisplayLimit, topLevelSessions]);
+  }, [sessionDisplayLimit, topLevelSessions, visibleChildrenByParent]);
 
   const visibleRowSignature = useMemo(
     () => visibleItems.map(item => item.session.sessionId).join('|'),
@@ -849,8 +1100,15 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
         }
         const relationship = resolveSessionRelationship(session);
         const parentSessionId = relationship.parentSessionId;
+        const matchingScope = session && workspaceScopes?.find(scope => sessionBelongsToWorkspaceNavRow(
+          session,
+          scope.workspacePath,
+          scope.remoteConnectionId,
+          scope.remoteSshHost,
+        ));
+        const targetWorkspaceId = matchingScope?.workspaceId ?? workspaceId;
         const mustActivateWorkspace =
-          Boolean(workspaceId) && workspaceId !== currentWorkspace?.id;
+          Boolean(targetWorkspaceId) && targetWorkspaceId !== currentWorkspace?.id;
         const activateWorkspace = mustActivateWorkspace
           ? async (targetWorkspaceId: string) => {
               await setActiveWorkspace(targetWorkspaceId);
@@ -862,7 +1120,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
           : undefined;
         if (relationship.canOpenInAuxPane && parentSessionId && parentSession && session) {
           await openMainSession(parentSessionId, {
-            workspaceId,
+            workspaceId: targetWorkspaceId,
             activateWorkspace,
           });
           openBtwSessionInAuxPane({
@@ -875,14 +1133,14 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
 
         if (sessionId === activeSessionId) {
           await openMainSession(sessionId, {
-            workspaceId,
+            workspaceId: targetWorkspaceId,
             activateWorkspace,
           });
           return;
         }
 
         await openMainSession(sessionId, {
-          workspaceId,
+          workspaceId: targetWorkspaceId,
           activateWorkspace,
         });
         window.dispatchEvent(
@@ -898,6 +1156,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
       editingSessionId,
       setActiveWorkspace,
       workspaceId,
+      workspaceScopes,
       currentWorkspace?.id,
     ]
   );
@@ -908,6 +1167,13 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
         return;
       }
       if (event.button !== 0) {
+        return;
+      }
+
+      // React portal events still bubble through the component tree. Only a
+      // pointer physically inside the row is an intent to open that session;
+      // menu actions rendered in the overlay host must not start hydration.
+      if (!isSessionRowPointerTarget(event.currentTarget, event.target)) {
         return;
       }
 
@@ -942,11 +1208,9 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
 
       const mode = resolveSessionModeType(session);
       const label =
-        mode === 'cowork'
-          ? t('nav.sessions.newCoworkSession')
-          : mode === 'claw'
-            ? t('nav.sessions.newClawSession')
-            : t('nav.sessions.newCodeSession');
+        mode === 'claw'
+          ? t('nav.sessions.newClawSession')
+          : t('nav.sessions.newSession');
       return `${label} ${matched[1]}`;
     },
     [t]
@@ -1154,10 +1418,49 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
     totalTopLevelSessionCount,
   ]);
 
+  const aggregateLoadStatus = showAllWithoutLimit
+    ? aggregateLoadState.isLoading
+      ? (
+          <div
+            className="bitfun-nav-panel__inline-loading"
+            data-bf-component="sessions-section"
+            data-bf-part="aggregateLoading"
+            data-bf-state="loading"
+            data-testid="nav-session-aggregate-loading"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2 size={12} />
+            <span>{t('nav.sessions.loading')}</span>
+          </div>
+        )
+      : aggregateLoadState.failedScopeCount > 0
+        ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="bitfun-nav-panel__inline-action"
+              data-bf-state="partial"
+              data-testid="nav-session-aggregate-retry"
+              onClick={() => setAggregateReloadRequestId(current => current + 1)}
+            >
+              {t('nav.sessions.partialLoadFailedRetry')}
+            </Button>
+          )
+        : null
+    : null;
+
   if (allTopLevelSessions.length === 0) {
+    if (aggregateLoadStatus) {
+      return (
+        <div data-bf-component="sessions-section" data-bf-part="root" className={sessionListClassName}>
+          {aggregateLoadStatus}
+        </div>
+      );
+    }
     if (metadataPageState.isLoading) {
       return (
-        <div data-bf-component="sessions-section" data-bf-part="root" className="bitfun-nav-panel__inline-list">
+        <div data-bf-component="sessions-section" data-bf-part="root" className={sessionListClassName}>
           <div className="bitfun-nav-panel__inline-loading" data-bf-component="sessions-section" data-bf-part="loading" data-bf-state="loading">
             <Loader2 size={12} />
             <span>{t('nav.sessions.loading')}</span>
@@ -1167,32 +1470,65 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
     }
     if (metadataPageState.loadError) {
       return (
-        <div data-bf-component="sessions-section" data-bf-part="root" className="bitfun-nav-panel__inline-list">
-          <button
-            type="button"
+        <div data-bf-component="sessions-section" data-bf-part="root" className={sessionListClassName}>
+          <Button
+            variant="outline"
+            size="sm"
             className="bitfun-nav-panel__inline-action"
-            data-bf-component="sessions-section"
-            data-bf-part="retry"
             onClick={() => {
               void loadInitialMetadataPage('sessions_nav_manual_retry');
             }}
           >
-            <span>{t('nav.sessions.loadFailedRetry')}</span>
-          </button>
+            {t('nav.sessions.loadFailedRetry')}
+          </Button>
         </div>
       );
     }
     return (
-      <div className="bitfun-nav-panel__inline-list">
-        <div className="bitfun-nav-panel__inline-empty" aria-disabled="true">
-          {t('nav.sessions.noSessions')}
+      <div className={sessionListClassName}>
+        {presentation?.kind === 'assistant' ? (
+          <div className="bitfun-nav-panel__inline-empty is-assistant" aria-disabled="true">
+            <AssistantAvatar
+              presetId={presentation.assistant.avatar}
+              emoji={presentation.assistant.emoji}
+              stableKey={presentation.assistant.id}
+              name={presentation.assistant.name}
+              size={26}
+            />
+            <span className="bitfun-nav-panel__inline-empty-copy">
+              <span className="bitfun-nav-panel__inline-empty-name">{presentation.assistant.name}</span>
+              <span>{t('nav.sessions.noSessions')}</span>
+            </span>
+          </div>
+        ) : (
+          <div className="bitfun-nav-panel__inline-empty" aria-disabled="true">
+            {t('nav.sessions.noSessions')}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (topLevelSessions.length === 0) {
+    if (aggregateLoadState.isLoading && aggregateLoadStatus) {
+      return (
+        <div className={sessionListClassName}>
+          {aggregateLoadStatus}
         </div>
+      );
+    }
+    return (
+      <div className={sessionListClassName}>
+        <div className="bitfun-nav-panel__inline-empty" aria-disabled="true">
+          {t('nav.sessions.viewMenu.noMatches')}
+        </div>
+        {aggregateLoadStatus}
       </div>
     );
   }
 
   return (
-    <div className="bitfun-nav-panel__inline-list" ref={sessionListRef}>
+    <div className={sessionListClassName} ref={sessionListRef}>
       {visibleItems.map(({ session, level }) => {
           const isEditing = editingSessionId === session.sessionId;
           const relationship = resolveSessionRelationship(session);
@@ -1212,13 +1548,17 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
               : showChildReviewActivity && (relationship.kind === 'review' || relationship.kind === 'deep_review')
                 ? relationship.kind
                 : null;
-          const sessionModeKey = resolveSessionModeType(session);
           const sessionTitle = resolveSessionTitle(session);
+          const sessionWorkspaceScope = workspaceScopes?.find(scope => sessionBelongsToWorkspaceNavRow(
+            session,
+            scope.workspacePath,
+            scope.remoteConnectionId,
+            scope.remoteSshHost,
+          ));
           const isRunning = runningSessionIds.has(session.sessionId);
           const isWaitingForUserAnswer = isRunning && hasPendingAskUserQuestion(
             resolveTrackedTurn(session),
           );
-          const isHighPriority = !!session.needsUserAttention;
           const backgroundSubagentActivity = !isChildSession
             ? backgroundSubagentActivityByParent.get(session.sessionId)
             : undefined;
@@ -1228,7 +1568,10 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
           const parentSession = parentSessionId ? flowChatState.sessions.get(parentSessionId) : undefined;
           const parentTitle = parentSession ? resolveSessionTitle(parentSession) : '';
           const parentTurnIndex = relationship.origin?.parentTurnIndex;
-          const trimmedAssistant = assistantLabel?.trim() ?? '';
+          const assistantIdentity = presentation?.kind === 'assistant'
+            ? presentation.assistant
+            : null;
+          const trimmedAssistant = assistantIdentity?.name.trim() ?? '';
           const showAssistantInTooltip = trimmedAssistant.length > 0;
           const dispatchTarget = session.config.dispatchTarget;
           const isDispatched = isNonLocalDispatchTarget(dispatchTarget);
@@ -1265,6 +1608,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
               })
             : null;
           const showRichTooltip =
+            Boolean(sessionWorkspaceScope) ||
             showAssistantInTooltip ||
             isChildSession ||
             showBackgroundSubagentActivity ||
@@ -1272,6 +1616,11 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
           const tooltipContent = showRichTooltip ? (
             <div className="bitfun-nav-panel__inline-item-tooltip">
               <div className="bitfun-nav-panel__inline-item-tooltip-title">{sessionTitle}</div>
+              {sessionWorkspaceScope ? (
+                <div className="bitfun-nav-panel__inline-item-tooltip-meta">
+                  {sessionWorkspaceScope.workspaceName}
+                </div>
+              ) : null}
               {showAssistantInTooltip ? (
                 <div className="bitfun-nav-panel__inline-item-tooltip-meta">
                   {t('nav.sessions.assistantOwner', { name: trimmedAssistant })}
@@ -1315,14 +1664,6 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
           ) : (
             sessionTitle
           );
-          const SessionIcon =
-            sessionModeKey === 'cowork'
-              ? ClipboardList
-              : sessionModeKey === 'claw'
-                ? showAssistantInTooltip
-                  ? Panda
-                  : Bot
-                : Code2;
           const isRowActive = isSessionNavRowActive({
             rowSessionId: session.sessionId,
             activeTabId,
@@ -1335,10 +1676,29 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
           const attentionKind = !isRunning && !isRowActive
             ? (session.needsUserAttention || session.hasUnreadCompletion || undefined)
             : undefined;
+          const hiddenAttentionLabel =
+            attentionKind === 'error'
+              ? t('nav.sessions.unreadError')
+              : attentionKind === 'interrupted'
+                ? t('nav.sessions.unreadInterrupted')
+                : attentionKind && attentionKind !== 'ask_user' && attentionKind !== 'tool_confirm'
+                  ? t('nav.sessions.unreadCompleted')
+                  : null;
+          const assistantAvatarStatus: AssistantAvatarStatus = isRunning
+            ? isWaitingForUserAnswer ? 'attention' : 'running'
+            : attentionKind === 'error' || attentionKind === 'interrupted'
+              ? 'error'
+              : attentionKind === 'ask_user' || attentionKind === 'tool_confirm'
+                ? 'attention'
+                : attentionKind
+                  ? 'unread'
+                  : 'idle';
+          const showAssistantIdentity = Boolean(assistantIdentity && !isChildSession);
           const row = (
             <div
               className={[
                 'bitfun-nav-panel__inline-item',
+                showAssistantIdentity && 'is-assistant-session',
                 level === 1 && 'is-child',
                 isChildSession && 'is-btw-child',
                 isRowActive && 'is-active',
@@ -1362,68 +1722,25 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
               onPointerDown={event => handleSessionOpenPointerDown(event, session)}
               onClick={() => handleSwitch(session.sessionId)}
             >
-              {showSessionModeIcon ? (
-                <span className="bitfun-nav-panel__inline-item-icon-slot">
-                  {isRunning ? (
-                    isWaitingForUserAnswer ? (
-                      <CircleHelp
-                        size={14}
-                        className={[
-                          'bitfun-nav-panel__inline-item-icon',
-                          'is-ask-user',
-                        ].join(' ')}
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <Loader2
-                        size={14}
-                        className={[
-                          'bitfun-nav-panel__inline-item-icon',
-                          'is-running',
-                        ].join(' ')}
-                      />
-                    )
-                  ) : (
-                    <SessionIcon
-                      size={14}
-                      className={[
-                        'bitfun-nav-panel__inline-item-icon',
-                        sessionModeKey === 'cowork'
-                          ? 'is-cowork'
-                          : sessionModeKey === 'claw'
-                            ? 'is-claw'
-                            : 'is-code',
-                      ].join(' ')}
-                    />
-                  )}
-                  {attentionKind ? (
-                    <span
-                      className={[
-                        'bitfun-nav-panel__inline-item-unread-dot',
-                        attentionKind === 'error' && 'is-error',
-                        attentionKind === 'interrupted' && 'is-interrupted',
-                        attentionKind === 'ask_user' && 'is-ask-user',
-                        attentionKind === 'tool_confirm' && 'is-tool-confirm',
-                        isHighPriority && 'is-high-priority',
-                      ].filter(Boolean).join(' ')}
-                      aria-label={
-                        attentionKind === 'error'
-                          ? t('nav.sessions.unreadError')
-                          : attentionKind === 'interrupted'
-                            ? t('nav.sessions.unreadInterrupted')
-                            : attentionKind === 'ask_user'
-                              ? t('nav.sessions.needsUserInput')
-                              : attentionKind === 'tool_confirm'
-                                ? t('nav.sessions.needsToolConfirm')
-                                : t('nav.sessions.unreadCompleted')
-                      }
-                    />
-                  ) : null}
+              {showAssistantIdentity && assistantIdentity ? (
+                <span className="bitfun-nav-panel__inline-item-avatar" data-bf-component="sessions-section" data-bf-part="assistantAvatar">
+                  <AssistantAvatar
+                    presetId={assistantIdentity.avatar}
+                    emoji={assistantIdentity.emoji}
+                    stableKey={assistantIdentity.id}
+                    name={assistantIdentity.name}
+                    size={26}
+                    status={assistantAvatarStatus}
+                    active={isRowActive}
+                  />
                 </span>
               ) : null}
 
               {isWaitingForUserAnswer ? (
                 <span className="sr-only">{t('nav.sessions.needsUserInput')}</span>
+              ) : null}
+              {hiddenAttentionLabel ? (
+                <span className="sr-only">{hiddenAttentionLabel}</span>
               ) : null}
 
               {isEditing ? (
@@ -1431,38 +1748,38 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                   <Input
                     ref={editInputRef}
                     className="bitfun-nav-panel__inline-item-edit-field"
-                    variant="default"
-                    inputSize="small"
                     value={editingTitle}
                     onChange={e => setEditingTitle(e.target.value)}
                     onKeyDown={handleEditKeyDown}
                     onBlur={handleConfirmEdit}
+                    size="sm"
                   />
-                  <IconButton
-                    variant="success"
-                    size="xs"
-                    className="bitfun-nav-panel__inline-item-edit-btn confirm"
-                    onClick={e => { e.stopPropagation(); handleConfirmEdit(); }}
-                    tooltip={t('nav.sessions.confirmEdit')}
-                    tooltipPlacement="top"
-                  >
-                    <Check size={11} />
-                  </IconButton>
-                  <IconButton
-                    variant="default"
-                    size="xs"
-                    className="bitfun-nav-panel__inline-item-edit-btn cancel"
-                    onMouseDown={e => { e.preventDefault(); e.stopPropagation(); handleCancelEdit(); }}
-                    tooltip={t('nav.sessions.cancelEdit')}
-                    tooltipPlacement="top"
-                  >
-                    <X size={11} />
-                  </IconButton>
+                  <Tooltip content={t('nav.sessions.confirmEdit')} placement="top">
+                    <IconButton
+                      aria-label={t('nav.sessions.confirmEdit')}
+                      variant="primary"
+                      size="sm"
+                      className="bitfun-nav-panel__inline-item-edit-btn confirm"
+                      onClick={e => { e.stopPropagation(); handleConfirmEdit(); }}
+                      icon={<Icon name="check-line" size="2xs" />}
+                    />
+                  </Tooltip>
+                  <Tooltip content={t('nav.sessions.cancelEdit')} placement="top">
+                    <IconButton
+                      aria-label={t('nav.sessions.cancelEdit')}
+                      size="sm"
+                      className="bitfun-nav-panel__inline-item-edit-btn cancel"
+                      onMouseDown={e => { e.preventDefault(); e.stopPropagation(); handleCancelEdit(); }}
+                      icon={<Icon name="xmark" size="2xs" />}
+                    />
+                  </Tooltip>
                 </div>
               ) : (
                 <>
                   <span className="bitfun-nav-panel__inline-item-main" data-bf-component="sessions-section" data-bf-part="rowMain">
-                    <span className="bitfun-nav-panel__inline-item-label">{sessionTitle}</span>
+                    <span className="bitfun-nav-panel__inline-item-copy">
+                      <span className="bitfun-nav-panel__inline-item-primary">
+                        <span className="bitfun-nav-panel__inline-item-label">{sessionTitle}</span>
                     {isChildSession ? (
                       <span className="bitfun-nav-panel__inline-item-btw-badge">{childSessionBadge}</span>
                     ) : null}
@@ -1488,7 +1805,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                         {getReviewActivityBadge(reviewActivityKind)}
                       </span>
                     ) : null}
-                    {showBackgroundSubagentActivity ? (
+                        {showBackgroundSubagentActivity ? (
                       <span
                         className="bitfun-nav-panel__inline-item-background-subagent-badge"
                         aria-label={t('nav.sessions.backgroundSubagentsRunning', {
@@ -1506,7 +1823,17 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                           aria-hidden
                         />
                       </span>
-                    ) : null}
+                        ) : null}
+                        {sessionWorkspaceScope && !isChildSession ? (
+                          <span className="bitfun-nav-panel__inline-item-workspace-name">
+                            {sessionWorkspaceScope.workspaceName}
+                          </span>
+                        ) : null}
+                      </span>
+                      {showAssistantIdentity ? (
+                        <span className="bitfun-nav-panel__inline-item-assistant-name">{trimmedAssistant}</span>
+                      ) : null}
+                    </span>
                   </span>
                   <div
                     className={`bitfun-nav-panel__inline-item-actions${openMenuSessionId === session.sessionId ? ' is-open' : ''}`}
@@ -1522,26 +1849,25 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                       data-testid="nav-session-menu-btn"
                       data-session-id={session.sessionId}
                     >
-                      <MoreHorizontal size={13} />
+                      <Icon name="more" size="xs" />
                     </button>
                   </div>
                   {openMenuSessionId === session.sessionId && sessionMenuPosition && createPortal(
-                    <div
+                    <Menu
                       ref={sessionMenuPopoverRef}
                       className="bitfun-nav-panel__inline-item-menu-popover"
                       data-bf-component="sessions-section"
                       data-bf-part="menu"
                       data-bf-state="menuOpen"
-                      role="menu"
                       style={{ top: `${sessionMenuPosition.top}px`, left: `${sessionMenuPosition.left}px` }}
                       data-testid="nav-session-menu"
                       data-session-id={session.sessionId}
                     >
                       {isExportScopeMenu ? (
                         <>
-                          <button
+                          <MenuItem
                             type="button"
-                            className="bitfun-nav-panel__inline-item-menu-item"
+                            leading={<Icon name="chevron-left" size="lg" style={{ width: 13, height: 13 }} />}
                             onClick={e => {
                               e.stopPropagation();
                               setIsExportScopeMenu(false);
@@ -1549,55 +1875,49 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                             data-testid="nav-session-menu-export-back"
                             data-session-id={session.sessionId}
                           >
-                            <ChevronLeft size={13} />
                             <span>{t('nav.sessions.exportMarkdown')}</span>
-                          </button>
-                          <button
+                          </MenuItem>
+                          <MenuItem
                             type="button"
-                            className="bitfun-nav-panel__inline-item-menu-item"
+                            leading={<FileDown size={13} />}
                             onClick={e => { void handleExportMarkdown(e, session, 'full'); }}
                             data-testid="nav-session-menu-export-full"
                             data-session-id={session.sessionId}
                           >
-                            <FileDown size={13} />
                             <span>{t('nav.sessions.exportMarkdownFull')}</span>
-                          </button>
-                          <button
+                          </MenuItem>
+                          <MenuItem
                             type="button"
-                            className="bitfun-nav-panel__inline-item-menu-item"
+                            leading={<FileDown size={13} />}
                             onClick={e => { void handleExportMarkdown(e, session, 'result'); }}
                             data-testid="nav-session-menu-export-result"
                             data-session-id={session.sessionId}
                           >
-                            <FileDown size={13} />
                             <span>{t('nav.sessions.exportMarkdownResult')}</span>
-                          </button>
+                          </MenuItem>
                         </>
                       ) : (
                         <>
-                          <button
+                          <MenuItem
                             type="button"
-                            className="bitfun-nav-panel__inline-item-menu-item"
+                            leading={<Icon name="edit" size="xs" />}
                             onClick={e => { closeSessionMenu(); handleStartEdit(e, session); }}
                             data-testid="nav-session-menu-rename"
                             data-session-id={session.sessionId}
                           >
-                            <Pencil size={13} />
                             <span>{t('nav.sessions.rename')}</span>
-                          </button>
-                          <button
+                          </MenuItem>
+                          <MenuItem
                             type="button"
-                            className="bitfun-nav-panel__inline-item-menu-item"
+                            leading={<Icon name="duplicate" size="xs" />}
                             onClick={e => { closeSessionMenu(); void handleCopySessionId(e, session.sessionId); }}
                             data-testid="nav-session-menu-copy-id"
                             data-session-id={session.sessionId}
                           >
-                            <Copy size={13} />
                             <span>{t('nav.sessions.copySessionId')}</span>
-                          </button>
-                          <button
+                          </MenuItem>
+                          <MenuItem
                             type="button"
-                            className="bitfun-nav-panel__inline-item-menu-item"
                             onClick={e => {
                               e.stopPropagation();
                               setIsExportScopeMenu(true);
@@ -1605,15 +1925,15 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                             disabled={exportingSessionId === session.sessionId}
                             data-testid="nav-session-menu-export-markdown"
                             data-session-id={session.sessionId}
-                          >
-                            {exportingSessionId === session.sessionId
+                            leading={exportingSessionId === session.sessionId
                               ? <Loader2 size={13} className="bitfun-nav-panel__inline-toggle-spinner" />
                               : <FileDown size={13} />}
+                          >
                             <span>{t('nav.sessions.exportMarkdown')}</span>
-                          </button>
-                          <button
+                          </MenuItem>
+                          <MenuItem
                             type="button"
-                            className="bitfun-nav-panel__inline-item-menu-item"
+                            leading={<Icon name="clock" size="xs" />}
                             onClick={e => {
                               e.stopPropagation();
                               closeSessionMenu();
@@ -1623,32 +1943,30 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                             data-testid="nav-session-menu-scheduled-jobs"
                             data-session-id={session.sessionId}
                           >
-                            <Clock3 size={13} />
                             <span>{t('nav.scheduledJobs.open')}</span>
-                          </button>
-                          <button
+                          </MenuItem>
+                          <MenuItem
                             type="button"
-                            className="bitfun-nav-panel__inline-item-menu-item"
+                            leading={<Archive size={13} />}
                             onClick={e => { closeSessionMenu(); void handleArchive(e, session.sessionId); }}
                             data-testid="nav-session-menu-archive"
                             data-session-id={session.sessionId}
                           >
-                            <Archive size={13} />
                             <span>{t('nav.sessions.archive')}</span>
-                          </button>
-                          <button
+                          </MenuItem>
+                          <MenuItem
                             type="button"
-                            className="bitfun-nav-panel__inline-item-menu-item is-danger"
+                            tone="danger"
+                            leading={<Icon name="delete" size="lg" style={{ width: 13, height: 13 }} />}
                             onClick={e => { closeSessionMenu(); void handleDelete(e, session.sessionId); }}
                             data-testid="nav-session-menu-delete"
                             data-session-id={session.sessionId}
                           >
-                            <Trash2 size={13} />
                             <span>{t('nav.sessions.delete')}</span>
-                          </button>
+                          </MenuItem>
                         </>
                       )}
-                    </div>,
+                    </Menu>,
                     getAppearanceOverlayHost()
                   )}
                 </>
@@ -1663,7 +1981,6 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
               key={session.sessionId}
               content={tooltipContent}
               placement="right"
-              followCursor
               disabled={isEditing || openMenuSessionId !== null}
             >
               {row}
@@ -1671,23 +1988,29 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
           );
         })}
 
-      {expandLevel === 2 && topLevelSessions.length > sessionDisplayLimit && (
+      {aggregateLoadStatus}
+
+      {!showAllWithoutLimit && expandLevel === 2 && topLevelSessions.length > sessionDisplayLimit && (
         <button
           type="button"
           className="bitfun-nav-panel__inline-toggle"
           data-testid="nav-session-list-load-more"
+          aria-label={t('nav.sessions.showMore', {
+            count: topLevelSessions.length - sessionDisplayLimit,
+          })}
           onClick={() => setLevel2DisplayCount(prev => prev + SESSIONS_LEVEL_2_PAGE)}
         >
-          <span className="bitfun-nav-panel__inline-toggle-dots">···</span>
-          <span>
-            {t('nav.sessions.showMore', {
-              count: topLevelSessions.length - sessionDisplayLimit,
-            })}
+          <span className="bitfun-nav-panel__inline-toggle-label">
+            {t('nav.sessions.showMoreLabel')}
           </span>
+          <span className="bitfun-nav-panel__inline-toggle-count" aria-hidden>
+            +{topLevelSessions.length - sessionDisplayLimit}
+          </span>
+          <Icon name="chevron-down" size="xs" className="bitfun-nav-panel__inline-toggle-chevron" aria-hidden />
         </button>
       )}
 
-      {expandToggleState.shouldRender && (
+      {!showAllWithoutLimit && expandToggleState.shouldRender && (
         <button
           type="button"
           className={`bitfun-nav-panel__inline-toggle${metadataPageState.isLoading ? ' is-loading' : ''}`}
@@ -1696,42 +2019,29 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
           data-bf-state={metadataPageState.isLoading ? 'loading' : undefined}
           data-testid="nav-session-list-toggle"
           data-session-nav-toggle-action={expandToggleState.action}
+          aria-label={expandToggleLabels.ariaLabel}
           disabled={metadataPageState.isLoading}
           onClick={() => { void handleExpandToggle(); }}
         >
-          {expandLevel === 0 ? (
-            <>
-              {metadataPageState.isLoading ? (
-                <Loader2 size={12} className="bitfun-nav-panel__inline-toggle-spinner" />
-              ) : (
-                <span className="bitfun-nav-panel__inline-toggle-dots">···</span>
-              )}
-              <span>
-                {t('nav.sessions.showMore', {
-                  count: expandToggleState.collapsedRemainingCount,
-                })}
-              </span>
-            </>
-          ) : expandLevel === 1 && expandToggleState.expandedRemainingCount > 0 ? (
-            <>
-              {metadataPageState.isLoading ? (
-                <Loader2 size={12} className="bitfun-nav-panel__inline-toggle-spinner" />
-              ) : (
-                <span className="bitfun-nav-panel__inline-toggle-dots">···</span>
-              )}
-              <span>
-                {t('nav.sessions.showAll', {
-                  count: expandToggleState.expandedRemainingCount,
-                })}
-              </span>
-            </>
+          <span className="bitfun-nav-panel__inline-toggle-label">
+            {expandToggleLabels.label}
+          </span>
+          {expandToggleLabels.remainingCount !== null && (
+            <span className="bitfun-nav-panel__inline-toggle-count" aria-hidden>
+              +{expandToggleLabels.remainingCount}
+            </span>
+          )}
+          {metadataPageState.isLoading ? (
+            <Loader2 size={12} className="bitfun-nav-panel__inline-toggle-spinner" aria-hidden />
+          ) : expandToggleLabels.remainingCount === null ? (
+            <Icon name="chevron-up" size="xs" className="bitfun-nav-panel__inline-toggle-chevron" aria-hidden />
           ) : (
-            <span>{t('nav.sessions.showLess')}</span>
+            <Icon name="chevron-down" size="xs" className="bitfun-nav-panel__inline-toggle-chevron" aria-hidden />
           )}
         </button>
       )}
 
-      <PresenceBoundary active={scheduledJobsSession != null}>
+      <RetainedMountBoundary present={scheduledJobsSession != null}>
         {retainedScheduledJobsSession && (
           <Suspense fallback={null}>
             <ScheduledJobsModal
@@ -1750,7 +2060,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
             />
           </Suspense>
         )}
-      </PresenceBoundary>
+      </RetainedMountBoundary>
     </div>
   );
 };

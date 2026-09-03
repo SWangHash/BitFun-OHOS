@@ -1,5 +1,5 @@
 export const APPEARANCE_SCHEMA = 'bitfun.appearance' as const;
-export const APPEARANCE_SCHEMA_VERSION = 1 as const;
+export const APPEARANCE_SCHEMA_VERSION = 2 as const;
 export const SYSTEM_APPEARANCE_ID = 'system' as const;
 
 export type AppearanceMode = 'light' | 'dark';
@@ -77,13 +77,6 @@ export interface AppearanceDurationLiteral {
 }
 
 export type AppearanceDurationValue = AppearanceReference | AppearanceDurationLiteral;
-
-export interface AppearanceFontFamilyLiteral {
-  kind: 'fontFamily';
-  families: string[];
-}
-
-export type AppearanceFontFamilyValue = AppearanceReference | AppearanceFontFamilyLiteral;
 
 export interface AppearanceShadowLiteral {
   kind: 'shadow';
@@ -248,13 +241,6 @@ export interface AppearanceStyle {
   outlineStyle?: AppearanceBorderStyle;
   boxShadow?: AppearanceShadowValue[];
   opacity?: AppearanceNumberValue;
-  fontFamily?: AppearanceFontFamilyValue;
-  fontSize?: AppearanceLengthValue;
-  fontWeight?: AppearanceNumberValue;
-  fontStyle?: 'normal' | 'italic';
-  fontVariantNumeric?: 'normal' | 'tabular-nums';
-  lineHeight?: AppearanceNumberValue;
-  letterSpacing?: AppearanceLengthValue;
   textAlign?: 'left' | 'center' | 'right' | 'start' | 'end';
   verticalAlign?: 'baseline' | 'sub' | 'super' | 'text-top' | 'text-bottom' | 'middle' | 'top' | 'bottom';
   textIndent?: AppearanceLengthValue;
@@ -360,7 +346,6 @@ export interface AppearanceGlobalTokens {
   numbers?: Record<string, AppearanceNumberValue>;
   durations?: Record<string, AppearanceDurationValue>;
   easings?: Record<string, AppearanceEasingValue>;
-  fontFamilies?: Record<string, AppearanceFontFamilyValue>;
   shadows?: Record<string, AppearanceShadowValue>;
 }
 
@@ -394,16 +379,29 @@ export interface AppearanceSurfaceDefinition {
 }
 
 export type AppearanceRendererId =
-  | 'css-tokens'
+  | 'theme-tokens'
   | 'monaco'
   | 'xterm'
   | 'mermaid'
   | 'generative-widget'
   | 'bitfun-canvas';
 
-export interface CssTokenAppearanceSettings {
-  tokens: Record<string, string>;
-  background: string;
+export type AppearanceThemeTokenName =
+  | `--bf-color-${string}`
+  | `--bf-shadow-${string}`
+  | `--bf-effect-${string}`
+  | `--bf-opacity-${string}`
+  | `--bf-domain-${string}`
+  | `--bf-component-${string}`;
+
+export type AppearanceThemeScopeId = 'chrome';
+
+export interface ThemeTokenAppearanceSettings {
+  tokens: Partial<Record<AppearanceThemeTokenName, string>>;
+  scopes?: Partial<Record<
+    AppearanceThemeScopeId,
+    Partial<Record<AppearanceThemeTokenName, string>>
+  >>;
 }
 
 export interface MonacoAppearanceTokenRule {
@@ -451,8 +449,6 @@ export interface XtermAppearanceColors {
 
 export interface XtermAppearanceSettings {
   surfaces: Record<XtermAppearanceSurface, XtermAppearanceColors>;
-  fontWeight: 'normal' | '500';
-  fontWeightBold: 'bold' | '700';
 }
 
 export interface MermaidAppearancePalette {
@@ -508,7 +504,7 @@ export interface CanvasAppearanceSettings {
 }
 
 export interface AppearanceRendererSettingsMap {
-  'css-tokens': CssTokenAppearanceSettings;
+  'theme-tokens': ThemeTokenAppearanceSettings;
   monaco: MonacoAppearanceSettings;
   xterm: XtermAppearanceSettings;
   mermaid: MermaidAppearanceSettings;
@@ -594,6 +590,7 @@ export interface AppearanceStateDescriptor {
 
 export interface AppearanceSurfaceDescriptor {
   id: string;
+  componentAttribute?: 'data-bf-component' | 'data-bf-product-component';
   parts: readonly AppearancePartDescriptor[];
   facets?: readonly AppearanceFacetDescriptor[];
   states?: readonly AppearanceStateDescriptor[];
@@ -715,6 +712,8 @@ export interface AppearanceImportOptions {
 export interface StoredAppearancePackage {
   manifest: AppearancePackage;
   archive: ArrayBuffer;
+  /** Version of the manifest serialized inside archive. Missing on pre-v2 records. */
+  archiveSchemaVersion?: typeof APPEARANCE_SCHEMA_VERSION;
   assets: Record<string, StoredAppearanceAsset>;
   importedAt: string;
   marketOrigin?: AppearanceMarketOrigin;
@@ -731,6 +730,8 @@ export interface StoredAppearanceCatalogEntry {
   importedAt: string;
   marketOrigin?: AppearanceMarketOrigin;
   localOverride?: boolean;
+  schemaVersion?: typeof APPEARANCE_SCHEMA_VERSION;
+  archiveSchemaVersion?: typeof APPEARANCE_SCHEMA_VERSION;
 }
 
 export interface AppearanceCatalogEntry {

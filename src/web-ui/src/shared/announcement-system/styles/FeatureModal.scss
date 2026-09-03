@@ -1,11 +1,11 @@
-@use '../../../component-library/styles/tokens' as *;
+@use '@/shared/styles/surface-recipes' as surfaces;
 
 // ─── Overlay backdrop ─────────────────────────────────────────────────────────
 .feature-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(var(--bf-appearance-token-color-static-black-rgb), 0.55);
-  z-index: calc(#{$z-modal} + 10);
+  background: color-mix(in srgb, var(--bf-color-content-on-light) 55%, transparent);
+  z-index: calc(var(--bf-layer-modal) + 10);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -19,11 +19,9 @@
 
 // ─── Modal shell ──────────────────────────────────────────────────────────────
 .feature-modal {
+  @include surfaces.dialog;
+
   position: relative;
-  background: var(--bf-appearance-token-color-bg-primary);
-  border-radius: $size-radius-lg;
-  border: 1px solid var(--bf-appearance-token-border-base);
-  box-shadow: 0 24px 64px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.28);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -42,35 +40,9 @@
   // ─── Close button ──────────────────────────────────────────────────────────
   &__close {
     position: absolute;
-    top: 14px;
-    right: 14px;
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 0;
-    background: var(--bf-appearance-token-color-bg-secondary);
-    border: 1px solid var(--bf-appearance-token-border-base);
-    border-radius: 50%;
-    color: var(--bf-appearance-token-color-text-muted);
-    cursor: pointer;
+    inset-block-start: 8px;
+    inset-inline-end: 8px;
     z-index: 1;
-    transition:
-      background-color $motion-base $easing-standard,
-      border-color $motion-base $easing-standard,
-      color $motion-base $easing-standard,
-      opacity $motion-base $easing-standard,
-      transform $motion-base $easing-standard;
-
-    svg { flex-shrink: 0; }
-
-    @media (hover: hover) and (pointer: fine) {
-      &:hover {
-        background: var(--bf-appearance-token-color-bg-tertiary);
-        color: var(--bf-appearance-token-color-text-primary);
-      }
-    }
   }
 
   // ─── Page viewport ─────────────────────────────────────────────────────────
@@ -82,11 +54,11 @@
 
     // Thin scrollbar
     scrollbar-width: thin;
-    scrollbar-color: var(--bf-appearance-token-border-base) transparent;
+    scrollbar-color: var(--bf-color-border-default) transparent;
     &::-webkit-scrollbar { width: 4px; }
     &::-webkit-scrollbar-track { background: transparent; }
     &::-webkit-scrollbar-thumb {
-      background: var(--bf-appearance-token-border-base);
+      background: var(--bf-color-border-default);
       border-radius: 2px;
     }
   }
@@ -94,7 +66,6 @@
   &__page {
     position: absolute;
     inset: 0;
-    overflow-y: auto;
     will-change: opacity, transform;
 
     &[data-state='active'][data-direction='forward'] {
@@ -122,8 +93,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 24px 14px;
-    border-top: 1px solid var(--bf-appearance-token-border-base);
-    background: var(--bf-appearance-token-color-bg-primary);
+    border-top: 1px solid var(--bf-color-border-default);
+    background: var(--bf-color-surface-canvas);
     flex-shrink: 0;
   }
 
@@ -137,24 +108,24 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--bf-appearance-token-color-bg-tertiary);
-    border: 1px solid var(--bf-appearance-token-border-base);
+    background: var(--bf-color-surface-tertiary);
+    border: 1px solid var(--bf-color-border-default);
     cursor: pointer;
     transition:
-      background-color $motion-base $easing-standard,
-      border-color $motion-base $easing-standard,
-      width $motion-base $easing-standard;
+      background-color var(--bf-motion-duration-base) var(--bf-motion-easing-standard),
+      border-color var(--bf-motion-duration-base) var(--bf-motion-easing-standard),
+      width var(--bf-motion-duration-base) var(--bf-motion-easing-standard);
 
     &--active {
       width: 18px;
       border-radius: 3px;
-      background: var(--bf-appearance-token-color-accent-500);
-      border-color: var(--bf-appearance-token-color-accent-500);
+      background: var(--bf-color-accent-default);
+      border-color: var(--bf-color-accent-default);
     }
 
     @media (hover: hover) and (pointer: fine) {
       &:hover:not(&--active) {
-        background: var(--bf-appearance-token-color-text-muted);
+        background: var(--bf-color-content-muted);
       }
     }
   }
@@ -162,65 +133,9 @@
   &__nav {
     display: flex;
     align-items: center;
-    gap: $size-gap-2;
+    gap: var(--bf-space-2);
   }
 
-  &__nav-btn {
-    padding: 6px 18px;
-    border-radius: $size-radius-sm;
-    font-size: var(--bf-appearance-token-font-size-xs);
-    font-weight: $font-weight-medium;
-    border: none;
-    cursor: pointer;
-    transition:
-      background-color $motion-base $easing-standard,
-      border-color $motion-base $easing-standard,
-      color $motion-base $easing-standard,
-      opacity $motion-base $easing-standard,
-      transform $motion-base $easing-standard;
-
-    &--prev {
-      background: transparent;
-      color: var(--bf-appearance-token-color-text-secondary);
-      border: 1px solid var(--bf-appearance-token-border-base);
-
-      @media (hover: hover) and (pointer: fine) {
-        &:hover {
-          background: var(--bf-appearance-token-color-bg-secondary);
-          color: var(--bf-appearance-token-color-text-primary);
-        }
-      }
-    }
-
-    &--next,
-    &--done {
-      background: var(--bf-appearance-token-color-accent-500);
-      color: var(--bf-appearance-token-color-static-white);
-      padding: 6px 22px;
-
-      @media (hover: hover) and (pointer: fine) {
-        &:hover { opacity: 0.9; }
-      }
-      &:active { transform: scale(0.97); }
-    }
-  }
-
-  // ─── "Don't show again" subtle link ────────────────────────────────────────
-  &__never {
-    font-size: 11px;
-    color: var(--bf-appearance-token-color-text-muted);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    letter-spacing: 0.01em;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-
-    @media (hover: hover) and (pointer: fine) {
-      &:hover { color: var(--bf-appearance-token-color-text-secondary); }
-    }
-  }
 }
 
 // ─── Single page: news/editorial typography ───────────────────────────────────
@@ -239,7 +154,7 @@
     width: 100%;
     max-height: 220px;
     overflow: hidden;
-    background: var(--bf-appearance-token-color-bg-secondary);
+    background: var(--bf-color-surface-panel);
     flex-shrink: 0;
 
     img, video { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -250,7 +165,7 @@
     flex-shrink: 0;
     width: 180px;
     overflow: hidden;
-    background: var(--bf-appearance-token-color-bg-secondary);
+    background: var(--bf-color-surface-panel);
   }
 
   &--fullscreen_media {
@@ -286,7 +201,7 @@
       width: 28px;
       height: 3px;
       border-radius: 2px;
-      background: var(--bf-appearance-token-color-accent-500);
+      background: var(--bf-color-accent-default);
       flex-shrink: 0;
     }
   }
@@ -294,11 +209,11 @@
   // Large display title
   &__title {
     margin: 0;
-    font-size: 22px;
-    font-weight: $font-weight-bold;
-    color: var(--bf-appearance-token-color-text-primary);
-    line-height: 1.25;
-    letter-spacing: -0.03em;
+    font-size: var(--bf-font-size-3xl);
+    font-weight: var(--bf-font-weight-bold);
+    color: var(--bf-color-content-primary);
+    line-height: var(--bf-line-height-dense);
+    letter-spacing: var(--bf-letter-spacing-tight);
     // Tight, impactful — like a magazine headline
   }
 
@@ -306,23 +221,23 @@
   &__rule {
     width: 100%;
     height: 1px;
-    background: var(--bf-appearance-token-border-base);
+    background: var(--bf-color-border-default);
     margin: 20px 0;
     flex-shrink: 0;
   }
 
   // Body text: comfortable reading
   &__body {
-    font-size: 13px;
-    color: var(--bf-appearance-token-color-text-secondary);
-    line-height: 1.72;
+    font-size: var(--bf-font-size-sm);
+    color: var(--bf-color-content-secondary);
+    line-height: var(--bf-line-height-spacious);
     flex: 1;
 
     // First paragraph lead: slightly larger
     p:first-child {
-      font-size: 13.5px;
-      color: var(--bf-appearance-token-color-text-primary);
-      line-height: 1.65;
+      font-size: var(--bf-font-size-base);
+      color: var(--bf-color-content-primary);
+      line-height: var(--bf-line-height-relaxed);
       margin: 0 0 1em;
     }
 
@@ -334,19 +249,19 @@
 
     // Inline code
     code {
-      background: var(--bf-appearance-token-color-bg-secondary);
-      border: 1px solid var(--bf-appearance-token-border-base);
-      border-radius: $size-radius-sm;
+      background: var(--bf-color-surface-panel);
+      border: 1px solid var(--bf-color-border-default);
+      border-radius: var(--bf-radius-sm);
       padding: 1px 5px;
-      font-size: 0.87em;
-      font-family: $font-family-mono;
-      color: var(--bf-appearance-token-color-text-primary);
+      font-size: var(--bf-font-size-xs);
+      font-family: var(--bf-font-family-mono);
+      color: var(--bf-color-content-primary);
       white-space: nowrap;
     }
 
     strong {
-      color: var(--bf-appearance-token-color-text-primary);
-      font-weight: $font-weight-semibold;
+      color: var(--bf-color-content-primary);
+      font-weight: var(--bf-font-weight-semibold);
     }
 
     // Bullet lists (rendered as <p> with leading dash from markdown)
@@ -355,27 +270,27 @@
       width: 100%;
       border-collapse: collapse;
       margin: 0.5em 0 1em;
-      font-size: 12px;
+      font-size: var(--bf-font-size-xs);
 
       th, td {
         padding: 6px 12px;
         text-align: left;
-        border: 1px solid var(--bf-appearance-token-border-base);
-        line-height: 1.5;
+        border: 1px solid var(--bf-color-border-default);
+        line-height: var(--bf-line-height-base);
         vertical-align: middle;
       }
 
       thead th {
-        background: var(--bf-appearance-token-color-bg-secondary);
-        font-weight: $font-weight-semibold;
-        color: var(--bf-appearance-token-color-text-primary);
-        font-size: 11px;
-        letter-spacing: 0.03em;
+        background: var(--bf-color-surface-panel);
+        font-weight: var(--bf-font-weight-semibold);
+        color: var(--bf-color-content-primary);
+        font-size: var(--bf-font-size-meta);
+        letter-spacing: var(--bf-letter-spacing-wider);
         text-transform: uppercase;
       }
 
       tbody tr:nth-child(even) {
-        background: color-mix(in srgb, var(--bf-appearance-token-color-bg-secondary) 50%, transparent);
+        background: color-mix(in srgb, var(--bf-color-surface-panel) 50%, transparent);
       }
     }
   }
@@ -403,8 +318,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-size: 13px;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-sm);
   }
 }
 

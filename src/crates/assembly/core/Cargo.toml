@@ -50,8 +50,6 @@ lazy_static = "1.4"
 once_cell = "1.19"
 parking_lot = "0.12"
 semver = { workspace = true, optional = true }
-
-# Debug Log HTTP Server
 axum = { workspace = true, optional = true }
 tower-http = { workspace = true, features = ["cors"], optional = true }
 
@@ -154,6 +152,7 @@ ts = [
 ]
 product-full = [
     "agent-runtime",
+    "product-search",
     "document-read",
     "diagnostics",
     "diff",
@@ -174,6 +173,7 @@ product-full = [
     "tools-computer-use",
     "tools-image-analysis",
     "tools-miniapp",
+    "tools-creation",
     "tools-canvas",
     "tools-agent-control",
     "function-agents",
@@ -189,7 +189,6 @@ product-full = [
     "dispatch-store",
     "filesystem",
     "git",
-    "lsp",
     "local-storage",
     "process-runtime",
     "remote-workspace",
@@ -234,6 +233,7 @@ agent-runtime = [
     "dep:similar",
     "dep:tokio-util",
     "dep:tool-runtime",
+    "tool-runtime/shell-analysis",
     "bitfun-services-core/permission",
     "bitfun-services-core/runtime-ownership",
     "bitfun-services-core/workspace-text-runtime",
@@ -255,6 +255,12 @@ agent-runtime = [
     "tokio/macros",
     "tokio/rt",
     "tokio/time",
+]
+product-search = [
+    "agent-runtime",
+    "dep:bitfun-product-domains",
+    "bitfun-runtime-ports/product-search",
+    "bitfun-services-core/session-search",
 ]
 # Backend Fluent translation state. Locale contracts and model-facing language
 # facts remain available without this runtime implementation.
@@ -371,6 +377,9 @@ tools-miniapp = [
     "dep:reqwest",
     "dep:semver",
 ]
+tools-creation = [
+    "bitfun-tool-packs/creation",
+]
 tools-canvas = [
     "bitfun-tool-packs/canvas",
     "canvas-runtime",
@@ -385,15 +394,16 @@ plugin-runtime = [
     "bitfun-runtime-ports/plugin-runtime",
 ]
 # Managed OpenCode Host assembly. Its HTTP compatibility routes consume the
-# Agent lifecycle plus model, Git, Remote Connect, and LSP owners; keep that
+# Agent lifecycle plus model, Git, and Remote Connect owners; keep that
 # product-shaped closure separate from the portable plugin client boundary.
 opencode-plugin-host = [
     "plugin-runtime",
     "remote-connect",
     "git",
-    "lsp",
     "dep:bitfun-opencode-plugin-host",
+    "bitfun-runtime-ports/hook-function-runtime",
 ]
+
 debug-log = [
     "dep:axum",
     "dep:tokio-util",
@@ -404,6 +414,7 @@ debug-log = [
     "tokio/rt",
     "tokio/time",
 ]
+
 ai-adapter-runtime = [
     "dep:bitfun-ai-adapters",
 ]
@@ -436,7 +447,6 @@ dispatch-store = ["dep:base64", "local-storage", "bitfun-services-core/dispatch-
 filesystem = ["bitfun-services-core/filesystem"]
 local-storage = ["dep:bitfun-agent-tools", "bitfun-services-core/local-storage"]
 process-runtime = ["bitfun-services-core/process-runtime"]
-lsp = ["dep:notify", "bitfun-services-core/lsp", "tokio/macros"]
 terminal = ["dep:terminal-core"]
 workspace-runtime = [
     "dep:serde_yaml",

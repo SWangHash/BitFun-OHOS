@@ -1,24 +1,38 @@
+import { Button, Icon, IconButton, Input, ScrollArea } from '@bitfun/ui';
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bot, Check, Pencil, X } from 'lucide-react';
+;
 import { useTranslation } from 'react-i18next';
-import { Button, IconButton, Input } from '@/component-library';
+
+import {
+  AssistantAvatar,
+  ASSISTANT_AVATAR_PRESETS,
+  getAssistantAvatarPreset,
+} from '@/app/components/AssistantAvatar';
 import type { IdentitySaveStatus } from '@/app/scenes/my-agent/useAgentIdentityDocument';
-import { ASSISTANT_AVATAR_PRESETS, firstAvatarGrapheme } from './assistantAvatar';
+import { ASSISTANT_EMOJI_PRESETS, firstAvatarGrapheme } from './assistantAvatar';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 
 interface AssistantAvatarPickerProps {
+  presetValue?: string;
   value: string;
+  stableKey?: string;
+  assistantName?: string;
   saveStatus: IdentitySaveStatus;
   saveError?: string | null;
+  onPresetChange?: (value: string) => void;
   onChange: (value: string) => void;
 }
 
 const AssistantAvatarPicker: React.FC<AssistantAvatarPickerProps> = ({
+  presetValue = '',
   value,
+  stableKey,
+  assistantName,
   saveStatus,
   saveError,
+  onPresetChange,
   onChange,
 }) => {
   const { t } = useTranslation('scenes/profile');
@@ -29,6 +43,7 @@ const AssistantAvatarPicker: React.FC<AssistantAvatarPickerProps> = ({
   const popoverRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const displayedValue = useMemo(() => firstAvatarGrapheme(value), [value]);
+  const selectedPresetId = getAssistantAvatarPreset(presetValue)?.id ?? '';
   const [customValue, setCustomValue] = useState(displayedValue);
   const popoverLayout = useAnchoredPopoverPosition({
     open: isOpen,
@@ -66,16 +81,21 @@ const AssistantAvatarPicker: React.FC<AssistantAvatarPickerProps> = ({
     };
   }, [isOpen]);
 
-  const chooseAvatar = (nextValue: string) => {
+  const chooseEmojiAvatar = (nextValue: string) => {
     setCustomValue(nextValue);
+    onPresetChange?.('');
     onChange(nextValue);
+  };
+
+  const choosePresetAvatar = (nextValue: string) => {
+    onPresetChange?.(nextValue);
   };
 
   const handleCustomSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextValue = firstAvatarGrapheme(customValue);
     if (!nextValue) return;
-    chooseAvatar(nextValue);
+    chooseEmojiAvatar(nextValue);
   };
 
   const normalizedCustomValue = firstAvatarGrapheme(customValue);
@@ -98,16 +118,20 @@ const AssistantAvatarPicker: React.FC<AssistantAvatarPickerProps> = ({
         aria-controls={pickerId}
         onClick={() => setIsOpen((open) => !open)}
       >
-        <span className="acp-avatar-picker__value" aria-hidden="true">
-          {displayedValue || <Bot size={26} strokeWidth={1.6} />}
-        </span>
+        <AssistantAvatar
+          presetId={presetValue}
+          emoji={displayedValue}
+          stableKey={stableKey}
+          name={assistantName}
+          size={58}
+        />
         <span className="acp-avatar-picker__edit-cue" aria-hidden="true">
-          <Pencil size={11} strokeWidth={1.9} />
+          <Icon name="edit" size="2xs" />
         </span>
       </button>
 
       {isOpen ? createPortal(
-        <div
+        <ScrollArea
           ref={popoverRef}
           id={pickerId}
           className="acp-avatar-picker__popover"
@@ -127,27 +151,44 @@ const AssistantAvatarPicker: React.FC<AssistantAvatarPickerProps> = ({
             </div>
             <IconButton
               type="button"
-              size="xs"
-              variant="ghost"
+              size="sm"
               aria-label={t('identity.avatarPickerClose')}
+              icon={<Icon name="xmark" size="lg" />}
               onClick={() => {
                 setIsOpen(false);
                 triggerRef.current?.focus();
               }}
-            >
-              <X size={14} />
-            </IconButton>
+            />
           </div>
 
-          <div className="acp-avatar-picker__grid" role="group" aria-label={t('identity.avatarPresets')}>
+          <div className="acp-avatar-picker__section-label">{t('identity.avatarOfficialPresets')}</div>
+          <div className="acp-avatar-picker__grid" role="group" aria-label={t('identity.avatarOfficialPresets')}>
             {ASSISTANT_AVATAR_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                className={`acp-avatar-picker__option is-official${selectedPresetId === preset.id ? ' is-selected' : ''}`}
+                aria-label={t('identity.avatarUseOfficialPreset', {
+                  name: t(`identity.avatarFamilies.${preset.family}`),
+                })}
+                aria-pressed={selectedPresetId === preset.id}
+                onClick={() => choosePresetAvatar(preset.id)}
+              >
+                <AssistantAvatar presetId={preset.id} size={30} />
+              </button>
+            ))}
+          </div>
+
+          <div className="acp-avatar-picker__section-label is-secondary">{t('identity.avatarEmojiPresets')}</div>
+          <div className="acp-avatar-picker__grid" role="group" aria-label={t('identity.avatarEmojiPresets')}>
+            {ASSISTANT_EMOJI_PRESETS.map((preset) => (
               <button
                 key={preset}
                 type="button"
-                className={`acp-avatar-picker__option${displayedValue === preset ? ' is-selected' : ''}`}
+                className={`acp-avatar-picker__option${!presetValue && displayedValue === preset ? ' is-selected' : ''}`}
                 aria-label={t('identity.avatarUsePreset', { emoji: preset })}
-                aria-pressed={displayedValue === preset}
-                onClick={() => chooseAvatar(preset)}
+                aria-pressed={!presetValue && displayedValue === preset}
+                onClick={() => chooseEmojiAvatar(preset)}
               >
                 <span aria-hidden="true">{preset}</span>
               </button>
@@ -157,18 +198,18 @@ const AssistantAvatarPicker: React.FC<AssistantAvatarPickerProps> = ({
           <form className="acp-avatar-picker__custom" onSubmit={handleCustomSubmit}>
             <Input
               value={customValue}
-              size="small"
               maxLength={16}
               autoComplete="off"
               aria-label={t('identity.avatarCustom')}
               placeholder={t('identity.avatarCustomPlaceholder')}
               className="acp-avatar-picker__custom-input"
               onChange={(event) => setCustomValue(event.target.value)}
+              size="sm"
             />
             <Button
               type="submit"
-              variant="secondary"
-              size="small"
+              variant="outline"
+              size="sm"
               disabled={!normalizedCustomValue || normalizedCustomValue === displayedValue}
             >
               {t('identity.avatarApply')}
@@ -185,11 +226,11 @@ const AssistantAvatarPicker: React.FC<AssistantAvatarPickerProps> = ({
               title={saveStatus === 'error' && saveError ? saveError : undefined}
               aria-live="polite"
             >
-              {saveStatus === 'saved' ? <Check size={12} strokeWidth={2} aria-hidden="true" /> : null}
+              {saveStatus === 'saved' ? <Icon name="check-line" size="xs" aria-hidden="true" /> : null}
               {statusContent}
             </span>
           </div>
-        </div>,
+        </ScrollArea>,
         getAppearanceOverlayHost(),
       ) : null}
     </div>

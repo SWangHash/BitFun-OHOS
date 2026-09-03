@@ -29,12 +29,12 @@ Notes:
 | `CodeReview` | Direct | None | - |
 | `GetToolSpec` | Direct | None | - |
 | `CallDeferredTool` | Direct | None | - |
-| `CreatePlan` | Deferred | None | - |
 | `GetFileDiff` | Deferred | `ReviewFixer`, `ReviewWorker`, `ReviewJudge` | Direct |
 | `SessionControl` | Deferred | None | - |
 | `SessionMessage` | Deferred | None | - |
 | `SessionHistory` | Deferred | None | - |
 | `Cron` | Deferred | None | - |
+| `PortForward` | Deferred | None | - |
 | `WebSearch` | Deferred | `DeepResearch` | Direct |
 | `WebFetch` | Deferred | `DeepResearch` | Direct |
 | `ListMCPResources` | Deferred | None | - |
@@ -46,6 +46,7 @@ Notes:
 | `InitMiniApp` | Direct | None | - |
 | `FinalizeMiniApp` | Direct | None | - |
 | `PublishMiniApp` | Direct | None | - |
+| `FrontendWorkbench` | Direct | None | - |
 | `PublishAppearance` | Direct | None | - |
 | `ControlHub` | Deferred | `ComputerUse` | Direct |
 | `ComputerUse` | Deferred | `ComputerUse` | Direct |

@@ -3,9 +3,10 @@
  * Displays the file explorer for the current workspace
  */
 
+import { Button, Icon, IconButton, SearchField, StatusPill, Tooltip, ScrollArea } from '@bitfun/ui';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search as SearchIcon, CaseSensitive, Regex, WholeWord, List } from 'lucide-react';
+import { CaseSensitive, Regex, WholeWord, List, Loader2 } from 'lucide-react';
 import {
   FileExplorer,
   getNewItemParentPath,
@@ -13,13 +14,16 @@ import {
   type FileExplorerToolbarHandlers,
 } from '@/tools/file-system';
 import { useExplorerSearch } from '@/tools/file-explorer';
-import { Search, IconButton, Tooltip, Badge, confirmWarning } from '@/component-library';
+
+import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
+import { confirmWarning } from '@/infrastructure/confirm-dialog';
 import { FileSearchResults } from '@/tools/file-system/components/FileSearchResults';
 import { workspaceAPI } from '@/infrastructure/api';
 import type { FileSystemNode } from '@/tools/file-system/types';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { useNotification } from '@/shared/notification-system';
-import { InputDialog, CubeLoading } from '@/component-library';
+import { LoadingState } from '@bitfun/ui';
+import { InputDialog } from '@/app/components/InputDialog';
 import { openFileInBestTarget } from '@/shared/utils/tabUtils';
 import { getMotionAwareScrollBehavior } from '@/shared/utils/motionPreference';
 import { PanelHeader } from './base';
@@ -111,7 +115,7 @@ function formatSpeed(bytesPerSec: number): string {
   return `${formatBytes(bytesPerSec)}/s`;
 }
 
-function getIndexPhaseBadgeVariant(phase?: WorkspaceSearchRepoPhase): 'neutral' | 'warning' | 'success' | 'error' | 'info' {
+function getIndexPhaseBadgeVariant(phase?: WorkspaceSearchRepoPhase): 'neutral' | 'warning' | 'success' | 'danger' | 'info' {
   switch (phase) {
     case 'ready':
       return 'success';
@@ -124,7 +128,7 @@ function getIndexPhaseBadgeVariant(phase?: WorkspaceSearchRepoPhase): 'neutral' 
     case 'preparing':
       return 'info';
     case 'limited':
-      return 'error';
+      return 'danger';
     default:
       return 'neutral';
   }
@@ -168,6 +172,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   onExplorerToolbarApi,
 }) => {
   const { t } = useTranslation('panels/files');
+  const { t: tComponents } = useI18n('components');
   const { workspace: currentWorkspace } = useCurrentWorkspace();
   
   const panelRef = useRef<HTMLDivElement>(null);
@@ -1119,14 +1124,14 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
           className="bitfun-files-panel__header"
           actions={
             workspacePath && (
-              <IconButton
-                size="xs"
-                onClick={handleToggleViewMode}
-                tooltip={viewMode === 'tree' ? t('actions.switchToSearch') : t('actions.switchToTree')}
-                tooltipPlacement="bottom"
-              >
-                {viewMode === 'tree' ? <SearchIcon size={14} /> : <List size={14} />}
-              </IconButton>
+              <Tooltip content={viewMode === 'tree' ? t('actions.switchToSearch') : t('actions.switchToTree')} placement="bottom">
+                <IconButton
+                  aria-label={viewMode === 'tree' ? t('actions.switchToSearch') : t('actions.switchToTree')}
+                  size="sm"
+                  onClick={handleToggleViewMode}
+                  icon={viewMode === 'tree' ? <Icon name="search" size="sm" /> : <List size={14} />}
+                />
+              </Tooltip>
             )
           }
         />
@@ -1135,14 +1140,17 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       <div className="bitfun-files-panel__content" data-bf-component="files-panel" data-bf-part="content">
         {workspacePath && viewMode === 'search' && (
           <div className="bitfun-files-panel__search" data-bf-component="files-panel" data-bf-part="search" data-bf-search-mode={searchMode}>
-            <Search
+            <SearchField
               placeholder={t('search.placeholder')}
+              aria-label={t('search.placeholder')}
               value={searchQuery}
-              onChange={(val) => setSearchQuery(val)}
-              onClear={handleClearSearch}
-              clearable
-              size="small"
-              loading={isSearching}
+              onValueChange={(val) => setSearchQuery(val)}
+              clearLabel={searchQuery ? tComponents('search.clear') : undefined}
+              onClear={searchQuery ? handleClearSearch : undefined}
+              size="sm"
+              leadingIcon={isSearching
+                ? <Loader2 className="bitfun-files-panel__search-spinner" size={14} aria-hidden />
+                : <Icon name="search" size="sm" aria-hidden />}
             />
             <div className="bitfun-files-panel__search-toolbar" data-bf-component="files-panel" data-bf-part="searchToolbar">
               <div className="bitfun-files-panel__search-modes">
@@ -1226,25 +1234,25 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
               {showContentSearchMetadata && contentSearchMetadata && (
                 <div className="bitfun-files-panel__search-backend">
                   <div className="bitfun-files-panel__search-backend-badges">
-                    <Badge variant={getSearchBackendBadgeVariant(contentSearchMetadata)}>
+                    <StatusPill tone={getSearchBackendBadgeVariant(contentSearchMetadata)}>
                       {contentSearchBackendLabel}
-                    </Badge>
-                    <Badge variant={getIndexPhaseBadgeVariant(contentSearchMetadata.repoPhase as WorkspaceSearchRepoPhase)}>
+                    </StatusPill>
+                    <StatusPill tone={getIndexPhaseBadgeVariant(contentSearchMetadata.repoPhase as WorkspaceSearchRepoPhase)}>
                       {t(`search.index.phase.${contentSearchMetadata.repoPhase}`, {
                         defaultValue: contentSearchMetadata.repoPhase,
                       })}
-                    </Badge>
+                    </StatusPill>
                     {contentSearchMetadata.baseAdvanceInProgress ? (
-                      <Badge variant="warning">
+                      <StatusPill tone="warning">
                         {t('search.index.badges.baseAdvancing')}
-                      </Badge>
+                      </StatusPill>
                     ) : null}
                     {contentSearchMetadata.workspaceProbePending ? (
                       // Neutral, not warning: the reconcile clears itself and the results are still
                       // usable — they just describe the worktree from a moment ago.
-                      <Badge variant="neutral">
+                      <StatusPill tone="neutral">
                         {t('search.index.badges.probePending')}
-                      </Badge>
+                      </StatusPill>
                     ) : null}
                   </div>
                   <div className="bitfun-files-panel__search-backend-summary">
@@ -1260,12 +1268,13 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
               {searchError && (
                 <div className="bitfun-files-panel__error" data-bf-component="files-panel" data-bf-part="error">
                   <p>❌ {searchError}</p>
-                  <button 
-                    className="bitfun-files-panel__retry-button"
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => setSearchQuery(searchQuery)}
                   >
                     {t('actions.retry')}
-                  </button>
+                  </Button>
                 </div>
               )}
               
@@ -1282,7 +1291,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                 !isSearching && !searchError && (
                   <div className="bitfun-files-panel__placeholder" data-bf-component="files-panel" data-bf-part="placeholder">
                     <div className="bitfun-files-panel__placeholder-icon">
-                      <SearchIcon size={32} />
+                      <Icon name="search" size="lg" />
                     </div>
                     <p>{t('search.noResults')}</p>
                   </div>
@@ -1292,7 +1301,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
           ) : (
             <div className="bitfun-files-panel__placeholder" data-bf-component="files-panel" data-bf-part="placeholder">
               <div className="bitfun-files-panel__placeholder-icon">
-                <SearchIcon size={32} />
+                <Icon name="search" size="lg" />
               </div>
               <p>{t('search.enterKeyword')}</p>
             </div>
@@ -1300,17 +1309,18 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         ) : (
           loading && fileTree.length === 0 ? (
             <div className="bitfun-files-panel__loading">
-              <CubeLoading size="medium" text={t('status.loadingFileTree')} />
+              <LoadingState size="md">{t('status.loadingFileTree')}</LoadingState>
             </div>
           ) : fileTreeError ? (
             <div className="bitfun-files-panel__error" data-bf-component="files-panel" data-bf-part="error">
-              <p>{fileTreeError}</p>
-              <button 
-                className="bitfun-files-panel__retry-button"
+              <p>❌ {error}</p>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => loadFileTree()}
               >
                 {t('actions.retry')}
-              </button>
+              </Button>
             </div>
           ) : (
             <FileExplorer
@@ -1340,7 +1350,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       </div>
 
       {transfers.size > 0 && (
-        <div className="bitfun-files-panel__transfers" data-bf-component="files-panel" data-bf-part="transfers">
+        <ScrollArea className="bitfun-files-panel__transfers" data-bf-component="files-panel" data-bf-part="transfers">
           {Array.from(transfers.entries()).map(([id, tp]) => (
             <div className="bitfun-files-panel__transfer" data-bf-component="files-panel" data-bf-part="transfer" role="status" key={id}>
               <div className="bitfun-files-panel__transfer-label">
@@ -1398,17 +1408,19 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                     {formatBytes(tp.bytesTotal)}
                   </span>
                 ) : <span />}
-                <button
-                  className="bitfun-files-panel__transfer-stop"
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => handleStopTransfer(id)}
                   title={t('transfer.stop')}
                 >
                   {t('transfer.stop')}
-                </button>
+                </Button>
               </div>
             </div>
           ))}
-        </div>
+        </ScrollArea>
       )}
 
       <InputDialog

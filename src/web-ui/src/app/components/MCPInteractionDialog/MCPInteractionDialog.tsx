@@ -1,5 +1,14 @@
+import {
+  Button,
+  ScrollArea,
+  Textarea,
+  Dialog,
+  DialogBody,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Modal } from '@/component-library';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { MCPAPI } from '@/infrastructure/api/service-api/MCPAPI';
 import { notificationService } from '@/shared/notification-system';
@@ -129,13 +138,19 @@ export const MCPInteractionDialog: React.FC = () => {
   }, [currentRequest]);
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={() => {}}
-      title={currentRequest ? `MCP Interaction: ${currentRequest.method}` : 'MCP Interaction'}
-      size="large"
-      showCloseButton={false}
+    <Dialog
+      open={isOpen}
+      onOpenChange={() => undefined}
+      size="lg"
+      closeOnEscape={false}
+      closeOnPointerOutside={false}
     >
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{currentRequest ? `MCP Interaction: ${currentRequest.method}` : 'MCP Interaction'}</DialogTitle>
+        </DialogHeading>
+      </DialogHeader>
+      <DialogBody inset="none">
       {currentRequest && (
         <div
           className="mcp-interaction-dialog"
@@ -153,17 +168,21 @@ export const MCPInteractionDialog: React.FC = () => {
 
           <div className="mcp-interaction-dialog__section" data-bf-component="mcp-interaction-dialog" data-bf-part="section">
             <div className="mcp-interaction-dialog__label" data-bf-component="mcp-interaction-dialog" data-bf-part="label">Request Params</div>
-            <pre className="mcp-interaction-dialog__params" data-bf-component="mcp-interaction-dialog" data-bf-part="params">{paramsPreview}</pre>
+            <ScrollArea className="mcp-interaction-dialog__params" data-bf-component="mcp-interaction-dialog" data-bf-part="params">
+              <pre>{paramsPreview}</pre>
+            </ScrollArea>
           </div>
 
           <div className="mcp-interaction-dialog__section" data-bf-component="mcp-interaction-dialog" data-bf-part="section">
             <div className="mcp-interaction-dialog__label" data-bf-component="mcp-interaction-dialog" data-bf-part="label">Response JSON</div>
-            <textarea
-              className="mcp-interaction-dialog__editor"
+            <Textarea
+              className="mcp-interaction-dialog__editor-field"
+              font="mono"
+              rows={8}
               data-bf-component="mcp-interaction-dialog"
               data-bf-part="editor"
               value={editorValue}
-              onChange={(e) => setEditorValue(e.target.value)}
+              onValueChange={setEditorValue}
               placeholder="{}"
               spellCheck={false}
             />
@@ -171,18 +190,18 @@ export const MCPInteractionDialog: React.FC = () => {
 
           <div className="mcp-interaction-dialog__actions" data-bf-component="mcp-interaction-dialog" data-bf-part="actions">
             <Button
-              variant="secondary"
-              size="small"
+              variant="outline"
+              size="sm"
               onClick={() => void handleReject()}
               disabled={isSubmitting}
             >
               Reject
             </Button>
             <Button
-              variant="primary"
-              size="small"
+              variant="fill"
+              size="sm"
               onClick={() => void handleApprove()}
-              isLoading={isSubmitting}
+              loading={isSubmitting}
               disabled={isSubmitting}
             >
               Approve
@@ -190,7 +209,8 @@ export const MCPInteractionDialog: React.FC = () => {
           </div>
         </div>
       )}
-    </Modal>
+          </DialogBody>
+    </Dialog>
   );
 };
 

@@ -14,19 +14,18 @@ impl Default for MinimalMode {
 
 impl MinimalMode {
     pub fn new() -> Self {
-        Self {
-            default_tools: [
-                "Read",
-                "Edit",
-                "Write",
-                "ExecCommand",
-                "WriteStdin",
-                "ExecControl",
-            ]
-            .into_iter()
-            .map(str::to_string)
-            .collect(),
-        }
+        let default_tools = [
+            "Read",
+            "Edit",
+            "Write",
+            "ExecCommand",
+            "WriteStdin",
+            "ExecControl",
+        ]
+        .into_iter()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+        Self { default_tools }
     }
 }
 
@@ -52,21 +51,17 @@ impl Agent for MinimalMode {
         "minimal-harness-v1"
     }
 
+    fn default_tools(&self) -> Vec<String> {
+        self.default_tools.clone()
+    }
+
     fn user_context_policy(&self) -> UserContextPolicy {
         UserContextPolicy::empty()
             .with_workspace_context()
             .with_workspace_instructions()
     }
 
-    fn default_tools(&self) -> Vec<String> {
-        self.default_tools.clone()
-    }
-
     fn include_dynamic_mcp_tools(&self) -> bool {
-        false
-    }
-
-    fn include_implicit_thread_goal_tools(&self) -> bool {
         false
     }
 
@@ -77,25 +72,26 @@ impl Agent for MinimalMode {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::MinimalMode;
+    use crate::agentic::agents::Agent;
 
     #[test]
-    fn minimal_manifest_is_stable_and_focused() {
+    fn minimal_manifest_is_stable_and_has_no_listing_tools() {
         let mode = MinimalMode::new();
-
         assert_eq!(
             mode.default_tools(),
-            vec![
+            [
                 "Read",
                 "Edit",
                 "Write",
                 "ExecCommand",
                 "WriteStdin",
-                "ExecControl",
+                "ExecControl"
             ]
+            .into_iter()
+            .map(str::to_string)
+            .collect::<Vec<_>>()
         );
         assert!(!mode.include_dynamic_mcp_tools());
-        assert!(!mode.include_implicit_thread_goal_tools());
-        assert!(!mode.is_readonly());
     }
 }

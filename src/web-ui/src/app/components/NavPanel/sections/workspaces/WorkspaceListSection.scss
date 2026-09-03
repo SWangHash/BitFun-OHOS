@@ -1,5 +1,5 @@
-@use '../../../../../component-library/styles/tokens.scss' as *;
 @use '../../../../styles/nav-panel-font-scope.scss' as nav-font;
+@use '../../../../styles/workspace-shell-surfaces' as shell-surfaces;
 
 .bitfun-nav-panel {
   &__workspace-list {
@@ -8,7 +8,8 @@
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    gap: 0;
+    // Separate peer session groups more clearly than a parent row and its children.
+    gap: var(--bf-space-2);
     min-width: 0;
     max-width: 100%;
     padding: 2px 0 0;
@@ -43,28 +44,35 @@
     }
   }
 
+  &__workspace-all-sessions {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding: 0;
+  }
+
   &__workspace-group {
     display: flex;
     flex-direction: column;
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    gap: $size-gap-1;
+    gap: var(--bf-space-1);
     min-width: 0;
     max-width: 100%;
   }
 
   &__workspace-group-title {
-    margin: 0 $size-gap-1;
-    padding: 0 $size-gap-1;
+    margin: 0 var(--bf-space-1);
+    padding: 0 var(--bf-space-1);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: $size-gap-1;
-    color: var(--bf-appearance-token-color-text-primary);
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    font-weight: 700;
-    letter-spacing: 0.06em;
+    gap: var(--bf-space-1);
+    color: var(--bf-color-content-primary);
+    font-size: var(--bf-font-size-micro);
+    font-weight: var(--bf-font-weight-bold);
+    letter-spacing: var(--bf-letter-spacing-widest);
     text-transform: uppercase;
   }
 
@@ -84,24 +92,24 @@
     border: none;
     border-radius: 999px;
     background: transparent;
-    color: var(--bf-appearance-token-color-text-primary);
+    color: var(--bf-color-content-primary);
     cursor: pointer;
-    transition: color $motion-fast $easing-standard,
-                background $motion-fast $easing-standard;
+    transition: color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                background var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &:hover {
-      color: var(--bf-appearance-token-color-text-primary);
-      background: color-mix(in srgb, var(--bf-appearance-token-element-bg-medium) 70%, transparent);
+      color: var(--bf-color-content-primary);
+      background: color-mix(in srgb, var(--bf-color-action-neutral-surface-hover) 70%, transparent);
     }
   }
 
   &__workspace-list-empty {
-    margin: 0 $size-gap-1;
-    padding: $size-gap-2;
-    border-radius: $size-radius-base;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-size: var(--bf-appearance-token-font-size-xs);
-    background: color-mix(in srgb, var(--bf-appearance-token-element-bg-soft) 55%, transparent);
+    margin: 0 var(--bf-space-1);
+    padding: var(--bf-space-2);
+    border-radius: var(--bf-radius-base);
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-xs);
+    background: color-mix(in srgb, var(--bf-color-action-quiet-hover) 55%, transparent);
   }
 
   &__workspace-item {
@@ -112,15 +120,15 @@
     min-width: 0;
     max-width: 100%;
     box-sizing: border-box;
-    gap: 2px;
+    gap: calc(var(--bf-space-1) / 2);
     min-width: 0;
     max-width: 100%;
-    padding: 2px $size-gap-1;
-    border-radius: $size-radius-base;
+    padding: 2px var(--bf-space-1);
+    border-radius: var(--bf-radius-base);
     background: transparent;
     border: 1px solid transparent;
-    transition: background $motion-fast $easing-standard,
-                border-color $motion-fast $easing-standard;
+    transition: background var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                border-color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &.is-dragging {
       opacity: 0.42;
@@ -154,7 +162,7 @@
         gap: 1px;
 
         &:hover {
-          color: var(--bf-appearance-token-color-text-secondary);
+          color: var(--bf-color-content-secondary);
 
           .bitfun-nav-panel__workspace-item-collapse-btn,
           .bitfun-nav-panel__workspace-item-name-btn {
@@ -209,11 +217,11 @@
     min-height: 30px;
     overflow: hidden;
     border-radius: 6px;
-    color: var(--bf-appearance-token-color-text-primary);
-    background: var(--bf-appearance-token-color-bg-primary);
-    transition: color $motion-fast $easing-standard,
-                background $motion-fast $easing-standard,
-                box-shadow $motion-fast $easing-standard;
+    color: var(--bf-color-content-primary);
+    background: var(--bf-color-surface-canvas);
+    transition: color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                background var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                box-shadow var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
 
 
@@ -231,19 +239,19 @@
   }
 
   &__workspace-item:not(.is-active) &__workspace-item-card {
-    color: var(--bf-appearance-token-color-text-muted);
+    color: var(--bf-color-content-muted);
 
     &:hover {
-      color: var(--bf-appearance-token-color-text-secondary);
+      color: var(--bf-color-content-secondary);
     }
   }
 
   &__workspace-item.is-active &__workspace-item-card {
-    color: var(--bf-appearance-token-color-text-primary);
+    color: var(--bf-color-content-primary);
   }
 
   &__workspace-item:not(.is-active) &__workspace-item-icon {
-    opacity: 0.65;
+    opacity: 1;
   }
 
   &__workspace-item.is-active &__workspace-item-icon {
@@ -265,7 +273,7 @@
     cursor: pointer;
 
     &:hover {
-      background: color-mix(in srgb, var(--bf-appearance-token-element-bg-medium) 60%, transparent);
+      background: color-mix(in srgb, var(--bf-color-action-neutral-surface-hover) 60%, transparent);
 
       .bitfun-nav-panel__workspace-item-icon-default {
         opacity: 0;
@@ -277,6 +285,17 @@
         transform: scale(1);
       }
     }
+  }
+
+  /**
+   * Remote metadata makes the row taller than its primary title line. Keep the
+   * 30px collapse hit target, but pin it to the top and align its 16px icon with
+   * the remote title's 16px line instead of centring it across both text rows.
+   */
+  &__workspace-item[data-bf-state~='remote'] &__workspace-item-collapse-btn {
+    align-self: flex-start;
+    align-items: flex-start;
+    padding-top: 2px;
   }
 
   &__workspace-item-name-cluster {
@@ -297,7 +316,7 @@
     max-width: 100%;
     padding: 0 4px;
     /** Row actions appear on hover and widen the reserved gutter — glide instead of snapping. */
-    transition: padding-right $motion-fast $easing-standard;
+    transition: padding-right var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     /**
      * Remote rows carry a second metadata line. Collapse the single-line 30px
@@ -363,8 +382,8 @@
     align-items: center;
     justify-content: center;
     color: inherit;
-    transition: opacity $motion-fast $easing-standard,
-                transform $motion-fast $easing-standard;
+    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                transform var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
     opacity: 1;
     transform: scale(1);
   }
@@ -378,17 +397,17 @@
     height: 36px;
     flex-shrink: 0;
     border-radius: 50%;
-    background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 22%, transparent);
-    color: var(--bf-appearance-token-color-text-primary);
+    background: color-mix(in srgb, var(--bf-color-accent-default) 22%, transparent);
+    color: var(--bf-color-content-primary);
     overflow: hidden;
 
     .bitfun-nav-panel__workspace-item-avatar-letter {
-      font-size: var(--bf-appearance-token-font-size-lg);
-      font-weight: 700;
-      line-height: 1;
+      font-size: var(--bf-font-size-lg);
+      font-weight: var(--bf-font-weight-bold);
+      line-height: var(--bf-line-height-none);
       text-transform: uppercase;
-      transition: opacity $motion-fast $easing-standard,
-                  transform $motion-fast $easing-standard;
+      transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                  transform var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
       opacity: 1;
       transform: scale(1);
     }
@@ -401,10 +420,10 @@
       inset: 0;
       opacity: 0;
       transform: scale(0.7);
-      color: var(--bf-appearance-token-color-text-primary);
+      color: var(--bf-color-content-primary);
 
       svg {
-        transition: transform $motion-fast $easing-standard;
+        transition: transform var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
       }
 
       &.is-collapsed svg {
@@ -418,11 +437,13 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
     color: inherit;
-    opacity: 0.85;
+    /* The row color already communicates inactive, hover, and active states.
+     * Compact one-pixel icon strokes must not be attenuated a second time. */
+    opacity: 1;
   }
 
   &__workspace-item-icon-default,
@@ -431,8 +452,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: opacity $motion-fast $easing-standard,
-                transform $motion-fast $easing-standard;
+    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                transform var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
   }
 
   &__workspace-item-icon-default {
@@ -446,7 +467,7 @@
     color: inherit;
 
     svg {
-      transition: transform $motion-fast $easing-standard;
+      transition: transform var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
     }
 
     &.is-collapsed svg {
@@ -460,17 +481,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: var(--bf-appearance-token-font-size-xs);
-    font-weight: 600;
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-semibold);
   }
 
   &__workspace-item:not(.is-active) &__workspace-item-label {
-    font-weight: 500;
+    font-weight: var(--bf-font-weight-medium);
   }
 
   &__workspace-item.is-active &__workspace-item-label {
-    font-weight: 700;
-    color: var(--bf-appearance-token-color-text-primary);
+    font-weight: var(--bf-font-weight-bold);
+    color: var(--bf-color-content-primary);
   }
 
   &__workspace-item-title {
@@ -502,19 +523,19 @@
     align-items: center;
     min-width: 0;
     max-width: 100%;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    line-height: 1.2;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-micro);
+    line-height: var(--bf-line-height-tight);
     opacity: 0.75;
 
     svg {
       flex-shrink: 0;
-      color: var(--bf-appearance-token-color-success);
+      color: var(--bf-color-status-success-content);
     }
 
     &.is-connecting {
-      background: color-mix(in srgb, var(--bf-appearance-token-color-warning) 14%, transparent);
-      color: var(--bf-appearance-token-color-warning);
+      background: color-mix(in srgb, var(--bf-color-status-warning-content) 14%, transparent);
+      color: var(--bf-color-status-warning-content);
     }
   }
 
@@ -527,24 +548,24 @@
     margin-left: -6px;
     padding: 0 5px 0 6px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--bf-appearance-token-element-bg-medium) 62%, transparent);
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    line-height: 1.6;
+    background: color-mix(in srgb, var(--bf-color-action-neutral-surface-hover) 62%, transparent);
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-micro);
+    line-height: var(--bf-line-height-relaxed);
     cursor: default;
     transition:
-      background $motion-fast $easing-standard,
-      color $motion-fast $easing-standard;
+      background var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+      color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &.is-error,
     &.is-disconnected {
-      background: color-mix(in srgb, var(--bf-appearance-token-color-error) 14%, transparent);
-      color: var(--bf-appearance-token-color-error);
+      background: color-mix(in srgb, var(--bf-color-status-danger-content) 14%, transparent);
+      color: var(--bf-color-status-danger-content);
     }
 
     &.is-connecting {
-      background: color-mix(in srgb, var(--bf-appearance-token-color-warning) 14%, transparent);
-      color: var(--bf-appearance-token-color-warning);
+      background: color-mix(in srgb, var(--bf-color-status-warning-content) 14%, transparent);
+      color: var(--bf-color-status-warning-content);
     }
   }
 
@@ -578,23 +599,23 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--bf-appearance-token-color-text-muted);
+    background: var(--bf-color-content-muted);
 
     &.is-connected {
-      background: var(--bf-appearance-token-color-success);
+      background: var(--bf-color-status-success-content);
     }
 
     &.is-error,
     &.is-disconnected {
-      background: var(--bf-appearance-token-color-error);
+      background: var(--bf-color-status-danger-content);
     }
 
     &.is-unknown {
-      background: var(--bf-appearance-token-color-text-muted);
+      background: var(--bf-color-content-muted);
     }
 
     &.is-connecting {
-      background: var(--bf-appearance-token-color-warning);
+      background: var(--bf-color-status-warning-content);
       animation: bitfun-status-dot-pulse 1.4s ease-in-out infinite;
     }
   }
@@ -612,26 +633,26 @@
     font: inherit;
     vertical-align: middle;
     cursor: pointer;
-    transition: opacity $motion-fast $easing-standard;
+    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &:hover {
       opacity: 0.88;
     }
 
     &.is-green {
-      background: var(--bf-appearance-token-color-success);
+      background: var(--bf-color-status-success-content);
     }
 
     &.is-yellow {
-      background: var(--bf-appearance-token-color-warning);
+      background: var(--bf-color-status-warning-content);
     }
 
     &.is-gray {
-      background: color-mix(in srgb, var(--bf-appearance-token-color-text-muted) 78%, var(--bf-appearance-token-element-bg-medium));
+      background: color-mix(in srgb, var(--bf-color-content-muted) 78%, var(--bf-color-action-neutral-surface-hover));
     }
 
     &.is-red {
-      background: var(--bf-appearance-token-color-error);
+      background: var(--bf-color-status-danger-content);
     }
   }
 
@@ -640,7 +661,7 @@
   }
 
   &__workspace-index-tooltip {
-    --bitfun-index-tone: var(--bf-appearance-token-color-text-secondary);
+    --bitfun-index-tone: var(--bf-color-content-secondary);
 
     display: flex;
     flex-direction: column;
@@ -650,18 +671,18 @@
     max-width: none;
     box-sizing: border-box;
     padding: 12px 0 16px;
-    color: var(--bf-appearance-token-color-text-primary);
+    color: var(--bf-color-content-primary);
 
     &.is-green {
-      --bitfun-index-tone: var(--bf-appearance-token-color-success);
+      --bitfun-index-tone: var(--bf-color-status-success-content);
     }
 
     &.is-yellow {
-      --bitfun-index-tone: var(--bf-appearance-token-color-warning);
+      --bitfun-index-tone: var(--bf-color-status-warning-content);
     }
 
     &.is-red {
-      --bitfun-index-tone: var(--bf-appearance-token-color-error);
+      --bitfun-index-tone: var(--bf-color-status-danger-content);
     }
   }
 
@@ -692,19 +713,19 @@
       0 0 10px color-mix(in srgb, var(--bitfun-index-tone) 26%, transparent);
 
     &.is-green {
-      --bitfun-index-tone: var(--bf-appearance-token-color-success);
+      --bitfun-index-tone: var(--bf-color-status-success-content);
     }
 
     &.is-yellow {
-      --bitfun-index-tone: var(--bf-appearance-token-color-warning);
+      --bitfun-index-tone: var(--bf-color-status-warning-content);
     }
 
     &.is-gray {
-      --bitfun-index-tone: color-mix(in srgb, var(--bf-appearance-token-color-text-muted) 75%, var(--bf-appearance-token-element-bg-medium));
+      --bitfun-index-tone: color-mix(in srgb, var(--bf-color-content-muted) 75%, var(--bf-color-action-neutral-surface-hover));
     }
 
     &.is-red {
-      --bitfun-index-tone: var(--bf-appearance-token-color-error);
+      --bitfun-index-tone: var(--bf-color-status-danger-content);
     }
   }
 
@@ -717,10 +738,10 @@
   }
 
   &__workspace-index-tooltip-title {
-    font-size: var(--bf-appearance-token-font-size-xs);
-    font-weight: 700;
-    line-height: 1.2;
-    color: var(--bf-appearance-token-color-text-primary);
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-bold);
+    line-height: var(--bf-line-height-tight);
+    color: var(--bf-color-content-primary);
   }
 
   &__workspace-index-tooltip-badge {
@@ -728,50 +749,50 @@
     align-items: center;
     padding: 3px 8px;
     border-radius: 999px;
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--bf-font-size-micro);
+    font-weight: var(--bf-font-weight-semibold);
+    line-height: var(--bf-line-height-ui);
     white-space: nowrap;
     border: 1px solid color-mix(in srgb, var(--bitfun-index-tone) 24%, transparent);
     background: color-mix(in srgb, var(--bitfun-index-tone) 10%, transparent);
-    color: color-mix(in srgb, var(--bitfun-index-tone) 78%, var(--bf-appearance-token-color-text-primary));
+    color: color-mix(in srgb, var(--bitfun-index-tone) 78%, var(--bf-color-content-primary));
 
     &.is-green {
-      --bitfun-index-tone: var(--bf-appearance-token-color-success);
+      --bitfun-index-tone: var(--bf-color-status-success-content);
     }
 
     &.is-yellow {
-      --bitfun-index-tone: var(--bf-appearance-token-color-warning);
+      --bitfun-index-tone: var(--bf-color-status-warning-content);
     }
 
     &.is-gray {
-      --bitfun-index-tone: color-mix(in srgb, var(--bf-appearance-token-color-text-muted) 75%, var(--bf-appearance-token-element-bg-medium));
+      --bitfun-index-tone: color-mix(in srgb, var(--bf-color-content-muted) 75%, var(--bf-color-action-neutral-surface-hover));
     }
 
     &.is-red {
-      --bitfun-index-tone: var(--bf-appearance-token-color-error);
+      --bitfun-index-tone: var(--bf-color-status-danger-content);
     }
   }
 
   &__workspace-index-tooltip-phase {
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    color: var(--bf-appearance-token-color-text-muted);
-    line-height: 1.35;
+    font-size: var(--bf-font-size-micro);
+    color: var(--bf-color-content-muted);
+    line-height: var(--bf-line-height-compact);
   }
 
   &__workspace-index-tooltip-summary {
     padding: 10px 12px;
     border-radius: 10px;
-    border: 1px solid color-mix(in srgb, var(--bitfun-index-tone) 12%, var(--bf-appearance-token-border-subtle));
+    border: 1px solid color-mix(in srgb, var(--bitfun-index-tone) 12%, var(--bf-color-border-subtle));
     background:
       linear-gradient(
         180deg,
         color-mix(in srgb, var(--bitfun-index-tone) 7%, transparent),
-        color-mix(in srgb, var(--bf-appearance-token-element-bg-subtle) 92%, transparent)
+        color-mix(in srgb, var(--bf-color-surface-subtle) 92%, transparent)
       );
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: var(--bf-appearance-token-font-size-xs);
-    line-height: 1.45;
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-xs);
+    line-height: var(--bf-line-height-support);
   }
 
   &__workspace-index-tooltip-progress {
@@ -780,10 +801,10 @@
     gap: 6px;
     padding: 10px 12px;
     border-radius: 10px;
-    background: color-mix(in srgb, var(--bf-appearance-token-element-bg-medium) 56%, transparent);
-    border: 1px solid color-mix(in srgb, var(--bf-appearance-token-border-subtle) 76%, transparent);
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    color: var(--bf-appearance-token-color-text-secondary);
+    background: color-mix(in srgb, var(--bf-color-action-neutral-surface-hover) 56%, transparent);
+    border: 1px solid color-mix(in srgb, var(--bf-color-border-subtle) 76%, transparent);
+    font-size: var(--bf-font-size-micro);
+    color: var(--bf-color-content-secondary);
   }
 
   &__workspace-index-tooltip-progress-head {
@@ -795,8 +816,8 @@
 
   &__workspace-index-tooltip-progress-value {
     font-variant-numeric: tabular-nums;
-    color: color-mix(in srgb, var(--bitfun-index-tone) 76%, var(--bf-appearance-token-color-text-primary));
-    font-weight: 600;
+    color: color-mix(in srgb, var(--bitfun-index-tone) 76%, var(--bf-color-content-primary));
+    font-weight: var(--bf-font-weight-semibold);
   }
 
   &__workspace-index-tooltip-progress-bar {
@@ -804,8 +825,8 @@
     height: 6px;
     border-radius: 999px;
     overflow: hidden;
-    background: color-mix(in srgb, var(--bf-appearance-token-element-bg-strong) 68%, transparent);
-    box-shadow: inset 0 1px 1px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.22);
+    background: color-mix(in srgb, var(--bf-color-action-neutral-surface-pressed) 68%, transparent);
+    box-shadow: inset 0 1px 1px color-mix(in srgb, var(--bf-color-content-on-light) 22%, transparent);
   }
 
   &__workspace-index-tooltip-progress-fill {
@@ -815,37 +836,37 @@
     box-shadow: 0 0 12px color-mix(in srgb, var(--bitfun-index-tone) 28%, transparent);
 
     &.is-green {
-      --bitfun-index-tone: var(--bf-appearance-token-color-success);
+      --bitfun-index-tone: var(--bf-color-status-success-content);
       background: linear-gradient(
         90deg,
-        color-mix(in srgb, var(--bitfun-index-tone) 82%, var(--bf-appearance-token-color-static-white) 18%),
+        color-mix(in srgb, var(--bitfun-index-tone) 82%, var(--bf-color-content-on-dark) 18%),
         var(--bitfun-index-tone)
       );
     }
 
     &.is-yellow {
-      --bitfun-index-tone: var(--bf-appearance-token-color-warning);
+      --bitfun-index-tone: var(--bf-color-status-warning-content);
       background: linear-gradient(
         90deg,
-        color-mix(in srgb, var(--bitfun-index-tone) 84%, var(--bf-appearance-token-color-static-white) 16%),
+        color-mix(in srgb, var(--bitfun-index-tone) 84%, var(--bf-color-content-on-dark) 16%),
         var(--bitfun-index-tone)
       );
     }
 
     &.is-gray {
-      --bitfun-index-tone: color-mix(in srgb, var(--bf-appearance-token-color-text-muted) 75%, var(--bf-appearance-token-element-bg-medium));
+      --bitfun-index-tone: color-mix(in srgb, var(--bf-color-content-muted) 75%, var(--bf-color-action-neutral-surface-hover));
       background: linear-gradient(
         90deg,
-        color-mix(in srgb, var(--bitfun-index-tone) 88%, var(--bf-appearance-token-color-static-white) 12%),
+        color-mix(in srgb, var(--bitfun-index-tone) 88%, var(--bf-color-content-on-dark) 12%),
         var(--bitfun-index-tone)
       );
     }
 
     &.is-red {
-      --bitfun-index-tone: var(--bf-appearance-token-color-error);
+      --bitfun-index-tone: var(--bf-color-status-danger-content);
       background: linear-gradient(
         90deg,
-        color-mix(in srgb, var(--bitfun-index-tone) 84%, var(--bf-appearance-token-color-static-white) 16%),
+        color-mix(in srgb, var(--bitfun-index-tone) 84%, var(--bf-color-content-on-dark) 16%),
         var(--bitfun-index-tone)
       );
     }
@@ -855,26 +876,26 @@
   &__workspace-index-tooltip-error {
     padding: 8px 10px;
     border-radius: 9px;
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    line-height: 1.45;
-    border: 1px solid color-mix(in srgb, var(--bf-appearance-token-border-subtle) 78%, transparent);
-    background: color-mix(in srgb, var(--bf-appearance-token-element-bg-subtle) 92%, transparent);
+    font-size: var(--bf-font-size-micro);
+    line-height: var(--bf-line-height-support);
+    border: 1px solid color-mix(in srgb, var(--bf-color-border-subtle) 78%, transparent);
+    background: color-mix(in srgb, var(--bf-color-surface-subtle) 92%, transparent);
   }
 
   &__workspace-index-tooltip-meta {
-    color: var(--bf-appearance-token-color-text-secondary);
+    color: var(--bf-color-content-secondary);
 
     &.is-warning {
-      color: color-mix(in srgb, var(--bf-appearance-token-color-warning) 84%, var(--bf-appearance-token-color-text-primary));
-      border-color: color-mix(in srgb, var(--bf-appearance-token-color-warning) 18%, transparent);
-      background: color-mix(in srgb, var(--bf-appearance-token-color-warning) 10%, transparent);
+      color: color-mix(in srgb, var(--bf-color-status-warning-content) 84%, var(--bf-color-content-primary));
+      border-color: color-mix(in srgb, var(--bf-color-status-warning-content) 18%, transparent);
+      background: color-mix(in srgb, var(--bf-color-status-warning-content) 10%, transparent);
     }
   }
 
   &__workspace-index-tooltip-error {
-    color: color-mix(in srgb, var(--bf-appearance-token-color-error) 88%, var(--bf-appearance-token-color-text-primary));
-    border-color: color-mix(in srgb, var(--bf-appearance-token-color-error) 22%, transparent);
-    background: color-mix(in srgb, var(--bf-appearance-token-color-error) 11%, transparent);
+    color: color-mix(in srgb, var(--bf-color-status-danger-content) 88%, var(--bf-color-content-primary));
+    border-color: color-mix(in srgb, var(--bf-color-status-danger-content) 22%, transparent);
+    background: color-mix(in srgb, var(--bf-color-status-danger-content) 11%, transparent);
   }
 
   &__workspace-index-tooltip-actions {
@@ -882,14 +903,10 @@
     align-items: center;
     justify-content: stretch;
     padding-top: 2px;
+  }
 
-    .btn {
-      width: 100%;
-      min-height: 28px;
-      border-radius: 9px;
-      font-weight: 600;
-      box-shadow: none;
-    }
+  &__workspace-index-tooltip-action {
+    width: 100%;
   }
 
   &__workspace-item-badge {
@@ -899,11 +916,11 @@
     flex-shrink: 0;
     padding: 1px 6px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--bf-appearance-token-color-accent-200) 88%, transparent);
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    font-weight: 700;
-    line-height: 1.4;
+    background: color-mix(in srgb, var(--bf-color-action-secondary-hover) 88%, transparent);
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-micro);
+    font-weight: var(--bf-font-weight-bold);
+    line-height: var(--bf-line-height-ui);
     white-space: nowrap;
   }
 
@@ -916,13 +933,13 @@
     max-width: 96px;
     padding: 1px 6px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--bf-appearance-token-element-bg-medium) 75%, transparent);
-    color: var(--bf-appearance-token-color-text-primary);
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    transition: max-width $motion-fast $easing-standard,
-                padding $motion-fast $easing-standard,
-                opacity $motion-fast $easing-standard,
-                margin-left $motion-fast $easing-standard;
+    background: color-mix(in srgb, var(--bf-color-action-neutral-surface-hover) 75%, transparent);
+    color: var(--bf-color-content-primary);
+    font-size: var(--bf-font-size-micro);
+    transition: max-width var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                padding var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                margin-left var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     span {
       overflow: hidden;
@@ -945,8 +962,8 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    transition: opacity $motion-fast $easing-standard,
-                visibility $motion-fast $easing-standard;
+    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                visibility var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
   }
 
   &__workspace-item-menu-trigger {
@@ -958,100 +975,43 @@
     border: none;
     border-radius: 6px;
     background: transparent;
-    color: var(--bf-appearance-token-color-text-primary);
+    color: var(--bf-color-content-primary);
     cursor: pointer;
-    transition: color $motion-fast $easing-standard,
-                background $motion-fast $easing-standard;
+    transition: color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                background var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &:hover,
     &.is-open {
-      color: var(--bf-appearance-token-color-text-primary);
-      background: var(--bf-appearance-token-element-bg-medium);
+      color: var(--bf-color-content-primary);
+      background: var(--bf-color-action-neutral-surface-hover);
     }
   }
 
+  /* Positioning-only overrides; the design-system Menu owns the surface look. */
   &__workspace-item-menu-popover {
-    @include nav-font.nav-panel-font-token-scope;
 
     position: fixed;
-    width: max-content;
-    min-width: 180px;
-    max-width: min(320px, calc(100vw - 24px));
-    max-height: min(560px, calc(100vh - 16px));
-    overflow-x: hidden;
-    overflow-y: auto;
-    padding: $size-gap-1 0;
-    border-radius: $size-radius-base;
-    background: var(--bf-appearance-token-color-bg-elevated);
-    border: 1px solid var(--bf-appearance-token-border-subtle);
-    box-shadow: 0 4px 12px var(--bf-appearance-token-color-overlay-black-30);
+    inline-size: max-content;
+    min-inline-size: 180px;
+    max-inline-size: min(320px, calc(100vw - 24px));
+    max-block-size: min(560px, calc(100vh - 16px));
     z-index: 10000;
     transform-origin: top left;
-    animation: bitfun-footer-menu-in $motion-fast $easing-decelerate forwards;
+    animation: bitfun-footer-menu-in var(--bf-motion-duration-fast) var(--bf-motion-easing-decelerate) forwards;
   }
 
-  /* Match `.bitfun-nav-panel__footer-menu-divider` (PersistentFooterActions more menu) */
-  &__workspace-item-menu-divider {
-    height: 1px;
-    margin: $size-gap-1 $size-gap-2;
-    background: var(--bf-appearance-token-border-subtle);
+  &__workspace-acp-menu-trigger.is-open {
+    background: var(--bf-color-action-neutral-surface);
   }
 
-  &__workspace-item-menu-item {
-    display: flex;
-    align-items: center;
-    gap: $size-gap-2;
-    width: 100%;
-    min-height: 30px;
-    padding: 0 $size-gap-2;
-    border: none;
-    border-radius: $size-radius-sm;
-    background: transparent;
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: var(--bf-appearance-token-font-size-sm);
-    font-weight: 400;
-    cursor: pointer;
-    text-align: left;
-    white-space: nowrap;
-    transition: color $motion-fast $easing-standard,
-                background $motion-fast $easing-standard;
-
-    svg {
-      flex-shrink: 0;
-      opacity: 0.7;
-      transition: opacity $motion-fast $easing-standard;
+  &__workspace-acp-submenu {
+    &[data-placement='right'] {
+      transform-origin: top left;
     }
 
-    &:hover:not(:disabled) {
-      color: var(--bf-appearance-token-color-text-primary);
-      background: var(--bf-appearance-token-element-bg-soft);
-
-      svg {
-        opacity: 1;
-      }
+    &[data-placement='left'] {
+      transform-origin: top right;
     }
-
-    &:active:not(:disabled) {
-      background: var(--bf-appearance-token-element-bg-medium);
-    }
-
-    &:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-
-    &.is-danger:hover:not(:disabled) {
-      color: var(--bf-appearance-token-color-error);
-      background: color-mix(in srgb, var(--bf-appearance-token-color-error) 10%, transparent);
-    }
-  }
-
-  &__workspace-item-menu-label {
-    flex: 1;
-    text-align: left;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   &__workspace-item-sessions {
@@ -1060,7 +1020,7 @@
     min-width: 0;
     max-width: 100%;
     overflow-x: clip;
-    transition: opacity $motion-fast $easing-standard;
+    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
     opacity: 1;
 
     &.is-collapsed {
@@ -1071,21 +1031,29 @@
     }
 
     .bitfun-nav-panel__inline-list {
-      margin-left: 8px;
+      // Let the row own the full selection surface; indent only its content below.
+      margin-left: 0;
       margin-right: 0;
       padding-top: 0;
-      padding-left: 2px;
+      padding-left: 0;
       padding-right: 0;
+      // Shared by the rows below and by the "show more" toggle, which is their
+      // sibling — without this the toggle label sits 26px left of the titles.
+      --bf-nav-session-rail: 30px;
+    }
+
+    .bitfun-nav-panel__inline-item {
+      height: 30px;
     }
 
     .bitfun-nav-panel__inline-empty {
-      padding-left: $size-gap-1;
+      padding-left: var(--bf-space-1);
     }
   }
 
   &__workspace-drop-target {
     position: relative;
-    border-radius: $size-radius-base;
+    border-radius: var(--bf-radius-base);
     display: flex;
     flex-direction: column;
     width: 100%;
@@ -1095,13 +1063,13 @@
 
     &.is-drag-active {
       .bitfun-nav-panel__workspace-item {
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bf-appearance-token-border-subtle) 80%, transparent);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bf-color-border-subtle) 80%, transparent);
       }
     }
 
     &.is-drop-target {
       .bitfun-nav-panel__workspace-item {
-        border-color: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 18%, transparent);
+        border-color: color-mix(in srgb, var(--bf-color-accent-default) 18%, transparent);
       }
     }
   }
@@ -1113,7 +1081,7 @@
     z-index: 2;
     height: 2px;
     margin: 0;
-    background: var(--bf-appearance-token-color-accent-500);
+    background: var(--bf-color-accent-default);
     border-radius: 999px;
     pointer-events: none;
 
@@ -1137,15 +1105,15 @@
     min-width: 0;
     max-width: 100%;
     box-sizing: border-box;
-    gap: 2px;
+    gap: calc(var(--bf-space-1) / 2);
     min-width: 0;
     max-width: 100%;
-    padding: $size-gap-1;
-    border-radius: $size-radius-base;
+    padding: var(--bf-space-1);
+    border-radius: var(--bf-radius-base);
     background: transparent;
     border: 1px solid transparent;
-    transition: background $motion-fast $easing-standard,
-                border-color $motion-fast $easing-standard;
+    transition: background var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                border-color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &.is-dragging {
       opacity: 0.42;
@@ -1185,18 +1153,19 @@
     width: 100%;
     min-width: 0;
     max-width: 100%;
+    min-height: 30px;
     border-radius: 6px;
-    color: var(--bf-appearance-token-color-text-secondary);
-    background: var(--bf-appearance-token-color-bg-primary);
+    color: var(--bf-color-content-primary);
+    background: var(--bf-color-surface-canvas);
     overflow: hidden;
-    transition: color $motion-fast $easing-standard,
-                background $motion-fast $easing-standard,
-                box-shadow $motion-fast $easing-standard;
+    transition: color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                background var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                box-shadow var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &:hover {
-      .bitfun-nav-panel__assistant-item-avatar-letter {
+      .bitfun-nav-panel__assistant-item-group-icon {
         opacity: 0;
-        transform: scale(0.6);
+        transform: scale(0.7);
       }
 
       .bitfun-nav-panel__assistant-item-icon-toggle {
@@ -1207,15 +1176,16 @@
   }
 
   &__assistant-item:not(.is-active) &__assistant-item-card {
-    color: var(--bf-appearance-token-color-text-muted);
+    color: var(--bf-color-content-muted);
+    gap: 1px;
 
     &:hover {
-      color: var(--bf-appearance-token-color-text-secondary);
+      color: var(--bf-color-content-secondary);
     }
   }
 
   &__assistant-item.is-active &__assistant-item-card {
-    color: var(--bf-appearance-token-color-text-primary);
+    color: var(--bf-color-content-primary);
 
     &:hover {
       background: transparent;
@@ -1227,9 +1197,9 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    width: 44px;
-    min-height: 44px;
-    padding: 0;
+    width: 26px;
+    min-height: 30px;
+    padding: 0 0 0 4px;
     border: none;
     border-radius: 6px 0 0 6px;
     background: transparent;
@@ -1237,12 +1207,11 @@
     cursor: pointer;
 
     &:hover {
-      background: color-mix(in srgb, var(--bf-appearance-token-element-bg-medium) 60%, transparent);
+      background: color-mix(in srgb, var(--bf-color-action-neutral-surface-hover) 60%, transparent);
 
-      .bitfun-nav-panel__assistant-item-avatar-letter,
-      .bitfun-nav-panel__assistant-item-active-icon {
+      .bitfun-nav-panel__assistant-item-group-icon {
         opacity: 0;
-        transform: scale(0.6);
+        transform: scale(0.7);
       }
 
       .bitfun-nav-panel__assistant-item-icon-toggle {
@@ -1261,22 +1230,36 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 22%, transparent);
-    color: var(--bf-appearance-token-color-text-primary);
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    /* Match the compact workspace icons: semantic row color owns contrast. */
+    opacity: 1;
     overflow: hidden;
+
+    &.is-group-icon {
+      border-radius: 0;
+      background: transparent;
+    }
   }
 
-  &__assistant-item-avatar-letter {
-    font-size: var(--bf-appearance-token-font-size-base);
-    font-weight: 700;
-    line-height: 1;
-    text-transform: uppercase;
-    transition: opacity $motion-fast $easing-standard,
-                transform $motion-fast $easing-standard;
+  &__assistant-item:not(.is-active) &__assistant-item-avatar {
+    opacity: 1;
+  }
+
+  &__assistant-item.is-active &__assistant-item-avatar {
+    opacity: 1;
+  }
+
+  &__assistant-item-group-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                transform var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
     opacity: 1;
     transform: scale(1);
   }
@@ -1289,12 +1272,12 @@
     inset: 0;
     opacity: 0;
     transform: scale(0.7);
-    color: var(--bf-appearance-token-color-text-primary);
-    transition: opacity $motion-fast $easing-standard,
-                transform $motion-fast $easing-standard;
+    color: var(--bf-color-content-primary);
+    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                transform var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     svg {
-      transition: transform $motion-fast $easing-standard;
+      transition: transform var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
     }
 
     &.is-collapsed svg {
@@ -1308,8 +1291,8 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    min-height: 44px;
-    padding: 0 6px;
+    min-height: 30px;
+    padding: 0 4px;
     border: none;
     border-radius: 0 6px 6px 0;
     background: transparent;
@@ -1331,32 +1314,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: var(--bf-appearance-token-font-size-xs);
-    font-weight: 600;
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-semibold);
   }
 
   &__assistant-item:not(.is-active) &__assistant-item-label {
-    font-weight: 500;
+    font-weight: var(--bf-font-weight-medium);
   }
 
   &__assistant-item.is-active &__assistant-item-label {
-    font-weight: 700;
-    color: var(--bf-appearance-token-color-text-primary);
-  }
-
-  &__assistant-item-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    padding: 1px 6px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--bf-appearance-token-color-accent-200) 88%, transparent);
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    font-weight: 700;
-    line-height: 1.4;
-    white-space: nowrap;
+    font-weight: var(--bf-font-weight-bold);
+    color: var(--bf-color-content-primary);
   }
 
   &__assistant-item-menu {
@@ -1367,8 +1335,8 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    transition: opacity $motion-fast $easing-standard,
-                visibility $motion-fast $easing-standard;
+    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                visibility var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
   }
 
   &__assistant-item-menu-trigger {
@@ -1380,15 +1348,15 @@
     border: none;
     border-radius: 6px;
     background: transparent;
-    color: var(--bf-appearance-token-color-text-primary);
+    color: var(--bf-color-content-primary);
     cursor: pointer;
-    transition: color $motion-fast $easing-standard,
-                background $motion-fast $easing-standard;
+    transition: color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                background var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &:hover,
     &.is-open {
-      color: var(--bf-appearance-token-color-text-primary);
-      background: var(--bf-appearance-token-element-bg-medium);
+      color: var(--bf-color-content-primary);
+      background: var(--bf-color-action-neutral-surface-hover);
     }
   }
 
@@ -1398,7 +1366,7 @@
     min-width: 0;
     max-width: 100%;
     overflow-x: clip;
-    transition: opacity $motion-fast $easing-standard;
+    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
     opacity: 1;
 
     &.is-collapsed {
@@ -1409,15 +1377,23 @@
     }
 
     .bitfun-nav-panel__inline-list {
-      margin-left: 8px;
+      // Let the row own the full selection surface; indent only its content below.
+      margin-left: 0;
       margin-right: 0;
       padding-top: 0;
-      padding-left: 2px;
+      padding-left: 0;
       padding-right: 0;
+      // Shared by the rows below and by the "show more" toggle, which is their
+      // sibling — without this the toggle label sits 26px left of the titles.
+      --bf-nav-session-rail: 30px;
+    }
+
+    .bitfun-nav-panel__inline-item {
+      height: 30px;
     }
 
     .bitfun-nav-panel__inline-empty {
-      padding-left: $size-gap-1;
+      padding-left: var(--bf-space-1);
     }
   }
 }
@@ -1436,20 +1412,18 @@
   }
 
   &__workspace-group {
-    gap: 2px;
+    gap: calc(var(--bf-space-1) / 2);
   }
 
   &__workspace-group-title {
-    min-height: 24px;
+    min-height: 22px;
     margin: 0 6px;
-    padding: 0 $size-gap-2;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-weight: 600;
-    letter-spacing: 0.045em;
+    padding: 0 var(--bf-space-2);
+    @include nav-font.nav-panel-text-group;
   }
 
   &__workspace-group-title-action {
-    border-radius: $size-radius-sm;
+    border-radius: var(--bf-radius-sm);
     transition:
       transform 120ms cubic-bezier(0.23, 1, 0.32, 1),
       background 120ms ease,
@@ -1462,9 +1436,9 @@
 
   &__workspace-item,
   &__assistant-item {
-    gap: 1px;
-    padding: 1px 0;
-    border-radius: $size-radius-base;
+    gap: calc(var(--bf-space-1) / 2);
+    padding: 0;
+    border-radius: var(--bf-radius-base);
     transition:
       border-color 120ms ease,
       background 120ms ease,
@@ -1473,7 +1447,7 @@
 
   &__workspace-item-card,
   &__assistant-item-card {
-    border-radius: $size-radius-sm;
+    border-radius: var(--bf-radius-base);
     background: transparent;
     box-shadow: none;
     transition:
@@ -1484,8 +1458,15 @@
 
   &__workspace-item.is-active &__workspace-item-card,
   &__assistant-item.is-active &__assistant-item-card {
-    background: transparent;
+    @include shell-surfaces.navigation-selection-feedback;
     box-shadow: none;
+  }
+
+  // Workspace activity selects the group and its current session together. When
+  // the nested row is visible as the selection owner, avoid a competing parent fill.
+  &__workspace-item.is-active:has(&__workspace-item-sessions &__inline-item.is-active) &__workspace-item-card,
+  &__assistant-item.is-active:has(&__assistant-item-sessions &__inline-item.is-active) &__assistant-item-card {
+    background: transparent;
   }
 
   &__workspace-item-card:active,
@@ -1495,12 +1476,12 @@
 
   &__workspace-item-label,
   &__assistant-item-label {
-    font-weight: 500;
+    font-weight: var(--bf-font-weight-regular);
   }
 
   &__workspace-item.is-active &__workspace-item-label,
   &__assistant-item.is-active &__assistant-item-label {
-    font-weight: 600;
+    font-weight: var(--bf-font-weight-medium);
   }
 
   &__workspace-item-collapse-btn,
@@ -1516,7 +1497,7 @@
 
   &__workspace-item-menu-trigger,
   &__assistant-item-menu-trigger {
-    border-radius: $size-radius-sm;
+    border-radius: var(--bf-radius-sm);
     transition:
       transform 120ms cubic-bezier(0.23, 1, 0.32, 1),
       background 120ms ease,
@@ -1533,35 +1514,32 @@
   }
 
   &__workspace-item-menu-popover {
-    padding: $size-gap-1;
-    border-color: var(--bf-appearance-token-border-medium);
-    border-radius: $size-radius-lg;
-    box-shadow: 0 14px 42px -12px var(--bf-appearance-token-color-overlay-black-30);
     transform-origin: top left;
     animation: bitfun-workspace-popover-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both;
-  }
-
-  &__workspace-item-menu-item {
-    border-radius: $size-radius-sm;
-    transition:
-      transform 120ms cubic-bezier(0.23, 1, 0.32, 1),
-      background 120ms ease,
-      color 120ms ease;
-
-    &:active:not(:disabled) {
-      transform: scale(0.985);
-    }
   }
 }
 
 @media (hover: hover) and (pointer: fine) {
+  .bitfun-nav-panel__workspace-item:hover,
+  .bitfun-nav-panel__assistant-item:hover,
   .bitfun-nav-panel__workspace-item-card:hover,
   .bitfun-nav-panel__assistant-item-card:hover {
-    background: var(--bf-appearance-token-element-bg-soft);
+    transform: none;
+    box-shadow: none;
+  }
+
+  .bitfun-nav-panel__workspace-item-card:hover,
+  .bitfun-nav-panel__assistant-item-card:hover {
+    @include shell-surfaces.navigation-hover-feedback;
   }
 
   .bitfun-nav-panel__workspace-item.is-active .bitfun-nav-panel__workspace-item-card:hover,
   .bitfun-nav-panel__assistant-item.is-active .bitfun-nav-panel__assistant-item-card:hover {
+    @include shell-surfaces.navigation-selection-feedback;
+  }
+
+  .bitfun-nav-panel__workspace-item.is-active:has(.bitfun-nav-panel__workspace-item-sessions .bitfun-nav-panel__inline-item.is-active) .bitfun-nav-panel__workspace-item-card:hover,
+  .bitfun-nav-panel__assistant-item.is-active:has(.bitfun-nav-panel__assistant-item-sessions .bitfun-nav-panel__inline-item.is-active) .bitfun-nav-panel__assistant-item-card:hover {
     background: transparent;
   }
 }
@@ -1578,7 +1556,63 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bitfun-nav-panel__workspace-item-menu-popover {
+  .bitfun-nav-panel__workspace-item-menu-popover,
+  .bitfun-nav-panel__workspace-acp-submenu {
     animation: none;
+  }
+}
+
+// Workspace and assistant rows follow the same hierarchy as session titles:
+// ordinary 13px labels, quieter metadata, and a consistent 30px primary row.
+.bitfun-nav-panel {
+  &__workspace-group-title {
+    @include nav-font.nav-panel-text-group;
+  }
+
+  &__workspace-item-card,
+  &__assistant-item-card,
+  &__workspace-item-collapse-btn,
+  &__assistant-item-collapse-btn,
+  &__workspace-item-name-btn,
+  &__assistant-item-name-btn {
+    min-height: 30px;
+  }
+
+  &__workspace-item:not(.is-active) &__workspace-item-card,
+  &__assistant-item:not(.is-active) &__assistant-item-card {
+    @include nav-font.nav-panel-text-icon;
+  }
+
+  &__workspace-item-label,
+  &__assistant-item-label {
+    @include nav-font.nav-panel-text-row;
+  }
+
+  &__workspace-item.is-active &__workspace-item-label,
+  &__assistant-item.is-active &__assistant-item-label {
+    @include nav-font.nav-panel-text-row-active;
+  }
+
+  &__workspace-item.is-active:has(&__workspace-item-sessions &__inline-item.is-active) &__workspace-item-label,
+  &__assistant-item.is-active:has(&__assistant-item-sessions &__inline-item.is-active) &__assistant-item-label {
+    @include nav-font.nav-panel-text-row;
+  }
+
+  &__workspace-item.is-active:has(&__workspace-item-sessions &__inline-item.is-active) &__workspace-item-icon,
+  &__assistant-item.is-active:has(&__assistant-item-sessions &__inline-item.is-active) &__assistant-item-avatar {
+    color: var(--bf-color-content-secondary);
+  }
+
+  &__workspace-item-subtitle,
+  &__workspace-item-remote,
+  &__workspace-item-badge {
+    @include nav-font.nav-panel-text-meta;
+
+    font-size: var(--bf-font-size-meta);
+  }
+
+  &__workspace-item-menu-trigger,
+  &__assistant-item-menu-trigger {
+    @include nav-font.nav-panel-text-icon;
   }
 }

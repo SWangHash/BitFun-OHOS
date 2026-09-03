@@ -20,6 +20,24 @@ vi.mock('lucide-react', () => ({
   Loader2: () => <Icon name="loader" />,
 }));
 
+vi.mock('@bitfun/ui', () => ({
+  Button: ({
+    children,
+    leadingIcon,
+    onClick,
+  }: {
+    children: React.ReactNode;
+    leadingIcon?: React.ReactNode;
+    onClick?: React.MouseEventHandler<HTMLButtonElement>;
+  }) => (
+    <button type="button" onClick={onClick}>
+      {leadingIcon}
+      {children}
+    </button>
+  ),
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => {
@@ -32,17 +50,6 @@ vi.mock('react-i18next', () => ({
       return labels[key] ?? key;
     },
   }),
-}));
-
-vi.mock('@/component-library', () => ({
-  Button: ({
-    children,
-    onClick,
-  }: {
-    children: React.ReactNode;
-    onClick?: React.MouseEventHandler<HTMLButtonElement>;
-  }) => <button type="button" onClick={onClick}>{children}</button>,
-  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('@/shared/notification-system', () => ({

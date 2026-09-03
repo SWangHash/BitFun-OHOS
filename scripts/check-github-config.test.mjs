@@ -36,6 +36,13 @@ function createRepo({ workflow, nodeVersionFile }) {
   return root;
 }
 
+function enableProductControlContract(root) {
+  const manifestPath = path.join(root, 'package.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  manifest.scripts = { 'capabilities:check': 'node scripts/check.mjs' };
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
 function runCheck(root) {
   return spawnSync(process.execPath, [scriptPath], {
     cwd: repoRoot,
@@ -69,6 +76,32 @@ jobs:
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /node-version-file \.node-version resolves to 20/);
   assert.match(result.stderr, /Node\.js 22\.12\.0 or newer/);
+});
+
+test('rejects removal or weakening of the ProductControl and Playbook gates', (t) => {
+  const root = createRepo({
+    workflow: `
+name: CI
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate interactive capability contract
+        continue-on-error: true
+        run: pnpm run capabilities:check
+`,
+  });
+  enableProductControlContract(root);
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+
+  const result = runCheck(root);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /interactive capability gate must run exactly/u);
+  assert.match(result.stderr, /interactive capability gate must remain blocking/u);
+  assert.match(result.stderr, /ProductControl owner\/delivery-profile gate is missing/u);
+  assert.match(result.stderr, /CLI ProductControl self-control coverage requires/u);
 });
 
 test('rejects explicit setup-node node-version below the project baseline when node-version-file is valid', (t) => {
@@ -217,6 +250,11 @@ test('keeps Rust CI independent, restore-only on PRs, and target-focused', () =>
     'build-impact',
     'Rust validation must not wait for the frontend build',
   );
+  assert.deepEqual(
+    rustJob.strategy.matrix.os,
+    ['ubuntu-latest', 'macos-15', 'windows-latest'],
+    'Rust validation must retain the reviewed Linux, macOS, and Windows matrix',
+  );
   assert.equal(
     rustJob.steps.some((step) => step.uses?.startsWith('actions/download-artifact@')),
     false,
@@ -285,6 +323,9 @@ test('keeps Rust CI independent, restore-only on PRs, and target-focused', () =>
   const checkCompilation = rustJob.steps.find(
     (step) => step.name === 'Check compilation',
   );
+  const createTauriResources = rustJob.steps.find(
+    (step) => step.name === 'Create Tauri resource directories',
+  );
   const saveSherpaCache = rustJob.steps.find(
     (step) => step.name === 'Save Sherpa native libraries',
   );
@@ -302,6 +343,16 @@ test('keeps Rust CI independent, restore-only on PRs, and target-focused', () =>
   assert.equal(saveSherpaCache?.uses, 'actions/cache/save@v5');
   assert.equal(saveSherpaCache?.with?.path, 'target/sherpa-onnx-prebuilt');
   assert.equal(saveSherpaCache?.with?.key, sherpaCacheKey);
+  assert.match(
+    createTauriResources?.run ?? '',
+    /src\/apps\/extension-host\/dist\/extension-host\.js/,
+    'clean Rust checks must provide the generated extension Host resource path without building the Host',
+  );
+  assert.ok(
+    rustJob.steps.indexOf(createTauriResources) <
+      rustJob.steps.indexOf(checkCompilation),
+    'Tauri resource placeholders must exist before cargo check',
+  );
   assert.equal(
     saveSherpaCache?.if,
     "github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/1.0.0-explore') && steps.sherpa-native-cache.outputs.cache-hit != 'true'",
@@ -339,6 +390,82 @@ test('keeps Rust CI independent, restore-only on PRs, and target-focused', () =>
   assert.equal(
     installerCheck?.run,
     'cargo check --manifest-path BitFun-Installer/src-tauri/Cargo.toml',
+  );
+  const coreLibraryTests = rustJob.steps.find(
+    (step) => step.name === 'Run core library tests',
+  );
+  const linuxFullCoreLibraryTests = rustJob.steps.find(
+    (step) => step.name === 'Run full core library tests on Linux',
+  );
+  const coreLibraryTestSteps = rustJob.steps.filter(
+    (step) => /^cargo test --locked -p bitfun-core\b.*\s--lib$/.test(step.run ?? ''),
+  );
+  const desktopLibraryTests = rustJob.steps.find(
+    (step) => step.name === 'Run desktop library tests',
+  );
+  const windowsDesktopProbe = rustJob.steps.find(
+    (step) => step.name === 'Probe Windows desktop library tests',
+  );
+  const productControlContracts = rustJob.steps.find(
+    (step) => step.name === 'Run product-control domain and delivery-profile contracts',
+  );
+  assert.equal(
+    coreLibraryTests?.if,
+    "runner.os != 'Linux'",
+  );
+  assert.equal(
+    coreLibraryTests?.run,
+    'cargo test --locked -p bitfun-core --lib',
+  );
+  assert.equal(
+    linuxFullCoreLibraryTests?.if,
+    "runner.os == 'Linux'",
+  );
+  assert.equal(
+    linuxFullCoreLibraryTests?.run,
+    'cargo test --locked -p bitfun-core --features product-full --lib',
+  );
+  assert.deepEqual(
+    coreLibraryTestSteps.map((step) => ({ if: step.if, run: step.run })),
+    [
+      {
+        if: "runner.os != 'Linux'",
+        run: 'cargo test --locked -p bitfun-core --lib',
+      },
+      {
+        if: "runner.os == 'Linux'",
+        run: 'cargo test --locked -p bitfun-core --features product-full --lib',
+      },
+    ],
+    'Core library validation must contain exactly the reviewed complementary steps',
+  );
+  assert.equal(desktopLibraryTests?.if, "runner.os != 'Windows'");
+  assert.equal(
+    desktopLibraryTests?.run,
+    'cargo test --locked -p bitfun-desktop --lib',
+  );
+  assert.equal(windowsDesktopProbe?.if, "runner.os == 'Windows'");
+  assert.equal(windowsDesktopProbe?.shell, 'pwsh');
+  assert.match(
+    windowsDesktopProbe?.run ?? '',
+    /cargo test --locked -p bitfun-desktop --lib 2>&1/,
+  );
+  assert.match(windowsDesktopProbe?.run ?? '', /0xc0000139/);
+  assert.match(windowsDesktopProbe?.run ?? '', /STATUS_ENTRYPOINT_NOT_FOUND/);
+  assert.match(windowsDesktopProbe?.run ?? '', /test result: FAILED/);
+  assert.match(windowsDesktopProbe?.run ?? '', /exit \$testExitCode/);
+  assert.equal(
+    productControlContracts?.if,
+    undefined,
+    'product-control contracts must run on every supported CI OS',
+  );
+  assert.match(
+    productControlContracts?.run ?? '',
+    /bitfun-product-domains --no-default-features product_control/,
+  );
+  assert.match(
+    productControlContracts?.run ?? '',
+    /bitfun-product-capabilities every_agent_runtime_delivery_profile_includes_product_control_discovery/,
   );
   const fileWatchContracts = rustJob.steps.find(
     (step) => step.name === 'Run file watch contract tests',
@@ -392,8 +519,6 @@ test('gates fast checks and PR packaging behind one fail-closed build decision',
   const frontendGate = "needs.build-impact.outputs.frontend_required != 'false'";
   for (const stepName of [
     'Verify committed release metadata',
-    'Verify Installer i18n projection',
-    'Verify Installer Tauri package alignment',
     'Build plugin Host resources',
     'Generate web API bindings',
     'Build web UI',
@@ -405,6 +530,16 @@ test('gates fast checks and PR packaging behind one fail-closed build decision',
       frontendJob.steps.find((step) => step.name === stepName)?.if,
       frontendGate,
       `${stepName} must run for code changes and skip documentation-only changes`,
+    );
+  }
+  for (const stepName of [
+    'Verify Installer i18n projection',
+    'Verify Installer Tauri package alignment',
+  ]) {
+    assert.equal(
+      frontendJob.steps.find((step) => step.name === stepName),
+      undefined,
+      `${stepName} belongs to Nightly, not pull-request CI`,
     );
   }
   const releaseMetadata = 'cargo metadata --locked --no-deps';
@@ -571,9 +706,7 @@ test('gates fast checks and PR packaging behind one fail-closed build decision',
       '-NoProfile',
       '-NonInteractive',
       '-Command',
-      `$cases = ConvertFrom-Json @'
-${JSON.stringify(cases)}
-'@
+      `$cases = ConvertFrom-Json ([Console]::In.ReadToEnd())
 $verify = {
 ${verify.run}
 }
@@ -596,6 +729,7 @@ foreach ($case in $cases) {
       cwd: repoRoot,
       env: process.env,
       encoding: 'utf8',
+      input: JSON.stringify(cases),
     },
   );
   if (truthTable.error?.code === 'ENOENT') {
@@ -768,6 +902,9 @@ test('Linux binary packaging uses the shared locked version projection contract'
   );
   const inputs = workflow.on.workflow_call.inputs;
   const steps = workflow.jobs.build.steps;
+  const nodeSteps = steps.filter(
+    (step) => step.name === 'Setup Node.js',
+  );
   const nodeIndex = steps.findIndex(
     (step) => step.name === 'Setup Node.js',
   );
@@ -788,6 +925,7 @@ test('Linux binary packaging uses the shared locked version projection contract'
   assert.equal(inputs.upload_artifacts.default, true);
   assert.equal(inputs.cache_write.default, false);
   assert.equal(inputs.validate_relay_image.default, true);
+  assert.equal(nodeSteps.length, 1);
   assert.equal(steps[nodeIndex].uses, 'actions/setup-node@v5');
   assert.equal(steps[nodeIndex].with['node-version-file'], 'package.json');
   assert.ok(

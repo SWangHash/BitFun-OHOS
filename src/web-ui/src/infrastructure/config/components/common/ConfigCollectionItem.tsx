@@ -1,6 +1,7 @@
 import React, { useId, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
-import { PresenceBoundary } from '@/component-library';
+import { Icon } from '@bitfun/ui';
+;
+import { RetainedMountBoundary } from '@/shared/presence';
 import './ConfigCollectionItem.scss';
 
 export interface ConfigCollectionItemProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -84,7 +85,7 @@ export const ConfigCollectionItem: React.FC<ConfigCollectionItemProps> = ({
                 aria-expanded={isExpanded}
                 aria-controls={detailsId}
               >
-                <ChevronDown size={14} aria-hidden="true" />
+                <Icon name="chevron-down" size="sm" aria-hidden="true" />
               </button>
             ) : null}
           </div>
@@ -92,10 +93,10 @@ export const ConfigCollectionItem: React.FC<ConfigCollectionItemProps> = ({
       </div>
 
       {details ? (
-        <PresenceBoundary
-          active={isExpanded}
-          exitDurationMs={180}
-          minimumExitDurationMs={180}
+        <RetainedMountBoundary
+          present={isExpanded}
+          retainForMs={180}
+          minimumRetainMs={180}
         >
           <div
             id={detailsId}
@@ -106,7 +107,7 @@ export const ConfigCollectionItem: React.FC<ConfigCollectionItemProps> = ({
           >
             <div className="bitfun-collection-item__details" data-bf-component="config" data-bf-part="collectionDetails">{details}</div>
           </div>
-        </PresenceBoundary>
+        </RetainedMountBoundary>
       ) : null}
     </div>
   );

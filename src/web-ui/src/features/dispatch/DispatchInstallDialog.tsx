@@ -1,12 +1,19 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Button,
-  Modal,
-} from '@/component-library';
+  Checkbox,
+  Icon,
+  Input,
+  ScrollArea,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+} from '@bitfun/ui';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
-import { Download, Loader2, RefreshCw } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { dispatchApi } from './dispatchApi';
 import type {
   DispatchSelection,
@@ -394,17 +401,18 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={open}
-      onClose={handleModalClose}
-      size="medium"
-      closeOnOverlayClick={!targetMutationInProgress}
-      showCloseButton={!targetMutationInProgress}
-      // The dialog renders its own heading, so point the modal's label at it
-      // rather than at the chrome title it no longer uses.
-      ariaLabelledBy={DIALOG_TITLE_ID}
-      testId="dispatch-install-dialog"
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => { if (!nextOpen) handleModalClose(); }}
+      size="md"
+      closeOnPointerOutside={!targetMutationInProgress}
+      aria-labelledby={DIALOG_TITLE_ID}
+      data-testid="dispatch-install-dialog"
     >
+      <DialogHeader>
+        {!targetMutationInProgress && <DialogClose />}
+      </DialogHeader>
+      <DialogBody inset="none">
       <div
         className="dispatch-install-dialog"
         data-bf-component="dispatch-install-dialog"
@@ -423,17 +431,17 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
           </span>
         </div>
 
-        <div
+        <ScrollArea
           className="dispatch-install-dialog__body"
           data-bf-component="dispatch-install-dialog"
           data-bf-part="body"
         >
           {error ? (
-            <Alert type="error" message={error} closable onClose={() => setError(null)} />
+            <Alert tone="error" message={error} closable onClose={() => setError(null)} />
           ) : null}
           {preparationOutcome ? (
             <Alert
-              type="success"
+              tone="success"
               message={t(
                 preparationOutcome === 'synced'
                   ? 'dispatch.prepareSucceededWithAccount'
@@ -443,7 +451,7 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
           ) : null}
           {baseRefError ? (
             <Alert
-              type="error"
+              tone="error"
               message={baseRefError}
               closable
               onClose={() => setBaseRefError(null)}
@@ -466,12 +474,13 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
                   {t('dispatch.probeFailed')}
                 </span>
                 <Button
-                  variant="secondary"
-                  size="small"
+                  variant="outline"
+                  size="sm"
                   disabled={probing}
                   onClick={() => void runProbe()}
+                  leadingIcon={<Icon name="refresh" size="sm" aria-hidden />}
                 >
-                  <RefreshCw size={14} aria-hidden />
+
                   {t('dispatch.retryCheck')}
                 </Button>
               </div>
@@ -509,15 +518,15 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
                     {t('dispatch.oneClickDeployDescription')}
                   </span>
                   <Button
-                    variant="primary"
-                    size="small"
+                    variant="fill"
+                    size="sm"
                     disabled={targetMutationInProgress || probing}
                     onClick={() => void prepareTarget()}
                   >
                     {preparationPhase ? (
                       <Loader2 size={14} className="dispatch-install-dialog__spin" />
                     ) : (
-                      <Download size={14} aria-hidden />
+                      <Icon name="download" size="sm" aria-hidden />
                     )}
                     {preparationPhase === 'installing'
                       ? t('dispatch.installingCli')
@@ -537,7 +546,7 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
               </>
             ) : null}
             {installUnavailable ? (
-              <Alert type="warning" message={t('dispatch.installUnavailable')} />
+              <Alert tone="warning" message={t('dispatch.installUnavailable')} />
             ) : null}
             {cliReady && provisionRetryAvailable ? (
               <div className="dispatch-install-dialog__retry">
@@ -545,15 +554,15 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
                   {t('dispatch.retryProvisionDescription')}
                 </span>
                 <Button
-                  variant="secondary"
-                  size="small"
+                  variant="outline"
+                  size="sm"
                   disabled={targetMutationInProgress || probing}
                   onClick={() => void retryProvisioning()}
                 >
                   {preparationPhase === 'provisioning' ? (
                     <Loader2 size={14} className="dispatch-install-dialog__spin" />
                   ) : (
-                    <RefreshCw size={14} aria-hidden />
+                    <Icon name="refresh" size="sm" aria-hidden />
                   )}
                   {t('dispatch.retryProvision')}
                 </Button>
@@ -565,12 +574,13 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
                   {t('dispatch.deviceUpdateRequired')}
                 </span>
                 <Button
-                  variant="secondary"
-                  size="small"
+                  variant="outline"
+                  size="sm"
                   disabled={probing}
                   onClick={() => void runProbe()}
+                  leadingIcon={<Icon name="refresh" size="sm" aria-hidden />}
                 >
-                  <RefreshCw size={14} aria-hidden />
+
                   {t('dispatch.retryCheck')}
                 </Button>
               </div>
@@ -594,13 +604,13 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
               <span className="dispatch-install-dialog__field-label">
                 {t('dispatch.baseRef')}
               </span>
-              <input
+              <Input
                 type="text"
                 value={baseRef}
                 disabled={targetMutationInProgress || validatingBaseRef}
                 spellCheck={false}
-                onChange={event => {
-                  setBaseRef(event.target.value);
+                onValueChange={value => {
+                  setBaseRef(value);
                   setBaseRefError(null);
                 }}
                 placeholder="HEAD"
@@ -609,25 +619,19 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
                 {t('dispatch.baseRefHint')}
               </span>
             </label>
-            <label className="dispatch-install-dialog__toggle">
-              <input
-                type="checkbox"
-                checked={includeUncommitted}
-                disabled={targetMutationInProgress || validatingBaseRef}
-                onChange={event => {
-                  includeUncommittedTouchedRef.current = true;
-                  setIncludeUncommitted(event.target.checked);
-                }}
-              />
-              <span>
-                {t('dispatch.includeUncommitted')}
-                <small className="dispatch-install-dialog__hint">
-                  {t('dispatch.includeUncommittedHint')}
-                </small>
-              </span>
-            </label>
+            <Checkbox
+              className="dispatch-install-dialog__toggle"
+              checked={includeUncommitted}
+              disabled={targetMutationInProgress || validatingBaseRef}
+              onCheckedChange={checked => {
+                includeUncommittedTouchedRef.current = true;
+                setIncludeUncommitted(checked);
+              }}
+              label={t('dispatch.includeUncommitted')}
+              description={t('dispatch.includeUncommittedHint')}
+            />
           </section>
-        </div>
+        </ScrollArea>
 
         <div
           className="dispatch-install-dialog__actions"
@@ -635,8 +639,8 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
           data-bf-part="actions"
         >
           <Button
-            variant="secondary"
-            size="small"
+            variant="outline"
+            size="sm"
             disabled={
               preparationPhase === 'provisioning'
               || preparationPhase === 'cancelling'
@@ -654,8 +658,8 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
                 : t('dispatch.cancel')}
           </Button>
           <Button
-            variant="primary"
-            size="small"
+            variant="fill"
+            size="sm"
             disabled={
               !ready
               || targetMutationInProgress
@@ -672,6 +676,7 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
           </Button>
         </div>
       </div>
-    </Modal>
+          </DialogBody>
+    </Dialog>
   );
 };

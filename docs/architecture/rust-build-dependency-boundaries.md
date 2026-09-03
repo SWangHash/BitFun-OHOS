@@ -59,7 +59,7 @@ Core library 的默认 feature 集合为空；完整产品必须显式选择 `pr
 `product-full`。每个角色必须独立编译，产品消费者还要显式关闭该 interface crate 的默认 feature 并选择
 真实使用的角色，避免 workspace feature union 掩盖边界缺口。
 
-Core 的 `agent-runtime` 只承载 Agent 生命周期基线和明确的基线工具，不得再次把 MCP、Remote Connect、模型目录、Browser/Web、Git/LSP 或产品工具组藏成 capability union。具体 service 由同名 owner feature 选择，内置工具由 `tools-*` 选择；`product-full` 显式相加全部 owner，CLI/ACP 等窄入口则按真实命令与构造路径列出自己的闭包。
+Core 的 `agent-runtime` 只承载 Agent 生命周期基线和明确的基线工具，不得再次把 MCP、Remote Connect、模型目录、Browser/Web、Git 或产品工具组藏成 capability union。具体 service 由同名 owner feature 选择，内置工具由 `tools-*` 选择；`product-full` 显式相加全部 owner，CLI/ACP 等窄入口则按真实命令与构造路径列出自己的闭包。
 
 执行层的 `bitfun-agent-runtime` 自身也保持空默认：完整生命周期由 `agent-runtime` 选择，DeepResearch 纯编号由 `deep-research` 选择，原生 Hook 配置解析与进程执行分别由 `native-hook-settings`、`native-hook-runtime` 选择。叶能力仍留在原 owner crate 内，不为依赖收敛新建 DTO/runtime crate；完整产品必须显式恢复真实 owner，不能依赖 workspace feature union 偶然补齐。
 
@@ -71,7 +71,8 @@ runtime dependency；真实产品入口必须同时显式选择 owner 与 modifi
 把完整 adapter、service 或 tool runtime 拉回窄闭包。
 
 Function Agent 的 Git/AI 适配由 `function-agents` 选择，MiniApp 的 domain/runtime/market
-闭包由 `tools-miniapp` 选择；不得再通过一个通用 `product-domains` Core feature 把两者、
+闭包由 `tools-miniapp` 选择，创造模式专属的前端工作台由独立的 `tools-creation` 选择；
+产品装配可以为 Creative 同时选择两个 owner，但不得再通过一个通用 `product-domains` Core feature 把它们、
 Plugin Source 和完整 domain feature 集合一起带回 Agent Runtime。产品装配计划若声明了当前
 二进制未编译的工具组，必须在 registry materialization 前明确失败，不能静默删掉该组。
 
@@ -97,10 +98,11 @@ Plugin Source 和完整 domain feature 集合一起带回 Agent Runtime。产品
 ### 3.4 Reqwest 能力由客户端 owner 选择
 
 - workspace 级 `reqwest` 只统一版本并关闭默认 feature，不替任何客户端选择 HTTP/2、序列化、表单、流、代理或 TLS 能力；
-- 真正创建 client 的 app、service 或 adapter 必须在自身依赖声明中显式选择实际使用的 Reqwest feature 和 `reqwest/rustls`；只使用 `reqwest::Url` 的 contract/assembly 路径不加载传输能力；
-- capability crate 的每个 Reqwest owner feature 必须独立带齐自己的数据/传输 feature 与 `reqwest/rustls`，不能依赖 `product-full` 或其他 feature 的 Cargo feature-union 偶然补齐；
-- 边界检查以 Cargo metadata 的解码结果看护全部直接 consumer，并检查 resolved Reqwest feature union，防止传递依赖重新激活 Native TLS；
-- 不并列启用 native-tls 兼容栈。只有真实产品场景无法由 Rustls 平台证书验证承载时，才以明确行为证据评审替换方案，而不是重新叠加第二后端。
+- 真正创建 client 的 app、service 或 adapter 必须在自身依赖声明中显式选择实际使用的 Reqwest feature 和 provider-neutral 的 `reqwest/rustls-no-provider`；只使用 `reqwest::Url` 的 contract/assembly 路径不加载传输能力；
+- capability crate 的每个 Reqwest owner feature 必须独立带齐自己的数据/传输 feature、`reqwest/rustls-no-provider` 和进程级 TLS provider owner，不能依赖 `product-full` 或其他 feature 的 Cargo feature-union 偶然补齐；
+- workspace 级 `rustls` 只统一兼容版本并关闭默认 feature；`services-core/tls-provider` 是内置 crypto provider 的唯一 owner，精确选择并安装 `ring`、`std` 和 `tls12`。产品进程入口或集中 client helper 必须在构造 TLS client 前确保该 provider 已安装；
+- 边界检查以 Cargo metadata 的解码结果看护全部直接 consumer，并检查 resolved Reqwest/Rustls feature union，拒绝缺失 provider、同时选择多个 provider、传递依赖重新激活 AWS-LC 或 Native TLS，以及绕过集中 helper 的 Reqwest client 构造；
+- 不并列启用 Native TLS 或 AWS-LC 兼容栈。只有真实产品场景无法由当前 Ring/Rustls 平台证书验证承载时，才以明确行为证据评审替换方案；替换时由同一 owner 切换 provider，不能在同一产品闭包叠加第二后端。
 
 ### 3.5 稳定契约 crate 按消费能力切片
 

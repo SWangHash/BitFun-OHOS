@@ -6,7 +6,6 @@ export const settingsNavAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'root', propertyProfile: 'layout', visualRole: 'panel', continuityGroup: 'settings-workspace' },
     { id: 'header', visualRole: 'toolbar', continuityGroup: 'settings-workspace' },
     { id: 'search', propertyProfile: 'control', visualRole: 'control' },
-    { id: 'sections', visualRole: 'content', continuityGroup: 'settings-workspace' },
     { id: 'searchEmpty', visualRole: 'content' },
     { id: 'searchResults', visualRole: 'content' },
     { id: 'searchResult', propertyProfile: 'control', visualRole: 'control' },
@@ -14,7 +13,6 @@ export const settingsNavAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'categoryHeader', visualRole: 'toolbar' },
     { id: 'items', visualRole: 'content' },
     { id: 'item', propertyProfile: 'control', visualRole: 'control' },
-    { id: 'itemUnseen', propertyProfile: 'paint', visualRole: 'decoration' },
     { id: 'highlight', propertyProfile: 'paint', visualRole: 'decoration' },
   ],
   states: [

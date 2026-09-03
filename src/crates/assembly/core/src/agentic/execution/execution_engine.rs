@@ -8,9 +8,10 @@ use super::model_exchange_trace::{
 use super::round_executor::{ModelRoundLifecycle, RoundExecutor};
 use super::types::{ExecutionContext, ExecutionResult, RoundContext, RoundResult};
 use crate::agentic::agents::{
-    build_prompt_context_for_workspace, get_agent_registry, render_direct_tool_listing_body,
-    PrependedPromptReminders, PromptBuilder, PromptBuilderContext, RuntimeContextNeeds,
-    ToolListingSections, UserContextPolicy, UserContextSection,
+    build_prompt_context_for_workspace, get_agent_registry, get_embedded_prompt,
+    is_swarm_planner_agent_type, render_direct_tool_listing_body, PrependedPromptReminders,
+    PromptBuilder, PromptBuilderContext, RuntimeContextNeeds, ToolListingSections,
+    UserContextPolicy, UserContextSection,
 };
 use crate::agentic::context_profile::{ContextProfilePolicy, ModelCapabilityProfile};
 use crate::agentic::coordination::scheduler::agent_dialog_turn_image_contexts;
@@ -30,8 +31,8 @@ use crate::agentic::image_analysis::{
 };
 use crate::agentic::round_preempt::RoundInjectionKind;
 use crate::agentic::session::{
-    ContextCompressor, SessionManager, TokenAnchor, TokenAnchorInput, UserContextCacheIdentity,
-    INTERRUPTED_TURN_MODEL_BINDING_FINGERPRINT_METADATA_KEY,
+    ContextCompressor, SessionManager, SystemPromptCacheIdentity, TokenAnchor, TokenAnchorInput,
+    UserContextCacheIdentity, INTERRUPTED_TURN_MODEL_BINDING_FINGERPRINT_METADATA_KEY,
     INTERRUPTED_TURN_PERMISSION_MODE_METADATA_KEY,
     INTERRUPTED_TURN_REASONING_FINGERPRINT_METADATA_KEY,
     INTERRUPTED_TURN_REASONING_PRESET_METADATA_KEY,
@@ -67,7 +68,6 @@ use crate::util::{elapsed_ms_u64, truncate_at_char_boundary};
 use bitfun_agent_runtime::output_surface::TOOL_CONTEXT_INLINE_MARKDOWN_IMAGE_DISPLAY_KEY;
 use bitfun_agent_runtime::permission::PERMISSION_MODE_CONTEXT_KEY;
 use bitfun_agent_runtime::remote_file_delivery::TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY;
-use bitfun_agent_runtime::thread_goal_tools::ensure_thread_goal_tools;
 use bitfun_ai_adapters::ModelExchangeTraceConfig;
 use bitfun_core_types::{ModelRequestContext, SessionModelBindingPolicy};
 use bitfun_runtime_ports::{resolve_permission_mode, PermissionMode, PermissionModeLayers};
@@ -92,10 +92,41 @@ fn initial_round_index(context: &std::collections::HashMap<String, String>) -> u
 }
 use tool_runtime::context::PrimaryModelFacts;
 
-fn ensure_primary_session_goal_tools(allowed_tools: &mut Vec<String>, is_subagent: bool) {
-    if !is_subagent {
-        ensure_thread_goal_tools(allowed_tools);
+fn skill_agent_listing_reminders(
+    baseline_tool_sections: Option<&ToolListingSections>,
+) -> (Option<String>, Option<String>) {
+    (
+        baseline_tool_sections.and_then(ToolListingSections::render_skill_listing_reminder),
+        baseline_tool_sections.and_then(ToolListingSections::render_agent_listing_reminder),
+    )
+}
+
+fn reached_fixed_model_round_limit(max_rounds: usize, completed_rounds: usize) -> bool {
+    max_rounds > 0 && completed_rounds >= max_rounds
+}
+
+fn runtime_context_needs_for_manifest(manifest: &ResolvedToolManifest) -> RuntimeContextNeeds {
+    RuntimeContextNeeds::from_tool_names(
+        manifest
+            .tool_definitions
+            .iter()
+            .map(|definition| definition.name.as_str()),
+    )
+}
+
+fn apply_agent_temperature_override(
+    agent: &dyn crate::agentic::agents::Agent,
+    client: Arc<crate::infrastructure::ai::AIClient>,
+) -> Arc<crate::infrastructure::ai::AIClient> {
+    let Some(temperature) = agent.model_temperature_override() else {
+        return client;
+    };
+    if client.config.temperature == Some(temperature) {
+        return client;
     }
+    let mut derived = client.as_ref().clone();
+    derived.config.temperature = Some(temperature);
+    Arc::new(derived)
 }
 
 fn resolve_round_permission_mode(
@@ -155,10 +186,6 @@ impl ExecutionEngineConfig {
             ..Self::default()
         }
     }
-}
-
-fn reached_fixed_model_round_limit(max_rounds: usize, completed_rounds: usize) -> bool {
-    max_rounds > 0 && completed_rounds >= max_rounds
 }
 
 #[derive(Debug, Clone)]
@@ -424,7 +451,7 @@ impl ContextHealthSnapshot {
             return None;
         };
 
-        if !matches!(tool_name.as_str(), "Bash" | "Git") {
+        if tool_name != "ExecCommand" {
             return None;
         }
 
@@ -1146,12 +1173,15 @@ impl ExecutionEngine {
         model_id: &str,
     ) -> String {
         let trimmed = model_id.trim();
-        if trimmed.is_empty() || trimmed == "auto" || trimmed == "default" {
-            return "auto".to_string();
-        }
+        let selector = if trimmed.is_empty() || trimmed == "default" {
+            "primary"
+        } else {
+            trimmed
+        };
         ai_config
-            .resolve_model_selection(trimmed)
-            .unwrap_or_else(|| "auto".to_string())
+            .resolve_model_selection(selector)
+            .or_else(|| ai_config.resolve_model_selection("primary"))
+            .unwrap_or_else(|| selector.to_string())
     }
 
     fn resolve_model_id_for_turn_selection(
@@ -1172,20 +1202,20 @@ impl ExecutionEngine {
                 });
         }
 
-        let resolved_configured_model_id =
-            Self::resolve_configured_model_id(ai_config, configured_model_id);
-        if configured_model_id == "auto"
-            || configured_model_id == "default"
-            || resolved_configured_model_id == "auto"
-        {
-            ai_config.resolve_model_selection("primary").ok_or_else(|| {
+        let configured_model_id = configured_model_id.trim();
+        let selector = if configured_model_id.is_empty() || configured_model_id == "default" {
+            "primary"
+        } else {
+            configured_model_id
+        };
+        ai_config
+            .resolve_model_selection(selector)
+            .or_else(|| ai_config.resolve_model_selection("primary"))
+            .ok_or_else(|| {
                 BitFunError::AIClient(
-                    "Auto dialog turn model could not resolve a concrete primary model".to_string(),
+                    "Dialog turn model could not resolve a concrete primary model".to_string(),
                 )
             })
-        } else {
-            Ok(resolved_configured_model_id)
-        }
     }
 
     fn validate_frozen_reasoning_contract(
@@ -1363,7 +1393,7 @@ impl ExecutionEngine {
             } else {
                 None
             },
-            agent_listing: if has_tool_definition("Task") {
+            agent_listing: if has_tool_definition("Task") || has_tool_definition("AgentSpawn") {
                 TaskTool::build_available_agents_context_section(Some(tool_context)).await
             } else {
                 None
@@ -1515,7 +1545,7 @@ impl ExecutionEngine {
             .map(|remote| remote.connection_display_name.replace('|', "/"));
 
         let prompt_builder = PromptBuilder::new(prompt_context.clone());
-        let baseline_snapshot = if let Some(snapshot) = self
+        let baseline_tool_sections = if let Some(snapshot) = self
             .session_manager
             .skill_agent_baseline_override_snapshot(session_id)
             .await
@@ -1526,7 +1556,7 @@ impl ExecutionEngine {
                 .turn_skill_agent_snapshot(session_id, 0)
                 .await
         };
-        let baseline_tool_sections = baseline_snapshot
+        let baseline_tool_sections = baseline_tool_sections
             .map(|snapshot| build_skill_agent_tool_listing_sections_from_snapshot(&snapshot));
         if baseline_tool_sections.is_none() {
             warn!(
@@ -1601,15 +1631,16 @@ impl ExecutionEngine {
             built_user_context
         };
         let runtime_context = prompt_builder.build_runtime_context_reminder().await;
+        let (skill_listing, mut agent_listing) =
+            skill_agent_listing_reminders(baseline_tool_sections.as_ref());
+        if is_swarm_planner_agent_type(current_agent.id()) {
+            agent_listing = None;
+        }
 
         PrependedPromptReminders {
             deferred_tool_listing: prompt_builder.build_deferred_tool_listing_reminder(),
-            skill_listing: baseline_tool_sections
-                .as_ref()
-                .and_then(|sections| sections.render_skill_listing_reminder()),
-            agent_listing: baseline_tool_sections
-                .as_ref()
-                .and_then(|sections| sections.render_agent_listing_reminder()),
+            skill_listing,
+            agent_listing,
             runtime_context,
             user_context,
         }
@@ -1620,12 +1651,16 @@ impl ExecutionEngine {
         session_id: &str,
         current_agent: &dyn crate::agentic::agents::Agent,
         prompt_context: Option<&PromptBuilderContext>,
+        prompt_policy_id: Option<&str>,
     ) -> BitFunResult<String> {
-        let identity = prompt_context
-            .map(|context| {
-                current_agent.system_prompt_cache_identity(context.model_name.as_deref())
-            })
-            .unwrap_or_else(|| current_agent.system_prompt_cache_identity(None));
+        let identity = match prompt_policy_id {
+            Some(policy_id) => SystemPromptCacheIdentity::new(format!("harness:{policy_id}")),
+            None => prompt_context
+                .map(|context| {
+                    current_agent.system_prompt_cache_identity(context.model_name.as_deref())
+                })
+                .unwrap_or_else(|| current_agent.system_prompt_cache_identity(None)),
+        };
 
         if let Some(cached_system_prompt) = self
             .session_manager
@@ -1643,7 +1678,19 @@ impl ExecutionEngine {
             "System prompt cache miss: session_id={}, scope_key={}",
             session_id, identity.scope_key
         );
-        let system_prompt = current_agent.get_system_prompt(prompt_context).await?;
+        let system_prompt = if let Some(policy_id) = prompt_policy_id {
+            let context = prompt_context.ok_or_else(|| {
+                BitFunError::Agent("Prompt build context is required".to_string())
+            })?;
+            let template = get_embedded_prompt(policy_id).ok_or_else(|| {
+                BitFunError::Agent(format!("{policy_id} not found in embedded files"))
+            })?;
+            PromptBuilder::new(context.clone())
+                .build_prompt_from_template(template)
+                .await?
+        } else {
+            current_agent.get_system_prompt(prompt_context).await?
+        };
         self.session_manager
             .remember_system_prompt(session_id, identity, system_prompt.clone())
             .await;
@@ -1683,6 +1730,7 @@ impl ExecutionEngine {
                 &input.context.session_id,
                 input.current_agent,
                 prompt_context.as_ref(),
+                None,
             )
             .await?;
 
@@ -1860,14 +1908,6 @@ impl ExecutionEngine {
             info!(
                 "Using frozen dialog turn model: session_id={}, turn_index={}, resolved_model_id={}",
                 session.session_id, turn_index, model_id
-            );
-        } else if configured_model_id == "auto" || configured_model_id == "default" {
-            info!(
-                "Auto model resolved without locking session: session_id={}, turn_index={}, user_input_chars={}, strategy=primary, resolved_model_id={}",
-                session.session_id,
-                turn_index,
-                original_user_input.chars().count(),
-                model_id
             );
         }
 
@@ -2583,6 +2623,7 @@ impl ExecutionEngine {
                 )));
             }
         };
+        let ai_client = apply_agent_temperature_override(current_agent.as_ref(), ai_client);
         Self::validate_frozen_model_contract(context).await?;
         Self::validate_frozen_reasoning_contract(context, ai_client.as_ref())?;
         let model_request_context = Self::model_request_context(
@@ -2623,11 +2664,7 @@ impl ExecutionEngine {
                     .map(|workspace| workspace.root_path()),
             )
             .await;
-        let mut allowed_tools = tool_policy.allowed_tools.clone();
-        ensure_primary_session_goal_tools(
-            &mut allowed_tools,
-            context.subagent_parent_info.is_some(),
-        );
+        let allowed_tools = tool_policy.allowed_tools.clone();
         let enable_tools = context
             .context
             .get("enable_tools")
@@ -2639,19 +2676,21 @@ impl ExecutionEngine {
             &context.agent_type,
             context.workspace.as_ref(),
             context.workspace_services.as_ref(),
+            Some(&context.session_id),
+            context.terminal_port.as_ref(),
+            context.remote_exec_port.as_ref(),
             Some(&primary_model_facts),
             &tool_manifest_context_vars,
             &context.runtime_tool_restrictions,
         );
         let tool_manifest = if enable_tools {
-            Some(
-                resolve_tool_manifest(
-                    &allowed_tools,
-                    &tool_policy.exposure_overrides,
-                    &tool_description_context,
-                )
-                .await,
+            let manifest = resolve_tool_manifest(
+                &allowed_tools,
+                &tool_policy.exposure_overrides,
+                &tool_description_context,
             )
+            .await;
+            Some(manifest)
         } else {
             None
         };
@@ -3509,6 +3548,7 @@ impl ExecutionEngine {
                 )));
             }
         };
+        let ai_client = apply_agent_temperature_override(current_agent.as_ref(), ai_client);
         Self::validate_frozen_model_contract(&context).await?;
         Self::validate_frozen_reasoning_contract(&context, ai_client.as_ref())?;
         let model_request_context = Self::model_request_context(
@@ -3572,11 +3612,7 @@ impl ExecutionEngine {
                     .map(|workspace| workspace.root_path()),
             )
             .await;
-        let mut allowed_tools = tool_policy.allowed_tools.clone();
-        ensure_primary_session_goal_tools(
-            &mut allowed_tools,
-            context.subagent_parent_info.is_some(),
-        );
+        let allowed_tools = tool_policy.allowed_tools.clone();
         let enable_tools = context
             .context
             .get("enable_tools")
@@ -3601,6 +3637,9 @@ impl ExecutionEngine {
             &agent_type,
             context.workspace.as_ref(),
             context.workspace_services.as_ref(),
+            Some(&context.session_id),
+            context.terminal_port.as_ref(),
+            context.remote_exec_port.as_ref(),
             Some(&primary_model_facts),
             &tool_manifest_context_vars,
             &context.runtime_tool_restrictions,
@@ -3612,14 +3651,13 @@ impl ExecutionEngine {
                 agent_type,
                 allowed_tools.len()
             );
-            Some(
-                resolve_tool_manifest(
-                    &allowed_tools,
-                    &tool_policy.exposure_overrides,
-                    &tool_description_context,
-                )
-                .await,
+            let manifest = resolve_tool_manifest(
+                &allowed_tools,
+                &tool_policy.exposure_overrides,
+                &tool_description_context,
             )
+            .await;
+            Some(manifest)
         } else {
             None
         };
@@ -3634,9 +3672,7 @@ impl ExecutionEngine {
         };
         let runtime_context_needs = tool_manifest
             .as_ref()
-            .map(|manifest| {
-                RuntimeContextNeeds::from_tool_names(manifest.allowed_tool_names.iter())
-            })
+            .map(runtime_context_needs_for_manifest)
             .unwrap_or_default();
         // We do not currently keep a session-level cache of resolved tool
         // definitions; each turn re-resolves them from the current manifest.
@@ -5135,13 +5171,13 @@ impl ExecutionEngine {
 #[cfg(test)]
 mod tests {
     use super::{
-        activate_conditional_instructions_after_round, ensure_primary_session_goal_tools,
-        manual_compaction_terminal_error, reached_fixed_model_round_limit,
-        resolve_round_permission_mode, ContextHealthSnapshot, ExecutionEngine,
-        ExecutionEngineConfig, RoundResult, TurnPromptScaffold,
+        activate_conditional_instructions_after_round, manual_compaction_terminal_error,
+        reached_fixed_model_round_limit, resolve_round_permission_mode,
+        runtime_context_needs_for_manifest, skill_agent_listing_reminders, ContextHealthSnapshot,
+        ExecutionEngine, ExecutionEngineConfig, RoundResult, TurnPromptScaffold,
     };
     use crate::agentic::agents::{
-        PrependedPromptReminders, PromptBuilderContext, UserContextPolicy,
+        PrependedPromptReminders, PromptBuilderContext, ToolListingSections, UserContextPolicy,
     };
     use crate::agentic::core::{InternalReminderKind, Message, MessageRole, ToolCall, ToolResult};
     use crate::agentic::persistence::PersistenceManager;
@@ -5149,6 +5185,7 @@ mod tests {
         ContextCompressor, PromptCachePolicy, SessionContextStore, SessionManager,
         SessionManagerConfig, TokenAnchor, TokenAnchorInput,
     };
+    use crate::agentic::tools::ResolvedToolManifest;
     use crate::agentic::tools::ToolRuntimeRestrictions;
     use crate::agentic::workspace::{local_workspace_services, WorkspaceBinding};
     use crate::infrastructure::PathManager;
@@ -5158,7 +5195,6 @@ mod tests {
     use crate::service::config::types::AIModelConfig;
     use crate::service::remote_ssh::workspace_state::workspace_session_identity;
     use crate::util::types::ToolDefinition;
-    use bitfun_agent_runtime::thread_goal_tools::THREAD_GOAL_TOOL_NAMES;
     use bitfun_runtime_ports::{
         PermissionMode, WorkspaceDirEntry, WorkspaceFileSystem, WorkspacePathKind,
     };
@@ -5169,6 +5205,84 @@ mod tests {
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::time::Duration;
+
+    fn resolved_tool_manifest(
+        allowed_tool_names: &[&str],
+        tool_definition_names: &[&str],
+    ) -> ResolvedToolManifest {
+        ResolvedToolManifest {
+            allowed_tool_names: allowed_tool_names
+                .iter()
+                .map(|name| (*name).to_string())
+                .collect(),
+            tool_definitions: tool_definition_names
+                .iter()
+                .map(|name| ToolDefinition {
+                    name: (*name).to_string(),
+                    description: format!("{name} description"),
+                    parameters: json!({"type": "object"}),
+                })
+                .collect(),
+            deferred_tool_names: Vec::new(),
+            deferred_tool_summaries: Vec::new(),
+            catalog_generation: 0,
+        }
+    }
+
+    #[test]
+    fn tool_manifest_listings_are_preserved() {
+        let sections = ToolListingSections {
+            skill_listing: Some("<available_skills>pdf</available_skills>".to_string()),
+            agent_listing: Some("<available_agents>Explore</available_agents>".to_string()),
+            direct_tool_listing: None,
+            deferred_tool_listing: None,
+        };
+
+        let (skill_listing, agent_listing) = skill_agent_listing_reminders(Some(&sections));
+
+        assert!(skill_listing
+            .as_deref()
+            .is_some_and(|listing| listing.contains("# Skill Listing")));
+        assert!(agent_listing
+            .as_deref()
+            .is_some_and(|listing| listing.contains("# Agent Listing")));
+    }
+
+    #[test]
+    fn runtime_context_tracks_model_visible_command_controls() {
+        let base = resolved_tool_manifest(
+            &[
+                "Read",
+                "Edit",
+                "Write",
+                "ExecCommand",
+                "WriteStdin",
+                "ExecControl",
+            ],
+            &["Read", "Write", "Edit", "ExecCommand"],
+        );
+        let active = resolved_tool_manifest(
+            &[
+                "Read",
+                "Edit",
+                "Write",
+                "ExecCommand",
+                "WriteStdin",
+                "ExecControl",
+            ],
+            &[
+                "Read",
+                "Write",
+                "Edit",
+                "ExecCommand",
+                "WriteStdin",
+                "ExecControl",
+            ],
+        );
+
+        assert!(!runtime_context_needs_for_manifest(&base).exec_control);
+        assert!(runtime_context_needs_for_manifest(&active).exec_control);
+    }
 
     #[test]
     fn zero_max_rounds_disables_the_fixed_round_limit() {
@@ -5232,19 +5346,6 @@ mod tests {
             "coordinator".to_string(),
         );
         assert!(!super::execution_engine_owns_cancel_lifecycle(&context));
-    }
-
-    #[test]
-    fn primary_session_tool_policy_restores_goal_tools_but_subagents_stay_scoped() {
-        let mut primary_tools = vec!["Read".to_string()];
-        ensure_primary_session_goal_tools(&mut primary_tools, false);
-        for tool_name in THREAD_GOAL_TOOL_NAMES {
-            assert!(primary_tools.iter().any(|tool| tool == tool_name));
-        }
-
-        let mut subagent_tools = vec!["Read".to_string()];
-        ensure_primary_session_goal_tools(&mut subagent_tools, true);
-        assert_eq!(subagent_tools, vec!["Read".to_string()]);
     }
 
     #[test]
@@ -5838,7 +5939,7 @@ mod tests {
     }
 
     #[test]
-    fn frozen_turn_model_wins_when_the_auto_default_changes() {
+    fn frozen_turn_model_wins_when_the_primary_default_changes() {
         let mut ai_config = AIConfig {
             models: vec![
                 build_model("model-original", "Original", "claude-sonnet-4.5"),
@@ -5851,7 +5952,7 @@ mod tests {
         assert_eq!(
             ExecutionEngine::resolve_model_id_for_turn_selection(
                 &ai_config,
-                "auto",
+                "primary",
                 Some("model-original"),
             )
             .expect("the original resolved model remains available"),
@@ -5860,11 +5961,12 @@ mod tests {
     }
 
     #[test]
-    fn auto_turn_model_must_resolve_to_a_concrete_model_before_persistence() {
+    fn primary_turn_model_must_resolve_to_a_concrete_model_before_persistence() {
         let ai_config = AIConfig::default();
 
-        let error = ExecutionEngine::resolve_model_id_for_turn_selection(&ai_config, "auto", None)
-            .expect_err("a symbolic selector cannot become the frozen Turn model");
+        let error =
+            ExecutionEngine::resolve_model_id_for_turn_selection(&ai_config, "primary", None)
+                .expect_err("a symbolic selector cannot become the frozen Turn model");
 
         assert!(error.to_string().contains("primary model"), "{error}");
     }
@@ -5880,7 +5982,7 @@ mod tests {
 
         let error = ExecutionEngine::resolve_model_id_for_turn_selection(
             &ai_config,
-            "auto",
+            "primary",
             Some("model-original"),
         )
         .expect_err("a disabled frozen model cannot execute another generation");
@@ -6180,7 +6282,7 @@ mod tests {
                 parameters: json!({}),
             },
             ToolDefinition {
-                name: "Bash".to_string(),
+                name: "ExecCommand".to_string(),
                 description: String::new(),
                 parameters: json!({}),
             },
@@ -6188,7 +6290,7 @@ mod tests {
 
         assert_eq!(
             ExecutionEngine::finalize_tool_names(Some(&tools)),
-            vec!["Read".to_string(), "Bash".to_string()]
+            vec!["Read".to_string(), "ExecCommand".to_string()]
         );
     }
 
@@ -6216,11 +6318,11 @@ mod tests {
 
         let restrictions = ExecutionEngine::finalize_runtime_tool_restrictions(
             &context,
-            &["Read".to_string(), "Bash".to_string()],
+            &["Read".to_string(), "ExecCommand".to_string()],
         );
 
         assert!(restrictions.denied_tool_names.contains("Read"));
-        assert!(restrictions.denied_tool_names.contains("Bash"));
+        assert!(restrictions.denied_tool_names.contains("ExecCommand"));
         assert_eq!(
             restrictions.denied_tool_messages.get("Read"),
             Some(&ExecutionEngine::FINALIZE_TOOL_DENIED_MESSAGE.to_string())
@@ -6445,9 +6547,9 @@ mod tests {
     #[test]
     fn context_health_snapshot_scores_repeated_tool_signatures() {
         let signatures = vec![
-            r#"Bash:{"command":"cargo test"}"#.to_string(),
-            r#"Bash:{"command":"cargo test"}"#.to_string(),
-            r#"Bash:{"command":"cargo test"}"#.to_string(),
+            r#"ExecCommand:{"cmd":"cargo test"}"#.to_string(),
+            r#"ExecCommand:{"cmd":"cargo test"}"#.to_string(),
+            r#"ExecCommand:{"cmd":"cargo test"}"#.to_string(),
         ];
 
         let snapshot =
@@ -6463,9 +6565,9 @@ mod tests {
     #[test]
     fn context_health_snapshot_counts_consecutive_failed_commands() {
         let messages = vec![
-            command_result("Bash", true, Some(0)),
-            command_result("Bash", false, Some(1)),
-            command_result("Git", false, Some(128)),
+            command_result("ExecCommand", true, Some(0)),
+            command_result("ExecCommand", false, Some(1)),
+            command_result("ExecCommand", false, Some(128)),
         ];
 
         let snapshot = ContextHealthSnapshot::from_runtime_observations(0.44, 0, 2, &[], &messages);

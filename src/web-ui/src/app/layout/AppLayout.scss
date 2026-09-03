@@ -4,8 +4,7 @@
  * The root stays visually quiet and lets the scene viewport carry elevation.
  * Frequent workspace and panel changes deliberately avoid entrance motion.
  */
-
-@use '../../component-library/styles/tokens.scss' as *;
+@use '@/shared/styles/surface-recipes' as surfaces;
 
 // ==================== CSS reset ====================
 // Note: keep box-sizing !important for global consistency.
@@ -18,7 +17,7 @@ html, body {
   padding: 0;
   height: 100vh;
   width: 100vw;
-  background: var(--bf-appearance-token-color-bg-primary);
+  background: var(--bf-color-surface-canvas);
   overflow: hidden;
 }
 
@@ -40,19 +39,19 @@ html, body {
   overflow: hidden;
 
   // Use theme background
-  background: var(--bf-appearance-token-color-bg-primary);
+  background: var(--bf-color-surface-canvas);
 
-  color: var(--bf-appearance-token-color-text-primary);
-  font-family: $font-family-sans;
+  color: var(--bf-color-content-primary);
+  font-family: var(--bf-font-family-sans);
   position: relative;
 
   // Ensure layout stability
   min-height: 100vh;
   max-height: 100vh;
   overflow: hidden;
-  background: var(--bf-appearance-token-color-bg-primary);
-  color: var(--bf-appearance-token-color-text-primary);
-  font-family: $font-family-sans;
+  background: var(--bf-color-surface-canvas);
+  color: var(--bf-color-content-primary);
+  font-family: var(--bf-font-family-sans);
 
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -70,15 +69,9 @@ html, body {
     box-sizing: border-box;
   }
 
-  *:focus-visible {
-    outline: 2px solid var(--bf-appearance-token-color-accent-500);
-    outline-offset: 2px;
-    border-radius: $size-radius-sm;
-  }
-
   // ==================== Startup mode ====================
   &--startup-mode {
-    background: var(--bf-appearance-token-color-bg-primary);
+    background: var(--bf-color-surface-canvas);
   }
 
   // ==================== Modifier - loading ====================
@@ -90,10 +83,10 @@ html, body {
   // ==================== Modifier - error ====================
   &--error {
     .bitfun-app-header {
-      border-bottom-color: var(--bf-appearance-token-color-error);
+      border-bottom-color: var(--bf-color-status-danger-content);
       background: linear-gradient(135deg,
-        var(--bf-appearance-token-color-error-bg) 0%,
-        var(--bf-appearance-token-element-bg-base) 100%);
+        var(--bf-color-status-danger-surface) 0%,
+        var(--bf-color-action-neutral-surface) 100%);
     }
   }
 
@@ -121,7 +114,7 @@ html, body {
   width: 100%;
   margin-top: 0;
   overflow: hidden;
-  background: var(--bf-appearance-token-color-bg-scene);
+  background: var(--bf-color-surface-scene);
 }
 
 .bitfun-app-layout--toolbar-mode > [data-bf-component='toolbar-mode'][data-bf-part='root'] {
@@ -151,39 +144,36 @@ html, body {
 }
 
 .bitfun-window-mode-hint {
+  @include surfaces.floating;
+
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + #{$size-gap-2});
+  top: calc(env(safe-area-inset-top, 0px) + var(--bf-space-2));
   left: 50%;
-  z-index: $z-notification;
+  z-index: var(--bf-layer-notification);
   display: inline-flex;
   align-items: center;
-  gap: $size-gap-2;
+  gap: var(--bf-space-2);
   max-width: min(560px, calc(100vw - 32px));
   min-height: 34px;
-  padding: $size-gap-1 $size-gap-3;
-  border: 1px solid var(--bf-appearance-token-border-subtle);
-  border-radius: $size-radius-base;
-  background: color-mix(in srgb, var(--bf-appearance-token-color-bg-elevated) 90%, transparent);
-  box-shadow: 0 12px 28px var(--bf-appearance-token-color-overlay-black-30);
-  color: var(--bf-appearance-token-color-text-primary);
+  padding: var(--bf-space-1) var(--bf-space-3);
+  color: var(--bf-color-content-primary);
   pointer-events: none;
   transform: translateX(-50%);
-  backdrop-filter: blur(12px);
 
   &__title {
     flex: 0 0 auto;
     min-width: 0;
-    font-size: var(--bf-appearance-token-font-size-sm);
-    font-weight: $font-weight-semibold;
-    line-height: 1.35;
+    font-size: var(--bf-font-size-sm);
+    font-weight: var(--bf-font-weight-semibold);
+    line-height: var(--bf-line-height-compact);
     white-space: nowrap;
   }
 
   &__detail {
     min-width: 0;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-size: var(--bf-appearance-token-font-size-xs);
-    line-height: 1.35;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-xs);
+    line-height: var(--bf-line-height-compact);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -212,7 +202,7 @@ html, body {
 // ==================== High-contrast mode ====================
 @media (prefers-contrast: high) {
   .bitfun-app-layout {
-    background: var(--bf-appearance-token-color-bg-scene);
+    background: var(--bf-color-surface-scene);
   }
 }
 

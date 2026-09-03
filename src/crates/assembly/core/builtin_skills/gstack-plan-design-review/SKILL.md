@@ -17,12 +17,12 @@ to find missing design decisions and ADD THEM TO THE PLAN before implementation.
 
 The output of this skill is a better plan, not a document about the plan.
 
-## BitFun Team Mode Dispatch
+## BitFun Dispatch
 
-When this skill is invoked by BitFun Team Mode, this skill supplies the design-review lens. Use existing Task sub-agents for independent UI/UX discovery only when they add evidence, then keep design decisions in the main Team session.
+When this skill is invoked by BitFun, this skill supplies the design-review lens. Use existing Task sub-agents for independent UI/UX discovery only when they add evidence, then keep design decisions in the main session.
 
 - Do not assume a Designer sub-agent exists. Choose only from the Task tool's available agents.
-- Prefer a matching custom design/frontend/accessibility sub-agent if available; otherwise use `Explore` for component/style-system discovery and `FileFinder` for design docs, screenshots, routes, styles, and UI tests.
+- Prefer a matching custom design/frontend/accessibility sub-agent if available; otherwise use `Explore` for component/style-system discovery, design docs, screenshots, routes, styles, and UI tests.
 - Use `ComputerUse` only when the review needs browser/desktop inspection and it is available.
 - Keep Task work read-only before Build. Ask for hierarchy gaps, edge cases, accessibility risks, responsive concerns, existing design conventions, and screenshots/paths when relevant.
 - In parallel plan-review batches, return a compact Design brief: `UX blockers`, `visual/system risks`, `required states`, `accessibility notes`, `plan edits`.
@@ -344,7 +344,7 @@ which codex 2>/dev/null && echo "CODEX_AVAILABLE" || echo "CODEX_NOT_AVAILABLE"
 
 **If a suitable BitFun outside-voice or review sub-agent is available**, launch both voices simultaneously:
 
-1. **outside-voice sub-agent design voice** (via Bash):
+1. **outside-voice sub-agent design voice** (via ExecCommand):
 ```bash
 TMPERR_DESIGN=$(mktemp /tmp/codex-design-XXXXXXXX)
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
@@ -431,7 +431,7 @@ Fill in each cell from the outside-voice sub-agent and subagent outputs. CONFIRM
 
 **Log the result:**
 ```bash
-true # BitFun Team Mode has no external review-log helper
+true # BitFun has no external review-log helper
 ```
 Replace STATUS with "clean" or "issues_found", SOURCE with "codex+subagent", "codex-only", "subagent-only", or "unavailable".
 
@@ -698,7 +698,7 @@ the same pattern. The review dashboard depends on this data. Skipping this
 command breaks the review readiness dashboard in /ship.
 
 ```bash
-true # BitFun Team Mode has no external review-log helper
+true # BitFun has no external review-log helper
 ```
 
 Substitute values from the Completion Summary:
@@ -715,7 +715,7 @@ Substitute values from the Completion Summary:
 After completing the review, read the review log and config to display the dashboard.
 
 ```bash
-true # BitFun Team Mode reads review context from the current session
+true # BitFun reads review context from the current session
 ```
 
 Parse the output. Find the most recent entry for each skill (plan-ceo-review, plan-eng-review, review, plan-design-review, design-review-lite, adversarial-review, outside-voice-review, outside-voice-plan-review). Ignore entries with timestamps older than 7 days. For the Eng Review row, show whichever is more recent between `review` (diff-scoped pre-landing review) and `plan-eng-review` (plan-stage architecture review). Append "(DIFF)" or "(PLAN)" to the status to distinguish. For the Adversarial row, show whichever is more recent between `adversarial-review` (new auto-scaled) and `outside-voice-review` (legacy). For Design Review, show whichever is more recent between `plan-design-review` (full visual audit) and `design-review-lite` (code-level check). Append "(FULL)" or "(LITE)" to the status to distinguish. For the Outside Voice row, show the most recent `outside-voice-plan-review` entry — this captures outside voices from both /plan-ceo-review and /plan-eng-review.
@@ -743,7 +743,7 @@ Display:
 ```
 
 **Review tiers:**
-- **Eng Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, performance. Can be disabled globally with \`Team Mode setting skip_eng_review=true\` (the "don't bother me" setting).
+- **Eng Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, performance.
 - **CEO Review (optional):** Use your judgment. Recommend it for big product/business changes, new user-facing features, or scope decisions. Skip for bug fixes, refactors, infra, and cleanup.
 - **Design Review (optional):** Use your judgment. Recommend it for UI/UX changes. Skip for backend-only, infra, or prompt-only changes.
 - **Adversarial Review (automatic):** Always-on for every review. Every diff gets both BitFun adversarial subagent and outside-voice sub-agent adversarial challenge. Large diffs (200+ lines) additionally get outside-voice sub-agent structured review with P1 gate. No configuration needed.
@@ -836,7 +836,7 @@ If you discovered a non-obvious pattern, pitfall, or architectural insight durin
 this session, log it for future sessions:
 
 ```bash
-true # BitFun Team Mode has no external telemetry helper
+true # BitFun has no external telemetry helper
 ```
 
 **Types:** `pattern` (reusable approach), `pitfall` (what NOT to do), `preference`

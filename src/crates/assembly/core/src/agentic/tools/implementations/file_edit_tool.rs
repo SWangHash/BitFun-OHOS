@@ -1,7 +1,7 @@
 use crate::agentic::tools::file_permissions::file_permission_intents_allowing_managed_plan_edits;
 use crate::agentic::tools::file_read_state_runtime::{
-    assert_file_not_unexpectedly_modified, file_mutation_timestamp_ms, get_stored_file_read_state,
-    local_file_modification_time_ms, read_current_file_content, read_state_tracking_enabled,
+    assert_file_not_unexpectedly_modified, file_modification_time_ms, file_mutation_timestamp_ms,
+    get_stored_file_read_state, read_current_file_content, read_state_tracking_enabled,
     update_file_read_state_after_mutation, validate_edit_against_read_state,
     validate_edit_has_prior_read, FILE_UNEXPECTEDLY_MODIFIED_ERROR,
 };
@@ -13,10 +13,8 @@ use crate::agentic::tools::ToolPathOperation;
 use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
-use std::path::Path;
 use tool_runtime::fs::edit_file::{
-    apply_edit_to_content, edit_local_file_with_content, edit_success_message,
-    is_edit_content_guardrail_error, EditLocalFileWithContentRequest,
+    apply_edit_to_content, edit_success_message, is_edit_content_guardrail_error,
 };
 
 pub struct FileEditTool;
@@ -78,7 +76,7 @@ impl FileEditTool {
         validate_edit_against_read_state(context, resolved).await
     }
 
-    fn assert_atomic_edit_freshness(
+    async fn assert_edit_freshness(
         context: &ToolUseContext,
         resolved: &ToolPathResolution,
         content: &str,
@@ -88,13 +86,7 @@ impl FileEditTool {
         }
 
         let read_state = get_stored_file_read_state(context, resolved);
-        let current_mtime_ms = if resolved.uses_remote_workspace_backend() {
-            None
-        } else {
-            Some(local_file_modification_time_ms(Path::new(
-                &resolved.resolved_path,
-            )))
-        };
+        let current_mtime_ms = file_modification_time_ms(context, resolved).await;
 
         if let Some(error) =
             assert_file_not_unexpectedly_modified(read_state.as_ref(), content, current_mtime_ms)
@@ -170,21 +162,6 @@ impl Tool for FileEditTool {
         file_permission_intents_allowing_managed_plan_edits("edit", [file_path], context)
     }
 
-    async fn validate_non_relaxable_input(
-        &self,
-        input: &Value,
-        context: Option<&ToolUseContext>,
-    ) -> Option<ValidationResult> {
-        let file_path = input
-            .get("file_path")
-            .and_then(Value::as_str)
-            .filter(|path| !path.is_empty())?;
-        let force = input.get("force").and_then(Value::as_bool).unwrap_or(false);
-        crate::agentic::execution::edit_constraint_guard::check_edit(
-            context, "Edit", "edit", file_path, force,
-        )
-    }
-
     async fn validate_input(
         &self,
         input: &Value,
@@ -202,6 +179,11 @@ impl Tool for FileEditTool {
             }
         };
 
+        let rewrite_invariant = self.validate_input_rewrite_invariants(input, context).await;
+        if !rewrite_invariant.result {
+            return rewrite_invariant;
+        }
+
         if input.get("old_string").is_none() {
             return ValidationResult {
                 result: false,
@@ -218,16 +200,6 @@ impl Tool for FileEditTool {
                 error_code: Some(400),
                 meta: None,
             };
-        }
-
-        let force = input
-            .get("force")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        if let Some(rejection) = crate::agentic::execution::edit_constraint_guard::check_edit(
-            context, "Edit", "edit", file_path, force,
-        ) {
-            return rejection;
         }
 
         let old_string = input
@@ -320,6 +292,29 @@ impl Tool for FileEditTool {
         ValidationResult::default()
     }
 
+    async fn validate_input_rewrite_invariants(
+        &self,
+        input: &Value,
+        context: Option<&ToolUseContext>,
+    ) -> ValidationResult {
+        let Some(file_path) = input
+            .get("file_path")
+            .and_then(Value::as_str)
+            .filter(|path| !path.is_empty())
+        else {
+            return ValidationResult::default();
+        };
+        let force_requested = input.get("force").and_then(Value::as_bool).unwrap_or(false);
+        crate::agentic::execution::edit_constraint_guard::check_edit(
+            context,
+            "Edit",
+            "edit",
+            file_path,
+            force_requested,
+        )
+        .unwrap_or_default()
+    }
+
     async fn call_impl(
         &self,
         input: &Value,
@@ -355,84 +350,26 @@ impl Tool for FileEditTool {
             )
             .await?;
 
-        // For remote workspace paths, use the abstract FS to read → edit in memory → write back.
-        if resolved.uses_remote_workspace_backend() {
-            let ws_fs = context.ws_fs().ok_or_else(|| {
-                BitFunError::tool("Remote workspace file system is unavailable".to_string())
+        let file_system = context.file_system_for_path(&resolved)?;
+        let content = read_current_file_content(context, &resolved).await?;
+        Self::assert_edit_freshness(context, &resolved, &content).await?;
+        let edit_result = apply_edit_to_content(&content, old_string, new_string, replace_all)
+            .map_err(|error| {
+                if is_edit_content_guardrail_error(&error) {
+                    BitFunError::tool(file_tool_guidance_message(error))
+                } else {
+                    BitFunError::tool(error)
+                }
             })?;
-            let content = ws_fs
-                .read_file_text(&resolved.resolved_path)
-                .await
-                .map_err(|e| BitFunError::tool(format!("Failed to read file: {}", e)))?;
-            Self::assert_atomic_edit_freshness(context, &resolved, &content)?;
-            let edit_result = apply_edit_to_content(&content, old_string, new_string, replace_all)
-                .map_err(|error| {
-                    if is_edit_content_guardrail_error(&error) {
-                        BitFunError::tool(file_tool_guidance_message(error))
-                    } else {
-                        BitFunError::tool(error)
-                    }
-                })?;
-
-            ws_fs
-                .write_file(&resolved.resolved_path, edit_result.new_content.as_bytes())
-                .await
-                .map_err(|e| BitFunError::tool(format!("Failed to write file: {}", e)))?;
-
-            let timestamp_ms = file_mutation_timestamp_ms(context, &resolved).await;
-            update_file_read_state_after_mutation(
-                context,
-                &resolved,
-                &edit_result.new_content,
-                timestamp_ms,
-            );
-            crate::agentic::execution::edit_constraint_guard::record_mutation_applied(
-                context,
-                "Edit",
-                "edit",
-                &resolved.logical_path,
-            );
-
-            let result = ToolResult::Result {
-                data: json!({
-                    "file_path": resolved.logical_path,
-                    "old_string": old_string,
-                    "new_string": new_string,
-                    "success": true,
-                    "match_count": edit_result.match_count,
-                    "start_line": edit_result.edit_result.start_line,
-                    "old_end_line": edit_result.edit_result.old_end_line,
-                    "new_end_line": edit_result.edit_result.new_end_line,
-                }),
-                result_for_assistant: Some(edit_success_message(&resolved.logical_path)),
-                image_attachments: None,
-            };
-            return Ok(vec![result]);
-        }
-
-        // Local: core keeps freshness/checkpoint, tool-runtime owns edit application and write-back.
-        let content = std::fs::read_to_string(&resolved.resolved_path).map_err(|e| {
-            BitFunError::tool(format!(
-                "Failed to read file {}: {}",
-                resolved.logical_path, e
-            ))
-        })?;
-        Self::assert_atomic_edit_freshness(context, &resolved, &content)?;
-        let edit_result = edit_local_file_with_content(EditLocalFileWithContentRequest {
-            logical_path: resolved.logical_path.clone(),
-            resolved_path: Path::new(&resolved.resolved_path).to_path_buf(),
-            current_content: content,
-            old_string: old_string.to_string(),
-            new_string: new_string.to_string(),
-            replace_all,
-        })
-        .map_err(|error| {
-            if is_edit_content_guardrail_error(&error) {
-                BitFunError::tool(file_tool_guidance_message(error))
-            } else {
-                BitFunError::tool(error)
-            }
-        })?;
+        file_system
+            .write_file(&resolved.resolved_path, edit_result.new_content.as_bytes())
+            .await
+            .map_err(|error| {
+                BitFunError::tool(format!(
+                    "Failed to write file {}: {:#}",
+                    resolved.logical_path, error
+                ))
+            })?;
 
         let timestamp_ms = file_mutation_timestamp_ms(context, &resolved).await;
         update_file_read_state_after_mutation(
@@ -538,23 +475,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rewrite_invariant_is_not_hidden_by_a_later_shape_error() {
-        let tool = FileEditTool::new();
-        let input = json!({
-            "file_path": "tests/existing.rs",
-            "old_string": "old",
-            "force": true
-        });
+    async fn non_relaxable_edit_invariant_precedes_repairable_schema_errors() {
+        let validation = FileEditTool::new()
+            .validate_input(
+                &json!({
+                    "file_path": "tests/a.rs",
+                    "old_string": "x",
+                    "force": true
+                }),
+                None,
+            )
+            .await;
 
-        let ordinary = tool.validate_input(&input, None).await;
-        assert!(!ordinary.result);
-        assert_eq!(ordinary.message.as_deref(), Some("new_string is required"));
-        assert!(!ordinary.blocks_input_rewrite());
-
-        let invariant = tool
-            .validate_non_relaxable_input(&input, None)
-            .await
-            .expect("force is a non-relaxable edit-guard rejection");
-        assert!(invariant.blocks_input_rewrite());
+        assert_eq!(validation.error_code, Some(403));
+        assert!(validation.blocks_input_rewrite());
+        assert!(!validation
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("new_string is required"));
     }
 }

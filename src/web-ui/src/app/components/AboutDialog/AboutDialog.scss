@@ -1,110 +1,119 @@
 /**
  * About dialog styles.
- * Uses component library Modal for overlay and shell; only content layout here.
+ * Modal owns the outer surface; this file owns the product, metadata, and CTA layout.
  */
 
-@use '../../../component-library/styles/tokens' as *;
+.bitfun-about-dialog__modal-content {
+  overflow: hidden;
+}
 
-// ==================== App updates (desktop) ====================
-
-.bitfun-about-dialog__update-card {
-  margin-bottom: 16px;
-  padding: 12px 14px;
-  border: 1px dashed var(--bf-appearance-token-border-subtle);
-  border-radius: 8px;
-  background: transparent;
+.bitfun-about-dialog__content {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  height: min(590px, calc(100vh - 112px));
+  min-height: min(540px, calc(100vh - 112px));
+  overflow: hidden;
 }
 
-.bitfun-about-dialog__update-card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.bitfun-about-dialog__update-card-main {
+.bitfun-about-dialog__body {
+  display: grid;
+  grid-template-columns: minmax(330px, 0.38fr) minmax(0, 0.62fr);
   flex: 1;
+  min-height: 0;
+}
+
+.bitfun-about-dialog__brand {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 56px 42px 40px 56px;
+
+  &::after {
+    position: absolute;
+    top: 36px;
+    right: 0;
+    bottom: 36px;
+    width: 1px;
+    background: var(--bf-color-border-subtle);
+    content: '';
+  }
+}
+
+.bitfun-about-dialog__brand-copy {
   min-width: 0;
 }
 
-.bitfun-about-dialog__update-card-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
+.bitfun-about-dialog__title {
+  margin: 0;
+  color: var(--bf-color-content-primary);
+  font-family:var(--bf-font-family-sans);
+  font-size: var(--bf-font-size-8xl);
+  font-weight: var(--bf-font-weight-regular);
+  line-height: var(--bf-line-height-none);
+  letter-spacing: var(--bf-letter-spacing-tighter);
 }
 
-.bitfun-about-dialog__update-card-icon {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+.bitfun-about-dialog__tagline {
+  margin: 16px 0 0;
+  color: var(--bf-color-content-muted);
+  font-size: var(--bf-font-size-base);
+  line-height: var(--bf-line-height-comfortable);
+}
+
+.bitfun-about-dialog__release {
+  width: 100%;
+  margin-top: 34px;
+}
+
+.bitfun-about-dialog__release-summary {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: var(--bf-appearance-token-element-bg-subtle);
-  color: var(--bf-appearance-token-color-accent-400);
+  gap: 10px;
 }
 
-.bitfun-about-dialog__update-card-meta {
-  min-width: 0;
-  flex: 1;
+.bitfun-about-dialog__release-version {
+  color: var(--bf-color-content-primary);
+  font-size: var(--bf-font-size-xl);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--bf-line-height-tight);
 }
 
-.bitfun-about-dialog__update-card-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--bf-appearance-token-color-text-primary);
-  letter-spacing: 0.02em;
+.bitfun-about-dialog__channel-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 2px 10px;
+  border: 1px solid var(--bf-color-border-subtle);
+  border-radius: var(--bf-radius-sm);
+  background: var(--bf-color-surface-subtle);
+  color: var(--bf-color-content-secondary);
+  font-size: var(--bf-font-size-sm);
+  line-height: var(--bf-line-height-none);
+  white-space: nowrap;
 }
 
-.bitfun-about-dialog__update-card-hint {
-  margin: 4px 0 0;
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--bf-appearance-token-color-text-muted);
+.bitfun-about-dialog__update-card {
+  width: 100%;
+  margin-top: 20px;
 }
 
 .bitfun-about-dialog__update-card-actions {
   display: flex;
-  flex: 0 0 auto;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
 }
 
-.bitfun-about-dialog__update-card-feedback {
+.bitfun-about-dialog__update-feedback {
+  width: 100%;
   margin-top: 10px;
-}
-
-.bitfun-about-dialog__update-btn-icon {
-  flex-shrink: 0;
-  opacity: 0.9;
-}
-
-.bitfun-about-dialog__update-status {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--bf-appearance-token-color-text-muted);
-
-  svg {
-    flex-shrink: 0;
-    margin-top: 2px;
-    color: var(--bf-appearance-token-color-success);
-  }
-
-  &--success {
-    color: var(--bf-appearance-token-color-text-secondary);
-  }
 }
 
 .bitfun-about-dialog__update-alert {
   width: 100%;
+  text-align: left;
 }
 
 .bitfun-about-dialog__download-status {
@@ -119,25 +128,26 @@
   height: 6px;
   overflow: hidden;
   border-radius: 999px;
-  background: var(--bf-appearance-token-element-bg-subtle);
+  background: var(--bf-color-surface-subtle);
 }
 
 .bitfun-about-dialog__download-fill {
   height: 100%;
   border-radius: inherit;
-  background: var(--bf-appearance-token-color-accent-500);
-  transition: width 0.2s ease;
-}
+  background: var(--bf-color-accent-default);
+  transition: width var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
-.bitfun-about-dialog__download-fill--indeterminate {
-  width: 38%;
-  animation: about-update-progress-indeterminate 1.1s ease-in-out infinite;
+  &--indeterminate {
+    width: 38%;
+    animation: about-update-progress-indeterminate 1.1s ease-in-out infinite;
+  }
 }
 
 @keyframes about-update-progress-indeterminate {
   0% {
     transform: translateX(-105%);
   }
+
   100% {
     transform: translateX(265%);
   }
@@ -148,550 +158,436 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--bf-appearance-token-color-text-secondary);
+  color: var(--bf-color-content-secondary);
+  font-size: var(--bf-font-size-sm);
+  line-height: var(--bf-line-height-ui);
 }
 
 .bitfun-about-dialog__download-hint {
   margin: 0;
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--bf-appearance-token-color-text-muted);
+  color: var(--bf-color-content-muted);
+  font-size: var(--bf-font-size-sm);
+  line-height: var(--bf-line-height-support);
 }
 
 .bitfun-about-dialog__update-installed {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
 }
 
-// ==================== Content area (inside Modal) ====================
-
-.bitfun-about-dialog__content {
+.bitfun-about-dialog__update-status {
   display: flex;
-  flex-direction: column;
-  min-height: 400px;
-  max-height: min(680px, calc(100vh - 48px));
-  overflow: hidden;
-}
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--bf-color-content-muted);
+  font-size: var(--bf-font-size-sm);
+  line-height: var(--bf-line-height-support);
 
-// ==================== Hero section ====================
-
-.bitfun-about-dialog__hero {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 32px 32px 24px;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.bitfun-about-dialog__title {
-  font-family: var(--bf-appearance-token-font-family-sans);
-  font-size: 28px;
-  font-weight: 800;
-  margin: 0 0 10px 0;
-  letter-spacing: -0.03em;
-  color: var(--bf-appearance-token-color-text-primary);
-  position: relative;
-  z-index: 1;
-  animation: about-title-enter 0.5s ease-out 0.1s both;
-  line-height: 1.2;
-}
-
-@keyframes about-title-enter {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
+  svg {
+    flex-shrink: 0;
+    margin-top: 2px;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+
+  &--success svg {
+    color: var(--bf-color-status-success-content);
   }
 }
 
-.bitfun-about-dialog__version-badge {
-  display: inline-flex;
-  align-items: center;
-  color: var(--bf-appearance-token-color-text-muted);
-  font-size: 11px;
-  font-weight: 400;
-  font-family: 'Consolas', 'Monaco', monospace;
-  letter-spacing: 0.02em;
-  position: relative;
-  z-index: 1;
-  animation: about-badge-enter 0.5s ease-out 0.15s both;
-}
-
-@keyframes about-badge-enter {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-// Decorative divider
-.bitfun-about-dialog__divider {
-  width: 60px;
-  height: 1px;
-  background: var(--bf-appearance-token-border-subtle);
-  margin-top: 18px;
-  position: relative;
-  z-index: 1;
-  animation: about-divider-enter 0.6s ease-out 0.2s both;
-}
-
-@keyframes about-divider-enter {
-  from {
-    opacity: 0;
-    width: 0;
-  }
-  to {
-    opacity: 1;
-    width: 60px;
-  }
-}
-
-// Decorative dots
-.bitfun-about-dialog__dots {
-  display: flex;
-  gap: 6px;
-  margin-top: 12px;
-  position: relative;
-  z-index: 1;
-  animation: about-dots-enter 0.6s ease-out 0.25s both;
+.bitfun-about-dialog__dot-matrix {
+  position: absolute;
+  bottom: 20px;
+  left: 14px;
+  display: grid;
+  grid-template-columns: repeat(13, 2px);
+  grid-auto-rows: 2px;
+  gap: 14px;
+  width: max-content;
 
   span {
-    width: 3px;
-    height: 3px;
-    background: var(--bf-appearance-token-color-text-muted);
+    display: block;
+    width: 2px;
+    height: 2px;
     border-radius: 50%;
-    opacity: 0.45;
+    background: var(--bf-color-content-muted);
   }
 }
 
-@keyframes about-dots-enter {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-// ==================== Scrollable area ====================
-
-.bitfun-about-dialog__scrollable {
-  flex: 1;
+.bitfun-about-dialog__metadata {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 0 24px;
-}
-
-// ==================== Info section ====================
-
-.bitfun-about-dialog__info-section {
-  margin-bottom: 16px;
-  animation: about-section-enter 0.4s ease-out 0.2s both;
-}
-
-@keyframes about-section-enter {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.bitfun-about-dialog__info-card {
-  padding: 10px 14px;
-  background: transparent;
-  border: 1px dashed var(--bf-appearance-token-border-subtle);
-  border-radius: 8px;
+  padding: 22px 40px 22px 38px;
+  overscroll-behavior: contain;
 }
 
 .bitfun-about-dialog__info-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 5px 0;
-  min-height: 28px;
-  
-  &:first-child {
-    padding-top: 0;
-  }
-  
+  gap: 18px;
+  min-width: 0;
+  min-height: 70px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--bf-color-border-subtle);
+
   &:last-child {
-    padding-bottom: 0;
+    border-bottom: 0;
   }
 }
 
 .bitfun-about-dialog__info-label {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: var(--bf-appearance-token-color-text-secondary);
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  color: var(--bf-color-content-secondary);
+  font-size: var(--bf-font-size-base);
+  font-weight: var(--bf-font-weight-medium);
+  line-height: var(--bf-line-height-support);
+
+  svg {
+    flex-shrink: 0;
+    color: var(--bf-color-content-muted);
+  }
 }
 
 .bitfun-about-dialog__info-value {
-  font-size: 12px;
-  color: var(--bf-appearance-token-color-text-primary);
-  font-weight: 400;
+  min-width: 0;
+  color: var(--bf-color-content-primary);
+  font-size: var(--bf-font-size-lg);
+  font-weight: var(--bf-font-weight-regular);
+  line-height: var(--bf-line-height-support);
   text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  
+  overflow-wrap: anywhere;
+
+  &--version {
+    font-size: var(--bf-font-size-xl);
+    font-variant-numeric: tabular-nums;
+  }
+
   &--mono {
-    font-family: 'Consolas', 'Monaco', monospace;
-    font-size: 11px;
-    font-weight: 500;
+    font-family:var(--bf-font-family-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &--branch {
+    font-size: var(--bf-font-size-base);
   }
 }
 
 .bitfun-about-dialog__info-value-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-end;
+  gap: 8px;
   min-width: 0;
 }
 
 .bitfun-about-dialog__copy-btn {
-  flex-shrink: 0;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--bf-appearance-token-color-text-muted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition:
-    transform 150ms cubic-bezier(0.23, 1, 0.32, 1),
-    background-color 150ms ease,
-    border-color 150ms ease,
-    color 150ms ease,
-    box-shadow 150ms ease;
-  display: flex;
+  display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
-  
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--bf-radius-sm);
+  background: transparent;
+  color: var(--bf-color-content-muted);
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+    border-color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+    color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+    transform var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
+
   &:hover {
-    background: var(--bf-appearance-token-element-bg-subtle);
-    border-color: var(--bf-appearance-token-border-subtle);
-    color: var(--bf-appearance-token-color-accent-400);
+    border-color: var(--bf-color-border-subtle);
+    background: var(--bf-color-surface-subtle);
+    color: var(--bf-color-content-primary);
   }
-  
+
   &:active {
-    transform: scale(0.9);
+    transform: scale(0.94);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--bf-color-accent-default);
+    outline-offset: 1px;
   }
 }
 
-// ==================== Dependencies section ====================
-
-.bitfun-about-dialog__dependencies-section {
-  margin-bottom: 16px;
-  animation: about-section-enter 0.4s ease-out 0.25s both;
-}
-
-.bitfun-about-dialog__dependencies-toggle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  background: transparent;
-  border: 1px dashed var(--bf-appearance-token-border-subtle);
-  border-radius: 8px;
-  color: var(--bf-appearance-token-color-text-secondary);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    transform 180ms cubic-bezier(0.23, 1, 0.32, 1),
-    background-color 180ms ease,
-    border-color 180ms ease,
-    color 180ms ease,
-    box-shadow 180ms ease;
-  
-  &:hover {
-    background: var(--bf-appearance-token-element-bg-subtle);
-    border-color: var(--bf-appearance-token-border-base);
-    border-style: solid;
-    color: var(--bf-appearance-token-color-text-primary);
-    
-    svg {
-      color: var(--bf-appearance-token-color-accent-500);
-    }
-  }
-  
-  span {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  svg {
-    color: var(--bf-appearance-token-color-text-muted);
-    transition: color 0.2s ease;
-  }
-}
-
-.bitfun-about-dialog__dependencies-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 18px;
-  padding: 0 6px;
-  background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 10%, transparent);
-  color: var(--bf-appearance-token-color-accent-400);
-  font-size: 10px;
-  font-weight: 600;
-  border-radius: 9px;
-}
-
-.bitfun-about-dialog__dependencies-list {
-  margin-top: 8px;
-  padding: 4px;
-  background: transparent;
-  border: 1px solid var(--bf-appearance-token-border-subtle);
-  border-radius: 8px;
-  animation: about-list-expand 0.25s ease-out;
-}
-
-@keyframes about-list-expand {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.bitfun-about-dialog__dependencies-grid {
+.bitfun-about-dialog__star-callout {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 4px;
+  grid-template-columns: minmax(32px, 48px) 40px minmax(0, max-content) minmax(72px, 1fr) auto;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 132px;
+  padding: 20px 42px 18px;
 }
 
-.bitfun-about-dialog__dependency-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  transition:
-    transform 150ms cubic-bezier(0.23, 1, 0.32, 1),
-    background-color 150ms ease,
-    border-color 150ms ease,
-    color 150ms ease;
+.bitfun-about-dialog__star-icon {
+  color: var(--bf-color-content-primary);
+}
+
+.bitfun-about-dialog__star-copy {
   min-width: 0;
-  
-  &:hover {
-    background: var(--bf-appearance-token-element-bg-subtle);
-    border-color: var(--bf-appearance-token-border-subtle);
-    
-    .bitfun-about-dialog__dependency-icon {
-      background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 10%, transparent);
-      
-      svg {
-        color: var(--bf-appearance-token-color-accent-500);
-      }
-    }
-  }
 }
 
-.bitfun-about-dialog__dependency-icon {
-  flex-shrink: 0;
-  width: 26px;
-  height: 26px;
+.bitfun-about-dialog__star-title {
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: var(--bf-appearance-token-element-bg-subtle);
-  border-radius: 6px;
-  transition:
-    transform 150ms cubic-bezier(0.23, 1, 0.32, 1),
-    background-color 150ms ease,
-    border-color 150ms ease,
-    color 150ms ease;
+  gap: 6px;
+  margin: 0;
+  color: var(--bf-color-content-primary);
+  font-size: var(--bf-font-size-base);
+  font-weight: var(--bf-font-weight-medium);
+  line-height: var(--bf-line-height-ui);
 
   svg {
-    width: 12px;
-    height: 12px;
-    color: var(--bf-appearance-token-color-text-secondary);
-    transition: color 0.2s ease;
+    flex: 0 0 auto;
   }
 }
 
-.bitfun-about-dialog__dependency-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+.bitfun-about-dialog__star-description {
+  margin: 4px 0 0;
+  color: var(--bf-color-content-muted);
+  font-size: var(--bf-font-size-sm);
+  line-height: var(--bf-line-height-support);
 }
 
-.bitfun-about-dialog__dependency-name {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--bf-appearance-token-color-text-primary);
-  font-family: 'Consolas', 'Monaco', monospace;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.bitfun-about-dialog__star-rule {
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: var(--bf-color-border-strong);
 }
 
-.bitfun-about-dialog__dependency-license {
-  font-size: 9px;
-  color: var(--bf-appearance-token-color-text-muted);
+.bitfun-about-dialog__star-button {
+  min-width: 132px;
 }
-
-.bitfun-about-dialog__dependency-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 5px;
-  font-size: 8px;
-  font-weight: 600;
-  border-radius: 3px;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  margin-left: auto;
-  flex-shrink: 0;
-  
-  // Frontend tag - blue
-  &--frontend {
-    background: var(--bf-appearance-token-color-accent-100);
-    color: var(--bf-appearance-token-color-accent-500);
-    border: 1px solid var(--bf-appearance-token-color-accent-200);
-  }
-
-  // Backend tag - green
-  &--backend {
-    background: var(--bf-appearance-token-color-success-bg);
-    color: var(--bf-appearance-token-color-success);
-    border: 1px solid var(--bf-appearance-token-color-success-border);
-  }
-
-  // General tag - purple
-  &--general {
-    background: var(--bf-appearance-token-color-purple-100);
-    color: var(--bf-appearance-token-color-purple-500);
-    border: 1px solid var(--bf-appearance-token-color-purple-200);
-  }
-}
-
-// ==================== Footer ====================
 
 .bitfun-about-dialog__footer {
-  flex-shrink: 0;
-  padding: 16px 24px 20px;
-  text-align: center;
-  position: relative;
-  animation: about-section-enter 0.4s ease-out 0.3s both;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 24px;
-    right: 24px;
-    height: 1px;
-    background: linear-gradient(90deg, transparent 0%, var(--bf-appearance-token-border-subtle) 50%, transparent 100%);
-  }
-}
-
-.bitfun-about-dialog__license {
-  font-size: 11px;
-  color: var(--bf-appearance-token-color-text-secondary);
-  line-height: 1.5;
-  margin: 0 0 6px 0;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 58px;
+  padding: 14px 42px;
+  border-top: 1px solid var(--bf-color-border-subtle);
 }
 
 .bitfun-about-dialog__copyright {
-  font-size: 10px;
-  color: var(--bf-appearance-token-color-text-muted);
-  opacity: 0.6;
   margin: 0;
-  letter-spacing: 0.02em;
+  color: var(--bf-color-content-muted);
+  font-size: var(--bf-font-size-sm);
+  line-height: var(--bf-line-height-base);
 }
 
-// ==================== Responsive layout ====================
+@media (max-width: 900px) {
+  .bitfun-about-dialog__body {
+    grid-template-columns: minmax(300px, 0.37fr) minmax(0, 0.63fr);
+  }
 
-@media (max-width: 580px) {
+  .bitfun-about-dialog__brand {
+    padding-right: 34px;
+    padding-left: 44px;
+  }
+
+  .bitfun-about-dialog__metadata {
+    padding-inline: 32px;
+  }
+
+  .bitfun-about-dialog__star-callout {
+    grid-template-columns: minmax(28px, 44px) 36px minmax(0, max-content) minmax(52px, 1fr) auto;
+    padding-inline: 34px;
+  }
+}
+
+@media (max-width: 760px) {
+  .bitfun-about-dialog__modal-content {
+    overflow-y: auto;
+  }
+
   .bitfun-about-dialog__content {
-    min-height: 360px;
-    max-height: calc(100vh - 32px);
+    height: auto;
+    min-height: 0;
+    overflow: visible;
   }
 
-  .bitfun-about-dialog__hero {
-    padding: 24px 20px 20px;
+  .bitfun-about-dialog__body {
+    display: flex;
+    flex-direction: column;
   }
 
-  .bitfun-about-dialog__title {
-    font-size: 20px;
-  }
+  .bitfun-about-dialog__brand {
+    justify-content: flex-start;
+    padding: 30px 28px;
+    overflow: visible;
+    border-bottom: 1px solid var(--bf-color-border-subtle);
 
-  .bitfun-about-dialog__scrollable {
-    padding: 0 16px;
-  }
-
-  .bitfun-about-dialog__dependencies-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .bitfun-about-dialog__footer {
-    padding: 14px 16px 16px;
-
-    &::before {
-      left: 16px;
-      right: 16px;
+    &::after {
+      display: none;
     }
   }
-}
 
-@media (max-height: 500px) {
-  .bitfun-about-dialog__content {
-    min-height: 320px;
-  }
-
-  .bitfun-about-dialog__hero {
-    padding: 20px 24px 16px;
+  .bitfun-about-dialog__dot-matrix {
+    display: none;
   }
 
   .bitfun-about-dialog__title {
-    font-size: 20px;
-    margin-bottom: 8px;
+    font-size: var(--bf-font-size-7xl);
   }
 
-  .bitfun-about-dialog__divider {
-    margin-top: 12px;
+  .bitfun-about-dialog__release {
+    margin-top: 26px;
   }
 
-  .bitfun-about-dialog__dots {
-    margin-top: 8px;
+  .bitfun-about-dialog__metadata {
+    justify-content: flex-start;
+    padding: 8px 28px 18px;
+    overflow: visible;
+  }
+
+  .bitfun-about-dialog__info-row {
+    min-height: 66px;
+  }
+
+  .bitfun-about-dialog__star-callout {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    min-height: 120px;
+    padding: 18px 28px;
+  }
+
+  .bitfun-about-dialog__star-rule,
+  .bitfun-about-dialog__star-rule--leading {
+    display: none;
+  }
+
+  .bitfun-about-dialog__star-button {
+    min-width: 132px;
   }
 
   .bitfun-about-dialog__footer {
-    padding: 12px 24px 14px;
+    padding-inline: 28px;
+  }
+}
+
+@media (max-width: 520px) {
+  .bitfun-about-dialog__brand {
+    padding: 26px 20px;
+  }
+
+  .bitfun-about-dialog__title {
+    font-size: var(--bf-font-size-6xl);
+  }
+
+  .bitfun-about-dialog__tagline {
+    margin-top: 10px;
+    font-size: var(--bf-font-size-sm);
+  }
+
+  .bitfun-about-dialog__metadata {
+    padding-inline: 20px;
+  }
+
+  .bitfun-about-dialog__info-row {
+    grid-template-columns: 100px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .bitfun-about-dialog__info-label {
+    gap: 8px;
+    font-size: var(--bf-font-size-sm);
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
+
+  .bitfun-about-dialog__info-value {
+    font-size: var(--bf-font-size-base);
+
+    &--version {
+      font-size: var(--bf-font-size-lg);
+    }
+
+    &--branch {
+      font-size: var(--bf-font-size-sm);
+    }
+  }
+
+  .bitfun-about-dialog__star-callout {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 22px 20px;
+  }
+
+  .bitfun-about-dialog__star-icon {
+    display: none;
+  }
+
+  .bitfun-about-dialog__star-button {
+    width: 100%;
+  }
+
+  .bitfun-about-dialog__footer {
+    padding-inline: 20px;
+  }
+}
+
+@media (max-height: 700px) and (min-width: 761px) {
+  .bitfun-about-dialog__content {
+    height: min(540px, calc(100vh - 96px));
+    min-height: min(500px, calc(100vh - 96px));
+  }
+
+  .bitfun-about-dialog__brand {
+    padding-block: 28px;
+  }
+
+  .bitfun-about-dialog__title {
+    font-size: var(--bf-font-size-7xl);
+  }
+
+  .bitfun-about-dialog__release {
+    margin-top: 24px;
+  }
+
+  .bitfun-about-dialog__metadata {
+    padding-block: 14px;
+  }
+
+  .bitfun-about-dialog__info-row {
+    min-height: 62px;
+    padding-block: 9px;
+  }
+
+  .bitfun-about-dialog__star-callout {
+    min-height: 104px;
+    padding-block: 14px;
+  }
+
+  .bitfun-about-dialog__footer {
+    min-height: 52px;
+    padding-block: 10px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .bitfun-about-dialog__download-fill--indeterminate {
     animation: none;
+    transform: none;
+  }
+
+  .bitfun-about-dialog__copy-btn:active {
     transform: none;
   }
 }

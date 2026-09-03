@@ -22,7 +22,7 @@ Prefer a frame near the visual climax for still artwork. Keep source composition
 | `sidebar.webp` | one frame | all registered sidebar owners | portrait crop, moderately darkened |
 | `card-detail.webp` | one frame | compact cards, messages, terminal strip | lower/detail crop, strongly darkened |
 | `card-portrait.webp` | one frame | hero cards, MiniApp/Agent cards | face/character crop, strongly darkened |
-| `dialog.webp` | one frame | modal and dedicated dialog roots | wide crop, strongly darkened |
+| `dialog.webp` | one frame | registered dedicated dialog surfaces | wide crop, strongly darkened |
 | `preview.webp` | one frame | package preview | representative full frame |
 | `asset-preview-sheet.png` | generated report | outside the package | labeled overview of all six static roles |
 
@@ -51,9 +51,8 @@ Re-query every id before use.
 | settings transparency | `config.root`, `config.content`, `config.contentInner`, `archived-sessions-config.root`, `keyboard-shortcuts.root`, `keyboard-shortcuts.content` |
 | translucent settings cards | `config.sectionBody` |
 | Insights transparency | scene `insights.root`, `insights.content` |
-| image-led cards | `mini-app-card.root`, `agent-card.root`, `core-agent-card.root`, `skill-card.root`, `user-message-item.root`, `flow-chat-card.root` |
-| generic dialog | `modal.dialog` |
-| dedicated dialogs | registered dialog/modal root or body Parts returned by the contract |
+| image-led cards | `mini-app-card.root`, `agent-card.root`, `core-agent-card.root`, `skill-card.root`, `user-message-item.content` |
+| dialogs | registered dialog content, root, or body Parts returned by the current contract |
 
 ## Cascade rules
 
@@ -98,21 +97,21 @@ For the default cold cinematic fallback, representative generated values are:
 
 ```json
 {
-  "--bf-appearance-token-color-bg-scene": "rgba(8, 17, 31, 0.08)",
-  "--bf-appearance-token-color-bg-elevated": "rgba(24, 43, 60, 0.72)",
-  "--bf-appearance-token-element-bg-subtle": "rgba(11, 25, 40, 0.52)",
-  "--bf-appearance-token-element-bg-soft": "rgba(16, 34, 53, 0.60)",
-  "--bf-appearance-token-element-bg-base": "rgba(22, 43, 61, 0.66)",
-  "--bf-appearance-token-element-bg-hover": "rgba(23, 54, 74, 0.74)",
-  "--bf-appearance-token-border-subtle": "rgba(82, 229, 245, 0.08)",
-  "--bf-appearance-token-border-base": "rgba(82, 229, 245, 0.12)",
-  "--bf-appearance-token-border-medium": "rgba(82, 229, 245, 0.18)"
+  "--bf-color-surface-scene": "rgba(8, 17, 31, 0.08)",
+  "--bf-color-surface-raised": "rgba(24, 43, 60, 0.72)",
+  "--bf-color-surface-subtle": "rgba(11, 25, 40, 0.52)",
+  "--bf-color-action-quiet-hover": "rgba(16, 34, 53, 0.60)",
+  "--bf-color-action-neutral-surface": "rgba(22, 43, 61, 0.66)",
+  "--bf-color-action-neutral-surface-pressed": "rgba(23, 54, 74, 0.74)",
+  "--bf-color-border-subtle": "rgba(82, 229, 245, 0.08)",
+  "--bf-color-border-default": "rgba(82, 229, 245, 0.12)",
+  "--bf-color-border-strong": "rgba(82, 229, 245, 0.18)"
 }
 ```
 
 Tune the RGB values to the source palette while preserving the alpha hierarchy.
 
-Insights report cards currently derive their local surfaces from `color-bg-elevated` and element/border tokens. They do not expose individual registered Parts. Keep `insights.content` transparent and use these tokens for glass-card behavior.
+Insights report cards currently derive their local surfaces from `--bf-color-surface-raised` and canonical action/border tokens. They do not expose individual registered Parts. Keep `insights.content` transparent and use these tokens for glass-card behavior.
 
 ## Runtime failure diagnosis
 
@@ -122,7 +121,7 @@ Insights report cards currently derive their local surfaces from `color-bg-eleva
 | in-app floating mini-chat has no artwork | host `background` shorthand reset the asset | add override to the panel and transparent inner chat owners |
 | main video is hidden | `workbench.workspace` or another scene owner still paints an opaque background | make the registered workspace and structural scene owners transparent; keep the video only in top-level `backgroundMedia` |
 | main video shows a still image | reduced motion is enabled or video playback/codec validation failed | confirm OS/browser motion preference, inspect import errors, and use WebM VP9 with `preview.webp` as poster |
-| collapsed navigation has an opaque 80x40 block | child `nav-bar.root` paints `color-bg-primary` | force the base root transparent and use a low-alpha collapsed-state glass material |
+| collapsed navigation has an opaque 80x40 block | child `nav-bar.root` paints `--bf-color-surface-canvas` | force the base root transparent and use a low-alpha collapsed-state glass material |
 | collapsed navigation looks like a pasted image tile | `sidebar.webp` was applied to the small `workbench.collapsedNav` owner | remove the image, keep the scene owner transparent, and let the collapsed `nav-bar.root` provide quiet glass contrast |
 | whole Insights history has an image | artwork was applied to `insights.content` | make content transparent; style cards through tokens |
 | archived sessions or shortcuts are opaque | specialized ConfigPage root replaced the generic `config.root` attribute | override the specialized root Part directly |

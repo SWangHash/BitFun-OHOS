@@ -1,6 +1,7 @@
+import { Button } from '@bitfun/ui';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Component, type ReactNode } from 'react';
-import { CompactToolCard, CompactToolCardHeader } from '../tool-cards/CompactToolCard';
+import { AmbientToolCard, AmbientToolCardHeader } from '@bitfun/ui/flow-chat';
 import type { FlowToolItem } from '../types/flow-chat';
 import { createLogger } from '@/shared/utils/logger';
 import {
@@ -67,11 +68,11 @@ function RenderFallback({
 
   return (
     <div data-tool-card-id={toolId} role="alert">
-      <CompactToolCard
+      <AmbientToolCard
         status="error"
         isExpanded={true}
         header={(
-          <CompactToolCardHeader
+          <AmbientToolCardHeader
             icon={<AlertTriangle size={16} />}
             action={displayName}
             content="Tool card render failed"
@@ -86,33 +87,24 @@ function RenderFallback({
           >
             <div
               style={{
-                color: 'var(--bf-appearance-token-color-text-secondary)',
-                fontSize: 12,
-                lineHeight: 1.5,
+                color: 'var(--bf-color-content-secondary)',
+                fontSize: 'var(--bf-type-flow-support-font-size)',
+                lineHeight: 'var(--bf-type-flow-support-line-height)',
               }}
             >
               {getFirstLine(error)}
             </div>
 
             <div>
-              <button
+              <Button
                 onClick={onRetry}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 10px',
-                  borderRadius: 8,
-                  border: '1px solid var(--bf-appearance-token-border-base)',
-                  background: 'var(--bf-appearance-token-element-bg-soft)',
-                  color: 'var(--bf-appearance-token-color-text-primary)',
-                  cursor: 'pointer',
-                }}
                 type="button"
+                variant="outline"
+                size="sm"
+                leadingIcon={<RefreshCw size={12} />}
               >
-                <RefreshCw size={12} />
                 Retry render
-              </button>
+              </Button>
             </div>
 
             <details>
@@ -122,7 +114,9 @@ function RenderFallback({
                   marginTop: 8,
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
-                  fontSize: 12,
+                  fontFamily: 'var(--bf-type-flow-code-font-family)',
+                  fontSize: 'var(--bf-type-flow-code-font-size)',
+                  lineHeight: 'var(--bf-type-flow-code-line-height)',
                   maxHeight: 220,
                   overflow: 'auto',
                 }}
@@ -139,7 +133,9 @@ function RenderFallback({
                     marginTop: 8,
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',
-                    fontSize: 12,
+                    fontFamily: 'var(--bf-type-flow-code-font-family)',
+                    fontSize: 'var(--bf-type-flow-code-font-size)',
+                    lineHeight: 'var(--bf-type-flow-code-line-height)',
                     maxHeight: 260,
                     overflow: 'auto',
                   }}

@@ -1,69 +1,7 @@
-import { ChatMessage, ChatMessageItemResponse, ImageAttachment, RemoteToolStatusResponse } from '../model/RemoteModels';
+import { ChatMessage, ChatMessageItemResponse } from '../model/RemoteModels';
+import { ChatTimelineItem, ChatTimelineItemType } from '../model/ChatTimelineModels';
 
-export type ChatTimelineItemType =
-  | 'user_message'
-  | 'assistant_message'
-  | 'optimistic_user_message'
-  | 'assistant_live_turn'
-  | 'empty_state';
-
-export interface ChatTimelineItem {
-  id: string;
-  type: ChatTimelineItemType;
-  message?: ChatMessage;
-  isStreaming: boolean;
-  isFinalizing: boolean;
-  showRetryAction?: boolean;
-}
-
-/** Shared render invalidation for both remote polling and general-chat streaming. */
-export class ChatTimelineRevisionTracker {
-  private signature: string = '';
-  private revision: number = 0;
-
-  /**
-   * Identity of a single rendered item: its own id, plus everything about it
-   * the bubble draws.
-   *
-   * Doubles as the timeline's `ForEach` key, which is the point of it being
-   * per-item. Keying on the revision instead made every bubble in the
-   * transcript a new node whenever any one of them changed — during a run that
-   * is a full rebuild per poll tick, to show one message growing.
-   */
-  static itemSignature(item: ChatTimelineItem): string {
-    const message = item.message;
-    return `${item.type}:${item.id}:${item.isStreaming}:${item.isFinalizing}:` +
-      `${message ? message.status : ''}:${message ? message.renderVersion || 0 : 0}:` +
-      `${message ? ChatTimelineRevisionTracker.textSignature(message.text) : ''}:` +
-      `${message && message.thinking ? ChatTimelineRevisionTracker.textSignature(message.thinking) : ''}:` +
-      `${message && message.items ? message.items.length : 0}:${message && message.tools ? message.tools.length : 0}`;
-  }
-
-  update(items: ChatTimelineItem[]): number {
-    const nextSignature = items
-      .map((item: ChatTimelineItem) => ChatTimelineRevisionTracker.itemSignature(item))
-      .join('|');
-    if (nextSignature !== this.signature) {
-      this.signature = nextSignature;
-      this.revision += 1;
-    }
-    return this.revision;
-  }
-
-  private static textSignature(value: string): string {
-    let hash = 0;
-    for (let index = 0; index < value.length; index++) {
-      hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
-    }
-    return `${value.length}:${Math.abs(hash).toString(36)}`;
-  }
-
-  reset(): number {
-    this.signature = '';
-    this.revision += 1;
-    return this.revision;
-  }
-}
+export { ChatTimelineItem, ChatTimelineItemType, ChatTimelineRevisionTracker } from '../model/ChatTimelineModels';
 
 export class ChatTimelineProjector {
   /**
@@ -79,9 +17,16 @@ export class ChatTimelineProjector {
     hasMoreMessages: boolean,
     activeTurnAnchorId: string = ''
   ): ChatTimelineItem[] {
-    const timelineMessages = ChatTimelineProjector.realMessages(messages);
+    const persistedMessages = ChatTimelineProjector.realMessages(messages);
+    const shouldRenderActiveTurn = ChatTimelineProjector.shouldRenderActiveTurn(persistedMessages, activeTurn);
+    // A running turn can be delivered both as an active snapshot and as a
+    // persisted assistant stub containing only thinking/tools. They represent
+    // one visual row and share one stable turn key, so retaining both would
+    // violate the uniqueness contract required by Repeat.virtualScroll().
+    const timelineMessages = shouldRenderActiveTurn ? persistedMessages.filter((message: ChatMessage) => {
+      return !ChatTimelineProjector.isMatchingAssistantTurn(activeTurn, message);
+    }) : persistedMessages;
     const pendingItems = ChatTimelineProjector.pendingMessagesNotPersisted(pendingMessages, timelineMessages);
-    const shouldRenderActiveTurn = ChatTimelineProjector.shouldRenderActiveTurn(timelineMessages, activeTurn);
     const anchorIndex = ChatTimelineProjector.anchorIndex(pendingItems, activeTurnAnchorId);
     const items: ChatTimelineItem[] = timelineMessages.map((message: ChatMessage) => {
       const item: ChatTimelineItem = {
@@ -147,7 +92,7 @@ export class ChatTimelineProjector {
   private static activeTurnItem(activeTurn: ChatMessage): ChatTimelineItem {
     const turnKey = ChatTimelineProjector.activeTurnKey(activeTurn);
     const item: ChatTimelineItem = {
-      id: `active-${turnKey}-${ChatTimelineProjector.activeTurnVersionKey(activeTurn)}`,
+      id: `active-${turnKey}`,
       type: 'assistant_live_turn',
       message: activeTurn,
       isStreaming: (activeTurn.status || '').toLowerCase() === 'active',
@@ -163,15 +108,46 @@ export class ChatTimelineProjector {
       if (!message) {
         continue;
       }
-      items[index].showRetryAction = (message.status || '').toLowerCase() === 'failed';
+      const failed = (message.status || '').toLowerCase() === 'failed';
+      items[index].showRetryAction = failed;
+      if (failed && message.role === 'assistant') {
+        const retryText = ChatTimelineProjector.nearestUserText(items, index);
+        if (retryText.length > 0) {
+          items[index].message = {
+            id: message.id,
+            role: message.role,
+            text: message.text,
+            status: message.status,
+            renderVersion: message.renderVersion,
+            turnId: message.turnId,
+            detail: retryText,
+            error: message.error,
+            timestamp: message.timestamp,
+            thinking: message.thinking,
+            tools: message.tools,
+            items: message.items,
+            images: message.images
+          };
+        }
+      }
       return;
     }
+  }
+
+  private static nearestUserText(items: ChatTimelineItem[], beforeIndex: number): string {
+    for (let index = beforeIndex - 1; index >= 0; index--) {
+      const message = items[index].message;
+      if (message && message.role === 'user' && (message.text || '').trim().length > 0) {
+        return message.text;
+      }
+    }
+    return '';
   }
 
   static pendingMessagesNotPersisted(pendingMessages: ChatMessage[], messages: ChatMessage[]): ChatMessage[] {
     return pendingMessages.filter((pending: ChatMessage) => {
       return !messages.some((message: ChatMessage) => {
-        return ChatTimelineProjector.isPersistedUserDuplicate(pending, message);
+        return pending.role === 'user' && message.role === 'user' && pending.id === message.id;
       });
     });
   }
@@ -200,10 +176,14 @@ export class ChatTimelineProjector {
   }
 
   private static isPersistedAssistantDuplicate(activeTurn: ChatMessage, message: ChatMessage): boolean {
-    if (message.role !== 'assistant') {
+    if (!ChatTimelineProjector.hasDisplayableAssistantFinal(message)) {
       return false;
     }
-    if (!ChatTimelineProjector.hasDisplayableAssistantFinal(message)) {
+    return ChatTimelineProjector.isMatchingAssistantTurn(activeTurn, message);
+  }
+
+  private static isMatchingAssistantTurn(activeTurn: ChatMessage, message: ChatMessage): boolean {
+    if (message.role !== 'assistant') {
       return false;
     }
     if (message.id === activeTurn.id) {
@@ -212,9 +192,8 @@ export class ChatTimelineProjector {
     if (activeTurn.turnId && activeTurn.turnId.length > 0 && message.id === `${activeTurn.turnId}_assistant`) {
       return true;
     }
-    const activeText = (activeTurn.text || '').trim();
-    const messageText = (message.text || '').trim();
-    return activeText.length > 0 && activeText === messageText;
+    return activeTurn.turnId !== undefined && activeTurn.turnId.length > 0 &&
+      message.turnId !== undefined && message.turnId === activeTurn.turnId;
   }
 
   private static hasDisplayableAssistantFinal(message: ChatMessage): boolean {
@@ -248,75 +227,4 @@ export class ChatTimelineProjector {
     return activeTurn.id;
   }
 
-  private static activeTurnVersionKey(activeTurn: ChatMessage): string {
-    const signature = [
-      activeTurn.status || '',
-      `${activeTurn.renderVersion || 0}`,
-      `${(activeTurn.text || '').length}:${ChatTimelineProjector.stableTextHash(activeTurn.text || '')}`,
-      `${(activeTurn.thinking || '').length}:${ChatTimelineProjector.stableTextHash(activeTurn.thinking || '')}`,
-      ChatTimelineProjector.itemSignature(activeTurn.items || []),
-      ChatTimelineProjector.toolSignature(activeTurn.tools || [])
-    ].join('|');
-    return ChatTimelineProjector.stableTextHash(signature);
-  }
-
-  private static itemSignature(items: ChatMessageItemResponse[]): string {
-    const parts: string[] = [];
-    items.forEach((item: ChatMessageItemResponse, index: number) => {
-      parts.push([
-        `${index}`,
-        item.type || '',
-        item.is_subagent === true ? '1' : '0',
-        `${(item.content || '').length}:${ChatTimelineProjector.stableTextHash(item.content || '')}`,
-        item.tool ? ChatTimelineProjector.toolSignature([item.tool]) : '',
-        item.subItems ? ChatTimelineProjector.itemSignature(item.subItems) : ''
-      ].join(':'));
-    });
-    return parts.join(',');
-  }
-
-  private static toolSignature(tools: RemoteToolStatusResponse[]): string {
-    const parts: string[] = [];
-    tools.forEach((tool: RemoteToolStatusResponse, index: number) => {
-      const preview = `${tool.input_preview || ''}|${tool.result_preview || ''}|${tool.error_preview || ''}`;
-      parts.push([
-        `${index}`,
-        tool.id || '',
-        tool.name || '',
-        tool.status || '',
-        `${tool.duration_ms || 0}`,
-        `${preview.length}:${ChatTimelineProjector.stableTextHash(preview)}`
-      ].join(':'));
-    });
-    return parts.join(',');
-  }
-
-  private static isPersistedUserDuplicate(pending: ChatMessage, message: ChatMessage): boolean {
-    if (pending.role !== 'user' || message.role !== 'user') {
-      return false;
-    }
-    if (pending.id === message.id) {
-      return true;
-    }
-    const pendingText = (pending.text || '').trim();
-    const messageText = (message.text || '').trim();
-    if (pendingText.length === 0 || pendingText !== messageText) {
-      return false;
-    }
-    return ChatTimelineProjector.imageSignature(pending.images || []) === ChatTimelineProjector.imageSignature(message.images || []);
-  }
-
-  private static imageSignature(images: ImageAttachment[]): string {
-    return images.map((image: ImageAttachment) => {
-      return `${image.name || ''}:${image.data_url || ''}`;
-    }).sort().join('|');
-  }
-
-  private static stableTextHash(text: string): string {
-    let hash = 0;
-    for (let index = 0; index < text.length; index++) {
-      hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
-    }
-    return Math.abs(hash).toString(36);
-  }
 }

@@ -54,6 +54,16 @@ pub enum RemoteWorkspacePolicy {
 /// Declared remote-workspace policy for every registered Tauri command.
 pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = &[
     (
+        "frontend_update_candidate_ready",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    (
+        "get_frontend_update_status",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    ("confirm_frontend_update", RemoteWorkspacePolicy::LocalOnly),
+    ("rollback_frontend_update", RemoteWorkspacePolicy::LocalOnly),
+    (
         "acknowledge_feedback",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
@@ -255,6 +265,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::LocalOnly,
     ),
     (
+        "browser_control_disconnect",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    (
         "browser_control_get_status",
         RemoteWorkspacePolicy::LocalOnly,
     ),
@@ -274,6 +288,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ("browser_webview_reload", RemoteWorkspacePolicy::LocalOnly),
     (
         "browser_webview_set_bounds",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    (
+        "browser_webview_set_agent_target_state",
         RemoteWorkspacePolicy::LocalOnly,
     ),
     ("btw_ask_stream", RemoteWorkspacePolicy::RemoteRouted),
@@ -331,11 +349,6 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ),
     (
         "cleanup_invalid_workspaces",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    ("cleanup_storage", RemoteWorkspacePolicy::LegacyUnaudited),
-    (
-        "cleanup_storage_with_policy",
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     (
@@ -539,7 +552,7 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         "fetch_mcp_app_resource",
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
-    ("fork_session", RemoteWorkspacePolicy::LegacyUnaudited),
+    ("fork_session", RemoteWorkspacePolicy::RemoteRouted),
     (
         "generate_commit_message",
         RemoteWorkspacePolicy::LegacyUnaudited,
@@ -740,18 +753,11 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         "get_primary_assistant_workspace",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
-    ("get_operation_diff", RemoteWorkspacePolicy::LegacyUnaudited),
-    (
-        "get_operation_summary",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
+    ("get_operation_diff", RemoteWorkspacePolicy::RemoteRouted),
+    ("get_operation_summary", RemoteWorkspacePolicy::RemoteRouted),
     (
         "get_pending_announcements",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "get_project_storage_paths",
-        RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     (
         "get_readonly_tools_info",
@@ -811,11 +817,6 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     ("get_statistics", RemoteWorkspacePolicy::LegacyUnaudited),
-    ("get_storage_paths", RemoteWorkspacePolicy::LegacyUnaudited),
-    (
-        "get_storage_statistics",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
     (
         "get_subagent_detail",
         RemoteWorkspacePolicy::LegacyUnaudited,
@@ -923,14 +924,6 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ),
     (
         "initialize_mcp_servers_non_destructive",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "initialize_project_storage",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "initialize_snapshot",
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     (
@@ -1051,133 +1044,6 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     (
         "logout_subscription_account",
         RemoteWorkspacePolicy::LocalOnly,
-    ),
-    (
-        "lsp_change_document",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    ("lsp_close_document", RemoteWorkspacePolicy::LegacyUnaudited),
-    (
-        "lsp_close_workspace",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    ("lsp_detect_project", RemoteWorkspacePolicy::LegacyUnaudited),
-    ("lsp_did_change", RemoteWorkspacePolicy::LegacyUnaudited),
-    ("lsp_did_close", RemoteWorkspacePolicy::LegacyUnaudited),
-    ("lsp_did_open", RemoteWorkspacePolicy::LegacyUnaudited),
-    ("lsp_did_save", RemoteWorkspacePolicy::LegacyUnaudited),
-    (
-        "lsp_find_references",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_find_references_workspace",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_format_document",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_format_document_workspace",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_get_all_server_states",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_get_code_actions_workspace",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_get_completions",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_get_completions_workspace",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_get_document_highlight_workspace",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_get_document_symbols_workspace",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    ("lsp_get_hover", RemoteWorkspacePolicy::LegacyUnaudited),
-    (
-        "lsp_get_hover_workspace",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_get_inlay_hints_workspace",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    ("lsp_get_plugin", RemoteWorkspacePolicy::LegacyUnaudited),
-    (
-        "lsp_get_semantic_tokens_range_workspace",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_get_semantic_tokens_workspace",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_get_server_capabilities",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_get_server_state",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_get_supported_extensions",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_goto_definition",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_goto_definition_workspace",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    ("lsp_initialize", RemoteWorkspacePolicy::LegacyUnaudited),
-    ("lsp_install_plugin", RemoteWorkspacePolicy::LegacyUnaudited),
-    ("lsp_list_plugins", RemoteWorkspacePolicy::LegacyUnaudited),
-    (
-        "lsp_list_workspaces",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    ("lsp_open_document", RemoteWorkspacePolicy::LegacyUnaudited),
-    ("lsp_open_workspace", RemoteWorkspacePolicy::LegacyUnaudited),
-    (
-        "lsp_prestart_server",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_rename_workspace",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    ("lsp_save_document", RemoteWorkspacePolicy::LegacyUnaudited),
-    (
-        "lsp_start_server_for_file",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_stop_all_servers",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    ("lsp_stop_server", RemoteWorkspacePolicy::LegacyUnaudited),
-    (
-        "lsp_stop_server_workspace",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "lsp_uninstall_plugin",
-        RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     (
         "mark_announcement_seen",
@@ -1442,7 +1308,6 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::RemoteUnsupported,
     ),
     ("read_mcp_resource", RemoteWorkspacePolicy::LegacyUnaudited),
-    ("record_file_change", RemoteWorkspacePolicy::LegacyUnaudited),
     (
         "refresh_model_client",
         RemoteWorkspacePolicy::LegacyUnaudited,
@@ -1484,10 +1349,6 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ("reload_config", RemoteWorkspacePolicy::LegacyUnaudited),
     (
         "reload_custom_agents",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "reload_global_config",
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     (
@@ -1621,6 +1482,18 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ),
     ("remote_write_file", RemoteWorkspacePolicy::RemoteRouted),
     (
+        "mark_bitfun_control_surface_ready",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
+        "mark_bitfun_control_surface_unready",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
+        "product_control_invoke",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
         "remove_recent_workspace",
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
@@ -1632,6 +1505,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     (
         "replace_mode_skill_selection",
         RemoteWorkspacePolicy::LegacyUnaudited,
+    ),
+    (
+        "report_bitfun_control_result",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
         "report_canvas_runtime_error",
@@ -1754,6 +1631,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     ("search_build_index", RemoteWorkspacePolicy::RemoteRouted),
+    (
+        "search_session_content",
+        RemoteWorkspacePolicy::RemoteRouted,
+    ),
     (
         "search_file_contents",
         RemoteWorkspacePolicy::LegacyUnaudited,
@@ -1894,6 +1775,14 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::LocalOnly,
     ),
     (
+        "speech_append_realtime_audio",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    (
+        "speech_cancel_realtime_response",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    (
         "speech_cancel_input_session",
         RemoteWorkspacePolicy::LocalOnly,
     ),
@@ -1909,7 +1798,35 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ),
     ("speech_list_models", RemoteWorkspacePolicy::LocalOnly),
     (
+        "speech_get_realtime_config",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    (
+        "speech_save_realtime_config",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    (
+        "speech_close_realtime_session",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    (
+        "speech_commit_realtime_audio",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    (
+        "speech_send_realtime_tool_result",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    (
+        "speech_speak_realtime_text",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    (
         "speech_start_input_session",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    (
+        "speech_start_realtime_session",
         RemoteWorkspacePolicy::LocalOnly,
     ),
     ("speech_verify_model", RemoteWorkspacePolicy::LocalOnly),
@@ -1942,11 +1859,27 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
+        "ssh_list_port_forwards",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
+        "ssh_list_remote_listening_ports",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
         "ssh_list_saved_connections",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
         "ssh_save_connection",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
+        "ssh_start_port_forward",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
+        "ssh_stop_port_forward",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
@@ -1992,14 +1925,6 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ),
     (
         "submit_user_answers",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "subscribe_config_updates",
-        RemoteWorkspacePolicy::LegacyUnaudited,
-    ),
-    (
-        "sync_config_to_global",
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     ("terminal_ack", RemoteWorkspacePolicy::RemoteRouted),
@@ -2210,6 +2135,31 @@ mod tests {
     }
 
     #[test]
+    fn frontend_update_decisions_are_local_desktop_only() {
+        for command in [
+            "frontend_update_candidate_ready",
+            "get_frontend_update_status",
+            "confirm_frontend_update",
+            "rollback_frontend_update",
+        ] {
+            assert_eq!(
+                remote_workspace_policy(command),
+                Some(RemoteWorkspacePolicy::LocalOnly),
+                "{command} must stay with the immutable controller-side confirmation window"
+            );
+        }
+    }
+
+    #[test]
+    fn token_usage_statistics_are_scoped_to_the_current_bitfun_host() {
+        assert_eq!(
+            remote_workspace_policy("get_token_usage_statistics"),
+            Some(RemoteWorkspacePolicy::WorkspaceAgnostic),
+            "token usage is recorded by the current BitFun runtime and does not follow the workspace filesystem to an SSH host"
+        );
+    }
+
+    #[test]
     fn external_mcp_import_commands_explicitly_reject_remote_workspaces() {
         for command in [
             "plan_external_mcp_import_command",
@@ -2335,8 +2285,6 @@ mod tests {
         "check_git_isolation",
         "check_path_exists",
         "cleanup_invalid_workspaces",
-        "cleanup_storage",
-        "cleanup_storage_with_policy",
         "clear_mcp_remote_auth",
         "clear_session_thread_goal",
         "close_workspace",
@@ -2377,7 +2325,6 @@ mod tests {
         "export_local_file_to_path",
         "export_session_transcript",
         "fetch_mcp_app_resource",
-        "fork_session",
         "generate_commit_message",
         "generate_session_title",
         "get_acp_clients",
@@ -2416,9 +2363,6 @@ mod tests {
         "get_mode_skill_configs",
         "get_model_configs",
         "get_opened_workspaces",
-        "get_operation_diff",
-        "get_operation_summary",
-        "get_project_storage_paths",
         "get_readonly_tools_info",
         "get_recent_workspaces",
         "get_runtime_capabilities",
@@ -2434,8 +2378,6 @@ mod tests {
         "get_snapshot_sessions",
         "get_snapshot_system_stats",
         "get_statistics",
-        "get_storage_paths",
-        "get_storage_statistics",
         "get_subagent_detail",
         "get_tool_info",
         "get_turn_files",
@@ -2448,8 +2390,6 @@ mod tests {
         "initialize_ai",
         "initialize_mcp_servers",
         "initialize_mcp_servers_non_destructive",
-        "initialize_project_storage",
-        "initialize_snapshot",
         "initialize_workspace_startup_state",
         "install_acp_client_cli",
         "list_agent_companion_pets",
@@ -2473,49 +2413,6 @@ mod tests {
         "load_mcp_json_config",
         "load_persisted_session_metadata",
         "load_session_turns",
-        "lsp_change_document",
-        "lsp_close_document",
-        "lsp_close_workspace",
-        "lsp_detect_project",
-        "lsp_did_change",
-        "lsp_did_close",
-        "lsp_did_open",
-        "lsp_did_save",
-        "lsp_find_references",
-        "lsp_find_references_workspace",
-        "lsp_format_document",
-        "lsp_format_document_workspace",
-        "lsp_get_all_server_states",
-        "lsp_get_code_actions_workspace",
-        "lsp_get_completions",
-        "lsp_get_completions_workspace",
-        "lsp_get_document_highlight_workspace",
-        "lsp_get_document_symbols_workspace",
-        "lsp_get_hover",
-        "lsp_get_hover_workspace",
-        "lsp_get_inlay_hints_workspace",
-        "lsp_get_plugin",
-        "lsp_get_semantic_tokens_range_workspace",
-        "lsp_get_semantic_tokens_workspace",
-        "lsp_get_server_capabilities",
-        "lsp_get_server_state",
-        "lsp_get_supported_extensions",
-        "lsp_goto_definition",
-        "lsp_goto_definition_workspace",
-        "lsp_initialize",
-        "lsp_install_plugin",
-        "lsp_list_plugins",
-        "lsp_list_workspaces",
-        "lsp_open_document",
-        "lsp_open_workspace",
-        "lsp_prestart_server",
-        "lsp_rename_workspace",
-        "lsp_save_document",
-        "lsp_start_server_for_file",
-        "lsp_stop_all_servers",
-        "lsp_stop_server",
-        "lsp_stop_server_workspace",
-        "lsp_uninstall_plugin",
         "miniapp_agent_cancel",
         "miniapp_agent_cancel_stale_runs",
         "miniapp_agent_run",
@@ -2557,13 +2454,11 @@ mod tests {
         "read_background_command_output",
         "read_file_content",
         "read_mcp_resource",
-        "record_file_change",
         "refresh_model_client",
         "reject_file",
         "reject_operation",
         "reload_config",
         "reload_custom_agents",
-        "reload_global_config",
         "reload_subagents",
         "remove_recent_workspace",
         "rename_file",
@@ -2620,8 +2515,6 @@ mod tests {
         "submit_acp_permission_response",
         "submit_mcp_interaction_response",
         "submit_user_answers",
-        "subscribe_config_updates",
-        "sync_config_to_global",
         "terminal_get",
         "terminal_get_shells",
         "terminal_list",

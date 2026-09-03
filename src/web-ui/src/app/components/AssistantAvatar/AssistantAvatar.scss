@@ -1,0 +1,102 @@
+.assistant-avatar {
+  --assistant-avatar-size: 32px;
+
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 var(--assistant-avatar-size);
+  width: var(--assistant-avatar-size);
+  height: var(--assistant-avatar-size);
+  place-items: center;
+  overflow: visible;
+  border: 1px solid color-mix(in srgb, var(--bf-color-content-on-light) 12%, transparent);
+  border-radius: 50%;
+  background: var(--bf-color-content-on-dark);
+  color: var(--bf-color-content-secondary);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--bf-color-content-on-light) 8%, transparent);
+  isolation: isolate;
+
+  &__art {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    place-items: center;
+    overflow: hidden;
+    border-radius: inherit;
+  }
+
+  &__image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  &__emoji {
+    display: block;
+    /* typography-audit: allow -- emoji is graphic content scaled from the avatar box */
+    font-size: calc(var(--assistant-avatar-size) * 0.5);
+    line-height: var(--bf-line-height-none);
+    transform: translateY(-1%);
+  }
+
+  &.is-emoji {
+    background: var(--bf-color-action-neutral-surface-hover);
+    color: var(--bf-color-content-secondary);
+  }
+
+  &.is-image {
+    border-color: color-mix(in srgb, var(--bf-color-content-on-light) 12%, transparent);
+  }
+
+  &.is-active {
+    border-color: color-mix(in srgb, var(--bf-color-accent-default) 72%, var(--bf-color-field-border-hover));
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--bf-color-accent-default) 15%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--bf-color-surface-canvas) 36%, transparent);
+  }
+
+  &.is-running::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    z-index: 2;
+    border: 2px solid color-mix(in srgb, var(--bf-color-accent-default) 20%, transparent);
+    border-top-color: var(--bf-color-accent-default);
+    border-radius: 50%;
+    animation: assistant-avatar-running 900ms linear infinite;
+  }
+
+  &__status-dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    z-index: 3;
+    width: max(6px, calc(var(--assistant-avatar-size) * 0.24));
+    height: max(6px, calc(var(--assistant-avatar-size) * 0.24));
+    border: 1.5px solid var(--bf-color-surface-canvas);
+    border-radius: 50%;
+    background: var(--bf-color-accent-default);
+  }
+
+  &.is-attention &__status-dot {
+    background: var(--bf-color-status-warning-content);
+  }
+
+  &.is-error &__status-dot {
+    background: var(--bf-color-status-danger-content);
+  }
+}
+
+@keyframes assistant-avatar-running {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-avatar.is-running::after {
+    animation: none;
+    border-color: var(--bf-color-accent-default);
+  }
+}

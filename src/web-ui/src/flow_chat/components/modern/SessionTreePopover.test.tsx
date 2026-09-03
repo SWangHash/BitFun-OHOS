@@ -4,6 +4,9 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionTreePopover } from './SessionTreePopover';
+import {
+  resolveSubagentAvatarPresentation,
+} from '../../subagent-identity';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -25,11 +28,12 @@ vi.mock('../../store/FlowChatStore', () => ({
   },
 }));
 
-vi.mock('@/component-library', async () => {
+vi.mock('@bitfun/ui', async importOriginal => {
   const ReactModule = await import('react');
 
   return {
-    DotMatrixLoader: () => <span data-testid="dot-matrix-loader" />,
+    ...await importOriginal<typeof import('@bitfun/ui')>(),
+    Spinner: () => <span data-testid="dot-matrix-loader" />,
     IconButton: ReactModule.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & {
       tooltip?: string;
     }>(({
@@ -39,6 +43,7 @@ vi.mock('@/component-library', async () => {
     }, ref) => (
       <button ref={ref} type="button" title={tooltip} {...props}>{children}</button>
     )),
+    Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   };
 });
 
@@ -113,10 +118,10 @@ describe('SessionTreePopover', () => {
     expect(actionButton).not.toBeNull();
     const childNode = Array.from(panel?.querySelectorAll('[role="treeitem"]') ?? [])
       .find(node => node.textContent?.includes('Running child'));
-    const status = childNode?.querySelector('.session-tree-popover__status');
+    const status = childNode?.querySelector('.subagent-avatar__status');
     expect(childNode).not.toBeUndefined();
     expect(status).not.toBeNull();
-    expect(Boolean(actionButton?.compareDocumentPosition(status!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(childNode?.contains(status!)).toBe(true);
 
     await act(async () => {
       actionButton?.click();
@@ -136,6 +141,53 @@ describe('SessionTreePopover', () => {
       sessionId: 'child',
       isRoot: false,
     }));
+  });
+
+  it('maps sibling avatars from session IDs and formats Runtime agent IDs as names', async () => {
+    mocks.sessions.set('child-2', createSession('child-2', 'subagent', 'root'));
+    mocks.sessions.set('child-3', createSession('child-3', 'subagent', 'root'));
+    mocks.getSessionLineage.mockResolvedValue({
+      rootSessionId: 'root',
+      sessions: [
+        { sessionId: 'root', sessionName: 'Root session', agentType: 'code', createdAtMs: 1, status: 'active' },
+        { sessionId: 'child', sessionName: 'Running child', agentType: 'worker', createdAtMs: 2, status: 'active', parentSessionId: 'root', subagentType: 'worker', agentId: 'parser-review' },
+        { sessionId: 'child-2', sessionName: 'Running child', agentType: 'worker', createdAtMs: 3, status: 'active', parentSessionId: 'root', subagentType: 'worker', agentId: 'test-runner' },
+        { sessionId: 'child-3', sessionName: 'Running child', agentType: 'worker', createdAtMs: 4, status: 'active', parentSessionId: 'root', subagentType: 'worker', agentId: 'docs-audit' },
+      ],
+    });
+    const t = (key: string) => key;
+
+    await act(async () => {
+      root.render(
+        <SessionTreePopover
+          sessionId="root"
+          fallbackWorkspacePath="/workspace"
+          t={t}
+        />,
+      );
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="flowchat-header-session-tree"]')?.click();
+      await Promise.resolve();
+    });
+
+    const subagentNodes = Array.from(document.querySelectorAll<HTMLElement>(
+      '.session-tree-popover__panel [role="treeitem"]:not([data-session-id="root"])',
+    ));
+    subagentNodes.forEach((node) => {
+      const sessionId = node.dataset.sessionId!;
+      const avatar = node.querySelector<HTMLElement>(
+        '[data-bf-component="subagent-avatar"]',
+      )!;
+      const presentation = resolveSubagentAvatarPresentation(sessionId);
+
+      expect(avatar.dataset.bfAvatarId).toBe(presentation.avatarId);
+      expect(avatar.dataset.bfAvatarColorId).toBe(presentation.colorId);
+    });
+
+    expect(subagentNodes).toHaveLength(3);
+    expect(subagentNodes.map(node => node.querySelector('.session-tree-popover__node-title')?.textContent))
+      .toEqual(['Parser review', 'Test runner', 'Docs audit']);
   });
 
   it('closes a sibling action-menu portal and restores focus with the parent', async () => {
@@ -180,5 +232,51 @@ describe('SessionTreePopover', () => {
     expect(document.querySelector('[data-testid="flowchat-header-session-tree-menu"]')).toBeNull();
     expect(document.activeElement).toBe(trigger);
     expect(panel?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('renders as parent-owned content and closes the parent after selecting an Agent session', async () => {
+    const onSelectSession = vi.fn();
+    const onRequestClose = vi.fn();
+    const t = (key: string) => key;
+    mocks.getSessionLineage.mockResolvedValue({
+      rootSessionId: 'root',
+      sessions: [
+        { sessionId: 'root', sessionName: 'Root session', agentType: 'code', createdAtMs: 1, status: 'active' },
+        { sessionId: 'child', sessionName: 'Running child', agentType: 'worker', createdAtMs: 2, status: 'active', parentSessionId: 'root', subagentType: 'worker', agentId: 'parser-review' },
+      ],
+    });
+
+    await act(async () => {
+      root.render(
+        <SessionTreePopover
+          sessionId="root"
+          fallbackWorkspacePath="/workspace"
+          onSelectSession={onSelectSession}
+          embedded
+          open
+          onRequestClose={onRequestClose}
+          t={t}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-testid="flowchat-header-session-tree"]')).toBeNull();
+    expect(container.querySelector('[data-testid="flowchat-header-session-tree-content"]')).not.toBeNull();
+    expect(document.querySelector('.session-tree-popover__panel')).toBeNull();
+
+    const childNode = Array.from(container.querySelectorAll<HTMLElement>('[role="treeitem"]'))
+      .find(node => node.textContent?.includes('Running child'));
+    await act(async () => {
+      childNode?.querySelector<HTMLButtonElement>('.session-tree-popover__node-main')?.click();
+    });
+
+    expect(onSelectSession).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'child',
+      agentId: 'parser-review',
+      displayTitle: 'Parser review',
+      isRoot: false,
+    }));
+    expect(onRequestClose).toHaveBeenCalledTimes(1);
   });
 });

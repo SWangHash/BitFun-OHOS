@@ -23,8 +23,16 @@ use crate::infrastructure::ai::get_global_ai_client_factory;
 use crate::util::json_extract::extract_json_from_ai_response;
 use crate::util::types::Message;
 
+mod complete_shell;
 mod model;
 mod shell_targets;
+pub use complete_shell::check_exec_command;
+#[cfg(test)]
+pub(crate) use complete_shell::check_with_state as check_shell_with_state;
+
+pub(crate) fn has_active_shell_constraints(context: &ToolUseContext) -> bool {
+    complete_shell::active_state(context).is_some()
+}
 
 pub use model::{
     AgentCreatedPathRecord, ConstraintExtractionRecord, ConstraintMatcher,
@@ -1212,7 +1220,7 @@ fn check_bash_command_with_state(
         let target_path = command_target_path(context, &target.path, working_directory);
         if let Some(rejection) = check_with_state(
             Some(context),
-            "Bash",
+            "ExecCommand",
             target.operation.guard_operation(),
             &target_path,
             false,
@@ -1229,7 +1237,7 @@ fn check_bash_command_with_state(
         {
             return decision_result(
                 Some(context),
-                "Bash",
+                "ExecCommand",
                 "unresolved_shell_mutation",
                 "<dynamic shell target>",
                 "deny_unresolved_target",

@@ -3,11 +3,11 @@
  */
 
 import type { EditorPresetConfig, EditorPresetName } from './types';
+import { DEFAULT_INLAY_HINTS_CONFIG } from './defaults';
 
 /** Readonly preset: chat code blocks, doc preview, code display */
 export const PRESET_READONLY: EditorPresetConfig = {
   readOnly: true,
-  enableLsp: false,
   contextmenu: false,
   links: true,
   folding: true,
@@ -31,17 +31,14 @@ export const PRESET_READONLY: EditorPresetConfig = {
     above: false,
   },
   inlayHints: {
+    ...DEFAULT_INLAY_HINTS_CONFIG,
     enabled: 'off',
-    fontSize: 12,
-    fontFamily: "'Fira Code', Consolas, 'Courier New', monospace",
-    padding: false,
   },
 };
 
 /** Minimal preset: config editing, code snippets, small editors */
 export const PRESET_MINIMAL: EditorPresetConfig = {
   readOnly: false,
-  enableLsp: false,
   contextmenu: true,
   links: true,
   folding: false,
@@ -56,17 +53,14 @@ export const PRESET_MINIMAL: EditorPresetConfig = {
   
   semanticHighlighting: false,
   inlayHints: {
+    ...DEFAULT_INLAY_HINTS_CONFIG,
     enabled: 'off',
-    fontSize: 12,
-    fontFamily: "'Fira Code', Consolas, 'Courier New', monospace",
-    padding: false,
   },
 };
 
 /** Standard preset: general code editing */
 export const PRESET_STANDARD: EditorPresetConfig = {
   readOnly: false,
-  enableLsp: true,
   contextmenu: true,
   links: true,
   folding: true,
@@ -83,7 +77,6 @@ export const PRESET_STANDARD: EditorPresetConfig = {
 /** Full preset: main file editor with all features */
 export const PRESET_FULL: EditorPresetConfig = {
   readOnly: false,
-  enableLsp: true,
   contextmenu: true,
   links: true,
   folding: true,
@@ -105,10 +98,8 @@ export const PRESET_FULL: EditorPresetConfig = {
     above: false,
   },
   inlayHints: {
+    ...DEFAULT_INLAY_HINTS_CONFIG,
     enabled: 'on',
-    fontSize: 12,
-    fontFamily: "'Fira Code', Consolas, 'Courier New', monospace",
-    padding: false,
   },
   guides: {
     indentation: true,
@@ -122,7 +113,6 @@ export const PRESET_FULL: EditorPresetConfig = {
 /** Diff preset: code diff comparison */
 export const PRESET_DIFF: EditorPresetConfig = {
   readOnly: false,
-  enableLsp: true,
   contextmenu: false,
   links: true,
   folding: false,

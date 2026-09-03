@@ -17,7 +17,7 @@ bitfun-app-server-protocol = { path = "../app-server-protocol" }
 bitfun-core = { path = "../../assembly/core", features = ["external-sources", "git", "i18n-runtime", "remote-connect"] }
 bitfun-agent-runtime = { path = "../../execution/agent-runtime", features = ["agent-runtime"] }
 bitfun-product-domains = { path = "../../contracts/product-domains", features = ["external-sources"] }
-bitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["agent-api"] }
+bitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["agent-api", "product-search"] }
 dunce = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
 serde = { workspace = true }

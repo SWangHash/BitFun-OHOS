@@ -5,16 +5,19 @@
 
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react';
-import { Tooltip } from '@/component-library';
+;
+
 import './EmptyState.scss';
+import { Icon, Tooltip } from '@bitfun/ui';
 
 export interface EmptyStateProps {
   onClose?: () => void;
+  children?: React.ReactNode;
 }
 
-export const EmptyState: React.FC<EmptyStateProps> = ({ onClose }) => {
+export const EmptyState: React.FC<EmptyStateProps> = ({ onClose, children }) => {
   const { t } = useTranslation('components');
+  const hasEmbeddedContent = children !== undefined && children !== null;
 
   const handleClose = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -30,16 +33,21 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onClose }) => {
               className="canvas-empty-state__close-btn"
               onClick={handleClose}
             >
-              <X size={14} />
+              <Icon name="xmark" size="sm" />
             </button>
           </Tooltip>
         </div>
       )}
-      <div className="canvas-empty-state__content" data-bf-component="content-canvas" data-bf-part="emptyContent">
-        {/* Message */}
-        <div className="canvas-empty-state__message">
-          <p>{t('canvas.noContentOpen')}</p>
-        </div>
+      <div
+        className={`canvas-empty-state__content${hasEmbeddedContent ? ' canvas-empty-state__content--embedded' : ''}`}
+        data-bf-component="content-canvas"
+        data-bf-part="emptyContent"
+      >
+        {hasEmbeddedContent ? children : (
+          <div className="canvas-empty-state__message">
+            <p>{t('canvas.noContentOpen')}</p>
+          </div>
+        )}
       </div>
     </div>
   );

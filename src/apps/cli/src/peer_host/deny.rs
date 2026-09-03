@@ -10,6 +10,10 @@
 static LOCAL_ONLY_COMMANDS: &[&str] = &[
     "show_main_window",
     "hide_main_window_after_close_request",
+    "frontend_update_candidate_ready",
+    "get_frontend_update_status",
+    "confirm_frontend_update",
+    "rollback_frontend_update",
     "quit_app",
     "minimize_to_tray",
     "initialize_tray_after_startup",
@@ -74,6 +78,10 @@ static LOCAL_ONLY_COMMANDS: &[&str] = &[
     "remote_connect_set_bot_verbose_mode",
     "computer_use_request_permissions",
     "computer_use_open_system_settings",
+    "browser_webview_set_agent_target_state",
+    "mark_bitfun_control_surface_ready",
+    "mark_bitfun_control_surface_unready",
+    "report_bitfun_control_result",
     "relay_deploy_preflight",
     "relay_deploy_install_docker",
     "relay_deploy_start",
@@ -108,6 +116,15 @@ static LOCAL_ONLY_COMMANDS: &[&str] = &[
     "speech_append_audio_chunk",
     "speech_finish_input_session",
     "speech_cancel_input_session",
+    "speech_start_realtime_session",
+    "speech_append_realtime_audio",
+    "speech_commit_realtime_audio",
+    "speech_send_realtime_tool_result",
+    "speech_speak_realtime_text",
+    "speech_cancel_realtime_response",
+    "speech_close_realtime_session",
+    "speech_get_realtime_config",
+    "speech_save_realtime_config",
     // Granting Git ownership trust writes this user's global Git configuration
     // and tells Git to run hooks from a tree they do not own. That decision
     // belongs to the person at this machine, so refuse it explicitly rather
@@ -145,6 +162,7 @@ static LOCAL_ONLY_COMMANDS: &[&str] = &[
     "browser_control_get_status",
     "browser_control_restart_with_cdp",
     "browser_control_enable_default_cdp",
+    "browser_control_disconnect",
     "browser_webview_create",
     "browser_webview_eval",
     "browser_webview_navigate",
@@ -160,7 +178,7 @@ static LOCAL_ONLY_COMMANDS: &[&str] = &[
 ];
 
 /// Desktop IDE surfaces that CLI Peer Host does not implement.
-/// Prefix match is applied for `lsp_`, `canvas_`, `editor_`, `ssh_`,
+/// Prefix match is applied for `canvas_`, `editor_`, `ssh_`,
 /// `terminal_`, `search_` unless the command is explicitly allowlisted.
 ///
 /// `git_*` is intentionally not prefix-denied: `git_is_repository` and the
@@ -179,12 +197,19 @@ pub(crate) fn is_local_only_command(command: &str) -> bool {
     LOCAL_ONLY_COMMANDS.contains(&command)
 }
 
+/// Commands kept as protocol tombstones after their runtime owner was removed.
+pub(crate) fn is_retired_command(command: &str) -> bool {
+    command.starts_with("lsp_")
+}
+
 pub(crate) fn is_cli_unsupported_command(command: &str) -> bool {
+    if command == "search_session_content" {
+        return false;
+    }
     if CLI_UNSUPPORTED_EXACT.contains(&command) {
         return true;
     }
     let prefixes = [
-        "lsp_",
         "canvas_",
         "editor_",
         "ssh_",
@@ -199,7 +224,19 @@ pub(crate) fn is_cli_unsupported_command(command: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_local_only_command;
+    use super::{is_cli_unsupported_command, is_local_only_command, is_retired_command};
+
+    #[test]
+    fn retired_lsp_commands_are_matched_without_overmatching_external_names() {
+        assert!(is_retired_command("lsp_open_workspace"));
+        assert!(!is_retired_command("custom_lsp_wrapper"));
+    }
+
+    #[test]
+    fn session_content_search_executes_on_the_peer_host() {
+        assert!(!is_cli_unsupported_command("search_session_content"));
+        assert!(is_cli_unsupported_command("search_files"));
+    }
 
     #[test]
     fn outbound_dispatch_control_plane_stays_local_only() {
@@ -241,9 +278,45 @@ mod tests {
             "speech_append_audio_chunk",
             "speech_finish_input_session",
             "speech_cancel_input_session",
+            "speech_start_realtime_session",
+            "speech_append_realtime_audio",
+            "speech_commit_realtime_audio",
+            "speech_send_realtime_tool_result",
+            "speech_speak_realtime_text",
+            "speech_cancel_realtime_response",
+            "speech_close_realtime_session",
+            "speech_get_realtime_config",
+            "speech_save_realtime_config",
         ] {
             assert!(is_local_only_command(command), "{command}");
         }
+    }
+
+    #[test]
+    fn built_in_browser_target_lifecycle_stays_on_the_controller_device() {
+        assert!(is_local_only_command(
+            "browser_webview_set_agent_target_state"
+        ));
+    }
+
+    #[test]
+    fn frontend_update_decisions_stay_on_the_controller_device() {
+        assert!(is_local_only_command("frontend_update_candidate_ready"));
+        assert!(is_local_only_command("get_frontend_update_status"));
+        assert!(is_local_only_command("confirm_frontend_update"));
+        assert!(is_local_only_command("rollback_frontend_update"));
+    }
+
+    #[test]
+    fn product_control_presentation_callbacks_stay_on_the_controller_device() {
+        for command in [
+            "mark_bitfun_control_surface_ready",
+            "mark_bitfun_control_surface_unready",
+            "report_bitfun_control_result",
+        ] {
+            assert!(is_local_only_command(command), "{command}");
+        }
+        assert!(!is_local_only_command("product_control_invoke"));
     }
 
     /// Reading why Git refuses a repository is safe to answer for a controller

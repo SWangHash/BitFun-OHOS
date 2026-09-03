@@ -37,6 +37,10 @@ pub mod native_hooks;
 #[cfg(all(test, feature = "agent-runtime"))]
 mod native_hooks_tests;
 #[cfg(feature = "opencode-plugin-host")]
+mod plugin_capability_publication;
+#[cfg(feature = "opencode-plugin-host")]
+mod plugin_hook_bridge;
+#[cfg(feature = "opencode-plugin-host")]
 pub mod plugin_host;
 #[cfg(feature = "opencode-plugin-host")]
 mod plugin_host_http;
@@ -62,10 +66,6 @@ pub mod service; // Workspace, Config, FileSystem, Terminal, Git
 #[cfg(feature = "agent-runtime")]
 pub(crate) mod service_agent_runtime;
 pub mod util; // General types, errors, helper functions
-
-// Re-export debug_log from infrastructure for backward compatibility.
-#[cfg(feature = "debug-log")]
-pub use infrastructure::debug_log as debug;
 
 #[cfg(feature = "remote-connect")]
 pub use bitfun_services_integrations::remote_connect::RemoteModelCatalog as AIModelCatalog;

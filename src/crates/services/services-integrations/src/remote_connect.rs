@@ -126,6 +126,7 @@ pub fn build_remote_session_create_request(
     AgentSessionCreateRequest {
         session_name: session_name.into(),
         agent_type: agent_type.into(),
+        agent_route_key: None,
         workspace_path: workspace_path.map(Into::into),
         project_workspace_path: None,
         execution_target: None,
@@ -525,6 +526,11 @@ where
 
 pub const REMOTE_FILE_MAX_READ_BYTES: u64 = 30 * 1024 * 1024;
 pub const REMOTE_FILE_MAX_CHUNK_BYTES: u64 = 3 * 1024 * 1024;
+pub const REMOTE_CAPABILITY_HARNESS_PROFILES_V1: &str = "harness_profiles_v1";
+
+fn remote_host_capabilities() -> Vec<String> {
+    vec![REMOTE_CAPABILITY_HARNESS_PROFILES_V1.to_string()]
+}
 
 pub fn resolve_remote_file_chunk_range(
     file_len: usize,
@@ -899,6 +905,7 @@ pub fn remote_workspace_info_response(workspace: Option<RemoteWorkspaceFacts>) -
             assistant_id: workspace.assistant_id,
             remote_connection_id: workspace.remote_connection_id,
             remote_ssh_host: workspace.remote_ssh_host,
+            capabilities: remote_host_capabilities(),
         },
         None => RemoteResponse::WorkspaceInfo {
             has_workspace: false,
@@ -909,6 +916,7 @@ pub fn remote_workspace_info_response(workspace: Option<RemoteWorkspaceFacts>) -
             assistant_id: None,
             remote_connection_id: None,
             remote_ssh_host: None,
+            capabilities: remote_host_capabilities(),
         },
     }
 }
@@ -1072,6 +1080,7 @@ pub fn remote_initial_sync_response(
         sessions,
         has_more_sessions,
         authenticated_user_id,
+        capabilities: remote_host_capabilities(),
     }
 }
 
@@ -1768,13 +1777,13 @@ pub fn normalize_remote_session_model_id(model_id: Option<&str>) -> Option<Strin
     match model_id {
         Some(value) => {
             let trimmed = value.trim();
-            if trimmed.is_empty() || trimmed == "default" {
-                Some("auto".to_string())
+            if matches!(trimmed, "" | "auto" | "default") {
+                Some("primary".to_string())
             } else {
                 Some(trimmed.to_string())
             }
         }
-        None => Some("auto".to_string()),
+        None => Some("primary".to_string()),
     }
 }
 
@@ -1793,9 +1802,11 @@ pub fn normalize_remote_model_selection(
         return Err("model_id is required".to_string());
     }
 
+    // `auto` is accepted only as an upgrade alias for older Remote Connect
+    // clients. It is never returned by the current catalog or session state.
     if matches!(requested_model_id, "auto" | "default" | "primary" | "fast") {
-        return Ok(if requested_model_id == "default" {
-            "auto".to_string()
+        return Ok(if matches!(requested_model_id, "auto" | "default") {
+            "primary".to_string()
         } else {
             requested_model_id.to_string()
         });
@@ -1813,12 +1824,20 @@ pub struct RemoteModelCatalogPollDelta {
 
 pub fn resolve_remote_agent_type(mobile_type: Option<&str>) -> &'static str {
     match mobile_type {
+        Some(value) if value.eq_ignore_ascii_case("minimal") => "minimal",
+        Some(value)
+            if value.eq_ignore_ascii_case("ultra") || value.eq_ignore_ascii_case("ultimate") =>
+        {
+            "Ultra"
+        }
+        Some(value)
+            if value.eq_ignore_ascii_case("balanced") || value.eq_ignore_ascii_case("standard") =>
+        {
+            "agentic"
+        }
         Some("code") | Some("agentic") | Some("Agentic") => "agentic",
-        Some("multitask") | Some("Multitask") => "Multitask",
         Some("cowork") | Some("Cowork") => "Cowork",
         Some("claw") | Some("Claw") | Some("assistant") | Some("chat") => "Claw",
-        Some("plan") | Some("Plan") => "Plan",
-        Some("debug") | Some("Debug") => "debug",
         _ => "agentic",
     }
 }
@@ -1857,6 +1876,12 @@ pub struct ChatMessage {
     pub content: String,
     pub timestamp: String,
     pub metadata: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<RemoteToolStatus>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1887,6 +1912,8 @@ pub struct RemoteChatHistoryTurn {
     pub user_timestamp_ms: u64,
     pub user_images: Vec<ChatImageAttachment>,
     pub is_in_progress: bool,
+    pub status: String,
+    pub error: Option<String>,
     pub start_time_ms: u64,
     pub rounds: Vec<RemoteChatHistoryRound>,
 }
@@ -1943,6 +1970,9 @@ pub fn build_remote_chat_messages(turns: Vec<RemoteChatHistoryTurn>) -> Vec<Chat
             content: turn.user_display_content,
             timestamp: (turn.user_timestamp_ms / 1000).to_string(),
             metadata: None,
+            turn_id: Some(turn.turn_id.clone()),
+            status: None,
+            error: None,
             tools: None,
             thinking: None,
             items: None,
@@ -2066,12 +2096,34 @@ pub fn build_remote_chat_messages(turns: Vec<RemoteChatHistoryTurn>) -> Vec<Chat
 
         let items: Vec<ChatMessageItem> = ordered.into_iter().map(|entry| entry.item).collect();
 
+        // A turn is persisted as soon as it starts, before the assistant has
+        // produced any content. That durable turn shell is not an assistant
+        // message: while the turn is running, its live state is carried by
+        // `active_turn`. Materializing the empty shell here would expose the
+        // same turn through both history and live state and make clients render
+        // two pending replies.
+        let has_assistant_message = text_parts
+            .iter()
+            .chain(thinking_parts.iter())
+            .any(|content| !content.trim().is_empty())
+            || !tools_flat.is_empty()
+            || turn
+                .error
+                .as_deref()
+                .is_some_and(|error| !error.trim().is_empty());
+        if !has_assistant_message {
+            continue;
+        }
+
         result.push(ChatMessage {
             id: format!("{}_assistant", turn.turn_id),
             role: "assistant".to_string(),
             content: text_parts.join("\n\n"),
             timestamp: (assistant_ts / 1000).to_string(),
             metadata: None,
+            turn_id: Some(turn.turn_id),
+            status: Some(turn.status),
+            error: turn.error,
             tools: if tools_flat.is_empty() {
                 None
             } else {
@@ -2114,6 +2166,8 @@ pub struct AssistantEntry {
 pub struct ActiveTurnSnapshot {
     pub turn_id: String,
     pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
     pub text: String,
     pub thinking: String,
     pub tools: Vec<RemoteToolStatus>,
@@ -2342,6 +2396,8 @@ pub enum RemoteResponse {
         remote_connection_id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         remote_ssh_host: Option<String>,
+        #[serde(default)]
+        capabilities: Vec<String>,
     },
     RecentWorkspaces {
         workspaces: Vec<RecentWorkspaceEntry>,
@@ -2419,6 +2475,8 @@ pub enum RemoteResponse {
         has_more_sessions: bool,
         #[serde(skip_serializing_if = "Option::is_none")]
         authenticated_user_id: Option<String>,
+        #[serde(default)]
+        capabilities: Vec<String>,
     },
     SessionPoll {
         version: u64,
@@ -2690,6 +2748,7 @@ struct TrackerState {
     title: String,
     turn_id: Option<String>,
     turn_status: String,
+    turn_error: Option<String>,
     accumulated_text: String,
     accumulated_thinking: String,
     active_tools: Vec<RemoteToolStatus>,
@@ -2748,6 +2807,7 @@ impl RemoteSessionStateTracker {
                 title: String::new(),
                 turn_id: None,
                 turn_status: String::new(),
+                turn_error: None,
                 accumulated_text: String::new(),
                 accumulated_thinking: String::new(),
                 active_tools: Vec::new(),
@@ -2779,6 +2839,7 @@ impl RemoteSessionStateTracker {
         state.turn_id.as_ref().map(|turn_id| ActiveTurnSnapshot {
             turn_id: turn_id.clone(),
             status: state.turn_status.clone(),
+            error: state.turn_error.clone(),
             text: if has_items {
                 String::new()
             } else {
@@ -2833,6 +2894,7 @@ impl RemoteSessionStateTracker {
         if state.turn_id.is_none() {
             state.turn_id = Some(turn_id);
             state.turn_status = "active".to_string();
+            state.turn_error = None;
             state.session_state = "running".to_string();
         }
         drop(state);
@@ -2879,6 +2941,7 @@ impl RemoteSessionStateTracker {
             "completed" | "failed" | "cancelled"
         ) {
             state.turn_id = None;
+            state.turn_error = None;
             state.accumulated_text.clear();
             state.accumulated_thinking.clear();
             state.active_tools.clear();
@@ -2914,6 +2977,7 @@ impl RemoteSessionStateTracker {
         let mut state = self.state.write().unwrap();
         state.turn_id = None;
         state.turn_status.clear();
+        state.turn_error = None;
         state.accumulated_text.clear();
         state.accumulated_thinking.clear();
         state.active_tools.clear();
@@ -2935,6 +2999,7 @@ impl RemoteSessionStateTracker {
             // The tracker missed this Turn's terminal event (fences exist
             // because terminal chunks can be lost); settle it from the fence.
             state.turn_status = "completed".to_string();
+            state.turn_error = None;
             state.session_state = "idle".to_string();
         }
         state.persistence_dirty = true;
@@ -3329,6 +3394,7 @@ impl RemoteSessionStateTracker {
                 let mut state = self.state.write().unwrap();
                 state.turn_id = Some(turn_id.clone());
                 state.turn_status = "active".to_string();
+                state.turn_error = None;
                 state.accumulated_text.clear();
                 state.accumulated_thinking.clear();
                 state.active_tools.clear();
@@ -3341,6 +3407,7 @@ impl RemoteSessionStateTracker {
             AE::DialogTurnCompleted { turn_id, .. } if is_direct => {
                 let mut state = self.state.write().unwrap();
                 state.turn_status = "completed".to_string();
+                state.turn_error = None;
                 state.session_state = "idle".to_string();
                 state.persistence_dirty = true;
                 self.bump_version();
@@ -3351,6 +3418,7 @@ impl RemoteSessionStateTracker {
             AE::DialogTurnFailed { turn_id, error, .. } if is_direct => {
                 let mut state = self.state.write().unwrap();
                 state.turn_status = "failed".to_string();
+                state.turn_error = Some(error.clone());
                 state.session_state = "idle".to_string();
                 state.persistence_dirty = true;
                 self.bump_version();
@@ -3362,6 +3430,7 @@ impl RemoteSessionStateTracker {
             AE::DialogTurnCancelled { turn_id, .. } if is_direct => {
                 let mut state = self.state.write().unwrap();
                 state.turn_status = "cancelled".to_string();
+                state.turn_error = None;
                 state.session_state = "idle".to_string();
                 state.persistence_dirty = true;
                 self.bump_version();
@@ -3529,33 +3598,50 @@ pub fn remote_persisted_poll_response(
     message_snapshot: Option<Vec<ChatMessage>>,
     model_catalog: Option<RemoteModelCatalog>,
 ) -> RemoteResponse {
-    let turn_finished = tracker.is_turn_finished();
-    let has_assistant_msg = new_messages
-        .iter()
-        .any(|message| message.role == "assistant");
+    let finished_turn = tracker
+        .is_turn_finished()
+        .then(|| tracker.snapshot_active_turn())
+        .flatten();
+    let has_persisted_terminal_assistant = finished_turn.as_ref().is_some_and(|turn| {
+        new_messages
+            .iter()
+            .chain(message_snapshot.iter().flat_map(|messages| messages.iter()))
+            .any(|message| {
+                message.role == "assistant"
+                    && message.turn_id.as_deref() == Some(turn.turn_id.as_str())
+                    && matches!(message.status.as_deref(), Some("done") | Some("completed"))
+            })
+    });
+    let completed_turn_waiting_for_assistant = finished_turn
+        .as_ref()
+        .is_some_and(|turn| turn.status == "completed" && !has_persisted_terminal_assistant);
 
-    let active_turn = if turn_finished && has_assistant_msg {
-        tracker.finalize_completed_turn();
-        None
-    } else if turn_finished {
-        let status = tracker.turn_status();
-        if status == "completed" {
-            tracker.snapshot_active_turn()
-        } else {
+    let active_turn = match finished_turn {
+        Some(turn) if turn.status == "completed" && has_persisted_terminal_assistant => {
+            tracker.finalize_completed_turn();
+            None
+        }
+        Some(turn) if turn.status == "completed" => Some(turn),
+        Some(_) => {
             tracker.finalize_completed_turn();
             tracker.mark_persistence_clean_if_version(version);
             None
         }
-    } else {
-        tracker.snapshot_active_turn()
+        None => tracker.snapshot_active_turn(),
     };
 
     let (send_messages, send_total, send_snapshot) = if let Some(snapshot) = message_snapshot {
-        tracker.mark_persistence_clean_if_version(version);
+        // A history fence may race the final Turn write. Keep polling until
+        // this exact completed Turn has a durable assistant projection instead
+        // of clearing the dirty bit after a snapshot that only contains older
+        // assistant messages.
+        if !completed_turn_waiting_for_assistant {
+            tracker.mark_persistence_clean_if_version(version);
+        }
         // Keep the additive delta for older clients that do not know the
         // optional replacement field yet.
         (Some(new_messages), Some(total_msg_count), Some(snapshot))
-    } else if turn_finished && !has_assistant_msg {
+    } else if completed_turn_waiting_for_assistant {
         (None, None, None)
     } else {
         if !new_messages.is_empty() || active_turn.is_none() {
@@ -3670,6 +3756,7 @@ mod tests {
                 assistant_id: None,
                 remote_connection_id: None,
                 remote_ssh_host: None,
+                capabilities: remote_host_capabilities(),
             }
         );
 
@@ -3810,6 +3897,9 @@ mod tests {
                     content: "hello".to_string(),
                     timestamp: "1".to_string(),
                     metadata: None,
+                    turn_id: None,
+                    status: None,
+                    error: None,
                     images: None,
                     thinking: None,
                     tools: None,
@@ -3995,6 +4085,23 @@ mod tests {
         history_read_count: Arc<AtomicUsize>,
     }
 
+    fn poll_test_message(id: &str, role: &str, turn_id: &str, status: Option<&str>) -> ChatMessage {
+        ChatMessage {
+            id: id.to_string(),
+            role: role.to_string(),
+            content: format!("{role} content"),
+            timestamp: "1".to_string(),
+            metadata: None,
+            turn_id: Some(turn_id.to_string()),
+            status: status.map(str::to_string),
+            error: None,
+            tools: None,
+            thinking: None,
+            items: None,
+            images: None,
+        }
+    }
+
     #[async_trait::async_trait]
     impl RemotePollRuntimeHost for FakePollHost {
         fn ensure_tracker(&self, _session_id: &str) -> Arc<RemoteSessionStateTracker> {
@@ -4056,6 +4163,9 @@ mod tests {
             content: "visible".to_string(),
             timestamp: "1".to_string(),
             metadata: None,
+            turn_id: None,
+            status: None,
+            error: None,
             tools: None,
             thinking: None,
             items: None,
@@ -4118,6 +4228,9 @@ mod tests {
                 content: "visible".to_string(),
                 timestamp: "1".to_string(),
                 metadata: None,
+                turn_id: None,
+                status: None,
+                error: None,
                 tools: None,
                 thinking: None,
                 items: None,
@@ -4164,6 +4277,9 @@ mod tests {
                     content: "visible".to_string(),
                     timestamp: "1".to_string(),
                     metadata: None,
+                    turn_id: None,
+                    status: None,
+                    error: None,
                     tools: None,
                     thinking: None,
                     items: None,
@@ -4175,6 +4291,191 @@ mod tests {
         );
         assert!(!tracker.is_persistence_dirty());
         assert!(!tracker.is_history_snapshot_required());
+    }
+
+    #[tokio::test]
+    async fn completed_turn_finalizes_when_its_assistant_only_exists_in_replacement_snapshot() {
+        let tracker = Arc::new(RemoteSessionStateTracker::new("session-a".to_string()));
+        tracker.handle_agentic_event(&AgenticEvent::DialogTurnStarted {
+            session_id: "session-a".to_string(),
+            turn_id: "turn-current".to_string(),
+            turn_index: 1,
+            user_input: "hello".to_string(),
+            original_user_input: None,
+            user_message_metadata: None,
+        });
+        tracker.handle_agentic_event(&AgenticEvent::DialogTurnCompleted {
+            session_id: "session-a".to_string(),
+            turn_id: "turn-current".to_string(),
+            total_rounds: 1,
+            total_tools: 0,
+            duration_ms: 1,
+            partial_recovery_reason: None,
+            success: Some(true),
+            finish_reason: Some("complete".to_string()),
+            has_final_response: Some(true),
+        });
+        tracker.handle_agentic_event(&AgenticEvent::SessionHistoryChanged {
+            session_id: "session-a".to_string(),
+            settled_turn_id: Some("turn-current".to_string()),
+        });
+        let version = tracker.version();
+        let assistant = poll_test_message(
+            "turn-current-assistant",
+            "assistant",
+            "turn-current",
+            Some("done"),
+        );
+        let host = FakePollHost {
+            tracker: tracker.clone(),
+            storage_dir: Some(PathBuf::from("/workspace/project/.bitfun/sessions")),
+            messages: vec![assistant.clone()],
+            history_read_count: Arc::new(AtomicUsize::new(0)),
+        };
+
+        let response = handle_remote_poll_command(
+            &host,
+            &RemoteCommand::PollSession {
+                session_id: "session-a".to_string(),
+                since_version: version,
+                // The controller already counted the streaming assistant, so
+                // completion only changes its persisted content/status.
+                known_msg_count: 1,
+                known_model_catalog_version: None,
+            },
+        )
+        .await;
+
+        let RemoteResponse::SessionPoll {
+            active_turn,
+            message_snapshot,
+            ..
+        } = response
+        else {
+            panic!("expected session poll response");
+        };
+        assert!(active_turn.is_none());
+        assert_eq!(message_snapshot, Some(vec![assistant]));
+        assert!(tracker.snapshot_active_turn().is_none());
+        assert!(!tracker.is_persistence_dirty());
+    }
+
+    #[tokio::test]
+    async fn completed_turn_ignores_older_assistant_and_retries_until_its_result_is_persisted() {
+        let tracker = Arc::new(RemoteSessionStateTracker::new("session-a".to_string()));
+        tracker.handle_agentic_event(&AgenticEvent::DialogTurnStarted {
+            session_id: "session-a".to_string(),
+            turn_id: "turn-current".to_string(),
+            turn_index: 1,
+            user_input: "hello".to_string(),
+            original_user_input: None,
+            user_message_metadata: None,
+        });
+        tracker.handle_agentic_event(&AgenticEvent::DialogTurnCompleted {
+            session_id: "session-a".to_string(),
+            turn_id: "turn-current".to_string(),
+            total_rounds: 1,
+            total_tools: 0,
+            duration_ms: 1,
+            partial_recovery_reason: None,
+            success: Some(true),
+            finish_reason: Some("complete".to_string()),
+            has_final_response: Some(true),
+        });
+        tracker.handle_agentic_event(&AgenticEvent::SessionHistoryChanged {
+            session_id: "session-a".to_string(),
+            settled_turn_id: Some("turn-current".to_string()),
+        });
+        let version = tracker.version();
+        let older_assistant = poll_test_message(
+            "turn-older-assistant",
+            "assistant",
+            "turn-older",
+            Some("done"),
+        );
+        let first_host = FakePollHost {
+            tracker: tracker.clone(),
+            storage_dir: Some(PathBuf::from("/workspace/project/.bitfun/sessions")),
+            messages: vec![older_assistant.clone()],
+            history_read_count: Arc::new(AtomicUsize::new(0)),
+        };
+
+        let first_response = handle_remote_poll_command(
+            &first_host,
+            &RemoteCommand::PollSession {
+                session_id: "session-a".to_string(),
+                since_version: version,
+                known_msg_count: 1,
+                known_model_catalog_version: None,
+            },
+        )
+        .await;
+        let RemoteResponse::SessionPoll { active_turn, .. } = first_response else {
+            panic!("expected session poll response");
+        };
+        assert_eq!(
+            active_turn.as_ref().map(|turn| turn.turn_id.as_str()),
+            Some("turn-current")
+        );
+        assert!(tracker.is_persistence_dirty());
+
+        let current_assistant = poll_test_message(
+            "turn-current-assistant",
+            "assistant",
+            "turn-current",
+            Some("done"),
+        );
+        let retry_host = FakePollHost {
+            tracker: tracker.clone(),
+            storage_dir: Some(PathBuf::from("/workspace/project/.bitfun/sessions")),
+            messages: vec![older_assistant, current_assistant],
+            history_read_count: Arc::new(AtomicUsize::new(0)),
+        };
+        let retry_response = handle_remote_poll_command(
+            &retry_host,
+            &RemoteCommand::PollSession {
+                session_id: "session-a".to_string(),
+                since_version: version,
+                known_msg_count: 1,
+                known_model_catalog_version: None,
+            },
+        )
+        .await;
+        let RemoteResponse::SessionPoll { active_turn, .. } = retry_response else {
+            panic!("expected session poll response");
+        };
+        assert!(active_turn.is_none());
+        assert!(tracker.snapshot_active_turn().is_none());
+        assert!(!tracker.is_persistence_dirty());
+    }
+
+    #[test]
+    fn failed_active_turn_snapshot_preserves_the_runtime_error() {
+        let tracker = RemoteSessionStateTracker::new("session-a".to_string());
+        tracker.handle_agentic_event(&AgenticEvent::DialogTurnStarted {
+            session_id: "session-a".to_string(),
+            turn_id: "turn-failed".to_string(),
+            turn_index: 1,
+            user_input: "hello".to_string(),
+            original_user_input: None,
+            user_message_metadata: None,
+        });
+        tracker.handle_agentic_event(&AgenticEvent::DialogTurnFailed {
+            session_id: "session-a".to_string(),
+            turn_id: "turn-failed".to_string(),
+            error: "AI client could not reach the configured proxy".to_string(),
+            error_category: None,
+            error_detail: None,
+        });
+
+        let active_turn = tracker
+            .snapshot_active_turn()
+            .expect("failed turn must remain visible until persistence catches up");
+        assert_eq!(active_turn.status, "failed");
+        assert_eq!(
+            active_turn.error.as_deref(),
+            Some("AI client could not reach the configured proxy")
+        );
     }
 
     #[tokio::test]

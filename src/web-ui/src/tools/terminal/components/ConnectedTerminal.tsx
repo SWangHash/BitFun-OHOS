@@ -4,7 +4,8 @@
  */
 
 import React, { useEffect, useRef, useCallback, useState, memo } from 'react';
-import { AlertCircle, RefreshCw, Terminal as TerminalIcon, Trash2 } from 'lucide-react';
+import { Button, Icon } from '@bitfun/ui';
+import { AlertCircle } from 'lucide-react';
 import Terminal, { TerminalRef, type TerminalOptions } from './Terminal';
 import { useTerminal } from '../hooks/useTerminal';
 import { registerTerminalActions, unregisterTerminalActions } from '../services/TerminalActionManager';
@@ -464,14 +465,15 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
         <div className="bitfun-terminal__error" data-testid="shell-command-status" data-command-status="error" data-bf-component="terminal-tool" data-bf-part="error">
           <AlertCircle className="bitfun-terminal__error-icon" size={32} />
           <span className="bitfun-terminal__error-message">{error}</span>
-          <button 
-            className="bitfun-terminal__error-retry"
+          <Button
+            variant="outline"
+            size="sm"
+            leadingIcon={<Icon name="refresh" size="lg" />}
             onClick={handleRetry}
             data-testid="shell-command-rerun"
           >
-            <RefreshCw size={14} />
-            <span>Retry</span>
-          </button>
+            Retry
+          </Button>
         </div>
       </div>
     );
@@ -490,7 +492,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
       {showToolbar && (
         <div className="bitfun-terminal__toolbar" data-bf-component="terminal-tool" data-bf-part="toolbar">
           <div className="bitfun-terminal__toolbar-left">
-            <TerminalIcon size={14} />
+            <Icon name="terminal" size="sm" />
             <span className="bitfun-terminal__toolbar-title" data-testid="shell-panel-title">
               {title}
               {session && (
@@ -505,7 +507,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
               title="Send Ctrl+C"
               data-testid="shell-command-rerun"
             >
-              <span style={{ fontSize: 10, fontWeight: 'bold' }}>^C</span>
+              <span style={{ fontSize: 'var(--bf-font-size-micro)', fontWeight: 'var(--bf-font-weight-bold)' }}>^C</span>
             </button>
             <button
               className="bitfun-terminal__toolbar-btn bitfun-terminal__toolbar-btn--danger"
@@ -513,7 +515,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
               title="Close terminal"
               data-testid="shell-panel-close"
             >
-              <Trash2 size={14} />
+              <Icon name="delete" size="sm" />
             </button>
           </div>
         </div>

@@ -8,6 +8,41 @@ const agentRuntimeRootUnexpectedLine = new RegExp(
 );
 
 export const forbiddenContentRules = [
+  ...[
+    'file_read_tool', 'file_write_tool', 'file_edit_tool', 'delete_file_tool', 'ls_tool',
+  ].map((tool) => ({
+    path: `src/crates/assembly/core/src/agentic/tools/implementations/${tool}.rs`,
+    reason: 'workspace file tools share one implementation; transport selection belongs to the bound WorkspaceFileSystem provider',
+    patterns: [{
+      regex: /\b(?:uses_remote_workspace_backend|is_remote|ws_shell|build_remote_\w+|read_local_file|write_local_file|edit_local_file|delete_local_path)\s*\(/,
+      message: 'workspace file tool must not reintroduce a local/SSH execution fork or a transport-specific helper',
+      ignoreRustComments: true,
+    }],
+  })),
+  {
+    path: 'src/crates/assembly/core/src/plugin_capability_publication.rs',
+    reason:
+      'generic plugin capability publication consumes provider-neutral product contracts and must not absorb ecosystem config, Host wire, or adapter lifecycle',
+    patterns: [
+      {
+        regex:
+          /\b(?:OpenCode|DeepSeek|HookFunction|serde_json|bitfun_[a-z0-9_]+_adapter)\b/,
+        message:
+          'plugin capability publication must not depend on ecosystem adapters, raw config, or Host runtime contracts',
+      },
+    ],
+  },
+  {
+    path: 'Cargo.toml',
+    reason:
+      'workspace Rustls owns only the compatible version; concrete provider features belong to services-core',
+    patterns: [
+      {
+        regex: /^rustls\s*=\s*\{[^\n}]*,\s*features\s*=/m,
+        message: 'root workspace Rustls dependency must not select crypto-provider capabilities',
+      },
+    ],
+  },
   {
     path: 'src/crates/execution/agent-runtime/src/lib.rs',
     reason:
@@ -341,36 +376,6 @@ export const forbiddenContentRules = [
     ],
   },
   {
-    path: 'src/crates/assembly/core/src/infrastructure/debug_log/mod.rs',
-    patterns: [
-      {
-        regex: /\breqwest::/,
-        message:
-          'core debug log facade must not own HTTP ingest posting; use bitfun-services-integrations debug log network provider',
-      },
-      {
-        regex: /\bOpenOptions\b/,
-        message:
-          'core debug log facade must not own debug log file append; use bitfun-services-integrations debug log owner',
-      },
-      {
-        regex: /\bUuid::new_v4\b/,
-        message:
-          'core debug log facade must not own debug log id generation; use bitfun-services-integrations debug log owner',
-      },
-      {
-        regex: /\bfn redact_value\b/,
-        message:
-          'core debug log facade must not own redaction policy; use bitfun-services-integrations debug log owner',
-      },
-      {
-        regex: /\bfn build_log_line\b/,
-        message:
-          'core debug log facade must not build debug log lines; use bitfun-services-integrations debug log owner',
-      },
-    ],
-  },
-  {
     path: 'src/crates/assembly/core/src/infrastructure/storage/persistence.rs',
     patterns: [
       {
@@ -617,46 +622,6 @@ export const forbiddenContentRules = [
         regex: /\b(?:chat\/completions|v1\/messages|streamGenerateContent)\b/,
         message:
           'core-types must not encode provider endpoint paths; keep protocol URL behavior above contracts',
-      },
-    ],
-  },
-  {
-    path: 'src/crates/assembly/core/src/service/lsp/types.rs',
-    patterns: [
-      {
-        regex: /\bpub struct LspPlugin\b/,
-        message:
-          'LSP plugin manifest DTO belongs in bitfun-core-types; keep core LSP types as a compatibility facade',
-      },
-      {
-        regex: /\bpub enum JsonRpcMessage\b/,
-        message:
-          'LSP JSON-RPC DTOs belong in bitfun-core-types; keep core LSP types as a compatibility facade',
-      },
-      {
-        regex: /\buse serde::\{Deserialize,\s*Serialize\}/,
-        message:
-          'core LSP types should not own serialization DTOs after migration to bitfun-core-types',
-      },
-    ],
-  },
-  {
-    path: 'src/crates/assembly/core/src/service/lsp/registry.rs',
-    patterns: [
-      {
-        regex: /\bpub struct PluginRegistry\b/,
-        message:
-          'LSP plugin registry belongs in bitfun-services-core; keep core registry as a compatibility facade',
-      },
-      {
-        regex: /\bHashMap<String,\s*LspPlugin>\b/,
-        message:
-          'core LSP registry must not own plugin index maps after migration to bitfun-services-core',
-      },
-      {
-        regex: /\bPathBuf::from\(file_path\)/,
-        message:
-          'LSP file-extension lookup belongs in bitfun-services-core registry rules',
       },
     ],
   },
@@ -962,16 +927,6 @@ export const forbiddenContentRules = [
         regex: /\blist_sessions\s*\(\s*(?:Path::new|workspace_path)\b/,
         message:
           'CronTool target session lookup must use AgentSessionListRequest, not legacy path arguments',
-      },
-    ],
-  },
-  {
-    path: 'src/crates/assembly/core/src/agentic/tools/implementations/bash_tool.rs',
-    patterns: [
-      {
-        regex: /\bscheduler\s*\.\s*deliver_background_result\b/,
-        message:
-          'Bash background delivery must flow through AgentRuntime lifecycle delivery port, not direct DialogScheduler',
       },
     ],
   },
@@ -3991,49 +3946,35 @@ export const forbiddenContentRules = [
     ],
   },
   {
-    path: 'src/crates/assembly/core/src/agentic/tools/implementations/bash_tool.rs',
+    path: 'src/apps/server/src/bootstrap.rs',
     reason:
-      'BashTool must stay as terminal/session/checkpoint glue and must not re-own reusable shell execution helpers',
+      'Server must not assemble a second Agent Runtime beside the canonical Core owner',
     patterns: [
       {
-        regex: /\bconst\s+MAX_OUTPUT_LENGTH\b/,
-        message: 'Bash output rendering budget is owned by tool-runtime::shell',
+        regex: /\b(?:EventQueue|EventRouter|SessionManager|ToolPipeline|ExecutionEngine|ConversationCoordinator)::new\s*\(/,
+        message: 'Server bootstrap must not directly construct canonical Agent Runtime components',
       },
+    ],
+  },
+  {
+    path: 'src/apps/server/src/main.rs',
+    reason:
+      'Server must retain the product event-queue owner instead of bypassing legacy queue draining',
+    patterns: [
       {
-        regex: /\bconst\s+BANNED_COMMANDS\b/,
-        message: 'Bash banned-command policy is owned by tool-runtime::shell',
+        regex: /\bAgentEventSource::new\s*\(/,
+        message: 'Server must not construct an unowned Agent event source',
       },
+    ],
+  },
+  {
+    path: 'src/apps/desktop/src/api/app_state.rs',
+    reason:
+      'token usage publication belongs to the canonical Core Agent Runtime initializer for every embedded host',
+    patterns: [
       {
-        regex: /\bfn\s+detect_osascript_keystroke_non_ascii\b/,
-        message: 'Bash osascript keystroke guard is owned by tool-runtime::shell',
-      },
-      {
-        regex: /\bfn\s+detect_osascript_im_app\b/,
-        message: 'Bash IM AppleScript guard is owned by tool-runtime::shell',
-      },
-      {
-        regex: /\bfn\s+truncate_output_preserving_tail\b/,
-        message: 'Bash output truncation is owned by tool-runtime::shell',
-      },
-      {
-        regex: /\bfn\s+command_for_working_directory\b/,
-        message: 'Bash working-directory command wrapping is owned by tool-runtime::shell',
-      },
-      {
-        regex: /\bfn\s+render_result\b/,
-        message: 'Bash local result rendering is owned by tool-runtime::shell',
-      },
-      {
-        regex: /\bfn\s+render_remote_result\b/,
-        message: 'Bash remote result rendering is owned by tool-runtime::shell',
-      },
-      {
-        regex: /\bfn\s+format_background_command_delivery_text\b/,
-        message: 'Bash background-result delivery text is owned by tool-runtime::shell',
-      },
-      {
-        regex: /\bfn\s+format_background_command_error_text\b/,
-        message: 'Bash background-result error text is owned by tool-runtime::shell',
+        regex: /\bset_global_token_usage_service\s*\(/,
+        message: 'Desktop AppState must not re-own canonical token usage publication',
       },
     ],
   },
@@ -4086,6 +4027,37 @@ export const rustWebUiSourceBoundaryRule = {
 
 export const forbiddenContentUnderRules = [
   rustWebUiSourceBoundaryRule,
+  {
+    path: 'src/crates/assembly/core/src',
+    reason:
+      'OpenCode backend wire parsing, raw RPC handlers, and wire errors belong to the opencode-plugin-host adapter',
+    patterns: [
+      {
+        regex:
+          /\b(?:BackendHttp(?:Request|Response)|Stream(?:Read|Cancel)Params|RpcHandlerError|RawDiagnostic(?:PublishParams)?)\b/,
+        message: 'core must not consume OpenCode backend wire DTOs or RPC errors',
+      },
+      {
+        regex: /["']backend\.[a-z0-9_.-]+["']/i,
+        message: 'core must not own raw OpenCode backend RPC method names',
+      },
+      {
+        regex: /register_handler\s*\(\s*["']backend\./,
+        message: 'core must not register raw OpenCode backend RPC handlers',
+      },
+    ],
+  },
+  {
+    path: 'src/crates/adapters/opencode-plugin-host/src',
+    reason:
+      'raw OpenCode RPC handler registration is an adapter-internal implementation detail',
+    patterns: [
+      {
+        regex: /\bpub\s+async\s+fn\s+register_handler\b/,
+        message: 'the raw JSON-RPC handler registration API must not be public',
+      },
+    ],
+  },
   {
     path: 'src/crates/adapters/agent-runtime-ipc/src',
     reason: 'agent-runtime-ipc transport is restricted to Named Pipe and Unix Domain Socket',
@@ -4202,6 +4174,7 @@ export const forbiddenContentUnderRules = [
           'src/crates/assembly/core/src/external_sources.rs',
           'src/crates/assembly/core/src/external_hooks.rs',
           'src/crates/assembly/core/src/instruction_sources.rs',
+          'src/crates/assembly/core/src/plugin_host.rs',
         ],
         message:
           'only a reviewed product composition root may import bitfun-opencode-adapter through a capability-specific provider boundary',
@@ -4442,6 +4415,38 @@ export const forbiddenContentUnderRules = [
       {
         regex: /\bvalidate_deferred_tool_usage\s*\(/,
         message: 'deferred-tool admission must stay behind validate_tool_execution_admission',
+      },
+    ],
+  },
+  {
+    path: 'src/crates/services/services-integrations/src',
+    reason:
+      'integration modules must use the crate-level provider-initializing Reqwest constructors',
+    patterns: [
+      {
+        regex: /\breqwest::(?:get|Client::(?:new|builder)|ClientBuilder::new)\s*\(/,
+        allowPaths: ['src/crates/services/services-integrations/src/lib.rs'],
+        message: 'use crate::reqwest_client or crate::reqwest_client_builder',
+      },
+      {
+        regex: /use\s+reqwest(?:::(?:Client|ClientBuilder)|::\{[^}]*\b(?:Client|ClientBuilder)\b[^}]*\})[^;]*;/,
+        message: 'keep Reqwest client types fully qualified and construct them through crate-level TLS helpers',
+      },
+      {
+        regex: /use\s+reqwest\s+as\s+\w+\s*;/,
+        message: 'do not alias Reqwest around the centralized client-construction guard',
+      },
+    ],
+  },
+  {
+    path: 'src',
+    reason:
+      'services-core is the only owner allowed to install the process-wide Rustls provider',
+    patterns: [
+      {
+        regex: /\brustls::crypto::(?:ring|aws_lc_rs)\b/,
+        allowPaths: ['src/crates/services/services-core/src/tls_provider.rs'],
+        message: 'delegate built-in Rustls provider selection to services-core::tls_provider',
       },
     ],
   },

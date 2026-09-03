@@ -1,6 +1,22 @@
+import {
+  Button,
+  Icon,
+  IconButton,
+  Input,
+  Select,
+  type SelectOption,
+  Tooltip,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react';
-import { Button, IconButton, Input, Modal, Select, confirmDanger, type SelectOption } from '@/component-library';
+import { Save, ShieldCheck } from 'lucide-react';
+
+import { confirmDanger } from '@/infrastructure/confirm-dialog';
 import {
   permissionAPI,
   type PermissionGrant,
@@ -65,7 +81,7 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
   isOpen,
   onClose,
 }) => {
-  const { t, formatDate } = useI18n('settings/session-config');
+  const { t, formatDate } = useI18n('settings/runtime');
   const [permissionGrants, setPermissionGrants] = useState<PermissionGrant[]>([]);
   const [grantsLoading, setGrantsLoading] = useState(false);
   const [rulesLoading, setRulesLoading] = useState(false);
@@ -224,19 +240,21 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={() => {
-        if (!isBusy) {
-          onClose();
-        }
+    <Dialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !isBusy) onClose();
       }}
-      title={workspace.name}
-      size="xlarge"
-      contentInset
-      contentClassName="workspace-project-permissions-dialog__modal"
-      overlayClassName="workspace-project-permissions-dialog-overlay"
+      size="xl"
     >
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{workspace.name}</DialogTitle>
+        </DialogHeading>
+        <DialogClose />
+      </DialogHeader>
+      <DialogBody>
+        <div className="workspace-project-permissions-dialog__modal">
       <div data-bf-component="workspace-project-permissions-dialog" data-bf-part="root" className="workspace-project-permissions-dialog">
         <div data-bf-component="workspace-project-permissions-dialog" data-bf-part="intro" className="workspace-project-permissions-dialog__intro">
           <ShieldCheck size={18} aria-hidden="true" />
@@ -248,12 +266,13 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
             <span>{t('projectPermissions.grantsTitle')}</span>
             {permissionGrants.length > 0 ? (
               <Button
-                size="small"
-                variant="secondary"
+                size="sm"
+                variant="outline"
                 onClick={() => void handleClearPermissionGrants()}
                 disabled={isBusy}
+                leadingIcon={<Icon name="delete" size="sm" />}
               >
-                <Trash2 size={14} />
+
                 {t('projectPermissions.clearGrants')}
               </Button>
             ) : null}
@@ -273,17 +292,16 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
                     <code title={grant.resource}>{grant.resource}</code>
                     <span>{formatDate(grant.createdAtMs, { dateStyle: 'medium', timeStyle: 'short' })}</span>
                   </div>
-                  <IconButton
-                    type="button"
-                    size="small"
-                    variant="ghost"
-                    aria-label={t('projectPermissions.removeGrant')}
-                    tooltip={t('projectPermissions.removeGrant')}
-                    disabled={isBusy}
-                    onClick={() => void handleRemovePermissionGrant(grant)}
-                  >
-                    <Trash2 size={14} />
-                  </IconButton>
+                  <Tooltip content={t('projectPermissions.removeGrant')}>
+                    <IconButton
+                      type="button"
+                      size="sm"
+                      aria-label={t('projectPermissions.removeGrant')}
+                      disabled={isBusy}
+                      onClick={() => void handleRemovePermissionGrant(grant)}
+                      icon={<Icon name="delete" size="sm" />}
+                    />
+                  </Tooltip>
                 </div>
               );
             })}
@@ -294,12 +312,13 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
           <div data-bf-component="workspace-project-permissions-dialog" data-bf-part="sectionHeader" className="workspace-project-permissions-dialog__section-header">
             <span>{t('projectPermissions.rulesTitle')}</span>
             <Button
-              size="small"
-              variant="secondary"
+              size="sm"
+              variant="outline"
               disabled={isBusy || rulesRevision === null}
               onClick={() => setDraftRules((rules) => [...rules, toDraftRule({ action: '', resource: '', effect: 'ask' })])}
+              leadingIcon={<Icon name="plus" size="sm" />}
             >
-              <Plus size={14} />
+
               {t('projectPermissions.addRule')}
             </Button>
           </div>
@@ -319,66 +338,63 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
               {draftRules.map((rule, index) => (
                 <div data-bf-component="workspace-project-permissions-dialog" data-bf-part="rule" key={rule.localId} className="workspace-project-permissions-dialog__rule-row">
                   <Select
-                    size="small"
+                    size="sm"
                     value={rule.effect}
                     options={effectOptions}
                     aria-label={t('projectPermissions.effect')}
                     disabled={isBusy}
-                    onChange={(value) => updateDraftRule(rule.localId, { effect: value as ProjectPermissionEffect })}
+                    onValueChange={(value) => updateDraftRule(rule.localId, { effect: value as ProjectPermissionEffect })}
                   />
                   <Select
-                    size="small"
+                    size="sm"
                     value={rule.action}
                     options={PROJECT_PERMISSION_ACTION_OPTIONS}
                     placeholder={t('projectPermissions.action')}
                     aria-label={t('projectPermissions.action')}
                     disabled={isBusy}
-                    error={!rule.action.trim()}
-                    onChange={(value) => updateDraftRule(rule.localId, { action: value as string })}
+                    invalid={!rule.action.trim()}
+                    onValueChange={(value) => updateDraftRule(rule.localId, { action: value as string })}
                   />
                   <Input
-                    inputSize="small"
                     value={rule.resource}
                     placeholder={t('projectPermissions.resourcePlaceholder')}
                     aria-label={t('projectPermissions.resource')}
                     disabled={isBusy}
-                    error={!rule.resource.trim()}
+                    invalid={!rule.resource.trim()}
                     onChange={(event) => updateDraftRule(rule.localId, { resource: event.target.value })}
+                    size="sm"
                   />
                   <div data-bf-component="workspace-project-permissions-dialog" data-bf-part="ruleActions" className="workspace-project-permissions-dialog__rule-actions">
-                    <IconButton
-                      type="button"
-                      size="small"
-                      variant="ghost"
-                      aria-label={t('projectPermissions.moveRuleUp')}
-                      tooltip={t('projectPermissions.moveRuleUp')}
-                      disabled={isBusy || index === 0}
-                      onClick={() => moveDraftRule(index, -1)}
-                    >
-                      <ArrowUp size={14} />
-                    </IconButton>
-                    <IconButton
-                      type="button"
-                      size="small"
-                      variant="ghost"
-                      aria-label={t('projectPermissions.moveRuleDown')}
-                      tooltip={t('projectPermissions.moveRuleDown')}
-                      disabled={isBusy || index === draftRules.length - 1}
-                      onClick={() => moveDraftRule(index, 1)}
-                    >
-                      <ArrowDown size={14} />
-                    </IconButton>
-                    <IconButton
-                      type="button"
-                      size="small"
-                      variant="ghost"
-                      aria-label={t('projectPermissions.removeRule')}
-                      tooltip={t('projectPermissions.removeRule')}
-                      disabled={isBusy}
-                      onClick={() => setDraftRules((rules) => rules.filter(({ localId }) => localId !== rule.localId))}
-                    >
-                      <Trash2 size={14} />
-                    </IconButton>
+                    <Tooltip content={t('projectPermissions.moveRuleUp')}>
+                      <IconButton
+                        type="button"
+                        size="sm"
+                        aria-label={t('projectPermissions.moveRuleUp')}
+                        disabled={isBusy || index === 0}
+                        onClick={() => moveDraftRule(index, -1)}
+                        icon={<Icon name="arrow-up" size="sm" />}
+                      />
+                    </Tooltip>
+                    <Tooltip content={t('projectPermissions.moveRuleDown')}>
+                      <IconButton
+                        type="button"
+                        size="sm"
+                        aria-label={t('projectPermissions.moveRuleDown')}
+                        disabled={isBusy || index === draftRules.length - 1}
+                        onClick={() => moveDraftRule(index, 1)}
+                        icon={<Icon name="arrow-down" size="sm" />}
+                      />
+                    </Tooltip>
+                    <Tooltip content={t('projectPermissions.removeRule')}>
+                      <IconButton
+                        type="button"
+                        size="sm"
+                        aria-label={t('projectPermissions.removeRule')}
+                        disabled={isBusy}
+                        onClick={() => setDraftRules((rules) => rules.filter(({ localId }) => localId !== rule.localId))}
+                        icon={<Icon name="delete" size="sm" />}
+                      />
+                    </Tooltip>
                   </div>
                 </div>
               ))}
@@ -387,24 +403,27 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
 
           {rulesDirty ? (
             <div data-bf-component="workspace-project-permissions-dialog" data-bf-part="footer" className="workspace-project-permissions-dialog__footer">
-              <Button type="button" variant="ghost" onClick={handleDiscardRules} disabled={isBusy}>
+              <Button type="button" variant="outline" onClick={handleDiscardRules} disabled={isBusy}>
                 {t('projectPermissions.cancel')}
               </Button>
               <Button
                 type="button"
-                variant="primary"
-                isLoading={rulesSaving}
+                variant="fill"
+                loading={rulesSaving}
                 disabled={!rulesValid || rulesRevision === null || isBusy}
                 onClick={() => void handleSaveRules()}
+                leadingIcon={<Save size={14} />}
               >
-                <Save size={14} />
+
                 {t('projectPermissions.saveRules')}
               </Button>
             </div>
           ) : null}
         </section>
       </div>
-    </Modal>
+            </div>
+            </DialogBody>
+    </Dialog>
   );
 };
 

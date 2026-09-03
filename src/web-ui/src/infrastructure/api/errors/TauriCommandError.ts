@@ -104,6 +104,7 @@ export function isTauriCommandError(error: any): error is TauriCommandError {
 
 const SESSION_IN_USE_PREFIX = 'session_in_use:';
 const OUTCOME_UNKNOWN_PREFIX = 'outcome_unknown:';
+const NOT_AVAILABLE_PREFIX = 'not_available:';
 const GIT_REPOSITORY_UNTRUSTED_PREFIX = 'git_repository_untrusted:';
 
 /** Returns the payload carried after a stable error prefix, if present. */
@@ -160,6 +161,11 @@ export function isSessionInUseError(error: unknown): boolean {
 /** Identifies a mutation that must be read back before the user retries it. */
 export function isOutcomeUnknownError(error: unknown): boolean {
   return hasStableErrorPrefix(error, OUTCOME_UNKNOWN_PREFIX);
+}
+
+/** Identifies a capability or persisted selection unsupported by this Host. */
+export function isNotAvailableError(error: unknown): boolean {
+  return hasStableErrorPrefix(error, NOT_AVAILABLE_PREFIX);
 }
 
 /**

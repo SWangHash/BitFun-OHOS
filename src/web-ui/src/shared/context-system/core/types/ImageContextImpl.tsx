@@ -1,9 +1,18 @@
  
 
+import {
+  Button,
+  Icon,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React from 'react';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
-import { Image as ImageIcon, Eye } from 'lucide-react';
-import { Modal, Button } from '@/component-library';
+;
 import type { ImageContext, ValidationResult, RenderOptions } from '../../../types/context';
 import type { 
   ContextTransformer, 
@@ -153,7 +162,7 @@ export class ImageCardRenderer implements ContextCardRenderer<'image'> {
       <div className="context-card image-context-card" data-compact={compact}>
         <div className="context-card__header">
           <div className="context-card__icon">
-            <ImageIcon size={16} />
+            <Icon name="image" size="md" />
           </div>
           <div className="context-card__info">
             <div className="context-card__title">{context.imageName}</div>
@@ -193,11 +202,12 @@ export class ImageCardRenderer implements ContextCardRenderer<'image'> {
             {interactive && (
               <div className="image-context-card__actions">
                 <Button 
-                  variant="ghost"
-                  size="small"
+                  variant="outline"
+                  size="sm"
                   onClick={() => setShowFullImage(true)}
+                  leadingIcon={<Icon name="eye" size="sm" />}
                 >
-                  <Eye size={14} />
+
                   <span>{i18nService.t('components:contextSystem.contextCard.viewLargeImage')}</span>
                 </Button>
               </div>
@@ -206,12 +216,18 @@ export class ImageCardRenderer implements ContextCardRenderer<'image'> {
         )}
         
         
-        <Modal
-          isOpen={showFullImage && !!imagePreview}
-          onClose={() => setShowFullImage(false)}
-          title={context.imageName}
-          size="large"
+        <Dialog
+          open={showFullImage && !!imagePreview}
+          onOpenChange={(nextOpen) => { if (!nextOpen) setShowFullImage(false); }}
+          size="lg"
         >
+          <DialogHeader>
+            <DialogHeading>
+              <DialogTitle>{context.imageName}</DialogTitle>
+            </DialogHeading>
+            <DialogClose />
+          </DialogHeader>
+          <DialogBody inset="none">
           <div className="image-context-card__modal-content">
             <img 
               src={imagePreview || ''} 
@@ -219,7 +235,8 @@ export class ImageCardRenderer implements ContextCardRenderer<'image'> {
               style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain' }}
             />
           </div>
-        </Modal>
+                  </DialogBody>
+        </Dialog>
       </div>
     );
   }

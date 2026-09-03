@@ -5,6 +5,7 @@ import { createTauriCommandError } from '../errors/TauriCommandError';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { createLogger } from '@/shared/utils/logger';
 import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
+import { productControlAPI } from './ProductControlAPI';
 
 
 const log = createLogger('SystemAPI');
@@ -241,38 +242,34 @@ export class SystemAPI {
       return;
     }
     try {
-      // Autostart plugin (@tauri-apps/plugin-autostart) is not available in this build.
-      // if (enabled) {
-      //   await autostartEnable();
-      // } else {
-      //   await autostartDisable();
-      // }
+      await productControlAPI.configure(
+        'setting.application.general',
+        'launch-at-login',
+        enabled,
+      );
     } catch (error) {
       log.error('Failed to set launch-at-login', { enabled, error });
-      throw createTauriCommandError('autostart_set', error, { enabled });
+      throw error;
     }
   }
 
   /** Desktop only: whether BitFun should keep the local computer awake. */
   async getPreventSleepEnabled(): Promise<boolean> {
-    try {
-      return await api.invoke('get_prevent_sleep_enabled', {
-        request: {}
-      });
-    } catch (error) {
-      throw createTauriCommandError('get_prevent_sleep_enabled', error);
+    const result = await productControlAPI.get('setting.application.general');
+    const enabled = result.currentOptionValues['prevent-sleep'];
+    if (typeof enabled !== 'boolean') {
+      throw new Error('ProductControl returned a non-boolean prevent-sleep state');
     }
+    return enabled;
   }
 
   /** Desktop only: apply and persist the app-wide sleep-prevention preference. */
   async setPreventSleepEnabled(enabled: boolean): Promise<void> {
-    try {
-      await api.invoke('set_prevent_sleep_enabled', {
-        request: { enabled }
-      });
-    } catch (error) {
-      throw createTauriCommandError('set_prevent_sleep_enabled', error, { enabled });
-    }
+    await productControlAPI.configure(
+      'setting.application.general',
+      'prevent-sleep',
+      enabled,
+    );
   }
 
   // ─── Window / Tray behavior ────────────────────────────────────────────────

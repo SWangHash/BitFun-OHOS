@@ -835,6 +835,7 @@ export class FakeRemoteSessionClient implements RemoteSessionClient {
   shouldFailList: boolean = false;
   shouldFailCreate: boolean = false;
   shouldFailDelete: boolean = false;
+  emitAllocationBeforeCreateReturn: boolean = false;
 
   async listSessions(limit: number, offset: number, query: string, agentType: string): Promise<SessionListResult> {
     this.listRequests.push(`${limit}:${offset}:${query}:${agentType}`);
@@ -848,12 +849,23 @@ export class FakeRemoteSessionClient implements RemoteSessionClient {
     return result;
   }
 
-  async createSession(options: CreateSessionOptions): Promise<SessionSummary> {
+  async createSession(
+    options: CreateSessionOptions,
+    onAllocated?: (session: SessionSummary) => Promise<void>
+  ): Promise<SessionSummary> {
     this.createRequests.push(
       `${options.agentType}:${options.title}:${options.instruction}:${options.workspacePath || ''}`
     );
     if (this.shouldFailCreate) {
       throw new Error('Expected session create failure.');
+    }
+    if (this.emitAllocationBeforeCreateReturn && onAllocated) {
+      await onAllocated({
+        sessionId: this.createdSession.sessionId,
+        title: this.createdSession.title,
+        workspacePath: this.createdSession.workspacePath,
+        agentType: this.createdSession.agentType
+      });
     }
     return this.createdSession;
   }
@@ -874,11 +886,13 @@ export class RemoteSessionProjectionRecord {
 export class FakeRemoteChatCommandClient implements RemoteChatCommandClient {
   messageResults: SessionMessagesResult[] = [];
   messageRequests: string[] = [];
+  messageResolvers: Array<(result: SessionMessagesResult) => void> = [];
   sendRequests: string[] = [];
   cancelRequests: string[] = [];
   renameRequests: string[] = [];
   turnId: string = 'turn-1';
   shouldFailMessages: boolean = false;
+  deferMessages: boolean = false;
   shouldFailSend: boolean = false;
   shouldFailCancel: boolean = false;
   shouldFailRename: boolean = false;
@@ -888,11 +902,24 @@ export class FakeRemoteChatCommandClient implements RemoteChatCommandClient {
     if (this.shouldFailMessages) {
       throw new Error('Expected message load failure.');
     }
+    if (this.deferMessages) {
+      return new Promise<SessionMessagesResult>((resolve: (result: SessionMessagesResult) => void) => {
+        this.messageResolvers.push(resolve);
+      });
+    }
     const result = this.messageResults.shift();
     if (!result) {
       throw new Error('Missing fake session messages result.');
     }
     return result;
+  }
+
+  resolveNextMessages(result: SessionMessagesResult): void {
+    const resolve = this.messageResolvers.shift();
+    if (!resolve) {
+      throw new Error('Missing deferred message request.');
+    }
+    resolve(result);
   }
 
   async sendMessage(sessionId: string, text: string, agentType?: string): Promise<string> {

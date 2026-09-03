@@ -1,12 +1,12 @@
 /**
- * MiniAppToolDisplay — InitMiniApp result; layout aligned with GitToolDisplay (BaseToolCard).
+ * MiniAppToolDisplay — InitMiniApp result on the prominent FlowChat framework.
  */
 import React, { useCallback, useMemo, useState } from 'react';
+import { Button, Spinner } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
 import { AppWindow, ExternalLink } from 'lucide-react';
-import { CubeLoading } from '../../component-library';
 import type { ToolCardProps } from '../types/flow-chat';
-import { BaseToolCard, ToolCardHeader } from './BaseToolCard';
+import { ProminentToolCard, ProminentToolCardHeader } from '@bitfun/ui/flow-chat';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 import { useSceneManager } from '@/app/hooks/useSceneManager';
 import './MiniAppToolDisplay.scss';
@@ -79,15 +79,14 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
 
   const renderStatusIcon = () => {
     if (isLoading) {
-      return <CubeLoading size="small" />;
+      return <Spinner size="sm" />;
     }
     return null;
   };
 
   const renderHeader = () => (
-    <ToolCardHeader
-      icon={<AppWindow size={16} />}
-      iconClassName="miniapp-icon"
+    <ProminentToolCardHeader
+      icon={<span className="miniapp-icon"><AppWindow size={16} /></span>}
       action={`${t('toolCards.initMiniApp.title')}:`}
       content={
         <span data-bf-component="mini-app-tool-display" data-bf-part="info" className="miniapp-tool-info">
@@ -155,19 +154,18 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
           ))}
         </div>
         <div data-bf-component="mini-app-tool-display" data-bf-part="footer" className="miniapp-result-footer miniapp-action-buttons">
-          <button
+          <Button
             type="button"
-            data-bf-component="mini-app-tool-display"
-            data-bf-part="open"
-            className="miniapp-open-btn"
+            variant="outline"
+            size="sm"
+            leadingIcon={<ExternalLink size={12} />}
             data-testid="chat-miniapp-open-btn"
             data-app-id={appId}
             onClick={() => openScene(`miniapp:${appId}`)}
             title={t('toolCards.initMiniApp.openInMiniAppTitle')}
           >
-            <ExternalLink size={12} />
-            <span>{t('toolCards.initMiniApp.openInMiniApp')}</span>
-          </button>
+            {t('toolCards.initMiniApp.openInMiniApp')}
+          </Button>
         </div>
       </div>
     );
@@ -204,7 +202,7 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
       data-app-id={appId || ''}
       data-expanded={isExpanded ? 'true' : 'false'}
     >
-      <BaseToolCard
+      <ProminentToolCard
         status={status}
         isExpanded={isExpanded}
         onClick={hasExpandableDetails ? handleCardClick : undefined}

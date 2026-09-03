@@ -10,10 +10,36 @@ const log = createLogger('ModelConfigManager');
 const t = (key: string, options?: Record<string, unknown>) => i18nService.t(key, options);
 
 type ProviderConfigLike = {
+  id?: string;
   name?: string;
   model_name?: string;
   base_url?: string;
+  metadata?: Record<string, unknown> | null;
 };
+
+export const PROVIDER_INSTANCE_METADATA_KEY = 'provider_instance_id';
+
+/**
+ * The provider instance a model config belongs to: one configured endpoint plus
+ * credential, which is what the user manages as a single "provider".
+ */
+export function getProviderInstanceId(
+  config: ProviderConfigLike | null | undefined,
+): string | undefined {
+  const value = config?.metadata?.[PROVIDER_INSTANCE_METADATA_KEY];
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+/**
+ * Grouping key for presenting models by provider. Configs written before the
+ * provider-instance migration, and drafts that have not been saved yet, fall
+ * back to their own identity so they stay visible as their own group.
+ */
+export function getProviderGroupKey(config: ProviderConfigLike): string {
+  return getProviderInstanceId(config)
+    || config.id
+    || `${config.name ?? ''}:${config.model_name ?? ''}`;
+}
 
 function inferProviderTemplate(config: ProviderConfigLike): ProviderTemplate | undefined {
   const matchedCatalogItem = matchProviderCatalogItemByBaseUrl(config.base_url);
@@ -47,10 +73,10 @@ export function getProviderDisplayName(config: ProviderConfigLike): string {
 
   const inferredTemplate = inferProviderTemplate(config);
   if (inferredTemplate) {
-    return t(`settings/ai-model:providers.${inferredTemplate.id}.name`);
+    return t(`settings/models:providers.${inferredTemplate.id}.name`);
   }
 
-  return extractProviderSegmentFromBaseUrl(config.base_url) || t('settings/ai-model:providerSelection.customTitle');
+  return extractProviderSegmentFromBaseUrl(config.base_url) || t('settings/models:providerSelection.customTitle');
 }
 
 export function getModelDisplayName(config: ProviderConfigLike): string {
@@ -63,6 +89,8 @@ export function getModelDisplayName(config: ProviderConfigLike): string {
   return `${providerName}/${modelName}`;
 }
 
+// Keep the retired `auto` selector reserved so legacy session data can never
+// become ambiguous with a newly allocated concrete model config ID.
 const RESERVED_MODEL_CONFIG_IDS = new Set(['primary', 'fast', 'auto', 'default']);
 
 /** Allocate a readable config ID for a newly created model. */
@@ -160,7 +188,7 @@ class ModelConfigManager {
           apiKey: model.api_key,
           modelName: model.model_name,
           format: model.provider as ApiFormat,
-          description: model.description || t('settings/ai-model:messages.defaultDescription', { name: model.name }),
+          description: model.description || t('settings/models:messages.defaultDescription', { name: model.name }),
           isBuiltIn: false,
           contextWindow: model.context_window,
           maxTokens: model.max_tokens,
@@ -298,7 +326,7 @@ class ModelConfigManager {
 
     const cloned = this.addConfig({
       ...config,
-      name: t('settings/ai-model:messages.cloneName', { name: config.name }),
+      name: t('settings/models:messages.cloneName', { name: config.name }),
       isBuiltIn: false
     });
     return cloned;
@@ -319,7 +347,7 @@ class ModelConfigManager {
       baseUrl: template.baseUrl,
       modelName,
       format: template.format,
-      description: t('settings/ai-model:messages.templateDescription', { description: template.description, modelName }),
+      description: t('settings/models:messages.templateDescription', { description: template.description, modelName }),
       isBuiltIn: false,
       category,
       capabilities: getCapabilitiesByCategory(category),
@@ -341,13 +369,13 @@ export const getAllTemplates = (): ProviderTemplate[] => {
 export const getFormatDisplayName = (format: ApiFormat): string => {
   switch (format) {
     case 'openai':
-      return t('settings/ai-model:formats.openaiCompatible');
+      return t('settings/models:formats.openaiCompatible');
     case 'responses':
-      return t('settings/ai-model:formats.responsesApi');
+      return t('settings/models:formats.responsesApi');
     case 'anthropic':
-      return t('settings/ai-model:formats.claudeApi');
+      return t('settings/models:formats.claudeApi');
     case 'gemini':
-      return t('settings/ai-model:formats.geminiApi');
+      return t('settings/models:formats.geminiApi');
     default:
       return format;
   }

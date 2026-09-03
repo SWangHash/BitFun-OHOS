@@ -301,6 +301,7 @@ struct Phase2Provider {
     steers: Mutex<Vec<ports::AgentDialogSteerRequest>>,
     shell_commands: Mutex<Vec<ports::AgentUserShellCommandRequest>>,
     answers: Mutex<Vec<ports::AgentUserAnswersRequest>>,
+    local_commands: Mutex<Vec<ports::AgentLocalCommandTurnRecordRequest>>,
     compactions: Mutex<Vec<ports::AgentSessionCompactionRequest>>,
     settlements: Mutex<Vec<ports::AgentTurnSettlementRequest>>,
     reloads: Mutex<Vec<ports::AgentContextReloadRequest>>,
@@ -467,6 +468,7 @@ impl ports::AgentLocalCommandTurnPort for Phase2Provider {
         &self,
         request: ports::AgentLocalCommandTurnRecordRequest,
     ) -> PortResult<ports::AgentLocalCommandTurnRecordResult> {
+        self.local_commands.lock().unwrap().push(request.clone());
         Ok(ports::AgentLocalCommandTurnRecordResult {
             turn_id: request
                 .turn_id
@@ -527,9 +529,13 @@ impl ports::AgentTurnSettlementPort for Phase2Provider {
     async fn wait_for_turn_settlement(
         &self,
         request: ports::AgentTurnSettlementRequest,
-    ) -> PortResult<()> {
+    ) -> PortResult<ports::AgentTurnSettlementResult> {
         self.settlements.lock().unwrap().push(request);
-        Ok(())
+        Ok(ports::AgentTurnSettlementResult {
+            status: ports::AgentTurnSettlementStatus::Completed,
+            final_response: Some("fixture result".to_string()),
+            finish_reason: Some("stop".to_string()),
+        })
     }
 }
 
@@ -584,6 +590,7 @@ impl ports::AgentSessionLineagePort for Phase2Provider {
                 parent_session_id: None,
                 parent_tool_call_id: None,
                 subagent_type: None,
+                agent_id: None,
                 workspace_path: Some("/authoritative/workspace".to_string()),
                 remote_connection_id: None,
                 remote_ssh_host: None,
@@ -648,11 +655,6 @@ fn revert_result(session_id: String, text: &str) -> ports::AgentSessionRevertRes
         retired_turn_ids: vec!["turn-active".to_string()],
         changed: true,
         hidden_turn_count: 1,
-        boundary_storage_turn_index: None,
-        target_turn_id: None,
-        restored_files: Vec::new(),
-        reload_required: false,
-        reload_reason: None,
     }
 }
 
@@ -836,8 +838,6 @@ async fn phase2_mutations_route_through_runtime_owner_ports() {
                         turn_id: "turn-active".to_string(),
                         content: "keep going".to_string(),
                         display_content: None,
-                        attachments: Vec::new(),
-                        metadata: serde_json::Map::new(),
                     },
                 ))
                 .await
@@ -863,6 +863,20 @@ async fn phase2_mutations_route_through_runtime_owner_ports() {
                 })
                 .await
                 .expect("submit user answers");
+            let local_turn = client
+                .record_local_command_turn(protocol_session::RecordLocalCommandTurnRequest(
+                    ports::AgentLocalCommandTurnRecordRequest {
+                        session_id: "session-1".to_string(),
+                        content: "usage: 12 tokens".to_string(),
+                        turn_id: Some("local-turn".to_string()),
+                        timestamp_ms: Some(100),
+                        metadata: serde_json::Map::new(),
+                    },
+                ))
+                .await
+                .expect("record local command turn");
+            assert_eq!(local_turn.0.turn_id, "local-turn");
+
             client
                 .compact_session(protocol_session::CompactSessionRequest(
                     ports::AgentSessionCompactionRequest {
@@ -911,6 +925,7 @@ async fn phase2_mutations_route_through_runtime_owner_ports() {
                 "cargo test"
             );
             assert_eq!(provider.answers.lock().unwrap().len(), 1);
+            assert_eq!(provider.local_commands.lock().unwrap().len(), 1);
             assert_eq!(provider.compactions.lock().unwrap().len(), 1);
             assert_eq!(provider.reloads.lock().unwrap().len(), 1);
             client.shutdown().await;
@@ -1192,6 +1207,7 @@ async fn session_control_methods_forward_exact_owner_dtos() {
                         UpdateSessionModeMessage(AgentSessionModeUpdateRequest {
                             session_id: "session-1".to_string(),
                             mode_id: "plan".to_string(),
+                            agent_route_key: None,
                         }),
                     ))
                     .await?;
@@ -1381,6 +1397,7 @@ async fn create_session_returns_provider_session_id() {
                         AgentSessionCreateRequest {
                             session_name: "direct create".to_string(),
                             agent_type: "agentic".to_string(),
+                            agent_route_key: None,
                             workspace_path: None,
                             project_workspace_path: None,
                             execution_target: None,
@@ -1645,3 +1662,55 @@ struct UnknownAgentResponse;
 
 #[allow(dead_code)]
 fn _document_run_response_shape_in_tests(_r: RunResponse) {}
+/// The Server Host drives the app-server through the real
+/// `bitfun_app_server_client::connect`
+/// handle (not an inline `AppClient::builder().connect_with` main_fn like the
+/// round-trip tests above). `connect` parks its main loop on a shutdown
+/// receiver and returns an `AppServerClient` the host holds for the process
+/// lifetime. This regression test pins that contract: after `connect`
+/// returns, an RPC sent through the returned handle must still reach the
+/// server and get a response. A previous version dropped `shutdown_tx` right
+/// before returning (`let _ = shutdown_tx;`), which let the parked main loop
+/// resume immediately, cancelling the connection's background actors -- every
+/// subsequent RPC then surfaced as `send failed because receiver is gone`
+/// (from `Task::spawn`'s `unbounded_send` failure). This test fails loud if
+/// that regression returns, because `create_session` would error instead of
+/// returning the mock session id.
+#[tokio::test(flavor = "current_thread")]
+async fn client_connect_keeps_connection_alive_after_return() {
+    let local = LocalSet::new();
+    local
+        .run_until(async {
+            let (server_transport, client_transport) = transport::in_memory_channel_pair();
+            let runtime = build_app_runtime();
+            spawn_server(runtime, server_transport);
+
+            let client = bitfun_app_server_client::connect(client_transport)
+                .await
+                .expect("app-server client should connect");
+
+            // The connect task must still be parked on the shutdown receiver
+            // here -- otherwise the connection's background actors are gone and
+            // this RPC surfaces `send failed because receiver is gone`.
+            let response = client
+                .create_session(CreateSessionMessage(AgentSessionCreateRequest {
+                    session_name: "post-connect session".to_string(),
+                    agent_type: "agentic".to_string(),
+                    workspace_path: None,
+                    project_workspace_path: None,
+                    execution_target: None,
+                    workspace_id: None,
+                    remote_connection_id: None,
+                    remote_ssh_host: None,
+                    model_id: None,
+                    metadata: Default::default(),
+                }))
+                .await
+                .expect("RPC after connect() must succeed -- connection should still be alive");
+            assert_eq!(response.0.session_id, "example-session");
+            assert_eq!(response.0.agent_type, "agentic");
+
+            client.shutdown().await;
+        })
+        .await;
+}

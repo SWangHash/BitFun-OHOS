@@ -1,17 +1,9 @@
 {
   "title": "外观",
-  "subtitle": "界面语言、外观包与全局字体大小",
-  "effects": {
-    "title": "动态效果",
-    "hint": "控制界面中的视觉反馈。",
-    "mouseGlow": {
-      "label": "鼠标跟随光效",
-      "description": "让卡片边缘显示跟随鼠标移动的柔和聚光效果。系统开启“减少动态效果”时会自动暂停。"
-    }
-  },
+  "subtitle": "界面语言、视觉外观、外观包与全局字体大小",
   "package": {
     "title": "外观包",
-    "description": "导入声明式 BitFun 外观包，资源仅保存在当前设备。",
+    "description": "从列表选择外观包；悬停微缩图可查看大图，资源仅保存在当前设备。",
     "import": "导入外观包",
     "importSuccess": "已导入 {{name}}",
     "importFailed": "无法导入外观包，请查看问题详情。",
@@ -29,7 +21,7 @@
     "empty": "尚未导入外观包。",
     "missingSelection": "共享选择的外观 {{id}} 尚未安装在当前设备。请从 Skin 市场安装它以恢复选择。",
     "market": {
-      "open": "浏览 Skin 市场",
+      "open": "浏览市场",
       "title": "Skin 市场",
       "search": "搜索外观包",
       "modeFilter": "按外观模式筛选",

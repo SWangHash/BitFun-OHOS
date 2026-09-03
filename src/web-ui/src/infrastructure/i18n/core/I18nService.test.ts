@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { I18nService } from './I18nService';
 import { DEFAULT_LOCALE, WEB_UI_BOOTSTRAP_NAMESPACES } from '../presets';
@@ -43,10 +43,65 @@ describe('I18nService shared namespace contract', () => {
     for (const namespace of WEB_UI_BOOTSTRAP_NAMESPACES) {
       expect(i18n.hasResourceBundle(DEFAULT_LOCALE, namespace)).toBe(true);
     }
-    expect(i18n.hasResourceBundle(DEFAULT_LOCALE, 'settings/basics')).toBe(false);
+    expect(i18n.hasResourceBundle(DEFAULT_LOCALE, 'settings/application')).toBe(false);
 
-    await service.loadNamespace('settings/basics');
+    await service.loadNamespace('settings/application');
 
-    expect(i18n.hasResourceBundle(DEFAULT_LOCALE, 'settings/basics')).toBe(true);
+    expect(i18n.hasResourceBundle(DEFAULT_LOCALE, 'settings/application')).toBe(true);
+  });
+
+  it('applies an externally persisted locale without persisting it again', async () => {
+    vi.stubGlobal('document', {
+      documentElement: { setAttribute: vi.fn() },
+    });
+    const service = new I18nService();
+    const saveCurrentLocale = vi.spyOn(
+      service as unknown as { saveCurrentLocale(locale: string): Promise<void> },
+      'saveCurrentLocale',
+    ).mockResolvedValue(undefined);
+
+    await service.applyPersistedLanguage('zh-TW');
+
+    expect(service.getCurrentLocale()).toBe('zh-TW');
+    expect(saveCurrentLocale).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('commits a user language change before applying the local presentation fallback', async () => {
+    vi.stubGlobal('document', {
+      documentElement: { setAttribute: vi.fn() },
+    });
+    const service = new I18nService();
+    const initialLocale = service.getCurrentLocale();
+    const saveCurrentLocale = vi.spyOn(
+      service as unknown as { saveCurrentLocale(locale: string): Promise<void> },
+      'saveCurrentLocale',
+    ).mockImplementation(async () => {
+      expect(service.getCurrentLocale()).toBe(initialLocale);
+    });
+
+    await service.changeLanguage('zh-TW');
+
+    expect(saveCurrentLocale).toHaveBeenCalledWith('zh-TW');
+    expect(service.getCurrentLocale()).toBe('zh-TW');
+    vi.unstubAllGlobals();
+  });
+
+  it('does not change the visible language when ProductControl persistence fails', async () => {
+    vi.stubGlobal('document', {
+      documentElement: { setAttribute: vi.fn() },
+    });
+    const service = new I18nService();
+    const initialLocale = service.getCurrentLocale();
+    vi.spyOn(
+      service as unknown as { saveCurrentLocale(locale: string): Promise<void> },
+      'saveCurrentLocale',
+    ).mockRejectedValue(new Error('ProductControl transaction rejected'));
+
+    await expect(service.changeLanguage('zh-TW')).rejects.toThrow(
+      'ProductControl transaction rejected',
+    );
+    expect(service.getCurrentLocale()).toBe(initialLocale);
+    vi.unstubAllGlobals();
   });
 });

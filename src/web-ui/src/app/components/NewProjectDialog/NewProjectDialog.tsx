@@ -2,15 +2,24 @@
  * New Project Dialog Component
  */
 
+import {
+  Button,
+  Icon,
+  Input,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useState, useCallback, useMemo } from 'react';
-import { 
-  FolderPlus, 
-  FolderOpen, 
+import {
+  FolderPlus,
+  FolderOpen,
   FileText,
   FolderTree,
   AlertCircle,
-  Check,
-  X
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@/shared/utils/logger';
@@ -142,13 +151,18 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
   }, [error]);
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleCancel}
-      title=""
-      size="small"
-      showCloseButton={true}
+    <Dialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => { if (!nextOpen) handleCancel(); }}
+      size="sm"
     >
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{""}</DialogTitle>
+        </DialogHeading>
+        <DialogClose />
+      </DialogHeader>
+      <DialogBody inset="none">
       <div data-bf-component="new-project-dialog" data-bf-part="root" className="new-project-dialog">
         {/* Hero section */}
         <div data-bf-component="new-project-dialog" data-bf-part="hero" className="new-project-dialog__hero">
@@ -181,12 +195,12 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
               <Button
                 type="button"
                 className="new-project-dialog__select-btn"
-                variant="secondary"
-                size="small"
+                variant="outline"
+                size="sm"
+                leadingIcon={<FolderOpen size={14} />}
                 onClick={handleSelectParentPath}
               >
-                <FolderOpen size={14} />
-                <span>{t('newProject.select')}</span>
+                {t('newProject.select')}
               </Button>
             </div>
           </div>
@@ -243,35 +257,35 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
         <div data-bf-component="new-project-dialog" data-bf-part="footer" className="new-project-dialog__footer">
           <Button
             type="button"
-            className="new-project-dialog__btn new-project-dialog__btn--cancel"
-            variant="ghost"
-            size="small"
+            variant="outline"
+            size="sm"
             onClick={handleCancel}
             disabled={isCreating}
+            leadingIcon={<Icon name="xmark" size="sm" />}
           >
-            <X size={14} />
+
             {t('newProject.cancel')}
           </Button>
           <Button
             type="button"
-            className="new-project-dialog__btn new-project-dialog__btn--confirm"
-            variant="primary"
-            size="small"
+            variant="fill"
+            size="sm"
             onClick={handleConfirm}
             disabled={isCreating}
-            isLoading={isCreating}
+            loading={isCreating}
           >
             {isCreating ? (
               t('newProject.creating')
             ) : (
               <>
-                <Check size={14} />
+                <Icon name="check-line" size="sm" />
                 {t('newProject.create')}
               </>
             )}
           </Button>
         </div>
       </div>
-    </Modal>
+          </DialogBody>
+    </Dialog>
   );
 };

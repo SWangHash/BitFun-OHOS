@@ -14,7 +14,7 @@ import type {
   AgenticEvent,
   SubagentSessionLinkedEvent,
   SessionTitleGeneratedEvent,
-  SessionModelAutoMigratedEvent,
+  SessionModelFallbackAppliedEvent,
   SessionReasoningPresetAutoClearedEvent,
   ImageAnalysisEvent,
   ModelRoundStartedEvent,
@@ -32,6 +32,14 @@ import { createLogger } from '@/shared/utils/logger';
 type UnlistenFn = () => void;
 
 const logger = createLogger('AgenticEventListener');
+
+function normalizeSessionModelFallbackEvent(
+  event: SessionModelFallbackAppliedEvent,
+): SessionModelFallbackAppliedEvent {
+  return event.newModelId === 'auto' || event.newModelId === 'default'
+    ? { ...event, newModelId: 'primary' }
+    : event;
+}
 
 export interface AgenticEventCallbacks {
   onSessionCreated?: (event: AgenticEvent) => void;
@@ -62,7 +70,7 @@ export interface AgenticEventCallbacks {
   onOpenBuiltInBrowser?: (event: OpenBuiltInBrowserEvent) => void;
   onCloseBuiltInBrowser?: (event: CloseBuiltInBrowserEvent) => void;
   onSessionTitleGenerated?: (event: SessionTitleGeneratedEvent) => void;
-  onSessionModelAutoMigrated?: (event: SessionModelAutoMigratedEvent) => void;
+  onSessionModelFallbackApplied?: (event: SessionModelFallbackAppliedEvent) => void;
   onSessionReasoningPresetAutoCleared?: (
     event: SessionReasoningPresetAutoClearedEvent
   ) => void;
@@ -314,10 +322,12 @@ export class AgenticEventListener {
         this.unlistenFunctions.push(unlisten);
       }
 
-      if (callbacks.onSessionModelAutoMigrated) {
-        const unlisten = agentAPI.onSessionModelAutoMigrated((event) => {
-          logger.debug('Session model auto-migrated', event);
-          callbacks.onSessionModelAutoMigrated?.(event);
+      if (callbacks.onSessionModelFallbackApplied) {
+        const unlisten = agentAPI.onSessionModelFallbackApplied((event) => {
+          logger.debug('Session model fallback applied', event);
+          callbacks.onSessionModelFallbackApplied?.(
+            normalizeSessionModelFallbackEvent(event),
+          );
         });
         this.unlistenFunctions.push(unlisten);
       }
@@ -444,9 +454,13 @@ export class AgenticEventListener {
       case 'session_title_generated':
         callbacks.onSessionTitleGenerated?.(payload as unknown as SessionTitleGeneratedEvent);
         break;
+      // Upgrade-only event-name alias for older Peer/Dispatch targets.
       case 'agentic://session-model-auto-migrated':
-        callbacks.onSessionModelAutoMigrated?.(
-          payload as unknown as SessionModelAutoMigratedEvent,
+      case 'agentic://session-model-fallback-applied':
+        callbacks.onSessionModelFallbackApplied?.(
+          normalizeSessionModelFallbackEvent(
+            payload as unknown as SessionModelFallbackAppliedEvent,
+          ),
         );
         break;
       case 'agentic://session-reasoning-preset-auto-cleared':

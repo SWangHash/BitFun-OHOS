@@ -1,7 +1,8 @@
  
 
 import React from 'react';
-import { X, CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
+import { Button, Icon, IconButton } from '@bitfun/ui';
+import { AlertTriangle } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n';
 import { Notification } from '../types';
 import { notificationService } from '../services/NotificationService';
@@ -21,14 +22,14 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
   const getIcon = () => {
     switch (type) {
       case 'success':
-        return <CheckCircle size={14} />;
+        return <Icon name="check-circle" size="sm" />;
       case 'error':
-        return <XCircle size={14} />;
+        return <Icon name="xmark" size="sm" />;
       case 'warning':
         return <AlertTriangle size={14} />;
       case 'info':
       default:
-        return <Info size={14} />;
+        return <Icon name="info" size="sm" />;
     }
   };
 
@@ -69,13 +70,15 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
         {actions && actions.length > 0 && (
           <div className="notification-item__actions" data-bf-component="notification" data-bf-part="itemActions">
             {actions.map((action, index) => (
-              <button
+              <Button
                 key={index}
-                className={`notification-item__action notification-item__action--${action.variant || 'secondary'}`}
+                variant={action.variant === 'primary' || action.variant === 'danger' ? 'fill' : 'outline'}
+                tone={action.variant === 'danger' ? 'danger' : 'neutral'}
+                size="sm"
                 onClick={() => handleAction(action.onClick)}
               >
                 {action.label}
-              </button>
+              </Button>
             ))}
           </div>
         )}
@@ -83,15 +86,17 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
 
       
       {closable && (
-        <button
-          className="notification-item__close"
+        <span
           data-bf-component="notification"
           data-bf-part="itemClose"
-          onClick={handleClose}
-          aria-label={t('actions.close')}
         >
-          <X size={14} />
-        </button>
+          <IconButton
+            size="sm"
+            onClick={handleClose}
+            aria-label={t('actions.close')}
+            icon={<Icon name="xmark" size="lg" />}
+          />
+        </span>
       )}
     </div>
   );

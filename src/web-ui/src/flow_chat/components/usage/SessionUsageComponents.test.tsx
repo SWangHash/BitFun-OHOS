@@ -95,6 +95,8 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'usage.card.calls': '{{count}} calls',
         'usage.card.operations': '{{count}} ops',
         'usage.card.tokens': '{{value}} tokens',
+        'usage.card.tokenUsage': 'Tokens usage',
+        'usage.card.dataDelayDisclaimer': 'Usage statistics may be delayed. System records are authoritative.',
         'usage.loading.title': 'Generating usage report',
         'usage.loading.description': 'Reading local session records and preparing a privacy-safe summary.',
         'usage.loading.steps.collecting': 'Reading session records',
@@ -223,23 +225,25 @@ vi.mock('react-i18next', async (importOriginal) => ({
   }),
 }));
 
-vi.mock('@/component-library', () => ({
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
   IconButton: React.forwardRef<
     HTMLButtonElement,
-    React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }
+    React.ButtonHTMLAttributes<HTMLButtonElement> & { icon?: React.ReactNode; variant?: string; size?: string }
   >(function MockIconButton({
     children,
+    icon,
     variant: _variant,
     size: _size,
     ...props
   }, ref) {
     return (
       <button ref={ref} type="button" {...props}>
+        {icon}
         {children}
       </button>
     );
   }),
-  MarkdownRenderer: ({ content }: { content: string }) => <div data-testid="markdown">{content}</div>,
   Tooltip: ({ children, content }: { children: React.ReactNode; content?: React.ReactNode }) => {
     const tooltipContent = typeof content === 'string' ? content : undefined;
     let trigger = children;
@@ -255,6 +259,13 @@ vi.mock('@/component-library', () => ({
     }
     return <span data-tooltip={tooltipContent}>{trigger}</span>;
   },
+}));
+
+vi.mock('@/infrastructure/markdown', () => ({
+  MarkdownRenderer: ({ content }: { content: string }) => <div data-testid="markdown">{content}</div>,
+}));
+
+vi.mock('@bitfun/ui/flow-chat', () => ({
   ToolProcessingDots: ({ className }: { className?: string }) => <span className={className}>...</span>,
 }));
 
@@ -268,6 +279,8 @@ const USAGE_LOCALE_REQUIRED_KEYS = [
   'usage.actions.jumpToTurn',
   'usage.actions.viewDetails',
   'usage.actions.viewAllSection',
+  'usage.card.dataDelayDisclaimer',
+  'usage.card.tokenUsage',
   'usage.card.tokens',
   'usage.status.modelNotRecorded',
   'usage.status.legacyModel',
@@ -540,12 +553,89 @@ describe('Session usage report UI components', () => {
 
     const openButton = container.querySelector('button[aria-label="Open details"]');
     expect(openButton?.textContent).toBe('Details');
-    expect(openButton?.className).toContain('session-usage-report-card__details-button');
+    expect(openButton?.getAttribute('data-bf-component')).toBe('button');
+    expect(openButton?.getAttribute('data-bf-variant')).toBe('outline');
     expect(container.querySelector('.session-usage-report-card__action-group')).toBeNull();
     act(() => {
       openButton?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     });
     expect(onOpenDetails).toHaveBeenCalledWith(report);
+  });
+
+  it('renders the focused compact summary used by the usage modal', () => {
+    const onOpenDetails = vi.fn();
+    const report = usageReport({
+      scope: {
+        kind: 'entire_session',
+        turnCount: 4,
+        includesSubagents: false,
+      },
+      time: {
+        accounting: 'approximate',
+        denominator: 'session_wall_time',
+        wallTimeMs: 820_000,
+        activeTurnMs: 588_000,
+      },
+      tokens: {
+        source: 'token_usage_records',
+        inputTokens: 5_126_217,
+        outputTokens: 270_000,
+        totalTokens: 5_396_217,
+        cachedTokens: 5_274_240,
+        cacheCoverage: 'available',
+        cacheHitRate: 0.99,
+      },
+      models: [{
+        modelId: 'deepseek-v4-flash',
+        callCount: 68,
+        inputTokens: 5_126_217,
+        outputTokens: 270_000,
+        totalTokens: 5_396_217,
+      }],
+      tools: [
+        { toolName: 'ExecCommand', category: 'shell', callCount: 9, successCount: 9, errorCount: 0, durationMs: 9000, redacted: false },
+        { toolName: 'Grep', category: 'file', callCount: 19, successCount: 19, errorCount: 0, durationMs: 8000, redacted: false },
+        { toolName: 'Edit', category: 'file', callCount: 19, successCount: 19, errorCount: 0, durationMs: 7000, redacted: false },
+        { toolName: 'Read', category: 'file', callCount: 2, successCount: 2, errorCount: 0, durationMs: 1000, redacted: false },
+      ],
+      errors: {
+        totalErrors: 3,
+        toolErrors: 3,
+        modelErrors: 0,
+        examples: [],
+      },
+    });
+
+    render(
+      <SessionUsageReportCard
+        compact
+        report={report}
+        markdown="## Session Usage"
+        onOpenDetails={onOpenDetails}
+      />
+    );
+
+    expect(container.querySelector('.session-usage-report-card--compact')).not.toBeNull();
+    expect(container.querySelector('.session-usage-report-card__compact-token-value')?.textContent)
+      .toContain('5,396,217');
+    expect(container.textContent).toContain('Tokens usage');
+    expect(container.textContent).toContain('deepseek-v4-flash');
+    expect(container.textContent).toContain('68 calls');
+    expect(container.textContent).toContain('View all 4');
+    expect(container.textContent).toContain('ExecCommand');
+    expect(container.textContent).toContain('Grep');
+    expect(container.textContent).toContain('Edit');
+    expect(container.textContent).not.toContain('Read2 calls');
+    expect(container.querySelectorAll('.session-usage-report-card__compact-tool-row')).toHaveLength(3);
+    expect(container.querySelector('.session-usage-report-card__coverage')).toBeNull();
+    expect(container.querySelector('input[aria-label="Redact paths"]')).toBeNull();
+    expect(container.textContent).toContain('Usage statistics may be delayed');
+
+    const toolsButton = container.querySelector('button[aria-label="Open Tools details"]');
+    act(() => {
+      toolsButton?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+    expect(onOpenDetails).toHaveBeenCalledWith(report, 'tools');
   });
 
   it('appends a hit-rate suffix to the cached cell when cache is reported', () => {
@@ -1309,7 +1399,7 @@ describe('Session usage report UI components', () => {
 
   it('keeps file diff actions visible and exposes full paths for long file rows', () => {
     dom.window.localStorage.setItem(USAGE_EXPORT_REDACT_PATHS_STORAGE_KEY, 'false');
-    const longPath = 'src/web-ui/src/component-library/components/Markdown/Markdown.tsx';
+    const longPath = 'src/web-ui/src/infrastructure/markdown/MarkdownRenderer.tsx';
     const report = usageReport({
       files: {
         scope: 'snapshot_summary',
@@ -1348,8 +1438,8 @@ describe('Session usage report UI components', () => {
     expect(container.querySelector('.session-usage-panel__table--files')).not.toBeNull();
     expect(container.querySelector(`[data-tooltip="${longPath}"]`)).not.toBeNull();
     const pathCell = container.querySelector('.session-usage-panel__file-path-cell');
-    expect(pathCell?.textContent).toBe('.../Markdown/Markdown.tsx');
-    expect(pathCell?.textContent).not.toContain('component-library/components');
+    expect(pathCell?.textContent).toBe('.../markdown/MarkdownRenderer.tsx');
+    expect(pathCell?.textContent).not.toContain('src/web-ui/src/infrastructure');
     expect(pathCell?.textContent).not.toBe(longPath);
     expect(container.textContent).not.toContain('Operation IDs');
     expect(container.textContent).not.toContain('operation-1');
@@ -1493,7 +1583,7 @@ describe('Session usage report UI components', () => {
     const report = usageReport({
       slowest: [
         {
-          label: 'Bash',
+          label: 'ExecCommand',
           kind: 'tool',
           durationMs: 95_000,
           redacted: false,
@@ -1524,7 +1614,7 @@ describe('Session usage report UI components', () => {
       slowestTab?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     });
 
-    expect(container.textContent).toContain('Bash');
+    expect(container.textContent).toContain('ExecCommand');
     expect(container.textContent).toContain('Input');
     expect(container.textContent).toContain('curl https://api.example.test/slow');
     expect(container.textContent).toContain('Status');
@@ -1663,10 +1753,10 @@ describe('Session usage report i18n and theme guards', () => {
       .map(stylePath => fs.readFileSync(path.resolve(stylePath), 'utf8'))
       .join('\n');
 
-    expect(styleText).toContain('var(--bf-appearance-token-color-text-primary)');
+    expect(styleText).toContain('var(--bf-color-content-primary)');
     expect(styleText).toContain('width: auto;');
     expect(styleText).toContain('margin: 0.12rem 3rem');
-    expect(styleText).toContain('border: 1px solid color-mix(in srgb, var(--bf-appearance-token-border-base)');
+    expect(styleText).toContain('border: 1px solid color-mix(in srgb, var(--bf-color-border-default)');
     expect(styleText).toContain('grid-template-columns: repeat(3, minmax(116px, 1fr));');
     expect(styleText).toContain('width: clamp(180px, 26vw, 280px);');
     expect(styleText).toContain('max-width: 280px;');

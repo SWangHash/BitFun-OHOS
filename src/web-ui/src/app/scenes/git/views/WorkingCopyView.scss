@@ -8,7 +8,7 @@
   &__commit-bar {
     flex-shrink: 0;
     padding: 8px 12px;
-    border-bottom: 1px solid var(--bf-appearance-token-border-subtle);
+    border-bottom: 1px solid var(--bf-color-border-subtle);
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -18,17 +18,17 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 12px;
+    font-size: var(--bf-font-size-xs);
   }
 
   &__branch {
-    font-weight: 500;
-    color: var(--bf-appearance-token-color-text-primary);
+    font-weight: var(--bf-font-weight-medium);
+    color: var(--bf-color-content-primary);
   }
 
   &__badge {
-    font-size: 10px;
-    color: var(--bf-appearance-token-color-text-muted);
+    font-size: var(--bf-font-size-micro);
+    color: var(--bf-color-content-muted);
   }
 
   &__sync-actions {
@@ -47,7 +47,7 @@
     flex: 1;
     min-height: 56px;
     resize: none;
-    font-size: 12px;
+    font-size: var(--bf-font-size-xs);
   }
 
   &__commit-actions {
@@ -75,7 +75,7 @@
     flex-shrink: 0;
     width: 1px;
     cursor: col-resize;
-    background: var(--bf-appearance-token-border-subtle);
+    background: var(--bf-color-border-subtle);
   }
 
   &__search {
@@ -88,12 +88,12 @@
     align-items: center;
     gap: 6px;
     padding: 4px 8px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--bf-appearance-token-color-text-muted);
+    font-size: var(--bf-font-size-meta);
+    font-weight: var(--bf-font-weight-semibold);
+    color: var(--bf-color-content-muted);
     cursor: pointer;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--bf-letter-spacing-wider);
   }
 
   &__file-row {
@@ -101,12 +101,12 @@
     align-items: center;
     gap: 6px;
     padding: 4px 8px;
-    font-size: 12px;
+    font-size: var(--bf-font-size-xs);
     cursor: pointer;
-    color: var(--bf-appearance-token-color-text-secondary);
+    color: var(--bf-color-content-secondary);
 
     &:hover {
-      background: var(--bf-appearance-token-element-bg-soft);
+      background: var(--bf-color-action-quiet-hover);
     }
   }
 
@@ -116,7 +116,7 @@
     background: none;
     cursor: pointer;
     padding: 0;
-    color: var(--bf-appearance-token-color-text-muted);
+    color: var(--bf-color-content-muted);
   }
 
   &__file-name {
@@ -128,34 +128,34 @@
   }
 
   &__file-dir {
-    font-size: 10px;
-    color: var(--bf-appearance-token-color-text-muted);
+    font-size: var(--bf-font-size-micro);
+    color: var(--bf-color-content-muted);
     flex-shrink: 0;
   }
 
   &__file-status {
     flex-shrink: 0;
-    font-size: 10px;
-    font-weight: 600;
+    font-size: var(--bf-font-size-micro);
+    font-weight: var(--bf-font-weight-semibold);
 
-    &.wcv-status--modified { color: var(--bf-appearance-token-color-warning); }
-    &.wcv-status--added { color: var(--bf-appearance-token-color-success); }
-    &.wcv-status--deleted { color: var(--bf-appearance-token-color-error); }
-    &.wcv-status--renamed { color: var(--bf-appearance-token-color-info); }
+    &.wcv-status--modified { color: var(--bf-color-status-warning-content); }
+    &.wcv-status--added { color: var(--bf-color-status-success-content); }
+    &.wcv-status--deleted { color: var(--bf-color-status-danger-content); }
+    &.wcv-status--renamed { color: var(--bf-color-status-info-content); }
   }
 
   &__empty {
     padding: 12px;
-    font-size: 12px;
-    color: var(--bf-appearance-token-color-text-muted);
+    font-size: var(--bf-font-size-xs);
+    color: var(--bf-color-content-muted);
   }
 
   &__file-list-placeholder {
     padding: 12px;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-size: 12px;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-xs);
 
-    span { font-weight: 500; color: var(--bf-appearance-token-color-text-secondary); }
+    span { font-weight: var(--bf-font-weight-medium); color: var(--bf-color-content-secondary); }
   }
 
   &__diff-area {
@@ -173,18 +173,18 @@
     justify-content: center;
     flex: 1;
     gap: 8px;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-size: 14px;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-base);
   }
 
   &__hint {
-    font-size: 12px;
+    font-size: var(--bf-font-size-xs);
     opacity: 0.8;
   }
 }
 
 .wcv-file--selected {
-  background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 12%, transparent);
+  background: color-mix(in srgb, var(--bf-color-accent-default) 12%, transparent);
 }
 
 .wcv-file--loading {

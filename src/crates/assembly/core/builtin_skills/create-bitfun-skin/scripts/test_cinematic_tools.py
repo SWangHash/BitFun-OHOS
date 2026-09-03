@@ -37,6 +37,11 @@ class CinematicContractTests(unittest.TestCase):
             surface_plan=plan,
         )
         self.assertEqual([], contract.validate_manifest(manifest))
+        self.assertEqual(2, manifest["schemaVersion"])
+        self.assertIn("theme-tokens", manifest["renderers"])
+        self.assertNotIn("css-tokens", manifest["renderers"])
+        serialized_renderers = json.dumps(manifest["renderers"])
+        self.assertNotIn("--bf-appearance-token-", serialized_renderers)
         self.assertIn("flow-chat-turn-rail", manifest["components"])
         self.assertIn("copyable-text-preview", manifest["components"])
         self.assertNotIn("input", manifest["components"]["toolbar-mode"]["parts"])
@@ -71,7 +76,7 @@ class CinematicContractTests(unittest.TestCase):
         resolved = contract.resolve_palette_values(plan, palette["colors"])
         serialized = json.dumps(resolved)
         self.assertNotIn('"kind": "palette"', serialized)
-        self.assertEqual(43, len(plan["components"]))
+        self.assertEqual(41, len(plan["components"]))
         self.assertEqual(7, len(plan["scenes"]))
 
     def test_generic_support_validates_media_and_recorded_hashes(self) -> None:

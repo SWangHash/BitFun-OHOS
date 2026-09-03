@@ -191,6 +191,8 @@ Avoid adding IDs to these surfaces unless there is a clear automated workflow.
 | Chat model selector button | `chat-model-selector-btn` | Opens the session model selector. |
 | Chat model selector menu | `chat-model-selector-menu` | Model selector dropdown root. |
 | Chat model selector option | `chat-model-selector-option` | Repeated item. Pair with `data-model-id`, `data-model-name`, and `data-selected`. |
+| Chat model selector provider | `chat-model-selector-provider` | Repeated item. First-level provider row that opens its models. Pair with `data-provider-key` and `data-selected`. |
+| Chat model selector back | `chat-model-selector-back` | Returns from one provider's models to the provider list. |
 | Chat user message | `chat-user-message` | Repeated user message. Pair with `data-turn-id`, `data-status`, and `data-failed`. |
 | Chat user message content | `chat-user-message-content` | User message text content. Pair with `data-turn-id`. |
 | Chat assistant message | `chat-assistant-message` | Repeated model round container. Pair with `data-turn-id`, `data-round-id`, `data-status`, `data-model-id`, `data-model-alias`, and `data-streaming`. |
@@ -206,7 +208,7 @@ Avoid adding IDs to these surfaces unless there is a clear automated workflow.
 | Chat shell command text | `chat-shell-command-text` | Shell command text node. |
 | Chat shell command output | `chat-shell-command-output` | Shell command stdout/stderr or live output area. |
 | Chat shell command exit code | `chat-shell-command-exit-code` | Exit code node. Includes `data-exit-code` and `data-status`. |
-| Chat shell tool card | `chat-shell-tool-card` | Outer FlowToolCard wrapper for Bash. Includes `data-tool-name` and `data-tool-card-id`. |
+| Chat shell tool card | `chat-shell-tool-card` | Outer FlowToolCard wrapper for ExecCommand. Includes `data-tool-name` and `data-tool-card-id`. |
 | Chat shell tool open panel | `chat-shell-tool-open-panel` | Opens the associated terminal panel when a terminal session is available. |
 | Chat browser tool card | `chat-browser-tool-card` | Outer FlowToolCard wrapper for WebFetch. Includes `data-tool-name` and `data-tool-card-id`. |
 | Chat file change card | `chat-file-change-card` | File operation card root. Includes `data-status`, `data-action`, `data-path`, and `data-expanded`. |
@@ -268,16 +270,12 @@ Avoid adding IDs to these surfaces unless there is a clear automated workflow.
 | Appearance language option | `appearance-language-option` | Repeated language dropdown option. Includes `data-locale-id` and Select-provided `data-selected`. |
 | Appearance theme select | `appearance-theme-select` | Theme select trigger in Appearance settings. |
 | Appearance palette option | `appearance-palette-option` | Repeated appearance dropdown option. Includes `data-appearance-id` and Select-provided `data-selected`. |
-| Appearance UI font level group | `appearance-ui-font-level-group` | UI font preset button group root. |
-| Appearance UI font level button | `appearance-ui-font-level-btn` | Repeated preset button. Includes `data-font-level` and `data-selected`. |
+| Appearance UI font level group | `appearance-ui-font-level-group` | UI font preset control root. Presets render as design-system segmented control segments; target one via `[data-bf-part="segment"][data-bf-value="<level>"]`, selected segment has `aria-checked="true"`. |
 | Appearance UI font custom controls | `appearance-ui-font-custom-controls` | Custom UI font px controls root, rendered when custom is active. |
 | Appearance UI font custom input | `appearance-ui-font-custom-input` | Custom UI font px number input. Includes `data-font-level="custom"`. |
 | Appearance UI font custom step minus | `appearance-ui-font-custom-step-minus` | Custom UI font px decrement button. |
 | Appearance UI font custom step plus | `appearance-ui-font-custom-step-plus` | Custom UI font px increment button. |
 | Appearance UI font preview | `appearance-ui-font-preview` | UI font preview area. |
-| Appearance Flow Chat font toggle | `appearance-flowchat-font-toggle` | Flow Chat independent font size toggle input. |
-| Appearance Flow Chat font select | `appearance-flowchat-font-select` | Flow Chat font size select trigger. |
-| Appearance Flow Chat font option | `appearance-flowchat-font-option` | Repeated Flow Chat font size option. Includes `data-font-px` and Select-provided `data-selected`. |
 | Appearance font reset button | `appearance-font-reset-btn` | Resets font preferences to defaults. |
 
 ## Shell Panel
@@ -298,7 +296,7 @@ Avoid adding IDs to these surfaces unless there is a clear automated workflow.
 
 Notes:
 
-- The standalone xterm terminal does not expose a structured per-command history DOM. Tests should use `shell-command-output` for rendered terminal output and `chat-shell-command-*` for structured Bash ToolCard assertions.
+- The standalone xterm terminal does not expose a structured per-command history DOM. Tests should use `shell-command-output` for rendered terminal output and `chat-shell-command-*` for structured ExecCommand card assertions.
 - `shell-command-copy` is not currently exposed because the active terminal copy action is context-menu/selection driven rather than a stable visible button.
 
 ## Browser Panel

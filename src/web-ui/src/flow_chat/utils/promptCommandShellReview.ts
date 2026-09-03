@@ -1,8 +1,4 @@
-import {
-  confirmDialogChoice,
-  type ConfirmDialogChoice,
-  type ConfirmDialogOptions,
-} from '@/component-library';
+import { confirmDialogChoice, type ConfirmDialogChoice, type ConfirmDialogOptions } from '@/infrastructure/confirm-dialog';
 import type {
   PromptCommandShellReviewDecision,
   PromptCommandShellReviewPlan,
@@ -31,7 +27,6 @@ export async function reviewPromptCommandShell(
       : undefined,
     cancelText: translate('chatInput.promptCommandShellReview.cancel'),
     preview: plan.commands.map(command => `$ ${command}`).join('\n\n'),
-    previewMaxHeight: 240,
   });
 
   if (choice === 'cancel' || (choice === 'secondary' && !plan.canRemember)) {

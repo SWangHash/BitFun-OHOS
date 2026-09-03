@@ -5,16 +5,29 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import zhCnFlowChat from '@/locales/zh-CN/flow-chat.json';
 import { ReasoningPresetSelector } from './ReasoningPresetSelector';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key }),
-}));
-
-vi.mock('@/component-library', () => ({
-  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useTranslation: () => ({
+    t: (key: string, options?: { defaultValue?: string } & Record<string, string>) => {
+      const template = ({
+        'reasoningSelector.levels.off': 'Off',
+        'reasoningSelector.levels.on': 'On',
+        'reasoningSelector.levels.low': 'Low',
+        'reasoningSelector.levels.medium': 'Medium',
+        'reasoningSelector.levels.high': 'High',
+        'reasoningSelector.levels.xhigh': 'Extra high',
+        'reasoningSelector.levels.max': 'Maximum',
+        'reasoningSelector.auto': 'Auto',
+        'reasoningSelector.current': 'Thinking: {{preset}}',
+        'reasoningSelector.currentAuto': 'Thinking: auto ({{preset}})',
+      } as Record<string, string>)[key] ?? options?.defaultValue ?? key;
+      return template.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(options?.[name] ?? ''));
+    },
+  }),
 }));
 
 vi.mock('@/infrastructure/appearance/runtime/AppearanceOverlayHost', () => ({
@@ -92,7 +105,7 @@ describe('ReasoningPresetSelector', () => {
     expect(onSelect).toHaveBeenCalledWith(null);
   });
 
-  it('only shows preset sources when visible labels need disambiguation', async () => {
+  it('renders Auto and presets as text-only single-line options', async () => {
     await act(async () => {
       root.render(
         <ReasoningPresetSelector
@@ -113,11 +126,168 @@ describe('ReasoningPresetSelector', () => {
       container.querySelector<HTMLButtonElement>('[data-testid="chat-reasoning-preset-selector-btn"]')?.click();
     });
 
-    expect(document.body.querySelector('[data-preset-id="low"] small')?.textContent)
-      .toBe('reasoningSelector.source.models_dev');
-    expect(document.body.querySelector('[data-preset-id="custom-low"] small')?.textContent)
-      .toBe('reasoningSelector.source.model_config');
-    expect(document.body.querySelector('[data-preset-id="high"] small')).toBeNull();
+    const auto = document.body.querySelector<HTMLButtonElement>(
+      '.bitfun-reasoning-preset-selector__auto-row [data-bf-part="trigger"]',
+    );
+    const options = Array.from(document.body.querySelectorAll<HTMLButtonElement>(
+      '.bitfun-reasoning-preset-selector__options [data-preset-id]',
+    ));
+    expect(auto?.textContent).toBe('Auto');
+    expect(options.map(option => option.textContent)).toEqual(['Low', 'Low', 'High']);
+    expect([auto, ...options].every(option => (
+      option?.querySelector('small, svg') === null
+    ))).toBe(true);
+  });
+
+  it('uses the concentric series in the compact trigger and accessible name', async () => {
+    const projection = {
+      status: 'known' as const,
+      default_preset: 'medium',
+      presets: [
+        { id: 'low', label: 'Low', order: 10, source: 'models_dev' as const, actions: [{ type: 'effort' as const, value: 'low' }] },
+        { id: 'medium', label: 'Medium', order: 20, source: 'models_dev' as const, actions: [{ type: 'effort' as const, value: 'medium' }] },
+        { id: 'high', label: 'High', order: 30, source: 'models_dev' as const, actions: [{ type: 'effort' as const, value: 'high' }] },
+        { id: 'xhigh', label: 'Extra High', order: 40, source: 'models_dev' as const, actions: [{ type: 'effort' as const, value: 'xhigh' }] },
+      ],
+    };
+
+    await act(async () => {
+      root.render(
+        <ReasoningPresetSelector
+          projection={projection}
+          onSelect={vi.fn()}
+        />,
+      );
+    });
+
+    const trigger = container.querySelector<HTMLElement>(
+      '[data-testid="chat-reasoning-preset-selector-btn"]',
+    );
+    // No word beside the mark: the shape is the reading, and the level survives
+    // for anyone who cannot see it as the control's own name.
+    expect(trigger?.textContent).toBe('');
+    expect(trigger?.getAttribute('aria-label')).toBe('Thinking: auto (Medium)');
+    const meter = trigger?.querySelector<HTMLElement>(
+      '.bitfun-reasoning-preset-selector__status-meter',
+    );
+    expect(meter?.dataset.intensity).toBe('2');
+    expect(meter?.querySelectorAll('.bitfun-reasoning-preset-selector__status-ring'))
+      .toHaveLength(2);
+    expect(trigger?.querySelectorAll('.bitfun-reasoning-preset-selector__status-meter')).toHaveLength(1);
+    expect(trigger?.querySelector('.bitfun-reasoning-preset-selector__label')).toBeNull();
+
+    for (const [presetId, expectedIntensity, expectedRings, hasPeak] of [
+      ['low', '1', 1, false],
+      ['high', '3', 3, false],
+      ['xhigh', '4', 3, true],
+    ] as const) {
+      await act(async () => {
+        root.render(
+          <ReasoningPresetSelector
+            projection={projection}
+            selectedPreset={presetId}
+            onSelect={vi.fn()}
+          />,
+        );
+      });
+      const updatedMeter = container.querySelector<HTMLElement>(
+        '.bitfun-reasoning-preset-selector__status-meter',
+      );
+      expect(updatedMeter?.dataset.intensity).toBe(expectedIntensity);
+      expect(updatedMeter?.querySelectorAll('.bitfun-reasoning-preset-selector__status-ring'))
+        .toHaveLength(expectedRings);
+      expect(Boolean(updatedMeter?.querySelector('.bitfun-reasoning-preset-selector__status-peak')))
+        .toBe(hasPeak);
+    }
+
+    expect(
+      container
+        .querySelector('[data-testid="chat-reasoning-preset-selector-btn"]')
+        ?.getAttribute('aria-label'),
+    ).toBe('Thinking: Extra high');
+  });
+
+  it('renders the common four levels as an ordered text-only list', async () => {
+    await act(async () => {
+      root.render(
+        <ReasoningPresetSelector
+          projection={{
+            status: 'known',
+            default_preset: 'medium',
+            presets: [
+              { id: 'xhigh', label: 'Extra High', order: 40, source: 'models_dev', actions: [{ type: 'effort', value: 'xhigh' }] },
+              { id: 'low', label: 'Low', order: 10, source: 'models_dev', actions: [{ type: 'effort', value: 'low' }] },
+              { id: 'high', label: 'High', order: 30, source: 'models_dev', actions: [{ type: 'effort', value: 'high' }] },
+              { id: 'medium', label: 'Medium', order: 20, source: 'models_dev', actions: [{ type: 'effort', value: 'medium' }] },
+            ],
+          }}
+          selectedPreset="high"
+          onSelect={vi.fn()}
+        />,
+      );
+    });
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="chat-reasoning-preset-selector-btn"]')?.click();
+    });
+
+    const options = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>(
+        '.bitfun-reasoning-preset-selector__options [data-preset-id]',
+      ),
+    );
+    expect(options.map(option => option.dataset.presetId))
+      .toEqual(['low', 'medium', 'high', 'xhigh']);
+    expect(options.map(option => option.querySelector(
+      '.bitfun-reasoning-preset-selector__option-label',
+    )?.textContent))
+      .toEqual(['Low', 'Medium', 'High', 'Extra high']);
+    expect(options.every(option => option.querySelector('small, svg') === null)).toBe(true);
+    expect(options[2]?.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('presents a merged off/on/effort catalog as four user-facing intensity levels', async () => {
+    await act(async () => {
+      root.render(
+        <ReasoningPresetSelector
+          projection={{
+            status: 'known',
+            default_preset: 'low',
+            presets: [
+              { id: 'max', label: 'Max', order: 40, source: 'models_dev', actions: [{ type: 'effort', value: 'max' }] },
+              { id: 'off', label: 'Off', order: 0, source: 'models_dev', actions: [{ type: 'toggle', enabled: false }] },
+              { id: 'high', label: 'High', order: 30, source: 'models_dev', actions: [{ type: 'effort', value: 'high' }] },
+              { id: 'on', label: 'On', order: 1, source: 'models_dev', actions: [{ type: 'toggle', enabled: true }] },
+              { id: 'low', label: 'Low', order: 10, source: 'models_dev', actions: [{ type: 'effort', value: 'low' }] },
+            ],
+          }}
+          selectedPreset="low"
+          onSelect={vi.fn()}
+        />,
+      );
+    });
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(
+        '[data-testid="chat-reasoning-preset-selector-btn"]',
+      )?.click();
+    });
+
+    const options = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>(
+        '.bitfun-reasoning-preset-selector__options [data-preset-id]',
+      ),
+    );
+    expect(options.map(option => option.dataset.presetId))
+      .toEqual(['off', 'on', 'low', 'high', 'max']);
+    expect(options.map(option => option.querySelector(
+      '.bitfun-reasoning-preset-selector__option-label',
+    )?.textContent))
+      .toEqual(['Off', 'Low', 'Medium', 'High', 'Maximum']);
+    expect(options.every(option => option.querySelector('small, svg') === null)).toBe(true);
+
+    expect(zhCnFlowChat.reasoningSelector.levels)
+      .toMatchObject({ off: '关闭', low: '低', medium: '中', high: '高', max: '最高' });
   });
 
   it('returns focus to the trigger and keeps keyboard motion suppressed while exiting', async () => {

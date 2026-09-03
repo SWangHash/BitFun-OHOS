@@ -49,10 +49,13 @@ impl CoworkMode {
                 "Delete".to_string(),
                 // Utilities
                 "GetFileDiff".to_string(),
-                "Git".to_string(),
                 "ExecCommand".to_string(),
                 "WriteStdin".to_string(),
                 "ExecControl".to_string(),
+                // The companion to ExecCommand for remote work: a server
+                // started on an SSH host is unreachable from the user's
+                // machine until a forward exists.
+                "PortForward".to_string(),
                 "WebSearch".to_string(),
                 "WebFetch".to_string(),
                 "ControlHub".to_string(),
@@ -61,9 +64,6 @@ impl CoworkMode {
                 // `wait` sends schedules here rather than pinning a turn open
                 // for the interval.
                 "Cron".to_string(),
-                "InitMiniApp".to_string(),
-                "FinalizeMiniApp".to_string(),
-                "PublishMiniApp".to_string(),
                 "PublishAppearance".to_string(),
             ],
         }
@@ -135,10 +135,12 @@ mod tests {
     }
 
     #[test]
-    fn cowork_mode_includes_miniapp_lifecycle_tools_in_defaults() {
+    fn cowork_mode_excludes_creation_only_tools_from_defaults() {
         let tools = CoworkMode::new().default_tools();
-        assert!(tools.contains(&"InitMiniApp".to_string()));
-        assert!(tools.contains(&"FinalizeMiniApp".to_string()));
+        assert!(!tools.contains(&"InitMiniApp".to_string()));
+        assert!(!tools.contains(&"FinalizeMiniApp".to_string()));
+        assert!(!tools.contains(&"PublishMiniApp".to_string()));
+        assert!(!tools.contains(&"FrontendWorkbench".to_string()));
         assert!(tools.contains(&"ListModels".to_string()));
     }
 }

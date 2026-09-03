@@ -1,8 +1,23 @@
 import { RemoteI18n } from '../../i18n/RemoteI18n';
-import { ACCENT, CARD, INK, LINE, MUTED, PAGE_BG, PRIMARY_ACTION_TEXT, SOFT } from './Theme';
+import { MobileDesignGeometry, MobileDesignTypography } from '../../generated/MobileDesignTokens';
+import {
+  ACCENT,
+  CARD,
+  CONTENT_ON_ACTION,
+  INK,
+  LINE,
+  MUTED,
+  PAGE_BG,
+  SHADOW_SUBTLE,
+  SOFT,
+  TRANSPARENT,
+} from './Theme';
 import { CompactMenuButton } from './CompactMenuButton';
+import { NavigationBackButton } from './NavigationBackButton';
 import { TemplateIcon } from './TemplateIcon';
 import { SidebarToggleButton } from './SidebarToggleButton';
+
+const HEADER_ACTION_SURFACE_SIZE: number = 42;
 
 @ComponentV2
 export struct ConversationHeader {
@@ -44,9 +59,15 @@ export struct ConversationHeader {
       this.TrailingControl()
     }
     .width('100%')
-    .height(this.hasSubtitle() ? 76 : 64)
+    .height(this.hasSubtitle() ? MobileDesignGeometry.conversationHeaderHeight :
+      MobileDesignGeometry.conversationHeaderCompactHeight)
     .alignItems(VerticalAlign.Center)
-    .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+    .padding({
+      left: MobileDesignGeometry.contentGutter,
+      right: MobileDesignGeometry.contentGutter,
+      top: 8,
+      bottom: 8
+    })
     .backgroundColor(PAGE_BG)
   }
 
@@ -54,7 +75,10 @@ export struct ConversationHeader {
   private TitleBlock() {
     Column({ space: 3 }) {
       Text(this.resolvedTitle())
-        .fontSize(this.hasSubtitle() ? 18 : 17)
+        .fontSize(this.hasSubtitle() ? MobileDesignTypography.conversationHeaderTitle.size :
+          MobileDesignTypography.titleMedium.size)
+        .lineHeight(this.hasSubtitle() ? MobileDesignTypography.conversationHeaderTitle.lineHeight :
+          MobileDesignTypography.titleMedium.lineHeight)
         .fontWeight(FontWeight.Medium)
         .fontColor(INK)
         .maxLines(1)
@@ -69,7 +93,8 @@ export struct ConversationHeader {
         })
       if (this.hasSubtitle()) {
         Text(this.subtitle)
-          .fontSize(14)
+          .fontSize(MobileDesignTypography.labelMedium.size)
+          .lineHeight(MobileDesignTypography.labelMedium.lineHeight)
           .fontColor(MUTED)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -85,62 +110,61 @@ export struct ConversationHeader {
     if (this.showSidebarRestoreButton) {
       SidebarToggleButton({
         restore: true,
-        controlSize: 44,
+        controlSize: MobileDesignGeometry.controlTouchSize,
         onToggle: this.onRestoreSidebar
       })
     } else if (this.showBackButton) {
-      Stack({ alignContent: Alignment.Center }) {
-        TemplateIcon({
-          src: $r('app.media.remote_ref_back'),
-          iconWidth: 15,
-          iconHeight: 23
-        })
-      }
-      .width(44)
-      .height(44)
-      .backgroundColor(CARD)
-      .border({ width: 1, color: LINE })
-      .borderRadius(22)
-      .shadow({ radius: 10, color: LINE, offsetY: 3 })
-      .accessibilityText(RemoteI18n.t('common.back'))
-      .onClick(() => {
-        this.onBack();
+      NavigationBackButton({
+        controlSize: MobileDesignGeometry.controlTouchSize,
+        onBack: (): void => {
+          this.onBack();
+        }
       })
     } else if (this.showSidebarButton) {
       CompactMenuButton({
-        controlSize: 44,
+        controlSize: MobileDesignGeometry.controlTouchSize,
         onOpen: () => {
           this.onOpenSidebar();
         }
       })
     } else {
-      Blank().width(44).height(44)
+      Blank()
+        .width(MobileDesignGeometry.controlTouchSize)
+        .height(MobileDesignGeometry.controlTouchSize)
     }
   }
 
   @Builder
   private TrailingControl() {
     if (this.showActions) {
-      Stack({ alignContent: Alignment.Center }) {
-        TemplateIcon({
-          src: $r('app.media.remote_ref_more'),
-          iconWidth: 23,
-          iconHeight: 7
-        })
+      Button() {
+        Stack({ alignContent: Alignment.Center }) {
+          TemplateIcon({
+            src: $r('app.media.remote_ref_more'),
+            iconWidth: 23,
+            iconHeight: 7
+          })
+        }
+        .width(HEADER_ACTION_SURFACE_SIZE)
+        .height(HEADER_ACTION_SURFACE_SIZE)
+        .backgroundColor(CARD)
+        .borderRadius(HEADER_ACTION_SURFACE_SIZE / 2)
+        .shadow({ radius: 30, color: SHADOW_SUBTLE, offsetY: 7 })
+        .hitTestBehavior(HitTestMode.None)
       }
-      .width(44)
-      .height(44)
-      .backgroundColor(CARD)
-      .border({ width: 1, color: LINE })
-      .borderRadius(22)
-      .shadow({ radius: 10, color: LINE, offsetY: 3 })
+      .width(MobileDesignGeometry.controlTouchSize)
+      .height(MobileDesignGeometry.controlTouchSize)
+      .padding(0)
+      .backgroundColor(TRANSPARENT)
+      .borderRadius(MobileDesignGeometry.controlTouchSize / 2)
+      .stateEffect(true)
       .accessibilityText(RemoteI18n.t('sidebar.more'))
       .bindPopup(this.showActionsMenu, {
         builder: () => {
           this.actionsMenu();
         },
         placement: Placement.BottomRight,
-        popupColor: '#00000000',
+        popupColor: TRANSPARENT,
         enableArrow: false,
         autoCancel: true,
         mask: false,
@@ -154,7 +178,9 @@ export struct ConversationHeader {
         this.onOpenActions();
       })
     } else {
-      Blank().width(44).height(44)
+      Blank()
+        .width(MobileDesignGeometry.controlTouchSize)
+        .height(MobileDesignGeometry.controlTouchSize)
     }
   }
 
@@ -164,7 +190,7 @@ export struct ConversationHeader {
       TextInput({ placeholder: RemoteI18n.t('chat.sessionTitle'), text: this.renameTitle })
         .layoutWeight(1)
         .height(42)
-        .fontSize(14)
+        .fontSize(MobileDesignTypography.bodyMedium.size)
         .backgroundColor(CARD)
         .borderRadius(14)
         .padding({ left: 12, right: 12 })
@@ -176,8 +202,8 @@ export struct ConversationHeader {
       Text(RemoteI18n.t('common.save'))
         .width(52)
         .height(42)
-        .fontSize(13)
-        .fontColor(PRIMARY_ACTION_TEXT)
+        .fontSize(MobileDesignTypography.bodySmall.size)
+        .fontColor(CONTENT_ON_ACTION)
         .textAlign(TextAlign.Center)
         .backgroundColor(this.renameTitle.trim().length > 0 ? ACCENT : SOFT)
         .borderRadius(14)
@@ -190,7 +216,7 @@ export struct ConversationHeader {
       Text(RemoteI18n.t('common.cancel'))
         .width(52)
         .height(42)
-        .fontSize(13)
+        .fontSize(MobileDesignTypography.bodySmall.size)
         .fontColor(INK)
         .textAlign(TextAlign.Center)
         .backgroundColor(SOFT)
@@ -200,7 +226,12 @@ export struct ConversationHeader {
         })
     }
     .width('100%')
-    .padding({ left: 16, right: 16, top: 10, bottom: 8 })
+    .padding({
+      left: MobileDesignGeometry.contentGutter,
+      right: MobileDesignGeometry.contentGutter,
+      top: 10,
+      bottom: 8
+    })
     .backgroundColor(PAGE_BG)
   }
 

@@ -4,13 +4,14 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Button, Icon, IconButton, Tooltip } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
-import { GitBranch, Plus, RefreshCw, ShieldAlert } from 'lucide-react';
+import { ShieldAlert } from 'lucide-react';
 import { useGitSceneStore } from './gitSceneStore';
 import { WorkingCopyView, BranchesView, GraphView } from './views';
 import { useGitState } from '@/tools/git/hooks';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
-import { IconButton, CubeLoading } from '@/component-library';
+import { LoadingState } from '@bitfun/ui';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { requestGitRepositoryTrust } from '@/shared/services/gitTrustService';
 import './GitScene.scss';
@@ -123,10 +124,15 @@ const GitScene: React.FC<GitSceneProps> = ({
                 <h3>{t('trust.title')}</h3>
                 <p>{t('trust.required', { path: workspacePath })}</p>
               </div>
-              <button type="button" className="bitfun-git-scene__init-button" onClick={handleTrustRepository} disabled={isTrusting}>
-                <ShieldAlert size={14} />
-                <span>{t('trust.confirm')}</span>
-              </button>
+              <Button
+                variant="fill"
+                size="sm"
+                leadingIcon={<ShieldAlert />}
+                onClick={handleTrustRepository}
+                disabled={isTrusting}
+              >
+                {t('trust.confirm')}
+              </Button>
             </div>
           </div>
         </div>
@@ -146,16 +152,20 @@ const GitScene: React.FC<GitSceneProps> = ({
             </div>
             <div className="bitfun-git-scene__init-card">
               <div className="bitfun-git-scene__init-icon">
-                <GitBranch size={24} />
+                <Icon name="git" size="lg" />
               </div>
               <div className="bitfun-git-scene__init-text">
                 <h3>{t('init.title')}</h3>
                 <p>{t('init.notRepository')}</p>
               </div>
-              <button type="button" className="bitfun-git-scene__init-button" onClick={handleInitGitRepository}>
-                <Plus size={14} />
-                <span>{t('init.initButton')}</span>
-              </button>
+              <Button
+                variant="fill"
+                size="sm"
+                leadingIcon={<Icon name="plus" size="lg" />}
+                onClick={handleInitGitRepository}
+              >
+                {t('init.initButton')}
+              </Button>
             </div>
             <div className="bitfun-git-scene__init-decoration">
               <div className="bitfun-git-scene__init-line bitfun-git-scene__init-line--solid" />
@@ -176,12 +186,23 @@ const GitScene: React.FC<GitSceneProps> = ({
       <div className="bitfun-git-scene bitfun-git-scene--loading" data-bf-scene="git" data-bf-part="root" data-bf-view="loading">
         <div className="bitfun-git-scene__content" data-bf-scene="git" data-bf-part="content">
           <div className="bitfun-git-scene__loading-actions">
-            <IconButton size="xs" variant="ghost" onClick={() => { setForceReset(true); setTimeout(() => { setForceReset(false); handleRefresh(); }, 100); }} tooltip={t('actions.forceRefresh')}>
-              <RefreshCw size={14} />
-            </IconButton>
+            <Tooltip content={t('actions.forceRefresh')}>
+              <IconButton
+                size="sm"
+                aria-label={t('actions.forceRefresh')}
+                icon={<Icon name="refresh" size="lg" />}
+                onClick={() => {
+                  setForceReset(true);
+                  setTimeout(() => {
+                    setForceReset(false);
+                    handleRefresh();
+                  }, 100);
+                }}
+              />
+            </Tooltip>
           </div>
           <div className="bitfun-git-scene__loading-state" data-bf-scene="git" data-bf-part="loading">
-            <CubeLoading size="medium" text={t('loading.text')} />
+            <LoadingState size="md">{t('loading.text')}</LoadingState>
             <p className="bitfun-git-scene__loading-hint">{t('loading.hint')}</p>
           </div>
         </div>

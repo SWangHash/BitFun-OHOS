@@ -1312,7 +1312,7 @@ impl ExecMode {
 
     async fn record_resolved_model_config_id(&self, session_id: &str, model_config_id: &str) {
         let trimmed = model_config_id.trim();
-        if trimmed.is_empty() || matches!(trimmed, "auto" | "default" | "primary" | "fast") {
+        if trimmed.is_empty() || matches!(trimmed, "default" | "primary" | "fast") {
             return;
         }
 
@@ -1362,13 +1362,15 @@ impl ExecMode {
         }
 
         if let Some(session_id) = &self.session_options.session_id {
-            return self
+            let session_id = self
                 .agent
                 .create_session_with_id(session_id.clone(), &self.agent_type)
-                .await;
+                .await?;
+            return Ok(session_id);
         }
 
-        self.agent.ensure_session(&self.agent_type).await
+        let session_id = self.agent.ensure_session(&self.agent_type).await?;
+        Ok(session_id)
     }
 
     fn emit_stream_envelope(&self, envelope: &bitfun_events::AgenticEventEnvelope) -> Result<()> {

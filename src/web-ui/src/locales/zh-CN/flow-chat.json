@@ -2,8 +2,6 @@
   "permission": {
     "title": "需要授权",
     "subagentOwner": "{{subagent}} 子 Agent",
-    "feedbackLabel": "拒绝反馈",
-    "feedbackPlaceholder": "拒绝时可选填后续建议",
     "responseFailed": "权限回复未能送达，请重试。",
     "allowOnce": "允许一次",
     "allowAlways": "始终允许",
@@ -21,11 +19,12 @@
       "public": "公开"
     },
     "reject": "拒绝",
+    "rejectWithReason": "附理由拒绝",
+    "rejectWithReasonTooltip": "以输入框中的内容作为拒绝理由，发送后清空输入框。",
+    "scopeLabel": "回复范围",
+    "scopeThis": "本次",
+    "scopeAll": "全部",
     "batchCount": "{{count}} 个权限请求",
-    "collapsePanel": "收起权限请求",
-    "expandPanel": "展开 {{count}} 个待处理的权限请求",
-    "current": "当前",
-    "pending": "等待中",
     "actions": {
       "read": "读取文件",
       "edit": "编辑文件",
@@ -172,7 +171,9 @@
       "turns": "{{count}} 轮",
       "calls": "{{count}} 次调用",
       "operations": "{{count}} 次操作",
-      "tokens": "{{value}} Tokens"
+      "tokens": "{{value}} Tokens",
+      "tokenUsage": "Tokens 用量",
+      "dataDelayDisclaimer": "数据统计可能存在延迟，最终以系统记录为准"
     },
     "loading": {
       "title": "正在生成用量报告",
@@ -571,6 +572,14 @@
       "disabled": "语音输入已关闭",
       "unsupported": "当前无法使用麦克风",
       "modelMissing": "请先下载本地语音模型",
+      "setupRequired": "需下载 {{size}} 本地语音模型",
+      "setupRequiredUnknownSize": "需下载本地语音模型",
+      "downloadAndStart": "下载并开始",
+      "downloadingModel": "模型下载中 {{percent}}%",
+      "setupTooltip": "下载本地模型后开始语音输入",
+      "downloadingTooltip": "正在下载本地语音模型",
+      "downloadFailed": "本地语音模型下载失败",
+      "cancelSetup": "取消语音输入设置",
       "cloudPending": "云端转写已配置，但转写通路尚未接入",
       "permissionDenied": "麦克风权限被拒绝",
       "deviceDisconnected": "所选麦克风已断开连接",
@@ -582,6 +591,7 @@
     }
   },
   "workspaceStrip": {
+    "branchSwitchLabel": "切换分支。当前分支：{{branch}}",
     "branchTooltipUnavailable": "非 Git 仓库或当前无分支",
     "branchTooltipUntrusted": "该目录属于其他用户，Git 拒绝读取此仓库。信任该目录后即可看到分支。"
   },
@@ -694,8 +704,61 @@
         "submissionUnconfirmed": "暂时无法确认目标是否已接收任务。请稍后检查任务状态。"
       }
     },
-    "addBoostTooltip": "智能体模式、图片或 Skill",
+    "harness": {
+      "selectorTooltip": "当前执行：{{name}}",
+      "fixedTooltip": "本会话使用 {{name}}，开始后已固定。",
+      "activateBalanced": "切换到标准 Harness",
+      "compatibilityShort": "兼容模式",
+      "comingSoon": "开发中",
+      "comingSoonNotice": "「{{name}}」Harness 执行框架正在开发中。",
+      "legacySessionNotice": "该旧会话继续使用原 Agent 执行模式；请新建会话使用 Agent Harness 执行框架。",
+      "sessionStartedNotice": "Harness 与主 Agent 在首轮开始前确定；如需切换，请新建会话。",
+      "newSessionConfirmation": {
+        "title": "使用「{{name}}」创建新会话？",
+        "message": "当前会话不会更改；新会话将使用「{{name}}」。",
+        "confirm": "创建新会话"
+      },
+      "unsupportedProfile": "不受支持的 Harness（{{id}}）",
+      "unsupportedProfileNotice": "该会话使用当前版本无法运行的 {{id}}。请选择一个受支持的 Harness。",
+      "profileChangeBusy": "请等待当前轮次结束后再切换 Harness。",
+      "profileChangeOutcomeUnknown": "暂时无法确认 Harness 是否已切换，请刷新会话后再重试。",
+      "profileUnavailable": "当前 BitFun Host 不支持该 Harness。",
+      "profileChangeFailed": "切换 Harness 失败，请重试。",
+      "otherAgentsTitle": "智能体",
+      "otherAgentsEmpty": "当前没有可用的主智能体",
+      "unavailable": "不可用",
+      "agentUnavailable": "当前 Host 或设置不支持 {{name}}。",
+      "profiles": {
+        "minimal": { "name": "极简" },
+        "balanced": { "name": "标准" },
+        "ultimate": { "name": "极致" },
+        "creative": { "name": "创造" },
+        "other": { "name": "智能体" }
+      }
+    },
+    "agents": {
+      "available": "可用",
+      "needsChanges": "需要变更",
+      "comingSoon": "开发中",
+      "comingSoonNotice": "直接调用「{{name}}」Agent 的能力正在开发中。",
+      "reviewUnavailable": "Review Agent 需要一个包含可审查变更的活动会话。",
+      "review": { "name": "Review" },
+      "cowork": { "name": "Cowork" },
+      "computerUse": { "name": "Computer Use" }
+    },
+    "addBoostTooltip": "指令、上下文、图片或 Skill",
     "modeChangeFailed": "切换智能体模式失败，请重试。",
+    "reasoningStatus": {
+      "levels": {
+        "none": "关闭",
+        "minimal": "极低",
+        "low": "低",
+        "medium": "标准",
+        "high": "高",
+        "xhigh": "极高",
+        "max": "最高"
+      }
+    },
     "permissionMode": {
       "menuLabel": "权限模式",
       "globalScope": "全局",
@@ -732,8 +795,12 @@
       "resetToDefault": "跟随默认模式",
       "noSession": "请先打开或新建会话，再修改其权限模式。",
       "turnScope": "仅下一条消息",
+      "turnSettings": "下一条消息设置",
+      "followSessionMode": "跟随当前会话",
+      "backToSessionSettings": "返回当前会话权限设置",
       "currentTurnOverride": "权限：{{mode}}（仅下一条消息）",
       "activeTurnScope": "当前轮",
+      "activeTurnSettings": "当前轮设置",
       "currentActiveTurnOverride": "权限：{{mode}}（仅当前轮）",
       "nextTurnOnly": "仅下一条消息使用「{{mode}}」",
       "nextTurnOnlyShort": "仅一次",
@@ -743,22 +810,18 @@
       "fullAccessWarningMessageActiveTurn": "完全访问会默认放行工具调用，不再逐次确认。该设置从当前轮的后续模型轮次生效，项目规则与强制规则仍然生效。",
       "openDefaultSettings": "打开权限设置"
     },
-    "addModeTooltip": "附加 Plan 或 Debug",
-    "boostSectionAgent": "智能体",
     "boostSectionContext": "上下文",
     "boostStartBtw": "发起侧问",
     "boostNewSession": "新建会话",
     "boostAddContext": "引用文件或文件夹",
     "boostSkills": "Skills",
-    "modeSection": "模式",
+    "boostAdditionalModes": "附加模式",
     "boostSkillsLoading": "正在加载 Skills…",
+    "boostSkillsLoadFailed": "Skills 加载失败，点击重试",
     "boostSkillsEmpty": "暂无已启用的 Skill",
     "openSkillsLibrary": "管理 Skills…",
     "insertSkillLine": "Please use the Skill tool with command \"{{name}}\".",
-    "addModeMenuTitle": "附加模式",
-    "createCustomMode": "自定义模式",
-    "resetToAgentic": "恢复默认模式",
-    "noIncrementalModes": "暂无可附加模式",
+    "resetToAgentic": "移除当前 Agent",
     "defaultModeSetTooltip": "将 {{mode}} 设为新聊天默认模式",
     "defaultModeUnsetTooltip": "默认模式覆盖已启用，点击清除",
     "defaultModeSet": "已将 {{mode}} 设为新聊天默认模式。",
@@ -819,7 +882,6 @@
     "reloadInstructionsDone": "指令将在下一条消息时重新读取。",
     "reloadFailed": "重新加载失败",
     "currentMode": "当前模式: {{mode}}",
-    "noMatchingMode": "没有匹配的模式",
     "noMatchingCommand": "没有匹配的命令",
     "externalCommandContextUnsupported": "运行此委派命令前，请先移除输入框中的附件和引用。",
     "nativeCommandChoiceNotSaved": "本次仍会执行该命令，但未能保存这次冲突选择。",
@@ -842,25 +904,19 @@
     "sendingToBtw": "侧问会话：{{title}}",
     "modeDescriptions": {
       "agentic": "AI 主导执行，自动规划和完成编码任务，拥有完整的工具访问能力",
-      "Multitask": "多任务模式：将工作拆成正交分支，并在合适时主动并行调度子 Agent 推进",
       "Claw": "个人助理模式：面向个人工作区和日常事务，使用独立的助理上下文",
-      "Plan": "先规划后执行，先明确需求并制定实施计划，再进行编码",
-      "debug": "证据驱动的系统化调试：提出假设、收集运行时证据、精准定位并修复问题",
       "Cowork": "协作模式：先澄清再推进，轻量跟踪进度，随时验证结果",
       "ComputerUse": "独立电脑操作智能体：感知本机环境，操作应用、浏览器与系统界面",
       "DeepResearch": "深度研究：并行派发多个子 Agent 同时调研不同章节，快速生成高质量研究报告",
-      "Team": "虚拟工程团队：CEO、工程经理、设计师、QA 负责人、安全官、发布工程师 — 按完整冲刺流程协同工作"
+      "Ultra": "群体规划模式：适合复杂任务，可能并发发起较多模型请求，从而增加 API 成本和供应商限流压力"
     },
     "modeNames": {
       "agentic": "Agentic",
-      "Multitask": "Multitask",
       "Claw": "Claw",
-      "Plan": "Plan",
-      "debug": "Debug",
       "Cowork": "Cowork",
       "ComputerUse": "Computer Use",
       "DeepResearch": "Deep Research",
-      "Team": "Team"
+      "Ultra": "Ultra"
     },
     "openFolder": "打开文件夹…",
     "selectWorkspaceTitle": "选择工作区目录",
@@ -1273,7 +1329,14 @@
     "searchNext": "下一个匹配结果",
     "searchClose": "关闭搜索",
     "searchOpen": "搜索消息",
-    "jumpToCurrentTurn": "跳转到第 {{turn}} 轮",
+    "sessionOverview": "会话概览",
+    "sessionOverviewActive": "会话概览，有活动正在进行",
+    "sessionOverviewAgentsUnavailable": "当前没有可用会话",
+    "sessionOverviewAgentsActive": "有 Agent 正在运行",
+    "sessionOverviewAgentsIdle": "查看 Agent 会话树",
+    "sessionOverviewBackgroundRunning": "{{count}} 个正在运行",
+    "sessionOverviewBackgroundFinished": "{{count}} 个最近已结束",
+    "sessionOverviewPullRequests": "打开工作区拉取请求",
     "agentTree": "Agents",
     "agentTreeLoading": "正在加载 Agent 会话树...",
     "agentTreeEmpty": "当前会话没有子 Agent",
@@ -1294,8 +1357,10 @@
       "error": "$t(shared:statuses.failed)",
       "idle": "空闲"
     },
+    "backgroundCommandOverview": "后台终端",
     "backgroundCommands": "后台命令（{{count}}）",
     "backgroundCommandEmpty": "暂无后台命令",
+    "backgroundTerminalEmpty": "暂无后台终端",
     "backgroundCommandUntitled": "后台命令",
     "backgroundCommandSession": "会话 #{{id}}",
     "backgroundCommandStatusRunning": "进行中",
@@ -1306,7 +1371,13 @@
     "backgroundCommandStopping": "正在终止命令",
     "backgroundCommandStopAll": "全部终止",
     "backgroundCommandStopFailed": "终止后台命令失败。",
-    "pullRequests": "拉取请求"
+    "pullRequests": "拉取请求",
+    "pullRequestCount": "{{count}} 个拉取请求",
+    "pullRequestEmpty": "暂无拉取请求",
+    "pullRequestLoading": "正在加载拉取请求...",
+    "pullRequestNotGitRepository": "当前工作区不是 Git 仓库",
+    "pullRequestWorkspaceUnavailable": "当前没有可用工作区",
+    "pullRequestLoadFailed": "无法加载拉取请求，点击重试。"
   },
   "backgroundCommandInput": {
     "title": "输入命令内容",
@@ -1428,6 +1499,40 @@
     "copy": "复制",
     "copied": "已复制"
   },
+  "deepResearchProtocol": {
+    "phaseProgress": "{{current}} / {{total}}",
+    "phases": {
+      "orient": "理解问题并制定研究计划",
+      "specialists": "并行采集多方证据",
+      "citations": "建立可信来源清单",
+      "debateRound1": "交叉质疑证据 · 第一轮",
+      "debateRound2": "交叉质疑证据 · 第二轮",
+      "factCheck": "核查冲突与存疑事实",
+      "arbitration": "综合证据并作出裁决",
+      "report": "撰写深度研究报告",
+      "complete": "深度研究已完成"
+    },
+    "subquestions": {
+      "title": "研究问题",
+      "count": "{{count}} 项"
+    },
+    "citations": {
+      "title": "已登记可信来源",
+      "count": "{{count}} 条",
+      "corroborated": "{{count}} 条已交叉验证"
+    },
+    "verdicts": {
+      "title": "证据结论",
+      "count": "{{count}} 项",
+      "confidence": "置信度 {{value}}",
+      "status": {
+        "decided": "证据支持",
+        "contested": "仍有争议",
+        "gap": "证据缺口",
+        "tentative": "暂定结论"
+      }
+    }
+  },
   "modelRound": {
     "copyDialog": "复制对话",
     "copiedDialog": "已复制!",
@@ -1523,7 +1628,7 @@
       "expandPreview": "展开预览",
       "collapsePreview": "收起预览",
       "openFullCodeHint": "打开全量代码",
-      "viewGitDiff": "查看 Diff",
+      "changeSummary": "新增 {{additions}} 行，删除 {{deletions}} 行",
       "viewBaselineDiff": "查看基线 Diff"
     },
     "getFileDiff": {
@@ -1552,51 +1657,6 @@
     },
     "generativeWidget": {
       "exportFileNamePrefix": "BitFun组件"
-    },
-    "git": {
-      "title": "Git",
-      "commandFailed": "Git命令失败",
-      "executionFailed": "Git命令执行失败",
-      "failed": "失败",
-      "confirmExecute": "确认执行",
-      "cancel": "取消",
-      "copyCommand": "复制 Git 命令",
-      "commandCopied": "Git 命令已复制",
-      "copyCommandFailed": "复制 Git 命令失败",
-      "expandOutput": "展开输出",
-      "collapseOutput": "收起输出",
-      "noOutput": "(无输出)",
-      "exitCode": "退出码: {{code}}",
-      "duration": "耗时: {{time}}",
-      "directory": "目录: {{dir}}",
-      "output": "输出:",
-      "warning": "警告:",
-      "error": "错误:",
-      "operation": "操作: git {{op}}",
-      "args": "参数: {{args}}",
-      "status": "状态",
-      "diff": "差异",
-      "log": "日志",
-      "add": "暂存",
-      "commit": "提交",
-      "branch": "分支",
-      "checkout": "切换",
-      "switch": "切换",
-      "pull": "拉取",
-      "push": "推送",
-      "fetch": "获取",
-      "merge": "合并",
-      "rebase": "变基",
-      "stash": "暂存",
-      "reset": "重置",
-      "restore": "恢复",
-      "show": "显示",
-      "tag": "标签",
-      "remote": "远程",
-      "clone": "克隆",
-      "init": "初始化",
-      "blame": "追溯",
-      "cherryPick": "挑选"
     },
     "initMiniApp": {
       "title": "小应用",
@@ -1699,7 +1759,7 @@
     },
     "execProcess": {
       "executeCommand": "运行命令:",
-      "writeStdin": "写入标准输入:",
+      "writeStdin": "发送输入:",
       "pollProcess": "轮询进程:",
       "interruptProcess": "中断进程:",
       "killProcess": "终止进程:",
@@ -1728,6 +1788,8 @@
     },
     "plan": {
       "loadingPlan": "正在加载计划...",
+      "invalidFormat": "计划格式无效",
+      "invalidFormatDescription": "请打开计划文件，检查并修正 YAML 头或 Markdown 正文。",
       "generating": "生成中...",
       "clickToOpenPlan": "点击打开计划文件",
       "saveToProject": "保存到项目",
@@ -1785,6 +1847,7 @@
       "thinking": "思考中...",
       "preparing": "准备思考",
       "thinkingProcess": "思考过程",
+      "thinkingSummary": "思考总结",
       "thinkingComplete": "已完成思考",
       "thinkingCharacters": "思考了 {{count}} 字符"
     },
@@ -1842,6 +1905,15 @@
       "unknownTool": "未知工具",
       "descriptionLabel": "说明",
       "schemaLabel": "输入 Schema"
+    },
+    "agentWait": {
+      "title": "等待子 Agent 完成",
+      "completed": "已收到 {{count}} 个结果",
+      "steered": "已提前结束等待",
+      "timedOut": "等待期限已到；仍有 {{count}} 个任务在运行",
+      "failed": "执行失败",
+      "failedWithError": "执行失败：{{error}}",
+      "steeringHint": "可以发送引导消息提前结束等待并让 Agent 处理新指示"
     },
     "todoWrite": {
       "tasksCount": "{{count}} 项任务",
@@ -1978,16 +2050,6 @@
       "readingFile": "正在读取",
       "preparingRead": "准备读取"
     },
-    "terminalControl": {
-      "terminatingSession": "正在终止终端",
-      "sessionKilled": "终端已终止",
-      "killFailed": "终止终端失败",
-      "preparingKill": "准备终止终端",
-      "interruptingSession": "正在中断终端",
-      "sessionInterrupted": "终端已中断",
-      "interruptFailed": "中断终端失败",
-      "preparingInterrupt": "准备中断终端"
-    },
     "sessionControl": {
       "title": "会话",
       "currentWorkspace": "当前工作区",
@@ -2047,6 +2109,7 @@
       "noSummaryNotice": "本次压缩没有生成额外的总结内容。",
       "tokenChange": "{{before}} → {{after}} tokens",
       "savingsTag": "节省 {{saved}} · 压缩率 {{ratio}}%",
+      "resultSummary": "压缩后上下文长度 {{length}}（压缩比例 {{ratio}}%）",
       "compressingContext": "正在压缩上下文...",
       "compressionCount": "第 {{count}} 次压缩"
     },
@@ -2123,6 +2186,7 @@
       "startNewChat": "开始新对话...",
       "openSessionMenu": "会话与新建",
       "moreMenu": "更多",
+      "newSessionItem": "新建会话",
       "newCodeSessionItem": "编程会话",
       "newCoworkSessionItem": "办公会话"
     },
@@ -2416,11 +2480,16 @@
   "modelSelector": {
     "model": "模型",
     "modelExplanation": "模型说明",
+    "modelSettings": "模型设置",
     "modelSelection": "选择模型",
-    "autoModel": "Auto",
-    "autoModelDesc": "自动路由最优模型",
     "primaryModel": "Primary 模型",
+    "primaryModelDesc": "使用已配置的主力模型",
     "fastModel": "Fast 模型",
+    "fastModelDesc": "使用已配置的快速模型",
+    "providerModelCount": "{{total}} 个模型",
+    "backToProviders": "返回供应商列表",
+    "backToSettings": "返回模型设置",
+    "resetToDefaults": "重置为默认设置",
     "fastMode": "Fast 模式",
     "fastModeDescription": "1.5 倍速度，消耗更多额度",
     "acpMode": "模式",
@@ -2428,11 +2497,19 @@
     "acpModeFailed": "切换模式失败",
     "switchFailed": "切换模型失败",
     "modelNotConfigured": "未配置",
+    "tooltip": {
+      "configName": "配置名",
+      "modelName": "模型名",
+      "contextWindow": "上下文窗口",
+      "compressionTrigger": "压缩触发线",
+      "longContextWarning": "当前模型配置的上下文窗口超过 400K。超长上下文可能降低模型效果，建议将其调整到 300K 左右。"
+    },
     "openSettings": "模型设置",
     "contextUsage": {
       "agentPrompt": "上次请求输入上下文: {{usage}}",
+      "agentPromptLabel": "上次请求输入上下文",
       "acpContext": "ACP 上报上下文: {{usage}}",
-      "toolNote": "工具输出在后续请求中可能会被摘要或截断。"
+      "acpContextLabel": "ACP 上报上下文"
     }
   },
   "reasoningEffort": {
@@ -2449,21 +2526,22 @@
     "xhighDesc": "最大推理深度（较慢）"
   },
   "reasoningSelector": {
-    "title": "思考强度",
+    "title": "推理强度",
     "auto": "自动",
     "modelDefault": "模型默认值",
-    "current": "思考强度：{{preset}}",
-    "currentAuto": "思考强度：自动（{{preset}}）",
+    "current": "推理强度：{{preset}}",
+    "currentAuto": "推理强度：自动（{{preset}}）",
     "updateFailed": "更新思考预设失败",
-    "source": {
-      "models_dev": "models.dev",
-      "adapter_fallback": "内置",
-      "model_config": "自定义"
-    },
-    "sourceTooltip": {
-      "models_dev": "根据 models.dev 的模型元数据自动生成",
-      "adapter_fallback": "BitFun 为此模型适配器内置的预设",
-      "model_config": "在此模型的自定义配置中定义"
+    "levels": {
+      "off": "关闭",
+      "on": "开启",
+      "none": "关闭",
+      "minimal": "极低",
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "xhigh": "极高",
+      "max": "最高"
     }
   },
   "coworkScope": {
@@ -2536,24 +2614,24 @@
     "showAll": "显示全部"
   },
   "pendingQueue": {
-    "title": "待发送 ({{count}})",
-    "hint": "当前对话结束后会按顺序自动发送",
-    "editorHint": "⌘/Ctrl+Enter 保存 · Esc 取消",
+    "title": "等待发送",
+    "label": "等待发送 {{count}}",
+    "attachmentCount": "{{count}} 个图片附件",
+    "attachmentCount_one": "{{count}} 个图片附件",
+    "attachmentCount_other": "{{count}} 个图片附件",
     "emptyPlaceholder": "（空消息）",
     "statusSending": "正在引导…",
     "statusFailed": "发送失败 — 请编辑 / 立即发送 / 删除以清除该项",
     "actions": {
       "edit": "编辑",
       "sendNow": "立即发送（引导）",
-      "delete": "删除",
-      "saveEdit": "保存（⌘/Ctrl+Enter）",
-      "cancelEdit": "取消（Esc）"
+      "delete": "删除"
     },
     "tooltip": {
       "sendNow": "立即作为引导消息插入当前对话"
     },
     "errors": {
-      "emptyContent": "消息内容不能为空",
+      "composerNotEmpty": "请先发送或清空当前输入和附件，再编辑这条等待发送的消息",
       "sendNowFailed": "立即发送失败，请稍后重试"
     }
   },

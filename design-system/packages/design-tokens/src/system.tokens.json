@@ -1,0 +1,834 @@
+{
+  "$description": "Theme-independent system scales.",
+  "space": {
+    "$type": "dimension",
+    "0": { "$value": "0px" },
+    "1": { "$value": "4px" },
+    "2": { "$value": "8px" },
+    "3": { "$value": "12px" },
+    "4": { "$value": "16px" },
+    "5": { "$value": "20px" },
+    "6": { "$value": "24px" },
+    "8": { "$value": "32px" },
+    "10": { "$value": "40px" },
+    "12": { "$value": "48px" },
+    "16": { "$value": "64px" },
+    "component": {
+      "inline": { "$value": "12px" },
+      "block": { "$value": "8px" }
+    }
+  },
+  "font": {
+    "family": {
+      "sans": {
+        "$type": "fontFamily",
+        "$value": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+      },
+      "control": {
+        "$type": "fontFamily",
+        "$value": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+      },
+      "mono": {
+        "$type": "fontFamily",
+        "$value": "'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, 'Cascadia Mono', 'Cascadia Code', Consolas, 'Liberation Mono', 'Courier New', monospace"
+      }
+    },
+    "size": {
+      "$type": "dimension",
+      "4xs": { "$value": "7px" },
+      "3xs": { "$value": "8px" },
+      "2xs": { "$value": "9px" },
+      "micro": { "$value": "10px" },
+      "meta": { "$value": "11px" },
+      "xs": { "$value": "12px" },
+      "sm": { "$value": "13px" },
+      "base": { "$value": "14px" },
+      "lg": { "$value": "15px" },
+      "xl": { "$value": "16px" },
+      "2xl": { "$value": "18px" },
+      "3xl": { "$value": "22px" },
+      "4xl": { "$value": "26px" },
+      "5xl": { "$value": "32px" },
+      "6xl": { "$value": "40px" },
+      "7xl": { "$value": "48px" },
+      "8xl": { "$value": "56px" },
+      "9xl": { "$value": "64px" }
+    },
+    "weight": {
+      "$type": "fontWeight",
+      "regular": { "$value": 400 },
+      "medium": { "$value": 500 },
+      "semibold": { "$value": 600 },
+      "bold": { "$value": 700 }
+    }
+  },
+  "lineHeight": {
+    "$type": "number",
+    "none": { "$value": 1 },
+    "display": { "$value": 1.1 },
+    "tight": { "$value": 1.2 },
+    "dense": { "$value": 1.25 },
+    "snug": { "$value": 1.3 },
+    "compact": { "$value": 1.32 },
+    "ui": { "$value": 1.4 },
+    "support": { "$value": 1.45 },
+    "base": { "$value": 1.5 },
+    "code": { "$value": 1.52 },
+    "comfortable": { "$value": 1.55 },
+    "reading": { "$value": 1.58 },
+    "relaxed": { "$value": 1.6 },
+    "spacious": { "$value": 1.7 },
+    "loose": { "$value": 1.8 }
+  },
+  "letterSpacing": {
+    "$type": "dimension",
+    "tighter": { "$value": "-0.04em" },
+    "tight": { "$value": "-0.02em" },
+    "snug": { "$value": "-0.01em" },
+    "normal": { "$value": "0em" },
+    "subtle": { "$value": "0.01em" },
+    "wide": { "$value": "0.02em" },
+    "wider": { "$value": "0.04em" },
+    "widest": { "$value": "0.08em" },
+    "caps": { "$value": "0.1em" },
+    "expanded": { "$value": "0.26em" }
+  },
+  "type": {
+    "$description": "Semantic typography roles. Components consume these roles instead of assembling typography from raw values.",
+    "body": {
+      "xs": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.xs}" },
+        "fontWeight": { "$value": "{font.weight.regular}" },
+        "lineHeight": { "$value": "{lineHeight.base}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      },
+      "sm": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.sm}" },
+        "fontWeight": { "$value": "{font.weight.regular}" },
+        "lineHeight": { "$value": "{lineHeight.base}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      },
+      "md": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.base}" },
+        "fontWeight": { "$value": "{font.weight.regular}" },
+        "lineHeight": { "$value": "{lineHeight.base}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      },
+      "lg": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.xl}" },
+        "fontWeight": { "$value": "{font.weight.regular}" },
+        "lineHeight": { "$value": "{lineHeight.relaxed}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      }
+    },
+    "label": {
+      "xs": {
+        "fontFamily": { "$value": "{font.family.control}" },
+        "fontSize": { "$value": "{font.size.meta}" },
+        "fontWeight": { "$value": "{font.weight.medium}" },
+        "lineHeight": { "$value": "{lineHeight.tight}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      },
+      "sm": {
+        "fontFamily": { "$value": "{font.family.control}" },
+        "fontSize": { "$value": "{font.size.xs}" },
+        "fontWeight": { "$value": "{font.weight.medium}" },
+        "lineHeight": { "$value": "{lineHeight.tight}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      },
+      "md": {
+        "fontFamily": { "$value": "{font.family.control}" },
+        "fontSize": { "$value": "{font.size.sm}" },
+        "fontWeight": { "$value": "{font.weight.medium}" },
+        "lineHeight": { "$value": "{lineHeight.tight}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      },
+      "lg": {
+        "fontFamily": { "$value": "{font.family.control}" },
+        "fontSize": { "$value": "{font.size.base}" },
+        "fontWeight": { "$value": "{font.weight.medium}" },
+        "lineHeight": { "$value": "{lineHeight.tight}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      },
+      "selected": {
+        "fontFamily": { "$value": "{font.family.control}" },
+        "fontSize": { "$value": "{font.size.sm}" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.tight}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      }
+    },
+    "support": {
+      "fontFamily": { "$value": "{font.family.control}" },
+      "fontSize": { "$value": "{font.size.xs}" },
+      "fontWeight": { "$value": "{font.weight.regular}" },
+      "lineHeight": { "$value": "{lineHeight.support}" },
+      "letterSpacing": { "$value": "{letterSpacing.normal}" }
+    },
+    "meta": {
+      "fontFamily": { "$value": "{font.family.control}" },
+      "fontSize": { "$value": "{font.size.meta}" },
+      "fontWeight": { "$value": "{font.weight.regular}" },
+      "lineHeight": { "$value": "{lineHeight.compact}" },
+      "letterSpacing": { "$value": "{letterSpacing.normal}" }
+    },
+    "micro": {
+      "fontFamily": { "$value": "{font.family.control}" },
+      "fontSize": { "$value": "{font.size.micro}" },
+      "fontWeight": { "$value": "{font.weight.regular}" },
+      "lineHeight": { "$value": "{lineHeight.compact}" },
+      "letterSpacing": { "$value": "{letterSpacing.normal}" }
+    },
+    "heading": {
+      "section": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.lg}" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.tight}" },
+        "letterSpacing": { "$value": "{letterSpacing.snug}" }
+      },
+      "card": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.xl}" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.tight}" },
+        "letterSpacing": { "$value": "{letterSpacing.snug}" }
+      },
+      "page": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.2xl}" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.tight}" },
+        "letterSpacing": { "$value": "{letterSpacing.tight}" }
+      },
+      "dialog": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.3xl}" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.tight}" },
+        "letterSpacing": { "$value": "{letterSpacing.tight}" }
+      },
+      "display": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.4xl}" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.display}" },
+        "letterSpacing": { "$value": "{letterSpacing.tight}" }
+      }
+    },
+    "code": {
+      "sm": {
+        "fontFamily": { "$value": "{font.family.mono}" },
+        "fontSize": { "$value": "{font.size.xs}" },
+        "fontWeight": { "$value": "{font.weight.regular}" },
+        "lineHeight": { "$value": "{lineHeight.code}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      },
+      "md": {
+        "fontFamily": { "$value": "{font.family.mono}" },
+        "fontSize": { "$value": "{font.size.sm}" },
+        "fontWeight": { "$value": "{font.weight.regular}" },
+        "lineHeight": { "$value": "{lineHeight.code}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      }
+    },
+    "flow": {
+      "body": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.base}" },
+        "fontWeight": { "$value": "{font.weight.regular}" },
+        "lineHeight": { "$value": "{lineHeight.reading}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      },
+      "lead": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.lg}" },
+        "fontWeight": { "$value": "{font.weight.regular}" },
+        "lineHeight": { "$value": "{lineHeight.relaxed}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      },
+      "title": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.xl}" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.tight}" },
+        "letterSpacing": { "$value": "{letterSpacing.snug}" }
+      },
+      "sectionTitle": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.2xl}" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.tight}" },
+        "letterSpacing": { "$value": "{letterSpacing.snug}" }
+      },
+      "pageTitle": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.3xl}" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.tight}" },
+        "letterSpacing": { "$value": "{letterSpacing.tight}" }
+      },
+      "control": {
+        "fontFamily": { "$value": "{font.family.control}" },
+        "fontSize": { "$value": "{font.size.sm}" },
+        "fontWeight": { "$value": "{font.weight.regular}" },
+        "lineHeight": { "$value": "{lineHeight.support}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      },
+      "support": {
+        "fontFamily": { "$value": "{font.family.control}" },
+        "fontSize": { "$value": "{font.size.xs}" },
+        "fontWeight": { "$value": "{font.weight.regular}" },
+        "lineHeight": { "$value": "{lineHeight.support}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      },
+      "meta": {
+        "fontFamily": { "$value": "{font.family.control}" },
+        "fontSize": { "$value": "{font.size.meta}" },
+        "fontWeight": { "$value": "{font.weight.regular}" },
+        "lineHeight": { "$value": "{lineHeight.compact}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      },
+      "micro": {
+        "fontFamily": { "$value": "{font.family.control}" },
+        "fontSize": { "$value": "{font.size.micro}" },
+        "fontWeight": { "$value": "{font.weight.regular}" },
+        "lineHeight": { "$value": "{lineHeight.compact}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      },
+      "code": {
+        "fontFamily": { "$value": "{font.family.mono}" },
+        "fontSize": { "$value": "{font.size.sm}" },
+        "fontWeight": { "$value": "{font.weight.regular}" },
+        "lineHeight": { "$value": "{lineHeight.code}" },
+        "letterSpacing": { "$value": "{letterSpacing.normal}" }
+      }
+    },
+    "display": {
+      "sm": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.5xl}" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.display}" },
+        "letterSpacing": { "$value": "{letterSpacing.tight}" }
+      },
+      "md": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.6xl}" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.display}" },
+        "letterSpacing": { "$value": "{letterSpacing.tight}" }
+      },
+      "lg": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.7xl}" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.display}" },
+        "letterSpacing": { "$value": "{letterSpacing.tight}" }
+      },
+      "xl": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "{font.size.8xl}" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.display}" },
+        "letterSpacing": { "$value": "{letterSpacing.tight}" }
+      },
+      "fluidTitle": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "clamp({font.size.5xl}, 3.2vw, {font.size.7xl})" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.display}" },
+        "letterSpacing": { "$value": "{letterSpacing.tight}" }
+      },
+      "fluidHero": {
+        "fontFamily": { "$value": "{font.family.sans}" },
+        "fontSize": { "$value": "clamp({font.size.6xl}, 4vw, {font.size.8xl})" },
+        "fontWeight": { "$value": "{font.weight.semibold}" },
+        "lineHeight": { "$value": "{lineHeight.display}" },
+        "letterSpacing": { "$value": "{letterSpacing.tight}" }
+      }
+    }
+  },
+  "control": {
+    "askUser": {
+      "$type": "dimension",
+      "bodyGap": { "$value": "{space.3}" },
+      "bodyPadding": { "$value": "{space.4}" },
+      "descriptionMaxWidth": { "$value": "500px" },
+      "headerHeight": { "$value": "30px" },
+      "iconSize": { "$value": "14px" },
+      "optionContentGap": { "$value": "{space.2}" },
+      "optionGap": { "$value": "{space.1}" },
+      "optionPaddingBlock": { "$value": "7px" },
+      "optionPaddingInline": { "$value": "{space.2}" },
+      "questionOptionsGap": { "$value": "{space.3}" },
+      "questionPaddingInline": { "$value": "{space.1}" },
+      "summaryActionSize": { "$value": "22px" },
+      "summaryPaddingBlock": { "$value": "{space.1}" },
+      "summaryPaddingInlineEnd": { "$value": "{space.1}" },
+      "summaryPaddingInlineStart": { "$value": "{space.2}" }
+    },
+    "chatComposer": {
+      "$type": "dimension",
+      "actionIconSize": { "$value": "14px" },
+      "compactGap": { "$value": "9px" },
+      "compactHeight": { "$value": "45px" },
+      "compactPaddingBlock": { "$value": "9px" },
+      "compactPaddingInline": { "$value": "9px" },
+      "compactTrackHeight": { "$value": "25px" },
+      "controlHeight": { "$value": "25px" }
+    },
+    "flowChat": {
+      "$description": "Shared FlowChat rhythm for product and package-owned conversation surfaces.",
+      "$type": "dimension",
+      "flowItemGap": { "$value": "0.42rem" },
+      "turnGap": { "$value": "0.46rem" },
+      "inlineGap": { "$value": "0.35rem" },
+      "controlGap": { "$value": "0.5rem" },
+      "controlPaddingBlock": { "$value": "0.35rem" },
+      "controlPaddingInline": { "$value": "0.75rem" },
+      "contentPaddingInline": { "$value": "3rem" },
+      "contentPaddingInlineMobile": { "$value": "1.5rem" },
+      "cardGap": { "$value": "0.42rem" },
+      "cardRadius": { "$value": "{radius.base}" },
+      "cardPaddingBlock": { "$value": "0.625rem" },
+      "cardPaddingInline": { "$value": "0.75rem" },
+      "cardExpandedPaddingBlock": { "$value": "0.5rem" },
+      "cardExpandedPaddingInline": { "$value": "0.625rem" },
+      "codeBlockPaddingBlock": { "$value": "0.55rem" },
+      "codeBlockPaddingInline": { "$value": "0.75rem" }
+    },
+    "toolCard": {
+      "$description": "Shared tool-card header and expanded-content geometry.",
+      "$type": "dimension",
+      "headerPaddingBlock": { "$value": "0.44rem" },
+      "headerPaddingInlineEnd": { "$value": "0.625rem" },
+      "headerIconSlot": { "$value": "34px" },
+      "expandedPaddingInline": { "$value": "0.625rem" }
+    },
+    "icon": {
+      "$type": "dimension",
+      "size2xs": { "$value": "8px" },
+      "sizeXs": { "$value": "12px" },
+      "sizeSm": { "$value": "14px" },
+      "sizeMd": { "$value": "16px" },
+      "sizeLg": { "$value": "24px" }
+    },
+    "height": {
+      "$type": "dimension",
+      "sm": { "$value": "32px" },
+      "md": { "$value": "40px" },
+      "lg": { "$value": "48px" }
+    },
+    "hitTarget": {
+      "$type": "dimension",
+      "$value": "40px"
+    },
+    "switch": {
+      "$type": "dimension",
+      "trackWidth": { "$value": "28px" },
+      "trackHeight": { "$value": "16px" },
+      "thumbSize": { "$value": "12px" },
+      "thumbInset": { "$value": "2px" },
+      "thumbTravel": { "$value": "12px" },
+      "thumbTravelReverse": { "$value": "-12px" }
+    },
+    "tabGroup": {
+      "$type": "dimension",
+      "gap": { "$value": "{space.2}" },
+      "itemGap": { "$value": "6px" },
+      "itemHeight": { "$value": "{control.height.md}" },
+      "itemIconSize": { "$value": "16px" },
+      "itemPaddingInline": { "$value": "{space.4}" },
+      "itemActionSize": { "$value": "{space.5}" },
+      "itemActionInset": { "$value": "{space.2}" },
+      "itemRadius": { "$value": "{radius.pill}" }
+    },
+    "segmentedControl": {
+      "$type": "dimension",
+      "gap": { "$value": "2px" },
+      "padding": { "$value": "2px" },
+      "radius": { "$value": "{radius.pill}" },
+      "segmentHeight": { "$value": "22px" },
+      "segmentPaddingInline": { "$value": "{space.2}" },
+      "segmentGap": { "$value": "{space.1}" },
+      "segmentRadius": { "$value": "{radius.pill}" },
+      "iconSize": { "$value": "12px" }
+    },
+    "composer": {
+      "$type": "dimension",
+      "minBlockSize": { "$value": "120px" },
+      "contextOffset": { "$value": "32px" },
+      "contextPaddingBlock": { "$value": "6px" },
+      "contextPaddingInline": { "$value": "{space.2}" },
+      "contextGap": { "$value": "{space.2}" },
+      "surfacePadding": { "$value": "{space.2}" },
+      "surfaceGap": { "$value": "{space.3}" },
+      "surfaceRadius": { "$value": "{radius.xl}" },
+      "editorPadding": { "$value": "{space.1}" },
+      "toolbarGap": { "$value": "{space.2}" },
+      "dividerBlockSize": { "$value": "16px" }
+    },
+    "activityItem": {
+      "$type": "dimension",
+      "inlineGap": { "$value": "{space.1}" },
+      "inlineIconSize": { "$value": "12px" },
+      "surfaceHeight": { "$value": "30px" },
+      "surfaceGap": { "$value": "{space.2}" },
+      "surfacePaddingBlock": { "$value": "{space.1}" },
+      "surfacePaddingInlineStart": { "$value": "{space.2}" },
+      "surfacePaddingInlineEnd": { "$value": "3px" },
+      "surfaceRadius": { "$value": "{radius.base}" },
+      "surfaceIconSize": { "$value": "14px" },
+      "contentGap": { "$value": "{space.1}" },
+      "dividerBlockSize": { "$value": "16px" }
+    },
+    "actionCard": {
+      "$type": "dimension",
+      "smMinBlockSize": { "$value": "54px" },
+      "mdMinBlockSize": { "$value": "62px" },
+      "paddingBlock": { "$value": "{space.2}" },
+      "paddingInline": { "$value": "{space.3}" },
+      "gap": { "$value": "{space.2}" },
+      "leadingSize": { "$value": "30px" },
+      "iconSize": { "$value": "16px" },
+      "contentGap": { "$value": "{space.1}" },
+      "actionsGap": { "$value": "0px" },
+      "actionsPaddingInlineEnd": { "$value": "{space.2}" },
+      "radius": { "$value": "{radius.base}" }
+    },
+    "changeCount": {
+      "$type": "dimension",
+      "gap": { "$value": "{space.1}" },
+      "paddingBlock": { "$value": "2px" },
+      "paddingInline": { "$value": "{space.1}" },
+      "radius": { "$value": "{radius.xs}" }
+    },
+    "statusPill": {
+      "$type": "dimension",
+      "gap": { "$value": "2px" },
+      "paddingBlock": { "$value": "3px" },
+      "paddingInline": { "$value": "6px" },
+      "radius": { "$value": "{radius.pill}" },
+      "iconSize": { "$value": "14px" }
+    },
+    "select": {
+      "$type": "dimension",
+      "paddingInline": { "$value": "{space.3}" },
+      "leadingInset": { "$value": "{space.3}" },
+      "trailingInset": { "$value": "{space.3}" },
+      "contentGap": { "$value": "{space.2}" },
+      "indicatorSize": { "$value": "14px" },
+      "radius": { "$value": "{radius.base}" }
+    },
+    "iconButton": {
+      "$type": "dimension",
+      "xsSize": { "$value": "22px" },
+      "xsIconSize": { "$value": "14px" }
+    },
+    "button": {
+      "$type": "dimension",
+      "xsHeight": { "$value": "24px" },
+      "xsPaddingInline": { "$value": "6px" },
+      "xsLeadingIconSize": { "$value": "12px" },
+      "xsTrailingIconSize": { "$value": "10px" }
+    }
+  },
+  "layout": {
+    "$type": "dimension",
+    "overflowText": {
+      "fadeExtent": { "$value": "{space.4}" }
+    },
+    "field": {
+      "rootGap": { "$value": "{space.2}" },
+      "horizontalGap": { "$value": "{space.5}" },
+      "horizontalGapWide": { "$value": "{space.10}" },
+      "labelWidthSm": { "$value": "150px" },
+      "labelWidthMd": { "$value": "200px" },
+      "labelWidthLg": { "$value": "400px" },
+      "contentGap": { "$value": "{space.1}" },
+      "labelGap": { "$value": "2px" },
+      "labelActionGap": { "$value": "{space.2}" },
+      "controlGap": { "$value": "{space.2}" }
+    },
+    "formSection": {
+      "gap": { "$value": "{space.4}" },
+      "headerGap": { "$value": "{space.5}" },
+      "titleDescriptionGap": { "$value": "{space.1}" }
+    },
+    "fieldGroup": {
+      "radius": { "$value": "{radius.lg}" },
+      "rowPaddingBlock": { "$value": "{space.4}" },
+      "rowPaddingInline": { "$value": "{space.5}" }
+    },
+    "confirmDialog": {
+      "contentGap": { "$value": "{space.4}" },
+      "messageGap": { "$value": "{space.3}" },
+      "iconSize": { "$value": "32px" },
+      "iconGlyphSize": { "$value": "18px" },
+      "previewMaxBlockSize": { "$value": "240px" },
+      "previewPaddingBlock": { "$value": "{space.3}" },
+      "previewPaddingInline": { "$value": "{space.4}" },
+      "previewRadius": { "$value": "{radius.base}" }
+    },
+    "spinner": {
+      "matrixCellXs": { "$value": "3px" },
+      "matrixCellSm": { "$value": "4px" },
+      "matrixCellMd": { "$value": "6px" },
+      "matrixCellLg": { "$value": "8px" },
+      "matrixGapSm": { "$value": "1px" },
+      "matrixGapMd": { "$value": "2px" },
+      "matrixRadius": { "$value": "1px" }
+    },
+    "card": {
+      "paddingSm": { "$value": "{space.3}" },
+      "paddingMd": { "$value": "{space.5}" },
+      "gapSm": { "$value": "{space.2}" },
+      "gapMd": { "$value": "{space.3}" },
+      "gapLg": { "$value": "30px" },
+      "radiusSm": { "$value": "{radius.base}" },
+      "radiusMd": { "$value": "{radius.lg}" },
+      "radiusLg": { "$value": "28px" },
+      "headerGap": { "$value": "{space.2}" },
+      "titleDescriptionGap": { "$value": "{space.1}" },
+      "footerGap": { "$value": "{space.2}" },
+      "mediaMinBlockSize": { "$value": "120px" }
+    },
+    "toolbar": {
+      "smHeight": { "$value": "33px" },
+      "mdHeight": { "$value": "45px" },
+      "contentGap": { "$value": "40px" },
+      "smPaddingBlock": { "$value": "{space.1}" },
+      "smPaddingInline": { "$value": "{space.2}" },
+      "mdPaddingBlockStart": { "$value": "{space.2}" },
+      "mdPaddingBlockEnd": { "$value": "6px" },
+      "mdPaddingInlineStart": { "$value": "{space.2}" },
+      "mdPaddingInlineEnd": { "$value": "11px" },
+      "groupGapSm": { "$value": "{space.1}" },
+      "groupGapMd": { "$value": "{space.2}" },
+      "badgeSize": { "$value": "24px" },
+      "separatorBlockSize": { "$value": "16px" },
+      "overflowFadeExtent": { "$value": "16px" }
+    },
+    "navigationPanel": {
+      "inlineSize": { "$value": "216px" },
+      "surfacePadding": { "$value": "{space.2}" },
+      "contentGap": { "$value": "{space.4}" },
+      "sectionGap": { "$value": "{space.1}" },
+      "headingHeight": { "$value": "22px" },
+      "headingPaddingInline": { "$value": "{space.2}" },
+      "headingGap": { "$value": "{space.5}" },
+      "headingActionSize": { "$value": "22px" },
+      "itemHeight": { "$value": "30px" },
+      "itemPaddingInline": { "$value": "{space.2}" },
+      "itemGap": { "$value": "{space.2}" },
+      "itemRadius": { "$value": "{radius.base}" },
+      "itemIconSize": { "$value": "14px" },
+      "scrollbarGap": { "$value": "2px" },
+      "footerHeight": { "$value": "40px" },
+      "footerPadding": { "$value": "{space.2}" }
+    },
+    "disclosure": {
+      "triggerMinBlockSize": { "$value": "30px" },
+      "triggerPaddingBlock": { "$value": "{space.1}" },
+      "triggerPaddingInline": { "$value": "{space.2}" },
+      "triggerGap": { "$value": "{space.2}" },
+      "triggerRadius": { "$value": "{radius.base}" },
+      "indicatorSize": { "$value": "14px" },
+      "actionsGap": { "$value": "{space.1}" },
+      "contentPaddingBlock": { "$value": "{space.3}" },
+      "contentPaddingInline": { "$value": "{space.8}" }
+    },
+    "splitView": {
+      "contentPanelRadius": {
+        "$description": "Corner radius for the content panel where it meets a companion navigation panel.",
+        "$value": "{radius.3xl}"
+      }
+    }
+  },
+  "scrollbar": {
+    "$type": "dimension",
+    "width": {
+      "$description": "Reference thickness for compact application scrollbars.",
+      "$value": "6px"
+    },
+    "radius": {
+      "$description": "Corner radius for the scrollbar thumb.",
+      "$value": "{radius.pill}"
+    }
+  },
+  "overlay": {
+    "menu": {
+      "$type": "dimension",
+      "inlineSize": { "$value": "220px" },
+      "maxBlockSize": { "$value": "480px" },
+      "surfacePadding": { "$value": "{space.2}" },
+      "surfaceRadius": { "$value": "{radius.xl}" },
+      "sectionGap": { "$value": "{space.2}" },
+      "headingHeight": { "$value": "24px" },
+      "headingPaddingInline": { "$value": "{space.2}" },
+      "headingGap": { "$value": "{space.5}" },
+      "headingActionSize": { "$value": "22px" },
+      "itemHeight": { "$value": "30px" },
+      "itemPaddingInline": { "$value": "{space.2}" },
+      "itemGap": { "$value": "{space.2}" },
+      "itemRadius": { "$value": "{radius.base}" },
+      "itemIconSize": { "$value": "14px" },
+      "scrollbarGap": { "$value": "2px" }
+    },
+    "tooltip": {
+      "$type": "dimension",
+      "maxInlineSize": { "$value": "280px" },
+      "maxBlockSize": { "$value": "320px" },
+      "paddingBlock": { "$value": "6px" },
+      "paddingInline": { "$value": "10px" },
+      "surfaceRadius": { "$value": "{radius.sm}" },
+      "arrowSize": { "$value": "8px" },
+      "gap": {
+        "$description": "Distance between the trigger (or cursor) and the tooltip surface.",
+        "$value": "{space.2}"
+      }
+    },
+    "dialog": {
+      "$type": "dimension",
+      "viewportGutter": {
+        "$description": "Minimum viewport inset reserved around a centered dialog.",
+        "$value": "24px"
+      },
+      "edgeGutter": {
+        "$description": "Inset shared by dialog header chrome and the close action.",
+        "$value": "8px"
+      },
+      "backdropBlur": {
+        "$description": "Background blur applied by the reference dialog scrim.",
+        "$type": "filter",
+        "$value": "blur(20px)"
+      },
+      "surfaceRadius": {
+        "$description": "Reference corner radius for the dialog surface.",
+        "$value": "28px"
+      },
+      "headerGap": {
+        "$value": "{space.5}"
+      },
+      "headerPaddingBlockStart": {
+        "$value": "{space.6}"
+      },
+      "headerPaddingBlockEnd": {
+        "$value": "{space.5}"
+      },
+      "headerPaddingInline": {
+        "$value": "{space.6}"
+      },
+      "scrollbarWidth": {
+        "$value": "{scrollbar.width}"
+      },
+      "contentPaddingSm": { "$value": "{space.3}" },
+      "contentPaddingMd": { "$value": "{space.4}" },
+      "contentPaddingLg": { "$value": "{space.6}" },
+      "contentPaddingXl": { "$value": "{space.8}" },
+      "descriptionGap": { "$value": "{space.2}" },
+      "headerActionsGap": { "$value": "{space.2}" },
+      "footerGap": { "$value": "{space.2}" },
+      "footerPaddingBlockStart": { "$value": "{space.2}" },
+      "footerPaddingBlockEnd": { "$value": "{space.5}" },
+      "footerPaddingInline": { "$value": "{space.6}" },
+      "footerHeight": {
+        "$description": "Total visual height of the floating dialog action bar.",
+        "$value": "68px"
+      },
+      "footerFadeExtent": {
+        "$description": "Distance the frosted footer treatment extends upward over scrolling content.",
+        "$value": "{space.6}"
+      },
+      "footerContentInset": {
+        "$description": "Trailing scroll space that keeps content reachable beneath the floating dialog action bar.",
+        "$value": "104px"
+      },
+      "footerBlur": {
+        "$description": "Backdrop blur applied to content passing beneath the floating dialog action bar.",
+        "$type": "filter",
+        "$value": "blur(10px)"
+      },
+      "footerActionMinWidth": { "$value": "100px" },
+      "maxInlineSizeSmall": { "$value": "420px" },
+      "maxInlineSizeMedium": { "$value": "560px" },
+      "maxInlineSizeLarge": { "$value": "600px" },
+      "maxInlineSizeXlarge": { "$value": "720px" },
+      "maxInlineSizeXxlarge": { "$value": "960px" },
+      "maxInlineSizeWide": { "$value": "1200px" }
+    }
+  },
+  "radius": {
+    "$type": "dimension",
+    "xs": { "$value": "4px" },
+    "sm": { "$value": "6px" },
+    "base": { "$value": "8px" },
+    "md": { "$value": "{radius.base}" },
+    "lg": { "$value": "12px" },
+    "xl": { "$value": "16px" },
+    "2xl": { "$value": "20px" },
+    "3xl": { "$value": "24px" },
+    "4xl": { "$value": "32px" },
+    "pill": { "$value": "9999px" }
+  },
+  "border": {
+    "width": {
+      "$type": "dimension",
+      "default": { "$value": "1px" },
+      "strong": { "$value": "2px" }
+    }
+  },
+  "motion": {
+    "distance": {
+      "$type": "dimension",
+      "sm": { "$value": "{space.1}" }
+    },
+    "duration": {
+      "$type": "duration",
+      "instant": { "$value": "80ms" },
+      "fast": { "$value": "140ms" },
+      "base": { "$value": "220ms" },
+      "normal": { "$value": "{motion.duration.base}" },
+      "slow": { "$value": "420ms" },
+      "lazy": { "$value": "1s" },
+      "loop": { "$value": "720ms" }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "standard": { "$value": "cubic-bezier(0.23, 1, 0.32, 1)" },
+      "decelerate": { "$value": "{motion.easing.standard}" },
+      "smooth": { "$value": "cubic-bezier(0.77, 0, 0.175, 1)" },
+      "accelerate": { "$value": "cubic-bezier(0.4, 0, 1, 1)" },
+      "enter": { "$value": "{motion.easing.standard}" },
+      "exit": { "$value": "cubic-bezier(0.3, 0, 1, 1)" }
+    }
+  },
+  "focus": {
+    "width": { "$type": "dimension", "$value": "2px" },
+    "offset": { "$type": "dimension", "$value": "2px" }
+  },
+  "layer": {
+    "$type": "number",
+    "base": { "$value": 0 },
+    "decoration": { "$value": 1 },
+    "content": { "$value": 2 },
+    "sticky": { "$value": 15 },
+    "floating": { "$value": 50 },
+    "dropdown": { "$value": 60 },
+    "overlay": { "$value": 100 },
+    "modal": { "$value": 200 },
+    "modalActive": { "$value": 250 },
+    "fullscreen": { "$value": 280 },
+    "overlayHost": { "$value": 300 },
+    "tooltip": { "$value": 350 },
+    "popover": { "$value": 360 },
+    "toast": { "$value": 400 },
+    "notification": { "$value": 400 },
+    "contextMenu": { "$value": 500 }
+  }
+}

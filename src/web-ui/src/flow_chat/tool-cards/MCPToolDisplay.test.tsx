@@ -23,30 +23,6 @@ vi.mock('react-i18next', async () => {
     }),
   };
 });
-
-vi.mock('../../component-library', () => ({
-  CubeLoading: () => <span data-testid="cube-loading" />,
-  IconButton: ({
-    children,
-    tooltip,
-    variant: _variant,
-    size: _size,
-    ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-    tooltip?: React.ReactNode;
-    variant?: string;
-    size?: string;
-  }) => (
-    <button
-      type="button"
-      aria-label={typeof tooltip === 'string' ? tooltip : undefined}
-      {...props}
-    >
-      {children}
-    </button>
-  ),
-}));
-
 vi.mock('@/infrastructure/mcp/toolInfoCache', () => ({
   getCachedToolInfo: mcpMocks.getCachedToolInfo,
 }));
@@ -149,7 +125,7 @@ describe('MCPToolDisplay', () => {
     expect(container.querySelector('.mcp-input-code')).toBeNull();
 
     act(() => {
-      container.querySelector('.base-tool-card')?.dispatchEvent(
+      container.querySelector('[data-testid="mcp-tool-card-toggle"]')?.dispatchEvent(
         new dom.window.MouseEvent('click', { bubbles: true })
       );
     });
@@ -162,7 +138,7 @@ describe('MCPToolDisplay', () => {
     expect(input?.compareDocumentPosition(result as Node) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     act(() => {
-      container.querySelector<HTMLButtonElement>('.mcp-input-toggle')?.dispatchEvent(
+      container.querySelector<HTMLButtonElement>('.mcp-input-disclosure button[aria-expanded]')?.dispatchEvent(
         new dom.window.MouseEvent('click', { bubbles: true })
       );
     });
@@ -189,7 +165,7 @@ describe('MCPToolDisplay', () => {
       root.render(<MCPToolDisplay toolItem={item} config={config} />);
     });
 
-    const toggle = container.querySelector<HTMLButtonElement>('.preview-toggle-btn');
+    const toggle = container.querySelector<HTMLButtonElement>('[data-bf-component="flow-chat-tool-card"][data-bf-part="affordanceButton"]');
     expect(toggle).not.toBeNull();
 
     act(() => {
@@ -199,7 +175,7 @@ describe('MCPToolDisplay', () => {
     expect(container.querySelector('.mcp-input-code')).toBeNull();
 
     act(() => {
-      container.querySelector<HTMLButtonElement>('.mcp-input-toggle')?.dispatchEvent(
+      container.querySelector<HTMLButtonElement>('.mcp-input-disclosure button[aria-expanded]')?.dispatchEvent(
         new dom.window.MouseEvent('click', { bubbles: true })
       );
     });
@@ -226,7 +202,7 @@ describe('MCPToolDisplay', () => {
     expect(container.querySelector('[data-bf-component="mcp-tool-display"]')?.getAttribute('data-bf-state')).toBe('error');
 
     act(() => {
-      container.querySelector<HTMLButtonElement>('.preview-toggle-btn')?.dispatchEvent(
+      container.querySelector<HTMLButtonElement>('[data-bf-component="flow-chat-tool-card"][data-bf-part="affordanceButton"]')?.dispatchEvent(
         new dom.window.MouseEvent('click', { bubbles: true })
       );
     });
@@ -235,7 +211,7 @@ describe('MCPToolDisplay', () => {
     expect(container.querySelector('.mcp-input-code')).toBeNull();
 
     act(() => {
-      container.querySelector<HTMLButtonElement>('.mcp-input-toggle')?.dispatchEvent(
+      container.querySelector<HTMLButtonElement>('.mcp-input-disclosure button[aria-expanded]')?.dispatchEvent(
         new dom.window.MouseEvent('click', { bubbles: true })
       );
     });
@@ -254,7 +230,7 @@ describe('MCPToolDisplay', () => {
       root.render(<MCPToolDisplay toolItem={item} config={config} />);
     });
 
-    expect(container.querySelector('.preview-toggle-btn')).toBeNull();
+    expect(container.querySelector('[data-bf-component="flow-chat-tool-card"][data-bf-part="affordanceButton"]')).toBeNull();
     expect(container.querySelector('.mcp-input-code')).toBeNull();
   });
 
@@ -295,21 +271,21 @@ describe('MCPToolDisplay', () => {
     const cardRoot = container.querySelector('[data-bf-component="mcp-tool-display"]');
     expect(container.querySelector('.mcp-app-iframe')).not.toBeNull();
     expect(cardRoot?.getAttribute('data-bf-state')).toContain('expanded');
-    expect(container.querySelector<HTMLButtonElement>('.mcp-input-toggle')?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector<HTMLButtonElement>('.mcp-input-disclosure button[aria-expanded]')?.getAttribute('aria-expanded')).toBe('false');
     expect(container.querySelector('.mcp-input-code')).toBeNull();
 
     act(() => {
-      container.querySelector<HTMLButtonElement>('.mcp-input-toggle')?.dispatchEvent(
+      container.querySelector<HTMLButtonElement>('.mcp-input-disclosure button[aria-expanded]')?.dispatchEvent(
         new dom.window.MouseEvent('click', { bubbles: true })
       );
     });
 
     expect(cardRoot?.getAttribute('data-bf-state')).toContain('expanded');
-    expect(container.querySelector<HTMLButtonElement>('.mcp-input-toggle')?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector<HTMLButtonElement>('.mcp-input-disclosure button[aria-expanded]')?.getAttribute('aria-expanded')).toBe('true');
     expect(container.querySelector('.mcp-input-code')).not.toBeNull();
 
     act(() => {
-      container.querySelector<HTMLButtonElement>('.preview-toggle-btn')?.dispatchEvent(
+      container.querySelector<HTMLButtonElement>('[data-bf-component="flow-chat-tool-card"][data-bf-part="affordanceButton"]')?.dispatchEvent(
         new dom.window.MouseEvent('click', { bubbles: true })
       );
     });
@@ -317,13 +293,13 @@ describe('MCPToolDisplay', () => {
     expect(cardRoot?.getAttribute('data-bf-state') ?? '').not.toContain('expanded');
 
     act(() => {
-      container.querySelector<HTMLButtonElement>('.preview-toggle-btn')?.dispatchEvent(
+      container.querySelector<HTMLButtonElement>('[data-bf-component="flow-chat-tool-card"][data-bf-part="affordanceButton"]')?.dispatchEvent(
         new dom.window.MouseEvent('click', { bubbles: true })
       );
     });
 
     expect(cardRoot?.getAttribute('data-bf-state')).toContain('expanded');
-    expect(container.querySelector<HTMLButtonElement>('.mcp-input-toggle')?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector<HTMLButtonElement>('.mcp-input-disclosure button[aria-expanded]')?.getAttribute('aria-expanded')).toBe('false');
     expect(container.querySelector('.mcp-input-code')).toBeNull();
   });
 });

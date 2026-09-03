@@ -148,14 +148,13 @@ ignore = "0.4"
 notify = "8.2"
 dirs = "6.0"
 keyring-core = "1.0.0"
-apple-native-keyring-store = { version = "1.0.1", features = ["keychain"] }
 windows-native-keyring-store = "1.1.0"
 zbus-secret-service-keyring-store = { version = "1.0.0", features = ["crypto-rust"] }
 dark-light = "1.1"
 dunce = "1"
 filetime = "0.2"
 fs2 = "0.4"
-zip = { version = "4.6", default-features = false, features = ["deflate"] } # plugin load
+zip = { version = "4.6", default-features = false, features = ["deflate"] } # archive extraction
 flate2 = "1.0"
 tar = "0.4"
 bzip2 = "0.5"
@@ -272,13 +271,14 @@ tokio-tungstenite = "0.29"
 sherpa-onnx = "1.13.4"
 
 # MCP and remote runtimes
+# Keep RMCP's Reqwest TLS provider-neutral; services-core owns ring selection.
 rmcp = { version = "1.7", default-features = false, features = [
     "auth",
     "base64",
     "client",
     "elicitation",
     "macros",
-    "reqwest",
+    "reqwest-tls-no-provider",
     "schemars",
     "server",
 ] }
@@ -288,7 +288,7 @@ russh-sftp = "2.1"
 russh-keys = "0.45"
 shellexpand = "3"
 ssh_config = "0.1"
-rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls = { version = "0.23", default-features = false }
 
 [patch.crates-io]
 # tao 0.35.3 can re-enter its Windows window callback while holding input locks.

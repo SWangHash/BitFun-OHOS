@@ -5,8 +5,8 @@
   "build": {
     "beforeDevCommand": "pnpm run dev:web",
     "devUrl": "http://localhost:1422",
-    "beforeBuildCommand": "pnpm run build:web && pnpm run prepare:mobile-web",
-    "frontendDist": "../../../dist"
+    "beforeBuildCommand": "pnpm run frontend:build-all",
+    "frontendDist": "bootstrap-ui"
   },
   "bundle": {
     "active": true,
@@ -19,6 +19,7 @@
     ],
     "resources": {
       "../../mobile-web/dist": "mobile-web/dist",
+      "../extension-host/dist/extension-host.js": "resources/ext-host/extension-host.js",
       "resources/worker_host.js": "resources/worker_host.js",
       "../../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
       "../../crates/services/services-integrations/assets/models-dev.LICENSE.txt": "third-party/models.dev/LICENSE.txt",
@@ -85,6 +86,7 @@
     "security": {
       "csp": null
     },
+    "macOSPrivateApi": true,
     "withGlobalTauri": true
   },
   "plugins": {

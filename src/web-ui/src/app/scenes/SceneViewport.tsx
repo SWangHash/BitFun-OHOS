@@ -1,11 +1,11 @@
 /**
  * SceneViewport — renders the active scene component.
  *
- * All tabs are mounted but only the active one is visible,
- * preserving state across tab switches.
+ * All open scenes stay mounted, but only the active tab is visible, preserving
+ * state across tab switches until the user explicitly closes a scene.
  *
- * 'welcome' is a proper scene tab; it auto-closes when any other
- * scene is explicitly opened.
+ * When no tabs are open, the viewport renders WelcomeScene as a shell-owned
+ * landing surface rather than manufacturing a tab for it.
  */
 
 import React, {
@@ -21,10 +21,11 @@ import type { SceneTabId } from '../components/SceneBar/types';
 import { useSceneManager } from '../hooks/useSceneManager';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useDialogCompletionNotify } from '../hooks/useDialogCompletionNotify';
-import { DotMatrixLoader } from '@/component-library';
+import { Spinner } from '@bitfun/ui';
 import SettingsScene from './settings/SettingsScene';
 import AssistantScene from './assistant/AssistantScene';
 import SessionScene from './session/SessionScene';
+import WelcomeScene from './welcome/WelcomeScene';
 import './SceneViewport.scss';
 
 // Session is the primary interaction path. Keep it in the main scene bundle so
@@ -35,13 +36,15 @@ const FileViewerScene = lazy(() => import('./file-viewer/FileViewerScene'));
 const ProfileScene    = lazy(() => import('./profile/ProfileScene'));
 const AgentsScene       = lazy(() => import('./agents/AgentsScene'));
 const SkillsScene     = lazy(() => import('./skills/SkillsScene'));
+const EcosystemCompatibilityScene = lazy(
+  () => import('./ecosystem-compatibility/EcosystemCompatibilityScene'),
+);
 const MiniAppGalleryScene = lazy(() => import('./miniapps/MiniAppGalleryScene'));
 const PagesScene      = lazy(() => import('./pages/PagesScene'));
 const BrowserScene    = lazy(() => import('./browser/BrowserScene'));
 const TodosScene      = lazy(() => import('./todos/TodosScene'));
 const InsightsScene   = lazy(() => import('./my-agent/InsightsScene'));
 const ShellScene      = lazy(() => import('./shell/ShellScene'));
-const WelcomeScene    = lazy(() => import('./welcome/WelcomeScene'));
 const MiniAppScene    = lazy(() => import('./miniapps/MiniAppScene'));
 const PanelViewScene  = lazy(() => import('./panel-view/PanelViewScene'));
 
@@ -91,9 +94,7 @@ const SceneViewport: React.FC<SceneViewportProps> = ({ workspacePath, isEntering
     navigationSequence,
   } = useSceneManager();
   const { t } = useI18n('common');
-  const activeRenderedSceneId: RenderedSceneId = openTabs.length === 0
-    ? EMPTY_SCENE_ID
-    : activeTabId;
+  const activeRenderedSceneId: RenderedSceneId = activeTabId ?? EMPTY_SCENE_ID;
   const [transition, setTransition] = useState<SceneTransition | null>(null);
   const [readyVersion, setReadyVersion] = useState(0);
   const readySceneIdsRef = useRef<Set<RenderedSceneId>>(new Set([EMPTY_SCENE_ID]));
@@ -240,7 +241,7 @@ const SceneViewport: React.FC<SceneViewportProps> = ({ workspacePath, isEntering
               data-scene-active={isActive ? 'true' : 'false'}
               data-bf-scene="workbench"
               data-bf-part="scene"
-              data-bf-scene-id={isEmpty ? undefined : tabId}
+              data-bf-scene-id={isEmpty ? 'welcome' : tabId}
               data-bf-state={[
                 isActive && 'active',
                 isEmpty && 'empty',
@@ -254,7 +255,7 @@ const SceneViewport: React.FC<SceneViewportProps> = ({ workspacePath, isEntering
                   data-bf-part="empty"
                   data-bf-state="empty"
                 >
-                  <p className="bitfun-scene-viewport__empty-hint">{t('welcomeScene.emptyHint')}</p>
+                  <WelcomeScene />
                 </div>
               ) : (
                 <Suspense
@@ -268,7 +269,7 @@ const SceneViewport: React.FC<SceneViewportProps> = ({ workspacePath, isEntering
                         data-bf-scene="workbench"
                         data-bf-part="loading"
                       >
-                        <DotMatrixLoader size="medium" />
+                        <Spinner size="md" />
                       </div>
                     ) : null
                   }
@@ -293,8 +294,6 @@ function renderScene(
   isActive: boolean = false
 ) {
   switch (id) {
-    case 'welcome':
-      return <WelcomeScene />;
     case 'session':
       return <SessionScene workspacePath={workspacePath} isEntering={isEntering} isActive={isActive} />;
     case 'terminal':
@@ -311,6 +310,8 @@ function renderScene(
       return <AgentsScene />;
     case 'skills':
       return <SkillsScene />;
+    case 'ecosystem-compatibility':
+      return <EcosystemCompatibilityScene />;
     case 'miniapps':
       return <MiniAppGalleryScene />;
     case 'pages':
@@ -318,7 +319,7 @@ function renderScene(
     case 'browser':
       return <BrowserScene />;
     case 'assistant':
-      return <AssistantScene workspacePath={workspacePath} />;
+      return <AssistantScene />;
     case 'todos':
       return <TodosScene />;
     case 'insights':

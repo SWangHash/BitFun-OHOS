@@ -3,7 +3,7 @@
  *
  * Keeps track of editor instances and supports jumping to line/range locations.
  */
-import type { LineRange } from '@/component-library/components/Markdown';
+import { type LineRange } from '@/shared/editor/LineRange';
 import { createLogger } from '@/shared/utils/logger';
 
 const log = createLogger('EditorJumpService');
@@ -57,7 +57,7 @@ class EditorJumpService {
   }
 
    
-  private getEditor(filePath: string): any | null {
+  getEditor(filePath: string): any | null {
     const normalized = this.normalizePath(filePath);
     return this.editors.get(normalized)?.editor || null;
   }

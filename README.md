@@ -25,7 +25,7 @@ Writes code, produces documents, and drives the desktop — with Mini Apps, a Ru
 | --- | --- |
 | **Agentic Mini Apps** | A task gets its own interface — chart, board, form, panel — with a conversation bound to that interface's live state |
 | **Self-hosted multi-device control** | Login, cross-device session sync, and controlling one device from another run through a relay you deploy. Zero-knowledge; no vendor cloud in the path |
-| **Coding** | Plan, edit, test, and commit inside real Git repositories. Agentic, Plan, Debug, Deep Review, long-horizon tasks |
+| **Coding** | Plan, edit, test, and commit inside real Git repositories. Agentic, planning and debugging Skills, Deep Review, long-horizon tasks |
 | **Office work** | Research, writing, presentations, meeting notes, reports |
 | **Desktop execution** | Browser, terminal, desktop applications, the filesystem, and remote workspaces |
 | **Four tiers of customization** | Custom Agents → MCP / Skills / Hooks → Mini Apps → source-level changes |
@@ -58,7 +58,7 @@ Writes code, produces documents, and drives the desktop — with Mini Apps, a Ru
 
 ### First run
 
-1. Launch BitFun, click **Open** on the Welcome tab, and choose a project folder.
+1. Launch BitFun, then use the workspace controls to open a project folder.
 2. Open **More options (…) → Settings → Models → Create First Configuration**.
 3. Choose a provider, enter its API key, select one or more models, and click **Save**. BitFun makes the first saved model primary and tests the connection automatically.
 4. Return to the **Session** tab, type a concrete task, and press Enter or click **Send**.
@@ -71,7 +71,7 @@ Two kinds of complex work: shipping code in real repositories, and turning sourc
 
 | Scenario | Delivery goal | Typical capabilities |
 | --- | --- | --- |
-| **Coding** | Move from a real repository to a mergeable result. | Agentic, Plan, Debug, testing, Git, Deep Review, long-horizon tasks, and benchmarks. |
+| **Coding** | Move from a real repository to a mergeable result. | Agentic, planning and debugging Skills, testing, Git, Deep Review, long-horizon tasks, and benchmarks. |
 | **Office Work** | Move from source material to useful written and visual deliverables. | Research, presentations, summarization, writing, meeting notes, and reports. |
 
 **Shared capabilities**
@@ -158,7 +158,7 @@ Stars, Issues, and PRs are welcome. We especially care about:
 
 1. Code Agent, Deep Review, debugging, and long-task execution capabilities
 2. Cowork, research, document, and desktop workflows
-3. MCP, Skills, Mini App, LSP plugins, and new domain Agents
+3. MCP, Skills, Mini App, and new domain Agents
 4. Runtime stability, performance, context efficiency, and verifiability
 
 Please submit PRs directly to the `main` branch. For more details, see [CONTRIBUTING.md](./CONTRIBUTING.md).

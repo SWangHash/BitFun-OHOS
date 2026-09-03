@@ -32,6 +32,10 @@ static LOCAL_ONLY_COMMANDS: &[&str] = &[
     // Window / tray / process chrome
     "show_main_window",
     "hide_main_window_after_close_request",
+    "frontend_update_candidate_ready",
+    "get_frontend_update_status",
+    "confirm_frontend_update",
+    "rollback_frontend_update",
     "quit_app",
     "minimize_to_tray",
     "initialize_tray_after_startup",
@@ -104,6 +108,14 @@ static LOCAL_ONLY_COMMANDS: &[&str] = &[
     // local-only: under Desktop Peer Mode they must run on the peer host B (B
     // surfaces B's own OS permission prompts / settings), reached via
     // bridge_via_webview. CLI Peer refuses them in deny.rs. See SessionConfig.
+    // Native child-WebView lifecycle belongs to the controller window.
+    "browser_webview_set_agent_target_state",
+    // ProductControl presentation readiness and transaction acknowledgements
+    // belong to this window. The product command itself is intentionally not
+    // local-only: `product_control_invoke` follows the selected peer data plane.
+    "mark_bitfun_control_surface_ready",
+    "mark_bitfun_control_surface_unready",
+    "report_bitfun_control_result",
     // Detached dispatch uses controller-owned SSH credentials and observers.
     "dispatch_list_targets",
     "dispatch_probe_target",
@@ -141,6 +153,15 @@ static LOCAL_ONLY_COMMANDS: &[&str] = &[
     "speech_append_audio_chunk",
     "speech_finish_input_session",
     "speech_cancel_input_session",
+    "speech_start_realtime_session",
+    "speech_append_realtime_audio",
+    "speech_commit_realtime_audio",
+    "speech_send_realtime_tool_result",
+    "speech_speak_realtime_text",
+    "speech_cancel_realtime_response",
+    "speech_close_realtime_session",
+    "speech_get_realtime_config",
+    "speech_save_realtime_config",
     // Granting Git ownership trust writes to the peer user's global Git
     // configuration and tells Git to run hooks from a tree they do not own.
     // That decision stays with the person at that machine; a controller can
@@ -257,6 +278,11 @@ struct HostInvokeBridgeRequest {
 
 pub fn is_local_only_command(command: &str) -> bool {
     LOCAL_ONLY_COMMANDS.contains(&command)
+}
+
+/// Commands kept as protocol tombstones after their runtime owner was removed.
+pub fn is_retired_command(command: &str) -> bool {
+    command.starts_with("lsp_")
 }
 
 /// Register a controller device id to receive peer UI events.
@@ -434,6 +460,10 @@ pub async fn peer_mode_ping() -> Result<Value, String> {
             "idempotent_dialog_submit": true,
             "targeted_session_rollback": true,
             "token_usage_statistics": true,
+            "miniapp_agent_context_files_v1": true,
+            "product_control_v1": true,
+            "product_control_native_v1": true,
+            "product_control_presentation_v1": true,
             // Desktop implements both per-tool cancel and the tool catalog
             // (agentic_api::cancel_tool, tool_api::get_all_tools_info), so the
             // controller can gate the Terminal Interrupt button and the tool
@@ -458,6 +488,15 @@ pub async fn dispatch(command: &str, args: Value) -> HostInvokeBridgeResult {
             ok: false,
             value: None,
             error: Some("HostInvoke command is empty".to_string()),
+        };
+    }
+    if is_retired_command(command) {
+        return HostInvokeBridgeResult {
+            ok: false,
+            value: None,
+            error: Some(format!(
+                "command '{command}' is unsupported because the BitFun LSP runtime has been retired"
+            )),
         };
     }
     if is_local_only_command(command) {
@@ -553,7 +592,49 @@ mod tests {
         );
         assert_eq!(
             value
+                .pointer("/capabilities/product_control_native_v1")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            value
+                .pointer("/capabilities/product_control_presentation_v1")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            value
                 .pointer("/capabilities/targeted_session_rollback")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            value
+                .pointer("/capabilities/token_usage_statistics")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            value
+                .pointer("/capabilities/miniapp_agent_context_files_v1")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            value
+                .pointer("/capabilities/product_control_v1")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            value
+                .pointer("/capabilities/cancel_tool")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            value
+                .pointer("/capabilities/tool_catalog")
                 .and_then(Value::as_bool),
             Some(true)
         );
@@ -610,12 +691,48 @@ mod tests {
             "speech_append_audio_chunk",
             "speech_finish_input_session",
             "speech_cancel_input_session",
+            "speech_start_realtime_session",
+            "speech_append_realtime_audio",
+            "speech_commit_realtime_audio",
+            "speech_send_realtime_tool_result",
+            "speech_speak_realtime_text",
+            "speech_cancel_realtime_response",
+            "speech_close_realtime_session",
+            "speech_get_realtime_config",
+            "speech_save_realtime_config",
             // Same controller-owned observer/credential family as the other
             // dispatch verbs already denied here.
             "dispatch_continue",
         ] {
             assert!(is_local_only_command(command), "{command}");
         }
+    }
+
+    #[test]
+    fn built_in_browser_target_lifecycle_is_refused_on_the_peer() {
+        assert!(is_local_only_command(
+            "browser_webview_set_agent_target_state"
+        ));
+    }
+
+    #[test]
+    fn frontend_update_decisions_stay_with_the_controller_window() {
+        assert!(is_local_only_command("frontend_update_candidate_ready"));
+        assert!(is_local_only_command("get_frontend_update_status"));
+        assert!(is_local_only_command("confirm_frontend_update"));
+        assert!(is_local_only_command("rollback_frontend_update"));
+    }
+
+    #[test]
+    fn product_control_presentation_callbacks_stay_with_the_controller_window() {
+        for command in [
+            "mark_bitfun_control_surface_ready",
+            "mark_bitfun_control_surface_unready",
+            "report_bitfun_control_result",
+        ] {
+            assert!(is_local_only_command(command), "{command}");
+        }
+        assert!(!is_local_only_command("product_control_invoke"));
     }
 
     /// Reading why Git refuses a repository is safe to answer for a
@@ -625,6 +742,19 @@ mod tests {
     fn granting_git_ownership_trust_is_refused_on_the_peer() {
         assert!(is_local_only_command("git_trust_repository"));
         assert!(!is_local_only_command("git_get_repository_trust"));
+    }
+
+    #[tokio::test]
+    async fn retired_lsp_commands_fail_before_the_webview_bridge() {
+        let result = dispatch("lsp_open_workspace", serde_json::json!({})).await;
+        assert!(!result.ok);
+        assert!(result.value.is_none());
+        assert_eq!(
+            result.error.as_deref(),
+            Some(
+                "command 'lsp_open_workspace' is unsupported because the BitFun LSP runtime has been retired"
+            )
+        );
     }
 
     #[test]

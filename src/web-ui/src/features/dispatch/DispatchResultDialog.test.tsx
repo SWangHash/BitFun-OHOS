@@ -21,8 +21,9 @@ vi.mock('@/infrastructure/i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@/component-library', () => ({
+vi.mock('@bitfun/ui', () => ({
   Alert: ({ message }: { message: string }) => <div role="alert">{message}</div>,
+  ScrollArea: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   Button: ({
     children,
     disabled,
@@ -32,8 +33,12 @@ vi.mock('@/component-library', () => ({
       {children}
     </button>
   ),
-  Modal: ({ children, isOpen }: React.PropsWithChildren<{ isOpen: boolean }>) =>
-    isOpen ? <div>{children}</div> : null,
+  Dialog: ({ children, open }: React.PropsWithChildren<{ open: boolean }>) => (
+    open ? <div role="dialog">{children}</div> : null
+  ),
+  DialogBody: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  DialogClose: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button type="button" {...props} />,
+  DialogHeader: ({ children }: React.PropsWithChildren) => <header>{children}</header>,
 }));
 
 const SYNCED = {

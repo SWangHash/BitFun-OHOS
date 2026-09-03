@@ -4,43 +4,34 @@ import { readFileSync } from 'node:fs';
 import { buildCanvasRuntimeInstallerScript } from './canvasRuntimeInstaller';
 
 describe('Canvas runtime installer', () => {
-  it('keeps iframe-local shape, spacing, and type fallbacks out of the host payload contract', () => {
+  it('loads generated typography tokens while keeping iframe-local shape and spacing fallbacks', () => {
     const runtimeCss = readFileSync(new URL('./styles/canvas-runtime.scss', import.meta.url), 'utf8');
+    const runtimeEntry = readFileSync(new URL('./entry.tsx', import.meta.url), 'utf8');
     const iframeFallbackVars = [
-      '--bf-appearance-token-font-size-xs',
-      '--bf-appearance-token-font-size-sm',
-      '--bf-appearance-token-font-size-base',
-      '--bf-appearance-token-font-size-lg',
-      '--bf-appearance-token-font-size-2xl',
-      '--bf-appearance-token-font-weight-medium',
-      '--bf-appearance-token-font-weight-semibold',
-      '--bf-appearance-token-size-radius-sm',
-      '--bf-appearance-token-size-radius-base',
-      '--bf-appearance-token-size-radius-md',
-      '--bf-appearance-token-size-radius-lg',
-      '--bf-appearance-token-size-radius-xl',
-      '--bf-appearance-token-size-radius-2xl',
-      '--bf-appearance-token-size-radius-full',
-      '--bf-appearance-token-size-gap-1',
-      '--bf-appearance-token-size-gap-2',
-      '--bf-appearance-token-size-gap-3',
-      '--bf-appearance-token-size-gap-4',
-      '--bf-appearance-token-size-gap-5',
-      '--bf-appearance-token-size-gap-6',
-      '--bf-appearance-token-size-gap-8',
-      '--bf-appearance-token-size-gap-10',
-      '--bf-appearance-token-size-gap-12',
-      '--bf-appearance-token-size-gap-16',
+      '--bf-radius-sm',
+      '--bf-radius-base',
+      '--bf-radius-md',
+      '--bf-radius-lg',
+      '--bf-radius-xl',
+      '--bf-radius-2xl',
+      '--bf-radius-pill',
+      '--bf-space-1',
+      '--bf-space-2',
+      '--bf-space-3',
+      '--bf-space-4',
+      '--bf-space-5',
+      '--bf-space-6',
+      '--bf-space-8',
+      '--bf-space-10',
+      '--bf-space-12',
+      '--bf-space-16',
     ];
 
     for (const name of iframeFallbackVars) {
       expect(runtimeCss).toContain(`${name}:`);
     }
-    const smallFontSizeValues = [...runtimeCss.matchAll(/--bf-appearance-token-font-size-sm:\s*([^;]+);/g)].map(
-      (match) => match[1]?.trim()
-    );
-
-    expect(smallFontSizeValues).toEqual(['13px']);
+    expect(runtimeEntry).toContain("import '@bitfun/design-tokens/tokens.css';");
+    expect(runtimeCss).not.toMatch(/^\s*--bf-(?:font|letter-spacing|line-height|type)-/m);
   });
 
   it('merges bundled SDK adapters before user module startup', () => {

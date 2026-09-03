@@ -15,20 +15,15 @@
  *   group), not an external README. See `src/features/relay-deploy/README.md`.
  */
 
+import { Alert, Button, Field, Icon, IconButton, Input, ScrollArea } from '@bitfun/ui';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
-import { Button, Input, Alert } from '@/component-library';
 import {
   confirmDanger,
   confirmWarning,
-} from '@/component-library/components/ConfirmDialog/confirmService';
-import {
-  User, Lock, Server, LogIn, Monitor, CloudDownload, Upload,
-  ChevronRight, RefreshCw, Eye, EyeOff, X, Rocket, Copy, Check,
-  PanelsTopLeft,
-} from 'lucide-react';
-import { useSceneStore } from '@/app/stores/sceneStore';
+} from '@/infrastructure/confirm-dialog';
+import { Lock, Server, LogIn, Monitor, CloudDownload, EyeOff, Rocket } from 'lucide-react';
 import { remoteConnectAPI } from '@/infrastructure/api/service-api/RemoteConnectAPI';
 import type {
   AccountHint,
@@ -218,7 +213,6 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
   const { success, info, warning } = useNotification();
   const { workspacePath } = useCurrentWorkspace();
   const { peerMode, switchToDevice, switchToLocal } = usePeerDeviceMode();
-  const openScene = useSceneStore((s) => s.openScene);
   const syncStatus = useAccountSyncStore((s) => s.status);
   const syncProgress = useAccountSyncStore((s) => s.progress);
   const lastSyncError = useAccountSyncStore((s) => s.lastError);
@@ -1013,21 +1007,12 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
     t,
   ]);
 
-  const handleOpenPages = useCallback(() => {
-    onCloseDialog();
-    openScene('pages');
-  }, [onCloseDialog, openScene]);
-
   const selectDevice = useCallback(async (device: AccountDeviceInfo) => {
     if (!device.online) return;
     // Picking this machine is a normal surface switch back, not a no-op: the
     // window may currently be rendering a peer.
     const isLocalDevice = Boolean(localDeviceId) && device.device_id === localDeviceId;
     if (!isLocalDevice) {
-      if (syncStatus === 'syncing') {
-        info(t('accountLogin.syncInProgressHint'));
-        return;
-      }
       if (syncStatus === 'failed') {
         warning(t('accountLogin.syncFailedPeerHint'));
       }
@@ -1056,7 +1041,6 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
       setLoading(false);
     }
   }, [
-    info,
     localDeviceId,
     onCloseDialog,
     success,
@@ -1072,75 +1056,108 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
       <div data-bf-component="remote-account-panel" data-bf-part="root" data-bf-view={view} className="account-panel">
         {error && (
           <div className="account-panel__error-banner" data-bf-component="remote-account-panel" data-bf-part="error">
-            <Alert type="error" message={error} closable onClose={() => setError(null)}
-              className="account-panel__error-alert" />
+            <Alert tone="error" message={error} closable onClose={() => setError(null)} />
           </div>
         )}
 
         {loading && view === 'devices' && (
           <div className="account-panel__loading-overlay" data-bf-component="remote-account-panel" data-bf-part="loading">
-            <RefreshCw size={20} className="spinning" />
+            <Icon name="refresh" size="lg" className="spinning" style={{ width: 20, height: 20 }} />
             <span>{t('accountLogin.processing')}</span>
           </div>
         )}
 
         {view === 'login' && (
-          <div className="account-panel__scroll" data-bf-component="remote-account-panel" data-bf-part="scroll">
+          <ScrollArea className="account-panel__scroll" data-bf-component="remote-account-panel" data-bf-part="scroll">
             <p className="account-panel__value-prop">{t('accountLogin.loginValueProp')}</p>
             <div className="account-panel__form" data-bf-component="remote-account-panel" data-bf-part="form">
-              <div className="account-panel__field">
-                <Input label={t('accountLogin.username')} type="text" value={username}
-                  onChange={(e) => setUsername(e.target.value)} prefix={<User size={16} />}
-                  size="medium" disabled={loading} />
-              </div>
-              <div className="account-panel__field">
-                <Input label={t('accountLogin.password')} type={showPassword ? 'text' : 'password'} value={password}
-                  onChange={(e) => setPassword(e.target.value)} prefix={<Lock size={16} />}
-                  size="medium" disabled={loading}
-                  suffix={
-                    <button
-                      type="button"
-                      className="bitfun-input-toggle"
-                      onClick={() => setShowPassword(s => !s)}
+              <Field
+                className="account-panel__field"
+                controlWidth="fill"
+                label={t('accountLogin.username')}
+              >
+                <Input
+                  className="account-panel__input"
+                  disabled={loading}
+                  leading={<Icon name="user" size="lg" />}
+                  onValueChange={setUsername}
+                  size="md"
+                  type="text"
+                  value={username}
+                />
+              </Field>
+              <Field
+                className="account-panel__field"
+                controlWidth="fill"
+                label={t('accountLogin.password')}
+              >
+                <Input
+                  className="account-panel__input"
+                  disabled={loading}
+                  leading={<Lock />}
+                  onValueChange={setPassword}
+                  size="md"
+                  trailing={
+                    <IconButton
                       aria-label={showPassword
                         ? t('accountLogin.hidePassword')
                         : t('accountLogin.showPassword')}
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  } />
-              </div>
-              <div className="account-panel__field">
-                <Input label={t('accountLogin.authServer')} type="url" value={authServer}
-                  onChange={(e) => setAuthServer(e.target.value)}
+                      icon={showPassword ? <EyeOff /> : <Icon name="eye" size="lg" />}
+                      onClick={() => setShowPassword(s => !s)}
+                      size="sm"
+                      variant="quiet"
+                    />
+                  }
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                />
+              </Field>
+              <Field
+                className="account-panel__field"
+                controlWidth="fill"
+                label={t('accountLogin.authServer')}
+              >
+                <Input
+                  className="account-panel__input"
+                  disabled={loading}
+                  leading={<Server />}
+                  onValueChange={setAuthServer}
                   placeholder={t('accountLogin.authServerPlaceholder')}
-                  prefix={<Server size={16} />} size="medium" disabled={loading} />
-              </div>
+                  size="md"
+                  type="url"
+                  value={authServer}
+                />
+              </Field>
               <p className="account-panel__security-note">{t('accountLogin.securityNote')}</p>
               <div className="account-panel__deploy-entry">
                 <span>{t('relayDeploy.entryHint')}</span>
-                <button
-                  type="button"
-                  className="account-panel__deploy-link"
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leadingIcon={<Rocket />}
                   onClick={() => setShowRelayDeploy(true)}
                   disabled={loading}
                 >
-                  <Rocket size={13} />
                   {t('relayDeploy.entryAction')}
-                </button>
+                </Button>
               </div>
             </div>
             <div className="account-panel__actions" data-bf-component="remote-account-panel" data-bf-part="actions">
-              <Button variant="primary" size="small" onClick={handleLogin} disabled={loading}>
-                <LogIn size={14} />
+              <Button
+                variant="fill"
+                size="sm"
+                leadingIcon={<LogIn />}
+                onClick={handleLogin}
+                disabled={loading}
+              >
                 {loading ? t('accountLogin.processing') : t('accountLogin.login')}
               </Button>
             </div>
-          </div>
+          </ScrollArea>
         )}
 
         {view === 'overwrite' && (
-          <div className="account-panel__scroll" data-bf-component="remote-account-panel" data-bf-part="scroll">
+          <ScrollArea className="account-panel__scroll" data-bf-component="remote-account-panel" data-bf-part="scroll">
             <div className="account-panel__overwrite-notice">
               <CloudDownload size={32} />
               <p>{t('accountLogin.cloudOverwriteWarning')}</p>
@@ -1153,7 +1170,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
                 onClick={handleUseLocalOverwrite}
                 disabled={loading}
               >
-                <Upload size={20} />
+                <Icon name="upload" size="lg" />
                 <div className="account-panel__sync-option-text">
                   <span className="account-panel__sync-option-title">{t('accountLogin.useLocalTitle')}</span>
                   <span className="account-panel__sync-option-desc">{t('accountLogin.useLocalDesc')}</span>
@@ -1174,35 +1191,35 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
               </button>
             </div>
             <div className="account-panel__actions" data-bf-component="remote-account-panel" data-bf-part="actions">
-              <Button variant="secondary" size="small" onClick={handleCancelOverwrite} disabled={loading}>
+              <Button variant="outline" size="sm" onClick={handleCancelOverwrite} disabled={loading}>
                 {t('accountLogin.disagree')}
               </Button>
             </div>
-          </div>
+          </ScrollArea>
         )}
 
         {view === 'devices' && (
-          <div className="account-panel__scroll" data-bf-component="remote-account-panel" data-bf-part="scroll">
+          <ScrollArea className="account-panel__scroll" data-bf-component="remote-account-panel" data-bf-part="scroll">
             {accountRelayUrl && (
               <div className="account-panel__server-line" data-bf-component="remote-account-panel" data-bf-part="server">
                 <Server size={13} />
                 <span className="account-panel__server-url" title={accountRelayUrl}>
                   {accountRelayUrl}
                 </span>
-                <button
-                  type="button"
-                  className="account-panel__copy-btn"
+                <IconButton
+                  aria-label={t('accountLogin.copyServerUrl')}
+                  icon={copiedServerUrl ? <Icon name="check-line" size="lg" /> : <Icon name="duplicate" size="lg" />}
                   onClick={handleCopyRelayUrl}
+                  size="sm"
                   title={t('accountLogin.copyServerUrl')}
-                >
-                  {copiedServerUrl ? <Check size={13} /> : <Copy size={13} />}
-                </button>
+                  variant="quiet"
+                />
               </div>
             )}
             {syncStatus !== 'idle' && !relayError && (
               <div className={`account-panel__sync-indicator ${syncStatus}`} data-bf-component="remote-account-panel" data-bf-part="syncStatus" data-bf-state={syncStatus === 'syncing' ? 'syncing' : undefined}>
                 <div className="account-panel__sync-indicator-row">
-                  {syncStatus === 'syncing' && <RefreshCw size={14} className="spinning" />}
+                  {syncStatus === 'syncing' && <Icon name="refresh" size="sm" className="spinning" />}
                   {syncStatus === 'done' && <span>✓</span>}
                   {syncStatus === 'failed' && <span>⚠</span>}
                   <span className="account-panel__sync-indicator-text">
@@ -1216,15 +1233,16 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
                     {syncStatus === 'failed' && syncFailureMessage(t, lastSyncError)}
                   </span>
                   {syncStatus === 'failed' && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      leadingIcon={<Icon name="refresh" size="lg" />}
                       className="account-panel__sync-retry"
                       onClick={handleRetrySync}
                       disabled={loading}
                     >
-                      <RefreshCw size={12} />
                       {t('accountLogin.retrySync')}
-                    </button>
+                    </Button>
                   )}
                   {syncStatus === 'syncing' && (
                     <span className="account-panel__sync-indicator-percent">
@@ -1255,9 +1273,8 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
             {relayError && (
               <div className="account-panel__error-banner" data-bf-component="remote-account-panel" data-bf-part="error">
                 <Alert
-                  type="error"
+                  tone="error"
                   message={relayError}
-                  className="account-panel__error-alert"
                 />
               </div>
             )}
@@ -1267,7 +1284,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
               )}
               {!relayError && !devicesReady && (
                 <div className="account-panel__empty account-panel__empty--loading" role="status">
-                  <RefreshCw size={14} className="spinning" />
+                  <Icon name="refresh" size="sm" className="spinning" />
                   {t('accountLogin.loadingDevices')}
                 </div>
               )}
@@ -1277,7 +1294,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
                 // so the dialog can bring the UI back without disconnecting.
                 const isSelectable = isLocal
                   ? peerMode.active
-                  : d.online && syncStatus !== 'syncing';
+                  : d.online;
                 const removeLabel = isLocal
                   ? t('accountLogin.removeCurrentDevice')
                   : t('accountLogin.removeDevice');
@@ -1287,9 +1304,8 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
                   data-bf-state={[
                     !d.online && 'offline',
                     isLocal && 'current',
-                    syncStatus === 'syncing' && !isLocal && 'syncing',
                   ].filter(Boolean).join(' ') || undefined}
-                  className={`account-panel__device-card ${isSelectable ? 'selectable' : ''} ${d.online ? '' : 'offline'} ${isLocal ? 'current' : ''} ${syncStatus === 'syncing' && !isLocal ? 'syncing' : ''}`}>
+                  className={`account-panel__device-card ${isSelectable ? 'selectable' : ''} ${d.online ? '' : 'offline'} ${isLocal ? 'current' : ''}`}>
                   <button
                     type="button"
                     className="account-panel__device-select"
@@ -1321,73 +1337,50 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
                         </span>
                       </span>
                     </span>
-                    {isSelectable && <ChevronRight size={14} />}
-                    {!isLocal && d.online && syncStatus === 'syncing' && (
-                      <RefreshCw
-                        size={14}
-                        className="spinning"
-                        aria-label={t('accountLogin.syncing')}
-                      />
-                    )}
+                    {isSelectable && <Icon name="chevron-right" size="sm" />}
                   </button>
-                  <button type="button" className="account-panel__device-remove"
-                    onClick={(e) => { e.stopPropagation(); handleDeleteDevice(d.device_id, displayName); }}
-                    title={removeLabel}
+                  <IconButton
                     aria-label={`${removeLabel}: ${displayName}`}
-                    disabled={loading}>
-                    <X size={14} aria-hidden="true" />
-                  </button>
+                    disabled={loading}
+                    icon={<Icon name="xmark" size="lg" />}
+                    onClick={(e) => { e.stopPropagation(); handleDeleteDevice(d.device_id, displayName); }}
+                    size="sm"
+                    tone="danger"
+                    title={removeLabel}
+                    variant="quiet"
+                  />
                 </div>
                 );
               })}
             </div>
-            <div className="account-panel__pages-section" data-bf-component="remote-account-panel" data-bf-part="pages">
-              <h3 className="account-panel__pages-section-title">
-                {t('accountLogin.pagesSectionTitle')}
-              </h3>
-              <button
-                type="button"
-                className="account-panel__pages-entry"
-                data-bf-component="remote-account-panel"
-                data-bf-part="pagesEntry"
-                onClick={handleOpenPages}
-                aria-label={t('accountLogin.pagesEntryAria')}
-                disabled={loading}
-              >
-                <span className="account-panel__pages-entry-icon" aria-hidden="true">
-                  <PanelsTopLeft size={16} />
-                </span>
-                <span className="account-panel__pages-entry-text">
-                  <span className="account-panel__pages-entry-title">
-                    {t('accountLogin.pagesEntryTitle')}
-                  </span>
-                  <span className="account-panel__pages-entry-desc">
-                    {t('accountLogin.pagesEntryDesc')}
-                  </span>
-                </span>
-                <span className="account-panel__pages-entry-arrow" aria-hidden="true">
-                  <ChevronRight size={15} />
-                </span>
-              </button>
-            </div>
             <div className="account-panel__actions" data-bf-component="remote-account-panel" data-bf-part="actions">
               {relayError && (
-                <Button variant="primary" size="small" onClick={handleRetryConnect} disabled={loading}>
-                  <RefreshCw size={14} />
+                <Button
+                  variant="fill"
+                  size="sm"
+                  leadingIcon={<Icon name="refresh" size="lg" />}
+                  onClick={handleRetryConnect}
+                  disabled={loading}
+                >
                   {t('accountLogin.retryConnect')}
                 </Button>
               )}
               {!relayError && (
-                <Button variant="secondary" size="small" onClick={refreshDevices} disabled={loading}>
-                  <RefreshCw size={14} />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leadingIcon={<Icon name="refresh" size="lg" />}
+                  onClick={refreshDevices}
+                  disabled={loading}
+                >
                   {t('accountLogin.refreshDevices')}
                 </Button>
               )}
-              <Button variant="secondary" size="small" onClick={handleLogout} disabled={loading}>
+              <Button variant="outline" size="sm" onClick={handleLogout} disabled={loading}>
                 {t('accountLogin.logout')}
               </Button>
             </div>
-          </div>
+          </ScrollArea>
         )}
       </div>
 

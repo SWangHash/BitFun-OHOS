@@ -1,9 +1,11 @@
 import React, { useEffect, useCallback, useRef } from 'react';
+import { Button, Icon, IconButton, Tooltip } from '@bitfun/ui';
 import { createPortal } from 'react-dom';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
-import { X, CheckCircle, XCircle } from 'lucide-react';
-import { PresenceBoundary, Tooltip } from '@/component-library';
+;
+import { RetainedMountBoundary } from '@/shared/presence';
 import { useI18n } from '@/infrastructure/i18n';
+import { isImeOwnedKeyboardEvent } from '@/shared/utils/ime';
 import { DiffEditor } from '../../../tools/editor';
 import './DiffFullscreenViewer.css';
 
@@ -53,7 +55,7 @@ export const DiffFullscreenViewer: React.FC<DiffFullscreenViewerProps> = ({
   // Close on Escape
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape' && isOpen && !isImeOwnedKeyboardEvent(e)) {
         onClose();
       }
     };
@@ -106,36 +108,38 @@ export const DiffFullscreenViewer: React.FC<DiffFullscreenViewerProps> = ({
 
           <div className="header-actions" data-bf-component="diff-fullscreen-viewer" data-bf-part="actions">
             <Tooltip content={t('diffFullscreen.acceptFileTooltip')}>
-              <button
-                className="header-btn accept-btn"
+              <Button
+                variant="fill"
+                size="sm"
+                leadingIcon={<Icon name="check-circle" size="lg" />}
                 onClick={onAcceptFile}
                 disabled={retainedContent.loading}
               >
-                <CheckCircle size={16} />
-                <span>{t('diffFullscreen.acceptFile')}</span>
-              </button>
+                {t('diffFullscreen.acceptFile')}
+              </Button>
             </Tooltip>
             
             <Tooltip content={t('diffFullscreen.rejectFileTooltip')}>
-              <button
-                className="header-btn reject-btn"
+              <Button
+                variant="outline"
+                size="sm"
+                leadingIcon={<Icon name="xmark" size="lg" />}
                 onClick={onRejectFile}
                 disabled={retainedContent.loading}
               >
-                <XCircle size={16} />
-                <span>{t('diffFullscreen.rejectFile')}</span>
-              </button>
+                {t('diffFullscreen.rejectFile')}
+              </Button>
             </Tooltip>
 
             <div className="header-divider" />
 
             <Tooltip content={t('tooltip.close')}>
-              <button
-                className="header-btn close-btn"
+              <IconButton
+                size="sm"
+                aria-label={t('tooltip.close')}
+                icon={<Icon name="xmark" size="lg" />}
                 onClick={onClose}
-              >
-                <X size={16} />
-              </button>
+              />
             </Tooltip>
           </div>
         </div>
@@ -164,9 +168,9 @@ export const DiffFullscreenViewer: React.FC<DiffFullscreenViewerProps> = ({
   );
 
   return createPortal(
-    <PresenceBoundary active={isOpen}>
+    <RetainedMountBoundary present={isOpen}>
       {fullscreenContent}
-    </PresenceBoundary>,
+    </RetainedMountBoundary>,
     getAppearanceOverlayHost(),
   );
 };

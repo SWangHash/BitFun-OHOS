@@ -156,7 +156,7 @@ describe('ShortcutManager platform primary modifier', () => {
     const canvasCallback = vi.fn();
     const terminalCallback = vi.fn();
     shortcutManager.register(
-      'canvas.closePreview',
+      'canvas.testEscape',
       { key: 'Escape', scope: 'canvas', allowInInput: true },
       canvasCallback
     );

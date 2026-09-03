@@ -2,8 +2,6 @@
   "permission": {
     "title": "Permission required",
     "subagentOwner": "{{subagent}} subagent",
-    "feedbackLabel": "Rejection feedback",
-    "feedbackPlaceholder": "Optional guidance when rejecting",
     "responseFailed": "The permission response could not be delivered. Try again.",
     "allowOnce": "Allow once",
     "allowAlways": "Always allow",
@@ -21,11 +19,12 @@
       "public": "public"
     },
     "reject": "Reject",
+    "rejectWithReason": "Reject with reason",
+    "rejectWithReasonTooltip": "Rejects with what you typed in the composer, then clears it.",
+    "scopeLabel": "Reply scope",
+    "scopeThis": "This one",
+    "scopeAll": "All",
     "batchCount": "{{count}} permission requests",
-    "collapsePanel": "Collapse permission requests",
-    "expandPanel": "Expand {{count}} pending permission requests",
-    "current": "Current",
-    "pending": "Pending",
     "actions": {
       "read": "Read files",
       "edit": "Edit files",
@@ -172,7 +171,9 @@
       "turns": "{{count}} turns",
       "calls": "{{count}} calls",
       "operations": "{{count}} ops",
-      "tokens": "{{value}} tokens"
+      "tokens": "{{value}} tokens",
+      "tokenUsage": "Tokens usage",
+      "dataDelayDisclaimer": "Usage statistics may be delayed. System records are authoritative."
     },
     "loading": {
       "title": "Generating usage report",
@@ -415,6 +416,7 @@
       "interrupted": "Interrupted"
     },
     "menu": {
+      "switchPet": "Switch pet",
       "closePet": "Close pet",
       "closeBubble": "Close this bubble"
     },
@@ -570,6 +572,14 @@
       "disabled": "Voice input is disabled",
       "unsupported": "Microphone capture is unavailable",
       "modelMissing": "Download the local speech model first",
+      "setupRequired": "Download the {{size}} local speech model",
+      "setupRequiredUnknownSize": "Download the local speech model",
+      "downloadAndStart": "Download and start",
+      "downloadingModel": "Downloading model {{percent}}%",
+      "setupTooltip": "Download the local model to start voice input",
+      "downloadingTooltip": "Downloading the local speech model",
+      "downloadFailed": "The local speech model could not be downloaded",
+      "cancelSetup": "Cancel voice input setup",
       "cloudPending": "Cloud transcription is configured but not connected yet",
       "permissionDenied": "Microphone permission was denied",
       "deviceDisconnected": "The selected microphone was disconnected",
@@ -581,6 +591,7 @@
     }
   },
   "workspaceStrip": {
+    "branchSwitchLabel": "Switch branch. Current branch: {{branch}}",
     "branchTooltipUnavailable": "Not a git repository or no current branch",
     "branchTooltipUntrusted": "Git will not read this repository because the folder is owned by another user. Trust the folder to see the branch."
   },
@@ -693,8 +704,61 @@
         "submissionUnconfirmed": "BitFun cannot yet confirm whether the target received this task. Check the task status shortly."
       }
     },
-    "addBoostTooltip": "Agent modes, image, or skills",
+    "harness": {
+      "selectorTooltip": "Current execution: {{name}}",
+      "fixedTooltip": "This session uses {{name}} and is now fixed.",
+      "activateBalanced": "Switch to Standard Harness",
+      "compatibilityShort": "Legacy",
+      "comingSoon": "In development",
+      "comingSoonNotice": "The {{name}} Harness execution framework is in development.",
+      "legacySessionNotice": "This legacy session keeps its original Agent execution mode. Create a new session to use the Agent Harness execution framework.",
+      "sessionStartedNotice": "Harness and main Agent are set before the first turn starts. Create a new session to use another selection.",
+      "newSessionConfirmation": {
+        "title": "Create a new session with {{name}}?",
+        "message": "The current session will remain unchanged. The new session will use {{name}}.",
+        "confirm": "Create new session"
+      },
+      "unsupportedProfile": "Unsupported Harness ({{id}})",
+      "unsupportedProfileNotice": "This session uses {{id}}, which this version cannot run. Select a supported Harness explicitly.",
+      "profileChangeBusy": "Wait for the current turn to finish before changing Harness.",
+      "profileChangeOutcomeUnknown": "BitFun cannot confirm whether the Harness changed. Refresh the session before trying again.",
+      "profileUnavailable": "This Harness is not supported by the current BitFun Host.",
+      "profileChangeFailed": "Failed to change Harness. Try again.",
+      "otherAgentsTitle": "Agents",
+      "otherAgentsEmpty": "No main Agents are available",
+      "unavailable": "Unavailable",
+      "agentUnavailable": "{{name}} is not available with the current Host or settings.",
+      "profiles": {
+        "minimal": { "name": "Minimal" },
+        "balanced": { "name": "Standard" },
+        "ultimate": { "name": "Ultimate" },
+        "creative": { "name": "Creative" },
+        "other": { "name": "Agents" }
+      }
+    },
+    "agents": {
+      "available": "Available",
+      "needsChanges": "Needs changes",
+      "comingSoon": "In development",
+      "comingSoonNotice": "Direct {{name}} Agent invocation is in development.",
+      "reviewUnavailable": "Review Agent needs an active session with reviewable changes.",
+      "review": { "name": "Review" },
+      "cowork": { "name": "Cowork" },
+      "computerUse": { "name": "Computer Use" }
+    },
+    "addBoostTooltip": "Directives, context, images, or skills",
     "modeChangeFailed": "Failed to change the agent mode. Try again.",
+    "reasoningStatus": {
+      "levels": {
+        "none": "Off",
+        "minimal": "Minimal",
+        "low": "Low",
+        "medium": "Standard",
+        "high": "High",
+        "xhigh": "Extra high",
+        "max": "Maximum"
+      }
+    },
     "permissionMode": {
       "menuLabel": "Permission mode",
       "globalScope": "Global",
@@ -731,8 +795,12 @@
       "resetToDefault": "Follow the default mode",
       "noSession": "Open or start a session before changing its permission mode.",
       "turnScope": "Next message only",
+      "turnSettings": "Next message settings",
+      "followSessionMode": "Follow this session",
+      "backToSessionSettings": "Back to this session's permission settings",
       "currentTurnOverride": "Permissions: {{mode}} (next message only)",
       "activeTurnScope": "This turn",
+      "activeTurnSettings": "This turn settings",
       "currentActiveTurnOverride": "Permissions: {{mode}} (this turn only)",
       "nextTurnOnly": "Use {{mode}} for the next message only",
       "nextTurnOnlyShort": "Once",
@@ -742,22 +810,18 @@
       "fullAccessWarningMessageActiveTurn": "Full access allows tools by default without asking each time. This applies to later model rounds in the current turn; project and enforced rules still apply.",
       "openDefaultSettings": "Open permission settings"
     },
-    "addModeTooltip": "Add Plan or Debug",
-    "boostSectionAgent": "Agent",
     "boostSectionContext": "Context",
     "boostStartBtw": "Start side question",
     "boostNewSession": "New session",
     "boostAddContext": "Reference file or folder",
     "boostSkills": "Skills",
-    "modeSection": "Modes",
+    "boostAdditionalModes": "Additional modes",
     "boostSkillsLoading": "Loading skills…",
+    "boostSkillsLoadFailed": "Skills failed to load. Retry",
     "boostSkillsEmpty": "No enabled skills",
     "openSkillsLibrary": "Manage skills…",
     "insertSkillLine": "Please use the Skill tool with command \"{{name}}\".",
-    "addModeMenuTitle": "Add mode",
-    "createCustomMode": "Custom mode",
-    "resetToAgentic": "Back to default mode",
-    "noIncrementalModes": "No add-on modes available",
+    "resetToAgentic": "Remove selected Agent",
     "defaultModeSetTooltip": "Use {{mode}} as the default mode for new chats",
     "defaultModeUnsetTooltip": "Default mode override is active. Click to clear it.",
     "defaultModeSet": "{{mode}} is now the default mode for new chats.",
@@ -824,7 +888,6 @@
     "reloadInstructionsDone": "Instructions will be reread for the next message.",
     "reloadFailed": "Reload failed",
     "currentMode": "Current mode: {{mode}}",
-    "noMatchingMode": "No matching mode",
     "noMatchingCommand": "No matching command",
     "externalCommandContextUnsupported": "Remove composer attachments and references before running this delegated command.",
     "nativeCommandChoiceNotSaved": "This command will run once, but your conflict choice could not be saved.",
@@ -847,25 +910,19 @@
     "sendingToBtw": "Side session: {{title}}",
     "modeDescriptions": {
       "agentic": "Full-featured AI assistant with access to all tools for comprehensive software development tasks",
-      "Multitask": "Multitask mode: decompose work into orthogonal branches and proactively use subagents in parallel when it helps",
       "Claw": "Personal assistant mode for dedicated assistant workspaces and everyday task support",
-      "Plan": "Plan first, execute later — clarify requirements and create an implementation plan before coding",
-      "debug": "Evidence-driven systematic debugging: form hypotheses, gather runtime evidence, and fix with confidence",
       "Cowork": "Collaborative mode: clarify first, track progress lightly, verify outcomes anytime",
       "ComputerUse": "Dedicated desktop automation agent for perceiving and operating apps, browsers, and OS UI",
       "DeepResearch": "Deep research with parallel sub-agents: dispatches multiple agents to investigate concurrently, producing comprehensive sourced reports",
-      "Team": "Virtual engineering team: CEO, Eng Manager, Designer, QA Lead, Security Officer, Release Engineer — orchestrated through a full sprint workflow"
+      "Ultra": "Swarm planning mode for complex work; it can issue many concurrent model requests, increasing API cost and provider rate-limit pressure"
     },
     "modeNames": {
       "agentic": "Agentic",
-      "Multitask": "Multitask",
       "Claw": "Claw",
-      "Plan": "Plan",
-      "debug": "Debug",
       "Cowork": "Cowork",
       "ComputerUse": "Computer Use",
       "DeepResearch": "Deep Research",
-      "Team": "Team"
+      "Ultra": "Ultra"
     },
     "openFolder": "Open folder…",
     "selectWorkspaceTitle": "Select workspace directory",
@@ -1272,7 +1329,14 @@
     "searchNext": "Next match",
     "searchClose": "Close search",
     "searchOpen": "Search messages",
-    "jumpToCurrentTurn": "Jump to Turn {{turn}}",
+    "sessionOverview": "Session overview",
+    "sessionOverviewActive": "Session overview, activity in progress",
+    "sessionOverviewAgentsUnavailable": "No active session",
+    "sessionOverviewAgentsActive": "Agent work in progress",
+    "sessionOverviewAgentsIdle": "View the Agent session tree",
+    "sessionOverviewBackgroundRunning": "{{count}} running",
+    "sessionOverviewBackgroundFinished": "{{count}} recently finished",
+    "sessionOverviewPullRequests": "Open workspace pull requests",
     "agentTree": "Agents",
     "agentTreeLoading": "Loading Agent tree...",
     "agentTreeEmpty": "No subagents in this session",
@@ -1293,8 +1357,10 @@
       "error": "$t(shared:statuses.failed)",
       "idle": "Idle"
     },
+    "backgroundCommandOverview": "Background terminals",
     "backgroundCommands": "Background commands ({{count}})",
     "backgroundCommandEmpty": "No background commands",
+    "backgroundTerminalEmpty": "No background terminals",
     "backgroundCommandUntitled": "Background command",
     "backgroundCommandSession": "Session #{{id}}",
     "backgroundCommandStatusRunning": "Active",
@@ -1305,7 +1371,13 @@
     "backgroundCommandStopping": "Stopping command",
     "backgroundCommandStopAll": "Stop all",
     "backgroundCommandStopFailed": "Failed to stop background command.",
-    "pullRequests": "Pull requests"
+    "pullRequests": "Pull requests",
+    "pullRequestCount": "{{count}} pull requests",
+    "pullRequestEmpty": "No pull requests",
+    "pullRequestLoading": "Loading pull requests...",
+    "pullRequestNotGitRepository": "This workspace is not a Git repository",
+    "pullRequestWorkspaceUnavailable": "No active workspace",
+    "pullRequestLoadFailed": "Unable to load pull requests. Select to retry."
   },
   "backgroundCommandInput": {
     "title": "Send command input",
@@ -1427,6 +1499,40 @@
     "copy": "Copy",
     "copied": "Copied"
   },
+  "deepResearchProtocol": {
+    "phaseProgress": "{{current}} / {{total}}",
+    "phases": {
+      "orient": "Understand the question and plan the research",
+      "specialists": "Gather evidence in parallel",
+      "citations": "Build the source registry",
+      "debateRound1": "Challenge the evidence · Round 1",
+      "debateRound2": "Challenge the evidence · Round 2",
+      "factCheck": "Verify conflicts and uncertain claims",
+      "arbitration": "Weigh the evidence and decide",
+      "report": "Write the research report",
+      "complete": "Deep research complete"
+    },
+    "subquestions": {
+      "title": "Research questions",
+      "count": "{{count}} questions"
+    },
+    "citations": {
+      "title": "Sources registered",
+      "count": "{{count}} sources",
+      "corroborated": "{{count}} cross-checked"
+    },
+    "verdicts": {
+      "title": "Evidence conclusions",
+      "count": "{{count}} conclusions",
+      "confidence": "{{value}} confidence",
+      "status": {
+        "decided": "Supported",
+        "contested": "Contested",
+        "gap": "Evidence gap",
+        "tentative": "Tentative"
+      }
+    }
+  },
   "modelRound": {
     "copyDialog": "Copy dialog",
     "copiedDialog": "Copied!",
@@ -1522,7 +1628,7 @@
       "expandPreview": "Expand preview",
       "collapsePreview": "Collapse preview",
       "openFullCodeHint": "Open full code",
-      "viewGitDiff": "View Diff",
+      "changeSummary": "{{additions}} additions and {{deletions}} deletions",
       "viewBaselineDiff": "View Baseline Diff"
     },
     "getFileDiff": {
@@ -1551,51 +1657,6 @@
     },
     "generativeWidget": {
       "exportFileNamePrefix": "BitFun-Widget"
-    },
-    "git": {
-      "title": "Git",
-      "commandFailed": "Git command failed",
-      "executionFailed": "Git command execution failed",
-      "failed": "Failed",
-      "confirmExecute": "Confirm execute",
-      "cancel": "Cancel",
-      "copyCommand": "Copy git command",
-      "commandCopied": "Git command copied",
-      "copyCommandFailed": "Failed to copy git command",
-      "expandOutput": "Expand output",
-      "collapseOutput": "Collapse output",
-      "noOutput": "(no output)",
-      "exitCode": "Exit code: {{code}}",
-      "duration": "Duration: {{time}}",
-      "directory": "Directory: {{dir}}",
-      "output": "Output:",
-      "warning": "Warning:",
-      "error": "Error:",
-      "operation": "Operation: git {{op}}",
-      "args": "Args: {{args}}",
-      "status": "Status",
-      "diff": "Diff",
-      "log": "Log",
-      "add": "Stage",
-      "commit": "Commit",
-      "branch": "Branch",
-      "checkout": "Checkout",
-      "switch": "Switch",
-      "pull": "Pull",
-      "push": "Push",
-      "fetch": "Fetch",
-      "merge": "Merge",
-      "rebase": "Rebase",
-      "stash": "Stash",
-      "reset": "Reset",
-      "restore": "Restore",
-      "show": "Show",
-      "tag": "Tag",
-      "remote": "Remote",
-      "clone": "Clone",
-      "init": "Init",
-      "blame": "Blame",
-      "cherryPick": "Cherry-pick"
     },
     "initMiniApp": {
       "title": "Mini App",
@@ -1698,7 +1759,7 @@
     },
     "execProcess": {
       "executeCommand": "Run command:",
-      "writeStdin": "Write stdin:",
+      "writeStdin": "Send input:",
       "pollProcess": "Poll process:",
       "interruptProcess": "Interrupt process:",
       "killProcess": "Kill process:",
@@ -1727,6 +1788,8 @@
     },
     "plan": {
       "loadingPlan": "Loading plan...",
+      "invalidFormat": "Invalid plan format",
+      "invalidFormatDescription": "Open the plan file to inspect and correct its YAML frontmatter or Markdown body.",
       "generating": "Generating...",
       "clickToOpenPlan": "Click to open plan file",
       "saveToProject": "Save to Project",
@@ -1784,6 +1847,7 @@
       "thinking": "Thinking...",
       "preparing": "Preparing to think",
       "thinkingProcess": "Thinking Process",
+      "thinkingSummary": "Thinking Summary",
       "thinkingComplete": "Thinking complete",
       "thinkingCharacters": "Thought {{count}} characters"
     },
@@ -1841,6 +1905,15 @@
       "unknownTool": "Unknown tool",
       "descriptionLabel": "Description",
       "schemaLabel": "Input schema"
+    },
+    "agentWait": {
+      "title": "Wait for subagents to finish",
+      "completed": "Received {{count}} results",
+      "steered": "Wait ended early",
+      "timedOut": "Wait deadline reached; {{count}} tasks are still running",
+      "failed": "Execution failed",
+      "failedWithError": "Execution failed: {{error}}",
+      "steeringHint": "Send a steering message to end the wait early and let the agent handle new instructions"
     },
     "todoWrite": {
       "tasksCount": "{{count}} tasks",
@@ -1977,16 +2050,6 @@
       "readingFile": "Reading",
       "preparingRead": "Preparing to read"
     },
-    "terminalControl": {
-      "terminatingSession": "Terminating terminal",
-      "sessionKilled": "Terminal killed",
-      "killFailed": "Failed to kill terminal",
-      "preparingKill": "Preparing to kill terminal",
-      "interruptingSession": "Interrupting terminal",
-      "sessionInterrupted": "Terminal interrupted",
-      "interruptFailed": "Failed to interrupt terminal",
-      "preparingInterrupt": "Preparing to interrupt terminal"
-    },
     "sessionControl": {
       "title": "Session",
       "currentWorkspace": "Current workspace",
@@ -2046,6 +2109,7 @@
       "noSummaryNotice": "No additional summary was generated for this compaction pass.",
       "tokenChange": "{{before}} → {{after}} tokens",
       "savingsTag": "Saved {{saved}} · Ratio {{ratio}}%",
+      "resultSummary": "Compressed context length {{length}} (compression ratio {{ratio}}%)",
       "compressingContext": "Compressing context...",
       "compressionCount": "Compression #{{count}}"
     },
@@ -2122,6 +2186,7 @@
       "startNewChat": "Start new chat...",
       "openSessionMenu": "Sessions & new",
       "moreMenu": "More",
+      "newSessionItem": "New session",
       "newCodeSessionItem": "Code session",
       "newCoworkSessionItem": "Cowork session"
     },
@@ -2415,11 +2480,16 @@
   "modelSelector": {
     "model": "Model",
     "modelExplanation": "Model explanation",
+    "modelSettings": "Model settings",
     "modelSelection": "Select Model",
-    "autoModel": "Auto",
-    "autoModelDesc": "Automatically Routing",
     "primaryModel": "Primary Model",
+    "primaryModelDesc": "Uses the configured primary model",
     "fastModel": "Fast Model",
+    "fastModelDesc": "Uses the configured fast model",
+    "providerModelCount": "{{total}} models",
+    "backToProviders": "Back to providers",
+    "backToSettings": "Back to model settings",
+    "resetToDefaults": "Restore default settings",
     "fastMode": "Fast mode",
     "fastModeDescription": "1.5x speed with higher credit usage",
     "acpMode": "Mode",
@@ -2427,11 +2497,19 @@
     "acpModeFailed": "Failed to switch mode",
     "switchFailed": "Failed to switch model",
     "modelNotConfigured": "Not Configured",
+    "tooltip": {
+      "configName": "Configuration",
+      "modelName": "Model name",
+      "contextWindow": "Context window",
+      "compressionTrigger": "Compression trigger",
+      "longContextWarning": "This model's configured context window exceeds 400K. Very long context can reduce model quality; consider setting it to around 300K."
+    },
     "openSettings": "Model settings",
     "contextUsage": {
       "agentPrompt": "Last request prompt: {{usage}}",
+      "agentPromptLabel": "Last request prompt",
       "acpContext": "ACP reported context: {{usage}}",
-      "toolNote": "Tool outputs may be summarized or truncated before later requests."
+      "acpContextLabel": "ACP reported context"
     }
   },
   "reasoningEffort": {
@@ -2448,21 +2526,22 @@
     "xhighDesc": "Maximum reasoning depth (slower)"
   },
   "reasoningSelector": {
-    "title": "Reasoning",
+    "title": "Reasoning effort",
     "auto": "Auto",
     "modelDefault": "model default",
-    "current": "Reasoning: {{preset}}",
-    "currentAuto": "Reasoning: Auto ({{preset}})",
+    "current": "Reasoning effort: {{preset}}",
+    "currentAuto": "Reasoning effort: Auto ({{preset}})",
     "updateFailed": "Failed to update reasoning preset",
-    "source": {
-      "models_dev": "models.dev",
-      "adapter_fallback": "Built in",
-      "model_config": "Custom"
-    },
-    "sourceTooltip": {
-      "models_dev": "Generated automatically from models.dev model metadata",
-      "adapter_fallback": "Built into BitFun for this model adapter",
-      "model_config": "Defined in this model's custom configuration"
+    "levels": {
+      "off": "Off",
+      "on": "On",
+      "none": "Off",
+      "minimal": "Minimal",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "xhigh": "Extra high",
+      "max": "Maximum"
     }
   },
   "coworkScope": {
@@ -2493,6 +2572,11 @@
     "refresh": "Shuffle",
     "close": "Close",
     "items": {
+      "desktop_cleanup": {
+        "title": "Organize desktop screenshots",
+        "description": "Rename, group, and file recent screenshots.",
+        "prompt": "Help me organize recent screenshots on my Desktop.\n\nFirst, scan my Desktop and count how many screenshots/images are there. Show me:\n\n- Total count\n\n- Date range (oldest to newest)\n\nThen, focus only on screenshots from the last 14 days. For each one:\n\n- Identify what it shows\n\n- Suggest a descriptive filename\n\n- Propose which folder it belongs in (or if it can be deleted)\n\nGroup similar screenshots together. Show me the plan before making any changes.\n\nAfter I approve, start by organizing just 10 files as a preview. If there are more than 10 files, check in with me before continuing with the rest."
+      },
       "vacation_plan": {
         "title": "Plan my vacation",
         "description": "Build a day-by-day itinerary with budget + backups.",
@@ -2535,24 +2619,24 @@
     "showAll": "Show all"
   },
   "pendingQueue": {
-    "title": "Queued ({{count}})",
-    "hint": "Will auto-send in order when the current turn finishes",
-    "editorHint": "⌘/Ctrl+Enter to save · Esc to cancel",
+    "title": "Wait for sending",
+    "label": "Wait for sending {{count}}",
+    "attachmentCount": "{{count}} image attachment(s)",
+    "attachmentCount_one": "{{count}} image attachment",
+    "attachmentCount_other": "{{count}} image attachments",
     "emptyPlaceholder": "(empty message)",
     "statusSending": "Steering…",
     "statusFailed": "Send failed — edit / send now / delete to clear",
     "actions": {
       "edit": "Edit",
       "sendNow": "Send now (steer)",
-      "delete": "Delete",
-      "saveEdit": "Save (⌘/Ctrl+Enter)",
-      "cancelEdit": "Cancel (Esc)"
+      "delete": "Delete"
     },
     "tooltip": {
       "sendNow": "Inject this message into the running turn as a steering prompt"
     },
     "errors": {
-      "emptyContent": "Message content cannot be empty",
+      "composerNotEmpty": "Send or clear the current input and attachments before editing this queued message",
       "sendNowFailed": "Send now failed; please try again"
     }
   },

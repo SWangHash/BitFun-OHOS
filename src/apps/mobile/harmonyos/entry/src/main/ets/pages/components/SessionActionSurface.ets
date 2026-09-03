@@ -1,5 +1,7 @@
+import { MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
-import { CARD, INK, LINE, MUTED, RED, SOFT } from './Theme';
+import { CARD, INK, LINE, MUTED, SHADOW_SUBTLE, STATUS_DANGER, TRANSPARENT } from './Theme';
+import { AppActionButton, AppActionStyle } from './AppActionButton';
 
 export enum SessionActionPresentation {
   BottomSheet = 'bottom_sheet',
@@ -37,12 +39,12 @@ export struct SessionActionSurface {
         Column({ space: 3 }) {
           Text(RemoteI18n.t('session.actions'))
             .width('100%')
-            .fontSize(13)
+            .fontSize(MobileDesignTypography.bodySmall.size)
             .fontWeight(FontWeight.Medium)
             .fontColor(MUTED)
           Text(this.sessionTitle || RemoteI18n.t('sidebar.untitled'))
             .width('100%')
-            .fontSize(15)
+            .fontSize(MobileDesignTypography.titleSmall.size)
             .fontWeight(FontWeight.Medium)
             .fontColor(INK)
             .maxLines(1)
@@ -102,11 +104,11 @@ export struct SessionActionSurface {
     .width(this.presentation === SessionActionPresentation.Popover ? 300 : '100%')
     .padding({ left: 16, right: 16, top: 10, bottom: 18 })
     .backgroundColor(CARD)
-    .border({ width: 1, color: LINE })
+    .border({ width: this.presentation === SessionActionPresentation.Popover ? 0.5 : 1, color: LINE })
     .borderRadius(16)
     .shadow({
       radius: this.presentation === SessionActionPresentation.Popover ? 20 : 0,
-      color: this.presentation === SessionActionPresentation.Popover ? '#1A000000' : '#00000000',
+      color: this.presentation === SessionActionPresentation.Popover ? SHADOW_SUBTLE : TRANSPARENT,
       offsetY: this.presentation === SessionActionPresentation.Popover ? 8 : 0
     })
     .alignItems(HorizontalAlign.Center)
@@ -118,8 +120,8 @@ export struct SessionActionSurface {
       this.ActionIcon(kind, destructive)
       Text(label)
         .layoutWeight(1)
-        .fontSize(15)
-        .fontColor(destructive ? RED : INK)
+        .fontSize(MobileDesignTypography.titleSmall.size)
+        .fontColor(destructive ? STATUS_DANGER : INK)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
     }
@@ -127,7 +129,7 @@ export struct SessionActionSurface {
     .height(46)
     .padding({ left: 10, right: 10 })
     .borderRadius(8)
-    .backgroundColor('#00000000')
+    .backgroundColor(TRANSPARENT)
     .onClick(action)
   }
 
@@ -140,7 +142,7 @@ export struct SessionActionSurface {
     } else if (kind === 'archive') {
       SymbolGlyph($r('sys.symbol.archivebox'))
         .fontSize(19)
-        .fontColor([destructive ? RED : MUTED])
+        .fontColor([destructive ? STATUS_DANGER : MUTED])
     } else if (kind === 'export') {
       SymbolGlyph($r('sys.symbol.cloud'))
         .fontSize(19)
@@ -148,7 +150,7 @@ export struct SessionActionSurface {
     } else {
       SymbolGlyph($r('sys.symbol.trash'))
         .fontSize(19)
-        .fontColor([RED])
+        .fontColor([STATUS_DANGER])
     }
   }
 
@@ -157,34 +159,29 @@ export struct SessionActionSurface {
     Column({ space: 12 }) {
       Text(RemoteI18n.t('sidebar.deleteConfirm'))
         .width('100%')
-        .fontSize(13)
-        .lineHeight(19)
+        .fontSize(MobileDesignTypography.bodySmall.size)
+        .lineHeight(MobileDesignTypography.bodySmall.lineHeight)
         .fontColor(MUTED)
       Row({ space: 10 }) {
-        Text(RemoteI18n.t('common.cancel'))
-          .layoutWeight(1)
-          .height(44)
-          .fontSize(14)
-          .fontColor(INK)
-          .textAlign(TextAlign.Center)
-          .backgroundColor(SOFT)
-          .borderRadius(8)
-          .onClick(() => {
+        AppActionButton({
+          label: RemoteI18n.t('common.cancel'),
+          style: AppActionStyle.Quiet,
+          actionHeight: 44,
+          onAction: (): void => {
             this.confirmingDelete = false;
-          })
-        Text(RemoteI18n.t('common.delete'))
+          }
+        })
           .layoutWeight(1)
-          .height(44)
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(CARD)
-          .textAlign(TextAlign.Center)
-          .backgroundColor(RED)
-          .borderRadius(8)
-          .onClick(() => {
+        AppActionButton({
+          label: RemoteI18n.t('common.delete'),
+          style: AppActionStyle.Destructive,
+          actionHeight: 44,
+          onAction: (): void => {
             this.onDelete();
             this.onClose();
-          })
+          }
+        })
+          .layoutWeight(1)
       }
       .width('100%')
     }

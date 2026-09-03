@@ -1,5 +1,6 @@
 import { describe, it, expect } from '@ohos/hypium';
 import { RemoteI18n } from '../main/ets/i18n/RemoteI18n';
+import { RemoteControlSettingsPagePolicy } from '../main/ets/pages/policy/RemoteControlSettingsPagePolicy';
 import { ChatSessionController, ChatSessionSnapshot } from '../main/ets/services/ChatSessionController';
 import { ChatComposerPolicy } from '../main/ets/services/ChatComposerPolicy';
 import { ChatTimelineItem, ChatTimelineProjector } from '../main/ets/services/ChatTimelineProjector';
@@ -96,6 +97,11 @@ import {
   AppRouteContract
 } from '../main/ets/pages/navigation/AppRouteContract';
 import { TimeFormat } from '../main/ets/services/TimeFormat';
+import {
+  TaskCompletionNotificationController,
+  TaskCompletionNotificationPort,
+  TaskCompletionObservation
+} from '../main/ets/services/TaskCompletionNotificationController';
 import { X25519 } from '../main/ets/services/X25519';
 import {
   ChatMessage,
@@ -164,7 +170,141 @@ import {
   FakeGeneralChatConfigStore
 } from './LocalTestFixtures';
 
+class FakeTaskCompletionNotificationPort implements TaskCompletionNotificationPort {
+  prepareCount: number = 0;
+  keepAliveCount: number = 0;
+  releaseCount: number = 0;
+  canKeepAlive: boolean = true;
+  published: TaskCompletionObservation[] = [];
+  expiration?: () => void;
+
+  async prepare(): Promise<void> {
+    this.prepareCount += 1;
+  }
+
+  keepAlive(onExpired: () => void): boolean {
+    this.keepAliveCount += 1;
+    this.expiration = onExpired;
+    return this.canKeepAlive;
+  }
+
+  releaseKeepAlive(): void {
+    this.releaseCount += 1;
+  }
+
+  async publish(observation: TaskCompletionObservation): Promise<void> {
+    this.published.push(observation);
+  }
+
+  expire(): void {
+    if (this.expiration) {
+      this.expiration();
+    }
+  }
+}
+
 export default function lifecycleUnitTest() {
+  describe('TaskCompletionNotificationController', () => {
+    it('publishes once only after the exact background task finishes', 0, () => {
+      const port = new FakeTaskCompletionNotificationPort();
+      const controller = new TaskCompletionNotificationController(port);
+
+      controller.track({ source: 'remote', sessionId: 'session-1', turnId: 'turn-1' });
+      expect(controller.onBackground()).assertTrue();
+      expect(controller.complete('remote', 'session-1', 'turn-other')).assertFalse();
+      expect(controller.complete('remote', 'session-1', 'turn-1')).assertTrue();
+      expect(controller.complete('remote', 'session-1', 'turn-1')).assertFalse();
+
+      expect(port.keepAliveCount).assertEqual(1);
+      expect(port.releaseCount).assertEqual(1);
+      expect(port.published.length).assertEqual(1);
+      expect(port.published[0].turnId).assertEqual('turn-1');
+    });
+
+    it('clears a foreground completion without publishing later', 0, () => {
+      const port = new FakeTaskCompletionNotificationPort();
+      const controller = new TaskCompletionNotificationController(port);
+      controller.track({ source: 'general', sessionId: 'session-1', turnId: 'turn-1' });
+
+      expect(controller.complete('general', 'session-1', 'turn-1')).assertFalse();
+
+      expect(controller.onBackground()).assertFalse();
+      expect(port.published.length).assertEqual(0);
+    });
+
+    it('clears a failed background task without publishing', 0, () => {
+      const port = new FakeTaskCompletionNotificationPort();
+      const controller = new TaskCompletionNotificationController(port);
+      controller.track({ source: 'remote', sessionId: 'session-1', turnId: 'turn-1' });
+      expect(controller.onBackground()).assertTrue();
+
+      expect(controller.cancel('remote', 'session-1', 'turn-1')).assertTrue();
+
+      expect(controller.isWatchingInBackground()).assertFalse();
+      expect(port.published.length).assertEqual(0);
+    });
+
+    it('does not arm an observation without an exact turn id', 0, () => {
+      const port = new FakeTaskCompletionNotificationPort();
+      const controller = new TaskCompletionNotificationController(port);
+
+      controller.track({ source: 'general', sessionId: 'session-1', turnId: '' });
+
+      expect(controller.onBackground()).assertFalse();
+      expect(port.keepAliveCount).assertEqual(0);
+    });
+
+    it('stops observation when HarmonyOS cannot grant background time', 0, () => {
+      const port = new FakeTaskCompletionNotificationPort();
+      port.canKeepAlive = false;
+      const expired: TaskCompletionObservation[] = [];
+      const controller = new TaskCompletionNotificationController(
+        port,
+        (observation: TaskCompletionObservation): void => {
+          expired.push(observation);
+        }
+      );
+
+      controller.track({ source: 'remote', sessionId: 'session-1', turnId: 'turn-1' });
+
+      expect(controller.onBackground()).assertFalse();
+      expect(controller.isWatchingInBackground()).assertFalse();
+      expect(expired.length).assertEqual(1);
+    });
+
+    it('expires a running background observation without publishing', 0, () => {
+      const port = new FakeTaskCompletionNotificationPort();
+      const expired: TaskCompletionObservation[] = [];
+      const controller = new TaskCompletionNotificationController(
+        port,
+        (observation: TaskCompletionObservation): void => {
+          expired.push(observation);
+        }
+      );
+      controller.track({ source: 'general', sessionId: 'session-2', turnId: 'turn-2' });
+      expect(controller.onBackground()).assertTrue();
+
+      port.expire();
+
+      expect(controller.isWatchingInBackground()).assertFalse();
+      expect(expired.length).assertEqual(1);
+      expect(port.published.length).assertEqual(0);
+    });
+  });
+
+  describe('RemoteControlSettingsPagePolicy', () => {
+    it('opens account mode directly on the signed-out login page', 0, () => {
+      expect(RemoteControlSettingsPagePolicy.resolve(true, false, false, false)).assertEqual('login');
+      expect(RemoteControlSettingsPagePolicy.resolve(true, false, false, true)).assertEqual('profile');
+    });
+
+    it('does not expose the remote page while account navigation is active', 0, () => {
+      expect(RemoteControlSettingsPagePolicy.resolve(false, true, false, false)).assertEqual('login');
+      expect(RemoteControlSettingsPagePolicy.resolve(false, false, true, false)).assertEqual('login');
+      expect(RemoteControlSettingsPagePolicy.resolve(false, false, false, false)).assertEqual('remote');
+    });
+  });
+
   describe('AppShellState', () => {
     it('owns global sidebar and sheet visibility', 0, () => {
       const state = new AppShellState();
@@ -352,7 +492,9 @@ export default function lifecycleUnitTest() {
           knownModelCatalogVersion: 0
         }
       });
-      await delay(20);
+      // Production defers the first idle poll briefly so rapid session
+      // selections coalesce. An explicit poll remains immediate.
+      await controller.pollNow();
       controller.stop();
 
       expect(snapshots.length).assertEqual(1);

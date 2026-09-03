@@ -243,6 +243,23 @@ function opencodeHookAdapterEntry(symbol, consumer) {
   };
 }
 
+function opencodePluginConfigProjectionEntry(symbol) {
+  return {
+    symbol,
+    owner: 'opencode-adapter managed Plugin Host Config projection owner',
+    consumer: 'bitfun-core plugin Config publication composition root',
+    verification:
+      'OpenCode plugin Config projection tests, bitfun-core publication tests, and core-boundary public API budget checks',
+    p0: 'typed OpenCode Config Hook projection for the managed Plugin Host runtime slice',
+    contractSlice: contractSlices.opencodeAdapterBoundary,
+    wireImpact: false,
+    rationale:
+      'the live Plugin Host path needs OpenCode field interpretation and contributor attribution outside Product Assembly while Core retains product publication',
+    exit:
+      'remove only if the managed Plugin Host Config projection moves behind another reviewed OpenCode adapter boundary with equivalent attribution and fail-closed tests',
+  };
+}
+
 function opencodeReferenceAdapterEntry(symbol, consumer) {
   return {
     symbol,
@@ -265,6 +282,23 @@ export const opencodeAdapterPublicApiEntries = [
     'load_opencode_package_adapter',
     'bitfun-core managed plugin composition root and DefaultPluginRuntimeClient integration tests',
   ),
+  opencodeAdapterEntry(
+    'load_opencode_config_snapshot',
+    'bitfun-core live Plugin Host composition root and OpenCode config snapshot contract tests',
+  ),
+  opencodeAdapterEntry(
+    'OpenCodeConfigSnapshot',
+    'bitfun-core live Plugin Host config input and OpenCode config snapshot contract tests',
+  ),
+  opencodeAdapterEntry(
+    'OpenCodeConfigSnapshotError',
+    'bitfun-core live Plugin Host config validation and OpenCode config snapshot contract tests',
+  ),
+  ...[
+    'project_plugin_config',
+    'project_plugin_tool_ref',
+    'OpenCodePluginConfigProjectionError',
+  ].map(opencodePluginConfigProjectionEntry),
   opencodeAdapterEntry(
     'OpenCodeCommandProvider',
     'bitfun-core external source composition root and OpenCode command adapter tests',
@@ -569,6 +603,27 @@ export const externalHookContractPublicApiEntries = [
     'OpenCode managed-package read projection through source_adapter::read_diagnostics',
   ),
 );
+
+export const pluginCapabilityProjectionPublicApiEntries = [
+  'PluginContributorIdentity',
+  'PluginToolRef',
+  'PluginAgentProjection',
+  'PluginSkillRootContribution',
+  'PluginCapabilityProjection',
+].map((symbol) => ({
+  symbol,
+  owner: 'product-domains plugin capability projection contract owner',
+  consumer: 'ecosystem plugin adapters and bitfun-core capability publication',
+  verification:
+    'product-domain projection contract tests, OpenCode projection tests, bitfun-core publication tests, and core-boundary checks',
+  p0: 'provider-neutral Agent, Tool, and Skill contributions from executable plugin adapters',
+  contractSlice: contractSlices.bitfunPluginExtension,
+  wireImpact: false,
+  rationale:
+    'sibling executable plugin adapters need one typed contribution shape without sharing source formats, Host protocols, or lifecycle',
+  exit:
+    'remove only through a reviewed capability-publication migration with equivalent owner isolation and adapter-boundary tests',
+}));
 
 export const externalHookCatalogPublicApiEntries = [
   'EXTERNAL_HOOK_CATALOG_SCHEMA_V1',
@@ -1327,7 +1382,7 @@ export const publicApiAllowlistRules = [
   {
     path: 'src/crates/adapters/opencode-adapter/src/lib.rs',
     reason:
-      'OpenCode adapter public API must stay limited to reviewed runtime-free sources and the PluginRuntimeClient adapter boundary',
+      'OpenCode adapter public API must stay limited to reviewed sources, managed Plugin Host Config projection, and the PluginRuntimeClient adapter boundary',
     allowedSymbolEntries: opencodeAdapterPublicApiEntries,
   },
   {
@@ -1380,6 +1435,12 @@ export const publicApiAllowlistRules = [
     reason:
       'external source contracts must stay capability-specific, ecosystem-neutral, and explicitly consumer-backed',
     allowedSymbolEntries: externalSourceContractPublicApiEntries,
+  },
+  {
+    path: 'src/crates/contracts/product-domains/src/plugin_capabilities.rs',
+    reason:
+      'executable plugin capability projections must stay ecosystem-neutral, behavior-light, and explicitly consumer-backed',
+    allowedSymbolEntries: pluginCapabilityProjectionPublicApiEntries,
   },
   {
     path: 'src/crates/contracts/product-domains/src/external_subagents.rs',

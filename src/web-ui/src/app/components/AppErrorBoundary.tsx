@@ -1,4 +1,5 @@
 import { Component, ReactNode } from 'react';
+import { Button } from '@bitfun/ui';
 import { createLogger } from '@/shared/utils/logger';
 import { i18nService } from '@/infrastructure/i18n';
 import { buildReactCrashLogPayload } from '@/shared/utils/reactProductionError';
@@ -57,29 +58,30 @@ export class AppErrorBoundary extends Component<Props, State> {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'var(--bf-appearance-token-color-bg-workbench)',
-          color: 'var(--bf-appearance-token-color-text-primary)',
+          background: 'var(--bf-color-surface-workbench)',
+          color: 'var(--bf-color-content-primary)',
           padding: 24,
           boxSizing: 'border-box',
         }}
       >
         <div style={{ maxWidth: 760, width: '100%' }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>{title}</h2>
+          <h2 style={{
+            margin: 0,
+            fontFamily: 'var(--bf-type-heading-page-font-family)',
+            fontSize: 'var(--bf-type-heading-page-font-size)',
+            fontWeight: 'var(--bf-type-heading-page-font-weight)',
+            lineHeight: 'var(--bf-type-heading-page-line-height)',
+            letterSpacing: 'var(--bf-type-heading-page-letter-spacing)',
+          }}>{title}</h2>
           <p style={{ margin: '12px 0 0', opacity: 0.9 }}>{firstLine}</p>
           <div style={{ marginTop: 16 }}>
-            <button
+            <Button
+              variant="fill"
+              size="sm"
               onClick={this.handleReload}
-              style={{
-                padding: '8px 12px',
-                background: 'var(--bf-appearance-token-color-accent-600)',
-                color: 'var(--bf-appearance-token-color-static-white)',
-                border: 'none',
-                borderRadius: 8,
-                cursor: 'pointer',
-              }}
             >
               {reloadLabel}
-            </button>
+            </Button>
           </div>
           {import.meta.env.DEV && this.state.error && (
             <details style={{ marginTop: 16 }}>
@@ -88,12 +90,15 @@ export class AppErrorBoundary extends Component<Props, State> {
                 style={{
                   marginTop: 12,
                   padding: 12,
-                  background: 'var(--bf-appearance-token-color-bg-secondary)',
-                  color: 'var(--bf-appearance-token-color-text-secondary)',
+                  background: 'var(--bf-color-surface-panel)',
+                  color: 'var(--bf-color-content-secondary)',
                   borderRadius: 8,
                   overflow: 'auto',
                   maxHeight: 240,
-                  fontSize: 12,
+                  fontFamily: 'var(--bf-type-code-sm-font-family)',
+                  fontSize: 'var(--bf-type-code-sm-font-size)',
+                  fontWeight: 'var(--bf-type-code-sm-font-weight)',
+                  lineHeight: 'var(--bf-type-code-sm-line-height)',
                 }}
               >
                 {this.state.error.stack ?? this.state.error.message}

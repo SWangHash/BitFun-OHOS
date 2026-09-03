@@ -11,7 +11,6 @@ export interface AppRootPresentationActions {
   readonly onCompactLayoutEntered: () => void;
   readonly onLayoutModeChanged: (wideLayout: boolean) => void;
   readonly onRemoteHome: RemoteHomePresentationActions;
-  readonly onRemoteCreate: RemoteCreatePresentationActions;
   readonly onSidebar: SidebarPresentationActions;
   readonly onSettings: SettingsPresentationActions;
   readonly onConnect: ConnectPresentationActions;
@@ -24,18 +23,6 @@ export interface FilePreviewPresentationActions {
   readonly refresh: () => void;
   readonly download: (path: string) => void;
   readonly openLink: (reference: string, label: string) => void;
-}
-
-export interface RemoteCreatePresentationActions {
-  readonly back: () => void;
-  readonly toggleDevices: () => void;
-  readonly toggleWorkspaces: () => void;
-  readonly selectDevice: (device: CloudAccountDevice) => void;
-  readonly selectWorkspace: (path: string) => void;
-  readonly draftChanged: (value: string) => void;
-  readonly voiceInput: () => void;
-  readonly selectModel: (modelId: string) => void;
-  readonly send: () => void;
 }
 
 export interface RemoteHomePresentationActions {
@@ -58,11 +45,12 @@ export interface RemoteHomePresentationActions {
   readonly clearPairing: () => void;
   readonly create: (agentType: string) => void;
   readonly createInPlace: (agentType: string) => void;
-  readonly createAssistant: () => void;
   readonly createInWorkspace: (path: string, agentType: string, deviceId?: string) => void;
   readonly createInWorkspaceInPlace: (path: string, agentType: string, deviceId?: string) => void;
-  readonly toggleDirectoryDevice: (deviceId: string) => void;
+  readonly selectDirectoryDevice: (deviceId: string) => void;
+  readonly addDirectoryWorkspace: (deviceId: string) => void;
   readonly retryDirectoryDevice: (deviceId: string) => void;
+  readonly loadWorkspaceSessions: (deviceId: string, path: string) => Promise<void>;
   readonly openSession: (session: RemoteSession) => void;
   readonly openSessionInPlace: (session: RemoteSession) => void;
   readonly deleteSession: (session: RemoteSession) => void;
@@ -76,6 +64,8 @@ export interface SidebarPresentationActions {
   readonly scanDesktop: () => void;
   /** Opens the QR scanner from the device-section add button. */
   readonly addDesktop: () => void;
+  /** Refreshes account device presence from the relay. */
+  readonly refreshDevices: () => Promise<void>;
   readonly settings: () => void;
   readonly openAccount: () => void;
   readonly openSession: (session: RemoteSession) => void;
@@ -129,17 +119,14 @@ export function emptyAppRootPresentationActions(): AppRootPresentationActions {
       refresh: () => {}, showWorkspaces: () => {}, showAssistants: () => {}, selectWorkspace: () => {},
       selectAssistant: () => {}, cancelWorkspace: () => {}, cancelAssistant: () => {}, queryChanged: () => {},
       search: () => {}, loadMore: () => {}, reconnect: () => {}, disconnect: () => {}, clearPairing: () => {},
-      create: () => {}, createInPlace: () => {}, createAssistant: () => {}, createInWorkspace: () => {},
-      createInWorkspaceInPlace: () => {}, toggleDirectoryDevice: () => {}, retryDirectoryDevice: () => {},
+      create: () => {}, createInPlace: () => {}, createInWorkspace: () => {},
+      createInWorkspaceInPlace: () => {}, selectDirectoryDevice: () => {}, addDirectoryWorkspace: () => {},
+      retryDirectoryDevice: () => {}, loadWorkspaceSessions: async () => {},
       openSession: () => {}, openSessionInPlace: () => {}, deleteSession: () => {}
-    },
-    onRemoteCreate: {
-      back: () => {}, toggleDevices: () => {}, toggleWorkspaces: () => {}, selectDevice: () => {},
-      selectWorkspace: () => {}, draftChanged: () => {}, voiceInput: () => {}, selectModel: () => {}, send: () => {}
     },
     onSidebar: {
       close: () => {}, newChat: () => {}, enterCode: () => {}, scanDesktop: () => {}, addDesktop: () => {},
-      settings: () => {}, openAccount: () => {},
+      refreshDevices: async () => {}, settings: () => {}, openAccount: () => {},
       openSession: () => {}, archive: () => {}, exportSession: () => {}, deleteSession: () => {}
     },
     onSettings: {

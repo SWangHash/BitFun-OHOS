@@ -17,7 +17,7 @@ and `docs/architecture/agent-runtime-services-design.md`.
 Main areas:
 
 - `src/agentic/`: agents, prompts, tools, sessions, execution, persistence
-- `src/service/`: config, filesystem, terminal, git, LSP, MCP, remote connect, AI memory
+- `src/service/`: config, filesystem, terminal, git, MCP, remote connect, AI memory
 - `src/infrastructure/`: AI clients, app paths, event system, storage, debug log server
 - `src/product_runtime/`: Core Agent Runtime compatibility adapters and runtime service provider wiring
 
@@ -53,6 +53,14 @@ SessionManager -> Session -> DialogTurn -> ModelRound
 - Tool changes must preserve expanded/collapsed exposure, prompt-visible
   manifests, `GetToolSpec`, permission behavior, `ToolUseContext` semantics, and
   desktop/MCP/ACP catalog behavior.
+- Workspace file tools select IO through `ToolUseContext::file_system_for_path`.
+  Read/Write/Edit/Delete/LS must not add per-tool SSH branches. Shared algorithms
+  belong in `tool-execution`; concrete filesystem/stream handling belongs in
+  Services providers. Session artifacts stay host-local. A missing remote
+  provider must fail without falling back to the controller filesystem.
+- Snapshot preparation/completion may fail independently of the file tool.
+  Never replay a mutation to repair tracking. A recorded operation is not proof
+  of complete Session coverage; remote Session Undo retains its coverage gate.
 - Runtime-owner migrations must keep concrete lifecycle, IO, event delivery,
   permission orchestration, and remote/platform implementations in core until
   the target owner has a reviewed port/adapter/service design plus
@@ -113,8 +121,7 @@ SessionManager -> Session -> DialogTurn -> ModelRound
   `external-sources` adds third-party discovery/import adapters,
   `plugin-runtime` adds executable plugin-client wiring,
   `opencode-plugin-host` composes the managed Host and its reviewed route
-  owners, and `debug-log` keeps the debug ingest server separate. None may
-  enable `product-full`.
+  owners. None may enable `product-full`.
 - CLI/ACP closure checks keep Cargo resolver-v2 normal and host
   (build/proc-macro) feature contexts separate, while treating all
   target-specific declarations within each context as one reviewed architecture
@@ -122,7 +129,7 @@ SessionManager -> Session -> DialogTurn -> ModelRound
   not hide an unreviewed Core capability behind mutually exclusive Cargo `cfg`
   branches.
 - Keep the light compatibility features independently compilable. Local service
-  profiles are `dispatch-store`, `lsp`, `terminal`, `workspace-runtime`, and
+  profiles are `dispatch-store`, `terminal`, `workspace-runtime`, and
   `workspace-watch`; `remote-workspace` adds only the remote workspace facade,
   while `ssh-remote` adds concrete SSH transport. Integration facades
   `announcement`, `file-watch`, `git`, and `review-platform` remain independent,
@@ -138,7 +145,7 @@ SessionManager -> Session -> DialogTurn -> ModelRound
   library's implicit default. Capability-local utility dependencies remain
   optional and are activated by their owner features; in particular,
   `base64`, `futures`, `regex`, `tokio-util`, and `bitfun-agent-tools` belong to
-  the Agent Runtime, local-storage, dispatch-store, or debug-log closures that
+  the Agent Runtime, local-storage, or dispatch-store closures that
   use them. Core's direct feature-free Tokio edge keeps only filesystem and
   synchronization support required by config and app-path state; the selected
   Services Core `json-io` owner separately carries the runtime/time capabilities
@@ -198,3 +205,29 @@ feature boundary changed, and the third for behavior. Run
 or test-target layout. Workspace checks and product-wide tests are CI-backed and
 are not the default Core precheck. For documentation-only changes, run
 `git diff --check`.
+
+Configuration persistence, account settings import, backup restore, legacy
+field/deletion compatibility, local-change notifications, and save/reload/model
+concurrency regressions have feature-free fixtures:
+
+```bash
+cargo test -p bitfun-core --no-default-features --lib service::config::
+```
+
+The account sync adapter requires `remote-connect`, which also covers
+Agent-profile canonicalization in the focused configuration suite:
+
+```bash
+cargo test -p bitfun-core --no-default-features --features remote-connect --lib service::config::
+cargo test -p bitfun-core --no-default-features --features remote-connect --lib service::remote_connect::settings_sync::tests
+```
+
+Focused workspace-IO and snapshot regression entry points (use the matching
+filter rather than a product-wide build):
+
+```bash
+cargo test -p bitfun-core --no-default-features --features agent-runtime,git,document-read --lib file_read_tool::tests
+cargo test -p bitfun-core --no-default-features --features agent-runtime,git --lib file_write_tool::tests
+cargo test -p bitfun-core --no-default-features --features agent-runtime,git --lib delete_file_tool::tests
+cargo test -p bitfun-core --no-default-features --features agent-runtime,remote-workspace,git --lib service::snapshot::
+```

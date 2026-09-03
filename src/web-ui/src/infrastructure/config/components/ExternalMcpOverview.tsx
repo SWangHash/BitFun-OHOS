@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Puzzle, RefreshCw } from 'lucide-react';
+import { Icon, Button, Checkbox, IconButton, ScrollArea, Tooltip } from '@bitfun/ui';
+
 import { useTranslation } from 'react-i18next';
-import { IconButton } from '@/component-library';
-import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
+
+import { openEcosystemCompatibility } from '@/app/scenes/ecosystem-compatibility/ecosystemCompatibilityStore';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
 import {
@@ -114,7 +115,6 @@ const ExternalMcpOverview: React.FC = () => {
   const { t: tShared } = useTranslation('shared');
   const { workspace, workspacePath } = useCurrentWorkspace();
   const peerDevice = usePeerDeviceModeOptional();
-  const setSettingsTab = useSettingsStore((state) => state.setActiveTab);
   const requestIdRef = useRef(0);
   const importRequestIdRef = useRef(0);
   const peerDeviceId = peerDevice?.peerMode.active ? peerDevice.peerMode.deviceId : undefined;
@@ -456,25 +456,23 @@ const ExternalMcpOverview: React.FC = () => {
       extra={(
         <>
           {loadFailed ? (
-            <IconButton
-              variant="ghost"
-              size="small"
-              onClick={() => void loadSnapshot()}
-              tooltip={t('external.retry')}
-              aria-label={t('external.retry')}
-            >
-              <RefreshCw size={16} aria-hidden="true" />
-            </IconButton>
+            <Tooltip content={t('external.retry')}>
+              <IconButton
+                size="sm"
+                onClick={() => void loadSnapshot()}
+                aria-label={t('external.retry')}
+                icon={<Icon name="refresh" size="lg" />}
+              />
+            </Tooltip>
           ) : null}
-          <IconButton
-            variant="ghost"
-            size="small"
-            onClick={() => setSettingsTab('mcp-tools')}
-            tooltip={t('external.manage')}
-            aria-label={t('external.manage')}
-          >
-            <Puzzle size={16} aria-hidden="true" />
-          </IconButton>
+          <Tooltip content={t('external.manage')}>
+            <IconButton
+              size="sm"
+              onClick={() => openEcosystemCompatibility({ ownerSurface: 'external-sources' })}
+              aria-label={t('external.manage')}
+              icon={<Icon name="extension" size="lg" />}
+            />
+          </Tooltip>
         </>
       )}
     >
@@ -483,7 +481,8 @@ const ExternalMcpOverview: React.FC = () => {
           {importPlan ? (
             <div className="bitfun-mcp-tools__import-plan" data-bf-component="external-mcp-overview" data-bf-part="importPlan">
               <p>{t('external.import.confirm', { count: selectedImportItems.length })}</p>
-              <ul className="bitfun-mcp-tools__import-list" data-bf-component="external-mcp-overview" data-bf-part="importList">
+              <ScrollArea className="bitfun-mcp-tools__import-list" data-bf-component="external-mcp-overview" data-bf-part="importList">
+              <ul>
                 {eligibleImportItems.map((item) => {
                   const catalogEntry = mcpEntryByCandidateId.get(item.candidateId);
                   const source = catalogEntry ? sourceByKey.get(sourceKey(
@@ -496,45 +495,48 @@ const ExternalMcpOverview: React.FC = () => {
                   const candidateScopeLabel = scopeLabel(source?.record.scope);
                   return (
                     <li key={item.candidateId}>
-                      <label className="bitfun-mcp-tools__import-option" data-bf-component="external-mcp-overview" data-bf-part="importOption">
-                        <input
-                          type="checkbox"
+                      <div className="bitfun-mcp-tools__import-option" data-bf-component="external-mcp-overview" data-bf-part="importOption">
+                        <Checkbox
+                          className="bitfun-mcp-tools__import-control"
                           checked={selectedImportCandidateIds.has(item.candidateId)}
                           disabled={importBusy}
-                          onChange={() => toggleImportCandidate(item.candidateId)}
+                          onCheckedChange={() => toggleImportCandidate(item.candidateId)}
                           aria-label={`${item.displayName}, ${ecosystemLabel}, ${candidateScopeLabel}`}
+                          label={(
+                            <span className="bitfun-mcp-tools__import-option-content" data-bf-component="external-mcp-overview" data-bf-part="importOptionContent">
+                              <span>
+                                {item.displayName} → {item.proposedNativeId}
+                              </span>
+                              <span className="bitfun-mcp-tools__import-option-meta" data-bf-component="external-mcp-overview" data-bf-part="importOptionMeta">
+                                <span className="bitfun-collection-item__badge bitfun-mcp-tools__external-source-badge">
+                                  {ecosystemLabel}
+                                </span>
+                                <span className="bitfun-collection-item__badge">
+                                  {candidateScopeLabel}
+                                </span>
+                              </span>
+                            </span>
+                          )}
                         />
-                        <span className="bitfun-mcp-tools__import-option-content" data-bf-component="external-mcp-overview" data-bf-part="importOptionContent">
-                          <span>
-                            {item.displayName} → {item.proposedNativeId}
-                          </span>
-                          <span className="bitfun-mcp-tools__import-option-meta" data-bf-component="external-mcp-overview" data-bf-part="importOptionMeta">
-                            <span className="bitfun-collection-item__badge bitfun-mcp-tools__external-source-badge">
-                              {ecosystemLabel}
-                            </span>
-                            <span className="bitfun-collection-item__badge">
-                              {candidateScopeLabel}
-                            </span>
-                          </span>
-                        </span>
-                      </label>
+                      </div>
                     </li>
                   );
                 })}
               </ul>
+              </ScrollArea>
               <div className="bitfun-mcp-tools__import-actions" data-bf-component="external-mcp-overview" data-bf-part="importActions">
-                <button type="button" disabled={importBusy || selectedImportItems.length === 0} onClick={() => void applyImport()}>
+                <Button variant="fill" size="sm" disabled={importBusy || selectedImportItems.length === 0} onClick={() => void applyImport()}>
                   {t('external.import.apply')}
-                </button>
-                <button type="button" disabled={importBusy} onClick={cancelImport}>
+                </Button>
+                <Button variant="outline" size="sm" disabled={importBusy} onClick={cancelImport}>
                   {t('external.import.cancel')}
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
-            <button type="button" disabled={importBusy} onClick={() => void previewImport()}>
+            <Button variant="fill" size="sm" disabled={importBusy} onClick={() => void previewImport()}>
               {t('external.import.preview')}
-            </button>
+            </Button>
           )}
           {importNotice ? <p role="status">{t(`external.import.${importNotice}`)}</p> : null}
         </div>

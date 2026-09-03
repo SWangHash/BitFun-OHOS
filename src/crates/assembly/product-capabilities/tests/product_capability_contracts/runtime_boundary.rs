@@ -51,6 +51,21 @@ fn code_agent_tools_are_selected_from_atomic_provider_groups() {
         .flat_map(|provider| provider.tool_names())
         .copied()
         .collect::<Vec<_>>();
+    for explore_tool in [
+        "AgentSpawn",
+        "AgentSendInput",
+        "AgentInterrupt",
+        "AgentList",
+        "AgentDelete",
+        "PortForward",
+        "BitFunControl",
+    ] {
+        assert!(
+            tool_names.contains(&explore_tool),
+            "{} must preserve explore tool {explore_tool}",
+            DeliveryProfile::Sdk,
+        );
+    }
     for product_tool in [
         "LaunchReviewAgent",
         "submit_code_review",
@@ -63,14 +78,14 @@ fn code_agent_tools_are_selected_from_atomic_provider_groups() {
     ] {
         assert!(
             !tool_names.contains(&product_tool),
-            "{profile} must not expose {product_tool}",
-            profile = DeliveryProfile::Sdk,
+            "{} must not expose {product_tool}",
+            DeliveryProfile::Sdk,
         );
     }
 }
 
 #[test]
-fn headless_agent_hosts_do_not_register_product_workflow_agents() {
+fn headless_agent_hosts_keep_explore_code_agents_without_product_workflow_agents() {
     for profile in HEADLESS_PROFILES {
         let plan = product_assembly_plan_for_profile(*profile);
         let agent_ids = plan.agent_ids();
@@ -83,6 +98,8 @@ fn headless_agent_hosts_do_not_register_product_workflow_agents() {
             "ReviewWorker",
             "ReviewJudge",
             "ReviewFixer",
+            "debug",
+            "FileFinder",
         ] {
             assert!(
                 !agent_ids.contains(&product_agent),
@@ -90,10 +107,19 @@ fn headless_agent_hosts_do_not_register_product_workflow_agents() {
             );
         }
 
-        for code_agent in ["agentic", "minimal", "Plan", "Explore", "GeneralPurpose"] {
+        for code_agent in [
+            "minimal",
+            "agentic",
+            "Explore",
+            "GeneralPurpose",
+            "Ultra",
+            "SwarmPlanner",
+            "SwarmWorker",
+            "SwarmReviewer",
+        ] {
             assert!(
                 agent_ids.contains(&code_agent),
-                "{profile} must keep the core agent {code_agent}"
+                "{profile} must keep the explore code agent {code_agent}"
             );
         }
     }

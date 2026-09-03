@@ -9,36 +9,47 @@ import {
   createStandardEasing,
   createStandardRadius,
   createStandardSpacing,
-  createStandardTypography,
   rgbFromHex,
   rgbaFromHex,
   STATIC_BLACK,
   STATIC_WHITE,
 } from './paletteHelpers';
+import {
+  getDesignSystemThemeNumber,
+  getDesignSystemThemeString,
+} from './designSystemThemeValues';
 
-const LIGHT_INK = '#0f172a';
-const LIGHT_TEXT_PRIMARY = '#1e293b';
-const LIGHT_TEXT_STRONG = '#334155';
-const LIGHT_ACCENT = '#64748b';
-const LIGHT_ACCENT_HOVER = '#475569';
+const LIGHT_NAVY = getDesignSystemThemeString('light', 'color.action.primary.background');
+const LIGHT_TEXT_PRIMARY = getDesignSystemThemeString('light', 'color.content.primary');
+const LIGHT_TEXT_SECONDARY = getDesignSystemThemeString('light', 'color.content.secondary');
+const LIGHT_TEXT_MUTED = getDesignSystemThemeString('light', 'color.content.muted');
+const LIGHT_TEXT_DISABLED = getDesignSystemThemeString('light', 'color.content.disabled');
+const LIGHT_NAVY_HOVER = getDesignSystemThemeString('light', 'color.action.primary.hover');
 const LIGHT_PURPLE = '#7c6b99';
 const LIGHT_PURPLE_HOVER = '#655680';
-const LIGHT_SUCCESS = '#5b9a6f';
-const LIGHT_WARNING = '#c08c42';
-const LIGHT_ERROR = '#c26565';
+const LIGHT_SUCCESS = getDesignSystemThemeString('light', 'color.status.success.content');
+const LIGHT_SUCCESS_BG = getDesignSystemThemeString('light', 'color.status.success.surface');
+const LIGHT_WARNING = getDesignSystemThemeString('light', 'color.status.warning.content');
+const LIGHT_ERROR = getDesignSystemThemeString('light', 'color.status.danger.content');
+const LIGHT_ERROR_BG = getDesignSystemThemeString('light', 'color.status.danger.surface');
+const LIGHT_BACKGROUND_PRIMARY = getDesignSystemThemeString('light', 'color.surface.canvas');
+const LIGHT_SURFACE_CHROME = getDesignSystemThemeString('light', 'color.surface.chrome');
+const LIGHT_SURFACE_SUBTLE = getDesignSystemThemeString('light', 'color.surface.subtle');
+const LIGHT_SURFACE_TERTIARY = getDesignSystemThemeString('light', 'color.surface.tertiary');
+const LIGHT_SURFACE_SOFT = getDesignSystemThemeString('light', 'color.action.quiet.hover');
+const LIGHT_BORDER_BASE = getDesignSystemThemeString('light', 'color.border.default');
 
-const lightInk = (alpha: number | string) => rgbaFromHex(LIGHT_INK, alpha);
-const lightAccent = (alpha: number | string) => rgbaFromHex(LIGHT_ACCENT, alpha);
-const lightAccentHover = (alpha: number | string) => rgbaFromHex(LIGHT_ACCENT_HOVER, alpha);
+const lightNavy = (alpha: number | string) => rgbaFromHex(LIGHT_NAVY, alpha);
+const lightNavyHover = (alpha: number | string) => rgbaFromHex(LIGHT_NAVY_HOVER, alpha);
 
 export const bitfunLightPalette: AppearancePalette = {
 
   id: 'bitfun-light',
   name: 'Light',
   type: 'light',
-  description: 'Light appearance - Neutral gray surfaces, black primary actions',
+  description: 'Light appearance - Crisp white surfaces, soft neutral grays, deep navy actions',
   author: 'BitFun Team',
-  version: '2.3.0',
+  version: '2.5.0',
 
   layout: {
     sceneViewportBorder: false,
@@ -47,32 +58,33 @@ export const bitfunLightPalette: AppearancePalette = {
 
   colors: {
     background: {
-      primary: '#f3f3f5',
+      primary: LIGHT_BACKGROUND_PRIMARY,
       secondary: STATIC_WHITE,
-      tertiary: '#e8e8e8',
+      tertiary: LIGHT_SURFACE_TERTIARY,
       elevated: STATIC_WHITE,
-      workbench: '#e8e8e8',
+      workbench: LIGHT_SURFACE_SOFT,
       scene: STATIC_WHITE,
+      chrome: LIGHT_SURFACE_CHROME,
     },
 
     text: {
       primary: LIGHT_TEXT_PRIMARY,
-      secondary: '#3d4f66',
-      muted: LIGHT_ACCENT,
-      disabled: '#94a3b8',
+      secondary: LIGHT_TEXT_SECONDARY,
+      muted: LIGHT_TEXT_MUTED,
+      disabled: LIGHT_TEXT_DISABLED,
     },
 
 
     accent: createAccentScale({
-      base: LIGHT_ACCENT,
-      hover: LIGHT_ACCENT_HOVER,
-      alpha: { 700: 0.88 },
+      base: LIGHT_NAVY,
+      hover: LIGHT_NAVY_HOVER,
       stops: {
-        50: lightInk(0.04),
-        100: lightInk(0.07),
-        200: lightInk(0.1),
-        300: lightInk(0.16),
-        400: lightInk(0.26),
+        50: LIGHT_SURFACE_SUBTLE,
+        100: LIGHT_SURFACE_SOFT,
+        200: lightNavy(0.12),
+        300: lightNavy(0.18),
+        400: lightNavy(0.3),
+        700: STATIC_BLACK,
       },
     }),
 
@@ -91,37 +103,43 @@ export const bitfunLightPalette: AppearancePalette = {
       success: LIGHT_SUCCESS,
       warning: LIGHT_WARNING,
       error: LIGHT_ERROR,
-      info: LIGHT_ACCENT,
+      info: LIGHT_TEXT_SECONDARY,
       bgAlpha: 0.08,
       borderAlpha: 0.25,
       overrides: {
-        infoBg: lightAccent(0.1),
-        infoBorder: lightAccent(0.28),
+        successBg: LIGHT_SUCCESS_BG,
+        successBorder: getDesignSystemThemeString('light', 'color.status.success.border'),
+        warningBg: getDesignSystemThemeString('light', 'color.status.warning.surface'),
+        warningBorder: getDesignSystemThemeString('light', 'color.status.warning.border'),
+        errorBg: LIGHT_ERROR_BG,
+        errorBorder: getDesignSystemThemeString('light', 'color.status.danger.border'),
+        infoBg: getDesignSystemThemeString('light', 'color.status.info.surface'),
+        infoBorder: getDesignSystemThemeString('light', 'color.status.info.border'),
       },
     }),
 
 
     border: {
-      subtle: lightAccent(0.15),
-      base: lightAccent(0.22),
-      medium: lightAccent(0.32),
-      strong: lightAccent(0.42),
-      prominent: lightAccent(0.52),
+      subtle: getDesignSystemThemeString('light', 'color.border.subtle'),
+      base: LIGHT_BORDER_BASE,
+      medium: lightNavy(0.24),
+      strong: getDesignSystemThemeString('light', 'color.border.strong'),
+      prominent: lightNavy(0.48),
     },
 
 
     element: {
-      subtle: lightInk(0.045),
-      soft: lightInk(0.065),
-      base: lightInk(0.09),
-      medium: lightInk(0.12),
-      strong: lightInk(0.16),
+      subtle: LIGHT_SURFACE_SUBTLE,
+      soft: LIGHT_SURFACE_SOFT,
+      base: getDesignSystemThemeString('light', 'color.action.neutral.surface'),
+      medium: getDesignSystemThemeString('light', 'color.action.neutral.surfaceHover'),
+      strong: getDesignSystemThemeString('light', 'color.action.neutral.surfacePressed'),
     },
 
 
     git: createGitColors({
-      branch: rgbFromHex(LIGHT_ACCENT_HOVER),
-      branchBg: lightAccentHover(0.1),
+      branch: rgbFromHex(LIGHT_NAVY_HOVER),
+      branchBg: lightNavyHover(0.1),
       changes: rgbFromHex(LIGHT_WARNING),
       added: rgbFromHex(LIGHT_SUCCESS),
       deleted: rgbFromHex(LIGHT_ERROR),
@@ -131,18 +149,17 @@ export const bitfunLightPalette: AppearancePalette = {
 
   effects: {
     shadow: {
-
-      xs: `0 1px 2px ${lightAccentHover(0.06)}`,
-      sm: `0 2px 4px ${lightAccentHover(0.08)}`,
-      base: `0 4px 8px ${lightAccentHover(0.1)}`,
-      lg: `0 8px 16px ${lightAccentHover(0.12)}`,
-      xl: `0 12px 24px ${lightAccentHover(0.14)}`,
+      xs: getDesignSystemThemeString('light', 'shadow.xs'),
+      sm: getDesignSystemThemeString('light', 'shadow.sm'),
+      base: getDesignSystemThemeString('light', 'shadow.base'),
+      lg: getDesignSystemThemeString('light', 'shadow.lg'),
+      xl: getDesignSystemThemeString('light', 'shadow.xl'),
     },
 
 
     blur: {
-      subtle: 'blur(4px) saturate(1.02)',
-      base: 'blur(8px) saturate(1.05)',
+      subtle: getDesignSystemThemeString('light', 'effect.blur.subtle'),
+      base: getDesignSystemThemeString('light', 'effect.blur.base'),
     },
 
     radius: createStandardRadius(),
@@ -150,9 +167,9 @@ export const bitfunLightPalette: AppearancePalette = {
     spacing: createStandardSpacing(),
 
     opacity: {
-      disabled: 0.55,
-      hover: 0.75,
-      focus: 0.9,
+      disabled: getDesignSystemThemeNumber('light', 'opacity.disabled'),
+      hover: getDesignSystemThemeNumber('light', 'opacity.hover'),
+      focus: getDesignSystemThemeNumber('light', 'opacity.focus'),
     },
   },
 
@@ -169,8 +186,6 @@ export const bitfunLightPalette: AppearancePalette = {
   },
 
 
-  typography: createStandardTypography(),
-
 
   components: {
     button: {
@@ -179,21 +194,21 @@ export const bitfunLightPalette: AppearancePalette = {
 
       primary: {
         default: {
-          background: STATIC_BLACK,
-          color: STATIC_WHITE,
+          background: getDesignSystemThemeString('light', 'color.action.primary.background'),
+          color: getDesignSystemThemeString('light', 'color.action.primary.content'),
           border: 'transparent',
           shadow: 'none',
         },
         hover: {
-          background: '#262626',
-          color: STATIC_WHITE,
+          background: getDesignSystemThemeString('light', 'color.action.primary.hover'),
+          color: getDesignSystemThemeString('light', 'color.action.primary.content'),
           border: 'transparent',
           shadow: 'none',
           transform: 'none',
         },
         active: {
-          background: '#1c1c1f',
-          color: STATIC_WHITE,
+          background: getDesignSystemThemeString('light', 'color.action.primary.pressed'),
+          color: getDesignSystemThemeString('light', 'color.action.primary.content'),
           border: 'transparent',
           shadow: 'none',
           transform: 'none',
@@ -203,11 +218,11 @@ export const bitfunLightPalette: AppearancePalette = {
 
       ghost: {
         default: {
-          color: LIGHT_ACCENT_HOVER,
+          color: LIGHT_TEXT_SECONDARY,
         },
         hover: {
-          background: lightInk(0.08),
-          color: LIGHT_TEXT_STRONG,
+          background: LIGHT_SURFACE_SOFT,
+          color: LIGHT_TEXT_PRIMARY,
           border: 'transparent',
         },
       },
@@ -219,39 +234,38 @@ export const bitfunLightPalette: AppearancePalette = {
     base: 'vs',
     inherit: true,
     rules: [
-      { token: 'comment', foreground: '94a3b8', fontStyle: 'italic' },
+      { token: 'comment', foreground: '9a9a9a', fontStyle: 'italic' },
       { token: 'keyword', foreground: '6b5a89' },
-      { token: 'string', foreground: '5b9a6f' },
-      { token: 'number', foreground: 'b8863a' },
-      { token: 'type', foreground: '475569' },
-      { token: 'class', foreground: '475569' },
+      { token: 'string', foreground: '247344' },
+      { token: 'number', foreground: '9a651f' },
+      { token: 'type', foreground: '555555' },
+      { token: 'class', foreground: '555555' },
       { token: 'function', foreground: '7c6b99' },
-      { token: 'variable', foreground: '475569' },
-      { token: 'constant', foreground: 'c08c42' },
+      { token: 'variable', foreground: '555555' },
+      { token: 'constant', foreground: '9a651f' },
       { token: 'operator', foreground: '6b5a89' },
-      { token: 'tag', foreground: '475569' },
+      { token: 'tag', foreground: '555555' },
       { token: 'attribute.name', foreground: '7c6b99' },
-      { token: 'attribute.value', foreground: '5b9a6f' },
+      { token: 'attribute.value', foreground: '247344' },
     ],
     colors: {
-      background: '#f3f3f5',
+      background: STATIC_WHITE,
       foreground: LIGHT_TEXT_PRIMARY,
-      lineHighlight: '#f0f4f8',
-      selection: lightInk(0.14),
+      lineHighlight: LIGHT_SURFACE_SUBTLE,
+      selection: lightNavy(0.14),
       cursor: LIGHT_TEXT_PRIMARY,
 
-      'editor.selectionBackground': lightInk(0.14),
+      'editor.selectionBackground': lightNavy(0.14),
       'editor.selectionForeground': LIGHT_TEXT_PRIMARY,
-      'editor.inactiveSelectionBackground': lightInk(0.09),
-      'editor.selectionHighlightBackground': lightInk(0.1),
-      'editor.selectionHighlightBorder': lightInk(0.22),
+      'editor.inactiveSelectionBackground': lightNavy(0.09),
+      'editor.selectionHighlightBackground': lightNavy(0.1),
+      'editor.selectionHighlightBorder': lightNavy(0.22),
       'editorCursor.foreground': LIGHT_TEXT_PRIMARY,
 
-      'editor.wordHighlightBackground': lightInk(0.07),
-      'editor.wordHighlightStrongBackground': lightInk(0.11),
+      'editor.wordHighlightBackground': lightNavy(0.07),
+      'editor.wordHighlightStrongBackground': lightNavy(0.11),
     },
   },
 };
-
 
 

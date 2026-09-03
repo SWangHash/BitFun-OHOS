@@ -1,4 +1,7 @@
 import React from 'react';
+import { Icon, IconButton } from '@bitfun/ui';
+;
+import { useI18n } from '@/infrastructure/i18n';
 
 export interface ConfigStatusProps {
    
@@ -36,6 +39,7 @@ export const ConfigStatus: React.FC<ConfigStatusProps> = ({
   className = '',
   multiline = false
 }) => {
+  const { t } = useI18n('common');
   const statusClass = `config-form-status ${type} ${className}`.trim();
   const displayIcon = icon !== undefined ? icon : defaultIcons[type];
   
@@ -53,25 +57,14 @@ export const ConfigStatus: React.FC<ConfigStatusProps> = ({
         {message}
       </div>
       {closable && onClose && (
-        <button
+        <IconButton
+          type="button"
+          size="sm"
           onClick={onClose}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'inherit',
-            cursor: 'pointer',
-            padding: '0',
-            marginLeft: '8px',
-            fontSize: '16px',
-            lineHeight: '1',
-            opacity: 0.7,
-            transition: 'opacity 0.2s ease'
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; }}
-        >
-          ×
-        </button>
+          style={{ marginLeft: '8px' }}
+          aria-label={t('actions.close')}
+          icon={<Icon name="xmark" size="lg" />}
+        />
       )}
     </div>
   );

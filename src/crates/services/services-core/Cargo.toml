@@ -12,10 +12,12 @@ crate-type = ["rlib"]
 
 [dependencies]
 anyhow = { workspace = true, optional = true }
+aes-gcm = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 bitfun-core-types = { path = "../../contracts/core-types", optional = true }
 bitfun-events = { path = "../../contracts/events", optional = true }
 bitfun-runtime-ports = { path = "../../contracts/runtime-ports", optional = true }
+bitfun-product-domains = { path = "../../contracts/product-domains", optional = true }
 tokio = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -25,11 +27,11 @@ chrono = { workspace = true, optional = true }
 chrono-tz = { workspace = true, optional = true }
 git2 = { workspace = true, optional = true }
 dunce = { workspace = true, optional = true }
-zip = { workspace = true, optional = true }
 thiserror = { workspace = true }
 log = { workspace = true }
 fs2 = { workspace = true, optional = true }
-notify = { workspace = true, optional = true }
+filetime = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
 ignore = { workspace = true, optional = true }
 globset = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
@@ -38,6 +40,7 @@ similar = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 keyring-core = { workspace = true, optional = true }
 rusqlite = { version = "0.32", features = ["bundled"], optional = true }
+rustls = { workspace = true, features = ["ring", "std", "tls12"], optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { workspace = true, optional = true }
@@ -55,6 +58,19 @@ zbus-secret-service-keyring-store = { workspace = true, optional = true }
 
 [features]
 default = []
+tls-provider = ["dep:rustls"]
+credential-vault = [
+    "dep:aes-gcm",
+    "dep:anyhow",
+    "dep:base64",
+    "dep:fs2",
+    "dep:libc",
+    "dep:rand",
+    "dep:tokio",
+    "tokio/fs",
+    "tokio/io-util",
+    "tokio/rt",
+]
 diagnostics = ["dep:regex"]
 diff = ["dep:similar", "dep:tokio", "tokio/rt", "tokio/time"]
 filesystem = [
@@ -120,16 +136,6 @@ workspace-instructions = [
     "tokio/io-util",
     "tokio/rt",
 ]
-lsp = [
-    "dep:anyhow",
-    "dep:bitfun-core-types",
-    "dep:notify",
-    "dep:zip",
-    "process-runtime",
-    "tokio/fs",
-    "tokio/io-util",
-    "tokio/sync",
-]
 markdown = ["dep:regex", "dep:serde_yaml"]
 workspace-runtime = [
     "dep:anyhow",
@@ -138,6 +144,7 @@ workspace-runtime = [
     "bitfun-runtime-ports/runtime-event-port",
     "bitfun-runtime-ports/workspace-ports",
     "dep:dunce",
+    "dep:filetime",
     "process-runtime",
     "tokio/fs",
     "tokio/io-util",
@@ -153,9 +160,16 @@ permission = [
     "bitfun-runtime-ports/permission",
     "tokio/rt",
 ]
+session-search = [
+    "dep:bitfun-product-domains",
+    "dep:rusqlite",
+    "dep:tokio",
+    "tokio/rt",
+]
 dispatch-workspace = ["dep:anyhow", "dep:sha2"]
 session-git = ["local-storage", "dep:git2"]
 workspace-text-runtime = ["dep:tokio", "tokio/rt"]
+
 # Unified secure-credential vault abstraction shared by subscription auth,
 # MiniApp/appearance market, and feedback services. The `system-vault`
 # sub-feature selects the OS keyring backend (macOS Keychain, Windows
@@ -184,11 +198,6 @@ required-features = ["markdown"]
 name = "declarative_workspace_instruction_contracts"
 path = "tests/declarative_workspace_instruction_contracts.rs"
 required-features = ["workspace-instructions"]
-
-[[test]]
-name = "lsp_plugin_registry_contracts"
-path = "tests/lsp_plugin_registry_contracts.rs"
-required-features = ["lsp"]
 
 [[test]]
 name = "runtime_ownership_contracts"

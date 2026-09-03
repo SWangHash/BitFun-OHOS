@@ -129,7 +129,7 @@ describe('React Canvas runtime bridge', () => {
 
     expect(html).toContain('nextAppearance.vars');
     expect(html).toContain("rootStyle.setProperty(name, value.trim())");
-    expect(html).toContain('--bf-appearance-token-color-bg-primary');
+    expect(html).toContain('--bf-color-surface-canvas');
   });
 
   it('exposes semantic appearance tokens through useHostAppearance().tokens', async () => {
@@ -250,9 +250,10 @@ window.BitfunCanvasRuntime.mount(Canvas);
       expect(dom.window.document.querySelector('.bf-chart')).toBeTruthy();
       expect(dom.window.document.querySelector('.bf-collapsible-section')).toBeTruthy();
       expect(dom.window.document.querySelector('.bf-diagram')).toBeTruthy();
-      expect(dom.window.document.querySelector('.bitfun-tabs')).toBeTruthy();
-      expect(dom.window.document.querySelector('.bitfun-input-wrapper')).toBeTruthy();
-      expect(dom.window.document.querySelector('.bitfun-empty')).toBeTruthy();
+      expect(dom.window.document.querySelector('.bitfun-canvas-adapter-tabs')).toBeTruthy();
+      expect(dom.window.document.querySelector('[data-bf-component="tab-group"]')).toBeTruthy();
+      expect(dom.window.document.querySelector('[data-bf-component="input"]')).toBeTruthy();
+      expect(dom.window.document.querySelector('[data-bf-component="empty"]')).toBeTruthy();
     } finally {
       dom.window.close();
     }

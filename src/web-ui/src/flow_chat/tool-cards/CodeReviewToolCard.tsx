@@ -1,7 +1,7 @@
 /**
  * CodeReview tool display component
  * Displays structured code review results with collapsible/expandable details
- * Refactored based on BaseToolCard
+ * Uses the shared prominent FlowChat framework.
  */
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
@@ -15,10 +15,13 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Tooltip, ToolProcessingDots } from '@/component-library';
 import type { ToolCardProps } from '../types/flow-chat';
 import { flowChatStore } from '../store/FlowChatStore';
-import { BaseToolCard, ToolCardHeader } from './BaseToolCard';
+import {
+  ProminentToolCard,
+  ProminentToolCardHeader,
+  ToolProcessingDots,
+} from '@bitfun/ui/flow-chat';
 import { createLogger } from '@/shared/utils/logger';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 import {
@@ -55,10 +58,10 @@ const EVIDENCE_STATUS_LABEL_KEYS: Record<ReviewEvidenceStatus, string> = {
 const log = createLogger('CodeReviewToolCard');
 
 const riskLevelColors: Record<string, string> = {
-  low: 'var(--bf-appearance-token-color-success)',
-  medium: 'var(--bf-appearance-token-color-warning)',
-  high: 'color-mix(in srgb, var(--bf-appearance-token-color-warning) 55%, var(--bf-appearance-token-color-error))',
-  critical: 'var(--bf-appearance-token-color-error)',
+  low: 'var(--bf-color-status-success-content)',
+  medium: 'var(--bf-color-status-warning-content)',
+  high: 'color-mix(in srgb, var(--bf-color-status-warning-content) 55%, var(--bf-color-status-danger-content))',
+  critical: 'var(--bf-color-status-danger-content)',
 };
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -338,9 +341,9 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
       case 'low':
         return <Info size={14} style={{ color: riskLevelColors.low }} />;
       case 'info':
-        return <Info size={14} style={{ color: 'var(--bf-appearance-token-color-text-muted)' }} />;
+        return <Info size={14} style={{ color: 'var(--bf-color-content-muted)' }} />;
       default:
-        return <Info size={14} style={{ color: 'var(--bf-appearance-token-color-text-muted)' }} />;
+        return <Info size={14} style={{ color: 'var(--bf-color-content-muted)' }} />;
     }
   };
 
@@ -397,11 +400,6 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
       toggleExpanded();
     }
   }, [hasData, toggleExpanded]);
-
-  const handleToggleExpand = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    toggleExpanded();
-  }, [toggleExpanded]);
 
   const handleToggleRemediationDetails = useCallback((itemId: string) => {
     setExpandedRemediationIds((current) => {
@@ -548,33 +546,15 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
 
   const renderHeader = () => {
     return (
-      <ToolCardHeader
+      <ProminentToolCardHeader
         icon={null}
-        iconClassName="code-review-icon"
         content={renderContent()}
-        extra={(
-          <>
-            {hasData && reviewData && (
-              <CodeReviewReportExportActions
-                reviewData={reviewData}
-                runManifest={sessionRunManifest}
-              />
-            )}
-            {hasData && (
-              <Tooltip
-                content={isExpanded ? t('toolCards.codeReview.collapseDetails') : t('toolCards.codeReview.expandDetails')}
-                placement="top"
-              >
-                <button
-                  className="preview-toggle-btn"
-                  onClick={handleToggleExpand}
-                >
-                  {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                </button>
-              </Tooltip>
-            )}
-          </>
-        )}
+        actions={hasData && reviewData ? (
+          <CodeReviewReportExportActions
+            reviewData={reviewData}
+            runManifest={sessionRunManifest}
+          />
+        ) : undefined}
         statusIcon={getStatusIcon()}
       />
     );
@@ -979,7 +959,7 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
 
   return (
     <div data-bf-component="code-review-tool-card" data-bf-part="root" ref={cardRootRef} data-tool-card-id={toolId ?? ''}>
-      <BaseToolCard
+      <ProminentToolCard
         status={normalizedStatus as 'pending' | 'preparing' | 'streaming' | 'running' | 'completed' | 'error' | 'cancelled'}
         isExpanded={isExpanded}
         onClick={handleCardClick}

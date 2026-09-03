@@ -1,27 +1,20 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle,
-  ArrowUpRight,
-  Check,
-  ChevronDown,
-  ChevronUp,
-  Download,
-  ExternalLink,
-  Heart,
-  Loader2,
-  PackageCheck,
-  RefreshCw,
-  ShieldCheck,
-  Star,
-} from 'lucide-react';
-import {
-  Badge,
   Button,
+  Card,
+  CardBody,
+  CardMedia,
   ConfirmDialog,
-  Search,
+  Icon,
+  IconButton,
+  SearchField,
+  SegmentedControl,
   Select,
   type SelectOption,
-} from '@/component-library';
+  StatusPill,
+} from '@bitfun/ui';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Heart, Loader2, PackageCheck, ShieldCheck } from 'lucide-react';
+
 import {
   GalleryDetailModal,
   GalleryEmpty,
@@ -279,11 +272,12 @@ const MiniAppMarketView: React.FC = () => {
             data-bf-component="miniapp-market-view"
             data-bf-part="headerActions"
           >
-            <Search
+            <SearchField
+              leadingIcon={<Icon name="search" size="lg" aria-hidden />}
               value={query}
-              onChange={setQuery}
+              onValueChange={setQuery}
               placeholder={t('market.search')}
-              size="small"
+              size="sm"
             />
             <MarketAccountControls
               loginOpen={loginOpen}
@@ -304,38 +298,40 @@ const MiniAppMarketView: React.FC = () => {
           tools={(
             <Select
               className="miniapp-market-native__sort"
-              size="small"
+              size="sm"
               options={sortOptions}
               value={sort}
-              onChange={(value) => setSort(value as MarketSort)}
-              triggerAriaLabel={t('market.sortLabel')}
+              onValueChange={(value) => setSort(value as MarketSort)}
+              aria-label={t('market.sortLabel')}
             />
           )}
         >
-          <div className="gallery-chip-row">
-            {CATEGORIES.map((value) => (
-              <button
-                key={value}
-                type="button"
-                className={[
-                  'gallery-cat-chip',
-                  value === category && 'gallery-cat-chip--active',
-                ].filter(Boolean).join(' ')}
-                onClick={() => setCategory(value)}
-              >
-                {categoryLabel(value, t)}
-              </button>
-            ))}
-          </div>
-          {loading ? <GallerySkeleton count={8} cardHeight={280} /> : null}
+          <SegmentedControl
+            className="miniapp-market-native__categories"
+            options={CATEGORIES.map((value) => ({
+              label: categoryLabel(value, t),
+              value,
+            }))}
+            value={category}
+            onValueChange={(value) => setCategory(value as (typeof CATEGORIES)[number])}
+            aria-label={t('market.catalog')}
+          />
+          {loading ? (
+            <GallerySkeleton
+              count={8}
+              cardHeight={280}
+              minCardWidth={285}
+              className="miniapp-market-native__card-grid"
+            />
+          ) : null}
           {!loading && error ? (
             <GalleryEmpty
               icon={<AlertTriangle size={34} />}
               isError
               message={t('market.messages.catalogFailed', { error })}
               action={(
-                <Button size="small" variant="secondary" onClick={() => void loadCatalog(false)}>
-                  <RefreshCw size={14} />
+                <Button size="sm" variant="outline" onClick={() => void loadCatalog(false)} leadingIcon={<Icon name="refresh" size="sm" />}>
+
                   {t('scene.retry')}
                 </Button>
               )}
@@ -346,59 +342,66 @@ const MiniAppMarketView: React.FC = () => {
           ) : null}
           {!loading && items.length > 0 ? (
             <>
-              <GalleryGrid minCardWidth={285}>
+              <GalleryGrid minCardWidth={285} className="miniapp-market-native__card-grid">
                 {items.map((item) => {
                   const name = pickLocalizedString(item, currentLanguage, 'name');
                   const description = pickLocalizedString(item, currentLanguage, 'description');
                   return (
-                    <button
+                    <Card
                       key={item.listingId}
-                      type="button"
                       className="miniapp-market-card"
-                      data-bf-component="miniapp-market-view"
-                      data-bf-part="card"
-                      onClick={() => void openDetail(item)}
+                      appearance="raised"
+                      clip
+                      radius="lg"
                     >
-                      <div className="miniapp-market-card__visual">
-                        {item.screenshotUrls[0] ? (
-                          <img
-                            src={marketImageUrl(item.screenshotUrls[0], 'compact-v1')}
-                            alt=""
-                            loading="lazy"
-                            decoding="async"
-                            onError={(event) => retryOriginalMarketImage(event.currentTarget, item.screenshotUrls[0]!)}
-                          />
-                        ) : (
-                          <span
-                            className="miniapp-market-card__fallback"
-                            style={{ background: getMiniAppIconGradient(item.icon || 'box') }}
-                          >
-                            {renderMiniAppIcon(item.icon || 'box', 30)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="miniapp-market-card__body">
-                        <div className="miniapp-market-card__eyebrow">
-                          <span>{categoryLabel(item.category, t)}</span>
-                          <span>v{item.latestRelease}</span>
-                        </div>
-                        <strong>{name}</strong>
-                        <p>{description}</p>
-                        <div className="miniapp-market-card__stats">
-                          <span><Star size={12} /> {item.ratingAverage.toFixed(1)}</span>
-                          <span><Download size={12} /> {formatNumber(item.downloadCount)}</span>
-                          <span><Heart size={12} /> {formatNumber(item.favoriteCount)}</span>
-                        </div>
-                      </div>
-                    </button>
+                      <button
+                        type="button"
+                        className="miniapp-market-card__trigger"
+                        data-bf-component="miniapp-market-view"
+                        data-bf-part="card"
+                        onClick={() => void openDetail(item)}
+                      >
+                        <CardMedia className="miniapp-market-card__visual">
+                          {item.screenshotUrls[0] ? (
+                            <img
+                              src={marketImageUrl(item.screenshotUrls[0], 'compact-v1')}
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              onError={(event) => retryOriginalMarketImage(event.currentTarget, item.screenshotUrls[0]!)}
+                            />
+                          ) : (
+                            <span
+                              className="miniapp-market-card__fallback"
+                              style={{ background: getMiniAppIconGradient(item.icon || 'box') }}
+                            >
+                              {renderMiniAppIcon(item.icon || 'box', 30)}
+                            </span>
+                          )}
+                        </CardMedia>
+                        <CardBody className="miniapp-market-card__body">
+                          <div className="miniapp-market-card__eyebrow">
+                            <span>{categoryLabel(item.category, t)}</span>
+                            <span>v{item.latestRelease}</span>
+                          </div>
+                          <strong>{name}</strong>
+                          <p>{description}</p>
+                          <div className="miniapp-market-card__stats">
+                            <span><Icon name="star" size="xs" /> {item.ratingAverage.toFixed(1)}</span>
+                            <span><Icon name="download" size="xs" /> {formatNumber(item.downloadCount)}</span>
+                            <span><Heart size={12} /> {formatNumber(item.favoriteCount)}</span>
+                          </div>
+                        </CardBody>
+                      </button>
+                    </Card>
                   );
                 })}
               </GalleryGrid>
               {nextCursor ? (
                 <div className="miniapp-market-native__load-more">
                   <Button
-                    size="small"
-                    variant="secondary"
+                    size="sm"
+                    variant="outline"
                     disabled={loadingMore}
                     onClick={() => void loadCatalog(true)}
                   >
@@ -425,8 +428,8 @@ const MiniAppMarketView: React.FC = () => {
         title={detailName || t('market.detail.loading')}
         badges={detail ? (
           <>
-            <Badge variant="info">{categoryLabel(detail.category, t)}</Badge>
-            <Badge variant="neutral"><ShieldCheck size={11} /> {t('market.detail.reviewed')}</Badge>
+            <StatusPill tone="info">{categoryLabel(detail.category, t)}</StatusPill>
+            <StatusPill tone="neutral" leading={<ShieldCheck size={11} />}>{t('market.detail.reviewed')}</StatusPill>
           </>
         ) : null}
         description={detailDescription}
@@ -435,36 +438,37 @@ const MiniAppMarketView: React.FC = () => {
         ) : null}
         actions={detail ? (
           <>
-            <Button size="small" variant="secondary" onClick={() => void toggleFavorite()} disabled={actionBusy}>
-              <Heart size={14} fill={detail.isFavorited ? 'currentColor' : 'none'} />
+            <Button size="sm" variant="outline" onClick={() => void toggleFavorite()} disabled={actionBusy} leadingIcon={<Heart size={14} fill={detail.isFavorited ? 'currentColor' : 'none'} />}>
+
               {formatNumber(detail.favoriteCount)}
             </Button>
             {/* Installed and up to date: nothing left to install, so say so and let "Open" lead. */}
             {installed && !canUpdate ? (
               <span className="miniapp-market-detail__installed-state">
-                <Check size={14} />
+                <Icon name="check-line" size="sm" />
                 {t('market.detail.installed')}
               </span>
             ) : null}
             {installed ? (
               <Button
-                size="small"
-                variant={canUpdate ? 'secondary' : 'primary'}
+                size="sm"
+                variant={canUpdate ? 'outline' : 'fill'}
                 disabled={actionBusy || workspaceUnsupported}
                 onClick={() => openInstalledApp(installed.appId)}
+                leadingIcon={<Icon name="arrow-up-right" size="sm" />}
               >
-                <ArrowUpRight size={14} />
+
                 {t('market.detail.open')}
               </Button>
             ) : null}
             {!installed || canUpdate ? (
               <Button
-                size="small"
-                variant="primary"
+                size="sm"
+                variant="fill"
                 disabled={actionBusy || workspaceUnsupported}
                 onClick={() => setInstallPrompt(true)}
               >
-                {actionBusy ? <Loader2 size={14} className="gallery-spinning" /> : canUpdate ? <RefreshCw size={14} /> : <Download size={14} />}
+                {actionBusy ? <Loader2 size={14} className="gallery-spinning" /> : canUpdate ? <Icon name="refresh" size="sm" /> : <Icon name="download" size="sm" />}
                 {installLabel}
               </Button>
             ) : null}
@@ -521,12 +525,16 @@ const MiniAppMarketView: React.FC = () => {
               <h4>{t('market.detail.rating')}</h4>
               <div className="miniapp-market-detail__rating">
                 {[1, 2, 3, 4, 5].map((value) => (
-                  <button key={value} type="button" onClick={() => void rate(value)} disabled={actionBusy}>
-                    <Star
-                      size={18}
-                      fill={(detail.myRating ?? 0) >= value ? 'currentColor' : 'none'}
-                    />
-                  </button>
+                  <IconButton
+                    key={value}
+                    size="xs"
+                    className="miniapp-market-detail__rating-action"
+                    onClick={() => void rate(value)}
+                    disabled={actionBusy}
+                    aria-label={`${t('market.detail.rating')} ${value}`}
+                    title={`${t('market.detail.rating')} ${value}`}
+                    icon={<Icon name="star" size="lg" />}
+                  />
                 ))}
                 <span>{detail.ratingAverage.toFixed(1)} · {formatNumber(detail.ratingCount)}</span>
               </div>
@@ -542,31 +550,35 @@ const MiniAppMarketView: React.FC = () => {
                   <div key={release.releaseId}>
                     <span>v{release.releaseNumber}</span>
                     <span>{release.minBitfunVersion}+</span>
-                    {release.yanked ? <Badge variant="warning">{t('market.detail.yanked')}</Badge> : <Check size={14} />}
+                    {release.yanked ? <StatusPill tone="warning">{t('market.detail.yanked')}</StatusPill> : <Icon name="check-line" size="sm" />}
                   </div>
                 ))}
               </div>
               {detail.releases.length > 1 ? (
-                <button
-                  type="button"
+                <Button
+                  variant="text"
+                  size="xs"
                   className="miniapp-market-detail__releases-toggle"
                   aria-expanded={releasesExpanded}
                   onClick={() => setReleasesExpanded((current) => !current)}
+                  leadingIcon={releasesExpanded
+                    ? <Icon name="chevron-up" size="lg" />
+                    : <Icon name="chevron-down" size="xs" />}
                 >
-                  {releasesExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                   {releasesExpanded
                     ? t('market.detail.releasesCollapse')
                     : t('market.detail.releasesExpand', { count: releaseHistory.hiddenCount })}
-                </button>
+                </Button>
               ) : null}
             </section>
             {detail.repositoryUrl ? (
               <Button
-                size="small"
-                variant="ghost"
+                size="sm"
+                variant="outline"
                 onClick={() => void systemAPI.openExternal(detail.repositoryUrl!)}
+                leadingIcon={<Icon name="arrow-up-right" size="sm" />}
               >
-                <ExternalLink size={14} />
+
                 {t('market.detail.repository')}
               </Button>
             ) : null}
@@ -575,8 +587,8 @@ const MiniAppMarketView: React.FC = () => {
       </GalleryDetailModal>
 
       <ConfirmDialog
-        isOpen={installPrompt}
-        onClose={() => setInstallPrompt(false)}
+        open={installPrompt}
+        onOpenChange={() => setInstallPrompt(false)}
         onConfirm={() => void install()}
         title={t(installed ? 'market.confirmUpdate.title' : 'market.confirmInstall.title', {
           name: detailName,

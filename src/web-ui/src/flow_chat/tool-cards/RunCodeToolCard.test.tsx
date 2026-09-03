@@ -19,14 +19,6 @@ vi.mock('react-i18next', async () => {
   };
 });
 
-vi.mock('../../component-library', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../component-library')>();
-  return {
-    ...actual,
-    ToolProcessingDots: () => <span data-testid="tool-processing-dots" />,
-  };
-});
-
 // Prism loads asynchronously and paints nothing under jsdom; the plain fallback
 // is what the assertions below read.
 vi.mock('@/shared/utils/syntaxHighlighterLoader', () => ({
@@ -104,7 +96,9 @@ describe('RunCodeToolCard', () => {
   }
 
   function expand() {
-    const card = container.querySelector('.compact-tool-card');
+    const card = container.querySelector(
+      '[data-bf-component="flow-chat-tool-card"][data-bf-part="surface"][data-bf-attention="ambient"]',
+    );
     expect(card).not.toBeNull();
     act(() => {
       card?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));

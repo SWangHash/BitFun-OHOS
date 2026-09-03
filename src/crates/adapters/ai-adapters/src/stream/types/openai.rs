@@ -217,6 +217,7 @@ impl OpenAISSEData {
             responses.push(UnifiedResponse {
                 text: content,
                 reasoning_content,
+                reasoning_content_kind: None,
                 thinking_signature: None,
                 tool_call: None,
                 usage: usage.take(),
@@ -233,6 +234,7 @@ impl OpenAISSEData {
                 responses.push(UnifiedResponse {
                     text: None,
                     reasoning_content: None,
+                    reasoning_content_kind: None,
                     thinking_signature: None,
                     tool_call: Some(UnifiedToolCall::from(tool_call)),
                     usage: if is_first_event { usage.take() } else { None },
@@ -254,6 +256,7 @@ impl OpenAISSEData {
             responses.push(UnifiedResponse {
                 text: None,
                 reasoning_content: None,
+                reasoning_content_kind: None,
                 thinking_signature: None,
                 tool_call: None,
                 usage,
@@ -269,6 +272,7 @@ impl OpenAISSEData {
             responses.push(UnifiedResponse {
                 text: None,
                 reasoning_content: None,
+                reasoning_content_kind: None,
                 thinking_signature: None,
                 tool_call: None,
                 usage,

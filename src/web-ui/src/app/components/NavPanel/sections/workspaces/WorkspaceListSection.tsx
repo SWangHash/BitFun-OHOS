@@ -1,22 +1,28 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { notificationService } from '@/shared/notification-system';
 import type { WorkspaceInfo } from '@/shared/types';
 import WorkspaceItem from './WorkspaceItem';
-import { isLinkedWorktreeWorkspace } from '@/shared/types';
-import { isSamePath } from '@/shared/utils/pathUtils';
+import SessionsSection, { type WorkspaceSessionScope } from '../sessions/SessionsSection';
+import { isRemoteWorkspace } from '@/shared/types';
+import { useWorkspaceSessionViewStore } from '../../workspaceSessionView';
+import {
+  isWorkspaceBackedSessionGroupActive,
+  projectWorkspaceBackedSessionGroups,
+  type SessionNavigationScope,
+} from '../../sessionNavigationProjection';
 import './WorkspaceListSection.scss';
 
 interface WorkspaceListSectionProps {
-  variant: 'assistants' | 'projects';
+  variant: SessionNavigationScope;
 }
 
 type WorkspaceDragPosition = 'before' | 'after';
 
 interface WorkspaceDragPayload {
   workspaceId: string;
-  variant: 'assistants' | 'projects';
+  variant: SessionNavigationScope;
 }
 
 const WORKSPACE_DRAG_MIME_TYPE = 'application/x-bitfun-workspace';
@@ -38,6 +44,7 @@ const WorkspaceListSection: React.FC<WorkspaceListSectionProps> = ({ variant }) 
     workspaceId: string;
     position: WorkspaceDragPosition;
   } | null>(null);
+  const grouping = useWorkspaceSessionViewStore(state => state.grouping);
 
   // Refs for values that must be read inside event handlers without stale closures
   const draggedWorkspaceIdRef = useRef<string | null>(null);
@@ -46,37 +53,37 @@ const WorkspaceListSection: React.FC<WorkspaceListSectionProps> = ({ variant }) 
   const pendingDropRectsRef = useRef<Map<string, DOMRect> | null>(null);
   const dropAnimationsRef = useRef<Map<string, Animation>>(new Map());
 
-  // Drag-state safety nets (window dragend/mousedown + reset timeout) to clear
-  // stuck is-drag-active state when dragend doesn't fire normally.
-  const dragSafetyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const windowDragEndHandlerRef = useRef<(() => void) | null>(null);
-  const windowMouseDownHandlerRef = useRef<(() => void) | null>(null);
-  const documentMouseMoveHandlerRef = useRef<(() => void) | null>(null);
-
-  const sectionWorkspaces = variant === 'assistants'
-    ? assistantWorkspacesList
-    : normalWorkspacesList;
-  const projectRoots = variant === 'projects'
-    ? sectionWorkspaces
-        .filter(workspace => !isLinkedWorktreeWorkspace(workspace))
-        .map(workspace => workspace.rootPath)
-    : [];
-  const workspaces = variant === 'projects'
-    ? sectionWorkspaces.filter(workspace => (
-        !isLinkedWorktreeWorkspace(workspace)
-        || !projectRoots.some(projectRoot => (
-          isSamePath(projectRoot, workspace.worktree?.mainRepoPath || '')
-        ))
-      ))
-    : sectionWorkspaces;
+  const sectionWorkspaces = variant === 'all'
+    ? openedWorkspacesList
+    : variant === 'assistants'
+      ? assistantWorkspacesList
+      : normalWorkspacesList;
+  const sessionGroups = useMemo(() => {
+    return projectWorkspaceBackedSessionGroups(sectionWorkspaces, variant);
+  }, [sectionWorkspaces, variant]);
+  const workspaces = useMemo(
+    () => sessionGroups.map(group => group.workspace),
+    [sessionGroups],
+  );
   const activeWorkspace = openedWorkspacesList.find(workspace => workspace.id === activeWorkspaceId);
-  const activeProjectPath = activeWorkspace?.worktree && !activeWorkspace.worktree.isMain
-    ? activeWorkspace.worktree.mainRepoPath
-    : activeWorkspace?.rootPath;
   const emptyLabel = variant === 'assistants'
     ? t('nav.workspaces.emptyAssistants')
-    : t('nav.workspaces.emptyProjects');
-  const workspaceSignature = workspaces.map(workspace => workspace.id).join(':');
+    : variant === 'projects'
+      ? t('nav.workspaces.emptyProjects')
+      : t('nav.workspaces.emptySessionGroups');
+  const workspaceScopes = useMemo<WorkspaceSessionScope[]>(() => (
+    variant !== 'assistants'
+      ? workspaces.map(workspace => ({
+          workspaceId: workspace.id,
+          workspaceName: workspace.name,
+          workspacePath: workspace.rootPath,
+          remoteConnectionId: isRemoteWorkspace(workspace) ? workspace.connectionId : null,
+          remoteSshHost: isRemoteWorkspace(workspace) ? workspace.sshHost : null,
+        }))
+      : []
+  ), [variant, workspaces]);
+
+  const workspaceSignature = sessionGroups.map(group => group.groupId).join(':');
 
   useEffect(() => () => {
     dropAnimationsRef.current.forEach(animation => animation.cancel());
@@ -325,7 +332,16 @@ const WorkspaceListSection: React.FC<WorkspaceListSectionProps> = ({ variant }) 
       data-testid="nav-workspace-list"
       data-workspace-list={variant}
     >
-      {workspaces.length === 0 ? (
+      {variant !== 'assistants' && grouping === 'all' && workspaces.length > 0 ? (
+        <div className="bitfun-nav-panel__workspace-all-sessions" data-testid="nav-workspace-all-sessions">
+          <SessionsSection
+            workspaceScopes={workspaceScopes}
+            isVisible
+            layout="flat"
+            useWorkspaceViewPreferences
+          />
+        </div>
+      ) : workspaces.length === 0 ? (
         <div
           data-bf-component="workspace-list-section"
           data-bf-part="empty"
@@ -336,48 +352,48 @@ const WorkspaceListSection: React.FC<WorkspaceListSectionProps> = ({ variant }) 
           {emptyLabel}
         </div>
       ) : (
-        workspaces.map(workspace => (
-          <div
-            data-bf-component="workspace-list-section"
-            data-bf-part="item"
-            data-bf-state={workspace.id === activeWorkspaceId ? 'selected' : undefined}
-            key={workspace.id}
-            ref={(element) => {
-              if (element) workspaceRowRefs.current.set(workspace.id, element);
-              else workspaceRowRefs.current.delete(workspace.id);
-            }}
-            className={[
-              'bitfun-nav-panel__workspace-drop-target',
-              draggedWorkspaceId && draggedWorkspaceId !== workspace.id && 'is-drag-active',
-              dropTarget?.workspaceId === workspace.id && 'is-drop-target',
-              dropTarget?.workspaceId === workspace.id && dropTarget.position === 'before' && 'is-before',
-              dropTarget?.workspaceId === workspace.id && dropTarget.position === 'after' && 'is-after',
-            ].filter(Boolean).join(' ')}
-            data-testid="nav-workspace-drop-target"
-            data-workspace-id={workspace.id}
-            data-workspace-list={variant}
-            onDragOver={handleDragOver(workspace.id)}
-            onDragLeave={handleDragLeave(workspace.id)}
-            onDrop={(event) => { void handleDrop(workspace.id)(event); }}
-          >
-            <WorkspaceItem
-              workspace={workspace}
-              isActive={
-                workspace.id === activeWorkspaceId ||
-                Boolean(activeProjectPath && isSamePath(workspace.rootPath, activeProjectPath))
-              }
-              isSingle={workspaces.length === 1}
-              draggable={workspaces.length > 1}
-              isDragging={draggedWorkspaceId === workspace.id}
-              onDragStart={handleDragStart(workspace)}
-              onDrag={handleDrag}
-              onDragEnd={handleDragEnd}
-            />
-            {dropTarget?.workspaceId === workspace.id ? (
-              <div data-bf-component="workspace-list-section" data-bf-part="dropLine" className="bitfun-nav-panel__workspace-drop-line" aria-hidden="true" />
-            ) : null}
-          </div>
-        ))
+        sessionGroups.map(group => {
+          const workspace = group.workspace;
+          return (
+            <div
+              data-bf-component="workspace-list-section"
+              data-bf-part="item"
+              data-bf-state={workspace.id === activeWorkspaceId ? 'selected' : undefined}
+              key={workspace.id}
+              ref={(element) => {
+                if (element) workspaceRowRefs.current.set(workspace.id, element);
+                else workspaceRowRefs.current.delete(workspace.id);
+              }}
+              className={[
+                'bitfun-nav-panel__workspace-drop-target',
+                draggedWorkspaceId && draggedWorkspaceId !== workspace.id && 'is-drag-active',
+                dropTarget?.workspaceId === workspace.id && 'is-drop-target',
+                dropTarget?.workspaceId === workspace.id && dropTarget.position === 'before' && 'is-before',
+                dropTarget?.workspaceId === workspace.id && dropTarget.position === 'after' && 'is-after',
+              ].filter(Boolean).join(' ')}
+              data-testid="nav-workspace-drop-target"
+              data-workspace-id={workspace.id}
+              data-workspace-list={variant}
+              data-session-group-kind={group.kind}
+              onDragOver={handleDragOver(workspace.id)}
+              onDragLeave={handleDragLeave(workspace.id)}
+              onDrop={(event) => { void handleDrop(workspace.id)(event); }}
+            >
+              <WorkspaceItem
+                workspace={workspace}
+                isActive={isWorkspaceBackedSessionGroupActive(workspace, activeWorkspace)}
+                isSingle={workspaces.length === 1}
+                draggable={workspaces.length > 1}
+                isDragging={draggedWorkspaceId === workspace.id}
+                onDragStart={handleDragStart(workspace.id)}
+                onDragEnd={handleDragEnd}
+              />
+              {dropTarget?.workspaceId === workspace.id ? (
+                <div data-bf-component="workspace-list-section" data-bf-part="dropLine" className="bitfun-nav-panel__workspace-drop-line" aria-hidden="true" />
+              ) : null}
+            </div>
+          );
+        })
       )}
     </div>
   );

@@ -122,6 +122,22 @@ impl RoundExecutor {
     const MAX_RATE_LIMIT_DELAY_MS: u64 = 60_000;
     const MAX_RETRY_EXPONENT_SHIFT: u32 = 6;
 
+    fn exhausted_request_error(error: &anyhow::Error, attempts: u32) -> BitFunError {
+        let mut provider_error = error
+            .downcast_ref::<AiProviderError>()
+            .cloned()
+            .unwrap_or_else(|| AiProviderError::from_parts(format!("{error:#}"), None, None, None));
+        provider_error.message = format!(
+            "Model request failed after {attempts} attempts: {}",
+            provider_error.message
+        );
+        if provider_error.category == ErrorCategory::ContextOverflow {
+            BitFunError::RecoverableContextOverflow(provider_error)
+        } else {
+            BitFunError::AIProvider(provider_error)
+        }
+    }
+
     fn has_user_visible_assistant_text(text: &str) -> bool {
         !text.trim().is_empty()
     }
@@ -430,9 +446,9 @@ impl RoundExecutor {
                     (response, send_to_stream_ms)
                 }
                 Err(e) => {
-                    error!("AI request failed: {}", e);
+                    error!("AI request failed: {:#}", e);
                     let provider_error = e.downcast_ref::<AiProviderError>().cloned();
-                    let err_msg = e.to_string();
+                    let err_msg = format!("{e:#}");
                     if local_attempt_index < max_attempts - 1 {
                         self.record_retry_diagnostic(
                             &context,
@@ -463,26 +479,12 @@ impl RoundExecutor {
                         local_attempt_index += 1;
                         continue;
                     }
-                    let category = provider_error
-                        .as_ref()
-                        .map(|error| error.category.clone())
-                        .unwrap_or_else(|| {
-                            bitfun_core_types::errors::classify_ai_error_message(&err_msg)
-                        });
-                    let error = if category == ErrorCategory::ContextOverflow {
-                        BitFunError::RecoverableContextOverflow(provider_error.unwrap_or_else(
-                            || AiProviderError::classified(err_msg, ErrorCategory::ContextOverflow),
-                        ))
-                    } else if let Some(error) = provider_error {
-                        BitFunError::AIProvider(error)
-                    } else {
-                        BitFunError::AIClient(err_msg)
-                    };
+                    let error = Self::exhausted_request_error(&e, lifecycle.attempts_started());
                     warn!(
                         "AI request retry budget exhausted: session_id={}, round_id={}, attempts={}, category={:?}, error={}",
                         context.session_id,
                         round_id,
-                        max_attempts,
+                        lifecycle.attempts_started(),
                         error.error_category(),
                         error
                     );
@@ -980,6 +982,7 @@ impl RoundExecutor {
                     .with_turn_id(context.dialog_turn_id.clone())
                     .with_round_id(round_id.clone())
                     .with_thinking_signature(stream_result.thinking_signature.clone())
+                    .with_reasoning_content_kind(stream_result.reasoning_content_kind)
                     .with_memory_citation(parsed_memory_citation)
                     .with_model_response_replay(model_response_replay);
 
@@ -1128,6 +1131,7 @@ impl RoundExecutor {
                     Some(format!("round-budget-{}", round_id)),
                     self.computer_use_host(),
                     CancellationToken::new(),
+                    None,
                 );
 
             // Execute tools — convert pipeline-level Err into per-tool error results
@@ -1204,6 +1208,7 @@ impl RoundExecutor {
                 .with_turn_id(context.dialog_turn_id.clone())
                 .with_round_id(round_id.clone())
                 .with_thinking_signature(stream_result.thinking_signature.clone())
+                .with_reasoning_content_kind(stream_result.reasoning_content_kind)
                 .with_memory_citation(parsed_memory_citation)
                 .with_model_response_replay(model_response_replay);
 
@@ -1587,6 +1592,7 @@ mod tests {
         AUTO_APPROVE_ASK_CONTEXT_KEY, PERMISSION_MODE_CONTEXT_KEY,
     };
     use bitfun_agent_runtime::turn_cancellation::DialogTurnCancellationTokenStore;
+    use bitfun_core_types::errors::{AiProviderError, ErrorCategory};
     use bitfun_runtime_ports::{
         DelegationPolicy, PermissionEffect, PermissionEvaluator, PermissionPolicyPreset,
         PermissionRule,
@@ -2001,13 +2007,14 @@ mod tests {
     fn error_trace_response_from_stream_result_preserves_structured_context() {
         let stream_result = StreamResult {
             full_thinking: "reasoning".to_string(),
+            reasoning_content_kind: Some(bitfun_core_types::ReasoningContentKind::Reasoning),
             reasoning_content_present: true,
             thinking_signature: Some("sig".to_string()),
             full_text: String::new(),
             hidden_text_blocks: Vec::new(),
             tool_calls: vec![ToolCall {
                 tool_id: "tool-1".to_string(),
-                tool_name: "Bash".to_string(),
+                tool_name: "ExecCommand".to_string(),
                 arguments: json!({}),
                 raw_arguments: Some("{\"command\":".to_string()),
                 is_error: true,
@@ -2066,7 +2073,7 @@ mod tests {
             trace.tool_calls,
             Some(json!([{
                 "tool_id": "tool-1",
-                "tool_name": "Bash",
+                "tool_name": "ExecCommand",
                 "arguments": {},
                 "raw_arguments": "{\"command\":",
                 "is_error": true,
@@ -2084,7 +2091,7 @@ mod tests {
             None,
             &[ToolCall {
                 tool_id: "tool-1".to_string(),
-                tool_name: "Bash".to_string(),
+                tool_name: "ExecCommand".to_string(),
                 arguments: json!({}),
                 raw_arguments: Some("{\"command\":".to_string()),
                 is_error: true,
@@ -2127,6 +2134,70 @@ mod tests {
         assert_eq!(RoundExecutor::retry_delay_ms(5), 16_000);
         assert_eq!(RoundExecutor::retry_delay_ms(6), 30_000);
         assert_eq!(RoundExecutor::retry_delay_ms(9), 30_000);
+    }
+
+    #[test]
+    fn exhausted_request_preserves_timeout_cause_and_total_attempts() {
+        let source = anyhow::anyhow!(
+            "OpenAI Streaming API TTFT timeout after 30s waiting for first effective stream output"
+        )
+        .context("OpenAI Streaming API failed after 1 attempts");
+        let error = RoundExecutor::exhausted_request_error(&source, 10);
+        assert_eq!(error.error_category(), ErrorCategory::Timeout);
+        assert!(error
+            .to_string()
+            .contains("Model request failed after 10 attempts"));
+        assert!(error.to_string().contains("TTFT timeout after 30s"));
+    }
+
+    #[test]
+    fn exhausted_request_preserves_normalized_provider_facts_and_old_payload_shape() {
+        let mut provider = AiProviderError::from_parts(
+            "You've reached your concurrent request limit".to_string(),
+            Some("OpenAI Streaming API".to_string()),
+            Some("access_terminated_error".to_string()),
+            Some(403),
+        );
+        provider.category = ErrorCategory::RateLimit;
+        let source = anyhow::Error::new(provider);
+        let error = RoundExecutor::exhausted_request_error(&source, 10);
+        let detail = error.error_detail();
+        assert_eq!(detail.category, ErrorCategory::RateLimit);
+        assert_eq!(detail.http_status, Some(403));
+        assert_eq!(
+            detail.provider_code.as_deref(),
+            Some("access_terminated_error")
+        );
+        assert_eq!(detail.retryable, Some(true));
+        assert!(detail
+            .provider_message
+            .unwrap()
+            .contains("after 10 attempts"));
+        let BitFunError::AIProvider(provider) = error else {
+            panic!("expected provider error")
+        };
+        let encoded = serde_json::to_value(&provider).unwrap();
+        let decoded: AiProviderError = serde_json::from_value(encoded).unwrap();
+        assert_eq!(provider, decoded);
+        let legacy: AiProviderError = serde_json::from_value(serde_json::json!({
+            "message": "legacy provider error", "category": "model_error"
+        }))
+        .unwrap();
+        assert_eq!(legacy.category, ErrorCategory::ModelError);
+    }
+
+    #[test]
+    fn exhausted_context_overflow_remains_recoverable() {
+        let source = anyhow::Error::new(AiProviderError::from_parts(
+            "Maximum context length exceeded".to_string(),
+            None,
+            Some("context_length_exceeded".to_string()),
+            Some(400),
+        ));
+        assert!(matches!(
+            RoundExecutor::exhausted_request_error(&source, 10),
+            BitFunError::RecoverableContextOverflow(_)
+        ));
     }
 
     #[test]

@@ -5,8 +5,10 @@
 The current crate owns OpenCode user Instruction path/config precedence, the static OpenCode source preview used by the existing
 managed-package path, the OpenCode-specific implementations of command,
 standalone-tool, subagent, and MCP provider contracts, the bounded projection of
-configured local Skill roots, and runtime-free mapping
-of caller-normalized tool Hook descriptors. It preserves OpenCode source
+configured local Skill roots, the private merged configuration snapshot passed
+to the managed Plugin Host's Config Hook, the typed Agent/permission/Tool/Skill
+projection of that Hook's result, and runtime-free mapping of
+caller-normalized static-preview Hook descriptors. It preserves OpenCode source
 discovery, precedence, formats, argument expansion, and versioned compatibility semantics.
 Shared source catalog, lifecycle coordination, file-watch implementation,
 product policy, UI, credentials, worker supervision, and final effect writes
@@ -39,11 +41,12 @@ Product-source boundary:
 - `ExternalSourceControlPlane` owns candidate versions and atomic provider
   replacement. This adapter supplies OpenCode-qualified source identity/order and
   watch roots through narrow provider contracts; the reusable file-watch service
-  supplies change facts. Config modules provide normalized config snapshots; the services
-  implementation behind `ScriptToolRuntime` owns dependencies, workers, process trees,
-  and physical health; `PluginRuntimeClient` currently owns request reliability,
-  diagnostics and fault status while consuming lifecycle facts from their responsible modules;
-  capability modules register contributions.
+  supplies change facts. For the current package-plugin path, Core owns logical
+  workspace generations and capability publication, this crate owns the typed
+  Config projection, and the sibling `opencode-plugin-host` crate owns the typed
+  Host wire/connection while using services process-tree primitives. The legacy
+  managed-package path keeps request reliability in `PluginRuntimeClient`, and
+  standalone workers remain under `ScriptToolRuntime`; do not merge these lifecycle facts.
 - Effective policy and safe-start mode must be recomputed before third-party
   module import from the source, plugin identity, actual execution domain/user,
   product/organization policy bounds, credential scope, and environment scope.
@@ -74,9 +77,18 @@ Product-source boundary:
   `OPENCODE_CONFIG`, project files, ordered config directories, and
   `OPENCODE_CONFIG_CONTENT`. Capability providers consume only the plan items
   they understand and retain their field-specific merge and validation rules;
-  do not introduce a generic merged OpenCode config contract. Inline content is
-  bounded, uses a redacted virtual source identity, has no watch root, and may
-  resolve relative paths only from an explicit workspace context.
+  do not introduce a public generic merged OpenCode config contract. The managed
+  Plugin Host may consume an adapter-private, bounded full-object merge for its
+  Config Hook, including unknown OpenCode fields. Inline content is bounded,
+  uses a redacted virtual source identity, has no watch root, and may resolve
+  relative paths only from an explicit workspace context.
+- Managed Plugin Host Config projection validates contributor attribution and
+  maps only the currently consumed Agent, permission, Plugin Tool, and workspace
+  Skill fields into the provider-neutral plugin capability contract. OpenCode
+  contributor parsing and Tool registration conversion stay here; adapter-owned
+  DTOs must not leak into generic publication. This projection must not create
+  Agent runtime keys, select native Tool baselines, mutate product registries,
+  or grow into a generic Config platform.
 - Current source inspection recognizes only the tested declarative subset. The
   adapter may reuse the workspace-pinned parse-only OXC profile for syntax-safe static
   projection, but it is not a general JavaScript/TypeScript semantic analyzer or
@@ -93,7 +105,9 @@ Product-source boundary:
   the adapter owns their OpenCode meaning. Mapping may emit static declarations
   and diagnostics with incomplete safety. Parse failures must remain explicit
   diagnostics, while event payload types must not be treated as Hook properties.
-  The adapter must not load handlers, dispatch Hooks, or imply executable support.
+  This static-preview path does not load or dispatch handlers. Executable callback
+  support is a separate managed Plugin Host path using the typed gateway and Core
+  lifecycle owner.
 - The reviewed product assembly entrypoint selects and constructs the compiled
   OpenCode adapter/provider. External-source providers and configured Skill-root
   facts are projected through `bitfun-core/external_sources`; managed-package
@@ -101,8 +115,9 @@ Product-source boundary:
   import the adapter directly. The composition layer does not
   discover dynamic sources, prepare dependencies, or import plugin modules.
 - Product Assembly may consume this crate only from reviewed composition modules
-  such as `bitfun-core/plugin_runtime`, `bitfun-core/external_sources`, or
-  `bitfun-core/instruction_sources`; boundary
+  such as `bitfun-core/plugin_runtime`, `bitfun-core/external_sources`,
+  `bitfun-core/instruction_sources`, or the OpenCode-specific
+  `bitfun-core/plugin_host` composition path; boundary
   guards and focused assembly-path tests must change with any additional consumer.
 - This crate must not depend on Codex, Claude Code, or another ecosystem adapter.
   New ecosystems are sibling adapters registered by Product Assembly, not modes of
@@ -119,5 +134,6 @@ Product-source boundary:
 - `cargo test -p bitfun-opencode-adapter --test opencode_static_source_contracts opencode_subagent_adapter::`
 - `cargo test -p bitfun-opencode-adapter --test tool_source_contracts`
 - `cargo test -p bitfun-opencode-adapter --lib p0_c2_fixture`
+- `cargo test -p bitfun-opencode-adapter --lib plugin_config_projection`
 - `cargo test -p bitfun-opencode-adapter --lib client_path_projects_trusted_custom_tool_candidate_with_permission_prompt`
 - `node scripts/check-core-boundaries.mjs`

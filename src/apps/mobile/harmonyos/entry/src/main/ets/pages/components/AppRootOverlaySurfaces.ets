@@ -42,6 +42,7 @@ export struct AppSidebarSurface {
       accountUserId: this.remotePageState.accountUserId,
       showViewSettingsButton: false,
       showWorkspaceSection: true,
+      showConversationSection: true,
       contentSlot: () => {
         this.WorkspaceContent()
       },
@@ -78,6 +79,7 @@ export struct AppSidebarSurface {
         this.remotePageState.desktopName,
       selectedSessionId: this.remoteSelectedSessionId(),
       runningSessionId: this.remoteRunningSessionId(),
+      workspacePickerPlacement: this.sessionDetailsPlacement,
       onOpenSession: this.actions.onSidebar.openSession,
       onCreateInWorkspace: (deviceId: string, path: string) => {
         this.actions.onSidebar.close();
@@ -86,9 +88,14 @@ export struct AppSidebarSurface {
       onOpenWorkspace: (deviceId: string, path: string) => {
         this.actions.onRemoteHome.selectWorkspace(path, deviceId);
       },
-      onToggleDevice: this.actions.onRemoteHome.toggleDirectoryDevice,
+      onExpandWorkspace: async (deviceId: string, path: string): Promise<void> => {
+        await this.actions.onRemoteHome.loadWorkspaceSessions(deviceId, path);
+      },
+      onSelectDevice: this.actions.onRemoteHome.selectDirectoryDevice,
       onRetryDevice: this.actions.onRemoteHome.retryDirectoryDevice,
-      onAdd: this.actions.onSidebar.addDesktop
+      onAddWorkspace: this.actions.onRemoteHome.addDirectoryWorkspace,
+      onRefreshDevices: this.actions.onSidebar.refreshDevices,
+      onAddDevice: this.actions.onSidebar.addDesktop
     })
   }
 
@@ -153,7 +160,13 @@ export struct AppSettingsSurface {
         accountUsername: this.remotePageState.accountUsername,
         authenticatedUserId: this.remotePageState.accountUserId,
         deviceId: this.deviceId,
+        controlTargetDeviceId: this.remotePageState.controlTargetDeviceId,
+        connectionState: this.remotePageState.connectionState,
         onOpenAccount: this.actions.onSettings.openAccount,
+        onReconnect: this.actions.onSettings.reconnect,
+        cloudLogout: this.actions.onSettings.cloudLogout,
+        cloudListDevices: this.actions.onSettings.cloudListDevices,
+        cloudSelectDevice: this.actions.onSettings.cloudSelectDevice,
         onTestGeneralChatConfig: this.actions.onSettings.testGeneral,
         onSaveGeneralChatConfig: this.actions.onSettings.saveGeneral,
         onSelectGeneralChatModel: this.actions.onSettings.selectGeneralModel,

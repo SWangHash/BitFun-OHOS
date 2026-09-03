@@ -27,9 +27,9 @@ Stable Contracts and Security Control Plane 的边界以
 | 1 | 接口与入口层 | `src/apps/*`, `src/web-ui`, `src/mobile-web`, `BitFun-Installer`, `tests/e2e`, `src/crates/interfaces` | 产品宿主、命令、UI 入口、协议接口和跨形态测试 | desktop、CLI、server、relay、Web UI、mobile web、installer、E2E、`acp`、`sdk-host` | 最近的本地 `AGENTS.md`；[interfaces](src/crates/interfaces/AGENTS.md) |
 | 2 | 产品组装层 | `src/crates/assembly` | 兼容导出、产品能力选择、product-full 接线、不可变内置 Agent 内容、adapter/service 注册和生态无关的来源协调 | `agent-content`, `core`, `external-sources`, `product-capabilities` | [AGENTS.md](src/crates/assembly/AGENTS.md) |
 | 3 | 适配层 | `src/crates/adapters` | AI/transport/WebDriver 协议 adapter、外部 AI work source adapter（OpenCode/Claude Code/Codex）和外部 provider 转换 | `agent-runtime-ipc`、`ai-adapters`, `opencode-adapter`, `claude-code-adapter`, `codex-adapter`, `static-hook-support`, `transport`, `webdriver` | [AGENTS.md](src/crates/adapters/AGENTS.md) |
-| 4 | 服务实现层 | `src/crates/services` | 可复用 OS、filesystem、terminal、MCP、remote、git、watch、process、LSP plugin registry、session persistence primitives、network 和 MiniApp runtime IO 实现 | `services-core`, `services-integrations`, `relay-service`, `page-function-runtime`, `terminal` | [AGENTS.md](src/crates/services/AGENTS.md) |
+| 4 | 服务实现层 | `src/crates/services` | 可复用 OS、filesystem、terminal、MCP、remote、git、watch、process、session persistence primitives、network 和 MiniApp runtime IO 实现 | `services-core`, `services-integrations`, `relay-service`, `page-function-runtime`, `terminal` | [AGENTS.md](src/crates/services/AGENTS.md) |
 | 5 | 执行原语层 | `src/crates/execution` | 可移植 Agent Runtime、命名工作流策略、stream、插件运行时客户端、typed-service、tool-contract、tool-group 和 tool-execution 构件 | `agent-runtime`, `agent-workflows`, `agent-stream`, `tool-contracts`, `plugin-runtime-client`, `runtime-services`, `tool-provider-groups`, `tool-execution`, `tool-call-jsonrepair` | [AGENTS.md](src/crates/execution/AGENTS.md) |
-| 6 | 稳定契约与产品领域层 | `src/crates/contracts` | 跨层共享 DTO、事件形状、runtime port、LSP protocol/plugin DTO、产品领域契约和策略 | `core-types`, `events`, `runtime-ports`, `product-domains` | [AGENTS.md](src/crates/contracts/AGENTS.md) |
+| 6 | 稳定契约与产品领域层 | `src/crates/contracts` | 跨层共享 DTO、事件形状、runtime port、产品领域契约和策略 | `core-types`, `events`, `runtime-ports`, `product-domains` | [AGENTS.md](src/crates/contracts/AGENTS.md) |
 
 边界规则：
 
@@ -37,7 +37,7 @@ Stable Contracts and Security Control Plane 的边界以
 - 组装层只接线下层并选择产品能力事实，不实现具体 adapter、OS 或 service 细节。
 - 产品特性只在内核能力之上组装用户侧命令、UI contribution、设置和默认策略；长程任务、scheduler、permission、session/workspace、memory、DFX、hook 和 event 事实属于 Agent Kernel owner。
 - 适配层翻译协议和外部 provider 形状，不拥有产品能力选择或可复用 OS service 行为。
-- 服务实现层负责可复用的 OS、process、terminal、MCP、remote、git、filesystem、LSP plugin registry、session persistence primitives 和 MiniApp runtime IO 能力。
+- 服务实现层负责可复用的 OS、process、terminal、MCP、remote、git、filesystem、session persistence primitives 和 MiniApp runtime IO 能力。
 - 外部系统是边界外资源，不是仓库内层级。只有已注册的 adapter、service 或 app-local provider 应调用它们；其他层消费 port 和稳定契约。
 - 执行原语层只放可移植运行时构件，不拥有宿主或交付形态。
 - 契约层保持轻行为，不得向上依赖。
@@ -202,9 +202,9 @@ BitFun 不是只在本地运行的桌面应用：工作区、执行这一轮的 
 
 ### Agent Hooks
 
-- BitFun 实现的是 Codex Hook 契约，因此 <https://learn.chatgpt.com/docs/hooks> 是事件、载荷字段与决策结构的参考来源，不要另起炉灶。[`docs/features/agent-hooks.zh-CN.md`](docs/features/agent-hooks.zh-CN.md)（[English](docs/features/agent-hooks.md)）只覆盖 BitFun 特有部分 —— 文件位置、`app.hooks` 开关和差异表 —— 新增或消除差异时必须同步更新。
+- BitFun 的原生用户 Hooks 实现 Codex Hook 契约，因此 <https://learn.chatgpt.com/docs/hooks> 是其事件、载荷字段与决策结构的参考来源，不要另起炉灶。[`docs/features/agent-hooks.zh-CN.md`](docs/features/agent-hooks.zh-CN.md)（[English](docs/features/agent-hooks.md)）只覆盖 BitFun 特有部分 —— 文件位置、`app.hooks` 开关和差异表 —— 新增或消除差异时必须同步更新。
 - 可移植引擎（配置解析、载荷构造、进程执行、决策合并）位于 `bitfun-agent-runtime::native_hooks`。`bitfun-core::native_hooks` 负责配置发现、开关门控和按事件的分发辅助函数；各分发点调用这些辅助函数，不要就地执行 Hook。
-- 有三类不同的东西共用 "hook" 一词：本文所述的原生用户 Hooks、内部编译期 `post_call_hooks`，以及其他 AI 应用的只读外部 Hook 目录（`external_hooks`）。三者必须保持区分。
+- 可执行 Hooks 可以来自原生用户配置、生态插件或 BitFun 内置实现（包括当前编译期 `post_call_hooks`）。这些来源保持各自的信任、配置、契约和执行策略语义，但可以统一注册到共享的 `HookRegistry`，并由 `AgentHookEngine` 调度。其他 AI 应用的外部 Hook 目录（`external_hooks`）仍只用于只读发现，不得进入可执行 Registry。
 
 ## 架构
 

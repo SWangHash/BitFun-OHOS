@@ -10,8 +10,76 @@ import { isMcpToolName, parseMcpToolName } from '@/infrastructure/mcp/toolName';
 import { APPEARANCE_DOMAIN_TOKENS } from '@/infrastructure/appearance/appearanceDomainTokens';
 import { getEffectiveToolName } from '../utils/toolInvocationIdentity';
 
+type ToolCardDefinition = Omit<ToolCardConfig, 'attention' | 'presentation'>;
+
+const AMBIENT_TOOL_CARD_NAMES = new Set([
+  'Read',
+  'Delete',
+  'Grep',
+  'Glob',
+  'LS',
+  'WebSearch',
+  'WebFetch',
+  'AgentWait',
+  'TodoWrite',
+  'GetToolSpec',
+  'Skill',
+  'TerminalControl',
+  'SessionControl',
+  'SessionMessage',
+  'RunCode',
+  'ComputerUse',
+  'view_image',
+]);
+
+const PROMINENT_TOOL_CARD_NAMES = new Set([
+  'Write',
+  'Edit',
+  'Task',
+  'LaunchReviewAgent',
+  'AgentSpawn',
+  'AgentSendInput',
+  'submit_code_review',
+  'ContextCompression',
+  'ReviewSessionSummary',
+  'Git',
+  'GetFileDiff',
+  'Bash',
+  'ExecCommand',
+  'WriteStdin',
+  'ExecControl',
+  'InitMiniApp',
+  'PageDeploy',
+  'PagePublish',
+  'GenerativeUI',
+  'CreateCanvas',
+  'ReadCanvas',
+  'UpdateCanvas',
+  'PatchCanvas',
+]);
+
+export const DEDICATED_TOOL_CARD_PRESENTATION_NAMES = new Set([
+  'AskUserQuestion',
+  'CreatePlan',
+]);
+
+function getToolCardClassification(toolName: string): Pick<ToolCardConfig, 'attention' | 'presentation'> {
+  if (DEDICATED_TOOL_CARD_PRESENTATION_NAMES.has(toolName)) {
+    return { attention: 'prominent', presentation: 'dedicated' };
+  }
+
+  return {
+    attention: AMBIENT_TOOL_CARD_NAMES.has(toolName)
+      ? 'ambient'
+      : PROMINENT_TOOL_CARD_NAMES.has(toolName)
+        ? 'prominent'
+        : 'ambient',
+    presentation: 'standard',
+  };
+}
+
 // Tool card config map - uses backend tool names
-export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
+const TOOL_CARD_DEFINITIONS: Record<string, ToolCardDefinition> = {
   // File tools
   'Read': {
     toolName: 'Read',
@@ -21,7 +89,7 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     resultDisplayType: 'summary',
     description: 'Read file contents',
     displayMode: 'compact',
-    primaryColor: 'var(--bf-appearance-token-color-accent-600)'
+    primaryColor: 'var(--bf-color-accent-hover)'
   },
   'Write': {
     toolName: 'Write',
@@ -31,7 +99,7 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     resultDisplayType: 'summary',
     description: 'Write or create a file',
     displayMode: 'standard',
-    primaryColor: 'var(--bf-appearance-token-color-success)'
+    primaryColor: 'var(--bf-color-status-success-content)'
   },
   'Edit': {
     toolName: 'Edit',
@@ -41,7 +109,7 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     resultDisplayType: 'detailed',
     description: 'Edit file contents',
     displayMode: 'standard',
-    primaryColor: 'var(--bf-appearance-token-color-warning)'
+    primaryColor: 'var(--bf-color-status-warning-content)'
   },
   'Delete': {
     toolName: 'Delete',
@@ -51,7 +119,7 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     resultDisplayType: 'summary',
     description: 'Delete a file',
     displayMode: 'detailed',
-    primaryColor: 'var(--bf-appearance-token-color-error)'
+    primaryColor: 'var(--bf-color-status-danger-content)'
   },
   'LS': {
     toolName: 'LS',
@@ -61,7 +129,7 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     resultDisplayType: 'summary',
     description: 'List directory contents',
     displayMode: 'compact',
-    primaryColor: 'var(--bf-appearance-token-color-indigo-500)'
+    primaryColor: 'var(--bf-domain-tool-search)'
   },
 
   // Search tools
@@ -117,6 +185,36 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     resultDisplayType: 'detailed',
     description: 'Run a specialized AI task',
     displayMode: 'detailed',
+    primaryColor: APPEARANCE_DOMAIN_TOKENS.toolIdentity.assistantAction
+  },
+  'AgentSpawn': {
+    toolName: 'AgentSpawn',
+    displayName: 'Launch Agent',
+    icon: '',
+    requiresConfirmation: false,
+    resultDisplayType: 'detailed',
+    description: 'Launch a background agent',
+    displayMode: 'detailed',
+    primaryColor: APPEARANCE_DOMAIN_TOKENS.toolIdentity.assistantAction
+  },
+  'AgentSendInput': {
+    toolName: 'AgentSendInput',
+    displayName: 'Send Agent Input',
+    icon: '',
+    requiresConfirmation: false,
+    resultDisplayType: 'detailed',
+    description: 'Send a follow-up instruction to an agent',
+    displayMode: 'detailed',
+    primaryColor: APPEARANCE_DOMAIN_TOKENS.toolIdentity.assistantAction
+  },
+  'AgentWait': {
+    toolName: 'AgentWait',
+    displayName: 'Wait for Agents',
+    icon: 'WAIT',
+    requiresConfirmation: false,
+    resultDisplayType: 'summary',
+    description: 'Wait for background agent results',
+    displayMode: 'compact',
     primaryColor: APPEARANCE_DOMAIN_TOKENS.toolIdentity.assistantAction
   },
   'TodoWrite': {
@@ -195,18 +293,6 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     primaryColor: APPEARANCE_DOMAIN_TOKENS.toolIdentity.reviewSummary
   },
 
-  // Git version control tool
-  'Git': {
-    toolName: 'Git',
-    displayName: 'Git',
-    icon: 'GIT',
-    requiresConfirmation: false, // Read-only needs no confirmation; writes are backend-controlled.
-    resultDisplayType: 'detailed',
-    description: 'Run Git commands',
-    displayMode: 'compact',
-    primaryColor: APPEARANCE_DOMAIN_TOKENS.toolIdentity.git
-  },
-
   // GetFileDiff tool
   'GetFileDiff': {
     toolName: 'GetFileDiff',
@@ -219,7 +305,7 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     primaryColor: APPEARANCE_DOMAIN_TOKENS.toolIdentity.git
   },
 
-  // CreatePlan tool
+  // Legacy CreatePlan history remains displayable after runtime tool removal.
   'CreatePlan': {
     toolName: 'CreatePlan',
     displayName: 'Create Plan',
@@ -228,19 +314,7 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     resultDisplayType: 'detailed',
     description: 'Create and manage project plans',
     displayMode: 'detailed',
-    primaryColor: 'var(--bf-appearance-token-color-warning)'
-  },
-
-  // TerminalControl tool
-  'TerminalControl': {
-    toolName: 'TerminalControl',
-    displayName: 'Terminal Control',
-    icon: 'TC',
-    requiresConfirmation: false,
-    resultDisplayType: 'summary',
-    description: 'Kill or interrupt a terminal session',
-    displayMode: 'compact',
-    primaryColor: 'var(--bf-appearance-token-color-error)'
+    primaryColor: 'var(--bf-color-status-warning-content)'
   },
 
   'SessionControl': {
@@ -251,7 +325,7 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     resultDisplayType: 'summary',
     description: 'Create, delete, or list sessions',
     displayMode: 'compact',
-    primaryColor: 'var(--bf-appearance-token-color-accent-600)'
+    primaryColor: 'var(--bf-color-accent-hover)'
   },
 
   'SessionMessage': {
@@ -263,18 +337,6 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     description: 'Send a message to another session',
     displayMode: 'compact',
     primaryColor: APPEARANCE_DOMAIN_TOKENS.toolIdentity.assistantAction
-  },
-
-  // Bash terminal tool
-  'Bash': {
-    toolName: 'Bash',
-    displayName: 'Run Command',
-    icon: 'TERM',
-    requiresConfirmation: true, // Requires user confirmation.
-    resultDisplayType: 'detailed',
-    description: 'Run commands in the terminal',
-    displayMode: 'standard',
-    primaryColor: APPEARANCE_DOMAIN_TOKENS.toolIdentity.terminal
   },
 
   // Code-mode agents (e.g. DeepSeek Harness's PTC preset) answer a step by
@@ -320,7 +382,7 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     resultDisplayType: 'detailed',
     description: 'Interrupt or kill a running command process',
     displayMode: 'standard',
-    primaryColor: 'var(--bf-appearance-token-color-error)'
+    primaryColor: 'var(--bf-color-status-danger-content)'
   },
 
   // MiniApp tool
@@ -362,7 +424,7 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     resultDisplayType: 'detailed',
     description: 'Submit an Appearance package to the Skin market for review',
     displayMode: 'standard',
-    primaryColor: 'var(--bf-appearance-token-color-accent-600)'
+    primaryColor: 'var(--bf-color-accent-hover)'
   },
   'PageDeploy': {
     toolName: 'PageDeploy',
@@ -403,7 +465,7 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     resultDisplayType: 'summary',
     description: 'Screen capture, mouse/keyboard, and accessibility control of the desktop',
     displayMode: 'compact',
-    primaryColor: 'var(--bf-appearance-token-color-accent-600)'
+    primaryColor: 'var(--bf-color-accent-hover)'
   },
 
   'view_image': {
@@ -414,7 +476,7 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
     resultDisplayType: 'detailed',
     description: '',
     displayMode: 'compact',
-    primaryColor: 'var(--bf-appearance-token-color-accent-600)'
+    primaryColor: 'var(--bf-color-accent-hover)'
   },
 
   // BitFun Canvas tools
@@ -460,6 +522,13 @@ export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = {
   },
 };
 
+export const TOOL_CARD_CONFIGS: Record<string, ToolCardConfig> = Object.fromEntries(
+  Object.entries(TOOL_CARD_DEFINITIONS).map(([toolName, definition]) => [
+    toolName,
+    { ...definition, ...getToolCardClassification(toolName) },
+  ]),
+);
+
 /**
  * Get tool card config.
  */
@@ -470,6 +539,8 @@ export function getToolCardConfig(toolName: string): ToolCardConfig {
     const actualToolName = parsed?.toolName ?? toolName;
 
     return {
+      attention: 'prominent',
+      presentation: 'standard',
       toolName,
       displayName: actualToolName || toolName,
       icon: 'MCP',
@@ -483,6 +554,8 @@ export function getToolCardConfig(toolName: string): ToolCardConfig {
 
   // Match by name or fall back to defaults.
   return TOOL_CARD_CONFIGS[toolName] || {
+    attention: 'ambient',
+    presentation: 'standard',
     toolName,
     displayName: `Tool: ${toolName}`,
     icon: 'TOOL',
@@ -490,7 +563,7 @@ export function getToolCardConfig(toolName: string): ToolCardConfig {
     resultDisplayType: 'summary',
     description: `Run ${toolName} tool`,
     displayMode: 'standard',
-    primaryColor: 'var(--bf-appearance-token-color-text-muted)'
+    primaryColor: 'var(--bf-color-content-muted)'
   };
 }
 
@@ -530,6 +603,9 @@ export const DEDICATED_TOOL_CARD_NAMES = new Set([
   'WebFetch',
   'Task',
   'LaunchReviewAgent',
+  'AgentSpawn',
+  'AgentSendInput',
+  'AgentWait',
   'TodoWrite',
   'submit_code_review',
   'ContextCompression',
@@ -537,13 +613,10 @@ export const DEDICATED_TOOL_CARD_NAMES = new Set([
   'Skill',
   'AskUserQuestion',
   'ReviewSessionSummary',
-  'Git',
   'GetFileDiff',
   'CreatePlan',
-  'TerminalControl',
   'SessionControl',
   'SessionMessage',
-  'Bash',
   'RunCode',
   'ExecCommand',
   'WriteStdin',
@@ -580,7 +653,6 @@ export const COLLAPSIBLE_TOOL_NAMES = new Set([
   'GetFileDiff',
   'GetToolSpec',
   'ReviewSessionSummary',
-  'TerminalControl',
   'SessionControl',
   'ExecControl',
   'view_image',

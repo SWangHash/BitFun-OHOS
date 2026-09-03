@@ -1,16 +1,33 @@
 import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
+import { MobileDesignColors } from '../generated/MobileDesignTokens';
 
 const DOMAIN = 0x0000;
 const TAG = 'BitFunRemote';
 
 export default class EntryAbility extends UIAbility {
   private mainWindow?: window.Window;
+  private initialPage: string = 'pages/AppRoot';
+  private previewStorage?: LocalStorage;
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    const scenarioId = want.parameters?.['bitfunDesignPreview'];
+    if (scenarioId === 'connected-conversation' ||
+      scenarioId === 'streaming-dark' ||
+      scenarioId === 'reconnecting-wide') {
+      this.initialPage = 'pages/preview/MobileDesignGallery';
+      this.previewStorage = new LocalStorage();
+      this.previewStorage.setOrCreate('scenarioId', scenarioId);
+      AppStorage.setOrCreate('scenarioId', scenarioId);
+    }
     try {
-      this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
+      const colorMode = scenarioId === 'streaming-dark'
+        ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+        : scenarioId === 'connected-conversation' || scenarioId === 'reconnecting-wide'
+          ? ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
+          : ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
+      this.context.getApplicationContext().setColorMode(colorMode);
     } catch (err) {
       hilog.error(DOMAIN, TAG, 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
@@ -33,13 +50,18 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, TAG, 'Failed to configure window bars. Cause: %{public}s', JSON.stringify(err));
     }
 
-    windowStage.loadContent('pages/AppRoot', (err) => {
+    const onContentLoaded = (err: BusinessError): void => {
       if (err.code) {
         hilog.error(DOMAIN, TAG, 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
         return;
       }
       hilog.info(DOMAIN, TAG, 'Succeeded in loading the content.');
-    });
+    };
+    if (this.previewStorage) {
+      windowStage.loadContent(this.initialPage, this.previewStorage, onContentLoaded);
+    } else {
+      windowStage.loadContent(this.initialPage, onContentLoaded);
+    }
   }
 
   onWindowStageDestroy(): void {
@@ -66,12 +88,14 @@ export default class EntryAbility extends UIAbility {
       return;
     }
     const dark = colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
+    const background = dark ? MobileDesignColors.pageBg.dark : MobileDesignColors.pageBg.light;
+    const content = dark ? MobileDesignColors.ink.dark : MobileDesignColors.ink.light;
     try {
       this.mainWindow.setWindowSystemBarProperties({
-        statusBarColor: dark ? '#151514' : '#FDFDFB',
-        navigationBarColor: dark ? '#151514' : '#FDFDFB',
-        statusBarContentColor: dark ? '#F4F3EF' : '#171717',
-        navigationBarContentColor: dark ? '#F4F3EF' : '#171717'
+        statusBarColor: background,
+        navigationBarColor: background,
+        statusBarContentColor: content,
+        navigationBarContentColor: content
       });
     } catch (err) {
       hilog.error(DOMAIN, TAG, 'Failed to update system bars. Cause: %{public}s', JSON.stringify(err));

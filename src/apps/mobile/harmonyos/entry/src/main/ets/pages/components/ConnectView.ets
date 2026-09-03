@@ -1,9 +1,17 @@
-import { abilityAccessCtrl, Context, Permissions } from '@kit.AbilityKit';
-import { customScan, scanBarcode, scanCore } from '@kit.ScanKit';
+import { MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { CloudAccountDevice } from '../../services/CloudAccountClient';
 import { ConnectAccountDevicePage } from './ConnectAccountDevicePage';
 import { ConnectManualPairingOverlay } from './ConnectManualPairingOverlay';
+import { AppActionButton, AppActionStyle } from './AppActionButton';
+import { NavigationBackButton } from './NavigationBackButton';
+import { SheetActionFooter } from './SheetActionFooter';
+import { SheetCloseHeader } from './SheetCloseHeader';
+import {
+  SHEET_CONTENT_BOTTOM_PADDING,
+  SHEET_CONTENT_MAX_WIDTH,
+  SHEET_HORIZONTAL_PADDING
+} from './SheetLayout';
 import { CONNECT_INTENT_AUTO, CONNECT_INTENT_SCAN } from '../state/AppShellState';
 import {
   ConnectSheetLandingPolicy,
@@ -11,18 +19,17 @@ import {
   ConnectSheetStep
 } from '../policy/ConnectSheetLandingPolicy';
 import { DetectedUrlAction } from '../../services/ConnectScanDecisionPolicy';
-import { OhosError } from '../../services/OhosError';
+import { InlineQrScanner } from './platform/InlineQrScanner';
 import { CARD, CONNECT_HERO_ACCENT, CONNECT_HERO_BG, CONNECT_HERO_SECONDARY,
-  CONNECT_HERO_SURFACE, CONNECT_SCAN_ACCENT, GREEN, INK, LINE, MUTED, PRIMARY_ACTION, PRIMARY_ACTION_TEXT, RED, SOFT,
-  SUBTLE } from './Theme';
-const CAMERA_PERMISSION: Permissions = 'ohos.permission.CAMERA';
+  CONNECT_HERO_SURFACE, CONNECT_SCAN_ACCENT, INK, LINE, MUTED, PAGE_BG, SHADOW_MEDIUM, SOFT,
+  STATUS_DANGER, STATUS_SUCCESS, SUBTLE } from './Theme';
+
+const SCAN_FRAME_SIZE: number = 248;
+const SCAN_CORNER_SIZE: number = 56;
+const SCAN_CORNER_INSET: number = 20;
 
 @ComponentV2
 export struct ConnectView {
-  private readonly scannerController: XComponentController = new XComponentController();
-  private scannerStarted: boolean = false;
-  private scanCompleted: boolean = false;
-  private scanStartRetryCount: number = 0;
   @Param remoteUrl: string = '';
   @Param userId: string = '';
   @Param statusText: string = RemoteI18n.t('status.waitingConnection');
@@ -51,8 +58,7 @@ export struct ConnectView {
   @Local showManualPairing: boolean = false;
   @Local inlineScanError: string = '';
   @Local accountPassword: string = '';
-  @Local cameraPermissionReady: boolean = false;
-  @Local requestingCameraPermission: boolean = false;
+  @Local scanRestartRevision: number = 0;
 
   /**
    * SCAN intent always opens the camera. Every other automatic open lands on
@@ -64,10 +70,6 @@ export struct ConnectView {
       this.openIntent,
       this.isAccountAuthenticated()
     );
-  }
-
-  aboutToDisappear(): void {
-    this.stopInlineScan();
   }
 
   build() {
@@ -97,7 +99,6 @@ export struct ConnectView {
       cloudListDevices: this.cloudListDevices,
       cloudSelectDevice: this.cloudSelectDevice,
       onBack: () => {
-        this.stopInlineScan();
         this.onBack();
       },
       onOpenScanner: () => this.openScannerAfterPermission()
@@ -117,36 +118,31 @@ export struct ConnectView {
       Column({ space: 18 }) {
         this.DesktopGlyph()
         Text(RemoteI18n.t('connect.chooseConnectionTitle'))
-          .fontSize(24)
+          .fontSize(MobileDesignTypography.displayLarge.size)
           .fontWeight(FontWeight.Bold)
           .fontColor(INK)
           .textAlign(TextAlign.Center)
           .width('100%')
 
-        Button(RemoteI18n.t('sidebar.scanToConnect'))
-          .width('82%')
-          .height(58)
-          .fontSize(18)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(PRIMARY_ACTION_TEXT)
-          .backgroundColor(PRIMARY_ACTION)
-          .borderRadius(29)
-          .onClick(() => {
+        AppActionButton({
+          label: RemoteI18n.t('sidebar.scanToConnect'),
+          style: AppActionStyle.Primary,
+          actionHeight: 58,
+          onAction: (): void => {
             this.openScannerAfterPermission();
-          })
-
-        Button(RemoteI18n.t('sidebar.signInBitFunAccount'))
+          }
+        })
           .width('82%')
-          .height(58)
-          .fontSize(18)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(INK)
-          .backgroundColor(CARD)
-          .border({ width: 1.5, color: LINE })
-          .borderRadius(29)
-          .onClick(() => {
+
+        AppActionButton({
+          label: RemoteI18n.t('sidebar.signInBitFunAccount'),
+          style: AppActionStyle.Secondary,
+          actionHeight: 58,
+          onAction: (): void => {
             this.onOpenAccount();
-          })
+          }
+        })
+          .width('82%')
       }
       .layoutWeight(1)
       .alignItems(HorizontalAlign.Center)
@@ -154,27 +150,23 @@ export struct ConnectView {
 
       if (this.inlineScanError.length > 0) {
         Text(this.inlineScanError)
-          .fontSize(13)
-          .lineHeight(18)
+          .fontSize(MobileDesignTypography.bodySmall.size)
+          .lineHeight(MobileDesignTypography.bodySmall.lineHeight)
           .fontColor(MUTED)
           .textAlign(TextAlign.Center)
           .width('78%')
           .margin({ bottom: 10 })
-        Button(RemoteI18n.t('connect.switchManualPair'))
-          .width('78%')
-          .height(52)
-          .fontSize(18)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(INK)
-          .backgroundColor(CARD)
-          .borderRadius(28)
-          .border({ width: 1.5, color: LINE })
-          .margin({ bottom: 10 })
-          .onClick(() => {
-            this.stopInlineScan();
+        AppActionButton({
+          label: RemoteI18n.t('connect.switchManualPair'),
+          style: AppActionStyle.Secondary,
+          actionHeight: 52,
+          onAction: (): void => {
             this.showManualPairing = true;
             this.onRemoteUrlInputVisibleChange(true);
-          })
+          }
+        })
+          .width('78%')
+          .margin({ bottom: 10 })
       }
       if (this.shouldShowStatusStrip()) {
         this.StatusStrip()
@@ -189,56 +181,77 @@ export struct ConnectView {
   @Builder
   ScanPairingPage() {
     Column() {
-      Stack() {
-        this.HeroWash()
-        this.BackButton()
-      }
-      .width('100%')
-      .height(252)
-
-      Column({ space: 22 }) {
-        this.CameraFrame()
-        Text(RemoteI18n.t('connect.scanPairCode'))
-          .fontSize(24)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(INK)
-          .textAlign(TextAlign.Center)
-          .width('100%')
-        if (this.shouldShowStatusStrip()) {
-          this.StatusStrip()
+      SheetCloseHeader({
+        onClose: (): void => {
+          this.onBack();
         }
-        if (this.inlineScanError.length > 0) {
-          Text(this.inlineScanError)
-            .fontSize(13)
-            .lineHeight(18)
+      })
+
+      Scroll() {
+        Column({ space: 0 }) {
+          Text(RemoteI18n.t('connect.scanTitle'))
+            .fontSize(MobileDesignTypography.displayMedium.size)
+            .lineHeight(MobileDesignTypography.displayMedium.lineHeight)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(INK)
+            .textAlign(TextAlign.Center)
+            .width('100%')
+
+          Text(RemoteI18n.t('connect.scanBody'))
+            .fontSize(MobileDesignTypography.bodyMedium.size)
+            .lineHeight(MobileDesignTypography.bodyMedium.lineHeight)
             .fontColor(MUTED)
             .textAlign(TextAlign.Center)
-            .width('78%')
-        }
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Center)
-      .margin({ top: -50 })
+            .width('100%')
+            .margin({ top: 8, bottom: 24 })
 
-      Button(RemoteI18n.t('connect.switchManualPair'))
-        .width('78%')
-        .height(58)
-        .fontSize(20)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(INK)
-        .backgroundColor(CARD)
-        .borderRadius(35)
-        .border({ width: 1.5, color: LINE })
-        .onClick(() => {
-          this.stopInlineScan();
+          this.CameraFrame()
+
+          if (this.shouldShowStatusStrip()) {
+            Column() {
+              this.StatusStrip()
+            }
+            .width('100%')
+            .margin({ top: 18 })
+          }
+          if (this.inlineScanError.length > 0) {
+            Text(this.inlineScanError)
+              .fontSize(MobileDesignTypography.bodySmall.size)
+              .lineHeight(MobileDesignTypography.bodySmall.lineHeight)
+              .fontColor(MUTED)
+              .textAlign(TextAlign.Center)
+              .width('100%')
+              .padding({ left: 14, right: 14, top: 12, bottom: 12 })
+              .backgroundColor(SOFT)
+              .borderRadius(16)
+              .margin({ top: 14 })
+          }
+        }
+        .width('100%')
+        .constraintSize({ maxWidth: SHEET_CONTENT_MAX_WIDTH })
+        .alignItems(HorizontalAlign.Center)
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .scrollBar(BarState.Off)
+      .padding({
+        left: SHEET_HORIZONTAL_PADDING,
+        right: SHEET_HORIZONTAL_PADDING,
+        bottom: SHEET_CONTENT_BOTTOM_PADDING
+      })
+
+      SheetActionFooter({
+        label: RemoteI18n.t('connect.switchManualPair'),
+        onAction: (): void => {
           this.showManualPairing = true;
           this.onRemoteUrlInputVisibleChange(true);
-        })
+        }
+      })
     }
     .width('100%')
     .height('100%')
-    .padding({ bottom: 34 })
-    .backgroundColor(CARD)
+    .backgroundColor(PAGE_BG)
+    .alignItems(HorizontalAlign.Center)
   }
 
   @Builder
@@ -277,31 +290,18 @@ export struct ConnectView {
 
   @Builder
   BackButton() {
-    Stack() {
-      this.BackGlyph()
-    }
-      .width(48)
-      .height(48)
-      .backgroundColor(SOFT)
-      .borderRadius(24)
-      .position({ x: 28, y: 18 })
-      .onClick(() => {
+    NavigationBackButton({
+      controlSize: 48,
+      onBack: (): void => {
         if (this.openIntent !== CONNECT_INTENT_SCAN &&
           this.currentStep() === ConnectSheetStep.Scan && this.remoteUrl.trim().length === 0 && !this.showManualPairing) {
-          this.stopInlineScan();
           this.pairingStep = this.isAccountAuthenticated() ? ConnectSheetStep.Account : ConnectSheetStep.Intro;
           return;
         }
-        this.stopInlineScan();
         this.onBack();
-      })
-  }
-
-  @Builder
-  BackGlyph() {
-    SymbolGlyph($r('sys.symbol.chevron_left'))
-      .fontSize(21)
-      .fontColor([INK])
+      }
+    })
+      .position({ x: 28, y: 18 })
   }
 
   @Builder
@@ -327,48 +327,68 @@ export struct ConnectView {
   @Builder
   CameraFrame() {
     Stack() {
-      XComponent({ id: 'remote-scan-preview', type: XComponentType.SURFACE, controller: this.scannerController })
-        .width(282)
-        .height(282)
-        .borderRadius(40)
-        .onLoad(() => {
-          this.startInlineScan();
-        })
-        .onDestroy(() => {
-          this.stopInlineScan();
-        })
+      InlineQrScanner({
+        scannerSize: SCAN_FRAME_SIZE,
+        paused: this.showManualPairing,
+        restartRevision: this.scanRestartRevision,
+        onDetected: (value: string) => this.handleScannedRemoteUrl(value),
+        onPermissionDenied: () => {
+          this.inlineScanError = RemoteI18n.t('connect.cameraPermissionDenied');
+        },
+        onUnavailable: () => {
+          this.inlineScanError = RemoteI18n.t('connect.cameraUnavailable');
+        }
+      })
       Text('')
-        .width(282)
-        .height(282)
-        .backgroundColor('#18000000')
-        .borderRadius(40)
-      this.ScanCorner(32, 32, true, true)
-      this.ScanCorner(204, 32, false, true)
-      this.ScanCorner(32, 204, true, false)
-      this.ScanCorner(204, 204, false, false)
+        .width(SCAN_FRAME_SIZE)
+        .height(SCAN_FRAME_SIZE)
+        .backgroundColor(SHADOW_MEDIUM)
+        .borderRadius(28)
+      this.ScanCorner(SCAN_CORNER_INSET, SCAN_CORNER_INSET, true, true)
+      this.ScanCorner(
+        SCAN_FRAME_SIZE - SCAN_CORNER_INSET - SCAN_CORNER_SIZE,
+        SCAN_CORNER_INSET,
+        false,
+        true
+      )
+      this.ScanCorner(
+        SCAN_CORNER_INSET,
+        SCAN_FRAME_SIZE - SCAN_CORNER_INSET - SCAN_CORNER_SIZE,
+        true,
+        false
+      )
+      this.ScanCorner(
+        SCAN_FRAME_SIZE - SCAN_CORNER_INSET - SCAN_CORNER_SIZE,
+        SCAN_FRAME_SIZE - SCAN_CORNER_INSET - SCAN_CORNER_SIZE,
+        false,
+        false
+      )
     }
-    .width(282)
-    .height(282)
+    .width(SCAN_FRAME_SIZE)
+    .height(SCAN_FRAME_SIZE)
+    .border({ width: 1, color: LINE })
+    .borderRadius(28)
+    .clip(true)
   }
 
   @Builder
   ScanCorner(x: number, y: number, isLeft: boolean, isTop: boolean) {
     Stack() {
       Text('')
-        .width(42)
+        .width(36)
         .height(4)
         .borderRadius(2)
         .backgroundColor(CONNECT_SCAN_ACCENT)
-        .position({ x: isLeft ? 0 : 22, y: isTop ? 0 : 60 })
+        .position({ x: isLeft ? 0 : 20, y: isTop ? 0 : 52 })
       Text('')
         .width(4)
-        .height(42)
+        .height(36)
         .borderRadius(2)
         .backgroundColor(CONNECT_SCAN_ACCENT)
-        .position({ x: isLeft ? 0 : 60, y: isTop ? 0 : 22 })
+        .position({ x: isLeft ? 0 : 52, y: isTop ? 0 : 20 })
     }
-    .width(64)
-    .height(64)
+    .width(SCAN_CORNER_SIZE)
+    .height(SCAN_CORNER_SIZE)
     .position({ x, y })
   }
 
@@ -377,10 +397,10 @@ export struct ConnectView {
     Column({ space: 8 }) {
       Row({ space: 8 }) {
         Text('●')
-          .fontSize(12)
+          .fontSize(MobileDesignTypography.labelSmall.size)
           .fontColor(this.statusDotColor())
         Text(this.statusDetail())
-          .fontSize(13)
+          .fontSize(MobileDesignTypography.bodySmall.size)
           .fontColor(this.isConnectError() ? INK : MUTED)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -394,8 +414,8 @@ export struct ConnectView {
       })
       if (this.isConnectError() && this.failureHint().length > 0) {
         Text(this.failureHint())
-          .fontSize(12)
-          .lineHeight(18)
+          .fontSize(MobileDesignTypography.labelSmall.size)
+          .lineHeight(MobileDesignTypography.labelSmall.lineHeight)
           .fontColor(MUTED)
           .textAlign(TextAlign.Center)
           .width('78%')
@@ -419,7 +439,6 @@ export struct ConnectView {
       onCancel: () => this.closeManualPairing(),
       onSubmit: () => {
         this.ensureUserId();
-        this.stopInlineScan();
         this.showManualPairing = false;
         this.onConnect(this.accountPassword);
       }
@@ -428,10 +447,10 @@ export struct ConnectView {
 
   private statusDotColor(): ResourceColor {
     if (this.isConnected) {
-      return GREEN;
+      return STATUS_SUCCESS;
     }
     if (this.isConnectError()) {
-      return RED;
+      return STATUS_DANGER;
     }
     if (this.isBusy || this.connectionState === 'parsing' || this.connectionState === 'pairing' || this.connectionState === 'reconnecting') {
       return INK;
@@ -487,7 +506,6 @@ export struct ConnectView {
       return;
     }
     this.onRemoteUrlInputVisibleChange(true);
-    this.stopInlineScan();
     this.showManualPairing = true;
     this.pairingStep = ConnectSheetStep.Scan;
   }
@@ -503,9 +521,8 @@ export struct ConnectView {
   }
 
   private closeManualPairing(): void {
-    this.stopInlineScan();
     this.showManualPairing = false;
-    this.resumeInlineScan();
+    this.scanRestartRevision += 1;
   }
 
   private currentStep(): string {
@@ -538,142 +555,32 @@ export struct ConnectView {
     }
   }
 
-  private async startInlineScan(): Promise<void> {
-    if (this.scannerStarted ||
-      this.scanCompleted ||
-      this.currentStep() !== ConnectSheetStep.Scan ||
-      this.showManualPairing) {
-      return;
-    }
-    if (!this.cameraPermissionReady) {
-      try {
-        await this.ensureCameraPermission();
-        this.cameraPermissionReady = true;
-      } catch (_err) {
-        this.inlineScanError = RemoteI18n.t('connect.cameraPermissionDenied');
-        return;
-      }
-    }
-    try {
-      this.inlineScanError = '';
-      customScan.init({
-        scanTypes: [scanCore.ScanType.QR_CODE],
-        enableMultiMode: false,
-        enableAlbum: false
-      });
-      const surfaceId = this.scannerController.getXComponentSurfaceId();
-      if (surfaceId.length === 0) {
-        if (this.scanStartRetryCount < 6) {
-          this.scanStartRetryCount += 1;
-          setTimeout(() => {
-            this.startInlineScan();
-          }, 120);
-        }
-        return;
-      }
-      this.scanStartRetryCount = 0;
-      this.scannerStarted = true;
-      customScan.start({
-        width: 282,
-        height: 282,
-        surfaceId
-      }, (err, results: Array<scanBarcode.ScanResult>) => {
-        if (err) {
-          this.inlineScanError = RemoteI18n.t('connect.cameraUnavailable');
-          return;
-        }
-        if (this.scanCompleted || !results || results.length === 0) {
-          return;
-        }
-        const text = (results[0].originalValue || '').trim();
-        if (text.length === 0) {
-          return;
-        }
-        this.scanCompleted = true;
-        this.stopInlineScan();
-        const action = this.onRemoteUrlDetected(text);
-        if (action === DetectedUrlAction.PROMPT_ACCOUNT_PASSWORD) {
-          this.showManualPairing = true;
-          this.onRemoteUrlInputVisibleChange(true);
-          this.pairingStep = ConnectSheetStep.Scan;
-          return;
-        }
-        if (action === DetectedUrlAction.SHOW_CLOUD_DEVICES ||
-          action === DetectedUrlAction.USE_CLOUD_DEVICE) {
-          this.pairingStep = ConnectSheetStep.Account;
-          return;
-        }
-        if (action === DetectedUrlAction.PAIR_NOW) {
-          this.ensureUserId();
-          this.onConnect();
-          return;
-        }
-        this.inlineScanError = this.statusText || RemoteI18n.t('connect.hintInvalidLink');
-        this.scanCompleted = false;
-        this.resumeInlineScan();
-      });
-    } catch (_err) {
-      this.scannerStarted = false;
-      this.inlineScanError = RemoteI18n.t('connect.cameraUnavailable');
-    }
-  }
-
-  private stopInlineScan(): void {
-    if (!this.scannerStarted) {
-      return;
-    }
-    this.scannerStarted = false;
-    customScan.stop().then(() => {
-      return customScan.release();
-    }).catch((_err: Object) => {
-    });
-  }
-
-  private resumeInlineScan(): void {
-    if (this.remoteUrl.trim().length > 0 || this.pairingStep !== ConnectSheetStep.Scan) {
-      return;
-    }
-    this.scanCompleted = false;
-    setTimeout(() => {
-      if (!this.showManualPairing) {
-        void this.startInlineScan();
-      }
-    }, 80);
-  }
-
-  private async ensureCameraPermission(): Promise<void> {
-    try {
-      const atManager = abilityAccessCtrl.createAtManager();
-      const context = this.permissionRequestContext();
-      const result = await atManager.requestPermissionsFromUser(context, [CAMERA_PERMISSION]);
-      if (result.authResults.length > 0 &&
-        result.authResults[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
-        return;
-      }
-    } catch (err) {
-      throw OhosError.wrap('camera permission', err);
-    }
-    throw new Error(RemoteI18n.t('errors.permissionDenied'));
-  }
-
-  private permissionRequestContext(): Context {
-    const context = this.getUIContext().getHostContext();
-    if (!context) {
-      throw new Error(RemoteI18n.t('errors.permissionDenied'));
-    }
-    return context;
-  }
-
   private openScannerAfterPermission(): void {
-    if (this.requestingCameraPermission) {
+    this.inlineScanError = '';
+    this.scanRestartRevision += 1;
+    this.pairingStep = ConnectSheetStep.Scan;
+  }
+
+  private handleScannedRemoteUrl(text: string): void {
+    const action = this.onRemoteUrlDetected(text);
+    if (action === DetectedUrlAction.PROMPT_ACCOUNT_PASSWORD) {
+      this.showManualPairing = true;
+      this.onRemoteUrlInputVisibleChange(true);
+      this.pairingStep = ConnectSheetStep.Scan;
       return;
     }
-    this.stopInlineScan();
-    this.scanCompleted = false;
-    this.scanStartRetryCount = 0;
-    this.inlineScanError = '';
-    this.cameraPermissionReady = false;
-    this.pairingStep = ConnectSheetStep.Scan;
+    if (action === DetectedUrlAction.SHOW_CLOUD_DEVICES ||
+      action === DetectedUrlAction.USE_CLOUD_DEVICE) {
+      this.pairingStep = ConnectSheetStep.Account;
+      return;
+    }
+    if (action === DetectedUrlAction.PAIR_NOW) {
+      this.ensureUserId();
+      this.onConnect();
+      return;
+    }
+    this.inlineScanError = this.statusText || RemoteI18n.t('connect.hintInvalidLink');
+    this.scanRestartRevision += 1;
   }
 
   private isConnectError(): boolean {

@@ -16,8 +16,8 @@ const sceneHarness = vi.hoisted(() => {
 
   return {
     state: {
-      openTabs: [{ id: 'session', openedAt: 0, lastUsed: 0 }],
-      activeTabId: 'session',
+      openTabs: [{ id: 'session', lastUsed: 0 }],
+      activeTabId: 'session' as string | null,
       navigationMotion: 'instant',
       navigationSequence: 0,
     },
@@ -39,8 +39,8 @@ vi.mock('@/infrastructure/i18n/hooks/useI18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@/component-library', () => ({
-  DotMatrixLoader: () => <div data-testid="scene-loader" />,
+vi.mock('@bitfun/ui', () => ({
+  Spinner: () => <div data-testid="scene-loader" />,
 }));
 
 vi.mock('./session/SessionScene', () => ({
@@ -55,6 +55,10 @@ vi.mock('./assistant/AssistantScene', () => ({
   default: () => <div data-testid="assistant-scene-content" />,
 }));
 
+vi.mock('./welcome/WelcomeScene', () => ({
+  default: () => <div data-testid="welcome-scene" />,
+}));
+
 vi.mock('./agents/AgentsScene', () => ({
   default: () => {
     if (!sceneHarness.agentsAreReady()) {
@@ -62,6 +66,12 @@ vi.mock('./agents/AgentsScene', () => ({
     }
     return <div data-testid="agents-scene-content" />;
   },
+}));
+
+vi.mock('./miniapps/MiniAppScene', () => ({
+  default: ({ appId }: { appId: string }) => (
+    <div data-testid="miniapp-scene-content" data-miniapp-id={appId} />
+  ),
 }));
 
 import SceneViewport from './SceneViewport';
@@ -79,6 +89,12 @@ describe('SceneViewport transitions', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
+    sceneHarness.state = {
+      openTabs: [{ id: 'session', lastUsed: 0 }],
+      activeTabId: 'session',
+      navigationMotion: 'instant',
+      navigationSequence: 0,
+    };
   });
 
   afterEach(() => {
@@ -93,6 +109,21 @@ describe('SceneViewport transitions', () => {
       .filter(scene => scene.classList.contains('bitfun-scene-viewport__scene--visible'));
   }
 
+  it('renders the welcome surface when no tab is open', () => {
+    sceneHarness.state = {
+      openTabs: [],
+      activeTabId: null,
+      navigationMotion: 'instant',
+      navigationSequence: 0,
+    };
+
+    act(() => root.render(<SceneViewport />));
+
+    expect(visibleScenes()).toHaveLength(1);
+    expect(container.querySelector('[data-testid="welcome-scene"]')).not.toBeNull();
+    expect(container.querySelector('[role="tab"]')).toBeNull();
+  });
+
   it('keeps one scene visible while a lazy pointer target becomes ready', async () => {
     act(() => root.render(<SceneViewport />));
     expect(visibleScenes().map(scene => scene.getAttribute('data-scene-id'))).toEqual(['session']);
@@ -100,8 +131,8 @@ describe('SceneViewport transitions', () => {
 
     sceneHarness.state = {
       openTabs: [
-        { id: 'session', openedAt: 0, lastUsed: 0 },
-        { id: 'agents', openedAt: 1, lastUsed: 1 },
+        { id: 'session', lastUsed: 0 },
+        { id: 'agents', lastUsed: 1 },
       ],
       activeTabId: 'agents',
       navigationMotion: 'pointer',
@@ -153,5 +184,29 @@ describe('SceneViewport transitions', () => {
     expect(container.querySelector('[data-scene-id="agents"]')?.getAttribute('aria-hidden')).toBe('true');
     expect(container.querySelector('[data-scene-id="agents"]')?.hasAttribute('inert')).toBe(true);
     expect(container.querySelector('[data-scene-id="agents"]')?.hasAttribute('hidden')).toBe(false);
+  });
+
+  it('keeps an inactive open MiniApp scene mounted and hidden', async () => {
+    sceneHarness.state = {
+      openTabs: [
+        { id: 'session', lastUsed: 0 },
+        { id: 'miniapp:gomoku', lastUsed: 1 },
+      ],
+      activeTabId: 'session',
+      navigationMotion: 'instant',
+      navigationSequence: 0,
+    };
+
+    await act(async () => {
+      root.render(<SceneViewport />);
+      await Promise.resolve();
+    });
+
+    const inactive = container.querySelector('[data-scene-id="miniapp:gomoku"]');
+    expect(inactive).not.toBeNull();
+    expect(inactive?.classList.contains('bitfun-scene-viewport__scene--visible')).toBe(false);
+    expect(inactive?.getAttribute('aria-hidden')).toBe('true');
+    expect(inactive?.hasAttribute('inert')).toBe(true);
+    expect(inactive?.hasAttribute('hidden')).toBe(false);
   });
 });

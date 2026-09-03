@@ -243,6 +243,22 @@ pub struct SessionConfig {
     /// revalidated for every turn and never falls back by name alone.
     #[serde(default, skip_serializing_if = "is_local_agent_route_owner")]
     pub agent_route_owner: SessionAgentRouteOwner,
+    /// Stable identity of the selected Agent route. This is distinct from a
+    /// process-local generation key and survives plugin reloads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_route_key: Option<String>,
+}
+
+fn deserialize_legacy_minimal_agent<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(value
+        .get("harnessProfileId")
+        .or_else(|| value.get("harness_profile_id"))
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|id| id.eq_ignore_ascii_case("minimal")))
 }
 
 fn deserialize_legacy_minimal_agent<'de, D>(deserializer: D) -> Result<bool, D::Error>
@@ -293,6 +309,7 @@ impl Default for SessionConfig {
             model_binding_fingerprint: None,
             prompt_cache_lineage_id: None,
             agent_route_owner: SessionAgentRouteOwner::Local,
+            agent_route_key: None,
         }
     }
 }
@@ -475,24 +492,32 @@ mod tests {
             SessionModelBindingPolicy::Mutable
         );
         assert_eq!(config.agent_route_owner, SessionAgentRouteOwner::Local);
+        assert!(config.agent_route_key.is_none());
     }
 
     #[test]
     fn external_agent_route_owner_persists_and_legacy_sessions_default_local() {
         let config = SessionConfig {
             agent_route_owner: SessionAgentRouteOwner::External,
+            agent_route_key: Some("opencode:plugin:build".to_string()),
             ..SessionConfig::default()
         };
         let mut serialized = serde_json::to_value(&config).expect("serialize session config");
         assert_eq!(serialized["agent_route_owner"], "external");
+        assert_eq!(serialized["agent_route_key"], "opencode:plugin:build");
 
         serialized
             .as_object_mut()
             .expect("session config object")
             .remove("agent_route_owner");
+        serialized
+            .as_object_mut()
+            .expect("session config object")
+            .remove("agent_route_key");
         let restored: SessionConfig =
             serde_json::from_value(serialized).expect("deserialize legacy session config");
         assert_eq!(restored.agent_route_owner, SessionAgentRouteOwner::Local);
+        assert!(restored.agent_route_key.is_none());
     }
 
     #[test]

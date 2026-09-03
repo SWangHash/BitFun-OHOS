@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 
 import { builtinAppearancePalettes } from './palettes';
 import {
+  getBuiltinAppearance,
+  getBuiltinAppearanceThemeTokens,
+} from './catalog';
+import {
   PLUGIN_APPEARANCE_COLOR_KEYS,
   createPluginAppearanceColorProjection,
 } from '../adapters/PluginAppearanceProjection';
@@ -104,16 +108,184 @@ describe('builtin appearance preset output', () => {
       expect(appearance.colors.background).not.toHaveProperty('quaternary');
       expect(appearance.colors.background).not.toHaveProperty('tooltip');
       expect(appearance.colors.element).not.toHaveProperty('elevated');
-      expect(appearance.typography.weight).not.toHaveProperty('bold');
     }
   });
 
-  it('keeps near-neutral preset foregrounds on canonical stops', () => {
+  it('keeps approved near-neutral preset stops scoped to their semantic roles', () => {
     const serializedAppearances = JSON.stringify(builtinAppearancePalettes).toLowerCase();
+    const lightAppearance = builtinAppearancePalettes.find(appearance => appearance.id === 'bitfun-light');
 
-    expect(serializedAppearances).not.toContain('#fafafa');
+    expect(lightAppearance?.colors.background.primary).toBe('#fdfdfd');
+    expect(lightAppearance?.monaco?.colors.background).toBe('#ffffff');
+    expect(lightAppearance?.monaco?.colors.lineHighlight).toBe('rgba(16, 26, 39, 0.03)');
+    expect(serializedAppearances.match(/#fdfdfd/g)).toHaveLength(1);
     expect(serializedAppearances).not.toContain('#e2e6eb');
     expect(serializedAppearances).not.toContain('#f0f2f5');
+  });
+
+  it('keeps the default light appearance on the neutral, navy, and restrained semantic palette', () => {
+    const lightAppearance = builtinAppearancePalettes.find(appearance => appearance.id === 'bitfun-light');
+    const tokens = getBuiltinAppearanceThemeTokens('bitfun-light');
+
+    expect(lightAppearance).toMatchObject({
+      description: 'Light appearance - Crisp white surfaces, soft neutral grays, deep navy actions',
+      version: '2.5.0',
+      colors: {
+        background: {
+          primary: '#fdfdfd',
+          secondary: '#ffffff',
+          tertiary: '#f7f7f7',
+          elevated: '#ffffff',
+          workbench: '#f3f3f5',
+          scene: '#ffffff',
+          chrome: '#f8f8f9',
+        },
+        text: {
+          primary: '#1c1c1f',
+          secondary: '#555555',
+          muted: '#6a6a6a',
+          disabled: '#9a9a9a',
+        },
+        accent: {
+          50: 'rgba(16, 26, 39, 0.03)',
+          100: '#f3f3f5',
+          500: '#101a27',
+          600: '#1c1c1f',
+          700: '#000000',
+        },
+        semantic: {
+          success: '#247344',
+          successBg: '#e1fbe9',
+          successBorder: '#247344',
+          error: '#a74352',
+          errorBg: 'rgba(167, 67, 82, 0.12)',
+          info: '#555555',
+          infoBg: '#f3f3f5',
+          infoBorder: 'rgba(16, 26, 39, 0.15)',
+        },
+        border: {
+          base: 'rgba(16, 26, 39, 0.15)',
+        },
+        element: {
+          subtle: 'rgba(16, 26, 39, 0.03)',
+          soft: '#f3f3f5',
+        },
+      },
+      components: {
+        button: {
+          primary: {
+            default: { background: '#101a27', color: '#ffffff' },
+            hover: { background: '#1c1c1f', color: '#ffffff' },
+            active: { background: '#000000', color: '#ffffff' },
+          },
+        },
+      },
+      monaco: {
+        colors: {
+          background: '#ffffff',
+          lineHighlight: 'rgba(16, 26, 39, 0.03)',
+        },
+      },
+    });
+    expect(tokens).toMatchObject({
+      '--bf-color-surface-chrome': '#f8f8f9',
+      '--bf-color-selection-surface': 'rgba(0, 0, 0, 0.08)',
+      '--bf-component-config-page-section-background': '#f7f7f7',
+      '--bf-component-config-page-section-border': 'rgba(16, 26, 39, 0.08)',
+      '--bf-component-config-page-section-border-width': '1px',
+      '--bf-component-config-page-divider': 'rgba(16, 26, 39, 0.08)',
+    });
+  });
+
+  it('keeps monochrome content readable while projecting inverse structural chrome', () => {
+    const monochrome = builtinAppearancePalettes.find(
+      appearance => appearance.id === 'bitfun-monochrome',
+    );
+    const monochromePackage = getBuiltinAppearance('bitfun-monochrome');
+    const tokens = getBuiltinAppearanceThemeTokens('bitfun-monochrome');
+    const chromeTokens = monochromePackage?.renderers?.['theme-tokens']?.settings.scopes?.chrome;
+
+    expect(monochrome).toMatchObject({
+      type: 'light',
+      description: 'Black-and-white contrast appearance - Deep black chrome, bright white workspace, soft neutral blocks',
+      colors: {
+        background: {
+          primary: '#ffffff',
+          scene: '#ffffff',
+        },
+        text: {
+          primary: '#1c1c1f',
+          secondary: '#555555',
+          muted: '#6a6a6a',
+        },
+        border: {
+          subtle: 'rgba(16, 26, 39, 0.08)',
+          base: 'rgba(16, 26, 39, 0.15)',
+          prominent: 'rgba(16, 26, 39, 0.48)',
+        },
+        element: {
+          subtle: 'rgba(16, 26, 39, 0.03)',
+          soft: '#f3f3f5',
+          strong: 'rgba(0, 0, 0, 0.10)',
+        },
+        accent: {
+          500: '#1c1c1f',
+          600: '#000000',
+        },
+        chrome: {
+          background: {
+            primary: '#1c1c1f',
+            secondary: '#262626',
+          },
+          text: {
+            primary: '#f3f3f5',
+            secondary: '#b0b0b0',
+          },
+          accent: {
+            500: '#f3f3f5',
+            600: '#ffffff',
+          },
+        },
+      },
+      components: {
+        button: {
+          primary: {
+            default: { background: '#1c1c1f', color: '#ffffff' },
+            hover: { background: '#000000', color: '#ffffff' },
+          },
+        },
+        configPage: {
+          section: {
+            background: '#f3f3f5',
+            border: 'transparent',
+            borderWidth: '0',
+            shadow: 'none',
+          },
+          divider: 'rgba(16, 26, 39, 0.08)',
+          rowHover: 'rgba(16, 26, 39, 0.03)',
+        },
+      },
+    });
+    expect(tokens).toMatchObject({
+      '--bf-color-surface-canvas': '#ffffff',
+      '--bf-color-content-primary': '#1c1c1f',
+      '--bf-color-content-secondary': '#555555',
+      '--bf-color-border-subtle': 'rgba(16, 26, 39, 0.08)',
+      '--bf-color-border-default': 'rgba(16, 26, 39, 0.15)',
+      '--bf-color-surface-subtle': 'rgba(16, 26, 39, 0.03)',
+      '--bf-color-action-quiet-hover': '#f3f3f5',
+      '--bf-color-scrollbar-thumb': 'rgba(16, 26, 39, 0.15)',
+      '--bf-component-config-page-section-background': '#f3f3f5',
+      '--bf-component-config-page-section-border': 'transparent',
+      '--bf-component-config-page-section-border-width': '0',
+      '--bf-component-config-page-section-shadow': 'none',
+      '--bf-component-config-page-divider': 'rgba(16, 26, 39, 0.08)',
+    });
+    expect(chromeTokens).toMatchObject({
+      '--bf-color-surface-canvas': '#1c1c1f',
+      '--bf-color-content-primary': '#f3f3f5',
+      '--bf-color-action-quiet-hover': 'rgba(255, 255, 255, 0.06)',
+    });
   });
 
   it('projects builtin appearances to a compact OpenCode-compatible plugin color key set', () => {
@@ -149,42 +321,47 @@ describe('builtin appearance preset output', () => {
     }))).toMatchInlineSnapshot(`
       [
         {
-          "hash": "954317380f5baa31e8b0155564c72606a76ff6fa6d8a190615120668a8e3d388",
+          "hash": "cf3b1df5872d83daab7f9dd33671a6f82537c1e07cb90d6a49ac7d7a416cd045",
           "id": "bitfun-light",
           "type": "light",
         },
         {
-          "hash": "89abef6e2224b6fb86ac8bb34578c0d7ef725172ec1f29b29818038288b5dae0",
+          "hash": "21924d3ea4f17d63e89538e539ed7cdea263b0c31682e1378221e5ac46937d78",
+          "id": "bitfun-monochrome",
+          "type": "light",
+        },
+        {
+          "hash": "d5d100c9f013b8827b800f2c4183f8da540af6f01118738603658145bc9f0953",
           "id": "bitfun-slate",
           "type": "dark",
         },
         {
-          "hash": "953efa0aa939f0080429972c3c0a7c46131523e106e8135cf543ec073d2e9d70",
+          "hash": "12f16e11bc459ed7f48de3a59a3cd8eab0f66694023f40ce0ce529d45bbf453e",
           "id": "bitfun-dark",
           "type": "dark",
         },
         {
-          "hash": "6b3d5817b0bf0568739ddfe2bbc5a7287d3db58761eda61379814f321195b7ed",
+          "hash": "74be0da6f5a9357aacc287c3ceac869aa9057cf6235193a5363b6c06e30c996e",
           "id": "bitfun-midnight",
           "type": "dark",
         },
         {
-          "hash": "e2dff5cddb2442779ca59ba92280cc3f01384a732c010f2e3dab8c399402e487",
+          "hash": "7327064fbfe41d709c942a480829cf33ea1c2dcbc6552ece012a4f43ef15fdbe",
           "id": "bitfun-china-style",
           "type": "light",
         },
         {
-          "hash": "4fb76f4da97bd97213e5f9f1d35dc2e369cffb0d85a076541edbacbec1d85166",
+          "hash": "ba820850c6bb14e35e128eb2c950ca999542b525577ff5f58ba5a1d7f6704dd8",
           "id": "bitfun-china-night",
           "type": "dark",
         },
         {
-          "hash": "a443ee9e0d5fd27e35aaf42fae2de7ba2ebd96841b9380794159ce2306c2c8c6",
+          "hash": "6bf3b8ccc3df8e57eeda3c6fedddc4cd5220d3c03a4733b3e4ddbfc9b6ae0e5c",
           "id": "bitfun-cyber",
           "type": "dark",
         },
         {
-          "hash": "e6b73a7c2569ffc251d0223f1bc57dc0c750b4ffbc9b1225ac8715b9a1f8fc5d",
+          "hash": "ed40c5b47a335e87db582174afc55bc28849647daf61ad809a321c9258a9f7fc",
           "id": "bitfun-tokyo-night",
           "type": "dark",
         },

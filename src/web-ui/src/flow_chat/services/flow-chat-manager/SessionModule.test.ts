@@ -4,6 +4,7 @@ import {
   createChatSession,
   deleteChatSession,
   ensureBackendSession,
+  forkChatSession,
   hydrateSessionHistoryForDetail,
   pendingHistoryLoadKey,
   preloadHistoricalSessionForOpen,
@@ -18,8 +19,10 @@ import {
   LOCAL_SURFACE_ID,
 } from '@/infrastructure/peer-device/deviceSurface';
 import {
+  clearHistorySessionOpenTransition,
   clearRecentHistorySessionOpenIntent,
   dispatchHistorySessionOpenIntent,
+  getHistorySessionOpenTransitionSnapshot,
 } from '../sessionOpenIntent';
 import type { Session } from '../../types/flow-chat';
 import type { ReviewTeamRunManifest } from '@/shared/services/reviewTeamService';
@@ -40,6 +43,7 @@ const configManagerMocks = vi.hoisted(() => ({
 
 const sessionApiMocks = vi.hoisted(() => ({
   archiveSession: vi.fn(),
+  forkSession: vi.fn(),
   loadSessionMetadata: vi.fn(),
 }));
 
@@ -533,6 +537,52 @@ describe('createChatSession', () => {
   });
 });
 
+describe('forkChatSession', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('keeps the source SSH identity through fork creation and history restore', async () => {
+    const source = createSession({
+      sessionId: 'remote-source',
+      workspacePath: '/workspace/repo',
+      remoteConnectionId: 'ssh-source',
+      remoteSshHost: 'source-host',
+    });
+    const other = createSession({
+      sessionId: 'other-host-session',
+      workspacePath: '/workspace/repo',
+      remoteConnectionId: 'ssh-other',
+      remoteSshHost: 'other-host',
+    });
+    const { context, flowChatStore } = createContext(source, {
+      additionalSessions: [other],
+      activeSessionId: other.sessionId,
+    });
+    sessionApiMocks.forkSession.mockResolvedValueOnce({
+      sessionId: 'remote-fork',
+      sessionName: 'Remote fork',
+      agentType: 'agentic',
+    });
+
+    await expect(forkChatSession(context, source.sessionId, 'turn-1'))
+      .resolves.toBe('remote-fork');
+
+    expect(sessionApiMocks.forkSession).toHaveBeenCalledWith(
+      'remote-source', 'turn-1', '/workspace/repo', 'ssh-source', 'source-host',
+    );
+    expect(flowChatStore.getState().sessions.get('remote-fork')).toMatchObject({
+      workspacePath: '/workspace/repo',
+      remoteConnectionId: 'ssh-source',
+      remoteSshHost: 'source-host',
+    });
+    expect(flowChatStore.loadSessionHistory).toHaveBeenCalledWith(
+      'remote-fork', '/workspace/repo', undefined, 'ssh-source', 'source-host',
+      { deferFullHistoryUntilActive: true },
+    );
+  });
+});
+
 describe('reloadSessionTitle', () => {
   afterEach(() => {
     vi.clearAllMocks();
@@ -580,6 +630,7 @@ describe('SessionModule historical session coordination', () => {
   afterEach(async () => {
     await vi.runOnlyPendingTimersAsync();
     clearRecentHistorySessionOpenIntent();
+    clearHistorySessionOpenTransition();
     vi.useRealTimers();
     vi.clearAllMocks();
   });
@@ -1156,6 +1207,27 @@ describe('SessionModule historical session coordination', () => {
     expect(flowChatStore.getState().activeSessionId).toBeNull();
     expect(processingManager.clearSessionStatus).toHaveBeenCalledWith('active-1');
     expect(persistenceMocks.cleanupSaveState).toHaveBeenCalledWith(context, 'active-1');
+  });
+
+  it('cancels a speculative history-open transition when deleting its target', async () => {
+    const historicalSession = createSession({
+      sessionId: 'history-delete',
+      isHistorical: true,
+      historyState: 'metadata-only',
+      dialogTurns: [],
+    });
+    const { context } = createContext(historicalSession, {
+      activeSessionId: null,
+    });
+
+    dispatchHistorySessionOpenIntent(historicalSession.sessionId, 'Saved session');
+    expect(getHistorySessionOpenTransitionSnapshot()).toMatchObject({
+      sessionId: historicalSession.sessionId,
+    });
+
+    await deleteChatSession(context, historicalSession.sessionId);
+
+    expect(getHistorySessionOpenTransitionSnapshot()).toBeNull();
   });
 
   it('tombstones a deleted dispatch projection instead of deleting a local session', async () => {

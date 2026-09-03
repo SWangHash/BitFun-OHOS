@@ -1,10 +1,121 @@
-import { defineConfig } from "vite";
+import { readFileSync } from "node:fs";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { versionInjectionPlugin } from "./vite.config.version-plugin";
 import { bitfunCanvasRuntimeBundlePlugin } from "./vite.config.canvas-runtime-plugin";
+import { watchSourcePlugin } from "../../design-system/tooling/vite/watch-source.mjs";
+import {
+  APPLE_SYSTEM_FONT_PROFILE,
+  HARMONY_BUNDLED_FONT_PROFILE,
+  WEB_FONT_PROFILE_ENV,
+  assertWebFontProfileBundle,
+  resolveWebFontProfile,
+  verifyHarmonyFontSources,
+} from "../../scripts/web-font-profile.mjs";
 
 const host = process.env.TAURI_DEV_HOST;
+const designSystemUiSourceDirectory = path.resolve(
+  __dirname,
+  '../../design-system/packages/ui/src',
+);
+const fontAssetDirectory = path.resolve(__dirname, 'src/assets/fonts');
+const FONT_PROFILE_STYLESHEET_MARKER = '<!-- BITFUN_FONT_PROFILE_STYLESHEET -->';
+
+export function createWebFontProfilePlugin(
+  profile: typeof APPLE_SYSTEM_FONT_PROFILE | typeof HARMONY_BUNDLED_FONT_PROFILE,
+  command: 'serve' | 'build',
+): Plugin {
+  const stylesheetPath = `/src/font-profiles/${profile}.css`;
+
+  if (command === 'build' && profile === HARMONY_BUNDLED_FONT_PROFILE) {
+    verifyHarmonyFontSources(path.join(fontAssetDirectory, 'harmonyos-sans'));
+  }
+
+  return {
+    name: 'bitfun-web-font-profile',
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        if (!html.includes(FONT_PROFILE_STYLESHEET_MARKER)) {
+          throw new Error('Web font profile stylesheet marker is missing from index.html.');
+        }
+        return html
+          .replace(
+            FONT_PROFILE_STYLESHEET_MARKER,
+            `<link rel="stylesheet" href="${stylesheetPath}" data-bf-font-profile-stylesheet="${profile}" />`,
+          )
+          .replace(
+            '<html lang="zh-CN">',
+            `<html lang="zh-CN" data-bf-font-profile="${profile}">`,
+          );
+      },
+    },
+    buildStart() {
+      if (command !== 'build' || profile !== HARMONY_BUNDLED_FONT_PROFILE) return;
+
+      for (const [fileName, sourcePath] of [
+        [
+          'third-party/fonts/harmonyos-sans/LICENSE.txt',
+          path.join(fontAssetDirectory, 'harmonyos-sans/LICENSE.txt'),
+        ],
+        [
+          'third-party/fonts/harmonyos-sans/NOTICE.txt',
+          path.join(fontAssetDirectory, 'harmonyos-sans/NOTICE.txt'),
+        ],
+        [
+          'third-party/fonts/fira-code/LICENSE.txt',
+          path.join(fontAssetDirectory, 'fira-code/LICENSE.txt'),
+        ],
+      ]) {
+        this.emitFile({ type: 'asset', fileName, source: readFileSync(sourcePath) });
+      }
+    },
+    generateBundle(_options, bundle) {
+      if (command !== 'build') return;
+      assertWebFontProfileBundle(profile, Object.keys(bundle));
+    },
+  };
+}
+
+/**
+ * Product development consumes the design-system source so Vite can preserve
+ * React Fast Refresh and CSS-module HMR. Production builds deliberately return
+ * no aliases and resolve the package's published `dist` exports instead.
+ */
+export function createDesignSystemSourceAliases(command: 'serve' | 'build') {
+  if (command !== 'serve') {
+    return [];
+  }
+
+  return [
+    {
+      find: /^@bitfun\/ui\/flow-chat$/,
+      replacement: path.join(designSystemUiSourceDirectory, 'flow-chat.ts'),
+    },
+    {
+      find: /^@bitfun\/ui\/registry$/,
+      replacement: path.join(designSystemUiSourceDirectory, 'registry.ts'),
+    },
+    {
+      find: /^@bitfun\/ui\/styles\.css$/,
+      replacement: path.join(designSystemUiSourceDirectory, 'styles/layers.css'),
+    },
+    {
+      find: /^@bitfun\/ui$/,
+      replacement: path.join(designSystemUiSourceDirectory, 'index.ts'),
+    },
+  ];
+}
+
+export function createDevServerResponseHeaders() {
+  return {
+    // Vite normally marks optimized dependencies as immutable for one year.
+    // WKWebView can retain those responses across desktop dev launches and
+    // then reject a lazy module graph after the optimizer has refreshed it.
+    'Cache-Control': 'no-store',
+  };
+}
 
 /**
  * Native fs events do not work reliably on UNC network shares (\\server\...,
@@ -29,6 +140,13 @@ function warnIfNativeWatchUnreliable(): void {
 // https://vite.dev/config/
 export default defineConfig(({ mode, command }) => {
   const isProduction = mode === 'production' || (command === 'build' && mode !== 'development');
+  const fontProfile = resolveWebFontProfile({
+    requested: process.env[WEB_FONT_PROFILE_ENV],
+    command,
+    platform: process.platform,
+  });
+
+  console.log(`[font-profile] ${fontProfile}`);
 
   if (command === 'serve' && !process.env.VITE_USE_POLLING) {
     warnIfNativeWatchUnreliable();
@@ -36,7 +154,9 @@ export default defineConfig(({ mode, command }) => {
 
   return {
     plugins: [
+      createWebFontProfilePlugin(fontProfile, command),
       react(),
+      watchSourcePlugin(designSystemUiSourceDirectory),
       bitfunCanvasRuntimeBundlePlugin(),
       versionInjectionPlugin()
     ],
@@ -44,17 +164,16 @@ export default defineConfig(({ mode, command }) => {
     // Path resolution
     resolve: {
       dedupe: ['react', 'react-dom'],
-      alias: {
-        "@": path.resolve(__dirname, "./src"),
-        "@/shared": path.resolve(__dirname, "./src/shared"),
-        "@/core": path.resolve(__dirname, "./src/core"),
-        "@/tools": path.resolve(__dirname, "./src/tools"),
-        "@/hooks": path.resolve(__dirname, "./src/hooks"),
-        "@/styles": path.resolve(__dirname, "./src/component-library/styles"),
-        "@/types": path.resolve(__dirname, "./src/shared/types"),
-        "@/utils": path.resolve(__dirname, "./src/shared/utils"),
-        "@components": path.resolve(__dirname, "./src/component-library/components"),
-      },
+      alias: [
+        ...createDesignSystemSourceAliases(command),
+        { find: "@/shared", replacement: path.resolve(__dirname, "./src/shared") },
+        { find: "@/core", replacement: path.resolve(__dirname, "./src/core") },
+        { find: "@/tools", replacement: path.resolve(__dirname, "./src/tools") },
+        { find: "@/hooks", replacement: path.resolve(__dirname, "./src/hooks") },
+        { find: "@/types", replacement: path.resolve(__dirname, "./src/shared/types") },
+        { find: "@/utils", replacement: path.resolve(__dirname, "./src/shared/utils") },
+        { find: "@", replacement: path.resolve(__dirname, "./src") },
+      ],
     },
 
   css: {
@@ -78,6 +197,7 @@ export default defineConfig(({ mode, command }) => {
     // If Vite silently falls back to another port, the desktop webview stays blank.
     strictPort: true,
     host: host || "localhost",
+    headers: createDevServerResponseHeaders(),
     hmr: {
       protocol: "ws",
       host: host || "localhost",
@@ -104,7 +224,11 @@ export default defineConfig(({ mode, command }) => {
   // Optimize dependency pre-building
   optimizeDeps: {
     // Exclude dependencies that need to be dynamically loaded
-    exclude: [],
+    exclude: [
+      '@bitfun/design-tokens',
+      '@bitfun/theme-bitfun',
+      '@bitfun/ui',
+    ],
     // Force pre-building dependencies
     // Resolve Vite 7 and React 18 compatibility issues
     include: [

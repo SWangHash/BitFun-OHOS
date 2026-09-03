@@ -27,11 +27,10 @@ import { useI18n } from '@/infrastructure/i18n';
 import { useNavSceneStore } from '../../stores/navSceneStore';
 import { getSceneNav, preloadSceneNav } from '../../scenes/nav-registry';
 import type { SceneTabId } from '../SceneBar/types';
-import { ViewTransitionBoundary } from '@/component-library';
+import { NavigationTransitionBoundary } from '@/app/navigation/NavigationTransitionBoundary';
 import type { InteractionMotion } from '@/shared/utils/motionPreference';
 import MainNav from './MainNav';
 import PersistentFooterActions from './components/PersistentFooterActions';
-import { DeviceSurfaceSwitcher } from '@/infrastructure/peer-device/DeviceSurfaceSwitcher';
 import './NavPanel.scss';
 
 /** Scenes that use the split-open accordion transition. */
@@ -117,10 +116,11 @@ const NavPanel: React.FC<NavPanelProps> = ({ className = '' }) => {
   ].filter(Boolean).join(' ');
 
   return (
-    <nav
+    <div
       data-bf-component="nav-panel"
       data-bf-part="root"
       data-bf-state={appearanceState}
+      data-bf-theme-scope="chrome"
       className={`bitfun-nav-panel ${className}`}
       aria-label={t('nav.aria.mainNav')}
       data-testid="nav-panel"
@@ -137,24 +137,23 @@ const NavPanel: React.FC<NavPanelProps> = ({ className = '' }) => {
         {SceneNavComponent && (
           <div className={sceneCls} data-bf-component="nav-panel" data-bf-part="sceneLayer" data-bf-layer="scene" data-bf-state={showSceneNav ? 'active' : ''}>
             <Suspense fallback={null}>
-              <ViewTransitionBoundary
-                viewKey={mountedSceneId ?? 'main'}
-                animate={showSceneNav && mountedSceneMotion === 'pointer'}
+              <NavigationTransitionBoundary
+                transitionKey={mountedSceneId ?? 'main'}
+                motion={showSceneNav && mountedSceneMotion === 'pointer' ? 'pointer' : 'none'}
                 className="bitfun-nav-panel__scene-transition"
-                viewClassName="bitfun-nav-panel__scene-inner"
+                layerClassName="bitfun-nav-panel__scene-inner"
                 data-bf-component="nav-panel"
                 data-bf-part="sceneContent"
               >
                 <SceneNavComponent />
-              </ViewTransitionBoundary>
+              </NavigationTransitionBoundary>
             </Suspense>
           </div>
         )}
 
       </div>
-      <DeviceSurfaceSwitcher />
       <PersistentFooterActions />
-    </nav>
+    </div>
   );
 };
 

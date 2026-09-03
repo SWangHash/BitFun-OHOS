@@ -1,14 +1,9 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
-import {
-  ExternalLink, Copy, Check, ArrowLeft, Loader2, AlertTriangle,
-  BarChart3, MessageSquare, Calendar, Clock, X, Target, Zap, Trophy,
-  AlertCircle, Lightbulb, Rocket, Database, ScanSearch, Layers3,
-  FileCheck2, Gauge, Sparkles, Brain,
-} from 'lucide-react';
+import { Button, Combobox, Icon, IconButton, ScrollArea, type ComboboxOption } from '@bitfun/ui';
+import { Loader2, AlertTriangle, BarChart3, Calendar, Target, Zap, Trophy, AlertCircle, Lightbulb, Rocket, Database, ScanSearch, Layers3, FileCheck2, Gauge } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { insightsApi, type InsightsReport, type InsightsReportMeta, type InsightsStats } from '@/infrastructure/api/insightsApi';
-import { Select, type SelectOption } from '@/component-library';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { getProviderDisplayName } from '@/infrastructure/config/services/modelConfigs';
 import type { AIModelConfig } from '@/infrastructure/config/types';
@@ -62,7 +57,10 @@ const GENERATION_STEPS = [
     id: 'summary',
     titleKey: 'insights.generationStageSummary',
     detailKey: 'insights.generationStageSummaryDetail',
-    icon: Sparkles,
+    icon: function SparkIcon({ size }: { size?: number }) {
+      const n = typeof size === 'number' ? size : 13;
+      return <Icon name="spark" size={n <= 11 ? '2xs' : n <= 13 ? 'xs' : n <= 15 ? 'sm' : n <= 17 ? 'md' : 'lg'} />;
+    },
     stages: ['synthesis'],
   },
   {
@@ -80,11 +78,6 @@ interface GenerationProgress {
   current: number;
   total: number;
   isRetrying: boolean;
-}
-
-interface InsightsModelOption extends SelectOption {
-  modelName: string;
-  meta: string;
 }
 
 const GenerationPanel: React.FC<{ progress: GenerationProgress }> = ({ progress }) => {
@@ -129,7 +122,7 @@ const GenerationPanel: React.FC<{ progress: GenerationProgress }> = ({ progress 
           <div className="insights-generation__detail">{detail}</div>
         </div>
         <div className="insights-generation__elapsed">
-          <Clock size={13} />
+          <Icon name="clock" size="xs" />
           <span>{t('insights.generationElapsed')}</span>
           <strong>{elapsed}</strong>
         </div>
@@ -146,7 +139,7 @@ const GenerationPanel: React.FC<{ progress: GenerationProgress }> = ({ progress 
           return (
             <div key={step.id} className={`insights-generation__step insights-generation__step--${state}`}>
               <span className="insights-generation__step-icon">
-                {state === 'complete' ? <Check size={13} /> : <StepIcon size={13} />}
+                {state === 'complete' ? <Icon name="check-line" size="xs" /> : <StepIcon size={13} />}
               </span>
               <span className="insights-generation__step-label">{t(step.titleKey)}</span>
             </div>
@@ -180,10 +173,10 @@ const InsightsScene: React.FC = () => {
       setAvailableModels(enabledChatModels);
       const currentSelection = useInsightsStore.getState().selectedModel;
       if (
-        currentSelection !== 'auto'
+        currentSelection !== 'primary'
         && !enabledChatModels.some((model) => model.id === currentSelection)
       ) {
-        setSelectedModel('auto');
+        setSelectedModel('primary');
       }
     }).catch((error) => {
       log.warn('Failed to load models for insights', error);
@@ -193,45 +186,18 @@ const InsightsScene: React.FC = () => {
     };
   }, [setSelectedModel]);
 
-  const modelOptions = useMemo<InsightsModelOption[]>(() => [
+  const modelOptions = useMemo<ComboboxOption[]>(() => [
     {
-      value: 'auto',
-      label: t('insights.modelAuto'),
-      description: t('insights.modelAutoDescription'),
-      modelName: t('insights.modelAuto'),
-      meta: t('insights.modelAutoDescription'),
+      value: 'primary',
+      label: t('insights.modelPrimary'),
+      description: t('insights.modelPrimaryDescription'),
     },
     ...availableModels.map((model) => ({
       value: model.id || '',
       label: model.model_name,
       description: `${model.name} · ${getProviderDisplayName(model)}`,
-      modelName: model.model_name,
-      meta: `${model.name} · ${getProviderDisplayName(model)}`,
     })),
   ], [availableModels, t]);
-
-  const renderModelValue = useCallback((option?: SelectOption | SelectOption[]) => {
-    const selected = (Array.isArray(option) ? option[0] : option) as InsightsModelOption | undefined;
-    if (!selected) return null;
-    const fullLabel = selected.meta ? `${selected.modelName} · ${selected.meta}` : selected.modelName;
-    return (
-      <span className="select__value insights-model-select__value" title={fullLabel}>
-        <span className="insights-model-select__value-name">{selected.modelName}</span>
-        {selected.meta && <span className="insights-model-select__value-meta">{selected.meta}</span>}
-      </span>
-    );
-  }, []);
-
-  const renderModelOption = useCallback((option: SelectOption) => {
-    const model = option as InsightsModelOption;
-    const fullLabel = model.meta ? `${model.modelName} · ${model.meta}` : model.modelName;
-    return (
-      <div className="insights-model-select__option" title={fullLabel}>
-        <div className="insights-model-select__option-name">{model.modelName}</div>
-        {model.meta && <div className="insights-model-select__option-meta">{model.meta}</div>}
-      </div>
-    );
-  }, []);
 
   if (view === 'report' && currentReport) {
     return <ReportView report={currentReport} onBack={backToList} />;
@@ -247,19 +213,14 @@ const InsightsScene: React.FC = () => {
         <div className="insights-scene__header-actions">
           <div className="insights-scene__model-control">
             <span className="insights-scene__control-label">{t('insights.modelLabel')}</span>
-            <Select
+            <Combobox
               className="insights-scene__model-select"
-              dropdownClassName="insights-scene__model-select-dropdown"
-              dropdownMatchTriggerWidth={false}
               value={selectedModel}
               options={modelOptions}
-              renderValue={renderModelValue}
-              renderOption={renderModelOption}
-              onChange={(value) => setSelectedModel(String(Array.isArray(value) ? value[0] : value))}
-              size="small"
-              searchable={availableModels.length > 6}
+              onValueChange={(value) => setSelectedModel(String(value))}
+              size="lg"
               disabled={generating}
-              triggerTestId="insights-model-select"
+              data-testid="insights-model-select"
             />
           </div>
           <div className="insights-scene__day-filters">
@@ -284,15 +245,23 @@ const InsightsScene: React.FC = () => {
             </div>
           </div>
           {generating ? (
-            <button className="insights-scene__cancel-btn" onClick={cancelGeneration}>
-              <X size={14} />
-              <span>{t('insights.cancelBtn')}</span>
-            </button>
+            <Button
+              variant="outline"
+              size="sm"
+              leadingIcon={<Icon name="xmark" size="lg" />}
+              onClick={cancelGeneration}
+            >
+              {t('insights.cancelBtn')}
+            </Button>
           ) : (
-            <button className="insights-scene__generate-btn" onClick={generateReport}>
-              <BarChart3 size={14} />
-              <span>{t('insights.generateBtn')}</span>
-            </button>
+            <Button
+              variant="fill"
+              size="sm"
+              leadingIcon={<BarChart3 />}
+              onClick={generateReport}
+            >
+              {t('insights.generateBtn')}
+            </Button>
           )}
         </div>
       </div>
@@ -301,13 +270,18 @@ const InsightsScene: React.FC = () => {
         <div className="insights-scene__error" data-bf-scene="insights" data-bf-part="error">
           <AlertTriangle size={14} />
           <span>{error}</span>
-          <button onClick={clearError} aria-label={t('insights.dismissError')}>&times;</button>
+          <IconButton
+            size="sm"
+            onClick={clearError}
+            aria-label={t('insights.dismissError')}
+            icon={<Icon name="xmark" size="sm" />}
+          />
         </div>
       )}
 
       {generating && <GenerationPanel progress={progress} />}
 
-      <div className="insights-scene__history" data-bf-scene="insights" data-bf-part="content">
+      <ScrollArea className="insights-scene__history" data-bf-scene="insights" data-bf-part="content">
         <div className="insights-scene__history-header">
           <div className="insights-scene__history-label">
             {t('insights.history')}
@@ -330,7 +304,7 @@ const InsightsScene: React.FC = () => {
             ))}
           </div>
         )}
-      </div>
+      </ScrollArea>
     </div>
   );
 };
@@ -401,13 +375,13 @@ const ReportMetaCard: React.FC<{
           </span>
         </span>
         <span className="insights-meta-card__metric">
-          <MessageSquare size={14} />
+          <Icon name="side-chat" size="sm" />
           <span><strong>{formatNumber(meta.total_messages)}</strong>{t('insights.messages')}</span>
         </span>
       </div>
       <div className="insights-meta-card__details">
         <span>
-          <Clock size={11} /> {meta.total_hours.toFixed(1)} {t('insights.hours')}
+          <Icon name="clock" size="2xs" /> {meta.total_hours.toFixed(1)} {t('insights.hours')}
         </span>
         <span>
           <Calendar size={11} /> {formatNumber(meta.days_covered)} {t('insights.days')}
@@ -427,7 +401,7 @@ const ReportMetaCard: React.FC<{
         <div className="insights-meta-card__generation-meta">
           {generationModels.length > 0 && (
             <span title={generationModels.join(', ')}>
-              <Brain size={10} /> {generationModels.join(' + ')}
+              <Icon name="thinking" size="lg" style={{ width: 10, height: 10 }} /> {generationModels.join(' + ')}
             </span>
           )}
           {hasGenerationCalls && (
@@ -435,7 +409,7 @@ const ReportMetaCard: React.FC<{
               title={generationTokenTitle}
               className={generationUsageComplete ? '' : 'insights-meta-card__generation-meta--partial'}
             >
-              <Sparkles size={10} />
+              <Icon name="spark" size="2xs" />
               {t('insights.insightsGenerationTokens')}:
               {' '}{hasGenerationUsage
                 ? formatNumber(generationUsage.total_tokens, { notation: 'compact', maximumFractionDigits: 1 })
@@ -527,7 +501,7 @@ const ReportNav: React.FC<{ report: InsightsReport; scrollContainerRef: React.Re
   return (
     <nav className="insights-report-nav">
       {visibleSections.map((section) => {
-        const Icon = SECTIONS.find(s => s.id === section.id)?.icon || Target;
+        const SectionIcon = SECTIONS.find(s => s.id === section.id)?.icon || Target;
         return (
           <button
             key={section.id}
@@ -535,7 +509,7 @@ const ReportNav: React.FC<{ report: InsightsReport; scrollContainerRef: React.Re
             onClick={() => scrollToSection(section.id)}
             title={section.label}
           >
-            <Icon size={14} />
+            <SectionIcon size={14} />
             <span className="insights-report-nav__label">{section.label}</span>
           </button>
         );
@@ -568,28 +542,33 @@ const ReportView: React.FC<{ report: InsightsReport; onBack: () => void }> = ({ 
   return (
     <div className="insights-scene insights-scene--report" data-bf-scene="insights" data-bf-part="root" data-bf-view="report">
       <div className="insights-report-header" data-bf-scene="insights" data-bf-part="header">
-        <button className="insights-report-header__back" onClick={onBack}>
-          <ArrowLeft size={14} />
-          <span>{t('insights.backToList')}</span>
-        </button>
+        <Button
+          variant="outline"
+          size="sm"
+          leadingIcon={<Icon name="arrow-left" size="lg" />}
+          onClick={onBack}
+        >
+          {t('insights.backToList')}
+        </Button>
         <div className="insights-report-header__meta">
-          <span><MessageSquare size={11} /> {report.total_messages} {t('insights.messages')}</span>
+          <span><Icon name="side-chat" size="2xs" /> {report.total_messages} {t('insights.messages')}</span>
           <span><BarChart3 size={11} /> {report.total_sessions} {t('insights.sessions')}</span>
           <span><Calendar size={11} /> {dateStart} ~ {dateEnd}</span>
         </div>
         <div className="insights-report-header__actions">
-          <button
-            className="insights-report-header__html-btn"
+          <Button
+            variant="outline"
+            size="sm"
+            leadingIcon={<Icon name="arrow-up-right" size="lg" />}
             onClick={handleOpenHtml}
             disabled={!report.html_report_path}
           >
-            <ExternalLink size={12} />
-            <span>{t('insights.openHtml')}</span>
-          </button>
+            {t('insights.openHtml')}
+          </Button>
         </div>
       </div>
 
-      <div className="insights-report-content" ref={bodyRef} data-bf-scene="insights" data-bf-part="content">
+      <ScrollArea className="insights-report-content" ref={bodyRef} data-bf-scene="insights" data-bf-part="content">
         <div className="insights-report-body">
           <div className="insights-report-body-inner">
             <header className="insights-report-hero">
@@ -714,7 +693,7 @@ const ReportView: React.FC<{ report: InsightsReport; onBack: () => void }> = ({ 
         </div>
 
         <ReportNav report={report} scrollContainerRef={bodyRef as React.RefObject<HTMLDivElement>} />
-      </div>
+      </ScrollArea>
     </div>
   );
 };
@@ -1021,9 +1000,9 @@ const StatItem: React.FC<{ value: string; label: string }> = ({ value, label }) 
 
 // Bar chart palette (default + semantic roles)
 const CHART_COLORS = {
-  blue: 'var(--bf-appearance-token-color-accent-500)',      // default / primary series
+  blue: 'var(--bf-color-accent-default)',      // default / primary series
   green: APPEARANCE_DOMAIN_TOKENS.insights.positive,     // positive / success
-  purple: 'var(--bf-appearance-token-color-purple-500)',    // distribution / category
+  purple: 'var(--bf-color-accent-secondary)',    // distribution / category
   indigo: APPEARANCE_DOMAIN_TOKENS.insights.time,    // time-related
   orange: APPEARANCE_DOMAIN_TOKENS.insights.neutral,    // time-of-day / neutral
   red: APPEARANCE_DOMAIN_TOKENS.insights.issue,       // issues / errors
@@ -1166,7 +1145,7 @@ const CopyableCode: React.FC<{ text: string; label?: string }> = ({ text, label 
       <div className="insights-copyable__row">
         <code className="insights-copyable__code">{text}</code>
         <button className="insights-copyable__btn" onClick={handleCopy} aria-label={copied ? 'Copied' : 'Copy to clipboard'}>
-          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? <Icon name="check-line" size="xs" /> : <Icon name="duplicate" size="xs" />}
         </button>
       </div>
     </div>

@@ -1,16 +1,14 @@
-@use '../../../../component-library/styles/tokens.scss' as *;
-
 .m-editor-textarea {
   width: 100%;
   height: 100%;
-  padding: $size-gap-4;
+  padding: var(--bf-space-4);
   border: none !important;
   outline: none !important;
   box-shadow: none !important;
   resize: none;
-  font-family: $font-family-mono;
-  font-size: var(--bf-appearance-token-font-size-sm);
-  line-height: $line-height-relaxed;
+  font-family: var(--bf-font-family-mono);
+  font-size: var(--bf-font-size-sm);
+  line-height: var(--bf-line-height-relaxed);
   background: transparent;
   color: inherit;
 

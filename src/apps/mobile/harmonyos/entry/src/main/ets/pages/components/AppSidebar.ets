@@ -1,6 +1,20 @@
+import { MobileDesignGeometry, MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { RemoteSession } from '../../model/RemoteModels';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
-import { CARD, INK, LINE, MUTED, PAGE_BG, PAGE_BG_FADE, SOFT, SUBTLE } from './Theme';
+import {
+  CARD,
+  INK,
+  LINE,
+  MUTED,
+  PAGE_BG,
+  PAGE_BG_FADE,
+  SCRIM,
+  SHADOW_FAINT,
+  SHADOW_SUBTLE,
+  SOFT,
+  SUBTLE,
+  TRANSPARENT
+} from './Theme';
 import { SidebarToggleButton } from './SidebarToggleButton';
 import { SessionActionPresentation, SessionActionSurface } from './SessionActionSurface';
 import { AdaptiveSheetOptions } from './AdaptiveSheetOptions';
@@ -17,9 +31,9 @@ import { SidebarConnectionActionPolicy } from '../policy/SidebarConnectionAction
 /**
  * How many conversations show before the rest go behind an overflow row.
  *
- * The conversations and the workspaces share one scroll now, so the list can no
- * longer take every pixel it wants: six rows leave the workspace section
- * visible on a phone without scrolling to find it.
+ * The conversations and the workspaces share one scroll. Recent history comes
+ * after the device/workspace navigation, so cap each expansion to keep the
+ * bottom section browseable without turning the sidebar into an unbounded list.
  */
 const RECENT_BATCH: number = 6;
 
@@ -35,6 +49,7 @@ export struct AppSidebar {
   @Param showCollapseButton: boolean = false;
   @Param showViewSettingsButton: boolean = false;
   @Param showWorkspaceSection: boolean = false;
+  @Param showConversationSection: boolean = true;
   @Event onClose: () => void = () => {};
   @Event onNewChat: () => void = () => {};
   @Event onEnterCode: () => void = () => {};
@@ -58,7 +73,7 @@ export struct AppSidebar {
   @Local archivedSessionsExpanded: boolean = false;
   @Local visibleRecentCount: number = RECENT_BATCH;
   /**
-   * The workspace section, appended below the conversations.
+   * The device/workspace section, rendered before recent conversations.
    *
    * It is a slot rather than a component this file constructs because the
    * sidebar has no business knowing about remote state; the host wires it.
@@ -79,15 +94,16 @@ export struct AppSidebar {
       }
 
       Stack({ alignContent: Alignment.Bottom }) {
-        // Conversations and workspaces scroll together. They are different
-        // kinds of thing — a timeline and a set of places — so they stack
-        // rather than compete for the same pane, and neither needs a label
-        // saying whether it runs here or on a desktop.
+        // Places are the primary navigation, so devices and workspaces come
+        // first. Recent conversations are history and stay at the bottom of
+        // the same scroll instead of pushing the current working context down.
         Scroll() {
           Column() {
-            this.ConversationSection()
             if (this.showWorkspaceSection) {
               this.contentSlot()
+            }
+            if (this.showConversationSection) {
+              this.ConversationSection()
             }
           }
           .width('100%')
@@ -100,17 +116,19 @@ export struct AppSidebar {
         .scrollable(ScrollDirection.Vertical)
         .scrollBar(BarState.Off)
 
-        // The footer floats over the scroll, so rows have to fade out under it
-        // rather than run into it. Without this a workspace row mid-scroll gets
-        // visually sliced by the chat button sitting on top of it.
-        Column()
-          .width('100%')
-          .height(this.usesCompactFooter() ? 92 : 120)
-          .hitTestBehavior(HitTestMode.None)
-          .linearGradient({
-            angle: 180,
-            colors: [[PAGE_BG_FADE, 0.0], [PAGE_BG, 0.62]]
-          })
+        // Signed-out actions form a conventional footer and retain a fade.
+        // Authenticated navigation uses two independent floating controls, so
+        // the scroll remains visible all the way to the bottom behind them.
+        if (!this.isAccountAuthenticated()) {
+          Column()
+            .width('100%')
+            .height(this.usesCompactFooter() ? 92 : 120)
+            .hitTestBehavior(HitTestMode.None)
+            .linearGradient({
+              angle: 180,
+              colors: [[PAGE_BG_FADE, 0.0], [PAGE_BG, 0.62]]
+            })
+        }
 
         if (this.isAccountAuthenticated()) {
           this.AuthenticatedFooter()
@@ -138,7 +156,7 @@ export struct AppSidebar {
     Column() {
       if (this.visiblePinnedSessions().length > 0) {
         Text(RemoteI18n.t('sidebar.pinned'))
-          .fontSize(14).fontWeight(FontWeight.Medium).fontColor(MUTED)
+          .fontSize(MobileDesignTypography.bodyMedium.size).fontWeight(FontWeight.Medium).fontColor(MUTED)
           .width('100%').margin({ top: 16, bottom: 6 })
         ForEach(this.visiblePinnedSessions(), (session: RemoteSession) => {
           this.PinnedRow(session)
@@ -146,7 +164,7 @@ export struct AppSidebar {
       }
 
       Text(RemoteI18n.t('sidebar.conversations'))
-        .fontSize(14)
+        .fontSize(MobileDesignTypography.bodyMedium.size)
         .fontWeight(FontWeight.Medium)
         .fontColor(MUTED)
         .width('100%')
@@ -178,11 +196,11 @@ export struct AppSidebar {
   private MoreConversationsRow() {
     Row({ space: 8 }) {
       Text('···')
-        .fontSize(13)
+        .fontSize(MobileDesignTypography.bodySmall.size)
         .fontColor(MUTED)
       Text(RemoteI18n.f('sidebar.moreSessions',
         String(this.visibleRecentSessions().length - this.visibleRecentCount)))
-        .fontSize(13)
+        .fontSize(MobileDesignTypography.bodySmall.size)
         .fontColor(MUTED)
     }
     .width('100%')
@@ -198,38 +216,40 @@ export struct AppSidebar {
   private AuthenticatedHeader() {
     Row() {
       Text('BitFun')
-        .fontSize(20)
-        .fontWeight(FontWeight.Bold)
+        .fontSize(MobileDesignTypography.headlineMedium.size)
+        .fontWeight(FontWeight.Medium)
         .fontColor(INK)
       Blank()
       // Right-aligned so the search and collapse controls keep the same
       // position whether or not the source-specific view-settings entry shows.
       Row({ space: 6 }) {
         if (this.showViewSettingsButton) {
-          Stack({ alignContent: Alignment.Center }) {
+          Button() {
             SidebarGlyph({ kind: 'session_more' })
           }
-          .width(38)
-          .height(38)
-          .backgroundColor(CARD)
-          .border({ width: 1, color: LINE })
-          .borderRadius(19)
-          .shadow({ radius: 14, color: '#16000000', offsetY: 6 })
+          .width(MobileDesignGeometry.controlTouchSize)
+          .height(MobileDesignGeometry.controlTouchSize)
+          .padding(0)
+          .backgroundColor(TRANSPARENT)
+          .borderRadius(12)
+          .stateEffect(true)
           .accessibilityText(RemoteI18n.t('remote.actions'))
           .onClick(() => {
             this.onOpenViewSettings();
           })
         }
 
-        Stack({ alignContent: Alignment.Center }) {
+        Button() {
           SidebarGlyph({ kind: 'search' })
         }
-        .width(38)
-        .height(38)
+        .width(44)
+        .height(44)
+        .padding(0)
         .backgroundColor(CARD)
-        .border({ width: 1, color: LINE })
-        .borderRadius(19)
-        .shadow({ radius: 14, color: '#16000000', offsetY: 6 })
+        .border({ width: 0.5, color: LINE })
+        .borderRadius(22)
+        .shadow({ radius: 18, color: SHADOW_FAINT, offsetY: 5 })
+        .stateEffect(true)
         .accessibilityText(RemoteI18n.t('common.search'))
         .onClick(() => {
           this.showSearch = !this.showSearch;
@@ -240,7 +260,7 @@ export struct AppSidebar {
 
         if (this.showCollapseButton) {
           SidebarToggleButton({
-            controlSize: 38,
+            controlSize: MobileDesignGeometry.controlTouchSize,
             onToggle: this.onCollapse
           })
         }
@@ -254,7 +274,7 @@ export struct AppSidebar {
       TextInput({ placeholder: RemoteI18n.t('sidebar.searchPlaceholder'), text: this.sessionSearchQuery })
         .width('100%')
         .height(42)
-        .fontSize(14)
+        .fontSize(MobileDesignTypography.bodyMedium.size)
         .fontColor(INK)
         .placeholderColor(SUBTLE)
         .padding({ left: 14, right: 14 })
@@ -282,7 +302,7 @@ export struct AppSidebar {
           .width(24)
           .height(24)
         Text(RemoteI18n.t('sidebar.signedOutNewChat'))
-          .fontSize(16)
+          .fontSize(MobileDesignTypography.bodyLarge.size)
           .fontWeight(FontWeight.Medium)
           .fontColor(INK)
       }
@@ -295,7 +315,7 @@ export struct AppSidebar {
 
       if (this.showCollapseButton) {
         SidebarToggleButton({
-          controlSize: 38,
+          controlSize: MobileDesignGeometry.controlTouchSize,
           onToggle: this.onCollapse
         })
       }
@@ -308,41 +328,46 @@ export struct AppSidebar {
   @Builder
   private AuthenticatedFooter() {
     Row() {
-      Row({ space: 9 }) {
-        SidebarGlyph({ kind: 'edit' })
-        Text(RemoteI18n.t('sidebar.newChat'))
-          .fontSize(15)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(INK)
+      Button() {
+        Row({ space: 8 }) {
+          SidebarGlyph({ kind: 'edit' })
+          Text(RemoteI18n.t('sidebar.newChat'))
+            .fontSize(MobileDesignTypography.titleMedium.size)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(INK)
+        }
       }
-      .width(116)
-      .height(46)
-      .justifyContent(FlexAlign.Center)
-      .alignItems(VerticalAlign.Center)
+      .width(98)
+      .height(44)
+      .padding(0)
       .backgroundColor(CARD)
-      .border({ width: 1, color: LINE })
-      .borderRadius(23)
-      .shadow({ radius: 14, color: '#16000000', offsetY: 6 })
+      .border({ width: 0.5, color: LINE })
+      .borderRadius(22)
+      .shadow({ radius: 24, color: SHADOW_SUBTLE, offsetY: 7 })
+      .stateEffect(true)
       .onClick(() => {
         this.onNewChat();
       })
 
       Blank()
 
-      Stack({ alignContent: Alignment.Center }) {
+      Button() {
         SidebarGlyph({ kind: 'settings' })
       }
-        .width(46)
-        .height(46)
+        .width(44)
+        .height(44)
+        .padding(0)
         .backgroundColor(CARD)
-        .borderRadius(23)
-        .shadow({ radius: 14, color: '#16000000', offsetY: 6 })
+        .borderRadius(22)
+        .shadow({ radius: 24, color: SHADOW_SUBTLE, offsetY: 7 })
+        .stateEffect(true)
         .onClick(() => {
           this.onOpenSettings();
         })
     }
     .width('100%')
     .height(56)
+    .padding({ left: 12 })
     .alignItems(VerticalAlign.Center)
     .zIndex(2)
   }
@@ -353,7 +378,7 @@ export struct AppSidebar {
       if (SidebarConnectionActionPolicy.shouldShowScan(this.connectionState)) {
         Button() {
           Text(RemoteI18n.t('sidebar.scanToConnect'))
-            .fontSize(14)
+            .fontSize(MobileDesignTypography.bodyMedium.size)
             .fontWeight(FontWeight.Medium)
             .fontColor(INK)
             .maxLines(1)
@@ -372,7 +397,7 @@ export struct AppSidebar {
 
       Button() {
         Text(RemoteI18n.t('sidebar.signInBitFunAccount'))
-          .fontSize(14)
+          .fontSize(MobileDesignTypography.bodyMedium.size)
           .fontWeight(FontWeight.Bold)
           .fontColor(CARD)
           .maxLines(1)
@@ -400,13 +425,13 @@ export struct AppSidebar {
         .width(22)
         .height(22)
       Text(RemoteI18n.t('sidebar.archived'))
-        .fontSize(14)
+        .fontSize(MobileDesignTypography.bodyMedium.size)
         .fontWeight(FontWeight.Medium)
         .fontColor(INK)
       Blank()
       Row({ space: 8 }) {
         Text(`${this.archivedSessionCount()}`)
-          .fontSize(12)
+          .fontSize(MobileDesignTypography.labelSmall.size)
           .fontWeight(FontWeight.Medium)
           .fontColor(MUTED)
           .width(24)
@@ -436,7 +461,7 @@ export struct AppSidebar {
     .height(46)
     .padding({ left: 12, right: 68 })
     .margin({ top: 8 })
-    .backgroundColor(this.archivedSessionsExpanded ? SOFT : '#00000000')
+    .backgroundColor(this.archivedSessionsExpanded ? SOFT : TRANSPARENT)
     .borderRadius(10)
     .onClick(() => {
       this.archivedSessionsExpanded = !this.archivedSessionsExpanded;
@@ -450,20 +475,20 @@ export struct AppSidebar {
       SymbolGlyph($r('sys.symbol.checkmark_circle'))
         .fontSize(18).fontColor([MUTED]).width(19).height(19)
       Text(session.title || RemoteI18n.t('sidebar.untitled'))
-        .fontSize(15).fontColor(INK).layoutWeight(1)
+        .fontSize(MobileDesignTypography.titleSmall.size).fontColor(INK).layoutWeight(1)
         .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
       this.SessionMoreButton(session)
     }
     .width('100%').height(44)
     .padding({ left: 12, right: 4 })
-    .backgroundColor(this.selectedSessionId === session.id ? SOFT : '#00000000')
+    .backgroundColor(this.selectedSessionId === session.id ? SOFT : TRANSPARENT)
     .borderRadius(10)
     .onClick(() => this.openSession(session))
     .gesture(LongPressGesture({ repeat: false }).onAction(() => this.openSessionActions(session)))
     .bindPopup(this.showCollapseButton && this.activeActionSessionId === session.id, {
       builder: () => { this.SessionActionPopover() },
       placement: Placement.Right,
-      popupColor: '#00000000',
+      popupColor: TRANSPARENT,
       enableArrow: false,
       autoCancel: true,
       mask: false,
@@ -480,7 +505,7 @@ export struct AppSidebar {
   RecentRow(item: RemoteSession) {
     Row({ space: 8 }) {
       Text(item.title || RemoteI18n.t('sidebar.untitled'))
-        .fontSize(15)
+        .fontSize(MobileDesignTypography.titleSmall.size)
         .fontWeight(FontWeight.Regular)
         .fontColor(INK)
         .layoutWeight(1)
@@ -492,7 +517,7 @@ export struct AppSidebar {
     .height(44)
     .padding({ left: 12, right: 4 })
     .backgroundColor(this.selectedSessionId === item.id || this.activeActionSessionId === item.id ?
-      SOFT : '#00000000')
+      SOFT : TRANSPARENT)
     .borderRadius(10)
     .onClick(() => {
       this.openSession(item);
@@ -501,7 +526,7 @@ export struct AppSidebar {
     .bindPopup(this.showCollapseButton && this.activeActionSessionId === item.id, {
       builder: () => { this.SessionActionPopover() },
       placement: Placement.Right,
-      popupColor: '#00000000',
+      popupColor: TRANSPARENT,
       enableArrow: false,
       autoCancel: true,
       mask: false,
@@ -576,7 +601,7 @@ export struct AppSidebar {
     Column() {
       Text(this.sessionSearchQuery.trim().length > 0 ?
         RemoteI18n.t('sidebar.noSearchResult') : RemoteI18n.t('sidebar.emptyRecentTitle'))
-        .fontSize(14)
+        .fontSize(MobileDesignTypography.bodyMedium.size)
         .fontWeight(FontWeight.Medium)
         .fontColor(MUTED)
         .width('100%')
@@ -707,8 +732,8 @@ export struct AppSidebar {
   private sessionActionSheetOptions(): SheetOptions {
     return {
       height: this.actionSessionIsGeneralChat() ? 380 : 300,
-      backgroundColor: '#00000000',
-      maskColor: '#44000000',
+      backgroundColor: TRANSPARENT,
+      maskColor: SCRIM,
       showClose: false,
       dragBar: false
     };

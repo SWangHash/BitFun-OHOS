@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
-import { AlertTriangle, ChevronLeft, ChevronRight, Globe, RefreshCw } from 'lucide-react';
+import { Icon, IconButton, Input } from '@bitfun/ui';
+import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { IconButton } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { useEmbeddedBrowserWebview } from './useEmbeddedBrowserWebview';
@@ -43,45 +43,38 @@ const BrowserScene: React.FC = () => {
       >
         <IconButton
           type="button"
-          variant="ghost"
-          size="small"
+          size="sm"
           onClick={browser.goBack}
           aria-label={t('nav.back')}
+          icon={<Icon name="chevron-left" size="lg" />}
           data-testid="browser-back-button"
-        >
-          <ChevronLeft size={14} />
-        </IconButton>
+        />
         <IconButton
           type="button"
-          variant="ghost"
-          size="small"
+          size="sm"
           onClick={browser.goForward}
           aria-label={t('nav.forward')}
+          icon={<Icon name="chevron-right" size="lg" />}
           data-testid="browser-forward-button"
-        >
-          <ChevronRight size={14} />
-        </IconButton>
+        />
         <IconButton
           type="button"
-          variant="ghost"
-          size="small"
+          size="sm"
           onClick={browser.reload}
           disabled={browser.isLoading}
           aria-label={t('actions.refresh')}
+          icon={(
+            <Icon name="refresh" size="lg" className={browser.isLoading ? 'browser-scene__spinning' : undefined} data-testid={browser.isLoading ? 'browser-loading-indicator' : undefined} />
+          )}
           data-testid="browser-refresh-button"
-        >
-          <RefreshCw
-            size={14}
-            className={browser.isLoading ? 'browser-scene__spinning' : undefined}
-            data-testid={browser.isLoading ? 'browser-loading-indicator' : undefined}
-          />
-        </IconButton>
+        />
         <div className="browser-scene__address">
-          <Globe size={16} />
-          <input
+          <Input
+            className="browser-scene__address-field"
             type="text"
             value={browser.inputValue}
-            onChange={(event) => browser.setInputValue(event.target.value)}
+            onValueChange={browser.setInputValue}
+            leading={<Icon name="browser" size="md" />}
             placeholder={t('browserView.addressPlaceholder', { exampleUrl: 'https://example.com' })}
             spellCheck={false}
             data-testid="browser-url-input"
@@ -111,7 +104,7 @@ const BrowserScene: React.FC = () => {
             data-webview-label={browser.webviewLabel}
           >
             <div className="browser-scene__webview-placeholder">
-              <Globe size={20} />
+              <Icon name="browser" size="lg" />
               <span data-testid="browser-current-url">{browser.currentUrl}</span>
             </div>
           </div>

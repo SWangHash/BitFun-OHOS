@@ -10,16 +10,16 @@
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-  font-family: inherit;
+  font-family:var(--bf-font-family-sans);
 
   &__error-banner {
     flex-shrink: 0;
     padding: 8px 16px 10px;
-    border-bottom: 1px solid var(--bf-appearance-token-border-subtle);
-    background: var(--bf-appearance-token-color-bg-primary);
+    border-bottom: 1px solid var(--bf-color-border-subtle);
+    background: var(--bf-color-surface-canvas);
   }
 
-  &__error-alert.alert {
+  &__error-alert {
     padding: 8px 10px;
     align-items: center;
   }
@@ -27,7 +27,6 @@
   &__scroll {
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
     overflow-x: hidden;
     padding: 10px 0 6px;
   }
@@ -46,13 +45,13 @@
   }
 
   &__section-title {
-    font-size: 11px;
-    font-weight: 600;
-    font-family: inherit;
-    color: var(--bf-appearance-token-color-text-muted);
+    font-size: var(--bf-font-size-meta);
+    font-weight: var(--bf-font-weight-semibold);
+    font-family:var(--bf-font-family-sans);
+    color: var(--bf-color-content-muted);
     margin: 0;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: var(--bf-letter-spacing-wider);
     white-space: nowrap;
   }
 
@@ -66,12 +65,6 @@
     flex-direction: column;
     gap: 4px;
     max-height: 132px;
-    overflow-y: auto;
-    scrollbar-width: none;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
   }
 
   &__saved-item {
@@ -80,15 +73,15 @@
     gap: 8px;
     padding: 5px 10px;
     border-radius: 6px;
-    background: var(--bf-appearance-token-element-bg-subtle);
+    background: var(--bf-color-surface-subtle);
     transition:
-      transform var(--bf-appearance-token-motion-fast) var(--bf-appearance-token-easing-standard),
-      background-color var(--bf-appearance-token-motion-fast) var(--bf-appearance-token-easing-standard);
+      transform var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+      background-color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
     cursor: pointer;
     position: relative;
 
     &:hover {
-      background: var(--bf-appearance-token-element-bg-soft);
+      background: var(--bf-color-action-quiet-hover);
     }
 
     &:active {
@@ -97,8 +90,8 @@
 
     &--config {
       .ssh-connection-dialog__saved-icon {
-        background: var(--bf-appearance-token-color-success-bg);
-        color: var(--bf-appearance-token-color-success);
+        background: var(--bf-color-status-success-surface);
+        color: var(--bf-color-status-success-content);
       }
 
       .ssh-connection-dialog__saved-actions {
@@ -113,9 +106,9 @@
     justify-content: center;
     width: 28px;
     height: 28px;
-    background: var(--bf-appearance-token-color-accent-100);
+    background: var(--bf-color-action-secondary-background);
     border-radius: 6px;
-    color: var(--bf-appearance-token-color-accent-500);
+    color: var(--bf-color-accent-default);
     flex-shrink: 0;
   }
 
@@ -128,25 +121,25 @@
   }
 
   &__saved-name {
-    font-size: 13px;
-    font-weight: 500;
-    font-family: inherit;
-    color: var(--bf-appearance-token-color-text-primary);
+    font-size: var(--bf-font-size-sm);
+    font-weight: var(--bf-font-weight-medium);
+    font-family:var(--bf-font-family-sans);
+    color: var(--bf-color-content-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 1.3;
+    line-height: var(--bf-line-height-snug);
   }
 
   &__saved-detail {
-    font-size: 12px;
-    font-weight: 400;
-    font-family: inherit;
-    color: var(--bf-appearance-token-color-text-muted);
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-regular);
+    font-family:var(--bf-font-family-sans);
+    color: var(--bf-color-content-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 1.3;
+    line-height: var(--bf-line-height-snug);
     font-variant-numeric: tabular-nums;
   }
 
@@ -161,11 +154,11 @@
     align-items: center;
     gap: 4px;
     padding: 4px 8px;
-    background: var(--bf-appearance-token-element-bg-subtle);
-    border: 1px solid var(--bf-appearance-token-border-subtle);
+    background: var(--bf-color-surface-subtle);
+    border: 1px solid var(--bf-color-border-subtle);
     border-radius: 4px;
-    font-size: 11px;
-    color: var(--bf-appearance-token-color-text-muted);
+    font-size: var(--bf-font-size-meta);
+    color: var(--bf-color-content-muted);
     white-space: nowrap;
   }
 
@@ -175,19 +168,9 @@
     gap: 4px;
     flex-shrink: 0;
     opacity: 0;
-    transition: opacity var(--bf-appearance-token-motion-fast) var(--bf-appearance-token-easing-standard);
+    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     .ssh-connection-dialog__saved-item:hover & {
-      opacity: 1;
-    }
-  }
-
-  &__delete-btn {
-    color: var(--bf-appearance-token-color-text-muted);
-    opacity: 0.7;
-
-    &:hover {
-      color: var(--bf-appearance-token-color-error);
       opacity: 1;
     }
   }
@@ -204,17 +187,17 @@
       content: '';
       flex: 1;
       height: 1px;
-      background: var(--bf-appearance-token-border-subtle);
+      background: var(--bf-color-border-subtle);
     }
 
     span {
-      font-size: 11px;
-      font-weight: 500;
-      font-family: inherit;
-      color: var(--bf-appearance-token-color-text-muted);
+      font-size: var(--bf-font-size-meta);
+      font-weight: var(--bf-font-weight-medium);
+      font-family:var(--bf-font-family-sans);
+      color: var(--bf-color-content-muted);
       white-space: nowrap;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: var(--bf-letter-spacing-wider);
     }
   }
 
@@ -226,7 +209,7 @@
     padding: 8px 16px;
     border-radius: 8px;
     scroll-margin-top: 8px;
-    transition: background-color var(--bf-appearance-token-motion-fast) var(--bf-appearance-token-easing-standard);
+    transition: background-color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &--highlighted {
       animation: ssh-connection-form-reveal 1.2s ease-out;
@@ -273,9 +256,9 @@
     flex-direction: column;
     gap: 12px;
     padding: 12px;
-    border: 1px solid var(--bf-appearance-token-border-subtle);
+    border: 1px solid var(--bf-color-border-subtle);
     border-radius: 8px;
-    background: var(--bf-appearance-token-element-bg-subtle);
+    background: var(--bf-color-surface-subtle);
   }
 
   &__connection-options {
@@ -293,9 +276,9 @@
 
   &__advanced {
     min-width: 0;
-    border: 1px solid var(--bf-appearance-token-border-subtle);
+    border: 1px solid var(--bf-color-border-subtle);
     border-radius: 8px;
-    background: var(--bf-appearance-token-element-bg-subtle);
+    background: var(--bf-color-surface-subtle);
     overflow: hidden;
   }
 
@@ -309,30 +292,30 @@
     padding: 8px 12px;
     border: 0;
     background: transparent;
-    color: var(--bf-appearance-token-color-text-secondary);
+    color: var(--bf-color-content-secondary);
     font: inherit;
-    font-size: 12px;
-    font-weight: 500;
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-medium);
     text-align: start;
     cursor: pointer;
     transition:
-      background-color var(--bf-appearance-token-motion-fast) var(--bf-appearance-token-easing-standard),
-      color var(--bf-appearance-token-motion-fast) var(--bf-appearance-token-easing-standard);
+      background-color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+      color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &:hover {
-      background: var(--bf-appearance-token-element-bg-soft);
-      color: var(--bf-appearance-token-color-text-primary);
+      background: var(--bf-color-action-quiet-hover);
+      color: var(--bf-color-content-primary);
     }
 
     &:focus-visible {
-      outline: 1px solid var(--bf-appearance-token-color-accent-500);
+      outline: 1px solid var(--bf-color-accent-default);
       outline-offset: -1px;
     }
   }
 
   &__advanced-chevron {
     flex-shrink: 0;
-    transition: transform var(--bf-appearance-token-motion-fast) var(--bf-appearance-token-easing-standard);
+    transition: transform var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &--expanded {
       transform: rotate(180deg);
@@ -345,8 +328,8 @@
     gap: 12px;
     min-width: 0;
     padding: 12px;
-    border-top: 1px solid var(--bf-appearance-token-border-subtle);
-    background: var(--bf-appearance-token-color-bg-primary);
+    border-top: 1px solid var(--bf-color-border-subtle);
+    background: var(--bf-color-surface-canvas);
   }
 
   &__test-report {
@@ -354,16 +337,16 @@
     flex-direction: column;
     gap: 6px;
     padding: 10px;
-    border: 1px solid var(--bf-appearance-token-border-subtle);
+    border: 1px solid var(--bf-color-border-subtle);
     border-radius: 7px;
-    background: var(--bf-appearance-token-element-bg-subtle);
+    background: var(--bf-color-surface-subtle);
 
     &--success {
-      border-color: var(--bf-appearance-token-color-success);
+      border-color: var(--bf-color-status-success-content);
     }
 
     &--error {
-      border-color: var(--bf-appearance-token-color-error);
+      border-color: var(--bf-color-status-danger-content);
     }
   }
 
@@ -373,12 +356,12 @@
     align-items: center;
     gap: 6px;
     min-width: 0;
-    font-size: 11px;
-    color: var(--bf-appearance-token-color-text-secondary);
+    font-size: var(--bf-font-size-meta);
+    color: var(--bf-color-content-secondary);
 
     > span:last-child:not(:nth-child(2)) {
       overflow: hidden;
-      color: var(--bf-appearance-token-color-text-muted);
+      color: var(--bf-color-content-muted);
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -386,12 +369,12 @@
 
   &__hint {
     margin-top: 5px;
-    font-size: 11px;
-    line-height: 1.45;
-    color: var(--bf-appearance-token-color-text-muted);
+    font-size: var(--bf-font-size-meta);
+    line-height: var(--bf-line-height-support);
+    color: var(--bf-color-content-muted);
 
     &--warning {
-      color: var(--bf-appearance-token-color-warning);
+      color: var(--bf-color-status-warning-content);
     }
   }
 
@@ -402,10 +385,10 @@
 
   &__label {
     display: block;
-    font-size: 12px;
-    font-weight: 500;
-    font-family: inherit;
-    color: var(--bf-appearance-token-color-text-muted);
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-medium);
+    font-family:var(--bf-font-family-sans);
+    color: var(--bf-color-content-muted);
     margin-bottom: 6px;
   }
 
@@ -418,20 +401,8 @@
     flex-shrink: 0;
     margin-top: 0;
     padding: 8px 16px;
-    background: var(--bf-appearance-token-color-bg-primary);
+    background: var(--bf-color-surface-canvas);
 
-    .btn.btn-sm {
-      height: 28px;
-      min-height: 28px;
-      min-width: 0;
-      padding: 0 10px;
-      font-size: 11px;
-    }
-
-    .btn-loading-icon {
-      width: 13px;
-      height: 13px;
-    }
   }
 
   &__spinner {
@@ -473,7 +444,7 @@
     &__actions {
       padding-inline: 12px;
 
-      .btn {
+      > * {
         flex: 1 1 auto;
       }
     }
@@ -482,10 +453,10 @@
 
 @keyframes ssh-connection-form-reveal {
   0% {
-    background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 14%, transparent);
+    background: color-mix(in srgb, var(--bf-color-accent-default) 14%, transparent);
   }
   40% {
-    background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 8%, transparent);
+    background: color-mix(in srgb, var(--bf-color-accent-default) 8%, transparent);
   }
   100% {
     background: transparent;
@@ -515,9 +486,4 @@
 /** SSH remote workspace dialog only: above nav fixed popovers (~10k) so the dimmed backdrop captures clicks. */
 .ssh-connection-dialog__modal-overlay {
   z-index: 20000;
-}
-
-/** Portalled Select menus must remain above the dialog's raised overlay. */
-.select__dropdown.ssh-connection-dialog__select-dropdown {
-  z-index: 20001;
 }

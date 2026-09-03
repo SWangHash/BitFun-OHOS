@@ -497,7 +497,17 @@ async function startDesktopPreview() {
     printInfo(`Reusing web UI dev server on http://localhost:${DEV_SERVER_PORT}`);
   } else {
     printInfo(`Starting web UI dev server on http://localhost:${DEV_SERVER_PORT}`);
-    const viteArgs = ['--dir', 'src/web-ui', 'exec', 'vite', '--host', 'localhost', '--port', String(DEV_SERVER_PORT)];
+    const viteArgs = [
+      '--dir',
+      'src/web-ui',
+      'run',
+      'dev',
+      '--',
+      '--host',
+      'localhost',
+      '--port',
+      String(DEV_SERVER_PORT),
+    ];
     const viteEnv = {
       ...process.env,
       TAURI_DEV_HOST: 'localhost',
@@ -647,7 +657,7 @@ async function main() {
   let currentStep = 1;
 
   // Step 1: Run all independent preparation tasks in parallel.
-  // copy-monaco / generate-version / mobile-web / flashgrep have no
+  // copy-monaco / generate-version / mobile-web / flashgrep / plugin-host have no
   // dependencies on each other; each task's output is line-prefixed so the
   // interleaved logs stay attributable. The DeepSeek bridge is not prepared
   // here: it is not a compile-time Tauri resource. Official desktop:build
@@ -656,7 +666,7 @@ async function main() {
     currentStep++,
     totalSteps,
     desktopMode
-      ? 'Prepare resources (parallel: monaco, version, mobile-web, flashgrep)'
+      ? 'Prepare resources (parallel: monaco, version, mobile-web, flashgrep, plugin-host)'
       : 'Prepare resources (parallel: monaco, version)'
   );
 
@@ -677,6 +687,11 @@ async function main() {
   ];
 
   if (desktopMode) {
+    prepTasks.push({
+      name: 'Prepare OpenCode extension Host',
+      hint: 'Hint: install Bun, then run `pnpm run plugin-host:prepare`',
+      promise: runCommandPrefixed('plugin-host', 'pnpm', ['run', 'plugin-host:prepare']),
+    });
     prepTasks.push({
       name: 'Build mobile-web',
       promise: runCommandPrefixed('mobile-web', 'node', ['scripts/mobile-web-build.cjs', '--install']),
@@ -726,6 +741,34 @@ async function main() {
   if (prepFailed) {
     process.exit(1);
   }
+
+  if (desktopMode) {
+    const baselineHelperUrl = pathToFileURL(
+      path.join(__dirname, 'frontend-workbench-dev-baseline.mjs')
+    ).href;
+    const { getFrontendWorkbenchDevBaselinePlan } = await import(baselineHelperUrl);
+    const baselinePlan = getFrontendWorkbenchDevBaselinePlan(ROOT_DIR);
+    if (baselinePlan.shouldBuild) {
+      printInfo(`${baselinePlan.reason}; building the editable desktop frontend baseline`);
+      const baselineResult = await runCommandPrefixed(
+        'frontend-workbench',
+        'pnpm',
+        ['--dir', 'src/web-ui', 'run', 'build:desktop'],
+      );
+      if (!baselineResult.ok) {
+        printError('FrontendWorkbench baseline build failed');
+        if (baselineResult.error?.message) {
+          printError(baselineResult.error.message);
+        }
+        if (baselineResult.code !== null && baselineResult.code !== undefined) {
+          printError(`Exit code: ${baselineResult.code}`);
+        }
+        process.exit(1);
+      }
+    } else {
+      printInfo(baselinePlan.reason);
+    }
+  }
   printSuccess('Preparation tasks complete');
 
   const prepTime = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -773,7 +816,7 @@ async function main() {
       await ensureDesktopDebugBinaryForPreview(forceDesktopPreviewRebuild);
       await startDesktopPreview();
     } else {
-      await runCommand('pnpm exec vite', path.join(ROOT_DIR, 'src/web-ui'));
+      await runCommand('pnpm run dev', path.join(ROOT_DIR, 'src/web-ui'));
     }
   } catch (error) {
     printError('Dev server failed to start');

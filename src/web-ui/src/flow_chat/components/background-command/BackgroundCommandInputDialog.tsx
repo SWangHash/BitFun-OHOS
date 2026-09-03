@@ -1,5 +1,14 @@
+import {
+  Button,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Checkbox, Modal, Textarea } from '@/component-library';
+import { Checkbox, Textarea } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
 import type { FlowChatHeaderCommandSummary } from '../modern/FlowChatHeader';
 import './BackgroundCommandInputDialog.scss';
@@ -55,14 +64,22 @@ export const BackgroundCommandInputDialog: React.FC<BackgroundCommandInputDialog
   };
 
   return (
-    <Modal
-      isOpen={true}
-      onClose={isSending ? () => {} : onClose}
-      title={t('backgroundCommandInput.title')}
-      size="medium"
-      closeOnOverlayClick={!isSending}
-      contentClassName="background-command-input-dialog__modal"
+    <Dialog
+      open
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !isSending) onClose();
+      }}
+      size="md"
+      closeOnPointerOutside={!isSending}
     >
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{t('backgroundCommandInput.title')}</DialogTitle>
+        </DialogHeading>
+        <DialogClose />
+      </DialogHeader>
+      <DialogBody inset="none">
+        <div className="background-command-input-dialog__modal">
       <form data-bf-component="background-command-input-dialog" data-bf-part="root" data-bf-state={[isSending && 'sending', maskInput && 'masked'].filter(Boolean).join(' ')} className="background-command-input-dialog" onSubmit={handleSubmit}>
         <div data-bf-component="background-command-input-dialog" data-bf-part="summary" className="background-command-input-dialog__summary">
           <span data-bf-component="background-command-input-dialog" data-bf-part="summaryLabel" className="background-command-input-dialog__summary-label">
@@ -106,8 +123,8 @@ export const BackgroundCommandInputDialog: React.FC<BackgroundCommandInputDialog
         <div data-bf-component="background-command-input-dialog" data-bf-part="actions" className="background-command-input-dialog__actions">
           <Button
             type="button"
-            variant="secondary"
-            size="small"
+            variant="outline"
+            size="sm"
             onClick={onClose}
             disabled={isSending}
           >
@@ -115,16 +132,18 @@ export const BackgroundCommandInputDialog: React.FC<BackgroundCommandInputDialog
           </Button>
           <Button
             type="submit"
-            variant="primary"
-            size="small"
-            isLoading={isSending}
+            variant="fill"
+            size="sm"
+            loading={isSending}
             disabled={!canSend}
           >
             {t('backgroundCommandInput.send')}
           </Button>
         </div>
       </form>
-    </Modal>
+            </div>
+            </DialogBody>
+    </Dialog>
   );
 };
 

@@ -25,6 +25,7 @@ use snapshot::ProductSnapshotToolWrapper;
 use std::sync::Arc;
 
 pub use call_deferred_tool::CallDeferredTool;
+pub use catalog::{build_all_tools_info, build_tool_info, ToolInfoDto};
 pub(crate) use catalog::{
     product_get_tool_spec_runtime, resolve_product_get_tool_spec_results,
     resolve_product_readonly_enabled_tools, resolve_product_resolved_tool_manifest,
@@ -291,7 +292,7 @@ mod baseline_tests {
             "CreateCanvas",
             "WebSearch",
             "ListMCPResources",
-            "Git",
+            "Worktree",
             "ComputerUse",
         ] {
             assert!(

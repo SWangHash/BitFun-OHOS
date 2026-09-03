@@ -1,0 +1,328 @@
+// Shared presentation for runtime-owned settings pages and their embedded sections.
+.bitfun-runtime-settings {
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bf-space-6);
+  }
+
+  &__row-control {
+    width: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--bf-space-2);
+  }
+
+  /** Computer use: authorized status label (Granted / 已授权) */
+  &__perm-status--granted {
+    color: var(--bf-color-content-muted);
+  }
+
+  /** Computer use permission row: keep label short, avoid squashing action buttons (nowrap). */
+  &__row-action-btn {
+    flex-shrink: 0;
+  }
+
+  &__appearance-host {
+    display: contents;
+  }
+
+  &__warning {
+    max-width: 100%;
+    padding: 6px 10px;
+    border-radius: var(--bf-radius-sm);
+    border: 1px dashed color-mix(in srgb, var(--bf-color-status-warning-content) 40%, transparent);
+    color: var(--bf-color-status-warning-content);
+    font-size: var(--bf-font-size-xs);
+    line-height: var(--bf-line-height-relaxed);
+    background: transparent;
+  }
+
+  &__pet-picker {
+    width: 100%;
+    display: block;
+  }
+
+  &__pet-row-heading {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--bf-space-3);
+  }
+
+  &__pet-row-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__pet-row-title {
+    color: var(--bf-color-content-primary);
+    font-size: var(--bf-font-size-sm);
+    font-weight: var(--bf-font-weight-medium);
+    line-height: var(--bf-line-height-base);
+  }
+
+  &__pet-row-description {
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-regular);
+    line-height: var(--bf-line-height-relaxed);
+  }
+
+  &__pet-select {
+    min-width: 0;
+  }
+
+  &__pet-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--bf-space-2);
+    white-space: nowrap;
+  }
+
+  &__pet-chooser {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--bf-space-2);
+  }
+
+  &__pet-expand-button {
+    width: 100%;
+    min-width: 0;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--bf-space-3);
+    padding: 5px 10px 5px 8px;
+    border: 1px solid var(--bf-color-border-subtle);
+    border-radius: var(--bf-radius-sm);
+    color: var(--bf-color-content-primary);
+    background: var(--bf-color-surface-subtle);
+    cursor: pointer;
+    transition:
+      border-color 0.16s ease,
+      background 0.16s ease,
+      box-shadow 0.16s ease;
+  }
+
+  &__pet-expand-button:hover {
+    border-color: var(--bf-color-field-border-hover);
+    background: var(--bf-color-action-quiet-hover);
+  }
+
+  &__pet-expand-button:focus-visible {
+    outline: 2px solid var(--bf-color-accent-default);
+    outline-offset: 2px;
+  }
+
+  &__pet-expand-button svg {
+    flex-shrink: 0;
+    transition: transform 0.16s ease;
+  }
+
+  &__pet-expand-chevron--open {
+    transform: rotate(180deg);
+  }
+
+  &__pet-expand-current {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--bf-space-3);
+  }
+
+  &__pet-list {
+    max-height: min(360px, 52vh);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--bf-space-2);
+    padding: 12px;
+    border: 1px solid var(--bf-color-border-subtle);
+    border-radius: var(--bf-radius-sm);
+    background: color-mix(in srgb, var(--bf-color-surface-subtle) 52%, transparent);
+  }
+
+  &__pet-list-group {
+    grid-column: 1 / -1;
+    padding: 6px 2px 2px;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-medium);
+    line-height: var(--bf-line-height-tight);
+    letter-spacing: var(--bf-letter-spacing-normal);
+  }
+
+  &__pet-select-option {
+    min-width: 0;
+    width: 100%;
+    min-height: 54px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    align-items: center;
+    gap: var(--bf-space-2);
+    padding: 9px 10px;
+    border: 1px solid var(--bf-color-border-subtle);
+    border-radius: var(--bf-radius-sm);
+    color: var(--bf-color-content-primary);
+    text-align: left;
+    background: color-mix(in srgb, var(--bf-color-action-neutral-surface) 74%, transparent);
+    cursor: pointer;
+    transition:
+      border-color 0.16s ease,
+      background 0.16s ease,
+      box-shadow 0.16s ease;
+  }
+
+  &__pet-select-option:hover,
+  &__pet-select-option:focus-visible {
+    border-color: var(--bf-color-field-border-hover);
+    background: color-mix(in srgb, var(--bf-color-action-quiet-hover) 84%, transparent);
+    outline: none;
+  }
+
+  &__pet-select-option:focus-visible {
+    box-shadow: 0 0 0 2px var(--bf-color-accent-default);
+  }
+
+  &__pet-select-option--selected {
+    border-color: color-mix(in srgb, var(--bf-color-accent-default) 58%, var(--bf-color-border-subtle));
+    background: color-mix(in srgb, var(--bf-color-accent-default) 10%, var(--bf-color-action-neutral-surface));
+  }
+
+  &__pet-select-option-main {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--bf-space-3);
+  }
+
+  &__pet-select-delete {
+    flex-shrink: 0;
+  }
+
+  &__pet-select-actions {
+    min-width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    position: relative;
+  }
+
+  &__pet-select-check {
+    flex-shrink: 0;
+    color: var(--bf-color-accent-default);
+    transition: opacity 0.14s ease;
+  }
+
+  &__pet-select-delete {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.14s ease;
+  }
+
+  &__pet-select-option:hover &__pet-select-delete,
+  &__pet-select-option:focus-within &__pet-select-delete {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  &__pet-select-option:hover &__pet-select-actions--deletable &__pet-select-check,
+  &__pet-select-option:focus-within &__pet-select-actions--deletable &__pet-select-check {
+    opacity: 0;
+  }
+
+  &__pet-select-thumb {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+    flex-shrink: 0;
+  }
+
+  &__pet-select-panda {
+    transform: scale(0.62);
+  }
+
+  &__pet-select-text {
+    min-width: 0;
+  }
+
+  &__pet-select-label,
+  &__pet-select-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__pet-preview-sprite {
+    width: 34px;
+    height: 38px;
+    background-image: var(--bitfun-pet-preview-src);
+    background-repeat: no-repeat;
+    background-size: 800% 900%;
+    background-position: 0 0;
+    image-rendering: pixelated;
+    animation: bitfun-config-pet-preview 1.2s steps(6) infinite;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bitfun-runtime-settings {
+    &__pet-expand-button,
+    &__pet-expand-button svg,
+    &__pet-select-option,
+    &__pet-preview-sprite {
+      animation: none;
+      transition: none;
+    }
+  }
+}
+
+@keyframes bitfun-config-pet-preview {
+  from {
+    background-position-x: 0;
+  }
+
+  to {
+    background-position-x: 85.7142857%;
+  }
+}
+
+@container config-panel (max-width: 520px) {
+  .bitfun-runtime-settings {
+    &__row-control {
+      align-items: flex-start;
+    }
+
+    &__pet-picker {
+      display: block;
+    }
+
+    &__pet-row-heading {
+      flex-direction: column;
+      gap: var(--bf-space-2);
+    }
+
+    &__pet-actions {
+      justify-content: flex-start;
+    }
+
+    &__pet-list {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}

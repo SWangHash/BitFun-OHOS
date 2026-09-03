@@ -220,7 +220,7 @@ function installProcessingProjection(): void {
           {
             id: 'tool-1',
             type: 'tool',
-            toolName: 'Bash',
+            toolName: 'ExecCommand',
             toolCall: {
               id: 'tool-1',
               input: {},
@@ -383,6 +383,32 @@ describe('DispatchJobObserver', () => {
         turnId: 'turn-1',
         roundId: 'round-1',
         text: 'hello',
+      },
+    });
+  });
+
+  it('canonicalizes legacy model migration events from older targets', () => {
+    expect(projectDispatchAgentEvent({
+      type: 'agentEvent',
+      timestamp: '2026-07-28T00:00:00Z',
+      event: {
+        id: 'event-model-fallback',
+        event: {
+          type: 'SessionModelAutoMigrated',
+          session_id: 'session-1',
+          previous_model_id: 'removed-model',
+          new_model_id: 'auto',
+          reason: 'model_deleted',
+        },
+      },
+    })).toEqual({
+      eventName: 'agentic://session-model-fallback-applied',
+      envelopeId: 'event-model-fallback',
+      payload: {
+        sessionId: 'session-1',
+        previousModelId: 'removed-model',
+        newModelId: 'primary',
+        reason: 'model_deleted',
       },
     });
   });

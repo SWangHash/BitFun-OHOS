@@ -3,6 +3,7 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { computeFlowChatInputStackFooterPx } from '../../utils/flowChatScrollLayout';
 import { tailSpacerPxForViewport } from './flowChatTailFollow';
 import { ONE_SHOT_NAVIGATION_HOLD_MS } from './flowChatViewportOwnership';
 import { VirtualMessageList, type VirtualMessageListRef } from './VirtualMessageList';
@@ -46,8 +47,8 @@ const mocks = vi.hoisted(() => ({
   renderItemMetadata: true,
 }));
 
-/** Input-stack footer the chat-input mock produces: 140 + 4 + 24. */
-const BOTTOM_INSET = 168;
+/** Input-stack footer produced by the mocked 140px composer. */
+const BOTTOM_INSET = computeFlowChatInputStackFooterPx(140);
 
 /**
  * jsdom has no layout engine, so both halves of the navigation clamp have to be
@@ -165,8 +166,6 @@ vi.mock('../../hooks/useActiveSessionState', () => ({
 
 vi.mock('../../store/chatInputStateStore', () => ({
   useChatInputState: (selector: (state: Record<string, unknown>) => unknown) => selector({
-    isActive: false,
-    isExpanded: false,
     inputHeight: 140,
   }),
 }));
@@ -357,8 +356,8 @@ describe('VirtualMessageList natural scroll contract', () => {
   it('renders only the current input layout inset in the Footer', () => {
     act(() => root.render(<VirtualMessageList />));
     const footer = container.querySelector<HTMLElement>('.message-list-footer');
-    expect(footer?.style.height).toBe('168px');
-    expect(footer?.style.minHeight).toBe('168px');
+    expect(footer?.style.height).toBe(`${BOTTOM_INSET}px`);
+    expect(footer?.style.minHeight).toBe(`${BOTTOM_INSET}px`);
   });
 
   it('reserves a tail spacer from the viewport and input-stack inset', () => {
@@ -386,7 +385,7 @@ describe('VirtualMessageList natural scroll contract', () => {
       // The input-stack footer stays a separate reservation. It feeds the
       // spacer's size, but the two are never folded into one number.
       expect(container.querySelector<HTMLElement>('.message-list-footer')?.style.height)
-        .toBe('168px');
+        .toBe(`${BOTTOM_INSET}px`);
     } finally {
       if (originalClientHeight) {
         Object.defineProperty(HTMLElement.prototype, 'clientHeight', originalClientHeight);
@@ -497,7 +496,7 @@ describe('VirtualMessageList natural scroll contract', () => {
       owner: 'one-shot-navigation',
       holdForMs: ONE_SHOT_NAVIGATION_HOLD_MS,
     });
-    expect(container.querySelector('.message-list-footer')?.getAttribute('style')).toContain('168px');
+    expect(container.querySelector('.message-list-footer')?.getAttribute('style')).toContain(`${BOTTOM_INSET}px`);
   });
 
   it('top-aligns a Turn that still has a transcript below it', () => {
@@ -601,6 +600,163 @@ describe('VirtualMessageList natural scroll contract', () => {
     } finally {
       restoreLayout();
     }
+  });
+
+  describe('the current Turn after navigation', () => {
+    let listRef: React.RefObject<VirtualMessageListRef>;
+    let scroller: HTMLElement;
+    let restoreLayout: () => void;
+
+    beforeEach(async () => {
+      mocks.items = Array.from({ length: 4 }, (_, index) => (
+        userMessage(`turn-${index + 1}`, `message-${index + 1}`, `Message ${index + 1}`)
+      ));
+      restoreLayout = fakeLayout({
+        clientHeight: 600,
+        scrollHeight: 1000,
+        turnTopFromScrollerTop: 500,
+      });
+      HTMLElement.prototype.getBoundingClientRect = function getRect() {
+        const isItem = this.classList.contains('virtual-item-wrapper');
+        // The previous Turn's last 5px remain visible above the target. Short
+        // tail Turns all share the same content-end-clamped scroll position.
+        const top = isItem ? Number(this.dataset.virtualIndex) * 80 - 35 : 0;
+        return new DOMRect(0, top, 1000, isItem ? 40 : 600);
+      };
+      listRef = React.createRef<VirtualMessageListRef>();
+      act(() => root.render(<VirtualMessageList ref={listRef} />));
+      await settleOpenReveal();
+      scroller = container.querySelector<HTMLElement>('[data-flowchat-scroller]')!;
+      scroller.scrollTop = 1000 - tailSpacerPxForViewport(600, BOTTOM_INSET) - 600;
+      mocks.setVisibleTurnInfo.mockClear();
+    });
+
+    afterEach(() => restoreLayout());
+
+    async function navigate(turnId: string) {
+      act(() => { listRef.current?.navigateToTurn(turnId, { behavior: 'auto' }); });
+      await settleOpenReveal();
+    }
+
+    function expectCurrent(turnId: string) {
+      expect(mocks.setVisibleTurnInfo).toHaveBeenLastCalledWith(expect.objectContaining({
+        turnId,
+        turnIndex: Number(turnId.split('-')[1]),
+        visibleTurnIds: ['turn-1', 'turn-2', 'turn-3', 'turn-4'],
+      }));
+    }
+
+    it('publishes each clicked Turn even when the clamp produces no scroll event', async () => {
+      const restingOffset = scroller.scrollTop;
+      await navigate('turn-4');
+      expectCurrent('turn-4');
+      await navigate('turn-2');
+      expectCurrent('turn-2');
+      expect(scroller.scrollTop).toBe(restingOffset);
+
+      // Placement and measurement scroll events must not replace the target
+      // with the earlier Turn whose tail happens to intersect the viewport.
+      act(() => scroller.dispatchEvent(new Event('scroll')));
+      await settleOpenReveal();
+      expectCurrent('turn-2');
+    });
+
+    it('does not replace a valid target with a rejected navigation', async () => {
+      await navigate('turn-4');
+      act(() => {
+        expect(listRef.current?.navigateToTurn('missing-turn')).toBe(false);
+        scroller.dispatchEvent(new Event('scroll'));
+      });
+      await settleOpenReveal();
+      expectCurrent('turn-4');
+    });
+
+    it.each(['wheel', 'touchmove', 'keydown', 'scrollbar'])(
+      'returns to viewport-derived current Turn after a %s gesture',
+      async gesture => {
+        await navigate('turn-4');
+        expectCurrent('turn-4');
+        act(() => {
+          if (gesture === 'scrollbar') {
+            scroller.dispatchEvent(new MouseEvent('pointerdown', { clientX: 1005, bubbles: true }));
+            scroller.dispatchEvent(new Event('scroll'));
+          } else if (gesture === 'keydown') {
+            scroller.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageUp', bubbles: true }));
+          } else {
+            scroller.dispatchEvent(new Event(gesture, { bubbles: true }));
+          }
+        });
+        await settleOpenReveal();
+        expectCurrent('turn-1');
+      },
+    );
+
+    it('replaces the target when navigating to a different item', async () => {
+      await navigate('turn-4');
+      act(() => { listRef.current?.scrollToIndex(1); });
+      await settleOpenReveal();
+      expectCurrent('turn-2');
+    });
+
+    it('waits for a distant navigation target to become visible', async () => {
+      const target = container.querySelector<HTMLElement>('[data-turn-id="turn-4"]')!;
+      const rect = vi.spyOn(target, 'getBoundingClientRect')
+        .mockReturnValue(new DOMRect(0, 800, 1000, 40));
+      await navigate('turn-4');
+      expect(mocks.setVisibleTurnInfo).toHaveBeenLastCalledWith(expect.objectContaining({
+        turnId: 'turn-1',
+        visibleTurnIds: ['turn-1', 'turn-2', 'turn-3'],
+      }));
+      rect.mockRestore();
+      act(() => scroller.dispatchEvent(new Event('scroll')));
+      await settleOpenReveal();
+      expectCurrent('turn-4');
+    });
+
+    it('selects a prepared history target once its Turn enters the presentation', async () => {
+      await navigate('turn-4');
+      act(() => {
+        expect(listRef.current?.prepareTurnNavigation('turn-5')).toBe('pending');
+      });
+      mocks.items = [...mocks.items, userMessage('turn-5', 'message-5', 'Message 5')];
+      act(() => root.render(<VirtualMessageList ref={listRef} />));
+      await settleOpenReveal();
+      expect(mocks.setVisibleTurnInfo).toHaveBeenLastCalledWith(expect.objectContaining({
+        turnId: 'turn-5',
+        turnIndex: 5,
+        visibleTurnIds: ['turn-1', 'turn-2', 'turn-3', 'turn-4', 'turn-5'],
+      }));
+    });
+
+    it('clears the target on jump to latest even without a scroll event', async () => {
+      await navigate('turn-4');
+      expectCurrent('turn-4');
+      act(() => { listRef.current?.scrollToLatestEndPosition(); });
+      await settleOpenReveal();
+      expectCurrent('turn-1');
+    });
+
+    it('clears the target when follow-output takes over', async () => {
+      await navigate('turn-4');
+      expectCurrent('turn-4');
+      mocks.followsNow = true;
+      act(() => scroller.dispatchEvent(new Event('scroll')));
+      await settleOpenReveal();
+      expectCurrent('turn-1');
+      mocks.followsNow = false;
+      act(() => scroller.dispatchEvent(new Event('scroll')));
+      await settleOpenReveal();
+      expectCurrent('turn-1');
+    });
+
+    it('does not carry a target into another session with the same Turn IDs', async () => {
+      await navigate('turn-4');
+      expectCurrent('turn-4');
+      mocks.activeSession = { sessionId: 'session-2', dialogTurns: [] };
+      act(() => root.render(<VirtualMessageList ref={listRef} />));
+      await settleOpenReveal();
+      expectCurrent('turn-1');
+    });
   });
 
   describe('scrollbar drags release the viewport', () => {
@@ -1089,7 +1245,149 @@ describe('VirtualMessageList natural scroll contract', () => {
     const listRef = React.createRef<VirtualMessageListRef>();
     act(() => root.render(<VirtualMessageList ref={listRef} />));
     expect(listRef.current?.prepareTurnNavigation('turn-2')).toBe('pending');
-    expect(container.querySelector('.message-list-footer')?.getAttribute('style')).toContain('168px');
+    expect(container.querySelector('.message-list-footer')?.getAttribute('style')).toContain(`${BOTTOM_INSET}px`);
+  });
+
+  it('captures and restores a history viewport by Turn and viewport offset', () => {
+    const listRef = React.createRef<VirtualMessageListRef>();
+    const layout = {
+      clientHeight: 600,
+      scrollHeight: 2000,
+      turnTopFromScrollerTop: 120,
+    };
+    const restoreLayout = fakeLayout(layout);
+    try {
+      act(() => root.render(
+        <VirtualMessageList
+          ref={listRef}
+          presentationMode="history-window"
+          viewportMode="history-reading"
+          historyWindow={{ startOrdinal: 4, endOrdinalExclusive: 8 }}
+        />,
+      ));
+      const scroller = container.querySelector<HTMLElement>('[data-flowchat-scroller]')!;
+      scroller.getBoundingClientRect = () => (
+        { ...new DOMRect(0, 0, 1000, 600), top: 0, bottom: 600 } as DOMRect
+      );
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        writable: true,
+        value: 400,
+      });
+
+      const snapshot = listRef.current?.captureViewportSnapshot();
+      expect(snapshot).toMatchObject({
+        sessionId: 'session-1',
+        presentationMode: 'history-window',
+        viewportMode: 'history-reading',
+        historyWindow: { startOrdinal: 4, endOrdinalExclusive: 8 },
+        anchorTurnId: 'turn-1',
+        anchorOffsetPx: 120,
+        scrollTopPx: 400,
+      });
+
+      layout.turnTopFromScrollerTop = 260;
+      let restored = false;
+      act(() => {
+        restored = snapshot ? listRef.current?.restoreViewportSnapshot(snapshot) ?? false : false;
+      });
+
+      expect(restored).toBe(true);
+      expect(scroller.scrollTop).toBe(540);
+    } finally {
+      restoreLayout();
+    }
+  });
+
+  it('restores the exact visible virtual row instead of the Turn header', () => {
+    mocks.items = [
+      userMessage('turn-1', 'message-1', 'Question'),
+      modelRound('turn-1', 'round-1', 'Long answer'),
+    ];
+    const listRef = React.createRef<VirtualMessageListRef>();
+    const restoreLayout = fakeLayout({
+      clientHeight: 600,
+      scrollHeight: 2000,
+      turnTopFromScrollerTop: 120,
+    });
+    try {
+      act(() => root.render(<VirtualMessageList ref={listRef} />));
+      const scroller = container.querySelector<HTMLElement>('[data-flowchat-scroller]')!;
+      scroller.getBoundingClientRect = () => (
+        { ...new DOMRect(0, 0, 1000, 600), top: 0, bottom: 600 } as DOMRect
+      );
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        writable: true,
+        value: 400,
+      });
+      const [turnHeader, modelRoundElement] = Array.from(
+        container.querySelectorAll<HTMLElement>('.virtual-item-wrapper'),
+      );
+      turnHeader.getBoundingClientRect = () => (
+        { ...new DOMRect(0, -300, 1000, 40), top: -300, bottom: -260 } as DOMRect
+      );
+      let modelRoundTop = -80;
+      modelRoundElement.getBoundingClientRect = () => (
+        { ...new DOMRect(0, modelRoundTop, 1000, 900), top: modelRoundTop, bottom: modelRoundTop + 900 } as DOMRect
+      );
+
+      const snapshot = listRef.current?.captureViewportSnapshot();
+      expect(snapshot).toMatchObject({
+        anchorItemKey: 'model-round:turn-1:round-1',
+        anchorItemType: 'model-round',
+        anchorTurnId: 'turn-1',
+        anchorOffsetPx: -80,
+      });
+
+      modelRoundTop = 170;
+      act(() => {
+        expect(snapshot && listRef.current?.restoreViewportSnapshot(snapshot)).toBe(true);
+      });
+      expect(scroller.scrollTop).toBe(650);
+    } finally {
+      restoreLayout();
+    }
+  });
+
+  it('materializes and restores a saved reading position without starting tail follow', async () => {
+    const listRef = React.createRef<VirtualMessageListRef>();
+    const initialViewportSnapshot = {
+      sessionId: 'session-1',
+      presentationMode: 'tail' as const,
+      viewportMode: 'live-tail' as const,
+      historyWindow: null,
+      anchorTurnId: 'turn-1',
+      anchorOffsetPx: 120,
+      scrollTopPx: 400,
+      isAtTail: false,
+      capturedAtMs: 1,
+    };
+    const layout = {
+      clientHeight: 600,
+      scrollHeight: 2000,
+      turnTopFromScrollerTop: 260,
+    };
+    const restoreLayout = fakeLayout(layout);
+    try {
+      act(() => root.render(
+        <VirtualMessageList
+          ref={listRef}
+          initialViewportSnapshot={initialViewportSnapshot}
+        />,
+      ));
+      const scroller = container.querySelector<HTMLElement>('[data-flowchat-scroller]')!;
+      scroller.getBoundingClientRect = () => (
+        { ...new DOMRect(0, 0, 1000, 600), top: 0, bottom: 600 } as DOMRect
+      );
+
+      expect(mocks.startAtTailOnMount).toBe(false);
+      expect(scroller.scrollTop).toBe(140);
+      await settleOpenReveal();
+      expect(container.querySelector('[data-open-viewport-settled="true"]')).not.toBeNull();
+    } finally {
+      restoreLayout();
+    }
   });
 
   it('captures and restores a history viewport by Turn and viewport offset', () => {

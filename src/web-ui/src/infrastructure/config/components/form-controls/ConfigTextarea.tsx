@@ -1,6 +1,6 @@
 import React, { forwardRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Textarea } from '@/component-library';
+import { Textarea } from '@bitfun/ui';
 
 export interface ConfigTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
    
@@ -57,7 +57,7 @@ export const ConfigTextarea = forwardRef<HTMLTextAreaElement, ConfigTextareaProp
     <Textarea
       ref={ref}
       label={labelIcon ? undefined : label} 
-      error={!!error}
+      invalid={Boolean(error)}
       errorMessage={error}
       hint={hint}
       showCount={showCount}

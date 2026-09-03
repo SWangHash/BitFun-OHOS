@@ -33,7 +33,7 @@ Peer Device Mode（同账号远程完整客户端）的边界见 `docs/architect
 ## 本模块规则
 
 - 不要在 UI 组件里直接调用 Tauri API；应通过 adapter / infrastructure 层访问
-- 新增前端基础设施前，先复用已有的 theme、i18n、component-library 和 Zustand stores
+- 新增前端基础设施前，先复用 `@bitfun/ui`、设计令牌、theme、i18n 和 Zustand stores
 - 主题与颜色 Token 改动遵循 `docs/architecture/theme-token-optimization.md`。审计失败应通过复用 Token、
   收敛冗余值或增加最小 owner contract 修复，不得仅为通过检查提高 baseline 或测试期望；跨形态改动运行
   `pnpm run theme:color-audit:all`。
@@ -64,8 +64,9 @@ pnpm run build:web                     # 构建相关改动或复现 CI
 pnpm run i18n:audit
 pnpm run i18n:generate && pnpm run i18n:contract:test && pnpm run i18n:audit
 pnpm run type-check:web && pnpm --dir src/web-ui run test:run src/infrastructure/i18n/core/I18nService.test.ts
-pnpm run type-check:web
+pnpm run check:web
 ```
 
 以上依次用于 locale 资源、locale contract/shared terms、i18n runtime/namespace loading 和普通 Web UI 代码。
-完整 lint、build 与大范围测试由 CI 兜底，除非本地改动确实需要复现。
+`check:web` 会执行类型检查，以及 CI 使用的 Appearance contract、主题颜色和主题视觉治理门禁，确保渲染 DOM
+或样式回归能在本地发现。完整 lint、build 与大范围测试由 CI 兜底，除非本地改动确实需要复现。

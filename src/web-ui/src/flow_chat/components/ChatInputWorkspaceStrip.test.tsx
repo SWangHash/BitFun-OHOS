@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 
-import { act } from 'react';
+import { act, cloneElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -10,11 +10,16 @@ import { ChatInputWorkspaceStrip } from './ChatInputWorkspaceStrip';
 
 const mocks = vi.hoisted(() => ({
   refreshBasic: vi.fn(async () => undefined),
+  setActiveWorkspace: vi.fn(async () => undefined),
   useGitState: vi.fn(() => ({
     currentBranch: 'main',
     isRepository: true,
     refreshBasic: vi.fn(async () => undefined),
   })),
+  // The strip only switches workspaces when more than one is open; bare
+  // mounts in this suite default to "no provider", and the switcher tests
+  // override this per case.
+  useOptionalWorkspaceContext: vi.fn((): object | null => null),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -23,25 +28,104 @@ vi.mock('react-i18next', () => ({
     init: vi.fn(),
   },
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, options?: { defaultValue?: string }) => ({
+      'deepReviewConsent.strategyLabels.normal': 'Standard',
+      'reasoningSelector.auto': 'Auto',
+      'chatInput.permissionMode.ask.label': 'Ask',
+      'strip.newWorktree': 'New Worktree',
+    } as Record<string, string>)[key] ?? options?.defaultValue ?? key,
   }),
 }));
 
-vi.mock('@/component-library', () => ({
-  IconButton: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
-    <button type="button" onClick={onClick}>{children}</button>
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
+  // Forwards the rest of the props so state carried on data attributes stays
+  // observable; `variant`/`size` are the library's own and have no DOM meaning.
+  IconButton: ({
+    children,
+    variant: _variant,
+    size: _size,
+    ...rest
+  }: {
+    children: React.ReactNode;
+    variant?: string;
+    size?: string;
+  } & React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button type="button" {...rest}>{children}</button>
   ),
-  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Tooltip: ({
+    children,
+    content,
+  }: {
+    children: React.ReactElement;
+    content: React.ReactNode;
+  }) => cloneElement(children, {
+    'data-tooltip': typeof content === 'string' ? content : undefined,
+  } as React.HTMLAttributes<HTMLElement>),
 }));
 
 vi.mock('@/tools/git/hooks/useGitState', () => ({
   useGitState: mocks.useGitState,
 }));
 
+vi.mock('@/tools/git/components/BranchQuickSwitch', () => ({
+  BranchQuickSwitch: ({
+    currentBranch,
+    isOpen,
+  }: {
+    currentBranch: string;
+    isOpen: boolean;
+  }) => isOpen ? (
+    <div
+      data-testid="branch-quick-switch"
+      data-current-branch={currentBranch}
+    />
+  ) : null,
+}));
+
 // The real picker pulls in account state, SSH dialogs and a lazy remote-connect
-// route. This suite only asserts whether the strip mounts it at all.
+// route. This suite observes the strip-to-picker contract through a lightweight
+// stand-in; picker behavior itself stays covered in its focused suite.
 vi.mock('@/features/dispatch/DispatchTargetPicker', () => ({
-  DispatchTargetPicker: () => <div data-testid="chat-input-dispatch-trigger" />,
+  DispatchTargetPicker: ({
+    locked,
+    localWorktreeControl,
+  }: {
+    locked: boolean;
+    localWorktreeControl?: {
+      enabled: boolean;
+      locked: boolean;
+      label: string;
+      onChange: (enabled: boolean) => void;
+    };
+  }) => (
+    <div
+      data-testid="chat-input-dispatch-trigger"
+      data-locked={locked ? 'true' : 'false'}
+      data-worktree-enabled={localWorktreeControl?.enabled ? 'true' : 'false'}
+      data-worktree-label={localWorktreeControl?.label}
+    >
+      {localWorktreeControl ? (
+        <button
+          type="button"
+          data-testid="dispatch-target-new-worktree-option"
+          disabled={localWorktreeControl.locked}
+          onClick={() => localWorktreeControl.onChange(true)}
+        >
+          {localWorktreeControl.label}
+        </button>
+      ) : null}
+    </div>
+  ),
+}));
+
+// The workspace switcher is the only thing the strip asks of the workspace
+// context; the display-name helper is trivial and stays real-shaped.
+vi.mock('@/infrastructure/contexts/WorkspaceContext', () => ({
+  useOptionalWorkspaceContext: mocks.useOptionalWorkspaceContext,
+  getWorkspaceDisplayName: (workspace: { name?: string; path?: string }) => (
+    workspace.name ?? workspace.path ?? ''
+  ),
 }));
 
 describe('ChatInputWorkspaceStrip git refresh behavior', () => {
@@ -59,6 +143,8 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
       isRepository: true,
       refreshBasic: mocks.refreshBasic,
     });
+    mocks.useOptionalWorkspaceContext.mockReturnValue(null);
+    mocks.setActiveWorkspace.mockClear();
   });
 
   afterEach(() => {
@@ -109,6 +195,141 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     }));
   });
 
+  it('keeps the workspace an inert fact when there is nothing to switch to', async () => {
+    await act(async () => {
+      root.render(
+        <ChatInputWorkspaceStrip
+          repositoryPath="D:/workspace/BitFun"
+          workspaceLabel="BitFun"
+        />
+      );
+    });
+
+    // No provider, one workspace — same outcome: the name is a span, not a
+    // trigger, and no menu can appear.
+    const workspace = container.querySelector('[data-bf-part="workspace"]');
+    expect(workspace?.tagName).toBe('SPAN');
+    expect(container.querySelector('[data-testid="chat-input-workspace-trigger"]')).toBeNull();
+  });
+
+  it('opens the branch picker from the ordinary workspace branch chip', async () => {
+    await act(async () => {
+      root.render(
+        <ChatInputWorkspaceStrip
+          repositoryPath="D:/workspace/BitFun"
+          workspaceLabel="BitFun"
+        />
+      );
+    });
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="chat-input-branch-trigger"]',
+    );
+    expect(trigger).not.toBeNull();
+    expect(trigger?.getAttribute('aria-haspopup')).toBe('listbox');
+    expect(trigger?.getAttribute('aria-expanded')).toBe('false');
+
+    await act(async () => {
+      trigger?.click();
+    });
+
+    expect(trigger?.getAttribute('aria-expanded')).toBe('true');
+    expect(
+      container.querySelector('[data-testid="branch-quick-switch"]')
+        ?.getAttribute('data-current-branch'),
+    ).toBe('main');
+  });
+
+  it('switches the active workspace from the strip menu when several are open', async () => {
+    mocks.useOptionalWorkspaceContext.mockReturnValue({
+      openedWorkspacesList: [
+        { id: 'ws-1', name: 'BitFun', path: 'D:/workspace/BitFun' },
+        { id: 'ws-2', name: 'Other', path: 'D:/workspace/Other' },
+      ],
+      activeWorkspace: { id: 'ws-1', name: 'BitFun', path: 'D:/workspace/BitFun' },
+      setActiveWorkspace: mocks.setActiveWorkspace,
+    });
+
+    await act(async () => {
+      root.render(
+        <ChatInputWorkspaceStrip
+          repositoryPath="D:/workspace/BitFun"
+          workspaceLabel="BitFun"
+        />
+      );
+    });
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="chat-input-workspace-trigger"]',
+    );
+    expect(trigger).not.toBeNull();
+    expect(trigger?.getAttribute('aria-haspopup')).toBe('menu');
+
+    await act(async () => {
+      trigger?.click();
+    });
+
+    const menu = document.querySelector('[data-testid="chat-input-workspace-menu"]');
+    expect(menu).not.toBeNull();
+    // The active workspace is marked and is not re-selected.
+    expect(
+      menu?.querySelector('[data-testid="chat-input-workspace-option-ws-1"]')?.getAttribute('aria-checked'),
+    ).toBe('true');
+
+    const other = menu?.querySelector<HTMLButtonElement>(
+      '[data-testid="chat-input-workspace-option-ws-2"]',
+    );
+    await act(async () => {
+      other?.click();
+    });
+
+    expect(mocks.setActiveWorkspace).toHaveBeenCalledWith('ws-2');
+    expect(document.querySelector('[data-testid="chat-input-workspace-menu"]')).toBeNull();
+  });
+
+  it('splits the situation from the contract for the next turn', async () => {
+    await act(async () => {
+      root.render(
+        <ChatInputWorkspaceStrip
+          repositoryPath="D:/workspace/BitFun"
+          workspaceLabel="BitFun"
+          worktreeControl={{ enabled: false, locked: false, onChange: vi.fn() }}
+          permissionControl={{ mode: 'auto', onChange: vi.fn() }}
+          usageReport={{ visible: true, currentTokens: 480, maxTokens: 4000, onOpen: vi.fn() }}
+        />
+      );
+    });
+
+    const context = container.querySelector<HTMLElement>('[data-bf-part="context"]');
+    const next = container.querySelector<HTMLElement>('[data-bf-part="next"]');
+    expect(context).not.toBeNull();
+    expect(next).not.toBeNull();
+
+    // Where the session runs, and whether it runs there in isolation, read as
+    // one situation.
+    expect(context?.querySelector('[data-bf-part="workspace"]')).not.toBeNull();
+    expect(context?.querySelector('[data-bf-part="branch"]')).not.toBeNull();
+    expect(context?.querySelector('[data-testid="chat-input-worktree-toggle"]')).not.toBeNull();
+
+    // What the next submission runs with reads as one contract.
+    const permissionTrigger = next?.querySelector<HTMLElement>(
+      '[data-testid="chat-input-permission-trigger"]',
+    );
+    expect(permissionTrigger?.textContent).toContain('chatInput.permissionMode.auto.label');
+    // The ring carries the reading on its own; the number is not repeated.
+    expect(next?.querySelector('[data-bf-part="usageAction"]')).not.toBeNull();
+    expect(next?.querySelector('.bitfun-chat-input-workspace-strip__usage-ring')).not.toBeNull();
+    expect(next?.querySelector('[data-bf-part="usageAction"]')?.getAttribute('data-tooltip'))
+      .toBe('480/4K 12%');
+    expect(container.textContent).not.toContain('12%');
+
+    // The harness and the reasoning strength live in the capsule now, so the
+    // strip must not grow a second home for either.
+    expect(container.querySelector('[data-testid="harness-profile-selector"]')).toBeNull();
+    expect(container.querySelector('[data-bf-part="harness"]')).toBeNull();
+    expect(container.querySelector('[data-bf-part="runtime"]')).toBeNull();
+  });
+
   it('keeps an ask-mode permission entry visible and switches from its menu', async () => {
     const onChange = vi.fn();
     const onHide = vi.fn();
@@ -124,7 +345,7 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
 
     const trigger = container.querySelector<HTMLButtonElement>('[data-testid="chat-input-permission-trigger"]');
     expect(trigger?.dataset.permissionMode).toBe('ask');
-    expect(trigger?.textContent).toContain('chatInput.permissionMode.ask.label');
+    expect(trigger?.textContent).toContain('Ask');
 
     await act(async () => {
       trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -155,7 +376,7 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     expect(document.querySelector('[data-testid="chat-input-permission-menu"]')).toBeNull();
   });
 
-  it('chooses the scope per click instead of through a separate toggle', async () => {
+  it('keeps session selection primary and opens one-off choices as a second level', async () => {
     const onChange = vi.fn();
     const onChangeForNextTurn = vi.fn();
     await act(async () => {
@@ -189,9 +410,16 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     expect(onChange).toHaveBeenCalledWith('auto');
     expect(onChangeForNextTurn).not.toHaveBeenCalled();
 
-    // The trailing button is the one-off scope, and never writes the session.
+    // One-off scope is a named second level, not an unexplained checkbox on
+    // every session row.
     await act(async () => {
       trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(document.querySelector('[role="menuitemcheckbox"]')).toBeNull();
+    await act(async () => {
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="chat-input-permission-turn-scope"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     await act(async () => {
       document
@@ -215,7 +443,7 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
             mode: 'ask',
             activeTurn: true,
             nextTurnMode: null,
-            scopeLabel: 'chatInput.permissionMode.activeTurnScope',
+            scopeLabel: 'This session',
             onChange: vi.fn(),
             onChangeForNextTurn,
           }}
@@ -230,19 +458,120 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     await act(async () => {
       trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    expect(document.body.textContent).toContain('This session');
+    expect(
+      document.querySelector('[data-testid="chat-input-permission-turn-scope"]')?.textContent,
+    ).toContain('chatInput.permissionMode.activeTurnSettings');
+    await act(async () => {
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="chat-input-permission-turn-scope"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
 
     const oneOff = document.querySelector<HTMLButtonElement>(
       '[data-testid="chat-input-permission-next-turn-auto"]',
     );
-    expect(oneOff?.textContent).toBe('chatInput.permissionMode.activeTurnOnlyShort');
     expect(oneOff?.getAttribute('aria-label')).toBe(
       'chatInput.permissionMode.activeTurnOnly',
     );
+    expect(oneOff?.getAttribute('role')).toBe('menuitemradio');
+    expect(document.body.textContent).toContain('chatInput.permissionMode.activeTurnScope');
 
     await act(async () => {
       oneOff?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(onChangeForNextTurn).toHaveBeenCalledWith('auto');
+  });
+
+  it('clears a one-off override through the explicit follow-session choice', async () => {
+    const onChangeForNextTurn = vi.fn();
+    await act(async () => {
+      root.render(
+        <ChatInputWorkspaceStrip
+          repositoryPath=""
+          workspaceLabel=""
+          permissionControl={{
+            mode: 'auto',
+            nextTurnMode: 'full_access',
+            onChange: vi.fn(),
+            onChangeForNextTurn,
+          }}
+        />
+      );
+    });
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="chat-input-permission-trigger"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="chat-input-permission-turn-scope"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const followSession = document.querySelector<HTMLButtonElement>(
+      '[data-testid="chat-input-permission-follow-session"]',
+    );
+    expect(followSession?.getAttribute('role')).toBe('menuitemradio');
+    expect(followSession?.getAttribute('aria-checked')).toBe('false');
+
+    await act(async () => {
+      followSession?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onChangeForNextTurn).toHaveBeenCalledWith('full_access');
+    expect(document.querySelector('[data-testid="chat-input-permission-menu"]')).toBeNull();
+  });
+
+  it('opens the one-off level on click or Right Arrow, never on hover', async () => {
+    await act(async () => {
+      root.render(
+        <ChatInputWorkspaceStrip
+          repositoryPath=""
+          workspaceLabel=""
+          permissionControl={{
+            mode: 'ask',
+            onChange: vi.fn(),
+            onChangeForNextTurn: vi.fn(),
+          }}
+        />
+      );
+    });
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="chat-input-permission-trigger"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const scope = document.querySelector<HTMLButtonElement>(
+      '[data-testid="chat-input-permission-turn-scope"]',
+    );
+    await act(async () => {
+      scope?.dispatchEvent(new MouseEvent('pointerenter', { bubbles: true }));
+    });
+    expect(document.querySelector('[data-testid="chat-input-permission-follow-session"]'))
+      .toBeNull();
+
+    await act(async () => {
+      scope?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    });
+    expect(document.querySelector('[data-testid="chat-input-permission-follow-session"]'))
+      .not.toBeNull();
+    expect(document.querySelector('[role="menuitemcheckbox"]')).toBeNull();
+    expect(
+      document
+        .querySelector('[data-testid="chat-input-permission-turn-back"]')
+        ?.getAttribute('aria-label'),
+    ).toBe('chatInput.permissionMode.backToSessionSettings');
+
+    await act(async () => {
+      document
+        .querySelector<HTMLElement>('[data-testid="chat-input-permission-menu"]')
+        ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    });
+    expect(document.querySelector('[data-testid="chat-input-permission-turn-scope"]'))
+      .not.toBeNull();
   });
 
   it('keeps the mode descriptions out of the row and in the accessible name', async () => {
@@ -265,7 +594,7 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
       '[data-testid="chat-input-permission-option-ask"]',
     );
     // The row itself stays single-line; the description lives in the tooltip.
-    expect(option?.textContent).toBe('chatInput.permissionMode.ask.label');
+    expect(option?.textContent).toBe('Ask');
     expect(option?.getAttribute('aria-label')).toContain(
       'chatInput.permissionMode.ask.description',
     );
@@ -295,6 +624,15 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     await act(async () => {
       trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    expect(document.querySelector('[role="menuitemcheckbox"]')).toBeNull();
+    expect(
+      document.querySelector('[data-testid="chat-input-permission-turn-scope"]')?.textContent,
+    ).toContain('chatInput.permissionMode.fullAccess.label');
+    await act(async () => {
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="chat-input-permission-turn-scope"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
     expect(
       document
         .querySelector('[data-testid="chat-input-permission-next-turn-full_access"]')
@@ -322,7 +660,7 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
         ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(
-      document.querySelector('[data-testid="chat-input-permission-next-turn-ask"]'),
+      document.querySelector('[data-testid="chat-input-permission-turn-scope"]'),
     ).toBeNull();
   });
 
@@ -361,6 +699,14 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     expect(
       document.querySelector('[data-testid="chat-input-permission-selected-full_access"]'),
     ).toBeNull();
+    expect(
+      document.querySelector('[data-testid="chat-input-permission-next-turn-full_access"]'),
+    ).toBeNull();
+    await act(async () => {
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="chat-input-permission-turn-scope"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
     expect(
       document
         .querySelector('[data-testid="chat-input-permission-next-turn-full_access"]')
@@ -500,6 +846,45 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     expect(container.querySelector('[data-testid="chat-input-permission-menu"]')).toBeNull();
   });
 
+  it('keeps both rails present whatever the session happens to expose', async () => {
+    // The two rails are the layout. A session with fewer controls empties a
+    // rail rather than switching the strip to a different arrangement, so the
+    // remaining controls cannot drift sideways between sessions.
+    await act(async () => {
+      root.render(
+        <ChatInputWorkspaceStrip
+          repositoryPath="D:/workspace/BitFun"
+          workspaceLabel="BitFun"
+          permissionControl={{ mode: 'acp' }}
+          usageReport={{ visible: true, currentTokens: 1680, maxTokens: 4000, onOpen: vi.fn() }}
+        />
+      );
+    });
+
+    const strip = container.querySelector<HTMLElement>('[data-testid="chat-input-workspace-strip"]');
+    expect(strip?.className).toBe('bitfun-chat-input-workspace-strip');
+    expect(strip?.children.length).toBe(2);
+    expect(strip?.children[0]?.getAttribute('data-bf-part')).toBe('context');
+    expect(strip?.children[1]?.getAttribute('data-bf-part')).toBe('next');
+
+    await act(async () => {
+      root.render(
+        <ChatInputWorkspaceStrip
+          repositoryPath="D:/workspace/BitFun"
+          workspaceLabel="BitFun"
+          permissionControl={{ mode: 'acp' }}
+        />
+      );
+    });
+
+    const withoutUsage = container.querySelector<HTMLElement>(
+      '[data-testid="chat-input-workspace-strip"]',
+    );
+    expect(withoutUsage?.className).toBe('bitfun-chat-input-workspace-strip');
+    expect(withoutUsage?.children.length).toBe(2);
+    expect(withoutUsage?.querySelector('[data-bf-part="usageAction"]')).toBeNull();
+  });
+
   it('reuses the permission control with dispatch-scoped choices', async () => {
     const onChange = vi.fn();
     await act(async () => {
@@ -621,6 +1006,7 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     const toggle = container.querySelector<HTMLButtonElement>('[data-testid="chat-input-worktree-toggle"]');
     expect(toggle?.dataset.worktreeEnabled).toBe('true');
     expect(container.textContent).toContain('bitfun/isolated');
+    expect(container.querySelector('[data-testid="chat-input-branch-trigger"]')).toBeNull();
 
     await act(async () => {
       toggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -694,13 +1080,14 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     expect(container.querySelector('[data-testid="chat-input-worktree-toggle"]')).toBeNull();
   });
 
-  it('shows the dispatch picker and the worktree toggle together in a Git workspace', async () => {
+  it('orders workspace and branch before the target and nests worktree under local', async () => {
+    const onChange = vi.fn();
     await act(async () => {
       root.render(
         <ChatInputWorkspaceStrip
           repositoryPath="/repo"
           workspaceLabel="repo"
-          worktreeControl={{ enabled: false, locked: false, onChange: vi.fn() }}
+          worktreeControl={{ enabled: false, locked: false, onChange }}
           dispatchControl={{
             target: { kind: 'local' },
             locked: false,
@@ -710,8 +1097,24 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
       );
     });
 
-    expect(container.querySelector('[data-testid="chat-input-worktree-toggle"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="chat-input-dispatch-trigger"]')).not.toBeNull();
+    const context = container.querySelector<HTMLElement>('[data-bf-part="context"]');
+    const location = context?.querySelector('.bitfun-chat-input-workspace-strip__location');
+    const dispatchTrigger = context?.querySelector<HTMLElement>(
+      '[data-testid="chat-input-dispatch-trigger"]',
+    );
+    expect(context).not.toBeNull();
+    expect(location).not.toBeNull();
+    expect(dispatchTrigger).not.toBeNull();
+    expect(Array.from(context?.children ?? []).indexOf(location as Element))
+      .toBeLessThan(Array.from(context?.children ?? []).indexOf(dispatchTrigger as Element));
+    expect(container.querySelector('[data-testid="chat-input-worktree-toggle"]')).toBeNull();
+    expect(dispatchTrigger?.dataset.worktreeEnabled).toBe('false');
+    expect(dispatchTrigger?.dataset.worktreeLabel).toBe('New Worktree');
+
+    await act(async () => container.querySelector<HTMLButtonElement>(
+      '[data-testid="dispatch-target-new-worktree-option"]',
+    )?.click());
+    expect(onChange).toHaveBeenCalledWith(true);
   });
 
   it('shows the dispatched branch instead of the source branch once dispatch is locked', async () => {
@@ -743,9 +1146,10 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
 
     expect(container.textContent).toContain('bitfun/dispatch/job-1');
     expect(container.textContent).not.toContain('main');
+    expect(container.querySelector('[data-testid="chat-input-branch-trigger"]')).toBeNull();
   });
 
-  it('hides the dispatch picker outside a Git workspace, like the worktree toggle', async () => {
+  it('keeps the local execution breadcrumb visible but locked outside a Git workspace', async () => {
     mocks.useGitState.mockReturnValue({
       currentBranch: '',
       isRepository: false,
@@ -768,6 +1172,10 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     });
 
     expect(container.querySelector('[data-testid="chat-input-worktree-toggle"]')).toBeNull();
-    expect(container.querySelector('[data-testid="chat-input-dispatch-trigger"]')).toBeNull();
+    const dispatchTrigger = container.querySelector<HTMLElement>(
+      '[data-testid="chat-input-dispatch-trigger"]',
+    );
+    expect(dispatchTrigger).not.toBeNull();
+    expect(dispatchTrigger?.dataset.locked).toBe('true');
   });
 });

@@ -4,6 +4,8 @@
 //! tested without compiling the full BitFun product runtime.
 
 pub mod bounded_fs;
+#[cfg(feature = "credential-vault")]
+pub mod credential_vault;
 #[cfg(feature = "diagnostics")]
 pub mod diagnostics;
 #[cfg(feature = "diff")]
@@ -23,8 +25,6 @@ pub mod jsonc;
 pub mod local_instructions;
 #[cfg(feature = "workspace-runtime")]
 pub mod local_runtime_ports;
-#[cfg(feature = "lsp")]
-pub mod lsp;
 #[cfg(feature = "process-runtime")]
 pub mod managed_runtime;
 #[cfg(feature = "markdown")]
@@ -43,12 +43,16 @@ pub mod process_tree;
 pub mod runtime_ownership;
 #[cfg(feature = "local-storage")]
 pub mod session;
+#[cfg(feature = "session-search")]
+pub mod session_search;
 #[cfg(feature = "local-storage")]
 pub mod session_usage;
 #[cfg(feature = "local-storage")]
 pub mod storage_cleanup;
 #[cfg(feature = "process-runtime")]
 pub mod system;
+#[cfg(feature = "tls-provider")]
+pub mod tls_provider;
 #[cfg(feature = "local-storage")]
 pub mod token_usage;
 #[cfg(feature = "workspace-runtime")]

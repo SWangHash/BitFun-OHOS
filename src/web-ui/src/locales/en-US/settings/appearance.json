@@ -1,17 +1,9 @@
 {
   "title": "Appearance",
-  "subtitle": "Interface language, appearance packages, and global font size",
-  "effects": {
-    "title": "Visual effects",
-    "hint": "Control visual feedback across the interface.",
-    "mouseGlow": {
-      "label": "Pointer-follow glow",
-      "description": "Show a soft spotlight that follows the pointer along card edges. It pauses automatically when reduced motion is enabled."
-    }
-  },
+  "subtitle": "Interface language, visual appearance, appearance packages, and global font size",
   "package": {
     "title": "Appearance packages",
-    "description": "Import declarative BitFun appearance packages stored on this device.",
+    "description": "Choose an appearance package from the list; hover the thumbnail for a larger preview. Packages stay on this device.",
     "import": "Import package",
     "importSuccess": "Imported {{name}}",
     "importFailed": "Could not import the appearance package. Review the issue details.",
@@ -29,7 +21,7 @@
     "empty": "No imported appearance packages yet.",
     "missingSelection": "The selected appearance {{id}} is not installed on this device. Install it from Skin Market to restore your shared selection.",
     "market": {
-      "open": "Browse Skin Market",
+      "open": "Browse market",
       "title": "Skin Market",
       "search": "Search appearance packages",
       "modeFilter": "Filter by appearance mode",

@@ -94,6 +94,7 @@ import {
 import {
   CloudAccountClient,
   CloudAccountDevice,
+  CloudProvisionedDevice,
   CloudAccountRequestError,
   CloudAccountSession
 } from '../main/ets/services/CloudAccountClient';
@@ -132,6 +133,7 @@ import {
   ReadFileResult,
   RemoteSession,
   SelectedImageAttachment,
+  SessionItemResponse,
   SessionListResult,
   SessionMessagesResult,
   SessionSummary,
@@ -323,6 +325,53 @@ class ScriptedAccountSessionManager extends RemoteSessionManager {
   }
 }
 
+/** Holds one switch so a newer device choice can finish first. */
+class GatedAccountSessionManager extends ScriptedAccountSessionManager {
+  private releaseHeldSwitch: () => void = () => {};
+  private markHeldSwitchStarted: () => void = () => {};
+  private readonly heldSwitch: Promise<void>;
+  readonly heldSwitchStarted: Promise<void>;
+
+  constructor() {
+    super();
+    this.heldSwitch = new Promise<void>((resolve: () => void) => {
+      this.releaseHeldSwitch = resolve;
+    });
+    this.heldSwitchStarted = new Promise<void>((resolve: () => void) => {
+      this.markHeldSwitchStarted = resolve;
+    });
+  }
+
+  async connectAccountDevice(
+    _accountClient: CloudAccountClient,
+    _relayUrl: string,
+    session: CloudAccountSession,
+    targetDeviceId: string
+  ): Promise<InitialSyncResult> {
+    this.dialled.push(targetDeviceId);
+    if (targetDeviceId === 'desk-a') {
+      this.markHeldSwitchStarted();
+      await this.heldSwitch;
+    }
+    return {
+      workspace: {
+        path: `/w/${targetDeviceId}`,
+        name: targetDeviceId,
+        hasWorkspace: true,
+        gitBranch: 'main',
+        workspaceKind: 'normal'
+      },
+      sessions: [],
+      hasMoreSessions: false,
+      authenticatedUserId: session.userId
+    };
+  }
+
+  release(): void {
+    this.releaseHeldSwitch();
+  }
+}
+
 /** HUKS and preferences are not reachable from a local unit run. */
 class InMemoryCloudAccountSessionStore extends CloudAccountSessionStore {
   readonly saved: PersistedCloudAccountSession[] = [];
@@ -354,18 +403,59 @@ class ExpiringAccountClient extends CloudAccountClient {
   }
 }
 
+class ProvisioningFailureAccountClient extends CloudAccountClient {
+  readonly statusCode: number;
+
+  constructor(statusCode: number) {
+    super();
+    this.statusCode = statusCode;
+  }
+
+  async provisionDevice(
+    _relayUrl: string,
+    _session: CloudAccountSession,
+    _deviceId: string,
+    _deviceName: string,
+    _requestId: string
+  ): Promise<CloudProvisionedDevice> {
+    throw new CloudAccountRequestError('provisioning failed', this.statusCode);
+  }
+}
+
+class WatchLoginFailureAccountClient extends CloudAccountClient {
+  async loginWatch(
+    _relayUrl: string,
+    _username: string,
+    _password: string,
+    _currentSession: CloudAccountSession,
+    _deviceId: string,
+    _deviceName: string,
+    _requestId: string
+  ): Promise<CloudProvisionedDevice> {
+    throw new CloudAccountRequestError('login rejected', 401);
+  }
+}
+
 class AccountDeviceSwitchHarness {
   readonly remoteState: RemotePageState = new RemotePageState();
-  readonly sessionManager: ScriptedAccountSessionManager = new ScriptedAccountSessionManager();
+  readonly sessionManager: ScriptedAccountSessionManager;
   readonly sessionStore: InMemoryCloudAccountSessionStore = new InMemoryCloudAccountSessionStore();
   heartbeatStarts: number = 0;
   heartbeatStops: number = 0;
+  timelineResets: number = 0;
+  knownRemoteStateResets: number = 0;
   cachedRemoteClears: number = 0;
   settingsClosings: number = 0;
   readonly accountDeviceSnapshots: CloudAccountDevice[][] = [];
+  readonly loadingCatalogTargets: string[] = [];
+  readonly changedWorkspaceSnapshots: string[][] = [];
   readonly controller: SettingsController;
 
-  constructor(client: CloudAccountClient = new CloudAccountClient()) {
+  constructor(
+    client: CloudAccountClient = new CloudAccountClient(),
+    sessionManager: ScriptedAccountSessionManager = new ScriptedAccountSessionManager()
+  ) {
+    this.sessionManager = sessionManager;
     const hooks: CloudAccountSettingsHooks = {
       deviceId: (): string => 'phone',
       remoteAvailable: (): boolean => true,
@@ -375,8 +465,8 @@ class AccountDeviceSwitchHarness {
       stopPolling: (): void => {},
       stopHeartbeat: (): void => { this.heartbeatStops += 1; },
       startHeartbeat: (): void => { this.heartbeatStarts += 1; },
-      resetTimeline: (): void => {},
-      resetKnownRemoteState: (): void => {},
+      resetTimeline: (): void => { this.timelineResets += 1; },
+      resetKnownRemoteState: (): void => { this.knownRemoteStateResets += 1; },
       clearCachedRemoteData: async (): Promise<void> => { this.cachedRemoteClears += 1; },
       closeSettings: (): void => { this.settingsClosings += 1; },
       closeConnectSheet: (): void => {},
@@ -386,7 +476,14 @@ class AccountDeviceSwitchHarness {
         this.accountDeviceSnapshots.push(devices.slice());
       },
       onBeforeControlTargetChange: (): void => {},
-      onControlTargetChanged: (): void => {}
+      onControlTargetLoading: (deviceId: string): void => {
+        this.loadingCatalogTargets.push(deviceId);
+      },
+      onControlTargetChanged: (): void => {
+        this.changedWorkspaceSnapshots.push(
+          this.remoteState.recentWorkspaces.map((item: RecentWorkspaceEntry): string => item.path)
+        );
+      }
     };
     const cloud: CloudAccountSettingsDependencies = {
       client,
@@ -750,6 +847,29 @@ export default function transportAndGeneralChatUnitTest() {
       expect(messages[0].status).assertEqual('sent');
     });
 
+    it('removes only the latest matching failed user message for retry', 0, async () => {
+      const localStore = new FakeGeneralChatLocalStore();
+      const session = remoteSession('chat-retry-repeat', '重复失败');
+      session.agentType = 'chat';
+      const first = chatMessage('failed-user-1', 'user', '再试一次', 'failed');
+      const second = chatMessage('failed-user-2', 'user', '再试一次', 'failed');
+      localStore.sessions = [session];
+      localStore.messagesBySession.set(session.id, [
+        first,
+        chatMessage('assistant-between', 'assistant', '中间回复'),
+        second
+      ]);
+      const repository = new GeneralChatRepository(new MockGeneralChatAdapter(), localStore);
+      await repository.restoreFromLocal();
+
+      await repository.removeFailedUserMessage(session.id, '再试一次');
+
+      const messages = await repository.messages(session.id);
+      expect(messages.length).assertEqual(2);
+      expect(messages[0].id).assertEqual('failed-user-1');
+      expect(messages[1].id).assertEqual('assistant-between');
+    });
+
     it('does not persist assistant retry detail after an interrupted turn', 0, async () => {
       const localStore = new FakeGeneralChatLocalStore();
       const repository = new GeneralChatRepository(new MockGeneralChatAdapter(), localStore);
@@ -786,6 +906,25 @@ export default function transportAndGeneralChatUnitTest() {
 
       expect(markdown).assertEqual('# 发布计划\n\n## 用户\n\n帮我整理发布计划\n\n## BitFun\n\n先检查发布清单。\n');
       expect(markdown.indexOf('secret retry context')).assertEqual(-1);
+    });
+
+    it('omits a generated heading that repeats the first user message', 0, () => {
+      const session: RemoteSession = {
+        id: 'chat-duplicate-title',
+        title: '你好你好',
+        agentType: 'chat',
+        status: 'ready',
+        updatedAt: '2026-07-20T10:00:00.000Z',
+        createdAt: '2026-07-20T09:00:00.000Z',
+        messageCount: 2,
+        titleGenerated: true
+      };
+      const markdown = GeneralChatExportFormatter.markdown(session, [
+        chatMessage('user-1', 'user', '你好你好。'),
+        chatMessage('assistant-1', 'assistant', '你好！有什么我可以帮你的吗？')
+      ]);
+
+      expect(markdown).assertEqual('## 用户\n\n你好你好。\n\n## BitFun\n\n你好！有什么我可以帮你的吗？\n');
     });
   });
 
@@ -997,6 +1136,69 @@ export default function transportAndGeneralChatUnitTest() {
   });
 
   describe('SettingsController', () => {
+    it('asks for account confirmation when a legacy relay has no provisioning route', 0, async () => {
+      const harness = new AccountDeviceSwitchHarness(new ProvisioningFailureAccountClient(404));
+
+      const outcome = await harness.controller.provisionWatchCredential(
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        'HarmonyOS Watch',
+        '12345678-1234-4234-8234-123456789abc'
+      );
+
+      expect(outcome !== undefined).assertTrue();
+      expect(outcome?.passwordRequired).assertTrue();
+    });
+
+    it('asks for account confirmation when the watch is already registered', 0, async () => {
+      const harness = new AccountDeviceSwitchHarness(new ProvisioningFailureAccountClient(409));
+      // An expired QR pairing projects an empty username into the shared page
+      // state during startup. The cloud account identity must survive that UI
+      // projection because its encrypted session is still valid.
+      harness.remoteState.setAccountPairing(false, '');
+
+      const outcome = await harness.controller.provisionWatchCredential(
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        'HarmonyOS Watch',
+        '12345678-1234-4234-8234-123456789abc'
+      );
+
+      expect(outcome !== undefined).assertTrue();
+      expect(outcome?.passwordRequired).assertTrue();
+    });
+
+    it('does not treat an authorization refusal as a legacy relay', 0, async () => {
+      const harness = new AccountDeviceSwitchHarness(new ProvisioningFailureAccountClient(403));
+
+      const outcome = await harness.controller.provisionWatchCredential(
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        'HarmonyOS Watch',
+        '12345678-1234-4234-8234-123456789abc'
+      );
+
+      expect(outcome === undefined).assertTrue();
+    });
+
+    it('reports a rejected compatibility login instead of deferring to the desktop', 0, async () => {
+      const harness = new AccountDeviceSwitchHarness(new WatchLoginFailureAccountClient());
+      harness.remoteState.setAccountPairing(false, '');
+      let statusCode = 0;
+
+      try {
+        await harness.controller.provisionWatchCredential(
+          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          'HarmonyOS Watch',
+          '12345678-1234-4234-8234-123456789abc',
+          'wrong-password'
+        );
+      } catch (err) {
+        if (err instanceof CloudAccountRequestError) {
+          statusCode = err.statusCode;
+        }
+      }
+
+      expect(statusCode).assertEqual(401);
+    });
+
     it('tests model configuration with the stored key when the form keeps it unchanged', 0, async () => {
       const store = new InMemorySettingsConfigStore();
       store.snapshotResult = {
@@ -1076,6 +1278,71 @@ export default function transportAndGeneralChatUnitTest() {
       expect(harness.cachedRemoteClears).assertEqual(1);
     });
 
+    it('atomically clears account-owned conversation state on logout', 0, async () => {
+      const harness = new AccountDeviceSwitchHarness();
+      harness.remoteState.setControlTarget('account_device', 'desk-a', 'Desktop A');
+      harness.remoteState.setConnectionState('connected');
+      harness.remoteState.setActiveSession({
+        sessionId: 'session-a', title: 'Previous account', workspacePath: '/repo', agentType: 'code'
+      });
+      harness.remoteState.setStatusText(RemoteI18n.t('status.messagesSynced'));
+      harness.remoteState.setBusy(true);
+      harness.remoteState.setChatInput('unsent account draft');
+
+      await harness.controller.logoutCloudAccount();
+
+      expect(harness.controller.hasCloudAccountSession()).assertFalse();
+      expect(harness.remoteState.accountUserId).assertEqual('');
+      expect(harness.remoteState.controlTargetType).assertEqual('none');
+      expect(harness.remoteState.connectionState).assertEqual('disconnected');
+      expect(harness.remoteState.activeSession.sessionId).assertEqual('');
+      expect(harness.remoteState.statusText).assertEqual('');
+      expect(harness.remoteState.isBusy).assertFalse();
+      expect(harness.remoteState.chatInput).assertEqual('');
+      expect(harness.timelineResets).assertEqual(1);
+      expect(harness.knownRemoteStateResets).assertEqual(1);
+    });
+
+    it('clears an in-flight account switch even after its target was temporarily removed', 0, async () => {
+      const harness = new AccountDeviceSwitchHarness();
+      harness.remoteState.clearControlTarget();
+      harness.remoteState.setConnectionState('reconnecting');
+      harness.remoteState.setLoadingHome(true);
+      harness.remoteState.setBusy(true);
+      harness.remoteState.setStatusText(RemoteI18n.t('remote.settings.deviceConnecting'));
+      harness.remoteState.setActiveSession({
+        sessionId: 'stale-session', title: 'Stale', workspacePath: '/stale', agentType: 'code'
+      });
+
+      await harness.controller.logoutCloudAccount();
+
+      expect(harness.remoteState.connectionState).assertEqual('disconnected');
+      expect(harness.remoteState.isLoadingHome).assertFalse();
+      expect(harness.remoteState.isBusy).assertFalse();
+      expect(harness.remoteState.statusText).assertEqual('');
+      expect(harness.remoteState.activeSession.sessionId).assertEqual('');
+      expect(harness.timelineResets).assertEqual(1);
+    });
+
+    it('does not leave a separately paired room half-connected after account logout', 0, async () => {
+      const harness = new AccountDeviceSwitchHarness();
+      harness.remoteState.setControlTarget('room', 'room-device', 'Paired Desktop');
+      harness.remoteState.setConnectionState('connected');
+      harness.remoteState.setActiveSession({
+        sessionId: 'room-session', title: 'Paired room', workspacePath: '/room', agentType: 'code'
+      });
+      harness.remoteState.setStatusText('Room is connected');
+
+      await harness.controller.logoutCloudAccount();
+
+      expect(harness.remoteState.accountUserId).assertEqual('');
+      expect(harness.remoteState.controlTargetType).assertEqual('none');
+      expect(harness.remoteState.connectionState).assertEqual('disconnected');
+      expect(harness.remoteState.activeSession.sessionId).assertEqual('');
+      expect(harness.remoteState.statusText).assertEqual('');
+      expect(harness.timelineResets).assertEqual(1);
+    });
+
     it('puts the phone back on the previous desktop when a device switch fails', 0, async () => {
       const harness = new AccountDeviceSwitchHarness();
       harness.sessionManager.unreachable.add('desk-b');
@@ -1097,6 +1364,21 @@ export default function transportAndGeneralChatUnitTest() {
       expect(harness.remoteState.connectionState).assertEqual('connected');
       expect(harness.heartbeatStarts).assertEqual(heartbeatsAfterFirst + 1);
       expect(harness.sessionManager.dialled.join(',')).assertEqual('desk-a,desk-b,desk-a');
+    });
+
+    it('ends the outgoing workspace catalog before activating another desktop', 0, async () => {
+      const harness = new AccountDeviceSwitchHarness();
+      await harness.controller.selectCloudAccountDevice(harness.device('desk-a'), false);
+      harness.remoteState.setRecentWorkspaces([{
+        path: '/desk-a-only', name: 'Desk A', lastOpened: '', workspaceKind: 'normal'
+      }]);
+
+      await harness.controller.selectCloudAccountDevice(harness.device('desk-b'), false);
+
+      expect(harness.remoteState.recentWorkspaces.length).assertEqual(0);
+      expect(harness.loadingCatalogTargets.join(',')).assertEqual('desk-a,desk-b');
+      expect(harness.changedWorkspaceSnapshots.length).assertEqual(2);
+      expect(harness.changedWorkspaceSnapshots[1].length).assertEqual(0);
     });
 
     it('gives up rather than looping when the desktop to restore is gone too', 0, async () => {
@@ -1125,6 +1407,24 @@ export default function transportAndGeneralChatUnitTest() {
       await harness.controller.selectCloudAccountDevice(harness.device('desk-a'), false);
 
       expect(harness.settingsClosings).assertEqual(0);
+    });
+
+    it('keeps the newest device when an older switch completes late', 0, async () => {
+      const manager = new GatedAccountSessionManager();
+      const harness = new AccountDeviceSwitchHarness(new CloudAccountClient(), manager);
+
+      const older = harness.controller.selectCloudAccountDevice(harness.device('desk-a'), false);
+      await manager.heldSwitchStarted;
+      await harness.controller.selectCloudAccountDevice(harness.device('desk-b'), false);
+      manager.release();
+      await older;
+
+      expect(harness.remoteState.controlTargetDeviceId).assertEqual('desk-b');
+      expect(harness.remoteState.workspacePath).assertEqual('/w/desk-b');
+      expect(harness.remoteState.connectionState).assertEqual('connected');
+      expect(harness.sessionStore.saved.length).assertEqual(1);
+      expect(harness.sessionStore.saved[0].targetDeviceId).assertEqual('desk-b');
+      expect(manager.dialled.join(',')).assertEqual('desk-a,desk-b');
     });
   });
 
@@ -1483,6 +1783,29 @@ export default function transportAndGeneralChatUnitTest() {
       expect(projection.tools.length).assertEqual(1);
     });
 
+    it('keeps Task input metadata when a completion event only carries the result', 0, () => {
+      let projection = GeneralChatEventMapper.emptyProjection('chat-1', 'turn-1');
+      projection = GeneralChatEventMapper.apply(projection, {
+        event_id: 'task-started', version: 1, session_id: 'chat-1', turn_id: 'turn-1',
+        type: 'tool.started',
+        tool: {
+          id: 'task-1', name: 'Task', status: 'running',
+          input_preview: '{"description":"Inspect the workspace"}'
+        }
+      });
+      projection = GeneralChatEventMapper.apply(projection, {
+        event_id: 'task-completed', version: 2, session_id: 'chat-1', turn_id: 'turn-1',
+        type: 'tool.completed',
+        tool: { id: 'task-1', name: 'Task', status: 'completed', result_preview: 'Done' }
+      });
+
+      expect(projection.tools[0].input_preview || '')
+        .assertEqual('{"description":"Inspect the workspace"}');
+      expect(projection.items[0].tool?.input_preview || '')
+        .assertEqual('{"description":"Inspect the workspace"}');
+      expect(projection.items[0].tool?.result_preview || '').assertEqual('Done');
+    });
+
     it('projects permission and capability states and ignores late terminal events', 0, () => {
       let projection = GeneralChatEventMapper.emptyProjection('chat-1', 'turn-1');
       projection = GeneralChatEventMapper.apply(projection, {
@@ -1535,6 +1858,15 @@ export default function transportAndGeneralChatUnitTest() {
       }, '/repo');
       expectCommandJson(createCommand, '{"cmd":"create_session","agent_type":"cowork","session_name":"Remote Cowork Session","workspace_path":"/repo"}');
       expect(JSON.stringify(createCommand).indexOf('run_mode')).assertEqual(-1);
+
+      const minimal = RemoteCommandFactory.createSession({
+        agentType: 'minimal', title: '', instruction: 'lean'
+      }, '/repo');
+      const ultimate = RemoteCommandFactory.createSession({
+        agentType: 'Ultra', title: '', instruction: 'deep'
+      }, '/repo');
+      expect(minimal.agent_type || '').assertEqual('minimal');
+      expect(ultimate.agent_type || '').assertEqual('Ultra');
     });
 
     it('builds message and polling commands', 0, () => {
@@ -1602,6 +1934,29 @@ export default function transportAndGeneralChatUnitTest() {
       expect(sessions[0].workspaceName).assertEqual('Repo');
     });
 
+    it('hides ACP sessions while preserving raw pages for pagination', 0, () => {
+      const items: SessionItemResponse[] = [{
+        session_id: 'native-session',
+        name: 'Native',
+        agent_type: 'agentic'
+      }, {
+        session_id: 'acp-session',
+        name: 'ACP',
+        agent_type: 'acp:codex'
+      }, {
+        session_id: 'future-acp-session',
+        name: 'Future ACP',
+        agent_type: ' ACP:gemini '
+      }];
+
+      const visible = RemoteResponseMapper.sessions(items);
+      const raw = RemoteResponseMapper.allSessions(items);
+
+      expect(visible.length).assertEqual(1);
+      expect(visible[0].id).assertEqual('native-session');
+      expect(raw.length).assertEqual(3);
+    });
+
     it('maps alternate session time fields', 0, () => {
       const sessions = RemoteResponseMapper.sessions([{
         session_id: 'session-time',
@@ -1645,6 +2000,32 @@ export default function transportAndGeneralChatUnitTest() {
       expect(message.status).assertEqual('done');
       expect(message.detail).assertEqual('shell · pending\nedit · done');
       expect(message.tools ? message.tools.length : 0).assertEqual(2);
+    });
+
+    it('maps persisted remote turn failures', 0, () => {
+      const message = RemoteResponseMapper.chatMessage({
+        id: 'turn-failed-1_assistant',
+        turn_id: 'turn-failed-1',
+        role: 'assistant',
+        content: '',
+        status: 'failed',
+        error: 'AI client could not reach the configured proxy'
+      });
+
+      expect(message.turnId || '').assertEqual('turn-failed-1');
+      expect(message.status).assertEqual('failed');
+      expect(message.error || '').assertEqual('AI client could not reach the configured proxy');
+    });
+
+    it('maps live remote turn failures before history persistence', 0, () => {
+      const message = RemoteResponseMapper.activeTurnToMessage({
+        turn_id: 'turn-failed-live',
+        status: 'failed',
+        error: 'AI client could not reach the configured proxy'
+      });
+
+      expect(message.status).assertEqual('failed');
+      expect(message.error || '').assertEqual('AI client could not reach the configured proxy');
     });
 
     it('uses fallback ids for message rendering keys', 0, () => {

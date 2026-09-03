@@ -1,14 +1,10 @@
-/** Status bar for cursor position, language, encoding, and LSP status. */
+/** Status bar for cursor position, language, and encoding. */
 
 import React from 'react';
-import { 
-  AlertCircle,
-  Loader2,
-  Zap
-} from 'lucide-react';
-import { Tooltip } from '@/component-library';
+
 import { useI18n } from '@/infrastructure/i18n';
 import './EditorStatusBar.scss';
+import { Tooltip } from '@bitfun/ui';
 
 export interface EditorStatusBarProps {
   /** Current line number */
@@ -33,8 +29,6 @@ export interface EditorStatusBarProps {
   isSaving?: boolean;
   /** Whether file is read-only */
   isReadOnly?: boolean;
-  /** LSP connection status */
-  lspStatus?: 'connected' | 'disconnected' | 'connecting';
   /** Language click callback */
   onLanguageClick?: (e: React.MouseEvent) => void;
   /** Encoding click callback */
@@ -90,33 +84,6 @@ const getLanguageDisplayName = (language: string): string => {
   return languageMap[language.toLowerCase()] || language;
 };
 
-const getLspStatusInfo = (
-  status: 'connected' | 'disconnected' | 'connecting' | undefined,
-  t: (key: string) => string
-) => {
-  switch (status) {
-    case 'connected':
-      return { 
-        icon: <Zap size={12} />, 
-        className: 'editor-status-bar__lsp--connected',
-        title: t('editor.statusBar.lspConnected')
-      };
-    case 'connecting':
-      return { 
-        icon: <Loader2 size={12} className="editor-status-bar__lsp-spinner" />, 
-        className: 'editor-status-bar__lsp--connecting',
-        title: t('editor.statusBar.lspConnecting')
-      };
-    case 'disconnected':
-    default:
-      return { 
-        icon: <AlertCircle size={12} />, 
-        className: 'editor-status-bar__lsp--disconnected',
-        title: t('editor.statusBar.lspDisconnected')
-      };
-  }
-};
-
 export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
   line,
   column,
@@ -127,14 +94,12 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
   tabSize = 2,
   insertSpaces = true,
   isReadOnly = false,
-  lspStatus,
   onLanguageClick,
   onEncodingClick,
   onIndentClick,
   onPositionClick,
 }) => {
   const { t } = useI18n('tools');
-  const lspInfo = getLspStatusInfo(lspStatus, t);
 
   // Build selection info text (updates with language changes).
   const getSelectionText = () => {
@@ -211,19 +176,6 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
           </div>
         </Tooltip>
 
-        {lspStatus && (
-          <>
-            <div data-bf-component="editor-status-bar" data-bf-part="separator" className="editor-status-bar__separator" />
-            <div 
-              data-bf-component="editor-status-bar"
-              data-bf-part="lsp"
-              className={`editor-status-bar__item editor-status-bar__lsp ${lspInfo.className}`}
-              title={lspInfo.title}
-            >
-              {lspInfo.icon}
-            </div>
-          </>
-        )}
       </div>
     </div>
   );

@@ -2760,6 +2760,12 @@ fn scan_pet_package_dirs(root: &Path, source: &str) -> Vec<AgentCompanionPetPack
 pub async fn list_agent_companion_pets(
     state: State<'_, AppState>,
 ) -> Result<ListAgentCompanionPetsResponse, String> {
+    list_agent_companion_pets_impl(&state).await
+}
+
+pub(crate) async fn list_agent_companion_pets_impl(
+    state: &AppState,
+) -> Result<ListAgentCompanionPetsResponse, String> {
     let pets = scan_pet_package_dirs(&companion_user_packages_dir(&state), "user");
     Ok(ListAgentCompanionPetsResponse { pets })
 }
@@ -2769,7 +2775,14 @@ pub async fn import_agent_companion_pet_package(
     state: State<'_, AppState>,
     request: ImportAgentCompanionPetPackageRequest,
 ) -> Result<AgentCompanionPetPackageDto, String> {
-    let source_path = PathBuf::from(request.path);
+    import_agent_companion_pet_package_impl(&state, &request.path).await
+}
+
+pub(crate) async fn import_agent_companion_pet_package_impl(
+    state: &AppState,
+    source_path: &str,
+) -> Result<AgentCompanionPetPackageDto, String> {
+    let source_path = PathBuf::from(source_path);
     let source = load_pet_package_source(&source_path)?;
     let (pet_json, _) = load_pet_manifest_from_bytes(&source.pet_json)?;
 
@@ -2846,6 +2859,13 @@ pub async fn delete_agent_companion_pet_package(
     state: State<'_, AppState>,
     request: DeleteAgentCompanionPetPackageRequest,
 ) -> Result<(), String> {
+    delete_agent_companion_pet_package_impl(&state, &request.package_path).await
+}
+
+pub(crate) async fn delete_agent_companion_pet_package_impl(
+    state: &AppState,
+    package_path: &str,
+) -> Result<(), String> {
     let root = companion_user_packages_dir(&state);
     if !root.exists() {
         return Err("Agent companion packages directory does not exist".to_string());
@@ -2854,7 +2874,7 @@ pub async fn delete_agent_companion_pet_package(
         .canonicalize()
         .map_err(|e| format!("Failed to resolve Agent companion packages root: {}", e))?;
 
-    let candidate = PathBuf::from(&request.package_path);
+    let candidate = PathBuf::from(package_path);
     let resolved = candidate
         .canonicalize()
         .map_err(|e| format!("Pet package path not found: {}", e))?;
@@ -5403,36 +5423,8 @@ pub async fn cancel_search(
 }
 
 #[tauri::command]
-pub async fn reload_global_config() -> Result<String, String> {
-    match bitfun_core::service::config::reload_global_config().await {
-        Ok(_) => {
-            info!("Global config reloaded");
-            Ok("Configuration reloaded successfully".to_string())
-        }
-        Err(e) => {
-            error!("Failed to reload global config: {}", e);
-            Err(format!("Failed to reload configuration: {}", e))
-        }
-    }
-}
-
-#[tauri::command]
 pub async fn get_global_config_status() -> Result<bool, String> {
     Ok(bitfun_core::service::config::GlobalConfigManager::is_initialized())
-}
-
-#[tauri::command]
-pub async fn subscribe_config_updates() -> Result<(), String> {
-    if let Some(mut receiver) = bitfun_core::service::config::subscribe_config_updates() {
-        tokio::spawn(async move {
-            while let Ok(event) = receiver.recv().await {
-                debug!("Config update event: {:?}", event);
-            }
-        });
-        Ok(())
-    } else {
-        Err("Config update subscription not available".to_string())
-    }
 }
 
 #[tauri::command]
@@ -5541,6 +5533,8 @@ pub struct SubscriptionProviderRequest {
 pub struct SubscriptionLoginRequest {
     pub provider: bitfun_core::infrastructure::subscription_auth::SubscriptionProvider,
     pub session_id: String,
+    #[serde(default)]
+    pub method: Option<bitfun_core::infrastructure::subscription_auth::SubscriptionLoginMethod>,
 }
 
 async fn configured_ai_proxy(
@@ -5575,9 +5569,10 @@ pub async fn start_subscription_login(
         proxy_config,
         false,
     );
-    bitfun_core::infrastructure::subscription_auth::start_login_with_options(
+    bitfun_core::infrastructure::subscription_auth::start_login_with_method_and_options(
         request.provider,
         request.session_id,
+        request.method,
         options,
     )
     .await

@@ -13,6 +13,7 @@ mod hook_source;
 mod instruction_source;
 mod local_source_paths;
 mod mcp_source;
+mod plugin_config_projection;
 mod reference_source;
 mod skill_source;
 mod source_adapter;
@@ -23,11 +24,17 @@ pub use command_source::{OpenCodeCommandProvider, OpenCodeCommandProviderOptions
 pub use hook_source::{OpenCodeHookProvider, OpenCodeHookProviderOptions};
 pub use instruction_source::{load_opencode_user_instructions, OpenCodeInstructionSourceOptions};
 pub use mcp_source::{OpenCodeMcpProvider, OpenCodeMcpProviderOptions};
+pub use plugin_config_projection::{
+    project_plugin_config, project_plugin_tool_ref, OpenCodePluginConfigProjectionError,
+};
 pub use reference_source::{
     OpenCodeWorkspaceReferenceProvider, OpenCodeWorkspaceReferenceProviderOptions,
 };
 pub use skill_source::{
     OpenCodeConfiguredSkillRoot, OpenCodeSkillRootProvider, OpenCodeSkillRootProviderOptions,
 };
-pub use source_adapter::load_opencode_package_adapter;
+pub use source_adapter::{
+    load_opencode_config_snapshot, load_opencode_package_adapter, OpenCodeConfigSnapshot,
+    OpenCodeConfigSnapshotError,
+};
 pub use tool_source::{OpenCodeToolProvider, OpenCodeToolProviderOptions};

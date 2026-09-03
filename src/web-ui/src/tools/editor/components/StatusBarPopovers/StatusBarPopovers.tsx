@@ -15,9 +15,10 @@ import {
   FileJson,
   type LucideIcon,
 } from 'lucide-react';
-import { Button, Input } from '@/component-library';
+
 import { useI18n } from '@/infrastructure/i18n';
 import './StatusBarPopovers.scss';
+import { Input, Listbox, ListboxOption } from '@bitfun/ui';
 
 export type StatusBarPopoverType = 'position' | 'indent' | 'encoding' | 'language';
 
@@ -98,12 +99,11 @@ export const GoToLinePopover: React.FC<GoToLinePopoverProps> = ({
           ref={inputRef}
           type="text"
           className="status-bar-popover__input"
-          variant="outlined"
-          inputSize="small"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={t('editor.statusBar.goToLinePlaceholder')}
+          size="sm"
         />
       </div>
     </div>,
@@ -166,45 +166,32 @@ export const IndentPopover: React.FC<IndentPopoverProps> = ({
       aria-label={t('editor.statusBar.indentSettings')}
     >
       <div data-bf-component="status-bar-popover" data-bf-part="hint" className="status-bar-popover__hint">{t('editor.statusBar.selectIndent')}</div>
-      <div data-bf-component="status-bar-popover" data-bf-part="list" className="status-bar-popover__list">
+      <Listbox
+        autoFocusOption
+        aria-label={t('editor.statusBar.selectIndent')}
+        className="status-bar-popover__list"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onClose();
+        }}
+      >
         {INDENT_OPTIONS.map((opt) => {
           const label = opt.insertSpaces
             ? t('editor.statusBar.indentOptionSpaces', { n: opt.tabSize })
             : t('editor.statusBar.indentOptionTab', { n: opt.tabSize });
+          const selected = opt.tabSize === currentTabSize
+            && opt.insertSpaces === currentInsertSpaces;
           return (
-            <Button
-              data-bf-component="status-bar-popover"
-              data-bf-part="item"
-              data-bf-state={opt.tabSize === currentTabSize && opt.insertSpaces === currentInsertSpaces ? 'selected' : undefined}
+            <ListboxOption
               key={`${opt.insertSpaces ? 's' : 't'}-${opt.tabSize}`}
-              className={`status-bar-popover__item ${
-                opt.tabSize === currentTabSize && opt.insertSpaces === currentInsertSpaces
-                  ? 'status-bar-popover__item--active'
-                  : ''
-              }`}
-              variant="ghost"
-              size="small"
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleSelect(opt);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleSelect(opt);
-                }
-                if (e.key === 'Escape') onClose();
-              }}
-              role="option"
-              tabIndex={0}
+              onClick={() => handleSelect(opt)}
+              selected={selected}
+              value={`${opt.insertSpaces ? 'spaces' : 'tabs'}-${opt.tabSize}`}
             >
               {label}
-            </Button>
+            </ListboxOption>
           );
         })}
-      </div>
+      </Listbox>
     </div>,
     getAppearanceOverlayHost()
   );
@@ -240,33 +227,28 @@ export const EncodingPopover: React.FC<EncodingPopoverProps> = ({
       aria-label={t('editor.statusBar.fileEncoding')}
     >
       <div data-bf-component="status-bar-popover" data-bf-part="hint" className="status-bar-popover__hint">{t('editor.statusBar.selectEncoding')}</div>
-      <div data-bf-component="status-bar-popover" data-bf-part="list" className="status-bar-popover__list">
+      <Listbox
+        autoFocusOption
+        aria-label={t('editor.statusBar.selectEncoding')}
+        className="status-bar-popover__list"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onClose();
+        }}
+      >
         {ENCODING_OPTIONS.map((enc) => (
-          <Button
-            data-bf-component="status-bar-popover"
-            data-bf-part="item"
-            data-bf-state={enc === currentEncoding ? 'selected' : undefined}
+          <ListboxOption
             key={enc}
-            className={`status-bar-popover__item ${
-              enc === currentEncoding ? 'status-bar-popover__item--active' : ''
-            }`}
-            variant="ghost"
-            size="small"
-            type="button"
             onClick={() => {
               onConfirm(enc);
               onClose();
             }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') onClose();
-            }}
-            role="option"
-            tabIndex={0}
+            selected={enc === currentEncoding}
+            value={enc}
           >
             {enc}
-          </Button>
+          </ListboxOption>
         ))}
-      </div>
+      </Listbox>
     </div>,
     getAppearanceOverlayHost()
   );
@@ -356,39 +338,32 @@ export const LanguagePopover: React.FC<LanguagePopoverProps> = ({
       aria-label={t('editor.statusBar.selectLanguageMode')}
     >
       <div data-bf-component="status-bar-popover" data-bf-part="hint" className="status-bar-popover__hint">{t('editor.statusBar.selectLanguageModeHint')}</div>
-      <div data-bf-component="status-bar-popover" data-bf-part="list" className="status-bar-popover__list">
+      <Listbox
+        autoFocusOption
+        aria-label={t('editor.statusBar.selectLanguageModeHint')}
+        className="status-bar-popover__list"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onClose();
+        }}
+      >
         {languages.map((lang) => {
           const Icon = getLanguageIcon(lang.id);
           return (
-            <Button
-              data-bf-component="status-bar-popover"
-              data-bf-part="item"
-              data-bf-state={lang.id === currentLanguageId ? 'selected' : undefined}
+            <ListboxOption
               key={lang.id}
-              className={`status-bar-popover__item ${
-                lang.id === currentLanguageId ? 'status-bar-popover__item--active' : ''
-              }`}
-              variant="ghost"
-              size="small"
-              type="button"
+              leading={<Icon size={14} strokeWidth={2} />}
               onClick={() => {
                 onConfirm(lang.id);
                 onClose();
               }}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') onClose();
-              }}
-              role="option"
-              tabIndex={0}
+              selected={lang.id === currentLanguageId}
+              value={lang.id}
             >
-              <span data-bf-component="status-bar-popover" data-bf-part="itemIcon" className="status-bar-popover__item-icon" aria-hidden>
-                <Icon size={14} strokeWidth={2} />
-              </span>
               {getLanguageDisplayName(lang.id, lang.aliases)}
-            </Button>
+            </ListboxOption>
           );
         })}
-      </div>
+      </Listbox>
     </div>,
     getAppearanceOverlayHost()
   );

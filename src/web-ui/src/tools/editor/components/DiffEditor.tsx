@@ -7,15 +7,20 @@ import { monacoApi } from '../services/monacoRuntime';
 import { monacoAppearanceAdapter } from '@/infrastructure/appearance/adapters/MonacoAppearanceAdapter';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { EditorConfig as EditorConfigType } from '@/infrastructure/config/types';
-import { useMonacoLsp } from '@/tools/lsp/hooks/useMonacoLsp';
 import { getMonacoLanguage } from '@/infrastructure/language-detection';
-import { Tooltip, CubeLoading } from '@/component-library';
+import { LoadingState } from '@bitfun/ui';
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { useI18n } from '@/infrastructure/i18n';
 import { AlertCircle } from 'lucide-react';
 import { activeEditTargetService, createMonacoEditTarget } from '../services/ActiveEditTargetService';
 import './DiffEditor.scss';
+import { Tooltip } from '@bitfun/ui';
+import {
+  DEFAULT_EDITOR_FONT_FAMILY,
+  DEFAULT_EDITOR_FONT_SIZE,
+  DEFAULT_EDITOR_LINE_HEIGHT,
+} from '../config/defaults';
 
 const log = createLogger('DiffEditor');
 
@@ -26,8 +31,6 @@ export interface DiffEditorProps {
   modifiedContent: string;
   /** File path */
   filePath?: string;
-  /** Workspace path (reserved for future use) */
-  workspacePath?: string;
   /** Repository path (for Git Diff) */
   repositoryPath?: string;
   /** Programming language */
@@ -54,8 +57,6 @@ export interface DiffEditorProps {
   onSave?: (content: string) => void;
   /** Reveal line in modified editor (1-based) */
   revealLine?: number;
-  /** Enable LSP (only for modified editor) */
-  enableLsp?: boolean;
   /** Show +/- indicators before lines (default true) */
   renderIndicators?: boolean;
 }
@@ -64,7 +65,6 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
   originalContent,
   modifiedContent,
   filePath,
-  workspacePath,
   repositoryPath: _repositoryPath,
   language: propLanguage,
   readOnly = false,
@@ -77,7 +77,6 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
   onRejectChange: _onRejectChange,
   enableCustomToolbar = false,
   revealLine,
-  enableLsp = true,
   renderIndicators = true,
   onSave
 }) => {
@@ -89,9 +88,9 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [changes, setChanges] = useState<monaco.editor.ILineChange[]>([]);
   const [editorConfig, setEditorConfig] = useState<Partial<EditorConfigType>>({
-    font_size: 14,
-    font_family: "'Fira Code', 'Noto Sans SC', Consolas, 'Courier New', monospace",
-    line_height: 1.5,
+    font_size: DEFAULT_EDITOR_FONT_SIZE,
+    font_family: DEFAULT_EDITOR_FONT_FAMILY,
+    line_height: DEFAULT_EDITOR_LINE_HEIGHT,
     tab_size: 2,
     insert_spaces: true,
     word_wrap: 'off',
@@ -104,7 +103,6 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
   const changeListenerRef = useRef<monaco.IDisposable | null>(null);
   const contentChangeListenerRef = useRef<monaco.IDisposable | null>(null);
   const isUnmountedRef = useRef(false);
-  const [modifiedEditorInstance, setModifiedEditorInstance] = useState<monaco.editor.IStandaloneCodeEditor | null>(null);
   const onSaveRef = useRef(onSave);
   const originalContentRuntimeRef = useRef(originalContent);
   const modifiedContentRuntimeRef = useRef(modifiedContent);
@@ -137,14 +135,6 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
   }, [propLanguage]);
 
   const detectedLanguage = useMemo(() => detectLanguage(filePath), [filePath, detectLanguage]);
-
-  useMonacoLsp(
-    modifiedEditorInstance,
-    detectedLanguage,
-    filePath || '',
-    Boolean(enableLsp && modifiedEditorInstance && filePath),
-    workspacePath
-  );
 
   useEffect(() => {
     const loadEditorConfig = async () => {
@@ -236,10 +226,10 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
           
           theme: themeId,
           automaticLayout: true,
-          fontSize: editorConfigRuntimeRef.current.font_size || 14,
-          fontFamily: editorConfigRuntimeRef.current.font_family || "'Fira Code', 'Noto Sans SC', Consolas, 'Courier New', monospace",
+          fontSize: editorConfigRuntimeRef.current.font_size || DEFAULT_EDITOR_FONT_SIZE,
+          fontFamily: editorConfigRuntimeRef.current.font_family || DEFAULT_EDITOR_FONT_FAMILY,
           lineHeight: editorConfigRuntimeRef.current.line_height 
-            ? Math.round((editorConfigRuntimeRef.current.font_size || 14) * editorConfigRuntimeRef.current.line_height)
+            ? Math.round((editorConfigRuntimeRef.current.font_size || DEFAULT_EDITOR_FONT_SIZE) * editorConfigRuntimeRef.current.line_height)
             : 0,
           lineNumbers: (editorConfigRuntimeRef.current.line_numbers || 'on') as monaco.editor.LineNumbersType,
           minimap: { 
@@ -269,7 +259,6 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
           modified: modifiedModel
         });
 
-        setModifiedEditorInstance(editor.getModifiedEditor());
         setDiffEditor(editor);
 
         const originalEditor = editor.getOriginalEditor();
@@ -306,7 +295,7 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
               const elements = container.querySelectorAll(selector);
               elements.forEach((element) => {
                 const htmlElement = element as HTMLElement;
-                htmlElement.style.backgroundColor = 'var(--bf-appearance-token-color-bg-primary)';
+                htmlElement.style.backgroundColor = 'var(--bf-color-surface-canvas)';
               });
             });
             
@@ -396,7 +385,6 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
 
       originalModelRef.current = null;
       modifiedModelRef.current = null;
-      setModifiedEditorInstance(null);
     };
   }, [filePath, detectedLanguage, renderSideBySide, readOnly, showMinimap]);
 
@@ -588,7 +576,7 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
 
       {loading && (
         <div className="diff-editor-loading-overlay" data-bf-component="diff-editor" data-bf-part="loading" data-bf-state="loading">
-          <CubeLoading size="medium" text={t('editor.diffEditor.loading')} />
+          <LoadingState size="md">{t('editor.diffEditor.loading')}</LoadingState>
         </div>
       )}
 

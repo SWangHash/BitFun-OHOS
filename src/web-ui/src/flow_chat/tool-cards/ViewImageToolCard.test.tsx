@@ -12,12 +12,6 @@ vi.mock('@/infrastructure/i18n', async () => {
   };
 });
 
-vi.mock('@/component-library', () => ({
-  Modal: ({ isOpen, children }: { isOpen: boolean; children: React.ReactNode }) => (
-    isOpen ? <div data-testid="modal">{children}</div> : null
-  ),
-}));
-
 function makeProps(mimeType = 'image/png'): ToolCardProps {
   return {
     toolItem: {
@@ -72,7 +66,8 @@ describe('ViewImageToolCard', () => {
     expect(html).toContain('height="949"');
     expect(html).toContain('Viewed 1 image');
     expect(html).not.toContain('toolCards.viewImage.viewedImages');
-    expect(html).toContain('view-image-tool-card__preview-button');
+    expect(html).toContain('data-bf-tool-card="view-image"');
+    expect(html).toContain('data-bf-part="imagePreview"');
   });
 
   it('does not render an unsupported attachment type', () => {

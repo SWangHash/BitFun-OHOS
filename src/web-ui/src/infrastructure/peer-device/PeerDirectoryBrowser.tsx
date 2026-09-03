@@ -3,23 +3,17 @@
  * Lists directories on the peer via HostInvoke FS APIs.
  */
 
+import { Button, Icon, IconButton, Input, ScrollArea } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
-import {
-  ArrowLeft,
-  Folder,
-  Home,
-  Loader2,
-  RefreshCw,
-  X,
-} from 'lucide-react';
-import { Button } from '@/component-library';
+import { Home, Loader2 } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n';
 import { workspaceAPI } from '@/infrastructure/api';
 import { globalAPI } from '@/infrastructure/api/service-api/GlobalAPI';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { createLogger } from '@/shared/utils/logger';
+import { isImeOwnedKeyboardEvent } from '@/shared/utils/ime';
 import {
   joinDirectoryPath,
   parentDirectoryPath,
@@ -83,6 +77,7 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(initialPath || null);
   const pathInputRef = useRef<HTMLInputElement>(null);
+  const pathInputCompositionActiveRef = useRef(false);
   const loadSeqRef = useRef(0);
 
   const parentPath = useMemo(() => parentDirectoryPath(currentPath), [currentPath]);
@@ -210,16 +205,15 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
             data-bf-component="peer-device"
             data-bf-part="title"
           >{title}</h2>
-          <button
-            type="button"
+          <IconButton
             className="peer-directory-browser__close-btn"
+            icon={<Icon name="xmark" size="lg" />}
+            size="md"
             aria-label={t('peerDirectoryPicker.cancel')}
             onClick={onCancel}
             data-bf-component="peer-device"
             data-bf-part="closeButton"
-          >
-            <X size={16} />
-          </button>
+          />
         </div>
 
         <div
@@ -236,7 +230,7 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
             data-bf-component="peer-device"
             data-bf-part="toolButton"
           >
-            <ArrowLeft size={14} />
+            <Icon name="arrow-left" size="sm" />
           </button>
           <button
             type="button"
@@ -258,7 +252,7 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
             data-bf-component="peer-device"
             data-bf-part="toolButton"
           >
-            <RefreshCw size={14} />
+            <Icon name="refresh" size="sm" />
           </button>
           <div
             className="peer-directory-browser__path"
@@ -266,25 +260,41 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
             data-bf-part="path"
           >
             {isEditingPath ? (
-              <input
-                ref={pathInputRef}
-                className="peer-directory-browser__path-input"
-                value={pathInputValue}
-                onChange={(event) => setPathInputValue(event.target.value)}
-                onBlur={handleCommitPathInput}
+              <span
+                className="peer-directory-browser__path-input-field"
                 data-bf-component="peer-device"
                 data-bf-part="pathInput"
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    handleCommitPathInput();
-                  } else if (event.key === 'Escape') {
-                    event.preventDefault();
-                    setPathInputValue(currentPath);
-                    setIsEditingPath(false);
-                  }
-                }}
-              />
+              >
+                <Input
+                  ref={pathInputRef}
+                  value={pathInputValue}
+                  onValueChange={setPathInputValue}
+                  onBlur={handleCommitPathInput}
+                  onKeyDown={(event) => {
+                    if (
+                      (event.key === 'Enter' || event.key === 'Escape')
+                      && isImeOwnedKeyboardEvent(event, pathInputCompositionActiveRef.current)
+                    ) {
+                      event.stopPropagation();
+                      return;
+                    }
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      handleCommitPathInput();
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault();
+                      setPathInputValue(currentPath);
+                      setIsEditingPath(false);
+                    }
+                  }}
+                  onCompositionStart={() => {
+                    pathInputCompositionActiveRef.current = true;
+                  }}
+                  onCompositionEnd={() => {
+                    pathInputCompositionActiveRef.current = false;
+                  }}
+                />
+              </span>
             ) : (
               <button
                 type="button"
@@ -300,7 +310,7 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
           </div>
         </div>
 
-        <div
+        <ScrollArea
           className="peer-directory-browser__body"
           data-bf-component="peer-device"
           data-bf-part="body"
@@ -352,14 +362,14 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
                     data-bf-part="item"
                     data-bf-state={selectedPath === entry.path ? 'selected' : undefined}
                   >
-                    <Folder size={14} />
+                    <Icon name="folder" size="sm" />
                     <span>{entry.name}</span>
                   </button>
                 </li>
               ))}
             </ul>
           )}
-        </div>
+        </ScrollArea>
 
         <div
           className="peer-directory-browser__footer"
@@ -379,13 +389,13 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
             data-bf-component="peer-device"
             data-bf-part="actions"
           >
-            <Button type="button" variant="ghost" size="small" onClick={onCancel}>
+            <Button type="button" variant="outline" size="sm" onClick={onCancel}>
               {t('peerDirectoryPicker.cancel')}
             </Button>
             <Button
               type="button"
-              variant="primary"
-              size="small"
+              variant="fill"
+              size="sm"
               onClick={handleConfirm}
               disabled={!(selectedPath || currentPath)}
             >

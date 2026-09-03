@@ -1,15 +1,23 @@
 import ReactDOM from "react-dom/client";
+// Register the design-system layer order before any product module can import
+// component CSS. CSS layers keep their first-seen order for the document.
+import "@bitfun/ui/styles.css";
+import App from "./app/App";
 import BusinessApplication from "./app/BusinessApplication";
 import AgentCompanionDesktopPet from "./app/components/AgentCompanionDesktopPet/AgentCompanionDesktopPet";
 import AppErrorBoundary from "./app/components/AppErrorBoundary";
 import { PrivacyProvider } from "./app/components/Privacy";
 import { STARTUP_OVERLAY_HIDDEN_EVENT } from "./app/startup/startupSignals";
+import { WorkspaceProvider } from "./infrastructure/contexts/WorkspaceProvider";
+import { PeerDeviceProvider } from "./infrastructure/peer-device/PeerDeviceContext";
+import { PeerHostInvokeBridge } from "./infrastructure/peer-device/PeerHostInvokeBridge";
+import { PeerDirectoryPickerHost } from "./infrastructure/peer-device/PeerDirectoryPickerHost";
 import { I18nProvider } from "./infrastructure/i18n/providers/I18nProvider";
-import { mouseGlowService } from "./infrastructure/mouse-glow/core/MouseGlowService";
+import { BitFunDesignSystemProvider } from "./infrastructure/design-system";
 import "./app/styles/index.scss";
 
-// Font: Noto Sans SC is loaded via a <link> tag in index.html.
-// File path: public/fonts/fonts.css, served as /fonts/fonts.css.
+// The build-selected font profile is linked from index.html before first paint.
+// Apple uses system faces; non-Apple bundles HarmonyOS Sans and Fira Code.
 
 import { bootstrapLogger, createLogger, initLogger } from './shared/utils/logger';
 import { elapsedMs, logElapsed, measureAsyncAndLog, nowMs } from './shared/utils/timing';
@@ -229,7 +237,6 @@ async function initializeBeforeRender(): Promise<void> {
     });
   });
   log.info('Theme system initialized');
-  mouseGlowService.initialize();
   logElapsed(log, 'Startup phase completed', phaseStartedAt, {
     data: { phase: 'initializeBeforeRender' },
   });
@@ -345,7 +352,9 @@ async function startApplication(): Promise<void> {
     ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
       <AppErrorBoundary>
         <I18nProvider>
-          <AgentCompanionDesktopPet />
+          <BitFunDesignSystemProvider>
+            <AgentCompanionDesktopPet />
+          </BitFunDesignSystemProvider>
         </I18nProvider>
       </AppErrorBoundary>
     );
@@ -364,9 +373,17 @@ async function startApplication(): Promise<void> {
 
   ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <AppErrorBoundary>
-      <PrivacyProvider>
-        <BusinessApplication />
-      </PrivacyProvider>
+      <I18nProvider>
+        <BitFunDesignSystemProvider>
+          <WorkspaceProvider>
+            <PeerDeviceProvider>
+              <PeerHostInvokeBridge />
+              <PeerDirectoryPickerHost />
+              <App />
+            </PeerDeviceProvider>
+          </WorkspaceProvider>
+        </BitFunDesignSystemProvider>
+      </I18nProvider>
     </AppErrorBoundary>
   );
   logElapsed(log, 'Startup step completed', renderStartedAt, {

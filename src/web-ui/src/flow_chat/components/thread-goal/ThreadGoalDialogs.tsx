@@ -1,7 +1,16 @@
+import {
+  Button,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Target } from 'lucide-react';
-import { Button, Modal, Textarea } from '@/component-library';
+import { Textarea } from '@bitfun/ui';
 import type { ThreadGoalController } from '../../hooks/useThreadGoalController';
 import type { ThreadGoalUiAction } from '../../services/threadGoalActions';
 import {
@@ -112,14 +121,18 @@ export const ThreadGoalDialogs: React.FC<ThreadGoalDialogsProps> = ({
 
   return (
     <>
-      <Modal
-        isOpen={controller.menuOpen}
-        onClose={controller.closeMenu}
-        title={t('threadGoal.menuTitle')}
-        size="medium"
-        contentInset
-        contentClassName="bitfun-thread-goal-modal__body"
+      <Dialog
+        open={controller.menuOpen}
+        onOpenChange={(nextOpen) => { if (!nextOpen) controller.closeMenu(); }}
+        size="md"
       >
+        <DialogHeader>
+          <DialogHeading>
+            <DialogTitle>{t('threadGoal.menuTitle')}</DialogTitle>
+          </DialogHeading>
+          <DialogClose />
+        </DialogHeader>
+        <DialogBody className="bitfun-thread-goal-modal__body" inset="none">
         {goal ? (
           <div
             className="bitfun-thread-goal-menu"
@@ -187,8 +200,9 @@ export const ThreadGoalDialogs: React.FC<ThreadGoalDialogsProps> = ({
                   <Button
                     key={action}
                     type="button"
-                    variant={action === 'clear' ? 'danger' : 'secondary'}
-                    size="small"
+                    variant={action === 'clear' ? 'fill' : 'outline'}
+                    tone={action === 'clear' ? 'danger' : 'neutral'}
+                    size="sm"
                     disabled={disabled}
                     onClick={() => void runAction(action)}
                   >
@@ -210,8 +224,8 @@ export const ThreadGoalDialogs: React.FC<ThreadGoalDialogsProps> = ({
             <div data-bf-component="thread-goal-dialogs" data-bf-part="actions" className="bitfun-thread-goal-menu__actions">
               <Button
                 type="button"
-                variant="primary"
-                size="small"
+                variant="fill"
+                size="sm"
                 disabled={disabled}
                 onClick={() => controller.openEdit('create')}
               >
@@ -220,20 +234,23 @@ export const ThreadGoalDialogs: React.FC<ThreadGoalDialogsProps> = ({
             </div>
           </div>
         )}
-      </Modal>
+        </DialogBody>
+      </Dialog>
 
-      <Modal
-        isOpen={controller.editOpen}
-        onClose={controller.closeEdit}
-        title={
-          controller.editMode === 'create'
-            ? t('threadGoal.editTitleCreate')
-            : t('threadGoal.editTitleUpdate')
-        }
-        size="medium"
-        contentInset
-        contentClassName="bitfun-thread-goal-modal__body"
+      <Dialog
+        open={controller.editOpen}
+        onOpenChange={(nextOpen) => { if (!nextOpen) controller.closeEdit(); }}
+        size="md"
       >
+        <DialogHeader>
+          <DialogHeading>
+            <DialogTitle>{controller.editMode === 'create'
+            ? t('threadGoal.editTitleCreate')
+            : t('threadGoal.editTitleUpdate')}</DialogTitle>
+          </DialogHeading>
+          <DialogClose />
+        </DialogHeader>
+        <DialogBody className="bitfun-thread-goal-modal__body" inset="none">
         <div
           className="bitfun-thread-goal-edit"
           data-bf-component="thread-goal-dialogs"
@@ -249,13 +266,13 @@ export const ThreadGoalDialogs: React.FC<ThreadGoalDialogsProps> = ({
             placeholder={t('threadGoal.editPlaceholder')}
           />
           <div data-bf-component="thread-goal-dialogs" data-bf-part="actions" className="bitfun-thread-goal-edit__actions">
-            <Button type="button" variant="ghost" size="small" onClick={controller.closeEdit}>
+            <Button type="button" variant="outline" size="sm" onClick={controller.closeEdit}>
               {t('threadGoal.editCancel')}
             </Button>
             <Button
               type="button"
-              variant="primary"
-              size="small"
+              variant="fill"
+              size="sm"
               disabled={disabled || !draft.trim()}
               onClick={() => void controller.saveEdit(draft)}
             >
@@ -263,16 +280,21 @@ export const ThreadGoalDialogs: React.FC<ThreadGoalDialogsProps> = ({
             </Button>
           </div>
         </div>
-      </Modal>
+        </DialogBody>
+      </Dialog>
 
-      <Modal
-        isOpen={controller.resumeOpen}
-        onClose={controller.dismissResume}
-        title={t('threadGoal.resumeTitle')}
-        size="medium"
-        contentInset
-        contentClassName="bitfun-thread-goal-modal__body"
+      <Dialog
+        open={controller.resumeOpen}
+        onOpenChange={(nextOpen) => { if (!nextOpen) controller.dismissResume(); }}
+        size="md"
       >
+        <DialogHeader>
+          <DialogHeading>
+            <DialogTitle>{t('threadGoal.resumeTitle')}</DialogTitle>
+          </DialogHeading>
+          <DialogClose />
+        </DialogHeader>
+        <DialogBody className="bitfun-thread-goal-modal__body" inset="none">
         <div
           className="bitfun-thread-goal-resume"
           data-bf-component="thread-goal-dialogs"
@@ -285,8 +307,8 @@ export const ThreadGoalDialogs: React.FC<ThreadGoalDialogsProps> = ({
           <div data-bf-component="thread-goal-dialogs" data-bf-part="actions" className="bitfun-thread-goal-resume__actions">
             <Button
               type="button"
-              variant="ghost"
-              size="small"
+              variant="outline"
+              size="sm"
               disabled={disabled}
               onClick={controller.dismissResume}
             >
@@ -294,8 +316,8 @@ export const ThreadGoalDialogs: React.FC<ThreadGoalDialogsProps> = ({
             </Button>
             <Button
               type="button"
-              variant="primary"
-              size="small"
+              variant="fill"
+              size="sm"
               disabled={disabled}
               onClick={() => void controller.confirmResume()}
             >
@@ -303,7 +325,8 @@ export const ThreadGoalDialogs: React.FC<ThreadGoalDialogsProps> = ({
             </Button>
           </div>
         </div>
-      </Modal>
+        </DialogBody>
+      </Dialog>
     </>
   );
 };

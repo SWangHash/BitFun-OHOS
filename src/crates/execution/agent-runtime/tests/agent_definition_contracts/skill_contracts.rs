@@ -289,6 +289,10 @@ fn builtin_skill_catalog_and_mode_policy_are_runtime_owned() {
     assert_eq!(builtin_skill_group_key("find-skills"), Some("meta"));
     assert_eq!(builtin_skill_group_key("miniapp-dev"), Some("miniapp"));
     assert_eq!(
+        builtin_skill_group_key("bitfun-frontend-dev"),
+        Some("creation")
+    );
+    assert_eq!(
         builtin_skill_group_key("agent-browser"),
         Some("computer-use")
     );
@@ -296,6 +300,8 @@ fn builtin_skill_catalog_and_mode_policy_are_runtime_owned() {
     assert_eq!(builtin_skill_group_key("bitfun-canvas"), Some("canvas"));
     assert_eq!(builtin_skill_group_key("pr-review-canvas"), Some("canvas"));
     assert_eq!(builtin_skill_group_key("docs-canvas"), Some("canvas"));
+    assert_eq!(builtin_skill_group_key("multitask"), Some("coordination"));
+    assert_eq!(builtin_skill_group_key("plan"), Some("planning"));
     assert_eq!(builtin_skill_group_key("gstack-review"), Some("gstack"));
     assert_eq!(builtin_skill_group_key("unknown-skill"), None);
 
@@ -325,7 +331,7 @@ fn builtin_skill_catalog_and_mode_policy_are_runtime_owned() {
     );
     assert_eq!(
         resolve_builtin_default_enabled("miniapp-dev", "agentic"),
-        Some(true)
+        Some(false)
     );
     assert_eq!(
         resolve_builtin_default_enabled("miniapp-dev", "Cowork"),
@@ -336,13 +342,49 @@ fn builtin_skill_catalog_and_mode_policy_are_runtime_owned() {
         Some(false)
     );
     assert_eq!(
-        resolve_builtin_default_enabled("miniapp-dev", "Team"),
+        resolve_builtin_default_enabled("miniapp-dev", "Creative"),
+        Some(true)
+    );
+    assert_eq!(
+        resolve_builtin_default_enabled("bitfun-frontend-dev", "Creative"),
+        Some(true)
+    );
+    assert_eq!(
+        resolve_builtin_default_enabled("bitfun-frontend-dev", "agentic"),
         Some(false)
     );
     assert_eq!(
         resolve_builtin_default_enabled("agent-browser", "coding_shared"),
         Some(false)
     );
+    for (mode_id, expected) in [
+        ("coding_shared", true),
+        ("Cowork", true),
+        ("Creative", true),
+        ("DeepResearch", true),
+        ("ComputerUse", false),
+    ] {
+        assert_eq!(
+            resolve_builtin_default_enabled("multitask", mode_id),
+            Some(expected),
+            "unexpected multitask default for {mode_id}"
+        );
+    }
+    for (mode_id, expected) in [
+        ("agentic", true),
+        ("coding_shared", true),
+        ("Claw", true),
+        ("Cowork", true),
+        ("Creative", true),
+        ("ComputerUse", false),
+        ("DeepResearch", false),
+    ] {
+        assert_eq!(
+            resolve_builtin_default_enabled("plan", mode_id),
+            Some(expected),
+            "unexpected plan default for {mode_id}"
+        );
+    }
     assert_eq!(
         resolve_builtin_default_enabled("bitfun-canvas", "agentic"),
         Some(true)
@@ -688,6 +730,39 @@ Run the review workflow.
 }
 
 #[test]
+fn codex_interface_metadata_does_not_affect_skill_identity_or_invocation_policy() {
+    let markdown = r#"---
+name: deep-research
+description: Run a research workflow.
+---
+
+Research the topic.
+"#;
+    let mut data = SkillData::from_markdown(
+        "/workspace/.codex/skills/deep-research".to_string(),
+        markdown,
+        SkillLocation::Project,
+        false,
+    )
+    .expect("valid skill markdown should parse");
+
+    for interface in [
+        "interface:\n  display_name: \"Academic Deep Research\"\n",
+        "interface:\n  display_name: 123\n",
+        "interface: invalid\n",
+    ] {
+        data.allow_implicit_invocation = true;
+        data.apply_openai_yaml_policy(&format!(
+            "{interface}policy:\n  allow_implicit_invocation: false\n"
+        ))
+        .expect("unconsumed interface metadata must not prevent policy parsing");
+
+        assert_eq!(data.name, "deep-research");
+        assert!(!data.allow_implicit_invocation);
+    }
+}
+
+#[test]
 fn implicit_skill_filter_keeps_explicit_only_skill_out_of_model_catalog() {
     let visible = project_skill("review");
     let mut explicit_only = project_skill("deploy");
@@ -1005,7 +1080,7 @@ fn explicit_invocation_reaches_default_hidden_agent_browser() {
         priority: 10,
     };
 
-    for mode_id in ["agentic", "coding_shared", "Claw", "Cowork", "Team"] {
+    for mode_id in ["agentic", "coding_shared", "Claw", "Cowork"] {
         assert_eq!(
             resolve_builtin_default_enabled("agent-browser", mode_id),
             Some(false),

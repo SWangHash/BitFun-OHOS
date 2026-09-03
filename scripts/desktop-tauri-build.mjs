@@ -18,6 +18,10 @@ import { extractProductConfigArg } from './product-customization/cli.mjs';
 import { productBuildEnvironment } from './product-customization/projections.mjs';
 import { resolveProductDefinition } from './product-customization/resolver.mjs';
 import { resolveReleaseChannel } from './release-channel.mjs';
+import {
+  WEB_FONT_PROFILE_ENV,
+  fontProfileForDesktopTarget,
+} from './web-font-profile.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -43,10 +47,13 @@ async function main() {
   const resolution = resolveProductDefinition({ rootDir: ROOT, productConfig, member: 'desktop' });
   Object.assign(process.env, productBuildEnvironment(resolution));
   console.log(`[product] ${resolution.assembly.member} ${resolution.assembly.assemblyDigest}`);
+  const fontProfile = configureDesktopWebFontProfile(forward);
+  console.log(`[font-profile] ${fontProfile}`);
   const releaseChannel = resolveReleaseChannel(process.env.BITFUN_RELEASE_CHANNEL);
   console.log(`[release] channel=${releaseChannel.channel}`);
 
   const desktopDir = join(ROOT, 'src', 'apps', 'desktop');
+  preparePluginHost();
   const flashgrepBinary = prepareMacOSFlashgrepForSigning(
     ensureFlashgrepBinary(),
     desktopDir,
@@ -99,6 +106,21 @@ async function main() {
   }
 
   process.exit(r.status ?? 1);
+}
+
+function preparePluginHost() {
+  const result = spawnSync('pnpm', ['run', 'plugin-host:prepare'], {
+    cwd: ROOT,
+    env: process.env,
+    stdio: 'inherit',
+    shell: true,
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`OpenCode extension Host preparation failed with exit code ${result.status}`);
+  }
 }
 
 function runTauriBuild(tauriBin, args, desktopDir) {
@@ -175,6 +197,18 @@ function optionValue(args, option) {
   return undefined;
 }
 
+export function configureDesktopWebFontProfile(
+  args,
+  { env = process.env, platform = process.platform } = {},
+) {
+  const profile = fontProfileForDesktopTarget({
+    target: optionValue(args, '--target'),
+    platform,
+  });
+  env[WEB_FONT_PROFILE_ENV] = profile;
+  return profile;
+}
+
 export function prepareMacOSFlashgrepForSigning(
   flashgrepBinary,
   desktopDir,
@@ -234,6 +268,7 @@ export function prepareTauriConfig(
   // packaging injects it here; frontend:build-all (beforeBuildCommand)
   // compiles the profile before Tauri copies resources.
   injectDshProfileResource(config);
+  injectExternalFrontendResource(config);
 
   const release = releaseChannel
     ?? resolveReleaseChannel(process.env.BITFUN_RELEASE_CHANNEL);
@@ -296,10 +331,21 @@ export function prepareTauriConfig(
 
 const DSH_PROFILE_RESOURCE_SOURCE = '../../../packages/dsh-acp/dist-profile';
 const DSH_PROFILE_RESOURCE_TARGET = 'resources/dsh-profile';
+const EXTERNAL_FRONTEND_RESOURCE_SOURCE = '../../../dist';
+const EXTERNAL_FRONTEND_RESOURCE_TARGET = 'frontend/dist';
 
 function injectDshProfileResource(config) {
   const resources = { ...(config.bundle?.resources || {}) };
   resources[DSH_PROFILE_RESOURCE_SOURCE] = DSH_PROFILE_RESOURCE_TARGET;
+  config.bundle = {
+    ...(config.bundle || {}),
+    resources,
+  };
+}
+
+function injectExternalFrontendResource(config) {
+  const resources = { ...(config.bundle?.resources || {}) };
+  resources[EXTERNAL_FRONTEND_RESOURCE_SOURCE] = EXTERNAL_FRONTEND_RESOURCE_TARGET;
   config.bundle = {
     ...(config.bundle || {}),
     resources,

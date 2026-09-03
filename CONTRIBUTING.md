@@ -134,7 +134,7 @@ terms:
    > Product managers and UI designers are welcome to submit ideas quickly via PI. We will help refine them for development.
 2. Improve the Agent system and overall quality
 3. Improve system stability and strengthen foundational capabilities
-4. Expand the ecosystem (Skills, MCP, LSP plugins, or better support for domain-specific development scenarios)
+4. Expand the ecosystem (Skills, MCP, or better support for domain-specific development scenarios)
 
 ## Contribution Workflow and PR Expectations
 
@@ -147,7 +147,7 @@ We welcome contributions beyond standard feature or bug-fix PRs. Examples includ
 | Prompts | `src/crates/assembly/core/src/agentic/agents/prompts/` | Add or refine prompts, and update related logic as needed |
 | Tools | `src/crates/assembly/core/src/agentic/tools/implementations/`, `src/crates/assembly/core/src/agentic/tools/registry.rs` | Add tool implementations and register them in the tool registry |
 | Subagents | `src/crates/assembly/core/src/agentic/agents/custom_subagents/`, `src/crates/assembly/core/src/agentic/agents/registry.rs` | Add subagent implementations and register them in the subagent registry |
-| Mode contributions | `src/crates/assembly/core/src/agentic/agents/*_mode.rs`, `src/crates/assembly/core/src/agentic/agents/prompts/*_mode.md`, `src/web-ui/src/locales/*/settings/modes.json` | Add/improve agent modes (e.g. Plan/Debug/Agentic or custom modes) and keep prompts + UI copy in sync |
+| Mode contributions | `src/crates/assembly/core/src/agentic/agents/*_mode.rs`, `src/crates/assembly/core/src/agentic/agents/prompts/*_mode.md`, `src/web-ui/src/locales/*/settings/modes.json` | Add/improve Agentic or custom modes and keep prompts + UI copy in sync |
 | Scenario guides for Code Agent and AIIde | `website/src/docs/` | Add workflows, playbooks, and real-world scenario docs (or link them from `README.md`) |
 
 ### Before you start
@@ -193,7 +193,7 @@ Common local checks:
 | Change type | Typical verification |
 | --- | --- |
 | Repository metadata or GitHub config | `pnpm run check:repo-hygiene && pnpm run check:github-config && git diff --check` |
-| Frontend runtime or UI | `pnpm run type-check:web`, plus the nearest focused test when behavior changed |
+| Frontend runtime or UI | `pnpm run check:web`, plus the nearest focused test when behavior changed |
 | Mobile web | `pnpm --dir src/mobile-web run type-check` |
 | Rust shared runtime or services | `cargo check --workspace`, plus a focused `cargo test` when behavior changed |
 | Desktop/Tauri integration | `cargo check -p bitfun-desktop` |
@@ -202,6 +202,10 @@ Common local checks:
 For UI changes, include screenshots or a short recording when helpful. If you
 cannot run a relevant check, explain why in the PR and provide a lower-risk
 manual verification path.
+
+`pnpm run check:web` combines the Web UI type-check with the Appearance
+contract, theme color, and theme visual governance gates that CI applies to
+frontend changes.
 
 ## Security and Compliance
 

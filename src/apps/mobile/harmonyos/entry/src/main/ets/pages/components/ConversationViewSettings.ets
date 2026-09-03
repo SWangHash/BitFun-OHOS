@@ -1,8 +1,16 @@
+import { MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { RecentWorkspaceEntry, RemoteSession } from '../../model/RemoteModels';
 import { RemoteLogger } from '../../services/RemoteLogger';
 import { ConversationSessionFilterPolicy } from '../policy/ConversationSessionFilterPolicy';
-import { CARD, INK, LINE, MUTED, PAGE_BG } from './Theme';
+import {
+  CARD,
+  INK,
+  LINE,
+  MUTED,
+  PAGE_BG,
+  TRANSPARENT,
+} from './Theme';
 
 @ComponentV2
 struct WorkspaceFilterSection {
@@ -24,13 +32,13 @@ struct WorkspaceFilterSection {
           .width(22)
         Text(RemoteI18n.t('viewSettings.allWorkspaces'))
           .layoutWeight(1)
-          .fontSize(15)
+          .fontSize(MobileDesignTypography.titleSmall.size)
           .fontColor(INK)
       }
       .width('100%')
       .height(46)
       .padding({ left: 10, right: 10 })
-      .backgroundColor(this.currentValue.length === 0 ? CARD : '#00000000')
+      .backgroundColor(this.currentValue.length === 0 ? CARD : TRANSPARENT)
       .border({ width: { bottom: 1 }, color: LINE })
       .onClick(() => this.selectWorkspace(''))
       ForEach(this.options, (item: RecentWorkspaceEntry) => {
@@ -42,7 +50,7 @@ struct WorkspaceFilterSection {
             .width(22)
           Text(item.name || this.basename(item.path))
             .layoutWeight(1)
-            .fontSize(15)
+            .fontSize(MobileDesignTypography.titleSmall.size)
             .fontColor(INK)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -51,7 +59,7 @@ struct WorkspaceFilterSection {
         .height(46)
         .padding({ left: 10, right: 10 })
         .backgroundColor(ConversationSessionFilterPolicy.workspacePathsEqual(this.currentValue, item.path)
-          ? CARD : '#00000000')
+          ? CARD : TRANSPARENT)
         .border({ width: { bottom: 1 }, color: LINE })
         .onClick(() => this.selectWorkspace(item.path))
       }, (item: RecentWorkspaceEntry): string => item.path)
@@ -107,11 +115,11 @@ export struct ConversationViewSettings {
       Row() {
         Column({ space: 3 }) {
           Text(RemoteI18n.t('viewSettings.title'))
-            .fontSize(18)
+            .fontSize(MobileDesignTypography.headlineSmall.size)
             .fontWeight(FontWeight.Medium)
             .fontColor(INK)
           Text(RemoteI18n.t('viewSettings.subtitle'))
-            .fontSize(12)
+            .fontSize(MobileDesignTypography.labelSmall.size)
             .fontColor(MUTED)
         }
         .layoutWeight(1)
@@ -186,7 +194,7 @@ export struct ConversationViewSettings {
       .width('100%')
       .height(34)
       .padding({ left: 10, top: 10 })
-      .fontSize(12)
+      .fontSize(MobileDesignTypography.labelSmall.size)
       .fontColor(MUTED)
   }
 
@@ -196,7 +204,7 @@ export struct ConversationViewSettings {
       .width('100%')
       .height(38)
       .padding({ left: 4, top: 12 })
-      .fontSize(12)
+      .fontSize(MobileDesignTypography.labelSmall.size)
       .fontWeight(FontWeight.Medium)
       .fontColor(MUTED)
   }
@@ -209,13 +217,13 @@ export struct ConversationViewSettings {
         .fontColor([this.selectedSortMode === mode ? INK : MUTED])
       Text(label)
         .layoutWeight(1)
-        .fontSize(15)
+        .fontSize(MobileDesignTypography.titleSmall.size)
         .fontColor(INK)
     }
     .width('100%')
     .height(48)
     .padding({ left: 10, right: 10 })
-    .backgroundColor(this.selectedSortMode === mode ? CARD : '#00000000')
+    .backgroundColor(this.selectedSortMode === mode ? CARD : TRANSPARENT)
     .opacity(_revision % 2 === 0 ? 1 : 0.999)
     .border({ width: { bottom: 1 }, color: LINE })
     .onClick(() => this.selectSortMode(mode))
@@ -231,7 +239,7 @@ export struct ConversationViewSettings {
         .width(22)
       Text(label)
         .layoutWeight(1)
-        .fontSize(15)
+        .fontSize(MobileDesignTypography.titleSmall.size)
         .fontColor(INK)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -239,7 +247,7 @@ export struct ConversationViewSettings {
     .width('100%')
     .height(46)
     .padding({ left: 10, right: 10 })
-    .backgroundColor(selected ? CARD : '#00000000')
+    .backgroundColor(selected ? CARD : TRANSPARENT)
     .opacity(_revision % 2 === 0 ? 1 : 0.999)
     .border({ width: { bottom: 1 }, color: LINE })
     .onClick(() => action(value))
@@ -250,7 +258,7 @@ export struct ConversationViewSettings {
     Row({ space: 12 }) {
       Text(label)
         .layoutWeight(1)
-        .fontSize(15)
+        .fontSize(MobileDesignTypography.titleSmall.size)
         .fontColor(INK)
       Toggle({ type: ToggleType.Switch, isOn: value })
         .selectedColor(INK)
@@ -362,7 +370,7 @@ export struct ConversationViewSettings {
 
   private agentFilterLabel(value: string): string {
     if (value === 'chat') {
-      return RemoteI18n.t('remote.create.chat');
+      return RemoteI18n.t('remote.newChat');
     }
     return value === 'cowork' ? 'Cowork' : 'Code';
   }

@@ -1,27 +1,8 @@
+import { Button, Combobox, Icon, IconButton, Input, Listbox, ListboxEmpty, ListboxOption, NumberInput, Select, Switch, Textarea, Tooltip, type ComboboxOption, type SelectOption } from '@bitfun/ui';
 import React, { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  AlertTriangle,
-  ArrowDown,
-  ArrowUp,
-  ChevronDown,
-  ChevronRight,
-  Info,
-  Plus,
-  Trash2,
-} from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import {
-  Button,
-  IconButton,
-  Input,
-  NumberInput,
-  Select,
-  Switch,
-  Textarea,
-  Tooltip,
-  type SelectOption,
-} from '@/component-library';
 import type {
   ReasoningCatalogProjection,
   ReasoningConfig,
@@ -107,7 +88,7 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
   disabled = false,
   onValidationChange,
 }) => {
-  const { t } = useTranslation('settings/ai-model');
+  const { t } = useTranslation('settings/models');
   const modelsDevSearchListboxId = React.useId();
   const [jsonDrafts, setJsonDrafts] = useState<Record<string, string>>({});
   const [expandedPresetIndex, setExpandedPresetIndex] = useState<number | null>(null);
@@ -125,16 +106,11 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
     { label: t('reasoningPresets.settingBudget'), value: 'budget_tokens' },
     { label: t('reasoningPresets.settingPatch'), value: 'request_patch' },
   ], [t]);
-  const catalogOptions = useMemo<SelectOption[]>(() => [
-    { label: t('reasoningPresets.catalogAuto'), value: 'auto' },
-    { label: t('reasoningPresets.catalogModelsDev'), value: 'models_dev' },
-    { label: t('reasoningPresets.catalogDisabled'), value: 'disabled' },
+  const catalogOptions = useMemo<ComboboxOption[]>(() => [
+    { description: t('reasoningPresets.catalogAutoTooltip'), label: t('reasoningPresets.catalogAuto'), value: 'auto' },
+    { description: t('reasoningPresets.catalogModelsDevTooltip'), label: t('reasoningPresets.catalogModelsDev'), value: 'models_dev' },
+    { description: t('reasoningPresets.catalogDisabledTooltip'), label: t('reasoningPresets.catalogDisabled'), value: 'disabled' },
   ], [t]);
-  const catalogOptionTooltips = useMemo<Record<string, string>>(() => ({
-    auto: t('reasoningPresets.catalogAutoTooltip'),
-    models_dev: t('reasoningPresets.catalogModelsDevTooltip'),
-    disabled: t('reasoningPresets.catalogDisabledTooltip'),
-  }), [t]);
 
   const defaultOptions = useMemo<SelectOption[]>(() => [
     { label: t('reasoningPresets.auto'), value: '' },
@@ -372,25 +348,14 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
             <span className="bitfun-reasoning-preset-editor__primary-setting-label">
               {t('reasoningPresets.catalogSource')}
             </span>
-            <Select
+            <Combobox
+              className="bitfun-reasoning-preset-editor__primary-control"
               value={catalog.source}
               disabled={disabled}
-              size="small"
-              triggerAriaLabel={t('reasoningPresets.catalogSource')}
+              size="sm"
+              aria-label={t('reasoningPresets.catalogSource')}
               options={catalogOptions}
-              renderOption={(option) => (
-                <Tooltip content={catalogOptionTooltips[String(option.value)]} placement="right">
-                  <div className="bitfun-reasoning-preset-editor__catalog-option">
-                    <span>{option.label}</span>
-                    <Info
-                      className="bitfun-reasoning-preset-editor__catalog-option-info"
-                      size={13}
-                      aria-hidden="true"
-                    />
-                  </div>
-                </Tooltip>
-              )}
-              onChange={(next) => {
+              onValueChange={(next) => {
                 const source = next as 'auto' | 'models_dev' | 'disabled';
                 const nextCatalog = source === 'models_dev'
                   ? {
@@ -408,12 +373,13 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
               {t('reasoningPresets.defaultBehavior')}
             </span>
             <Select
+              className="bitfun-reasoning-preset-editor__primary-control"
               value={value.default_preset ?? ''}
               disabled={disabled}
-              size="small"
-              triggerAriaLabel={t('reasoningPresets.defaultPreset')}
+              size="sm"
+              aria-label={t('reasoningPresets.defaultPreset')}
               options={defaultOptions}
-              onChange={(next) => update({ ...value, default_preset: String(next) || undefined })}
+              onValueChange={(next) => update({ ...value, default_preset: String(next) || undefined })}
             />
           </div>
         </div>
@@ -433,7 +399,7 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                     className="bitfun-reasoning-preset-editor__models-dev-search-control"
                   >
                     <Input
-                      size="small"
+                      className="bitfun-reasoning-preset-editor__models-dev-search-field-control"
                       value={modelsDevSearch}
                       disabled={disabled}
                       placeholder={t('reasoningPresets.catalogSearchPlaceholder')}
@@ -472,14 +438,12 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                           if (result) selectModelsDevSearchResult(result);
                         }
                       }}
+                      size="sm"
                     />
                     {showModelsDevSearchResults && createPortal(
                       <div
                         ref={modelsDevSearchPopoverRef}
-                        id={modelsDevSearchListboxId}
                         className="bitfun-reasoning-preset-editor__models-dev-search-results"
-                        role="listbox"
-                        aria-label={t('reasoningPresets.catalogSearchResults')}
                         data-bf-placement={modelsDevSearchLayout?.placement ?? 'bottom'}
                         style={{
                           top: `${modelsDevSearchLayout?.top ?? 0}px`,
@@ -490,28 +454,31 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                           visibility: modelsDevSearchLayout ? 'visible' : 'hidden',
                         }}
                       >
-                        {modelsDevSearchResults.items.length > 0
-                          ? modelsDevSearchResults.items.map((result, index) => (
-                          <button
-                            type="button"
-                            id={`${modelsDevSearchListboxId}-${index}`}
-                            key={`${result.provider.id}/${result.model.id}`}
-                            className="bitfun-reasoning-preset-editor__models-dev-search-result"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onMouseEnter={() => setModelsDevSearchHighlight(index)}
-                            onClick={() => selectModelsDevSearchResult(result)}
-                            role="option"
-                            aria-selected={index === modelsDevSearchHighlight}
-                            data-highlighted={index === modelsDevSearchHighlight ? 'true' : undefined}
-                          >
-                            <strong>{result.model.display_name || result.model.id}</strong>
-                            <span>{result.provider.id} / {result.model.id}</span>
-                          </button>
-                        )) : (
-                          <div className="bitfun-reasoning-preset-editor__models-dev-search-empty">
-                            {t('reasoningPresets.catalogSearchEmpty')}
-                          </div>
-                        )}
+                        <Listbox
+                          aria-label={t('reasoningPresets.catalogSearchResults')}
+                          className="bitfun-reasoning-preset-editor__models-dev-search-list"
+                          focusMode="virtual"
+                          id={modelsDevSearchListboxId}
+                        >
+                          {modelsDevSearchResults.items.length > 0
+                            ? modelsDevSearchResults.items.map((result, index) => (
+                            <ListboxOption
+                              active={index === modelsDevSearchHighlight}
+                              description={`${result.provider.id} / ${result.model.id}`}
+                              id={`${modelsDevSearchListboxId}-${index}`}
+                              key={`${result.provider.id}/${result.model.id}`}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => selectModelsDevSearchResult(result)}
+                              value={`${result.provider.id}/${result.model.id}`}
+                            >
+                              {result.model.display_name || result.model.id}
+                            </ListboxOption>
+                          )) : (
+                            <ListboxEmpty>
+                              {t('reasoningPresets.catalogSearchEmpty')}
+                            </ListboxEmpty>
+                          )}
+                        </Listbox>
                         {modelsDevSearchResults.total > modelsDevSearchResults.items.length && (
                           <div className="bitfun-reasoning-preset-editor__models-dev-search-limit">
                             {t('reasoningPresets.catalogSearchLimit')}
@@ -529,18 +496,16 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
             </div>
             <div className="bitfun-reasoning-preset-editor__binding-field">
               <span>{t('reasoningPresets.catalogProvider')}</span>
-              <Select
-                size="small"
-                triggerAriaLabel={t('reasoningPresets.catalogProvider')}
+              <Combobox
+                className="bitfun-reasoning-preset-editor__binding-control"
+                size="sm"
+                aria-label={t('reasoningPresets.catalogProvider')}
                 value={catalog.provider}
                 options={modelsDevProviderOptions}
                 disabled={disabled}
-                searchable
                 clearable
-                allowCustomValue
-                customValueHint={t('reasoningPresets.catalogProviderCustomValueHint')}
-                searchPlaceholder={t('reasoningPresets.catalogProvider')}
-                onChange={(next) => {
+                onCreateValue={value => value}
+                onValueChange={(next) => {
                   const provider = String(next || '');
                   rebindCatalog(provider
                     ? { ...catalog, provider, model: provider === catalog.provider ? catalog.model : '' }
@@ -550,18 +515,16 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
             </div>
             <div className="bitfun-reasoning-preset-editor__binding-field">
               <span>{t('reasoningPresets.catalogModel')}</span>
-              <Select
-                size="small"
-                triggerAriaLabel={t('reasoningPresets.catalogModel')}
+              <Combobox
+                className="bitfun-reasoning-preset-editor__binding-control"
+                size="sm"
+                aria-label={t('reasoningPresets.catalogModel')}
                 value={catalog.model}
                 options={modelsDevModelOptions}
                 disabled={disabled}
-                searchable
                 clearable
-                allowCustomValue
-                customValueHint={t('reasoningPresets.catalogModelCustomValueHint')}
-                searchPlaceholder={t('reasoningPresets.catalogModel')}
-                onChange={(next) => {
+                onCreateValue={value => value}
+                onValueChange={(next) => {
                   const model = String(next || '');
                   rebindCatalog(model
                     ? { ...catalog, model }
@@ -635,12 +598,12 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                 tabIndex={0}
                 aria-label={t('reasoningPresets.customTooltip')}
               >
-                <Info size={14} aria-hidden="true" />
+                <Icon name="info" size="sm" aria-hidden="true" />
               </span>
             </Tooltip>
           </div>
-          <Button variant="secondary" size="small" disabled={disabled} onClick={addPreset}>
-            <Plus size={14} aria-hidden="true" />
+          <Button variant="outline" size="sm" disabled={disabled} onClick={addPreset} leadingIcon={<Icon name="plus" size="sm" aria-hidden="true" />}>
+
             {t('reasoningPresets.add')}
           </Button>
         </div>
@@ -682,13 +645,13 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                       aria-expanded={expanded}
                       aria-label={preset.label?.trim() || preset.id}
                     >
-                      {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      {expanded ? <Icon name="chevron-down" size="sm" /> : <Icon name="chevron-right" size="sm" />}
                     </button>
                     <div className="bitfun-reasoning-preset-editor__row-content">
                       {expanded ? (
                         <div className="bitfun-reasoning-preset-editor__row-name-editor">
                           <Input
-                            size="small"
+                            className="bitfun-reasoning-preset-editor__row-name-input"
                             aria-label={t('reasoningPresets.label')}
                             value={preset.label ?? ''}
                             disabled={disabled}
@@ -696,6 +659,7 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                             onChange={(event) => updatePreset(presetIndex, {
                               label: event.target.value || undefined,
                             })}
+                            size="sm"
                           />
                         </div>
                       ) : (
@@ -718,7 +682,6 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                         </span>
                       )}
                       <Switch
-                        size="small"
                         checked={!preset.disabled}
                         disabled={disabled}
                         aria-label={t('reasoningPresets.enabled')}
@@ -729,29 +692,45 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                             : preset.actions,
                         })}
                       />
-                      <IconButton size="small" variant="ghost" tooltip={t('reasoningPresets.moveUp')} disabled={disabled || presetIndex === 0} onClick={() => movePreset(presetIndex, -1)}><ArrowUp size={14} /></IconButton>
-                      <IconButton size="small" variant="ghost" tooltip={t('reasoningPresets.moveDown')} disabled={disabled || presetIndex === presets.length - 1} onClick={() => movePreset(presetIndex, 1)}><ArrowDown size={14} /></IconButton>
-                      <IconButton
-                        size="small"
-                        variant="ghost"
-                        tooltip={t('reasoningPresets.remove')}
-                        disabled={disabled}
-                        onClick={() => {
-                          resetJsonDraftState();
-                          setExpandedPresetIndex(previous => {
-                            if (previous === null) return null;
-                            if (previous === presetIndex) return null;
-                            return previous > presetIndex ? previous - 1 : previous;
-                          });
-                          update({
-                            ...value,
-                            presets: presets.filter((_, index) => index !== presetIndex),
-                            default_preset: value.default_preset === preset.id ? undefined : value.default_preset,
-                          });
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </IconButton>
+                      <Tooltip content={t('reasoningPresets.moveUp')}>
+                        <IconButton
+                          aria-label={t('reasoningPresets.moveUp')}
+                          size="sm"
+                          disabled={disabled || presetIndex === 0}
+                          onClick={() => movePreset(presetIndex, -1)}
+                          icon={<Icon name="arrow-up" size="sm" />}
+                        />
+                      </Tooltip>
+                      <Tooltip content={t('reasoningPresets.moveDown')}>
+                        <IconButton
+                          aria-label={t('reasoningPresets.moveDown')}
+                          size="sm"
+                          disabled={disabled || presetIndex === presets.length - 1}
+                          onClick={() => movePreset(presetIndex, 1)}
+                          icon={<Icon name="arrow-down" size="sm" />}
+                        />
+                      </Tooltip>
+                      <Tooltip content={t('reasoningPresets.remove')}>
+                        <IconButton
+                          aria-label={t('reasoningPresets.remove')}
+                          size="sm"
+                          disabled={disabled}
+                          onClick={() => {
+                            resetJsonDraftState();
+                            setExpandedPresetIndex(previous => {
+                              if (previous === null) return null;
+                              if (previous === presetIndex) return null;
+                              return previous > presetIndex ? previous - 1 : previous;
+                            });
+                            update({
+                              ...value,
+                              presets: presets.filter((_, index) => index !== presetIndex),
+                              default_preset: value.default_preset === preset.id ? undefined : value.default_preset,
+                            });
+                          }}
+                          icon={<Icon name="delete" size="sm" />}
+                        />
+                      </Tooltip>
                     </div>
                   </div>
 
@@ -779,14 +758,15 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                         data-bf-part="action"
                       >
                         <Select
-                          size="small"
+                          className="bitfun-reasoning-preset-editor__action-type"
+                          size="sm"
                           value={action.type}
                           disabled={disabled}
                           options={actionOptions.filter(option => (
                             availableReasoningActionTypes(preset.actions ?? [], actionIndex)
                               .includes(option.value as ReasoningPresetAction['type'])
                           ))}
-                          onChange={(next) => {
+                          onValueChange={(next) => {
                             setJsonValidation(jsonKey, false);
                             setJsonDrafts(previous => {
                               const nextDrafts = { ...previous };
@@ -802,17 +782,15 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                         />
                         {action.type === 'effort' && (
                           <div className="bitfun-reasoning-preset-editor__effort-control">
-                            <Select
-                              size="small"
+                            <Combobox
+                              className="bitfun-reasoning-preset-editor__effort-select"
+                              size="sm"
                               value={action.value}
                               disabled={disabled}
                               options={effortOptions}
-                              searchable
-                              allowCustomValue
-                              customValueHint={t('reasoningPresets.effortCustomValueHint')}
-                              searchPlaceholder={t('reasoningPresets.effortSearchPlaceholder')}
-                              triggerAriaLabel={t('reasoningPresets.settingEffort')}
-                              onChange={(next) => updateAction(presetIndex, actionIndex, {
+                              onCreateValue={value => value}
+                              aria-label={t('reasoningPresets.settingEffort')}
+                              onValueChange={(next) => updateAction(presetIndex, actionIndex, {
                                 type: 'effort',
                                 value: String(next),
                               })}
@@ -832,10 +810,10 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                           </div>
                         )}
                         {action.type === 'toggle' && (
-                          <Switch size="small" checked={action.enabled} disabled={disabled} onChange={(event) => updateAction(presetIndex, actionIndex, { type: 'toggle', enabled: event.target.checked })} />
+                          <Switch checked={action.enabled} disabled={disabled} onChange={(event) => updateAction(presetIndex, actionIndex, { type: 'toggle', enabled: event.target.checked })} />
                         )}
                         {action.type === 'budget_tokens' && (
-                          <NumberInput size="small" value={action.value} min={1} max={2_000_000_000} step={1024} disabled={disabled} disableWheel onChange={(next) => updateAction(presetIndex, actionIndex, { type: 'budget_tokens', value: next })} />
+                          <NumberInput className="bitfun-reasoning-preset-editor__action-value" size="sm" value={action.value} min={1} max={2_000_000_000} step={1024} disabled={disabled} disableWheel onValueChange={(next) => updateAction(presetIndex, actionIndex, { type: 'budget_tokens', value: next })} />
                         )}
                         {action.type === 'request_patch' && (
                           <div className="bitfun-reasoning-preset-editor__json">
@@ -843,7 +821,7 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                               value={jsonValue}
                               disabled={disabled}
                               rows={4}
-                              error={!jsonIsValid}
+                              invalid={!jsonIsValid}
                               errorMessage={!jsonIsValid ? t('reasoningPresets.invalidJson') : undefined}
                               onChange={(event) => {
                                 const nextText = event.target.value;
@@ -860,27 +838,43 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                           data-bf-component="reasoning-preset-editor"
                           data-bf-part="actionControls"
                         >
-                          <IconButton size="small" variant="ghost" tooltip={t('reasoningPresets.moveUp')} disabled={disabled || actionIndex === 0} onClick={() => moveAction(presetIndex, actionIndex, -1)}><ArrowUp size={14} /></IconButton>
-                          <IconButton size="small" variant="ghost" tooltip={t('reasoningPresets.moveDown')} disabled={disabled || actionIndex === (preset.actions?.length ?? 0) - 1} onClick={() => moveAction(presetIndex, actionIndex, 1)}><ArrowDown size={14} /></IconButton>
-                          <IconButton
-                            size="small"
-                            variant="ghost"
-                            tooltip={t('reasoningPresets.remove')}
-                            disabled={disabled || (preset.actions?.length ?? 0) <= 1}
-                            onClick={() => {
-                              resetJsonDraftState();
-                              updatePreset(presetIndex, { actions: preset.actions?.filter((_, index) => index !== actionIndex) });
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </IconButton>
+                          <Tooltip content={t('reasoningPresets.moveUp')}>
+                            <IconButton
+                              aria-label={t('reasoningPresets.moveUp')}
+                              size="sm"
+                              disabled={disabled || actionIndex === 0}
+                              onClick={() => moveAction(presetIndex, actionIndex, -1)}
+                              icon={<Icon name="arrow-up" size="sm" />}
+                            />
+                          </Tooltip>
+                          <Tooltip content={t('reasoningPresets.moveDown')}>
+                            <IconButton
+                              aria-label={t('reasoningPresets.moveDown')}
+                              size="sm"
+                              disabled={disabled || actionIndex === (preset.actions?.length ?? 0) - 1}
+                              onClick={() => moveAction(presetIndex, actionIndex, 1)}
+                              icon={<Icon name="arrow-down" size="sm" />}
+                            />
+                          </Tooltip>
+                          <Tooltip content={t('reasoningPresets.remove')}>
+                            <IconButton
+                              aria-label={t('reasoningPresets.remove')}
+                              size="sm"
+                              disabled={disabled || (preset.actions?.length ?? 0) <= 1}
+                              onClick={() => {
+                                resetJsonDraftState();
+                                updatePreset(presetIndex, { actions: preset.actions?.filter((_, index) => index !== actionIndex) });
+                              }}
+                              icon={<Icon name="delete" size="sm" />}
+                            />
+                          </Tooltip>
                         </div>
                       </div>
                     );
                   })}
                   <Button
-                    variant="secondary"
-                    size="small"
+                    variant="outline"
+                    size="sm"
                     disabled={disabled}
                     onClick={() => updatePreset(presetIndex, {
                       actions: [
@@ -891,8 +885,9 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                         ),
                       ],
                     })}
+                    leadingIcon={<Icon name="plus" size="sm" aria-hidden="true" />}
                   >
-                    <Plus size={14} aria-hidden="true" />
+
                     {t('reasoningPresets.addAction')}
                   </Button>
                       </div>

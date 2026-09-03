@@ -33,6 +33,7 @@ export interface InitialSyncResult {
   sessions: RemoteSession[];
   hasMoreSessions: boolean;
   authenticatedUserId: string;
+  capabilities?: string[];
 }
 
 export interface RecentWorkspaceEntry {
@@ -66,6 +67,7 @@ export interface ChatMessage {
   renderVersion?: number;
   turnId?: string;
   detail?: string;
+  error?: string;
   timestamp?: string;
   thinking?: string;
   tools?: RemoteToolStatusResponse[];
@@ -161,6 +163,7 @@ export interface WorkspaceInfoResponse extends CommandStatusResponse {
   git_branch?: string;
   workspace_kind?: string;
   assistant_id?: string;
+  capabilities?: string[];
 }
 
 export interface RecentWorkspaceEntryResponse {
@@ -250,6 +253,7 @@ export interface InitialSyncResponse extends CommandStatusResponse {
   sessions?: SessionItemResponse[];
   has_more_sessions?: boolean;
   authenticated_user_id?: string;
+  capabilities?: string[];
 }
 
 export interface DelegatedIdentityResponse extends CommandStatusResponse {
@@ -400,8 +404,11 @@ export interface RemoteImageContext {
 export interface ChatMessageResponse {
   id?: string;
   message_id?: string;
+  turn_id?: string;
   role: string;
   content: string;
+  status?: string;
+  error?: string;
   timestamp?: string;
   metadata?: Object;
   thinking?: string;
@@ -413,6 +420,7 @@ export interface ChatMessageResponse {
 export interface ActiveTurnSnapshotResponse {
   turn_id: string;
   status: string;
+  error?: string;
   text?: string;
   thinking?: string;
   tools?: RemoteToolStatusResponse[];
@@ -437,6 +445,7 @@ export interface PollSessionResponse extends CommandStatusResponse {
   title?: string;
   new_messages?: ChatMessageResponse[];
   total_msg_count?: number;
+  message_snapshot?: ChatMessageResponse[];
   active_turn?: ActiveTurnSnapshotResponse;
   model_catalog?: RemoteModelCatalog;
 }
@@ -448,6 +457,7 @@ export interface PollSessionResult {
   title: string;
   newMessages: ChatMessage[];
   totalMessageCount: number;
+  messageSnapshot?: ChatMessage[];
   activeTurn?: ChatMessage;
   modelCatalog?: RemoteModelCatalog;
 }

@@ -41,11 +41,9 @@ Still to migrate, in order: the interaction mailbox, then history positions.
    - Everything in `resetProductSurface()` must be **frontend-only**.
      `resetProductSurface` runs before the transport swap, so any backend call
      it makes lands on the device being *left*. `terminal_shutdown_all` and
-     `lsp_close_workspace` were exactly that bug: switching away killed the
-     PTYs and language servers an agent turn there was still using
-     (regression: 2026-08-14 multi-device switch). Use
-     `TerminalService.disconnect()` and
-     `WorkspaceLspManager.detachAllForSurfaceSwitch()`.
+     similar lifecycle calls can kill work an agent turn there is still using
+     (regression: 2026-08-14 multi-device switch). Use frontend-only listener
+     detachment such as `TerminalService.disconnect()`.
    - **Identity includes the device surface.** Workspace paths and session ids
      can be equal on different machines. FlowChat/workspace containers,
      state machines, processing status, pending messages, composer drafts,
@@ -278,6 +276,29 @@ Still to migrate, in order: the interaction mailbox, then history positions.
     Keep it out of the FE `LOCAL_ONLY` set: running it on the controller would
     write an exception for a path that only exists on the peer. A controller
     surfaces the probe's `manualCommand` instead.
+
+16. **ProductControl commands follow the product host; presentation ACKs stay
+    with the window.** `product_control_invoke` is a normal product mutation and
+    routes to the selected peer only after `peer_mode_ping` advertises
+    `product_control_v1`; an older peer fails explicitly and never falls back
+    to the controller. Definitions that need a native provider or a live UI
+    additionally declare `product_control_native_v1` or
+    `product_control_presentation_v1`; the CLI host advertises neither and
+    returns a typed unsupported result. `mark_bitfun_control_surface_ready`,
+    `mark_bitfun_control_surface_unready`, and `report_bitfun_control_result`
+    describe or acknowledge the controller window's live Web UI and therefore
+    remain `LOCAL_ONLY` in the frontend, Desktop host, and CLI host lists. A
+    peer executes the same owner handler and uses its own attached presentation
+    surface when a required runtime effect needs acknowledgement; an
+    unavailable surface fails explicitly and never mutates the controller as a
+    fallback.
+
+17. **MiniApp Agent context files require an explicit peer capability.**
+    `miniapp_agent_run` remains compatible with older peers when no context
+    files are present. A run with non-empty `contextFiles` routes only after
+    `peer_mode_ping` advertises `miniapp_agent_context_files_v1`; otherwise the
+    controller fails before RPC. Never omit the files, fall back to a local
+    Agent, or run the prompt without its declared context.
 
 ## Related account-login guards
 

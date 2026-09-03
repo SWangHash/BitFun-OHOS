@@ -246,33 +246,6 @@ export const requiredContentRules = [
     ],
   },
   {
-    path: 'src/crates/services/services-integrations/src/debug_log.rs',
-    reason:
-      'services-integrations must own debug log file append, redaction, default config, and HTTP dispatch behind the debug-log feature',
-    patterns: [
-      {
-        regex: /\bpub struct DebugLogConfig\b/,
-        message: 'missing debug log config owner',
-      },
-      {
-        regex: /\bpub struct DebugLogEntry\b/,
-        message: 'missing debug log entry owner',
-      },
-      {
-        regex: /\bpub async fn append_log_async\b/,
-        message: 'missing debug log append owner',
-      },
-      {
-        regex: /\bfn redact_value\b/,
-        message: 'missing debug log redaction owner',
-      },
-      {
-        regex: /\bpub async fn post_debug_log\b/,
-        message: 'missing debug log HTTP dispatch owner',
-      },
-    ],
-  },
-  {
     path: 'src/crates/services/services-core/tests/storage_owner_contracts/storage_owner_contracts.rs',
     reason:
       'services-core local storage owner must keep persistence, cleanup, and token usage behavior contracts',
@@ -314,37 +287,6 @@ export const requiredContentRules = [
       {
         regex: /\bfront_matter_markdown_preserves_metadata_and_trimmed_body_contract\b/,
         message: 'missing front-matter owner behavior regression',
-      },
-    ],
-  },
-  {
-    path: 'src/crates/services/services-integrations/tests/debug_log_owner_contracts.rs',
-    reason:
-      'services-integrations debug log migration must keep file append, redaction, and optional HTTP behavior contracts',
-    patterns: [
-      {
-        regex:
-          /\bdebug_log_owner_appends_legacy_partially_redacted_ndjson_and_skips_http_when_disabled\b/,
-        message: 'missing debug log file append and legacy partial redaction behavior regression',
-      },
-      {
-        regex: /\bdebug_log_owner_dispatches_the_same_redacted_payload_when_http_is_enabled\b/,
-        message: 'missing debug log HTTP dispatch behavior regression',
-      },
-    ],
-  },
-  {
-    path: 'src/crates/assembly/core/src/infrastructure/debug_log/mod.rs',
-    reason:
-      'core debug log module must stay a compatibility facade over services-integrations for log append and redaction behavior',
-    patterns: [
-      {
-        regex: /\bpub use bitfun_services_integrations::debug_log::\{/,
-        message: 'missing debug log owner re-export',
-      },
-      {
-        regex: /\bappend_log_async\b/,
-        message: 'missing append_log_async compatibility export',
       },
     ],
   },
@@ -409,129 +351,6 @@ export const requiredContentRules = [
       {
         regex: /\.emit\(projected\.event_name\.as_str\(\), projected\.payload\)/,
         message: 'Tauri transport must emit projected event name and payload',
-      },
-    ],
-  },
-  {
-    path: 'src/crates/contracts/core-types/src/lsp.rs',
-    reason:
-      'core-types must own shared LSP protocol DTOs, plugin manifest wire contracts, and plugin runtime target DTOs',
-    patterns: [
-      {
-        regex: /\bpub struct LspPlugin\b/,
-        message: 'missing LSP plugin manifest contract owner',
-      },
-      {
-        regex: /\bpub struct ServerConfig\b/,
-        message: 'missing LSP plugin server config contract',
-      },
-      {
-        regex: /\bpub enum JsonRpcMessage\b/,
-        message: 'missing LSP JSON-RPC wire DTO contract',
-      },
-      {
-        regex: /\bpub enum PluginSource\b/,
-        message: 'missing LSP plugin source contract',
-      },
-      {
-        regex: /\bpub struct LspPluginRuntimeTarget\b/,
-        message: 'missing LSP plugin runtime target contract',
-      },
-      {
-        regex: /\bpub fn resolve_lsp_plugin_command_for_target\b/,
-        message: 'missing pure LSP plugin command placeholder resolver',
-      },
-    ],
-  },
-  {
-    path: 'src/crates/services/services-core/src/lsp.rs',
-    reason:
-      'services-core must own pure LSP plugin registry and current-target mapping rules',
-    patterns: [
-      {
-        regex: /\bpub struct PluginRegistry\b/,
-        message: 'missing services-owned LSP plugin registry',
-      },
-      {
-        regex: /\bpub struct LspSupportedExtensions\b/,
-        message: 'missing supported extension summary owner',
-      },
-      {
-        regex: /\bpub fn resolve_plugin_command_for_current_target\b/,
-        message: 'missing current-target LSP plugin command resolver',
-      },
-    ],
-  },
-  {
-    path: 'src/crates/assembly/core/src/service/lsp/types.rs',
-    reason:
-      'core LSP types path must remain a compatibility facade over core-types',
-    patterns: [
-      {
-        regex: /\bpub use bitfun_core_types::lsp::\*/,
-        message: 'core LSP types must re-export bitfun-core-types contracts',
-      },
-    ],
-  },
-  {
-    path: 'src/crates/assembly/core/src/service/lsp/registry.rs',
-    reason:
-      'core LSP registry path must remain a compatibility facade over services-core',
-    patterns: [
-      {
-        regex: /\bpub use bitfun_services_core::lsp::\{/,
-        message: 'core LSP registry must re-export services-core registry',
-      },
-    ],
-  },
-  {
-    path: 'src/crates/contracts/core-types/tests/core_type_contracts/lsp_contracts.rs',
-    reason:
-      'core-types must keep LSP manifest serialization, default-value, and placeholder regressions',
-    patterns: [
-      {
-        regex: /\blsp_plugin_manifest_defaults_preserve_legacy_shape\b/,
-        message: 'missing LSP manifest default regression',
-      },
-      {
-        regex: /\blsp_capability_config_missing_fields_default_to_false\b/,
-        message: 'missing LSP capability default regression',
-      },
-      {
-        regex: /\blsp_plugin_command_placeholder_resolution_is_contract_owned\b/,
-        message: 'missing LSP command placeholder contract regression',
-      },
-    ],
-  },
-  {
-    path: 'src/crates/services/services-core/tests/lsp_plugin_registry_contracts.rs',
-    reason:
-      'services-core must keep behavior-equivalence contracts for LSP plugin registry and command mapping',
-    patterns: [
-      {
-        regex: /\bregistry_preserves_language_extension_and_file_path_lookup\b/,
-        message: 'missing LSP registry lookup regression',
-      },
-      {
-        regex: /\bregistry_unregister_removes_plugin_indexes\b/,
-        message: 'missing LSP registry unregister regression',
-      },
-      {
-        regex: /\bregistry_unregister_preserves_indexes_owned_by_newer_plugin\b/,
-        message:
-          'missing LSP registry overlapping-plugin unregister regression',
-      },
-      {
-        regex: /\bregistry_duplicate_and_missing_errors_keep_legacy_messages\b/,
-        message: 'missing LSP registry error-message regression',
-      },
-      {
-        regex: /\bregistry_supported_extensions_matches_desktop_api_shape\b/,
-        message: 'missing LSP supported extension summary regression',
-      },
-      {
-        regex: /\bplugin_command_placeholder_resolution_is_target_driven\b/,
-        message: 'missing LSP plugin command placeholder regression',
       },
     ],
   },
@@ -1575,7 +1394,7 @@ export const requiredContentRules = [
         message: 'missing headless capability boundary regression',
       },
       {
-        regex: /\bheadless_agent_hosts_do_not_register_product_workflow_agents\b/,
+        regex: /\bheadless_agent_hosts_keep_explore_code_agents_without_product_workflow_agents\b/,
         message: 'missing headless Agent catalog boundary regression',
       },
       {
@@ -1941,54 +1760,24 @@ export const requiredContentRules = [
     ],
   },
   {
-    path: 'src/crates/execution/agent-runtime/src/post_call_hooks.rs',
-    reason:
-      'agent-runtime must own portable hook registry and post-call routing decisions while concrete hook execution stays in the owning runtime',
+    path: 'src/crates/execution/agent-runtime/src/native_hooks/kind.rs',
+    reason: 'agent-runtime must own portable hook kind contracts',
     patterns: [
-      {
-        regex: /\bpub enum RuntimeHookKind\b/,
-        message: 'missing runtime hook kind contract',
-      },
-      {
-        regex: /\bpub enum RuntimeHookErrorPolicy\b/,
-        message: 'missing runtime hook error policy contract',
-      },
-      {
-        regex: /\bpub struct RuntimeHookPlan\b/,
-        message: 'missing runtime hook plan contract',
-      },
-      {
-        regex: /\bpub struct RuntimeHookRegistry\b/,
-        message: 'missing runtime hook registry contract',
-      },
-      {
-        regex: /\btimeout_millis\b/,
-        message: 'missing runtime hook timeout contract',
-      },
-      {
-        regex: /\bDuplicateHookId\b/,
-        message: 'missing runtime hook duplicate-id guard',
-      },
-      {
-        regex: /\bEmptyHookId\b/,
-        message: 'missing runtime hook empty-id guard',
-      },
-      {
-        regex: /\bInvalidTimeoutMillis\b/,
-        message: 'missing runtime hook non-zero-timeout guard',
-      },
-      {
-        regex: /\bpub const fn successful_tool_post_call_hooks\b/,
-        message: 'missing successful tool post-call hook routing decision',
-      },
-      {
-        regex: /\bpub trait SuccessfulToolPostCallHookExecutor\b/,
-        message: 'missing successful tool post-call hook executor contract',
-      },
-      {
-        regex: /\bpub fn run_successful_tool_post_call_hooks\b/,
-        message: 'missing successful tool post-call hook executor runner',
-      },
+      { regex: /\bpub enum RuntimeHookKind\b/, message: 'missing runtime hook kind contract' },
+      { regex: /\bSuccessfulToolPostCall\b/, message: 'missing successful tool post-call hook kind' },
+    ],
+  },
+  {
+    path: 'src/crates/execution/agent-runtime/src/native_hooks/registry.rs',
+    reason: 'agent-runtime must own portable hook registry and validation contracts',
+    patterns: [
+      { regex: /\bpub enum RuntimeHookErrorPolicy\b/, message: 'missing runtime hook error policy contract' },
+      { regex: /\bpub struct RuntimeHookPlan\b/, message: 'missing runtime hook plan contract' },
+      { regex: /\bpub struct RuntimeHookRegistry\b/, message: 'missing runtime hook registry contract' },
+      { regex: /\btimeout_millis\b/, message: 'missing runtime hook timeout contract' },
+      { regex: /\bDuplicateHookId\b/, message: 'missing runtime hook duplicate-id guard' },
+      { regex: /\bEmptyHookId\b/, message: 'missing runtime hook empty-id guard' },
+      { regex: /\bInvalidTimeoutMillis\b/, message: 'missing runtime hook non-zero-timeout guard' },
     ],
   },
   {
@@ -1997,11 +1786,11 @@ export const requiredContentRules = [
       'agent-runtime post-call hook owner must keep behavior-equivalence contracts for successful tool-call hook routing',
     patterns: [
       {
-        regex: /\bsuccessful_tool_call_routes_to_shared_context_measurement_hook\b/,
+        regex: /\bsuccessful_tool_call_uses_stable_builtin_registration_id\b/,
         message: 'missing successful tool post-call hook routing regression',
       },
       {
-        regex: /\bruntime_hook_registry_preserves_order_timeout_and_error_policy\b/,
+        regex: /\bruntime_hook_registry_preserves_source_order_timeout_and_error_policy\b/,
         message: 'missing runtime hook order/timeout/error-policy regression',
       },
       {
@@ -2883,14 +2672,7 @@ export const requiredContentRules = [
     reason:
       'core post-call hooks must delegate portable hook routing to agent-runtime while retaining concrete hook execution',
     patterns: [
-      {
-        regex: /\brun_successful_tool_post_call_hooks\b/,
-        message: 'missing post-call hook executor runner delegation',
-      },
-      {
-        regex: /\bSuccessfulToolPostCallHookExecutor\b/,
-        message: 'missing post-call hook executor implementation',
-      },
+      { regex: /\bdispatch_successful_tool_post_call\b/, message: 'missing post-call hook dispatch delegation' },
     ],
   },
   {
@@ -3611,39 +3393,11 @@ export const requiredContentRules = [
   {
     path: 'src/crates/execution/tool-execution/src/shell/mod.rs',
     reason:
-      'tool-runtime must own reusable Bash shell execution policy, rendering, and background-result text helpers',
+      'tool-runtime must own the shared noninteractive terminal environment used by agent-managed sessions',
     patterns: [
       {
-        regex: /\bpub fn banned_shell_command\b/,
-        message: 'missing Bash banned-command policy owner',
-      },
-      {
-        regex: /\bpub fn detect_osascript_keystroke_non_ascii\b/,
-        message: 'missing Bash osascript keystroke guard owner',
-      },
-      {
-        regex: /\bpub fn detect_osascript_im_app\b/,
-        message: 'missing Bash IM AppleScript guard owner',
-      },
-      {
-        regex: /\bpub fn command_for_working_directory\b/,
-        message: 'missing Bash working-directory command wrapper owner',
-      },
-      {
-        regex: /\bpub fn bash_noninteractive_env\b/,
-        message: 'missing Bash noninteractive environment owner',
-      },
-      {
-        regex: /\bpub fn render_local_shell_result\b/,
-        message: 'missing local shell result rendering owner',
-      },
-      {
-        regex: /\bpub fn render_remote_shell_result\b/,
-        message: 'missing remote shell result rendering owner',
-      },
-      {
-        regex: /\bpub fn format_background_command_delivery_text\b/,
-        message: 'missing background command delivery text owner',
+        regex: /\bpub fn noninteractive_terminal_env\b/,
+        message: 'missing noninteractive terminal environment owner',
       },
     ],
   },
@@ -3658,8 +3412,12 @@ export const requiredContentRules = [
       },
       {
         regex:
-          /web-readable = \["dep:htmd", "dep:legible", "dep:readability-js", "dep:regex"\]/,
+          /web-readable = \["dep:htmd", "dep:legible", "dep:readability-js"\]/,
         message: 'tool-runtime web-readable feature must own exactly the Web extractor deps',
+      },
+      {
+        regex: /^regex = \{ workspace = true \}$/m,
+        message: 'tool-runtime POSIX filename byte matching must use the shared regex dependency independently of Web extraction',
       },
       {
         regex: /htmd = \{[^}]*optional = true[^}]*\}/,
@@ -3728,19 +3486,11 @@ export const requiredContentRules = [
   {
     path: 'src/crates/execution/tool-execution/tests/tool_io_contracts.rs',
     reason:
-      'tool-runtime shell owner must keep focused behavior-equivalence contracts for Bash execution helpers',
+      'tool-runtime shell owner must keep the agent-managed terminal environment contract covered',
     patterns: [
       {
-        regex: /\bbash_shell_owner_preserves_command_wrapping_and_env\b/,
-        message: 'missing Bash command/env owner regression',
-      },
-      {
-        regex: /\bbash_shell_owner_preserves_guard_and_result_rendering\b/,
-        message: 'missing Bash guard/rendering owner regression',
-      },
-      {
-        regex: /\bbash_shell_owner_preserves_background_delivery_texts\b/,
-        message: 'missing Bash background-result text owner regression',
+        regex: /\bnoninteractive_terminal_env_preserves_agent_session_contract\b/,
+        message: 'missing noninteractive terminal environment regression',
       },
     ],
   },
@@ -4102,10 +3852,6 @@ export const requiredContentRules = [
       {
         regex: /#\[cfg\(all\(feature = "ai-adapter-runtime", feature = "subscription-auth"\)\)\]\s*pub mod subscription_auth\b/s,
         message: 'AI subscription auth runtime must require both the adapter and credential owners',
-      },
-      {
-        regex: /#\[cfg\(feature = "debug-log"\)\]\s*pub mod debug_log\b/s,
-        message: 'debug ingest HTTP server must stay behind debug-log',
       },
     ],
   },
@@ -5468,6 +5214,10 @@ export const requiredContentRules = [
       { regex: /#\[cfg\(feature = "agent-api"\)\]\r?\npub use agent_api::\*;/, message: 'agent-api must gate its public exports' },
       { regex: /#\[cfg\(feature = "plugin-runtime"\)\]\r?\nmod plugin;/, message: 'plugin-runtime must gate its source module' },
       { regex: /#\[cfg\(feature = "plugin-runtime"\)\]\r?\npub use plugin::\{/, message: 'plugin-runtime must gate its public exports' },
+      { regex: /#\[cfg\(feature = "hook-function-runtime"\)\]\r?\nmod hook_function;/, message: 'hook-function-runtime must gate its source module' },
+      { regex: /#\[cfg\(feature = "hook-function-runtime"\)\]\r?\npub use hook_function::\*;/, message: 'hook-function-runtime must gate its public exports' },
+      { regex: /#\[cfg\(feature = "product-search"\)\]\r?\nmod product_search;/, message: 'product-search must gate its source module' },
+      { regex: /#\[cfg\(feature = "product-search"\)\]\r?\npub use product_search::ProductSearchPort;/, message: 'product-search must gate its public exports' },
       { regex: /#\[cfg\(feature = "script-tool-runtime"\)\]\r?\nmod script_tool;/, message: 'script-tool-runtime must gate its source module' },
       { regex: /#\[cfg\(feature = "script-tool-runtime"\)\]\r?\npub use script_tool::\{/, message: 'script-tool-runtime must gate its public exports' },
       { regex: /#\[cfg\(feature = "workspace-ports"\)\]\r?\nmod workspace_ports;/, message: 'workspace-ports must gate its source module' },
@@ -8081,21 +7831,6 @@ export const requiredContentRules = [
     ],
   },
   {
-    path: 'src/crates/assembly/core/src/agentic/agents/definitions/modes/mod.rs',
-    reason:
-      'core agent mode definitions must continue exposing Multitask mode until an approved agent-runtime migration preserves mode registration semantics',
-    patterns: [
-      {
-        regex: /\bmod multitask\b/,
-        message: 'missing Multitask mode module',
-      },
-      {
-        regex: /\bpub use multitask::MultitaskMode\b/,
-        message: 'missing Multitask mode export',
-      },
-    ],
-  },
-  {
     path: 'src/crates/assembly/core/src/agentic/agents/definitions/subagents/mod.rs',
     reason:
       'core subagent definitions must continue exposing the built-in GeneralPurpose subagent until registry ownership migration has equivalence coverage',
@@ -8135,15 +7870,11 @@ export const requiredContentRules = [
         message: 'missing builtin agent definition catalog owner',
       },
       {
-        regex: /builtin_agent_spec\(\s*"Multitask",\s*Mode,\s*"auto"/,
-        message: 'missing Multitask runtime default model mapping',
-      },
-      {
         regex: /builtin_agent_spec\(\s*"GeneralPurpose",\s*SubAgent,\s*"primary"/,
         message: 'missing GeneralPurpose runtime default model mapping',
       },
       {
-        regex: /SubagentVisibilityPolicy::restricted\(\["Claw",\s*"Team"\]\)/,
+        regex: /SubagentVisibilityPolicy::restricted\(\["Claw"\]\)/,
         message: 'missing ComputerUse restricted visibility mapping',
       },
     ],
@@ -8173,8 +7904,12 @@ export const requiredContentRules = [
       'core Task execution must continue owning background subagent launch semantics until a reviewed agent-runtime port preserves delivery behavior',
     patterns: [
       {
-        regex: /delegation_policy\(\)\.spawn_child\(\)/,
-        message: 'missing child delegation policy propagation',
+        regex: /\blet\s+delegation_policy\s*=\s*child_delegation_policy\(/,
+        message: 'missing policy-aware child delegation for background launches',
+      },
+      {
+        regex: /delegation_policy:\s*child_delegation_policy\(/,
+        message: 'missing policy-aware child delegation for foreground execution',
       },
       {
         regex: /\bstart_background_subagent\b/,
@@ -8632,23 +8367,31 @@ export const requiredContentRules = [
   {
     path: 'src/web-ui/src/flow_chat/tool-cards/FileOperationToolCard.tsx',
     reason:
-      'web-ui file operation surface must continue owning snapshot-to-local diff fallback until product surface migration is reviewed',
+      'web-ui file operation surface must preserve snapshot-independent inline diffs after the design-system migration',
     patterns: [
       {
-        regex: /\bopenLocalDiff\b/,
-        message: 'missing local tool diff fallback',
+        regex: /\bInlineDiffPreview\b/,
+        message: 'missing snapshot-independent inline diff renderer',
       },
       {
-        regex: /snapshotAPI\.getOperationDiff/,
-        message: 'missing snapshot operation diff path',
+        regex: /previewVariant === 'completed-diff'/,
+        message: 'missing completed file-operation diff state',
       },
       {
-        regex: /Snapshot diff unavailable/,
-        message: 'missing snapshot-unavailable fallback diagnostic',
+        regex: /originalContent=\{oldStringContent\}/,
+        message: 'missing Edit original-content projection',
       },
       {
-        regex: /\blocalDiffContent\b/,
-        message: 'missing local diff content fallback state',
+        regex: /modifiedContent=\{newStringContent\}/,
+        message: 'missing Edit modified-content projection',
+      },
+      {
+        regex: /originalContent=""/,
+        message: 'missing Write empty-baseline projection',
+      },
+      {
+        regex: /modifiedContent=\{contentPreview\}/,
+        message: 'missing Write content projection',
       },
     ],
   },
@@ -8737,10 +8480,6 @@ export const requiredContentRules = [
       {
         regex: /\bexport async function initializeAllTools\b/,
         message: 'missing narrow tool startup entry',
-      },
-      {
-        regex: /\binitializeLsp\b/,
-        message: 'missing LSP startup initializer call',
       },
       {
         regex: /\binitializeGit\b/,
@@ -10220,10 +9959,6 @@ export const requiredContentRules = [
         message: 'dispatch store facade must stay gated behind dispatch-store',
       },
       {
-        regex: /#\[cfg\(feature = "lsp"\)\]\s*pub mod lsp\b/s,
-        message: 'LSP facade must stay gated behind lsp',
-      },
-      {
         regex: /#\[cfg\(feature = "remote-workspace"\)\]\s*pub mod remote_ssh\b/s,
         message: 'remote workspace facade must stay gated behind remote-workspace',
       },
@@ -10274,6 +10009,121 @@ export const requiredContentRules = [
       {
         regex: /Remote workspace support is not compiled into this product profile/,
         message: 'workspace service must report an explicit unsupported state without remote-workspace',
+      },
+    ],
+  },
+  {
+    path: 'src/apps/server/src/bootstrap.rs',
+    reason:
+      'Server must remain on the canonical Core Agent Runtime and product event-queue owners',
+    patterns: [
+      {
+        regex: /init_agentic_system_for_profile_with_runtime_ownership\s*\(/,
+        message: 'Server bootstrap must use the canonical Core Agent Runtime initializer',
+      },
+      {
+        regex: /CoreProductEventQueueOwner::new\s*\(/,
+        message: 'Server bootstrap must retain the product event-queue owner',
+      },
+    ],
+  },
+  {
+    path: 'src/apps/server/src/main.rs',
+    reason:
+      'Server App Server event projection must consume the product-owned runtime source',
+    patterns: [
+      {
+        regex: /agent_event_queue_owner\.runtime_source\s*\(\s*\)/,
+        message: 'Server must consume events through CoreProductEventQueueOwner',
+      },
+    ],
+  },
+  {
+    path: 'src/crates/assembly/core/src/agentic/system.rs',
+    reason:
+      'the canonical Core Agent Runtime initializer must publish its token usage service for every embedded host',
+    patterns: [
+      {
+        regex: /set_global_token_usage_service\s*\(\s*token_usage_service\.clone\s*\(\s*\)\s*\)/,
+        message: 'canonical Agent Runtime initialization must publish token usage globally',
+      },
+    ],
+  },
+  {
+    path: 'src/crates/services/services-core/src/tls_provider.rs',
+    reason:
+      'provider-neutral TLS clients must share the services-owned process-level ring selection',
+    patterns: [
+      {
+        regex: /rustls::crypto::ring::default_provider\s*\(\s*\)\.install_default\s*\(\s*\)/,
+        message: 'services-core TLS owner must install the workspace-owned ring provider',
+      },
+    ],
+  },
+  {
+    path: 'src/crates/services/services-core/Cargo.toml',
+    reason:
+      'services-core must own the exact Rustls provider and protocol feature selection',
+    patterns: [
+      {
+        regex: /rustls = \{ workspace = true, features = \["ring", "std", "tls12"\], optional = true \}/,
+        message: 'services-core TLS owner must select only ring, std, and TLS 1.2 support',
+      },
+    ],
+  },
+  {
+    path: 'src/crates/services/services-integrations/src/lib.rs',
+    reason:
+      'integration clients must initialize the reviewed TLS provider through centralized constructors',
+    patterns: [
+      {
+        regex: /fn reqwest_client_builder[\s\S]*?ensure_ring_crypto_provider\s*\(\s*\)/,
+        message: 'integration Reqwest builder must initialize the ring provider',
+      },
+      {
+        regex: /fn reqwest_client\s*\([^)]*\)[\s\S]*?ensure_ring_crypto_provider\s*\(\s*\)/,
+        message: 'integration default Reqwest client must initialize the ring provider',
+      },
+    ],
+  },
+  {
+    path: 'src/crates/adapters/ai-adapters/src/client/http.rs',
+    reason: 'AI transport clients must initialize the reviewed TLS provider before Reqwest',
+    patterns: [
+      {
+        regex: /fn create_http_client[\s\S]*?ensure_ring_crypto_provider\s*\(\s*\)[\s\S]*?Client::builder\s*\(/,
+        message: 'AI client construction must initialize the ring provider first',
+      },
+    ],
+  },
+  {
+    path: 'src/crates/adapters/ai-adapters/src/subscription_auth/mod.rs',
+    reason:
+      'subscription authentication clients must initialize the same reviewed TLS provider as normal AI transport',
+    patterns: [
+      {
+        regex: /fn build_http_client[\s\S]*?ensure_ring_crypto_provider\s*\(\s*\)[\s\S]*?reqwest::Client::builder\s*\(/,
+        message: 'subscription HTTP client construction must initialize the ring provider first',
+      },
+    ],
+  },
+  {
+    path: 'src/crates/services/miniapp-market-service/src/auth.rs',
+    reason: 'MiniApp market HTTP clients must initialize the reviewed TLS provider',
+    patterns: [
+      {
+        regex: /fn new\s*\([^)]*MarketConfig[\s\S]*?ensure_ring_crypto_provider\s*\(\s*\)[\s\S]*?reqwest::Client::builder\s*\(/,
+        message: 'MiniApp market AuthService must initialize the ring provider first',
+      },
+    ],
+  },
+  {
+    path: 'src/crates/services/skin-market-service/src/auth.rs',
+    reason: 'appearance market HTTP clients must initialize the reviewed TLS provider',
+    patterns: [
+      {
+        regex: /fn new\s*\([^)]*Url[\s\S]*?ensure_ring_crypto_provider\s*\(\s*\)[\s\S]*?Client::builder\s*\(/,
+        message: 'appearance market IdentityVerifier must initialize the ring provider first',
       },
     ],
   },

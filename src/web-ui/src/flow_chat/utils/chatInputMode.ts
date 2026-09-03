@@ -2,7 +2,48 @@ import { WorkspaceKind, type WorkspaceInfo } from '@/shared/types';
 
 export const DEFAULT_CHAT_INPUT_MODE_CONFIG_PATH = 'app.flow_chat.default_mode_id';
 
-const FIXED_CHAT_INPUT_MODE_IDS = new Set(['cowork', 'claw']);
+const MAIN_AGENT_EXCLUDED_MODE_IDS = new Set([
+  'agentic',
+  'claw',
+  'creative',
+  'minimal',
+  // Retired built-in modes that may still be advertised by an older peer.
+  'multitask',
+  'plan',
+  'ultra',
+]);
+
+export type AgentExecutionTier = 'minimal' | 'balanced' | 'ultimate';
+
+export function agentExecutionTier(agentType: string | null | undefined): AgentExecutionTier {
+  switch (normalizeModeLookupId(agentType)) {
+    case 'minimal':
+      return 'minimal';
+    case 'ultra':
+      return 'ultimate';
+    default:
+      return 'balanced';
+  }
+}
+
+export function canSwitchSessionMainAgent(params: {
+  sessionStarted: boolean;
+  currentAgentType: string | null | undefined;
+  nextAgentType: string | null | undefined;
+}): boolean {
+  return !params.sessionStarted
+    || normalizeModeLookupId(params.currentAgentType) === normalizeModeLookupId(params.nextAgentType);
+}
+
+const THREAD_GOAL_TOOL_IDS = ['get_goal', 'create_goal', 'update_goal'] as const;
+
+/** Whether an agent tool set exposes the complete thread-goal lifecycle. */
+export function hasCompleteThreadGoalTools(tools: Iterable<string> | null | undefined): boolean {
+  const normalized = new Set(
+    Array.from(tools ?? [], tool => tool.trim().toLowerCase()),
+  );
+  return THREAD_GOAL_TOOL_IDS.every(tool => normalized.has(tool));
+}
 const SUBAGENT_HIDDEN_CHAT_INPUT_ACTION_IDS = new Set(['goal', 'review', 'deepreview', 'init']);
 
 type WorkspaceResolutionInfo = Pick<
@@ -169,8 +210,6 @@ function normalizeModeLookupId(value: string | null | undefined): string | null 
 
 function canonicalFixedModeId(value: string | null | undefined): string | null {
   switch (normalizeModeLookupId(value)) {
-    case 'cowork':
-      return 'Cowork';
     case 'claw':
       return 'Claw';
     default:
@@ -225,11 +264,17 @@ export function resolveChatInputModePolicy(params: {
   };
 }
 
-export function resolveSwitchableChatInputModes<TMode extends { id: string }>(
+/**
+ * Main Agents are selected with the Harness control before the first Turn.
+ * Standard, Minimal, and Ultra are already represented by Harness profiles;
+ * Claw belongs to Assistant workspaces. Retired built-in modes stay filtered
+ * when an older peer still advertises them.
+ */
+export function resolveChatInputMainAgentModes<TMode extends { id: string }>(
   availableModes: Iterable<TMode>,
 ): TMode[] {
   return Array.from(availableModes).filter(
-    mode => !FIXED_CHAT_INPUT_MODE_IDS.has(normalizeModeLookupId(mode.id) ?? ''),
+    mode => !MAIN_AGENT_EXCLUDED_MODE_IDS.has(normalizeModeLookupId(mode.id) ?? ''),
   );
 }
 
@@ -360,7 +405,10 @@ export function resolveAvailableChatInputMode(params: {
   const normalizedCurrentMode = params.currentMode.trim();
   const normalizedUserDefaultModeId = normalizeUserDefaultChatInputModeId(params.userDefaultModeId);
   const effectiveUserDefaultModeId =
-    normalizedUserDefaultModeId && availableModeIds.has(normalizedUserDefaultModeId)
+    normalizedUserDefaultModeId
+      // Do not restore retired built-in Agents from older user config.
+      && !['multitask', 'plan'].includes(normalizeModeLookupId(normalizedUserDefaultModeId) ?? '')
+      && availableModeIds.has(normalizedUserDefaultModeId)
       ? normalizedUserDefaultModeId
       : null;
   const canUseUserDefaultMode =

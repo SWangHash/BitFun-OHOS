@@ -1,102 +1,54 @@
 /**
  * About dialog component.
- * Shows app version and license info.
- * Uses component library Modal.
+ * Shows product identity, build metadata, license, app-update status, and the
+ * persistent GitHub repository entry point.
  */
 
+import {
+  Alert,
+  Button,
+  Icon,
+  ScrollArea,
+  Tooltip,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
-import { Tooltip, Modal, Button, Alert } from '@/component-library';
-import { Copy, Check, Download, CheckCircle2, Package } from 'lucide-react';
+import { CalendarDays, Code2, ShieldCheck, Sparkle, Tag } from 'lucide-react';
 import {
-  getAboutInfo,
+  formatBuildDate,
   formatDisplayedVersion,
-  formatBuildDate
+  getAboutInfo,
 } from '@/shared/utils/version';
 import { createLogger } from '@/shared/utils/logger';
 import { systemAPI } from '@/infrastructure/api';
 import type { CheckForUpdatesResponse } from '@/infrastructure/api/service-api/SystemAPI';
 import { canCheckForAppUpdates, isTauriRuntime } from '@/infrastructure/update/tauriEnv';
-import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { UpdateAvailableDialog } from '@/infrastructure/update/UpdateAvailableDialog';
 import { useUpdateInstallStore } from '@/infrastructure/update/updateInstallStore';
 import { formatUpdateInstallError } from '@/infrastructure/update/updateErrorMessage';
-import { PrivacyStatementDialog, usePrivacy } from '../Privacy';
 import './AboutDialog.scss';
-import './AboutDialogLinks.scss';
-import './AboutDialogOpenSource.scss';
 
 const log = createLogger('AboutDialog');
-
-interface Dependency {
-  name: string;
-  url: string;
-  license: string;
-  category: 'frontend' | 'backend';
-}
-
-const dependencies: Dependency[] = [
-  // Frontend (TypeScript / JS)
-  { name: 'React', url: 'https://www.npmjs.com/package/react', license: 'MIT', category: 'frontend' },
-  { name: 'React DOM', url: 'https://www.npmjs.com/package/react-dom', license: 'MIT', category: 'frontend' },
-  { name: 'Zustand', url: 'https://www.npmjs.com/package/zustand', license: 'MIT', category: 'frontend' },
-  { name: 'Immer', url: 'https://www.npmjs.com/package/immer', license: 'MIT', category: 'frontend' },
-  { name: 'i18next', url: 'https://www.npmjs.com/package/i18next', license: 'MIT', category: 'frontend' },
-  { name: 'react-i18next', url: 'https://www.npmjs.com/package/react-i18next', license: 'MIT', category: 'frontend' },
-  { name: 'lucide-react', url: 'https://www.npmjs.com/package/lucide-react', license: 'ISC', category: 'frontend' },
-  { name: '@tauri-apps/api', url: 'https://www.npmjs.com/package/@tauri-apps/api', license: 'Apache-2.0', category: 'frontend' },
-  { name: '@tauri-apps/plugin-opener', url: 'https://www.npmjs.com/package/@tauri-apps/plugin-opener', license: 'Apache-2.0', category: 'frontend' },
-  { name: '@tauri-apps/plugin-dialog', url: 'https://www.npmjs.com/package/@tauri-apps/plugin-dialog', license: 'Apache-2.0', category: 'frontend' },
-  { name: '@tanstack/react-virtual', url: 'https://www.npmjs.com/package/@tanstack/react-virtual', license: 'MIT', category: 'frontend' },
-  { name: 'Monaco Editor', url: 'https://www.npmjs.com/package/monaco-editor', license: 'MIT', category: 'frontend' },
-  { name: '@monaco-editor/react', url: 'https://www.npmjs.com/package/@monaco-editor/react', license: 'MIT', category: 'frontend' },
-  { name: 'TipTap', url: 'https://www.npmjs.com/package/@tiptap/react', license: 'MIT', category: 'frontend' },
-  { name: 'react-markdown', url: 'https://www.npmjs.com/package/react-markdown', license: 'MIT', category: 'frontend' },
-  { name: 'react-syntax-highlighter', url: 'https://www.npmjs.com/package/react-syntax-highlighter', license: 'MIT', category: 'frontend' },
-  { name: 'react-virtuoso', url: 'https://www.npmjs.com/package/react-virtuoso', license: 'MIT', category: 'frontend' },
-  { name: 'xterm.js', url: 'https://www.npmjs.com/package/@xterm/xterm', license: 'MIT', category: 'frontend' },
-  { name: 'Mermaid', url: 'https://www.npmjs.com/package/mermaid', license: 'MIT', category: 'frontend' },
-  { name: 'KaTeX', url: 'https://www.npmjs.com/package/katex', license: 'MIT', category: 'frontend' },
-  { name: 'highlight.js', url: 'https://www.npmjs.com/package/highlight.js', license: 'BSD-3-Clause', category: 'frontend' },
-  { name: 'PrismJS', url: 'https://www.npmjs.com/package/prismjs', license: 'MIT', category: 'frontend' },
-  { name: 'diff', url: 'https://www.npmjs.com/package/diff', license: 'BSD-3-Clause', category: 'frontend' },
-  { name: 'morphdom', url: 'https://www.npmjs.com/package/morphdom', license: 'MIT', category: 'frontend' },
-  { name: 'html-to-image', url: 'https://www.npmjs.com/package/html-to-image', license: 'MIT', category: 'frontend' },
-  { name: 'qrcode.react', url: 'https://www.npmjs.com/package/qrcode.react', license: 'MIT', category: 'frontend' },
-  { name: 'Vite', url: 'https://www.npmjs.com/package/vite', license: 'MIT', category: 'frontend' },
-  { name: 'TypeScript', url: 'https://www.npmjs.com/package/typescript', license: 'Apache-2.0', category: 'frontend' },
-  // Backend (Rust)
-  { name: 'Tokio', url: 'https://crates.io/crates/tokio', license: 'MIT', category: 'backend' },
-  { name: 'Serde', url: 'https://crates.io/crates/serde', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'Reqwest', url: 'https://crates.io/crates/reqwest', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'Axum', url: 'https://crates.io/crates/axum', license: 'MIT', category: 'backend' },
-  { name: 'Tauri', url: 'https://crates.io/crates/tauri', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'git2 (libgit2)', url: 'https://crates.io/crates/git2', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'Chrono', url: 'https://crates.io/crates/chrono', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'UUID', url: 'https://crates.io/crates/uuid', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'Regex', url: 'https://crates.io/crates/regex', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'Anyhow', url: 'https://crates.io/crates/anyhow', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'Thiserror', url: 'https://crates.io/crates/thiserror', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'Futures', url: 'https://crates.io/crates/futures', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'Image', url: 'https://crates.io/crates/image', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'Zip', url: 'https://crates.io/crates/zip', license: 'MIT', category: 'backend' },
-  { name: 'DashMap', url: 'https://crates.io/crates/dashmap', license: 'MIT', category: 'backend' },
-  { name: 'IndexMap', url: 'https://crates.io/crates/indexmap', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'tower-http', url: 'https://crates.io/crates/tower-http', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'tokio-tungstenite', url: 'https://crates.io/crates/tokio-tungstenite', license: 'MIT', category: 'backend' },
-  { name: 'Clap', url: 'https://crates.io/crates/clap', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'Similar', url: 'https://crates.io/crates/similar', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'Notifly', url: 'https://crates.io/crates/notify', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'Fluent', url: 'https://crates.io/crates/fluent-bundle', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'AES-GCM', url: 'https://crates.io/crates/aes-gcm', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'X25519-Dalek', url: 'https://crates.io/crates/x25519-dalek', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'SHA2', url: 'https://crates.io/crates/sha2', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'russh', url: 'https://crates.io/crates/russh', license: 'MIT', category: 'backend' },
-  { name: 'Ratatui', url: 'https://crates.io/crates/ratatui', license: 'MIT', category: 'backend' },
-  { name: 'pulldown-cmark', url: 'https://crates.io/crates/pulldown-cmark', license: 'MIT', category: 'backend' },
-  { name: 'base64', url: 'https://crates.io/crates/base64', license: 'Apache-2.0 OR MIT', category: 'backend' },
-  { name: 'parking_lot', url: 'https://crates.io/crates/parking_lot', license: 'Apache-2.0 OR MIT', category: 'backend' },
-];
+const GITHUB_REPOSITORY_URL = 'https://github.com/GCWing/BitFun';
+const ABOUT_DOT_MATRIX_COLUMNS = 13;
+const ABOUT_DOT_MATRIX_ROWS = 7;
+const ABOUT_DOT_MATRIX = Array.from(
+  { length: ABOUT_DOT_MATRIX_COLUMNS * ABOUT_DOT_MATRIX_ROWS },
+  (_, index) => {
+    const column = index % ABOUT_DOT_MATRIX_COLUMNS;
+    const row = Math.floor(index / ABOUT_DOT_MATRIX_COLUMNS);
+    return {
+      id: index,
+      opacity: Math.max(0.12, 0.44 - column * 0.017 - row * 0.022),
+    };
+  },
+);
 
 interface AboutDialogProps {
   /** Whether visible */
@@ -107,7 +59,7 @@ interface AboutDialogProps {
 
 export const AboutDialog: React.FC<AboutDialogProps> = ({
   isOpen,
-  onClose
+  onClose,
 }) => {
   const { t } = useI18n('common');
   const [copiedItem, setCopiedItem] = useState<string | null>(null);
@@ -121,22 +73,37 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   const updateProgress = useUpdateInstallStore(state => state.progress);
   const updateError = useUpdateInstallStore(state => state.error);
   const startUpdateInstall = useUpdateInstallStore(state => state.startInstall);
-  const [subDialog, setSubDialog] = useState<'openSource' | 'privacy' | null>(null);
-  const { status: privacyStatus } = usePrivacy();
 
   const aboutInfo = getAboutInfo();
   const { version, license } = aboutInfo;
   const nativeRuntime = isTauriRuntime();
+  const updateChecksAvailable = canCheckForAppUpdates();
   const displayedVersion = formatDisplayedVersion(
     version,
     nativeVersion,
     nativeRuntime,
-    import.meta.env.DEV
+    import.meta.env.DEV,
   );
   const updateProgressPercent =
-      updateProgress.total != null && updateProgress.total > 0
-          ? Math.min(100, Math.round((updateProgress.downloaded / updateProgress.total) * 100))
-          : null;
+    updateProgress.total != null && updateProgress.total > 0
+      ? Math.min(100, Math.round((updateProgress.downloaded / updateProgress.total) * 100))
+      : null;
+  const licenseName = license.type === 'MIT' ? 'MIT License' : license.type;
+  const licenseCopyright = license.text?.startsWith(`${licenseName} - `)
+    ? license.text.slice(`${licenseName} - `.length)
+    : license.text;
+  const legalCopyright = licenseCopyright
+    ? `${licenseCopyright.replace(/\.$/, '')}. ${t('about.allRightsReserved')}`
+    : t('about.copyright');
+
+  let releaseLabel = t('about.stableBuild');
+  if (displayedVersion.endsWith('-dev')) {
+    releaseLabel = t('about.developmentBuild');
+  } else if (version.releaseChannel === 'beta') {
+    releaseLabel = t('about.betaBuild');
+  } else if (version.releaseChannel === 'nightly') {
+    releaseLabel = t('about.nightlyBuild');
+  }
 
   useEffect(() => {
     if (isOpen) {
@@ -161,42 +128,34 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   }, [isOpen, nativeRuntime]);
 
   const handleCheckForUpdates = useCallback(async () => {
-    if (!canCheckForAppUpdates()) {
-      return;
-    }
+    if (!canCheckForAppUpdates()) return;
+
     setManualCheckStatus('idle');
     setManualCheckErrorMessage(null);
     setManualCheckBusy(true);
     try {
-      if (isOpenHarmonyRuntime()) {
-        // OHOS: system AppGallery dialog
-        const ohosRes = await systemAPI.checkForUpdatesOhos();
-        if (ohosRes.error) {
-          setManualCheckErrorMessage(String(ohosRes.error));
-          setManualCheckStatus('error');
-        } else if (!ohosRes.updateAvailable) {
-          setManualCheckStatus('latest');
-        }
-        // updateAvailable === true: native dialog already shown
+      const res = await systemAPI.checkForUpdates();
+      if (!res.updateAvailable) {
+        setManualCheckStatus('latest');
       } else {
-        // Desktop: Tauri updater
-        const res = await systemAPI.checkForUpdates();
-        if (!res.updateAvailable) {
-          setManualCheckStatus('latest');
-        } else {
-          setManualData(res);
-          setManualOpen(true);
-        }
+        setManualData(res);
+        setManualOpen(true);
       }
-    } catch (e) {
-      log.error('check_for_updates failed', e);
-      const msg = e instanceof Error ? e.message : String(e);
-      setManualCheckErrorMessage(formatUpdateInstallError(msg, t));
+    } catch (error) {
+      log.error('check_for_updates failed', error);
+      const message = error instanceof Error ? error.message : String(error);
+      setManualCheckErrorMessage(formatUpdateInstallError(message, t));
       setManualCheckStatus('error');
     } finally {
       setManualCheckBusy(false);
     }
   }, [t]);
+
+  const handleGithubStar = useCallback(() => {
+    systemAPI.openExternal(GITHUB_REPOSITORY_URL).catch(error => {
+      log.error('Failed to open the GitHub repository', { url: GITHUB_REPOSITORY_URL, error });
+    });
+  }, []);
 
   const onManualLater = useCallback(() => {
     setManualOpen(false);
@@ -212,9 +171,9 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   const onRestart = useCallback(async () => {
     try {
       await systemAPI.restartApp();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      useUpdateInstallStore.setState({ status: 'error', error: msg });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      useUpdateInstallStore.setState({ status: 'error', error: message });
     }
   }, []);
 
@@ -222,345 +181,330 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
     try {
       await navigator.clipboard.writeText(text);
       setCopiedItem(itemId);
-      setTimeout(() => setCopiedItem(null), 2000);
-    } catch (err) {
-      log.error('Failed to copy to clipboard', err);
+      window.setTimeout(() => setCopiedItem(null), 2000);
+    } catch (error) {
+      log.error('Failed to copy to clipboard', error);
     }
   };
 
-  const openPrivacyStatement = () => {
-    if (privacyStatus?.enabled && privacyStatus.policy) {
-      setSubDialog('privacy');
-      return;
-    }
-    void systemAPI.openExternal(
-      'https://agreement-drcn.hispace.dbankcloud.cn/index.html?lang=zh&agreementId=1959693293117791424',
-    );
-  };
-
-  const closeAfterPrivacyModeChange = useCallback(() => {
-    setSubDialog(null);
-    onClose();
-  }, [onClose]);
+  const updateState = `${manualCheckBusy ? 'checking' : ''} ${manualCheckStatus} ${updateStatus}`.trim();
+  const updateBusy = manualCheckBusy || updateStatus === 'downloading' || updateStatus === 'installed';
 
   return (
-      <>
-        <Modal
-            isOpen={isOpen}
-            onClose={onClose}
-            title={t('header.about')}
-            showCloseButton={true}
-            size="medium"
+    <>
+      <Dialog
+        open={isOpen}
+        onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}
+        size="2xl"
+        data-testid="about-dialog-modal"
+      >
+        <DialogHeader>
+          <DialogHeading>
+            <DialogTitle>{t('about.dialogTitle')}</DialogTitle>
+          </DialogHeading>
+          <DialogClose />
+        </DialogHeader>
+        <DialogBody className="bitfun-about-dialog__modal-content" inset="none">
+        <div
+          className="bitfun-about-dialog__content"
+          data-bf-component="about-dialog"
+          data-bf-part="root"
         >
-          <div className="bitfun-about-dialog__content" data-bf-component="about-dialog" data-bf-part="root">
-            {/* Hero section - product info */}
-            <div className="bitfun-about-dialog__hero" data-bf-component="about-dialog" data-bf-part="hero">
-              <h1 className="bitfun-about-dialog__title" data-bf-component="about-dialog" data-bf-part="title">{version.name}</h1>
-              <div className="bitfun-about-dialog__version-badge" data-bf-component="about-dialog" data-bf-part="version">
-                {t('about.version', { version: displayedVersion })}
+          <div className="bitfun-about-dialog__body">
+            <ScrollArea
+              className="bitfun-about-dialog__brand"
+              data-bf-component="about-dialog"
+              data-bf-part="hero"
+              aria-labelledby="bitfun-about-product-name"
+            >
+              <div className="bitfun-about-dialog__brand-copy">
+                <h1
+                  id="bitfun-about-product-name"
+                  className="bitfun-about-dialog__title"
+                  data-bf-component="about-dialog"
+                  data-bf-part="title"
+                >
+                  {version.name}
+                </h1>
+                <p className="bitfun-about-dialog__tagline">{t('about.tagline')}</p>
               </div>
-              <div className="bitfun-about-dialog__divider" data-bf-component="about-dialog" data-bf-part="decoration" />
-              <div className="bitfun-about-dialog__dots" data-bf-component="about-dialog" data-bf-part="decoration">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-            </div>
 
-            {/* Scrollable area */}
-            <div className="bitfun-about-dialog__scrollable" data-bf-component="about-dialog" data-bf-part="content">
-              {isTauriRuntime() ? (
+              <div className="bitfun-about-dialog__release">
+                <div className="bitfun-about-dialog__release-summary">
+                  <span className="bitfun-about-dialog__release-version">{displayedVersion}</span>
+                  <span
+                    className="bitfun-about-dialog__channel-badge"
+                    data-bf-component="about-dialog"
+                    data-bf-part="channelBadge"
+                  >
+                    {releaseLabel}
+                  </span>
+                </div>
+
+                {updateChecksAvailable ? (
                   <div
                     className="bitfun-about-dialog__update-card"
                     data-bf-component="about-dialog"
                     data-bf-part="updateCard"
-                    data-bf-state={`${manualCheckBusy ? 'checking' : ''} ${manualCheckStatus} ${updateStatus}`.trim() || undefined}
+                    data-bf-state={updateState}
                   >
-                    <div className="bitfun-about-dialog__update-card-top" data-bf-component="about-dialog" data-bf-part="updateHeader">
-                      <div className="bitfun-about-dialog__update-card-main">
-                        <div className="bitfun-about-dialog__update-card-head">
-                          <div className="bitfun-about-dialog__update-card-icon" aria-hidden>
-                            <Download size={18} strokeWidth={2} />
-                          </div>
-                          <div className="bitfun-about-dialog__update-card-meta">
-                            <div className="bitfun-about-dialog__update-card-title">
-                              {t('about.updateSectionTitle')}
-                            </div>
-                            <p className="bitfun-about-dialog__update-card-hint">
-                              {t('about.updateSectionHint')}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="bitfun-about-dialog__update-card-feedback" data-bf-component="about-dialog" data-bf-part="updateFeedback">
-                          {manualCheckStatus === 'latest' ? (
-                              <div
-                                  className="bitfun-about-dialog__update-status bitfun-about-dialog__update-status--success"
-                                  role="status"
-                              >
-                                <CheckCircle2 size={14} aria-hidden />
-                                <span>{t('update.noUpdate')}</span>
-                              </div>
-                          ) : null}
-                          {manualCheckStatus === 'error' && manualCheckErrorMessage ? (
-                              <Alert
-                                  type="error"
-                                  message={manualCheckErrorMessage}
-                                  showIcon
-                                  className="bitfun-about-dialog__update-alert"
-                              />
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="bitfun-about-dialog__update-card-actions" data-bf-component="about-dialog" data-bf-part="updateActions">
+                    <div
+                      className="bitfun-about-dialog__update-card-actions"
+                      data-bf-component="about-dialog"
+                      data-bf-part="updateActions"
+                    >
+                      {manualCheckStatus === 'latest' && updateStatus === 'idle' ? (
                         <Button
-                            variant="secondary"
-                            size="small"
-                            isLoading={manualCheckBusy}
-                            disabled={updateStatus === 'downloading' || updateStatus === 'installed'}
-                            onClick={() => void handleCheckForUpdates()}
+                          variant="outline"
+                          size="sm"
+                          leadingIcon={<Icon name="check-circle" size="sm" aria-hidden="true" />}
+                          onClick={() => void handleCheckForUpdates()}
+                          data-testid="about-check-updates"
                         >
-                          {!manualCheckBusy ? (
-                              <Check size={14} className="bitfun-about-dialog__update-btn-icon" aria-hidden />
-                          ) : null}
+                          {t('update.noUpdate')}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          leadingIcon={<Icon name="refresh" size="sm" aria-hidden="true" />}
+                          loading={manualCheckBusy}
+                          disabled={updateBusy}
+                          onClick={() => void handleCheckForUpdates()}
+                          data-testid="about-check-updates"
+                        >
                           {manualCheckBusy ? t('update.checking') : t('update.checkForUpdates')}
                         </Button>
-                      </div>
+                      )}
                     </div>
-                    {updateStatus === 'downloading' ? (
+
+                    <div
+                      className="bitfun-about-dialog__update-feedback"
+                      data-bf-component="about-dialog"
+                      data-bf-part="updateFeedback"
+                    >
+                      {manualCheckStatus === 'error' && manualCheckErrorMessage ? (
+                        <Alert
+                          tone="error"
+                          message={manualCheckErrorMessage}
+                          showIcon
+                          className="bitfun-about-dialog__update-alert"
+                        />
+                      ) : null}
+                      {updateStatus === 'downloading' ? (
                         <div className="bitfun-about-dialog__download-status" role="status">
                           <div
-                              className="bitfun-about-dialog__download-bar"
-                              data-bf-component="about-dialog"
-                              data-bf-part="progress"
-                              role="progressbar"
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                              aria-valuenow={updateProgressPercent ?? undefined}
-                              aria-label={t('update.downloadingTitle')}
+                            className="bitfun-about-dialog__download-bar"
+                            data-bf-component="about-dialog"
+                            data-bf-part="progress"
+                            role="progressbar"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={updateProgressPercent ?? undefined}
+                            aria-label={t('update.downloadingTitle')}
                           >
                             <div
-                                className={
-                                  updateProgressPercent != null
-                                      ? 'bitfun-about-dialog__download-fill'
-                                      : 'bitfun-about-dialog__download-fill bitfun-about-dialog__download-fill--indeterminate'
-                                }
-                                data-bf-component="about-dialog"
-                                data-bf-part="progressFill"
-                                style={
-                                  updateProgressPercent != null
-                                      ? { width: `${updateProgressPercent}%` }
-                                      : undefined
-                                }
+                              data-bf-component="about-dialog"
+                              data-bf-part="progressFill"
+                              className={updateProgressPercent != null
+                                ? 'bitfun-about-dialog__download-fill'
+                                : 'bitfun-about-dialog__download-fill bitfun-about-dialog__download-fill--indeterminate'}
+                              style={updateProgressPercent != null
+                                ? { width: `${updateProgressPercent}%` }
+                                : undefined}
                             />
                           </div>
                           <div className="bitfun-about-dialog__download-meta">
                             <span>{t('update.backgroundDownloading')}</span>
                             <span>
-                      {updateProgressPercent != null
-                          ? t('update.progressPercent', { percent: String(updateProgressPercent) })
-                          : t('update.progressUnknown')}
-                    </span>
+                              {updateProgressPercent != null
+                                ? t('update.progressPercent', { percent: String(updateProgressPercent) })
+                                : t('update.progressUnknown')}
+                            </span>
                           </div>
                           <p className="bitfun-about-dialog__download-hint">
                             {t('update.backgroundDownloadHint')}
                           </p>
                         </div>
-                    ) : null}
-                    {updateStatus === 'installed' ? (
+                      ) : null}
+                      {updateStatus === 'installed' ? (
                         <div className="bitfun-about-dialog__update-installed">
                           <div className="bitfun-about-dialog__update-status bitfun-about-dialog__update-status--success">
-                            <CheckCircle2 size={14} aria-hidden />
+                            <Icon name="check-circle" size="sm" aria-hidden="true" />
                             <span>{t('update.installedMessage')}</span>
                           </div>
-                          <Button variant="primary" size="small" onClick={onRestart}>
+                          <Button variant="fill" size="sm" onClick={onRestart}>
                             {t('update.restartNow')}
                           </Button>
                         </div>
-                    ) : null}
-                    {updateStatus === 'error' && updateError ? (
+                      ) : null}
+                      {updateStatus === 'error' && updateError ? (
                         <Alert
-                            type="error"
-                            message={formatUpdateInstallError(updateError, t)}
-                            showIcon
-                            className="bitfun-about-dialog__update-alert"
+                          tone="error"
+                          message={formatUpdateInstallError(updateError, t)}
+                          showIcon
+                          className="bitfun-about-dialog__update-alert"
                         />
-                    ) : null}
+                      ) : null}
+                    </div>
                   </div>
-              ) : (
-                  <p className="bitfun-about-dialog__update-hint">{t('update.desktopOnly')}</p>
-              )}
-              <div className="bitfun-about-dialog__info-section">
-                <div className="bitfun-about-dialog__info-card" data-bf-component="about-dialog" data-bf-part="infoCard">
-                  <div className="bitfun-about-dialog__info-row">
-                    <span className="bitfun-about-dialog__info-label">{t('about.buildDate')}</span>
-                    <span className="bitfun-about-dialog__info-value">
+                ) : null}
+              </div>
+
+              <div
+                className="bitfun-about-dialog__dot-matrix"
+                aria-hidden="true"
+                data-testid="about-dot-matrix"
+              >
+                {ABOUT_DOT_MATRIX.map(dot => (
+                  <span key={dot.id} style={{ opacity: dot.opacity }} />
+                ))}
+              </div>
+            </ScrollArea>
+
+            <ScrollArea
+              className="bitfun-about-dialog__metadata"
+              data-bf-component="about-dialog"
+              data-bf-part="content"
+              aria-label={t('about.details')}
+            >
+              <div className="bitfun-about-dialog__info-row" data-bf-component="about-dialog" data-bf-part="infoRow">
+                <div className="bitfun-about-dialog__info-label" data-bf-component="about-dialog" data-bf-part="infoLabel">
+                  <Tag size={21} strokeWidth={1.75} aria-hidden="true" />
+                  <span>{t('about.versionLabel')}</span>
+                </div>
+                <span
+                  className="bitfun-about-dialog__info-value bitfun-about-dialog__info-value--version"
+                  data-bf-component="about-dialog"
+                  data-bf-part="infoValue"
+                  data-testid="about-version-value"
+                >
+                  {displayedVersion}
+                </span>
+              </div>
+
+              <div className="bitfun-about-dialog__info-row" data-bf-component="about-dialog" data-bf-part="infoRow">
+                <div className="bitfun-about-dialog__info-label" data-bf-component="about-dialog" data-bf-part="infoLabel">
+                  <CalendarDays size={21} strokeWidth={1.75} aria-hidden="true" />
+                  <span>{t('about.buildDate')}</span>
+                </div>
+                <span className="bitfun-about-dialog__info-value" data-bf-component="about-dialog" data-bf-part="infoValue">
                   {formatBuildDate(version.buildDate)}
                 </span>
               </div>
 
-              {version.gitCommit && (
-                <div className="bitfun-about-dialog__info-row" data-bf-component="about-dialog" data-bf-part="infoRow">
-                  <span className="bitfun-about-dialog__info-label" data-bf-component="about-dialog" data-bf-part="infoLabel">{t('about.commit')}</span>
-                  <div className="bitfun-about-dialog__info-value-group">
-                    <span className="bitfun-about-dialog__info-value bitfun-about-dialog__info-value--mono" data-bf-component="about-dialog" data-bf-part="infoValue">
-                      {version.gitCommit}
-                    </span>
+              <div className="bitfun-about-dialog__info-row" data-bf-component="about-dialog" data-bf-part="infoRow">
+                <div className="bitfun-about-dialog__info-label" data-bf-component="about-dialog" data-bf-part="infoLabel">
+                  <Code2 size={21} strokeWidth={1.75} aria-hidden="true" />
+                  <span>{t('about.commit')}</span>
+                </div>
+                <div className="bitfun-about-dialog__info-value-group">
+                  <span
+                    className="bitfun-about-dialog__info-value bitfun-about-dialog__info-value--mono"
+                    data-bf-component="about-dialog"
+                    data-bf-part="infoValue"
+                  >
+                    {version.gitCommit ?? t('about.notAvailable')}
+                  </span>
+                  {version.gitCommit ? (
                     <Tooltip content={t('about.copy')}>
                       <button
+                        type="button"
                         className="bitfun-about-dialog__copy-btn"
                         data-bf-component="about-dialog"
                         data-bf-part="copyButton"
-                        onClick={() => copyToClipboard(version.gitCommit || '', 'commit')}
+                        onClick={() => void copyToClipboard(version.gitCommit ?? '', 'commit')}
+                        aria-label={t('about.copyCommit')}
                       >
-                        {copiedItem === 'commit' ? <Check size={12} /> : <Copy size={12} />}
+                        {copiedItem === 'commit' ? <Icon name="check-line" size="sm" /> : <Icon name="duplicate" size="sm" />}
                       </button>
                     </Tooltip>
-                  </div>
-                </div>
-              )}
-
-              {version.gitBranch && (
-                <div className="bitfun-about-dialog__info-row" data-bf-component="about-dialog" data-bf-part="infoRow">
-                  <span className="bitfun-about-dialog__info-label" data-bf-component="about-dialog" data-bf-part="infoLabel">{t('about.branch')}</span>
-                  <span className="bitfun-about-dialog__info-value" data-bf-component="about-dialog" data-bf-part="infoValue">{version.gitBranch}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-            {/* Footer */}
-            <div className="bitfun-about-dialog__footer" data-bf-component="about-dialog" data-bf-part="footer">
-              <div className="bitfun-about-dialog__links">
-                <button
-                    className="bitfun-about-dialog__link"
-                    onClick={() => setSubDialog('openSource')}
-                    type="button"
-                >
-                  {t('about.openSource')}
-                </button>
-                <span className="bitfun-about-dialog__link-sep">路</span>
-                <button
-                    className="bitfun-about-dialog__link"
-                    onClick={openPrivacyStatement}
-                    type="button"
-                >
-                  {privacyStatus?.enabled ? t('about.privacyStatement') : t('about.userAgreement')}
-                  {privacyStatus?.enabled && privacyStatus.hasUnreadUpdate ? (
-                    <span className="bitfun-privacy-updated">{t('privacy.updated')}</span>
                   ) : null}
-                </button>
+                </div>
               </div>
-              <p className="bitfun-about-dialog__license" data-bf-component="about-dialog" data-bf-part="license">{license.text}</p>
-              <p className="bitfun-about-dialog__copyright" data-bf-component="about-dialog" data-bf-part="copyright">
-                {t('about.copyright')}
+
+              <div className="bitfun-about-dialog__info-row" data-bf-component="about-dialog" data-bf-part="infoRow">
+                <div className="bitfun-about-dialog__info-label" data-bf-component="about-dialog" data-bf-part="infoLabel">
+                  <Icon name="git" size="lg" aria-hidden="true" />
+                  <span>{t('about.branch')}</span>
+                </div>
+                <span
+                  className="bitfun-about-dialog__info-value bitfun-about-dialog__info-value--branch"
+                  data-bf-component="about-dialog"
+                  data-bf-part="infoValue"
+                  data-testid="about-branch-value"
+                  title={version.gitBranch}
+                >
+                  {version.gitBranch ?? t('about.notAvailable')}
+                </span>
+              </div>
+
+              <div className="bitfun-about-dialog__info-row" data-bf-component="about-dialog" data-bf-part="infoRow">
+                <div className="bitfun-about-dialog__info-label" data-bf-component="about-dialog" data-bf-part="infoLabel">
+                  <ShieldCheck size={21} strokeWidth={1.75} aria-hidden="true" />
+                  <span>{t('about.license')}</span>
+                </div>
+                <span
+                  className="bitfun-about-dialog__info-value"
+                  data-bf-component="about-dialog"
+                  data-bf-part="license"
+                  data-testid="about-license-value"
+                >
+                  {licenseName}
+                </span>
+              </div>
+            </ScrollArea>
+          </div>
+
+          <section
+            className="bitfun-about-dialog__star-callout"
+            data-bf-component="about-dialog"
+            data-bf-part="starCallout"
+            aria-labelledby="bitfun-about-star-title"
+          >
+            <span
+              className="bitfun-about-dialog__star-rule bitfun-about-dialog__star-rule--leading"
+              aria-hidden="true"
+            />
+            <Icon name="star" size="lg" className="bitfun-about-dialog__star-icon" aria-hidden="true" />
+            <div className="bitfun-about-dialog__star-copy">
+              <h2 id="bitfun-about-star-title" className="bitfun-about-dialog__star-title">
+                <span>{t('about.githubStarTitle')}</span>
+                <Sparkle size={13} fill="currentColor" aria-hidden="true" />
+              </h2>
+              <p className="bitfun-about-dialog__star-description">
+                {t('about.githubStarDescription')}
               </p>
             </div>
-          </div>
-        </Modal>
+            <span className="bitfun-about-dialog__star-rule" aria-hidden="true" />
+            <Button
+              variant="fill"
+              size="md"
+              className="bitfun-about-dialog__star-button"
+              trailingIcon={<Icon name="arrow-right" size="lg" aria-hidden="true" />}
+              onClick={handleGithubStar}
+              data-testid="about-github-star"
+            >
+              {t('about.githubStarAction')}
+            </Button>
+          </section>
 
-        {/* Open Source Software dialog */}
-        <Modal
-            isOpen={subDialog === 'openSource'}
-            onClose={() => setSubDialog(null)}
-            title={t('about.openSource')}
-            showCloseButton={true}
-            size="medium"
-        >
-          <div className="bitfun-about-dialog__sub-content">
-            <p className="bitfun-about-dialog__sub-desc">
-              {t('about.openSourceDesc')}
+          <footer className="bitfun-about-dialog__footer" data-bf-component="about-dialog" data-bf-part="footer">
+            <p className="bitfun-about-dialog__copyright" data-bf-component="about-dialog" data-bf-part="copyright">
+              {legalCopyright}
             </p>
+          </footer>
+        </div>
+        </DialogBody>
+      </Dialog>
 
-            <div className="bitfun-about-dialog__dependencies-section">
-              <div className="bitfun-about-dialog__sub-category">
-                <div className="bitfun-about-dialog__sub-category-header">
-                  <h3 className="bitfun-about-dialog__sub-category-title">{t('about.openSourceFrontend')}</h3>
-                  <span className="bitfun-about-dialog__sub-category-count bitfun-about-dialog__sub-category-count--frontend">
-                {dependencies.filter(d => d.category === 'frontend').length}
-              </span>
-                </div>
-                <div className="bitfun-about-dialog__dependencies-grid">
-                  {dependencies.filter(d => d.category === 'frontend').map((dep) => (
-                      <div key={dep.name} className="bitfun-about-dialog__dependency-item">
-                        <div className="bitfun-about-dialog__dependency-icon">
-                          <Package size={12} />
-                        </div>
-                        <div className="bitfun-about-dialog__dependency-info">
-                          <button
-                              type="button"
-                              className="bitfun-about-dialog__dependency-name"
-                              onClick={() => systemAPI.openExternal(dep.url)}
-                          >
-                            {dep.name}
-                          </button>
-                          <span className="bitfun-about-dialog__dependency-license">
-                      {dep.license}
-                    </span>
-                        </div>
-                        <span className="bitfun-about-dialog__dependency-tag bitfun-about-dialog__dependency-tag--frontend">
-                    {t('about.openSourceTagFE')}
-                  </span>
-                      </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="bitfun-about-dialog__dependencies-section">
-              <div className="bitfun-about-dialog__sub-category">
-                <div className="bitfun-about-dialog__sub-category-header">
-                  <h3 className="bitfun-about-dialog__sub-category-title">{t('about.openSourceBackend')}</h3>
-                  <span className="bitfun-about-dialog__sub-category-count bitfun-about-dialog__sub-category-count--backend">
-                {dependencies.filter(d => d.category === 'backend').length}
-              </span>
-                </div>
-                <div className="bitfun-about-dialog__dependencies-grid">
-                  {dependencies.filter(d => d.category === 'backend').map((dep) => (
-                      <div key={dep.name} className="bitfun-about-dialog__dependency-item">
-                        <div className="bitfun-about-dialog__dependency-icon">
-                          <Package size={12} />
-                        </div>
-                        <div className="bitfun-about-dialog__dependency-info">
-                          <button
-                              type="button"
-                              className="bitfun-about-dialog__dependency-name"
-                              onClick={() => systemAPI.openExternal(dep.url)}
-                          >
-                            {dep.name}
-                          </button>
-                          <span className="bitfun-about-dialog__dependency-license">
-                      {dep.license}
-                    </span>
-                        </div>
-                        <span className="bitfun-about-dialog__dependency-tag bitfun-about-dialog__dependency-tag--backend">
-                    {t('about.openSourceTagBE')}
-                  </span>
-                      </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <p className="bitfun-about-dialog__sub-footnote">
-              {t('about.openSourceFootnote')}
-            </p>
-          </div>
-        </Modal>
-
-        <PrivacyStatementDialog
-            isOpen={subDialog === 'privacy'}
-            onClose={() => setSubDialog(null)}
-            onModeChangeComplete={closeAfterPrivacyModeChange}
-        />
-
-    <UpdateAvailableDialog
-              isOpen={manualOpen}
-              variant="manual"
-              data={manualData}
-              onLater={onManualLater}
-              onInstall={onManualInstall}
-          />
+      <UpdateAvailableDialog
+        isOpen={manualOpen}
+        variant="manual"
+        data={manualData}
+        onLater={onManualLater}
+        onInstall={onManualInstall}
+      />
     </>
   );
 };

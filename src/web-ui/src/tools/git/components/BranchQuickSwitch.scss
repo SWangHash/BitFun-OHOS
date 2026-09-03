@@ -1,0 +1,150 @@
+/** Branch picker and its guarded-checkout recovery dialogs. */
+@use '@/shared/styles/surface-recipes' as surfaces;
+
+.branch-quick-switch {
+  @include surfaces.floating;
+
+  position: fixed;
+  z-index: var(--bf-layer-popover);
+  box-sizing: border-box;
+  width: min(280px, calc(100vw - 16px));
+  overflow: hidden;
+  color: var(--bf-color-content-primary);
+  font-family:var(--bf-font-family-sans);
+  user-select: none;
+}
+
+.branch-quick-switch__search {
+  padding: 8px;
+  border-bottom: 1px solid var(--bf-color-border-subtle);
+}
+
+.branch-quick-switch__input-field {
+  width: 100%;
+}
+
+.branch-quick-switch__list {
+  max-height: min(280px, calc(100vh - 96px));
+  padding: var(--bf-space-1);
+}
+
+.branch-quick-switch__loading,
+.branch-quick-switch__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  color: var(--bf-color-content-muted);
+  font-size: var(--bf-font-size-xs);
+  text-align: center;
+}
+
+.branch-quick-switch__item {
+  &[data-bf-state='current'] {
+    cursor: default;
+  }
+}
+
+.branch-quick-switch__spinner {
+  flex-shrink: 0;
+  animation: branch-quick-switch-spin 1s linear infinite;
+}
+
+.branch-switch-conflict-dialog {
+  max-inline-size: min(520px, calc(100vw - 24px));
+}
+
+.branch-switch-conflict-dialog__content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 18px;
+
+  p {
+    margin: 0;
+  }
+}
+
+.branch-switch-conflict-dialog__files {
+  display: flex;
+  max-height: min(220px, 30vh);
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  padding: 2px 0;
+  scrollbar-color: var(--bf-color-scrollbar-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+.branch-switch-conflict-dialog__file {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  color: var(--bf-color-content-primary);
+}
+
+.branch-switch-conflict-dialog__file-path {
+  min-width: 0;
+  overflow: hidden;
+  flex: 1 1 auto;
+  font-family:var(--bf-font-family-mono);
+  font-size: var(--bf-font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-switch-conflict-dialog__file-stats {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 7px;
+  font-family:var(--bf-font-family-mono);
+  font-size: var(--bf-font-size-sm);
+}
+
+.branch-switch-conflict-dialog__additions {
+  color: var(--bf-color-status-success-content);
+}
+
+.branch-switch-conflict-dialog__deletions,
+.branch-switch-commit-dialog__error {
+  color: var(--bf-color-status-danger-content);
+}
+
+.branch-switch-commit-dialog {
+  max-inline-size: min(460px, calc(100vw - 24px));
+}
+
+.branch-switch-commit-dialog__content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+
+  p {
+    margin: 0;
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-sm);
+    line-height: var(--bf-line-height-base);
+  }
+
+  > .branch-switch-commit-dialog__input {
+    width: 100%;
+  }
+
+  .branch-switch-commit-dialog__error {
+    color: var(--bf-color-status-danger-content);
+  }
+}
+
+@keyframes branch-quick-switch-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .branch-quick-switch__spinner {
+    animation: none;
+  }
+}

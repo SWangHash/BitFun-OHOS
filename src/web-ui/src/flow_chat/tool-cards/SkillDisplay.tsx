@@ -3,12 +3,17 @@
  */
 
 import React, { useMemo } from 'react';
-import { Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import {
+  SkillToolCard,
+  type FlowChatToolStatus,
+} from '@bitfun/ui/flow-chat';
+import { getSkillSourceLabelFromIdentity } from '@/infrastructure/config/skillSourcePresentation';
 import type { ToolCardProps } from '../types/flow-chat';
-import { CompactToolCard, CompactToolCardHeader } from './CompactToolCard';
-import type { CompactToolCardProps } from './CompactToolCard';
-import { ToolCardStatusSlot } from './ToolCardStatusSlot';
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value.trim() || undefined : undefined;
+}
 
 export const SkillDisplay: React.FC<ToolCardProps> = React.memo(({ toolItem }) => {
   const { t } = useTranslation('flow-chat');
@@ -17,8 +22,18 @@ export const SkillDisplay: React.FC<ToolCardProps> = React.memo(({ toolItem }) =
   const skillInfo = useMemo(() => {
     if (!toolResult?.result) return null;
     const result = toolResult.result as Record<string, unknown>;
+    const sourceLabel = getSkillSourceLabelFromIdentity(
+      nonEmptyString(result.source_label),
+      nonEmptyString(result.source_id),
+      nonEmptyString(result.source_slot),
+      '',
+    );
+    const displayName = nonEmptyString(result.skill_name)
+      || nonEmptyString(result.name)
+      || t('toolCards.skill.unknownSkill');
     return {
-      name: (result.skill_name || result.name || t('toolCards.skill.unknownSkill')) as string,
+      displayName,
+      sourceLabel,
     };
   }, [toolResult?.result, t]);
 
@@ -27,7 +42,10 @@ export const SkillDisplay: React.FC<ToolCardProps> = React.memo(({ toolItem }) =
     (toolCall?.input?.skill_name as string | undefined) ||
     t('toolCards.skill.unknown');
 
-  const displayName = status === 'completed' && skillInfo ? skillInfo.name : commandName;
+  const displayName = status === 'completed' && skillInfo ? skillInfo.displayName : commandName;
+  const completedLabel = skillInfo?.sourceLabel
+    ? `${displayName} · ${skillInfo.sourceLabel}`
+    : displayName;
 
   const getErrorMessage = () => {
     if (toolResult && 'error' in toolResult && toolResult.error) {
@@ -38,53 +56,24 @@ export const SkillDisplay: React.FC<ToolCardProps> = React.memo(({ toolItem }) =
 
   const renderContent = () => {
     if (status === 'error') {
-      return (
-        <>
-          {getErrorMessage()}
-          {commandName ? <span className="read-file-meta"> {commandName}</span> : null}
-        </>
-      );
+      return `${getErrorMessage()}${commandName ? ` ${commandName}` : ''}`;
     }
     if (status === 'completed') {
-      return (
-        <>
-          {t('toolCards.skill.skillAction')} {displayName}
-        </>
-      );
+      return `${t('toolCards.skill.skillAction')} ${completedLabel}`;
     }
     if (status === 'running' || status === 'streaming' || status === 'preparing') {
-      return (
-        <>
-          {t('toolCards.skill.loadingSkill')} {displayName}...
-        </>
-      );
+      return `${t('toolCards.skill.loadingSkill')} ${displayName}...`;
     }
     if (status === 'pending') {
-      return (
-        <>
-          {t('toolCards.skill.preparingSkill')} {displayName}
-        </>
-      );
+      return `${t('toolCards.skill.preparingSkill')} ${displayName}`;
     }
-    return (
-      <>
-        {t('toolCards.skill.skillAction')} {displayName}
-      </>
-    );
+    return `${t('toolCards.skill.skillAction')} ${displayName}`;
   };
 
   return (
-    <CompactToolCard
-      status={status as CompactToolCardProps['status']}
-      isExpanded={false}
-      className="skill-tool-compact"
-      clickable={false}
-      header={
-        <CompactToolCardHeader
-          icon={<ToolCardStatusSlot status={status as CompactToolCardProps['status']} toolIcon={<Zap size={16} />} />}
-          content={renderContent()}
-        />
-      }
+    <SkillToolCard
+      status={status as FlowChatToolStatus}
+      summary={renderContent()}
     />
   );
 });

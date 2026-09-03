@@ -1,3 +1,20 @@
+import {
+  Button,
+  FieldGroup,
+  FormSection,
+  Icon,
+  IconButton,
+  Input,
+  Select,
+  type SelectOption,
+  Tooltip,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, {
   useCallback,
   useEffect,
@@ -6,9 +23,9 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { ArrowDown, ArrowUp, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react';
+import { Save, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Button, IconButton, Input, Modal, Select, type SelectOption } from '@/component-library';
+
 import type { PermissionEffect, PermissionRule } from '../types';
 import './GlobalPermissionRulesDialog.scss';
 
@@ -78,7 +95,7 @@ export const GlobalPermissionRulesDialog: React.FC<GlobalPermissionRulesDialogPr
   onSave,
   onClose,
 }) => {
-  const { t } = useTranslation('settings/session-config');
+  const { t } = useTranslation('settings/runtime');
   const [savedRules, setSavedRules] = useState<PermissionRule[]>([]);
   const [draftRules, setDraftRules] = useState<DraftRule[]>([]);
   const [exitingRuleIds, setExitingRuleIds] = useState<Set<string>>(() => new Set());
@@ -333,46 +350,64 @@ export const GlobalPermissionRulesDialog: React.FC<GlobalPermissionRulesDialogPr
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={() => {
-        if (!isSaving) {
+    <Dialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !isSaving) {
           invalidatePendingRuleWork();
           onClose();
         }
       }}
-      title={t('permissionPolicy.globalRulesDialogTitle')}
-      size="xlarge"
-      contentInset
-      contentClassName="global-permission-rules-dialog__modal"
-      overlayClassName="global-permission-rules-dialog-overlay"
+      size="xl"
     >
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{t('permissionPolicy.globalRulesDialogTitle')}</DialogTitle>
+        </DialogHeading>
+        <DialogClose />
+      </DialogHeader>
+      <DialogBody>
+        <div className="global-permission-rules-dialog__modal">
       <div ref={dialogRootRef} className="global-permission-rules-dialog" data-bf-component="global-permission-rules-dialog" data-bf-part="root">
         <div data-bf-component="global-permission-rules-dialog" data-bf-part="intro" className="global-permission-rules-dialog__intro">
           <ShieldCheck size={18} aria-hidden="true" />
           <p>{t('permissionPolicy.globalRulesDialogDescription')}</p>
         </div>
 
-        <section data-bf-component="global-permission-rules-dialog" data-bf-part="section" className="global-permission-rules-dialog__section">
-          <div data-bf-component="global-permission-rules-dialog" data-bf-part="sectionHeader" className="global-permission-rules-dialog__section-header">
-            <span>{t('permissionPolicy.globalRulesTitle')}</span>
+        <FormSection
+          data-bf-component="global-permission-rules-dialog"
+          data-bf-part="section"
+          className="global-permission-rules-dialog__section"
+          title={(
+            <span data-bf-component="global-permission-rules-dialog" data-bf-part="sectionHeader">
+              {t('permissionPolicy.globalRulesTitle')}
+            </span>
+          )}
+          actions={(
             <Button
-              size="small"
-              variant="secondary"
+              size="sm"
+              variant="outline"
               disabled={isSaving}
               onClick={handleAddRule}
+              leadingIcon={<Icon name="plus" size="sm" />}
             >
-              <Plus size={14} />
               {t('permissionPolicy.addGlobalRule')}
             </Button>
-          </div>
+          )}
+        >
 
           {draftRules.length === 0 ? (
             <div data-bf-component="global-permission-rules-dialog" data-bf-part="empty" className="global-permission-rules-dialog__empty">
               {t('permissionPolicy.globalRulesEmpty')}
             </div>
           ) : (
-            <div data-bf-component="global-permission-rules-dialog" data-bf-part="rules" className="global-permission-rules-dialog__rules">
+            <FieldGroup
+              appearance="plain"
+              dividers={false}
+              data-bf-component="global-permission-rules-dialog"
+              data-bf-part="rules"
+              className="global-permission-rules-dialog__rules"
+            >
               <div className="global-permission-rules-dialog__rule-heading" aria-hidden="true">
                 <span>{t('permissionPolicy.globalRulesEffect')}</span>
                 <span>{t('permissionPolicy.globalRulesAction')}</span>
@@ -401,83 +436,80 @@ export const GlobalPermissionRulesDialog: React.FC<GlobalPermissionRulesDialogPr
                     className="global-permission-rules-dialog__rule-row"
                   >
                     <Select
-                      size="small"
+                      size="sm"
                       value={rule.effect}
                       options={effectOptions}
                       aria-label={t('permissionPolicy.globalRulesEffect')}
                       disabled={isSaving || exiting}
-                      onChange={(value) => updateDraftRule(rule.localId, { effect: value as PermissionEffect })}
+                      onValueChange={(value) => updateDraftRule(rule.localId, { effect: value as PermissionEffect })}
                     />
                     <Select
-                      size="small"
+                      size="sm"
                       value={rule.action}
                       options={GLOBAL_PERMISSION_ACTION_OPTIONS}
                       placeholder={t('permissionPolicy.globalRulesAction')}
                       aria-label={t('permissionPolicy.globalRulesAction')}
                       disabled={isSaving || exiting}
-                      error={!rule.action.trim()}
-                      onChange={(value) => updateDraftRule(rule.localId, { action: value as string })}
+                      invalid={!rule.action.trim()}
+                      onValueChange={(value) => updateDraftRule(rule.localId, { action: value as string })}
                     />
                     <Input
-                      inputSize="small"
                       value={rule.resource}
                       placeholder={t('permissionPolicy.globalRulesResourcePlaceholder')}
                       aria-label={t('permissionPolicy.globalRulesResource')}
                       disabled={isSaving || exiting}
-                      error={!rule.resource.trim()}
+                      invalid={!rule.resource.trim()}
                       onChange={(event) => updateDraftRule(rule.localId, { resource: event.target.value })}
+                      size="sm"
                     />
                     <div data-bf-component="global-permission-rules-dialog" data-bf-part="ruleActions" className="global-permission-rules-dialog__rule-actions">
-                      <IconButton
-                        type="button"
-                        size="small"
-                        variant="ghost"
-                        aria-label={t('permissionPolicy.moveGlobalRuleUp')}
-                        tooltip={t('permissionPolicy.moveGlobalRuleUp')}
-                        disabled={isSaving || exiting || activeIndex === 0}
-                        onClick={() => moveDraftRule(rule.localId, -1)}
-                      >
-                        <ArrowUp size={14} />
-                      </IconButton>
-                      <IconButton
-                        type="button"
-                        size="small"
-                        variant="ghost"
-                        aria-label={t('permissionPolicy.moveGlobalRuleDown')}
-                        tooltip={t('permissionPolicy.moveGlobalRuleDown')}
-                        disabled={
-                          isSaving
-                          || exiting
-                          || activeIndex === undefined
-                          || activeIndex === activeDraftRules.length - 1
-                        }
-                        onClick={() => moveDraftRule(rule.localId, 1)}
-                      >
-                        <ArrowDown size={14} />
-                      </IconButton>
-                      <IconButton
-                        type="button"
-                        size="small"
-                        variant="ghost"
-                        aria-label={t('permissionPolicy.removeGlobalRule')}
-                        tooltip={t('permissionPolicy.removeGlobalRule')}
-                        disabled={isSaving || exiting}
-                        onClick={() => handleRemoveRule(rule.localId)}
-                      >
-                        <Trash2 size={14} />
-                      </IconButton>
+                      <Tooltip content={t('permissionPolicy.moveGlobalRuleUp')}>
+                        <IconButton
+                          type="button"
+                          size="sm"
+                          aria-label={t('permissionPolicy.moveGlobalRuleUp')}
+                          disabled={isSaving || exiting || activeIndex === 0}
+                          onClick={() => moveDraftRule(rule.localId, -1)}
+                          icon={<Icon name="arrow-up" size="sm" />}
+                        />
+                      </Tooltip>
+                      <Tooltip content={t('permissionPolicy.moveGlobalRuleDown')}>
+                        <IconButton
+                          type="button"
+                          size="sm"
+                          aria-label={t('permissionPolicy.moveGlobalRuleDown')}
+                          disabled={
+                            isSaving
+                            || exiting
+                            || activeIndex === undefined
+                            || activeIndex === activeDraftRules.length - 1
+                          }
+                          onClick={() => moveDraftRule(rule.localId, 1)}
+                          icon={<Icon name="arrow-down" size="sm" />}
+                        />
+                      </Tooltip>
+                      <Tooltip content={t('permissionPolicy.removeGlobalRule')}>
+                        <IconButton
+                          type="button"
+                          size="sm"
+                          aria-label={t('permissionPolicy.removeGlobalRule')}
+                          disabled={isSaving || exiting}
+                          onClick={() => handleRemoveRule(rule.localId)}
+                          icon={<Icon name="delete" size="sm" />}
+                        />
+                      </Tooltip>
                     </div>
                   </div>
                 );
               })}
-            </div>
+            </FieldGroup>
           )}
 
           {rulesDirty ? (
             <div data-bf-component="global-permission-rules-dialog" data-bf-part="footer" className="global-permission-rules-dialog__footer">
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 onClick={handleDiscard}
                 disabled={isSaving}
               >
@@ -485,18 +517,21 @@ export const GlobalPermissionRulesDialog: React.FC<GlobalPermissionRulesDialogPr
               </Button>
               <Button
                 type="button"
-                variant="primary"
-                isLoading={isSaving}
+                variant="fill"
+                loading={isSaving}
                 disabled={!rulesValid || isSaving}
                 onClick={() => void handleSave()}
+                leadingIcon={<Save size={14} />}
               >
-                <Save size={14} />
+
                 {t('permissionPolicy.saveGlobalRules')}
               </Button>
             </div>
           ) : null}
-        </section>
+        </FormSection>
       </div>
-    </Modal>
+            </div>
+            </DialogBody>
+    </Dialog>
   );
 };

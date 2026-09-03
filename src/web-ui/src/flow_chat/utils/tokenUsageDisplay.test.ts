@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { DialogTurn, Session, TokenUsage } from '../types/flow-chat';
 import {
   buildContextUsageTooltip,
-  buildModelRoundUsageMeta,
+  buildModelSelectorTooltipDetails,
+  buildModelRoundCompletionMeta,
   deriveContextUsageFromTurns,
   formatCompactTokenCount,
+  getCompressionTriggerTokens,
   getSessionContextUsageDisplay,
 } from './tokenUsageDisplay';
 
@@ -12,13 +14,16 @@ const t = (key: string, params?: Record<string, unknown>): string => {
   const strings: Record<string, string> = {
     'modelSelector.contextUsage.agentPrompt': 'Last request prompt: {{usage}}',
     'modelSelector.contextUsage.acpContext': 'ACP reported context: {{usage}}',
-    'modelSelector.contextUsage.toolNote': 'Tool outputs may be summarized or truncated before later requests.',
+    'modelSelector.contextUsage.agentPromptLabel': 'Last request prompt',
+    'modelSelector.contextUsage.acpContextLabel': 'ACP reported context',
+    'modelSelector.tooltip.configName': 'Configuration',
+    'modelSelector.tooltip.modelName': 'Model name',
+    'modelSelector.tooltip.contextWindow': 'Context window',
+    'modelSelector.tooltip.compressionTrigger': 'Compression trigger',
+    'modelSelector.tooltip.longContextWarning': 'Long context warning',
     'modelRound.meta.completed': 'Completed',
     'modelRound.meta.stopped': 'Stopped',
     'modelRound.meta.duration': 'Duration',
-    'modelRound.meta.tokens': 'Tokens',
-    'modelRound.meta.tokensUnavailable': 'unavailable',
-    'modelRound.meta.tokenBreakdown': '{{total}} total, {{input}} in, {{output}} out',
   };
 
   const template = strings[key] ?? key;
@@ -87,7 +92,7 @@ describe('tokenUsageDisplay', () => {
     });
   });
 
-  it('labels the context usage source and tool-output caveat in the tooltip', () => {
+  it('labels the context usage source without appending the obsolete tool-output caveat', () => {
     const tooltip = buildContextUsageTooltip({
       baseTooltip: 'Claude Sonnet',
       usage: {
@@ -99,39 +104,83 @@ describe('tokenUsageDisplay', () => {
     });
 
     expect(tooltip).toBe(
-      'Claude Sonnet · Last request prompt: 1.2K/4K (30%) · Tool outputs may be summarized or truncated before later requests.',
+      'Claude Sonnet · Last request prompt: 1.2K/4K (30%)',
     );
   });
 
-  it('formats model-round timing and token metadata with unavailable output when missing', () => {
-    const tokenUsage: TokenUsage = {
-      inputTokens: 1000,
-      totalTokens: 1300,
-      timestamp: 10,
-    };
+  it('mirrors the runtime compression trigger budget', () => {
+    expect(getCompressionTriggerTokens(128_000)).toBe(86_000);
+    expect(getCompressionTriggerTokens(128_000, 16_000)).toBe(102_000);
+    expect(getCompressionTriggerTokens(1_000_000)).toBe(926_000);
+  });
 
-    expect(buildModelRoundUsageMeta({
+  it('builds labeled model details and puts the long-context warning last', () => {
+    expect(buildModelSelectorTooltipDetails({
+      configName: 'OpenAI production',
+      modelName: 'gpt-5.6-sol',
+      contextWindow: 1_000_000,
+      usage: {
+        current: 120_000,
+        max: 1_000_000,
+        source: 'agent_prompt',
+      },
+      t,
+    })).toEqual({
+      rows: [
+        { key: 'configName', label: 'Configuration', value: 'OpenAI production' },
+        { key: 'modelName', label: 'Model name', value: 'gpt-5.6-sol' },
+        { key: 'contextWindow', label: 'Context window', value: '1M' },
+        { key: 'compressionTrigger', label: 'Compression trigger', value: '926K' },
+        { key: 'contextUsage', label: 'Last request prompt', value: '120K/1M (12%)' },
+      ],
+      warning: 'Long context warning',
+    });
+  });
+
+  it('does not warn when usage is high but the configured context window is not over 400K', () => {
+    expect(buildModelSelectorTooltipDetails({
+      configName: 'OpenAI production',
+      modelName: 'gpt-5.6-sol',
+      contextWindow: 400_000,
+      usage: {
+        current: 390_000,
+        max: 400_000,
+        source: 'agent_prompt',
+      },
+      t,
+    }).warning).toBeUndefined();
+  });
+
+  it('keeps the Primary tooltip to the configuration name when no concrete model is resolved', () => {
+    expect(buildModelSelectorTooltipDetails({
+      configName: 'Primary model',
+      t,
+    })).toEqual({
+      rows: [
+        { key: 'configName', label: 'Configuration', value: 'Primary model' },
+      ],
+      warning: undefined,
+    });
+  });
+
+  it('builds only the compact completion time and duration metadata', () => {
+    expect(buildModelRoundCompletionMeta({
       completedAt: 1700000000000,
-      durationMs: 12345,
-      tokenUsage,
-      formatTime: () => '12:00:00',
-      formatNumber: (value) => String(value),
+      durationMs: 323000,
+      formatTime: () => '12:00:00 PM',
       t,
     })).toEqual([
-      { key: 'completed', label: 'Completed', value: '12:00:00' },
-      { key: 'duration', label: 'Duration', value: '12.3s' },
-      { key: 'tokens', label: 'Tokens', value: '1300 total, 1000 in, unavailable out' },
+      { key: 'completed', label: 'Completed', value: '12:00:00 PM' },
+      { key: 'duration', label: 'Duration', value: '5m23s' },
     ]);
   });
 
-  it('omits the token row for cancelled rounds when provider usage is unavailable', () => {
-    expect(buildModelRoundUsageMeta({
+  it('keeps a stopped round accessible without adding another visual field', () => {
+    expect(buildModelRoundCompletionMeta({
       completedAt: 1700000000000,
       durationMs: 12345,
-      tokenUsage: undefined,
       status: 'cancelled',
       formatTime: () => '12:00:00',
-      formatNumber: (value) => String(value),
       t,
     })).toEqual([
       { key: 'completed', label: 'Stopped', value: '12:00:00' },

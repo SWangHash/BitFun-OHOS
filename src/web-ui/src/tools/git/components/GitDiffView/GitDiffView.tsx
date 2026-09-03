@@ -1,19 +1,10 @@
 /** Git diff view. */
 
+import { Button, Icon, IconButton, SegmentedControl } from '@bitfun/ui';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { 
-  FileText, 
-  RefreshCw,
-  ChevronDown,
-  ChevronRight,
-  Plus,
-  Minus,
-  Eye,
-  EyeOff,
-  AlertCircle
-} from 'lucide-react';
-import { Button, IconButton } from '@/component-library';
+import { FileText, Minus, EyeOff, AlertCircle } from 'lucide-react';
+
 import { gitService } from '../../services';
 import { createLogger } from '@/shared/utils/logger';
 import './GitDiffView.scss';
@@ -184,7 +175,7 @@ const GitDiffView: React.FC<GitDiffViewProps> = ({
 
   const getFileStatusIcon = useCallback((status: DiffFile['status']) => {
     switch (status) {
-      case 'added': return <Plus size={14} />;
+      case 'added': return <Icon name="plus" size="sm" />;
       case 'deleted': return <Minus size={14} />;
       default: return <FileText size={14} />;
     }
@@ -258,7 +249,7 @@ const GitDiffView: React.FC<GitDiffViewProps> = ({
           <FileText size={48} />
           <h3>{t('diffView.loadFailedTitle')}</h3>
           <p>{error}</p>
-          <Button onClick={loadDiff} variant="primary" size="small">
+          <Button onClick={loadDiff} variant="fill" size="sm">
             {t('common.retry')}
           </Button>
         </div>
@@ -276,30 +267,19 @@ const GitDiffView: React.FC<GitDiffViewProps> = ({
             </span>
           )}
           {!sourceCommit && !targetCommit && (
-            <div data-bf-component="git-diff-view" data-bf-part="typeSwitcher" className="bitfun-git-diff-view__diff-type-switcher">
-              <button 
-                data-bf-component="git-diff-view"
-                data-bf-part="typeOption"
-                data-bf-state={!currentShowStaged ? 'active' : undefined}
-                className={`bitfun-git-diff-view__type-btn ${!currentShowStaged ? 'bitfun-git-diff-view__type-btn--active' : ''}`}
-                onClick={() => setCurrentShowStaged(false)}
-              >
-                {t('diffView.workingTree')}
-              </button>
-              <button 
-                data-bf-component="git-diff-view"
-                data-bf-part="typeOption"
-                data-bf-state={currentShowStaged ? 'active' : undefined}
-                className={`bitfun-git-diff-view__type-btn ${currentShowStaged ? 'bitfun-git-diff-view__type-btn--active' : ''}`}
-                onClick={() => setCurrentShowStaged(true)}
-              >
-                {t('diffView.staged')}
-              </button>
-            </div>
+            <SegmentedControl
+              className="bitfun-git-diff-view__diff-type-switcher"
+              options={[
+                { value: 'working', label: t('diffView.workingTree') },
+                { value: 'staged', label: t('diffView.staged') },
+              ]}
+              value={currentShowStaged ? 'staged' : 'working'}
+              onValueChange={(value) => setCurrentShowStaged(value === 'staged')}
+            />
           )}
           {loading && (
             <span className="bitfun-git-diff-view__loading-indicator">
-              <RefreshCw size={14} className="spinning" />
+              <Icon name="refresh" size="sm" className="spinning" />
               {t('common.loading')}
             </span>
           )}
@@ -308,22 +288,20 @@ const GitDiffView: React.FC<GitDiffViewProps> = ({
         <div data-bf-component="git-diff-view" data-bf-part="headerRight" className="bitfun-git-diff-view__header-right">
           <div className="bitfun-git-diff-view__view-options">
             <IconButton
+              aria-label={allExpanded ? t('diffView.collapseAll') : t('diffView.expandAll')}
               onClick={toggleAllExpansion}
-              size="small"
-              variant="ghost"
+              size="sm"
               title={allExpanded ? t('diffView.collapseAll') : t('diffView.expandAll')}
-            >
-              {allExpanded ? <EyeOff size={14} /> : <Eye size={14} />}
-            </IconButton>
+              icon={allExpanded ? <EyeOff size={14} /> : <Icon name="eye" size="sm" />}
+            />
             <IconButton
+              aria-label={t('common.refresh')}
               onClick={loadDiff}
               disabled={loading}
-              size="small"
-              variant="ghost"
+              size="sm"
               title={t('common.refresh')}
-            >
-              <RefreshCw size={16} />
-            </IconButton>
+              icon={<Icon name="refresh" size="md" />}
+            />
           </div>
         </div>
       </div>
@@ -336,8 +314,8 @@ const GitDiffView: React.FC<GitDiffViewProps> = ({
             </div>
             <h3>{t('diffView.loadFailedTitle')}</h3>
             <p>{error}</p>
-            <Button onClick={loadDiff} variant="primary" size="small">
-              <RefreshCw size={16} />
+            <Button onClick={loadDiff} variant="fill" size="sm" leadingIcon={<Icon name="refresh" size="md" />}>
+
               {t('common.retry')}
             </Button>
           </div>
@@ -358,7 +336,7 @@ const GitDiffView: React.FC<GitDiffViewProps> = ({
                 >
                   <div data-bf-component="git-diff-view" data-bf-part="fileInfo" className="bitfun-git-diff-view__file-info">
                     <span className={`bitfun-git-diff-view__expand-icon ${file.expanded ? 'bitfun-git-diff-view__expand-icon--expanded' : ''}`}>
-                      {file.expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      {file.expanded ? <Icon name="chevron-down" size="md" /> : <Icon name="chevron-right" size="md" />}
                     </span>
                     
                     <span className="bitfun-git-diff-view__file-status-icon">
@@ -377,7 +355,7 @@ const GitDiffView: React.FC<GitDiffViewProps> = ({
                   <div data-bf-component="git-diff-view" data-bf-part="fileStats" className="bitfun-git-diff-view__file-stats">
                     {file.additions > 0 && (
                       <span className="bitfun-git-diff-view__additions">
-                        <Plus size={12} />
+                        <Icon name="plus" size="xs" />
                         {file.additions}
                       </span>
                     )}

@@ -20,14 +20,17 @@ import {
 } from 'lucide-react';
 
 import { useTranslation } from 'react-i18next';
-import { CubeLoading } from '../../component-library';
-import { Markdown } from '@/component-library/components/Markdown/Markdown';
+import { Spinner } from '@bitfun/ui';
+import { MarkdownRenderer } from '@/infrastructure/markdown';
 import type { FlowToolItem, ToolCardProps } from '../types/flow-chat';
-import { BaseToolCard } from './BaseToolCard';
-import { CompactToolCard, CompactToolCardHeader } from './CompactToolCard';
-import { ToolCardIconSlot } from './ToolCardIconSlot';
-import { ToolCardStatusIcon } from './ToolCardStatusIcon';
-import { ToolCardStatusSlot } from './ToolCardStatusSlot';
+import {
+  AmbientToolCard,
+  AmbientToolCardHeader,
+  ProminentToolCard,
+  ToolCardIconSlot,
+  ToolCardStatusSlot,
+  ToolCardStatusIcon,
+} from '@bitfun/ui/flow-chat';
 import { taskCollapseStateManager } from '../store/TaskCollapseStateManager';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 import { ToolTimeoutIndicator } from './ToolTimeoutIndicator';
@@ -37,6 +40,10 @@ import { loadBtwSessionHistory, openBtwSessionInAuxPane } from '../services/btwS
 import { flowChatStore } from '../store/FlowChatStore';
 import { useSessionGoalModeActive } from '../hooks/useSessionGoalModeActive';
 import { deriveSubagentExecutionStatus } from '../utils/subagentProjection';
+import { sessionLineageLifecycleForSession } from '../utils/sessionLineage';
+import {
+  SubagentAvatar,
+} from '../subagent-identity';
 import { deriveReviewTaskOutcome } from '../utils/reviewTaskOutcome';
 import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import { notificationService } from '@/shared/notification-system/services/NotificationService';
@@ -391,6 +398,9 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
   const linkedSubagentSession = linkedSubagentSessionId
     ? flowChatStore.getState().sessions.get(linkedSubagentSessionId)
     : undefined;
+  const subagentAvatarStatus = linkedSubagentSession
+    ? sessionLineageLifecycleForSession(linkedSubagentSession)
+    : 'idle';
   const loadLinkedReviewHistory = useCallback(async () => {
     if (!linkedSubagentSessionId) {
       return;
@@ -748,14 +758,20 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
   );
 
   const renderToolIcon = () => {
-    return <Split size={16} />;
+    return linkedSubagentSessionId ? (
+      <SubagentAvatar
+        sessionId={linkedSubagentSessionId}
+        name={taskAgentTypeLabel}
+        size={22}
+        status={subagentAvatarStatus}
+      />
+    ) : <Split size={16} />;
   };
 
   const renderHeader = () => (
     <div className="task-header-wrapper" data-bf-component="task-tool-display" data-bf-part="header">
       <ToolCardIconSlot
-        icon={renderToolIcon()}
-        iconClassName={`task-icon ${effectiveIsRunning ? 'is-running' : ''}`}
+        icon={<span className={`task-icon ${effectiveIsRunning ? 'is-running' : ''}`}>{renderToolIcon()}</span>}
         expandable={showHeaderExpandHint}
         affordanceKind="expand"
         isExpanded={displayIsExpanded}
@@ -852,7 +868,7 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
               <div className="task-header-rail__visual" aria-hidden>
                 <ChevronRight size={16} strokeWidth={2} absoluteStrokeWidth />{effectiveIsRunning ? (
                   <ToolCardStatusIcon
-                    icon={<CubeLoading size="small" />}
+                    icon={<Spinner size="sm" />}
                     className="task-status-icon--rail"
                   />
                 ) : null}
@@ -930,7 +946,7 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
               className="thinking-content task-prompt-content expanded"
               onScroll={checkPromptScrollState}
             >
-              <Markdown
+              <MarkdownRenderer
                 content={taskInput!.prompt}
                 isStreaming={false}
                 className="thinking-markdown task-prompt-markdown"
@@ -948,12 +964,12 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
     return (
       <div data-bf-component="task-tool-display" data-bf-part="root">
         <div data-bf-component="task-tool-display" data-bf-part="cancel">
-          <CompactToolCard
+          <AmbientToolCard
             status={status}
             isExpanded={false}
             className="task-cancel-card"
             header={
-              <CompactToolCardHeader
+              <AmbientToolCardHeader
                 icon={<ToolCardStatusSlot status={status} toolIcon={<Split size={16} />} />}
                 content={t('toolCards.taskTool.cancelSession', { sessionId: cancelSessionId })}
               />
@@ -972,7 +988,7 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
       ref={cardRootRef}
       data-tool-card-id={toolId ?? ''}
     >
-      <BaseToolCard
+      <ProminentToolCard
         status={displayStatus}
         isExpanded={displayIsExpanded}
         onClick={isCancelAction ? undefined : handleCardClick}

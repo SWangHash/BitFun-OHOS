@@ -4,15 +4,52 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import {
+  configureDesktopWebFontProfile,
   prepareMacOSFlashgrepForSigning,
   prepareTauriConfig,
   shouldRetryMacDmgBuild,
 } from './desktop-tauri-build.mjs';
 import { resolveProductDefinition } from './product-customization/resolver.mjs';
+import {
+  APPLE_SYSTEM_FONT_PROFILE,
+  HARMONY_BUNDLED_FONT_PROFILE,
+  WEB_FONT_PROFILE_ENV,
+} from './web-font-profile.mjs';
 
 const FAILED_BUILD = { status: 1 };
 const DMG_ARGS = ['--target', 'x86_64-apple-darwin', '--bundles', 'app,dmg'];
 const ROOT = join(import.meta.dirname, '..');
+
+test('Desktop packaging selects the Web font profile from its target triple', () => {
+  const appleEnv = { [WEB_FONT_PROFILE_ENV]: HARMONY_BUNDLED_FONT_PROFILE };
+  assert.equal(
+    configureDesktopWebFontProfile(
+      ['--target', 'aarch64-apple-darwin'],
+      { env: appleEnv, platform: 'win32' },
+    ),
+    APPLE_SYSTEM_FONT_PROFILE,
+  );
+  assert.equal(appleEnv[WEB_FONT_PROFILE_ENV], APPLE_SYSTEM_FONT_PROFILE);
+
+  const windowsEnv = { [WEB_FONT_PROFILE_ENV]: APPLE_SYSTEM_FONT_PROFILE };
+  assert.equal(
+    configureDesktopWebFontProfile(
+      ['--target=x86_64-pc-windows-msvc'],
+      { env: windowsEnv, platform: 'darwin' },
+    ),
+    HARMONY_BUNDLED_FONT_PROFILE,
+  );
+  assert.equal(windowsEnv[WEB_FONT_PROFILE_ENV], HARMONY_BUNDLED_FONT_PROFILE);
+
+  assert.equal(
+    configureDesktopWebFontProfile([], { env: {}, platform: 'darwin' }),
+    APPLE_SYSTEM_FONT_PROFILE,
+  );
+  assert.equal(
+    configureDesktopWebFontProfile([], { env: {}, platform: 'linux' }),
+    HARMONY_BUNDLED_FONT_PROFILE,
+  );
+});
 
 test('release builds do not mutate DMGs after Tauri signs and notarizes them', () => {
   const source = readFileSync(join(ROOT, 'scripts', 'desktop-tauri-build.mjs'), 'utf8');
@@ -31,6 +68,21 @@ test('Desktop DMG uses the branded installer layout', () => {
     appPosition: { x: 180, y: 170 },
     applicationFolderPosition: { x: 480, y: 170 },
   });
+});
+
+test('Desktop builds prepare and bundle the OpenCode extension Host', () => {
+  const source = readFileSync(join(ROOT, 'scripts', 'desktop-tauri-build.mjs'), 'utf8');
+  assert.match(source, /preparePluginHost\(\)/);
+
+  for (const name of ['tauri.conf.json', 'tauri.dev.conf.json']) {
+    const config = JSON.parse(
+      readFileSync(join(ROOT, 'src', 'apps', 'desktop', name), 'utf8')
+    );
+    assert.equal(
+      config.bundle.resources['../extension-host/dist/extension-host.js'],
+      'resources/ext-host/extension-host.js'
+    );
+  }
 });
 
 test('macOS release signing covers the bundled flashgrep executable', () => {
@@ -345,11 +397,25 @@ test('official packaging injects the DeepSeek profile resource', () => {
       'resources/dsh-profile',
     );
     assert.equal(
+      config.bundle.resources['../../../dist'],
+      'frontend/dist',
+    );
+    assert.equal(
       config.bundle.resources['resources/worker_host.js'],
       'resources/worker_host.js',
     );
   } finally {
     rmSync(fixture, { force: true, recursive: true });
+  }
+});
+
+test('static desktop configs keep the full frontend outside Tauri embedded assets', () => {
+  for (const name of ['tauri.conf.json', 'tauri.dev.conf.json']) {
+    const config = JSON.parse(
+      readFileSync(join(ROOT, 'src', 'apps', 'desktop', name), 'utf8')
+    );
+    assert.equal(config.build.frontendDist, 'bootstrap-ui');
+    assert.equal(config.bundle.resources['../../../dist'], undefined);
   }
 });
 

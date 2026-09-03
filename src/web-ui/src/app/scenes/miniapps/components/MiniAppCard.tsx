@@ -1,10 +1,10 @@
+import { Icon, Button, IconButton } from '@bitfun/ui';
 import React from 'react';
-import { Play, Square, Trash2 } from 'lucide-react';
+import { Play, Square } from 'lucide-react';
 import type { MiniAppMeta } from '@/infrastructure/api/service-api/MiniAppAPI';
 import { renderMiniAppIcon } from '../utils/miniAppIcons';
 import { pickLocalizedString, pickLocalizedTags } from '../utils/pickLocalizedString';
 import { useI18n } from '@/infrastructure/i18n';
-import { DEFAULT_CARD_GRADIENT } from '@/shared/utils/cardGradients';
 import './MiniAppCard.scss';
 
 interface MiniAppCardProps {
@@ -25,9 +25,6 @@ interface MiniAppCardProps {
   onStop?: (id: string) => void;
 }
 
-const MINIAPP_CARD_GRADIENT_RUNNING =
-  'linear-gradient(135deg, color-mix(in srgb, var(--bf-appearance-token-color-success) 28%, transparent) 0%, color-mix(in srgb, var(--bf-appearance-token-color-success) 18%, transparent) 100%)';
-
 const MiniAppCard: React.FC<MiniAppCardProps> = ({
   app,
   index = 0,
@@ -43,6 +40,9 @@ const MiniAppCard: React.FC<MiniAppCardProps> = ({
   const localizedName = pickLocalizedString(app, currentLanguage, 'name');
   const localizedDescription = pickLocalizedString(app, currentLanguage, 'description');
   const localizedTags = pickLocalizedTags(app, currentLanguage);
+  const displayedTags = localizedTags.slice(0, 3);
+  const compactOverflowTags = localizedTags.slice(2);
+  const wideOverflowTags = localizedTags.slice(3);
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onDelete(app.id);
@@ -62,8 +62,16 @@ const MiniAppCard: React.FC<MiniAppCardProps> = ({
     onOpenDetails(app);
   };
 
+  const handleCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleOpenDetails();
+    }
+  };
+
   return (
-    <div data-bf-component="mini-app-card" data-bf-part="root"
+    <div data-bf-component="mini-app-card" data-bf-part="root" data-miniapp-id={app.id}
       className={[
         'miniapp-card',
         isRunning && 'miniapp-card--running',
@@ -73,79 +81,109 @@ const MiniAppCard: React.FC<MiniAppCardProps> = ({
         .join(' ')}
       style={{
         '--surface-stagger-index': index,
-        '--miniapp-card-gradient': isRunning ? MINIAPP_CARD_GRADIENT_RUNNING : DEFAULT_CARD_GRADIENT,
       } as React.CSSProperties}
       onClick={handleOpenDetails}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && handleOpenDetails()}
+      onKeyDown={handleCardKeyDown}
       aria-label={localizedName}
     >
-      {/* Header with icon and title */}
-      <div className="miniapp-card__header" data-bf-component="mini-app-card" data-bf-part="header">
+      <div className="miniapp-card__main">
         <div className="miniapp-card__icon-area" data-bf-component="mini-app-card" data-bf-part="iconArea">
           <div className="miniapp-card__icon" data-bf-component="mini-app-card" data-bf-part="icon">
-            {renderMiniAppIcon(app.icon || 'box', 20)}
+            {renderMiniAppIcon(app.icon || 'box', 34)}
           </div>
         </div>
-        <div className="miniapp-card__title-group" data-bf-component="mini-app-card" data-bf-part="title">
-          <span className="miniapp-card__name" data-bf-component="mini-app-card" data-bf-part="name">{localizedName}</span>
-          <span className="miniapp-card__version" data-bf-component="mini-app-card" data-bf-part="version">v{marketReleaseNumber ?? app.version}</span>
-        </div>
-        {(isRunning || isCustomizing) && (
-          <span className="miniapp-card__status-dots" data-bf-component="mini-app-card" data-bf-part="status" aria-hidden="true">
-            {isRunning && <span className="miniapp-card__run-dot" />}
-            {isCustomizing && <span className="miniapp-card__customize-dot" />}
-          </span>
-        )}
-      </div>
 
-      {/* Body: description + tags */}
-      <div className="miniapp-card__body" data-bf-component="mini-app-card" data-bf-part="body">
-        {localizedDescription ? (
-          <div className="miniapp-card__desc" data-bf-component="mini-app-card" data-bf-part="description">
-            <span className="miniapp-card__desc-inner">{localizedDescription}</span>
+        <div className="miniapp-card__content">
+          <div className="miniapp-card__header" data-bf-component="mini-app-card" data-bf-part="header">
+            <div className="miniapp-card__title-group" data-bf-component="mini-app-card" data-bf-part="title">
+              <span className="miniapp-card__name" data-bf-component="mini-app-card" data-bf-part="name">{localizedName}</span>
+            </div>
+            <div className="miniapp-card__meta">
+              {(isRunning || isCustomizing) && (
+                <span className="miniapp-card__status-dots" data-bf-component="mini-app-card" data-bf-part="status" aria-hidden="true">
+                  {isRunning && <span className="miniapp-card__run-dot" />}
+                  {isCustomizing && <span className="miniapp-card__customize-dot" />}
+                </span>
+              )}
+              <span className="miniapp-card__version" data-bf-component="mini-app-card" data-bf-part="version">v{marketReleaseNumber ?? app.version}</span>
+            </div>
           </div>
-        ) : null}
-        {localizedTags.length > 0 ? (
-        <div className="miniapp-card__tags" data-bf-component="mini-app-card" data-bf-part="tags">
-            {localizedTags.slice(0, 3).map((tag) => (
-              <span key={tag} className="miniapp-card__tag">{tag}</span>
-            ))}
-          </div>
-        ) : null}
-      </div>
 
-      {/* Footer with actions */}
-      <div className="miniapp-card__footer" data-bf-component="mini-app-card" data-bf-part="footer">
-        <div className="miniapp-card__actions" data-bf-component="mini-app-card" data-bf-part="actions" onClick={(e) => e.stopPropagation()}>
-          <button
-            className="miniapp-card__action-btn miniapp-card__action-btn--primary"
-            onClick={handleOpenClick}
-            aria-label={t('card.start')}
-            title={t('card.start')}
-          >
-            <Play size={15} fill="currentColor" strokeWidth={0} />
-          </button>
-          {isRunning && onStop ? (
-            <button
-              className="miniapp-card__action-btn miniapp-card__action-btn--stop"
-              onClick={handleStopClick}
-              aria-label={t('card.stop')}
-              title={t('card.stop')}
-            >
-              <Square size={13} />
-            </button>
-          ) : (
-            <button
-              className="miniapp-card__action-btn miniapp-card__action-btn--danger"
-              onClick={handleDeleteClick}
-              aria-label={t('card.delete')}
-              title={t('card.delete')}
-            >
-              <Trash2 size={13} />
-            </button>
-          )}
+          <div className="miniapp-card__body" data-bf-component="mini-app-card" data-bf-part="body">
+            {localizedDescription ? (
+              <div className="miniapp-card__desc" data-bf-component="mini-app-card" data-bf-part="description">
+                <span className="miniapp-card__desc-inner">{localizedDescription}</span>
+              </div>
+            ) : null}
+            <div className="miniapp-card__footer" data-bf-component="mini-app-card" data-bf-part="footer">
+              {localizedTags.length > 0 ? (
+                <div className="miniapp-card__tags" data-bf-component="mini-app-card" data-bf-part="tags">
+                  {displayedTags.map((tag, tagIndex) => (
+                    <span
+                      key={tag}
+                      className={[
+                        'miniapp-card__tag',
+                        tagIndex >= 2 && 'miniapp-card__tag--compact-hidden',
+                      ].filter(Boolean).join(' ')}
+                      title={tag}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                  {wideOverflowTags.length > 0 && (
+                    <span
+                      className="miniapp-card__tag-overflow miniapp-card__tag-overflow--wide"
+                      title={wideOverflowTags.join(', ')}
+                      aria-label={wideOverflowTags.join(', ')}
+                    >
+                      +{wideOverflowTags.length}
+                    </span>
+                  )}
+                  {compactOverflowTags.length > 0 && (
+                    <span
+                      className="miniapp-card__tag-overflow miniapp-card__tag-overflow--compact"
+                      title={compactOverflowTags.join(', ')}
+                      aria-label={compactOverflowTags.join(', ')}
+                    >
+                      +{compactOverflowTags.length}
+                    </span>
+                  )}
+                </div>
+              ) : null}
+              <div className="miniapp-card__actions" data-bf-component="mini-app-card" data-bf-part="actions" onClick={(e) => e.stopPropagation()}>
+                <Button
+                  variant="fill"
+                  size="sm"
+                  leadingIcon={<Play size={14} fill="currentColor" strokeWidth={0} />}
+                  onClick={handleOpenClick}
+                  aria-label={t('card.start')}
+                  title={t('card.start')}
+                >
+                  {t('card.start')}
+                </Button>
+                {isRunning && onStop ? (
+                  <IconButton
+                    size="sm"
+                    onClick={handleStopClick}
+                    aria-label={t('card.stop')}
+                    icon={<Square />}
+                    title={t('card.stop')}
+                  />
+                ) : (
+                  <IconButton
+                    size="sm"
+                    tone="danger"
+                    onClick={handleDeleteClick}
+                    aria-label={t('card.delete')}
+                    icon={<Icon name="delete" size="lg" />}
+                    title={t('card.delete')}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

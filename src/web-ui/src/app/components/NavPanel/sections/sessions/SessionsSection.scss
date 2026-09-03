@@ -4,57 +4,71 @@
  * Uses the parent BEM block (.bitfun-nav-panel) to stay consistent with the
  * rest of the navigation styling, while being self-contained in this file.
  */
-
-@use '../../../../../component-library/styles/tokens.scss' as *;
 @use '../../../../styles/nav-panel-font-scope.scss' as nav-font;
+@use '../../../../styles/workspace-shell-surfaces' as shell-surfaces;
 
 .bitfun-nav-panel {
   &__inline-list {
+    // Left text rail shared by session rows and the expand toggle. Context
+    // stylesheets that indent rows (see WorkspaceListSection's 30px icon
+    // gutter) re-declare this so the toggle label can never drift off the rail
+    // the session titles sit on.
+    --bf-nav-session-rail: var(--bf-space-1);
+
     display: flex;
     flex-direction: column;
     min-width: 0;
     max-width: 100%;
-    padding: 2px $size-gap-1 2px;
-    gap: 0;
-    // No vertical margin: spacing between assistant blocks comes from 2px top/bottom padding only
-    // (see .bitfun-nav-panel__items--session-blocks gap: 0), aligned with __workspace-item padding.
-    margin: 0 $size-gap-1 0 calc(#{$size-gap-1} + 4px);
+    padding: 2px var(--bf-space-1) 2px;
+    gap: calc(var(--bf-space-1) / 2);
+    // No vertical margin: the list owns the separation between adjacent row surfaces.
+    margin: 0 var(--bf-space-1) 0 calc(var(--bf-space-1) + 4px);
+
+    &.is-flat-workspace-view {
+      margin: 0 6px;
+      padding: 2px 0;
+    }
   }
 
   &__inline-action {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    height: 24px;
-    padding: 0 $size-gap-1;
-    border: 1px dashed var(--bf-appearance-token-border-subtle);
-    border-radius: $size-radius-sm;
-    background: transparent;
-    color: var(--bf-appearance-token-color-text-primary);
-    font-size: var(--bf-appearance-token-font-size-xs);
-    cursor: pointer;
     flex: 1;
     min-width: 0;
-    transition: color $motion-fast $easing-standard,
-                background $motion-fast $easing-standard,
-                border-color $motion-fast $easing-standard;
-
-    svg { flex-shrink: 0; }
-
-    span {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
+    width: 100%;
   }
 
   &__inline-empty {
-    font-size: var(--bf-appearance-token-font-size-xs);
-    color: var(--bf-appearance-token-color-text-muted);
-    padding: 4px $size-gap-1;
+    font-size: var(--bf-font-size-xs);
+    color: var(--bf-color-content-muted);
+    padding: 4px var(--bf-space-1);
     font-style: italic;
+    text-align: center;
+
+    &.is-assistant {
+      display: flex;
+      min-width: 0;
+      min-height: 40px;
+      align-items: center;
+      gap: var(--bf-space-2);
+      font-style: normal;
+    }
+  }
+
+  &__inline-empty-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 1px;
+    line-height: var(--bf-line-height-tight);
+  }
+
+  &__inline-empty-name {
+    overflow: hidden;
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-medium);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &__inline-loading {
@@ -63,9 +77,9 @@
     gap: 5px;
     min-width: 0;
     height: 24px;
-    padding: 0 $size-gap-1;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-size: var(--bf-appearance-token-font-size-2xs);
+    padding: 0 var(--bf-space-1);
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-meta);
 
     svg {
       flex: 0 0 auto;
@@ -87,139 +101,90 @@
     min-width: 0;
     max-width: 100%;
     height: 26px;
-    padding: 0 $size-gap-1;
+    padding: 0 var(--bf-space-1) 0 var(--bf-nav-session-rail);
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: var(--bf-appearance-token-font-size-sm);
-    font-weight: 400;
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-sm);
+    font-weight: var(--bf-font-weight-regular);
     cursor: pointer;
     width: 100%;
     overflow: hidden;
     text-align: left;
     overflow: hidden;
     position: relative;
-    transition: color $motion-fast $easing-standard,
-                background $motion-fast $easing-standard;
+    transition: color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                background var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &:hover {
-      color: var(--bf-appearance-token-color-text-primary);
-      background: var(--bf-appearance-token-element-bg-soft);
+      color: var(--bf-color-content-primary);
+      background: var(--bf-color-action-quiet-hover);
     }
 
     &.is-active {
-      color: var(--bf-appearance-token-color-text-primary);
-      background: var(--bf-appearance-token-element-bg-soft);
+      color: var(--bf-color-content-primary);
+      background: var(--bf-color-action-quiet-hover);
     }
 
     &.is-editing {
       cursor: default;
-      background: color-mix(in srgb, var(--bf-appearance-token-element-bg-soft) 82%, transparent);
+      background: color-mix(in srgb, var(--bf-color-action-quiet-hover) 82%, transparent);
+    }
+
+    &.is-assistant-session {
+      height: 40px;
+      gap: var(--bf-space-2);
+      padding-block: 4px;
     }
 
     &:focus-visible {
-      outline: 1px solid var(--bf-appearance-token-color-accent-500);
+      outline: 1px solid var(--bf-color-accent-default);
       outline-offset: -1px;
     }
 
     &.is-child {
-      margin-top: -2px;
+      margin-top: 0;
       min-height: 24px;
-      font-size: var(--bf-appearance-token-font-size-xs);
-      padding-left: calc(#{$size-gap-1} + 14px);
+      font-size: var(--bf-font-size-xs);
+      padding-left: calc(var(--bf-nav-session-rail) + 14px);
       position: relative;
 
       &::before {
         content: '';
         position: absolute;
-        left: 8px;
+        left: calc(var(--bf-nav-session-rail) + 2px);
         top: 0;
         width: 1px;
         height: 50%;
-        background: color-mix(in srgb, var(--bf-appearance-token-border-subtle) 88%, transparent);
+        background: color-mix(in srgb, var(--bf-color-border-subtle) 88%, transparent);
         opacity: 0.95;
       }
 
       &::after {
         content: '';
         position: absolute;
-        left: 8px;
+        left: calc(var(--bf-nav-session-rail) + 2px);
         top: 50%;
         width: 10px;
         height: 1px;
-        background: color-mix(in srgb, var(--bf-appearance-token-border-subtle) 92%, transparent);
+        background: color-mix(in srgb, var(--bf-color-border-subtle) 92%, transparent);
         opacity: 0.95;
         transform: translateY(-50%);
       }
 
-      .bitfun-nav-panel__inline-item-icon {
-        opacity: 0.72;
-      }
     }
 
     &.is-btw-child {
       &:hover,
       &.is-active {
-        background: var(--bf-appearance-token-element-bg-soft);
+        background: var(--bf-color-action-quiet-hover);
       }
 
       &.is-active {
-        background: transparent;
+        background: var(--bf-color-action-quiet-hover);
       }
     }
-  }
-
-  &__inline-item-icon-slot {
-    position: relative;
-    flex: 0 0 16px;
-    width: 16px;
-    height: 16px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    overflow: visible;
-  }
-
-  &__inline-item-icon {
-    flex-shrink: 0;
-    opacity: 0.78;
-    display: flex;
-    align-items: center;
-    color: inherit;
-    transform: scale(1);
-    transform-origin: center;
-    transition: opacity $motion-fast $easing-standard,
-                transform $motion-fast $easing-standard;
-
-    &.is-cowork {
-      color: var(--bf-appearance-token-color-text-secondary);
-    }
-
-    &.is-running {
-      color: var(--bf-appearance-token-color-text-secondary);
-      transition: opacity $motion-fast $easing-standard;
-      animation: bitfun-nav-session-spin 1s linear infinite;
-    }
-
-    &.is-ask-user {
-      // Mix warning hue with text-primary to guarantee ≥3:1 contrast in both
-      // Light and Dark themes (pure --bf-appearance-token-color-warning falls below threshold in
-      // Light theme). 70% text-primary keeps the icon readable at 14px.
-      color: color-mix(in srgb, var(--bf-appearance-token-color-text-primary) 70%, var(--bf-appearance-token-color-warning) 30%);
-      transition: opacity $motion-fast $easing-standard;
-      animation: bitfun-nav-ask-user-pulse 2s ease-in-out infinite;
-    }
-
-    .bitfun-nav-panel__inline-item:hover &,
-    .bitfun-nav-panel__inline-item.is-active & {
-      opacity: 1;
-    }
-  }
-
-  // 「助理会话」区块：行前导图标悬停微微放大（与顶部 __top-action-icon-slot 的 1.07 一致；运行中 Loader/问号仅用自身动画）
-  &__items--session-blocks &__inline-item:hover &__inline-item-icon:not(.is-running):not(.is-ask-user) {
-    transform: scale(1.07);
   }
 
   &__inline-item-main {
@@ -231,6 +196,50 @@
     align-items: center;
     gap: 4px;
     overflow: visible;
+  }
+
+  &__inline-item-avatar {
+    display: inline-flex;
+    flex: 0 0 26px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__inline-item-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 1px;
+    overflow: hidden;
+  }
+
+  &__inline-item-primary {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__inline-item-assistant-name {
+    overflow: hidden;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-meta);
+    line-height: var(--bf-line-height-base);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__inline-item-workspace-name {
+    flex: 0 1 38%;
+    min-width: 0;
+    margin-left: auto;
+    overflow: hidden;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-meta);
+    line-height: var(--bf-line-height-base);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &__inline-item:hover &__inline-item-main,
@@ -253,13 +262,13 @@
     align-items: center;
     height: 12px;
     padding: 0 4px;
-    border: 1px solid color-mix(in srgb, var(--bf-appearance-token-color-accent-400) 34%, var(--bf-appearance-token-border-subtle));
+    border: 1px solid color-mix(in srgb, color-mix(in srgb, var(--bf-color-accent-default) 40%, transparent) 34%, var(--bf-color-border-subtle));
     border-radius: 999px;
-    background: color-mix(in srgb, var(--bf-appearance-token-color-accent-400) 13%, var(--bf-appearance-token-element-bg-soft));
-    color: color-mix(in srgb, var(--bf-appearance-token-color-accent-400) 62%, var(--bf-appearance-token-color-text-primary));
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    font-weight: 600;
-    letter-spacing: 0.02em;
+    background: color-mix(in srgb, color-mix(in srgb, var(--bf-color-accent-default) 40%, transparent) 13%, var(--bf-color-action-quiet-hover));
+    color: color-mix(in srgb, color-mix(in srgb, var(--bf-color-accent-default) 40%, transparent) 62%, var(--bf-color-content-primary));
+    font-size: var(--bf-font-size-micro);
+    font-weight: var(--bf-font-weight-semibold);
+    letter-spacing: var(--bf-letter-spacing-wide);
     opacity: 0.96;
     overflow: visible;
     white-space: nowrap;
@@ -274,27 +283,27 @@
     height: 14px;
     padding: 0 5px;
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--bf-appearance-token-color-accent-400) 38%, var(--bf-appearance-token-border-subtle));
+    border: 1px solid color-mix(in srgb, color-mix(in srgb, var(--bf-color-accent-default) 40%, transparent) 38%, var(--bf-color-border-subtle));
     border-radius: 999px;
-    background: color-mix(in srgb, var(--bf-appearance-token-color-accent-400) 12%, var(--bf-appearance-token-element-bg-soft));
-    color: color-mix(in srgb, var(--bf-appearance-token-color-accent-400) 76%, var(--bf-appearance-token-color-text-primary));
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    font-weight: 600;
+    background: color-mix(in srgb, color-mix(in srgb, var(--bf-color-accent-default) 40%, transparent) 12%, var(--bf-color-action-quiet-hover));
+    color: color-mix(in srgb, color-mix(in srgb, var(--bf-color-accent-default) 40%, transparent) 76%, var(--bf-color-content-primary));
+    font-size: var(--bf-font-size-micro);
+    font-weight: var(--bf-font-weight-semibold);
     text-overflow: ellipsis;
     white-space: nowrap;
 
     &[data-state='failed'],
     &[data-state='cancelled'],
     &[data-state='unreachable'] {
-      border-color: var(--bf-appearance-token-color-error-border);
-      background: var(--bf-appearance-token-color-error-bg);
-      color: var(--bf-appearance-token-color-error);
+      border-color: var(--bf-color-status-danger-border);
+      background: var(--bf-color-status-danger-surface);
+      color: var(--bf-color-status-danger-content);
     }
 
     &[data-state='succeeded'] {
-      border-color: var(--bf-appearance-token-color-success-border);
-      background: var(--bf-appearance-token-color-success-bg);
-      color: var(--bf-appearance-token-color-success);
+      border-color: var(--bf-color-status-success-border);
+      background: var(--bf-color-status-success-surface);
+      color: var(--bf-color-status-success-content);
     }
   }
 
@@ -305,13 +314,13 @@
     gap: 3px;
     height: 14px;
     padding: 0 5px;
-    border: 1px solid color-mix(in srgb, var(--bf-appearance-token-color-accent-400) 44%, var(--bf-appearance-token-border-subtle));
+    border: 1px solid color-mix(in srgb, color-mix(in srgb, var(--bf-color-accent-default) 40%, transparent) 44%, var(--bf-color-border-subtle));
     border-radius: 999px;
-    background: color-mix(in srgb, var(--bf-appearance-token-color-accent-400) 18%, var(--bf-appearance-token-element-bg-soft));
-    color: color-mix(in srgb, var(--bf-appearance-token-color-accent-400) 82%, var(--bf-appearance-token-color-text-primary));
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    font-weight: 600;
-    letter-spacing: 0.02em;
+    background: color-mix(in srgb, color-mix(in srgb, var(--bf-color-accent-default) 40%, transparent) 18%, var(--bf-color-action-quiet-hover));
+    color: color-mix(in srgb, color-mix(in srgb, var(--bf-color-accent-default) 40%, transparent) 82%, var(--bf-color-content-primary));
+    font-size: var(--bf-font-size-micro);
+    font-weight: var(--bf-font-weight-semibold);
+    letter-spacing: var(--bf-letter-spacing-wide);
     white-space: nowrap;
 
     svg {
@@ -329,10 +338,10 @@
     width: 16px;
     height: 16px;
     padding: 0;
-    border: 1px solid color-mix(in srgb, var(--bf-appearance-token-color-success) 36%, var(--bf-appearance-token-border-subtle));
+    border: 1px solid color-mix(in srgb, var(--bf-color-status-success-content) 36%, var(--bf-color-border-subtle));
     border-radius: 999px;
-    background: color-mix(in srgb, var(--bf-appearance-token-color-success) 12%, var(--bf-appearance-token-element-bg-soft));
-    color: color-mix(in srgb, var(--bf-appearance-token-color-success) 76%, var(--bf-appearance-token-color-text-primary));
+    background: color-mix(in srgb, var(--bf-color-status-success-content) 12%, var(--bf-color-action-quiet-hover));
+    color: color-mix(in srgb, var(--bf-color-status-success-content) 76%, var(--bf-color-content-primary));
     overflow: hidden;
     // Kill the inline strut so the 16x16 circle stays optically centered against the title.
     line-height: 0;
@@ -347,7 +356,7 @@
     height: 10px;
     flex-shrink: 0;
     transform-origin: center center;
-    transition: opacity $motion-fast $easing-standard, transform $motion-fast $easing-standard;
+    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard), transform var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &.is-bot {
       animation: bitfun-nav-background-subagent-bot-cycle 3.6s ease-in-out infinite;
@@ -369,13 +378,13 @@
     gap: 3px;
     height: 14px;
     padding: 0 5px;
-    border: 1px solid color-mix(in srgb, var(--bf-appearance-token-color-warning) 35%, var(--bf-appearance-token-border-subtle));
+    border: 1px solid color-mix(in srgb, var(--bf-color-status-warning-content) 35%, var(--bf-color-border-subtle));
     border-radius: 999px;
-    background: color-mix(in srgb, var(--bf-appearance-token-color-warning) 14%, transparent);
-    color: color-mix(in srgb, var(--bf-appearance-token-color-warning) 80%, var(--bf-appearance-token-color-text-primary));
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    font-weight: 600;
-    letter-spacing: 0.02em;
+    background: color-mix(in srgb, var(--bf-color-status-warning-content) 14%, transparent);
+    color: color-mix(in srgb, var(--bf-color-status-warning-content) 80%, var(--bf-color-content-primary));
+    font-size: var(--bf-font-size-micro);
+    font-weight: var(--bf-font-weight-semibold);
+    letter-spacing: var(--bf-letter-spacing-wide);
     white-space: nowrap;
   }
 
@@ -387,79 +396,18 @@
   }
 
   &__inline-item-tooltip-title {
-    font-size: var(--bf-appearance-token-font-size-xs);
-    font-weight: 600;
-    color: var(--bf-appearance-token-color-text-primary);
-    line-height: 1.4;
+    font-size: var(--bf-font-size-xs);
+    font-weight: var(--bf-font-weight-semibold);
+    color: var(--bf-color-content-primary);
+    line-height: var(--bf-line-height-ui);
     word-break: break-word;
   }
 
   &__inline-item-tooltip-meta {
-    font-size: var(--bf-appearance-token-font-size-2xs);
-    color: var(--bf-appearance-token-color-text-secondary);
-    line-height: 1.4;
+    font-size: var(--bf-font-size-meta);
+    color: var(--bf-color-content-secondary);
+    line-height: var(--bf-line-height-ui);
     word-break: break-word;
-  }
-
-  &__inline-item-unread-dot {
-    position: absolute;
-    right: -1px;
-    bottom: -1px;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    border: 1px solid var(--bf-appearance-token-color-bg-primary);
-    background: var(--bf-appearance-token-color-success);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--bf-appearance-token-color-success) 35%, transparent),
-      0 0 6px color-mix(in srgb, var(--bf-appearance-token-color-success) 42%, transparent);
-
-    &.is-error,
-    &.is-interrupted {
-      background: var(--bf-appearance-token-color-error);
-      box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--bf-appearance-token-color-error) 35%, transparent),
-        0 0 6px color-mix(in srgb, var(--bf-appearance-token-color-error) 42%, transparent);
-    }
-
-    // High-priority attention states: larger, brighter, with subtle pulse
-    &.is-ask-user,
-    &.is-tool-confirm {
-      width: 8px;
-      height: 8px;
-      right: -2px;
-      bottom: -2px;
-    }
-
-    &.is-ask-user {
-      background: var(--bf-appearance-token-color-warning);
-      box-shadow:
-        0 0 0 1.5px color-mix(in srgb, var(--bf-appearance-token-color-warning) 45%, transparent),
-        0 0 8px color-mix(in srgb, var(--bf-appearance-token-color-warning) 55%, transparent);
-    }
-
-    &.is-tool-confirm {
-      background: var(--bf-appearance-token-color-accent-500);
-      box-shadow:
-        0 0 0 1.5px color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 45%, transparent),
-        0 0 8px color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 55%, transparent);
-    }
-
-    // Pulse animation for high-priority states
-    &.is-high-priority {
-      animation: bitfun-unread-dot-pulse 2s ease-in-out infinite;
-    }
-  }
-
-  @keyframes bitfun-unread-dot-pulse {
-    0%, 100% {
-      transform: scale(1);
-      opacity: 1;
-    }
-    50% {
-      transform: scale(1.35);
-      opacity: 0.85;
-    }
   }
 
   &__inline-item-actions {
@@ -473,8 +421,8 @@
     visibility: hidden;
     opacity: 0;
     pointer-events: none;
-    transition: opacity $motion-fast $easing-standard,
-                visibility $motion-fast $easing-standard;
+    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                visibility var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     .bitfun-nav-panel__inline-item:hover &,
     &.is-open {
@@ -494,73 +442,21 @@
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: var(--bf-appearance-token-color-text-primary);
+    color: var(--bf-color-content-primary);
     cursor: pointer;
-    transition: color $motion-fast $easing-standard,
-                background $motion-fast $easing-standard;
+    transition: color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                background var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &:hover,
     &.is-open {
-      color: var(--bf-appearance-token-color-text-primary);
-      background: color-mix(in srgb, var(--bf-appearance-token-color-text-primary) 10%, transparent);
+      color: var(--bf-color-content-primary);
+      background: color-mix(in srgb, var(--bf-color-content-primary) 10%, transparent);
     }
   }
 
   &__inline-item-menu-popover {
-    @include nav-font.nav-panel-font-token-scope;
-
     position: fixed;
-    width: max-content;
-    min-width: 140px;
-    max-width: min(220px, calc(100vw - 24px));
-    max-height: min(560px, calc(100vh - 16px));
-    overflow-x: hidden;
-    overflow-y: auto;
-    padding: $size-gap-1 0;
-    border-radius: $size-radius-base;
-    background: var(--bf-appearance-token-color-bg-elevated);
-    border: 1px solid var(--bf-appearance-token-border-subtle);
-    box-shadow: 0 4px 12px var(--bf-appearance-token-color-overlay-black-30);
     z-index: 10000;
-    transform-origin: top left;
-    animation: bitfun-footer-menu-in $motion-fast $easing-decelerate forwards;
-  }
-
-  &__inline-item-menu-item {
-    display: flex;
-    align-items: center;
-    gap: $size-gap-2;
-    width: 100%;
-    min-height: 28px;
-    padding: 0 $size-gap-2;
-    border: none;
-    background: transparent;
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: var(--bf-appearance-token-font-size-sm);
-    font-weight: 400;
-    cursor: pointer;
-    text-align: left;
-    white-space: nowrap;
-    transition: color $motion-fast $easing-standard,
-                background $motion-fast $easing-standard;
-
-    svg {
-      flex-shrink: 0;
-      opacity: 0.7;
-      transition: opacity $motion-fast $easing-standard;
-    }
-
-    &:hover:not(:disabled) {
-      color: var(--bf-appearance-token-color-text-primary);
-      background: var(--bf-appearance-token-element-bg-soft);
-
-      svg { opacity: 1; }
-    }
-
-    &.is-danger:hover:not(:disabled) {
-      color: var(--bf-appearance-token-color-error);
-      background: color-mix(in srgb, var(--bf-appearance-token-color-error) 10%, transparent);
-    }
   }
 
   &__inline-item-edit {
@@ -574,47 +470,34 @@
   &__inline-item-edit-field {
     flex: 1;
     min-width: 0;
-
-    .bitfun-input-container {
-      height: 18px;
-      min-height: 18px;
-      padding: 0 6px;
-      border-radius: 4px;
-      border-color: var(--bf-appearance-token-border-subtle);
-      background: color-mix(in srgb, var(--bf-appearance-token-element-bg-soft) 55%, transparent);
-    }
-
-    .bitfun-input {
-      font-size: var(--bf-appearance-token-font-size-xs);
-      line-height: 16px;
-    }
-
-    .bitfun-input-container:focus-within {
-      border-color: color-mix(in srgb, var(--bf-appearance-token-color-text-primary) 35%, var(--bf-appearance-token-border-subtle));
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--bf-appearance-token-color-text-primary) 12%, transparent);
-    }
   }
 
+  // Reads as the next row of the list rather than a floating footer: same left
+  // text rail and row geometry as __inline-item, with the remaining count in a
+  // trailing `+N` chip so the number is scannable without a full sentence.
   &__inline-toggle {
     display: flex;
     align-items: center;
-    gap: 4px;
+    justify-content: flex-start;
+    gap: 5px;
     height: 22px;
-    padding: 0 $size-gap-1;
-    margin-top: 2px;
+    padding: 0 var(--bf-space-1) 0 var(--bf-nav-session-rail);
+    margin-top: 1px;
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: var(--bf-appearance-token-color-text-primary);
-    font-size: var(--bf-appearance-token-font-size-2xs);
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-font-size-meta);
+    text-align: left;
     cursor: pointer;
     width: 100%;
-    transition: color $motion-fast $easing-standard,
-                background $motion-fast $easing-standard;
+    min-width: 0;
+    transition: color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                background var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &:hover {
-      color: var(--bf-appearance-token-color-text-primary);
-      background: var(--bf-appearance-token-element-bg-soft);
+      color: var(--bf-color-content-primary);
+      background: var(--bf-color-action-quiet-hover);
     }
 
     &:disabled {
@@ -623,7 +506,7 @@
     }
 
     &.is-loading {
-      color: var(--bf-appearance-token-color-text-secondary);
+      color: var(--bf-color-content-secondary);
     }
   }
 
@@ -632,11 +515,59 @@
     animation: bitfun-nav-session-spin 1s linear infinite;
   }
 
-  &__inline-toggle-dots {
-    letter-spacing: 1px;
-    font-size: var(--bf-appearance-token-font-size-sm);
-    line-height: 1;
-    opacity: 0.7;
+  // Trailing, not leading: a leading icon would push the label off the rail by
+  // its own width, which is exactly the misalignment this rail is here to stop.
+  &__inline-toggle-chevron {
+    flex: 0 0 auto;
+    opacity: 0.65;
+    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                transform var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
+  }
+
+  // Grows to fill the row so the count chip and chevron ride the trailing edge,
+  // with or without a chip (the "show less" state has none).
+  &__inline-toggle-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // Count badge, not a second button: it never takes the pointer on its own and
+  // stays visually quieter than the label it annotates.
+  &__inline-toggle-count {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    height: 15px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--bf-color-content-primary) 9%, transparent);
+    color: var(--bf-color-content-secondary);
+    font-size: var(--bf-font-size-meta);
+    font-weight: var(--bf-font-weight-semibold);
+    font-variant-numeric: tabular-nums;
+    line-height: var(--bf-line-height-none);
+    transition: background var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
+  }
+
+  &__inline-toggle:hover &__inline-toggle-chevron,
+  &__inline-toggle:focus-visible &__inline-toggle-chevron {
+    opacity: 1;
+    transform: translateY(1px);
+  }
+
+  &__inline-toggle[data-session-nav-toggle-action='show-less']:hover &__inline-toggle-chevron,
+  &__inline-toggle[data-session-nav-toggle-action='show-less']:focus-visible &__inline-toggle-chevron {
+    transform: translateY(-1px);
+  }
+
+  &__inline-toggle:hover &__inline-toggle-count,
+  &__inline-toggle:focus-visible &__inline-toggle-count {
+    background: color-mix(in srgb, var(--bf-color-accent-default) 22%, transparent);
+    color: var(--bf-color-content-primary);
   }
 
   &__inline-item-edit-btn {
@@ -649,20 +580,20 @@
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: var(--bf-appearance-token-color-text-primary);
+    color: var(--bf-color-content-primary);
     cursor: pointer;
     flex-shrink: 0;
-    transition: color $motion-fast $easing-standard,
-                background $motion-fast $easing-standard;
+    transition: color var(--bf-motion-duration-fast) var(--bf-motion-easing-standard),
+                background var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
 
     &.confirm:hover {
-      color: var(--bf-appearance-token-color-success);
-      background: color-mix(in srgb, var(--bf-appearance-token-color-success) 12%, transparent);
+      color: var(--bf-color-status-success-content);
+      background: color-mix(in srgb, var(--bf-color-status-success-content) 12%, transparent);
     }
 
     &.cancel:hover {
-      color: var(--bf-appearance-token-color-text-primary);
-      background: color-mix(in srgb, var(--bf-appearance-token-color-text-primary) 10%, transparent);
+      color: var(--bf-color-content-primary);
+      background: color-mix(in srgb, var(--bf-color-content-primary) 10%, transparent);
     }
   }
 
@@ -672,12 +603,12 @@
     border-radius: 50%;
 
     &.is-running {
-      color: var(--bf-appearance-token-color-success);
+      color: var(--bf-color-status-success-content);
       fill: currentColor;
     }
 
     &.is-stopped {
-      color: var(--bf-appearance-token-color-text-muted);
+      color: var(--bf-color-content-muted);
       fill: transparent;
       stroke: currentColor;
     }
@@ -686,13 +617,13 @@
   // Inline item badge (count / status text)
   &__inline-item-badge {
     flex-shrink: 0;
-    font-size: var(--bf-appearance-token-font-size-xxs);
-    line-height: 1;
-    color: var(--bf-appearance-token-color-text-muted);
+    font-size: var(--bf-font-size-micro);
+    line-height: var(--bf-line-height-none);
+    color: var(--bf-color-content-muted);
     margin-left: auto;
     padding: 1px 4px;
     border-radius: 3px;
-    background: color-mix(in srgb, var(--bf-appearance-token-color-text-muted) 12%, transparent);
+    background: color-mix(in srgb, var(--bf-color-content-muted) 12%, transparent);
 
     &--dim {
       opacity: 0.55;
@@ -709,13 +640,13 @@
     margin-left: auto;
 
     &.is-healthy {
-      background: var(--bf-appearance-token-color-success);
-      box-shadow: 0 0 4px color-mix(in srgb, var(--bf-appearance-token-color-success) 40%, transparent);
+      background: var(--bf-color-status-success-content);
+      box-shadow: 0 0 4px color-mix(in srgb, var(--bf-color-status-success-content) 40%, transparent);
     }
 
     &.is-error {
-      background: var(--bf-appearance-token-color-warning);
-      box-shadow: 0 0 4px color-mix(in srgb, var(--bf-appearance-token-color-warning) 40%, transparent);
+      background: var(--bf-color-status-warning-content);
+      box-shadow: 0 0 4px color-mix(in srgb, var(--bf-color-status-warning-content) 40%, transparent);
     }
   }
 
@@ -724,13 +655,6 @@
     opacity: 0.5;
   }
 
-  // Unhealthy MCP server indicator
-  &__inline-item.is-unhealthy {
-    .bitfun-nav-panel__inline-item-icon {
-      color: var(--bf-appearance-token-color-warning);
-      opacity: 0.9;
-    }
-  }
 }
 
 // Session running spin animation
@@ -740,18 +664,6 @@
   }
   to {
     transform: rotate(360deg);
-  }
-}
-
-@keyframes bitfun-nav-ask-user-pulse {
-  0%,
-  100% {
-    opacity: 0.9;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.12);
   }
 }
 
@@ -785,20 +697,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .bitfun-nav-panel {
-    &__inline-item,
-    &__inline-action {
+    &__inline-item {
       transition: none;
     }
-  }
-
-  .bitfun-nav-panel__inline-item-icon.is-running {
-    animation: none;
-    opacity: 0.8;
-  }
-
-  .bitfun-nav-panel__inline-item-icon.is-ask-user {
-    animation: none;
-    opacity: 0.9;
   }
 
   .bitfun-nav-panel__inline-item-review-badge svg {
@@ -818,43 +719,20 @@
     }
   }
 
-  .bitfun-nav-panel__items--session-blocks .bitfun-nav-panel__inline-item:hover .bitfun-nav-panel__inline-item-icon:not(.is-running):not(.is-ask-user) {
-    transform: scale(1);
-  }
-
-  .bitfun-nav-panel__items--session-blocks .bitfun-nav-panel__inline-item-icon:not(.is-running):not(.is-ask-user) {
-    transition: opacity $motion-fast $easing-standard;
-  }
 }
 
 // Compact session rows share the shell's 6px radius and 120ms physical press
 // response. Running/attention motion remains because it communicates state.
 .bitfun-nav-panel {
   &__inline-list {
-    margin: 0 6px 0 $size-gap-3;
+    margin: 0 6px 0 var(--bf-space-3);
     padding: 2px 0;
-  }
-
-  &__inline-action {
-    height: 26px;
-    border-style: solid;
-    border-radius: $size-radius-sm;
-    color: var(--bf-appearance-token-color-text-muted);
-    transition:
-      transform 120ms cubic-bezier(0.23, 1, 0.32, 1),
-      border-color 120ms ease,
-      background 120ms ease,
-      color 120ms ease;
-
-    &:active {
-      transform: scale(0.985);
-    }
   }
 
   &__inline-item {
     height: 28px;
-    padding: 0 6px;
-    border-radius: $size-radius-sm;
+    padding: 0 6px 0 var(--bf-nav-session-rail);
+    border-radius: var(--bf-radius-sm);
     transition:
       transform 120ms cubic-bezier(0.23, 1, 0.32, 1),
       background 120ms ease,
@@ -862,17 +740,13 @@
 
     &:active:not(.is-disabled) {
       transform: scale(0.99);
-      background: var(--bf-appearance-token-element-bg-medium);
+      background: var(--bf-color-action-neutral-surface-hover);
     }
 
     &.is-active {
-      background: transparent;
+      background: var(--bf-color-action-quiet-hover);
       box-shadow: none;
     }
-  }
-
-  &__items--session-blocks &__inline-item:hover &__inline-item-icon:not(.is-running):not(.is-ask-user) {
-    transform: none;
   }
 
   &__inline-item-actions {
@@ -882,9 +756,8 @@
   }
 
   &__inline-item-action-btn,
-  &__inline-toggle,
   &__inline-item-edit-btn {
-    border-radius: $size-radius-sm;
+    border-radius: var(--bf-radius-sm);
     transition:
       transform 120ms cubic-bezier(0.23, 1, 0.32, 1),
       background 120ms ease,
@@ -895,47 +768,107 @@
     }
   }
 
-  &__inline-item-menu-popover {
-    border-color: var(--bf-appearance-token-border-medium);
-    border-radius: $size-radius-lg;
-    box-shadow: 0 14px 42px -12px var(--bf-appearance-token-color-overlay-black-30);
-    transform-origin: top right;
-    animation: bitfun-session-popover-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both;
-  }
-
-  &__inline-item-menu-item {
-    border-radius: $size-radius-sm;
+  // Press feedback matches a full-width row, not the 20px icon buttons: the
+  // icon-button 0.94 squish travels far too much across the panel width.
+  &__inline-toggle {
+    border-radius: var(--bf-radius-sm);
     transition:
       transform 120ms cubic-bezier(0.23, 1, 0.32, 1),
       background 120ms ease,
       color 120ms ease;
 
-    &:active {
-      transform: scale(0.985);
+    &:active:not(:disabled) {
+      transform: scale(0.99);
+      background: var(--bf-color-action-neutral-surface-hover);
     }
   }
-}
 
-@keyframes bitfun-session-popover-in {
-  from {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .bitfun-nav-panel__inline-action:hover,
   .bitfun-nav-panel__inline-item:hover {
-    background: var(--bf-appearance-token-element-bg-soft);
+    background: var(--bf-color-action-quiet-hover);
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .bitfun-nav-panel__inline-item-menu-popover {
-    animation: none;
+
+// Match the primary navigation's readable text scale and 30px row rhythm while
+// retaining the existing nested/flat session geometry.
+.bitfun-nav-panel {
+  &__inline-list {
+    padding-block: 0;
+    // Rail for this rhythm: rows previously hard-coded `padding: 0 6px`.
+    --bf-nav-session-rail: 8px;
+  }
+
+  &__inline-item {
+    height: 30px;
+    gap: var(--bf-space-2);
+    padding-right: var(--bf-space-2);
+    border-radius: var(--bf-radius-base);
+    @include nav-font.nav-panel-text-row;
+
+    &:hover,
+    &:focus-visible,
+    &.is-menu-open {
+      @include nav-font.nav-panel-text-heading;
+    }
+
+    &:hover {
+      @include shell-surfaces.navigation-hover-feedback;
+    }
+
+    &.is-active {
+      @include nav-font.nav-panel-text-row-active;
+      @include shell-surfaces.navigation-selection-feedback;
+    }
+
+    &.is-child {
+      height: 30px;
+      margin-top: 0;
+      font-size: var(--bf-font-size-sm);
+    }
+
+    &.is-assistant-session {
+      height: auto;
+      min-height: 42px;
+    }
+  }
+
+  &__inline-item-label {
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+  }
+
+  &__inline-item.is-active &__inline-item-label {
+    color: var(--bf-color-content-primary);
+    font-weight: inherit;
+  }
+
+  &__inline-item-assistant-name,
+  &__inline-item-workspace-name {
+    @include nav-font.nav-panel-text-meta;
+
+    font-size: var(--bf-font-size-meta);
+    line-height: var(--bf-line-height-base);
+  }
+
+  &__inline-toggle {
+    height: 32px;
+    @include nav-font.nav-panel-text-meta;
+
+    font-size: var(--bf-font-size-xs);
+    line-height: var(--bf-line-height-base);
+
+    &:hover,
+    &:focus-visible {
+      @include nav-font.nav-panel-text-body;
+    }
+  }
+
+  &__inline-item-action-btn,
+  &__inline-item-edit-btn {
+    @include nav-font.nav-panel-text-icon;
   }
 }

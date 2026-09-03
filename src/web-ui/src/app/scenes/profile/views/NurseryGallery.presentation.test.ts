@@ -9,41 +9,79 @@ function readSibling(filename: string): string {
   ).replace(/\r\n/g, '\n');
 }
 
-describe('Nursery gallery panda presentation', () => {
-  it('layers a dedicated wink frame over the stable panda avatar', () => {
+describe('Nursery gallery presentation', () => {
+  it('uses the curated assistant artwork without loading the unused source pack', () => {
     const source = readSibling('./NurseryGallery.tsx');
 
-    expect(source).toContain('src="/panda_1.png"');
-    expect(source).toContain('src="/panda_wink.png"');
-    expect(source).toContain('nursery-defaults__avatar-image--wink');
+    expect(source).toContain('src="/assets/assistant/defaults-illustration.webp"');
+    expect(source).toContain('src="/assets/assistant/gallery-companion.webp"');
+    expect(source).not.toContain('/panda_1.png');
+    expect(source).not.toContain('/panda_wink.png');
   });
 
-  it('keeps the wink local to the panda and disables it for reduced motion', () => {
+  it('keeps the gallery surface white and collapses the decorative column responsively', () => {
     const stylesheet = readSibling('./NurseryView.scss');
-    const reducedMotionStart = stylesheet.indexOf('@media (prefers-reduced-motion: reduce)');
-    const reducedMotionEnd = stylesheet.indexOf('// ── Responsive', reducedMotionStart);
-    const reducedMotionSection = stylesheet.slice(reducedMotionStart, reducedMotionEnd);
 
     expect(stylesheet).toMatch(
-      /\.nursery-defaults__avatar:hover \.nursery-defaults__avatar-art[\s\S]*nursery-panda-wink-tilt/,
+      /\.nursery-gallery \{\s+background: var\(--bf-color-content-on-dark\);/,
     );
-    expect(stylesheet).toContain('@keyframes nursery-panda-wink-frame');
-    expect(stylesheet).toMatch(/&--wink \{\s+opacity: 0;/);
-    expect(reducedMotionSection).toContain('.nursery-defaults__avatar-art');
-    expect(reducedMotionSection).toContain('.nursery-defaults__avatar-image--wink');
-    expect(reducedMotionSection).toContain('animation: none;');
+    expect(stylesheet).toContain('.nursery-gallery__assistant-showcase--with-companion');
+    expect(stylesheet).toContain('grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));');
+    expect(stylesheet).toMatch(
+      /@media \(max-width: 1100px\)[\s\S]*\.nursery-gallery__companion \{\s+display: none;/,
+    );
+  });
+
+  it('uses a compact layered pill for the default configuration action', () => {
+    const source = readSibling('./NurseryGallery.tsx');
+    const stylesheet = readSibling('./NurseryView.scss');
+    const actionMarkupEnd = source.indexOf('className="nursery-defaults__action"');
+    const actionMarkupStart = source.lastIndexOf('<button', actionMarkupEnd);
+    const actionMarkup = source.slice(actionMarkupStart, source.indexOf('</button>', actionMarkupEnd));
+    const actionStart = stylesheet.indexOf('&__action {');
+    const actionEnd = stylesheet.indexOf('\n  }\n}', actionStart);
+    const actionSection = stylesheet.slice(actionStart, actionEnd);
+
+    expect(source).toContain('className="nursery-defaults__action-icon"');
+    expect(source).toContain('className="nursery-defaults__action-label"');
+    expect(source).toContain('className="nursery-defaults__action-chevron"');
+    expect(actionMarkup).toContain('<button');
+    expect(actionMarkup).not.toContain('data-bf-component');
+    expect(actionMarkup).not.toContain('variant=');
+    expect(actionSection).toContain('width: 168px;');
+    expect(actionSection).toContain('height: 48px;');
+    expect(actionSection).toContain('border: 0;');
+    expect(actionSection).toContain('border-radius: var(--bf-radius-pill);');
+    expect(actionSection).toContain('width: 44px;');
+    expect(actionSection).toContain('background-image: radial-gradient(');
+    expect(actionSection).toContain('mask-image: radial-gradient(');
   });
 
   it('keeps assistant card content and actions in bounded regions', () => {
+    const source = readSibling('./AssistantCard.tsx');
     const stylesheet = readSibling('./NurseryView.scss');
     const cardStart = stylesheet.indexOf('.assistant-card {');
     const cardEnd = stylesheet.indexOf('// ── Sub-page chrome', cardStart);
     const cardSection = stylesheet.slice(cardStart, cardEnd);
 
     expect(cardSection).toContain('&__main {');
-    expect(cardSection).toContain('padding: $size-gap-4;');
-    expect(cardSection).toContain('padding: 6px $size-gap-3;');
-    expect(cardSection).toContain('border-top: 1px solid var(--bf-appearance-token-border-subtle);');
+    expect(cardSection).toContain('min-height: 168px;');
+    expect(cardSection).toContain('padding: var(--bf-space-3) 14px;');
+    expect(cardSection).toContain('min-height: 52px;');
+    expect(cardSection).toContain('&__session-actions {');
+    expect(cardSection).toContain('border-top: 1px solid color-mix(in srgb, var(--bf-color-content-on-light) 12%, transparent);');
+    expect(cardSection).not.toContain('min-height: clamp(310px, 23.8vw, 366px);');
     expect(cardSection).not.toContain('height: 100%;');
+    expect(cardSection).not.toContain('--assistant-card-action-bg');
+    expect(cardSection).not.toContain('&__new-session-btn {');
+    expect(cardSection).not.toContain('&__set-primary-btn {');
+    expect(cardSection).not.toContain('&__delete-btn {');
+    expect(source).toMatch(/import \{[^}]*\bButton\b[^}]*} from '@bitfun\/ui';/);
+    expect(source).toContain('leadingIcon={<Icon name="settings"');
+    expect(source).toContain('trailingIcon={<Icon name="chevron-right"');
+    expect(source).toContain('leadingIcon={<MessageSquarePlus />}');
+    expect(source).toContain('className="assistant-card__configure"');
+    expect(source).toContain('className="assistant-card__session-actions"');
+    expect(source).not.toContain('className="assistant-card__body"');
   });
 });

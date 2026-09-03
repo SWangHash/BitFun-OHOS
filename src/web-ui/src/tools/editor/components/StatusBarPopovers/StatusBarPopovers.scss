@@ -2,28 +2,22 @@
  * Status bar popover styles (Cursor/VS Code style).
  * Small popover, fade-in + subtle scale animation.
  */
-
- @use '@/component-library/styles/tokens' as *;
+ @use '@/shared/styles/surface-recipes' as surfaces;
 
  $popover-z: 360;
  $popover-gap: 4px;
- $popover-radius: 6px;
- $popover-shadow: 0 4px 16px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.35);
-
  .status-bar-popover {
+   @include surfaces.floating;
+
    position: fixed;
    z-index: $popover-z;
    min-width: 200px;
    max-width: 320px;
-   background: var(--bf-appearance-token-color-bg-elevated);
-   border: 1px solid var(--bf-appearance-token-border-subtle);
-   border-radius: $popover-radius;
-   box-shadow: $popover-shadow;
-   font-size: 12px;
-   font-family: $font-family-sans;
-   color: var(--bf-appearance-token-color-text-primary);
+   font-size: var(--bf-font-size-xs);
+   font-family: var(--bf-font-family-sans);
+   color: var(--bf-color-content-primary);
    transform: translateY(-100%);
-   animation: status-bar-popover-enter 0.15s $easing-decelerate forwards;
+   animation: status-bar-popover-enter 0.15s var(--bf-motion-easing-decelerate) forwards;
 
    &__input-wrap {
      padding: 8px 10px;
@@ -31,79 +25,26 @@
 
    &__input {
     width: 100%;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 4px;
 
-    .bitfun-input-container {
-      height: 28px;
-      padding: 0 8px;
-      border-radius: 4px;
-    }
-
-    .bitfun-input {
-      font-size: 12px;
-      font-family: $font-family-mono;
+    input {
+      font-size: var(--bf-font-size-xs);
+      font-family: var(--bf-font-family-mono);
     }
    }
 
    &__list {
      max-height: 280px;
-     overflow-y: auto;
-     padding: 4px 0;
-   }
-
-   &__item {
-    display: flex;
-     align-items: center;
-    justify-content: flex-start;
-    width: 100%;
-    height: auto;
-    min-height: 30px;
-    border-radius: 0;
-    border: none;
-    box-shadow: none;
-     padding: 6px 12px;
-     cursor: pointer;
-     white-space: nowrap;
-     transition: background 0.1s ease;
-    font-size: 12px;
-    font-weight: 400;
-    color: var(--bf-appearance-token-color-text-primary);
-
-     &:hover {
-       background: var(--bf-appearance-token-color-overlay-white-08);
-     }
-
-    &:focus-visible {
-      outline: none;
-      background: var(--bf-appearance-token-color-overlay-white-12);
-    }
-
-     &--active {
-       background: var(--bf-appearance-token-color-overlay-white-12);
-       color: var(--bf-appearance-token-color-accent-400);
-     }
-   }
-
-   &__item-icon {
-     display: inline-flex;
-     align-items: center;
-     justify-content: center;
-     width: 18px;
-     height: 18px;
-     margin-right: 8px;
-     flex-shrink: 0;
-     color: var(--bf-appearance-token-color-text-muted);
-     opacity: 0.9;
-   }
-
-   .status-bar-popover__item--active &__item-icon {
-     color: var(--bf-appearance-token-color-accent-400);
+     padding: var(--bf-overlay-menu-surface-padding);
    }
 
    &__hint {
      padding: 6px 12px;
-     font-size: 11px;
-     color: var(--bf-appearance-token-color-text-muted);
-     border-bottom: 1px solid var(--bf-appearance-token-border-subtle);
+     font-size: var(--bf-font-size-meta);
+     color: var(--bf-color-content-muted);
+     border-bottom: 1px solid var(--bf-color-border-subtle);
    }
  }
 

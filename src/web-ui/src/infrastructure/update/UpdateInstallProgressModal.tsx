@@ -2,8 +2,17 @@
  * Full-screen style modal showing download progress for in-app updates.
  */
 
+import {
+  Alert,
+  Button,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useMemo } from 'react';
-import { Modal, Alert, Button } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';
 import type { UpdateDownloadProgressPayload } from './installUpdateWithProgress';
 import { formatUpdateInstallError } from './updateErrorMessage';
@@ -56,7 +65,7 @@ export const UpdateInstallProgressModal: React.FC<UpdateInstallProgressModalProp
     body = (
       <div data-bf-component="update" data-bf-part="alert">
         <Alert
-          type="error"
+          tone="error"
           message={errorMessage}
           showIcon
           className="bitfun-update-progress__alert"
@@ -68,17 +77,17 @@ export const UpdateInstallProgressModal: React.FC<UpdateInstallProgressModalProp
       <>
         <div data-bf-component="update" data-bf-part="alert">
           <Alert
-            type="success"
+            tone="success"
             message={t('update.installedMessage')}
             showIcon
             className="bitfun-update-progress__alert"
           />
         </div>
         <div className="bitfun-update-progress__actions" data-bf-component="update" data-bf-part="actions">
-          <Button variant="secondary" size="medium" onClick={onCloseInstalled}>
+          <Button variant="outline" size="md" onClick={onCloseInstalled}>
             {t('update.restartLater')}
           </Button>
-          <Button variant="primary" size="medium" onClick={onRestart}>
+          <Button variant="fill" size="md" onClick={onRestart}>
             {t('update.restartNow')}
           </Button>
         </div>
@@ -120,13 +129,18 @@ export const UpdateInstallProgressModal: React.FC<UpdateInstallProgressModalProp
   }
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={title}
-      showCloseButton={!!error || !!installed}
-      size="small"
+    <Dialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}
+      size="sm"
     >
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeading>
+        {!!error || !!installed && <DialogClose />}
+      </DialogHeader>
+      <DialogBody inset="none">
       <div
         className="bitfun-update-progress"
         data-bf-component="update"
@@ -135,6 +149,7 @@ export const UpdateInstallProgressModal: React.FC<UpdateInstallProgressModalProp
       >
         {body}
       </div>
-    </Modal>
+          </DialogBody>
+    </Dialog>
   );
 };

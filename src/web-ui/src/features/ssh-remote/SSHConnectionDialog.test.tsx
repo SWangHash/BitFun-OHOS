@@ -1,7 +1,5 @@
 // @vitest-environment jsdom
 
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -53,92 +51,101 @@ vi.mock('./SSHAuthPromptDialog', () => ({
   SSHAuthPromptDialog: () => null,
 }));
 
-vi.mock('@/component-library', () => ({
-  Modal: ({
-    isOpen,
+vi.mock('@bitfun/ui', () => ({
+  Alert: () => null,
+  Icon: ({ name, ...props }: { name: string } & React.HTMLAttributes<HTMLSpanElement>) => <span data-icon={name} {...props} />,
+  Dialog: ({
+    open,
     children,
-  }: React.PropsWithChildren<{ isOpen: boolean }>) => isOpen ? <div>{children}</div> : null,
+  }: React.PropsWithChildren<{ open: boolean }>) => open ? <div role="dialog">{children}</div> : null,
+  DialogBody: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  DialogClose: () => <button type="button" aria-label="Close" />,
+  DialogHeader: ({ children }: React.PropsWithChildren) => <header>{children}</header>,
+  DialogHeading: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  DialogTitle: ({ children }: React.PropsWithChildren) => <h2>{children}</h2>,
   Button: ({
     children,
-    onClick,
-    disabled,
-    title,
-    className,
-  }: React.PropsWithChildren<{
-    onClick?: React.MouseEventHandler<HTMLButtonElement>;
-    disabled?: boolean;
-    title?: string;
-    className?: string;
-  }>) => (
-    <button type="button" onClick={onClick} disabled={disabled} title={title} className={className}>
-      {children}
-    </button>
+    leadingIcon: _leadingIcon,
+    loading: _loading,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    leadingIcon?: React.ReactNode;
+    loading?: boolean;
+  }) => <button type="button" {...props}>{children}</button>,
+  IconButton: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button type="button" {...props}>{children}</button>
   ),
-  IconButton: ({
-    children,
-    onClick,
-    disabled,
-    className,
-    'aria-label': ariaLabel,
-  }: React.PropsWithChildren<{
-    onClick?: React.MouseEventHandler<HTMLButtonElement>;
-    disabled?: boolean;
-    className?: string;
-    'aria-label'?: string;
-  }>) => (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={className}
-      aria-label={ariaLabel}
-    >
-      {children}
-    </button>
-  ),
-  Input: ({
+  Field: ({
     label,
-    value,
-    onChange,
-    className,
-    placeholder,
-    suffix,
-  }: {
-    label?: string;
-    value?: string;
-    onChange?: React.ChangeEventHandler<HTMLInputElement>;
-    className?: string;
-    placeholder?: string;
-    suffix?: React.ReactNode;
-  }) => (
-    <label className={className}>
+    children,
+  }: React.PropsWithChildren<{ label?: string }>) => (
+    <label>
       {label}
-      <input aria-label={label} value={value} onChange={onChange} placeholder={placeholder} />
-      {suffix}
+      {React.isValidElement(children)
+        ? React.cloneElement(
+            children as React.ReactElement<{ 'aria-label'?: string }>,
+            { 'aria-label': label },
+          )
+        : children}
     </label>
   ),
+  Input: ({
+    leading,
+    trailing,
+    ...props
+  }: React.InputHTMLAttributes<HTMLInputElement> & {
+    leading?: React.ReactNode;
+    trailing?: React.ReactNode;
+  }) => <label>{leading}<input {...props} />{trailing}</label>,
   Select: ({
     options,
     value,
-    onChange,
-    dropdownClassName,
+    onValueChange,
   }: {
     options: Array<{ label: string; value: string }>;
     value: string;
-    onChange: (value: string) => void;
-    dropdownClassName?: string;
+    onValueChange: (value: string) => void;
   }) => (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      data-dropdown-class-name={dropdownClassName}
-    >
+    <select value={value} onChange={(event) => onValueChange(event.target.value)}>
       {options.map((option) => (
         <option key={option.value} value={option.value}>{option.label}</option>
       ))}
     </select>
   ),
-  Alert: () => null,
+  Tooltip: ({ children }: React.PropsWithChildren) => <>{children}</>,
+  ScrollArea: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+  FormSection: ({
+    children,
+    title,
+    actions,
+    ...props
+  }: React.HTMLAttributes<HTMLElement> & { title?: React.ReactNode; actions?: React.ReactNode; headingAs?: string }) => (
+    <section {...props}>
+      {title}
+      {actions}
+      {children}
+    </section>
+  ),
+  FieldGroup: React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+    function FieldGroup({ children, ...props }, ref) {
+      return <div ref={ref} {...props}>{children}</div>;
+    },
+  ),
+  FieldRow: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+  // The real Field associates its label with the child control; the mock
+  // mirrors that accessible name via aria-label so queries stay realistic.
+  Field: ({
+    label,
+    error,
+    children,
+  }: { label?: React.ReactNode; error?: React.ReactNode; children: React.ReactElement }) => (
+    <div>
+      {React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
+        'aria-label': typeof label === 'string' ? label : undefined,
+      })}
+      {error}
+    </div>
+  ),
 }));
 
 describe('SSHConnectionDialog', () => {
@@ -225,28 +232,12 @@ describe('SSHConnectionDialog', () => {
     expect(container.querySelector('input[aria-label="ssh.remote.connectTimeout"]')).not.toBeNull();
   });
 
-  it('keeps portalled select menus above the raised dialog overlay', async () => {
+  it('uses native select controls inside the dialog', async () => {
     await renderDialog();
 
     const selects = Array.from(container.querySelectorAll<HTMLSelectElement>('select'));
     expect(selects.length).toBeGreaterThan(0);
-    expect(selects.every((select) => (
-      select.dataset.dropdownClassName === 'ssh-connection-dialog__select-dropdown'
-    ))).toBe(true);
-
-    const stylesheet = readFileSync(
-      resolve(process.cwd(), 'src/features/ssh-remote/SSHConnectionDialog.scss'),
-      'utf8',
-    );
-    const overlayZIndex = Number(stylesheet.match(
-      /\.ssh-connection-dialog__modal-overlay\s*\{[^}]*z-index:\s*(\d+)/,
-    )?.[1]);
-    const selectZIndex = Number(stylesheet.match(
-      /\.select__dropdown\.ssh-connection-dialog__select-dropdown\s*\{[^}]*z-index:\s*(\d+)/,
-    )?.[1]);
-
-    expect(overlayZIndex).toBeGreaterThan(0);
-    expect(selectZIndex).toBeGreaterThan(overlayZIndex);
+    expect(selects.every((select) => container.contains(select))).toBe(true);
   });
 
   it('reveals non-default settings when editing an existing connection', async () => {

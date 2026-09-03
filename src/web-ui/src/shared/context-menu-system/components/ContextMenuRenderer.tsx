@@ -1,13 +1,10 @@
 import React from 'react';
+import { Icon, type IconName } from '@bitfun/ui';
 import {
   Archive,
   ArchiveRestore,
   Clipboard,
   Code,
-  Copy,
-  Download,
-  Edit,
-  ExternalLink,
   FileInput,
   FileOutput,
   FilePlus,
@@ -18,19 +15,27 @@ import {
   Highlighter,
   Lightbulb,
   List,
-  MessageSquare,
   MessageSquarePlus,
   Navigation,
   PanelRightOpen,
-  Pin,
-  Plus,
-  RefreshCw,
   Scissors,
-  Search,
-  Trash2,
-  X,
   type LucideIcon,
 } from 'lucide-react';
+
+const CONTEXT_MENU_CATALOG: Record<string, IconName> = {
+  Copy: 'duplicate',
+  Download: 'arrow-down',
+  Trash2: 'delete',
+  ChevronLeft: 'chevron-left',
+  Edit: 'edit',
+  ExternalLink: 'arrow-up-right',
+  MessageSquare: 'side-chat',
+  Pin: 'pin',
+  Plus: 'plus',
+  Search: 'search',
+  RefreshCw: 'refresh',
+  X: 'xmark',
+};
 import { ContextMenu } from './ui/ContextMenu';
 import { useContextMenuStore } from '../store/ContextMenuStore';
 import { MenuItem as SystemMenuItem } from '../types/menu.types';
@@ -41,10 +46,6 @@ const CONTEXT_MENU_ICONS = {
   ArchiveRestore,
   Clipboard,
   Code,
-  Copy,
-  Download,
-  Edit,
-  ExternalLink,
   FileInput,
   FileOutput,
   FilePlus,
@@ -55,17 +56,10 @@ const CONTEXT_MENU_ICONS = {
   Highlighter,
   Lightbulb,
   List,
-  MessageSquare,
   MessageSquarePlus,
   Navigation,
   PanelRightOpen,
-  Pin,
-  Plus,
-  RefreshCw,
   Scissors,
-  Search,
-  Trash2,
-  X,
 } satisfies Record<string, LucideIcon>;
 
 function getIconComponent(icon: any): string | React.ReactNode | undefined {
@@ -76,6 +70,11 @@ function getIconComponent(icon: any): string | React.ReactNode | undefined {
   }
 
   if (typeof icon === 'string') {
+    const catalogName = CONTEXT_MENU_CATALOG[icon];
+    if (catalogName) {
+      return React.createElement(Icon, { name: catalogName, size: 'md' });
+    }
+
     const IconComponent = CONTEXT_MENU_ICONS[icon as keyof typeof CONTEXT_MENU_ICONS];
     if (IconComponent) {
       return React.createElement(IconComponent, { size: 16 });

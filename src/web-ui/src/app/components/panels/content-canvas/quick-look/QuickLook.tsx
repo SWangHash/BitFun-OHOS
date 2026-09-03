@@ -16,13 +16,12 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
-import { X, Pin, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Tooltip } from '@/component-library';
-import { useDismissibleLayer } from '@/infrastructure/hooks/useDismissibleLayer';
+
 import FlexiblePanel from '../../base/FlexiblePanel';
 import type { PanelContent } from '../types';
 import './QuickLook.scss';
+import { Icon, Tooltip, useDismissibleLayer } from '@bitfun/ui';
 
 export interface QuickLookProps {
   /** Whether visible */
@@ -57,9 +56,9 @@ export const QuickLook: React.FC<QuickLookProps> = ({
 
   useDismissibleLayer({
     enabled: isOpen,
+    layerRef: containerRef,
     scope: 'canvas',
     onDismiss: onClose,
-    id: 'canvas-quick-look',
   });
 
   // Adjust position to stay within viewport
@@ -97,27 +96,6 @@ export const QuickLook: React.FC<QuickLookProps> = ({
     if (!isOpen) return;
     containerRef.current?.focus({ preventScroll: true });
   }, [isOpen]);
-
-  // Close on outside click
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-
-    // Delay listener to avoid immediate trigger
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
-    }, 100);
-
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen, onClose]);
 
   // Content change handling
   const handleContentChange = useCallback((newContent: PanelContent | null) => {
@@ -167,7 +145,7 @@ export const QuickLook: React.FC<QuickLookProps> = ({
           {content.data?.filePath && (
             <Tooltip content={t('canvas.openFileLocation')}>
               <button className="canvas-quick-look__open-btn">
-                <ExternalLink size={12} />
+                <Icon name="arrow-up-right" size="xs" />
               </button>
             </Tooltip>
           )}
@@ -179,7 +157,7 @@ export const QuickLook: React.FC<QuickLookProps> = ({
               className="canvas-quick-look__action-btn canvas-quick-look__pin-btn"
               onClick={onPin}
             >
-              <Pin size={14} />
+              <Icon name="pin" size="sm" />
             </button>
           </Tooltip>
           
@@ -188,7 +166,7 @@ export const QuickLook: React.FC<QuickLookProps> = ({
               className="canvas-quick-look__action-btn canvas-quick-look__close-btn"
               onClick={onClose}
             >
-              <X size={14} />
+              <Icon name="xmark" size="sm" />
             </button>
           </Tooltip>
         </div>

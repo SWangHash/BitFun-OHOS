@@ -55,6 +55,7 @@ struct UpdaterManifestInfo {
 /// lives inside it, so fetching bytes by hand and calling `Update::install`
 /// would silently skip signature checking.
 async fn updater_endpoints_by_policy() -> Vec<tauri::Url> {
+    crate::ensure_rustls_crypto_provider();
     let client = match reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(5))
         .read_timeout(PROBE_WINDOW)
@@ -935,29 +936,29 @@ pub async fn startup_window_control(
                     .await
                     .unwrap_or_else(|_| "ask".to_string());
 
-                if behavior == "quit" {
-                    log::info!("Quit requested from startup window control");
-                    crate::save_main_window_state(&app);
-                    crate::perform_process_exit_cleanup().await;
-                    crate::crash_diagnostics::mark_clean_shutdown("startup_window_control");
-                    log::info!(
+            if behavior == "quit" {
+                log::info!("Quit requested from startup window control");
+                crate::save_main_window_state(&app, "startup_window_control_quit");
+                crate::perform_process_exit_cleanup().await;
+                crate::crash_diagnostics::mark_clean_shutdown("startup_window_control");
+                log::info!(
                     "Desktop exit authorized after graceful shutdown: reason=startup_window_control"
                 );
-                    app.exit(0);
-                } else {
-                    if let Err(error) = crate::tray::setup_tray(&app, &startup_trace) {
-                        log::warn!("Failed to initialize tray before startup close: {}", error);
-                    }
-                    window.hide().map_err(|error| {
-                        format!("Failed to hide main window during startup close: {}", error)
-                    })?;
-                    crate::appearance::keep_agent_companion_desktop_pet_visible(&app);
-                    log::info!("Main window hidden from startup window control");
+                app.exit(0);
+            } else {
+                if let Err(error) = crate::tray::setup_tray(&app, &startup_trace) {
+                    log::warn!("Failed to initialize tray before startup close: {}", error);
                 }
+                window.hide().map_err(|error| {
+                    format!("Failed to hide main window during startup close: {}", error)
+                })?;
+                log::info!("Main window hidden from startup window control");
             }
         }
-        Ok(())
     }
+
+    Ok(())
+}
 
     #[cfg(target_env = "ohos")]
     Err("Main window not found".to_string())

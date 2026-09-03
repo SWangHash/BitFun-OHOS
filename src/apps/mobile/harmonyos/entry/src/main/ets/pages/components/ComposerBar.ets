@@ -1,4 +1,6 @@
+import { KeyboardReleaseService } from '../../services/KeyboardReleaseService';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
+import { MobileDesignGeometry, MobileDesignMotion, MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { ChatComposerPolicy, ComposerPrimaryAction } from '../../services/ChatComposerPolicy';
 import { ChatComposerCapabilities, REMOTE_CHAT_COMPOSER_CAPABILITIES } from '../state/ChatComposerCapabilities';
 import {
@@ -7,19 +9,46 @@ import {
   ConversationUiSelectedImage
 } from '../state/ConversationUiModels';
 import { ConversationModelPresentationPolicy } from '../policy/ConversationModelPresentationPolicy';
-import { CARD, FLOATING_PANEL_BG, GREEN, INK, LINE, MUTED, RED, SOFT } from './Theme';
+import { TemplateIcon } from './TemplateIcon';
+import {
+  CARD,
+  INK,
+  LINE,
+  MEDIA_SCRIM,
+  MUTED,
+  SCRIM,
+  SHADOW_SUBTLE,
+  SOFT,
+  STATUS_SUCCESS,
+  TRANSPARENT
+} from './Theme';
 
 export enum ComposerPresentation {
   Compact = 'compact',
-  Floating = 'floating',
-  Create = 'create'
+  Floating = 'floating'
 }
 
-const COMPOSER_ACTION_SIZE: number = 40;
-const COMPOSER_INPUT_HEIGHT: number = 42;
-const COMPOSER_EXPANDED_INPUT_HEIGHT: number = 74;
-const COMPOSER_COLLAPSED_HEIGHT: number = 52;
-const COMPOSER_EXPANDED_HEIGHT: number = 126;
+const COMPOSER_ACTION_SIZE: number = MobileDesignGeometry.composerActionSize;
+/** ChatGPT's visible send circle is about 32pt inside a 44pt hit target. */
+const COMPOSER_PRIMARY_SURFACE_SIZE: number = 32;
+const COMPOSER_SEND_TRANSITION_DURATION: number = 200;
+const COMPOSER_INPUT_HEIGHT: number = MobileDesignGeometry.composerInputHeight;
+const COMPOSER_EXPANDED_INPUT_HEIGHT: number = MobileDesignGeometry.composerExpandedInputHeight;
+const COMPOSER_COLLAPSED_HEIGHT: number = MobileDesignGeometry.composerCollapsedHeight;
+// On a narrow phone, the 44vp controls should nearly fill the pill, matching
+// the compact ChatGPT composer instead of inheriting the roomier 56vp shell.
+const COMPOSER_COMPACT_COLLAPSED_HEIGHT: number = 52;
+// ArkUI's circular action is 44vp. The shared 40vp action-row token is too
+// short for this rendered control, so expand the Harmony row and its card by
+// the same delta instead of allowing the button to overflow the bottom edge.
+const COMPOSER_EXPANDED_ACTION_ROW_HEIGHT: number = Math.max(
+  MobileDesignGeometry.composerExpandedActionRowHeight,
+  COMPOSER_ACTION_SIZE
+);
+const COMPOSER_EXPANDED_HEIGHT: number = MobileDesignGeometry.composerExpandedHeight +
+  COMPOSER_EXPANDED_ACTION_ROW_HEIGHT - MobileDesignGeometry.composerExpandedActionRowHeight;
+/** Matches the compact reference's roughly eight-percent side inset. */
+const COMPOSER_COMPACT_HORIZONTAL_GUTTER: number = 32;
 const COMPOSER_IMAGE_CARD_SIZE: number = 64;
 const COMPOSER_IMAGE_STRIP_TOP_GAP: number = 6;
 /** Strip height plus its top gap and the parent Column's 2vp row spacing. */
@@ -34,6 +63,9 @@ export struct ComposerBar {
   @Param chatInput: string = '';
   @Local inputText: string = '';
   @Local inputFocused: boolean = false;
+  @Local primaryActionPressed: boolean = false;
+  @Local sendTransitionActive: boolean = false;
+  private sendTransitionTimerId: number = -1;
   @Param selectedImages: ConversationUiSelectedImage[] = [];
   @Param isBusy: boolean = false;
   @Param canStop: boolean = false;
@@ -47,6 +79,7 @@ export struct ComposerBar {
   @Param selectedModelId: string = '';
   @Local showModelSelectorSheet: boolean = false;
   @Local showModelSelectorPopover: boolean = false;
+  @Local isPreparingModelSelectorPopover: boolean = false;
   @Event onPickImages: () => void = () => {};
   @Event onRemoveImage: (imageId: string) => void = (_imageId: string) => {};
   @Event onSend: () => void = () => {};
@@ -57,6 +90,13 @@ export struct ComposerBar {
 
   aboutToAppear(): void {
     this.inputText = this.chatInput;
+  }
+
+  aboutToDisappear(): void {
+    if (this.sendTransitionTimerId >= 0) {
+      clearTimeout(this.sendTransitionTimerId);
+      this.sendTransitionTimerId = -1;
+    }
   }
 
   @Monitor('chatInput')
@@ -79,12 +119,12 @@ export struct ComposerBar {
     .constraintSize({ maxWidth: this.presentation === ComposerPresentation.Floating ? 760 : 10000 })
     .alignSelf(ItemAlign.Center)
     .padding({
-      left: this.presentation === ComposerPresentation.Floating ? 24 : 16,
-      right: this.presentation === ComposerPresentation.Floating ? 24 : 16,
+      left: this.presentation === ComposerPresentation.Floating ? 24 : COMPOSER_COMPACT_HORIZONTAL_GUTTER,
+      right: this.presentation === ComposerPresentation.Floating ? 24 : COMPOSER_COMPACT_HORIZONTAL_GUTTER,
       top: 8,
-      bottom: this.presentation === ComposerPresentation.Floating ? 18 : 14
+      bottom: this.presentation === ComposerPresentation.Floating ? 16 : 12
     })
-    .backgroundColor('#00000000')
+    .backgroundColor(TRANSPARENT)
     .bindSheet($$this.showModelSelectorSheet, this.ModelSelector(true), this.modelSelectorSheetOptions())
   }
 
@@ -116,7 +156,8 @@ export struct ComposerBar {
         .clip(true)
       }
       .width('100%')
-      .height(this.isComposerExpanded() ? 76 : 52)
+      .height(this.isComposerExpanded() ? MobileDesignGeometry.composerExpandedInputRowHeight :
+        this.collapsedComposerHeight())
 
       if (this.isComposerExpanded()) {
         Row({ space: 6 }) {
@@ -130,12 +171,12 @@ export struct ComposerBar {
           this.PrimaryActionButton()
         }
         .width('100%')
-        .height(44)
+        .height(COMPOSER_EXPANDED_ACTION_ROW_HEIGHT)
         .padding({ left: 2, right: 0 })
         .alignItems(VerticalAlign.Center)
         .transition(TransitionEffect.translate({ x: 0, y: 8 })
           .combine(TransitionEffect.opacity(0))
-          .animation({ duration: 180, curve: Curve.EaseOut }))
+          .animation({ duration: MobileDesignMotion.quick, curve: Curve.EaseOut }))
       }
     }
     .width('100%')
@@ -147,20 +188,21 @@ export struct ComposerBar {
       bottom: this.isComposerExpanded() ? 2 : 0
     })
     .backgroundColor(CARD)
+    .border({ width: this.presentation === ComposerPresentation.Compact ? 0.5 : 1, color: LINE })
     .borderRadius(this.composerRadius())
     .shadow({
-      radius: this.presentation === ComposerPresentation.Floating ? 18 : 10,
-      color: this.presentation === ComposerPresentation.Floating ? '#18000000' : '#0D000000',
-      offsetY: this.presentation === ComposerPresentation.Floating ? 6 : 2
+      radius: this.presentation === ComposerPresentation.Floating ? 14 : 18,
+      color: SHADOW_SUBTLE,
+      offsetY: this.presentation === ComposerPresentation.Floating ? 4 : 6
     })
-    .animation({ duration: 220, curve: Curve.EaseOut })
+    .animation({ duration: MobileDesignMotion.structure, curve: Curve.EaseOut })
   }
 
   @Builder
   ModelControl() {
     Row({ space: 3 }) {
       Text(this.displaySelectedModel())
-        .fontSize(13)
+        .fontSize(MobileDesignTypography.bodySmall.size)
         .fontWeight(FontWeight.Medium)
         .fontColor(INK)
         .maxLines(1)
@@ -174,19 +216,19 @@ export struct ComposerBar {
           .opacity(0.68)
       }
       .width(16)
-      .height(34)
+      .height(32)
     }
-    .height(34)
+    .height(32)
     .constraintSize({ maxWidth: 220 })
     .padding({ left: 4, right: 4 })
-    .backgroundColor('#00000000')
+    .backgroundColor(TRANSPARENT)
     .accessibilityText(`${RemoteI18n.t('chat.selectModel')} · ${this.displaySelectedModel()}`)
     .bindPopup(this.showModelSelectorPopover, {
       builder: () => {
         this.ModelSelector(false)
       },
       placement: Placement.Top,
-      popupColor: '#00000000',
+      popupColor: TRANSPARENT,
       enableArrow: false,
       autoCancel: true,
       mask: false,
@@ -199,7 +241,7 @@ export struct ComposerBar {
     })
     .onClick(() => {
       if (this.presentation === ComposerPresentation.Floating) {
-        this.showModelSelectorPopover = !this.showModelSelectorPopover;
+        this.toggleModelSelectorPopover();
       } else {
         this.showModelSelectorSheet = true;
       }
@@ -212,7 +254,7 @@ export struct ComposerBar {
       if (asSheet) {
         Row() {
           Text(RemoteI18n.t('chat.selectModel'))
-            .fontSize(13)
+            .fontSize(MobileDesignTypography.bodySmall.size)
             .fontWeight(FontWeight.Medium)
             .fontColor(MUTED)
           Blank()
@@ -231,7 +273,7 @@ export struct ComposerBar {
         .width('100%')
       }
 
-      List({ space: 6 }) {
+      List({ space: MobileDesignGeometry.composerModelSelectorRowGap }) {
         ForEach(this.selectorModels(), (model: ConversationUiModel) => {
           ListItem() {
             this.ModelRow(model)
@@ -244,12 +286,17 @@ export struct ComposerBar {
       .edgeEffect(EdgeEffect.Spring)
       .divider(null)
     }
-    .width(asSheet ? '100%' : 330)
+    .width(asSheet ? '100%' : MobileDesignGeometry.composerModelSelectorWidth)
     .padding({ left: 10, right: 10, top: 10, bottom: 10 })
-    .backgroundColor(asSheet ? CARD : FLOATING_PANEL_BG)
-    .borderRadius(asSheet ? { topLeft: 20, topRight: 20 } : 14)
-    .border({ width: asSheet ? 0 : 1, color: asSheet ? '#00000000' : LINE })
-    .shadow({ radius: asSheet ? 0 : 18, color: asSheet ? '#00000000' : '#18000000', offsetY: 7 })
+    .backgroundColor(CARD)
+    .borderRadius(asSheet ? { topLeft: 20, topRight: 20 } :
+      MobileDesignGeometry.composerModelSelectorRadius)
+    .border({ width: asSheet ? 0 : 0.5, color: asSheet ? TRANSPARENT : LINE })
+    .shadow({
+      radius: asSheet ? 0 : 18,
+      color: asSheet ? TRANSPARENT : SHADOW_SUBTLE,
+      offsetY: asSheet ? 0 : 7
+    })
   }
 
   @Builder
@@ -267,13 +314,13 @@ export struct ComposerBar {
 
       Column({ space: 2 }) {
         Text(ConversationModelPresentationPolicy.primaryLabel(model, RemoteI18n.t('chat.model')))
-          .fontSize(13)
+          .fontSize(MobileDesignTypography.bodySmall.size)
           .fontWeight(FontWeight.Medium)
           .fontColor(INK)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(ConversationModelPresentationPolicy.secondaryLabel(model, RemoteI18n.t('chat.model')))
-          .fontSize(11)
+          .fontSize(MobileDesignTypography.labelSmall.size)
           .fontColor(MUTED)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -282,10 +329,10 @@ export struct ComposerBar {
       .alignItems(HorizontalAlign.Start)
     }
     .width('100%')
-    .height(48)
+    .height(MobileDesignGeometry.composerModelSelectorRowHeight)
     .padding({ left: 10, right: 10 })
-    .backgroundColor(this.isSelectedModel(model) ? SOFT : '#00000000')
-    .borderRadius(9)
+    .backgroundColor(this.isSelectedModel(model) ? SOFT : TRANSPARENT)
+    .borderRadius(MobileDesignGeometry.composerModelSelectorRowRadius)
     .onClick(() => {
       this.closeModelSelector();
       this.onSelectModel(model.id);
@@ -320,16 +367,18 @@ export struct ComposerBar {
         .id(this.inputId)
         .layoutWeight(1)
         .height(this.isComposerExpanded() ? COMPOSER_EXPANDED_INPUT_HEIGHT : COMPOSER_INPUT_HEIGHT)
-        .fontSize(16)
+        .fontSize(MobileDesignTypography.bodyLarge.size)
+        .lineHeight(MobileDesignTypography.bodyLarge.lineHeight)
         .fontColor(INK)
-        .placeholderColor(this.isVoiceListening ? GREEN : MUTED)
-        .backgroundColor('#00000000')
+        .placeholderColor(this.isVoiceListening ? STATUS_SUCCESS : MUTED)
+        .backgroundColor(TRANSPARENT)
         .borderRadius(20)
+        .align(this.isComposerExpanded() ? Alignment.TopStart : Alignment.Start)
         .padding({
           left: this.isVoiceListening ? 0 : 4,
           right: 4,
-          top: this.isComposerExpanded() ? 10 : 9,
-          bottom: this.isComposerExpanded() ? 8 : 9
+          top: this.isComposerExpanded() ? 10 : 0,
+          bottom: this.isComposerExpanded() ? 8 : 0
         })
         .maxLines(this.isComposerExpanded() ? 4 : 1)
         .defaultFocus(false)
@@ -353,21 +402,37 @@ export struct ComposerBar {
     .height(this.isComposerExpanded() ? COMPOSER_EXPANDED_INPUT_HEIGHT : COMPOSER_INPUT_HEIGHT)
     .alignItems(VerticalAlign.Center)
     .padding({ left: this.isVoiceListening ? 12 : 0, right: 0 })
-    .backgroundColor(this.isVoiceListening ? SOFT : '#00000000')
+    .backgroundColor(this.isVoiceListening ? SOFT : TRANSPARENT)
     .borderRadius(20)
-    .border({ width: this.isVoiceListening ? 1 : 0, color: this.isVoiceListening ? GREEN : '#00000000' })
+    .border({ width: this.isVoiceListening ? 1 : 0, color: this.isVoiceListening ? STATUS_SUCCESS : TRANSPARENT })
   }
 
   @Builder
   PrimaryActionButton() {
     Button() {
       Stack({ alignContent: Alignment.Center }) {
-        if (this.primaryAction() === ComposerPrimaryAction.Stop) {
-          Text('')
-            .width(13)
-            .height(13)
-            .backgroundColor(CARD)
-            .borderRadius(3)
+        if (this.shouldShowActiveActionSurface()) {
+          Stack({ alignContent: Alignment.Center }) {
+            if (this.shouldShowStopGlyph()) {
+              Text('')
+                .width(10)
+                .height(10)
+                .backgroundColor(CARD)
+                .borderRadius(2.5)
+            } else {
+              TemplateIcon({
+                src: $r('app.media.gpt_composer_send_arrow'),
+                iconWidth: 16,
+                iconHeight: 18,
+                tint: CARD
+              })
+            }
+          }
+          .width(COMPOSER_PRIMARY_SURFACE_SIZE)
+          .height(COMPOSER_PRIMARY_SURFACE_SIZE)
+          .backgroundColor(this.activeActionSurfaceColor())
+          .borderRadius(COMPOSER_PRIMARY_SURFACE_SIZE / 2)
+          .animation({ duration: COMPOSER_SEND_TRANSITION_DURATION, curve: Curve.EaseOut })
         } else if (this.primaryAction() === ComposerPrimaryAction.Voice ||
           this.primaryAction() === ComposerPrimaryAction.VoiceBlocked) {
           this.MicrophoneGlyph()
@@ -375,21 +440,32 @@ export struct ComposerBar {
           SymbolGlyph($r('sys.symbol.arrow_up'))
             .fontSize(23)
             .fontWeight(FontWeight.Medium)
-            .fontColor([INK])
+            .fontColor([this.primaryActionForegroundColor()])
             .opacity(this.primaryAction() === ComposerPrimaryAction.Send ? 1 : 0.38)
         }
       }
-      .width(40)
-      .height(40)
+      .width(COMPOSER_ACTION_SIZE)
+      .height(COMPOSER_ACTION_SIZE)
     }
-    .width(40)
-    .height(40)
+    .width(COMPOSER_ACTION_SIZE)
+    .height(COMPOSER_ACTION_SIZE)
     .padding(0)
     .type(ButtonType.Circle)
-    .backgroundColor(this.actionBackgroundColor())
-    .borderRadius(20)
+    .backgroundColor(this.inactiveActionBackgroundColor())
+    .borderRadius(COMPOSER_ACTION_SIZE / 2)
+    .stateEffect(false)
     .accessibilityText(RemoteI18n.t(ChatComposerPolicy.primaryActionAccessibilityKey(
       this.primaryAction(), this.isVoiceListening)))
+    .onTouch((event: TouchEvent) => {
+      if (!this.shouldShowActiveActionSurface()) {
+        return;
+      }
+      if (event.type === TouchType.Down) {
+        this.primaryActionPressed = true;
+      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+        this.primaryActionPressed = false;
+      }
+    })
     // Driven off the same decision that drew the glyph, so the button can never
     // do something other than what it is showing.
     .onClick(() => {
@@ -403,6 +479,7 @@ export struct ComposerBar {
         return;
       }
       if (action === ComposerPrimaryAction.Send) {
+        this.beginSendTransition();
         this.onSend();
         return;
       }
@@ -424,8 +501,7 @@ export struct ComposerBar {
   MicrophoneGlyph() {
     SymbolGlyph($r('sys.symbol.mic'))
       .fontSize(22)
-      .fontColor([INK])
-      .opacity(this.canUseVoice() ? 1 : 0.4)
+      .fontColor([this.primaryActionForegroundColor()])
   }
 
   @Builder
@@ -434,22 +510,22 @@ export struct ComposerBar {
       Text('')
         .width(3)
         .height(10)
-        .backgroundColor(GREEN)
+        .backgroundColor(STATUS_SUCCESS)
         .borderRadius(2)
       Text('')
         .width(3)
         .height(18)
-        .backgroundColor(GREEN)
+        .backgroundColor(STATUS_SUCCESS)
         .borderRadius(2)
       Text('')
         .width(3)
         .height(24)
-        .backgroundColor(GREEN)
+        .backgroundColor(STATUS_SUCCESS)
         .borderRadius(2)
       Text('')
         .width(3)
         .height(14)
-        .backgroundColor(GREEN)
+        .backgroundColor(STATUS_SUCCESS)
         .borderRadius(2)
     }
     .width(22)
@@ -489,10 +565,10 @@ export struct ComposerBar {
       Text('×')
         .width(32)
         .height(32)
-        .fontSize(16)
+        .fontSize(MobileDesignTypography.bodyLarge.size)
         .fontColor(CARD)
         .textAlign(TextAlign.Center)
-        .backgroundColor('#AA222222')
+        .backgroundColor(MEDIA_SCRIM)
         .borderRadius(16)
         .margin({ top: 0, right: 0 })
         .accessibilityText(RemoteI18n.t('chat.removeImage'))
@@ -534,16 +610,21 @@ export struct ComposerBar {
 
   // Attachments live inside the card, so the card has to grow to hold them.
   private composerHeight(): number {
-    const base = this.isComposerExpanded() ? COMPOSER_EXPANDED_HEIGHT : COMPOSER_COLLAPSED_HEIGHT;
+    const base = this.isComposerExpanded() ? COMPOSER_EXPANDED_HEIGHT : this.collapsedComposerHeight();
     return this.selectedImages.length > 0 ? base + COMPOSER_IMAGE_STRIP_BLOCK : base;
+  }
+
+  private collapsedComposerHeight(): number {
+    return this.presentation === ComposerPresentation.Compact ?
+      COMPOSER_COMPACT_COLLAPSED_HEIGHT : COMPOSER_COLLAPSED_HEIGHT;
   }
 
   // The pill radius only reads as a pill while the card is one row tall.
   private composerRadius(): number {
     if (this.isComposerExpanded() || this.selectedImages.length > 0) {
-      return 18;
+      return MobileDesignGeometry.composerExpandedRadius;
     }
-    return this.presentation === ComposerPresentation.Floating ? 18 : 26;
+    return MobileDesignGeometry.composerCollapsedRadius;
   }
 
   private isComposerExpanded(): boolean {
@@ -555,7 +636,7 @@ export struct ComposerBar {
   }
 
   private isModelSelectorExpanded(): boolean {
-    return this.showModelSelectorSheet || this.showModelSelectorPopover;
+    return this.showModelSelectorSheet || this.showModelSelectorPopover || this.isPreparingModelSelectorPopover;
   }
 
   private shouldShowModelControl(): boolean {
@@ -583,7 +664,8 @@ export struct ComposerBar {
 
   private modelListHeight(): number {
     const visibleRows = Math.min(this.enabledModels().length, 7);
-    return visibleRows * 48 + Math.max(0, visibleRows - 1) * 6;
+    return visibleRows * MobileDesignGeometry.composerModelSelectorRowHeight +
+      Math.max(0, visibleRows - 1) * MobileDesignGeometry.composerModelSelectorRowGap;
   }
 
   private selectorModels(): ConversationUiModel[] {
@@ -598,13 +680,52 @@ export struct ComposerBar {
   private closeModelSelector(): void {
     this.showModelSelectorSheet = false;
     this.showModelSelectorPopover = false;
+    this.isPreparingModelSelectorPopover = false;
+  }
+
+  private async toggleModelSelectorPopover(): Promise<void> {
+    if (this.showModelSelectorPopover) {
+      this.closeModelSelector();
+      return;
+    }
+    if (this.isPreparingModelSelectorPopover) {
+      return;
+    }
+
+    // Keep the expanded composer and its model-control anchor mounted while the
+    // IME releases the window. Opening the popup before this completes makes its
+    // viewport and hit-testing inherit the keyboard-constrained layout.
+    this.isPreparingModelSelectorPopover = true;
+    await this.releaseKeyboardForModelSelector();
+
+    if (!this.isPreparingModelSelectorPopover || this.presentation !== ComposerPresentation.Floating) {
+      return;
+    }
+    this.showModelSelectorPopover = true;
+    this.isPreparingModelSelectorPopover = false;
+  }
+
+  private async releaseKeyboardForModelSelector(): Promise<void> {
+    const hostContext = this.getUIContext().getHostContext();
+    if (!hostContext) {
+      this.getUIContext().getFocusController().clearFocus();
+      return;
+    }
+
+    try {
+      await KeyboardReleaseService.release(hostContext);
+    } catch (_error) {
+      // A draft can keep the composer expanded without an active keyboard or
+      // window event. Releasing focus still leaves the model anchor mounted.
+    }
+    this.getUIContext().getFocusController().clearFocus();
   }
 
   private modelSelectorSheetOptions(): SheetOptions {
     return {
       height: Math.min(480, 86 + this.modelListHeight()),
-      backgroundColor: '#00000000',
-      maskColor: '#44000000',
+      backgroundColor: TRANSPARENT,
+      maskColor: SCRIM,
       showClose: false,
       dragBar: true
     };
@@ -616,13 +737,55 @@ export struct ComposerBar {
       RemoteI18n.t('chat.inputPlaceholder');
   }
 
-  // Follows the offered action rather than the raw flags: while a turn runs and
-  // the user has typed something, the button is a send arrow, and a send arrow
-  // on a stop-red circle reads as "this will cancel".
-  private actionBackgroundColor(): ResourceColor {
-    if (this.primaryAction() !== ComposerPrimaryAction.Stop) {
-      return '#00000000';
+  private inactiveActionBackgroundColor(): ResourceColor {
+    const action = this.primaryAction();
+    if (action === ComposerPrimaryAction.Send || action === ComposerPrimaryAction.Stop ||
+      this.sendTransitionActive) {
+      return TRANSPARENT;
     }
-    return this.isVoiceListening ? GREEN : RED;
+    if (action === ComposerPrimaryAction.Voice) {
+      return CARD;
+    }
+    if (action === ComposerPrimaryAction.SendBlocked || action === ComposerPrimaryAction.VoiceBlocked ||
+      action === ComposerPrimaryAction.Idle) {
+      return SOFT;
+    }
+    return TRANSPARENT;
+  }
+
+  private shouldShowActiveActionSurface(): boolean {
+    const action = this.primaryAction();
+    return this.sendTransitionActive || action === ComposerPrimaryAction.Send || action === ComposerPrimaryAction.Stop;
+  }
+
+  private shouldShowStopGlyph(): boolean {
+    return this.sendTransitionActive || this.primaryAction() === ComposerPrimaryAction.Stop;
+  }
+
+  private activeActionSurfaceColor(): ResourceColor {
+    return this.primaryActionPressed || this.sendTransitionActive ? MUTED : INK;
+  }
+
+  private beginSendTransition(): void {
+    this.primaryActionPressed = false;
+    this.sendTransitionActive = true;
+    if (this.sendTransitionTimerId >= 0) {
+      clearTimeout(this.sendTransitionTimerId);
+    }
+    this.sendTransitionTimerId = setTimeout(() => {
+      this.sendTransitionActive = false;
+      this.sendTransitionTimerId = -1;
+    }, COMPOSER_SEND_TRANSITION_DURATION);
+  }
+
+  private primaryActionForegroundColor(): ResourceColor {
+    const action = this.primaryAction();
+    if (action === ComposerPrimaryAction.Voice) {
+      return INK;
+    }
+    if (action === ComposerPrimaryAction.Send || action === ComposerPrimaryAction.Stop) {
+      return CARD;
+    }
+    return MUTED;
   }
 }

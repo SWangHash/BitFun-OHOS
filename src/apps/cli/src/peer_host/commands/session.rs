@@ -14,6 +14,7 @@ use bitfun_core::agentic::core::Session;
 use bitfun_core::agentic::get_agent_registry;
 use bitfun_core::util::errors::BitFunError;
 use bitfun_events::{project_agentic_frontend_event, AgenticEvent};
+use bitfun_product_domains::product_search::SessionContentSearchRequest;
 use bitfun_runtime_ports::{
     AgentSessionArchiveRequest, AgentSessionCreateRequest, AgentSessionDeleteRequest,
     AgentSessionModeUpdateRequest, AgentSessionRenameRequest, AgentThreadGoalGetRequest,
@@ -258,6 +259,27 @@ pub(crate) async fn list_persisted_sessions_count(
     Ok(json!(list.len()))
 }
 
+pub(crate) async fn search_session_content(
+    state: &PeerHostState,
+    args: &Value,
+) -> Result<Value, String> {
+    let request = request_value(args);
+    let search_request: SessionContentSearchRequest = serde_json::from_value(request.clone())
+        .map_err(|error| format!("Invalid session content search request: {error}"))?;
+    let workspace_path = resolved_session_storage_path(state, request).await?;
+    let response = state
+        .compatibility
+        .search_persisted_session_content(
+            &workspace_path,
+            &search_request.query,
+            search_request.normalized_limit(),
+            search_request.include_archived,
+        )
+        .await
+        .map_err(|error| format!("Failed to search persisted session content: {error}"))?;
+    serde_json::to_value(response).map_err(|error| format!("serialize search response: {error}"))
+}
+
 pub(crate) async fn load_session_turns(
     state: &PeerHostState,
     args: &Value,
@@ -445,6 +467,7 @@ pub(crate) async fn create_session(state: &PeerHostState, args: &Value) -> Resul
     let create_request = AgentSessionCreateRequest {
         session_name,
         agent_type,
+        agent_route_key: None,
         workspace_path: Some(workspace_path),
         project_workspace_path: None,
         execution_target: None,
@@ -629,6 +652,7 @@ pub(crate) async fn update_session_mode(
         .update_session_mode(AgentSessionModeUpdateRequest {
             session_id,
             mode_id,
+            agent_route_key: None,
         })
         .await
         .map_err(|error| format!("Failed to update session mode: {}", error.into_message()))?;
@@ -669,6 +693,21 @@ pub(crate) async fn get_available_modes(
         .await
         .map_err(|error| error.encode())?;
     if let Some(workspace) = workspace.as_deref() {
+        if let Err(error) = bitfun_core::plugin_host::ensure_configured_plugin_instance(
+            crate::PLUGIN_HOST_LAUNCH_POLICY,
+            workspace.to_path_buf(),
+            workspace.to_path_buf(),
+            optional_string(request, "workspaceId"),
+        )
+        .await
+        {
+            bitfun_core::plugin_host::report_configured_plugin_activation_failure(
+                "CLI Peer mode catalog",
+                Some(workspace),
+                error,
+            )
+            .await;
+        }
         if let Err(error) =
             bitfun_core::external_sources::ensure_external_source_workspace_snapshot(Some(
                 workspace,
@@ -917,6 +956,26 @@ mod tests {
             .expect("Peer rollback boundary")
             .0;
         assert!(rollback.contains("ensure_session_workspace_runtime_ownership"));
+    }
+
+    #[test]
+    fn peer_mode_catalog_activates_plugins_before_reading_the_registry() {
+        let source = include_str!("session.rs").replace("\r\n", "\n");
+        let command = source
+            .split_once("pub(crate) async fn get_available_modes(")
+            .expect("Peer mode catalog")
+            .1
+            .split_once("pub(crate) async fn get_session_stats(")
+            .expect("Peer mode catalog boundary")
+            .0;
+
+        let activation = command
+            .find("ensure_configured_plugin_instance(")
+            .expect("configured plugin activation");
+        let catalog_read = command
+            .find(".get_modes_info_for_workspace(")
+            .expect("registry mode catalog read");
+        assert!(activation < catalog_read);
     }
 
     #[test]

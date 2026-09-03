@@ -20,6 +20,7 @@ export interface SessionLineageNode {
   title: string;
   agentType?: string;
   subagentType?: string;
+  agentId?: string;
   lifecycle: SessionLineageLifecycle;
   createdAt: number;
   workspacePath?: string;
@@ -40,7 +41,7 @@ function metadataLifecycle(metadata: SessionLineageEntry): SessionLineageLifecyc
   return metadata.status === 'completed' ? 'completed' : 'idle';
 }
 
-function sessionLifecycle(session: Session): SessionLineageLifecycle {
+export function sessionLineageLifecycleForSession(session: Session): SessionLineageLifecycle {
   if (session.needsUserAttention) return 'waiting';
   if (session.status === 'error' || session.hasUnreadCompletion === 'error') return 'error';
 
@@ -76,6 +77,7 @@ function nodeFromMetadata(metadata: SessionLineageEntry): FlatSessionLineageNode
     title: metadata.sessionName,
     agentType: metadata.agentType,
     subagentType: metadata.subagentType,
+    agentId: metadata.agentId,
     lifecycle: metadataLifecycle(metadata),
     createdAt: metadata.createdAtMs,
     workspacePath: metadata.workspacePath,
@@ -93,7 +95,8 @@ function nodeFromSession(session: Session): FlatSessionLineageNode {
     title: session.title?.trim() || session.subagentType || session.mode || 'Agent',
     agentType: session.mode || session.config.agentType,
     subagentType: session.subagentType,
-    lifecycle: sessionLifecycle(session),
+    agentId: undefined,
+    lifecycle: sessionLineageLifecycleForSession(session),
     createdAt: session.createdAt,
     workspacePath: session.workspacePath,
     remoteConnectionId: session.remoteConnectionId,
@@ -149,6 +152,7 @@ export function buildSessionLineageTree(
       if (persistedNode?.title.trim()) {
         liveNode.title = persistedNode.title;
       }
+      liveNode.agentId = persistedNode?.agentId;
       nodes.set(session.sessionId, liveNode);
     }
   }
@@ -188,7 +192,10 @@ export function hasActiveSessionLineageDescendants(
   if (!rootSessionId) return false;
 
   for (const session of liveSessions.values()) {
-    if (session.sessionId === rootSessionId || !isActiveSessionLineageLifecycle(sessionLifecycle(session))) {
+    if (
+      session.sessionId === rootSessionId ||
+      !isActiveSessionLineageLifecycle(sessionLineageLifecycleForSession(session))
+    ) {
       continue;
     }
 

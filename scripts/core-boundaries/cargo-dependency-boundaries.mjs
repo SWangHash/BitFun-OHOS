@@ -11,8 +11,12 @@ import {
 } from './rules/feature-rules.mjs';
 
 const SKIPPED_DIRECTORIES = new Set([
+  '.bitfun',
+  '.claude',
+  '.cursor',
   '.git',
   '.targets',
+  '.tmp',
   '.worktrees',
   'node_modules',
   'target',
@@ -132,7 +136,6 @@ const SERVICES_INTEGRATIONS_TOKIO_FEATURES = new Map([
   ['models-dev', ['fs', 'sync', 'time']],
   ['browser-control', ['time']],
   ['canvas-runtime', ['fs']],
-  ['debug-log', ['rt']],
   ['deep-research', []],
   ['git', ['fs', 'io-util', 'macros', 'rt', 'time']],
   ['file-watch', ['rt', 'sync']],
@@ -142,26 +145,27 @@ const SERVICES_INTEGRATIONS_TOKIO_FEATURES = new Map([
   ['miniapp-market', ['fs', 'io-util', 'net', 'process', 'rt', 'sync', 'time']],
   ['plugin-source', ['fs', 'rt', 'sync', 'time']],
   ['hook-import', ['fs', 'sync']],
-  ['privacy', ['fs']],
   ['remote-connect', ['fs', 'io-util', 'net', 'process', 'rt', 'sync', 'time']],
   ['remote-ssh', ['fs', 'io-util', 'macros', 'net', 'process', 'rt', 'sync', 'time']],
   ['remote-ssh-concrete', ['fs', 'io-util', 'macros', 'net', 'process', 'rt', 'sync', 'time']],
   ['review-platform', ['fs', 'io-util', 'sync']],
   ['speech', ['fs', 'io-util', 'macros', 'rt', 'sync']],
+  ['speech-realtime', ['fs', 'io-util', 'macros', 'net', 'rt', 'sync', 'time']],
   ['workspace-search', ['io-util', 'rt', 'sync', 'time']],
   ['script-tool-runtime', ['io-util', 'process', 'rt', 'sync', 'time']],
 ]);
 
 const SERVICES_CORE_TOKIO_FEATURES = new Map([
+  ['credential-vault', ['fs', 'io-util', 'rt']],
   ['diff', ['rt', 'time']],
   ['filesystem', ['fs', 'rt']],
   ['json-io', ['fs', 'rt', 'sync', 'time']],
   ['local-storage', ['fs', 'rt', 'sync', 'time']],
   ['permission', ['rt']],
   ['process-runtime', ['io-util', 'process', 'rt', 'time']],
+  ['session-search', ['rt']],
   ['workspace-instructions', ['fs', 'io-util', 'rt']],
   ['workspace-text-runtime', ['rt']],
-  ['lsp', ['fs', 'io-util', 'process', 'rt', 'sync', 'time']],
   ['workspace-runtime', ['fs', 'io-util', 'process', 'rt', 'sync', 'time']],
 ]);
 const SERVICES_CORE_BASE_TOKIO_FEATURES = [];
@@ -171,12 +175,11 @@ const CORE_TOKIO_FEATURES = new Map([
   ['agent-runtime', ['io-util', 'macros', 'rt', 'time']],
   ['mcp-runtime', ['io-util', 'macros', 'rt', 'rt-multi-thread', 'time']],
   ['browser-control', ['net', 'rt', 'time']],
-  ['debug-log', ['macros', 'net', 'rt', 'time']],
-  ['lsp', ['macros']],
 ]);
 const CORE_TOKIO_AGGREGATES = new Set([
   'external-sources',
   'plugin-runtime',
+  'product-search',
   'opencode-plugin-host',
   'product-full',
   'remote-connect',
@@ -302,28 +305,32 @@ const REQWEST_PACKAGE_PROFILES = new Map([
     servicesOwners: true,
   }],
   ['bitfun-ai-adapters', {
-    dependencyFeatures: ['http2', 'json', 'rustls', 'socks', 'stream'],
+    dependencyFeatures: ['http2', 'json', 'rustls-no-provider', 'socks', 'stream'],
     optional: false,
     allowedPackageFeatureRefs: new Set(['reqwest/form']),
     requiredPackageFeatureRefs: new Map([
       ['subscription-auth', new Set(['reqwest/form'])],
     ]),
+    tlsProviderDependency: 'bitfun-services-core',
   }],
   ['bitfun-cli', {
-    dependencyFeatures: ['http2', 'rustls', 'stream'],
+    dependencyFeatures: ['http2', 'rustls-no-provider', 'stream'],
     optional: false,
+    tlsProviderDependency: 'bitfun-services-core',
   }],
   ['bitfun-desktop', {
-    dependencyFeatures: ['http2', 'json', 'query', 'rustls', 'stream'],
+    dependencyFeatures: ['http2', 'json', 'query', 'rustls-no-provider', 'stream'],
     optional: false,
   }],
   ['bitfun-miniapp-market-service', {
-    dependencyFeatures: ['form', 'http2', 'json', 'rustls'],
+    dependencyFeatures: ['form', 'http2', 'json', 'rustls-no-provider'],
     optional: false,
+    tlsProviderDependency: 'bitfun-services-core',
   }],
   ['bitfun-skin-market-service', {
-    dependencyFeatures: ['http2', 'json', 'rustls'],
+    dependencyFeatures: ['http2', 'json', 'rustls-no-provider'],
     optional: false,
+    tlsProviderDependency: 'bitfun-services-core',
   }],
 ]);
 
@@ -419,6 +426,26 @@ function findReqwestPackageProfileViolations(pkg, profile) {
           });
         }
       }
+    }
+  }
+
+  if (profile.tlsProviderDependency) {
+    const providerDependencies = (pkg.dependencies ?? []).filter(
+      (candidate) => candidate.name === profile.tlsProviderDependency
+        && (candidate.kind ?? null) === null
+        && (candidate.target ?? null) === null,
+    );
+    if (
+      providerDependencies.length !== 1
+      || !(providerDependencies[0].features ?? []).includes('tls-provider')
+    ) {
+      violations.push({
+        path: pkg.manifest_path,
+        line: 1,
+        message:
+          `${pkg.name} must select ${profile.tlsProviderDependency}/tls-provider `
+          + 'for its provider-neutral Reqwest client',
+      });
     }
   }
 
@@ -534,6 +561,7 @@ const THIRD_PARTY_CAPABILITY_PROFILES = new Map([
         optional: true,
         ownerFeatureCapabilities: new Map([
           ['remote-connect', ['rustls-tls-native-roots']],
+          ['speech-realtime', ['rustls-tls-native-roots']],
         ]),
       })],
     ]),
@@ -929,7 +957,7 @@ export function findResolvedReqwestNativeTlsViolations(records, { root }) {
     }];
   }
 
-  return reqwestRecords.flatMap((record) => {
+  const reqwestViolations = reqwestRecords.flatMap((record) => {
     const nativeTlsFeatures = (record.features ?? []).filter(
       (feature) =>
         feature === 'default-tls'
@@ -938,7 +966,12 @@ export function findResolvedReqwestNativeTlsViolations(records, { root }) {
         || feature === 'native-tls'
         || feature.startsWith('native-tls-'),
     );
-    if (nativeTlsFeatures.length === 0) {
+    const providerSelectingFeatures = record.version.startsWith('0.13.')
+      && (record.features ?? []).includes('rustls')
+      ? ['rustls (selects AWS-LC)']
+      : [];
+    const unreviewedTlsFeatures = [...nativeTlsFeatures, ...providerSelectingFeatures];
+    if (unreviewedTlsFeatures.length === 0) {
       return [];
     }
     return [{
@@ -946,9 +979,35 @@ export function findResolvedReqwestNativeTlsViolations(records, { root }) {
       line: 1,
       message:
         `resolved reqwest ${record.version} feature union enables an unreviewed TLS backend: `
-        + nativeTlsFeatures.join(', '),
+        + unreviewedTlsFeatures.join(', '),
     }];
   });
+
+  const rustlsRecords = records.filter((record) => record.name === 'rustls');
+  const selectedRustlsProviders = new Set(rustlsRecords
+    .flatMap((record) => (record.features ?? [])
+        .filter((feature) => feature === 'ring' || feature === 'aws_lc_rs' || feature === 'aws-lc-rs')
+        .map((feature) => feature === 'ring' ? feature : 'aws_lc_rs')));
+  if (records.some((record) => record.name === 'aws-lc-rs' || record.name === 'aws-lc-sys')) {
+    selectedRustlsProviders.add('aws_lc_rs');
+  }
+  const sortedRustlsProviders = [...selectedRustlsProviders].sort();
+  const rustlsVersions = [...new Set(rustlsRecords.map((record) => record.version))].sort();
+  const reqwestUsesRustls = reqwestRecords.some((record) =>
+    (record.features ?? []).some((feature) => feature.includes('rustls')));
+  const rustlsProviderViolations = !reqwestUsesRustls
+    || (sortedRustlsProviders.length === 1 && sortedRustlsProviders[0] === 'ring')
+    ? []
+    : [{
+        path: join(root, 'Cargo.toml'),
+        line: 1,
+        message:
+          `resolved Reqwest/Rustls closure must select only the ring crypto provider; `
+          + `rustls ${rustlsVersions.join(', ') || '(missing)'} selects `
+          + (sortedRustlsProviders.join(', ') || '(no provider)'),
+      }];
+
+  return [...reqwestViolations, ...rustlsProviderViolations];
 }
 
 export function findServicesIntegrationsReqwestFeatureViolations(pkg) {
@@ -958,7 +1017,6 @@ export function findServicesIntegrationsReqwestFeatureViolations(pkg) {
   const ownerFeatureReferences = new Map([
     ['announcement', ['reqwest/json']],
     ['browser-control', ['reqwest/json']],
-    ['debug-log', ['reqwest/json']],
     ['mcp', ['reqwest/json', 'reqwest/stream']],
     ['miniapp-market', ['reqwest/json', 'reqwest/query', 'reqwest/stream']],
     ['miniapp-runtime', ['reqwest/stream']],
@@ -987,11 +1045,18 @@ export function findServicesIntegrationsReqwestFeatureViolations(pkg) {
         message: `${pkg.name}:${featureName} must explicitly enable reqwest`,
       });
     }
-    if (!references.includes('reqwest/rustls')) {
+    if (!references.includes('reqwest/rustls-no-provider')) {
       violations.push({
         path: pkg.manifest_path,
         line: 1,
-        message: `${pkg.name}:${featureName} is missing reqwest/rustls`,
+        message: `${pkg.name}:${featureName} is missing reqwest/rustls-no-provider`,
+      });
+    }
+    if (!references.includes('bitfun-services-core/tls-provider')) {
+      violations.push({
+        path: pkg.manifest_path,
+        line: 1,
+        message: `${pkg.name}:${featureName} is missing bitfun-services-core/tls-provider`,
       });
     }
     for (const reference of ownerFeatureReferences.get(featureName) ?? []) {
@@ -1026,7 +1091,7 @@ export function findServicesIntegrationsReqwestFeatureViolations(pkg) {
     const allowedReferences = new Set([
       'reqwest',
       'dep:reqwest',
-      'reqwest/rustls',
+      'reqwest/rustls-no-provider',
       ...(ownerFeatureReferences.get(featureName) ?? []),
     ]);
     for (const reference of reqwestReferences) {
@@ -1325,7 +1390,6 @@ export function findProductEntrypointCoreFeatureViolations(
     'agent-runtime',
     'document-read',
     'subscription-auth',
-    'lsp',
     'external-sources',
     'tools-basic',
     'tools-git',
@@ -1338,6 +1402,7 @@ export function findProductEntrypointCoreFeatureViolations(
   const reviewedCoreFeatureClosures = new Map([
     ['bitfun-cli', [
       ...coreCompatibilityReviewedFeatures,
+      'product-search',
       'remote-connect',
       'plugin-runtime',
       'opencode-plugin-host',
@@ -1365,7 +1430,6 @@ export function findProductEntrypointCoreFeatureViolations(
     'file-watch',
     'filesystem',
     'git',
-    'lsp',
     'local-storage',
     'mcp-runtime',
     'model-catalog',
@@ -1384,6 +1448,7 @@ export function findProductEntrypointCoreFeatureViolations(
     'tools-browser-web',
     'tools-canvas',
     'tools-computer-use',
+    'tools-creation',
     'tools-git',
     'tools-image-analysis',
     'tools-mcp',
@@ -1403,6 +1468,7 @@ export function findProductEntrypointCoreFeatureViolations(
       ...acpActiveCoreFeatures,
       'i18n-runtime',
       'plugin-runtime',
+      'product-search',
       'opencode-plugin-host',
       'remote-connect',
     ]],
@@ -1440,7 +1506,6 @@ export function findProductEntrypointCoreFeatureViolations(
     ['bitfun-sdk-host-app', new Map([
       ['bitfun-services-integrations', [
         'announcement',
-        'debug-log',
         'function-agents',
         'product-full',
         'remote-connect',
@@ -1645,7 +1710,6 @@ export function findProductEntrypointCoreFeatureViolations(
     const forbiddenCoreFeatures = [
       'product-full',
       'announcement',
-      'debug-log',
       'dispatch-store',
     ];
     const reportedUnexpectedFeatures = new Set();

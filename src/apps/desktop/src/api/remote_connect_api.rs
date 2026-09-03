@@ -573,7 +573,6 @@ fn should_fanout_peer_ui_event(event: &str) -> bool {
         event,
         "terminal_event"
             | "file-system-changed"
-            | "lsp-event"
             | "backend-event-mcpinteractionrequest"
             | "backend-event-acppermissionrequest"
             | "backend-event-toolexecutionprogress"
@@ -1283,11 +1282,10 @@ async fn register_delegated_identity_providers() {
                     let account_lease = lock_account_sync(generation)
                         .await
                         .map_err(|_| "Desktop account changed; try again".to_string())?;
-                    let context = account_context
-                        .read()
-                        .await
-                        .clone()
-                        .ok_or_else(|| "Desktop is not logged into a BitFun account".to_string())?;
+                    let context =
+                        account_context.read().await.clone().ok_or_else(|| {
+                            "Desktop is not logged into a BitFun account".to_string()
+                        })?;
                     if !account_context_matches(generation, &context.session.token).await {
                         return Err("Desktop account changed; try again".to_string());
                     }
@@ -4990,7 +4988,7 @@ mod sync_state_tests {
             "session".to_string(),
             "Session".to_string(),
             "agentic".to_string(),
-            "auto".to_string(),
+            "primary".to_string(),
         );
         metadata.turn_count = 2;
 
@@ -5020,7 +5018,7 @@ mod sync_state_tests {
             "session".to_string(),
             "Session".to_string(),
             "agentic".to_string(),
-            "auto".to_string(),
+            "primary".to_string(),
         );
         metadata.turn_count = 3;
 

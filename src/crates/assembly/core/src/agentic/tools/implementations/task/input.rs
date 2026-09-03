@@ -34,9 +34,8 @@ impl TaskAction {
     }
 
     fn infer_from_input(value: &Value) -> Option<Self> {
-        let has_description = value.get("description").is_some();
         let has_prompt = value.get("prompt").is_some();
-        if !has_description || !has_prompt {
+        if !has_prompt {
             return None;
         }
 
@@ -53,7 +52,7 @@ impl TaskAction {
             .and_then(Value::as_bool)
             .unwrap_or(false);
 
-        if !has_agent_id && (has_subagent_type || has_fork_context) {
+        if has_agent_id && (has_subagent_type || has_fork_context) {
             return Some(Self::Spawn);
         }
         if has_agent_id && !has_subagent_type && !has_fork_context {
@@ -75,6 +74,7 @@ impl TaskAction {
 #[derive(Debug, Clone)]
 pub(super) struct TaskInvocation {
     pub(super) action: TaskAction,
+    pub(super) requested_agent_id: Option<String>,
     pub(super) description: Option<String>,
     pub(super) prompt: Option<String>,
     pub(super) context_mode: SubagentContextMode,
@@ -86,6 +86,7 @@ pub(super) struct TaskInvocation {
     pub(super) run_in_background: bool,
     pub(super) is_retry: bool,
     pub(super) requested_auto_retry: bool,
+    pub(super) cancel_descendants: bool,
 }
 
 impl TaskTool {
@@ -118,6 +119,7 @@ impl TaskTool {
 
             return Ok(TaskInvocation {
                 action: TaskAction::Spawn,
+                requested_agent_id: None,
                 description: Self::string_field(input, "description", "DeepReview Task calls")?,
                 prompt: Self::string_field(input, "prompt", "DeepReview Task calls")?,
                 context_mode: SubagentContextMode::Fresh,
@@ -132,10 +134,22 @@ impl TaskTool {
                     .get("auto_retry")
                     .and_then(Value::as_bool)
                     .unwrap_or(false),
+                cancel_descendants: false,
             });
         }
 
         let action = TaskAction::parse(input)?;
+        if input.get("description").is_some() {
+            return Err(BitFunError::tool(
+                "description is not supported; put the complete task instruction in prompt"
+                    .to_string(),
+            ));
+        }
+        if input.get("requested_agent_id").is_some() {
+            return Err(BitFunError::tool(
+                "requested_agent_id is not supported; use agent_id".to_string(),
+            ));
+        }
         if Self::has_deep_review_retry_fields(input) {
             return Err(BitFunError::tool(
                 "DeepReview retry fields are only allowed for DeepReview Task calls".to_string(),
@@ -150,13 +164,8 @@ impl TaskTool {
 
         match action {
             TaskAction::Spawn => {
-                let description = Self::required_string_for_action(input, "description", action)?;
+                let requested_agent_id = Self::required_agent_id_for_action(input, action)?;
                 let prompt = Self::required_string_for_action(input, "prompt", action)?;
-                if Self::optional_trimmed_string(input, "agent_id")?.is_some() {
-                    return Err(BitFunError::tool(
-                        "agent_id is not allowed when action is spawn".to_string(),
-                    ));
-                }
                 let subagent_type = Self::optional_trimmed_string(input, "subagent_type")?;
                 let context_mode = Self::context_mode_from_input(input)?;
                 match context_mode {
@@ -187,8 +196,9 @@ impl TaskTool {
 
                 Ok(TaskInvocation {
                     action,
-                    description,
-                    prompt,
+                    requested_agent_id: Some(requested_agent_id),
+                    description: None,
+                    prompt: Some(prompt),
                     context_mode,
                     target_agent_id: None,
                     subagent_type,
@@ -198,11 +208,11 @@ impl TaskTool {
                     run_in_background,
                     is_retry: false,
                     requested_auto_retry: false,
+                    cancel_descendants: false,
                 })
             }
             TaskAction::SendInput => {
-                let target_agent_id = Self::required_string_for_action(input, "agent_id", action)?;
-                let description = Self::required_string_for_action(input, "description", action)?;
+                let target_agent_id = Self::required_agent_id_for_action(input, action)?;
                 let prompt = Self::required_string_for_action(input, "prompt", action)?;
                 Self::ensure_fields_absent(
                     input,
@@ -220,10 +230,11 @@ impl TaskTool {
 
                 Ok(TaskInvocation {
                     action,
-                    description,
-                    prompt,
+                    requested_agent_id: None,
+                    description: None,
+                    prompt: Some(prompt),
                     context_mode: SubagentContextMode::Fresh,
-                    target_agent_id,
+                    target_agent_id: Some(target_agent_id),
                     subagent_type: None,
                     model_id,
                     inherit_parent_model,
@@ -231,10 +242,13 @@ impl TaskTool {
                     run_in_background,
                     is_retry: false,
                     requested_auto_retry: false,
+                    cancel_descendants: false,
                 })
             }
             TaskAction::Cancel => {
-                let target_agent_id = Self::required_string_for_action(input, "agent_id", action)?;
+                let target_agent_id = Self::required_agent_id_for_action(input, action)?;
+                let cancel_descendants =
+                    Self::optional_bool(input, "cancel_descendants")?.unwrap_or(true);
                 Self::ensure_fields_absent(
                     input,
                     &[
@@ -252,10 +266,11 @@ impl TaskTool {
 
                 Ok(TaskInvocation {
                     action,
+                    requested_agent_id: None,
                     description: None,
                     prompt: None,
                     context_mode: SubagentContextMode::Fresh,
-                    target_agent_id,
+                    target_agent_id: Some(target_agent_id),
                     subagent_type: None,
                     model_id: None,
                     inherit_parent_model: false,
@@ -263,6 +278,7 @@ impl TaskTool {
                     run_in_background: false,
                     is_retry: false,
                     requested_auto_retry: false,
+                    cancel_descendants,
                 })
             }
         }
@@ -296,19 +312,28 @@ impl TaskTool {
         input: &Value,
         field: &str,
         action: TaskAction,
-    ) -> BitFunResult<Option<String>> {
+    ) -> BitFunResult<String> {
         let value = Self::string_field(
             input,
             field,
             format!("action is {}", action.as_str()).as_str(),
         )?;
-        if value.is_none() {
-            return Err(BitFunError::tool(format!(
+        value.ok_or_else(|| {
+            BitFunError::tool(format!(
                 "{field} is required when action is {}",
                 action.as_str()
-            )));
-        }
-        Ok(value)
+            ))
+        })
+    }
+
+    fn required_agent_id_for_action(input: &Value, action: TaskAction) -> BitFunResult<String> {
+        let agent_id = Self::required_string_for_action(input, "agent_id", action)?;
+        let raw_agent_id = input
+            .get("agent_id")
+            .and_then(Value::as_str)
+            .expect("required_string_for_action already verified agent_id is a string");
+        crate::agentic::coordination::validate_agent_id(raw_agent_id)?;
+        Ok(agent_id)
     }
 
     fn string_field(input: &Value, field: &str, context: &str) -> BitFunResult<Option<String>> {

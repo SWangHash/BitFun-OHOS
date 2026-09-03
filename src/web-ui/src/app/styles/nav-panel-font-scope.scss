@@ -1,17 +1,86 @@
-/**
- * Remaps `--bf-appearance-token-font-size-*` inside nav UI to the flow-chat typographic scale minus one
- * baseline step, keeping the old minimums without a separate root `--nav-font-size-*` family.
- */
+/** Shared semantic text roles for navigation surfaces. */
 
-@mixin nav-panel-font-token-scope {
-  --bf-appearance-token-font-size-xxs: max(8px, calc(var(--bf-appearance-token-flowchat-font-size-xs) - 3px));
-  --bf-appearance-token-font-size-2xs: max(9px, calc(var(--bf-appearance-token-flowchat-font-size-xs) - 2px));
-  --bf-appearance-token-font-size-xs: max(10px, calc(var(--bf-appearance-token-flowchat-font-size-xs) - 1px));
-  --bf-appearance-token-font-size-sm: max(11px, calc(var(--bf-appearance-token-flowchat-font-size-sm) - 1px));
-  --bf-appearance-token-font-size-base: max(12px, calc(var(--bf-appearance-token-flowchat-font-size-base) - 1px));
-  --bf-appearance-token-font-size-lg: max(13px, calc(var(--bf-appearance-token-flowchat-font-size-lg) - 1px));
-  --bf-appearance-token-font-size-xl: max(14px, calc(var(--bf-appearance-token-flowchat-font-size-xl) - 1px));
-  --bf-appearance-token-font-size-2xl: max(16px, calc(var(--bf-appearance-token-flowchat-font-size-2xl) - 1px));
-  --bf-appearance-token-font-size-3xl: max(20px, calc(var(--bf-appearance-token-flowchat-font-size-3xl) - 1px));
-  --bf-appearance-token-font-size-4xl: max(24px, calc(var(--bf-appearance-token-flowchat-font-size-3xl) + 3px));
+@mixin nav-panel-text-heading {
+  color: var(--bf-color-content-primary);
+
+  // A light content appearance may still place navigation inside inverse
+  // structural chrome. Only force the crisp light-mode treatment when the
+  // consumer is not inside the navigation chrome scope.
+  :root[data-bf-appearance-mode='light'] &:not(.bitfun-nav-panel *) {
+    color: color-mix(
+      in srgb,
+      var(--bf-color-content-on-light) 92%,
+      transparent
+    );
+  }
+}
+
+@mixin nav-panel-text-body {
+  color: color-mix(
+    in srgb,
+    var(--bf-color-content-primary) 88%,
+    var(--bf-color-content-secondary)
+  );
+
+  :root[data-bf-appearance-mode='light'] &:not(.bitfun-nav-panel *) {
+    color: color-mix(
+      in srgb,
+      var(--bf-color-content-on-light) 86%,
+      transparent
+    );
+  }
+}
+
+@mixin nav-panel-text-meta {
+  color: var(--bf-color-content-muted);
+
+  :root[data-bf-appearance-mode='light'] &:not(.bitfun-nav-panel *) {
+    color: color-mix(
+      in srgb,
+      var(--bf-color-content-on-light) 48%,
+      transparent
+    );
+  }
+}
+
+@mixin nav-panel-text-icon {
+  color: color-mix(
+    in srgb,
+    var(--bf-color-content-secondary) 78%,
+    var(--bf-color-content-muted)
+  );
+
+  :root[data-bf-appearance-mode='light'] &:not(.bitfun-nav-panel *) {
+    color: color-mix(
+      in srgb,
+      var(--bf-color-content-on-light) 70%,
+      transparent
+    );
+  }
+}
+
+@mixin nav-panel-text-row {
+  @include nav-panel-text-body;
+
+  font-family: var(--bf-font-family-sans);
+  font-size: var(--bf-font-size-sm);
+  font-weight: var(--bf-font-weight-regular);
+  // Truncated labels need room for the bundled font's ascenders and descenders.
+  line-height: var(--bf-line-height-base);
+}
+
+@mixin nav-panel-text-row-active {
+  @include nav-panel-text-heading;
+
+  font-weight: var(--bf-font-weight-medium);
+}
+
+@mixin nav-panel-text-group {
+  @include nav-panel-text-meta;
+
+  font-family: var(--bf-font-family-sans);
+  font-size: var(--bf-font-size-meta);
+  font-weight: var(--bf-font-weight-medium);
+  letter-spacing: var(--bf-letter-spacing-normal);
+  line-height: var(--bf-line-height-base);
 }

@@ -1,6 +1,8 @@
 /**
  * Model thinking display component.
- * Default expanded while this is still the active last step.
+ * Ordinary reasoning defaults expanded while this is still the active last
+ * step; reasoning summaries use their compact collapsed presentation by
+ * default.
  * If the component mounts after later content already appeared
  * (for example after a parent remount), start collapsed directly
  * to avoid a visible expand-then-collapse flash.
@@ -8,7 +10,7 @@
  */
 
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { Icon } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
 import type { FlowThinkingItem } from '../types/flow-chat';
 import { useTypewriter } from '../hooks/useTypewriter';
@@ -22,7 +24,8 @@ import {
   isTailFollowDiagnosticsEnabled,
   noteTailFollowStep,
 } from '@/infrastructure/diagnostics/flowChatTailFollowDiagnostics';
-import { Markdown } from '@/component-library/components/Markdown/Markdown';
+import { latestReasoningSummaryPreview } from '../utils/reasoningSummaryPresentation';
+import { MarkdownRenderer } from '@/infrastructure/markdown';
 import './ModelThinkingDisplay.scss';
 
 interface ModelThinkingDisplayProps {
@@ -41,6 +44,7 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
 }) => {
   const { t } = useTranslation('flow-chat');
   const { content, isStreaming, status } = thinkingItem;
+  const isSummary = thinkingItem.reasoningKind === 'summary';
   const contentRef = useRef<HTMLDivElement>(null);
   const shouldFollowTailRef = useRef(true);
   const tailFollowPauseVersionRef = useRef(0);
@@ -50,13 +54,16 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
   const touchScrollStartYRef = useRef<number | null>(null);
 
   const isActive = isStreaming || status === 'streaming';
-  const { displayText: displayContent, isRevealing } = useTypewriter(content, isActive);
+  const { displayText: displayContent, isRevealing } = useTypewriter(
+    isSummary ? '' : content,
+    isActive && !isSummary,
+  );
   useReportTypewriterReveal(thinkingItem.id, isRevealing);
-  const shouldDefaultExpanded = forceExpanded || (
+  const shouldDefaultExpanded = forceExpanded || (!isSummary && (
     displayContext === 'subagent-projection'
       ? isActive || isLastItem
       : isLastItem
-  );
+  ));
 
   const [isExpanded, setIsExpanded] = useState(shouldDefaultExpanded);
   const userToggledRef = useRef(false);
@@ -76,7 +83,7 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
   // ends. Snapping to full `content` here would make the drain invisible
   // while `isRevealing` still holds the reveal gate, delaying the round
   // footer for no visible reason.
-  const renderedContent = isRevealing ? displayContent : content;
+  const renderedContent = !isSummary && isRevealing ? displayContent : content;
   // Cover the whole reveal with Markdown streaming mode so the Prism upgrade
   // does not land mid-drain.
   const isVisuallyStreaming = isActive || isRevealing;
@@ -256,6 +263,11 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
     return t('toolCards.think.thinkingCharacters', { count: content.length });
   }, [content, t]);
 
+  const summaryPreview = useMemo(
+    () => latestReasoningSummaryPreview(content),
+    [content],
+  );
+
   const shouldExpand = useRef(true);
 
   const handleMouseDown = () => {
@@ -267,12 +279,9 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
   };
 
   const handleToggleClick = () => {
-    if (shouldExpand.current) {
-      const nextExpanded = !isExpanded;
-      userToggledRef.current = true;
-      applyExpandedState(isExpanded, nextExpanded, setIsExpanded);
-    }
-    shouldExpand.current = true;
+    const nextExpanded = !isExpanded;
+    userToggledRef.current = true;
+    applyExpandedState(isExpanded, nextExpanded, setIsExpanded);
   };
 
   const handleContentWheelCapture = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
@@ -313,12 +322,17 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
     }
   }, [pauseTailFollowForUserScroll]);
 
-  const headerLabel = (isExpanded
-    ? (isActive ? t('toolCards.think.thinking') : t('toolCards.think.thinkingProcess'))
-    : contentLengthText).replace(/ /g, '\u00A0');
+  const headerLabel = isSummary
+    ? (isExpanded
+      ? t('toolCards.think.thinkingSummary')
+      : summaryPreview || t('toolCards.think.thinkingSummary'))
+    : (isExpanded
+      ? (isActive ? t('toolCards.think.thinking') : t('toolCards.think.thinkingProcess'))
+      : contentLengthText).replace(/ /g, '\u00A0');
 
   const wrapperClassName = [
     'flow-thinking-item',
+    isSummary ? 'summary' : 'reasoning',
     isExpanded ? 'expanded' : 'collapsed',
   ].filter(Boolean).join(' ');
 
@@ -330,6 +344,7 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
       data-status={status}
       data-streaming={isActive ? 'true' : 'false'}
       data-expanded={isExpanded ? 'true' : 'false'}
+      data-reasoning-kind={thinkingItem.reasoningKind ?? 'reasoning'}
       className={wrapperClassName}
      data-bf-component="model-thinking-display" data-bf-part="root" data-bf-context={displayContext} data-bf-state={[isExpanded && 'expanded', isVisuallyStreaming && 'streaming'].filter(Boolean).join(' ')}>
       <div
@@ -341,8 +356,24 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
         onMouseMove={handleMouseMove}
         onMouseUp={handleToggleClick}
       >
-        <ChevronRight size={14} className="thinking-chevron" data-bf-component="model-thinking-display" data-bf-part="chevron" />
-        <span data-bf-component="model-thinking-display" data-bf-part="label" className="thinking-label">{headerLabel}</span>
+        <span
+          aria-hidden="true"
+          className="thinking-leading-icon"
+          data-bf-component="model-thinking-display"
+          data-bf-part="leadingIcon"
+        >
+          <Icon name="thinking" size="sm" className="thinking-leading-icon__default" />
+          <Icon name="chevron-right" size="sm" className="thinking-leading-icon__collapsed-hover" />
+          <Icon name="chevron-down" size="sm" className="thinking-leading-icon__expanded" />
+        </span>
+        <span
+          data-bf-component="model-thinking-display"
+          data-bf-part="label"
+          className="thinking-label"
+          title={isSummary && !isExpanded ? headerLabel : undefined}
+        >
+          {headerLabel}
+        </span>
       </div>
 
       <div
@@ -369,7 +400,7 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
             onTouchEnd={handleContentTouchEnd}
             onKeyDown={handleContentKeyDown}
           >
-            <Markdown
+            <MarkdownRenderer
               content={renderedContent}
               isStreaming={isVisuallyStreaming}
               className="thinking-markdown"

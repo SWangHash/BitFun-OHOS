@@ -1,20 +1,11 @@
 import React, {
-  useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
+  useCallback, useEffect, useMemo, useRef, useState,
   lazy,
   Suspense,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  ArrowLeft,
-  FileText,
-  RefreshCw,
-  X,
-} from 'lucide-react';
-import {
-  Button,
-  IconButton,
-  Input,
-} from '@/component-library';
+import { FileText } from 'lucide-react';
+
 import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
 import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
@@ -33,6 +24,7 @@ import AssistantAvatarPicker from './AssistantAvatarPicker';
 import AssistantQuickInput from './AssistantQuickInput';
 import { useNurseryStore } from '../nurseryStore';
 import './NurseryView.scss';
+import { Icon, IconButton, Input, ScrollArea, Textarea, Tooltip } from '@bitfun/ui';
 
 const log = createLogger('AssistantConfigPage');
 
@@ -66,29 +58,20 @@ interface PersonaDocState {
 interface AutoResizeTextareaProps {
   value: string;
   onChange: (value: string) => void;
-  className?: string;
 }
 
 const AutoResizeTextarea: React.FC<AutoResizeTextareaProps> = ({
   value,
   onChange,
-  className = '',
 }) => {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useLayoutEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${textarea.scrollHeight}px`;
-  }, [value]);
-
   return (
-    <textarea
-      ref={textareaRef}
-      className={`m-editor-textarea ${className}`.trim()}
+    <Textarea
+      autoResize
+      className="acp-persona-editor__frontmatter-control"
+      font="mono"
+      resize="none"
       value={value}
-      onChange={(event) => onChange(event.target.value)}
+      onValueChange={onChange}
       spellCheck={false}
       rows={1}
     />
@@ -144,6 +127,7 @@ const AssistantConfigPage: React.FC = () => {
       name: identityDocument.name.trim() || api?.name?.trim() || '',
       creature: identityDocument.creature.trim() || api?.creature?.trim() || '',
       vibe: identityDocument.vibe.trim() || api?.vibe?.trim() || '',
+      avatar: identityDocument.avatar.trim() || api?.avatar?.trim() || '',
       emoji: identityDocument.emoji.trim() || api?.emoji?.trim() || '',
     };
   }, [identityDocument, workspace?.identity]);
@@ -354,21 +338,20 @@ const AssistantConfigPage: React.FC = () => {
               const selected = personaDoc?.fileName === fileName && rightView === 'personaDoc';
               const labelKey = fileName.replace(/\.md$/i, '') as 'SOUL' | 'USER' | 'IDENTITY';
               return (
-                <Button
+                <button
                   key={fileName}
                   type="button"
-                  variant="ghost"
-                  size="small"
                   className={`acp-persona-doc-row${selected ? ' acp-persona-doc-row--selected' : ''}`}
                   data-bf-component="assistant-config-page"
                   data-bf-part="persona"
                   data-bf-state={selected ? 'selected' : undefined}
+                  aria-pressed={selected}
                   onClick={() => openPersonaDoc(fileName)}
                 >
                   <span className="acp-persona-doc-row__icon"><FileText size={12} /></span>
                   <span className="acp-persona-doc-row__label">{t(`nursery.assistant.personaDocs.${labelKey}`)}</span>
                   <span className="acp-persona-doc-row__file">{fileName}</span>
-                </Button>
+                </button>
               );
             })}
           </div>
@@ -378,14 +361,14 @@ const AssistantConfigPage: React.FC = () => {
 
         {/* Scheduled tasks — title/toolbar live inside ScheduledJobsView */}
         <div className="acp-section acp-section--nested acp-section--schedule">
-          <div className="acp-section__schedule-body">
+          <ScrollArea className="acp-section__schedule-body">
             {!workspacePath ? (
               <p className="acp-empty">{t('nursery.assistant.scheduledSessionsNoWorkspace')}</p>
             ) : (
               <Suspense
                 fallback={(
                   <div className="acp-loading" data-bf-component="assistant-config-page" data-bf-part="loading">
-                    <RefreshCw size={14} className="nursery-spinning" />
+                    <Icon name="refresh" size="sm" className="nursery-spinning" />
                   </div>
                 )}
               >
@@ -398,7 +381,7 @@ const AssistantConfigPage: React.FC = () => {
                 />
               </Suspense>
             )}
-          </div>
+          </ScrollArea>
         </div>
       </div>
     </div>
@@ -419,33 +402,33 @@ const AssistantConfigPage: React.FC = () => {
         <div className="acp-right-shell acp-right-shell--editor">
           <div className="acp-persona-editor" data-bf-component="assistant-config-page" data-bf-part="editor">
             <div className="acp-persona-editor__head" data-bf-component="assistant-config-page" data-bf-part="editorHeader">
-              <IconButton
-                type="button"
-                size="xs"
-                className="acp-persona-editor__back"
-                onClick={closePersonaDoc}
-                aria-label={t('nursery.template.closeDetail')}
-                tooltip={t('nursery.template.closeDetail')}
-              >
-                <ArrowLeft size={13} />
-              </IconButton>
+              <Tooltip content={t('nursery.template.closeDetail')}>
+                <IconButton
+                  type="button"
+                  size="sm"
+                  className="acp-persona-editor__back"
+                  onClick={closePersonaDoc}
+                  aria-label={t('nursery.template.closeDetail')}
+                  icon={<Icon name="arrow-left" size="xs" />}
+                />
+              </Tooltip>
               <span className="acp-persona-editor__title">{t(`nursery.assistant.personaDocs.${docLabelKey}`)}</span>
-              <IconButton
-                type="button"
-                size="xs"
-                variant="danger"
-                className="acp-persona-editor__close"
-                onClick={closePersonaDoc}
-                aria-label={t('nursery.template.closeDetail')}
-                tooltip={t('nursery.template.closeDetail')}
-              >
-                <X size={13} />
-              </IconButton>
+              <Tooltip content={t('nursery.template.closeDetail')}>
+                <IconButton
+                  type="button"
+                  size="sm"
+                  tone="danger"
+                  className="acp-persona-editor__close"
+                  onClick={closePersonaDoc}
+                  aria-label={t('nursery.template.closeDetail')}
+                  icon={<Icon name="xmark" size="xs" />}
+                />
+              </Tooltip>
             </div>
             <div className="acp-persona-editor__body" data-bf-component="assistant-config-page" data-bf-part="editorBody">
               {error && <p className="acp-persona-editor__error" data-bf-component="assistant-config-page" data-bf-part="error">{t('nursery.assistant.personaDocLoadFailed')}: {error}</p>}
               {loading ? (
-                <div className="acp-loading" data-bf-component="assistant-config-page" data-bf-part="loading"><RefreshCw size={14} className="nursery-spinning" /></div>
+                <div className="acp-loading" data-bf-component="assistant-config-page" data-bf-part="loading"><Icon name="refresh" size="sm" className="nursery-spinning" /></div>
               ) : usesHybridEditor ? (
                 <div className="acp-persona-editor__hybrid">
                   <section className="acp-persona-editor__frontmatter" data-bf-component="assistant-config-page" data-bf-part="frontmatter">
@@ -453,7 +436,6 @@ const AssistantConfigPage: React.FC = () => {
                       key={`${fileName}-frontmatter`}
                       value={sections.frontmatter}
                       onChange={handlePersonaDocFrontmatterChange}
-                      className="acp-persona-editor__frontmatter-textarea"
                     />
                   </section>
                   <div className="acp-persona-editor__divider" aria-hidden="true" />
@@ -509,18 +491,18 @@ const AssistantConfigPage: React.FC = () => {
     >
       {/* Top bar — back only */}
       <div className="nursery-page__bar acp-page__bar" data-bf-component="assistant-config-page" data-bf-part="toolbar">
-        <IconButton
-          type="button"
-          size="small"
-          className="nursery-page__back"
-          data-bf-component="assistant-config-page"
-          data-bf-part="back"
-          onClick={openGallery}
-          aria-label={t('nursery.backToGallery')}
-          tooltip={t('nursery.backToGallery')}
-        >
-          <ArrowLeft size={13} />
-        </IconButton>
+        <Tooltip content={t('nursery.backToGallery')}>
+          <IconButton
+            type="button"
+            size="sm"
+            className="nursery-page__back"
+            data-bf-component="assistant-config-page"
+            data-bf-part="back"
+            onClick={openGallery}
+            aria-label={t('nursery.backToGallery')}
+            icon={<Icon name="arrow-left" size="xs" />}
+          />
+        </Tooltip>
       </div>
 
       {/* Two-column layout */}
@@ -530,9 +512,13 @@ const AssistantConfigPage: React.FC = () => {
           {/* Identity header above the input */}
           <div className="acp-left-header" data-bf-component="assistant-config-page" data-bf-part="identity">
             <AssistantAvatarPicker
+              presetValue={displayIdentity.avatar}
               value={displayIdentity.emoji}
+              stableKey={workspace?.assistantId || workspace?.id}
+              assistantName={displayIdentity.name || DEFAULT_AGENT_NAME}
               saveStatus={identitySaveStatus}
               saveError={identitySaveError}
+              onPresetChange={(avatar) => updateIdentityField('avatar', avatar)}
               onChange={(emoji) => updateIdentityField('emoji', emoji)}
             />
             <div className="acp-left-header__info">
@@ -565,8 +551,8 @@ const AssistantConfigPage: React.FC = () => {
                     onChange={(e) => setEditValue(e.target.value)}
                     onBlur={commitEdit}
                     onKeyDown={onEditKey}
-                    size="small"
                     className="acp-left-header__meta-input"
+                    size="sm"
                   />
                 ) : (
                   <span
@@ -589,8 +575,8 @@ const AssistantConfigPage: React.FC = () => {
                     onChange={(e) => setEditValue(e.target.value)}
                     onBlur={commitEdit}
                     onKeyDown={onEditKey}
-                    size="small"
                     className="acp-left-header__meta-input"
+                    size="sm"
                   />
                 ) : (
                   <span
@@ -612,16 +598,23 @@ const AssistantConfigPage: React.FC = () => {
             workspaceId={workspace?.id}
             assistantName={identityName}
           />
-          <div className="acp-sessions-area" data-bf-component="assistant-config-page" data-bf-part="sessions">
+          <ScrollArea className="acp-sessions-area" data-bf-component="assistant-config-page" data-bf-part="sessions">
             <h2 className="acp-sessions-area__title">{t('nursery.assistant.sessionsSectionTitle')}</h2>
             <SessionsSection
               workspaceId={workspace?.id}
               workspacePath={workspacePath}
-              assistantLabel={identityName}
+              presentation={{
+                kind: 'assistant',
+                assistant: {
+                  id: workspace?.assistantId || workspace?.id || workspacePath,
+                  name: identityName,
+                  avatar: displayIdentity.avatar,
+                  emoji: displayIdentity.emoji,
+                },
+              }}
               isActiveWorkspace
-              showSessionModeIcon={false}
             />
-          </div>
+          </ScrollArea>
         </div>
 
         {/* Right: persona docs + schedule */}

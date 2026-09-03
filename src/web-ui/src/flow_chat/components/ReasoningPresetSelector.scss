@@ -1,5 +1,3 @@
-@use '../../component-library/styles/tokens' as *;
-
 .bitfun-reasoning-preset-selector {
   position: relative;
   display: inline-flex;
@@ -8,34 +6,25 @@
   &__trigger {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    height: 20px;
-    max-width: 112px;
-    padding: 0 8px;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
     border: none;
-    border-radius: 10px;
+    border-radius: var(--bf-radius-base);
     background: transparent;
-    color: var(--bf-appearance-token-color-text-secondary);
-    font-size: var(--bf-appearance-token-flowchat-font-size-2xs);
+    color: var(--bf-color-content-primary);
+    font-size: var(--bf-type-flow-support-font-size);
     cursor: pointer;
-    opacity: 0.72;
     outline: none;
 
-    .bitfun-chat-input__box:focus-within &,
-    &:hover,
-    &:focus-visible,
-    &--open {
-      color: var(--bf-appearance-token-color-text-primary);
-      opacity: 1;
-    }
-
     &:hover,
     &--open {
-      background: var(--bf-appearance-token-element-bg-medium);
+      background: var(--bf-color-action-neutral-surface-hover);
     }
 
     &:focus-visible {
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 20%, transparent);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--bf-color-accent-default) 20%, transparent);
     }
 
     &:disabled {
@@ -44,24 +33,66 @@
     }
   }
 
-  &__label {
+  &[data-bf-presentation='label'] &__trigger {
+    width: auto;
+    min-width: 0;
+    padding-inline: 2px;
+    border-radius: var(--bf-radius-sm);
+  }
+
+  &__trigger-label {
+    min-width: 0;
     overflow: hidden;
+    color: var(--bf-color-content-muted);
+    font-size: var(--bf-type-flow-control-font-size);
+    font-weight: var(--bf-font-weight-regular);
+    line-height: var(--bf-line-height-none);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
+  &__status-meter {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    color: var(--bf-color-content-secondary);
+
+    &[data-size='compact'] {
+      width: 14px;
+      height: 14px;
+    }
+
+    &[data-size='option'] {
+      width: 24px;
+      height: 24px;
+    }
+  }
+
+  &__status-ring,
+  &__status-peak,
+  &__status-off {
+    position: absolute;
+    flex: none;
+  }
+
+  &__status-ring {
+    stroke: currentColor;
+  }
+
+  &__status-peak {
+    color: var(--bf-color-accent-default);
+  }
+
+  &__status-off {
+    color: var(--bf-color-content-muted);
+  }
+
   &__menu {
     --reasoning-preset-menu-offset: -4px;
+    --bf-overlay-menu-inline-size: min(232px, calc(100vw - 16px));
 
-    min-width: clamp(0px, 190px, calc(100vw - 16px));
-    max-width: clamp(0px, 240px, calc(100vw - 16px));
-    padding: 4px;
-    overflow: hidden;
-    background: var(--bf-appearance-token-color-bg-elevated);
-    border: 1px solid var(--bf-appearance-token-border-subtle);
-    border-radius: 6px;
-    box-shadow: 0 8px 32px var(--bf-appearance-token-color-overlay-black-50);
-    z-index: $z-popover;
+    z-index: var(--bf-layer-popover);
     transform-origin: center top;
     transition:
       opacity 100ms ease,
@@ -91,77 +122,51 @@
   }
 
   &__header {
-    padding: 5px 7px 7px;
-    color: var(--bf-appearance-token-color-text-muted);
-    font-size: var(--bf-appearance-token-flowchat-font-size-xxs);
-    font-weight: 500;
-  }
-
-  &__option {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    width: 100%;
-    min-height: 34px;
-    padding: 6px 8px;
-    border: 0;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--bf-appearance-token-color-text-secondary);
-    text-align: left;
-    cursor: pointer;
+    gap: 8px;
+    padding: 0 1px 7px;
+  }
 
-    &:hover,
-    &:focus-visible {
-      background: var(--bf-appearance-token-element-bg-medium);
-      color: var(--bf-appearance-token-color-text-primary);
-      outline: none;
-    }
+  &__title {
+    color: var(--bf-color-content-primary);
+    font-size: var(--bf-type-flow-control-font-size);
+    font-weight: var(--bf-font-weight-semibold);
+    line-height: var(--bf-line-height-dense);
+  }
 
-    &[aria-checked='true'] {
-      background: var(--bf-appearance-token-element-bg-subtle);
-    }
+  &__auto-row {
+    flex: 0 0 auto;
+    inline-size: auto;
+    min-width: 0;
+  }
 
-    > span {
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
+  &__options {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
 
-    strong,
-    small {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      letter-spacing: 0;
-    }
+  &__option-row {
+    min-width: 0;
+  }
 
-    strong {
-      font-size: var(--bf-appearance-token-flowchat-font-size-xs);
-      font-weight: 500;
-    }
-
-    small {
-      color: var(--bf-appearance-token-color-text-muted);
-      font-size: var(--bf-appearance-token-flowchat-font-size-2xs);
-    }
-
-    svg {
-      flex-shrink: 0;
-      color: var(--bf-appearance-token-color-accent-500);
-    }
+  &__option-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--bf-color-content-primary);
+    font-size: var(--bf-type-flow-control-font-size);
+    font-weight: var(--bf-font-weight-medium);
+    line-height: var(--bf-line-height-dense);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .bitfun-reasoning-preset-selector__menu {
     transition: opacity 100ms linear;
-  }
-}
-
-@media (max-width: 520px) {
-  .bitfun-reasoning-preset-selector__trigger {
-    max-width: 84px;
   }
 }

@@ -1,9 +1,9 @@
 .computer-use-tool-card__action-code {
-  font-size: 11px;
+  font-size: var(--bf-font-size-meta);
   padding: 1px 6px;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--bf-appearance-token-color-bg-elevated) 88%, transparent);
-  color: var(--bf-appearance-token-color-text-secondary);
+  background: color-mix(in srgb, var(--bf-color-surface-raised) 88%, transparent);
+  color: var(--bf-color-content-secondary);
   white-space: nowrap;
 }
 
@@ -17,21 +17,21 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 12px;
-  color: var(--bf-appearance-token-color-text-secondary);
+  font-size: var(--bf-font-size-xs);
+  color: var(--bf-color-content-secondary);
 
   code {
-    font-size: 11px;
+    font-size: var(--bf-font-size-meta);
     padding: 1px 6px;
     border-radius: 4px;
-    background: color-mix(in srgb, var(--bf-appearance-token-color-bg-elevated) 88%, transparent);
+    background: color-mix(in srgb, var(--bf-color-surface-raised) 88%, transparent);
   }
 }
 
 .computer-use-tool-card__row-label {
   flex-shrink: 0;
   min-width: 64px;
-  color: var(--bf-appearance-token-color-text-muted);
+  color: var(--bf-color-content-muted);
 }
 
 .computer-use-tool-card__loop-warning {
@@ -40,9 +40,9 @@
   gap: 6px;
   padding: 6px 8px;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--bf-appearance-token-color-warning) 12%, transparent);
-  color: var(--bf-appearance-token-color-warning);
-  font-size: 12px;
+  background: color-mix(in srgb, var(--bf-color-status-warning-content) 12%, transparent);
+  color: var(--bf-color-status-warning-content);
+  font-size: var(--bf-font-size-xs);
 
   svg {
     flex-shrink: 0;
@@ -58,29 +58,15 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  font-size: 12px;
-  color: var(--bf-appearance-token-color-text-secondary);
+  font-size: var(--bf-font-size-xs);
+  color: var(--bf-color-content-secondary);
 
   p {
     margin: 0;
-    line-height: 1.5;
+    line-height: var(--bf-line-height-base);
   }
 }
 
 .computer-use-tool-card__settings-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   align-self: flex-start;
-  padding: 4px 10px;
-  border: 1px solid color-mix(in srgb, var(--bf-appearance-token-color-accent-600) 35%, transparent);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--bf-appearance-token-color-accent-600) 8%, transparent);
-  color: var(--bf-appearance-token-color-accent-600);
-  font-size: 12px;
-  cursor: pointer;
-
-  &:hover {
-    background: color-mix(in srgb, var(--bf-appearance-token-color-accent-600) 14%, transparent);
-  }
 }

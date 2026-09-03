@@ -17,7 +17,7 @@ import {
   RotateCcw,
   Plus,
 } from 'lucide-react';
-import { Card, IconButton, Tooltip } from '@/component-library';
+import { ActionCard, IconButton, Tooltip } from '@bitfun/ui';
 import './CoworkExampleCards.scss';
 
 type ExampleId =
@@ -89,30 +89,16 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
       const handleSelect = () => onSelectPrompt(prompt);
 
       return (
-        <Card
+        <ActionCard
           key={example.id}
-          data-bf-component="cowork-example-cards"
-          data-bf-part="card"
           className="bitfun-cowork-example-cards__card"
-          variant="subtle"
-          interactive
-          role="button"
-          tabIndex={0}
+          description={description}
+          leading={<Icon size={18} />}
+          size="md"
           onClick={handleSelect}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' && event.key !== ' ') return;
-            event.preventDefault();
-            handleSelect();
-          }}
         >
-          <div data-bf-component="cowork-example-cards" data-bf-part="cardHeader" className="bitfun-cowork-example-cards__card-header">
-            <div data-bf-component="cowork-example-cards" data-bf-part="cardIcon" className="bitfun-cowork-example-cards__card-icon">
-              <Icon size={18} />
-            </div>
-            <div data-bf-component="cowork-example-cards" data-bf-part="cardTitle" className="bitfun-cowork-example-cards__card-title">{title}</div>
-          </div>
-          <div data-bf-component="cowork-example-cards" data-bf-part="cardDescription" className="bitfun-cowork-example-cards__card-desc">{description}</div>
-        </Card>
+          {title}
+        </ActionCard>
       );
     });
   }, [onSelectPrompt, selected, t]);
@@ -125,35 +111,29 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
           {onAddPlugin && (
             <Tooltip content={t('coworkExamples.addPlugin')}>
               <IconButton
-                variant="ghost"
-                size="xs"
+                size="sm"
                 onClick={onAddPlugin}
                 aria-label={t('coworkExamples.addPlugin')}
-              >
-                <Plus size={14} />
-              </IconButton>
+                icon={<Plus size={14} />}
+              />
             </Tooltip>
           )}
           <Tooltip content={t('coworkExamples.refresh')}>
             <IconButton
-              variant="ghost"
-              size="xs"
+              size="sm"
               onClick={handleRefresh}
               aria-label={t('coworkExamples.refresh')}
-            >
-              <RotateCcw size={14} />
-            </IconButton>
+              icon={<RotateCcw size={14} />}
+            />
           </Tooltip>
           {onClose && (
             <Tooltip content={t('coworkExamples.close')}>
               <IconButton
-                variant="ghost"
-                size="xs"
+                size="sm"
                 onClick={onClose}
                 aria-label={t('coworkExamples.close')}
-              >
-                <X size={14} />
-              </IconButton>
+                icon={<X size={14} />}
+              />
             </Tooltip>
           )}
         </div>

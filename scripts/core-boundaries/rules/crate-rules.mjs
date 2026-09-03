@@ -571,7 +571,6 @@ export const dependencyProfileRules = [
       'globset',
       'ignore',
       'libc',
-      'notify',
       'regex',
       'rusqlite',
       'serde_yaml',
@@ -580,7 +579,6 @@ export const dependencyProfileRules = [
       'which',
       'win32job',
       'windows',
-      'zip',
     ],
   },
   {

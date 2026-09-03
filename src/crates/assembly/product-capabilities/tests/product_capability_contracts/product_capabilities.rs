@@ -40,6 +40,29 @@ fn agent_runtime_baseline_tool_plan_requests_only_baseline_feature_owners() {
     );
 }
 
+#[test]
+fn every_agent_runtime_delivery_profile_includes_product_control_discovery() {
+    for profile in [
+        DeliveryProfile::ProductFull,
+        DeliveryProfile::Desktop,
+        DeliveryProfile::Cli,
+        DeliveryProfile::Acp,
+        DeliveryProfile::Sdk,
+    ] {
+        let plan = product_assembly_plan_for_profile(profile);
+        let tool_plan = plan.tool_plan();
+        assert!(
+            tool_plan
+                .tool_provider_group_plan()
+                .iter()
+                .flat_map(|provider| provider.tool_names())
+                .any(|tool_name| *tool_name == "BitFunControl"),
+            "{} must expose BitFunControl to its agents",
+            profile.id()
+        );
+    }
+}
+
 #[async_trait::async_trait]
 impl PluginRuntimeClient for AvailablePluginRuntimeClient {
     fn availability(&self) -> PluginRuntimeAvailability {
@@ -119,9 +142,8 @@ fn default_capability_registry_preserves_product_tool_provider_order() {
             "core.computer-use",
             "core.review",
             "core.miniapp",
+            "core.creation",
             "core.canvas",
-            "core.integration",
-            "core.openharmony",
         ]
     );
 }
@@ -142,6 +164,8 @@ fn capability_packs_describe_service_and_tool_requirements() {
             "deep-review",
             "deep-research",
             "miniapp",
+            "creation",
+            "canvas",
             "voice-input"
         ]
     );
@@ -159,6 +183,8 @@ fn product_assembly_plan_keeps_full_capabilities_only_for_core_compatibility_pro
         "deep-review",
         "deep-research",
         "miniapp",
+        "creation",
+        "canvas",
     ];
     let full_tool_groups = vec![
         "core.basic",
@@ -170,9 +196,8 @@ fn product_assembly_plan_keeps_full_capabilities_only_for_core_compatibility_pro
         "core.computer-use",
         "core.review",
         "core.miniapp",
+        "core.creation",
         "core.canvas",
-        "core.integration",
-        "core.openharmony",
     ];
 
     for profile in [DeliveryProfile::ProductFull, DeliveryProfile::Desktop] {
@@ -436,6 +461,7 @@ fn product_assembly_plan_exposes_build_feature_groups_explicitly() {
             ProductFeatureGroup::Mcp,
             ProductFeatureGroup::ComputerUse,
             ProductFeatureGroup::MiniApp,
+            ProductFeatureGroup::Creation,
             ProductFeatureGroup::Canvas,
         ]
     );
@@ -450,6 +476,7 @@ fn product_assembly_plan_exposes_build_feature_groups_explicitly() {
             "mcp",
             "computer-use",
             "miniapp",
+            "creation",
             "canvas",
         ]
     );
@@ -747,6 +774,8 @@ fn default_capability_assembly_keeps_service_and_tool_facts_together() {
             "deep-review",
             "deep-research",
             "miniapp",
+            "creation",
+            "canvas",
             "voice-input"
         ]
     );
@@ -783,9 +812,8 @@ fn default_capability_assembly_keeps_service_and_tool_facts_together() {
             "core.computer-use",
             "core.review",
             "core.miniapp",
+            "core.creation",
             "core.canvas",
-            "core.integration",
-            "core.openharmony"
         ]
     );
 }

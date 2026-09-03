@@ -3,7 +3,12 @@ import { Encoding } from './Encoding';
 import { PairIdentity, PeerDeviceProvisionOutcome, RelayHttpClient } from './RelayHttpClient';
 import { CloudAccountClient, CloudAccountRequestError, CloudAccountSession } from './CloudAccountClient';
 import { RemoteI18n } from '../i18n/RemoteI18n';
-import { AccountDeviceCommandTransport, RemoteCommandTransport, RoomRemoteCommandTransport } from './RemoteCommandTransport';
+import {
+  AccountDeviceCommandTransport,
+  INTERACTIVE_DIRECTORY_TIMEOUT_MS,
+  RemoteCommandTransport,
+  RoomRemoteCommandTransport
+} from './RemoteCommandTransport';
 import { RemoteCommandFactory } from './RemoteCommandFactory';
 import { RemoteCrypto } from './RemoteCrypto';
 import { RemoteChatCommandClient } from './RemoteChatCommandController';
@@ -11,6 +16,7 @@ import { RemoteFileDownloadClient } from './RemoteFileDownloadController';
 import { RemoteLogger } from './RemoteLogger';
 import { RemoteModelClient } from './RemoteModelController';
 import { RemoteResponseMapper } from './RemoteResponseMapper';
+import { stampRemoteSessionsWorkspace } from './RemoteSessionIdentity';
 import { TranscriptIntegrityPolicy } from './TranscriptIntegrityPolicy';
 import { RemoteSessionClient } from './RemoteSessionController';
 import { RemoteToolActionClient } from './RemoteToolActionController';
@@ -76,7 +82,8 @@ export class RemoteSessionManager implements RemoteChatCommandClient, RemoteFile
       workspace: this.workspace,
       sessions: RemoteResponseMapper.sessions(initialSync.sessions || []),
       hasMoreSessions: initialSync.has_more_sessions || false,
-      authenticatedUserId: initialSync.authenticated_user_id || ''
+      authenticatedUserId: initialSync.authenticated_user_id || '',
+      capabilities: initialSync.capabilities || []
     };
   }
 
@@ -150,7 +157,8 @@ export class RemoteSessionManager implements RemoteChatCommandClient, RemoteFile
       workspace: this.workspace,
       sessions: sessions.sessions,
       hasMoreSessions: sessions.hasMore,
-      authenticatedUserId: session.userId
+      authenticatedUserId: session.userId,
+      capabilities: workspaceResponse.capabilities || []
     };
   }
 
@@ -196,25 +204,17 @@ export class RemoteSessionManager implements RemoteChatCommandClient, RemoteFile
       return [];
     }
     const response = await this.send<SessionListResponse>(
-      RemoteCommandFactory.listSessions(path, limit, 0, '')
+      RemoteCommandFactory.listSessions(path, limit, 0, ''),
+      INTERACTIVE_DIRECTORY_TIMEOUT_MS
     );
-    return RemoteResponseMapper.sessions(response.sessions || []);
+    return stampRemoteSessionsWorkspace(RemoteResponseMapper.sessions(response.sessions || []), path);
   }
 
   async listSessions(limit: number, offset: number, query: string, agentType: string): Promise<SessionListResult> {
     const workspacePath = this.workspace?.path || '';
     const normalizedAgentType = RemoteSessionManager.normalizedSessionFilter(agentType);
     const trimmedQuery = query.trim();
-    if (!normalizedAgentType) {
-      const command = RemoteCommandFactory.listSessions(workspacePath, limit, offset, trimmedQuery);
-      const response = await this.send<SessionListResponse>(command);
-      return {
-        sessions: RemoteResponseMapper.sessions(response.sessions || []),
-        hasMore: response.has_more || false
-      };
-    }
-
-    const pageSize = Math.max(100, limit);
+    const pageSize = normalizedAgentType ? Math.max(100, limit) : Math.max(1, limit);
     const targetCount = offset + limit;
     const filteredSessions: RemoteSession[] = [];
     let pageOffset = 0;
@@ -222,14 +222,15 @@ export class RemoteSessionManager implements RemoteChatCommandClient, RemoteFile
     while (hasMore && filteredSessions.length < targetCount) {
       const command = RemoteCommandFactory.listSessions(workspacePath, pageSize, pageOffset, trimmedQuery);
       const response = await this.send<SessionListResponse>(command);
-      const sessions = RemoteResponseMapper.sessions(response.sessions || []);
+      const sessions = RemoteResponseMapper.allSessions(response.sessions || []);
       for (const session of sessions) {
-        if (RemoteSessionManager.agentMatchesFilter(session.agentType, normalizedAgentType)) {
+        if (RemoteResponseMapper.isVisibleSession(session) &&
+          (!normalizedAgentType || RemoteSessionManager.agentMatchesFilter(session.agentType, normalizedAgentType))) {
           filteredSessions.push(session);
         }
       }
       hasMore = response.has_more || false;
-      pageOffset += pageSize;
+      pageOffset += sessions.length;
       if (sessions.length === 0) {
         break;
       }
@@ -240,19 +241,30 @@ export class RemoteSessionManager implements RemoteChatCommandClient, RemoteFile
     };
   }
 
-  async createSession(options: CreateSessionOptions): Promise<SessionSummary> {
+  async createSession(
+    options: CreateSessionOptions,
+    onAllocated?: (session: SessionSummary) => Promise<void>
+  ): Promise<SessionSummary> {
     const workspacePath = options.workspacePath?.trim() || this.workspace?.path || '';
     const command = RemoteCommandFactory.createSession(options, workspacePath);
     const response = await this.send<CreateSessionResponse>(command);
     const sessionId = response.session_id || response.id || '';
-    const modelId = options.modelId?.trim() || '';
-    if (modelId.length > 0) {
-      await this.setSessionModel(sessionId, modelId);
-    }
     const normalizedAgentType = options.agentType.toLowerCase();
     const fallbackTitle = normalizedAgentType === 'claw' || normalizedAgentType === 'assistant' || normalizedAgentType === 'chat' ?
       'Assistant Session' : normalizedAgentType === 'cowork' ? 'Cowork Session' : 'Code Session';
     const title = response.title || fallbackTitle;
+    if (onAllocated) {
+      await onAllocated({
+        sessionId,
+        title,
+        workspacePath,
+        agentType: options.agentType
+      });
+    }
+    const modelId = options.modelId?.trim() || '';
+    if (modelId.length > 0) {
+      await this.setSessionModel(sessionId, modelId);
+    }
     let initialTurnId = '';
     if (options.instruction.trim().length > 0) {
       initialTurnId = await this.sendMessage(sessionId, options.instruction.trim(), options.agentType);
@@ -326,6 +338,9 @@ export class RemoteSessionManager implements RemoteChatCommandClient, RemoteFile
     const response = await this.send<PollSessionResponse>(command);
     const rawMessages = response.new_messages || [];
     const newMessages = rawMessages.map((item: ChatMessageResponse) => RemoteResponseMapper.chatMessage(item));
+    const rawSnapshot = response.message_snapshot;
+    const messageSnapshot = rawSnapshot ?
+      rawSnapshot.map((item: ChatMessageResponse) => RemoteResponseMapper.chatMessage(item)) : undefined;
     const result: PollSessionResult = {
       version: response.version || sinceVersion,
       changed: response.changed,
@@ -333,13 +348,14 @@ export class RemoteSessionManager implements RemoteChatCommandClient, RemoteFile
       title: response.title || '',
       newMessages,
       totalMessageCount: response.total_msg_count || knownMessageCount,
+      messageSnapshot,
       activeTurn: response.active_turn
         ? RemoteResponseMapper.activeTurnToMessage(response.active_turn, response.version || sinceVersion)
         : undefined,
       modelCatalog: response.model_catalog
     };
     const rawActive = response.active_turn;
-    RemoteLogger.info(`poll_session done session=${RemoteSessionManager.shortId(sessionId)} changed=${result.changed ? '1' : '0'} state=${result.sessionState} active=${rawActive ? rawActive.turn_id : ''} activeStatus=${rawActive ? rawActive.status : ''} rawText=${rawActive && rawActive.text ? rawActive.text.length : 0} rawThinking=${rawActive && rawActive.thinking ? rawActive.thinking.length : 0} rawItems=${rawActive && rawActive.items ? rawActive.items.length : 0} rawItemText=${RemoteSessionManager.itemsContentLength(rawActive ? rawActive.items : undefined)} projectedText=${result.activeTurn ? result.activeTurn.text.length : 0} new=${newMessages.length} ${newMessages.length > 0 ? TranscriptIntegrityPolicy.describeMessages(newMessages) + ' ' : ''}ms=${Date.now() - startedAt}`);
+    RemoteLogger.info(`poll_session done session=${RemoteSessionManager.shortId(sessionId)} changed=${result.changed ? '1' : '0'} state=${result.sessionState} active=${rawActive ? rawActive.turn_id : ''} activeStatus=${rawActive ? rawActive.status : ''} rawText=${rawActive && rawActive.text ? rawActive.text.length : 0} rawThinking=${rawActive && rawActive.thinking ? rawActive.thinking.length : 0} rawItems=${rawActive && rawActive.items ? rawActive.items.length : 0} rawItemText=${RemoteSessionManager.itemsContentLength(rawActive ? rawActive.items : undefined)} projectedText=${result.activeTurn ? result.activeTurn.text.length : 0} new=${newMessages.length} snapshot=${messageSnapshot ? messageSnapshot.length : 0} ${newMessages.length > 0 ? TranscriptIntegrityPolicy.describeMessages(newMessages) + ' ' : ''}ms=${Date.now() - startedAt}`);
     return result;
   }
 

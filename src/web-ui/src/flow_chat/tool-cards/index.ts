@@ -30,6 +30,8 @@ import { GlobSearchDisplay } from './GlobSearchDisplay';
 import { LSDisplay } from './LSDisplay';
 import { TodoWriteDisplay } from './TodoWriteDisplay';
 import { TaskToolDisplay } from './TaskToolDisplay';
+import { AgentControlToolCard } from './AgentControlToolCard';
+import { AgentWaitToolCard } from './AgentWaitToolCard';
 import { CodeReviewToolCard } from './CodeReviewToolCard';
 import { FileOperationToolCard } from './FileOperationToolCard';
 import { DefaultToolCard } from './DefaultToolCard';
@@ -40,15 +42,12 @@ import { ContextCompressionDisplay } from './ContextCompressionDisplay';
 import { MCPToolDisplay } from './MCPToolDisplay';
 import { SkillDisplay } from './SkillDisplay';
 import { AskUserQuestionCard } from './AskUserQuestionCard';
-import { GitToolDisplay } from './GitToolDisplay';
 import { GetFileDiffDisplay } from './GetFileDiffDisplay';
 import { CreatePlanDisplay } from './CreatePlanDisplay';
-import { TerminalToolCard } from './TerminalToolCard';
 import { RunCodeToolCard } from './RunCodeToolCard';
 import { ExecCommandToolCard } from './ExecCommandToolCard';
 import { WriteStdinToolCard } from './WriteStdinToolCard';
 import { ExecControlToolCard } from './ExecControlToolCard';
-import { TerminalControlDisplay } from './TerminalControlDisplay';
 import { InitMiniAppDisplay } from './MiniAppToolDisplay';
 import { PageDeployDisplay } from './PageDeployToolDisplay';
 import { PagePublishDisplay } from './PagePublishToolDisplay';
@@ -60,8 +59,13 @@ import { SessionMessageToolCard } from './SessionMessageToolCard';
 import { ComputerUseToolCard } from './ComputerUseToolCard';
 import { ViewImageToolCard } from './ViewImageToolCard';
 
-// Tool card component map - uses backend tool names
-export const TOOL_CARD_COMPONENTS = {
+/**
+ * Standard tool adapters backed by concrete `@bitfun/ui/flow-chat` views.
+ *
+ * These components may translate product data, localization, host callbacks,
+ * and heavyweight renderer slots, but they must not own a second card anatomy.
+ */
+export const STANDARD_TOOL_CARD_ADAPTERS = {
   // File tools
   'Read': ReadFileDisplay, // Read does not need snapshot support.
   'Write': FileOperationToolCard,
@@ -77,13 +81,12 @@ export const TOOL_CARD_COMPONENTS = {
   'WebSearch': WebSearchCard,
   'WebFetch': WebFetchCard,
   
-  // Advanced tools
-  'Task': TaskToolDisplay,
-  'LaunchReviewAgent': TaskToolDisplay,
+  // Agent activity
+  'AgentSpawn': AgentControlToolCard,
+  'AgentSendInput': AgentControlToolCard,
+  'AgentWait': AgentWaitToolCard,
   'TodoWrite': TodoWriteDisplay,
-  
-  'submit_code_review': CodeReviewToolCard,
-  
+
   // Context compression
   'ContextCompression': ContextCompressionDisplay,
   'GetToolSpec': GetToolSpecCard,
@@ -91,29 +94,14 @@ export const TOOL_CARD_COMPONENTS = {
   // Skill tool
   'Skill': SkillDisplay,
 
-  // AskUserQuestion tool
-  'AskUserQuestion': AskUserQuestionCard,
-
   'ReviewSessionSummary': ReviewSessionSummaryCard,
-
-  // Git version control
-  'Git': GitToolDisplay,
 
   // GetFileDiff tool
   'GetFileDiff': GetFileDiffDisplay,
 
-  // CreatePlan tool
-  'CreatePlan': CreatePlanDisplay,
-
-  // TerminalControl tool
-  'TerminalControl': TerminalControlDisplay,
-
   // Session tools
   'SessionControl': SessionControlToolCard,
   'SessionMessage': SessionMessageToolCard,
-
-  // Bash tool
-  'Bash': TerminalToolCard,
 
   // Code-mode agents: one program per step instead of one card per action
   'RunCode': RunCodeToolCard,
@@ -123,27 +111,43 @@ export const TOOL_CARD_COMPONENTS = {
   'WriteStdin': WriteStdinToolCard,
   'ExecControl': ExecControlToolCard,
 
-  // MiniApp tool
-  'InitMiniApp': InitMiniAppDisplay,
-
   // BitFun Page (session-only publish)
   'PageDeploy': PageDeployDisplay,
   'PagePublish': PagePublishDisplay,
 
-  // Generative widget tool
-  'GenerativeUI': GenerativeWidgetToolCard,
-
-  // Computer use (desktop automation)
-  'ComputerUse': ComputerUseToolCard,
-
   // Model vision image preview
   'view_image': ViewImageToolCard,
+} as const;
+
+/**
+ * Bespoke product cards intentionally kept in Web UI.
+ *
+ * Their view is inseparable from a product workflow, runtime surface, or host
+ * capability. They may compose the public framework, but are not represented
+ * as generic concrete views in the independent package.
+ */
+export const PRODUCT_OWNED_TOOL_CARD_COMPONENTS = {
+  'Task': TaskToolDisplay,
+  'LaunchReviewAgent': TaskToolDisplay,
+  'submit_code_review': CodeReviewToolCard,
+  'AskUserQuestion': AskUserQuestionCard,
+  // Legacy CreatePlan history remains displayable after runtime tool removal.
+  'CreatePlan': CreatePlanDisplay,
+  'InitMiniApp': InitMiniAppDisplay,
+  'GenerativeUI': GenerativeWidgetToolCard,
+  'ComputerUse': ComputerUseToolCard,
 
   // BitFun Canvas tools
   'CreateCanvas': CanvasToolCard,
   'ReadCanvas': CanvasToolCard,
   'UpdateCanvas': CanvasToolCard,
   'PatchCanvas': CanvasToolCard,
+} as const;
+
+// Runtime map keyed by backend tool names.
+export const TOOL_CARD_COMPONENTS = {
+  ...STANDARD_TOOL_CARD_ADAPTERS,
+  ...PRODUCT_OWNED_TOOL_CARD_COMPONENTS,
 };
 
 /**
@@ -171,26 +175,5 @@ export function getToolCardComponent(toolName: string) {
   return component || DefaultToolCard;
 }
 
-// Export components
-export {
-  BaseToolCard,
-  ToolCardHeader,
-} from './BaseToolCard';
-export {
-  ToolCardHeaderLayoutContext,
-  useToolCardHeaderLayout,
-} from './ToolCardHeaderLayoutContext';
-export type {
-  BaseToolCardProps,
-  ToolCardHeaderProps,
-} from './BaseToolCard';
-export type {
-  ToolCardHeaderLayoutContextValue,
-  ToolCardHeaderAffordanceKind,
-} from './ToolCardHeaderLayoutContext';
-export { ToolCardIconSlot } from './ToolCardIconSlot';
-export type { ToolCardIconSlotProps } from './ToolCardIconSlot';
-export { ToolCardStatusIcon } from './ToolCardStatusIcon';
-export type { ToolCardStatusIconProps } from './ToolCardStatusIcon';
 export { PlanDisplay } from './CreatePlanDisplay';
 export type { PlanDisplayProps } from './CreatePlanDisplay';

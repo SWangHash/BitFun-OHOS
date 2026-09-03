@@ -15,6 +15,10 @@
 //! `emit_browser_page_load` `#[napi]` function (mirrors the desktop
 //! `.on_page_load` handler in `lib.rs`).
 
+use bitfun_core::agentic::tools::browser_control::BuiltInBrowserTarget;
+use serde::Deserialize;
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
@@ -90,6 +94,8 @@ pub struct WebviewEvalRequest {
 pub struct WebviewNavigateRequest {
     pub label: String,
     pub url: String,
+    #[serde(default)]
+    pub open_request_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -112,9 +118,53 @@ pub struct WebviewCreateRequest {
     pub y: f64,
     pub width: f64,
     pub height: f64,
+    #[serde(default)]
+    pub open_request_id: Option<String>,
 }
 
-fn validate_browser_label(label: &str) -> Result<(), String> {
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserAgentTargetStateRequest {
+    pub label: String,
+    pub active: bool,
+    #[serde(default)]
+    pub open_request_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct BrowserTargetRecord {
+    active: bool,
+    last_active_seq: u64,
+    url: String,
+    title: Option<String>,
+    open_request_id: Option<String>,
+}
+
+#[derive(Default)]
+struct BrowserTargetRegistry {
+    next_seq: u64,
+    records: HashMap<String, BrowserTargetRecord>,
+}
+
+impl BrowserTargetRegistry {
+    fn active_label_for_open_request(&self, request_id: &str) -> Option<String> {
+        self.records.iter().find_map(|(label, record)| {
+            (record.active && record.open_request_id.as_deref() == Some(request_id))
+                .then(|| label.clone())
+        })
+    }
+}
+
+static BROWSER_TARGETS: OnceLock<Mutex<BrowserTargetRegistry>> = OnceLock::new();
+
+fn lock_browser_targets() -> std::sync::MutexGuard<'static, BrowserTargetRegistry> {
+    BROWSER_TARGETS
+        .get_or_init(|| Mutex::new(BrowserTargetRegistry::default()))
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+pub(crate) fn validate_browser_label(label: &str) -> Result<(), String> {
     if label.starts_with("embedded-browser-view-")
         || label.starts_with("embedded-browser-panel-view-")
     {
@@ -122,6 +172,100 @@ fn validate_browser_label(label: &str) -> Result<(), String> {
     } else {
         Err("invalid browser webview label".to_string())
     }
+}
+
+fn register_browser_target(label: &str, url: &str, open_request_id: Option<String>) {
+    lock_browser_targets().records.insert(
+        label.to_string(),
+        BrowserTargetRecord {
+            url: url.to_string(),
+            open_request_id,
+            ..BrowserTargetRecord::default()
+        },
+    );
+}
+
+fn associate_browser_open_request(label: &str, open_request_id: Option<&str>) {
+    let Some(open_request_id) = open_request_id
+        .map(str::trim)
+        .filter(|request_id| !request_id.is_empty())
+    else {
+        return;
+    };
+    if let Some(record) = lock_browser_targets().records.get_mut(label) {
+        record.open_request_id = Some(open_request_id.to_string());
+    }
+}
+
+pub(crate) fn update_browser_target_url(label: &str, url: &str) {
+    if let Some(record) = lock_browser_targets().records.get_mut(label) {
+        record.url = url.to_string();
+        // A navigation invalidates the cached document title. The async
+        // automation host refreshes it from the page before target discovery
+        // is returned to ControlHub.
+        record.title = None;
+    }
+}
+
+pub(crate) fn update_browser_target_metadata(label: &str, url: &str, title: &str) {
+    if let Some(record) = lock_browser_targets().records.get_mut(label) {
+        record.url = url.to_string();
+        record.title = Some(title.to_string());
+    }
+}
+
+pub(crate) fn unregister_browser_target(label: &str) {
+    lock_browser_targets().records.remove(label);
+}
+
+pub(crate) fn list_browser_targets(app: &tauri::AppHandle) -> Vec<BuiltInBrowserTarget> {
+    let mut registry = lock_browser_targets();
+    registry
+        .records
+        .retain(|label, _| app.get_webview(label).is_some());
+    let mut targets = registry
+        .records
+        .iter()
+        .map(|(label, record)| {
+            let url = app
+                .get_webview(label)
+                .and_then(|webview| {
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| webview.url()))
+                        .ok()
+                        .and_then(Result::ok)
+                })
+                .map(|url| url.to_string())
+                .filter(|url| !url.is_empty())
+                .unwrap_or_else(|| record.url.clone());
+            (
+                record.last_active_seq,
+                BuiltInBrowserTarget {
+                    id: label.clone(),
+                    url,
+                    title: record.title.clone().unwrap_or_default(),
+                    active: record.active,
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    targets.sort_by(|left, right| right.0.cmp(&left.0));
+    targets.into_iter().map(|(_, target)| target).collect()
+}
+
+/// Resolve the exact active WebView that acknowledged one browser-open
+/// request. The request ID is presentation lifecycle metadata and is kept out
+/// of the public browser target DTO.
+pub(crate) fn browser_target_for_open_request(
+    app: &tauri::AppHandle,
+    request_id: &str,
+) -> Option<BuiltInBrowserTarget> {
+    let label = {
+        let registry = lock_browser_targets();
+        registry.active_label_for_open_request(request_id)
+    }?;
+    list_browser_targets(app)
+        .into_iter()
+        .find(|target| target.id == label && target.active)
 }
 
 fn validate_webview_bounds(x: f64, y: f64, width: f64, height: f64) -> Result<(), String> {
@@ -261,10 +405,45 @@ pub async fn browser_webview_create(
             )
             .map_err(|e| format!("failed to create browser webview: {e}"))?;
 
-        webview
-            .hide()
-            .map_err(|e| format!("failed to hide browser webview before positioning: {e}"))
+    webview
+        .hide()
+        .map_err(|e| format!("failed to hide browser webview before positioning: {e}"))?;
+    let target_url = webview.url().map(|url| url.to_string()).unwrap_or_default();
+    register_browser_target(webview.label(), &target_url, request.open_request_id);
+    Ok(())
+}
+
+/// Advertise which built-in browser surface the Agent should target. This is
+/// lifecycle metadata only; browser actions remain in the shared Rust action
+/// layer and native WebView adapter.
+#[tauri::command]
+pub async fn browser_webview_set_agent_target_state(
+    request: BrowserAgentTargetStateRequest,
+) -> Result<(), String> {
+    validate_browser_label(&request.label)?;
+    let mut registry = lock_browser_targets();
+    if request.active {
+        registry.next_seq = registry.next_seq.saturating_add(1);
+        let next_seq = registry.next_seq;
+        for record in registry.records.values_mut() {
+            record.active = false;
+        }
+        let record = registry.records.entry(request.label).or_default();
+        record.active = true;
+        record.last_active_seq = next_seq;
+        if let Some(request_id) = request
+            .open_request_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|request_id| !request_id.is_empty())
+        {
+            record.open_request_id = Some(request_id.to_string());
+        }
+    } else if let Some(record) = registry.records.get_mut(&request.label) {
+        record.active = false;
     }
+    Ok(())
+}
 
     #[cfg(target_env = "ohos")]
     {
@@ -309,17 +488,25 @@ pub async fn browser_webview_navigate(
     app: tauri::AppHandle,
     request: WebviewNavigateRequest,
 ) -> Result<(), String> {
-    let _ = parse_browser_url(&request.url)?;
-
     #[cfg(not(target_env = "ohos"))]
     {
         let url = request
-            .url
-            .parse::<tauri::Url>()
-            .map_err(|e| format!("invalid url: {e}"))?;
+        .url
+        .parse::<tauri::Url>()
+        .map_err(|e| format!("invalid url: {e}"))?;
+
+        match url.scheme() {
+            "http" | "https" => {}
+            scheme => return Err(format!("unsupported protocol: {scheme}")),
+        }
+
         find_browser_webview(&app, &request.label)?
             .navigate(url)
-            .map_err(|e| format!("navigate failed: {e}"))
+            .map_err(|e| format!("navigate failed: {e}"))?;
+        // A failed URL parse or native navigation must never acknowledge an open
+        // request merely because an older target is already active.
+        associate_browser_open_request(&request.label, request.open_request_id.as_deref());
+        Ok(())
     }
 
     #[cfg(target_env = "ohos")]
@@ -519,6 +706,52 @@ pub async fn browser_get_url(
             Err(_) => Err("url unavailable (webview URL is nil)".to_string()),
         }
     }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn open_request_correlation_requires_the_exact_active_target() {
+        let mut registry = BrowserTargetRegistry::default();
+        registry.records.insert(
+            "embedded-browser-panel-view-old".to_string(),
+            BrowserTargetRecord {
+                active: true,
+                open_request_id: Some("old-request".to_string()),
+                ..BrowserTargetRecord::default()
+            },
+        );
+        registry.records.insert(
+            "embedded-browser-panel-view-new".to_string(),
+            BrowserTargetRecord {
+                active: false,
+                open_request_id: Some("new-request".to_string()),
+                ..BrowserTargetRecord::default()
+            },
+        );
+
+        assert_eq!(
+            registry
+                .active_label_for_open_request("old-request")
+                .as_deref(),
+            Some("embedded-browser-panel-view-old")
+        );
+        assert_eq!(registry.active_label_for_open_request("new-request"), None);
+
+        registry
+            .records
+            .get_mut("embedded-browser-panel-view-new")
+            .expect("new target")
+            .active = true;
+        assert_eq!(
+            registry
+                .active_label_for_open_request("new-request")
+                .as_deref(),
+            Some("embedded-browser-panel-view-new")
+        );
+    }
+}
 
     #[cfg(target_env = "ohos")]
     {

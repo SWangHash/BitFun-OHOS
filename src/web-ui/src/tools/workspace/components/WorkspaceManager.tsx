@@ -1,8 +1,19 @@
+import {
+  Button,
+  Icon,
+  ScrollArea,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useState } from 'react';
-import { FolderOpen, Clock, FileText, Code, Folder, Bot } from 'lucide-react';
+import { FolderOpen, FileText, Code } from 'lucide-react';
 import { useWorkspaceContext } from '../../../infrastructure/contexts/WorkspaceContext';
 import { WorkspaceInfo, WorkspaceKind, WorkspaceType } from '../../../shared/types';
-import { Modal } from '@/component-library';
+import { AssistantAvatar } from '@/app/components/AssistantAvatar';
 import { i18nService, useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
 import { getRecentWorkspaceLineParts } from '@/shared/utils/recentWorkspaceDisplay';
@@ -40,6 +51,7 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
   const [scanning, setScanning] = useState(false);
 
   const getWorkspaceDisplayName = (workspace: WorkspaceInfo) => {
+    if (workspace.workspaceKind === WorkspaceKind.Assistant) return workspace.name;
     const emoji = workspace.identity?.emoji?.trim();
     return emoji ? `${emoji} ${workspace.name}` : workspace.name;
   };
@@ -136,7 +148,15 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
 
   const getWorkspaceIcon = (workspace: WorkspaceInfo) => {
     if (workspace.workspaceKind === WorkspaceKind.Assistant) {
-      return <Bot size={16} />;
+      return (
+        <AssistantAvatar
+          presetId={workspace.identity?.avatar}
+          emoji={workspace.identity?.emoji}
+          stableKey={workspace.assistantId || workspace.id}
+          name={workspace.identity?.name || workspace.name}
+          size={40}
+        />
+      );
     }
 
     const type = workspace.workspaceType;
@@ -146,7 +166,7 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
       case WorkspaceType.Documentation:
         return <FileText size={16} />;
       case WorkspaceType.MultiProject:
-        return <Folder size={16} />;
+        return <Icon name="folder" size="md" />;
       default:
         return <FolderOpen size={16} />;
     }
@@ -171,13 +191,19 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
   );
 
   return (
-    <Modal
-      isOpen={isVisible}
-      onClose={onClose}
-      title="Workspace Status"
-      size="medium"
+    <Dialog
+      open={isVisible}
+      onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}
+      size="md"
     >
-      <div className="workspace-manager" data-bf-component="workspace-tool" data-bf-part="root">
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{"Workspace Status"}</DialogTitle>
+        </DialogHeading>
+        <DialogClose />
+      </DialogHeader>
+      <DialogBody inset="none">
+      <ScrollArea className="workspace-manager" data-bf-component="workspace-tool" data-bf-part="root">
         {error && (
           <div className="error-message" data-bf-component="workspace-tool" data-bf-part="error">
             <span>Error: {error}</span>
@@ -189,7 +215,7 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
           {currentWorkspace ? (
             <div className="workspace-card current" data-bf-component="workspace-tool" data-bf-part="currentCard">
               <div className="workspace-header">
-                <div className="workspace-icon">
+                <div className={`workspace-icon${currentWorkspace.workspaceKind === WorkspaceKind.Assistant ? ' is-assistant' : ''}`}>
                   {getWorkspaceIcon(currentWorkspace)}
                 </div>
                 <div className="workspace-info">
@@ -199,7 +225,7 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
                     <span className="workspace-type">{currentWorkspace.workspaceType}</span>
                     {currentWorkspace.lastAccessed && (
                       <span className="workspace-time">
-                        <Clock size={12} />
+                        <Icon name="clock" size="xs" />
                         {formatDate(currentWorkspace.lastAccessed)}
                       </span>
                     )}
@@ -210,20 +236,22 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
               </div>
               
               <div className="workspace-actions">
-                <button
-                  className="btn btn-secondary btn-small"
+                <Button
+                  variant="outline"
+                  size="sm"
+                  loading={scanning}
                   onClick={handleScanWorkspace}
-                  disabled={scanning}
                 >
                   {scanning ? 'Scanning...' : 'Rescan'}
-                </button>
-                <button
-                  className="btn btn-danger btn-small"
+                </Button>
+                <Button
+                  variant="fill"
+                  size="sm"
+                  loading={loading}
                   onClick={handleCloseWorkspace}
-                  disabled={loading}
                 >
                   Close Workspace
-                </button>
+                </Button>
               </div>
 
               {currentWorkspace.statistics && (
@@ -270,7 +298,7 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
                   onKeyDown={(event) => handleWorkspaceCardKeyDown(event, workspace)}
                  data-bf-component="workspace-tool" data-bf-part="recentCard">
                   <div className="workspace-header">
-                    <div className="workspace-icon">
+                    <div className={`workspace-icon${workspace.workspaceKind === WorkspaceKind.Assistant ? ' is-assistant' : ''}`}>
                       {getWorkspaceIcon(workspace)}
                     </div>
                     <div className="workspace-info">
@@ -292,7 +320,7 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
                         <span className="workspace-type">{workspace.workspaceType}</span>
                         {workspace.lastAccessed && (
                           <span className="workspace-time">
-                            <Clock size={12} />
+                            <Icon name="clock" size="xs" />
                             {formatDate(workspace.lastAccessed)}
                           </span>
                         )}
@@ -326,8 +354,8 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
                   onKeyDown={(event) => handleWorkspaceCardKeyDown(event, workspace)}
                  data-bf-component="workspace-tool" data-bf-part="assistantCard">
                   <div className="workspace-header">
-                    <div className="workspace-icon">
-                      <Bot size={16} />
+                    <div className="workspace-icon is-assistant">
+                      {getWorkspaceIcon(workspace)}
                     </div>
                     <div className="workspace-info">
                       <div className="workspace-name">{getWorkspaceDisplayName(workspace)}</div>
@@ -336,7 +364,7 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
                         <span className="workspace-type">assistant</span>
                         {workspace.lastAccessed && (
                           <span className="workspace-time">
-                            <Clock size={12} />
+                            <Icon name="clock" size="xs" />
                             {formatDate(workspace.lastAccessed)}
                           </span>
                         )}
@@ -354,8 +382,9 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
             </div>
           )}
         </div>
-      </div>
-    </Modal>
+      </ScrollArea>
+          </DialogBody>
+    </Dialog>
   );
 };
 

@@ -55,7 +55,9 @@ use crate::util::sanitize_plain_model_output;
 use crate::util::timing::elapsed_ms_u64;
 use bitfun_core_types::SessionExecutionTarget;
 pub use bitfun_runtime_ports::SessionViewRestoreTiming;
-use bitfun_runtime_ports::{PermissionMode, SessionStoragePathRequest, SessionStorePort};
+use bitfun_runtime_ports::{
+    AgentTurnSettlementResult, PermissionMode, SessionStoragePathRequest, SessionStorePort,
+};
 use bitfun_services_core::session::{
     apply_session_lineage, collect_hidden_subagent_cascade as collect_hidden_subagent_cascade_ids,
     merge_session_custom_metadata as merge_session_custom_metadata_value,
@@ -66,9 +68,9 @@ use dashmap::{mapref::entry::Entry, DashMap};
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::time::{Duration, SystemTime};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -129,6 +131,7 @@ pub(crate) struct TurnAdmissionSessionFacts {
     max_context_tokens: usize,
     agent_type: String,
     agent_route_owner: SessionAgentRouteOwner,
+    agent_route_key: Option<String>,
     enable_tools: bool,
     workspace_path: Option<String>,
     project_workspace_path: Option<String>,
@@ -147,6 +150,7 @@ impl TurnAdmissionSessionFacts {
             max_context_tokens: session.config.max_context_tokens,
             agent_type: session.agent_type.clone(),
             agent_route_owner: session.config.agent_route_owner,
+            agent_route_key: session.config.agent_route_key.clone(),
             enable_tools: session.config.enable_tools,
             workspace_path: session.config.workspace_path.clone(),
             project_workspace_path: session.config.project_workspace_path.clone(),
@@ -169,6 +173,7 @@ impl TurnAdmissionSessionFacts {
             && self.max_context_tokens == session.config.max_context_tokens
             && self.agent_type == session.agent_type
             && self.agent_route_owner == session.config.agent_route_owner
+            && self.agent_route_key == session.config.agent_route_key
             && self.enable_tools == session.config.enable_tools
             && self.workspace_path == session.config.workspace_path
             && self.project_workspace_path == session.config.project_workspace_path
@@ -208,38 +213,48 @@ impl Default for SessionManagerConfig {
     }
 }
 
-fn should_auto_migrate_session_model(
+fn should_apply_session_model_fallback(
     binding_policy: SessionModelBindingPolicy,
     current_model_id: &str,
     invalidated_model_ids: &HashSet<&str>,
 ) -> bool {
-    session_model_allows_automatic_migration(binding_policy)
+    session_model_allows_fallback(binding_policy)
         && invalidated_model_ids.contains(current_model_id)
 }
 
-fn session_model_allows_automatic_migration(binding_policy: SessionModelBindingPolicy) -> bool {
+fn session_model_allows_fallback(binding_policy: SessionModelBindingPolicy) -> bool {
     binding_policy == SessionModelBindingPolicy::Mutable
+}
+
+fn effective_session_model_selector<'a>(
+    ai_config: &'a crate::service::config::types::AIConfig,
+    session: &'a Session,
+) -> &'a str {
+    session
+        .config
+        .model_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|model_id| !model_id.is_empty())
+        .or_else(|| {
+            (session.kind != SessionKind::Subagent)
+                .then_some(ai_config.agent_model_defaults.mode.trim())
+                .filter(|model_id| !model_id.is_empty())
+        })
+        .unwrap_or("primary")
 }
 
 fn concrete_model_for_session_selection<'a>(
     ai_config: &'a crate::service::config::types::AIConfig,
     session: &Session,
 ) -> Option<&'a crate::service::config::types::AIModelConfig> {
-    let configured_model_id = session
-        .config
-        .model_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|model_id| !model_id.is_empty())
-        .unwrap_or("auto");
+    let configured_model_id = effective_session_model_selector(ai_config, session);
 
     let resolved_model_id = if matches!(
         session.config.model_binding_policy,
         SessionModelBindingPolicy::ApprovedImmutable
     ) {
         ai_config.resolve_model_reference(configured_model_id)
-    } else if SessionManager::is_auto_model_selector(configured_model_id) {
-        ai_config.resolve_model_selection("primary")
     } else {
         ai_config.resolve_model_selection(configured_model_id)
     }?;
@@ -334,6 +349,12 @@ pub struct SessionManager {
     /// Entries are installed before a transient Session becomes visible and are
     /// removed with that Session; they are never serialized into public config.
     transient_session_ids: Arc<DashMap<String, ()>>,
+
+    /// Recent authoritative terminal results for live Turn settlement callers.
+    /// The bounded cache preserves the exact execution result; persisted Turns
+    /// remain the fallback, while transient Sessions depend on this copy.
+    turn_settlement_results: Arc<DashMap<(String, String), AgentTurnSettlementResult>>,
+    turn_settlement_result_order: Arc<Mutex<VecDeque<(String, String)>>>,
 
     /// Exact admission accounting for loaded sessions. A permit is acquired
     /// before create/restore publishes runtime state and released on unload/delete/eviction.
@@ -491,6 +512,7 @@ impl SessionManager {
     pub(crate) fn evict_loaded_session_for_test(&self, session_id: &str) {
         self.sessions.remove(session_id);
         self.transient_session_ids.remove(session_id);
+        self.clear_turn_settlement_results(session_id);
         self.release_active_session_reservation(session_id);
         self.release_session_write_lock(session_id);
     }
@@ -755,20 +777,11 @@ impl SessionManager {
         ))
     }
 
-    fn is_auto_model_selector(model_id: &str) -> bool {
-        let trimmed = model_id.trim();
-        trimmed.is_empty() || trimmed == "auto" || trimmed == "default"
-    }
-
     fn context_window_for_model_selection(
         ai_config: &crate::service::config::types::AIConfig,
         model_id: &str,
     ) -> Option<usize> {
         let trimmed = model_id.trim();
-        if Self::is_auto_model_selector(trimmed) {
-            return None;
-        }
-
         let resolved_model_id = ai_config.resolve_model_selection(trimmed)?;
         ai_config
             .models
@@ -782,26 +795,10 @@ impl SessionManager {
         session: &Session,
         ai_config: &crate::service::config::types::AIConfig,
     ) -> Option<usize> {
-        let configured_model_id = session
-            .config
-            .model_id
-            .as_deref()
-            .map(str::trim)
-            .filter(|model_id| !model_id.is_empty())
-            .unwrap_or("auto");
-
-        if !Self::is_auto_model_selector(configured_model_id) {
-            return Self::context_window_for_model_selection(ai_config, configured_model_id);
-        }
-
-        let fallback_model_id = (session.kind != SessionKind::Subagent)
-            .then(|| ai_config.agent_model_defaults.mode.trim().to_string())
-            .filter(|model_id| !Self::is_auto_model_selector(model_id));
-
-        fallback_model_id
-            .as_deref()
-            .and_then(|model_id| Self::context_window_for_model_selection(ai_config, model_id))
-            .or_else(|| Self::context_window_for_model_selection(ai_config, "primary"))
+        Self::context_window_for_model_selection(
+            ai_config,
+            effective_session_model_selector(ai_config, session),
+        )
     }
 
     fn sync_session_context_window_from_ai_config(
@@ -2049,6 +2046,8 @@ impl SessionManager {
             sessions: Arc::new(DashMap::new()),
             active_turn_permission_modes: Arc::new(DashMap::new()),
             transient_session_ids: Arc::new(DashMap::new()),
+            turn_settlement_results: Arc::new(DashMap::new()),
+            turn_settlement_result_order: Arc::new(Mutex::new(VecDeque::new())),
             active_session_capacity: Arc::new(Semaphore::new(config.max_active_sessions)),
             active_session_permits: Arc::new(DashMap::new()),
             session_storage_path_index: Arc::new(DashMap::new()),
@@ -2081,6 +2080,62 @@ impl SessionManager {
 
     pub(crate) fn persistence_manager(&self) -> Arc<PersistenceManager> {
         self.persistence_manager.clone()
+    }
+
+    pub(crate) fn record_turn_settlement_result(
+        &self,
+        session_id: &str,
+        turn_id: &str,
+        result: AgentTurnSettlementResult,
+    ) {
+        const MAX_RECENT_TURN_SETTLEMENT_RESULTS: usize = 1_024;
+        let key = (session_id.to_string(), turn_id.to_string());
+        let mut order = self
+            .turn_settlement_result_order
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        order.retain(|existing| existing != &key);
+        self.turn_settlement_results.insert(key.clone(), result);
+        order.push_back(key);
+        while order.len() > MAX_RECENT_TURN_SETTLEMENT_RESULTS {
+            if let Some(oldest) = order.pop_front() {
+                self.turn_settlement_results.remove(&oldest);
+            }
+        }
+    }
+
+    pub(crate) fn turn_settlement_result(
+        &self,
+        session_id: &str,
+        turn_id: &str,
+    ) -> Option<AgentTurnSettlementResult> {
+        self.turn_settlement_results
+            .get(&(session_id.to_string(), turn_id.to_string()))
+            .map(|entry| entry.value().clone())
+    }
+
+    fn clear_turn_settlement_results(&self, session_id: &str) {
+        let mut order = self
+            .turn_settlement_result_order
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        order.retain(|key| {
+            if key.0 != session_id {
+                return true;
+            }
+            self.turn_settlement_results.remove(key);
+            false
+        });
+    }
+
+    fn clear_turn_settlement_result(&self, session_id: &str, turn_id: &str) {
+        let key = (session_id.to_string(), turn_id.to_string());
+        let mut order = self
+            .turn_settlement_result_order
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        order.retain(|existing| existing != &key);
+        self.turn_settlement_results.remove(&key);
     }
 
     pub async fn append_evidence_event(
@@ -2273,7 +2328,7 @@ impl SessionManager {
     /// Decide whether the given session model id is still usable.
     ///
     /// `model_id` is treated as "usable" when:
-    /// - it is a special selector (`auto` / `primary` / `fast` / `default` /
+    /// - it is a special selector (`primary` / `fast` /
     ///   empty) — these are evaluated again at request time against
     ///   `default_models`, so their long-term validity is governed elsewhere;
     /// - it resolves to a model that exists AND is enabled.
@@ -2282,22 +2337,16 @@ impl SessionManager {
         model_id: &str,
     ) -> bool {
         let trimmed = model_id.trim();
-        if trimmed.is_empty()
-            || trimmed == "auto"
-            || trimmed == "default"
-            || trimmed == "primary"
-            || trimmed == "fast"
-        {
+        if trimmed.is_empty() || trimmed == "primary" || trimmed == "fast" {
             return true;
         }
         ai_config.is_model_reference_active(trimmed)
     }
 
-    /// Reset every active session whose bound model id is in
-    /// `invalidated_model_ids` back to `"auto"`. Persists the change and emits
-    /// `AgenticEvent::SessionModelAutoMigrated` for every migrated session so
-    /// the UI can refresh its model selector and surface a notice.
-    async fn migrate_sessions_off_invalidated_models(
+    /// Reset every active mutable session whose bound model was invalidated to
+    /// the configured primary selector. Persists the change and emits a model
+    /// fallback event so surfaces can refresh their session-owned selection.
+    async fn apply_fallback_to_invalidated_session_models(
         &self,
         invalidated_model_ids: &[String],
         reason: &'static str,
@@ -2317,8 +2366,8 @@ impl SessionManager {
                 let current = session.config.model_id.as_deref()?.trim().to_string();
                 // External generations pin the model that the user approved.
                 // If that model disappears, execution must fail closed instead
-                // of silently changing the approved behavior to `auto`.
-                if should_auto_migrate_session_model(
+                // of silently changing the approved behavior.
+                if should_apply_session_model_fallback(
                     session.config.model_binding_policy,
                     current.as_str(),
                     &invalid,
@@ -2335,24 +2384,24 @@ impl SessionManager {
         }
 
         for (session_id, previous_model_id) in affected {
-            if let Err(e) = self.update_session_model_id(&session_id, "auto").await {
+            if let Err(e) = self.update_session_model_id(&session_id, "primary").await {
                 warn!(
-                    "Failed to auto-migrate session model after reconcile: session_id={}, previous={}, error={}",
+                    "Failed to apply session model fallback after reconcile: session_id={}, previous={}, error={}",
                     session_id, previous_model_id, e
                 );
                 continue;
             }
             info!(
-                "Session model auto-migrated to 'auto': session_id={}, previous_model_id={}, reason={}",
+                "Session model fell back to primary: session_id={}, previous_model_id={}, reason={}",
                 session_id, previous_model_id, reason
             );
 
             if let Some(coordinator) = crate::agentic::coordination::get_global_coordinator() {
                 coordinator
-                    .emit_session_model_auto_migrated(
+                    .emit_session_model_fallback_applied(
                         &session_id,
                         &previous_model_id,
-                        "auto",
+                        "primary",
                         reason,
                     )
                     .await;
@@ -2499,6 +2548,8 @@ impl SessionManager {
         let sessions = self.sessions.clone();
         let active_turn_permission_modes = self.active_turn_permission_modes.clone();
         let transient_session_ids = self.transient_session_ids.clone();
+        let turn_settlement_results = self.turn_settlement_results.clone();
+        let turn_settlement_result_order = self.turn_settlement_result_order.clone();
         let active_session_capacity = self.active_session_capacity.clone();
         let active_session_permits = self.active_session_permits.clone();
         let session_storage_path_index = self.session_storage_path_index.clone();
@@ -2534,6 +2585,8 @@ impl SessionManager {
                 sessions,
                 active_turn_permission_modes,
                 transient_session_ids,
+                turn_settlement_results,
+                turn_settlement_result_order,
                 active_session_capacity,
                 active_session_permits,
                 session_storage_path_index,
@@ -2562,7 +2615,7 @@ impl SessionManager {
                     }) => {
                         Self::invalidate_ai_clients_for_models(&invalidated_model_ids).await;
                         manager
-                            .migrate_sessions_off_invalidated_models(
+                            .apply_fallback_to_invalidated_session_models(
                                 &invalidated_model_ids,
                                 "model_reconciled",
                             )
@@ -3963,6 +4016,7 @@ impl SessionManager {
         session_id: &str,
         agent_type: &str,
         route_owner: SessionAgentRouteOwner,
+        route_key: Option<String>,
     ) -> BitFunResult<()> {
         let _mutation_guard = self.acquire_session_mutation(session_id).await?;
         let original_session = self
@@ -3972,6 +4026,7 @@ impl SessionManager {
             .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {session_id}")))?;
         if original_session.agent_type == agent_type
             && original_session.config.agent_route_owner == route_owner
+            && original_session.config.agent_route_key == route_key
         {
             return Ok(());
         }
@@ -3980,6 +4035,7 @@ impl SessionManager {
         let now = SystemTime::now();
         updated_session.agent_type = agent_type.to_string();
         updated_session.config.agent_route_owner = route_owner;
+        updated_session.config.agent_route_key = route_key.clone();
         updated_session.updated_at = now;
         updated_session.last_activity_at = now;
 
@@ -4011,11 +4067,12 @@ impl SessionManager {
         };
         active_session.agent_type = updated_session.agent_type;
         active_session.config.agent_route_owner = route_owner;
+        active_session.config.agent_route_key = route_key.clone();
         active_session.updated_at = now;
         active_session.last_activity_at = now;
         debug!(
-            "Session agent binding updated: session_id={}, agent_type={}, route_owner={:?}",
-            session_id, agent_type, route_owner
+            "Session agent binding updated: session_id={}, agent_type={}, route_owner={:?}, route_key={:?}",
+            session_id, agent_type, route_owner, route_key
         );
 
         Ok(())
@@ -4898,6 +4955,7 @@ impl SessionManager {
         .await?;
         self.sessions.remove(session_id);
         self.transient_session_ids.remove(session_id);
+        self.clear_turn_settlement_results(session_id);
         self.release_active_session_reservation(session_id);
         self.session_storage_path_index.remove(session_id);
         Ok(true)
@@ -4942,6 +5000,7 @@ impl SessionManager {
         if self.sessions.remove(session_id).is_none() {
             return Ok(false);
         }
+        self.clear_turn_settlement_results(session_id);
         self.release_active_session_reservation(session_id);
         self.active_turn_permission_modes.remove(session_id);
         clear_session_runtime_stores(
@@ -5116,6 +5175,7 @@ impl SessionManager {
         );
         self.sessions.remove(session_id);
         self.transient_session_ids.remove(session_id);
+        self.clear_turn_settlement_results(session_id);
         self.release_active_session_reservation(session_id);
         debug!(
             "Session deletion stage completed: session_id={}, stage=in_memory_remove, duration_ms={}",
@@ -5818,7 +5878,7 @@ impl SessionManager {
 
         let ai_config_for_restore = Self::load_ai_config_for_model_resolution().await;
         let mut should_persist_restored_session = false;
-        let mut auto_migrated_model_id = None;
+        let mut fallback_previous_model_id = None;
         let mut auto_cleared_reasoning_preset = None;
 
         if !include_internal {
@@ -5859,15 +5919,27 @@ impl SessionManager {
             let available_modes = agent_registry
                 .get_modes_info_for_workspace(external_workspace_root, external_sources_supported)
                 .await;
-            let persisted_binding = agent_registry.resolve_primary_agent_for_turn(
+            let persisted_binding = agent_registry.resolve_primary_agent_for_turn_with_route(
                 &session.agent_type,
                 external_workspace_root,
                 external_sources_supported,
                 Some(session.config.agent_route_owner),
+                session.config.agent_route_key.as_deref(),
             );
             if let Some(binding) = persisted_binding {
-                if session.config.agent_route_owner != binding.route_owner {
+                // A missing local route key is a valid legacy binding. Local
+                // resolution is already constrained by the persisted owner, so
+                // avoid rewriting the runtime state solely to backfill it.
+                // External bindings still persist their exact provider route
+                // key to prevent a same-name provider from taking over.
+                let external_route_key_changed = session.config.agent_route_owner
+                    == SessionAgentRouteOwner::External
+                    && session.config.agent_route_key != binding.route_key;
+                if session.config.agent_route_owner != binding.route_owner
+                    || external_route_key_changed
+                {
                     session.config.agent_route_owner = binding.route_owner;
+                    session.config.agent_route_key = binding.route_key;
                     should_persist_restored_session = true;
                 }
             } else if session.config.agent_route_owner == SessionAgentRouteOwner::External {
@@ -5893,18 +5965,18 @@ impl SessionManager {
                 );
                 session.agent_type = fallback_mode;
                 session.config.agent_route_owner = SessionAgentRouteOwner::Local;
+                session.config.agent_route_key = None;
                 should_persist_restored_session = true;
             }
         }
 
-        // Lazy migration: if the persisted model_id is no longer usable
-        // (model deleted or disabled while the session was on disk), repoint
-        // it to "auto" before the session re-enters memory. The next request
-        // will pick a model via the normal auto/agent/default pipeline.
+        // Restore fallback: if the persisted model_id is no longer usable
+        // (model deleted, disabled, or from a retired selector), repoint it to
+        // the primary selector before the session re-enters memory.
         if let Some(persisted_model_id) = session.config.model_id.as_deref() {
             let trimmed = persisted_model_id.trim();
-            let needs_migration = if trimmed.is_empty()
-                || !session_model_allows_automatic_migration(session.config.model_binding_policy)
+            let needs_fallback = if trimmed.is_empty()
+                || !session_model_allows_fallback(session.config.model_binding_policy)
             {
                 false
             } else if let Some(ai_config) = ai_config_for_restore.as_ref() {
@@ -5913,15 +5985,15 @@ impl SessionManager {
                 false
             };
 
-            if needs_migration {
+            if needs_fallback {
                 warn!(
-                    "Session restore detected stale model_id; migrating to auto: session_id={}, previous_model_id={}",
+                    "Session restore detected stale model_id; falling back to primary: session_id={}, previous_model_id={}",
                     session_id, trimmed
                 );
                 let previous_model_id = trimmed.to_string();
-                session.config.model_id = Some("auto".to_string());
+                session.config.model_id = Some("primary".to_string());
                 should_persist_restored_session = true;
-                auto_migrated_model_id = Some(previous_model_id);
+                fallback_previous_model_id = Some(previous_model_id);
             }
         }
 
@@ -6143,13 +6215,13 @@ impl SessionManager {
         // Finish async notifications before publishing runtime state. If restore is
         // cancelled or times out before publication, the temporary write lock drops
         // together with this future and no writable in-memory Session remains.
-        if let Some(previous_model_id) = auto_migrated_model_id {
+        if let Some(previous_model_id) = fallback_previous_model_id {
             if let Some(coordinator) = crate::agentic::coordination::get_global_coordinator() {
                 coordinator
-                    .emit_session_model_auto_migrated(
+                    .emit_session_model_fallback_applied(
                         session_id,
                         &previous_model_id,
-                        "auto",
+                        "primary",
                         "model_unavailable_on_restore",
                     )
                     .await;
@@ -6518,6 +6590,7 @@ impl SessionManager {
             None
         };
         // RefMut guard released here -- DashMap shard lock is free.
+        self.clear_turn_settlement_results(session_id);
 
         if let Some(session) = session_snapshot {
             self.persistence_manager
@@ -7480,6 +7553,7 @@ impl SessionManager {
                                     thinking_items.push(ThinkingItemData {
                                         id: format!("{}-think-{}", round_id, order_index),
                                         content: reasoning.clone(),
+                                        reasoning_kind: msg.metadata.reasoning_content_kind,
                                         is_streaming: false,
                                         is_collapsed: true,
                                         timestamp,
@@ -7648,6 +7722,8 @@ impl SessionManager {
         final_response: String,
         new_messages: &[Message],
         stats: TurnStats,
+        finish_reason: Option<String>,
+        has_final_response: Option<bool>,
     ) -> BitFunResult<()> {
         if !self.should_persist_session_id(session_id) {
             debug!(
@@ -7791,6 +7867,8 @@ impl SessionManager {
         }
         turn.status = TurnStatus::Completed;
         turn.recovery = None;
+        turn.finish_reason = finish_reason;
+        turn.has_final_response = has_final_response;
         turn.duration_ms = Some(stats.duration_ms);
         turn.end_time = Some(completion_timestamp);
 
@@ -7951,6 +8029,8 @@ impl SessionManager {
         final_response: String,
         new_messages: &[Message],
         stats: TurnStats,
+        finish_reason: Option<String>,
+        has_final_response: Option<bool>,
     ) -> BitFunResult<()> {
         let _mutation_guard = self.acquire_session_mutation(session_id).await?;
         let workspace_path = self
@@ -8033,6 +8113,8 @@ impl SessionManager {
         turn.status = TurnStatus::Completed;
         turn.recovery_epoch = Some(execution_generation);
         turn.recovery = None;
+        turn.finish_reason = finish_reason;
+        turn.has_final_response = has_final_response;
         turn.duration_ms = Some(stats.duration_ms);
         turn.end_time = Some(completion_timestamp);
 
@@ -8111,6 +8193,8 @@ impl SessionManager {
         Self::append_generation_rounds(&mut turn, turn_id, generation_messages, now);
         turn.status = TurnStatus::Error;
         turn.recovery = None;
+        turn.finish_reason = Some("failed".to_string());
+        turn.has_final_response = Some(false);
         turn.end_time = Some(now);
 
         if recovered_generation {
@@ -8680,6 +8764,7 @@ impl SessionManager {
             .insert(session_id.to_string(), updated_session);
         self.context_store
             .replace_context(session_id, messages.clone());
+        self.clear_turn_settlement_result(session_id, turn_id);
 
         Ok(InterruptedTurnRecoveryPlan {
             session_id: session_id.to_string(),
@@ -8960,6 +9045,8 @@ impl SessionManager {
         turn.model_rounds = model_rounds;
         turn.status = TurnStatus::Error;
         turn.error = Some(error.clone());
+        turn.finish_reason = Some("failed".to_string());
+        turn.has_final_response = Some(false);
         turn.duration_ms = Some(completion_timestamp.saturating_sub(turn.start_time));
         turn.end_time = Some(completion_timestamp);
 
@@ -9014,7 +9101,7 @@ impl SessionManager {
         &self,
         session_id: &str,
     ) -> BitFunResult<Option<Vec<DialogTurnData>>> {
-        if !self.config.enable_persistence {
+        if !self.should_persist_session_id(session_id) {
             return Ok(None);
         }
         let Some(workspace_path) = self.effective_session_storage_path(session_id).await else {
@@ -9294,12 +9381,8 @@ impl SessionManager {
                 };
                 let configured_model_id = explicit_model_id
                     .or(fallback_model_id.as_deref())
-                    .unwrap_or("auto");
-                let selector = if Self::is_auto_model_selector(configured_model_id) {
-                    "primary"
-                } else {
-                    configured_model_id
-                };
+                    .unwrap_or("primary");
+                let selector = configured_model_id;
                 let resolved_model_id =
                     ai_config.resolve_model_selection(selector).ok_or_else(|| {
                         BitFunError::AIClient(format!(
@@ -9581,7 +9664,7 @@ impl SessionManager {
 #[cfg(test)]
 mod tests {
     use super::{
-        should_auto_migrate_session_model, CoreSessionStorePort, PermissionMode,
+        should_apply_session_model_fallback, CoreSessionStorePort, PermissionMode,
         SessionExecutionBindingError, SessionExecutionBindingUpdate, SessionManager,
         SessionManagerConfig, TurnAdmissionSessionFacts, TEST_MODEL_RESOLUTION_AI_CONFIG,
     };
@@ -9622,7 +9705,9 @@ mod tests {
         ReasoningCatalogBinding, ReasoningConfig, ReasoningPreset, ReasoningPresetAction,
         SessionExecutionTarget,
     };
-    use bitfun_runtime_ports::SessionStoragePathRequest;
+    use bitfun_runtime_ports::{
+        AgentTurnSettlementResult, AgentTurnSettlementStatus, SessionStoragePathRequest,
+    };
     use bitfun_services_core::session::SessionBranchBoundary;
     use dashmap::{try_result::TryResult, DashMap};
     use serde_json::json;
@@ -9691,20 +9776,20 @@ mod tests {
     }
 
     #[test]
-    fn invalidated_model_migration_preserves_approved_external_generation_binding() {
+    fn invalidated_model_fallback_preserves_approved_external_generation_binding() {
         let invalidated = HashSet::from(["removed-model"]);
 
-        assert!(should_auto_migrate_session_model(
+        assert!(should_apply_session_model_fallback(
             SessionModelBindingPolicy::Mutable,
             "removed-model",
             &invalidated,
         ));
-        assert!(!should_auto_migrate_session_model(
+        assert!(!should_apply_session_model_fallback(
             SessionModelBindingPolicy::ApprovedImmutable,
             "removed-model",
             &invalidated,
         ));
-        assert!(!should_auto_migrate_session_model(
+        assert!(!should_apply_session_model_fallback(
             SessionModelBindingPolicy::Mutable,
             "active-model",
             &invalidated,
@@ -9915,6 +10000,54 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn refreshed_turn_settlement_results_remain_bounded_and_clear_with_the_session() {
+        let workspace = TestWorkspace::new();
+        let persistence_manager = Arc::new(
+            PersistenceManager::new(workspace.path_manager()).expect("persistence manager"),
+        );
+        let manager = test_manager(persistence_manager);
+        let result = |status| AgentTurnSettlementResult {
+            status,
+            final_response: None,
+            finish_reason: None,
+        };
+
+        manager.record_turn_settlement_result(
+            "session-refresh",
+            "turn-refresh",
+            result(AgentTurnSettlementStatus::Cancelled),
+        );
+        for index in 0..1_023 {
+            manager.record_turn_settlement_result(
+                "other-session",
+                &format!("turn-{index}"),
+                result(AgentTurnSettlementStatus::Completed),
+            );
+        }
+        manager.record_turn_settlement_result(
+            "session-refresh",
+            "turn-refresh",
+            result(AgentTurnSettlementStatus::Completed),
+        );
+        manager.record_turn_settlement_result(
+            "other-session",
+            "turn-overflow",
+            result(AgentTurnSettlementStatus::Completed),
+        );
+
+        assert_eq!(
+            manager
+                .turn_settlement_result("session-refresh", "turn-refresh")
+                .map(|result| result.status),
+            Some(AgentTurnSettlementStatus::Completed)
+        );
+        manager.clear_turn_settlement_results("session-refresh");
+        assert!(manager
+            .turn_settlement_result("session-refresh", "turn-refresh")
+            .is_none());
+    }
+
+    #[tokio::test]
     async fn completion_replaces_a_projected_text_prefix_with_runtime_generation_content() {
         let workspace = TestWorkspace::new();
         let persistence_manager = Arc::new(
@@ -9988,6 +10121,8 @@ mod tests {
                     total_tokens: 0,
                     duration_ms: 1,
                 },
+                Some("complete".to_string()),
+                Some(true),
             )
             .await
             .expect("completion should persist");
@@ -9998,6 +10133,8 @@ mod tests {
             .expect("turn should load")
             .expect("turn should exist");
         assert_eq!(completed.status, TurnStatus::Completed);
+        assert_eq!(completed.finish_reason.as_deref(), Some("complete"));
+        assert_eq!(completed.has_final_response, Some(true));
         assert_eq!(completed.model_rounds.len(), 1);
         assert_eq!(completed.model_rounds[0].id, "round-final");
         assert_eq!(
@@ -10623,6 +10760,7 @@ mod tests {
                 &session.session_id,
                 "agentic",
                 SessionAgentRouteOwner::External,
+                None,
             )
             .await
             .expect("same-name route owner update should succeed");
@@ -10640,6 +10778,54 @@ mod tests {
             )
             .await
             .expect_err("a concurrent route owner update must invalidate admission");
+
+        assert!(error.to_string().contains("changed during turn admission"));
+        assert_eq!(manager.get_turn_count(&session.session_id), 0);
+    }
+
+    #[tokio::test]
+    async fn dialog_turn_admission_rejects_a_concurrent_agent_route_key_change() {
+        let workspace = TestWorkspace::new();
+        let persistence_manager = Arc::new(
+            PersistenceManager::new(workspace.path_manager()).expect("persistence manager"),
+        );
+        let manager = test_manager(persistence_manager);
+        let session = manager
+            .create_session(
+                "Turn admission route key CAS".to_string(),
+                "agentic".to_string(),
+                SessionConfig {
+                    workspace_path: Some(workspace.path().to_string_lossy().to_string()),
+                    agent_route_key: Some("local:agentic:v1".to_string()),
+                    ..SessionConfig::default()
+                },
+            )
+            .await
+            .expect("session should create");
+        let expected = TurnAdmissionSessionFacts::from_session(&session);
+        manager
+            .update_session_agent_binding(
+                &session.session_id,
+                "agentic",
+                SessionAgentRouteOwner::Local,
+                Some("local:agentic:v2".to_string()),
+            )
+            .await
+            .expect("same-owner route key update should succeed");
+
+        let error = manager
+            .start_dialog_turn_with_prepended_messages_if_session_matches(
+                &session.session_id,
+                "agentic".to_string(),
+                "must reject stale route key".to_string(),
+                Some("turn-admission-route-key-race".to_string()),
+                None,
+                Vec::new(),
+                None,
+                &expected,
+            )
+            .await
+            .expect_err("a concurrent route key update must invalidate admission");
 
         assert!(error.to_string().contains("changed during turn admission"));
         assert_eq!(manager.get_turn_count(&session.session_id), 0);
@@ -10798,6 +10984,8 @@ mod tests {
                     total_tokens: 0,
                     duration_ms: 1,
                 },
+                Some("complete".to_string()),
+                Some(true),
             )
             .await
             .expect_err("injected recovered completion write must fail");
@@ -10891,6 +11079,15 @@ mod tests {
             .mark_dialog_turn_interrupted(&session.session_id, &turn_id)
             .await
             .expect("turn should become interrupted");
+        manager.record_turn_settlement_result(
+            &session.session_id,
+            &turn_id,
+            AgentTurnSettlementResult {
+                status: AgentTurnSettlementStatus::Cancelled,
+                final_response: None,
+                finish_reason: Some("interrupted".to_string()),
+            },
+        );
         manager
             .update_session_state_for_turn_if_processing(
                 &session.session_id,
@@ -10902,6 +11099,9 @@ mod tests {
         let plan = reopen_interrupted_turn_for_test(&manager, &session.session_id, &turn_id, 0)
             .await
             .expect("turn should reopen");
+        assert!(manager
+            .turn_settlement_result(&session.session_id, &turn_id)
+            .is_none());
 
         manager
             .complete_recovered_dialog_turn(
@@ -10918,6 +11118,8 @@ mod tests {
                     total_tokens: 0,
                     duration_ms: 1,
                 },
+                Some("complete".to_string()),
+                Some(true),
             )
             .await
             .expect("recovered completion should persist");
@@ -10936,6 +11138,8 @@ mod tests {
         );
         assert!(completed.recovery.is_none());
         assert_eq!(completed.recovery_epoch, Some(plan.execution_generation));
+        assert_eq!(completed.finish_reason.as_deref(), Some("complete"));
+        assert_eq!(completed.has_final_response, Some(true));
     }
 
     #[tokio::test]
@@ -11156,7 +11360,7 @@ mod tests {
                 "Recovery restart".to_string(),
                 "agentic".to_string(),
                 SessionConfig {
-                    model_id: Some("auto".to_string()),
+                    model_id: Some("primary".to_string()),
                     workspace_path: Some(workspace.path().to_string_lossy().to_string()),
                     ..SessionConfig::default()
                 },
@@ -12309,7 +12513,7 @@ mod tests {
             .expect("session should create");
 
         manager
-            .update_session_model_id(&session.session_id, "auto")
+            .update_session_model_id(&session.session_id, "fast")
             .await
             .expect("model update should persist");
         manager.evict_loaded_session_for_test(&session.session_id);
@@ -12318,7 +12522,56 @@ mod tests {
             .restore_session(workspace.path(), &session.session_id)
             .await
             .expect("session should restore from persistence");
-        assert_eq!(restored.config.model_id.as_deref(), Some("auto"));
+        assert_eq!(restored.config.model_id.as_deref(), Some("fast"));
+    }
+
+    #[tokio::test]
+    async fn restore_rewrites_retired_auto_model_selector_to_primary() {
+        let workspace = TestWorkspace::new();
+        let persistence_manager = Arc::new(
+            PersistenceManager::new(workspace.path_manager()).expect("persistence manager"),
+        );
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let session = Session::new_with_id(
+            session_id.clone(),
+            "Legacy model selector".to_string(),
+            "agentic".to_string(),
+            SessionConfig {
+                workspace_path: Some(workspace.path().to_string_lossy().into_owned()),
+                model_id: Some("auto".to_string()),
+                ..Default::default()
+            },
+        );
+        persistence_manager
+            .save_session(workspace.path(), &session)
+            .await
+            .expect("legacy session fixture should persist");
+        let manager = test_manager(persistence_manager.clone());
+        let mut ai_config = ServiceAIConfig {
+            models: vec![test_model("primary-model", 512_000)],
+            ..Default::default()
+        };
+        ai_config.default_models.primary = Some("primary-model".to_string());
+
+        let restored = TEST_MODEL_RESOLUTION_AI_CONFIG
+            .scope(
+                ai_config,
+                manager.restore_session(workspace.path(), &session_id),
+            )
+            .await
+            .expect("legacy session should restore");
+
+        assert_eq!(restored.config.model_id.as_deref(), Some("primary"));
+        assert_eq!(
+            persistence_manager
+                .load_session(workspace.path(), &session_id)
+                .await
+                .expect("rewritten session should persist")
+                .config
+                .model_id
+                .as_deref(),
+            Some("primary")
+        );
     }
 
     #[tokio::test]
@@ -12967,7 +13220,7 @@ mod tests {
         let session_id = session.session_id.clone();
         let update_task = tokio::spawn(async move {
             manager_for_update
-                .update_session_agent_type(&session_id, "Plan")
+                .update_session_agent_type(&session_id, "Cowork")
                 .await
         });
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -13125,7 +13378,7 @@ mod tests {
             .expect("session should create");
 
         manager
-            .update_session_agent_type(&session.session_id, "Plan")
+            .update_session_agent_type(&session.session_id, "Cowork")
             .await
             .expect("mode update should persist without a turn");
         let metadata = persistence_manager
@@ -13133,14 +13386,14 @@ mod tests {
             .await
             .expect("metadata should load")
             .expect("metadata should exist");
-        assert_eq!(metadata.agent_type, "Plan");
+        assert_eq!(metadata.agent_type, "Cowork");
 
         manager.evict_loaded_session_for_test(&session.session_id);
         let restored = manager
             .restore_session(workspace.path(), &session.session_id)
             .await
             .expect("session should restore");
-        assert_eq!(restored.agent_type, "Plan");
+        assert_eq!(restored.agent_type, "Cowork");
     }
 
     #[tokio::test]
@@ -13167,6 +13420,7 @@ mod tests {
                 &session.session_id,
                 "agentic",
                 SessionAgentRouteOwner::External,
+                Some("test:external:agentic".to_string()),
             )
             .await
             .expect("same-id local-to-external rebind should persist");
@@ -13183,6 +13437,7 @@ mod tests {
                 &session.session_id,
                 "agentic",
                 SessionAgentRouteOwner::Local,
+                Some("local:agentic".to_string()),
             )
             .await
             .expect("same-id external-to-local rebind should persist");
@@ -13198,8 +13453,9 @@ mod tests {
         manager
             .update_session_agent_binding(
                 &session.session_id,
-                "Plan",
+                "Cowork",
                 SessionAgentRouteOwner::External,
+                Some("test:external:plan".to_string()),
             )
             .await
             .expect("external route update should persist without a turn");
@@ -13208,7 +13464,7 @@ mod tests {
             .load_session_with_turns(workspace.path(), &session.session_id)
             .await
             .expect("persisted session should load");
-        assert_eq!(persisted.agent_type, "Plan");
+        assert_eq!(persisted.agent_type, "Cowork");
         assert_eq!(
             persisted.config.agent_route_owner,
             SessionAgentRouteOwner::External
@@ -13219,7 +13475,7 @@ mod tests {
             .restore_session(workspace.path(), &session.session_id)
             .await
             .expect("external route should restore fail-closed");
-        assert_eq!(restored.agent_type, "Plan");
+        assert_eq!(restored.agent_type, "Cowork");
         assert_eq!(
             restored.config.agent_route_owner,
             SessionAgentRouteOwner::External,
@@ -13248,7 +13504,7 @@ mod tests {
         persistence_manager.fail_next_session_state_write_for_test(&session.session_id);
 
         manager
-            .update_session_agent_type(&session.session_id, "Plan")
+            .update_session_agent_type(&session.session_id, "Cowork")
             .await
             .expect("mode updates must not depend on rewriting runtime state");
         manager.evict_loaded_session_for_test(&session.session_id);
@@ -13257,7 +13513,7 @@ mod tests {
             .restore_session(workspace.path(), &session.session_id)
             .await
             .expect("metadata-only mode update should remain restorable");
-        assert_eq!(restored.agent_type, "Plan");
+        assert_eq!(restored.agent_type, "Cowork");
     }
 
     #[tokio::test]
@@ -13485,7 +13741,7 @@ mod tests {
     }
 
     #[test]
-    fn sync_session_context_window_resolves_auto_through_mode_default_then_primary() {
+    fn sync_session_context_window_resolves_missing_selection_through_mode_default_then_primary() {
         let mut ai_config = ServiceAIConfig {
             models: vec![
                 test_model("primary-model", 512_000),
@@ -13497,11 +13753,11 @@ mod tests {
         ai_config.agent_model_defaults.mode = "agent-model".to_string();
 
         let mut session = Session::new_with_id(
-            "session-auto".to_string(),
-            "Auto session".to_string(),
+            "session-default".to_string(),
+            "Default session".to_string(),
             "agentic".to_string(),
             SessionConfig {
-                model_id: Some("auto".to_string()),
+                model_id: None,
                 max_context_tokens: 256_000,
                 ..Default::default()
             },
@@ -13513,7 +13769,7 @@ mod tests {
         assert_eq!(resolved, Some(1_000_000));
         assert_eq!(session.config.max_context_tokens, 1_000_000);
 
-        ai_config.agent_model_defaults.mode = "auto".to_string();
+        ai_config.agent_model_defaults.mode = "primary".to_string();
         session.config.max_context_tokens = 256_000;
 
         let resolved =
@@ -13524,7 +13780,7 @@ mod tests {
     }
 
     #[test]
-    fn sync_session_context_window_resolves_subagent_auto_through_primary() {
+    fn sync_session_context_window_resolves_missing_subagent_selection_through_primary() {
         let mut ai_config = ServiceAIConfig {
             models: vec![
                 test_model("primary-model", 512_000),
@@ -13536,11 +13792,11 @@ mod tests {
         ai_config.agent_model_defaults.mode = "mode-model".to_string();
 
         let mut session = Session::new_with_id(
-            "subagent-auto".to_string(),
-            "Auto subagent".to_string(),
+            "subagent-default".to_string(),
+            "Default subagent".to_string(),
             "Explore".to_string(),
             SessionConfig {
-                model_id: Some("auto".to_string()),
+                model_id: None,
                 max_context_tokens: 256_000,
                 ..Default::default()
             },
@@ -14660,6 +14916,8 @@ mod tests {
             .expect("persistence should be enabled");
         assert_eq!(turns.len(), 1);
         assert_eq!(turns[0].status, TurnStatus::Error);
+        assert_eq!(turns[0].finish_reason.as_deref(), Some("failed"));
+        assert_eq!(turns[0].has_final_response, Some(false));
         assert_eq!(
             turns[0].error.as_deref(),
             Some("terminal persistence failed")
@@ -14712,10 +14970,10 @@ mod tests {
             text_items: vec![],
             tool_items: vec![ToolItemData {
                 id: "tool-1".to_string(),
-                tool_name: "Bash".to_string(),
+                tool_name: "ExecCommand".to_string(),
                 tool_call: ToolCallData {
                     id: "call-1".to_string(),
-                    input: json!({ "command": "printf output" }),
+                    input: json!({ "cmd": "printf output" }),
                 },
                 tool_result: Some(ToolResultData {
                     result: json!({
@@ -14915,7 +15173,7 @@ mod tests {
             turn.agent_type = Some(if index == 0 {
                 "agentic".to_string()
             } else {
-                "Plan".to_string()
+                "Cowork".to_string()
             });
             persistence_manager
                 .save_dialog_turn(workspace.path(), &turn)
@@ -14933,7 +15191,7 @@ mod tests {
                 "turn-1".to_string(),
                 "turn-2".to_string(),
             ];
-            active.last_user_dialog_agent_type = Some("Plan".to_string());
+            active.last_user_dialog_agent_type = Some("Cowork".to_string());
         }
         persistence_manager
             .save_turn_context_snapshot(
@@ -15744,7 +16002,7 @@ mod tests {
         let session = manager
             .create_session(
                 "Rollback empty history".to_string(),
-                "Plan".to_string(),
+                "Cowork".to_string(),
                 SessionConfig {
                     workspace_path: Some(workspace.path().to_string_lossy().to_string()),
                     ..Default::default()
@@ -15764,7 +16022,7 @@ mod tests {
                 metadata: None,
             },
         );
-        turn.agent_type = Some("Plan".to_string());
+        turn.agent_type = Some("Cowork".to_string());
         persistence_manager
             .save_dialog_turn(workspace.path(), &turn)
             .await
@@ -15776,7 +16034,7 @@ mod tests {
                 .get_mut(&session.session_id)
                 .expect("session should be active");
             active.dialog_turn_ids = vec!["turn-0".to_string()];
-            active.last_user_dialog_agent_type = Some("Plan".to_string());
+            active.last_user_dialog_agent_type = Some("Cowork".to_string());
         }
 
         manager
@@ -15787,7 +16045,7 @@ mod tests {
         let active = manager
             .get_session(&session.session_id)
             .expect("session should remain in memory");
-        assert_eq!(active.agent_type, "Plan");
+        assert_eq!(active.agent_type, "Cowork");
         assert_eq!(active.last_user_dialog_agent_type, None);
     }
 

@@ -1,4 +1,4 @@
-import { confirmDialogChoice } from '@/component-library';
+import { confirmDialogChoice } from '@/infrastructure/confirm-dialog';
 import { i18nService } from '@/infrastructure/i18n';
 
 export type TerminalPasteWarningMode = 'auto' | 'always' | 'never';
@@ -145,7 +145,6 @@ export async function confirmTerminalMultiLinePaste(
     secondaryText: i18nService.t('tools:terminal.pasteDialog.pasteAsOneLine'),
     cancelText: i18nService.t('tools:terminal.pasteDialog.cancel'),
     preview: request.preview,
-    previewMaxHeight: 150,
   });
 
   if (choice === 'secondary') {

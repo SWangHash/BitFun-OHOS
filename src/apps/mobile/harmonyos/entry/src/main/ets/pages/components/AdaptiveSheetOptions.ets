@@ -2,6 +2,7 @@ import {
   SettingsPlacement,
   SettingsPlacementMode
 } from '../policy/SettingsPlacementPolicy';
+import { SCRIM, TRANSPARENT } from './Theme';
 
 /**
  * Shared SheetOptions for the four overlay sheets. Policy stays ArkUI-free;
@@ -12,8 +13,9 @@ export class AdaptiveSheetOptions {
     if (placement.mode === SettingsPlacementMode.FoldOperate) {
       return {
         height: placement.height,
-        backgroundColor: '#00000000',
-        maskColor: '#44000000',
+        keyboardAvoidMode: SheetKeyboardAvoidMode.RESIZE_ONLY,
+        backgroundColor: TRANSPARENT,
+        maskColor: SCRIM,
         showClose: false,
         dragBar
       };
@@ -22,9 +24,22 @@ export class AdaptiveSheetOptions {
       return {
         height: placement.height,
         width: placement.width,
+        keyboardAvoidMode: SheetKeyboardAvoidMode.RESIZE_ONLY,
         preferType: SheetType.SIDE,
-        backgroundColor: '#00000000',
-        maskColor: '#44000000',
+        backgroundColor: TRANSPARENT,
+        maskColor: SCRIM,
+        showClose: false,
+        dragBar: false
+      };
+    }
+    if (placement.mode === SettingsPlacementMode.Center) {
+      return {
+        height: placement.height,
+        width: placement.width,
+        keyboardAvoidMode: SheetKeyboardAvoidMode.RESIZE_ONLY,
+        preferType: SheetType.CENTER,
+        backgroundColor: TRANSPARENT,
+        maskColor: SCRIM,
         showClose: false,
         dragBar: false
       };
@@ -32,16 +47,18 @@ export class AdaptiveSheetOptions {
     if (placement.height > 0) {
       return {
         height: placement.height,
-        backgroundColor: '#00000000',
-        maskColor: '#44000000',
+        keyboardAvoidMode: SheetKeyboardAvoidMode.RESIZE_ONLY,
+        backgroundColor: TRANSPARENT,
+        maskColor: SCRIM,
         showClose: false,
         dragBar
       };
     }
     return {
       height: SheetSize.LARGE,
-      backgroundColor: '#00000000',
-      maskColor: '#44000000',
+      keyboardAvoidMode: SheetKeyboardAvoidMode.RESIZE_ONLY,
+      backgroundColor: TRANSPARENT,
+      maskColor: SCRIM,
       showClose: false,
       dragBar
     };

@@ -18,12 +18,19 @@ import { xtermAppearanceAdapter } from '@/infrastructure/appearance/adapters/Xte
 import { createLogger } from '@/shared/utils/logger';
 import { sendDebugProbe } from '@/shared/utils/debugProbe';
 import { nowMs } from '@/shared/utils/timing';
+import {
+  getTypographyTokenNumber,
+  getTypographyTokenPx,
+  getTypographyTokenValue,
+} from '@/infrastructure/design-system/typographyRuntime';
 import '@xterm/xterm/css/xterm.css';
 import { readTextFromClipboard } from '@/shared/utils/textSelection';
 import './Terminal.scss';
 
 const log = createLogger('Terminal');
 const MIN_STABLE_TERMINAL_ROWS = 3;
+const TERMINAL_FONT_WEIGHT = getTypographyTokenNumber('font.weight.regular');
+const TERMINAL_FONT_WEIGHT_BOLD = getTypographyTokenNumber('font.weight.bold');
 
 // Empty xterm buffers start with blank rows. Do not treat those as replayed
 // content, otherwise a new terminal can inherit the replay column guard and skip
@@ -170,9 +177,9 @@ function normalizePasteDecision(
 }
 
 const DEFAULT_OPTIONS: TerminalOptions = {
-  fontSize: 14,
-  fontFamily: "'Fira Code', 'Noto Sans SC', Consolas, 'Courier New', monospace",
-  lineHeight: 1.2,
+  fontSize: getTypographyTokenPx('font.size.base'),
+  fontFamily: getTypographyTokenValue('font.family.mono'),
+  lineHeight: getTypographyTokenNumber('lineHeight.tight'),
   minimumContrastRatio: DEFAULT_XTERM_MINIMUM_CONTRAST_RATIO,
   cursorStyle: 'block',
   cursorBlink: true,
@@ -225,8 +232,6 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   // _keyPressHandled, to avoid duplicates in the safety net.
   const keyPressHandledRef = useRef(false);
   const [isReady, setIsReady] = useState(false);
-  const initialFontWeights = xtermAppearanceAdapter.getFontWeights();
-
   // Merge options. Appearance is resolved at render time so that the
   // initial XTerm instance is created with the correct background color and avoids
   // the black-background flash that occurs when a light theme is active.
@@ -236,8 +241,6 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     theme: getInitialXtermColors(),
   };
   const mergedOptionsRef = useRef(mergedOptions);
-  const initialFontWeightsRef = useRef(initialFontWeights);
-
   autoFocusRef.current = autoFocus;
   terminalIdRef.current = terminalId;
   sessionIdRef.current = sessionId;
@@ -250,7 +253,6 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   onPasteRef.current = onPaste;
   resizeSuspendedRef.current = resizeSuspended;
   mergedOptionsRef.current = mergedOptions;
-  initialFontWeightsRef.current = initialFontWeights;
 
   // Force refresh for rendering consistency.
   const forceRefresh = useCallback((terminal: XTerm) => {
@@ -457,8 +459,8 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     const terminal = new XTerm({
       fontSize: mergedOptionsRef.current.fontSize,
       fontFamily: mergedOptionsRef.current.fontFamily,
-      fontWeight: initialFontWeightsRef.current.fontWeight,
-      fontWeightBold: initialFontWeightsRef.current.fontWeightBold,
+      fontWeight: TERMINAL_FONT_WEIGHT,
+      fontWeightBold: TERMINAL_FONT_WEIGHT_BOLD,
       lineHeight: mergedOptionsRef.current.lineHeight,
       minimumContrastRatio: mergedOptionsRef.current.minimumContrastRatio,
       cursorStyle: mergedOptionsRef.current.cursorStyle,
@@ -852,9 +854,6 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     const updateXtermTheme = () => {
       (() => {
         terminal.options.theme = xtermAppearanceAdapter.getColors('terminal');
-        const fontWeights = xtermAppearanceAdapter.getFontWeights();
-        terminal.options.fontWeight = fontWeights.fontWeight;
-        terminal.options.fontWeightBold = fontWeights.fontWeightBold;
 
         forceRefresh(terminal);
       })();

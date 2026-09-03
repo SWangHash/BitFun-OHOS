@@ -3,9 +3,20 @@
  * Supports editing terminal name and startup command
  */
 
+import {
+  Button,
+  Field,
+  Input,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Modal, Input, Button } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';
+import { isImeOwnedKeyboardEvent } from '@/shared/utils/ime';
 import './TerminalEditModal.scss';
 
 export interface TerminalEditModalProps {
@@ -49,7 +60,7 @@ export const TerminalEditModal: React.FC<TerminalEditModalProps> = ({
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape' && isOpen && !isImeOwnedKeyboardEvent(e)) {
         onClose();
       }
     };
@@ -81,49 +92,68 @@ export const TerminalEditModal: React.FC<TerminalEditModalProps> = ({
   const canSave = name.trim().length > 0;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={t('dialog.editTerminal.title')} size="small">
+    <Dialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}
+      size="sm"
+    >
+      <DialogHeader>
+        <DialogHeading>
+          <DialogTitle>{t('dialog.editTerminal.title')}</DialogTitle>
+        </DialogHeading>
+        <DialogClose />
+      </DialogHeader>
+      <DialogBody inset="none">
       <div data-bf-component="terminal-edit-modal" data-bf-part="content" className="terminal-edit-dialog__content">
-        <Input
-          ref={nameInputRef}
-          label={t('dialog.editTerminal.nameLabel')}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={t('dialog.editTerminal.namePlaceholder')}
-        />
+        <Field label={t('dialog.editTerminal.nameLabel')}>
+          <Input
+            ref={nameInputRef}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={t('dialog.editTerminal.namePlaceholder')}
+          />
+        </Field>
 
         {showWorkingDirectory ? (
-          <Input
+          <Field
+            description={t('dialog.editTerminal.workingDirectoryHint')}
             label={t('dialog.editTerminal.workingDirectoryLabel')}
-            value={workingDirectory}
-            onChange={(e) => setWorkingDirectory(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={t('dialog.editTerminal.workingDirectoryPlaceholder')}
-            hint={t('dialog.editTerminal.workingDirectoryHint')}
-          />
+          >
+            <Input
+              value={workingDirectory}
+              onChange={(e) => setWorkingDirectory(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={t('dialog.editTerminal.workingDirectoryPlaceholder')}
+            />
+          </Field>
         ) : null}
 
         {showStartupCommand ? (
-          <Input
+          <Field
+            description={t('dialog.editTerminal.startupCommandHint')}
             label={t('dialog.editTerminal.startupCommandLabel')}
-            value={startupCommand}
-            onChange={(e) => setStartupCommand(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={t('dialog.editTerminal.startupCommandPlaceholder')}
-            hint={t('dialog.editTerminal.startupCommandHint')}
-          />
+          >
+            <Input
+              value={startupCommand}
+              onChange={(e) => setStartupCommand(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={t('dialog.editTerminal.startupCommandPlaceholder')}
+            />
+          </Field>
         ) : null}
       </div>
 
       <div data-bf-component="terminal-edit-modal" data-bf-part="footer" className="terminal-edit-dialog__footer">
-        <Button variant="secondary" onClick={onClose}>
+        <Button variant="outline" onClick={onClose}>
           {t('dialog.editTerminal.cancel')}
         </Button>
-        <Button variant="primary" onClick={handleSave} disabled={!canSave}>
+        <Button variant="fill" onClick={handleSave} disabled={!canSave}>
           {t('dialog.editTerminal.save')}
         </Button>
       </div>
-    </Modal>
+          </DialogBody>
+    </Dialog>
   );
 };
 

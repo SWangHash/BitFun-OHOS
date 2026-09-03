@@ -282,19 +282,42 @@ pub struct SetPreventSleepEnabledRequest {
 
 #[tauri::command]
 pub async fn set_prevent_sleep_enabled(
-    app_state: State<'_, AppState>,
-    sleep_prevention: State<'_, SleepPreventionState>,
+    app: AppHandle,
     request: SetPreventSleepEnabledRequest,
 ) -> Result<(), String> {
-    let previous = configured_enabled(&app_state.config_service).await?;
+    crate::bitfun_control_host::configure_option_from_gui(
+        &app,
+        "setting.application.general",
+        "prevent-sleep",
+        serde_json::Value::Bool(request.enabled),
+    )
+    .await
+    .map(|_| ())
+}
+
+pub(crate) async fn set_prevent_sleep_enabled_from_host(
+    app: &AppHandle,
+    enabled: bool,
+) -> Result<(), String> {
+    let app_state = app.state::<AppState>();
+    let sleep_prevention = app.state::<SleepPreventionState>();
+    set_prevent_sleep_enabled_impl(&app_state.config_service, sleep_prevention.inner(), enabled)
+        .await
+}
+
+async fn set_prevent_sleep_enabled_impl(
+    config_service: &ConfigService,
+    sleep_prevention: &SleepPreventionState,
+    enabled: bool,
+) -> Result<(), String> {
+    let previous = configured_enabled(config_service).await?;
     apply_then_persist(
         previous,
-        request.enabled,
+        enabled,
         |enabled| sleep_prevention.set_enabled(enabled),
         || async {
-            app_state
-                .config_service
-                .set_config(PREVENT_SLEEP_CONFIG_PATH, request.enabled)
+            config_service
+                .set_config(PREVENT_SLEEP_CONFIG_PATH, enabled)
                 .await
                 .map_err(|error| error.to_string())
         },

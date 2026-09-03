@@ -1,14 +1,20 @@
+import { MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { KeyboardAvoidMode } from '@kit.ArkUI';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
-import { ChatTimelineItem } from '../../services/ChatTimelineProjector';
+import { ChatTimelineItem, ObservableChatTimelineItem } from '../../model/ChatTimelineModels';
 import { ConnectionStatusPresenter } from '../../services/ConnectionStatusPresenter';
 import { RemoteLogger } from '../../services/RemoteLogger';
-import { ChatComposerCapabilities, REMOTE_CHAT_COMPOSER_CAPABILITIES } from '../state/ChatComposerCapabilities';
+import { ChatComposerCapabilities } from '../state/ChatComposerCapabilities';
 import { ChatSurface } from '../state/ChatSurface';
+import { ConversationViewState } from '../state/ConversationViewState';
+import { ConversationIntent, ConversationIntents, ConversationIntentType } from '../actions/ConversationIntent';
 import { ChatStatusBar } from './ChatStatusBar';
 import { ChatTimeline } from './ChatTimeline';
 import { ConversationLoadingState } from './ConversationLoadingState';
-import { ConversationViewContract } from './ConversationViewContract';
+import {
+  ConversationViewContract,
+  ConversationViewOptions
+} from './ConversationViewContract';
 import {
   ConversationUiModelCatalog,
   ConversationUiQuestionAnswer,
@@ -18,79 +24,25 @@ import {
 import { ComposerBar, ComposerPresentation } from './ComposerBar';
 import { ConversationHeader } from './ConversationHeader';
 import { ConversationHeaderPolicy, ConversationHeaderPresentation } from '../policy/ConversationHeaderPolicy';
-import { FLOATING_PANEL_BG, GREEN, INK, LINE, MUTED, PAGE_BG, RED, SOFT } from './Theme';
+import {
+  CARD,
+  INK,
+  LINE,
+  MUTED,
+  PAGE_BG,
+  SHADOW_SUBTLE,
+  SOFT,
+  STATUS_DANGER,
+  STATUS_SUCCESS,
+  TRANSPARENT,
+} from './Theme';
 
 @ComponentV2
 export struct ConversationView {
-  @Param surface: ChatSurface = ChatSurface.Remote;
-  @Param activeSession: ConversationUiSession = {
-    sessionId: '',
-    title: '',
-    workspacePath: '',
-    agentType: 'code'
-  };
-  @Param desktopName: string = '';
-  @Param workspaceBranch: string = '';
-  @Param statusText: string = '';
-  @Param inlineStatusText: string = '';
-  @Param connectionState: string = 'connected';
-  @Param composerCapabilities: ChatComposerCapabilities = REMOTE_CHAT_COMPOSER_CAPABILITIES;
-  @Param isBusy: boolean = false;
-  @Param isLoadingConversation: boolean = false;
-  @Param canStop: boolean = false;
-  @Param hasMoreMessages: boolean = false;
-  @Param timelineItems: ChatTimelineItem[] = [];
-  @Param timelineRevision: number = 0;
-  @Param modelCatalog: ConversationUiModelCatalog = {
-    version: 0,
-    models: [],
-    default_models: {}
-  };
-  @Param selectedModelId: string = '';
-  @Param downloadingFilePath: string = '';
-  @Param downloadedFilePath: string = '';
-  @Param fileDownloadStatus: string = '';
-  @Param activeFilePreviewPath: string = '';
-  @Param activeFilePreviewLoading: boolean = false;
-  @Param selectedImages: ConversationUiSelectedImage[] = [];
-  @Param isVoiceListening: boolean = false;
-  @Param chatInput: string = '';
-  @Param showSidebarButton: boolean = true;
-  @Param showBackButton: boolean = true;
-  @Param showSidebarRestoreButton: boolean = false;
-  @Param composerPresentation: ComposerPresentation = ComposerPresentation.Compact;
-  @Param composerInputId: string = 'conversation-composer-input';
-  @Param contentHorizontalOffset: number = 0;
-  @Param hoverOperateMode: boolean = false;
-  @BuilderParam aboveComposer: () => void = this.EmptyBuilder;
-  @Event onOpenSidebar: () => void = () => {};
+  @Param state: ConversationViewState = new ConversationViewState();
+  @Param options: ConversationViewOptions = new ConversationViewOptions();
+  @Event onIntent: (intent: ConversationIntent) => void = (_intent: ConversationIntent) => {};
   @Event onRestoreSidebar: () => void = () => {};
-  @Event onBack: () => void = () => {};
-  @Param isSessionPinned: boolean = false;
-  @Event onTogglePinSession: () => void = () => {};
-  @Event onArchiveSession: () => void = () => {};
-  @Event onDeleteSession: () => void = () => {};
-  @Event onShowUploadedFiles: () => void = () => {};
-  @Event onStop: () => void = () => {};
-  @Event onLoadOlder: () => void = () => {};
-  @Event onApproveTool: (toolId: string, updatedInput?: Object) => void =
-    (_toolId: string, _updatedInput?: Object) => {};
-  @Event onRejectTool: (toolId: string) => void = (_toolId: string) => {};
-  @Event onCancelTool: (toolId: string) => void = (_toolId: string) => {};
-  @Event onAnswerQuestion: (toolId: string, answers: ConversationUiQuestionAnswer) => void =
-    (_toolId: string, _answers: ConversationUiQuestionAnswer) => {};
-  @Event onRenameSession: (title: string) => void = (_title: string) => {};
-  @Event onCopyMessage: (text: string) => void = (_text: string) => {};
-  @Event onRetryMessage: (text: string) => void = (_text: string) => {};
-  @Event onOpenFilePreview: (path: string, label: string) => void = (_path: string, _label: string) => {};
-  @Event onSelectModel: (modelId: string) => void = (_modelId: string) => {};
-  @Event onPickImages: () => void = () => {};
-  @Event onRemoveImage: (imageId: string) => void = (_imageId: string) => {};
-  @Event onDownloadFile: (path: string) => void = (_path: string) => {};
-  @Event onSend: () => void = () => {};
-  @Event onVoiceInput: () => void = () => {};
-  @Event onChatInputChange: (value: string) => void = (_value: string) => {};
-  @Event onBackgroundTap: () => void = () => {};
   @Local showHeaderActions: boolean = false;
   private previousKeyboardAvoidMode: KeyboardAvoidMode = KeyboardAvoidMode.OFFSET;
 
@@ -130,8 +82,6 @@ export struct ConversationView {
     }
     .layoutWeight(1)
     .width('100%')
-    .translate({ x: this.contentHorizontalOffset, y: 0 })
-    .animation({ duration: 220, curve: Curve.EaseInOut })
   }
 
   @Builder
@@ -160,26 +110,34 @@ export struct ConversationView {
     if (this.shouldShowStatusBar()) {
       this.ExecutionStatusBar()
     }
-    if (this.isLoadingConversation) {
-      ConversationLoadingState({
-        maxContentWidth: this.composerPresentation === ComposerPresentation.Floating ? 800 : 0
-      })
-        .layoutWeight(1)
-    } else if (this.surface === ChatSurface.Create) {
-      Blank()
-        .layoutWeight(1)
-        .width('100%')
-        .onClick(() => {
-          this.onBackgroundTap();
-        })
-    } else if (this.shouldCenterInlineStatus()) {
+    if (this.shouldCenterInlineStatus()) {
       this.CenteredInlineStatus()
     } else {
-      this.MessageList()
+      // Keep the list subtree alive while a slow transcript is loading. The
+      // former top-level conditional destroyed and rebuilt ChatTimeline every
+      // time the 140 ms loading gate opened, losing its scroll state and making
+      // rapid session switches visibly flash.
+      Stack() {
+        Column() {
+          this.MessageList()
+        }
+        .width('100%')
+        .height('100%')
+        if (this.isLoadingConversation) {
+          ConversationLoadingState({
+            maxContentWidth: this.composerPresentation === ComposerPresentation.Floating ? 760 : 0
+          })
+            .width('100%')
+            .height('100%')
+            .backgroundColor(PAGE_BG)
+        }
+      }
+      .layoutWeight(1)
+      .width('100%')
     }
     if (this.inlineStatusText.length > 0 && !this.shouldCenterInlineStatus()) {
       Text(this.inlineStatusText)
-        .fontSize(12).lineHeight(18).fontColor(MUTED).width('100%')
+        .fontSize(MobileDesignTypography.labelSmall.size).lineHeight(MobileDesignTypography.labelSmall.lineHeight).fontColor(MUTED).width('100%')
         .padding({ left: 20, right: 20, bottom: 8 })
     }
   }
@@ -248,7 +206,7 @@ export struct ConversationView {
       fileDownloadStatus: this.fileDownloadStatus,
       activeFilePreviewPath: this.activeFilePreviewPath,
       activeFilePreviewLoading: this.activeFilePreviewLoading,
-      maxContentWidth: this.composerPresentation === ComposerPresentation.Floating ? 800 : 0,
+      maxContentWidth: this.composerPresentation === ComposerPresentation.Floating ? 760 : 0,
       onLoadOlder: () => {
         this.onLoadOlder();
       },
@@ -283,8 +241,8 @@ export struct ConversationView {
   CenteredInlineStatus() {
     Stack({ alignContent: Alignment.Center }) {
       Text(this.inlineStatusText)
-        .fontSize(14)
-        .lineHeight(20)
+        .fontSize(MobileDesignTypography.bodyMedium.size)
+        .lineHeight(MobileDesignTypography.bodyMedium.lineHeight)
         .fontColor(MUTED)
         .textAlign(TextAlign.Center)
         .maxLines(2)
@@ -298,7 +256,6 @@ export struct ConversationView {
   @Builder
   Composer() {
     Column() {
-      this.aboveComposer()
       ComposerBar({
       presentation: this.composerPresentation,
       capabilities: this.composerCapabilities,
@@ -338,20 +295,16 @@ export struct ConversationView {
   }
 
   @Builder
-  private EmptyBuilder() {
-  }
-
-  @Builder
   HeaderActionsPopover() {
     Column() {
       this.HeaderActionsContent()
     }
     .width(292)
     .padding({ left: 12, right: 12, top: 10, bottom: 10 })
-    .backgroundColor(FLOATING_PANEL_BG)
-    .border({ width: 1, color: LINE })
+    .backgroundColor(CARD)
+    .border({ width: 0.5, color: LINE })
     .borderRadius(16)
-    .shadow({ radius: 18, color: LINE, offsetY: 7 })
+    .shadow({ radius: 18, color: SHADOW_SUBTLE, offsetY: 7 })
     .transition(TransitionEffect.translate({ x: 8, y: -8 })
       .combine(TransitionEffect.opacity(0))
       .animation({ duration: 180, curve: Curve.EaseOut }))
@@ -360,7 +313,7 @@ export struct ConversationView {
   @Builder
   HeaderActionsContent() {
     Text(RemoteI18n.t('chat.sessionSection'))
-      .fontSize(13).fontWeight(FontWeight.Medium).fontColor(MUTED)
+      .fontSize(MobileDesignTypography.bodySmall.size).fontWeight(FontWeight.Medium).fontColor(MUTED)
       .width('100%').height(28).padding({ left: 8 })
     if (this.surface === ChatSurface.General) {
       this.RemoteStyleMenuItem('remote_actions_check',
@@ -386,13 +339,13 @@ export struct ConversationView {
     Row({ space: 10 }) {
       this.MenuIcon(icon)
       Text(label)
-        .fontSize(15).fontColor(INK).layoutWeight(1)
+        .fontSize(MobileDesignTypography.titleSmall.size).fontColor(INK).layoutWeight(1)
         .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
     }
     .width('100%').height(48)
     .padding({ left: 8, right: 8 })
     .borderRadius(10)
-    .backgroundColor(selected ? SOFT : '#00000000')
+    .backgroundColor(selected ? SOFT : TRANSPARENT)
     .onClick(() => {
       action()
       this.showHeaderActions = false
@@ -420,7 +373,7 @@ export struct ConversationView {
       !ConversationViewContract.hasRealTimelineItem(this.timelineItems);
   }
 
-  private visibleTimelineItems(): ChatTimelineItem[] {
+  private visibleTimelineItems(): ObservableChatTimelineItem[] {
     return ConversationViewContract.visibleTimelineItems(this.timelineItems);
   }
 
@@ -433,7 +386,7 @@ export struct ConversationView {
 
   private statusColor(): ResourceColor {
     if (this.canStop && this.connectionState === 'connected') {
-      return GREEN;
+      return STATUS_SUCCESS;
     }
     return this.connectionColor();
   }
@@ -448,7 +401,7 @@ export struct ConversationView {
     if (this.connectionState === 'reconnecting') {
       return RemoteI18n.t('chat.emptyReconnecting');
     }
-    return RemoteI18n.t('status.messagesSynced');
+    return ConnectionStatusPresenter.label(this.connectionState);
   }
 
   private taskSummaryDetail(): string {
@@ -459,7 +412,10 @@ export struct ConversationView {
   private shouldShowStatusBar(): boolean {
     return this.surface === ChatSurface.Remote &&
       !this.isLoadingConversation &&
-      this.connectionState !== 'connected';
+      this.connectionState !== 'connected' &&
+      (this.activeSession.sessionId.length > 0 ||
+        this.connectionState === 'failed' ||
+        this.connectionState === 'reconnecting');
   }
 
   private headerTitle(): string {
@@ -495,11 +451,88 @@ export struct ConversationView {
   private connectionColor(): ResourceColor {
     const tone = ConnectionStatusPresenter.tone(this.connectionState);
     if (tone === 'ok') {
-      return GREEN;
+      return STATUS_SUCCESS;
     }
     if (tone === 'error') {
-      return RED;
+      return STATUS_DANGER;
     }
     return MUTED;
+  }
+
+  private get surface(): ChatSurface { return this.state.surface; }
+  private get activeSession(): ConversationUiSession { return this.state.activeSession; }
+  private get desktopName(): string { return this.state.desktopName; }
+  private get workspaceBranch(): string { return this.state.workspaceBranch; }
+  private get statusText(): string { return this.state.statusText; }
+  private get inlineStatusText(): string { return this.state.inlineStatusText; }
+  private get connectionState(): string { return this.state.connectionState; }
+  private get composerCapabilities(): ChatComposerCapabilities { return this.state.composerCapabilities; }
+  private get isBusy(): boolean { return this.state.isBusy; }
+  private get isLoadingConversation(): boolean { return this.state.isLoadingConversation; }
+  private get canStop(): boolean { return this.state.canStop; }
+  private get hasMoreMessages(): boolean { return this.state.hasMoreMessages; }
+  private get timelineItems(): ObservableChatTimelineItem[] { return this.state.timelineItems; }
+  private get timelineRevision(): number { return this.state.timelineRevision; }
+  private get modelCatalog(): ConversationUiModelCatalog { return this.state.modelCatalog; }
+  private get selectedModelId(): string { return this.state.selectedModelId; }
+  private get downloadingFilePath(): string { return this.state.downloadingFilePath; }
+  private get downloadedFilePath(): string { return this.state.downloadedFilePath; }
+  private get fileDownloadStatus(): string { return this.state.fileDownloadStatus; }
+  private get selectedImages(): ConversationUiSelectedImage[] { return this.state.selectedImages; }
+  private get isVoiceListening(): boolean { return this.state.isVoiceListening; }
+  private get chatInput(): string { return this.state.chatInput; }
+  private get isSessionPinned(): boolean { return this.state.isSessionPinned; }
+  private get activeFilePreviewPath(): string { return this.options.activeFilePreviewPath; }
+  private get activeFilePreviewLoading(): boolean { return this.options.activeFilePreviewLoading; }
+  private get showSidebarButton(): boolean { return this.options.showSidebarButton; }
+  private get showBackButton(): boolean { return this.options.showBackButton; }
+  private get showSidebarRestoreButton(): boolean { return this.options.showSidebarRestoreButton; }
+  private get composerPresentation(): ComposerPresentation { return this.options.composerPresentation; }
+  private get composerInputId(): string { return this.options.composerInputId; }
+  private get hoverOperateMode(): boolean { return this.options.hoverOperateMode; }
+  private onOpenSidebar(): void { this.dispatchSimple(ConversationIntentType.OpenSidebar); }
+  private onBack(): void { this.dispatchSimple(ConversationIntentType.Back); }
+  private onTogglePinSession(): void { this.dispatchSimple(ConversationIntentType.TogglePin); }
+  private onArchiveSession(): void { this.dispatchSimple(ConversationIntentType.Archive); }
+  private onDeleteSession(): void { this.dispatchSimple(ConversationIntentType.Delete); }
+  private onShowUploadedFiles(): void { this.dispatchSimple(ConversationIntentType.ShowUploadedFiles); }
+  private onStop(): void { this.dispatchSimple(ConversationIntentType.Stop); }
+  private onLoadOlder(): void { this.dispatchSimple(ConversationIntentType.LoadOlder); }
+  private onApproveTool(toolId: string, updatedInput?: Object): void {
+    this.onIntent(ConversationIntents.approveTool(toolId, updatedInput));
+  }
+  private onRejectTool(toolId: string): void {
+    this.onIntent(ConversationIntents.tool(ConversationIntentType.RejectTool, toolId));
+  }
+  private onCancelTool(toolId: string): void {
+    this.onIntent(ConversationIntents.tool(ConversationIntentType.CancelTool, toolId));
+  }
+  private onAnswerQuestion(toolId: string, answers: ConversationUiQuestionAnswer): void {
+    this.onIntent(ConversationIntents.answerQuestion(toolId, answers));
+  }
+  private onRenameSession(title: string): void {
+    this.dispatchValue(ConversationIntentType.RenameSession, title);
+  }
+  private onCopyMessage(text: string): void { this.dispatchValue(ConversationIntentType.CopyMessage, text); }
+  private onRetryMessage(text: string): void { this.dispatchValue(ConversationIntentType.RetryMessage, text); }
+  private onOpenFilePreview(path: string, label: string): void {
+    this.onIntent(ConversationIntents.openFilePreview(path, label));
+  }
+  private onSelectModel(modelId: string): void { this.dispatchValue(ConversationIntentType.SelectModel, modelId); }
+  private onPickImages(): void { this.dispatchSimple(ConversationIntentType.PickImages); }
+  private onRemoveImage(imageId: string): void { this.dispatchValue(ConversationIntentType.RemoveImage, imageId); }
+  private onDownloadFile(path: string): void { this.dispatchValue(ConversationIntentType.DownloadFile, path); }
+  private onSend(): void { this.dispatchSimple(ConversationIntentType.Send); }
+  private onVoiceInput(): void { this.dispatchSimple(ConversationIntentType.VoiceInput); }
+  private onChatInputChange(value: string): void {
+    this.dispatchValue(ConversationIntentType.ChatInputChanged, value);
+  }
+
+  private dispatchSimple(type: ConversationIntentType): void {
+    this.onIntent(ConversationIntents.simple(type));
+  }
+
+  private dispatchValue(type: ConversationIntentType, value: string): void {
+    this.onIntent(ConversationIntents.value(type, value));
   }
 }

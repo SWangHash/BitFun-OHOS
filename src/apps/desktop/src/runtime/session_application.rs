@@ -34,6 +34,7 @@ use bitfun_core::service::session_usage::SessionUsageReport;
 use bitfun_core::service::token_usage::TokenUsageService;
 use bitfun_core::service::workspace::WorkspaceService;
 use bitfun_core::util::errors::BitFunError;
+use bitfun_product_domains::product_search::SessionContentSearchResponse;
 use bitfun_runtime_ports::{AgentContextReloadRequest, SessionTurnWindowRequest};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
@@ -389,15 +390,20 @@ impl DesktopSessionApplication {
         &self,
         request: DesktopSessionScopeRequest,
         project_id: Option<String>,
-    ) -> DesktopSessionApplicationResult<Option<serde_json::Value>> {
+    ) -> DesktopSessionApplicationResult<()> {
         let scope = self.resolved_scope(request).await;
         self.ensure_runtime_ownership(&scope)?;
         if scope.remote_connection_id.is_some() {
-            log::debug!(
-                "Configured plugin host activation skipped for remote workspace: workspace_path={}",
+            if !bitfun_core::plugin_host::configured_plugins_present()
+                .await
+                .map_err(|error| DesktopSessionApplicationError::Core(error.to_string()))?
+            {
+                return Ok(());
+            }
+            return Err(DesktopSessionApplicationError::Core(format!(
+                "OpenCode plugin hooks are unavailable for remote workspace {} because the remote execution domain does not provide a plugin host",
                 scope.workspace_path
-            );
-            return Ok(None);
+            )));
         }
         let workspace_path = PathBuf::from(&scope.workspace_path);
         bitfun_core::plugin_host::ensure_configured_plugin_instance(
@@ -405,7 +411,6 @@ impl DesktopSessionApplication {
             workspace_path.clone(),
             workspace_path,
             project_id,
-            serde_json::Map::new(),
         )
         .await
         .map_err(|error| DesktopSessionApplicationError::Core(error.to_string()))
@@ -433,6 +438,25 @@ impl DesktopSessionApplication {
         let storage_path = self.storage_path(&scope);
         self.compatibility
             .list_persisted_sessions_page(&storage_path, cursor, limit)
+            .await
+            .map_err(|error| DesktopSessionApplicationError::Core(error.to_string()))
+    }
+
+    pub(crate) async fn search_session_content(
+        &self,
+        request: DesktopSessionScopeRequest,
+        query: &str,
+        limit: usize,
+        include_archived: bool,
+    ) -> DesktopSessionApplicationResult<SessionContentSearchResponse> {
+        let scope = self.resolved_scope(request).await;
+        self.compatibility
+            .search_persisted_session_content(
+                &self.storage_path(&scope),
+                query,
+                limit,
+                include_archived,
+            )
             .await
             .map_err(|error| DesktopSessionApplicationError::Core(error.to_string()))
     }
@@ -1466,7 +1490,7 @@ mod tests {
             "session".to_string(),
             "Current".to_string(),
             "agentic".to_string(),
-            "auto".to_string(),
+            "primary".to_string(),
         );
         current.review_action_state = Some(json!({ "phase": "review_completed" }));
         current.unread_completion = Some("completed".to_string());

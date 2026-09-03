@@ -10,6 +10,10 @@ vi.mock('@/shared/utils/logger', () => ({
   createLogger: () => ({ error: vi.fn() }),
 }));
 
+vi.mock('@/infrastructure/appearance/runtime/AppearanceOverlayHost', () => ({
+  getAppearanceOverlayHost: () => document.body,
+}));
+
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 describe('ContextMenu presence', () => {
@@ -19,7 +23,10 @@ describe('ContextMenu presence', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
+    dom = new JSDOM(
+      '<!doctype html><html><body><div id="root"></div></body></html>',
+      { url: 'http://localhost/' },
+    );
     globalThis.window = dom.window as unknown as Window & typeof globalThis;
     globalThis.document = dom.window.document;
     window.requestAnimationFrame = callback => window.setTimeout(() => callback(0), 0);
@@ -48,17 +55,17 @@ describe('ContextMenu presence', () => {
     act(() => root.render(<ContextMenu {...props} visible />));
     act(() => vi.runOnlyPendingTimers());
     act(() => vi.runOnlyPendingTimers());
-    expect(container.querySelector('[role="menu"]')?.getAttribute('data-state')).toBe('entered');
+    expect(document.querySelector('[role="menu"]')?.getAttribute('data-state')).toBe('entered');
 
     act(() => root.render(<ContextMenu {...props} visible={false} />));
-    const exitingMenu = container.querySelector('[role="menu"]');
+    const exitingMenu = document.querySelector('[role="menu"]');
     expect(exitingMenu?.getAttribute('data-state')).toBe('exiting');
     expect(exitingMenu?.getAttribute('aria-hidden')).toBe('true');
     expect(exitingMenu?.hasAttribute('inert')).toBe(true);
     expect(document.activeElement).toBe(trigger);
 
     act(() => vi.advanceTimersByTime(100));
-    expect(container.querySelector('[role="menu"]')).toBeNull();
+    expect(document.querySelector('[role="menu"]')).toBeNull();
   });
 
   it('uses roving focus and skips disabled items and separators', () => {
@@ -74,7 +81,7 @@ describe('ContextMenu presence', () => {
       <ContextMenu items={items} position={{ x: 0, y: 0 }} visible onClose={vi.fn()} />,
     ));
 
-    const menuItems = Array.from(container.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+    const menuItems = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'));
     expect(document.activeElement?.textContent).toContain('Copy');
     expect(menuItems[0].tabIndex).toBe(-1);
     expect(menuItems[1].tabIndex).toBe(0);
@@ -90,7 +97,7 @@ describe('ContextMenu presence', () => {
 
     act(() => document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })));
     expect(document.activeElement?.textContent).toContain('Delete');
-    expect(container.querySelector('[role="separator"]')).not.toBeNull();
+    expect(document.querySelector('[role="separator"]')).not.toBeNull();
   });
 
   it('activates focused items with Enter and Space', async () => {
@@ -105,16 +112,17 @@ describe('ContextMenu presence', () => {
       { id: 'copy', label: 'Copy', onClick: onCopy },
       { id: 'delete', label: 'Delete', onClick: onDelete },
     ];
-
-    act(() => root.render(
+    const renderMenu = (visible: boolean) => root.render(
       <ContextMenu
         items={items}
         position={{ x: 0, y: 0 }}
-        visible
+        visible={visible}
         onClose={onClose}
         onItemClick={onItemClick}
       />,
-    ));
+    );
+
+    act(() => renderMenu(true));
 
     await act(async () => {
       document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
@@ -122,17 +130,20 @@ describe('ContextMenu presence', () => {
     expect(onCopy).toHaveBeenCalledOnce();
     expect(onItemClick).toHaveBeenCalledWith(items[0], undefined);
     expect(onClose).toHaveBeenCalledOnce();
+
+    act(() => renderMenu(false));
     expect(document.activeElement).toBe(trigger);
 
+    act(() => renderMenu(true));
     act(() => {
-      const firstItem = container.querySelector<HTMLElement>('[role="menuitem"]');
-      firstItem?.focus();
       document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     });
     await act(async () => {
       document.dispatchEvent(new window.KeyboardEvent('keydown', { key: ' ', bubbles: true }));
     });
     expect(onDelete).toHaveBeenCalledOnce();
+    act(() => renderMenu(false));
+    expect(document.activeElement).toBe(trigger);
   });
 
   it('restores the pre-open focus snapshot on Escape', () => {
@@ -154,7 +165,57 @@ describe('ContextMenu presence', () => {
     act(() => document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
 
     expect(onClose).toHaveBeenCalledOnce();
+    act(() => root.render(
+      <ContextMenu
+        items={[{ id: 'copy', label: 'Copy' }]}
+        position={{ x: 0, y: 0 }}
+        visible={false}
+        onClose={onClose}
+      />,
+    ));
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it('keeps the nested submenu open while pausing in the gap in either direction', () => {
+    act(() => root.render(
+      <ContextMenu
+        items={[{ id: 'share', label: 'Share', submenu: [{ id: 'email', label: 'Email' }] }]}
+        position={{ x: 0, y: 0 }}
+        visible
+        onClose={vi.fn()}
+      />,
+    ));
+    const parentItem = document.querySelector<HTMLElement>('[role="menuitem"]')!;
+    act(() => parentItem.dispatchEvent(new window.MouseEvent('pointerover', {
+      bubbles: true, clientX: 150, clientY: 40,
+    })));
+    act(() => vi.advanceTimersByTime(150));
+
+    const parent = document.querySelector<HTMLElement>('[role="menu"]')!;
+    const submenu = document.querySelector<HTMLElement>('[role="menu"][aria-label="Share"]')!;
+    parent.getBoundingClientRect = () => new window.DOMRect(0, 20, 215, 200);
+    submenu.getBoundingClientRect = () => new window.DOMRect(220, 20, 220, 200);
+
+    for (const element of [parentItem, submenu]) {
+      act(() => element.dispatchEvent(new window.MouseEvent('pointerout', {
+        bubbles: true, relatedTarget: document.body, clientX: 218, clientY: 80,
+      })));
+      act(() => vi.advanceTimersByTime(1000));
+      expect(parentItem.getAttribute('aria-expanded')).toBe('true');
+
+      act(() => submenu.dispatchEvent(new window.MouseEvent('pointerover', {
+        bubbles: true, relatedTarget: document.body, clientX: 225, clientY: 80,
+      })));
+    }
+
+    act(() => document.dispatchEvent(new window.MouseEvent('pointermove', {
+      bubbles: true, clientX: 218, clientY: 80,
+    })));
+    act(() => document.dispatchEvent(new window.MouseEvent('pointermove', {
+      bubbles: true, clientX: 218, clientY: 400,
+    })));
+    act(() => vi.advanceTimersByTime(300));
+    expect(parentItem.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('opens a submenu from the keyboard and keeps keyboard handling in the owning menu', () => {
@@ -171,7 +232,7 @@ describe('ContextMenu presence', () => {
     act(() => root.render(
       <ContextMenu items={items} position={{ x: 0, y: 0 }} visible onClose={vi.fn()} />,
     ));
-    const parentItem = container.querySelector<HTMLElement>('[role="menuitem"]');
+    const parentItem = document.querySelector<HTMLElement>('[role="menuitem"]');
     expect(parentItem?.getAttribute('aria-haspopup')).toBe('menu');
 
     act(() => document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
@@ -186,5 +247,20 @@ describe('ContextMenu presence', () => {
     act(() => document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })));
     expect(document.activeElement).toBe(parentItem);
     expect(parentItem?.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('keeps every persisted appearance part on the public menu anatomy', () => {
+    act(() => root.render(<ContextMenu visible position={{ x: 20, y: 20 }} onClose={vi.fn()} items={[
+      { id: 'disabled', label: 'Disabled', disabled: true },
+      { id: 'separator', label: '', separator: true },
+      { id: 'share', label: 'Share', icon: <svg />, shortcut: 'Ctrl S', submenu: [{ id: 'email', label: 'Email' }] },
+    ]} />));
+    act(() => document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })));
+    for (const part of ['root', 'item', 'separator', 'icon', 'label', 'shortcut', 'submenuArrow', 'submenu']) {
+      expect(document.querySelector(`[data-bf-product-component="context-menu"][data-bf-product-part="${part}"]`)).not.toBeNull();
+    }
+    expect(document.querySelector('[data-bf-component="menu"][data-bf-product-part="root"]')).not.toBeNull();
+    expect(document.querySelector('[data-bf-product-part="item"][data-bf-state="disabled"]')?.getAttribute('aria-disabled')).toBe('true');
+    expect(document.querySelector('[data-bf-product-part="item"][data-bf-state="submenu-active"]')?.getAttribute('aria-expanded')).toBe('true');
   });
 });

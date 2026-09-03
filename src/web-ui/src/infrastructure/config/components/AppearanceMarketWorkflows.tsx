@@ -1,6 +1,7 @@
+import { Button, Field, Icon, Input, Select, ScrollArea, Textarea } from '@bitfun/ui';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Image, Inbox, RefreshCw, ShieldCheck, Upload } from 'lucide-react';
-import { Button, confirmDialog, Input, Select, Textarea } from '@/component-library';
+import { AlertTriangle, Inbox, ShieldCheck } from 'lucide-react';
+import { confirmDialog } from '@/infrastructure/confirm-dialog';
 import {
   appearanceMarketAPI,
   type AppearanceAdminSubmissionDetail,
@@ -209,7 +210,7 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
   const renderManualSubmit = () => manualSubmitOpen && (
     <form
       className="appearance-market__manual-submit"
-      data-bf-component="appearance-config"
+      data-bf-component="appearance-settings"
       data-bf-part="marketManualSubmit"
       onSubmit={event => void submitPackage(event)}
     >
@@ -220,78 +221,93 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
         </div>
       </div>
       <div className="appearance-market__manual-package-row">
-        <Input
+        <Field
           label={t('package.market.submissions.manual.package')}
-          value={manualDraft.packagePath}
-          placeholder={t('package.market.submissions.manual.packagePlaceholder')}
-          readOnly
+          controlWidth="fill"
           required
-        />
-        <Button type="button" variant="secondary" onClick={() => void choosePackage()} disabled={submitting}>
+        >
+          <Input
+            value={manualDraft.packagePath}
+            placeholder={t('package.market.submissions.manual.packagePlaceholder')}
+            readOnly
+          />
+        </Field>
+        <Button type="button" variant="outline" onClick={() => void choosePackage()} disabled={submitting}>
           {t('package.market.submissions.manual.choose')}
         </Button>
       </div>
       <div className="appearance-market__manual-submit-grid">
-        <Input
-          label={t('package.market.submissions.manual.slug')}
-          value={manualDraft.slug}
-          placeholder={t('package.market.submissions.manual.slugPlaceholder')}
-          pattern="[a-z0-9][a-z0-9-]{2,62}"
-          maxLength={63}
-          onChange={event => setManualDraft(current => ({
-            ...current,
-            slug: event.target.value.toLowerCase(),
-          }))}
-        />
-        <Select
-          label={t('package.market.submissions.manual.licenseType')}
-          value={manualDraft.licenseKind}
-          options={[
-            { value: 'spdx', label: t('package.market.submissions.manual.spdx') },
-            { value: 'custom', label: t('package.market.submissions.manual.custom') },
-          ]}
-          onChange={value => setManualDraft(current => ({
-            ...current,
-            licenseKind: value as ManualLicenseKind,
-            licenseValue: '',
-          }))}
-        />
-        <Input
+        <Field label={t('package.market.submissions.manual.slug')} controlWidth="fill">
+          <Input
+            value={manualDraft.slug}
+            placeholder={t('package.market.submissions.manual.slugPlaceholder')}
+            pattern="[a-z0-9][a-z0-9-]{2,62}"
+            maxLength={63}
+            onChange={event => setManualDraft(current => ({
+              ...current,
+              slug: event.target.value.toLowerCase(),
+            }))}
+          />
+        </Field>
+        <Field label={t('package.market.submissions.manual.licenseType')} controlWidth="fill">
+          <Select
+            value={manualDraft.licenseKind}
+            options={[
+              { value: 'spdx', label: t('package.market.submissions.manual.spdx') },
+              { value: 'custom', label: t('package.market.submissions.manual.custom') },
+            ]}
+            onValueChange={value => setManualDraft(current => ({
+              ...current,
+              licenseKind: value as ManualLicenseKind,
+              licenseValue: '',
+            }))}
+          />
+        </Field>
+        <Field
           label={manualDraft.licenseKind === 'spdx'
             ? t('package.market.submissions.manual.spdxExpression')
             : t('package.market.submissions.manual.customLicenseUrl')}
-          value={manualDraft.licenseValue}
-          placeholder={manualDraft.licenseKind === 'spdx'
-            ? 'MIT'
-            : 'https://example.com/license'}
-          type={manualDraft.licenseKind === 'custom' ? 'url' : 'text'}
+          controlWidth="fill"
           required
-          maxLength={manualDraft.licenseKind === 'spdx' ? 120 : 2048}
-          onChange={event => setManualDraft(current => ({
-            ...current,
-            licenseValue: event.target.value,
-          }))}
-        />
-        <Input
+        >
+          <Input
+            value={manualDraft.licenseValue}
+            placeholder={manualDraft.licenseKind === 'spdx'
+              ? 'MIT'
+              : 'https://example.com/license'}
+            type={manualDraft.licenseKind === 'custom' ? 'url' : 'text'}
+            maxLength={manualDraft.licenseKind === 'spdx' ? 120 : 2048}
+            onChange={event => setManualDraft(current => ({
+              ...current,
+              licenseValue: event.target.value,
+            }))}
+          />
+        </Field>
+        <Field
           label={t('package.market.submissions.manual.minVersion')}
-          value={manualDraft.minBitfunVersion}
+          controlWidth="fill"
           required
+        >
+          <Input
+            value={manualDraft.minBitfunVersion}
+            onChange={event => setManualDraft(current => ({
+              ...current,
+              minBitfunVersion: event.target.value,
+            }))}
+          />
+        </Field>
+      </div>
+      <Field label={t('package.market.submissions.manual.repository')} controlWidth="fill">
+        <Input
+          value={manualDraft.repositoryUrl}
+          placeholder="https://github.com/owner/repository"
+          type="url"
           onChange={event => setManualDraft(current => ({
             ...current,
-            minBitfunVersion: event.target.value,
+            repositoryUrl: event.target.value,
           }))}
         />
-      </div>
-      <Input
-        label={t('package.market.submissions.manual.repository')}
-        value={manualDraft.repositoryUrl}
-        placeholder="https://github.com/owner/repository"
-        type="url"
-        onChange={event => setManualDraft(current => ({
-          ...current,
-          repositoryUrl: event.target.value,
-        }))}
-      />
+      </Field>
       <Textarea
         label={t('package.market.submissions.manual.changelog')}
         hint={t('package.market.submissions.manual.changelogHint')}
@@ -307,7 +323,7 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
       <div className="appearance-market__manual-submit-actions">
         <Button
           type="button"
-          variant="ghost"
+          variant="outline"
           disabled={submitting}
           onClick={() => setManualSubmitOpen(false)}
         >
@@ -315,11 +331,12 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
         </Button>
         <Button
           type="submit"
-          variant="primary"
-          isLoading={submitting}
+          variant="fill"
+          loading={submitting}
           disabled={!manualDraft.packagePath || !manualDraft.licenseValue.trim()}
+          leadingIcon={<Icon name="upload" size="sm" aria-hidden="true" />}
         >
-          <Upload size={14} aria-hidden="true" />
+
           {t('package.market.submissions.manual.submit')}
         </Button>
       </div>
@@ -349,8 +366,8 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
       <AlertTriangle size={16} aria-hidden="true" />
       <span>{error}</span>
       <Button
-        variant="ghost"
-        size="small"
+        variant="outline"
+        size="sm"
         onClick={() => void (workflow === 'submissions' ? loadSubmissions() : loadReviewQueue())}
       >
         {t('package.market.retry')}
@@ -362,7 +379,7 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
     return (
       <section
         className="appearance-market__workflow"
-        data-bf-component="appearance-config"
+        data-bf-component="appearance-settings"
         data-bf-part="marketWorkflow"
         aria-labelledby="appearance-market-submissions-title"
       >
@@ -374,23 +391,24 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
           <div className="appearance-market__workflow-actions">
             {manualSubmitAvailable && (
               <Button
-                variant={manualSubmitOpen ? 'secondary' : 'primary'}
-                size="small"
+                variant={manualSubmitOpen ? 'outline' : 'fill'}
+                size="sm"
                 onClick={() => setManualSubmitOpen(open => !open)}
                 disabled={submitting}
+                leadingIcon={<Icon name="upload" size="sm" aria-hidden="true" />}
               >
-                <Upload size={14} aria-hidden="true" />
+
                 {t('package.market.submissions.manual.open')}
               </Button>
             )}
-            <Button variant="ghost" size="small" onClick={() => void loadSubmissions()} disabled={loading}>
-              <RefreshCw size={14} aria-hidden="true" />
+            <Button variant="outline" size="sm" onClick={() => void loadSubmissions()} disabled={loading} leadingIcon={<Icon name="refresh" size="sm" aria-hidden="true" />}>
+
               {t('package.market.submissions.refresh')}
             </Button>
           </div>
         </header>
         {renderError()}
-        <div className="appearance-market__workflow-body">
+        <ScrollArea className="appearance-market__workflow-body">
           {renderManualSubmit()}
           {loading ? <p className="appearance-market__loading">{t('package.market.submissions.loading')}</p>
             : submissions.length === 0 ? (
@@ -401,14 +419,14 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
             ) : (
               <div
                 className="appearance-market__submission-list"
-                data-bf-component="appearance-config"
+                data-bf-component="appearance-settings"
                 data-bf-part="marketSubmissionList"
               >
                 {submissions.map(submission => (
                   <article
                     key={submission.submissionId}
                     className="appearance-market__submission"
-                    data-bf-component="appearance-config"
+                    data-bf-component="appearance-settings"
                     data-bf-part="marketSubmission"
                   >
                     <div className="appearance-market__submission-preview">
@@ -422,7 +440,7 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
                             onError={(event) => retryOriginalMarketImage(event.currentTarget, submission.previewUrl!)}
                           />
                         )
-                        : <Image size={22} aria-hidden="true" />}
+                        : <Icon name="image" size="lg" aria-hidden="true" />}
                     </div>
                     <div className="appearance-market__submission-body">
                       <div className="appearance-market__submission-title">
@@ -444,9 +462,10 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
                     </div>
                     {canWithdraw(submission) && (
                       <Button
-                        variant="ghost"
-                        size="small"
-                        isLoading={actingId === submission.submissionId}
+                        className="appearance-market__submission-action"
+                        variant="outline"
+                        size="sm"
+                        loading={actingId === submission.submissionId}
                         onClick={() => void withdraw(submission)}
                       >
                         {t('package.market.submissions.withdraw')}
@@ -456,7 +475,7 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
                 ))}
               </div>
             )}
-        </div>
+        </ScrollArea>
       </section>
     );
   }
@@ -464,7 +483,7 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
   return (
     <section
       className="appearance-market__workflow"
-      data-bf-component="appearance-config"
+      data-bf-component="appearance-settings"
       data-bf-part="marketWorkflow"
       aria-labelledby="appearance-market-review-title"
     >
@@ -473,8 +492,8 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
           <h3 id="appearance-market-review-title">{t('package.market.review.title')}</h3>
           <p>{t('package.market.review.hint')}</p>
         </div>
-        <Button variant="ghost" size="small" onClick={() => void loadReviewQueue()} disabled={loading}>
-          <RefreshCw size={14} aria-hidden="true" />
+        <Button variant="outline" size="sm" onClick={() => void loadReviewQueue()} disabled={loading} leadingIcon={<Icon name="refresh" size="sm" aria-hidden="true" />}>
+
           {t('package.market.review.refresh')}
         </Button>
       </header>
@@ -489,12 +508,12 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
       ) : (
         <div
           className="appearance-market__review-layout"
-          data-bf-component="appearance-config"
+          data-bf-component="appearance-settings"
           data-bf-part="marketReviewLayout"
         >
-          <div
+          <ScrollArea
             className="appearance-market__review-queue"
-            data-bf-component="appearance-config"
+            data-bf-component="appearance-settings"
             data-bf-part="marketReviewQueue"
           >
             {reviewQueue.map(submission => (
@@ -510,10 +529,10 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
                 <small>{formattedDate(submission.updatedAt)}</small>
               </button>
             ))}
-          </div>
-          <div
+          </ScrollArea>
+          <ScrollArea
             className="appearance-market__review-detail"
-            data-bf-component="appearance-config"
+            data-bf-component="appearance-settings"
             data-bf-part="marketReviewDetail"
           >
             {detailLoading || !reviewDetail ? (
@@ -559,12 +578,14 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
                 {reviewDetail.manifest !== undefined && (
                   <details className="appearance-market__review-manifest">
                     <summary>{t('package.market.review.manifest')}</summary>
-                    <pre>{JSON.stringify(reviewDetail.manifest, null, 2)}</pre>
+                    <ScrollArea className="appearance-market__review-manifest-pre">
+                      <pre>{JSON.stringify(reviewDetail.manifest, null, 2)}</pre>
+                    </ScrollArea>
                   </details>
                 )}
                 <div
                   className="appearance-market__review-actions"
-                  data-bf-component="appearance-config"
+                  data-bf-component="appearance-settings"
                   data-bf-part="marketReviewActions"
                 >
                   <Textarea
@@ -577,18 +598,19 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
                   />
                   <div>
                     <Button
-                      variant="success"
-                      size="small"
-                      isLoading={actingId === reviewDetail.submission.submissionId}
+                      variant="fill"
+                      size="sm"
+                      loading={actingId === reviewDetail.submission.submissionId}
                       onClick={() => void decide('approve')}
                     >
                       {t('package.market.review.approve')}
                     </Button>
                     <Button
-                      variant="danger"
-                      size="small"
+                      variant="fill"
+                      tone="danger"
+                      size="sm"
                       disabled={!reason.trim()}
-                      isLoading={actingId === reviewDetail.submission.submissionId}
+                      loading={actingId === reviewDetail.submission.submissionId}
                       onClick={() => void decide('reject')}
                     >
                       {t('package.market.review.reject')}
@@ -597,7 +619,7 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
                 </div>
               </>
             )}
-          </div>
+          </ScrollArea>
         </div>
       )}
     </section>

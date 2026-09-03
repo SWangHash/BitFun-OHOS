@@ -6,6 +6,7 @@ mod external_sources;
 mod filesystem;
 mod git;
 mod permission;
+mod product_control;
 mod session;
 mod snapshot;
 mod soft;
@@ -38,6 +39,7 @@ pub(crate) async fn dispatch(
         "get_config" => config::get_config(args).await,
         "get_configs" => config::get_configs(args).await,
         "set_config" => config::set_config(state, args).await,
+        "product_control_invoke" => product_control::invoke(state, args).await,
         "get_agent_profile_config" => config::get_agent_profile_config(args).await,
         "get_agent_profile_configs" => config::get_agent_profile_configs().await,
         "get_external_source_snapshot"
@@ -84,6 +86,7 @@ pub(crate) async fn dispatch(
         "list_persisted_sessions_count" => {
             session::list_persisted_sessions_count(state, args).await
         }
+        "search_session_content" => session::search_session_content(state, args).await,
         "load_session_turn_window" => session::load_session_turn_window(state, args).await,
         "load_session_turns" => session::load_session_turns(state, args).await,
         "load_session_event_backfill" => session::load_session_event_backfill(state, args),

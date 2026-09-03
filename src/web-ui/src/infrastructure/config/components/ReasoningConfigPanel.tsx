@@ -1,6 +1,8 @@
+import { Button, ScrollArea } from '@bitfun/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import type { ReasoningCatalogBinding, ReasoningCatalogProjection, ReasoningConfig } from '../types';
 import { Button } from '@/component-library';
 import type { ReasoningCatalogBinding, ReasoningCatalogProjection, ReasoningConfig } from '../types';
 import type { ModelsDevReasoningCatalog } from '@/infrastructure/api/service-api/AIApi';
@@ -38,7 +40,7 @@ export const ReasoningConfigPanel: React.FC<ReasoningConfigPanelProps> = ({
   onCancel,
   onApply,
 }) => {
-  const { t } = useTranslation('settings/ai-model');
+  const { t } = useTranslation('settings/models');
   const [draft, setDraft] = useState(() => cloneReasoningConfig(value));
   const [editorInvalid, setEditorInvalid] = useState(false);
   const projectionRequestId = useRef(0);
@@ -102,7 +104,7 @@ export const ReasoningConfigPanel: React.FC<ReasoningConfigPanelProps> = ({
       data-bf-component="reasoning-config-panel"
       data-bf-part="root"
     >
-      <div
+      <ScrollArea
         className="bitfun-reasoning-config-panel__body"
         data-bf-component="reasoning-config-panel"
         data-bf-part="body"
@@ -115,7 +117,7 @@ export const ReasoningConfigPanel: React.FC<ReasoningConfigPanelProps> = ({
           onChange={setDraft}
           onValidationChange={setEditorInvalid}
         />
-      </div>
+      </ScrollArea>
       <div
         className="bitfun-reasoning-config-panel__footer"
         data-bf-component="reasoning-config-panel"
@@ -137,11 +139,11 @@ export const ReasoningConfigPanel: React.FC<ReasoningConfigPanelProps> = ({
           data-bf-component="reasoning-config-panel"
           data-bf-part="actions"
         >
-          <Button variant="secondary" onClick={onCancel}>
+          <Button variant="outline" onClick={onCancel}>
             {t('actions.cancel')}
           </Button>
           <Button
-            variant="primary"
+            variant="fill"
             disabled={invalid}
             onClick={() => onApply({
               reasoning: draft,

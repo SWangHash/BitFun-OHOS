@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { Button, Icon, IconButton, ScrollArea } from '@bitfun/ui';
+;
 import { useAnnouncementStore } from '../store/announcementStore';
 import FeatureModalPage from './FeatureModalPage';
 import { useAnnouncementI18n } from '../hooks/useAnnouncementI18n';
@@ -40,7 +41,7 @@ const FeatureModalPages: React.FC<FeatureModalPagesProps> = ({ pages, currentPag
     const page = pages[pageIndex];
     if (!page) return null;
     return (
-      <div
+      <ScrollArea
         key={`${state}-${pageIndex}`}
         className="feature-modal__page"
         data-state={state}
@@ -49,7 +50,7 @@ const FeatureModalPages: React.FC<FeatureModalPagesProps> = ({ pages, currentPag
         {...(state !== 'active' ? { inert: '' } : {})}
       >
         <FeatureModalPage page={page} active={state === 'active'} />
-      </div>
+      </ScrollArea>
     );
   };
 
@@ -133,16 +134,15 @@ const FeatureModal: React.FC = () => {
       <div className={`feature-modal ${sizeClass}${exiting ? ' feature-modal--exiting' : ''}`} data-bf-component="announcement" data-bf-part="modal">
         {/* Close button */}
         {modal.closable && (
-          <button
-            type="button"
+          <IconButton
             className="feature-modal__close"
+            icon={<Icon name="xmark" size="lg" />}
+            size="md"
             data-bf-component="announcement"
             data-bf-part="modalClose"
             onClick={() => triggerClose()}
             aria-label={t('announcements.common.close')}
-          >
-            <X size={14} strokeWidth={2} />
-          </button>
+          />
         )}
 
         {/* Page viewport */}
@@ -168,39 +168,39 @@ const FeatureModal: React.FC = () => {
           {/* Navigation buttons */}
           <div className="feature-modal__nav" data-bf-component="announcement" data-bf-part="modalNavigation">
             {modal.completion_action === 'never_show_again' && isLast && (
-              <button
-                type="button"
-                className="feature-modal__never"
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => triggerClose(true)}
               >
                 {t('announcements.common.never_show_again')}
-              </button>
+              </Button>
             )}
             {!isFirst && (
-              <button
-                type="button"
-                className="feature-modal__nav-btn feature-modal__nav-btn--prev"
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setPage(currentPage - 1)}
               >
                 {t('announcements.common.prev')}
-              </button>
+              </Button>
             )}
             {!isLast ? (
-              <button
-                type="button"
-                className="feature-modal__nav-btn feature-modal__nav-btn--next"
+              <Button
+                variant="fill"
+                size="sm"
                 onClick={() => setPage(currentPage + 1)}
               >
                 {t('announcements.common.next')}
-              </button>
+              </Button>
             ) : (
-              <button
-                type="button"
-                className="feature-modal__nav-btn feature-modal__nav-btn--done"
+              <Button
+                variant="fill"
+                size="sm"
                 onClick={() => triggerClose()}
               >
                 {t('announcements.common.done')}
-              </button>
+              </Button>
             )}
           </div>
         </div>

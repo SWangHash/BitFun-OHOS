@@ -12,31 +12,31 @@ export const usageColorSequence = [
 ] as const satisfies readonly CanvasColor[];
 
 export const categoryPaletteLight: Record<CanvasColor, string> = {
-  gray: 'var(--bf-appearance-token-color-text-muted)',
-  purple: 'var(--bf-appearance-token-color-accent-500)',
-  green: 'var(--bf-appearance-token-color-success)',
-  yellow: 'var(--bf-appearance-token-color-warning)',
-  cyan: 'var(--bf-appearance-token-color-info)',
+  gray: 'var(--bf-color-content-muted)',
+  purple: 'var(--bf-color-accent-default)',
+  green: 'var(--bf-color-status-success-content)',
+  yellow: 'var(--bf-color-status-warning-content)',
+  cyan: 'var(--bf-color-status-info-content)',
   pink: 'var(--bitfun-canvas-danger)',
-  blue: 'var(--bf-appearance-token-color-accent-500)',
-  orange: 'var(--bf-appearance-token-color-warning)',
+  blue: 'var(--bf-color-accent-default)',
+  orange: 'var(--bf-color-status-warning-content)',
 };
 
 export const categoryPaletteDark = categoryPaletteLight;
 
 export const canvasTokensLight = {
-  bg: 'var(--bf-appearance-token-color-bg-primary)',
-  panel: 'var(--bf-appearance-token-color-bg-secondary)',
-  elevated: 'var(--bf-appearance-token-color-bg-elevated)',
-  chrome: 'var(--bf-appearance-token-color-bg-chrome)',
-  text: 'var(--bf-appearance-token-color-text-primary)',
-  textSecondary: 'var(--bf-appearance-token-color-text-secondary)',
-  textMuted: 'var(--bf-appearance-token-color-text-muted)',
-  border: 'var(--bf-appearance-token-border-subtle)',
-  accent: 'var(--bf-appearance-token-color-accent-500)',
-  success: 'var(--bf-appearance-token-color-success)',
-  warning: 'var(--bf-appearance-token-color-warning)',
-  danger: 'var(--bf-appearance-token-color-error)',
+  bg: 'var(--bf-color-surface-canvas)',
+  panel: 'var(--bf-color-surface-panel)',
+  elevated: 'var(--bf-color-surface-raised)',
+  chrome: 'var(--bf-color-surface-chrome)',
+  text: 'var(--bf-color-content-primary)',
+  textSecondary: 'var(--bf-color-content-secondary)',
+  textMuted: 'var(--bf-color-content-muted)',
+  border: 'var(--bf-color-border-subtle)',
+  accent: 'var(--bf-color-accent-default)',
+  success: 'var(--bf-color-status-success-content)',
+  warning: 'var(--bf-color-status-warning-content)',
+  danger: 'var(--bf-color-status-danger-content)',
   info: 'var(--bitfun-canvas-info)',
 };
 
@@ -126,22 +126,22 @@ export function flexJustify(value: unknown): React.CSSProperties['justifyContent
 export function sizeValue(size: unknown): string {
   if (typeof size === 'number') return `${size}px`;
   return size === 'small' || size === 'sm'
-    ? '12px'
+    ? 'var(--bf-type-body-xs-font-size)'
     : size === 'lg'
-      ? '16px'
+      ? 'var(--bf-type-body-lg-font-size)'
       : size === 'body' || size === 'md' || !size
-        ? '13px'
+        ? 'var(--bf-type-body-sm-font-size)'
         : String(size);
 }
 
 export function weightValue(weight: unknown): number | string {
   return weight === 'medium'
-    ? 500
+    ? 'var(--bf-font-weight-medium)'
     : weight === 'semibold'
-      ? 650
+      ? 'var(--bf-font-weight-semibold)'
       : weight === 'bold'
-        ? 700
-        : (weight as number | string | undefined) || 400;
+        ? 'var(--bf-font-weight-bold)'
+        : (weight as number | string | undefined) || 'var(--bf-font-weight-regular)';
 }
 
 export function toneColor(tone: CanvasTone | undefined): string {
@@ -156,7 +156,7 @@ export function toneColor(tone: CanvasTone | undefined): string {
     tone === 'muted' ||
     tone === 'neutral'
   ) {
-    return 'var(--bf-appearance-token-color-text-muted)';
+    return 'var(--bf-color-content-muted)';
   }
-  return 'var(--bf-appearance-token-color-text-primary)';
+  return 'var(--bf-color-content-primary)';
 }

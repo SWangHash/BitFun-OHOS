@@ -18,7 +18,6 @@ bitfun-core = { path = "../../crates/assembly/core", features = [
     "agent-runtime",
     "document-read",
     "subscription-auth",
-    "lsp",
     "external-sources",
     "tools-basic",
     "tools-git",
@@ -31,10 +30,10 @@ bitfun-core = { path = "../../crates/assembly/core", features = [
 bitfun-sdk-host = { path = "../../crates/interfaces/sdk-host" }
 bitfun-services-core = { path = "../../crates/services/services-core", features = [
     "process-runtime",
+    "tls-provider",
 ] }
 bitfun-transport = { path = "../../crates/adapters/transport" }
 futures-util = { workspace = true }
-rustls = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["io-std", "io-util", "macros", "rt-multi-thread", "sync", "time"] }
 tokio-util = { workspace = true, features = ["codec"] }
@@ -43,6 +42,7 @@ tracing-subscriber = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
+rustls = { workspace = true }
 tempfile = "3"
 tokio = { workspace = true, features = ["process"] }
 

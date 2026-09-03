@@ -1,7 +1,9 @@
+import { MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { CloudAccountDevice } from '../../services/CloudAccountClient';
-import { ACCENT, CARD, GREEN, INK, LINE, MUTED, PAGE_BG, RED, SOFT } from './Theme';
+import { ACCENT, CARD, STATUS_SUCCESS, INK, LINE, MUTED, PAGE_BG, STATUS_DANGER, SOFT } from './Theme';
 import { AccountDeviceSelectionPolicy } from '../policy/AccountDeviceSelectionPolicy';
+import { NavigationBackButton } from './NavigationBackButton';
 
 @ComponentV2
 export struct ConnectAccountDevicePage {
@@ -26,23 +28,15 @@ export struct ConnectAccountDevicePage {
   build() {
     Column() {
       Row({ space: 16 }) {
-        Stack() {
-          // No .width/.height here on purpose. A chevron's natural advance box
-          // is about half as wide as it is tall, and SymbolGlyph draws the glyph
-          // left-anchored inside a box you force wider than that — so forcing a
-          // square 26vp box pushed this arrow ~7vp left of the circle's centre.
-          // Left unsized, the Stack centres the natural box and the arrow sits
-          // where the circle says it should.
-          SymbolGlyph($r('sys.symbol.chevron_left'))
-            .fontSize(23).fontColor([INK])
-        }
-        .width(48).height(48).backgroundColor(SOFT).borderRadius(24)
-        .onClick(() => this.onBack())
+        NavigationBackButton({
+          controlSize: 48,
+          onBack: (): void => this.onBack()
+        })
         Column({ space: 4 }) {
           Text(RemoteI18n.t('connect.accountDevicesTitle'))
-            .fontSize(22).fontWeight(FontWeight.Bold).fontColor(INK).width('100%')
+            .fontSize(MobileDesignTypography.headlineLarge.size).fontWeight(FontWeight.Bold).fontColor(INK).width('100%')
           Text(RemoteI18n.t('connect.accountDevicesSubtitle'))
-            .fontSize(13).fontColor(MUTED).width('100%')
+            .fontSize(MobileDesignTypography.bodySmall.size).fontColor(MUTED).width('100%')
         }
         .layoutWeight(1)
         .alignItems(HorizontalAlign.Start)
@@ -54,7 +48,7 @@ export struct ConnectAccountDevicePage {
       Scroll() {
         Column({ space: 18 }) {
           Text(RemoteI18n.t('connect.accountDevicesBody'))
-            .fontSize(14).lineHeight(21).fontColor(MUTED).width('100%')
+            .fontSize(MobileDesignTypography.bodyMedium.size).lineHeight(MobileDesignTypography.bodyMedium.lineHeight).fontColor(MUTED).width('100%')
           this.AccountDeviceList()
           this.ScanPairCodeAction()
         }
@@ -74,13 +68,13 @@ export struct ConnectAccountDevicePage {
     Column({ space: 4 }) {
       Row() {
         Text(RemoteI18n.t('connect.availableDevices'))
-          .fontSize(16).fontWeight(FontWeight.Bold).fontColor(INK)
+          .fontSize(MobileDesignTypography.bodyLarge.size).fontWeight(FontWeight.Bold).fontColor(INK)
         Blank()
         Text(this.accountDevicesBusy ? RemoteI18n.t('common.loading') :
           (this.accountDevicesError.length > 0 ? RemoteI18n.t('common.retry') : RemoteI18n.t('common.refresh')))
-          .fontSize(14)
+          .fontSize(MobileDesignTypography.bodyMedium.size)
           .fontColor(this.accountDevicesBusy ? MUTED :
-            (this.accountDevicesError.length > 0 ? RED : ACCENT))
+            (this.accountDevicesError.length > 0 ? STATUS_DANGER : ACCENT))
           .onClick(async () => { await this.refreshAccountDevices(); })
       }
       .width('100%').height(38)
@@ -94,7 +88,7 @@ export struct ConnectAccountDevicePage {
       } else if (this.desktopDevices().length === 0) {
         Row() {
           Text(this.accountDevicesError || RemoteI18n.t('remote.settings.deviceEmpty'))
-            .fontSize(14).lineHeight(20).fontColor(MUTED).width('100%')
+            .fontSize(MobileDesignTypography.bodyMedium.size).lineHeight(MobileDesignTypography.bodyMedium.lineHeight).fontColor(MUTED).width('100%')
         }
         .width('100%').height(120).alignItems(VerticalAlign.Center)
       } else {
@@ -121,7 +115,7 @@ export struct ConnectAccountDevicePage {
       SymbolGlyph($r('sys.symbol.link'))
         .fontSize(20).fontColor([MUTED]).width(22).height(22).opacity(0.66)
       Text(RemoteI18n.t('connect.scanPairCodeAction'))
-        .fontSize(16).fontWeight(FontWeight.Medium).fontColor(INK).layoutWeight(1)
+        .fontSize(MobileDesignTypography.bodyLarge.size).fontWeight(FontWeight.Medium).fontColor(INK).layoutWeight(1)
       SymbolGlyph($r('sys.symbol.chevron_right'))
         .fontSize(13).fontColor([MUTED]).opacity(0.44)
     }
@@ -151,10 +145,10 @@ export struct ConnectAccountDevicePage {
         .fontSize(22).fontColor([MUTED]).width(26).height(24).opacity(device.online ? 0.68 : 0.38)
       Column({ space: 3 }) {
         Text(device.deviceName || device.deviceId)
-          .fontSize(15).fontWeight(FontWeight.Medium).fontColor(INK)
+          .fontSize(MobileDesignTypography.titleSmall.size).fontWeight(FontWeight.Medium).fontColor(INK)
           .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(this.accountDeviceStatus(device))
-          .fontSize(13).fontColor(device.online ? GREEN : MUTED)
+          .fontSize(MobileDesignTypography.bodySmall.size).fontColor(device.online ? STATUS_SUCCESS : MUTED)
       }
       .layoutWeight(1)
       .alignItems(HorizontalAlign.Start)
@@ -163,7 +157,7 @@ export struct ConnectAccountDevicePage {
       )) {
         Text(this.switchingDeviceId === device.deviceId ?
           RemoteI18n.t('remote.settings.deviceConnecting') : RemoteI18n.t('connect.connect'))
-          .fontSize(14).fontColor(INK)
+          .fontSize(MobileDesignTypography.bodyMedium.size).fontColor(INK)
           .padding({ left: 10, right: 10, top: 6, bottom: 6 })
           .backgroundColor(SOFT).borderRadius(14)
       } else if (device.online) {
@@ -229,4 +223,3 @@ export struct ConnectAccountDevicePage {
     return presence;
   }
 }
-

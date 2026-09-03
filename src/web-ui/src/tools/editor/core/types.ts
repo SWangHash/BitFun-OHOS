@@ -6,7 +6,7 @@ import type * as monaco from 'monaco-editor';
 import type { EditorPresetName, EditorConfigPartial } from '../config/types';
 
 export interface MonacoEditorCoreProps {
-  /** File path for Model management and LSP */
+  /** File path for model management */
   filePath: string;
   workspacePath?: string;
   language?: string;
@@ -19,7 +19,6 @@ export interface MonacoEditorCoreProps {
   readOnly?: boolean;
   
   // Features
-  enableLsp?: boolean;
   showLineNumbers?: boolean;
   showMinimap?: boolean;
   
@@ -39,7 +38,7 @@ export interface MonacoEditorCoreProps {
   jumpToLine?: number;
   /** @deprecated Use jumpToRange */
   jumpToColumn?: number;
-  jumpToRange?: import('@/component-library/components/Markdown').LineRange;
+  jumpToRange?: import('@/shared/editor/LineRange').LineRange;
 }
 
 export interface MonacoDiffCoreProps {
@@ -64,8 +63,6 @@ export interface MonacoDiffCoreProps {
   ignoreTrimWhitespace?: boolean;
   
   // Features
-  /** LSP for modified only */
-  enableLsp?: boolean;
   showMinimap?: boolean;
   
   // Event callbacks
