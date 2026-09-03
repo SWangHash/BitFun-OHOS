@@ -232,8 +232,15 @@ impl MatrixHttpClient {
     /// exceed [`DEFAULT_BYTES_RESPONSE_MAX_BYTES`]. Returns the total bytes
     /// written.
     ///
-    /// On any error (network, write, stream), the partially-written
-    /// destination file is deleted before the error is propagated.
+    /// Retries the entire send + stream cycle on transient errors (timeout,
+    /// connect, request, body-decode, 5xx) up to `MAX_NETWORK_RETRIES`
+    /// additional attempts. This is separate from [`send_with_retry`] because
+    /// streaming errors (e.g. "error decoding response body") occur AFTER
+    /// `send()` returns, during `bytes_stream()` iteration — `send_with_retry`
+    /// only covers errors at the `send()` call itself.
+    ///
+    /// On any error, the partially-written destination file is deleted before
+    /// retrying or propagating the error.
     pub async fn fetch_skill_zip_to_file(
         &self,
         en_name: &str,
@@ -249,72 +256,147 @@ impl MatrixHttpClient {
             url,
             dest.display()
         );
-        let request = self.inner.get(&url);
-        let response = send_with_retry(request, &url).await?;
-        let status = response.status();
-        log::info!(
-            "Matrix HTTP GET zip to file response: url={}, status={}",
-            url,
-            status.as_u16()
-        );
-        if !status.is_success() {
-            return Err(MatrixApiError::new(
-                MatrixApiErrorKind::Http {
-                    status: status.as_u16(),
-                },
-                format!("Matrix API returned HTTP {}", status.as_u16()),
-            ));
-        }
-        let mut file = std::fs::File::create(dest).map_err(|error| {
-            log::error!(
-                "Matrix HTTP GET zip to file create error: dest={}, error={}",
-                dest.display(),
-                error
-            );
-            MatrixApiError::from(error)
-        })?;
-        let mut total: u64 = 0;
-        let mut stream = response.bytes_stream();
-        while let Some(chunk) = stream.next().await {
-            match chunk {
-                Ok(chunk) => {
-                    if let Err(error) = file.write_all(&chunk) {
+
+        for attempt in 0..=MAX_NETWORK_RETRIES {
+            if attempt > 0 {
+                let backoff = RETRY_BACKOFF_MS[(attempt - 1) as usize];
+                log::warn!(
+                    "Matrix zip download retry {}/{}: url={}, backoff={}ms",
+                    attempt,
+                    MAX_NETWORK_RETRIES,
+                    url,
+                    backoff
+                );
+                tokio::time::sleep(Duration::from_millis(backoff)).await;
+            }
+
+            // Clean up any partial file from a previous attempt.
+            let _ = std::fs::remove_file(dest);
+
+            let response = match self.inner.get(&url).send().await {
+                Ok(response) => response,
+                Err(error) => {
+                    let retryable = error.is_timeout()
+                        || error.is_connect()
+                        || error.is_request()
+                        || error.is_body();
+                    if retryable && attempt < MAX_NETWORK_RETRIES {
                         log::error!(
-                            "Matrix HTTP GET zip to file write error: dest={}, error={}",
-                            dest.display(),
+                            "Matrix zip download send error (will retry): url={}, attempt={}, error={}",
+                            url,
+                            attempt + 1,
                             error
                         );
-                        let _ = std::fs::remove_file(dest);
-                        return Err(MatrixApiError::from(error));
+                        continue;
                     }
-                    total += chunk.len() as u64;
-                }
-                Err(error) => {
                     log::error!(
-                        "Matrix HTTP GET zip to file stream error: dest={}, error={}",
-                        dest.display(),
+                        "Matrix zip download send error (final): url={}, attempt={}, error={}",
+                        url,
+                        attempt + 1,
                         error
                     );
-                    let _ = std::fs::remove_file(dest);
                     return Err(MatrixApiError::from(error));
                 }
-            }
-        }
-        if let Err(error) = file.flush() {
-            log::error!(
-                "Matrix HTTP GET zip to file flush error: dest={}, error={}",
-                dest.display(),
-                error
+            };
+
+            let status = response.status();
+            log::info!(
+                "Matrix HTTP GET zip to file response: url={}, status={}",
+                url,
+                status.as_u16()
             );
-            let _ = std::fs::remove_file(dest);
-            return Err(MatrixApiError::from(error));
+            if !status.is_success() {
+                if status.is_server_error() && attempt < MAX_NETWORK_RETRIES {
+                    log::warn!(
+                        "Matrix zip download server error (will retry): url={}, status={}",
+                        url,
+                        status.as_u16()
+                    );
+                    continue;
+                }
+                return Err(MatrixApiError::new(
+                    MatrixApiErrorKind::Http {
+                        status: status.as_u16(),
+                    },
+                    format!("Matrix API returned HTTP {}", status.as_u16()),
+                ));
+            }
+
+            // Stream the response body to the file.
+            let mut file = std::fs::File::create(dest).map_err(|error| {
+                log::error!(
+                    "Matrix zip download file create error: dest={}, error={}",
+                    dest.display(),
+                    error
+                );
+                MatrixApiError::from(error)
+            })?;
+            let mut total: u64 = 0;
+            let mut stream = response.bytes_stream();
+            let mut stream_error: Option<reqwest::Error> = None;
+            while let Some(chunk) = stream.next().await {
+                match chunk {
+                    Ok(chunk) => {
+                        if let Err(error) = file.write_all(&chunk) {
+                            log::error!(
+                                "Matrix zip download write error: dest={}, error={}",
+                                dest.display(),
+                                error
+                            );
+                            let _ = std::fs::remove_file(dest);
+                            return Err(MatrixApiError::from(error));
+                        }
+                        total += chunk.len() as u64;
+                    }
+                    Err(error) => {
+                        stream_error = Some(error);
+                        break;
+                    }
+                }
+            }
+
+            if let Some(error) = stream_error {
+                let _ = std::fs::remove_file(dest);
+                let retryable = error.is_body()
+                    || error.is_timeout()
+                    || error.is_connect()
+                    || error.is_request();
+                if retryable && attempt < MAX_NETWORK_RETRIES {
+                    log::error!(
+                        "Matrix zip download stream error (will retry): url={}, attempt={}, error={}",
+                        url,
+                        attempt + 1,
+                        error
+                    );
+                    continue;
+                }
+                log::error!(
+                    "Matrix zip download stream error (final): url={}, attempt={}, error={}",
+                    url,
+                    attempt + 1,
+                    error
+                );
+                return Err(MatrixApiError::from(error));
+            }
+
+            if let Err(error) = file.flush() {
+                log::error!(
+                    "Matrix zip download flush error: dest={}, error={}",
+                    dest.display(),
+                    error
+                );
+                let _ = std::fs::remove_file(dest);
+                return Err(MatrixApiError::from(error));
+            }
+            log::info!(
+                "Matrix HTTP GET zip to file done: url={}, bytes={}",
+                url,
+                total
+            );
+            return Ok(total);
         }
-        log::info!(
-            "Matrix HTTP GET zip to file done: url={}, bytes={}",
-            url,
-            total
-        );
-        Ok(total)
+
+        unreachable!("zip download retry loop should have returned before exhausting attempts")
     }
 }
 
