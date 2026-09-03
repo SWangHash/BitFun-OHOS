@@ -230,6 +230,7 @@ const SceneViewport: React.FC<SceneViewportProps> = ({ workspacePath, isEntering
                 isEmpty && 'bitfun-scene-viewport__scene--empty',
                 isActive && 'bitfun-scene-viewport__scene--active',
                 isVisible && 'bitfun-scene-viewport__scene--visible',
+                !isVisible && 'bitfun-scene-viewport__scene--hidden',
                 isIncoming && 'bitfun-scene-viewport__scene--incoming',
                 isOutgoing && 'bitfun-scene-viewport__scene--outgoing',
               ].filter(Boolean).join(' ')}

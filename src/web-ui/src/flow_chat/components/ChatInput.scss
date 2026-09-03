@@ -417,7 +417,8 @@
         .rich-text-input {
           min-height: 22px !important;
           max-height: 22px !important;
-          overflow: hidden;
+          overflow-x: hidden;
+          overflow-y: auto;
           line-height: var(--bf-appearance-token-flowchat-support-line-height);
           font-size: var(--bf-appearance-token-flowchat-font-size-base);
           padding: 0 !important;
