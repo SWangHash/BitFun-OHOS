@@ -555,14 +555,16 @@ pub fn ask_user_question_available_in_context(
 
 /// Validate an `AskUserQuestion` call before it waits for user input.
 ///
-/// `allow_single_option` relaxes the "2-10 options" guard for backend-resolved
-/// template questions (e.g. `qt-migration-paths`): a template field may carry
-/// exactly one candidate option (a single probed path) and still render a
-/// clickable choice next to its text input. Model-written questions must keep
-/// the strict 2-10 rule (`false`).
+/// `template_backed` relaxes two guards for backend-resolved template
+/// questions (e.g. `qt-migration-paths`):
+/// - a template field may carry exactly one candidate option (a single probed
+///   path) next to its text input;
+/// - `header` carries an i18n key (rendered locally by the frontend), so the
+///   user-facing 20-character header limit does not apply.
+/// Model-written questions must keep the strict rules (`false`).
 pub fn validate_ask_user_question_input(
     input: &AskUserQuestionInput,
-    allow_single_option: bool,
+    template_backed: bool,
 ) -> Result<(), String> {
     if input.questions.is_empty() {
         return Err("At least one question is required".to_string());
@@ -581,14 +583,14 @@ pub fn validate_ask_user_question_input(
         if question.header.trim().is_empty() {
             return Err(format!("Question {} header is required", q_num));
         }
-        if question.header.chars().count() > 20 {
+        if !template_backed && question.header.chars().count() > 20 {
             return Err(format!(
                 "Question {} header must be less than 20 characters",
                 q_num
             ));
         }
 
-        let has_single_option = allow_single_option && question.options.len() == 1;
+        let has_single_option = template_backed && question.options.len() == 1;
         if question.options.is_empty() {
             // Text-only question: valid only when an input placeholder exists
             // (Qt migration questions are real text input with no "default

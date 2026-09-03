@@ -315,8 +315,9 @@ Usage notes:
 
         // 2. Validate question format. Template-resolved questions are backend-owned
         // and may carry a single candidate option (one probed path) next to the
-        // text input, so the strict 2-10 guard only applies to model-written
-        // questions.
+        // text input, and their text fields are i18n keys (header included), so
+        // the strict 2-10 options and 20-char header guards only apply to
+        // model-written questions.
         if let Err(error) =
             validate_ask_user_question_input(&tool_input, resolved_request.is_some())
         {
