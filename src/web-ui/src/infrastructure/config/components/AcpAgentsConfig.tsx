@@ -19,7 +19,7 @@ import { OverflowText,
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { isOpenHarmonyRuntime } from '@/infrastructure/runtime/environment';
-import { CircleAlert, EyeOff, FileJson, Save, Server, X } from 'lucide-react';
+import { CircleAlert, ExternalLink, EyeOff, FileJson, Save, Server, X } from 'lucide-react';
 import {
   ConfigPageContent,
   ConfigPageHeader,
@@ -52,6 +52,7 @@ import {
   SELF_MANAGED_INSTALL_PRESET_IDS,
   availableRemotePresetIds,
   canInstallPresetCli,
+  getManualInstallGuide,
   isManagedInstallPresetForRuntime,
   presetsForRuntime,
   type AcpClientPreset,
@@ -797,10 +798,19 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   }, [loadConfig]);
 
   useEffect(() => ACPClientAPI.onManagedProvisioningProgress((progress) => {
-    setProvisioningProgress(prev => ({
-      ...prev,
-      [progress.clientId]: progress,
-    }));
+    setProvisioningProgress(prev => {
+      const next = { ...prev };
+      if (
+        progress.stage === 'ready'
+        || progress.stage === 'cancelled'
+        || progress.stage === 'failed'
+      ) {
+        delete next[progress.clientId];
+      } else {
+        next[progress.clientId] = progress;
+      }
+      return next;
+    });
   }), []);
 
   useEffect(() => {
@@ -936,6 +946,13 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         next.delete(installKey);
         return next;
       });
+      if (!remoteConnectionId) {
+        setProvisioningProgress(prev => {
+          const next = { ...prev };
+          delete next[preset.id];
+          return next;
+        });
+      }
     }
   };
 
@@ -1253,6 +1270,15 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   const openLearnMore = useCallback(() => {
     void systemAPI.openExternal('https://agentclientprotocol.com/get-started/introduction').catch((error) => {
       log.error('Failed to open ACP documentation', error);
+      notifyError(error instanceof Error ? error.message : String(error), {
+        title: t('notifications.openLinkFailed'),
+      });
+    });
+  }, [notifyError, t]);
+
+  const openManualInstallGuide = useCallback((repositoryUrl: string) => {
+    void systemAPI.openExternal(repositoryUrl).catch((error) => {
+      log.error('Failed to open ACP agent installation guide', error);
       notifyError(error instanceof Error ? error.message : String(error), {
         title: t('notifications.openLinkFailed'),
       });
@@ -1606,7 +1632,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                 });
                 const installing = installingClientIds.has(preset.id);
                 const configuring = installingClientIds.has(preset.id);
-                const progress = provisioningProgress[preset.id];
+                const progress = installing ? provisioningProgress[preset.id] : undefined;
                 const progressLabel = progress
                   ? t('provisioning.installing')
                   : undefined;
@@ -1623,6 +1649,12 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                   isOhos: IS_OHOS,
                   presetId: preset.id,
                 });
+                const manualInstallGuide = getManualInstallGuide({
+                  isOhos: IS_OHOS,
+                  presetId: preset.id,
+                  status,
+                });
+                const ohosOpenCodePreset = IS_OHOS && preset.id === 'opencode';
                 const canConfigureAcp = !requiresAdapter
                   ? false
                   : issueKind === 'adapter_missing' || (status === 'partial' && issueKind === 'config_invalid');
@@ -1649,7 +1681,9 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                       </span>
                       <div className="bitfun-acp-agents__registry-copy">
                         <OverflowText className="bitfun-acp-agents__registry-name">
-                          {managedInstallPreset
+                          {ohosOpenCodePreset
+                            ? t('presets.openCode.name')
+                            : managedInstallPreset
                             ? preset.id === 'codebuddy-code'
                               ? t('presets.codeBuddyCode.name')
                               : preset.id === 'qwen-code'
@@ -1658,7 +1692,9 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                             : preset.name}
                         </OverflowText>
                         <p className="bitfun-acp-agents__registry-description">
-                          {formatStandaloneUiText(getPresetDescription(preset.id))}
+                          {formatStandaloneUiText(ohosOpenCodePreset
+                            ? t('presets.openCode.description')
+                            : getPresetDescription(preset.id))}
                         </p>
                       </div>
                     </div>
@@ -1703,7 +1739,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                           size="sm"
                           leadingIcon={<Icon name="arrow-down" size="sm" />}
                           onClick={() => {
-                            if (IS_OHOS && managedInstallPreset) {
+                            if (IS_OHOS) {
                               void installPresetClient(preset);
                               return;
                             }
@@ -1712,6 +1748,15 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                           loading={installing}
                         >
                           {IS_OHOS ? t('actions.add') : t('actions.installCli')}
+                        </Button>
+                      ) : manualInstallGuide ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          leadingIcon={<ExternalLink size={14} />}
+                          onClick={() => openManualInstallGuide(manualInstallGuide.repositoryUrl)}
+                        >
+                          {t('actions.get')}
                         </Button>
                       ) : canConfigureAcp ? (
                         <Button
@@ -1746,7 +1791,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                         >
                           {t('actions.viewError')}
                         </Button>
-                      ) : !hasConfigEntry ? (
+                      ) : !probePending && !hasConfigEntry ? (
                         <Button
                           variant="outline"
                           size="sm"
