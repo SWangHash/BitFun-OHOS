@@ -3,8 +3,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ReasoningCatalogBinding, ReasoningCatalogProjection, ReasoningConfig } from '../types';
-import { Button } from '@/component-library';
-import type { ReasoningCatalogBinding, ReasoningCatalogProjection, ReasoningConfig } from '../types';
 import type { ModelsDevReasoningCatalog } from '@/infrastructure/api/service-api/AIApi';
 import { aiApi } from '@/infrastructure/api';
 import type { ReasoningCatalogProjectionRequest } from '@/infrastructure/api/service-api/AIApi';

@@ -117,12 +117,6 @@ export function computeFixedPopoverPositionInViewport(
     alignment = 'start',
   } = options;
 
-  // Without a measured right edge an end-aligned menu has nothing to align
-  // to, so it degrades to the start edge rather than to a wrong position.
-  const preferredLeft = alignment === 'end' && typeof anchorRect.right === 'number'
-    ? anchorRect.right - menuWidth
-    : anchorRect.left;
-
   return {
     top: clampFixedPopoverTopInViewport(
       anchorRect,

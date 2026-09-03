@@ -2,14 +2,6 @@ import React, { lazy, Suspense, useState, useCallback, useEffect, useRef } from 
 import { createPortal } from 'react-dom';
 import {
   PictureInPicture2,
-  SquareTerminal,
-  Terminal,
-  Smartphone,
-  Globe,
-  ExternalLink,
-  BarChart3,
-  ChevronUp,
-  MessageSquare,
 } from 'lucide-react';
 import {
   Icon,
@@ -26,25 +18,14 @@ import {
   DialogTitle,
 } from '@bitfun/ui';
 import { RetainedMountBoundary } from '@/shared/presence';
-import { Tooltip, Modal, PresenceBoundary } from '@/component-library';
-import { systemAPI } from '@/infrastructure/api';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useSceneStore } from '../../../stores/sceneStore';
 import { activateProductAction } from '@/app/global-search/productActionActivator';
 import { useToolbarModeContext } from '@/flow_chat/components/toolbar-mode/ToolbarModeContext';
 import { useNotification } from '@/shared/notification-system';
 import { remoteConnectAPI } from '@/infrastructure/api/service-api/RemoteConnectAPI';
-import { useAccountLoginState } from '@/infrastructure/account/useAccountLoginState';
 import NotificationButton from '../../TitleBar/NotificationButton';
 import { RemoteConnectDisclaimerContent } from '../../RemoteConnectDialog/RemoteConnectDisclaimer';
-import { usePrivacy } from '../../Privacy/PrivacyContext';
-import {
-  hasActionableUnreadReply,
-  useFeedbackInboxStore,
-} from '../../FeedbackDialog/feedbackInboxStore';
-import {
-  RemoteConnectDisclaimerContent,
-} from '../../RemoteConnectDialog/RemoteConnectDisclaimer';
 import {
   getRemoteConnectDisclaimerAgreed,
   setRemoteConnectDisclaimerAgreed,
@@ -59,23 +40,12 @@ const RemoteConnectDialog = lazy(() => import('../../RemoteConnectDialog'));
 const AboutDialog = lazy(() =>
   import('../../AboutDialog').then(module => ({ default: module.AboutDialog }))
 );
-const FeedbackDialog = lazy(() => import('../../FeedbackDialog'));
 
 const PersistentFooterActions: React.FC = () => {
   const { t } = useI18n('common');
   const activeTabId = useSceneStore((s) => s.activeTabId);
   const { enableToolbarMode } = useToolbarModeContext();
   const { warning } = useNotification();
-  const { loggedIn: accountLoggedIn, deviceName: accountDeviceName } = useAccountLoginState();
-  const { status: privacyStatus } = usePrivacy();
-  const initializeFeedbackForMode = useFeedbackInboxStore(state => state.initializeForMode);
-  const hasUnreadFeedback = useFeedbackInboxStore(state =>
-    state.records.some(hasActionableUnreadReply),
-  );
-  const hasPrivacyUpdate = Boolean(
-    privacyStatus?.enabled && privacyStatus.hasUnreadUpdate,
-  );
-  const hasMoreMenuAttention = hasUnreadFeedback || hasPrivacyUpdate;
 
   useEffect(() => {
     const onAutoExit = (event: Event) => {
@@ -106,36 +76,27 @@ const PersistentFooterActions: React.FC = () => {
     gap: 6,
   });
   const [showAbout, setShowAbout] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
-  // const [showAccountLogin, setShowAccountLogin] = useState(false);
   const [showRemoteConnect, setShowRemoteConnect] = useState(false);
   const [remoteInitialGroup, setRemoteInitialGroup] = useState<'network' | 'bot' | 'account' | undefined>(undefined);
   const [showRemoteDisclaimer, setShowRemoteDisclaimer] = useState(false);
-  const [feedbackPlatformEnabled, setFeedbackPlatformEnabled] = useState<boolean | null>(null);
-  const [hasAgreedRemoteDisclaimer, setHasAgreedRemoteDisclaimer] = useState<boolean>(() => getRemoteConnectDisclaimerAgreed());
   const [hasAgreedRemoteDisclaimer, setHasAgreedRemoteDisclaimer] = useState<boolean>(
     () => getRemoteConnectDisclaimerAgreed(),
   );
 
+  // Periodic token-expiry check. Only auto-open the dialog if the token has
+  // actually expired while the app is running — not on startup. Lands on the
+  // account group so the user can sign in again right away.
   useEffect(() => {
-    let active = true;
-    void systemAPI.getSystemInfo().then(info => {
-      if (active) setFeedbackPlatformEnabled(info.platform === 'openharmony');
-    }).catch(() => {
-      if (active) setFeedbackPlatformEnabled(false);
-    });
-    return () => {
-      active = false;
-    };
+    const expiryCheck = setInterval(() => {
+      remoteConnectAPI.accountTokenExpired().then((expired) => {
+        if (expired) {
+          setRemoteInitialGroup('account');
+          setShowRemoteConnect(true);
+        }
+      });
+    }, 60000);
+    return () => clearInterval(expiryCheck);
   }, []);
-
-  useEffect(() => {
-    if (!feedbackPlatformEnabled || !privacyStatus) return;
-    void initializeFeedbackForMode(privacyStatus.effectiveMode);
-  }, [feedbackPlatformEnabled, initializeFeedbackForMode, privacyStatus]);
-
-  // Account login retirement: do not reopen the disabled login dialog when a
-  // stored account token expires.
 
   const closeMenu = useCallback(() => {
     setAppearanceSubmenuOpen(false);
@@ -179,34 +140,10 @@ const PersistentFooterActions: React.FC = () => {
     setShowAbout(true);
   };
 
-  const handleFloatingMode = useCallback(() => {
+  const handleFloatingMode = () => {
     closeMenu();
-    void enableToolbarMode();
-  }, [closeMenu, enableToolbarMode]);
-
-  const handleFeedback = useCallback(async () => {
-    closeMenu();
-    if (feedbackPlatformEnabled) {
-      setShowFeedback(true);
-      return;
-    }
-    try {
-      const systemInfo = await systemAPI.getSystemInfo();
-      if (systemInfo.platform === 'openharmony') {
-        setFeedbackPlatformEnabled(true);
-        setShowFeedback(true);
-        return;
-      }
-    } catch {
-      // Web and older desktop hosts retain the external feedback behavior.
-    }
-    await systemAPI.openExternal('https://gitcode.com/OpenBitFun/bitfun_ade/issues');
-  }, [closeMenu, feedbackPlatformEnabled]);
-
-  // const handleAccountLogin = () => {
-  //   closeMenu();
-  //   setShowAccountLogin(true);
-  // };
+    enableToolbarMode();
+  };
 
   const handleRemoteConnect = useCallback(() => {
     if (hasAgreedRemoteDisclaimer || getRemoteConnectDisclaimerAgreed()) {
@@ -267,11 +204,6 @@ const PersistentFooterActions: React.FC = () => {
                 ref={menuTriggerRef}
                 className={`bitfun-nav-panel__footer-btn bitfun-nav-panel__footer-btn--icon${menuOpen || isSettingsActive ? ' is-active' : ''}`}
                 aria-label={t('shared:features.settings')}
-                type="button"
-                className={`bitfun-nav-panel__footer-btn bitfun-nav-panel__footer-btn--icon bitfun-nav-panel__footer-more-btn${menuOpen ? ' is-active' : ''}`}
-                aria-label={hasMoreMenuAttention
-                  ? t('header.moreOptionsAttention')
-                  : t('nav.moreOptions')}
                 aria-expanded={menuOpen}
                 aria-haspopup="menu"
                 aria-pressed={isSettingsActive}
@@ -284,21 +216,6 @@ const PersistentFooterActions: React.FC = () => {
                 size="sm"
                 variant="quiet"
               />
-                data-bf-part="footerButton"
-                data-bf-state={menuOpen ? 'active' : undefined}
-              >
-                {menuOpen ? (
-                  <MoreVertical size={15} aria-hidden="true" />
-                ) : (
-                  <span className="bitfun-nav-panel__footer-btn-icon-swap" aria-hidden="true">
-                    <MoreVertical size={15} className="bitfun-nav-panel__footer-btn-icon-swap-default" />
-                    <ChevronUp size={15} className="bitfun-nav-panel__footer-btn-icon-swap-hover" />
-                  </span>
-                )}
-                {hasMoreMenuAttention ? (
-                  <span className="bitfun-nav-panel__footer-more-unread" aria-hidden="true" />
-                ) : null}
-              </button>
             </Tooltip>
 
             {menuOpen && createPortal(
@@ -354,91 +271,14 @@ const PersistentFooterActions: React.FC = () => {
                     leading={<Icon name="info" size="sm" aria-hidden="true" />}
                     onClick={handleShowAbout}
                     data-testid="nav-settings-about-item"
-                    <Settings size={14} />
-                    <span>{t('shared:features.settings')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="bitfun-nav-panel__footer-menu-item"
-                    role="menuitem"
-                    onClick={handleFeedback}
-                    aria-label={hasUnreadFeedback
-                      ? t('feedback.inbox.entryUnread')
-                      : t('header.feedback')}
-                  >
-                    <MessageSquare size={14} />
-                    <span>{t('header.feedback')}</span>
-                    {hasUnreadFeedback ? (
-                      <span className="bitfun-nav-panel__footer-menu-unread" aria-hidden="true" />
-                    ) : null}
-                  </button>
-                  <button
-                      type="button"
-                      className="bitfun-nav-panel__footer-menu-item"
-                      role="menuitem"
-                      data-bf-component="nav-panel"
-                      data-bf-part="footerMenuItem"
-                      onClick={handleShowAbout}
-                      aria-label={hasPrivacyUpdate
-                        ? t('privacy.aboutEntryUpdated')
-                        : t('header.about')}
                   >
                     {t('nav.settingsMenu.about')}
                   </MenuItem>
                 </Menu>
-                      <Info size={14} />
-                      <span>{t('header.about')}</span>
-                      {hasPrivacyUpdate ? (
-                        <span className="bitfun-nav-panel__footer-menu-unread" aria-hidden="true" />
-                      ) : null}
-                  </button>
-                </div>
               </>,
               getAppearanceOverlayHost(),
             )}
           </div>
-
-          <Tooltip content={t('scenes.shell')} placement="right">
-            <button
-              type="button"
-              className={`bitfun-nav-panel__footer-btn bitfun-nav-panel__footer-btn--icon${showSceneNav && navSceneId === 'shell' ? ' is-active' : ''}`}
-              aria-label={t('scenes.shell')}
-              aria-pressed={showSceneNav && navSceneId === 'shell'}
-              onClick={handleOpenShell}
-              data-testid="shell-panel-entry"
-              data-bf-component="nav-panel"
-              data-bf-part="footerButton"
-              data-bf-state={showSceneNav && navSceneId === 'shell' ? 'active' : undefined}
-            >
-              <span className="bitfun-nav-panel__footer-btn-icon-swap" aria-hidden="true">
-                <SquareTerminal size={15} className="bitfun-nav-panel__footer-btn-icon-swap-default" />
-                <Terminal size={15} className="bitfun-nav-panel__footer-btn-icon-swap-hover" />
-              </span>
-            </button>
-          </Tooltip>
-
-          <Tooltip content={t('scenes.browser')} placement="right">
-            <button
-              type="button"
-              className={`bitfun-nav-panel__footer-btn bitfun-nav-panel__footer-btn--icon${isBrowserActive ? ' is-active' : ''}`}
-              aria-label={t('scenes.browser')}
-              aria-pressed={isBrowserActive}
-              onClick={handleOpenBrowser}
-              data-testid="browser-panel-entry"
-              data-bf-component="nav-panel"
-              data-bf-part="footerButton"
-              data-bf-state={isBrowserActive ? 'active' : undefined}
-            >
-              <span className="bitfun-nav-panel__footer-btn-icon-swap" aria-hidden="true">
-                <Globe size={15} className="bitfun-nav-panel__footer-btn-icon-swap-default" />
-                <ExternalLink size={15} className="bitfun-nav-panel__footer-btn-icon-swap-hover" />
-              </span>
-            </button>
-          </Tooltip>
-        </div>
-
-        <div className="bitfun-nav-panel__footer-right">
-          <NotificationButton className="bitfun-nav-panel__footer-btn" navFooterHoverIconSwap />
         </div>
       </div>
       <RetainedMountBoundary present={showAbout}>
@@ -447,14 +287,6 @@ const PersistentFooterActions: React.FC = () => {
         </Suspense>
       </RetainedMountBoundary>
       <RetainedMountBoundary present={showRemoteConnect}>
-      </PresenceBoundary>
-      <PresenceBoundary active={showFeedback}>
-        <Suspense fallback={null}>
-          <FeedbackDialog isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
-        </Suspense>
-      </PresenceBoundary>
-      {/* BitFun account login dialog is intentionally disabled. */}
-      <PresenceBoundary active={showRemoteConnect}>
         <Suspense fallback={null}>
           <RemoteConnectDialog
             isOpen={showRemoteConnect}

@@ -12,9 +12,9 @@ export * from './service-api/CronAPI';
 export * from './service-api/PermissionAPI';
 export * from './service-api/PageAPI';
 export * from './service-api/SpeechAPI';
-export * from './service-api/FeedbackAPI';
 export * from './service-api/WorktreeAPI';
 export * from './service-api/ProductControlAPI';
+export * from './service-api/FeedbackAPI';
 export * from './service-api/LocalModelAPI';
 
 // Import API modules
@@ -47,9 +47,7 @@ import { feedbackAPI } from './service-api/FeedbackAPI';
 import { localModelApi } from './service-api/LocalModelAPI';
 
 // Export API modules
-export { workspaceAPI, configAPI, aiApi, toolAPI, agentAPI, systemAPI, productControlAPI, diffAPI, snapshotAPI, globalAPI, contextAPI, cronAPI, permissionAPI, pageAPI, gitAPI, gitAgentAPI, sessionAPI, i18nAPI, btwAPI, editorAiAPI, reviewPlatformAPI, insightsApi, tokenUsageStatisticsApi, speechAPI, worktreeAPI };
-export { TokenUsageStatisticsUnavailableError } from './tokenUsageStatisticsApi';
-export {feedbackAPI, workspaceAPI, configAPI, aiApi, toolAPI, agentAPI, systemAPI, diffAPI, snapshotAPI, globalAPI, contextAPI, cronAPI, permissionAPI, pageAPI, gitAPI, gitAgentAPI, sessionAPI, i18nAPI, btwAPI, editorAiAPI, reviewPlatformAPI, insightsApi, tokenUsageStatisticsApi, speechAPI, worktreeAPI };
+export { workspaceAPI, configAPI, aiApi, toolAPI, agentAPI, systemAPI, productControlAPI, feedbackAPI, localModelApi, diffAPI, snapshotAPI, globalAPI, contextAPI, cronAPI, permissionAPI, pageAPI, gitAPI, gitAgentAPI, sessionAPI, i18nAPI, btwAPI, editorAiAPI, reviewPlatformAPI, insightsApi, tokenUsageStatisticsApi, speechAPI, worktreeAPI };
 export { TokenUsageStatisticsUnavailableError } from './tokenUsageStatisticsApi';
 export * from './service-api/ReviewPlatformAPI';
 export type {

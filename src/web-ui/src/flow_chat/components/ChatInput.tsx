@@ -10,10 +10,6 @@ import { useTranslation } from 'react-i18next';
 import { ArrowUp, Image, RotateCcw, Plus, X, Sparkles, Loader2, Files, MessageSquarePlus, Play } from 'lucide-react';
 import { ContextDropZone, useContextStore } from '../../shared/context-system';
 import { useActiveSessionState } from '@/flow_chat/hooks';
-import { i18nService } from '@/infrastructure/i18n';
-import { workspaceAPI } from '@/infrastructure/api';
-import { useNativeFileDrop } from '@/infrastructure/hooks/useNativeFileDrop';
-import { resolveSessionTitle } from '../utils/sessionTitle';
 import {
   RichTextInput,
   type InlineTriggerState,
@@ -42,12 +38,10 @@ import type {
   ImageContext,
   SessionReferenceContext,
 } from '@/types/context.ts';
-import { WorkspaceKind } from '@/shared/types';
 import { SmartRecommendations } from './smart-recommendations';
 import { useCurrentWorkspace, useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { flowChatSessionConfigForCurrentWorkspace } from '@/app/utils/projectSessionWorkspace';
-import { createImageContextFromFile, createImageContextFromClipboard, isImageFile } from '../utils/imageUtils';
-import { resolveNativeDroppedPaths } from '../utils/nativeFileDrop';
+import { createImageContextFromFile, createImageContextFromClipboard } from '../utils/imageUtils';
 import {
   getInlineSkillPickerQuery,
   getInlineSlashCommandPickerQuery,
@@ -184,7 +178,6 @@ import { dispatchJobStore } from '@/features/dispatch/dispatchJobStore';
 import { useComposerCapabilities } from '../session-drivers/useComposerCapabilities';
 import { ComposerVoiceInputButton } from './voice/ComposerVoiceInputButton';
 import { useRealtimeVoiceCallActive } from './voice/RealtimeVoiceCallContext';
-import { ComposerVoiceInputButton, ComposerVoiceInputStatus } from './voice/ComposerVoiceInputButton';
 import { useComposerVoiceInput } from './voice/useComposerVoiceInput';
 import { expandWidgetPromptReferenceTokens } from '@/tools/generative-widget/widgetPromptReference';
 import {
@@ -246,7 +239,6 @@ import {
   type ChatInputRegistration,
 } from './chatInputRegistration';
 import './ChatInput.scss';
-import { sessionStorageAdapter } from '@/shared/utils/sessionStorageAdapter';
 
 import { setChatPopupActive } from './chatPopupState';
 import { Menu, MenuItem, MenuSeparator } from '@bitfun/ui';
@@ -487,7 +479,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   useEffect(() => {
     if (!modeState.dropdownOpen) setActiveBoostSubmenu(null);
   }, [modeState.dropdownOpen]);
-
+  
   const richTextInputRef = useRef<RichTextInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const mentionAnchorRef = useRef<HTMLDivElement>(null);
@@ -505,9 +497,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const reviewLaunchPendingRef = useRef(false);
   const largePasteCountersRef = useRef<Record<number, number>>({});
   const undoImageStackRef = useRef<string[]>([]);
-  const nativePromptModeSelectionGenerationRef = useRef(0);
-  const nativePromptModeSelectionQueueRef = useRef<Promise<void>>(Promise.resolve());
-
+  
   // History navigation state
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [savedDraft, setSavedDraft] = useState('');
@@ -551,9 +541,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     [contexts],
   );
   const currentImageCount = imageContexts.length;
-  const nativeDropZoneRef = useRef<HTMLDivElement>(null);
-  const [isNativeDragOverInput, setIsNativeDragOverInput] = useState(false);
-
+  
   const activeSessionState = useActiveSessionState();
   const activeBtwSessionTab = useAgentCanvasStore(state => selectActiveBtwSessionTab(state as any));
   const [flowChatState, setFlowChatState] = useState<FlowChatState>(() => FlowChatStore.getInstance().getState());
@@ -667,9 +655,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const activeBtwTargetLabel = t(`childSession.kinds.${activeBtwKind}.short`, {
     defaultValue: t('chatInput.targetBtw'),
   });
-  const activeBtwFallbackKey = `childSession.kinds.${activeBtwKind}.title`;
   const activeBtwSessionTitle = activeBtwSession
-    ? resolveSessionTitle(activeBtwSession, (key, options) => i18nService.t(key, options), activeBtwFallbackKey) || t('btw.threadLabel')
+    ? activeBtwSession.title?.trim() || t(`childSession.kinds.${activeBtwKind}.title`, {
+        defaultValue: t('btw.threadLabel'),
+      })
     : '';
 
   const deferChatStripPassiveGitRefresh =
@@ -1019,46 +1008,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     workspacePath: currentWorkspacePath,
     workspaceName: currentWorkspaceName,
   } = useCurrentWorkspace();
-  useNativeFileDrop({
-    targetRef: nativeDropZoneRef,
-    onDragOver: setIsNativeDragOverInput,
-    onDrop: async (paths) => {
-      const targetsRemoteWorkspace = workspace?.workspaceKind === WorkspaceKind.Remote
-        || Boolean(effectiveTargetSession?.remoteConnectionId || effectiveTargetSession?.config.remoteConnectionId);
-      if (targetsRemoteWorkspace) {
-        notificationService.warning(t('input.nativeDropRemoteUnsupported'), { duration: 4000 });
-        return;
-      }
-      const contexts = await resolveNativeDroppedPaths(
-        paths,
-        (filePath) => workspaceAPI.getFileMetadata(filePath),
-        (filePath, error) => log.warn('Failed to inspect native dropped path', { filePath, error }),
-      );
-      if (contexts.length === 0) {
-        notificationService.warning(t('input.nativeDropFailed'), { duration: 4000 });
-        return;
-      }
-      let remainingImages = CHAT_INPUT_CONFIG.image.maxCount - currentImageCount;
-      let imageLimitNotified = false;
-      for (const context of contexts) {
-        if (context.type === 'image') {
-          if (remainingImages <= 0) {
-            if (!imageLimitNotified) {
-              notificationService.warning(t('input.maxImagesWarning', { count: CHAT_INPUT_CONFIG.image.maxCount }), { duration: 3000 });
-              imageLimitNotified = true;
-            }
-            continue;
-          }
-          remainingImages -= 1;
-        }
-        addContext(context);
-        if (context.type !== 'image' && richTextInputRef.current && (richTextInputRef.current as any).insertTag) {
-          (richTextInputRef.current as any).insertTag(context);
-        }
-        if (!inputState.isActive) dispatchInput({ type: 'ACTIVATE' });
-      }
-    },
-  });
   // A host that explicitly registers workspacePath owns the composer
   // workspace. Even an empty registered path is intentional isolation and
   // must not leak the user's active project into an Agentic MiniApp surface.
@@ -1290,7 +1239,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   useEffect(() => {
     setHistoryIndex(-1);
   }, [effectiveTargetSessionId]);
-
+  
   const modeInfoById = useMemo(
     () => new Map(modeState.available.map(mode => [mode.id, mode])),
     [modeState.available],
@@ -1798,7 +1747,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       previousSessionId,
       effectiveTargetSessionId,
       useContextStore.getState().contexts,
-      richTextInputRef.current?.getComposerPresentation?.() ?? null,
       !surfaceChanged,
     );
     previousComposerSessionIdRef.current = effectiveTargetSessionId;
@@ -1806,7 +1754,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     const nextValue = draft.value;
     const nextContexts = draft.contexts;
-    const nextPresentation = draft.presentation;
     const nextPendingLargePastes = draft.pendingLargePastes;
 
     dispatchLocalInput({ type: 'SET_VALUE', payload: nextValue });
@@ -1815,9 +1762,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     isRestoringSessionDraftRef.current = true;
     try {
       replaceContexts(nextContexts);
-      if (nextPresentation) {
-        richTextInputRef.current?.restoreComposerPresentation?.(nextPresentation);
-      }
     } finally {
       isRestoringSessionDraftRef.current = false;
     }
@@ -2886,7 +2830,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         log.debug('Session switched, syncing mode', { sessionId, mode });
         dispatchMode({ type: 'SET_CURRENT_MODE', payload: mode });
         try {
-          sessionStorageAdapter.setItem('bitfun:flowchat:lastMode', mode);
+          sessionStorage.setItem('bitfun:flowchat:lastMode', mode);
         } catch {
           // ignore
         }
@@ -2928,7 +2872,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       } else {
         dispatchMode({ type: 'SET_CURRENT_MODE', payload: nextMode });
         try {
-          sessionStorageAdapter.setItem('bitfun:flowchat:lastMode', nextMode);
+          sessionStorage.setItem('bitfun:flowchat:lastMode', nextMode);
         } catch {
           // ignore
         }
@@ -4501,7 +4445,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       setIsHarnessSessionCreating(false);
     }
   }, [isHarnessSessionCreating, replaceContexts, workspace]);
-
+  
   const interruptedTurnRecovery = useMemo(
     () => selectInterruptedTurnRecovery(effectiveTargetSession, {
       draft: inputState.value,
@@ -4568,7 +4512,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (!derivedState) return;
     if (caps.transferInFlight) return;
     if (isInterruptedTurnRecoveryInFlight) return;
-
+    
     const { sendButtonMode } = derivedState;
     const draftTrimmed = (messageOverride ?? inputState.value).trim();
 
@@ -4816,7 +4760,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     canUseThreadGoal,
     composerMutationRevision,
   ]);
-
+  
   publishModeSelectionRef.current = publishModeSelection;
 
   const selectSlashCommandAction = useCallback((actionId: SlashActionId) => {
@@ -5388,18 +5332,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }, []);
 
 
-  const voiceInputTextRef = useRef(inputState.value);
-  voiceInputTextRef.current = inputState.value;
-
   const voiceInput = useComposerVoiceInput({
-    activateInput: () => dispatchInput({ type: 'ACTIVATE' }),
-    getCurrentText: () => voiceInputTextRef.current,
     focusInputSoon: () => {
       window.requestAnimationFrame(() => richTextInputRef.current?.focus());
     },
-    replaceText: (text) => {
-      voiceInputTextRef.current = text;
-      dispatchInput({ type: 'SET_VALUE', payload: text });
+    insertText: (text) => {
+      const current = inputState.value.trim();
+      const mergedText = current ? `${inputState.value.trimEnd()} ${text}` : text;
+      dispatchInput({
+        type: 'SET_VALUE',
+        payload: mergedText,
+      });
+      return mergedText;
     },
     submitText: async (text) => {
       await handleSendOrCancel(text);
@@ -5442,7 +5386,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         </span>
       );
     }
-
+    
     if (sendButtonMode === 'cancel') {
       return (
         <span className="bitfun-chat-input__send-action" data-bf-component="chat-input" data-bf-part="sendButton" data-bf-action="cancel">
@@ -5607,37 +5551,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       {deepReviewConsentDialog}
       <ContextDropZone
         acceptedTypes={['file', 'directory', 'image', 'code-snippet', 'mermaid-diagram']}
+        className="bitfun-chat-input-drop-zone"
         disabled={isInterruptedTurnRecoveryInFlight}
-        rootRef={nativeDropZoneRef}
-        className={`bitfun-chat-input-drop-zone ${isNativeDragOverInput ? 'bitfun-context-drop-zone--can-accept' : ''}`}
-        resolveExternalFiles={async (files) => {
-          const items: ContextItem[] = [];
-          const toFileContext = (file: File, filePath: string): FileContext => ({
-            id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-            type: 'file',
-            filePath,
-            fileName: file.name,
-            fileSize: file.size,
-            mimeType: file.type,
-            timestamp: Date.now(),
-          });
-          for (const file of files) {
-            const filePath = (file as any).path || '';
-            if (isImageFile(file.name)) {
-              try {
-                items.push(await createImageContextFromFile(file));
-                continue;
-              } catch {
-                if (!filePath) continue;
-                items.push(toFileContext(file, filePath));
-                continue;
-              }
-            }
-            if (!filePath) continue;
-            items.push(toFileContext(file, filePath));
-          }
-          return items;
-        }}
         onContextAdded={(context) => {
           if (context.type === 'image' && currentImageCount >= CHAT_INPUT_CONFIG.image.maxCount) {
             notificationService.warning(t('input.maxImagesWarning', { count: CHAT_INPUT_CONFIG.image.maxCount }), { duration: 3000 });
@@ -6347,73 +6262,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               </ChatComposerEndActions>
             </ChatComposer>
           </div>
-          {!caps.transferInFlight && !isInterruptedTurnRecoveryInFlight ? null : null}
         </div>
       </div>
-      <ChatInputWorkspaceStrip
-        repositoryPath={chatStripRepositoryPath}
-        workspaceLabel={chatStripWorkspaceLabel}
-        executionTarget={effectiveTargetSession?.config.executionTarget}
-        voiceControl={voiceInput.phase === 'recording' ? <ComposerVoiceInputStatus controller={voiceInput} /> : null}
-        dispatchControl={dispatchControl}
-        worktreeControl={worktreeControl}
-        deferPassiveGitRefresh={deferChatStripPassiveGitRefresh}
-        permissionControl={showPermissionModeControl
-          ? caps.sessionScopedApproval
-            ? {
-                mode: dispatchPermissionMode,
-                disabled: dispatchSubmissionOptionsLocked,
-                options: DISPATCH_PERMISSION_MODES,
-                scopeLabel: t('chatInput.dispatch.sessionScope'),
-                onChange: handleDispatchPermissionModeChange,
-                onHide: handleHidePermissionModeControl,
-              }
-            : {
-                mode: permissionMode,
-                saving: permissionModeSaving,
-                scopeLabel: activePermissionTurnId
-                  ? t('chatInput.permissionMode.activeTurnScope')
-                  : temporaryPermissionMode
-                    ? t('chatInput.permissionMode.turnScope')
-                  : t('chatInput.permissionMode.sessionScope'),
-                overridden: permissionModeOverridden,
-                nextTurnMode: temporaryPermissionMode
-                  ? chatInputPermissionMode(temporaryPermissionMode)
-                  : null,
-                activeTurn: activePermissionTurnId !== null,
-                onChangeForNextTurn: isAcpTargetSession
-                  ? undefined
-                  : handlePermissionModeForNextTurn,
-                onChange: isAcpTargetSession ? undefined : handlePermissionModeChange,
-                onResetToDefault: isAcpTargetSession
-                  ? undefined
-                  : handleResetPermissionModeToDefault,
-                onOpenDefaultSettings: isAcpTargetSession
-                  ? undefined
-                  : handleOpenPermissionDefaultSettings,
-                onHide: isAcpTargetSession ? undefined : handleHidePermissionModeControl,
-              }
-          : undefined}
-        usageReport={
-          effectiveTargetSessionId && effectiveTargetSession && caps.usageReport
-            ? { visible: true, onOpen: handleToolbarUsageReport }
-            : undefined
-        }
-        threadGoal={
-          effectiveTargetSessionId &&
-          effectiveTargetSession &&
-          caps.threadGoal
-            ? {
-                visible: true,
-                goal: threadGoalController.goal,
-                onOpen: () => {
-                  void threadGoalController.openGoalEntry();
-                },
-              }
-            : undefined
-        }
-      />
-      {effectiveTargetSession && caps.threadGoal ? (
       {effectiveTargetSession && canUseThreadGoal ? (
         <ThreadGoalDialogs
           controller={threadGoalController}

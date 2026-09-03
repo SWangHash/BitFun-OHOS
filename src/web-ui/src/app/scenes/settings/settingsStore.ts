@@ -19,6 +19,9 @@ interface SettingsState {
   setActiveView: (viewId: SettingsViewId) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  contentFocus: string | null;
+  contentFocusRequestId: number;
+  openTab: (tab: string, focus?: string) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -29,6 +32,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   pageTransitionMotion: 'instant',
   pageTransitionSequence: 0,
   searchQuery: '',
+  contentFocus: null,
+  contentFocusRequestId: 0,
 
   openDestination: (destination, motion = 'instant') => set((state) => ({
     activePageId: destination.pageId,
@@ -51,4 +56,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     navigationRequestId: state.navigationRequestId + 1,
   })),
   setSearchQuery: (query) => set({ searchQuery: query }),
+  openTab: (tab, focus) => set((state) => ({
+    activePageId: tab as SettingsPageId,
+    activeViewId: null,
+    contentFocus: focus ?? null,
+    contentFocusRequestId: state.contentFocusRequestId + 1,
+  })),
 }));

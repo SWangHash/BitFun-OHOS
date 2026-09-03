@@ -29,7 +29,7 @@ pub struct EmbeddedWebviewAutomation {
 
 impl EmbeddedWebviewAutomation {
     pub async fn attach(app: AppHandle, label: &str) -> Result<Self, String> {
-        if app.get_webview(label).is_none() {
+        if app.get_webview_window(label).is_none() {
             return Err(format!("Webview not found: {label}"));
         }
         let state = crate::automation_state(app);
@@ -50,10 +50,10 @@ impl EmbeddedWebviewAutomation {
         self.state.sessions.write().await.delete(&self.session.id);
     }
 
-    fn webview(&self) -> Result<tauri::Webview, String> {
+    fn webview(&self) -> Result<tauri::WebviewWindow, String> {
         self.state
             .app
-            .get_webview(&self.session.current_window)
+            .get_webview_window(&self.session.current_window)
             .ok_or_else(|| format!("Webview not found: {}", self.session.current_window))
     }
 

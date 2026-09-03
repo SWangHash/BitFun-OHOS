@@ -245,7 +245,7 @@ const MainNav: React.FC<MainNavProps> = ({
   }, []);
 
   const handleOpenAgents = useCallback(() => {
-    void activateProductAction('surface.agents.open');
+    useSceneStore.getState().openScene('agents');
   }, []);
 
   const handleOpenTodos = useCallback(() => {

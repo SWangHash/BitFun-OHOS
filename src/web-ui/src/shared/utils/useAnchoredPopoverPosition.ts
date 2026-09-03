@@ -48,19 +48,10 @@ const resolvePlacement = (
   anchorRect: DOMRect,
   preferredPlacement: FixedPopoverPlacement,
 ): FixedPopoverPlacement => {
-  if (preferredPlacement === 'left' || preferredPlacement === 'right') {
-    return preferredPlacement;
-  }
   if (top + height <= anchorRect.top) return 'top';
   if (top >= anchorRect.bottom) return 'bottom';
   return preferredPlacement;
 };
-
-const isHorizontalPlacement = (placement: FixedPopoverPlacement): boolean =>
-  placement === 'left' || placement === 'right';
-
-const clamp = (value: number, min: number, max: number): number =>
-  Math.min(Math.max(value, min), Math.max(min, max));
 
 /**
  * Keeps a portalled popover attached to its trigger while escaping ancestor
@@ -104,70 +95,29 @@ export function useAnchoredPopoverPosition({
     const popoverHeight = popoverRect.height
       || popover.offsetHeight
       || popover.scrollHeight;
-
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-
-    let position: { top: number; left: number };
-    let resolvedPlacement: FixedPopoverPlacement = preferredPlacement;
-
-    if (isHorizontalPlacement(preferredPlacement)) {
-      // Horizontal placement: popover opens to the left/right of the anchor.
-      // `alignment` controls vertical alignment (start = top, end = bottom).
-      const rightEdge = anchorRect.right + gap;
-      const leftEdge = anchorRect.left - gap - popoverWidth;
-      let left: number;
-      if (preferredPlacement === 'right') {
-        left = rightEdge + popoverWidth <= viewportWidth - padding
-          ? rightEdge
-          : leftEdge >= padding
-            ? leftEdge
-            : clamp(rightEdge, padding, viewportWidth - popoverWidth - padding);
-        resolvedPlacement = left >= anchorRect.right ? 'right' : 'left';
-      } else {
-        left = leftEdge >= padding
-          ? leftEdge
-          : rightEdge + popoverWidth <= viewportWidth - padding
-            ? rightEdge
-            : clamp(leftEdge, padding, viewportWidth - popoverWidth - padding);
-        resolvedPlacement = left + popoverWidth <= anchorRect.left ? 'left' : 'right';
-      }
-      const preferredTop = alignment === 'end'
-        ? anchorRect.bottom - popoverHeight
-        : anchorRect.top;
-      const top = clamp(
-        preferredTop,
-        padding,
-        viewportHeight - popoverHeight - padding,
-      );
-      position = { top, left: clamp(left, padding, viewportWidth - popoverWidth - padding) };
-    } else {
-      const preferredLeft = alignment === 'end'
-        ? anchorRect.right - popoverWidth
-        : anchorRect.left;
-      position = computeFixedPopoverPositionInViewport(
-        {
-          left: preferredLeft,
-          top: anchorRect.top,
-          bottom: anchorRect.bottom,
-        },
-        popoverWidth,
-        popoverHeight,
-        { width: viewportWidth, height: viewportHeight },
-        { gap, padding, preferredPlacement },
-      );
-      resolvedPlacement = resolvePlacement(
+    const preferredLeft = alignment === 'end'
+      ? anchorRect.right - popoverWidth
+      : anchorRect.left;
+    const position = computeFixedPopoverPositionInViewport(
+      {
+        left: preferredLeft,
+        top: anchorRect.top,
+        bottom: anchorRect.bottom,
+      },
+      popoverWidth,
+      popoverHeight,
+      { width: window.innerWidth, height: window.innerHeight },
+      { gap, padding, preferredPlacement },
+    );
+    const nextLayout: AnchoredPopoverLayout = {
+      ...position,
+      width: matchedWidth,
+      placement: resolvePlacement(
         position.top,
         popoverHeight,
         anchorRect,
         preferredPlacement,
-      );
-    }
-
-    const nextLayout: AnchoredPopoverLayout = {
-      ...position,
-      width: matchedWidth,
-      placement: resolvedPlacement,
+      ),
     };
 
     setLayout(current => sameLayout(current, nextLayout) ? current : nextLayout);

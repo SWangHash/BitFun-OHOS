@@ -30,15 +30,6 @@ export interface TabOverflowMenuProps {
   onOpenMissionControl?: () => void;
 }
 
-export function getTabOverflowTriggerAction(
-  hasMissionControl: boolean,
-  hasOverflow: boolean,
-): 'mission-control' | 'overflow-menu' | 'none' {
-  if (hasMissionControl) return 'mission-control';
-  if (hasOverflow) return 'overflow-menu';
-  return 'none';
-}
-
 export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
   overflowTabs,
   activeTabId,
@@ -77,15 +68,13 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
 
   // Button click
   const handleButtonClick = useCallback(() => {
-    const action = getTabOverflowTriggerAction(hasMissionControl, hasOverflow);
-    if (action === 'mission-control') {
-      setIsOpen(false);
-      onOpenMissionControl?.();
-    } else if (action === 'overflow-menu') {
+    if (hasOverflow) {
       if (!isOpen) {
         updateMenuPosition();
       }
       setIsOpen(prev => !prev);
+    } else if (hasMissionControl) {
+      onOpenMissionControl?.();
     }
   }, [hasOverflow, hasMissionControl, isOpen, updateMenuPosition, onOpenMissionControl]);
 
@@ -115,6 +104,12 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isOpen]);
+
+  // Handle mission control click
+  const handleMissionControlClick = useCallback(() => {
+    onOpenMissionControl?.();
+    setIsOpen(false);
+  }, [onOpenMissionControl]);
 
   // Handle tab click
   const handleTabClick = useCallback((tabId: string) => {
@@ -191,7 +186,7 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
         </button>
       </Tooltip>
 
-      {isOpen && hasOverflow && !hasMissionControl && createPortal(
+      {isOpen && hasOverflow && createPortal(
         <Menu
           ref={menuRef}
           className="canvas-tab-overflow-menu"

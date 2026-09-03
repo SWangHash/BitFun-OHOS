@@ -1,5 +1,4 @@
 import React from 'react';
-import { PageHeader } from '@bitfun/ui';
 import './ConfigPageHeader.scss';
 
 export interface ConfigPageHeaderProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
@@ -23,14 +22,10 @@ export const ConfigPageHeader: React.FC<ConfigPageHeaderProps> = ({
       <div className="bitfun-config-page-header__inner" data-bf-component="config" data-bf-part="pageHeaderInner">
         <div className="bitfun-config-page-header__left">
           <div className="bitfun-config-page-header__info" data-bf-component="config" data-bf-part="pageHeaderInfo">
-            <PageHeader
-              level={2}
-              size="display"
-              title={<span data-bf-component="config" data-bf-part="pageHeaderTitle">{title}</span>}
-              description={subtitle ? (
-                <span className="bitfun-config-page-header__subtitle" data-bf-component="config" data-bf-part="pageHeaderSubtitle">{subtitle}</span>
-              ) : undefined}
-            />
+            <h2 className="bitfun-config-page-header__title" data-bf-component="config" data-bf-part="pageHeaderTitle">{title}</h2>
+            {subtitle ? (
+              <p className="bitfun-config-page-header__subtitle" data-bf-component="config" data-bf-part="pageHeaderSubtitle">{subtitle}</p>
+            ) : null}
           </div>
         </div>
         {extra && (

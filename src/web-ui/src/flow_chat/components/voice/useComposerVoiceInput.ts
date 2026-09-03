@@ -8,8 +8,9 @@ import {
   type SpeechModelStatus,
 } from '@/infrastructure/api';
 import { useAIExperienceSettings } from '@/infrastructure/config/hooks';
-import { isOpenHarmonyRuntime, isTauriRuntime } from '@/infrastructure/runtime';
+import { isTauriRuntime } from '@/infrastructure/runtime';
 import { useSceneStore } from '@/app/stores/sceneStore';
+import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import {
@@ -53,20 +54,12 @@ export interface ComposerVoiceInputController {
 
 export interface UseComposerVoiceInputOptions {
   focusInputSoon: () => void;
-  getCurrentText: () => string;
-  replaceText: (text: string) => void;
+  insertText: (text: string) => string | null;
   submitText: (text: string) => Promise<void>;
 }
 
 function isMediaCaptureSupported(): boolean {
   return typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
-}
-
-function isPermissionDeniedError(error: unknown): boolean {
-  return error instanceof DOMException && (
-    error.name === 'NotAllowedError' ||
-    error.name === 'PermissionDeniedError'
-  );
 }
 
 function resolveErrorMessage(error: unknown, permissionDenied: string, fallback: string): string {
@@ -76,18 +69,12 @@ function resolveErrorMessage(error: unknown, permissionDenied: string, fallback:
   )) {
     return permissionDenied;
   }
-  const detail = error instanceof Error ? error.message : String(error);
-  return detail ? `${fallback} (${detail})` : fallback;
+  return fallback;
 }
 
 function isModelMissingError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return message.toLowerCase().includes('speech model is not installed');
-}
-
-function isEmptySpeechError(error: unknown): boolean {
-  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
-  return message.includes('no speech') || message.includes('no recognized speech') || message.includes('speech not recognized');
 }
 
 function formatModelSize(bytes: number | undefined): string {
@@ -102,17 +89,9 @@ function estimatePcm16Base64Seconds(pcm16Base64: string, sampleRate: number): nu
   return bytes / (sampleRate * 2);
 }
 
-function getRecognitionDelta(previous: string, next: string): string {
-  if (!previous || next.startsWith(previous)) {
-    return previous ? next.slice(previous.length).trim() : next;
-  }
-  return '';
-}
-
 export function useComposerVoiceInput({
   focusInputSoon,
-  getCurrentText,
-  replaceText,
+  insertText,
   submitText,
 }: UseComposerVoiceInputOptions): ComposerVoiceInputController {
   const { t } = useTranslation('flow-chat');
@@ -141,78 +120,7 @@ export function useComposerVoiceInput({
   const cancelRecordingRef = useRef<(() => Promise<void>) | null>(null);
   const recordingLimitTimerRef = useRef<number | null>(null);
   const lowVolumeStartedAtRef = useRef<number | null>(null);
-  const liveTextRef = useRef('');
-  const pendingLiveTextRef = useRef('');
-  const liveTextBaseRef = useRef('');
-  const liveTextEditedRef = useRef(false);
-  const lastRenderedTextRef = useRef('');
-  const speechRuntimeSupported = isTauriRuntime() || isOpenHarmonyRuntime();
-
-  const mergeLiveText = useCallback((nextText: string) => {
-    const base = liveTextBaseRef.current;
-    const current = getCurrentText();
-    const previousLive = liveTextRef.current;
-    const expectedPrevious = previousLive ? (base ? `${base} ${previousLive}` : previousLive) : base;
-
-    if (previousLive && !current.trim() && lastRenderedTextRef.current.trim()) {
-      liveTextBaseRef.current = '';
-      liveTextEditedRef.current = true;
-      liveTextRef.current = nextText;
-      pendingLiveTextRef.current = nextText;
-      lastRenderedTextRef.current = '';
-      return '';
-    }
-    if (current.length < lastRenderedTextRef.current.length && current !== lastRenderedTextRef.current) {
-      liveTextBaseRef.current = current;
-      liveTextEditedRef.current = true;
-      liveTextRef.current = nextText;
-      pendingLiveTextRef.current = nextText;
-      lastRenderedTextRef.current = current;
-      return current;
-    }
-    if (liveTextEditedRef.current) {
-      const delta = getRecognitionDelta(previousLive, nextText);
-      return current ? (delta ? `${current} ${delta}` : current) : delta;
-    }
-    if (current === lastRenderedTextRef.current) {
-      return base ? `${base} ${nextText}` : nextText;
-    }
-    if (current === expectedPrevious || (!current && !expectedPrevious)) {
-      return base ? `${base} ${nextText}` : nextText;
-    }
-    // The user edited the composer while recognition was running. Discard the
-    // current cumulative result and use it only as the new recognition cursor.
-    // The next result will be compared against this cursor, so old speech is
-    // never inserted into the edited draft again.
-    liveTextBaseRef.current = current;
-    liveTextEditedRef.current = true;
-    liveTextRef.current = nextText;
-    pendingLiveTextRef.current = nextText;
-    lastRenderedTextRef.current = current;
-    return current;
-  }, [getCurrentText]);
-
-  useEffect(() => {
-    return speechAPI.onTranscription(event => {
-      const session = sessionRef.current;
-      if (!session || session.sessionId !== event.sessionId || (phase !== 'recording' && phase !== 'transcribing')) {
-        return;
-      }
-      const nextText = event.text.trim();
-      if (!nextText || nextText === pendingLiveTextRef.current) {
-        return;
-      }
-      const mergedText = mergeLiveText(nextText);
-      liveTextRef.current = nextText;
-      pendingLiveTextRef.current = nextText;
-      if (mergedText === getCurrentText() && liveTextEditedRef.current) {
-        return;
-      }
-      activateInput();
-      replaceText(mergedText);
-      lastRenderedTextRef.current = mergedText;
-    });
-  }, [activateInput, mergeLiveText, phase, replaceText]);
+  const speechRuntimeSupported = isTauriRuntime();
 
   const clearRecordingLimitTimer = useCallback(() => {
     if (recordingLimitTimerRef.current !== null) {
@@ -503,36 +411,24 @@ export function useComposerVoiceInput({
       }
 
       const result = await speechAPI.finishInputSession(session.sessionId);
-      const text = result.text.trim() || liveTextRef.current.trim();
+      const text = result.text.trim();
       if (text) {
-        activateInput();
-        const current = getCurrentText();
-        const expectedPreview = liveTextRef.current
-          ? (liveTextBaseRef.current ? `${liveTextBaseRef.current} ${liveTextRef.current}` : liveTextRef.current)
-          : liveTextBaseRef.current;
-        const mergedText = liveTextEditedRef.current
-          ? (current ? `${current} ${getRecognitionDelta(liveTextRef.current, text)}` : getRecognitionDelta(liveTextRef.current, text))
-          : current === expectedPreview
-            ? (liveTextBaseRef.current ? `${liveTextBaseRef.current} ${text}` : text)
-            : (current ? `${current} ${getRecognitionDelta(liveTextRef.current, text)}` : text);
-        replaceText(mergedText);
+        const mergedText = insertText(text);
         if (mode === 'send' && mergedText) {
           await submitText(mergedText);
         } else {
           focusInputSoon();
         }
       } else {
-        // An empty recording is a normal result when the user stops without speaking.
+        notificationService.info(t('input.voiceInput.empty'));
       }
     } catch (error) {
       log.error('Voice input transcription failed', { sessionId: session?.sessionId, error });
-      if (!isEmptySpeechError(error)) {
-        notificationService.error(resolveErrorMessage(
-          error,
-          t('input.voiceInput.permissionDenied'),
-          t('input.voiceInput.failed'),
-        ));
-      }
+      notificationService.error(resolveErrorMessage(
+        error,
+        t('input.voiceInput.permissionDenied'),
+        t('input.voiceInput.failed'),
+      ));
       if (session) {
         const sessionId = session.sessionId;
         await speechAPI.cancelInputSession(session.sessionId).catch(cancelError => {
@@ -553,14 +449,14 @@ export function useComposerVoiceInput({
       setCompletionMode(null);
       setPhase('idle');
     }
-  }, [activateInput, attachSession, clearRecordingLimitTimer, focusInputSoon, getCurrentText, replaceText, submitText, t]);
+  }, [attachSession, clearRecordingLimitTimer, focusInputSoon, insertText, submitText, t]);
 
   const startRecording = useCallback(async (skipModelCheck = false) => {
     if (!settings?.enabled) {
       notificationService.info(t('input.voiceInput.disabled'));
       return;
     }
-    if (!speechRuntimeSupported || (!isTauriRuntime() && !isOpenHarmonyRuntime() && !isMediaCaptureSupported())) {
+    if (!speechRuntimeSupported || !isMediaCaptureSupported()) {
       notificationService.error(t('input.voiceInput.unsupported'));
       return;
     }
@@ -585,11 +481,6 @@ export function useComposerVoiceInput({
 
     setPhase('preparing');
     setCompletionMode(null);
-    liveTextRef.current = '';
-    pendingLiveTextRef.current = '';
-    liveTextBaseRef.current = getCurrentText().trim();
-    liveTextEditedRef.current = false;
-    lastRenderedTextRef.current = liveTextBaseRef.current;
     latestAudioLevelRef.current = 0;
     setAudioLevel(0);
     const recordingId = activeRecordingIdRef.current + 1;
@@ -608,35 +499,22 @@ export function useComposerVoiceInput({
     try {
       const voiceSettings = settings;
       log.debug('Voice input startup requested', { modelInstalled });
-      let recorder: VoiceInputRecorder = { stop: async () => {} };
-      if (!isOpenHarmonyRuntime()) {
-        try {
-          recorder = await createVoiceInputRecorder({
-            targetSampleRate: DEFAULT_SPEECH_SAMPLE_RATE,
-            chunkDurationMs: RECORDING_CHUNK_DURATION_MS,
-            microphoneDeviceId: voiceSettings.microphone_device_id || undefined,
-            onChunk: enqueueChunk,
-            onLevel: updateAudioLevel,
-            onDeviceEnded: () => {
-              if (activeRecordingIdRef.current !== recordingId) return;
-              log.warn('Voice input microphone disconnected during recording');
-              notificationService.error(t('input.voiceInput.deviceDisconnected'));
-              void cancelRecordingRef.current?.();
-            },
-            onStartupTiming: timing => {
-              log.debug('Voice input recorder startup stage completed', timing);
-            },
-          });
-        } catch (micError) {
-          if (isTauriRuntime() && isPermissionDeniedError(micError)) {
-            log.info('Voice input getUserMedia denied on this runtime; falling back to the system speechRecognizer');
-          } else {
-            throw micError;
-          }
-        }
-      } else {
-        log.debug('Using HarmonyOS native speech recognizer audio capture');
-      }
+      const recorder = await createVoiceInputRecorder({
+        targetSampleRate: DEFAULT_SPEECH_SAMPLE_RATE,
+        chunkDurationMs: RECORDING_CHUNK_DURATION_MS,
+        microphoneDeviceId: voiceSettings.microphone_device_id || undefined,
+        onChunk: enqueueChunk,
+        onLevel: updateAudioLevel,
+        onDeviceEnded: () => {
+          if (activeRecordingIdRef.current !== recordingId) return;
+          log.warn('Voice input microphone disconnected during recording');
+          notificationService.error(t('input.voiceInput.deviceDisconnected'));
+          void cancelRecordingRef.current?.();
+        },
+        onStartupTiming: timing => {
+          log.debug('Voice input recorder startup stage completed', timing);
+        },
+      });
       if (activeRecordingIdRef.current !== recordingId) {
         await recorder.stop().catch(error => {
           log.warn('Failed to stop stale voice recorder', { error });
@@ -740,7 +618,6 @@ export function useComposerVoiceInput({
       setAudioLevel(0);
       setPhase('idle');
     }
-  }, [attachSession, enqueueChunk, getCurrentText, modelInstalled, openVoiceInputSettings, settings, speechRuntimeSupported, stopAndTranscribe, t, updateAudioLevel]);
   }, [attachSession, enqueueChunk, modelInstalled, openVoiceInputSettings, refreshCapability, settings, speechRuntimeSupported, stopAndTranscribe, t, updateAudioLevel]);
 
   const installAndStart = useCallback(async () => {
@@ -828,12 +705,10 @@ export function useComposerVoiceInput({
   // Keep the idle control clickable when capture is unavailable so the
   // start handler can explain the unsupported state instead of silently
   // presenting a disabled button.
-  const disabled = phase === 'recording'
-    ? false
-    : !settings?.enabled || !speechRuntimeSupported || (!isTauriRuntime() && !isOpenHarmonyRuntime() && !isMediaCaptureSupported()) || phase === 'preparing' || phase === 'transcribing';
+  const disabled = phase === 'preparing' || phase === 'transcribing';
   const tooltip = useMemo(() => {
     if (!settings?.enabled) return t('input.voiceInput.disabled');
-    if (!speechRuntimeSupported || (!isTauriRuntime() && !isOpenHarmonyRuntime() && !isMediaCaptureSupported())) return t('input.voiceInput.unsupported');
+    if (!speechRuntimeSupported || !isMediaCaptureSupported()) return t('input.voiceInput.unsupported');
     if (settings.provider === 'cloud') return t('input.voiceInput.cloudPending');
     if (phase === 'setup') return t('input.voiceInput.setupTooltip');
     if (phase === 'downloading') return t('input.voiceInput.downloadingTooltip');

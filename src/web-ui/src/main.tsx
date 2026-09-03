@@ -3,10 +3,8 @@ import ReactDOM from "react-dom/client";
 // component CSS. CSS layers keep their first-seen order for the document.
 import "@bitfun/ui/styles.css";
 import App from "./app/App";
-import BusinessApplication from "./app/BusinessApplication";
 import AgentCompanionDesktopPet from "./app/components/AgentCompanionDesktopPet/AgentCompanionDesktopPet";
 import AppErrorBoundary from "./app/components/AppErrorBoundary";
-import { PrivacyProvider } from "./app/components/Privacy";
 import { STARTUP_OVERLAY_HIDDEN_EVENT } from "./app/startup/startupSignals";
 import { WorkspaceProvider } from "./infrastructure/contexts/WorkspaceProvider";
 import { PeerDeviceProvider } from "./infrastructure/peer-device/PeerDeviceContext";

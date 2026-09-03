@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowLeft, Circle, Inbox, RefreshCw } from 'lucide-react';
-import { Button } from '@/component-library';
+import { Button } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import type {
   FeedbackCategory,
@@ -54,8 +54,8 @@ export const FeedbackInboxView: React.FC<FeedbackInboxViewProps> = ({
             </div>
             <Button
               type="button"
-              variant="ghost"
-              size="small"
+              variant="text"
+              size="sm"
               disabled={loading || loadingMore || replySending}
               onClick={() => void refresh(true)}
             >
@@ -116,9 +116,9 @@ export const FeedbackInboxView: React.FC<FeedbackInboxViewProps> = ({
               {hasMore ? (
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="outline"
                   disabled={loading || loadingMore || replySending}
-                  isLoading={loadingMore}
+                  loading={loadingMore}
                   onClick={() => void loadMore()}
                 >
                   {t('feedback.inbox.loadMore')}

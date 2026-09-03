@@ -19,7 +19,7 @@ import { useEmbeddedBrowserWebview } from './useEmbeddedBrowserWebview';
 import './BrowserPanel.scss';
 
 const log = createLogger('BrowserPanel');
-const DEFAULT_URL = 'https://www.bitfun.work';
+const DEFAULT_URL = 'https://openbitfun.com/';
 
 interface InspectorElementData {
   tagName: string;
@@ -34,25 +34,10 @@ export interface BrowserPanelProps {
   isActive: boolean;
   /** Optional initial URL (falls back to DEFAULT_URL) */
   initialUrl?: string;
-  /** Optional raw HTML content to load instead of a URL (local HTML files). */
-  initialHtml?: string;
-  automationId?: string;
-  automationTitle?: string;
-  webviewLabel?: string;
-  adoptExisting?: boolean;
   /** Correlates a host open request with this exact native WebView target. */
   openRequestId?: string;
 }
 
-const BrowserPanel: React.FC<BrowserPanelProps> = ({
-  isActive,
-  initialUrl,
-  initialHtml,
-  automationId,
-  automationTitle,
-  webviewLabel: requestedWebviewLabel,
-  adoptExisting,
-}) => {
 const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openRequestId }) => {
   const { t } = useTranslation('common');
   const activeTabId = useSceneStore((s) => s.activeTabId);
@@ -64,14 +49,9 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
   const browser = useEmbeddedBrowserWebview({
     defaultUrl: DEFAULT_URL,
     initialUrl,
-    initialHtml,
-    automationId,
-    automationTitle,
-    isVisible: isActive,
+    isVisible: shouldShowWebview,
     labelPrefix: 'embedded-browser-panel-view',
     log,
-    requestedWebviewLabel,
-    adoptExistingWebview: adoptExisting,
     openRequestId,
   });
 

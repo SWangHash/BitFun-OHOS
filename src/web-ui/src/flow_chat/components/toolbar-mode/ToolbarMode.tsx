@@ -13,8 +13,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
-import { workspaceAPI } from '@/infrastructure/api';
 import { Menu, MenuItem } from '@bitfun/ui';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
@@ -64,7 +62,6 @@ export const ToolbarMode: React.FC = () => {
   });
 
   const isMacOS = useMemo(() => isMacOSDesktopRuntime(), []);
-  const isOpenHarmony = useMemo(() => isOpenHarmonyRuntime(), []);
   const { workspacePath } = useCurrentWorkspace();
   const { activeSession, sessionTitle } = useFlowChatSessions();
 
@@ -177,13 +174,8 @@ export const ToolbarMode: React.FC = () => {
       return;
     }
     try {
-      if (isOpenHarmonyRuntime()) {
-        await workspaceAPI.window_start_dragging();
-      } else {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        const win = getCurrentWindow();
-        await win.startDragging();
-      }
+      const win = getCurrentWindow();
+      await win.startDragging();
     } catch (error) {
       log.error('Failed to start dragging', error);
     }
@@ -233,7 +225,6 @@ export const ToolbarMode: React.FC = () => {
     toolbarState.hasError && 'bitfun-toolbar-mode--error',
     toolbarState.hasPendingConfirmation && 'bitfun-toolbar-mode--confirm',
     isMacOS && 'bitfun-toolbar-mode--macos',
-    isOpenHarmony && 'bitfun-toolbar-mode--ohos',
   ].filter(Boolean).join(' ');
 
   return (

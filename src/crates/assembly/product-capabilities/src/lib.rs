@@ -1007,32 +1007,11 @@ const CODE_AGENT_TOOL_GROUPS: &[&str] = &[
     "core.web",
     "core.mcp",
     "core.computer-use",
-<<<<<<< HEAD
-    "core.openharmony"
-=======
->>>>>>> upstream/1.0.0-explore
+    "core.openharmony",
 ];
 const DEEP_REVIEW_TOOL_GROUPS: &[&str] = &["core.review"];
 const DEEP_RESEARCH_TOOL_GROUPS: &[&str] = &["core.web", "core.mcp"];
 const MINIAPP_TOOL_GROUPS: &[&str] = &["core.miniapp"];
-<<<<<<< HEAD
-const INTEGRATION_TOOL_GROUPS: &[&str] = &["core.integration"];
-const CANVAS_TOOL_GROUPS: &[&str] = &["core.canvas"];
-
-const CODE_AGENT_IDS: &[&str] = &[
-    "agentic",
-    "minimal",
-    "Cowork",
-    "debug",
-    "Multitask",
-    "Plan",
-    "Claw",
-    "Team",
-    "ComputerUse",
-    "Explore",
-    "GeneralPurpose",
-    "FileFinder",
-=======
 const CREATION_TOOL_GROUPS: &[&str] = &["core.creation", "core.miniapp"];
 const CANVAS_TOOL_GROUPS: &[&str] = &["core.canvas"];
 
@@ -1048,7 +1027,6 @@ const CODE_AGENT_IDS: &[&str] = &[
     "ComputerUse",
     "Explore",
     "GeneralPurpose",
->>>>>>> upstream/1.0.0-explore
     "GenerateDoc",
     "MemoryPhase2",
 ];
@@ -1060,10 +1038,7 @@ const DEEP_REVIEW_AGENT_IDS: &[&str] = &[
     "DeepReview",
 ];
 const DEEP_RESEARCH_AGENT_IDS: &[&str] = &["DeepResearch", "ResearchSpecialist"];
-<<<<<<< HEAD
-=======
 const CREATION_AGENT_IDS: &[&str] = &["Creative"];
->>>>>>> upstream/1.0.0-explore
 const NO_PRODUCT_AGENTS: &[&str] = &[];
 
 const CODE_AGENT_CAPABILITY_PACK: ProductCapabilityPack = ProductCapabilityPack::new(
@@ -1089,15 +1064,12 @@ const MINIAPP_CAPABILITY_PACK: ProductCapabilityPack = ProductCapabilityPack::ne
     MINIAPP_SERVICES,
     MINIAPP_TOOL_GROUPS,
     NO_PRODUCT_AGENTS,
-<<<<<<< HEAD
-=======
 );
 const CREATION_CAPABILITY_PACK: ProductCapabilityPack = ProductCapabilityPack::new(
     ProductCapabilityId::Creation,
     MINIAPP_SERVICES,
     CREATION_TOOL_GROUPS,
     CREATION_AGENT_IDS,
->>>>>>> upstream/1.0.0-explore
 );
 const CANVAS_CAPABILITY_PACK: ProductCapabilityPack = ProductCapabilityPack::new(
     ProductCapabilityId::Canvas,
@@ -1108,27 +1080,13 @@ const CANVAS_CAPABILITY_PACK: ProductCapabilityPack = ProductCapabilityPack::new
 const VOICE_INPUT_CAPABILITY_PACK: ProductCapabilityPack =
     ProductCapabilityPack::new(ProductCapabilityId::VoiceInput, &[], &[], NO_PRODUCT_AGENTS);
 
-<<<<<<< HEAD
-const CORE_COMPATIBILITY_CAPABILITY_PACKS: &[ProductCapabilityPack] = &[
-    CODE_AGENT_CAPABILITY_PACK,
-    DEEP_REVIEW_CAPABILITY_PACK,
-    DEEP_RESEARCH_CAPABILITY_PACK,
-    MINIAPP_CAPABILITY_PACK,
-    // CANVAS_CAPABILITY_PACK, // canvas-runtime cannot be compiled on OHOS
-];
-=======
->>>>>>> upstream/1.0.0-explore
 const DEFAULT_PRODUCT_CAPABILITY_PACKS: &[ProductCapabilityPack] = &[
     CODE_AGENT_CAPABILITY_PACK,
     DEEP_REVIEW_CAPABILITY_PACK,
     DEEP_RESEARCH_CAPABILITY_PACK,
     MINIAPP_CAPABILITY_PACK,
-<<<<<<< HEAD
-    // CANVAS_CAPABILITY_PACK, // canvas-runtime cannot be compiled on OHOS
-=======
     CREATION_CAPABILITY_PACK,
-    CANVAS_CAPABILITY_PACK,
->>>>>>> upstream/1.0.0-explore
+    // CANVAS_CAPABILITY_PACK, // canvas-runtime cannot be compiled on OHOS
     VOICE_INPUT_CAPABILITY_PACK,
 ];
 const EMPTY_PRODUCT_CAPABILITY_PACKS: &[ProductCapabilityPack] = &[];

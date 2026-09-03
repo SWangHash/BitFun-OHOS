@@ -22,7 +22,7 @@ import {
 } from '@/infrastructure/peer-device/peerModeFlag';
 import { LoadingState } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
-import CodeEditor, { FILE_TOO_LARGE_ERROR, MAX_TEXT_FILE_SIZE_BYTES } from './CodeEditor';
+import CodeEditor from './CodeEditor';
 import {
   diskVersionFromMetadata,
   diskVersionsDiffer,
@@ -41,11 +41,6 @@ import 'highlight.js/styles/github-dark.css';
 const log = createLogger('MarkdownEditor');
 
 const FILE_SYNC_POLL_INTERVAL_MS = 1000;
-export const MARKDOWN_RICH_EDITOR_MAX_BYTES = 512 * 1024;
-
-export function shouldUseLargeMarkdownSourceMode(fileSize?: number): boolean {
-  return typeof fileSize === 'number' && fileSize >= MARKDOWN_RICH_EDITOR_MAX_BYTES;
-}
 
 function getPollOffsetMs(filePath: string): number {
   let hash = 0;
@@ -103,10 +98,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   const [unsafeViewMode, setUnsafeViewMode] = useState<'source' | 'preview'>('source');
   const [loading, setLoading] = useState(!!filePath);
   const [error, setError] = useState<string | null>(null);
-  const [fileTooLarge, setFileTooLarge] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [useLargeFileSourceMode, setUseLargeFileSourceMode] = useState(false);
-  const [largeFilePreviewLoading, setLargeFilePreviewLoading] = useState(false);
   const [editability, setEditability] = useState<MarkdownEditabilityAnalysis>(() => analyzeMarkdownEditability(initialContent));
   const editorRef = useRef<EditorInstance>(null);
   const isUnmountedRef = useRef(false);
@@ -194,10 +186,12 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
     setLoading(true);
     setError(null);
-    setFileTooLarge(false);
 
     try {
       const { workspaceAPI } = await import('@/infrastructure/api');
+
+      const fileContent = await workspaceAPI.readFileContent(filePath);
+      reportFileMissingFromDisk(false);
 
       try {
         const fileInfo = await fetchFileMetadata();
@@ -209,28 +203,6 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           if (v) {
             diskVersionRef.current = v;
           }
-          if (typeof fileInfo.size === 'number' && fileInfo.size >= MAX_TEXT_FILE_SIZE_BYTES) {
-            setFileTooLarge(true);
-            setError(FILE_TOO_LARGE_ERROR);
-            return;
-          }
-          if (shouldUseLargeMarkdownSourceMode(fileInfo.size)) {
-            setUseLargeFileSourceMode(true);
-            if (!isUnmountedRef.current) {
-              const largeFileEditability = analyzeMarkdownEditability('');
-              setUnsafeViewMode('source');
-              setContent('');
-              contentRef.current = '';
-              setEditability({
-                ...largeFileEditability,
-                canonicalMarkdown: '',
-                mode: 'unsafe',
-              });
-              setHasChanges(false);
-              lastReportedDirtyRef.current = false;
-            }
-            return;
-          }
         }
       } catch (err) {
         if (isLikelyFileNotFoundError(err)) {
@@ -238,10 +210,6 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         }
         log.warn('Failed to get file metadata', err);
       }
-
-      setUseLargeFileSourceMode(false);
-      const fileContent = await workspaceAPI.readFileContent(filePath);
-      reportFileMissingFromDisk(false);
 
       if (!isUnmountedRef.current) {
         const { nextEditability, nextContent } = toNormalizedMarkdown(fileContent);
@@ -279,35 +247,6 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     }
   }, [fetchFileMetadata, filePath, reportFileMissingFromDisk, t, toNormalizedMarkdown]);
 
-  const showLargeFilePreview = useCallback(async () => {
-    if (!useLargeFileSourceMode || !filePath) {
-      setUnsafeViewMode('preview');
-      return;
-    }
-
-    if (contentRef.current) {
-      setUnsafeViewMode('preview');
-      return;
-    }
-
-    setLargeFilePreviewLoading(true);
-    try {
-      const { workspaceAPI } = await import('@/infrastructure/api');
-      const fileContent = await workspaceAPI.readFileContent(filePath);
-      if (!isUnmountedRef.current) {
-        contentRef.current = fileContent;
-        setContent(fileContent);
-        setUnsafeViewMode('preview');
-      }
-    } catch (err) {
-      log.warn('Failed to load large Markdown preview', err);
-    } finally {
-      if (!isUnmountedRef.current) {
-        setLargeFilePreviewLoading(false);
-      }
-    }
-  }, [filePath, useLargeFileSourceMode]);
-
   // Initial file load - only run once when filePath changes
   const loadFileContentCalledRef = useRef(false);
   useEffect(() => {
@@ -342,7 +281,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   }, [filePath, initialContent, loadFileContent]);
 
   const syncMarkdownFromDisk = useCallback(async (source: 'poll' | 'event') => {
-    if (useLargeFileSourceMode || !filePath || isUnmountedRef.current || isCheckingDiskRef.current) {
+    if (!filePath || isUnmountedRef.current || isCheckingDiskRef.current) {
       return;
     }
 
@@ -458,7 +397,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       }
       isCheckingDiskRef.current = false;
     }
-  }, [fetchFileMetadata, filePath, isActiveTab, reportFileMissingFromDisk, t, toNormalizedMarkdown, useLargeFileSourceMode]);
+  }, [fetchFileMetadata, filePath, isActiveTab, reportFileMissingFromDisk, t, toNormalizedMarkdown]);
 
   const checkMarkdownDisk = useCallback(async () => {
     await syncMarkdownFromDisk('poll');
@@ -694,16 +633,10 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   }
 
   if (error) {
-    const errorMessage = error === FILE_TOO_LARGE_ERROR || error === 'editor.common.fileTooLarge'
-      ? t('editor.common.fileTooLarge')
-      : error;
     return (
       <div className={`bitfun-markdown-editor-error ${className}`} data-bf-component="markdown-editor" data-bf-part="error" data-bf-state="error">
         <div className="error-content">
           <AlertCircle className="error-icon" />
-          <p>{errorMessage}</p>
-          {filePath && !fileTooLarge && (
-            <Button variant="secondary" size="small" onClick={loadFileContent}>
           <p>{error}</p>
           {filePath && (
             <Button variant="outline" size="sm" onClick={loadFileContent}>
@@ -729,29 +662,6 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
             value={unsafeViewMode}
             onValueChange={(value) => setUnsafeViewMode(value as 'source' | 'preview')}
           />
-          <div className="bitfun-markdown-editor__mode-toggle" role="tablist" aria-label={t('editor.markdownEditor.viewModeLabel')} data-bf-component="markdown-editor" data-bf-part="modeToggle">
-            <Button
-              type="button"
-              size="small"
-              variant={unsafeViewMode === 'source' ? 'primary' : 'secondary'}
-              className="bitfun-markdown-editor__toolbar-button"
-              onClick={() => setUnsafeViewMode('source')}
-              aria-pressed={unsafeViewMode === 'source'}
-            >
-              {t('editor.markdownEditor.markdown')}
-            </Button>
-            <Button
-              type="button"
-              size="small"
-              variant={unsafeViewMode === 'preview' ? 'primary' : 'secondary'}
-              className="bitfun-markdown-editor__toolbar-button"
-              onClick={() => void showLargeFilePreview()}
-              disabled={largeFilePreviewLoading}
-              aria-pressed={unsafeViewMode === 'preview'}
-            >
-              {t('editor.markdownEditor.preview')}
-            </Button>
-          </div>
           <div className="bitfun-markdown-editor__toolbar-actions" data-bf-component="markdown-editor" data-bf-part="actions">
             <IconButton
               type="button"
@@ -768,7 +678,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           </div>
         </div>
         <div className="bitfun-markdown-editor__unsafe-body" data-bf-component="markdown-editor" data-bf-part="body">
-          <div className="bitfun-markdown-editor__unsafe-panel" hidden={unsafeViewMode !== 'source'}>
+          {unsafeViewMode === 'source' ? (
             <CodeEditor
               filePath={filePath}
               workspacePath={workspacePath}
@@ -779,7 +689,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
               showMinimap={true}
               jumpToLine={jumpToLine}
               jumpToColumn={jumpToColumn}
-              isActiveTab={isActiveTab && unsafeViewMode === 'source'}
+              isActiveTab={isActiveTab}
               onFileMissingFromDiskChange={onFileMissingFromDiskChange}
               onContentChange={(newContent, dirty) => {
                 contentRef.current = newContent;
@@ -798,30 +708,22 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
                 onContentChangeRef.current?.(contentRef.current, false);
               }}
             />
-          </div>
-          {unsafeViewMode === 'preview' && (
-            <div className="bitfun-markdown-editor__unsafe-panel">
-              {largeFilePreviewLoading ? (
-                <CubeLoading size="medium" text={t('editor.markdownEditor.loadingFile')} />
-              ) : (
-                <MEditor
-                  ref={editorRef}
-                  value={content}
-                  progressivePreview={useLargeFileSourceMode}
-                  onChange={handleContentChange}
-                  onSave={handleSave}
-                  onDirtyChange={handleDirtyChange}
-                  mode="preview"
-                  height="100%"
-                  width="100%"
-                  placeholder={t('editor.markdownEditor.placeholder')}
-                  readonly={true}
-                  toolbar={false}
-                  filePath={filePath}
-                  basePath={basePath}
-                />
-              )}
-            </div>
+          ) : (
+            <MEditor
+              ref={editorRef}
+              value={content}
+              onChange={handleContentChange}
+              onSave={handleSave}
+              onDirtyChange={handleDirtyChange}
+              mode="preview"
+              height="100%"
+              width="100%"
+              placeholder={t('editor.markdownEditor.placeholder')}
+              readonly={true}
+              toolbar={false}
+              filePath={filePath}
+              basePath={basePath}
+            />
           )}
         </div>
       </div>

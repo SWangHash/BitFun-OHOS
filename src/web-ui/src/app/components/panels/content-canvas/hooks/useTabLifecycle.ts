@@ -25,8 +25,6 @@ import { createLogger } from '@/shared/utils/logger';
 import { destroyTerminalSession } from '@/shared/services/destroyTerminalSession';
 
 const log = createLogger('useTabLifecycle');
-import { confirmDialog } from '@/component-library/components/ConfirmDialog/confirmService';
-import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 interface UseTabLifecycleOptions {
   /** App mode / target canvas */
   mode?: 'agent' | 'project' | 'git' | 'bottom-terminal';
@@ -326,13 +324,6 @@ export const useTabLifecycle = (options: UseTabLifecycleOptions = {}): UseTabLif
         data,
         metadata: { ...metadata, duplicateCheckKey },
       };
-      const syncBrowserOwner = () => {
-        if (mode === 'agent' && type === 'browser' && data?.ownerSessionId) {
-          canvasStoreApi.getState().syncSessionOwnedBrowserTabs(
-            flowChatStore.getState().activeSessionId,
-          );
-        }
-      };
 
       // If split view is enabled, switch to vertical split first (top/bottom)
       if (enableSplitView && layout.splitMode === 'none') {
@@ -352,8 +343,7 @@ export const useTabLifecycle = (options: UseTabLifecycleOptions = {}): UseTabLif
           
           // Switch to existing tab
           switchToTab(existing.tab.id, existing.groupId);
-          syncBrowserOwner();
-
+          
           window.dispatchEvent(new CustomEvent(expandPanelEventName));
           return;
         }
@@ -364,8 +354,7 @@ export const useTabLifecycle = (options: UseTabLifecycleOptions = {}): UseTabLif
 
       // Open all tabs in active state by default (no preview replacement)
       addTab(content, 'active', groupId);
-      syncBrowserOwner();
-
+      
       window.dispatchEvent(new CustomEvent(expandPanelEventName));
     };
 

@@ -261,18 +261,6 @@ where
         .is_some_and(|id| id.eq_ignore_ascii_case("minimal")))
 }
 
-fn deserialize_legacy_minimal_agent<'de, D>(deserializer: D) -> Result<bool, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let value = serde_json::Value::deserialize(deserializer)?;
-    Ok(value
-        .get("harnessProfileId")
-        .or_else(|| value.get("harness_profile_id"))
-        .and_then(serde_json::Value::as_str)
-        .is_some_and(|id| id.eq_ignore_ascii_case("minimal")))
-}
-
 fn is_reusable_continuation_policy(policy: &SessionContinuationPolicy) -> bool {
     *policy == SessionContinuationPolicy::Reusable
 }

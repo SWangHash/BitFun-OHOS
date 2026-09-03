@@ -39,8 +39,6 @@ import {
 import { capabilityTooltipAriaLabel } from './agentCapabilityTooltipUtils';
 import './SkillGroupPicker.scss';
 
-const GROUP_NAME_MAX_LENGTH = 50;
-
 interface SkillGroupPickerProps {
   skills: GroupableSkill[];
   managementSkills?: GroupableSkill[];
@@ -314,11 +312,6 @@ export const SkillGroupManagerModal: React.FC<SkillGroupManagerModalProps> = ({
                 }}
                 placeholder={t('agentsOverview.skillGroupPicker.groupNamePlaceholder')}
                 invalid={nameError}
-                inputSize="small"
-                error={nameError}
-                errorMessage={nameError ? t('agentsOverview.skillGroupPicker.validation.nameRequired') : undefined}
-                suffix={!nameError ? `${name.length}/${GROUP_NAME_MAX_LENGTH}` : undefined}
-                maxLength={GROUP_NAME_MAX_LENGTH}
                 disabled={saving}
                 size="sm"
               />

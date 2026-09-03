@@ -680,19 +680,10 @@ mod tests {
                 "core.web",
                 "core.mcp",
                 "core.computer-use",
+                "core.openharmony",
                 "core.review",
                 "core.miniapp",
-                "core.creation",
-                "core.canvas",
-                "core.git",
-                "core.web",
-                "core.mcp",
-                "core.computer-use",
-                "core.review",
-                "core.miniapp",
-                "core.canvas",
-                "core.integration",
-                "core.openharmony"
+                "core.creation"
             ],
             "provider groups must preserve the reviewed atomic ownership order"
         );

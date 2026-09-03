@@ -111,18 +111,7 @@ models-dev = [
     "tokio/time",
     "windows",
 ]
- browser-control = [
-     "anyhow",
-     "async-trait",
-     "bitfun-services-core/process-runtime",
-     "dirs",
-     "reqwest",
-     "reqwest/json",
-     "reqwest/rustls",
-     "thiserror",
-     "tokio/time",
- ]
-browser-control = ["anyhow", "bitfun-services-core/process-runtime", "bitfun-services-core/tls-provider", "dirs", "reqwest", "reqwest/json", "reqwest/rustls-no-provider", "thiserror", "tokio/time"]
+browser-control = ["anyhow", "async-trait", "bitfun-services-core/process-runtime", "bitfun-services-core/tls-provider", "dirs", "reqwest", "reqwest/json", "reqwest/rustls-no-provider", "thiserror", "tokio/time"]
 canvas-runtime = [
     "dep:bitfun-product-domains",
     "oxc",

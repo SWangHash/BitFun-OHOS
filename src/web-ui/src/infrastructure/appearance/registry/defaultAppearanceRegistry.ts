@@ -1,8 +1,53 @@
+import { buttonAppearanceDescriptor } from '@/component-library/components/Button/appearance';
+import { cardAppearanceDescriptor } from '@/component-library/components/Card/appearance';
+import { inputAppearanceDescriptor } from '@/component-library/components/Input/appearance';
+import { modalAppearanceDescriptor } from '@/component-library/components/Modal/appearance';
+import { tooltipAppearanceDescriptor } from '@/component-library/components/Tooltip/appearance';
+import { iconButtonAppearanceDescriptor } from '@/component-library/components/IconButton/appearance';
+import { checkboxAppearanceDescriptor } from '@/component-library/components/Checkbox/appearance';
+import { switchAppearanceDescriptor } from '@/component-library/components/Switch/appearance';
+import { textareaAppearanceDescriptor } from '@/component-library/components/Textarea/appearance';
+import { numberInputAppearanceDescriptor } from '@/component-library/components/NumberInput/appearance';
+import { searchAppearanceDescriptor } from '@/component-library/components/Search/appearance';
+import { tabsAppearanceDescriptor } from '@/component-library/components/Tabs/appearance';
+import { selectAppearanceDescriptor } from '@/component-library/components/Select/appearance';
+import { alertAppearanceDescriptor } from '@/component-library/components/Alert/appearance';
+import { badgeAppearanceDescriptor } from '@/component-library/components/Badge/appearance';
+import { tagAppearanceDescriptor } from '@/component-library/components/Tag/appearance';
+import { avatarAppearanceDescriptor } from '@/component-library/components/Avatar/appearance';
+import { codeEditorAppearanceDescriptor } from '@/component-library/components/CodeEditor/appearance';
+import { configPageAppearanceDescriptor } from '@/component-library/components/ConfigPage/appearance';
+import { cubeLoadingAppearanceDescriptor } from '@/component-library/components/CubeLoading/appearance';
+import { cubeLogoAppearanceDescriptor } from '@/component-library/components/CubeLogo/appearance';
+import { dotMatrixLoaderAppearanceDescriptor } from '@/component-library/components/DotMatrixLoader/appearance';
+import { emptyAppearanceDescriptor } from '@/component-library/components/Empty/appearance';
+import { filterPillAppearanceDescriptor } from '@/component-library/components/FilterPill/appearance';
+import { streamTextAppearanceDescriptor } from '@/component-library/components/StreamText/appearance';
+import { taskRunningIndicatorAppearanceDescriptor } from '@/component-library/components/TaskRunningIndicator/appearance';
+import { textStrokeEffectAppearanceDescriptor } from '@/component-library/components/TextStrokeEffect/appearance';
+import { flowChatCardAppearanceDescriptor } from '@/component-library/components/FlowChatCards/appearance';
+import { contextCompressionCardAppearanceDescriptor } from '@/component-library/components/FlowChatCards/ContextCompressionCard/appearance';
+import { viewTransitionBoundaryAppearanceDescriptor } from '@/component-library/components/ViewTransitionBoundary/appearance';
+import { componentPreviewAppearanceDescriptor } from '@/component-library/preview/appearance';
+import { lspAppearanceDescriptor } from '@/tools/lsp/appearance';
+import { referencesPanelAppearanceDescriptor } from '@/tools/lsp/components/ReferencesPanel/ReferencesPanel.appearance';
+import { appearanceConfigAppearanceDescriptor } from '@/infrastructure/config/components/AppearanceConfig.appearance';
+import { lspConfigAppearanceDescriptor } from '@/infrastructure/config/components/LspConfig.appearance';
+import { aiModelConfigAppearanceDescriptor } from '@/infrastructure/config/components/AIModelConfig.appearance';
+import { basicsConfigAppearanceDescriptor } from '@/infrastructure/config/components/BasicsConfig.appearance';
+import { sessionConfigAppearanceDescriptor } from '@/infrastructure/config/components/SessionConfig.appearance';
+import { worktreesConfigAppearanceDescriptor } from '@/infrastructure/config/components/WorktreesConfig.appearance';
+import { toolCardAppearanceDescriptor } from '@/flow_chat/tool-cards/BaseToolCard.appearance';
+import { toolCardHeaderActionsAppearanceDescriptor } from '@/flow_chat/tool-cards/ToolCardHeaderActions.appearance';
+import { toolCardStatusSlotAppearanceDescriptor } from '@/flow_chat/tool-cards/ToolCardStatusSlot.appearance';
+import { compactToolCardAppearanceDescriptor } from '@/flow_chat/tool-cards/CompactToolCard.appearance';
+import { terminalToolCardAppearanceDescriptor } from '@/flow_chat/tool-cards/TerminalToolCard.appearance';
 import { confirmDialogAppearanceDescriptor } from '@/infrastructure/confirm-dialog';
-import { inputDialogAppearanceDescriptor } from '@/app/components/InputDialog/appearance';
 import { windowControlsAppearanceDescriptor } from '@/app/components/WindowControls/appearance';
 import { navigationTransitionBoundaryAppearanceDescriptor } from '@/app/navigation/NavigationTransitionBoundary/appearance';
 import { markdownAppearanceDescriptor } from '@/infrastructure/markdown/appearance';
+import { mermaidBlockAppearanceDescriptor } from '@/infrastructure/markdown/MermaidBlock.appearance';
+import { inputDialogAppearanceDescriptor } from '@/app/components/InputDialog/appearance';
 import { chatInputAppearanceDescriptor } from '@/flow_chat/components/ChatInput.appearance';
 import { harnessProfileSelectorAppearanceDescriptor } from '@/flow_chat/components/HarnessProfileSelector.appearance';
 import { composerVoiceInputAppearanceDescriptor } from '@/flow_chat/components/voice/ComposerVoiceInputButton.appearance';
@@ -166,7 +211,6 @@ import { threadGoalDialogsAppearanceDescriptor } from '@/flow_chat/components/th
 import { welcomePanelAppearanceDescriptor } from '@/flow_chat/components/WelcomePanel.appearance';
 import { generativeWidgetToolCardAppearanceDescriptor } from '@/flow_chat/tool-cards/GenerativeWidgetToolCard.appearance';
 import { snapshotFullscreenDiffViewerAppearanceDescriptor } from '@/flow_chat/tool-cards/SnapshotFullscreenDiffViewer.appearance';
-import { mermaidBlockAppearanceDescriptor } from '@/infrastructure/markdown/MermaidBlock.appearance';
 import { defaultModelConfigAppearanceDescriptor } from '@/infrastructure/config/components/DefaultModelConfig.appearance';
 import { globalPermissionRulesDialogAppearanceDescriptor } from '@/infrastructure/config/components/GlobalPermissionRulesDialog.appearance';
 import { mcpResourceBrowserAppearanceDescriptor } from '@/infrastructure/config/components/MCPResourceBrowser.appearance';
@@ -250,12 +294,57 @@ import { AppearanceRegistry } from './AppearanceRegistry';
 
 export function createDefaultAppearanceRegistry(): AppearanceRegistry {
   return new AppearanceRegistry()
+    .registerComponent(buttonAppearanceDescriptor)
+    .registerComponent(cardAppearanceDescriptor)
+    .registerComponent(inputAppearanceDescriptor)
+    .registerComponent(modalAppearanceDescriptor)
+    .registerComponent(tooltipAppearanceDescriptor)
+    .registerComponent(iconButtonAppearanceDescriptor)
+    .registerComponent(checkboxAppearanceDescriptor)
+    .registerComponent(switchAppearanceDescriptor)
+    .registerComponent(textareaAppearanceDescriptor)
+    .registerComponent(numberInputAppearanceDescriptor)
+    .registerComponent(searchAppearanceDescriptor)
+    .registerComponent(tabsAppearanceDescriptor)
+    .registerComponent(selectAppearanceDescriptor)
+    .registerComponent(alertAppearanceDescriptor)
+    .registerComponent(badgeAppearanceDescriptor)
+    .registerComponent(tagAppearanceDescriptor)
+    .registerComponent(avatarAppearanceDescriptor)
+    .registerComponent(codeEditorAppearanceDescriptor)
+    .registerComponent(configPageAppearanceDescriptor)
+    .registerComponent(cubeLoadingAppearanceDescriptor)
+    .registerComponent(cubeLogoAppearanceDescriptor)
+    .registerComponent(dotMatrixLoaderAppearanceDescriptor)
+    .registerComponent(emptyAppearanceDescriptor)
+    .registerComponent(filterPillAppearanceDescriptor)
+    .registerComponent(streamTextAppearanceDescriptor)
+    .registerComponent(taskRunningIndicatorAppearanceDescriptor)
+    .registerComponent(textStrokeEffectAppearanceDescriptor)
+    .registerComponent(flowChatCardAppearanceDescriptor)
+    .registerComponent(contextCompressionCardAppearanceDescriptor)
+    .registerComponent(viewTransitionBoundaryAppearanceDescriptor)
+    .registerComponent(componentPreviewAppearanceDescriptor)
+    .registerComponent(lspAppearanceDescriptor)
+    .registerComponent(lspConfigAppearanceDescriptor)
+    .registerComponent(appearanceConfigAppearanceDescriptor)
+    .registerComponent(referencesPanelAppearanceDescriptor)
+    .registerComponent(aiModelConfigAppearanceDescriptor)
+    .registerComponent(basicsConfigAppearanceDescriptor)
+    .registerComponent(sessionConfigAppearanceDescriptor)
+    .registerComponent(worktreesConfigAppearanceDescriptor)
+    .registerComponent(toolCardAppearanceDescriptor)
+    .registerComponent(toolCardHeaderActionsAppearanceDescriptor)
+    .registerComponent(toolCardStatusSlotAppearanceDescriptor)
+    .registerComponent(compactToolCardAppearanceDescriptor)
+    .registerComponent(terminalToolCardAppearanceDescriptor)
     .registerComponent(confirmDialogAppearanceDescriptor)
-    .registerComponent(inputDialogAppearanceDescriptor)
     .registerComponent(windowControlsAppearanceDescriptor)
-    .registerComponent(navigationTransitionBoundaryAppearanceDescriptor)
     .registerComponent(markdownAppearanceDescriptor)
-    .registerComponent(chatInputAppearanceDescriptor)
+    .registerComponent(mermaidBlockAppearanceDescriptor)
+    .registerComponent(inputDialogAppearanceDescriptor)
+        .registerComponent(navigationTransitionBoundaryAppearanceDescriptor)
+        .registerComponent(chatInputAppearanceDescriptor)
     .registerComponent(harnessProfileSelectorAppearanceDescriptor)
     .registerComponent(composerVoiceInputAppearanceDescriptor)
     .registerComponent(sessionUsagePanelAppearanceDescriptor)
@@ -420,8 +509,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(welcomePanelAppearanceDescriptor)
     .registerComponent(generativeWidgetToolCardAppearanceDescriptor)
     .registerComponent(snapshotFullscreenDiffViewerAppearanceDescriptor)
-    .registerComponent(mermaidBlockAppearanceDescriptor)
-    .registerComponent(defaultModelConfigAppearanceDescriptor)
+        .registerComponent(defaultModelConfigAppearanceDescriptor)
     .registerComponent(globalPermissionRulesDialogAppearanceDescriptor)
     .registerComponent(mcpResourceBrowserAppearanceDescriptor)
     .registerComponent(editorStatusBarAppearanceDescriptor)

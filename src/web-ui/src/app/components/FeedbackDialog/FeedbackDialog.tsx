@@ -3,13 +3,17 @@ import { CheckCircle2, ExternalLink, List, Send, SquarePen } from 'lucide-react'
 import {
   Button,
   Checkbox,
-  confirmDialog,
   ConfirmDialog,
-  Modal,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
   Select,
   Switch,
   Textarea,
-} from '@/component-library';
+} from '@bitfun/ui';
 import { PrivacyStatementDialog } from '@/app/components/Privacy/PrivacyStatementDialog';
 import { usePrivacy } from '@/app/components/Privacy/PrivacyContext';
 import {
@@ -25,6 +29,7 @@ import {
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { createLogger } from '@/shared/utils/logger';
 import { registerCriticalOperationExitGuard } from '@/shared/services/criticalOperationExitGuard';
+import { confirmDialog } from '@/infrastructure/confirm-dialog/confirmDialogService';
 import { FeedbackInboxView } from './FeedbackInboxView';
 import { PrivacyStatementLink } from './PrivacyStatementLink';
 import { useFeedbackInboxStore } from './feedbackInboxStore';
@@ -414,22 +419,22 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
 
   return (
     <>
-      <Modal
-        isOpen={isOpen}
-        onClose={requestClose}
-        title={t('header.feedback')}
-        size="xlarge"
-        dimensions={{
-          width: '100%',
-          maxWidth: completed ? 560 : 960,
-          maxHeight: 'var(--bitfun-feedback-modal-max-height)',
+      <Dialog
+        open={isOpen}
+        onOpenChange={(_open, reason) => {
+          if (reason === 'close-button' || reason === 'escape-key' || reason === 'pointer-outside') requestClose();
         }}
-        overlayClassName="bitfun-feedback__overlay"
-        contentClassName="bitfun-feedback__modal-content"
-        showCloseButton={!submitting && !replyState.sending}
-        closeOnOverlayClick={!submitting && !replyState.sending}
-        testId="feedback-dialog"
+        size="2xl"
+        className="bitfun-feedback__modal-content"
+        closeOnEscape={!submitting && !replyState.sending}
+        closeOnPointerOutside={!submitting && !replyState.sending}
+        data-testid="feedback-dialog"
       >
+        <DialogHeader>
+          <DialogHeading><DialogTitle>{t('header.feedback')}</DialogTitle></DialogHeading>
+          <DialogClose disabled={submitting || replyState.sending} />
+        </DialogHeader>
+        <DialogBody inset="none">
         <div className="bitfun-feedback__root" data-bf-component="feedback-dialog" data-bf-part="root">
         {completed ? (
           <div className="bitfun-feedback__complete" role="status">
@@ -471,14 +476,12 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
               <Select
                 value={category}
                 placeholder={t('feedback.categoryPlaceholder')}
-                options={categoryOptions}
                 disabled={submitting}
-                onChange={value => {
+                onValueChange={value => {
                   setCategory(value as FeedbackCategory);
                   setSubmitError(null);
                 }}
-                autoClose
-                triggerTestId="feedback-category"
+                options={categoryOptions.map(option => ({ ...option, testId: 'feedback-category' }))}
               />
             </div>
             <div className="bitfun-feedback__content-field">
@@ -496,7 +499,7 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
                 onBeforeInput={handleContentBeforeInput}
                 onCompositionEnd={event => restoreRejectedInsertionCaret(event.currentTarget)}
                 placeholder={t('feedback.contentPlaceholder')}
-                error={content.length > 0 && !content.trim()}
+                invalid={content.length > 0 && !content.trim()}
                 errorMessage={t('feedback.errors.contentRequired')}
                 data-testid="feedback-content"
               />
@@ -506,15 +509,20 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
               </div>
             </div>
             <div className="bitfun-feedback__correlation">
-              <Switch
-                checked={includeCorrelation}
-                onChange={event => setIncludeCorrelation(event.target.checked)}
-                disabled={submitting || !correlationAvailable}
-                label={t('feedback.correlation.label')}
-                description={correlationAvailable
-                  ? t('feedback.correlation.description')
-                  : t('feedback.correlation.unavailable')}
-              />
+              <label className="bitfun-feedback__correlation-control">
+                <Switch
+                  checked={includeCorrelation}
+                  onCheckedChange={setIncludeCorrelation}
+                  disabled={submitting || !correlationAvailable}
+                  aria-label={t('feedback.correlation.label')}
+                />
+                <span>
+                  <strong>{t('feedback.correlation.label')}</strong>
+                  <small>{correlationAvailable
+                    ? t('feedback.correlation.description')
+                    : t('feedback.correlation.unavailable')}</small>
+                </span>
+              </label>
             </div>
             <div className="bitfun-feedback__privacy">
               <Checkbox
@@ -546,14 +554,13 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
               </div>
             ) : null}
             <div className="bitfun-feedback__actions" data-bf-component="feedback-dialog" data-bf-part="actions">
-              <Button type="button" variant="ghost" onClick={openGitCode}>
-                <ExternalLink size={15} aria-hidden="true" />
+              <Button type="button" variant="text" leadingIcon={<ExternalLink size={15} aria-hidden="true" />} onClick={openGitCode}>
                 {t('feedback.actions.gitcode')}
               </Button>
               <div className="bitfun-feedback__primary-actions">
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="outline"
                   disabled={submitting}
                   onClick={requestClose}
                 >
@@ -562,10 +569,11 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
                 <Button
                   type="submit"
                   disabled={!canSubmit}
-                  isLoading={submitting}
+                  loading={submitting}
+                  variant="primary"
+                  leadingIcon={<Send size={15} aria-hidden="true" />}
                   data-testid="feedback-submit"
                 >
-                  <Send size={15} aria-hidden="true" />
                   {submitError instanceof FeedbackApiError && submitError.retryable
                     ? t('feedback.actions.retry')
                     : t('feedback.actions.submit')}
@@ -586,10 +594,11 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
           </div>
         )}
         </div>
-      </Modal>
+        </DialogBody>
+      </Dialog>
       <ConfirmDialog
-        isOpen={showDiscardConfirm}
-        onClose={() => setShowDiscardConfirm(false)}
+        open={showDiscardConfirm}
+        onOpenChange={() => setShowDiscardConfirm(false)}
         onConfirm={closeImmediately}
         title={t('feedback.discard.title')}
         message={t('feedback.discard.message')}
@@ -598,8 +607,8 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
         confirmDanger
       />
       <ConfirmDialog
-        isOpen={pendingReplyExit !== null}
-        onClose={() => setPendingReplyExit(null)}
+        open={pendingReplyExit !== null}
+        onOpenChange={() => setPendingReplyExit(null)}
         onConfirm={discardReplyAndContinue}
         title={t('feedback.reply.discardTitle')}
         message={t('feedback.reply.discardMessage')}

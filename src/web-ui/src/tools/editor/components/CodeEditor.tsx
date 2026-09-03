@@ -19,8 +19,6 @@ import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { EditorConfig as EditorConfigType } from '@/infrastructure/config/types';
 import { LoadingState } from '@bitfun/ui';
 import { getMonacoLanguage } from '@/infrastructure/language-detection';
-import { CubeLoading } from '@/component-library';
-import { getFileIconType, getMonacoLanguage } from '@/infrastructure/language-detection';
 import { createLogger } from '@/shared/utils/logger';
 import { sendDebugProbe } from '@/shared/utils/debugProbe';
 import { elapsedMs, nowMs } from '@/shared/utils/timing';
@@ -58,14 +56,12 @@ import {
 const log = createLogger('CodeEditor');
 import {
   GoToLinePopover,
+  IndentPopover,
   EncodingPopover,
   LanguagePopover,
 } from './StatusBarPopovers';
 import type { AnchorRect } from './StatusBarPopovers';
 import './CodeEditor.scss';
-
-const log = createLogger('CodeEditor');
-export const FILE_TOO_LARGE_ERROR = 'file-too-large';
 
 export interface CodeEditorProps {
   /** File path */
@@ -82,8 +78,6 @@ export interface CodeEditorProps {
   language?: string;
   /** Read-only mode */
   readOnly?: boolean;
-  /** Read encoding passed to the workspace file API. */
-  readEncoding?: string;
   /** Show line numbers */
   showLineNumbers?: boolean;
   /** Show minimap */
@@ -112,7 +106,6 @@ export interface CodeEditorProps {
   autoSaveDelayMs?: number;
 }
 
-export const MAX_TEXT_FILE_SIZE_BYTES = 15 * 1024 * 1024;
 const LARGE_FILE_SIZE_THRESHOLD_BYTES = 1 * 1024 * 1024; // 1MB
 const LARGE_FILE_MAX_LINE_LENGTH = 20000;
 const LARGE_FILE_RENDER_LINE_LIMIT = 10000;
@@ -176,7 +169,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   fileName,
   language = 'plaintext',
   readOnly = false,
-  readEncoding,
   showLineNumbers = true,
   showMinimap = true,
   className = '',
@@ -204,7 +196,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   }, [rawFilePath]);
 
   const { t } = useI18n('tools');
-
+  
   const detectLanguageFromFileName = useCallback((fileName: string): string => {
     const detected = getMonacoLanguage(fileName);
     return detected !== 'plaintext' ? detected : (language || 'plaintext');
@@ -255,16 +247,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     minimap: { enabled: showMinimap, side: 'right', size: 'proportional' }
   });
   const isMemoryContent = initialContent !== undefined;
-  const isUnsupportedFileType = !isMemoryContent && ['archive', 'binary'].includes(
-    getFileIconType(fileName || filePath)
-  );
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [selection, setSelection] = useState({ chars: 0, lines: 0 });
   const [statusBarPopover, setStatusBarPopover] = useState<null | 'position' | 'indent' | 'encoding' | 'language'>(null);
   const [statusBarAnchorRect, setStatusBarAnchorRect] = useState<AnchorRect | null>(null);
   const [encoding, setEncoding] = useState<string>('UTF-8');
   const [largeFileMode, setLargeFileMode] = useState(false);
-  const [largeFilePreview, setLargeFilePreview] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const modelRef = useRef<monaco.editor.ITextModel | null>(null);
@@ -320,7 +308,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const editorConfigRuntimeRef = useRef(editorConfig);
 
   workspacePathRuntimeRef.current = workspacePath;
-  readOnlyRuntimeRef.current = readOnly || largeFilePreview;
+  readOnlyRuntimeRef.current = readOnly;
   showLineNumbersRuntimeRef.current = showLineNumbers;
   showMinimapRuntimeRef.current = showMinimap;
   onContentChangeRef.current = onContentChange;
@@ -505,16 +493,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     return () => document.removeEventListener('mousedown', onMouseDown, true);
   }, [statusBarPopover]);
 
-    useEffect(() => {
-    if (!statusBarPopover) return;
-    const handleClosePreview = () => {
-      setStatusBarPopover(null);
-      setStatusBarAnchorRect(null);
-    };
-    window.addEventListener('closePreview', handleClosePreview);
-    return () => window.removeEventListener('closePreview', handleClosePreview);
-  }, [statusBarPopover]);
-
   // Sync font/config to editor when editorConfig changes (fixes late getConfig when opening from file tree)
   useEffect(() => {
     if (!monacoReady || !editorRef.current) return;
@@ -559,8 +537,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           insertSpaces,
           wordWrap: (config.word_wrap as any) || 'off',
           lineNumbers: config.line_numbers as any || 'on',
-          readOnly: readOnly || largeFilePreview,
-          minimap: {
+          minimap: { 
             enabled: showMinimap && !largeFileMode,
             side: (config.minimap?.side as any) || 'right',
             size: (config.minimap?.size as any) || 'proportional'
@@ -614,7 +591,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     return () => {
       globalEventBus.off('editor:config:changed', handleConfigChange);
     };
-  }, [showMinimap, largeFileMode, largeFilePreview, readOnly]);
+  }, [showMinimap, largeFileMode]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -826,7 +803,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         // #endregion
         
         (container as any).__monacoEditor = editor;
-
+        
         setMonacoReady(true);
         const applyOptionsFromConfig = (c: Partial<EditorConfigType>) => {
           const fs = c.font_size ?? DEFAULT_EDITOR_FONT_SIZE;
@@ -1013,7 +990,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         }).catch(err => {
           log.error('Failed to load EditorReadyManager', err);
         });
-
+        
       } catch (error) {
         log.error('Failed to initialize editor', error);
         setError(tRef.current('editor.codeEditor.initFailedWithMessage', { message: String(error) }));
@@ -1383,6 +1360,23 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     if (editor && model) performJump(editor, model, line, column);
   }, [performJump]);
 
+  const handleIndentConfirm = useCallback((tabSize: number, insertSpaces: boolean) => {
+    const merged = { tab_size: tabSize, insert_spaces: insertSpaces };
+    userIndentRef.current = merged;
+    setEditorConfig((prev) => ({ ...prev, ...merged }));
+    const editor = editorRef.current;
+    if (editor) {
+      editor.updateOptions({ tabSize, insertSpaces });
+    }
+    // Async persistence, don't block UI update, don't trigger applyConfig override
+    configManager.getConfig<EditorConfigType>('editor').then((config) => {
+      const fullMerged = { ...(config || {}), ...merged };
+      return configManager.setConfig('editor', fullMerged);
+    }).catch((err) => {
+      log.warn('Failed to persist indent config', err);
+    });
+  }, []);
+
   const fetchFileMetadata = useCallback(async () => {
     if (isMemoryContent) return null;
     const { workspaceAPI } = await import('@/infrastructure/api');
@@ -1447,12 +1441,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       return;
     }
 
-    if (isUnsupportedFileType) {
-      setLoading(false);
-      setError('editor.common.unsupportedFileType');
-      return;
-    }
-
     if (isMemoryContent) {
       const fileContent = initialContent ?? '';
       setLoading(true);
@@ -1510,20 +1498,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     try {
       const { workspaceAPI } = await import('@/infrastructure/api');
 
-      const fileInfoBefore = await fetchFileMetadata();
-      if (isFileMissingFromMetadata(fileInfoBefore)) {
-        throw new Error('File does not exist');
-      }
-      const fileSizeBytes = typeof fileInfoBefore?.size === 'number'
-        ? fileInfoBefore.size
-        : undefined;
-      if (typeof fileSizeBytes === 'number' && fileSizeBytes >= MAX_TEXT_FILE_SIZE_BYTES) {
-        setError(FILE_TOO_LARGE_ERROR);
-        return;
-      }
-      const fileContent = await workspaceAPI.readFileContent(filePath, readEncoding);
-      setLargeFilePreview(false);
+      const fileContent = await workspaceAPI.readFileContent(filePath);
       reportFileMissingFromDisk(false);
+      let fileSizeBytes: number | undefined;
       try {
         const fileInfoAfter = await fetchFileMetadata();
         if (isFileMissingFromMetadata(fileInfoAfter)) {
@@ -1534,6 +1511,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           if (v) {
             diskVersionRef.current = v;
           }
+        }
+        if (typeof fileInfoAfter?.size === 'number') {
+          fileSizeBytes = fileInfoAfter.size;
         }
       } catch (err) {
         if (isLikelyFileNotFoundError(err)) {
@@ -1591,8 +1571,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     filePath,
     initialContent,
     isMemoryContent,
-    isUnsupportedFileType,
-    readEncoding,
     reportFileMissingFromDisk,
     t,
     updateLargeFileMode,
@@ -1600,7 +1578,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
   // Save file content
   const saveFileContent = useCallback(async () => {
-    if (!filePath || readOnly) return;
+    if (!filePath) return;
     if (isMemoryContent) return;
     
     // Read latest hasChanges state from ref to avoid closure issues
@@ -1637,7 +1615,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           confirmDanger: true,
         });
         if (!overwrite) {
-          const diskContent = await workspaceAPI.readFileContent(filePath, readEncoding);
+          const diskContent = await workspaceAPI.readFileContent(filePath);
           const fileInfoAfter = await fetchFileMetadata();
           const vAfter = diskVersionFromMetadata(fileInfoAfter);
           applyDiskSnapshotToEditor(diskContent, vAfter);
@@ -1686,8 +1664,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     filePath,
     isMemoryContent,
     onSave,
-    readEncoding,
-    readOnly,
     reportFileMissingFromDisk,
     t,
     workspacePath,
@@ -1698,7 +1674,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   }, [saveFileContent]);
 
   useEffect(() => {
-    if (!autoSave || readOnly || !filePath || !hasChanges || loading || saving) {
+    if (!autoSave || !filePath || !hasChanges || loading || saving) {
       return;
     }
 
@@ -1709,7 +1685,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     return () => {
       window.clearTimeout(timeout);
     };
-  }, [autoSave, autoSaveDelayMs, filePath, hasChanges, loading, readOnly, saving, content]);
+  }, [autoSave, autoSaveDelayMs, filePath, hasChanges, loading, saving, content]);
 
   // Container-level keyboard event handler, solves global conflict issues with multiple editor instances
   const handleContainerKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -1840,7 +1816,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         return;
       }
 
-      const fileContent = await workspaceAPI.readFileContent(filePath, readEncoding);
+      const fileContent = await workspaceAPI.readFileContent(filePath);
       if (diskContentMatchesEditorForExternalSync(fileContent, editorBuffer)) {
         diskVersionRef.current = currentVersion;
         outcome = 'content-match';
@@ -1891,7 +1867,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       }
       isCheckingFileRef.current = false;
     }
-  }, [applyDiskSnapshotToEditor, fetchFileMetadata, filePath, isActiveTab, readEncoding, reportFileMissingFromDisk, t]);
+  }, [applyDiskSnapshotToEditor, fetchFileMetadata, filePath, isActiveTab, reportFileMissingFromDisk, t]);
 
   // Initial file load - only run once when filePath changes
   const loadFileContentCalledRef = useRef(false);
@@ -2090,7 +2066,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           });
         }
 
-        const diskContent = await workspaceAPI.readFileContent(filePath, readEncoding);
+        const diskContent = await workspaceAPI.readFileContent(filePath);
         const editorBuffer = modelRef.current?.getValue();
         if (
           bufferBeforeRead !== undefined &&
@@ -2158,7 +2134,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     return () => {
       unsubscribers.forEach(unsub => unsub());
     };
-  }, [applyDiskSnapshotToEditor, fetchFileMetadata, monacoReady, filePath, readEncoding, t, workspacePath]);
+  }, [applyDiskSnapshotToEditor, fetchFileMetadata, monacoReady, filePath, t, workspacePath]);
 
   useEffect(() => {
     userLanguageOverrideRef.current = false;
@@ -2175,11 +2151,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const loadingOverlayText = monacoReady
     ? t('editor.codeEditor.loadingFile')
     : t('editor.codeEditor.preparingEditor');
-  const errorMessage = error === FILE_TOO_LARGE_ERROR || error === 'editor.common.fileTooLarge'
-    ? t('editor.common.fileTooLarge')
-    : error === 'editor.common.unsupportedFileType'
-      ? t('editor.common.unsupportedFileType')
-      : error;
 
   return (
     <div 
@@ -2187,7 +2158,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       data-monaco-editor="true"
       data-editor-id={`editor-${filePath.replace(/[^a-zA-Z0-9]/g, '-')}`}
       data-file-path={filePath}
-      data-readonly={readOnly || largeFilePreview ? 'true' : 'false'}
+      data-readonly={readOnly ? 'true' : 'false'}
       data-bf-component="editor-tool"
       data-bf-part="root"
       data-bf-state={[
@@ -2197,7 +2168,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       ].filter(Boolean).join(' ') || undefined}
       onKeyDownCapture={handleContainerKeyDown}
     >
-      {showBreadcrumb && !isUnsupportedFileType && error !== FILE_TOO_LARGE_ERROR && (
+      {showBreadcrumb && (
         <EditorBreadcrumb
           filePath={filePath}
           workspacePath={workspacePath}
@@ -2211,7 +2182,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
             width: '100%', 
             height: '100%',
             overflow: 'hidden',
-            visibility: loading || error ? 'hidden' : 'visible',
             opacity: loading && showLoadingOverlay ? 0.3 : 1,
             transition: 'opacity 0.2s'
           }} 
@@ -2235,22 +2205,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           >
             {t('editor.common.retry')}
           </Button>
-          <p className="code-editor-tool__error-message">{errorMessage}</p>
-          {!isUnsupportedFileType && error !== FILE_TOO_LARGE_ERROR && (
-            <button
-              onClick={loadFileContent}
-              className="code-editor-tool__error-retry-btn"
-              type="button"
-            >
-              {t('editor.common.retry')}
-            </button>
-          )}
-        </div>
-      )}
-
-      {largeFilePreview && !loading && !error && (
-        <div className="code-editor-tool__saving-indicator">
-          {t('editor.common.largeFilePreview')}
         </div>
       )}
 
@@ -2270,13 +2224,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         tabSize={editorConfig.tab_size || 2}
         insertSpaces={editorConfig.insert_spaces !== false}
         isReadOnly={readOnly}
-        isReadOnly={readOnly || largeFilePreview}
-        lspStatus={
-          enableLsp && lspExtensionRegistry.isFileSupported(filePath)
-            ? (lspReady ? 'connected' : 'connecting')
-            : undefined
-        }
         onPositionClick={(e) => openStatusBarPopover('position', e)}
+        onIndentClick={(e) => openStatusBarPopover('indent', e)}
         onEncodingClick={(e) => openStatusBarPopover('encoding', e)}
         onLanguageClick={(e) => openStatusBarPopover('language', e)}
       />
@@ -2287,6 +2236,15 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           currentLine={cursorPosition.line}
           currentColumn={cursorPosition.column}
           onConfirm={handleGoToLineConfirm}
+          onClose={closeStatusBarPopover}
+        />
+      )}
+      {statusBarPopover === 'indent' && statusBarAnchorRect && (
+        <IndentPopover
+          anchorRect={statusBarAnchorRect}
+          currentTabSize={editorConfig.tab_size || 2}
+          currentInsertSpaces={editorConfig.insert_spaces !== false}
+          onConfirm={handleIndentConfirm}
           onClose={closeStatusBarPopover}
         />
       )}

@@ -32,7 +32,7 @@ describe('feedback conversation contract', () => {
     const mock = readSource('../../../../../../scripts/feedback-mock-server.mjs');
 
     expect(source).toContain('<IconButton');
-    expect(source).toContain("tooltip={t('feedback.conversation.refresh')}");
+    expect(source).toContain("aria-label={t('feedback.conversation.refresh')}");
     expect(source).toContain("aria-label={t('feedback.conversation.refresh')}");
     expect(source).toContain('<p>{message.content}</p>');
     expect(source).toContain("data-content-deleted={message.contentDeleted ? 'true' : undefined}");
@@ -112,7 +112,7 @@ describe('feedback conversation contract', () => {
     const dialog = readSource('./FeedbackDialog.tsx');
 
     expect(conversation).toContain('disabled={sending}');
-    expect(conversation).toContain('confirmDisabled={sending}');
+    expect(conversation).toContain("pendingAction={sending ? 'confirm' : null}");
     expect(dialog).toContain("setPendingReplyExit({ kind: 'close' })");
     expect(dialog).toContain("t('feedback.reply.discardConfirm')");
     expect(dialog).toContain('setReplyResetVersion(current => current + 1)');

@@ -14,31 +14,6 @@ import type {
 } from '@/flow_chat/utils/agentCompanionActivity';
 import type { AgentCompanionPetCommand } from '@/app/services/agentCompanionPetCommands';
 import { createLogger } from '@/shared/utils/logger';
-import {
-  DEFAULT_PET_SIZE,
-  DEFAULT_PETDEX_DISPLAY_SIZE,
-  PETDEX_DESKTOP_SCALE,
-  WINDOW_MAX_WIDTH,
-  WINDOW_MAX_HEIGHT,
-  WINDOW_HORIZONTAL_GAP,
-  MAX_VISIBLE_BUBBLES,
-  BUBBLE_GAP,
-  BUBBLE_WIDTH,
-  BUBBLE_OUTPUT_TYPEWRITER_INTERVAL_MS,
-  WINDOW_EDGE_BUFFER,
-  MENU_EDGE_MARGIN,
-  PET_DRAG_THRESHOLD_PX,
-  type TypewriterOutputState,
-  type PetOverlayState,
-  type BubbleDismissBucket,
-  type MenuAnchor,
-  menuAnchorFromEvent,
-  bubbleDismissBucket,
-  isAcknowledgeableTaskState,
-  rectContainsPoint,
-  seedTypewriterOutput,
-  advanceTypewriterOutput,
-} from './agentCompanionPetShared';
 import { isImeOwnedKeyboardEvent } from '@/shared/utils/ime';
 import './AgentCompanionDesktopPet.scss';
 

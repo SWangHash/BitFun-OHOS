@@ -98,16 +98,6 @@ objc2-foundation = { workspace = true, features = ["std", "NSArray", "NSData", "
 objc2-app-kit = { workspace = true }
 objc2-vision = { workspace = true, features = ["std", "VNRecognizeTextRequest", "VNRequest", "VNObservation", "VNRequestHandler", "VNUtils", "VNTypes", "objc2-core-foundation"] }
 
-[target.'cfg(not(target_env = "ohos"))'.dependencies]
-tauri-plugin-dialog = { workspace = true }
-tauri-plugin-updater = { workspace = true }
-tauri-plugin-window-state = { workspace = true }
-tauri-plugin-single-instance = { workspace = true }
-xz2 = { workspace = true }
-screenshots = { workspace = true }
-enigo = { workspace = true }
-dark-light = { workspace = true }
-
 [target.'cfg(windows)'.dependencies]
 tauri-plugin-dialog = { workspace = true }
 win32job = { workspace = true }
@@ -159,6 +149,10 @@ leptess = { workspace = true }
 # Secret Service provider; the desktop host injects an ArkTS-backed vault
 # at startup instead.
 [target.'cfg(not(target_env = "ohos"))'.dependencies]
+tauri-plugin-dialog = { workspace = true }
+tauri-plugin-updater = { workspace = true }
+tauri-plugin-window-state = { workspace = true }
+tauri-plugin-single-instance = { workspace = true }
 bitfun-core = { path = "../../crates/assembly/core", features = ["system-vault"] }
 bitfun-services-integrations = { path = "../../crates/services/services-integrations", features = ["system-vault"] }
 xz2 = { workspace = true }

@@ -652,6 +652,7 @@ for (const sceneFile of walk(sceneRoot).filter(file => file.endsWith('Scene.tsx'
 
 const visualEntryPoints = new Set([
   'main.tsx',
+  'component-library/preview/main.tsx',
   'tools/bitfun-canvas/runtime/entry.tsx',
 ]);
 const styledProductionTsx = productionCodeSources.filter(([file, source]) => {

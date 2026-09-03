@@ -23,15 +23,9 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@/shared/utils/logger';
-import { Modal, Button, Input, Tooltip } from '@/component-library';
 import './NewProjectDialog.scss';
-import {workspaceAPI, systemAPI} from "@/infrastructure";
-import { isTauriCommandError } from '@/infrastructure/api/errors/TauriCommandError';
-import { notificationService } from '@/shared/notification-system';
 
 const log = createLogger('NewProjectDialog');
-
-const INVALID_NAME_CHARS = /[\/\\:*?"<>|]/;
 
 export interface NewProjectDialogProps {
   isOpen: boolean;
@@ -62,12 +56,15 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
   // Open directory picker dialog
   const handleSelectParentPath = useCallback(async () => {
     try {
-      const selected = await workspaceAPI.open_oh_file_dialog({
-        directory: true,
+      const { pickWorkspaceDirectory } = await import(
+        '@/infrastructure/peer-device/pickWorkspaceDirectory'
+      );
+      const selected = await pickWorkspaceDirectory({
+        title: t('newProject.selectParentDirectory'),
         defaultPath: parentPath || defaultParentPath,
       });
 
-      if (selected && typeof selected === 'string') {
+      if (selected) {
         setParentPath(selected);
         setError('');
       }
@@ -87,29 +84,6 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
       setError(t('newProject.errorEnterName'));
       return;
     }
-    if (INVALID_NAME_CHARS.test(projectName.trim())) {
-      notificationService.warning(t('newProject.errorInvalidName'), { duration: 4500 });
-      return;
-    }
-    if (projectName.trim().length > 255) {
-      setError(t('newProject.errorNameTooLong'));
-      return;
-    }
-
-    // Pre-creation existence / case-collision check. On Windows/macOS the
-    // filesystem is case-insensitive, so "MyProject" and "myproject" resolve to
-    // the same folder; createDirectory is idempotent and would silently succeed
-    // without creating a new folder. Surface a clear error before attempting.
-    const trimmedName = projectName.trim();
-    const fullPath = `${parentPath.replace(/\\/g, '/')}/${trimmedName}`;
-    try {
-      if (await systemAPI.checkPathExists(fullPath)) {
-        setError(t('newProject.errorAlreadyExists'));
-        return;
-      }
-    } catch (error) {
-      log.error('Failed to check path existence', error);
-    }
 
     setIsCreating(true);
     setError('');
@@ -121,16 +95,7 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
       onClose();
     } catch (error) {
       log.error('Failed to create project', error);
-      let message: string;
-      if (isTauriCommandError(error) && error.isPermissionError()) {
-        message = t('newProject.errorParentNoAccess');
-      } else if (error instanceof Error && /does not exist|not a directory/i.test(error.message)) {
-        message = t('newProject.errorPathNotFound');
-      } else {
-        message = t('newProject.errorCreateFailed');
-      }
-      setError(message);
-      notificationService.error(message, { duration: 4500 });
+      setError(error instanceof Error ? error.message : t('newProject.errorCreateFailed'));
     } finally {
       setIsCreating(false);
     }
@@ -183,14 +148,12 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
             </label>
             <div data-bf-component="new-project-dialog" data-bf-part="pathSelector" className="new-project-dialog__path-selector">
               <div className="new-project-dialog__path-input">
-                <Tooltip content={parentPath} placement="right" followCursor disabled={!parentPath}>
-                  <Input
-                    type="text"
-                    value={parentPath}
-                    readOnly
-                    placeholder={t('newProject.parentDirectoryPlaceholder')}
-                  />
-                </Tooltip>
+                <Input
+                  type="text"
+                  value={parentPath}
+                  readOnly
+                  placeholder={t('newProject.parentDirectoryPlaceholder')}
+                />
               </div>
               <Button
                 type="button"
@@ -216,12 +179,6 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
                 type="text"
                 value={projectName}
                 onChange={handleProjectNameChange}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isCreating) {
-                    e.preventDefault();
-                    void handleConfirm();
-                  }
-                }}
                 placeholder={t('newProject.projectNamePlaceholder')}
                 disabled={isCreating}
                 autoFocus
@@ -237,9 +194,7 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
               </div>
               <div className="new-project-dialog__preview-content">
                 <span className="new-project-dialog__preview-label">{t('newProject.fullPath')}</span>
-                <Tooltip content={fullPath} placement="right" followCursor>
-                  <span className="new-project-dialog__preview-path">{fullPath}</span>
-                </Tooltip>
+                <span className="new-project-dialog__preview-path">{fullPath}</span>
               </div>
             </div>
           )}

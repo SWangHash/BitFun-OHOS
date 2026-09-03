@@ -1,5 +1,7 @@
  
 
+@use '../../../../component-library/styles/tokens' as *;
+@use '../../../../component-library/styles/_extended-mixins' as mixins;
 @use './config-page-layout.tokens' as configLayout;
 
 
@@ -7,13 +9,15 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bf-color-surface-scene);
-  color: var(--bf-color-content-primary);
-  font-family:var(--bf-font-family-sans);
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bf-appearance-token-color-bg-scene);
+  color: var(--bf-appearance-token-color-text-primary);
+  font-family: var(--bf-appearance-token-font-family-sans);
   /* Shared layout contract for settings pages in wide scenes. */
   --config-page-content-bottom-padding: 48px;
   /* Vertical gap between top-level sections (ConfigPageSection blocks) inside ConfigPageContent. */
-  --config-page-section-gap: 36px;
+  --config-page-section-gap: 32px;
   /* Keep supporting copy readable and aligned across settings sections and rows. */
   --config-page-description-max-width: 60ch;
   container-type: inline-size;
@@ -61,14 +65,14 @@
 .bitfun-config-page-section {
   display: flex;
   flex-direction: column;
-  gap: var(--bf-space-4);
+  gap: var(--bf-appearance-token-size-gap-4);
 }
 
 .bitfun-config-page-section__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--bf-space-3);
+  gap: var(--bf-appearance-token-size-gap-3);
 }
 
 .bitfun-config-page-section__heading {
@@ -80,64 +84,67 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--bf-space-2);
+  gap: var(--bf-appearance-token-size-gap-2);
   min-width: 0;
 }
 
 .bitfun-config-page-section__title {
   margin: 0;
-  font-size: var(--bf-font-size-lg);
-  font-weight: var(--bf-font-weight-semibold);
-  color: var(--bf-color-content-primary);
-  line-height: var(--bf-line-height-dense);
+  font-size: var(--bf-appearance-token-font-size-base);
+  font-weight: var(--bf-appearance-token-font-weight-semibold);
+  color: var(--bf-appearance-token-color-text-primary);
+  line-height: var(--bf-appearance-token-line-height-tight);
 }
 
 .bitfun-config-page-section__description {
-  margin: var(--bf-space-1) 0 0;
+  margin: var(--bf-appearance-token-size-gap-1) 0 0;
   max-inline-size: var(--config-page-description-max-width);
-  font-size: var(--bf-font-size-sm);
-  color: var(--bf-color-content-primary);
-  line-height: var(--bf-line-height-compact);
+  font-size: var(--bf-appearance-token-font-size-xs);
+  color: var(--bf-appearance-token-color-text-secondary);
+  line-height: var(--bf-appearance-token-line-height-relaxed);
   text-wrap: pretty;
 }
 
 .bitfun-config-page-section__extra {
   flex-shrink: 0;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: var(--bf-space-3);
+  gap: var(--bf-appearance-token-size-gap-2);
 }
 
 .bitfun-config-page-section__body {
   min-width: 0;
+  background: var(--bf-appearance-token-element-bg-subtle);
+  border: 1px solid var(--bf-appearance-token-border-subtle);
+  border-radius: var(--bf-appearance-token-size-radius-md);
+  overflow: visible;
+  box-shadow: inset 0 1px 0 var(--bf-appearance-token-color-overlay-white-04);
 }
 
-// Sections whose children own their own cards should not render a second surface.
+// Sections whose children own their own cards. Every visual boundary has to go,
+// including the inset highlight, or the mouse glow keeps tracing this container.
 .bitfun-config-page-section__body--flush {
   background: transparent;
   border: 0;
   border-radius: 0;
-  overflow: visible;
   box-shadow: none;
 }
 
 .bitfun-config-page-row {
-  --row-grid-cols: minmax(0, 1fr) minmax(0, 150px);
+  --row-grid-cols: minmax(0, 7fr) minmax(0, 3fr);
   display: grid;
   grid-template-columns: var(--row-grid-cols);
-  gap: 40px;
-  padding: var(--bf-space-4) var(--bf-space-5);
+  gap: var(--bf-appearance-token-size-gap-4);
+  padding: var(--bf-appearance-token-size-gap-4);
 }
 
 .bitfun-config-page-row + .bitfun-config-page-row {
-  border-top: 1px solid var(--bf-component-config-page-divider);
+  border-top: 1px solid var(--bf-appearance-token-border-subtle);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .bitfun-config-page-row:hover {
-    background: var(--bf-component-config-page-row-hover-background);
+    background: var(--bf-appearance-token-color-overlay-white-04);
   }
 }
 
@@ -151,7 +158,7 @@
 
 .bitfun-config-page-row--multiline {
   --row-grid-cols: 1fr;
-  gap: var(--bf-space-2);
+  gap: var(--bf-appearance-token-size-gap-2);
 
   .bitfun-config-page-row__control {
     justify-content: flex-start;
@@ -160,38 +167,25 @@
   }
 }
 
-.bitfun-config-page-row--no-control {
-  --row-grid-cols: minmax(0, 1fr);
-
-  .bitfun-config-page-row__meta {
-    grid-column: 1 / -1;
-  }
-
-  .bitfun-config-page-row__description {
-    max-inline-size: none;
-  }
-}
-
 
 .bitfun-config-page-row__meta {
   min-width: 0;
-  max-width: 450px;
 }
 
 .bitfun-config-page-row__label {
   margin: 0;
-  font-size: var(--bf-font-size-sm);
-  font-weight: var(--bf-font-weight-semibold);
-  color: var(--bf-color-content-primary);
-  line-height: var(--bf-line-height-dense);
+  font-size: var(--bf-appearance-token-font-size-sm);
+  font-weight: var(--bf-appearance-token-font-weight-medium);
+  color: var(--bf-appearance-token-color-text-primary);
+  line-height: var(--bf-appearance-token-line-height-base);
 }
 
 .bitfun-config-page-row__description {
-  margin: var(--bf-space-1) 0 0;
+  margin: var(--bf-appearance-token-size-gap-1) 0 0;
   max-inline-size: var(--config-page-description-max-width);
-  font-size: var(--bf-font-size-meta);
-  color: var(--bf-color-content-secondary);
-  line-height: var(--bf-line-height-snug);
+  font-size: var(--bf-appearance-token-font-size-xs);
+  color: var(--bf-appearance-token-color-text-secondary);
+  line-height: var(--bf-appearance-token-line-height-relaxed);
   text-wrap: pretty;
 }
 
@@ -203,50 +197,35 @@
   justify-content: flex-end;
   justify-self: stretch;
 
-  // Only field-like controls consume the full control column. Intrinsic
-  // controls such as Switch, Button, Checkbox, and StatusPill keep the
-  // geometry owned by their design-system component.
-  > :where(
-    [data-bf-component='input'],
-    [data-bf-component='search-field'],
-    [data-bf-component='textarea'],
-    [data-bf-component='combobox'],
-    [data-bf-component='multi-select'],
-    [data-bf-component='select'],
-    [data-bf-component='number-input']
-  ),
-  > div:has(
-    > :where(
-      [data-bf-component='input'],
-      [data-bf-component='search-field'],
-      [data-bf-component='textarea'],
-      [data-bf-component='combobox'],
-      [data-bf-component='multi-select'],
-      [data-bf-component='select'],
-      [data-bf-component='number-input']
-    )
-  ),
-  > div:has(
-    > :where(
-      [data-bf-component='input'],
-      [data-bf-component='search-field'],
-      [data-bf-component='textarea'],
-      [data-bf-component='combobox'],
-      [data-bf-component='multi-select'],
-      [data-bf-component='select'],
-      [data-bf-component='number-input']
-    )
-  ) > :where(
-    [data-bf-component='input'],
-    [data-bf-component='search-field'],
-    [data-bf-component='textarea'],
-    [data-bf-component='combobox'],
-    [data-bf-component='multi-select'],
-    [data-bf-component='select'],
-    [data-bf-component='number-input']
-  ) {
-    inline-size: 100%;
-    min-inline-size: 0;
+  > .bitfun-input-wrapper,
+  > .select,
+  > .bitfun-number-input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /*
+   * Safety net for pages that wrap a control in a positioning/state div: an
+   * unstyled wrapper is a flex item, so it would shrink to content width and
+   * that row's dropdown would render narrower than every other row's.
+   */
+  > div:has(> .select),
+  > div:has(> .bitfun-input-wrapper),
+  > div:has(> .bitfun-number-input) {
+    width: 100%;
+    min-width: 0;
+
+    > .select,
+    > .bitfun-input-wrapper,
+    > .bitfun-number-input {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+
+  > .bitfun-number-input .bitfun-number-input__input,
+  > div:has(> .bitfun-number-input) > .bitfun-number-input .bitfun-number-input__input {
+    text-align: left;
   }
 }
 
@@ -256,20 +235,18 @@
   }
 
   .bitfun-config-page-content {
-    --config-page-section-gap: 36px;
+    --config-page-section-gap: var(--bf-appearance-token-size-gap-8);
+    padding-inline: var(--bf-appearance-token-size-gap-4);
   }
 
   .bitfun-config-page-content__inner {
-    width: min(
-      calc(100% - (2 * #{configLayout.$config-page-content-inline-padding})),
-      #{configLayout.$config-page-content-max-width}
-    );
+    width: calc(100% - (2 * var(--bf-appearance-token-size-gap-4)));
   }
 }
 
 @container config-panel (max-width: 520px) {
   .bitfun-config-page-section {
-    gap: var(--bf-space-3);
+    gap: var(--bf-appearance-token-size-gap-3);
   }
 
   .bitfun-config-page-section__header {
@@ -284,12 +261,8 @@
 
   .bitfun-config-page-row {
     grid-template-columns: minmax(0, 1fr);
-    gap: var(--bf-space-2);
-    padding: var(--bf-space-4);
-  }
-
-  .bitfun-config-page-row__meta {
-    max-width: none;
+    gap: var(--bf-appearance-token-size-gap-2);
+    padding: var(--bf-appearance-token-size-gap-3);
   }
 
   .bitfun-config-page-row__control {

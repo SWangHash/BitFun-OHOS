@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { LockKeyhole, RefreshCw, Send } from 'lucide-react';
-import { Button, ConfirmDialog, IconButton, Textarea } from '@/component-library';
+import { Button, ConfirmDialog, IconButton, Textarea } from '@bitfun/ui';
 import { usePrivacy } from '@/app/components/Privacy/PrivacyContext';
 import { PrivacyStatementDialog } from '@/app/components/Privacy/PrivacyStatementDialog';
 import { useImeOwnedKeyGuard } from '@/flow_chat/hooks/useImeOwnedKeyGuard';
@@ -460,16 +460,14 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
         <span>{t('feedback.conversation.messages')}</span>
         <IconButton
           type="button"
-          variant="ghost"
-          size="small"
-          tooltip={t('feedback.conversation.refresh')}
+          variant="quiet"
+          size="sm"
           aria-label={t('feedback.conversation.refresh')}
           disabled={loading || refreshing || loadingEarlier || sending}
-          isLoading={refreshing}
+          loading={refreshing}
+          icon={<RefreshCw size={15} aria-hidden="true" />}
           onClick={() => void loadLatest(true)}
-        >
-          <RefreshCw size={15} aria-hidden="true" />
-        </IconButton>
+        />
       </div>
       {error || ackError ? (
         <div className="bitfun-feedback__conversation-notices">
@@ -478,8 +476,8 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
               <span>{conversationErrorText(error.code, t)}</span>
               <Button
                 type="button"
-                variant="ghost"
-                size="small"
+                variant="text"
+                size="sm"
                 disabled={sending}
                 onClick={() => void loadLatest(true)}
               >
@@ -563,8 +561,13 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
             </div>
           ) : null}
           <div className="bitfun-feedback__reply-actions">
-            <Button type="submit" disabled={!canReply} isLoading={sending}>
-              <Send size={15} aria-hidden="true" />
+            <Button
+              type="submit"
+              disabled={!canReply}
+              loading={sending}
+              variant="primary"
+              leadingIcon={<Send size={15} aria-hidden="true" />}
+            >
               {replyError instanceof FeedbackApiError && replyError.retryable
                 ? t('feedback.reply.retry')
                 : t('feedback.reply.send')}
@@ -573,8 +576,8 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
         </form>
       )}
       <ConfirmDialog
-        isOpen={showConsent}
-        onClose={() => {
+        open={showConsent}
+        onOpenChange={() => {
           if (!sending) setShowConsent(false);
         }}
         onConfirm={() => void acceptAndSend()}
@@ -596,9 +599,7 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
         )}
         confirmText={t('feedback.reply.consentConfirm')}
         cancelText={t('feedback.actions.cancel')}
-        confirmDisabled={sending}
-        cancelDisabled={sending}
-        confirmLoading={sending}
+        pendingAction={sending ? 'confirm' : null}
       />
       <PrivacyStatementDialog
         isOpen={showPrivacy}

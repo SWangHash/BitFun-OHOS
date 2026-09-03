@@ -259,12 +259,12 @@ const McpToolsConfig: React.FC = () => {
   // ─── MCP effects & handlers ─────────────────────────────────────────────────
   const LOAD_SERVERS_TIMEOUT_MS = 15_000;
 
-  const loadServers = useCallback(async (silent = false): Promise<boolean> => {
+  const loadServers = useCallback(async (): Promise<boolean> => {
     const capabilityEpoch = currentCapabilityEpoch();
     if (capabilityEpoch === null) return false;
     const requestId = ++serverLoadRequestIdRef.current;
     try {
-      if (!silent) setMcpLoading(true);
+      setMcpLoading(true);
       setServerLoadFailed(false);
       const serverList = await Promise.race([
         MCPAPI.getServers(),
@@ -462,14 +462,6 @@ const McpToolsConfig: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!desktopConfigAvailable || showJsonEditor || servers.length === 0) return;
-    const timer = window.setInterval(() => {
-      void loadServers(true);
-    }, 2000);
-    return () => window.clearInterval(timer);
-  }, [desktopConfigAvailable, showJsonEditor, servers.length, loadServers]);
-
-  useEffect(() => {
     if (!showJsonEditor) {
       setJsonLintError(null);
       return;
@@ -510,16 +502,6 @@ const McpToolsConfig: React.FC = () => {
     return () => window.clearTimeout(handle);
   }, [jsonConfig, showJsonEditor]);
 
-  const handleToggleJsonEditor = (open: boolean) => {
-    if (open) {
-      // Refresh fingerprint before showing the editor — any same-session
-      // mutation (delete, auth save) may have changed mcp_servers behind the
-      // scenes, leaving the cached snapshot stale.
-      void loadJsonConfig();
-    }
-    setShowJsonEditor(open);
-  };
-
   const handleSaveJsonConfig = async () => {
     const capabilityEpoch = currentCapabilityEpoch();
     if (capabilityEpoch === null) return;
@@ -543,9 +525,7 @@ const McpToolsConfig: React.FC = () => {
       if (!jsonConfigFingerprint) {
         throw new Error('MCP configuration snapshot is unavailable; reload before saving');
       }
-
       await MCPAPI.saveMCPJsonConfig(jsonConfig, jsonConfigFingerprint);
-
       if (!capabilityIsCurrent(capabilityEpoch)) return;
       notification.success(tMcp('messages.saveSuccess'), {
         title: tMcp('notifications.saveSuccess'),
@@ -573,16 +553,6 @@ const McpToolsConfig: React.FC = () => {
       });
     } finally {
       setMcpSaving(false);
-      // If the backend reports the config changed (StaleConfiguration), silently
-      // reload the JSON snapshot so the next Save attempt uses the fresh fingerprint.
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (
-        errorMessage.includes('reload before saving') ||
-        errorMessage.includes('changed before write') ||
-        errorMessage.includes('StaleConfiguration')
-      ) {
-        void loadJsonConfig();
-      }
     }
   };
 
@@ -754,7 +724,7 @@ const McpToolsConfig: React.FC = () => {
         title: tMcp('notifications.startSuccess'),
         duration: 3000,
       });
-      await loadServers(true);
+      await loadServers();
     } catch (error) {
       if (!capabilityIsCurrent(capabilityEpoch)) return;
       const needsRemoteAuth = isRemoteServer(server) && isLikelyRemoteAuthError(error);
@@ -788,7 +758,7 @@ const McpToolsConfig: React.FC = () => {
         title: tMcp('notifications.stopSuccess'),
         duration: 3000,
       });
-      await loadServers(true);
+      await loadServers();
     } catch (error) {
       if (!capabilityIsCurrent(capabilityEpoch)) return;
       notification.error(
@@ -827,7 +797,7 @@ const McpToolsConfig: React.FC = () => {
         title: tMcp('notifications.restartSuccess'),
         duration: 3000,
       });
-      await loadServers(true);
+      await loadServers();
     } catch (error) {
       if (!capabilityIsCurrent(capabilityEpoch)) return;
       const needsRemoteAuth = isRemoteServer(server) && isLikelyRemoteAuthError(error);
@@ -951,10 +921,7 @@ const McpToolsConfig: React.FC = () => {
         }
       );
       closeAuthDialog();
-      await loadServers(true);
-      // Refresh JSON editor fingerprint — save_server_config behind the scenes
-      // mutates mcp_servers, invalidating the snapshot the editor holds.
-      void loadJsonConfig();
+      await loadServers();
     } catch (error) {
       if (!capabilityIsCurrent(capabilityEpoch)) return;
       const errorInfo = classifyError(error, tMcp('actions.saveConfig'));
@@ -992,10 +959,7 @@ const McpToolsConfig: React.FC = () => {
         title: tMcp('notifications.saveSuccess'),
         duration: 3000,
       });
-      await loadServers(true);
-      // Refresh JSON editor fingerprint — delete_server_config behind the scenes
-      // mutates mcp_servers, invalidating the snapshot the editor holds.
-      void loadJsonConfig();
+      await loadServers();
     } catch (error) {
       if (!capabilityIsCurrent(capabilityEpoch)) return;
       const errorInfo = classifyError(error, tMcp('actions.delete'));
@@ -1196,9 +1160,9 @@ const McpToolsConfig: React.FC = () => {
 
   const mcpSectionExtra = (
     <>
-      {!showJsonEditor ? (
+      {serverLoadFailed && !showJsonEditor ? (
         <>
-          {serverLoadFailed && servers.length > 0 ? (
+          {servers.length > 0 ? (
             <span className="bitfun-mcp-tools__status-badge is-pending" data-bf-component="mcp-tools-config" data-bf-part="statusBadge">
               {tMcp('external.status.stale')}
             </span>
@@ -1221,15 +1185,6 @@ const McpToolsConfig: React.FC = () => {
           icon={showJsonEditor ? <Icon name="xmark" size="md" /> : <FileJson size={16} />}
         />
       </Tooltip>
-      <IconButton
-        variant="ghost"
-        size="small"
-        onClick={() => handleToggleJsonEditor(!showJsonEditor)}
-        tooltip={showJsonEditor ? tMcp('actions.backToList') : tMcp('actions.jsonConfig')}
-        aria-label={showJsonEditor ? tMcp('actions.backToList') : tMcp('actions.jsonConfig')}
-      >
-        {showJsonEditor ? <X size={16} /> : <FileJson size={16} />}
-      </IconButton>
     </>
   );
 
@@ -1550,8 +1505,6 @@ const McpToolsConfig: React.FC = () => {
             <div className="bitfun-collection-empty" data-bf-component="mcp-tools-config" data-bf-part="empty">
               <Button variant="outline" size="sm" onClick={() => setShowJsonEditor(true)} leadingIcon={<FileJson size={14} />}>
 
-              <Button variant="dashed" size="small" onClick={() => handleToggleJsonEditor(true)}>
-                <FileJson size={14} />
                 {tMcp('actions.jsonConfig')}
               </Button>
             </div>

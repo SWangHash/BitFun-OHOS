@@ -38,7 +38,6 @@ import {
   permissionConfigService,
 } from '../services/PermissionConfigService';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
-import { isOpenHarmonyRuntime } from '@/infrastructure/runtime/environment';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
 import { useNotification, notificationService } from '@/shared/notification-system';
 import type {
@@ -54,28 +53,12 @@ import { ask, open } from '@tauri-apps/plugin-dialog';
 import { createLogger } from '@/shared/utils/logger';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
 import './RuntimeSettingsPages.scss';
-import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
-import './AIFeaturesConfig.scss';
-import './DebugConfig.scss';
 
 type DescribedSelectOption = SelectOption & { description?: string };
 
 const log = createLogger('RuntimeSettings');
 
 const IS_TAURI_DESKTOP = typeof window !== 'undefined' && '__TAURI__' in window;
-const IS_OHOS = isOpenHarmonyRuntime();
-
-/**
- * A peer host that refuses Browser Control / Computer Use (CLI Peer returns
- * "local-only and cannot run on peer"; Desktop Peer would surface a different
- * error). We detect that string so the settings section can show an explicit
- * "unsupported on this peer" notice instead of firing invokes that silently
- * fail on every refresh. See PR #2428 review #4 issue #1.
- */
-function isPeerUnsupportedBrowserControlError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error ?? '');
-  return /is local-only and cannot run on peer|is not supported on CLI peer host/i.test(message);
-}
 
 /**
  * A peer host that refuses Browser Control / Computer Use (CLI Peer returns
@@ -102,7 +85,6 @@ type BrowserControlLaunchResponse = {
   message: string | null;
   browserKind: string;
   setupUrl?: string;
-  fallbackFrom?: string;
 };
 
 type BrowserControlDisconnectResponse = {
@@ -144,7 +126,6 @@ function browserSetupUrlFallback(browser: string): string {
 }
 
 const DEFAULT_BROWSER_CONTROL_BROWSER = 'default';
-const DEFAULT_BROWSER_CONTROL_BROWSER = IS_OHOS ? 'builtin' : 'default';
 
 export type RuntimeSettingsPageKind =
   | 'pet'
@@ -256,7 +237,6 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
           browserVersion: string | null;
           port: number;
           pageCount: number;
-          selectedBrowser: string;
         }>('browser_control_get_status', { request: { port: 9222 } }),
         api.invoke<{ options: BrowserControlBrowserOption[] }>('browser_control_list_browsers'),
       ]);
@@ -269,7 +249,6 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
       setBrowserKind(s.browserKind);
       setBrowserVersion(s.browserVersion);
       setBrowserPageCount(s.pageCount);
-      setPreferredBrowser(s.selectedBrowser);
       setBrowserOptions(browsers.options);
     } catch (error) {
       if (isPeerUnsupportedBrowserControlError(error)) {
@@ -758,17 +737,10 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
   };
 
   const presentBrowserControlLaunchResult = (result: BrowserControlLaunchResponse) => {
-    if (result.status === 'fallback_builtin') {
-      setPreferredBrowser('builtin');
-      notificationService.info(
-        t('browserControl.fallbackToBuiltin', {
-          browser: result.fallbackFrom ?? result.browserKind,
-        }),
-        { duration: 8000 }
-      );
-    } else if (result.status === 'builtin_ready') {
-      notificationService.success(t('browserControl.builtinReady'), { duration: 3000 });
-    } else if (result.success) {
+    const setupUrl = result.setupUrl
+      || browserSetupUrl
+      || browserSetupUrlFallback(result.browserKind);
+    if (result.success) {
       notificationService.success(
         t('browserControl.connectSuccess', { browser: result.browserKind }),
         { duration: 3000 }
@@ -928,21 +900,15 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
   // A ready browser is not a failure state: BitFun attaches to it the moment
   // something needs it, so say that rather than the bare "not connected".
   const browserStatusLabel = browserCdpAvailable
-    ? preferredBrowser === 'builtin'
-      ? `${t('browserControl.builtinConnected')} · ${browserPageCount} ${t('browserControl.tabs')}`
-      : `${browserKind} · ${browserPageCount} ${t('browserControl.tabs')}`
+    ? `${browserKind} · ${browserPageCount} ${t('browserControl.tabs')}`
     : browserStatusLoading
       ? t('loading.text')
-      : preferredBrowser === 'builtin' && browserReady
-        ? t('browserControl.builtinReady')
-        : browserReady
+      : browserReady
         ? t('browserControl.readyNotConnected')
         : t('browserControl.notConnected');
   const browserSelectOptions: ComboboxOption[] = browserOptions.map((option) => ({
     value: option.value,
-    label: option.installed
-      ? option.value === 'builtin' ? t('browserControl.builtinBrowser') : option.label
-      : `${option.label} (${t('browserControl.notInstalled')})`,
+    label: option.installed ? option.label : `${option.label} (${t('browserControl.notInstalled')})`,
     disabled: !option.installed,
   }));
 
@@ -1513,7 +1479,6 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
             </ConfigPageRow>
           ) : null}
         </ConfigPageSection>
-        )}
 
         {/* ── Browser control (CDP) ──────────────────────────────── */}
         <ConfigPageSection
@@ -1542,6 +1507,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
                   />
                 </div>
               </ConfigPageRow>
+              )}
               {browserDefaultCdpSupported && (
                 <ConfigPageRow
                   label={t('browserControl.defaultCdp')}
@@ -1679,7 +1645,6 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
             </ConfigPageRow>
           ) : null}
         </ConfigPageSection>
-        )}
 
         <Dialog
           open={browserRestartPrompt !== null}

@@ -6,18 +6,10 @@
  */
 
 import React, { useCallback, memo, useEffect, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Settings } from 'lucide-react';
 import { ModernFlowChatContainer as FlowChatContainer } from '../../../flow_chat/components/modern/ModernFlowChatContainer';
 import { ChatInput } from '../../../flow_chat/components/ChatInput';
 import type { ChatInputRegistration } from '../../../flow_chat/components/chatInputRegistration';
-import { useActiveSessionState } from '@/flow_chat/hooks';
-import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
-import { isAcpFlowSession } from '@/flow_chat/utils/acpSession';
-import { useAvailableAIModels } from '@/infrastructure/config/hooks/useAvailableAIModels';
 import { useCanvasStore } from '../../components/panels/content-canvas/stores/canvasStore';
-import { openModelSettings } from '../../services/openModelSettings';
-import type { LineRange } from '@/component-library';
 import { type LineRange } from '@/shared/editor/LineRange';
 import path from 'path-browserify';
 import { createLogger } from '@/shared/utils/logger';
@@ -64,14 +56,8 @@ const ChatPaneInner: React.FC<ChatPaneProps> = ({
   chatInputRegistration,
 }) => {
   const addTab = useCanvasStore(state => state.addTab);
-  const modelStatus = useAvailableAIModels();
-  const activeSessionState = useActiveSessionState();
-  const { t } = useTranslation('flow-chat');
   const deferredTaskDetailTimersRef = useRef<number[]>([]);
   const deferredTaskDetailIdleCallbacksRef = useRef<number[]>([]);
-  const activeSession = activeSessionState.sessionId ? flowChatStore.getActiveSession() : null;
-  const showMissingModelNotice =
-    Boolean(workspacePath) && showChatInput && modelStatus === 'unavailable' && !isAcpFlowSession(activeSession);
 
   const handleFileViewRequest = useCallback(async (
     filePath: string,
@@ -176,34 +162,6 @@ const ChatPaneInner: React.FC<ChatPaneProps> = ({
       data-fullscreen={isFullscreen}
       data-testid="chat-pane"
     >
-      {showMissingModelNotice && (
-        <div
-          data-bf-component="chat-pane"
-          className="bitfun-chat-pane__model-notice"
-          data-bf-part="modelNotice"
-          role="status"
-        >
-          <AlertTriangle size={18} aria-hidden="true" />
-          <div
-            data-bf-component="chat-pane"
-            data-bf-part="modelNoticeCopy"
-            className="bitfun-chat-pane__model-notice-copy"
-          >
-            <strong>{t('modelConfigurationNotice.title')}</strong>
-            <span>{t('modelConfigurationNotice.description')}</span>
-          </div>
-          <button
-            type="button"
-            data-bf-component="chat-pane"
-            className="bitfun-chat-pane__model-notice-action"
-            data-bf-part="modelNoticeAction"
-            onClick={() => { void openModelSettings(); }}
-          >
-            <Settings size={15} aria-hidden="true" />
-            <span>{t('modelConfigurationNotice.action')}</span>
-          </button>
-        </div>
-      )}
       <FlowChatContainer
         className="bitfun-chat-pane__chat-container"
         isViewportActive={isSceneActive}

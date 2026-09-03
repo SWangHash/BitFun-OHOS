@@ -85,7 +85,6 @@ interface WorkspaceItemProps {
   draggable?: boolean;
   isDragging?: boolean;
   onDragStart?: React.DragEventHandler<HTMLDivElement>;
-  onDrag?: React.DragEventHandler<HTMLDivElement>;
   onDragEnd?: React.DragEventHandler<HTMLDivElement>;
 }
 
@@ -96,7 +95,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   draggable = false,
   isDragging = false,
   onDragStart,
-  onDrag,
   onDragEnd,
 }) => {
   const { t } = useI18n('common');
@@ -105,7 +103,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
     setActiveWorkspace,
     closeWorkspaceById,
     deleteAssistantWorkspace,
-    deleteWorkspace,
     primaryAssistantWorkspaceId,
     resetAssistantWorkspace,
     renameWorkspace,
@@ -124,13 +121,11 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   useGitBasicInfo(workspace.rootPath, gitBasicInfoOptions);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteWorkspaceDialogOpen, setDeleteWorkspaceDialogOpen] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [relatedPathsDialogOpen, setRelatedPathsDialogOpen] = useState(false);
   const [projectPermissionsDialogOpen, setProjectPermissionsDialogOpen] = useState(false);
   const [portForwardDialogOpen, setPortForwardDialogOpen] = useState(false);
   const [isDeletingAssistant, setIsDeletingAssistant] = useState(false);
-  const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
   const [isResettingWorkspace, setIsResettingWorkspace] = useState(false);
   const [sessionsCollapsed, setSessionsCollapsed] = useState(false);
   const collapseAllRequestId = useWorkspaceSessionViewStore(state => state.collapseAllRequestId);
@@ -151,8 +146,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   const menuAnchorRef = useRef<HTMLDivElement>(null);
   const menuPopoverRef = useRef<HTMLDivElement>(null);
   const acpSubmenuRef = useRef<HTMLDivElement>(null);
-  const menuPopoverRef = useRef<HTMLDivElement | null>(null);
-  const popoverResizeObserverRef = useRef<ResizeObserver | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const isDefaultAssistantWorkspace =
@@ -451,26 +444,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
     requestAnimationFrame(apply);
   }, []);
 
-  // Callback ref for the menu popover. The popover only mounts once menuPosition
-  // is set (chicken-and-egg: menuPosition needs the popover's size), so a
-  // ResizeObserver created in the menuOpen effect would attach to a null ref.
-  // Attaching here ties the observer to the element's actual mount/unmount:
-  // on mount it fires once with the real size (fixing the stale initial height)
-  // and again whenever async content (ACP client rows, loading toggle, remote
-  // /git conditional rows, locale label width) changes the popover height.
-  const setMenuPopoverRef = useCallback((node: HTMLDivElement | null) => {
-    if (popoverResizeObserverRef.current) {
-      popoverResizeObserverRef.current.disconnect();
-      popoverResizeObserverRef.current = null;
-    }
-    menuPopoverRef.current = node;
-    if (node && typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(() => updateMenuPosition());
-      ro.observe(node);
-      popoverResizeObserverRef.current = ro;
-    }
-  }, [updateMenuPosition]);
-
   const handleMenuTriggerClick = useCallback(() => {
     setMenuOpen(open => !open);
   }, []);
@@ -575,31 +548,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
       );
     }
   }, [closeWorkspaceById, t, workspace.id]);
-
-  const handleRequestDeleteWorkspace = useCallback(() => {
-    setMenuOpen(false);
-    setDeleteWorkspaceDialogOpen(true);
-  }, []);
-
-  const handleConfirmDeleteWorkspace = useCallback(async () => {
-    if (isDeletingWorkspace) {
-      return;
-    }
-
-    setIsDeletingWorkspace(true);
-    try {
-      await deleteWorkspace(workspace.id);
-      setDeleteWorkspaceDialogOpen(false);
-      notificationService.success(t('nav.workspaces.workspaceDeleted'), { duration: 2500 });
-    } catch (error) {
-      notificationService.error(
-        error instanceof Error ? error.message : t('nav.workspaces.deleteWorkspaceFailed'),
-        { duration: 4000 }
-      );
-    } finally {
-      setIsDeletingWorkspace(false);
-    }
-  }, [deleteWorkspace, isDeletingWorkspace, t, workspace.id]);
 
   const handleOpenSessionBatchModal = useCallback(() => {
     setMenuOpen(false);
@@ -900,7 +848,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
           className="bitfun-nav-panel__assistant-item-card"
           draggable={draggable}
           onDragStart={onDragStart}
-          onDrag={onDrag}
           onDragEnd={onDragEnd}
           onClick={() => { void handleCardNameClick(); }}
           style={{ cursor: 'pointer' }}
@@ -927,7 +874,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
               </span>
             </span>
           </button>
-          <Tooltip content={workspace.rootPath} placement="right" followCursor disabled={isDragging}>
+          <Tooltip content={workspace.rootPath} placement="right" followCursor>
             <button
               data-bf-component="workspace-item"
               data-bf-part="name"
@@ -1130,7 +1077,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
             ) : null}
           </Suspense>
         </RetainedMountBoundary>
-
+        
       </div>
     );
   }
@@ -1166,7 +1113,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
         className="bitfun-nav-panel__workspace-item-card"
         draggable={draggable}
         onDragStart={onDragStart}
-        onDrag={onDrag}
         onDragEnd={onDragEnd}
         onClick={() => { void handleCardNameClick(); }}
         style={{ cursor: 'pointer' }}
@@ -1200,7 +1146,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
         <div className="bitfun-nav-panel__workspace-item-name-cluster">
           <div className={`bitfun-nav-panel__workspace-item-name-stack${remoteMeta ? ' is-remote' : ''}`}>
             <div className="bitfun-nav-panel__workspace-item-name-row">
-              <Tooltip content={workspace.rootPath} placement="right" followCursor disabled={isDragging}>
+              <Tooltip content={workspace.rootPath} placement="right" followCursor>
                 <button
                   data-bf-component="workspace-item"
                   data-bf-part="name"
@@ -1508,19 +1454,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                   {t('nav.workspaces.actions.close')}
                 </MenuItem>
               </Menu>,
-                  <FolderOpen size={13} />
-                  <span className="bitfun-nav-panel__workspace-item-menu-label">{t('nav.workspaces.actions.close')}</span>
-                </button>
-                <button
-                  type="button"
-                  className="bitfun-nav-panel__workspace-item-menu-item is-danger"
-                  onClick={handleRequestDeleteWorkspace}
-                  disabled={isDeletingWorkspace}
-                >
-                  <Trash2 size={13} />
-                  <span className="bitfun-nav-panel__workspace-item-menu-label">{t('nav.workspaces.actions.deleteWorkspace')}</span>
-                </button>
-              </div>,
               getAppearanceOverlayHost()
             )}
           </div>
@@ -1588,7 +1521,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
           ) : null}
         </Suspense>
       </RetainedMountBoundary>
-
+      
       <RetainedMountBoundary present={sessionBatchModalOpen}>
         <Suspense fallback={null}>
           <WorkspaceSessionBatchModal

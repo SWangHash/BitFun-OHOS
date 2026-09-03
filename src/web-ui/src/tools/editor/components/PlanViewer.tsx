@@ -6,7 +6,6 @@ import { Loader2, AlertCircle, FileText } from 'lucide-react';
 import yaml from 'yaml';
 import { MEditor } from '../meditor';
 import type { EditorInstance } from '../meditor';
-import { FILE_TOO_LARGE_ERROR, MAX_TEXT_FILE_SIZE_BYTES } from './CodeEditor';
 import { createLogger } from '@/shared/utils/logger';
 import { LoadingState } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
@@ -70,7 +69,6 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
   }), [effectiveRemoteConnectionId, effectiveWorkspacePath, filePath]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [fileTooLarge, setFileTooLarge] = useState(false);
   const [planData, setPlanData] = useState<PlanData | null>(null);
   const [planContent, setPlanContent] = useState<string>('');
   // Initialize build state from the shared service to survive unmounts.
@@ -139,19 +137,12 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
 
     setLoading(true);
     setError(null);
-    setFileTooLarge(false);
 
     try {
-      const fileInfo = await workspaceAPI.getFileMetadata(filePath);
-      if (typeof fileInfo?.size === 'number' && fileInfo.size >= MAX_TEXT_FILE_SIZE_BYTES) {
-        setFileTooLarge(true);
-        setError(FILE_TOO_LARGE_ERROR);
-        return;
-      }
-      cconst content = await workspaceAPI.readFileContent(
-          filePath,
-          undefined,
-          effectiveRemoteConnectionId,
+      const content = await workspaceAPI.readFileContent(
+        filePath,
+        undefined,
+        effectiveRemoteConnectionId,
       );
 
       const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
@@ -788,15 +779,12 @@ Read the plan file before making changes and treat it as the source of truth. Do
 
   // Render error state
   if (error) {
-    const errorMessage = error === FILE_TOO_LARGE_ERROR || error === 'editor.common.fileTooLarge'
-      ? t('editor.common.fileTooLarge')
-      : error;
     return (
       <div className="bitfun-plan-viewer bitfun-plan-viewer--error" data-bf-component="plan-viewer" data-bf-part="error" data-bf-state="error">
         <div className="error-content">
           <AlertCircle className="error-icon" />
           <p>{error}</p>
-          <Button variant="secondary" size="small" onClick={loadFileContent}>
+          <Button variant="outline" size="sm" onClick={loadFileContent}>
             {t('editor.common.retry')}
           </Button>
         </div>

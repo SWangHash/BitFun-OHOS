@@ -8,22 +8,8 @@ const WEBVIEW_RESIZE_DEBOUNCE_MS = 160;
 const WEBVIEW_BOUNDS_EPSILON = 1;
 const WEBVIEW_BOUNDS_WAIT_TIMEOUT_MS = 2000;
 const OVERLAY_SELECTOR = "[data-bf-component='dialog'][data-bf-part='overlay'], [data-bf-component='sheet'][data-bf-part='overlay'], .canvas-mission-control";
-export const BROWSER_WEBVIEW_BLOCKING_OVERLAY_SELECTOR = [
-  '.modal-overlay',
-  '.canvas-mission-control',
-  '.canvas-drop-zone-overlay',
-].join(', ');
 const BROWSER_WEBVIEW_PAGE_LOAD_EVENT = 'browser-webview-page-load';
-const CLOSE_BUILT_IN_BROWSER_EVENT = 'bitfun-close-built-in-browser';
 const WEBVIEW_CREATE_RETRY_DELAYS_MS = [0, 250, 750];
-let browserWebviewLabelSequence = 0;
-
-export function createBrowserWebviewLabel(prefix: string): string {
-  const timestamp = Date.now().toString(36);
-  const sequence = browserWebviewLabelSequence++;
-  const random = Math.random().toString(36).slice(2, 10);
-  return `${prefix}-${timestamp}-${sequence}-${random}`;
-}
 
 // #region agent log
 function writeBrowserWebviewDiagnostic(
@@ -73,45 +59,16 @@ type BrowserWebviewPageLoadPayload = {
 };
 
 export interface UseEmbeddedBrowserWebviewOptions {
-  adoptExistingWebview?: boolean;
-  automationId?: string;
-  automationTitle?: string;
   defaultUrl: string;
   initialUrl?: string;
-  /** Raw HTML content to load instead of a URL (for local HTML files). */
-  initialHtml?: string;
   isVisible: boolean;
   labelPrefix: string;
   log: BrowserLogger;
   openRequestId?: string;
-  requestedWebviewLabel?: string;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function createAutomationBootstrapHtml(automationId: string, title: string): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head><body data-bitfun-automation-id="${escapeHtml(automationId)}"></body></html>`;
 }
 
 function isTauriEnvironment(): boolean {
-  // Check __TAURI_INTERNALS__ (what `invoke` actually needs) rather than
-  // __TAURI__ (the global API namespace, only set when withGlobalTauri is
-  // true AND the webview was created via Tauri's WebviewWindowBuilder). On
-  // OHOS the ArkUI Web component is created by @ohos-rs/ability, not Tauri's
-  // builder, so __TAURI__ may be absent even though __TAURI_INTERNALS__
-  // (and thus `invoke`) is available. Mirrors the pattern in
-  // src/infrastructure/runtime/environment.ts `isTauriRuntime`.
-  if (typeof window === 'undefined') return false;
-  const internals = (window as unknown as { __TAURI_INTERNALS__?: { invoke?: unknown } })
-    .__TAURI_INTERNALS__;
-  return typeof internals?.invoke === 'function';
+  return typeof window !== 'undefined' && '__TAURI__' in window;
 }
 
 function formatUnknownError(error: unknown): string {
@@ -137,10 +94,6 @@ function formatUnknownError(error: unknown): string {
 
 function isWebviewNotFoundError(error: unknown): boolean {
   return formatUnknownError(error).toLowerCase().includes('webview not found');
-}
-
-function isViewportUnavailableError(error: unknown): boolean {
-  return formatUnknownError(error).includes('Browser viewport did not become visible');
 }
 
 function isTransientWebviewCreationError(error: unknown): boolean {
@@ -187,64 +140,6 @@ async function setWebviewBounds(label: string, bounds: WebviewBounds): Promise<v
   });
 }
 
-// Minimal `invoke` signature accepted by the command-based handle. Matches the
-// runtime shape of `@tauri-apps/api/core`'s `invoke` once its generic `T` is
-// erased to `unknown`.
-type TauriInvoke = (cmd: string, args?: Record<string, unknown> | unknown[]) => Promise<unknown>;
-
-/**
- * Build a `BrowserWebviewHandle` whose `close / hide / show / setFocus` ops
- * route through Tauri commands (`browser_webview_close/hide/show/set_focus`)
- * that the Rust side resolves to the platform's native webview handle —
- * `app.get_webview(label)` on desktop (Tauri child webview), or the ArkTS
- * `BrowserWebviewService` on OHOS (ArkUI Web component). This avoids the
- * `@tauri-apps/api/webview` `Webview.getByLabel()` call entirely, which
- * queries Tauri's own webview registry and returns null/throws for webviews
- * created outside that registry (notably ArkUI Web components on OHOS).
- */
-export function createCommandBasedBrowserWebviewHandle(
-  label: string,
-  invoke: TauriInvoke,
-): BrowserWebviewHandle {
-  let commandQueue: Promise<unknown> = Promise.resolve();
-  const enqueue = (command: string): Promise<void> => {
-    const operation = commandQueue
-      .catch(() => undefined)
-      .then(async () => {
-        await invoke(command, { request: { label } });
-      });
-    commandQueue = operation;
-    return operation;
-  };
-  const close = async (): Promise<void> => {
-    await enqueue('browser_webview_close');
-  };
-  const hide = async (): Promise<void> => {
-    await enqueue('browser_webview_hide');
-  };
-  const show = async (): Promise<void> => {
-    await enqueue('browser_webview_show');
-  };
-  const setFocus = async (): Promise<void> => {
-    await enqueue('browser_webview_set_focus');
-  };
-  return { close, hide, label, setFocus, show };
-}
-
-/**
- * Create a browser webview via the `browser_webview_create` Tauri command
- * and return a command-based handle. The handle's show/hide/close/setFocus
- * ops route through Tauri commands (not `Webview.getByLabel`) so they work
- * uniformly on desktop (Tauri child webview) and OHOS (ArkUI Web component).
- */
-async function createBrowserWebview(
-  label: string,
-  url: string,
-  bounds: WebviewBounds,
-  html?: string,
-): Promise<BrowserWebviewHandle> {
-  const { invoke } = await import('@tauri-apps/api/core');
-  await invoke('browser_webview_create', {
 async function setAgentTargetState(
   label: string,
   active: boolean,
@@ -266,7 +161,6 @@ async function createBrowserWebview(
     request: {
       label,
       url,
-      html: html ?? null,
       x: bounds.left,
       y: bounds.top,
       width: bounds.width,
@@ -274,47 +168,26 @@ async function createBrowserWebview(
       openRequestId,
     },
   });
-  return createCommandBasedBrowserWebviewHandle(label, invoke as TauriInvoke);
+  const handle = await Webview.getByLabel(label) as unknown as BrowserWebviewHandle | null;
+  if (!handle) {
+    throw new Error(`Webview not found after creation: ${label}`);
+  }
+  return handle;
 }
 
 export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOptions) {
-  const {
-    automationId,
-    automationTitle,
-    adoptExistingWebview,
-    defaultUrl,
-    initialUrl,
-    initialHtml,
-    isVisible,
-    labelPrefix,
-    log,
-    requestedWebviewLabel,
-  } = options;
   const { defaultUrl, initialUrl, isVisible, labelPrefix, log, openRequestId } = options;
   const isTauri = useMemo(() => isTauriEnvironment(), []);
   const startUrl = initialUrl ?? defaultUrl;
-  const initialHtmlRef = useRef<string | undefined>(initialHtml);
-  const automationBootstrapRef = useRef<string | undefined>(
-    automationId && automationTitle
-      ? createAutomationBootstrapHtml(automationId, automationTitle)
-      : undefined,
-  );
-  const adoptExistingWebviewRef = useRef(adoptExistingWebview === true);
-  const externallyOwnedWebviewRef = useRef(
-    adoptExistingWebview === true && Boolean(automationId && requestedWebviewLabel),
-  );
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const webviewRef = useRef<BrowserWebviewHandle | null>(null);
+  const webviewSequenceRef = useRef(0);
   const currentUrlRef = useRef<string>(startUrl);
-  const isVisibleRef = useRef(isVisible);
-  isVisibleRef.current = isVisible;
   const resizeTimerRef = useRef<number | null>(null);
   const lastBoundsRef = useRef<WebviewBounds | null>(null);
   const webviewLabelRef = useRef<string>('');
   const pageLoadUnlistenRef = useRef<(() => void) | null>(null);
-  const webviewCreationInFlightRef = useRef(false);
-  const visibilityRevisionRef = useRef(0);
 
   const [inputValue, setInputValue] = useState(startUrl);
   const [currentUrl, setCurrentUrl] = useState(startUrl);
@@ -372,11 +245,11 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
           height: rect.height,
         });
       }
-      writeBrowserWebviewDiagnostic('F', 'useEmbeddedBrowserWebview.syncWebviewBounds', isVisibleRef.current
+      writeBrowserWebviewDiagnostic('F', 'useEmbeddedBrowserWebview.syncWebviewBounds', isVisible
         ? 'keeping active webview at its last valid bounds while viewport is transiently unavailable'
         : 'hiding inactive webview because viewport has no usable bounds', {
         label: target.label,
-        isVisible: isVisibleRef.current,
+        isVisible,
         hasViewport: Boolean(viewport),
         isConnected: viewport?.isConnected ?? false,
         viewportRect: viewportRect ? {
@@ -389,7 +262,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         ancestors,
       });
       // #endregion
-      if (!isVisibleRef.current) {
+      if (!isVisible) {
         await target.hide().catch(() => {});
       }
       return;
@@ -407,26 +280,18 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       await setWebviewBounds(target.label, nextBounds);
       lastBoundsRef.current = nextBounds;
     }
-  }, [isTauri, readViewportBounds]);
+    if (isVisible) {
+      // #region agent log
+      writeBrowserWebviewDiagnostic('F', 'useEmbeddedBrowserWebview.syncWebviewBounds', 'showing webview after bounds sync', {
+        label: target.label,
+        bounds: nextBounds,
+      });
+      // #endregion
+      await target.show().catch(() => {});
+    }
+  }, [isTauri, isVisible, readViewportBounds]);
 
-  const detachWebview = useCallback((
-    handle?: BrowserWebviewHandle | null,
-    updateReactState = true,
-  ) => {
-    const target = handle ?? webviewRef.current;
-    if (target && target !== webviewRef.current) return;
-    webviewRef.current = null;
-    webviewLabelRef.current = '';
-    if (updateReactState) setWebviewLabel('');
-    lastBoundsRef.current = null;
-    pageLoadUnlistenRef.current?.();
-    pageLoadUnlistenRef.current = null;
-  }, []);
-
-  const closeWebview = useCallback(async (
-    handle?: BrowserWebviewHandle | null,
-    updateReactState = true,
-  ) => {
+  const closeWebview = useCallback(async (handle?: BrowserWebviewHandle | null) => {
     const target = handle ?? webviewRef.current;
     if (!target) return;
 
@@ -438,25 +303,16 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         log.warn('Close browser webview failed', closeError);
       }
     } finally {
-      detachWebview(target, updateReactState);
-    }
-  }, [detachWebview, log]);
-
-  const hideAndDetachWebview = useCallback(async () => {
-    const target = webviewRef.current;
-    if (!target) return;
-    try {
-      await target.hide();
-    } catch (hideError) {
-      if (!isWebviewNotFoundError(hideError)) {
-        log.warn('Hide browser webview before detach failed', hideError);
+      if (!handle || target === webviewRef.current) {
+        webviewRef.current = null;
+        webviewLabelRef.current = '';
+        setWebviewLabel('');
+        lastBoundsRef.current = null;
+        pageLoadUnlistenRef.current?.();
+        pageLoadUnlistenRef.current = null;
       }
-    } finally {
-      // This path is used only during component teardown. Avoid scheduling a
-      // React state update after the component has unmounted.
-      detachWebview(target, false);
     }
-  }, [detachWebview, log]);
+  }, [log]);
 
   const startPageLoadListener = useCallback(async (label: string) => {
     pageLoadUnlistenRef.current?.();
@@ -487,7 +343,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     const previous = webviewRef.current;
     if (previous) await closeWebview(previous);
 
-    const { invoke } = await import('@tauri-apps/api/core');
+    const { Webview } = await import('@tauri-apps/api/webview');
     const initialBounds = await waitForViewportBounds();
     let lastError: unknown = null;
 
@@ -497,48 +353,20 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         await new Promise((resolve) => window.setTimeout(resolve, delay));
       }
 
-      const label = requestedWebviewLabel ?? createBrowserWebviewLabel(labelPrefix);
+      const label = `${labelPrefix}-${webviewSequenceRef.current++}`;
       webviewLabelRef.current = label;
       setWebviewLabel(label);
       try {
-        if (adoptExistingWebviewRef.current) {
-          const { invoke } = await import('@tauri-apps/api/core');
-          const handle = createCommandBasedBrowserWebviewHandle(label, invoke as TauriInvoke);
-          // The backend creates automation WebViews offscreen at a stable CDP
-          // viewport size. Apply the measured panel bounds before the first
-          // show; marking them as synced without this call exposes the initial
-          // 1280x720 surface over the BitFun window.
-          await setWebviewBounds(label, initialBounds);
-          webviewRef.current = handle;
-          lastBoundsRef.current = initialBounds;
-          await startPageLoadListener(label);
-          void injectBrowserPageScripts(label).catch(() => {});
-          adoptExistingWebviewRef.current = false;
-          return handle;
-        }
-        const bootstrapHtml = automationBootstrapRef.current;
-        const handle = await createBrowserWebview(
-          label,
-          url,
-          initialBounds,
-          bootstrapHtml ?? initialHtmlRef.current,
-        );
+        const handle = await createBrowserWebview(label, url, initialBounds, openRequestId);
         webviewRef.current = handle;
         lastBoundsRef.current = initialBounds;
         await injectBrowserPageScripts(label);
         await startPageLoadListener(label);
-        automationBootstrapRef.current = undefined;
-        initialHtmlRef.current = undefined;
         return handle;
       } catch (creationError) {
         lastError = creationError;
-        // Clean up any partially-created webview via the command path — works
-        // on both desktop (Tauri child webview) and OHOS (ArkUI Web node).
-        // Agent automation WebViews are backend-owned and may still have a
-        // healthy CDP target, so an adoption/display error must not destroy it.
-        if (!externallyOwnedWebviewRef.current) {
-          await invoke('browser_webview_close', { request: { label } }).catch(() => {});
-        }
+        const staleHandle = await Webview.getByLabel(label).catch(() => null);
+        await staleHandle?.close().catch(() => {});
         if (!isTransientWebviewCreationError(creationError)
           || attempt === WEBVIEW_CREATE_RETRY_DELAYS_MS.length - 1) {
           throw creationError;
@@ -551,18 +379,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     }
 
     throw lastError;
-  }, [closeWebview, labelPrefix, log, requestedWebviewLabel, startPageLoadListener, waitForViewportBounds]);
-
-  useEffect(() => {
-    if (!automationId) return;
-    const handleClose = (event: Event) => {
-      const detail = (event as CustomEvent<{ automationId?: string }>).detail;
-      if (detail?.automationId !== automationId) return;
-      void closeWebview();
-    };
-    window.addEventListener(CLOSE_BUILT_IN_BROWSER_EVENT, handleClose);
-    return () => window.removeEventListener(CLOSE_BUILT_IN_BROWSER_EVENT, handleClose);
-  }, [automationId, closeWebview]);
+  }, [closeWebview, labelPrefix, log, openRequestId, startPageLoadListener, waitForViewportBounds]);
 
   const navigateExistingWebview = useCallback(async (url: string): Promise<boolean> => {
     const label = webviewLabelRef.current;
@@ -604,50 +421,26 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       validateUrl(nextUrl);
       let handle = webviewRef.current;
       if (!handle) {
-        if (!isVisible || !readViewportBounds()) {
-          return;
-        }
-        if (webviewCreationInFlightRef.current) {
-          return;
-        }
-        webviewCreationInFlightRef.current = true;
-        try {
-          handle = await createWebview(nextUrl);
-        } finally {
-          webviewCreationInFlightRef.current = false;
-        }
+        handle = await createWebview(nextUrl);
       } else {
         const navigated = await navigateExistingWebview(nextUrl);
         if (!navigated) {
-          if (externallyOwnedWebviewRef.current) {
-            throw new Error(`Unable to navigate the Agent-owned browser WebView: ${handle.label}`);
-          }
           handle = await createWebview(nextUrl);
         }
       }
       await syncWebviewBounds(handle);
-      if (isVisibleRef.current && webviewRef.current === handle) {
+      if (isVisible) {
         await handle.show();
-        if (isVisibleRef.current && webviewRef.current === handle) {
-          await handle.setFocus();
-        }
-      } else {
-        await handle.hide().catch(() => {});
         await handle.setFocus();
         await setAgentTargetState(handle.label, true, openRequestId);
       }
     } catch (loadError) {
       const message = formatUnknownError(loadError);
-      if (isViewportUnavailableError(loadError)) {
-        log.warn('Deferring browser WebView activation until the panel is visible');
-      } else {
-        log.error('Load browser url failed', loadError);
-        setError(message);
-      }
+      log.error('Load browser url failed', loadError);
+      setError(message);
     } finally {
       setIsLoading(false);
     }
-  }, [createWebview, defaultUrl, isTauri, isVisible, log, navigateExistingWebview, readViewportBounds, syncWebviewBounds]);
   }, [createWebview, defaultUrl, isTauri, isVisible, log, navigateExistingWebview, openRequestId, syncWebviewBounds]);
 
   const queueSync = useCallback(() => {
@@ -663,77 +456,53 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
   useEffect(() => {
     if (!isTauri) return;
 
-    const revision = ++visibilityRevisionRef.current;
-    const handle = webviewRef.current;
-
     if (isVisible) {
       // #region agent log
       writeBrowserWebviewDiagnostic('G', 'useEmbeddedBrowserWebview.visibilityEffect', 'browser surface activated', {
         label: webviewRef.current?.label ?? null,
       });
       // #endregion
-      if (!handle) {
-        if (!readViewportBounds() || webviewCreationInFlightRef.current) {
-          return;
-        }
+      if (!webviewRef.current) {
         void loadUrl(currentUrlRef.current).catch((loadError) => {
           log.warn('Restore browser webview failed', loadError);
         });
         return;
       }
 
-      void syncWebviewBounds(handle)
-        .then(async () => {
-          if (
-            revision !== visibilityRevisionRef.current
-            || !isVisibleRef.current
-            || webviewRef.current !== handle
-          ) {
-            return;
-          }
-          await handle.show();
-          if (
-            revision === visibilityRevisionRef.current
-            && isVisibleRef.current
-            && webviewRef.current === handle
-          ) {
-            await handle.setFocus();
-          }
+      void syncWebviewBounds()
+        .then(() => webviewRef.current?.show())
+        .then(() => webviewRef.current?.setFocus())
+        .then(() => {
+          const label = webviewRef.current?.label;
+          return label ? setAgentTargetState(label, true, openRequestId) : undefined;
         })
         .catch((syncError) => {
           log.warn('Activate browser webview failed', syncError);
         });
-      return () => {
-        if (visibilityRevisionRef.current === revision) {
-          visibilityRevisionRef.current += 1;
-        }
-      };
+      return;
     }
 
-    if (handle) {
+    if (webviewRef.current) {
       // #region agent log
       writeBrowserWebviewDiagnostic('G', 'useEmbeddedBrowserWebview.visibilityEffect', 'hiding webview because browser surface deactivated', {
-        label: handle.label,
+        label: webviewRef.current.label,
       });
       // #endregion
-      void handle.hide().catch((hideError) => {
-        log.warn('Hide browser webview on deactivate failed', hideError);
-      });
+      const handle = webviewRef.current;
+      void setAgentTargetState(handle.label, false)
+        .catch(() => {})
+        .then(() => handle.hide())
+        .catch((hideError) => {
+          log.warn('Hide browser webview on deactivate failed', hideError);
+        });
     }
-  }, [isTauri, isVisible, loadUrl, log, readViewportBounds, syncWebviewBounds]);
+  }, [isTauri, isVisible, loadUrl, log, openRequestId, syncWebviewBounds]);
 
   useEffect(() => {
     if (!isTauri) return;
 
     const observer = new ResizeObserver(() => {
-      if (!isVisible) return;
-      if (!webviewRef.current && readViewportBounds() && !webviewCreationInFlightRef.current) {
-        void loadUrl(currentUrlRef.current).catch((loadError) => {
-          log.warn('Restore browser webview after panel resize failed', loadError);
-        });
-        return;
-      }
-      queueSync();
+      if (isVisible) queueSync();
     });
 
     if (viewportRef.current) observer.observe(viewportRef.current);
@@ -751,7 +520,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         resizeTimerRef.current = null;
       }
     };
-  }, [isTauri, isVisible, loadUrl, log, queueSync, readViewportBounds]);
+  }, [isTauri, isVisible, queueSync]);
 
   useEffect(() => () => {
     pageLoadUnlistenRef.current?.();
@@ -760,19 +529,15 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       window.clearTimeout(resizeTimerRef.current);
       resizeTimerRef.current = null;
     }
-    if (externallyOwnedWebviewRef.current) {
-      void hideAndDetachWebview();
-    } else {
-      void closeWebview(undefined, false);
-    }
-  }, [closeWebview, hideAndDetachWebview]);
+    void closeWebview();
+  }, [closeWebview]);
 
   useEffect(() => {
     if (!isTauri) return;
 
     let hiddenByOverlay = false;
     const checkOverlays = () => {
-      const overlay = document.querySelector<HTMLElement>(BROWSER_WEBVIEW_BLOCKING_OVERLAY_SELECTOR);
+      const overlay = document.querySelector<HTMLElement>(OVERLAY_SELECTOR);
       const hasOverlay = overlay !== null;
       // #region agent log
       if (overlay) {
@@ -801,20 +566,14 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         void webviewRef.current?.hide().catch(() => {});
       } else if (!hasOverlay && hiddenByOverlay) {
         hiddenByOverlay = false;
-        const handle = webviewRef.current;
-        if (isVisibleRef.current && handle) {
+        if (isVisible) {
           // #region agent log
           writeBrowserWebviewDiagnostic('E', 'useEmbeddedBrowserWebview.checkOverlays', 'showing webview because overlay selector disappeared', {
             label: webviewRef.current?.label ?? null,
           });
           // #endregion
-          void syncWebviewBounds(handle)
-            .then(() => {
-              if (!hiddenByOverlay && isVisibleRef.current && webviewRef.current === handle) {
-                return handle.show();
-              }
-              return undefined;
-            })
+          void syncWebviewBounds()
+            .then(() => webviewRef.current?.show())
             .catch(() => {});
         }
       }
@@ -822,7 +581,6 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
 
     const observer = new MutationObserver(checkOverlays);
     observer.observe(document.body, { childList: true, subtree: true });
-    checkOverlays();
 
     const handleToolbarActivating = () => {
       void webviewRef.current?.hide().catch(() => {});

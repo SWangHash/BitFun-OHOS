@@ -18,7 +18,6 @@ import { useApp } from '../hooks/useApp';
 import { useSceneStore } from '../stores/sceneStore';
 import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
-import { sessionStorageAdapter } from '@/shared/utils/sessionStorageAdapter';
 import { FlowChatManager } from '../../flow_chat/services/FlowChatManager';
 import { isSurfaceChangedError } from '@/infrastructure/peer-device/deviceSurface';
 import WorkspaceBody from './WorkspaceBody';
@@ -29,26 +28,22 @@ import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import type { CloseBehavior } from '@/infrastructure/api/service-api/SystemAPI';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { confirmDialog } from '@/infrastructure/confirm-dialog';
-import { confirmDialogChoice, PresenceBoundary } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
 import { DailyAppUpdateGate } from '@/infrastructure/update';
 import { useI18n } from '@/infrastructure/i18n';
 import { WorkspaceKind } from '@/shared/types';
 import { SSHContext } from '@/features/ssh-remote/SSHRemoteContext';
 import { shortcutManager, parseStoredKeybindings } from '@/infrastructure/services/ShortcutManager';
-import { useSessionModeStore } from '../stores/sessionModeStore';
-import { isMacOSDesktopRuntime, isOpenHarmonyRuntime } from '@/infrastructure/runtime';
+import { isMacOSDesktopRuntime } from '@/infrastructure/runtime';
 import { flowChatSessionConfigForWorkspace } from '../utils/projectSessionWorkspace';
 import { notificationService } from '@/shared/notification-system';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
 import { AppearanceBackgroundMediaLayer, appearanceRuntime, useAppearance } from '@/infrastructure/appearance';
-import { confirmCriticalOperationExit } from '@/shared/services/criticalOperationExitGuard';
 import './AppLayout.scss';
 
 type TransitionDirection = 'entering' | 'returning' | null;
 
 const log = createLogger('AppLayout');
-
 const NewProjectDialog = lazy(() =>
   import('../components/NewProjectDialog').then(module => ({ default: module.NewProjectDialog }))
 );
@@ -64,9 +59,6 @@ const AboutDialog = lazy(() =>
   import('../components/AboutDialog').then(module => ({ default: module.AboutDialog }))
 );
 const WorkspaceManager = lazy(() => import('../../tools/workspace/components/WorkspaceManager'));
-const AgentCompanionInAppPet = lazy(() =>
-  import('../components/AgentCompanionDesktopPet/AgentCompanionInAppPet')
-);
 
 interface AppLayoutProps {
   className?: string;
@@ -91,7 +83,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
   const { t: tCommon } = useI18n('common');
   const currentAppearance = useAppearance().current;
   const backgroundMedia = currentAppearance?.backgroundMedia;
-  const isOpenHarmony = isOpenHarmonyRuntime();
   usePermissionRequestNotify();
   const {
     currentWorkspace,
@@ -234,15 +225,20 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
   const [showWorkspaceStatus, setShowWorkspaceStatus] = useState(false);
   const handleOpenProject = useCallback(async () => {
     try {
-      const selected = await workspaceAPI.open_oh_file_dialog({ directory: true });
+      const { pickWorkspaceDirectory } = await import(
+        '@/infrastructure/peer-device/pickWorkspaceDirectory'
+      );
+      const selected = await pickWorkspaceDirectory({
+        title: t('header.selectProjectDirectory'),
+      });
 
-      if (typeof selected === 'string') {
+      if (selected) {
         await openWorkspace(selected);
       }
     } catch (error) {
       log.error('Failed to open project', error);
     }
-  }, [openWorkspace]);
+  }, [openWorkspace, t]);
   const handleNewProject = useCallback(() => setShowNewProjectDialog(true), []);
   const handleShowAbout  = useCallback(() => setShowAboutDialog(true), []);
 
@@ -277,10 +273,15 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
     void (async () => {
       try {
         const { listen } = await import('@tauri-apps/api/event');
+        const { pickWorkspaceDirectory } = await import(
+          '@/infrastructure/peer-device/pickWorkspaceDirectory'
+        );
         unlistenFns.push(await listen('bitfun_menu_open_project', async () => {
           try {
-            const selected = await workspaceAPI.open_oh_file_dialog({ directory: true });
-            if (typeof selected === 'string') await openWorkspace(selected);
+            const selected = await pickWorkspaceDirectory({
+              title: t('header.selectProjectDirectory'),
+            });
+            if (selected) await openWorkspace(selected);
           } catch {}
         }));
         unlistenFns.push(await listen('bitfun_menu_new_project', () => handleNewProject()));
@@ -300,10 +301,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
       // Always initialize FlowChat so historical sessions list even when SSH is not connected yet.
       try {
         const explicitPreferredMode =
-          sessionStorageAdapter.getItem('bitfun:flowchat:preferredMode') ||
+          sessionStorage.getItem('bitfun:flowchat:preferredMode') ||
           undefined;
         if (explicitPreferredMode) {
-          sessionStorageAdapter.removeItem('bitfun:flowchat:preferredMode');
+          sessionStorage.removeItem('bitfun:flowchat:preferredMode');
         }
 
         const initializationPreferredMode =
@@ -350,9 +351,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
           ensureAssistantBootstrapForWorkspace(currentWorkspace, activeSessionId);
         }
 
-        const pendingDescription = sessionStorageAdapter.getItem('pendingProjectDescription');
+        const pendingDescription = sessionStorage.getItem('pendingProjectDescription');
         if (pendingDescription && pendingDescription.trim()) {
-          sessionStorageAdapter.removeItem('pendingProjectDescription');
+          sessionStorage.removeItem('pendingProjectDescription');
 
           setTimeout(async () => {
             if (cancelled) {
@@ -381,9 +382,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
           }, 500);
         }
 
-        const pendingSettings = sessionStorageAdapter.getItem('pendingOpenSettings');
+        const pendingSettings = sessionStorage.getItem('pendingOpenSettings');
         if (pendingSettings) {
-          sessionStorageAdapter.removeItem('pendingOpenSettings');
+          sessionStorage.removeItem('pendingOpenSettings');
           setTimeout(async () => {
             if (cancelled) {
               return;
@@ -471,68 +472,41 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
             return;
           }
 
-          // Windows / Linux / HarmonyOS: read the user's close-button preference.
-          let behavior: CloseBehavior = 'ask';
+          // Windows / Linux: read the user's close-button preference.
+          let behavior: CloseBehavior = 'minimize_to_tray';
           try {
-            behavior = (await configManager.getConfig<CloseBehavior>('app.close_button_behavior')) ?? 'ask';
+            behavior = (await configManager.getConfig<CloseBehavior>('app.close_button_behavior')) ?? 'minimize_to_tray';
           } catch {
-            // Fall back to ask if config cannot be read.
+            // Fall back to minimize_to_tray if config cannot be read.
           }
 
           try {
             if (behavior === 'minimize_to_tray') {
               await systemAPI.minimizeToTray();
             } else if (behavior === 'ask') {
-              let doNotAskAgain = false;
-              const closeChoice = await confirmDialogChoice({
+              const shouldQuit = await confirmDialog({
                 title: tCommon('closeDialog.title'),
-                message: (
-                  <div>
-                    <div>{tCommon('closeDialog.message')}</div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16 }}>
-                      <input
-                        type="checkbox"
-                        onChange={(event) => { doNotAskAgain = event.target.checked; }}
-                      />
-                      <span>{tCommon('closeDialog.doNotAskAgain')}</span>
-                    </label>
-                  </div>
-                ),
+                message: tCommon('closeDialog.message'),
                 confirmText: tCommon('closeDialog.quit'),
                 cancelText: tCommon('closeDialog.minimizeToTray'),
                 showCancel: true,
               });
-              const selectedBehavior: CloseBehavior = closeChoice === 'confirm' ? 'quit' : 'minimize_to_tray';
-              if (doNotAskAgain) {
-                try {
-                  await configManager.setConfig('app.close_button_behavior', selectedBehavior);
-                  configManager.clearCache();
-                } catch (error) {
-                  log.warn('Failed to save close-button preference', error);
-                }
-              }
-              if (closeChoice === 'confirm') {
-                if (await confirmCriticalOperationExit()) {
-                  await persistInterruptedTurnsForExit();
-                  await systemAPI.quitApp();
-                }
+              if (shouldQuit) {
+                await persistInterruptedTurnsForExit();
+                await systemAPI.quitApp();
               } else {
                 await systemAPI.minimizeToTray();
               }
             } else {
               // quit
-              if (await confirmCriticalOperationExit()) {
-                await persistInterruptedTurnsForExit();
-                await systemAPI.quitApp();
-              }
+              await persistInterruptedTurnsForExit();
+              await systemAPI.quitApp();
             }
           } catch (error) {
             log.error('Failed to handle close request', { behavior, error });
             try {
-              if (await confirmCriticalOperationExit()) {
-                await persistInterruptedTurnsForExit();
-                await systemAPI.quitApp();
-              }
+              await persistInterruptedTurnsForExit();
+              await systemAPI.quitApp();
             } catch { /* ignore */ }
           } finally {
             handlingClose = false;
@@ -703,9 +677,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
       }
     };
     const handleDragOver  = (e: DragEvent) => e.preventDefault();
-    const handleDrop      = (e: DragEvent) => {
-      if (!e.defaultPrevented) e.preventDefault();
-    };
+    const handleDragEnter = (_e: DragEvent) => {};
+    const handleDrop      = (e: DragEvent) => { if (!e.defaultPrevented) e.preventDefault(); };
 
     document.addEventListener('dragstart', handleDragStart, true);
     document.addEventListener('dragover',  handleDragOver,  true);
@@ -786,11 +759,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
         {/* Main content — always render WorkspaceBody; WelcomeScene in viewport handles no-workspace state */}
         <main className="bitfun-app-main-workspace" data-testid="app-main-content" data-bf-component="app-layout" data-bf-part="main">
           <WorkspaceBody
-            onMinimize={canUseNativeWindowControls && !isMacOS && !isOpenHarmony ? handleMinimize : undefined}
-            onMaximize={canUseNativeWindowControls && !isOpenHarmony ? handleMaximize : undefined}
-            onClose={canUseNativeWindowControls && !isMacOS && !isOpenHarmony ? handleClose : undefined}
+            onMinimize={canUseNativeWindowControls && !isMacOS ? handleMinimize : undefined}
+            onMaximize={canUseNativeWindowControls ? handleMaximize : undefined}
+            onClose={canUseNativeWindowControls && !isMacOS ? handleClose : undefined}
             isMaximized={isMaximized}
-            reserveNativeWindowControls={isOpenHarmony}
             isEntering={transitionDir === 'entering'}
             isExiting={transitionDir === 'returning'}
           />
@@ -811,11 +783,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
             isOpen={showNewProjectDialog}
             onClose={() => setShowNewProjectDialog(false)}
             onConfirm={handleConfirmNewProject}
-            defaultParentPath={
-              hasWorkspace && currentWorkspace?.workspaceKind !== WorkspaceKind.Assistant
-                ? currentWorkspace?.rootPath
-                : '/storage/Users/currentUser/Documents'
-            }
+            defaultParentPath={hasWorkspace ? currentWorkspace?.rootPath : undefined}
           />
         </Suspense>
       </RetainedMountBoundary>
@@ -837,11 +805,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
         </Suspense>
       </RetainedMountBoundary>
       <MCPInteractionDialog />
-      {isOpenHarmony && (
-        <Suspense fallback={null}>
-          <AgentCompanionInAppPet />
-        </Suspense>
-      )}
     </>
   );
 };

@@ -43,12 +43,6 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(digits)} ${units[unitIndex]}`;
 }
 
-function clampRecordingSeconds(value: number): number {
-  if (!Number.isFinite(value)) {
-    return DEFAULT_MAX_RECORDING_SECONDS;
-  }
-  return Math.min(8 * 60 * 60, Math.max(5, Math.round(value)));
-}
 type VoiceInputStatus = 'ready' | 'setup' | 'downloading' | 'unavailable' | 'error';
 
 function statusBadgeVariant(status: VoiceInputStatus): StatusPillTone {

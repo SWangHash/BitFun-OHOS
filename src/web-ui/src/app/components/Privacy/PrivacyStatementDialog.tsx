@@ -1,5 +1,16 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Checkbox, ConfirmDialog, Modal } from '@/component-library';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  ConfirmDialog,
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogHeader,
+  DialogHeading,
+  DialogTitle,
+} from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
 import { PrivacyDocument } from './PrivacyDocument';
@@ -147,14 +158,19 @@ export const PrivacyStatementDialog: React.FC<PrivacyStatementDialogProps> = ({
 
   return (
     <>
-      <Modal
-        isOpen={isOpen}
-        onClose={close}
-        title={t('privacy.title')}
-        size="xlarge"
-        contentClassName="bitfun-privacy-dialog"
-        showCloseButton={!busy}
+      <Dialog
+        open={isOpen}
+        onOpenChange={() => close()}
+        size="2xl"
+        className="bitfun-privacy-dialog"
+        closeOnEscape={!busy}
+        closeOnPointerOutside={!busy}
       >
+        <DialogHeader>
+          <DialogHeading><DialogTitle>{t('privacy.title')}</DialogTitle></DialogHeading>
+          <DialogClose disabled={busy} />
+        </DialogHeader>
+        <DialogBody inset="none">
         <div
           className="bitfun-privacy-dialog__body"
           data-bf-component="privacy-dialog"
@@ -192,21 +208,22 @@ export const PrivacyStatementDialog: React.FC<PrivacyStatementDialogProps> = ({
         </div>
         {errorMessage ? (
           <div className="bitfun-privacy-dialog__error" data-bf-component="privacy-dialog" data-bf-part="error">
-            <Alert type="error" message={errorMessage} showIcon />
+            <Alert tone="error" message={errorMessage} showIcon />
           </div>
         ) : null}
         {variant === 'about' ? (
           <div className="bitfun-privacy-dialog__actions" data-bf-component="privacy-dialog" data-bf-part="actions">
             {fullMode ? (
               <Button
-                variant="danger"
+                variant="primary"
+                tone="danger"
                 disabled={busy}
                 onClick={() => setConfirmWithdraw(true)}
               >
                 {t('privacy.withdraw')}
               </Button>
             ) : fullModeNeedsRetry ? (
-              <Button isLoading={busy} onClick={() => void handleApplyRetry()}>
+              <Button loading={busy} variant="primary" onClick={() => void handleApplyRetry()}>
                 {t('privacy.retryFullMode')}
               </Button>
             ) : (
@@ -219,7 +236,8 @@ export const PrivacyStatementDialog: React.FC<PrivacyStatementDialogProps> = ({
                 />
                 <Button
                   disabled={!checked}
-                  isLoading={busy}
+                  loading={busy}
+                  variant="primary"
                   onClick={() => void handleAccept()}
                 >
                   {t('privacy.enableFull')}
@@ -229,10 +247,11 @@ export const PrivacyStatementDialog: React.FC<PrivacyStatementDialogProps> = ({
           </div>
         ) : null}
         </div>
-      </Modal>
+        </DialogBody>
+      </Dialog>
       <ConfirmDialog
-        isOpen={confirmWithdraw}
-        onClose={() => setConfirmWithdraw(false)}
+        open={confirmWithdraw}
+        onOpenChange={() => setConfirmWithdraw(false)}
         onConfirm={() => void handleWithdraw()}
         title={t('privacy.withdrawConfirmTitle')}
         message={t('privacy.withdrawConfirmMessage')}

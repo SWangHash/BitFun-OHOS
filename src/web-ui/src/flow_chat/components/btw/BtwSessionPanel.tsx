@@ -1,15 +1,11 @@
 import { Button, IconButton } from '@bitfun/ui';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
-import { i18nService } from '@/infrastructure/i18n';
 import path from 'path-browserify';
 import {CornerUpLeft, Link2, Loader2, Square, Sparkles} from 'lucide-react';
 import {FlowChatContext, FlowChatVolatileContext} from '../modern/FlowChatContext';
 import {VirtualItemRenderer} from '../modern/VirtualItemRenderer';
 import {RuntimeStatusSlot} from '../modern/RuntimeStatusSlot';
-import {PermissionRequestPanel} from '../modern/PermissionRequestPanel';
-import {pendingPermissionToolCallIdsForSession} from '../modern/permissionRequestRouting';
-import {usePermissionRequests} from '../modern/usePermissionRequests';
 import {pendingPermissionToolCallIdsForSession} from '../modern/permissionRequestRouting';
 import {usePermissionRequests} from '../modern/usePermissionRequests';
 import {useExploreGroupState} from '../modern/useExploreGroupState';
@@ -393,29 +389,6 @@ export const BtwSessionPanel: React.FC<BtwSessionPanelProps> = ({
     exploreGroupStates,
     pendingPermissionToolCallIds,
   }), [exploreGroupStates, pendingPermissionToolCallIds]);
-    pendingPermissionToolCallIds,
-  }), [exploreGroupStates, pendingPermissionToolCallIds]);
-
-  const activePermissionPanelSnapshot = childSession && activePermissionBatch
-    ? {
-        ownerSessionId: childSession.sessionId,
-        batch: activePermissionBatch,
-        totalPendingCount: ownedPermissionRequests.length,
-        onRespond: respondPermission,
-        onRespondBatch: respondPermissionBatch,
-      }
-    : null;
-  const retainedPermissionPanelSnapshotRef = useRef(activePermissionPanelSnapshot);
-  let renderedPermissionPanelSnapshot = activePermissionPanelSnapshot;
-  if (activePermissionPanelSnapshot) {
-    retainedPermissionPanelSnapshotRef.current = activePermissionPanelSnapshot;
-  } else if (
-    retainedPermissionPanelSnapshotRef.current?.ownerSessionId === childSessionId
-  ) {
-    renderedPermissionPanelSnapshot = retainedPermissionPanelSnapshotRef.current;
-  } else {
-    retainedPermissionPanelSnapshotRef.current = null;
-  }
 
   const lastDialogTurn = childSession?.dialogTurns[childSession.dialogTurns.length - 1];
   const isTurnProcessing = isActiveReviewTurnStatus(lastDialogTurn?.status);

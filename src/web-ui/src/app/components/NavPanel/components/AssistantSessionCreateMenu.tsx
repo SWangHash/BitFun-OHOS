@@ -42,8 +42,8 @@ const AssistantSessionCreateMenu: React.FC<AssistantSessionCreateMenuProps> = ({
     open: menuOpen,
     anchorRef,
     popoverRef: menuRef,
-    preferredPlacement: 'right',
-    alignment: 'start',
+    preferredPlacement: 'bottom',
+    alignment: 'end',
     gap: 6,
     layoutRevision: orderedAssistants.length,
   });

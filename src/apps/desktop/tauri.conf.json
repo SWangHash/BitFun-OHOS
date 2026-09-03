@@ -3,10 +3,9 @@
   "productName": "BitFun",
   "identifier": "com.bitfun.desktop",
   "build": {
-    "beforeDevCommand": "pnpm run dev:web",
     "devUrl": "http://localhost:1422",
     "beforeBuildCommand": "pnpm run frontend:build-all",
-    "frontendDist": "bootstrap-ui"
+    "frontendDist": "../../../dist"
   },
   "bundle": {
     "active": true,
@@ -86,7 +85,6 @@
     "security": {
       "csp": null
     },
-    "macOSPrivateApi": true,
     "withGlobalTauri": true
   },
   "plugins": {

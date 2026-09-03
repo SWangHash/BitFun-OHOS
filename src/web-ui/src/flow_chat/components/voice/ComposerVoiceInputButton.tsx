@@ -2,10 +2,21 @@ import { Button, IconButton } from '@bitfun/ui';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Check, Download, Loader2, Mic, VolumeX, X } from 'lucide-react';
 import { Tooltip } from '@bitfun/ui';
-import { useTranslation } from 'react-i18next';
-import { Loader2, Mic } from 'lucide-react';
-import { IconButton } from '@/component-library';
 import type { ComposerVoiceInputController } from './useComposerVoiceInput';
+
+const VOICE_TIMELINE_SAMPLE_COUNT = 32;
+const VOICE_TIMELINE_TICK_MS = 86;
+const VOICE_SILENCE_THRESHOLD = 0.035;
+
+function createFlatTimelineSamples(): number[] {
+  return Array.from({ length: VOICE_TIMELINE_SAMPLE_COUNT }, () => 0);
+}
+
+function formatElapsedTime(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+  const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+  return `${minutes}:${seconds}`;
+}
 
 interface ComposerVoiceInputButtonProps {
   controller: ComposerVoiceInputController;
@@ -159,7 +170,6 @@ export function ComposerVoiceInputButton({ controller }: ComposerVoiceInputButto
       ? [...timelineSamples.slice(0, -1), currentSample]
       : timelineSamples;
     const controlsDisabled = preparing || transcribing;
-  const busy = controller.phase === 'preparing' || controller.phase === 'transcribing';
 
     return (
       <span
@@ -302,59 +312,7 @@ export function ComposerVoiceInputButton({ controller }: ComposerVoiceInputButto
             icon={<Mic size={14} />}
           />
         </Tooltip>
-  return (
-    <span
-      className="bitfun-chat-input__voice-cluster"
-      data-bf-component="composer-voice-input"
-      data-bf-part="root"
-      data-bf-phase={controller.phase}
-    >
-      <span data-bf-component="composer-voice-input" data-bf-part="control" data-bf-state={controller.disabled ? 'disabled' : undefined}>
-        <IconButton
-          aria-label={controller.tooltip}
-          className="bitfun-chat-input__voice-control"
-          variant="ghost"
-          size="xs"
-          disabled={controller.disabled || busy}
-          tooltip={controller.tooltip}
-          onClick={(event) => {
-            event.stopPropagation();
-            controller.toggle();
-          }}
-        >
-          {busy ? <Loader2 size={14} className="bitfun-chat-input__voice-spinner" /> : <Mic size={14} />}
-        </IconButton>
       </span>
     </span>
-  );
-}
-
-interface ComposerVoiceInputStatusProps {
-  controller: ComposerVoiceInputController;
-}
-
-export function ComposerVoiceInputStatus({ controller }: ComposerVoiceInputStatusProps) {
-  const { t } = useTranslation('flow-chat');
-  if (!controller.enabled || (controller.phase !== 'recording' && controller.phase !== 'preparing' && controller.phase !== 'transcribing')) {
-    return null;
-  }
-
-  return (
-    <div
-      className="bitfun-chat-input__voice-status-row"
-      data-bf-component="composer-voice-input"
-      data-bf-part="status"
-      data-bf-phase={controller.phase}
-    >
-      <span
-        className="bitfun-chat-input__voice-recording-hint"
-        data-bf-component="composer-voice-input"
-        data-bf-part="recordingHint"
-        role="status"
-        aria-live="polite"
-      >
-        {controller.phase === 'recording' ? t('input.voiceInput.recording') : controller.tooltip}
-      </span>
-    </div>
   );
 }

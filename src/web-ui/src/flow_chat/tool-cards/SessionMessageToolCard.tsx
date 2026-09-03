@@ -58,23 +58,6 @@ export const SessionMessageToolCard: React.FC<ToolCardProps> = React.memo(({
 
   const targetLabel = targetSessionId || t('toolCards.sessionMessage.unknownSession');
 
-    const [shouldExpand, setShouldExpand] = useState(true);
-
-    const handleMouseDown = () => {
-      setShouldExpand(true);
-    }
-
-    const handleMouseMove = () => {
-      setShouldExpand(false);
-    }
-
-    const handleMouseUp = () => {
-      if (shouldExpand && hasDetails) {
-        applyExpandedState(isExpanded, !isExpanded, setIsExpanded);
-      }
-      setShouldExpand(true);
-    }
-
   const renderContent = () => {
     if (status === 'completed') {
       return <>{t('toolCards.sessionMessage.messageAccepted', { session: targetLabel })}</>;

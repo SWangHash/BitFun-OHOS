@@ -28,6 +28,16 @@ export function useRealtimeVoiceCall(): RealtimeVoiceCallController {
   return controller;
 }
 
+/**
+ * Optional variant for shell-level affordances.  The voice launcher can be
+ * mounted while the app shell is being recovered (or in an isolated preview)
+ * before the provider has been attached; that should not take down the whole
+ * scene.  The normal application tree always supplies the provider.
+ */
+export function useOptionalRealtimeVoiceCall(): RealtimeVoiceCallController | null {
+  return useContext(RealtimeVoiceCallContext);
+}
+
 /** Tests and isolated composer previews may render without the client shell. */
 export function useRealtimeVoiceCallActive(): boolean {
   const controller = useContext(RealtimeVoiceCallContext);

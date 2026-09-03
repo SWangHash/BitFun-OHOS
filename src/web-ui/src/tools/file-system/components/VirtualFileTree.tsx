@@ -16,10 +16,6 @@ interface VirtualFileRowProps {
   onCancelRename?: () => void;
   renderContent?: (node: FileSystemNode, level: number) => React.ReactNode;
   renderActions?: (node: FileSystemNode) => React.ReactNode;
-  /** 同级已存在的名称列表（已排除当前节点原名）。 */
-  renameSiblings?: string[];
-  /** 当前是否为远程工作区，传入重命名校验上下文。 */
-  isRemoteWorkspace?: boolean;
 }
 
 const VirtualFileRow = React.memo<VirtualFileRowProps>(({
@@ -33,8 +29,6 @@ const VirtualFileRow = React.memo<VirtualFileRowProps>(({
   onCancelRename,
   renderContent,
   renderActions,
-  renameSiblings,
-  isRemoteWorkspace = false,
 }) => {
   const indentPx = node.depth * 20 + 16;
 
@@ -64,8 +58,6 @@ const VirtualFileRow = React.memo<VirtualFileRowProps>(({
         onToggleExpand={() => onToggleExpand(node.path)}
         renderContent={renderContent}
         renderActions={renderActions}
-        renameSiblings={renameSiblings}
-        isRemoteWorkspace={isRemoteWorkspace}
       />
     </div>
   );
@@ -73,12 +65,7 @@ const VirtualFileRow = React.memo<VirtualFileRowProps>(({
 
 VirtualFileRow.displayName = 'VirtualFileRow';
 
-interface VirtualFileTreeWithRemoteProps extends VirtualFileTreeProps {
-  /** 当前是否为远程工作区，传入重命名校验上下文。 */
-  isRemoteWorkspace?: boolean;
-}
-
-export const VirtualFileTree = forwardRef<VirtuosoHandle, VirtualFileTreeWithRemoteProps>(({
+export const VirtualFileTree = forwardRef<VirtuosoHandle, VirtualFileTreeProps>(({
   flatNodes,
   selectedFile,
   expandedFolders,
@@ -91,7 +78,6 @@ export const VirtualFileTree = forwardRef<VirtuosoHandle, VirtualFileTreeWithRem
   onCancelRename,
   renderNodeContent,
   renderNodeActions,
-  isRemoteWorkspace = false,
 }, ref) => {
   const { t } = useI18n('tools');
   const virtuosoRef = useRef<VirtuosoHandle>(null);
@@ -106,26 +92,9 @@ export const VirtualFileTree = forwardRef<VirtuosoHandle, VirtualFileTreeWithRem
     onToggleExpand?.(path);
   }, [onToggleExpand]);
 
-  // 按父目录分组，缓存每个节点的同级名称列表（重命名重名检测用）。
-  const siblingsByParent = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const n of flatNodes) {
-      const parent = n.parentPath ?? '';
-      const list = map.get(parent);
-      if (list) {
-        list.push(n.name);
-      } else {
-        map.set(parent, [n.name]);
-      }
-    }
-    return map;
-  }, [flatNodes]);
-
   const itemContent = useCallback((_index: number, node: FlatFileNode) => {
     const isSelected = selectedFile === node.path;
     const isExpanded = expandedFoldersContains(expandedFolders, node.path);
-    const siblings = siblingsByParent.get(node.parentPath ?? '')
-      ?.filter((name) => name !== node.name);
 
     return (
       <VirtualFileRow
@@ -139,11 +108,9 @@ export const VirtualFileTree = forwardRef<VirtuosoHandle, VirtualFileTreeWithRem
         onCancelRename={onCancelRename}
         renderContent={renderNodeContent}
         renderActions={renderNodeActions}
-        renameSiblings={siblings}
-        isRemoteWorkspace={isRemoteWorkspace}
       />
     );
-  }, [selectedFile, expandedFolders, handleNodeSelect, handleToggleExpand, renamingPath, onRename, onCancelRename, renderNodeContent, renderNodeActions, siblingsByParent, isRemoteWorkspace]);
+  }, [selectedFile, expandedFolders, handleNodeSelect, handleToggleExpand, renamingPath, onRename, onCancelRename, renderNodeContent, renderNodeActions]);
 
   if (flatNodes.length === 0) {
     return (
@@ -156,7 +123,7 @@ export const VirtualFileTree = forwardRef<VirtuosoHandle, VirtualFileTreeWithRem
   }
 
   return (
-    <div
+    <div 
       className={`bitfun-file-explorer__tree bitfun-file-explorer__tree--virtual ${className}`}
       style={{ height }}
       tabIndex={0}

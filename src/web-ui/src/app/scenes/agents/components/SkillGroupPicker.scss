@@ -193,7 +193,7 @@
 
   &__footer {
     justify-content: flex-end;
-    gap: $size-gap-2;
+    gap: var(--bf-space-2);
   }
 
   &__list {

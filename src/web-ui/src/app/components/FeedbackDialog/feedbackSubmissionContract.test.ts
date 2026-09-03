@@ -46,8 +46,8 @@ describe('OpenHarmony feedback submission contract', () => {
 
     expect(dialog).toContain('category || content || includeCorrelation || privacyChecked');
     expect(dialog).toContain('if (submitting || replyState.sending) return;');
-    expect(dialog).toContain('showCloseButton={!submitting && !replyState.sending}');
-    expect(dialog).toContain('closeOnOverlayClick={!submitting && !replyState.sending}');
+    expect(dialog).toContain('<DialogClose disabled={submitting || replyState.sending} />');
+    expect(dialog).toContain('closeOnPointerOutside={!submitting && !replyState.sending}');
     expect(dialog).toContain('registerCriticalOperationExitGuard');
     expect(layout).toContain('await confirmCriticalOperationExit()');
   });

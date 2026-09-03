@@ -4,12 +4,16 @@ import { Bot, Loader2, Mic, MicOff, PhoneOff, Settings2, User } from 'lucide-rea
 import { useTranslation } from 'react-i18next';
 import { Tooltip } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
-import { useRealtimeVoiceCall } from './RealtimeVoiceCallContext';
+import { useOptionalRealtimeVoiceCall } from './RealtimeVoiceCallContext';
 import './RealtimeVoiceCallButton.scss';
 
 export function RealtimeVoiceCallButton() {
   const { t } = useTranslation('settings/voice-input');
-  const controller = useRealtimeVoiceCall();
+  const controller = useOptionalRealtimeVoiceCall();
+  // Keep a shell-level scene usable if this lazy component briefly outlives
+  // its provider during startup/HMR recovery.  The provider-backed instance
+  // is rendered in the normal application tree.
+  if (!controller) return null;
   const active = controller.phase !== 'idle';
 
   const connecting = controller.phase === 'connecting' || controller.phase === 'ending';

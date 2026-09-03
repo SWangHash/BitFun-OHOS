@@ -113,8 +113,6 @@ export interface ChatInputWorkspaceStripProps {
     lockedReason?: 'dispatch';
     onChange: (enabled: boolean) => void;
   };
-  /** Voice input control rendered alongside the local target and permission mode. */
-  voiceControl?: React.ReactNode;
   /** Immutable per-session dispatch destination. Hidden on embedded/mini composers. */
   dispatchControl?: {
     target: DispatchTarget;
@@ -159,7 +157,6 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
   executionTarget,
   worktreeControl,
   dispatchControl,
-  voiceControl,
 }) => {
   const { t } = useTranslation('flow-chat');
   const { t: tWorktrees } = useI18n('worktrees');
@@ -245,9 +242,6 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
     reject: t('chatInput.permissionMode.reject.label'),
     acp: t('chatInput.permissionMode.acp.label'),
   } satisfies Record<ChatInputPermissionMode, string>;
-  const showDispatchPicker = !!dispatchControl && isGitWorkspace;
-  const showRightActions =
-    showDispatchPicker || showDispatchResult || showPermission || showUsage || showGoal || !!voiceControl;
   const permissionCopy = {
     ask: {
       label: permissionModeLabels.ask,

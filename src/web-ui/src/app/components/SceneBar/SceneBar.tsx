@@ -16,7 +16,6 @@ import { isSceneTabClosable } from '../../scenes/registry';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import type { SceneTabId } from './types';
 import './SceneBar.scss';
-import { workspaceAPI } from '@/infrastructure';
 
 function getSceneIdFromTabTarget(target: EventTarget | null): SceneTabId | undefined {
   if (!(target instanceof HTMLElement)) return undefined;

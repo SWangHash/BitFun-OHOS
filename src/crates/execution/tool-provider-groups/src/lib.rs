@@ -88,9 +88,10 @@ pub fn enabled_feature_groups() -> Vec<ToolPackFeatureGroup> {
 pub fn tool_feature_group(tool_name: &str) -> Option<ToolPackFeatureGroup> {
     match tool_name {
         "LS" | "Read" | "Glob" | "Grep" | "Write" | "Edit" | "Delete" | "ExecCommand"
-        | "WriteStdin" | "ExecControl" | "GetTime" | "ListModels" => {
-            Some(ToolPackFeatureGroup::Basic)
-        }
+        | "WriteStdin" | "ExecControl" | "GetTime" | "ListModels" | "build_project"
+        | "start_app" | "hdc_log" | "arkts_knowledge_search" | "check_arkts_files"
+        | "check_cpp_files" | "switch_cwd" | "verify_ui" | "get_ui_verification_log"
+        | "save_ui_screenshot" => Some(ToolPackFeatureGroup::Basic),
         "Worktree" | "ReviewPlatform" | "GetFileDiff" => Some(ToolPackFeatureGroup::Git),
         "ListMCPResources" | "ReadMCPResource" | "ListMCPPrompts" | "GetMCPPrompt" => {
             Some(ToolPackFeatureGroup::Mcp)
@@ -164,6 +165,7 @@ const CORE_COMPUTER_USE_FEATURE_GROUPS: &[ToolPackFeatureGroup] =
     &[ToolPackFeatureGroup::ComputerUse];
 const CORE_MINIAPP_FEATURE_GROUPS: &[ToolPackFeatureGroup] = &[ToolPackFeatureGroup::MiniApp];
 const CORE_CREATION_FEATURE_GROUPS: &[ToolPackFeatureGroup] = &[ToolPackFeatureGroup::Creation];
+const CORE_OPENHARMONY_FEATURE_GROUPS: &[ToolPackFeatureGroup] = &[ToolPackFeatureGroup::Basic];
 
 const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
     ToolProviderGroupPlan {
@@ -267,11 +269,6 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
         provider_id: "core.creation",
         feature_groups: CORE_CREATION_FEATURE_GROUPS,
         tool_names: &["FrontendWorkbench"],
-    },
-    ToolProviderGroupPlan {
-        provider_id: "core.canvas",
-        feature_groups: CORE_CANVAS_FEATURE_GROUPS,
-        tool_names: &["CreateCanvas", "ReadCanvas", "UpdateCanvas", "PatchCanvas"],
     },
     ToolProviderGroupPlan {
         provider_id: "core.canvas",
@@ -516,7 +513,6 @@ mod tests {
                 "core.miniapp",
                 "core.creation",
                 "core.canvas",
-                "core.integration",
                 "core.openharmony"
             ]
         );
@@ -593,6 +589,16 @@ mod tests {
                 "ReadCanvas",
                 "UpdateCanvas",
                 "PatchCanvas",
+                "build_project",
+                "start_app",
+                "hdc_log",
+                "arkts_knowledge_search",
+                "check_arkts_files",
+                "check_cpp_files",
+                "switch_cwd",
+                "verify_ui",
+                "get_ui_verification_log",
+                "save_ui_screenshot",
             ]
         );
     }
@@ -627,7 +633,6 @@ mod tests {
                 ("core.miniapp", vec!["miniapp"]),
                 ("core.creation", vec!["creation"]),
                 ("core.canvas", vec!["canvas"]),
-                ("core.session", vec!["agent-control"]),
                 ("core.openharmony", vec!["basic"]),
             ]
         );
