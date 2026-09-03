@@ -123,6 +123,10 @@
       pointer-events: auto;
     }
 
+    &--hidden {
+      display: none;
+    }
+
     &--active {
       z-index: 1;
     }

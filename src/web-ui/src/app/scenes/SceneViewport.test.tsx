@@ -93,10 +93,12 @@ describe('SceneViewport transitions', () => {
       .filter(scene => scene.classList.contains('bitfun-scene-viewport__scene--visible'));
   }
 
-  it('keeps one scene visible while a lazy pointer target becomes ready', async () => {
+  it('keeps the outgoing scene visible while a lazy pointer target becomes ready', async () => {
     act(() => root.render(<SceneViewport />));
     expect(visibleScenes().map(scene => scene.getAttribute('data-scene-id'))).toEqual(['session']);
-    expect(container.querySelector('[data-scene-id="session"]')?.hasAttribute('hidden')).toBe(false);
+    expect(container.querySelector('[data-scene-id="session"]')?.classList.contains(
+      'bitfun-scene-viewport__scene--hidden',
+    )).toBe(false);
 
     sceneHarness.state = {
       openTabs: [
@@ -113,6 +115,9 @@ describe('SceneViewport transitions', () => {
     });
 
     expect(visibleScenes().map(scene => scene.getAttribute('data-scene-id'))).toEqual(['session']);
+    expect(container.querySelector('[data-scene-id="session"]')?.getAttribute('aria-hidden')).toBe('true');
+    expect(container.querySelector('[data-scene-id="session"]')?.hasAttribute('inert')).toBe(true);
+    expect(container.querySelector('[data-testid="scene-loader"]')).not.toBeNull();
 
     await act(async () => {
       sceneHarness.resolveAgents();
@@ -152,6 +157,8 @@ describe('SceneViewport transitions', () => {
     expect(visibleScenes().map(scene => scene.getAttribute('data-scene-id'))).toEqual(['session']);
     expect(container.querySelector('[data-scene-id="agents"]')?.getAttribute('aria-hidden')).toBe('true');
     expect(container.querySelector('[data-scene-id="agents"]')?.hasAttribute('inert')).toBe(true);
-    expect(container.querySelector('[data-scene-id="agents"]')?.hasAttribute('hidden')).toBe(false);
+    expect(container.querySelector('[data-scene-id="agents"]')?.classList.contains(
+      'bitfun-scene-viewport__scene--hidden',
+    )).toBe(true);
   });
 });

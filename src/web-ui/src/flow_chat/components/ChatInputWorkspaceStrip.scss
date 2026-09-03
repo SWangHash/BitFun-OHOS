@@ -50,7 +50,8 @@
     justify-content: flex-start;
     gap: 0;
     min-width: 0;
-    flex: 0 1 auto;
+    overflow: hidden;
+    flex: 1 1 auto;
   }
 
   &--split &__main {
@@ -59,6 +60,7 @@
   }
 
   &__actions {
+    min-width: 0;
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -67,6 +69,7 @@
   }
 
   &__voice-control {
+    min-width: 0;
     display: inline-flex;
     align-items: center;
     flex: none;

@@ -430,6 +430,10 @@ export class AppearanceService {
       : SYSTEM_APPEARANCE_ID;
     this.persistedSelectionId = selected;
     if (selected === SYSTEM_APPEARANCE_ID) {
+      // Bind before async native discovery and package activation. Otherwise a
+      // system change in this window is lost and the initial selection stays
+      // stale until the next focus/visibility reconciliation.
+      this.attachSystemListener();
       await this.refreshNativeSystemAppearance();
     }
     try {
