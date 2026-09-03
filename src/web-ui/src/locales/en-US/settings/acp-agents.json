@@ -43,6 +43,9 @@
       "name": "CodeBuddy Code",
       "description": "Native ACP coding agent that runs on HarmonyBrew Node."
     },
+    "deepSeekHarness": {
+      "description": "DeepSeek Harness installed through HarmonyBrew and connected through BitFun's bundled ACP bridge."
+    },
     "opencode": { "description": "Native ACP support." },
     "dsh": { "description": "Uses BitFun's bundled ACP bridge and the model settings from dsh." },
     "omp": { "description": "Native ACP support." },

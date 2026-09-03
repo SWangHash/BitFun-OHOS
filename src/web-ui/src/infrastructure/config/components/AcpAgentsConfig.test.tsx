@@ -348,6 +348,13 @@ describe('AcpAgentsConfig', () => {
       issueKind: 'cli_missing',
       hasConfigEntry: false,
     })).toBe(true);
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'dsh',
+      status: 'not_installed',
+      issueKind: 'cli_missing',
+      hasConfigEntry: false,
+    })).toBe(true);
     for (const presetId of ['claude-code', 'codex']) {
       expect(canInstallPresetCli({
         isOhos: true,
@@ -394,6 +401,7 @@ describe('AcpAgentsConfig', () => {
       'kimi-code',
       'qwen-code',
       'codebuddy-code',
+      'dsh',
       'claude-code',
       'codex',
     ]);

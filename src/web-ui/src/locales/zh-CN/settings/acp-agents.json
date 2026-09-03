@@ -43,6 +43,9 @@
       "name": "CodeBuddy Code",
       "description": "使用 HarmonyBrew Node 运行的原生 ACP 编码 Agent。"
     },
+    "deepSeekHarness": {
+      "description": "通过 HarmonyBrew 安装，并由 BitFun 内置 ACP 桥接入的编码 Agent。"
+    },
     "opencode": { "description": "原生支持 ACP" },
     "dsh": { "description": "通过 BitFun 内置 ACP 桥接，沿用 dsh 的模型与 API 密钥" },
     "omp": { "description": "原生支持 ACP" },

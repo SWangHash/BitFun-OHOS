@@ -31,11 +31,14 @@
 
 import { spawnSync } from 'node:child_process';
 import {
+  cpSync,
   existsSync,
   lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
@@ -45,7 +48,22 @@ import { fileURLToPath } from 'node:url';
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PACKAGE_DIR = path.join(ROOT_DIR, 'packages', 'dsh-acp');
 const OUT_DIR = path.join(PACKAGE_DIR, 'dist-profile');
+const OHOS_OUT_DIR = path.join(
+  ROOT_DIR,
+  'src',
+  'apps',
+  'ohos',
+  'entry',
+  'src',
+  'main',
+  'resources',
+  'resfile',
+  'dsh-profile',
+);
 const STAMP_FILENAME = '.bitfun-bridge.json';
+const OHOS_STAMP_FILENAME = 'bitfun-bridge.json';
+const NODE_MODULES_DIR = 'node_modules';
+const OHOS_NODE_MODULES_DIR = 'vendor-node-modules';
 
 /** One installed harness package is enough to tell a populated tree from a bare one. */
 const DEPS_PROBE = path.join(PACKAGE_DIR, 'node_modules', '@deepseek-ai', 'dsh-app-boot');
@@ -186,6 +204,35 @@ export function getDshProfileRebuildPlan({
 }
 
 /**
+ * Stage the built profile into HarmonyOS resfile-compatible names.
+ *
+ * The HarmonyOS resource bundle uses aliases for the profile's leading-dot
+ * marker and `node_modules` directory. Keep the canonical desktop build
+ * unchanged and normalize the names back when the Rust client materializes the
+ * profile into the user's DSH home.
+ *
+ * @param {{ sourceDir?: string, destinationDir?: string }} [options]
+ */
+export function syncOhosDshProfile({
+  sourceDir = OUT_DIR,
+  destinationDir = OHOS_OUT_DIR,
+} = {}) {
+  rmSync(destinationDir, { recursive: true, force: true });
+  mkdirSync(path.dirname(destinationDir), { recursive: true });
+  cpSync(sourceDir, destinationDir, { recursive: true, dereference: true });
+
+  const stamp = path.join(destinationDir, STAMP_FILENAME);
+  if (existsSync(stamp)) {
+    renameSync(stamp, path.join(destinationDir, OHOS_STAMP_FILENAME));
+  }
+
+  const nodeModules = path.join(destinationDir, NODE_MODULES_DIR);
+  if (existsSync(nodeModules)) {
+    renameSync(nodeModules, path.join(destinationDir, OHOS_NODE_MODULES_DIR));
+  }
+}
+
+/**
  * Run a command in the bridge package directory.
  * @param {string} command - the executable to run.
  * @param {string[]} args - its arguments.
@@ -217,8 +264,10 @@ function fail(message, status) {
 function main() {
   if (process.env.BITFUN_SKIP_DSH_PROFILE === '1') {
     process.stdout.write('[dsh-profile] skipped (this build ships no DeepSeek bridge)\n');
+    rmSync(OUT_DIR, { recursive: true, force: true });
     mkdirSync(OUT_DIR, { recursive: true });
     writeFileSync(path.join(OUT_DIR, 'NOT-BUILT.md'), PLACEHOLDER);
+    syncOhosDshProfile();
     return;
   }
 
@@ -227,6 +276,7 @@ function main() {
   const plan = getDshProfileRebuildPlan({ force });
   if (!plan.shouldBuild) {
     process.stdout.write(`[dsh-profile] ${plan.reason}\n`);
+    syncOhosDshProfile();
     return;
   }
   process.stdout.write(`[dsh-profile] ${plan.reason}\n`);
@@ -242,6 +292,8 @@ function main() {
 
   const packaged = run('node', ['scripts/build-profile.mjs']);
   if (packaged !== 0) fail('profile packaging failed', packaged);
+
+  syncOhosDshProfile();
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

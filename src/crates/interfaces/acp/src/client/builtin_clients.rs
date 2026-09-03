@@ -189,15 +189,20 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
     // DeepSeek Harness (dsh) — the harness has no ACP entry point of its own,
     // so BitFun ships one as a dsh PROFILE (packages/dsh-acp) and launches it
     // through the user's own installation. The model and the API key stay in
-    // dsh, where the user configured them; BitFun stores neither. Installable
-    // from npm like codex, hence install_package; native ACP, hence no adapter.
+    // dsh, where the user configured them; BitFun stores neither. Portable
+    // hosts keep the npm installer, while HarmonyOS uses the patched official
+    // HarmonyBrew formula and its exact launcher path.
     BuiltinAcpClientPreset {
         id: "dsh",
         command: "dsh",
         args: &["--profile", DSH_BUNDLED_PROFILE],
         tool_command: "dsh",
         install_package: Some("@deepseek-ai/dsh"),
-        ohos: OhosAcpSupport::Unsupported,
+        ohos: OhosAcpSupport::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
+            formula: "deepseek-harness",
+            auto_install: true,
+            entry_relative_path: "bin/dsh",
+        }),
         ohos_adapter: None,
         adapter_package: None,
         adapter_bin: None,
@@ -410,6 +415,7 @@ mod tests {
                 "kimi-code",
                 "qwen-code",
                 "codebuddy-code",
+                "dsh",
                 "claude-code",
                 "codex"
             ]
@@ -454,10 +460,17 @@ mod tests {
         // Native ACP — the bridge is the profile, not a separate adapter.
         assert!(preset.adapter_package.is_none());
         assert!(preset.adapter_bin.is_none());
-        // The harness itself is a plain npm global, so the installer applies.
+        // The harness itself is a plain npm global on portable hosts.
         assert_eq!(preset.install_package, Some("@deepseek-ai/dsh"));
+        assert_eq!(
+            preset.ohos,
+            OhosAcpSupport::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
+                formula: "deepseek-harness",
+                auto_install: true,
+                entry_relative_path: "bin/dsh",
+            })
+        );
 
-        // Every other preset is self-contained: nothing to materialize.
         for preset in BUILTIN_ACP_CLIENT_PRESETS.iter().filter(|p| p.id != "dsh") {
             assert!(
                 preset.bundled_profile.is_none(),

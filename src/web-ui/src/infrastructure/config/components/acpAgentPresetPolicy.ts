@@ -45,6 +45,7 @@ const OHOS_MANAGED_INSTALL_PRESET_IDS = new Set([
   'kimi-code',
   'qwen-code',
   'codebuddy-code',
+  'dsh',
   'claude-code',
   'codex',
 ]);
@@ -104,7 +105,7 @@ export const ALL_ACP_CLIENT_PRESETS: AcpClientPreset[] = [
   {
     id: 'dsh',
     name: 'DeepSeek Harness',
-    description: 'DeepSeek Harness with BitFun\'s bundled ACP bridge. Uses the model and API key configured in dsh.',
+    description: 'DeepSeek Harness through BitFun\'s bundled ACP bridge.',
     command: 'dsh',
     args: ['--profile', 'bitfun-acp'],
   },
