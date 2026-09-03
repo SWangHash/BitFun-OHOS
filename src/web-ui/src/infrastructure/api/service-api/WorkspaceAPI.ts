@@ -1140,16 +1140,6 @@ export class WorkspaceAPI {
     }
   }
 
-  async saveFileToDownloadsOhos(fileName: string, dataBase64: string): Promise<string> {
-    try {
-      return await api.invoke<string>('save_file_to_downloads_ohos', {
-        arg: JSON.stringify({ fileName, dataBase64 }),
-      });
-    } catch (error) {
-      throw createTauriCommandError('save_file_to_downloads_ohos', error, { fileName });
-    }
-  }
-
   async window_is_minimized(): Promise<boolean> {
     try {
       return await api.invoke("window_is_minimized")
@@ -1348,7 +1338,7 @@ export class WorkspaceAPI {
    */
   async saveFileToDownloadsOhos(fileName: string, dataBase64: string): Promise<string> {
     try {
-      return await api.invoke('save_file_to_downloads_ohos', {
+      return await api.invoke<string>('save_file_to_downloads_ohos', {
         arg: JSON.stringify({ fileName, dataBase64 }),
       });
     } catch (error) {
