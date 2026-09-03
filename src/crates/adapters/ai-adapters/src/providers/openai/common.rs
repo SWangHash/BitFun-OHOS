@@ -9,11 +9,12 @@ use crate::providers::shared;
 use crate::types::{
     ReasoningPresetAction, ReasoningPresetDescriptor, RemoteModelInfo, ToolDefinition,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use log::warn;
 use reqwest::RequestBuilder;
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 #[derive(Debug, Deserialize)]
 struct OpenAIModelsResponse {
@@ -27,9 +28,8 @@ struct OpenAIModelEntry {
 
 pub(crate) fn apply_headers(client: &AIClient, builder: RequestBuilder) -> RequestBuilder {
     shared::apply_header_policy(client, builder, |mut builder| {
-        builder = builder
-            .header("Content-Type", "application/json");
-        
+        builder = builder.header("Content-Type", "application/json");
+
         // When the API key is empty or whitespace-only, do not set the
         // Authorization header. This allows local model services (e.g. Ollama)
         // that do not require authentication to work without a dummy key.
@@ -193,6 +193,7 @@ struct CodexBackendModelEntry {
 }
 
 const DEFAULT_CODEX_MODELS: &[&str] = &[
+    "gpt-5.6",
     "gpt-5.5",
     "gpt-5.4-mini",
     "gpt-5.4",
@@ -208,11 +209,16 @@ pub(crate) fn is_known_codex_reasoning_model(model_id: &str) -> bool {
 }
 
 const FORWARD_COMPAT_CODEX_MODELS: &[(&str, &[&str])] = &[
+    ("gpt-5.6", &["gpt-5.5", "gpt-5.4"]),
     ("gpt-5.5", &["gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex"]),
     ("gpt-5.4-mini", &["gpt-5.3-codex", "gpt-5.2-codex"]),
     ("gpt-5.4", &["gpt-5.3-codex", "gpt-5.2-codex"]),
     ("gpt-5.3-codex", &["gpt-5.2-codex"]),
 ];
+
+const CODEX_MODEL_DISCOVERY_MAX_ATTEMPTS: usize = 2;
+const CODEX_MODEL_DISCOVERY_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(12);
+const CODEX_MODEL_DISCOVERY_RETRY_DELAY: Duration = Duration::from_millis(250);
 
 fn codex_home_dir() -> PathBuf {
     std::env::var("CODEX_HOME")
@@ -372,22 +378,73 @@ fn codex_models_url(base_models_url: &str) -> String {
     format!("{base_models_url}{separator}client_version=1.0.0")
 }
 
+fn is_retryable_codex_model_discovery_error(error: &anyhow::Error) -> bool {
+    if error
+        .downcast_ref::<tokio::time::error::Elapsed>()
+        .is_some()
+    {
+        return true;
+    }
+
+    error.downcast_ref::<reqwest::Error>().is_some_and(|error| {
+        error.is_connect()
+            || error.is_timeout()
+            || error.is_request()
+            || error.is_body()
+            || error.is_decode()
+            || error.status().is_some_and(|status| {
+                status.is_server_error() || matches!(status.as_u16(), 408 | 425 | 429)
+            })
+    })
+}
+
+async fn fetch_codex_chatgpt_model_ids(client: &AIClient, url: &str) -> Result<Vec<String>> {
+    let response = apply_headers(client, client.client.get(url))
+        .send()
+        .await?
+        .error_for_status()?;
+    let payload: CodexBackendModelsResponse = response.json().await?;
+    Ok(codex_models_from_entries(payload.models))
+}
+
+async fn fetch_codex_chatgpt_model_ids_with_retry(
+    client: &AIClient,
+    url: &str,
+) -> Result<Vec<String>> {
+    for attempt in 1..=CODEX_MODEL_DISCOVERY_MAX_ATTEMPTS {
+        let result = tokio::time::timeout(
+            CODEX_MODEL_DISCOVERY_ATTEMPT_TIMEOUT,
+            fetch_codex_chatgpt_model_ids(client, url),
+        )
+        .await
+        .context("Codex backend model discovery timed out")
+        .and_then(|result| result);
+
+        match result {
+            Ok(models) => return Ok(models),
+            Err(error)
+                if attempt < CODEX_MODEL_DISCOVERY_MAX_ATTEMPTS
+                    && is_retryable_codex_model_discovery_error(&error) =>
+            {
+                log::warn!(
+                    "Codex backend model discovery attempt {attempt}/{} failed: {error:#}; retrying",
+                    CODEX_MODEL_DISCOVERY_MAX_ATTEMPTS
+                );
+                tokio::time::sleep(CODEX_MODEL_DISCOVERY_RETRY_DELAY).await;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+
+    unreachable!("Codex model discovery retry loop always returns")
+}
+
 async fn list_codex_chatgpt_models(
     client: &AIClient,
     base_models_url: &str,
 ) -> Result<Vec<RemoteModelInfo>> {
     let url = codex_models_url(base_models_url);
-
-    let live_models = async {
-        let response = apply_headers(client, client.client.get(&url))
-            .send()
-            .await?
-            .error_for_status()?;
-
-        let payload: CodexBackendModelsResponse = response.json().await?;
-        Ok::<Vec<String>, anyhow::Error>(codex_models_from_entries(payload.models))
-    }
-    .await;
+    let live_models = fetch_codex_chatgpt_model_ids_with_retry(client, &url).await;
 
     let mut model_ids = match live_models {
         Ok(models) if !models.is_empty() => models,
@@ -399,7 +456,7 @@ async fn list_codex_chatgpt_models(
         }
         Err(error) => {
             log::warn!(
-                "Codex backend model discovery failed: {}; using local fallback catalog",
+                "Codex backend model discovery failed: {:#}; using local fallback catalog",
                 error
             );
             codex_fallback_model_ids()
@@ -471,8 +528,88 @@ pub(crate) fn convert_tools_flat(
 
 #[cfg(test)]
 mod tests {
-    use super::{attach_tools, is_known_codex_reasoning_model};
+    use super::{
+        add_forward_compat_codex_models, attach_tools, is_known_codex_reasoning_model,
+        list_codex_chatgpt_models,
+    };
+    use crate::{client::AIClient, types::AIConfig};
     use serde_json::json;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    fn codex_discovery_test_client(base_url: String) -> AIClient {
+        AIClient::new(AIConfig {
+            name: "codex-discovery-test".to_string(),
+            request_url: format!("{base_url}/responses"),
+            base_url,
+            api_key: "test-token".to_string(),
+            model: "gpt-5.5".to_string(),
+            format: "responses".to_string(),
+            context_window: 128_000,
+            max_tokens: None,
+            temperature: None,
+            top_p: None,
+            inline_think_in_text: false,
+            custom_headers: None,
+            custom_headers_mode: None,
+            skip_ssl_verify: false,
+            custom_request_body: None,
+            custom_request_body_mode: None,
+        })
+    }
+
+    #[tokio::test]
+    async fn codex_model_discovery_retries_an_incomplete_first_response() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for attempt in 0..2 {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = [0u8; 2048];
+                let _ = stream.read(&mut request).await.unwrap();
+                if attempt == 0 {
+                    stream
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 200\r\nConnection: close\r\n\r\n{\"models\":[",
+                        )
+                        .await
+                        .unwrap();
+                    continue;
+                }
+
+                let body = json!({
+                    "models": [
+                        {
+                            "slug": "gpt-5.6",
+                            "visibility": "list",
+                            "supported_in_api": true,
+                            "priority": 1
+                        }
+                    ]
+                })
+                .to_string();
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                stream.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let client = codex_discovery_test_client(format!("http://{address}"));
+
+        let models = list_codex_chatgpt_models(&client, &format!("http://{address}/models"))
+            .await
+            .unwrap();
+
+        server.await.unwrap();
+        assert_eq!(
+            models
+                .iter()
+                .map(|model| model.id.as_str())
+                .collect::<Vec<_>>(),
+            ["gpt-5.6"]
+        );
+    }
 
     #[test]
     fn attach_tools_removes_tool_choice_without_tools() {
@@ -491,10 +628,20 @@ mod tests {
 
     #[test]
     fn codex_reasoning_model_table_is_exact_and_case_insensitive() {
+        assert!(is_known_codex_reasoning_model("GPT-5.6"));
         assert!(is_known_codex_reasoning_model("GPT-5.5"));
         assert!(is_known_codex_reasoning_model("gpt-5-codex"));
         assert!(!is_known_codex_reasoning_model("gpt-9-unknown"));
         assert!(!is_known_codex_reasoning_model("gpt-5.5-proxy"));
+    }
+
+    #[test]
+    fn codex_model_discovery_backfills_current_model_from_previous_generation() {
+        let mut models = vec!["gpt-5.5".to_string()];
+
+        add_forward_compat_codex_models(&mut models);
+
+        assert_eq!(models, ["gpt-5.5", "gpt-5.6"]);
     }
 
     #[test]
