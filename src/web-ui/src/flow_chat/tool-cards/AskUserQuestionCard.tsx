@@ -130,6 +130,13 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   const { t } = useTranslation('flow-chat');
   const { status, toolCall, toolResult, isParamsStreaming, partialParams } = toolItem;
 
+  // Template-owned text (question/header/labels/placeholders) may carry a
+  // stable i18n key under the `askUser.qtMigration.*` namespace. Render those
+  // through the flow-chat catalog; keep concrete values (paths) as-is.
+  const localize = useCallback((text: string) => {
+    return text.startsWith('askUser.qtMigration.') ? t(`toolCards.${text}`) : text;
+  }, [t]);
+
   const paramsSource = partialParams || toolCall?.input;
   const toolId = toolItem.id ?? toolCall?.id;
 
@@ -428,8 +435,8 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     return (
       <div data-bf-component="ask-user-question-card" data-bf-part="question" key={questionIndex} className="ask-question-item">
         <div className="question-item-header" data-bf-component="ask-user-question-card" data-bf-part="header">
-          <span className="question-header-chip">{q.header}</span>
-          <span className="question-text">{q.question}</span>
+          <span className="question-header-chip">{localize(q.header)}</span>
+          <span className="question-text">{localize(q.question)}</span>
         </div>
         
         <div className="question-options" data-bf-component="ask-user-question-card" data-bf-part="options">
@@ -461,11 +468,11 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
                 </>
               )}
               <div className="option-content">
-                <div className="option-label-text">{option.label}</div>
-                <OptionDescription description={option.description} />
+                <div className="option-label-text">{localize(option.label)}</div>
+                <OptionDescription description={localize(option.description)} />
               </div>
               {optIdx === 0 && (q.options.length > 1 || option.value === '__official__') && (
-                <span className="option-recommend-tag">推荐</span>
+                <span className="option-recommend-tag">{t('toolCards.askUser.qtMigration.option.recommend')}</span>
               )}
             </label>
           ))}
@@ -475,7 +482,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
               <input
                 type="text"
                 className="custom-input-inline"
-                placeholder={q.inputPlaceholder}
+                placeholder={localize(q.inputPlaceholder || '')}
                 value={otherInput}
                 onChange={(e) => handleOtherInputChange(questionIndex, e.target.value)}
                 disabled={isSubmitted || status === 'completed' || Boolean(isParamsStreaming)}
@@ -485,7 +492,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
                 className="path-browse-button"
                 data-bf-component="ask-user-question-card"
                 data-bf-part="browse"
-                onClick={() => void handleBrowsePath(questionIndex, q.question)}
+                onClick={() => void handleBrowsePath(questionIndex, localize(q.question))}
                 disabled={isSubmitted || status === 'completed' || Boolean(isParamsStreaming)}
                 title={t('toolCards.askUser.browsePath')}
                 aria-label={t('toolCards.askUser.browsePath')}
@@ -599,7 +606,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   const getAnswersSummary = (): string => {
     return questions.map((q, idx) => {
       const answerText = getAnswerDisplay(idx);
-      return `${q.header}: ${answerText || t('toolCards.askUser.notAnswered')}`;
+      return `${localize(q.header)}: ${answerText || t('toolCards.askUser.notAnswered')}`;
     }).join(' | ');
   };
 

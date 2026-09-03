@@ -115,17 +115,20 @@ pub fn qt_migration_paths_questions(
         field: &str,
         managed_resource_available: bool,
     ) -> Vec<QuestionOption> {
-        // First candidate becomes "默认路径" (recommended, pre-selected by the
-        // frontend), the rest become "备选路径". The actual path goes into
-        // `description` so the UI shows description on line 1 and the path on
-        // line 2.
+        // First candidate becomes the default (recommended, pre-selected by the
+        // frontend), the rest become alternates. The actual path goes into
+        // `description` so the UI shows label on line 1 and the path on line 2.
+        //
+        // Localizable labels carry an i18n key (`askUser.qtMigration.*`) which
+        // the frontend renders with its `toolCards.` namespace; concrete path
+        // values are kept as-is.
         let mut options = Vec::new();
         if let Some(paths) = candidates.get(field) {
             for (i, path) in paths.iter().take(2).enumerate() {
                 let label = if i == 0 {
-                    "默认路径"
+                    "askUser.qtMigration.option.default"
                 } else {
-                    "备选路径"
+                    "askUser.qtMigration.option.alternate"
                 };
                 options.push(QuestionOption {
                     label: label.to_string(),
@@ -140,11 +143,11 @@ pub fn qt_migration_paths_questions(
         {
             options.push(QuestionOption {
                 label: if field == "toolchain" {
-                    "鸿蒙OS推荐工具链".to_string()
+                    "askUser.qtMigration.option.officialToolchain".to_string()
                 } else {
-                    "鸿蒙OS推荐模板".to_string()
+                    "askUser.qtMigration.option.officialTemplate".to_string()
                 },
-                description: "由 ohos-qt-skills 负责准备".to_string(),
+                description: "askUser.qtMigration.option.officialDescription".to_string(),
                 value: Some(QT_MIGRATION_OFFICIAL_VALUE.to_string()),
             });
         }
@@ -152,44 +155,45 @@ pub fn qt_migration_paths_questions(
     }
     // Four intake questions, each with candidate-path options (when available)
     // plus a real text input (inputPlaceholder). The backend owns requiredness.
+    // Question/header/placeholder text is i18n-keyed (askUser.qtMigration.*).
     vec![
         Question {
-            question: "你希望从哪个原始工程开始迁移？".to_string(),
-            header: "原始工程".to_string(),
+            question: "askUser.qtMigration.question.sourceProject".to_string(),
+            header: "askUser.qtMigration.field.sourceProject".to_string(),
             options: candidate_options(candidates, "source_project", false),
             multi_select: false,
-            input_placeholder: Some("请填写您原始工程路径".to_string()),
+            input_placeholder: Some("askUser.qtMigration.placeholder.sourceProject".to_string()),
             field: Some("source_project".to_string()),
             required: true,
         },
         Question {
-            question: "迁移后的鸿蒙工程输出在哪里？".to_string(),
-            header: "输出路径".to_string(),
+            question: "askUser.qtMigration.question.outputProject".to_string(),
+            header: "askUser.qtMigration.field.outputProject".to_string(),
             options: candidate_options(candidates, "output_project", false),
             multi_select: false,
-            input_placeholder: Some("请填写输出工程路径".to_string()),
+            input_placeholder: Some("askUser.qtMigration.placeholder.outputProject".to_string()),
             field: Some("output_project".to_string()),
             required: true,
         },
         Question {
-            question: "使用哪个QT迁移工具链？".to_string(),
-            header: "迁移工具链".to_string(),
+            question: "askUser.qtMigration.question.toolchain".to_string(),
+            header: "askUser.qtMigration.field.toolchain".to_string(),
             options: candidate_options(
                 candidates,
                 "toolchain",
                 context.managed_toolchain_available,
             ),
             multi_select: false,
-            input_placeholder: Some("请填写QT迁移工具链路径".to_string()),
+            input_placeholder: Some("askUser.qtMigration.placeholder.toolchain".to_string()),
             field: Some("toolchain".to_string()),
             required: true,
         },
         Question {
-            question: "使用哪个鸿蒙模板工程？".to_string(),
-            header: "模板工程".to_string(),
+            question: "askUser.qtMigration.question.template".to_string(),
+            header: "askUser.qtMigration.field.template".to_string(),
             options: candidate_options(candidates, "template", context.managed_template_available),
             multi_select: false,
-            input_placeholder: Some("请填写模板工程路径".to_string()),
+            input_placeholder: Some("askUser.qtMigration.placeholder.template".to_string()),
             field: Some("template".to_string()),
             required: true,
         },
@@ -273,15 +277,24 @@ mod tests {
             .expect("known template must resolve");
         let source = &resolved.questions[0];
         assert_eq!(source.options.len(), 1);
-        assert_eq!(source.options[0].label, "默认路径");
+        assert_eq!(
+            source.options[0].label,
+            "askUser.qtMigration.option.default"
+        );
         assert_eq!(source.options[0].description, "D:/work/myqt");
         let output = &resolved.questions[1];
         assert!(output.options.is_empty());
         let toolchain = &resolved.questions[2];
         assert_eq!(toolchain.options.len(), 2);
-        assert_eq!(toolchain.options[0].label, "默认路径");
+        assert_eq!(
+            toolchain.options[0].label,
+            "askUser.qtMigration.option.default"
+        );
         assert_eq!(toolchain.options[0].description, "D:/ohos/sdk");
-        assert_eq!(toolchain.options[1].label, "备选路径");
+        assert_eq!(
+            toolchain.options[1].label,
+            "askUser.qtMigration.option.alternate"
+        );
         assert_eq!(toolchain.options[1].description, "D:/ohos/sdk2");
     }
 
@@ -311,7 +324,10 @@ mod tests {
             context,
         )
         .expect("known template must resolve");
-        assert_eq!(resolved.questions[2].options[0].label, "默认路径");
+        assert_eq!(
+            resolved.questions[2].options[0].label,
+            "askUser.qtMigration.option.default"
+        );
     }
 
     #[test]
