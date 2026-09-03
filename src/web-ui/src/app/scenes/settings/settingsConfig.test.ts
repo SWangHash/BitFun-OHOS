@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeSettingsTarget, SETTINGS_CATEGORIES } from './settingsConfig';
-import { SETTINGS_TAB_SEARCH_CONTENT } from './settingsTabSearchContent';
 
 function hasVoiceInputTab(): boolean {
   return SETTINGS_CATEGORIES.some(category =>
@@ -13,16 +12,16 @@ describe('settings deep-link targets', () => {
     expect(hasVoiceInputTab()).toBe(true);
   });
 
-  it('routes the legacy Hooks target into External AI applications with focus intent', () => {
-    expect(normalizeSettingsTarget('hooks')).toEqual({
-      tab: 'external-sources',
-      focus: 'hooks',
-    });
+  it('hides external AI and ACP settings from the navigation', () => {
+    const visibleTabs = SETTINGS_CATEGORIES.flatMap((category) => category.tabs).map((tab) => tab.id);
+
+    expect(visibleTabs).not.toContain('external-sources');
+    expect(visibleTabs).not.toContain('acp-agents');
   });
 
   it('keeps ordinary settings targets free of content focus', () => {
-    expect(normalizeSettingsTarget('external-sources')).toEqual({
-      tab: 'external-sources',
+    expect(normalizeSettingsTarget('models')).toEqual({
+      tab: 'models',
     });
   });
 
@@ -33,17 +32,10 @@ describe('settings deep-link targets', () => {
     });
   });
 
-  it('keeps Hook management discoverable through the owning settings entry', () => {
-    const externalSources = SETTINGS_CATEGORIES
-      .flatMap((category) => category.tabs)
-      .find((tab) => tab.id === 'external-sources');
-
-    expect(externalSources?.keywords).toEqual(expect.arrayContaining(['hook', 'hooks']));
-    expect(SETTINGS_TAB_SEARCH_CONTENT['external-sources']).toEqual(
-      expect.arrayContaining([
-        { ns: 'settings/hooks', key: 'title' },
-        { ns: 'settings/hooks', key: 'activation.title' },
-      ]),
-    );
+  it('keeps legacy Hooks deep links working without exposing a navigation item', () => {
+    expect(normalizeSettingsTarget('hooks')).toEqual({
+      tab: 'external-sources',
+      focus: 'hooks',
+    });
   });
 });
