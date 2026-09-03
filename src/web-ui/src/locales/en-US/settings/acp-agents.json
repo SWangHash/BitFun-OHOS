@@ -6,6 +6,7 @@
     "addConfig": "Add config",
     "download": "Download",
     "installCli": "Install CLI",
+    "cancelInstall": "Cancel install",
     "configureAcp": "Configure ACP",
     "viewError": "View error",
     "viewInstructions": "View instructions",
@@ -19,6 +20,20 @@
     "install": "Install",
     "restorePreset": "Restore preset",
     "predownloadAcp": "Predownload ACP"
+  },
+  "presets": {
+    "kimiCode": {
+      "name": "Kimi Code",
+      "description": "Native ACP coding agent available through HarmonyBrew."
+    },
+    "qwenCode": {
+      "name": "Qwen Code",
+      "description": "Native ACP coding agent available through HarmonyBrew."
+    },
+    "codeBuddyCode": {
+      "name": "CodeBuddy Code",
+      "description": "Native ACP coding agent that runs on HarmonyBrew Node."
+    }
   },
   "json": {
     "title": "Raw JSON",
@@ -100,6 +115,9 @@
     "ready": "Requirements ready",
     "notReady": "Requirements missing"
   },
+  "provisioning": {
+    "installing": "Installing"
+  },
   "notifications": {
     "loadFailed": "Failed to load ACP config",
     "saveSuccess": "ACP config saved",
@@ -111,6 +129,10 @@
     "invalidJson": "Invalid ACP JSON",
     "invalidEnv": "Invalid environment value",
     "installSuccess": "ACP CLI installed",
+    "managedAddSuccess": "Agent added",
+    "installCancelled": "Agent installation cancelled",
+    "cancelRequested": "Cancelling Agent installation…",
+    "cancelError": "Could not cancel Agent installation",
     "installFailed": "Failed to install ACP CLI",
     "configureSuccess": "ACP adapter prepared",
     "configureFailed": "Failed to prepare ACP adapter",

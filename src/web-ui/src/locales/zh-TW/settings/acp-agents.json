@@ -6,6 +6,7 @@
     "addConfig": "新增設定",
     "download": "下載",
     "installCli": "安裝 CLI",
+    "cancelInstall": "取消安裝",
     "configureAcp": "設定 ACP",
     "viewError": "查看錯誤",
     "viewInstructions": "查看說明",
@@ -19,6 +20,20 @@
     "install": "安裝",
     "restorePreset": "恢復預設",
     "predownloadAcp": "預下載 ACP"
+  },
+  "presets": {
+    "kimiCode": {
+      "name": "Kimi Code",
+      "description": "可透過 HarmonyBrew 安裝的原生 ACP 編碼 Agent。"
+    },
+    "qwenCode": {
+      "name": "Qwen Code",
+      "description": "可透過 HarmonyBrew 安裝的原生 ACP 編碼 Agent。"
+    },
+    "codeBuddyCode": {
+      "name": "CodeBuddy Code",
+      "description": "使用 HarmonyBrew Node 執行的原生 ACP 編碼 Agent。"
+    }
   },
   "json": {
     "title": "原始 JSON",
@@ -100,6 +115,9 @@
     "ready": "依賴已就緒",
     "notReady": "依賴缺失"
   },
+  "provisioning": {
+    "installing": "安裝中"
+  },
   "notifications": {
     "loadFailed": "載入 ACP 設定失敗",
     "saveSuccess": "ACP 設定已儲存",
@@ -111,6 +129,10 @@
     "invalidJson": "ACP JSON 無效",
     "invalidEnv": "環境變量無效",
     "installSuccess": "ACP CLI 已安裝",
+    "managedAddSuccess": "Agent 已新增",
+    "installCancelled": "已取消 Agent 安裝",
+    "cancelRequested": "正在取消 Agent 安裝…",
+    "cancelError": "無法取消 Agent 安裝",
     "installFailed": "安裝 ACP CLI 失敗",
     "configureSuccess": "ACP 適配器已就緒",
     "configureFailed": "設定 ACP 適配器失敗",

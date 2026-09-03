@@ -15,6 +15,7 @@ import {
   Search,
   Server,
   Terminal,
+  X,
 } from 'lucide-react';
 import { Button, IconButton, Input, Select, Textarea } from '@/component-library';
 import {
@@ -29,18 +30,33 @@ import {
   type AcpClientInfo,
   type AcpClientPermissionMode,
   type AcpClientRequirementProbe,
+  type AcpManagedProvisioningProgress,
   type AcpRequirementProbeItem,
 } from '../../api/service-api/ACPClientAPI';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime/environment';
 import { systemAPI } from '../../api/service-api/SystemAPI';
 import { sshApi } from '@/features/ssh-remote/sshApi';
 import type { SavedConnection } from '@/features/ssh-remote/types';
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
+import {
+  ALL_ACP_CLIENT_PRESETS,
+  NATIVE_ACP_PRESET_IDS,
+  SELF_MANAGED_INSTALL_PRESET_IDS,
+  availableRemotePresetIds,
+  canInstallPresetCli,
+  isManagedInstallPresetForRuntime,
+  presetsForRuntime,
+  type AcpClientPreset,
+  type AgentRowStatus,
+  type RequirementIssueKind,
+} from './acpAgentPresetPolicy';
 import './AcpAgentsConfig.scss';
 
 const log = createLogger('AcpAgentsConfig');
 const HIDDEN_REMOTE_CONNECTION_IDS_STORAGE_KEY =
   'bitfun:settings:acp-agents:hidden-remote-connections:v1';
+const IS_OHOS = isOpenHarmonyRuntime();
 
 function loadHiddenRemoteConnectionIds(): Set<string> {
   try {
@@ -73,72 +89,22 @@ interface AcpClientConfig {
   enabled: boolean;
   readonly: boolean;
   permissionMode: AcpClientPermissionMode;
+  localOverride?: {
+    command: string;
+    args: string[];
+    env: Record<string, string>;
+  };
 }
 
 interface AcpClientConfigFile {
   acpClients: Record<string, AcpClientConfig>;
 }
 
-interface AcpClientPreset {
-  id: string;
-  name: string;
-  description: string;
-  version?: string;
-  command: string;
-  args: string[];
-}
+const LOCAL_PRESETS = presetsForRuntime(IS_OHOS);
 
-// Presets that speak ACP natively and therefore need no separate adapter
-// package (their CLI binary is launched directly).
-const NATIVE_ACP_PRESET_IDS = new Set(['opencode', 'dsh', 'omp']);
-
-// Presets BitFun cannot install on the user's behalf — the agent must be
-// installed manually (e.g. omp targets bun and ships via its own installer).
-// The UI hides the one-click "Install CLI" action for these.
-const SELF_MANAGED_INSTALL_PRESET_IDS = new Set(['omp']);
-
-const PRESETS: AcpClientPreset[] = [
-  {
-    id: 'opencode',
-    name: 'opencode',
-    description: 'Native ACP coding agent.',
-    command: 'opencode',
-    args: ['acp'],
-  },
-  // BitFun ships the ACP bridge for DeepSeek Harness and installs it into the
-  // user's own dsh as a profile on first launch, so the only setup left is the
-  // harness itself and the model the user picks inside it.
-  {
-    id: 'dsh',
-    name: 'DeepSeek Harness',
-    description: 'DeepSeek Harness with BitFun\'s bundled ACP bridge. Uses the model and API key configured in dsh.',
-    command: 'dsh',
-    args: ['--profile', 'bitfun-acp'],
-  },
-  {
-    id: 'omp',
-    name: 'Oh My Pi',
-    description: 'Native ACP coding agent (omp acp).',
-    command: 'omp',
-    args: ['acp'],
-  },
-  {
-    id: 'claude-code',
-    name: 'Claude Code',
-    description: 'Claude Code via the official ACP adapter.',
-    command: 'npx',
-    args: ['--yes', '@agentclientprotocol/claude-agent-acp@latest'],
-  },
-  {
-    id: 'codex',
-    name: 'Codex',
-    description: 'OpenAI Codex via the official ACP adapter.',
-    command: 'npx',
-    args: ['--yes', '@agentclientprotocol/codex-acp@latest'],
-  },
-];
-
-const PRESET_BY_ID = new Map(PRESETS.map(preset => [preset.id, preset]));
+// Remote hosts keep the full portable preset catalog. HarmonyOS-only hiding is
+// a property of the local execution host and must not leak into remote rows.
+const PRESET_BY_ID = new Map(ALL_ACP_CLIENT_PRESETS.map(preset => [preset.id, preset]));
 
 interface SelfManagedInstallInfo extends Record<string, string> {
   name: string;
@@ -210,10 +176,23 @@ function normalizeConfigValue(value: unknown): AcpClientConfigFile {
       enabled: item.enabled !== false,
       readonly: item.readonly === true,
       permissionMode: normalizePermissionMode(item.permissionMode),
+      localOverride: normalizeRuntimeOverride(item.localOverride),
     };
   }
 
   return { acpClients };
+}
+
+function normalizeRuntimeOverride(value: unknown): AcpClientConfig['localOverride'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const item = value as Record<string, unknown>;
+  const command = typeof item.command === 'string' ? item.command.trim() : '';
+  if (!command) return undefined;
+  return {
+    command,
+    args: Array.isArray(item.args) ? item.args.map(String) : [],
+    env: normalizeEnvObject(item.env),
+  };
 }
 
 function normalizeEnvObject(value: unknown): Record<string, string> {
@@ -251,21 +230,10 @@ function formatEnv(env: Record<string, string>): string {
 
 function requirementTone(item?: AcpRequirementProbeItem): 'ok' | 'error' | 'muted' {
   if (!item) return 'muted';
-  return item.installed ? 'ok' : 'error';
+  return item.installed && !item.error ? 'ok' : 'error';
 }
 
 type RegistryFilter = 'all' | 'installed' | 'not_installed' | 'invalid';
-type AgentRowStatus = 'enabled' | 'ready' | 'partial' | 'not_installed' | 'invalid' | 'checking';
-
-type RequirementIssueKind =
-  | 'none'
-  | 'cli_missing'
-  | 'adapter_missing'
-  | 'connection_failed'
-  | 'permission_denied'
-  | 'path_invalid'
-  | 'version_mismatch'
-  | 'config_invalid';
 
 function classifyRequirementError(error?: string): Exclude<RequirementIssueKind, 'none' | 'adapter_missing'> {
   const lower = error?.toLowerCase() ?? '';
@@ -337,6 +305,7 @@ function getAgentRowStatus({
     }
     return 'partial';
   }
+  if (probe?.runnable === false) return 'invalid';
   if (!configured) return 'ready';
   if (!enabled) return 'invalid';
   return 'enabled';
@@ -416,6 +385,7 @@ const AcpAgentsConfig: React.FC = () => {
   const [registryFilter, setRegistryFilter] = useState<RegistryFilter>('all');
   const [installingClientIds, setInstallingClientIds] = useState<Set<string>>(() => new Set());
   const [installingRemoteClientIds, setInstallingRemoteClientIds] = useState<Set<string>>(() => new Set());
+  const [provisioningProgress, setProvisioningProgress] = useState<Record<string, AcpManagedProvisioningProgress>>({});
   const [hiddenRemoteConnectionIds, setHiddenRemoteConnectionIds] = useState(loadHiddenRemoteConnectionIds);
   const [showHiddenRemoteConnections, setShowHiddenRemoteConnections] = useState(false);
   const requirementProbeRequestIdRef = useRef(0);
@@ -457,7 +427,7 @@ const AcpAgentsConfig: React.FC = () => {
 
   const registryPresets = useMemo(() => {
     const search = registrySearch.trim().toLowerCase();
-    return PRESETS.filter(preset => {
+    return LOCAL_PRESETS.filter(preset => {
       const probe = probesById.get(preset.id);
       const probePending = probingRequirements && !probe;
       const configured = Boolean(config.acpClients[preset.id]);
@@ -667,6 +637,13 @@ const AcpAgentsConfig: React.FC = () => {
     };
   }, [loadConfig]);
 
+  useEffect(() => ACPClientAPI.onManagedProvisioningProgress((progress) => {
+    setProvisioningProgress(prev => ({
+      ...prev,
+      [progress.clientId]: progress,
+    }));
+  }), []);
+
   useEffect(() => {
     if (loading) return;
     for (const connection of visibleRemoteConnectionRows) {
@@ -702,11 +679,20 @@ const AcpAgentsConfig: React.FC = () => {
     options: { remoteConnectionId?: string } = {}
   ) => {
     const remoteConnectionId = options.remoteConnectionId?.trim();
-    const installKey = remoteConnectionId ? `${remoteConnectionId}:${preset.id}` : preset.id;
+    const installKey = remoteConnectionId
+      ? `${remoteConnectionId}:${preset.id}`
+      : preset.id;
     const setInstalling = remoteConnectionId ? setInstallingRemoteClientIds : setInstallingClientIds;
     setInstalling(prev => new Set(prev).add(installKey));
+    if (!remoteConnectionId) {
+      setProvisioningProgress(prev => {
+        const next = { ...prev };
+        delete next[preset.id];
+        return next;
+      });
+    }
     try {
-      await ACPClientAPI.installClientCli({
+      const outcome = await ACPClientAPI.installClientCli({
         clientId: preset.id,
         remoteConnectionId,
       });
@@ -714,12 +700,24 @@ const AcpAgentsConfig: React.FC = () => {
         loadedRemoteProbeIdsRef.current.delete(remoteConnectionId);
         await refreshRemoteRequirementProbes(remoteConnectionId, { force: true, notifyOnError: false });
       } else {
+        if (outcome.status === 'managed_ready') {
+          await loadConfig({ showLoading: false });
+        }
         await refreshRequirementProbes({ force: true, notifyOnError: false });
       }
-      notifySuccess(t('notifications.installSuccess'));
+      notifySuccess(t(
+        outcome.status === 'managed_ready'
+            ? 'notifications.managedAddSuccess'
+            : 'notifications.installSuccess'
+      ));
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('ACP_PROVISIONING_CANCELLED')) {
+        notifyInfo(t('notifications.installCancelled'));
+        return;
+      }
       log.error('Failed to install ACP agent CLI', error);
-      notifyError(error instanceof Error ? error.message : String(error), {
+      notifyError(message, {
         title: t('notifications.installFailed'),
       });
     } finally {
@@ -727,6 +725,18 @@ const AcpAgentsConfig: React.FC = () => {
         const next = new Set(prev);
         next.delete(installKey);
         return next;
+      });
+    }
+  };
+
+  const cancelPresetInstall = async (clientId: string) => {
+    try {
+      await ACPClientAPI.cancelClientInstall(clientId);
+      notifyInfo(t('notifications.cancelRequested'));
+    } catch (error) {
+      log.error('Failed to cancel managed ACP installation', error);
+      notifyError(error instanceof Error ? error.message : String(error), {
+        title: t('notifications.cancelError'),
       });
     }
   };
@@ -997,12 +1007,12 @@ const AcpAgentsConfig: React.FC = () => {
 
   const remoteAgentIds = useMemo(() => {
     const ids = new Set<string>([
-      ...PRESETS.map(preset => preset.id),
+      ...availableRemotePresetIds(),
       ...Object.keys(config.acpClients),
     ]);
     return Array.from(ids).sort((left, right) => {
-      const leftPresetIndex = PRESETS.findIndex(preset => preset.id === left);
-      const rightPresetIndex = PRESETS.findIndex(preset => preset.id === right);
+      const leftPresetIndex = ALL_ACP_CLIENT_PRESETS.findIndex(preset => preset.id === left);
+      const rightPresetIndex = ALL_ACP_CLIENT_PRESETS.findIndex(preset => preset.id === right);
       if (leftPresetIndex !== -1 || rightPresetIndex !== -1) {
         if (leftPresetIndex === -1) return 1;
         if (rightPresetIndex === -1) return -1;
@@ -1190,10 +1200,23 @@ const AcpAgentsConfig: React.FC = () => {
                 });
                 const installing = installingClientIds.has(preset.id);
                 const configuring = installingClientIds.has(preset.id);
+                const progress = provisioningProgress[preset.id];
+                const progressLabel = progress
+                  ? t('provisioning.installing')
+                  : undefined;
+                const provisioningActive = installing && Boolean(progressLabel);
                 const showSelect = hasConfigEntry && (status === 'enabled' || status === 'ready');
-                const canInstallCli = status === 'not_installed'
-                  && issueKind !== 'connection_failed'
-                  && !SELF_MANAGED_INSTALL_PRESET_IDS.has(preset.id);
+                const canInstallCli = canInstallPresetCli({
+                  isOhos: IS_OHOS,
+                  presetId: preset.id,
+                  status,
+                  issueKind,
+                  hasConfigEntry,
+                });
+                const managedInstallPreset = isManagedInstallPresetForRuntime({
+                  isOhos: IS_OHOS,
+                  presetId: preset.id,
+                });
                 const canConfigureAcp = !requiresAdapter
                   ? false
                   : issueKind === 'adapter_missing' || (status === 'partial' && issueKind === 'config_invalid');
@@ -1219,8 +1242,24 @@ const AcpAgentsConfig: React.FC = () => {
                         <Bot size={16} />
                       </span>
                       <div className="bitfun-acp-agents__registry-copy">
-                        <span className="bitfun-acp-agents__registry-name">{preset.name}</span>
-                        <p className="bitfun-acp-agents__registry-description">{preset.description}</p>
+                        <span className="bitfun-acp-agents__registry-name">
+                          {managedInstallPreset
+                            ? preset.id === 'codebuddy-code'
+                              ? t('presets.codeBuddyCode.name')
+                              : preset.id === 'qwen-code'
+                                ? t('presets.qwenCode.name')
+                                : t('presets.kimiCode.name')
+                            : preset.name}
+                        </span>
+                        <p className="bitfun-acp-agents__registry-description">
+                          {managedInstallPreset
+                            ? preset.id === 'codebuddy-code'
+                              ? t('presets.codeBuddyCode.description')
+                              : preset.id === 'qwen-code'
+                                ? t('presets.qwenCode.description')
+                                : t('presets.kimiCode.description')
+                            : preset.description}
+                        </p>
                       </div>
                     </div>
                     <div
@@ -1243,14 +1282,28 @@ const AcpAgentsConfig: React.FC = () => {
                       data-bf-component="acp-agents-config"
                       data-bf-part="status"
                     >
-                      <AgentStatusBadge status={status} label={statusLabel} title={statusTitle} />
+                      <AgentStatusBadge
+                        status={provisioningActive ? 'checking' : status}
+                        label={progressLabel ?? statusLabel}
+                        title={progressLabel ?? statusTitle}
+                      />
                     </div>
                     <div
                       className="bitfun-acp-agents__confirmation-cell"
                       data-bf-component="acp-agents-config"
                       data-bf-part="confirmation"
                     >
-                      {showSelect ? (
+                      {installing && IS_OHOS ? (
+                        <Button
+                          className="bitfun-acp-agents__add-button"
+                          variant="secondary"
+                          size="small"
+                          onClick={() => { void cancelPresetInstall(preset.id); }}
+                        >
+                          <X size={14} />
+                          {t('actions.cancelInstall')}
+                        </Button>
+                      ) : showSelect ? (
                         <Select
                           className="bitfun-acp-agents__confirmation-select"
                           options={permissionOptions}
@@ -1265,11 +1318,15 @@ const AcpAgentsConfig: React.FC = () => {
                           className="bitfun-acp-agents__add-button"
                           variant="secondary"
                           size="small"
-                          onClick={() => { void installPresetClient(preset); }}
+                          onClick={() => {
+                            void installPresetClient(preset);
+                          }}
                           isLoading={installing}
                         >
                           <Download size={14} />
-                          {t('actions.installCli')}
+                          {IS_OHOS
+                            ? t('actions.add')
+                            : t('actions.installCli')}
                         </Button>
                       ) : canConfigureAcp ? (
                         <Button

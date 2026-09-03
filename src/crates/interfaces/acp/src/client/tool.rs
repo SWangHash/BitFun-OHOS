@@ -183,6 +183,7 @@ mod tests {
             enabled: true,
             readonly: true,
             permission_mode: AcpClientPermissionMode::Ask,
+            local_override: None,
         };
 
         let definition = acp_external_agent_definition_for_config("codex", &config);

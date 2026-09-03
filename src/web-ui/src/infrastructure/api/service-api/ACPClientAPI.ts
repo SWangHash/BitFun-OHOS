@@ -36,6 +36,29 @@ export interface AcpClientRequirementProbe {
 export interface AcpClientIdRequest {
   clientId: string;
   remoteConnectionId?: string;
+  cancelInstall?: boolean;
+}
+
+export type AcpManagedProvisioningStage =
+  | 'detecting'
+  | 'installing'
+  | 'configuring'
+  | 'verifying'
+  | 'ready'
+  | 'cancelled'
+  | 'failed';
+
+export interface AcpManagedProvisioningProgress {
+  clientId: string;
+  stage: AcpManagedProvisioningStage;
+  percent: number;
+}
+
+export interface AcpClientInstallOutcome {
+  clientId: string;
+  status: 'cli_installed' | 'managed_ready' | 'cancellation_requested';
+  installRoot?: string;
+  probe?: AcpClientRequirementProbe;
 }
 
 export interface CreateAcpFlowSessionRequest {
@@ -299,11 +322,21 @@ export class ACPClientAPI {
     window.dispatchEvent(new Event('bitfun:acp-requirements-changed'));
   }
 
-  static async installClientCli(request: AcpClientIdRequest): Promise<void> {
-    await api.invoke('install_acp_client_cli', { request });
+  static async installClientCli(request: AcpClientIdRequest): Promise<AcpClientInstallOutcome> {
+    const outcome = await api.invoke<AcpClientInstallOutcome>('install_acp_client_cli', { request });
     ACPClientAPI.invalidateClientListCache();
     ACPClientAPI.invalidateRequirementProbeCache();
     window.dispatchEvent(new Event('bitfun:acp-requirements-changed'));
+    if (outcome.status === 'managed_ready') {
+      window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
+    }
+    return outcome;
+  }
+
+  static async cancelClientInstall(clientId: string): Promise<AcpClientInstallOutcome> {
+    return api.invoke<AcpClientInstallOutcome>('install_acp_client_cli', {
+      request: { clientId, cancelInstall: true },
+    });
   }
 
   static async stopClient(request: AcpClientIdRequest): Promise<void> {
@@ -388,6 +421,15 @@ export class ACPClientAPI {
   ): () => void {
     return api.listen<AcpSessionOptionsChangedEvent>(
       'agentic://acp-session-options-changed',
+      callback
+    );
+  }
+
+  static onManagedProvisioningProgress(
+    callback: (event: AcpManagedProvisioningProgress) => void
+  ): () => void {
+    return api.listen<AcpManagedProvisioningProgress>(
+      'agentic://acp-provisioning-progress',
       callback
     );
   }
