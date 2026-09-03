@@ -195,8 +195,8 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
           {tagsLoading && (
             <span className="skills-matrix__chip-loading">{t('matrix.tags.loading')}</span>
           )}
-          {!tagsLoading && tagsError && (
-            <span className="skills-matrix__chip-error">{tagsError}</span>
+          {!tagsLoading && tagsError && !skillsError && (
+            <span className="skills-matrix__chip-error">{t(tagsError)}</span>
           )}
           {!tagsLoading && !tagsError && tags.length === 0 && (
             <span className="skills-matrix__chip-empty">{t('matrix.tags.empty')}</span>
@@ -241,8 +241,8 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
           {categoriesLoading && (
             <span className="skills-matrix__chip-loading">{t('matrix.categories.loading')}</span>
           )}
-          {!categoriesLoading && categoriesError && (
-            <span className="skills-matrix__chip-error">{categoriesError}</span>
+          {!categoriesLoading && categoriesError && !skillsError && (
+            <span className="skills-matrix__chip-error">{t(categoriesError)}</span>
           )}
           {!categoriesLoading && !categoriesError && categories.length === 0 && (
             <span className="skills-matrix__chip-empty">{t('matrix.categories.empty')}</span>
@@ -291,8 +291,8 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
           {organizationsLoading && (
             <span className="skills-matrix__chip-loading">{t('matrix.organizations.loading')}</span>
           )}
-          {!organizationsLoading && organizationsError && (
-            <span className="skills-matrix__chip-error">{organizationsError}</span>
+          {!organizationsLoading && organizationsError && !skillsError && (
+            <span className="skills-matrix__chip-error">{t(organizationsError)}</span>
           )}
           {!organizationsLoading && !organizationsError && organizations.length === 0 && (
             <span className="skills-matrix__chip-empty">{t('matrix.organizations.empty')}</span>

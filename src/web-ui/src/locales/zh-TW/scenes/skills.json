@@ -318,7 +318,10 @@
       "installFailed": "無法安裝 \"{{name}}\": {{error}}"
     },
     "errors": {
-      "loadFailed": "載入技能失敗，請檢查網路後重試"
+      "loadFailed": "載入技能失敗，請檢查網路後重試",
+      "tagsLoadFailed": "載入標籤失敗",
+      "categoriesLoadFailed": "載入分類失敗",
+      "organizationsLoadFailed": "載入組織失敗"
     }
   }
 }

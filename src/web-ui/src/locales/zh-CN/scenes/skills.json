@@ -318,7 +318,10 @@
       "installFailed": "无法安装 \"{{name}}\": {{error}}"
     },
     "errors": {
-      "loadFailed": "加载技能失败，请检查网络后重试"
+      "loadFailed": "加载技能失败，请检查网络后重试",
+      "tagsLoadFailed": "加载标签失败",
+      "categoriesLoadFailed": "加载分类失败",
+      "organizationsLoadFailed": "加载组织失败"
     }
   }
 }
