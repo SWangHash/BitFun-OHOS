@@ -45,6 +45,7 @@ import {
   SELF_MANAGED_INSTALL_PRESET_IDS,
   availableRemotePresetIds,
   canInstallPresetCli,
+  getManualInstallGuide,
   isManagedInstallPresetForRuntime,
   presetsForRuntime,
   type AcpClientPreset,
@@ -638,10 +639,19 @@ const AcpAgentsConfig: React.FC = () => {
   }, [loadConfig]);
 
   useEffect(() => ACPClientAPI.onManagedProvisioningProgress((progress) => {
-    setProvisioningProgress(prev => ({
-      ...prev,
-      [progress.clientId]: progress,
-    }));
+    setProvisioningProgress(prev => {
+      const next = { ...prev };
+      if (
+        progress.stage === 'ready'
+        || progress.stage === 'cancelled'
+        || progress.stage === 'failed'
+      ) {
+        delete next[progress.clientId];
+      } else {
+        next[progress.clientId] = progress;
+      }
+      return next;
+    });
   }), []);
 
   useEffect(() => {
@@ -726,6 +736,13 @@ const AcpAgentsConfig: React.FC = () => {
         next.delete(installKey);
         return next;
       });
+      if (!remoteConnectionId) {
+        setProvisioningProgress(prev => {
+          const next = { ...prev };
+          delete next[preset.id];
+          return next;
+        });
+      }
     }
   };
 
@@ -1005,6 +1022,15 @@ const AcpAgentsConfig: React.FC = () => {
     });
   }, [notifyError, t]);
 
+  const openManualInstallGuide = useCallback((repositoryUrl: string) => {
+    void systemAPI.openExternal(repositoryUrl).catch((error) => {
+      log.error('Failed to open ACP agent installation guide', error);
+      notifyError(error instanceof Error ? error.message : String(error), {
+        title: t('notifications.openLinkFailed'),
+      });
+    });
+  }, [notifyError, t]);
+
   const remoteAgentIds = useMemo(() => {
     const ids = new Set<string>([
       ...availableRemotePresetIds(),
@@ -1200,7 +1226,7 @@ const AcpAgentsConfig: React.FC = () => {
                 });
                 const installing = installingClientIds.has(preset.id);
                 const configuring = installingClientIds.has(preset.id);
-                const progress = provisioningProgress[preset.id];
+                const progress = installing ? provisioningProgress[preset.id] : undefined;
                 const progressLabel = progress
                   ? t('provisioning.installing')
                   : undefined;
@@ -1217,6 +1243,12 @@ const AcpAgentsConfig: React.FC = () => {
                   isOhos: IS_OHOS,
                   presetId: preset.id,
                 });
+                const manualInstallGuide = getManualInstallGuide({
+                  isOhos: IS_OHOS,
+                  presetId: preset.id,
+                  status,
+                });
+                const ohosOpenCodePreset = IS_OHOS && preset.id === 'opencode';
                 const canConfigureAcp = !requiresAdapter
                   ? false
                   : issueKind === 'adapter_missing' || (status === 'partial' && issueKind === 'config_invalid');
@@ -1243,7 +1275,9 @@ const AcpAgentsConfig: React.FC = () => {
                       </span>
                       <div className="bitfun-acp-agents__registry-copy">
                         <span className="bitfun-acp-agents__registry-name">
-                          {managedInstallPreset
+                          {ohosOpenCodePreset
+                            ? t('presets.openCode.name')
+                            : managedInstallPreset
                             ? preset.id === 'codebuddy-code'
                               ? t('presets.codeBuddyCode.name')
                               : preset.id === 'qwen-code'
@@ -1252,7 +1286,9 @@ const AcpAgentsConfig: React.FC = () => {
                             : preset.name}
                         </span>
                         <p className="bitfun-acp-agents__registry-description">
-                          {managedInstallPreset
+                          {ohosOpenCodePreset
+                            ? t('presets.openCode.description')
+                            : managedInstallPreset
                             ? preset.id === 'codebuddy-code'
                               ? t('presets.codeBuddyCode.description')
                               : preset.id === 'qwen-code'
@@ -1328,6 +1364,16 @@ const AcpAgentsConfig: React.FC = () => {
                             ? t('actions.add')
                             : t('actions.installCli')}
                         </Button>
+                      ) : manualInstallGuide ? (
+                        <Button
+                          className="bitfun-acp-agents__add-button"
+                          variant="secondary"
+                          size="small"
+                          onClick={() => openManualInstallGuide(manualInstallGuide.repositoryUrl)}
+                        >
+                          <ExternalLink size={14} />
+                          {t('actions.get')}
+                        </Button>
                       ) : canConfigureAcp ? (
                         <Button
                           className="bitfun-acp-agents__add-button"
@@ -1364,7 +1410,7 @@ const AcpAgentsConfig: React.FC = () => {
                           <CircleAlert size={14} />
                           {t('actions.viewError')}
                         </Button>
-                      ) : !hasConfigEntry ? (
+                      ) : !probePending && !hasConfigEntry ? (
                         <Button
                           className="bitfun-acp-agents__add-button"
                           variant="secondary"

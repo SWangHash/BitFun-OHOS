@@ -3,10 +3,12 @@
 import React, { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
+import type { AcpManagedProvisioningProgress } from '../../api/service-api/ACPClientAPI';
 import AcpAgentsConfig from './AcpAgentsConfig';
 import {
   availableRemotePresetIds,
   canInstallPresetCli,
+  getManualInstallGuide,
   isManagedInstallPresetForRuntime,
   visiblePresetIdsForRuntime,
 } from './acpAgentPresetPolicy';
@@ -18,6 +20,7 @@ const saveJsonConfigMock = vi.hoisted(() => vi.fn());
 const installClientCliMock = vi.hoisted(() => vi.fn());
 const cancelClientInstallMock = vi.hoisted(() => vi.fn());
 const predownloadClientAdapterMock = vi.hoisted(() => vi.fn());
+const onManagedProvisioningProgressMock = vi.hoisted(() => vi.fn());
 const listSavedConnectionsMock = vi.hoisted(() => vi.fn());
 const notifyErrorMock = vi.hoisted(() => vi.fn());
 const notifyInfoMock = vi.hoisted(() => vi.fn());
@@ -25,7 +28,6 @@ const notifySuccessMock = vi.hoisted(() => vi.fn());
 const translate = (_key: string, options?: Record<string, unknown> & { defaultValue?: string }) => (
   options?.defaultValue ?? _key
 );
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: translate,
@@ -132,7 +134,7 @@ vi.mock('../../api/service-api/ACPClientAPI', () => ({
     probeClientRequirements: probeClientRequirementsMock,
     installClientCli: installClientCliMock,
     cancelClientInstall: cancelClientInstallMock,
-    onManagedProvisioningProgress: vi.fn(() => () => undefined),
+    onManagedProvisioningProgress: onManagedProvisioningProgressMock,
     predownloadClientAdapter: predownloadClientAdapterMock,
     saveJsonConfig: saveJsonConfigMock,
   },
@@ -168,9 +170,11 @@ vi.mock('@/shared/utils/logger', () => ({
 describe('AcpAgentsConfig', () => {
   let container: HTMLDivElement;
   let root: Root;
+  let emitManagedProvisioningProgress: ((progress: AcpManagedProvisioningProgress) => void) | undefined;
 
   beforeEach(() => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    emitManagedProvisioningProgress = undefined;
     localStorage.clear();
     loadJsonConfigMock.mockResolvedValue(JSON.stringify({
       acpClients: {
@@ -205,6 +209,10 @@ describe('AcpAgentsConfig', () => {
     installClientCliMock.mockResolvedValue({ clientId: 'opencode', status: 'cli_installed' });
     cancelClientInstallMock.mockResolvedValue({ clientId: 'opencode', status: 'cancellation_requested' });
     predownloadClientAdapterMock.mockResolvedValue(undefined);
+    onManagedProvisioningProgressMock.mockImplementation((callback) => {
+      emitManagedProvisioningProgress = callback;
+      return () => undefined;
+    });
 
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -257,6 +265,13 @@ describe('AcpAgentsConfig', () => {
       issueKind: 'cli_missing',
       hasConfigEntry: false,
     })).toBe(false);
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'opencode',
+      status: 'ready',
+      issueKind: 'none',
+      hasConfigEntry: false,
+    })).toBe(true);
   });
 
   it('shows only HarmonyOS-supported presets on HarmonyOS', () => {
@@ -267,7 +282,7 @@ describe('AcpAgentsConfig', () => {
     expect(ohosPresetIds.filter(id => id.startsWith('qwen-code'))).toHaveLength(1);
     expect(ohosPresetIds).toContain('codebuddy-code');
     expect(ohosPresetIds.filter(id => id.startsWith('codebuddy-code'))).toHaveLength(1);
-    expect(ohosPresetIds).not.toContain('opencode');
+    expect(ohosPresetIds).toContain('opencode');
     expect(ohosPresetIds).not.toContain('dsh');
     expect(ohosPresetIds).not.toContain('omp');
     expect(ohosPresetIds).not.toContain('claude-code');
@@ -302,6 +317,26 @@ describe('AcpAgentsConfig', () => {
     })).toBe(false);
   });
 
+  it('offers the OpenCode installation guide only when its HarmonyOS CLI is missing', () => {
+    expect(getManualInstallGuide({
+      isOhos: true,
+      presetId: 'opencode',
+      status: 'not_installed',
+    })).toEqual({
+      repositoryUrl: 'https://atomgit.com/social4hyq/homebrew-core',
+    });
+    expect(getManualInstallGuide({
+      isOhos: true,
+      presetId: 'opencode',
+      status: 'ready',
+    })).toBeUndefined();
+    expect(getManualInstallGuide({
+      isOhos: false,
+      presetId: 'opencode',
+      status: 'not_installed',
+    })).toBeUndefined();
+  });
+
   it('probes requirements when opened and does not treat missing probe data as invalid config', async () => {
     await act(async () => {
       root.render(<AcpAgentsConfig />);
@@ -315,6 +350,39 @@ describe('AcpAgentsConfig', () => {
     expect(getClientsMock).toHaveBeenCalledTimes(1);
     expect(probeClientRequirementsMock).toHaveBeenCalledTimes(1);
     expect(container.textContent).not.toContain('registry.configInvalid');
+  });
+
+  it('does not offer add actions while local requirements are still being detected', async () => {
+    loadJsonConfigMock.mockResolvedValue(JSON.stringify({ acpClients: {} }));
+    getClientsMock.mockResolvedValue([]);
+    probeClientRequirementsMock.mockReturnValue(new Promise(() => undefined));
+
+    await act(async () => {
+      root.render(<AcpAgentsConfig />);
+    });
+
+    expect(container.textContent).toContain('registry.checking');
+    expect(container.textContent).not.toContain('actions.add');
+    expect(container.textContent).not.toContain('actions.get');
+  });
+
+  it('does not retain an installing label after managed provisioning fails', async () => {
+    await act(async () => {
+      root.render(<AcpAgentsConfig />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      emitManagedProvisioningProgress?.({
+        clientId: 'opencode',
+        stage: 'failed',
+        percent: 100,
+      });
+    });
+
+    expect(container.textContent).not.toContain('provisioning.installing');
   });
 
   it('marks an installed but unrunnable CLI as invalid and exposes its error', async () => {

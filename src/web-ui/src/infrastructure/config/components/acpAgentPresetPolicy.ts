@@ -40,10 +40,25 @@ export const NATIVE_ACP_PRESET_IDS = new Set([
 // one-click installer for these while retaining their manual and remote paths.
 export const SELF_MANAGED_INSTALL_PRESET_IDS = new Set(['omp']);
 
-const OHOS_SUPPORTED_PRESET_IDS = new Set([
+const OHOS_MANAGED_INSTALL_PRESET_IDS = new Set([
   'kimi-code',
   'qwen-code',
   'codebuddy-code',
+]);
+
+const OHOS_SUPPORTED_PRESET_IDS = new Set([
+  'opencode',
+  ...OHOS_MANAGED_INSTALL_PRESET_IDS,
+]);
+
+export interface AcpManualInstallGuide {
+  repositoryUrl: string;
+}
+
+const OHOS_MANUAL_INSTALL_GUIDES = new Map<string, AcpManualInstallGuide>([
+  ['opencode', {
+    repositoryUrl: 'https://atomgit.com/social4hyq/homebrew-core',
+  }],
 ]);
 
 export const ALL_ACP_CLIENT_PRESETS: AcpClientPreset[] = [
@@ -121,6 +136,24 @@ export function availableRemotePresetIds(): string[] {
   return Array.from(new Set(ALL_ACP_CLIENT_PRESETS.map(preset => preset.id)));
 }
 
+export function getManualInstallGuide({
+  isOhos,
+  presetId,
+  status,
+}: {
+  isOhos: boolean;
+  presetId: string;
+  status: AgentRowStatus;
+}): AcpManualInstallGuide | undefined {
+  if (
+    !isOhos
+    || status !== 'not_installed'
+  ) {
+    return undefined;
+  }
+  return OHOS_MANUAL_INSTALL_GUIDES.get(presetId);
+}
+
 export function canInstallPresetCli({
   isOhos,
   presetId,
@@ -136,8 +169,10 @@ export function canInstallPresetCli({
 }): boolean {
   if (issueKind === 'connection_failed') return false;
   if (isOhos) {
-    return OHOS_SUPPORTED_PRESET_IDS.has(presetId)
-      && (status === 'not_installed' || (status === 'ready' && !hasConfigEntry));
+    if (!OHOS_SUPPORTED_PRESET_IDS.has(presetId)) return false;
+    if (status === 'ready' && !hasConfigEntry) return true;
+    if (status !== 'not_installed') return false;
+    return OHOS_MANAGED_INSTALL_PRESET_IDS.has(presetId);
   }
   return status === 'not_installed' && !SELF_MANAGED_INSTALL_PRESET_IDS.has(presetId);
 }
@@ -149,5 +184,5 @@ export function isManagedInstallPresetForRuntime({
   isOhos: boolean;
   presetId: string;
 }): boolean {
-  return isOhos && OHOS_SUPPORTED_PRESET_IDS.has(presetId);
+  return isOhos && OHOS_MANAGED_INSTALL_PRESET_IDS.has(presetId);
 }

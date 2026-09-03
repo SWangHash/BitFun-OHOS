@@ -3,6 +3,7 @@
   "subtitle": "管理可在 FlowChat 会话里运行的 ACP Agent。",
   "actions": {
     "add": "添加",
+    "get": "获取",
     "addConfig": "添加配置",
     "download": "下载",
     "installCli": "安装 CLI",
@@ -22,6 +23,10 @@
     "predownloadAcp": "预下载 ACP"
   },
   "presets": {
+    "openCode": {
+      "name": "OpenCode",
+      "description": "可通过已信任的第三方 HarmonyBrew 仓库安装的原生 ACP 编码 Agent。"
+    },
     "kimiCode": {
       "name": "Kimi Code",
       "description": "可通过 HarmonyBrew 安装的原生 ACP 编码 Agent。"
