@@ -10,6 +10,8 @@
 
 use crate::error::{MatrixApiError, MatrixApiErrorKind};
 use futures::StreamExt;
+use std::io::Write;
+use std::path::Path;
 use std::time::Duration;
 
 const MATRIX_HTTP_TIMEOUT_SECS: u64 = 25;
@@ -223,6 +225,96 @@ impl MatrixHttpClient {
         ));
         self.send_get_bytes_bounded(&url, DEFAULT_BYTES_RESPONSE_MAX_BYTES)
             .await
+    }
+
+    /// Stream-download the skill ZIP binary for `en_name` directly to a file,
+    /// bypassing the in-memory byte limit. Used for skills whose ZIP packages
+    /// exceed [`DEFAULT_BYTES_RESPONSE_MAX_BYTES`]. Returns the total bytes
+    /// written.
+    ///
+    /// On any error (network, write, stream), the partially-written
+    /// destination file is deleted before the error is propagated.
+    pub async fn fetch_skill_zip_to_file(
+        &self,
+        en_name: &str,
+        dest: &Path,
+    ) -> Result<u64, MatrixApiError> {
+        let encoded = urlencoding::encode(en_name);
+        let url = self.url(&format!(
+            "api/registry/skill/{}/install?agents=claude,codex,gemini,opencode&format=zip",
+            encoded
+        ));
+        log::info!(
+            "Matrix HTTP GET zip to file: url={}, dest={}",
+            url,
+            dest.display()
+        );
+        let request = self.inner.get(&url);
+        let response = send_with_retry(request, &url).await?;
+        let status = response.status();
+        log::info!(
+            "Matrix HTTP GET zip to file response: url={}, status={}",
+            url,
+            status.as_u16()
+        );
+        if !status.is_success() {
+            return Err(MatrixApiError::new(
+                MatrixApiErrorKind::Http {
+                    status: status.as_u16(),
+                },
+                format!("Matrix API returned HTTP {}", status.as_u16()),
+            ));
+        }
+        let mut file = std::fs::File::create(dest).map_err(|error| {
+            log::error!(
+                "Matrix HTTP GET zip to file create error: dest={}, error={}",
+                dest.display(),
+                error
+            );
+            MatrixApiError::from(error)
+        })?;
+        let mut total: u64 = 0;
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            match chunk {
+                Ok(chunk) => {
+                    if let Err(error) = file.write_all(&chunk) {
+                        log::error!(
+                            "Matrix HTTP GET zip to file write error: dest={}, error={}",
+                            dest.display(),
+                            error
+                        );
+                        let _ = std::fs::remove_file(dest);
+                        return Err(MatrixApiError::from(error));
+                    }
+                    total += chunk.len() as u64;
+                }
+                Err(error) => {
+                    log::error!(
+                        "Matrix HTTP GET zip to file stream error: dest={}, error={}",
+                        dest.display(),
+                        error
+                    );
+                    let _ = std::fs::remove_file(dest);
+                    return Err(MatrixApiError::from(error));
+                }
+            }
+        }
+        if let Err(error) = file.flush() {
+            log::error!(
+                "Matrix HTTP GET zip to file flush error: dest={}, error={}",
+                dest.display(),
+                error
+            );
+            let _ = std::fs::remove_file(dest);
+            return Err(MatrixApiError::from(error));
+        }
+        log::info!(
+            "Matrix HTTP GET zip to file done: url={}, bytes={}",
+            url,
+            total
+        );
+        Ok(total)
     }
 }
 
