@@ -57,6 +57,7 @@
       "configInvalid": "配置异常"
     },
     "enabled": "已启用",
+    "disabled": "未启用",
     "ready": "可用",
     "partial": "部分可用",
     "installed": "已安装",

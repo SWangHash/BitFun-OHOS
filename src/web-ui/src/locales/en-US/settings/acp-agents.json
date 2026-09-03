@@ -57,6 +57,7 @@
       "configInvalid": "Invalid config"
     },
     "enabled": "Enabled",
+    "disabled": "Disabled",
     "ready": "Available",
     "partial": "Partially available",
     "installed": "Installed",

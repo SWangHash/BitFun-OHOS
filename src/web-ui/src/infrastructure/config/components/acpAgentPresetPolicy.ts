@@ -9,6 +9,7 @@ export interface AcpClientPreset {
 
 export type AgentRowStatus =
   | 'enabled'
+  | 'disabled'
   | 'ready'
   | 'partial'
   | 'not_installed'
