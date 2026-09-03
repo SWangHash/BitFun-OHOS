@@ -4,12 +4,19 @@ import React, { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import AcpAgentsConfig from './AcpAgentsConfig';
+import {
+  availableRemotePresetIds,
+  canInstallPresetCli,
+  isManagedInstallPresetForRuntime,
+  visiblePresetIdsForRuntime,
+} from './acpAgentPresetPolicy';
 
 const loadJsonConfigMock = vi.hoisted(() => vi.fn());
 const getClientsMock = vi.hoisted(() => vi.fn());
 const probeClientRequirementsMock = vi.hoisted(() => vi.fn());
 const saveJsonConfigMock = vi.hoisted(() => vi.fn());
 const installClientCliMock = vi.hoisted(() => vi.fn());
+const cancelClientInstallMock = vi.hoisted(() => vi.fn());
 const predownloadClientAdapterMock = vi.hoisted(() => vi.fn());
 const listSavedConnectionsMock = vi.hoisted(() => vi.fn());
 const notifyErrorMock = vi.hoisted(() => vi.fn());
@@ -124,6 +131,8 @@ vi.mock('../../api/service-api/ACPClientAPI', () => ({
     getClients: getClientsMock,
     probeClientRequirements: probeClientRequirementsMock,
     installClientCli: installClientCliMock,
+    cancelClientInstall: cancelClientInstallMock,
+    onManagedProvisioningProgress: vi.fn(() => () => undefined),
     predownloadClientAdapter: predownloadClientAdapterMock,
     saveJsonConfig: saveJsonConfigMock,
   },
@@ -193,7 +202,8 @@ describe('AcpAgentsConfig', () => {
     saveJsonConfigMock.mockImplementation(async () => {
       window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
     });
-    installClientCliMock.mockResolvedValue(undefined);
+    installClientCliMock.mockResolvedValue({ clientId: 'opencode', status: 'cli_installed' });
+    cancelClientInstallMock.mockResolvedValue({ clientId: 'opencode', status: 'cancellation_requested' });
     predownloadClientAdapterMock.mockResolvedValue(undefined);
 
     container = document.createElement('div');
@@ -211,6 +221,87 @@ describe('AcpAgentsConfig', () => {
     vi.clearAllMocks();
   });
 
+  it('limits local HarmonyOS managed setup to verified install recipes', () => {
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'kimi-code',
+      status: 'not_installed',
+      issueKind: 'cli_missing',
+      hasConfigEntry: false,
+    })).toBe(true);
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'qwen-code',
+      status: 'not_installed',
+      issueKind: 'cli_missing',
+      hasConfigEntry: false,
+    })).toBe(true);
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'codebuddy-code',
+      status: 'not_installed',
+      issueKind: 'cli_missing',
+      hasConfigEntry: false,
+    })).toBe(true);
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'kimi-code',
+      status: 'ready',
+      issueKind: 'none',
+      hasConfigEntry: false,
+    })).toBe(true);
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'opencode',
+      status: 'not_installed',
+      issueKind: 'cli_missing',
+      hasConfigEntry: false,
+    })).toBe(false);
+  });
+
+  it('shows only HarmonyOS-supported presets on HarmonyOS', () => {
+    const ohosPresetIds = visiblePresetIdsForRuntime(true);
+    expect(ohosPresetIds).toContain('kimi-code');
+    expect(ohosPresetIds.filter(id => id === 'kimi-code')).toHaveLength(1);
+    expect(ohosPresetIds).toContain('qwen-code');
+    expect(ohosPresetIds.filter(id => id.startsWith('qwen-code'))).toHaveLength(1);
+    expect(ohosPresetIds).toContain('codebuddy-code');
+    expect(ohosPresetIds.filter(id => id.startsWith('codebuddy-code'))).toHaveLength(1);
+    expect(ohosPresetIds).not.toContain('opencode');
+    expect(ohosPresetIds).not.toContain('dsh');
+    expect(ohosPresetIds).not.toContain('omp');
+    expect(ohosPresetIds).not.toContain('claude-code');
+    expect(ohosPresetIds).not.toContain('codex');
+
+    const desktopPresetIds = visiblePresetIdsForRuntime(false);
+    expect(desktopPresetIds).toContain('opencode');
+    expect(desktopPresetIds).toContain('dsh');
+    expect(desktopPresetIds).toContain('omp');
+    expect(desktopPresetIds).toContain('claude-code');
+    expect(desktopPresetIds).toContain('codex');
+  });
+
+  it('keeps the full preset catalog available to remote hosts', () => {
+    const remotePresetIds = availableRemotePresetIds();
+    expect(remotePresetIds).toContain('opencode');
+    expect(remotePresetIds).toContain('dsh');
+    expect(remotePresetIds).toContain('omp');
+    expect(remotePresetIds).toContain('claude-code');
+    expect(remotePresetIds).toContain('codex');
+    expect(remotePresetIds.filter(id => id === 'kimi-code')).toHaveLength(1);
+  });
+
+  it('marks only the verified HarmonyOS presets as managed installs', () => {
+    expect(isManagedInstallPresetForRuntime({
+      isOhos: true,
+      presetId: 'kimi-code',
+    })).toBe(true);
+    expect(isManagedInstallPresetForRuntime({
+      isOhos: true,
+      presetId: 'opencode',
+    })).toBe(false);
+  });
+
   it('probes requirements when opened and does not treat missing probe data as invalid config', async () => {
     await act(async () => {
       root.render(<AcpAgentsConfig />);
@@ -224,6 +315,41 @@ describe('AcpAgentsConfig', () => {
     expect(getClientsMock).toHaveBeenCalledTimes(1);
     expect(probeClientRequirementsMock).toHaveBeenCalledTimes(1);
     expect(container.textContent).not.toContain('registry.configInvalid');
+  });
+
+  it('marks an installed but unrunnable CLI as invalid and exposes its error', async () => {
+    probeClientRequirementsMock.mockResolvedValue([
+      {
+        id: 'opencode',
+        tool: {
+          name: 'opencode',
+          installed: true,
+          path: '/usr/bin/opencode',
+          error: 'Process exited with status 1',
+        },
+        runnable: false,
+        notes: ['Process exited with status 1'],
+      },
+    ]);
+
+    await act(async () => {
+      root.render(<AcpAgentsConfig />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const opencodeRow = Array.from(
+      container.querySelectorAll('.bitfun-acp-agents__registry-row'),
+    ).find(row => row.querySelector('.bitfun-acp-agents__registry-name')
+      ?.textContent === 'opencode');
+    expect(opencodeRow).toBeTruthy();
+    expect(opencodeRow!.querySelector('.bitfun-acp-agents__status.is-invalid')).not.toBeNull();
+    expect(opencodeRow!.querySelector('.bitfun-acp-agents__capability.is-error')).not.toBeNull();
+    expect(opencodeRow!.textContent).toContain('registry.configInvalid');
+    expect(opencodeRow!.textContent).toContain('actions.viewError');
+    expect(opencodeRow!.textContent).not.toContain('registry.enabled');
   });
 
   it('renders saved remote servers as global agent rows without override controls', async () => {

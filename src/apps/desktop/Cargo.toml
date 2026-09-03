@@ -38,7 +38,6 @@ tauri = { workspace = true }
 tauri-plugin-opener = { workspace = true }
 tauri-plugin-fs = { workspace = true }
 tauri-plugin-log = { workspace = true }
-tauri-plugin-dialog = { workspace = true }
 napi-ohos = { workspace = true }
 napi-derive-ohos = { workspace = true }
 keepawake = { workspace = true }
@@ -105,6 +104,7 @@ objc2-vision = { workspace = true, features = ["std", "VNRecognizeTextRequest", 
 # Secret Service provider; the desktop host injects an ArkTS-backed vault
 # at startup instead.
 [target.'cfg(not(target_env = "ohos"))'.dependencies]
+tauri-plugin-dialog = { workspace = true }
 tauri-plugin-updater = { workspace = true }
 tauri-plugin-window-state = { workspace = true }
 tauri-plugin-single-instance = { workspace = true }

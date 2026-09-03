@@ -1,7 +1,9 @@
 mod builtin_clients;
 mod config;
 mod dsh_profile;
+mod managed_provisioning;
 mod manager;
+mod ohos_node_compat;
 mod remote_capability_store;
 mod remote_session;
 mod remote_shell;
@@ -14,8 +16,12 @@ mod tool_card_bridge;
 
 pub use config::{
     AcpClientConfig, AcpClientConfigFile, AcpClientInfo, AcpClientPermissionMode,
-    AcpClientRequirementProbe, AcpClientStatus, AcpRequirementProbeItem,
+    AcpClientRequirementProbe, AcpClientRuntimeOverride, AcpClientStatus, AcpRequirementProbeItem,
     RemoteAcpClientRequirementSnapshot,
+};
+pub use managed_provisioning::{
+    AcpClientInstallOutcome, AcpClientInstallStatus, AcpManagedProvisioningProgress,
+    AcpManagedProvisioningStage, PROVISIONING_PROGRESS_EVENT,
 };
 pub use manager::{
     AcpClientPermissionResponse, AcpClientService, AcpSessionConfigValue,

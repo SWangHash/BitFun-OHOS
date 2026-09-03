@@ -3,11 +3,13 @@
 use crate::api::app_state::AppState;
 use crate::api::session_storage_path::desktop_effective_session_storage_path;
 use crate::startup_trace::DesktopStartupTrace;
+#[cfg(target_env = "ohos")]
+use bitfun_acp::client::PROVISIONING_PROGRESS_EVENT;
 use bitfun_acp::client::{
-    AcpAvailableCommand, AcpClientInfo, AcpClientPermissionResponse, AcpClientRequirementProbe,
-    AcpClientStreamEvent, AcpSessionOptions, CreateAcpFlowSessionRecordResponse,
-    SetAcpSessionConfigOptionRequest, SetAcpSessionModelRequest,
-    SubmitAcpPermissionResponseRequest,
+    AcpAvailableCommand, AcpClientInfo, AcpClientInstallOutcome, AcpClientPermissionResponse,
+    AcpClientRequirementProbe, AcpClientStreamEvent, AcpSessionOptions,
+    CreateAcpFlowSessionRecordResponse, SetAcpSessionConfigOptionRequest,
+    SetAcpSessionModelRequest, SubmitAcpPermissionResponseRequest,
 };
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
@@ -19,6 +21,8 @@ pub struct AcpClientIdRequest {
     pub client_id: String,
     #[serde(default)]
     pub remote_connection_id: Option<String>,
+    #[serde(default)]
+    pub cancel_install: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -184,16 +188,68 @@ pub async fn predownload_acp_client_adapter(
 #[tauri::command]
 pub async fn install_acp_client_cli(
     state: State<'_, AppState>,
+    app_handle: AppHandle,
     request: AcpClientIdRequest,
-) -> Result<(), String> {
+) -> Result<AcpClientInstallOutcome, String> {
     let service = state
         .acp_client_service
         .as_ref()
         .ok_or_else(|| "ACP client service not initialized".to_string())?;
-    service
-        .install_client_cli(&request.client_id, request.remote_connection_id.as_deref())
-        .await
-        .map_err(|e| e.to_string())
+    let remote_connection_id = request
+        .remote_connection_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    if request.cancel_install {
+        if remote_connection_id.is_some() {
+            return Err(
+                "Remote ACP CLI installation cannot be cancelled by the local managed installer"
+                    .to_string(),
+            );
+        }
+        if !service.cancel_managed_client_provisioning(&request.client_id) {
+            return Err(format!(
+                "No managed ACP installation is running for '{}'",
+                request.client_id
+            ));
+        }
+        return Ok(AcpClientInstallOutcome::cancellation_requested(
+            &request.client_id,
+        ));
+    }
+
+    if let Some(remote_connection_id) = remote_connection_id {
+        service
+            .install_client_cli(&request.client_id, Some(remote_connection_id))
+            .await
+            .map_err(|e| e.to_string())?;
+        return Ok(AcpClientInstallOutcome::cli_installed(&request.client_id));
+    }
+
+    #[cfg(target_env = "ohos")]
+    {
+        let event_app_handle = app_handle.clone();
+        let emit_progress = move |progress| {
+            if let Err(error) = event_app_handle.emit(PROVISIONING_PROGRESS_EVENT, progress) {
+                log::warn!("Failed to emit ACP provisioning progress: {}", error);
+            }
+        };
+        return service
+            .provision_managed_client(&request.client_id, emit_progress)
+            .await
+            .map_err(|e| e.to_string());
+    }
+
+    #[cfg(not(target_env = "ohos"))]
+    {
+        let _ = app_handle;
+        service
+            .install_client_cli(&request.client_id, None)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(AcpClientInstallOutcome::cli_installed(&request.client_id))
+    }
 }
 
 #[tauri::command]

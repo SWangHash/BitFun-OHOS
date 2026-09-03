@@ -25,6 +25,23 @@ pub struct AcpClientConfig {
     pub readonly: bool,
     #[serde(default)]
     pub permission_mode: AcpClientPermissionMode,
+    /// Host-local launch details produced by a local provisioning flow.
+    ///
+    /// Remote workspaces intentionally keep using the portable `command`,
+    /// `args`, and `env` fields above so controller-side absolute paths never
+    /// leak into a remote execution host.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_override: Option<AcpClientRuntimeOverride>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AcpClientRuntimeOverride {
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub env: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -101,7 +118,7 @@ fn default_true() -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::AcpClientPermissionMode;
+    use super::{AcpClientConfig, AcpClientPermissionMode};
 
     #[test]
     fn permission_mode_default_remains_ask_on_the_wire() {
@@ -109,5 +126,18 @@ mod tests {
 
         assert_eq!(mode, AcpClientPermissionMode::Ask);
         assert_eq!(serde_json::to_string(&mode).unwrap(), "\"ask\"");
+    }
+
+    #[test]
+    fn legacy_configs_default_to_no_local_override() {
+        let config: AcpClientConfig = serde_json::from_value(serde_json::json!({
+            "command": "codex",
+            "args": ["acp"]
+        }))
+        .expect("legacy config should deserialize");
+
+        assert!(config.local_override.is_none());
+        assert!(config.enabled);
+        assert_eq!(config.permission_mode, AcpClientPermissionMode::Ask);
     }
 }

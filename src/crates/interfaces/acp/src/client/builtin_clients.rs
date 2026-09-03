@@ -9,6 +9,41 @@ const CODEX_ACP_PACKAGE: &str = "@agentclientprotocol/codex-acp";
 const CODEX_ACP_ARGS: &[&str] = &["--yes", "@agentclientprotocol/codex-acp@latest"];
 const LEGACY_CODEX_ACP_ARGS: &[&str] = &["--yes", "@zed-industries/codex-acp@latest"];
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OhosNpmManagedPreset {
+    pub(crate) package: &'static str,
+    pub(crate) install_version: &'static str,
+    pub(crate) entry_relative_path: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OhosAcpSupport {
+    Unsupported,
+    HarmonyBrewFormula(&'static str),
+    HarmonyBrewNpm(OhosNpmManagedPreset),
+}
+
+impl OhosAcpSupport {
+    pub(crate) fn is_supported(self) -> bool {
+        !matches!(self, Self::Unsupported)
+    }
+
+    pub(crate) fn formula(self) -> Option<&'static str> {
+        match self {
+            Self::HarmonyBrewFormula(formula) => Some(formula),
+            Self::Unsupported | Self::HarmonyBrewNpm(_) => None,
+        }
+    }
+
+    pub(crate) fn npm(self) -> Option<OhosNpmManagedPreset> {
+        match self {
+            Self::HarmonyBrewNpm(npm) => Some(npm),
+            Self::Unsupported | Self::HarmonyBrewFormula(_) => None,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub(crate) struct BuiltinAcpClientPreset {
     pub(crate) id: &'static str,
     pub(crate) command: &'static str,
@@ -18,12 +53,21 @@ pub(crate) struct BuiltinAcpClientPreset {
     /// agent is user-managed (BitFun only provides the integration, the user
     /// installs the CLI themselves) — the UI then shows no one-click installer.
     pub(crate) install_package: Option<&'static str>,
+    /// Optional local HarmonyOS strategy. Standard local and remote hosts keep
+    /// using the portable command and npm metadata above.
+    pub(crate) ohos: OhosAcpSupport,
     pub(crate) adapter_package: Option<&'static str>,
     pub(crate) adapter_bin: Option<&'static str>,
     /// A profile directory BitFun ships and copies into the agent's own home
     /// before launching it. `None` — every preset but dsh — means the CLI is
     /// self-contained and the command runs as-is.
     pub(crate) bundled_profile: Option<&'static str>,
+}
+
+impl BuiltinAcpClientPreset {
+    pub(crate) fn supports_ohos(&self) -> bool {
+        self.ohos.is_supported()
+    }
 }
 
 /// The profile directory BitFun materializes for DeepSeek Harness. See
@@ -37,6 +81,54 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         args: &["acp"],
         tool_command: "opencode",
         install_package: Some("opencode-ai"),
+        ohos: OhosAcpSupport::Unsupported,
+        adapter_package: None,
+        adapter_bin: None,
+        bundled_profile: None,
+    },
+    // Kimi Code ships a native `kimi acp` entry point and HarmonyBrew owns an
+    // OHOS arm64 formula (including its matching Node.js dependency). Local
+    // HarmonyOS provisioning must go through that formula rather than npm.
+    BuiltinAcpClientPreset {
+        id: "kimi-code",
+        command: "kimi",
+        args: &["acp"],
+        tool_command: "kimi",
+        install_package: Some("@moonshot-ai/kimi-code"),
+        ohos: OhosAcpSupport::HarmonyBrewFormula("kimi-code"),
+        adapter_package: None,
+        adapter_bin: None,
+        bundled_profile: None,
+    },
+    // Qwen Code exposes ACP directly through `qwen --acp`. HarmonyBrew ships
+    // an OHOS arm64 bottle with its matching Node and ripgrep dependencies, so
+    // local HarmonyOS provisioning must use that formula and exact executable.
+    BuiltinAcpClientPreset {
+        id: "qwen-code",
+        command: "qwen",
+        args: &["--acp"],
+        tool_command: "qwen",
+        install_package: Some("@qwen-code/qwen-code"),
+        ohos: OhosAcpSupport::HarmonyBrewFormula("qwen-code"),
+        adapter_package: None,
+        adapter_bin: None,
+        bundled_profile: None,
+    },
+    // CodeBuddy's ACP entry is a bundled Node script. On HarmonyOS BitFun
+    // installs the device-verified version under HarmonyBrew's explicit prefix
+    // and launches it with HarmonyBrew's exact Node binary. Optional native npm
+    // dependencies are omitted because the ACP/headless path does not use them.
+    BuiltinAcpClientPreset {
+        id: "codebuddy-code",
+        command: "codebuddy",
+        args: &["--acp"],
+        tool_command: "codebuddy",
+        install_package: Some("@tencent-ai/codebuddy-code"),
+        ohos: OhosAcpSupport::HarmonyBrewNpm(OhosNpmManagedPreset {
+            package: "@tencent-ai/codebuddy-code",
+            install_version: "2.138.0",
+            entry_relative_path: "lib/node_modules/@tencent-ai/codebuddy-code/bin/codebuddy",
+        }),
         adapter_package: None,
         adapter_bin: None,
         bundled_profile: None,
@@ -52,6 +144,7 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         args: &["--profile", DSH_BUNDLED_PROFILE],
         tool_command: "dsh",
         install_package: Some("@deepseek-ai/dsh"),
+        ohos: OhosAcpSupport::Unsupported,
         adapter_package: None,
         adapter_bin: None,
         bundled_profile: Some(DSH_BUNDLED_PROFILE),
@@ -68,6 +161,7 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         args: &["acp"],
         tool_command: "omp",
         install_package: None,
+        ohos: OhosAcpSupport::Unsupported,
         adapter_package: None,
         adapter_bin: None,
         bundled_profile: None,
@@ -78,6 +172,7 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         args: CLAUDE_ACP_ARGS,
         tool_command: "claude",
         install_package: Some("@anthropic-ai/claude-code"),
+        ohos: OhosAcpSupport::Unsupported,
         adapter_package: Some(CLAUDE_ACP_PACKAGE),
         adapter_bin: Some("claude-agent-acp"),
         bundled_profile: None,
@@ -88,6 +183,7 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         args: CODEX_ACP_ARGS,
         tool_command: "codex",
         install_package: Some("@openai/codex"),
+        ohos: OhosAcpSupport::Unsupported,
         adapter_package: Some(CODEX_ACP_PACKAGE),
         adapter_bin: Some("codex-acp"),
         bundled_profile: None,
@@ -120,6 +216,7 @@ pub(crate) fn default_config_for_builtin_client(client_id: &str) -> Option<AcpCl
         enabled: true,
         readonly: false,
         permission_mode: AcpClientPermissionMode::Ask,
+        local_override: None,
     })
 }
 
@@ -180,6 +277,49 @@ mod tests {
     }
 
     #[test]
+    fn harmonybrew_managed_presets_keep_their_exact_acp_entries() {
+        let kimi = builtin_acp_client_preset("kimi-code").expect("kimi preset registered");
+        assert_eq!(kimi.command, "kimi");
+        assert_eq!(kimi.args, &["acp"]);
+        assert_eq!(kimi.install_package, Some("@moonshot-ai/kimi-code"));
+        assert_eq!(kimi.ohos, OhosAcpSupport::HarmonyBrewFormula("kimi-code"));
+        assert!(kimi.adapter_package.is_none());
+        assert!(kimi.adapter_bin.is_none());
+
+        let qwen = builtin_acp_client_preset("qwen-code").expect("qwen preset registered");
+        assert_eq!(qwen.command, "qwen");
+        assert_eq!(qwen.args, &["--acp"]);
+        assert_eq!(qwen.install_package, Some("@qwen-code/qwen-code"));
+        assert_eq!(qwen.ohos, OhosAcpSupport::HarmonyBrewFormula("qwen-code"));
+        assert!(qwen.adapter_package.is_none());
+        assert!(qwen.adapter_bin.is_none());
+
+        let codebuddy =
+            builtin_acp_client_preset("codebuddy-code").expect("CodeBuddy preset registered");
+        assert_eq!(codebuddy.command, "codebuddy");
+        assert_eq!(codebuddy.args, &["--acp"]);
+        assert_eq!(
+            codebuddy.ohos,
+            OhosAcpSupport::HarmonyBrewNpm(OhosNpmManagedPreset {
+                package: "@tencent-ai/codebuddy-code",
+                install_version: "2.138.0",
+                entry_relative_path: "lib/node_modules/@tencent-ai/codebuddy-code/bin/codebuddy",
+            })
+        );
+        assert!(codebuddy.adapter_package.is_none());
+        assert!(codebuddy.adapter_bin.is_none());
+
+        assert_eq!(
+            BUILTIN_ACP_CLIENT_PRESETS
+                .iter()
+                .filter(|preset| preset.supports_ohos())
+                .map(|preset| preset.id)
+                .collect::<Vec<_>>(),
+            vec!["kimi-code", "qwen-code", "codebuddy-code"]
+        );
+    }
+
+    #[test]
     fn dsh_preset_launches_the_bitfun_profile() {
         let preset = builtin_acp_client_preset("dsh").expect("dsh preset registered");
         assert_eq!(preset.command, "dsh");
@@ -220,6 +360,7 @@ mod tests {
                         enabled: true,
                         readonly: false,
                         permission_mode: AcpClientPermissionMode::Ask,
+                        local_override: None,
                     },
                 ),
                 (
@@ -235,6 +376,7 @@ mod tests {
                         enabled: true,
                         readonly: false,
                         permission_mode: AcpClientPermissionMode::Ask,
+                        local_override: None,
                     },
                 ),
                 (
@@ -250,6 +392,7 @@ mod tests {
                         enabled: true,
                         readonly: false,
                         permission_mode: AcpClientPermissionMode::Ask,
+                        local_override: None,
                     },
                 ),
             ]),

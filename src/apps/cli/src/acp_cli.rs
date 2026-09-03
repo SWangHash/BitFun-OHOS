@@ -67,6 +67,7 @@ impl ExternalAcpClient {
             enabled: true,
             readonly: false,
             permission_mode: AcpClientPermissionMode::Ask,
+            local_override: None,
         }
     }
 }
