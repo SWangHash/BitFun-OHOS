@@ -363,6 +363,7 @@ const AssistantConfigPage: React.FC = () => {
                   data-bf-component="assistant-config-page"
                   data-bf-part="persona"
                   data-bf-state={selected ? 'selected' : undefined}
+                  data-testid={`persona-doc-${labelKey.toLowerCase()}`}
                   onClick={() => openPersonaDoc(fileName)}
                 >
                   <span className="acp-persona-doc-row__icon"><FileText size={12} /></span>
@@ -515,6 +516,7 @@ const AssistantConfigPage: React.FC = () => {
           className="nursery-page__back"
           data-bf-component="assistant-config-page"
           data-bf-part="back"
+          data-testid="nursery-back-btn"
           onClick={openGallery}
           aria-label={t('nursery.backToGallery')}
           tooltip={t('nursery.backToGallery')}
@@ -548,6 +550,7 @@ const AssistantConfigPage: React.FC = () => {
               ) : (
                 <span
                   className="acp-left-header__name"
+                  data-testid="assistant-config-name"
                   role="button"
                   tabIndex={0}
                   onClick={() => startEdit('name')}
@@ -571,6 +574,7 @@ const AssistantConfigPage: React.FC = () => {
                 ) : (
                   <span
                     className={`acp-left-header__meta-tag${!displayIdentity.creature ? ' is-empty' : ''}`}
+                    data-testid="persona-meta-role-type"
                     role="button"
                     tabIndex={0}
                     onClick={() => startEdit('creature')}
@@ -595,6 +599,7 @@ const AssistantConfigPage: React.FC = () => {
                 ) : (
                   <span
                     className={`acp-left-header__meta-tag${!displayIdentity.vibe ? ' is-empty' : ''}`}
+                    data-testid="persona-meta-style"
                     role="button"
                     tabIndex={0}
                     onClick={() => startEdit('vibe')}

@@ -343,6 +343,7 @@ export const Tab: React.FC<TabProps> = ({
           <button
             data-bf-component="canvas-tab"
             data-bf-part="action"
+            data-testid="canvas-tab-close-btn"
             className={`canvas-tab__action-btn canvas-tab__close-btn ${isPinned ? 'canvas-tab__close-btn--pin' : ''}`}
             onClick={isPinned ? handlePinClick : handleCloseClick}
             tabIndex={-1}

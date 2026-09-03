@@ -95,6 +95,7 @@ export interface SearchProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 
   inputAriaLabel?: string;
   ariaControls?: string;
   ariaExpanded?: boolean;
+  inputTestId?: string;
 }
 
 export const Search = forwardRef<HTMLInputElement, SearchProps>(({
@@ -125,6 +126,7 @@ export const Search = forwardRef<HTMLInputElement, SearchProps>(({
   inputAriaLabel,
   ariaControls,
   ariaExpanded,
+  inputTestId,
   ...rootProps
 }, ref) => {
   const { t } = useI18n('components');
@@ -261,7 +263,8 @@ export const Search = forwardRef<HTMLInputElement, SearchProps>(({
           aria-busy={loading || undefined}
           aria-invalid={error || undefined}
           aria-describedby={error && errorMessage ? errorId : undefined}
-         data-bf-component="search" data-bf-part="input"/>
+          data-testid={inputTestId}
+          data-bf-component="search" data-bf-part="input"/>
 
         {clearable && inputValue && !loading && !disabled && (
           <button

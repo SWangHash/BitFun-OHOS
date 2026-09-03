@@ -509,6 +509,7 @@ export const FloatingMiniChat: React.FC = () => {
       <button
         data-bf-component="floating-mini-chat"
         data-bf-part="trigger"
+        data-testid="fmc-trigger-btn"
         type="button"
         className={[
           'bitfun-fmc__button',
@@ -579,7 +580,7 @@ export const FloatingMiniChat: React.FC = () => {
               surface (permission panel above ChatInput, ChatInput stop button),
               so the header only owns bubble chrome. */}
           <Tooltip content={t('planner.cancel')}>
-            <button type="button" data-bf-component="floating-mini-chat" data-bf-part="headerAction" className="bitfun-fmc__header-btn bitfun-fmc__header-btn--close" onClick={handleClose}>
+            <button type="button" data-bf-component="floating-mini-chat" data-bf-part="headerAction" data-testid="fmc-close-btn" className="bitfun-fmc__header-btn bitfun-fmc__header-btn--close" onClick={handleClose}>
               <X size={14} />
             </button>
           </Tooltip>

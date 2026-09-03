@@ -12,6 +12,7 @@ interface SectionHeaderProps {
   onToggle?: () => void;
   onSceneOpen?: () => void;
   actions?: React.ReactNode;
+  testId?: string;
 }
 
 const SectionHeader: React.FC<SectionHeaderProps> = ({
@@ -21,6 +22,7 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
   onToggle,
   onSceneOpen,
   actions,
+  testId,
 }) => {
   const isInteractive = collapsible || !!onSceneOpen;
   const isSceneEntry = !collapsible && !!onSceneOpen;
@@ -35,6 +37,7 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
 
   return (
     <div
+      data-testid={testId ?? 'nav-section-header'}
       className={[
         'bitfun-nav-panel__section-header',
         isInteractive && 'bitfun-nav-panel__section-header--interactive',

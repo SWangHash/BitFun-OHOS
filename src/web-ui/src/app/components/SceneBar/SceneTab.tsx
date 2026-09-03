@@ -84,6 +84,7 @@ const SceneTab: React.FC<SceneTabProps> = ({
       role="tab"
       aria-selected={isActive}
       tabIndex={isActive ? 0 : -1}
+      data-testid={`scene-tab-${tab.id}`}
       className={[
         'bitfun-scene-tab',
         isActive && 'bitfun-scene-tab--active',
@@ -124,6 +125,7 @@ const SceneTab: React.FC<SceneTabProps> = ({
         <button
           type="button"
           className="bitfun-scene-tab__close"
+          data-testid={`scene-tab-close-${tab.id}`}
           aria-label={`Close ${label}`}
           onClick={handleClose}
           tabIndex={-1}

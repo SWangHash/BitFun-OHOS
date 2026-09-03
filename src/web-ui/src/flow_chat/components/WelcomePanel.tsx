@@ -122,6 +122,7 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
               data-bf-component="welcome-panel"
               data-bf-part="gitAction"
               className="welcome-panel__inline-btn"
+              data-testid={`welcome-panel-git-action-btn-${key}`}
               onClick={handleGitClick}
             >
               {label}
@@ -255,6 +256,7 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
                   data-bf-component="welcome-panel"
                   data-bf-part="openWorkspaceAction"
                   className="welcome-panel__inline-btn welcome-panel__inline-btn--interactive"
+                  data-testid="welcome-panel-open-workspace-btn"
                   onClick={() => { void handleOpenOtherFolder(); }}
                   disabled={isSelectingWorkspace}
                 >
@@ -277,6 +279,7 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
                         data-bf-part="workspaceAction"
                         data-bf-state={workspaceDropdownOpen ? 'open' : undefined}
                         className={`welcome-panel__inline-btn welcome-panel__inline-btn--interactive${workspaceDropdownOpen ? ' welcome-panel__inline-btn--active' : ''}`}
+                        data-testid="welcome-panel-workspace-trigger-btn"
                         onClick={() => setWorkspaceDropdownOpen(v => !v)}
                         disabled={isSelectingWorkspace}
                         title={currentWorkspace?.rootPath}
@@ -308,6 +311,7 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
                             data-bf-component="welcome-panel"
                             data-bf-part="workspaceItem"
                             className="welcome-panel__dropdown-item welcome-panel__dropdown-item--accent"
+                            data-testid="welcome-panel-new-workspace-btn"
                             onClick={() => { void handleCreateWorkspace(); }}
                           >
                             <FolderPlus size={12} />
@@ -331,6 +335,7 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
                                   data-bf-component="welcome-panel"
                                   data-bf-part="workspaceItem"
                                   className="welcome-panel__dropdown-item"
+                                  data-testid={`welcome-panel-switch-workspace-${ws.id}`}
                                   onClick={() => { void handleSwitchWorkspace(ws); }}
                                   title={ws.rootPath}
                                 >
@@ -352,6 +357,7 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
                           data-bf-component="welcome-panel"
                           data-bf-part="gitAction"
                           className="welcome-panel__inline-btn"
+                          data-testid="welcome-panel-git-branch-btn"
                           onClick={handleGitClick}
                         >
                           <GitBranch size={13} className="welcome-panel__inline-icon" />

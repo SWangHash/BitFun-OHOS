@@ -85,6 +85,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
       {closable && (
         <button
           className="notification-item__close"
+          data-testid="notification-toast-close-btn"
           data-bf-component="notification"
           data-bf-part="itemClose"
           onClick={handleClose}

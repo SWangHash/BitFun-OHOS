@@ -241,6 +241,7 @@ const SkillsScene: React.FC = () => {
           <button
             type="button"
             className={`skills-tabs-bar__tab ${activeTab === 'installed' ? 'is-active' : ''}`}
+            data-testid="skills-tab-installed"
             onClick={() => setActiveTab('installed')}
             data-bf-scene="skills"
             data-bf-part="tab"
@@ -251,6 +252,7 @@ const SkillsScene: React.FC = () => {
           <button
             type="button"
             className={`skills-tabs-bar__tab ${activeTab === 'discover' ? 'is-active' : ''}`}
+            data-testid="skills-tab-market"
             disabled={!desktopConfigAvailable}
             onClick={() => setActiveTab('discover')}
             data-bf-scene="skills"
@@ -278,6 +280,7 @@ const SkillsScene: React.FC = () => {
                       key={cat.id}
                       type="button"
                       className={`skills-sidebar__item ${installedFilter === cat.id ? 'is-active' : ''} ${isEmpty ? 'is-empty' : ''}`}
+                      data-testid={`skills-sidebar-item-${cat.id}`}
                       onClick={() => setInstalledFilter(cat.id)}
                       data-bf-scene="skills"
                       data-bf-part="sidebarItem"
@@ -314,6 +317,7 @@ const SkillsScene: React.FC = () => {
                   <div className="skills-main__toolbar" data-bf-scene="skills" data-bf-part="toolbar">
                     <Search
                       className="skills-main__toolbar-search"
+                      inputTestId="skills-search-input"
                       value={installedSearch}
                       onChange={setInstalledSearch}
                       onClear={() => setInstalledSearch('')}
@@ -324,6 +328,7 @@ const SkillsScene: React.FC = () => {
                     <button
                       type="button"
                       className={`skills-main__chip-btn${hideDuplicates ? ' is-active' : ''}`}
+                      data-testid="skills-duplicates-chip"
                       onClick={() => setHideDuplicates(!hideDuplicates)}
                       data-bf-scene="skills"
                       data-bf-part="filterAction"
@@ -335,6 +340,7 @@ const SkillsScene: React.FC = () => {
                     <button
                       type="button"
                       className="skills-main__add-btn"
+                      data-testid="skills-add-btn"
                       onClick={toggleAddForm}
                       data-bf-scene="skills"
                       data-bf-part="addAction"
@@ -407,7 +413,7 @@ const SkillsScene: React.FC = () => {
                               }
                             }}
                             aria-label={installedSkillAriaLabel(skill)}
-                            data-testid="skill-list-item"
+                            data-testid={`skill-list-item-${skill.key}`}
                             data-skill-key={skill.key}
                             data-skill-id={skill.key}
                             data-skill-name={skill.name}
@@ -426,9 +432,9 @@ const SkillsScene: React.FC = () => {
                                 <Puzzle size={18} strokeWidth={1.6} />
                               </div>
                               <div className="skills-card__info" data-bf-scene="skills" data-bf-part="installedCardInfo">
-                                <span className="skills-card__name" data-testid="skill-list-item-title" data-bf-scene="skills" data-bf-part="installedCardName">{skill.name}</span>
+                                <span className="skills-card__name" data-testid={`skill-list-item-title-${skill.key}`} data-bf-scene="skills" data-bf-part="installedCardName">{skill.name}</span>
                                 {skill.description?.trim() && (
-                                  <span className="skills-card__desc" data-testid="skill-list-item-description" data-bf-scene="skills" data-bf-part="installedCardDescription">{skill.description}</span>
+                                  <span className="skills-card__desc" data-testid={`skill-list-item-description-${skill.key}`} data-bf-scene="skills" data-bf-part="installedCardDescription">{skill.description}</span>
                                 )}
                               </div>
                               <div className="skills-card__status-badges">
@@ -502,6 +508,7 @@ const SkillsScene: React.FC = () => {
                               <Button
                                 variant="ghost"
                                 size="small"
+                                data-testid={`skill-card-detail-${skill.key}`}
                                 onClick={() => setSelectedDetail({ type: 'installed', skillKey: skill.key })}
                               >
                                 <span>{t('list.item.detail')}</span>
@@ -530,6 +537,7 @@ const SkillsScene: React.FC = () => {
                           <button
                             type="button"
                             className="skills-installed__page-btn"
+                            data-testid="skills-installed-prev-btn"
                             onClick={() => setInstalledListPage((p) => Math.max(0, p - 1))}
                             disabled={currentInstalledPage === 0}
                             aria-label={t('market.pagination.prev')}
@@ -547,6 +555,7 @@ const SkillsScene: React.FC = () => {
                           <button
                             type="button"
                             className="skills-installed__page-btn"
+                            data-testid="skills-installed-next-btn"
                             onClick={() => setInstalledListPage((p) => Math.min(installedTotalPages - 1, p + 1))}
                             disabled={currentInstalledPage >= installedTotalPages - 1}
                             aria-label={t('market.pagination.next')}
@@ -576,6 +585,7 @@ const SkillsScene: React.FC = () => {
                 <div className="skills-discover__search-wrapper" data-bf-scene="skills" data-bf-part="discoverSearch">
                   <Search
                     className="skills-discover__search"
+                    inputTestId="skills-discover-search-input"
                     value={searchDraft}
                     onChange={setSearchDraft}
                     onSearch={submitMarketQuery}
@@ -649,7 +659,7 @@ const SkillsScene: React.FC = () => {
                       return (
                         <SkillCard
                           key={skill.installId}
-                          data-testid="skills-market-card"
+                          data-testid={`skills-market-card-${skill.installId}`}
                           data-skill-install-id={skill.installId}
                           data-skill-id={skill.installId}
                           data-skill-name={skill.name}
@@ -700,6 +710,7 @@ const SkillsScene: React.FC = () => {
                       <button
                         type="button"
                         className="skills-discover__page-btn"
+                        data-testid="skills-discover-prev-btn"
                         onClick={market.goToPrevPage}
                         disabled={market.currentPage === 0 || market.loadingMore}
                         aria-label={t('market.pagination.prev')}
@@ -716,6 +727,7 @@ const SkillsScene: React.FC = () => {
                       <button
                         type="button"
                         className="skills-discover__page-btn"
+                        data-testid="skills-discover-next-btn"
                         onClick={() => void market.goToNextPage()}
                         disabled={(!market.hasMore && market.currentPage >= market.totalPages - 1) || market.loadingMore}
                         aria-label={t('market.pagination.next')}
@@ -814,6 +826,7 @@ const SkillsScene: React.FC = () => {
                   <Button
                     variant="primary"
                     size="small"
+                    data-testid="skill-detail-download-project-btn"
                     onClick={() => void market.handleDownload(selectedMarketSkill, 'project')}
                     disabled={market.downloadingPackage === selectedMarketSkill.installId || !market.hasWorkspace}
                   >
@@ -828,6 +841,7 @@ const SkillsScene: React.FC = () => {
                 <Button
                   variant={market.isRemoteWorkspace ? 'primary' : 'secondary'}
                   size="small"
+                  data-testid="skill-detail-download-user-btn"
                   onClick={() => void market.handleDownload(selectedMarketSkill, 'user')}
                   disabled={market.downloadingPackage === selectedMarketSkill.installId}
                 >
@@ -923,10 +937,12 @@ const SkillsScene: React.FC = () => {
         }}
         title={t('form.title')}
         size="small"
+        closeButtonTestId="skills-add-form-close-btn"
       >
         <div className="bitfun-skills-scene__modal-form">
           <Select
             label={t('form.level.label')}
+            triggerTestId="skills-add-form-level-select"
             options={[
               { label: t('form.level.user'), value: 'user' },
               {
@@ -949,6 +965,7 @@ const SkillsScene: React.FC = () => {
           <div className="bitfun-skills-scene__path-input">
             <Input
               label={t('form.path.label')}
+              data-testid="skills-add-form-path-input"
               placeholder={t('form.path.placeholder')}
               value={installed.formPath}
               onChange={(e) => installed.setFormPath(e.target.value)}
@@ -957,6 +974,7 @@ const SkillsScene: React.FC = () => {
             <button
               type="button"
               className="gallery-action-btn"
+              data-testid="skills-add-form-browse-btn"
               onClick={installed.handleBrowse}
               aria-label={t('form.path.browseTooltip')}
             >
@@ -999,6 +1017,7 @@ const SkillsScene: React.FC = () => {
             <Button
               variant="secondary"
               size="small"
+              data-testid="skills-add-form-cancel-btn"
               onClick={() => {
                 installed.resetForm();
                 setAddFormOpen(false);
@@ -1009,6 +1028,7 @@ const SkillsScene: React.FC = () => {
             <Button
               variant="primary"
               size="small"
+              data-testid="skills-add-form-submit-btn"
               onClick={handleAddSkill}
               disabled={!installed.validationResult?.valid || installed.isAdding}
             >

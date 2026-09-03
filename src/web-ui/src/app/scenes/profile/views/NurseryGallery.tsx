@@ -226,6 +226,7 @@ const NurseryGallery: React.FC = () => {
             variant="primary"
             size="small"
             className="nursery-gallery__create-button"
+            data-testid="nursery-create-assistant-btn"
             onClick={handleCreateAssistant}
             disabled={creating}
             aria-busy={creating}
@@ -289,6 +290,7 @@ const NurseryGallery: React.FC = () => {
             variant="secondary"
             size="small"
             className="nursery-defaults__action"
+            data-testid="nursery-configure-defaults-btn"
             onClick={openDefaults}
           >
             <Settings2 size={14} strokeWidth={1.8} aria-hidden="true" />
@@ -334,6 +336,7 @@ const NurseryGallery: React.FC = () => {
                   type="button"
                   variant="primary"
                   size="small"
+                  data-testid="nursery-create-assistant-btn"
                   onClick={handleCreateAssistant}
                   disabled={creating}
                 >
