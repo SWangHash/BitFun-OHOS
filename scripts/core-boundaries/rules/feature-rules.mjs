@@ -730,6 +730,14 @@ export const acpClosedFeatureProfileRules = [
       'bitfun-agent-tools/acp-bridge',
       'dep:futures',
       'dep:serde',
+      // The bundled DeepSeek Harness profile: `dirs` locates $DSH_HOME,
+      // `semver` compares the build's minimum dsh version against the installed
+      // one, and `tar` packs the profile for a remote workspace, which receives
+      // it as one stream over its own transport. All three are client-only —
+      // the server surface never launches an agent.
+      'dep:dirs',
+      'dep:semver',
+      'dep:tar',
       'dep:bitfun-core',
       ...acpClientCoreFeatures.map((feature) => `bitfun-core/${feature}`),
     ],

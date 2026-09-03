@@ -1,5 +1,6 @@
 mod builtin_clients;
 mod config;
+mod dsh_profile;
 mod managed_provisioning;
 mod manager;
 mod ohos_node_compat;

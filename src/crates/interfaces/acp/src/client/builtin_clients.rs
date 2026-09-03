@@ -92,6 +92,10 @@ pub(crate) struct BuiltinAcpClientPreset {
     pub(crate) ohos_adapter: Option<OhosNpmManagedAdapterPreset>,
     pub(crate) adapter_package: Option<&'static str>,
     pub(crate) adapter_bin: Option<&'static str>,
+    /// A profile directory BitFun ships and copies into the agent's own home
+    /// before launching it. `None` — every preset but dsh — means the CLI is
+    /// self-contained and the command runs as-is.
+    pub(crate) bundled_profile: Option<&'static str>,
 }
 
 impl BuiltinAcpClientPreset {
@@ -99,6 +103,10 @@ impl BuiltinAcpClientPreset {
         self.ohos.is_supported()
     }
 }
+
+/// The profile directory BitFun materializes for DeepSeek Harness. See
+/// `dsh_profile.rs`: the bridge ships with BitFun, the harness does not.
+pub(crate) const DSH_BUNDLED_PROFILE: &str = "bitfun-acp";
 
 const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
     BuiltinAcpClientPreset {
@@ -118,6 +126,7 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         ohos_adapter: None,
         adapter_package: None,
         adapter_bin: None,
+        bundled_profile: None,
     },
     // Kimi Code ships a native `kimi acp` entry point and HarmonyBrew owns an
     // OHOS arm64 formula (including its matching Node.js dependency). Local
@@ -136,6 +145,7 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         ohos_adapter: None,
         adapter_package: None,
         adapter_bin: None,
+        bundled_profile: None,
     },
     // Qwen Code exposes ACP directly through `qwen --acp`. HarmonyBrew ships
     // an OHOS arm64 bottle with its matching Node and ripgrep dependencies, so
@@ -154,6 +164,7 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         ohos_adapter: None,
         adapter_package: None,
         adapter_bin: None,
+        bundled_profile: None,
     },
     // CodeBuddy's ACP entry is a bundled Node script. On HarmonyOS BitFun
     // installs the device-verified version under HarmonyBrew's explicit prefix
@@ -173,6 +184,29 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         ohos_adapter: None,
         adapter_package: None,
         adapter_bin: None,
+        bundled_profile: None,
+    },
+    // DeepSeek Harness (dsh) — the harness has no ACP entry point of its own,
+    // so BitFun ships one as a dsh PROFILE (packages/dsh-acp) and launches it
+    // through the user's own installation. The model and the API key stay in
+    // dsh, where the user configured them; BitFun stores neither. Portable
+    // hosts keep the npm installer, while HarmonyOS uses the patched official
+    // HarmonyBrew formula and its exact launcher path.
+    BuiltinAcpClientPreset {
+        id: "dsh",
+        command: "dsh",
+        args: &["--profile", DSH_BUNDLED_PROFILE],
+        tool_command: "dsh",
+        install_package: Some("@deepseek-ai/dsh"),
+        ohos: OhosAcpSupport::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
+            formula: "deepseek-harness",
+            auto_install: true,
+            entry_relative_path: "bin/dsh",
+        }),
+        ohos_adapter: None,
+        adapter_package: None,
+        adapter_bin: None,
+        bundled_profile: Some(DSH_BUNDLED_PROFILE),
     },
     // Oh My Pi (omp) — a terminal coding agent that speaks ACP natively via
     // `omp acp` (no adapter needed, like opencode). User-managed: omp targets
@@ -190,6 +224,7 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         ohos_adapter: None,
         adapter_package: None,
         adapter_bin: None,
+        bundled_profile: None,
     },
     BuiltinAcpClientPreset {
         id: "claude-code",
@@ -214,6 +249,7 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         }),
         adapter_package: Some(CLAUDE_ACP_PACKAGE),
         adapter_bin: Some("claude-agent-acp"),
+        bundled_profile: None,
     },
     BuiltinAcpClientPreset {
         id: "codex",
@@ -238,6 +274,7 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         }),
         adapter_package: Some(CODEX_ACP_PACKAGE),
         adapter_bin: Some("codex-acp"),
+        bundled_profile: None,
     },
 ];
 
@@ -377,10 +414,42 @@ mod tests {
                 "kimi-code",
                 "qwen-code",
                 "codebuddy-code",
+                "dsh",
                 "claude-code",
                 "codex"
             ]
         );
+    }
+
+    #[test]
+    fn dsh_preset_launches_the_bitfun_profile() {
+        let preset = builtin_acp_client_preset("dsh").expect("dsh preset registered");
+        assert_eq!(preset.command, "dsh");
+        assert_eq!(preset.tool_command, "dsh");
+        // The launch IS the profile: BitFun ships the bridge, dsh runs it.
+        assert_eq!(preset.args, &["--profile", DSH_BUNDLED_PROFILE]);
+        assert_eq!(preset.bundled_profile, Some(DSH_BUNDLED_PROFILE));
+        // Native ACP — the bridge is the profile, not a separate adapter.
+        assert!(preset.adapter_package.is_none());
+        assert!(preset.adapter_bin.is_none());
+        // The harness itself is a plain npm global on portable hosts.
+        assert_eq!(preset.install_package, Some("@deepseek-ai/dsh"));
+        assert_eq!(
+            preset.ohos,
+            OhosAcpSupport::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
+                formula: "deepseek-harness",
+                auto_install: true,
+                entry_relative_path: "bin/dsh",
+            })
+        );
+
+        for preset in BUILTIN_ACP_CLIENT_PRESETS.iter().filter(|p| p.id != "dsh") {
+            assert!(
+                preset.bundled_profile.is_none(),
+                "{} needs no profile",
+                preset.id
+            );
+        }
     }
 
     #[test]

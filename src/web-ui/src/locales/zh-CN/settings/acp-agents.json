@@ -39,6 +39,9 @@
       "name": "CodeBuddy Code",
       "description": "使用 HarmonyBrew Node 运行的原生 ACP 编码 Agent。"
     },
+    "deepSeekHarness": {
+      "description": "通过 HarmonyBrew 安装，并由 BitFun 内置 ACP 桥接入的编码 Agent。"
+    },
     "claudeCode": {
       "name": "Claude Code",
       "description": "使用 HarmonyBrew Node/npm 安装，并通过 ACP 适配器接入的编码 Agent。"

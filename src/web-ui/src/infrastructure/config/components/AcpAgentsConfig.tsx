@@ -1068,6 +1068,10 @@ const AcpAgentsConfig: React.FC = () => {
           name: t('presets.codeBuddyCode.name'),
           description: t('presets.codeBuddyCode.description'),
         },
+        dsh: {
+          name: 'DeepSeek Harness',
+          description: t('presets.deepSeekHarness.description'),
+        },
         'claude-code': {
           name: t('presets.claudeCode.name'),
           description: t('presets.claudeCode.description'),

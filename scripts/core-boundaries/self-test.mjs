@@ -615,6 +615,12 @@ export function runManifestParserSelfTest({
         'bitfun-agent-tools/acp-bridge',
         'dep:futures',
         'dep:serde',
+        // The bundled DeepSeek Harness profile the ACP client materializes:
+        // $DSH_HOME lookup, a minimum-version comparison, and packing the
+        // profile for a remote host.
+        'dep:dirs',
+        'dep:semver',
+        'dep:tar',
         'dep:bitfun-core',
         'bitfun-core/agent-runtime',
         'bitfun-core/ssh-remote',

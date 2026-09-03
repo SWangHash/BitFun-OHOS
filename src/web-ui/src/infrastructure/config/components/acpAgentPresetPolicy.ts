@@ -33,6 +33,7 @@ export const NATIVE_ACP_PRESET_IDS = new Set([
   'kimi-code',
   'qwen-code',
   'codebuddy-code',
+  'dsh',
   'omp',
 ]);
 
@@ -44,6 +45,7 @@ const OHOS_MANAGED_INSTALL_PRESET_IDS = new Set([
   'kimi-code',
   'qwen-code',
   'codebuddy-code',
+  'dsh',
   'claude-code',
   'codex',
 ]);
@@ -96,6 +98,16 @@ export const ALL_ACP_CLIENT_PRESETS: AcpClientPreset[] = [
     description: 'Native ACP coding agent that runs on HarmonyBrew Node.',
     command: 'codebuddy',
     args: ['--acp'],
+  },
+  // BitFun ships the ACP bridge for DeepSeek Harness and installs it into the
+  // user's own dsh as a profile on first launch, so the only setup left is the
+  // harness itself and the model the user picks inside it.
+  {
+    id: 'dsh',
+    name: 'DeepSeek Harness',
+    description: 'DeepSeek Harness through BitFun\'s bundled ACP bridge.',
+    command: 'dsh',
+    args: ['--profile', 'bitfun-acp'],
   },
   {
     id: 'omp',
