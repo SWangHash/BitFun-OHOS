@@ -137,6 +137,7 @@ export function useMatrixSkillMarket({
   const skillsLoadingRef = useRef(false);
   const skillsLoadingMoreRef = useRef(false);
   const fetchedCountRef = useRef(0);
+  const facetRetryCountRef = useRef(0);
   const pageSize = DEFAULT_PAGE_SIZE;
 
   const loadTags = useCallback(async () => {
@@ -163,7 +164,7 @@ export function useMatrixSkillMarket({
       }
       const msg = extractErrorMessage(err);
       log.error('Failed to load Matrix tags', { error: msg, raw: err });
-      setTagsError(msg);
+      setTagsError('matrix.errors.tagsLoadFailed');
     } finally {
       if (requestId === tagsRequestIdRef.current) {
         setTagsLoading(false);
@@ -198,7 +199,7 @@ export function useMatrixSkillMarket({
       }
       const msg = extractErrorMessage(err);
       log.error('Failed to load Matrix categories', { error: msg, raw: err });
-      setCategoriesError(msg);
+      setCategoriesError('matrix.errors.categoriesLoadFailed');
     } finally {
       if (requestId === categoriesRequestIdRef.current) {
         setCategoriesLoading(false);
@@ -237,7 +238,7 @@ export function useMatrixSkillMarket({
       }
       const msg = extractErrorMessage(err);
       log.error('Failed to load Matrix organizations', { error: msg, raw: err });
-      setOrganizationsError(msg);
+      setOrganizationsError('matrix.errors.organizationsLoadFailed');
     } finally {
       if (requestId === organizationsRequestIdRef.current) {
         setOrganizationsLoading(false);
@@ -385,6 +386,40 @@ export function useMatrixSkillMarket({
     void loadFirstPage();
   }, [enabled, loadFirstPage]);
 
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    if (!tagsError && !categoriesError && !organizationsError) {
+      facetRetryCountRef.current = 0;
+      return;
+    }
+    if (facetRetryCountRef.current >= 3) {
+      return;
+    }
+    const backoff = [5000, 10000, 20000][facetRetryCountRef.current] ?? 20000;
+    const timer = setTimeout(() => {
+      facetRetryCountRef.current += 1;
+      log.info('Matrix facet auto-retry', {
+        retryCount: facetRetryCountRef.current,
+        tagsError: !!tagsError,
+        categoriesError: !!categoriesError,
+        organizationsError: !!organizationsError,
+        backoffMs: backoff,
+      });
+      if (tagsError) {
+        void loadTags();
+      }
+      if (categoriesError) {
+        void loadCategories();
+      }
+      if (organizationsError) {
+        void loadOrganizations();
+      }
+    }, backoff);
+    return () => clearTimeout(timer);
+  }, [enabled, tagsError, categoriesError, organizationsError, loadTags, loadCategories, loadOrganizations]);
+
   const sortedSkills = useMemo(() => {
     const entries = skills.map((skill, index) => ({
       skill,
@@ -409,7 +444,17 @@ export function useMatrixSkillMarket({
     setSelectedCategoryId(null);
     setSelectedOrgId(null);
     setActiveSection(section);
-  }, []);
+    facetRetryCountRef.current = 0;
+    if (section === 'tag' && tagsError) {
+      void loadTags();
+    }
+    if (section === 'cat' && categoriesError) {
+      void loadCategories();
+    }
+    if (section === 'org' && organizationsError) {
+      void loadOrganizations();
+    }
+  }, [tagsError, categoriesError, organizationsError, loadTags, loadCategories, loadOrganizations]);
 
   const toggleTag = useCallback((tagId: string) => {
     setSelectedTagIds((prev) => {

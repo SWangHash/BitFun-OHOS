@@ -19,6 +19,8 @@ pub(crate) const DEFAULT_BYTES_RESPONSE_MAX_BYTES: usize = 16 * 1024 * 1024;
 const HTTP_ERROR_BODY_MAX_BYTES: usize = 8 * 1024;
 const MATRIX_USER_AGENT: &str = concat!("bitfun-matrix-adapter/", env!("CARGO_PKG_VERSION"));
 const DEFAULT_MATRIX_API_URL: &str = "https://matrix.openharmony.cn/";
+const MAX_NETWORK_RETRIES: u32 = 2;
+const RETRY_BACKOFF_MS: [u64; 2] = [300, 800];
 
 /// HTTP client for the Matrix skill market.
 ///
@@ -85,14 +87,7 @@ impl MatrixHttpClient {
     ) -> Result<String, MatrixApiError> {
         log::info!("Matrix HTTP GET text: url={}", url);
         let request = self.inner.get(url);
-        let response = request.send().await.map_err(|error| {
-            log::error!(
-                "Matrix HTTP GET text network error: url={}, error={}",
-                url,
-                error
-            );
-            MatrixApiError::from(error)
-        })?;
+        let response = send_with_retry(request, url).await?;
         let status = response.status();
         log::info!(
             "Matrix HTTP GET text response: url={}, status={}",
@@ -125,14 +120,7 @@ impl MatrixHttpClient {
     ) -> Result<serde_json::Value, MatrixApiError> {
         log::info!("Matrix HTTP POST json: url={}", url);
         let request = self.inner.post(url).json(body);
-        let response = request.send().await.map_err(|error| {
-            log::error!(
-                "Matrix HTTP POST json network error: url={}, error={}",
-                url,
-                error
-            );
-            MatrixApiError::from(error)
-        })?;
+        let response = send_with_retry(request, url).await?;
         let status = response.status();
         log::info!(
             "Matrix HTTP POST json response: url={}, status={}",
@@ -197,14 +185,7 @@ impl MatrixHttpClient {
     ) -> Result<Vec<u8>, MatrixApiError> {
         log::info!("Matrix HTTP GET bytes: url={}", url);
         let request = self.inner.get(url);
-        let response = request.send().await.map_err(|error| {
-            log::error!(
-                "Matrix HTTP GET bytes network error: url={}, error={}",
-                url,
-                error
-            );
-            MatrixApiError::from(error)
-        })?;
+        let response = send_with_retry(request, url).await?;
         let status = response.status();
         log::info!(
             "Matrix HTTP GET bytes response: url={}, status={}",
@@ -243,6 +224,78 @@ impl MatrixHttpClient {
         self.send_get_bytes_bounded(&url, DEFAULT_BYTES_RESPONSE_MAX_BYTES)
             .await
     }
+}
+
+/// Send a `reqwest::RequestBuilder`, retrying transient network errors
+/// (timeout / connect / request) up to `MAX_NETWORK_RETRIES` additional
+/// attempts with short backoff. Non-cloneable request bodies fall back to a
+/// single attempt. HTTP status errors are NOT retried (those are server
+/// responses, not transport failures).
+async fn send_with_retry(
+    builder: reqwest::RequestBuilder,
+    url: &str,
+) -> Result<reqwest::Response, MatrixApiError> {
+    for attempt in 0..=MAX_NETWORK_RETRIES {
+        if attempt > 0 {
+            let backoff = RETRY_BACKOFF_MS[(attempt - 1) as usize];
+            log::warn!(
+                "Matrix HTTP retry {}/{}: url={}, backoff={}ms",
+                attempt,
+                MAX_NETWORK_RETRIES,
+                url,
+                backoff
+            );
+            tokio::time::sleep(Duration::from_millis(backoff)).await;
+        }
+        let attempt_builder = match builder.try_clone() {
+            Some(cloned) => cloned,
+            None => {
+                log::warn!(
+                    "Matrix HTTP request not cloneable, skipping retry: url={}",
+                    url
+                );
+                return builder.send().await.map_err(MatrixApiError::from);
+            }
+        };
+        match attempt_builder.send().await {
+            Ok(response) => {
+                let status = response.status();
+                if status.is_server_error() && attempt < MAX_NETWORK_RETRIES {
+                    log::warn!(
+                        "Matrix HTTP server error (will retry): url={}, status={}, attempt={}/{}",
+                        url,
+                        status.as_u16(),
+                        attempt + 1,
+                        MAX_NETWORK_RETRIES + 1
+                    );
+                    continue;
+                }
+                return Ok(response);
+            }
+            Err(error) => {
+                let retryable = error.is_timeout()
+                    || error.is_connect()
+                    || error.is_request();
+                if retryable && attempt < MAX_NETWORK_RETRIES {
+                    log::error!(
+                        "Matrix HTTP send error (will retry): url={}, attempt={}, error={}",
+                        url,
+                        attempt + 1,
+                        error
+                    );
+                    continue;
+                }
+                log::error!(
+                    "Matrix HTTP send error (final): url={}, attempt={}, error={}",
+                    url,
+                    attempt + 1,
+                    error
+                );
+                return Err(MatrixApiError::from(error));
+            }
+        }
+    }
+    unreachable!("retry loop should have returned before exhausting attempts")
 }
 
 fn matrix_redirect_policy() -> reqwest::redirect::Policy {

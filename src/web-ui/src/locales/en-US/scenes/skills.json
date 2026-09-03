@@ -318,7 +318,10 @@
       "installFailed": "Failed to install \"{{name}}\": {{error}}"
     },
     "errors": {
-      "loadFailed": "Failed to load skills. Please check your network and try again."
+      "loadFailed": "Failed to load skills. Please check your network and try again.",
+      "tagsLoadFailed": "Failed to load tags",
+      "categoriesLoadFailed": "Failed to load categories",
+      "organizationsLoadFailed": "Failed to load organizations"
     }
   }
 }
