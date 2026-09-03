@@ -56,6 +56,15 @@ export interface FlowToolItem extends FlowItem {
     id: string;
     timeout_seconds?: number;
   };
+  /**
+   * Resolved AskUserQuestion payload coming from the backend
+   * `toolawaitinguserinput` event (design V3 §8): `{ params, resolvedQuestions,
+   * presentation, templateId, templateVersion }`. Kept separate from
+   * `toolCall.input` (the immutable model tool-call params) so replay/audit
+   * keep the original params while the UI renders the actually-waited
+   * questions.
+   */
+  questionRequest?: unknown;
   toolResult?: {
     result: any;
     success: boolean;

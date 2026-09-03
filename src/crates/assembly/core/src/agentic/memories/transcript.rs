@@ -426,6 +426,7 @@ mod tests {
                     "api_key": "sk-abcdefghijklmnopqrstuvwxyz"
                 }),
             },
+            question_request: None,
             tool_result: Some(ToolResultData {
                 result: json!({"raw": "Authorization: Bearer abcdefghijklmnopqrstuvwxyz"}),
                 success: true,
@@ -489,6 +490,7 @@ mod tests {
                 id: "call_1".to_string(),
                 input: json!({ "tool_name": "Git" }),
             },
+            question_request: None,
             tool_result: Some(ToolResultData {
                 result: json!({
                     "name": "Git",
@@ -557,6 +559,7 @@ mod tests {
                     "args": { "url": "https://example.test/preferences" }
                 }),
             },
+            question_request: None,
             tool_result: Some(ToolResultData {
                 result: json!({
                     "content": "external page content that should not enter memory extraction"
@@ -621,6 +624,7 @@ mod tests {
                     "content": "i".repeat(TOOL_INPUT_TOKEN_LIMIT * 5),
                 }),
             },
+            question_request: None,
             tool_result: Some(ToolResultData {
                 result: json!({"content": "r".repeat(TOOL_RESULT_TOKEN_LIMIT * 5)}),
                 success: true,

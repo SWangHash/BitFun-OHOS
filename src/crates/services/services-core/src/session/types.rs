@@ -836,6 +836,17 @@ pub struct ToolItemData {
     pub tool_call: ToolCallData,
     #[serde(skip_serializing_if = "Option::is_none", alias = "tool_result")]
     pub tool_result: Option<ToolResultData>,
+    /// Backend-resolved AskUserQuestion payload (raw params + resolved
+    /// questions + presentation + template version). Persisted so the question
+    /// card can be reconstructed after a session restore without relying on the
+    /// live `ToolAwaitingUserInput` event; absent for plain (non-template)
+    /// questions where `tool_call.input` already carries the questions.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "question_request"
+    )]
+    pub question_request: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "ai_intent")]
     pub ai_intent: Option<String>,
     #[serde(alias = "start_time")]

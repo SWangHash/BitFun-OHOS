@@ -6,6 +6,7 @@
 import { FlowChatStore } from '../../store/FlowChatStore';
 import { extractFilePathFromJsonBuffer, parsePartialJson, splitFilePathAndContent } from '../../../shared/utils/partialJsonParser';
 import { createLogger } from '@/shared/utils/logger';
+import { syncSessionToModernStore } from '../storeSync';
 import type { FlowChatContext, FlowToolItem, ToolEventOptions, DialogTurn, ModelRound } from './types';
 import { immediateSaveDialogTurn } from './PersistenceModule';
 import { applyPendingAcpPermissionForTool } from './AcpPermissionToolCardModule';
@@ -96,6 +97,9 @@ function applyToolItemUpdateOrInsert(
   }
   store.addModelRoundItem(sessionId, turnId, createItem(), targetRoundId);
 }
+
+/** tool_id -> resolved AskUserQuestion payload received before its tool item. */
+const pendingQuestionRequests = new Map<string, unknown>();
 
 interface ToolTerminalReadyEvent {
   tool_use_id: string;
@@ -391,6 +395,7 @@ function applyParamsPartial(
     }, silent);
     applyPendingTerminalSessionId(store, sessionId, turnId, toolEvent.tool_id, silent);
     applyPendingAcpPermissionForTool(store, toolEvent.tool_id);
+    applyPendingQuestionRequest(store, sessionId, turnId, toolEvent.tool_id, silent);
   }
 }
 
@@ -565,6 +570,7 @@ function handleStarted(
     } as any);
     applyPendingTerminalSessionId(store, sessionId, turnId, toolEvent.tool_id);
     applyPendingAcpPermissionForTool(store, toolEvent.tool_id);
+    applyPendingQuestionRequest(store, sessionId, turnId, toolEvent.tool_id);
   } else {
     const toolItem: FlowToolItem = {
       id: toolEvent.tool_id,
@@ -585,6 +591,7 @@ function handleStarted(
       store.addModelRoundItem(sessionId, turnId, toolItem, targetRoundId);
       pendingTerminalSessionIds.delete(toolEvent.tool_id);
       applyPendingAcpPermissionForTool(store, toolEvent.tool_id);
+      applyPendingQuestionRequest(store, sessionId, turnId, toolEvent.tool_id);
     } else {
       requestRuntimeProjectionRepair(sessionId);
       log.error('Tool Started event references missing round (backend bug)', {
@@ -966,5 +973,116 @@ export function handleToolTerminalReady(
   log.debug('Cached terminal session for pending tool item', {
     toolUseId: tool_use_id,
     terminalSessionId: terminal_session_id,
+  });
+}
+
+/**
+ * Apply a cached resolved question request (event may arrive before the tool
+ * item is created; see handleToolAwaitingUserInput).
+ */
+function applyPendingQuestionRequest(
+  store: FlowChatStore,
+  sessionId: string,
+  turnId: string,
+  toolId: string,
+  silent = false
+): void {
+  const payload = pendingQuestionRequests.get(toolId);
+  if (payload === undefined) {
+    return;
+  }
+  updateToolItem(store, sessionId, turnId, toolId, {
+    questionRequest: payload,
+  }, silent);
+  pendingQuestionRequests.delete(toolId);
+}
+
+/**
+ * Handle the backend `ToolAwaitingUserInput` event. The
+ * payload carries the resolved questions + presentation + templateVersion that
+ * the tool is actually waiting on. It is stored on the tool item separately
+ * from `toolCall.input` so the raw model params stay intact for replay/audit.
+ */
+export function handleToolAwaitingUserInput(event: any): void {
+  const eventData = (event as any)?.value || event;
+  const { tool_id, session_id, questions } = eventData;
+  if (!tool_id || !session_id) {
+    log.warn('ToolAwaitingUserInput event missing identity', {
+      hasToolId: Boolean(tool_id),
+      hasSessionId: Boolean(session_id),
+    });
+    return;
+  }
+
+  const store = FlowChatStore.getInstance();
+  const state = store.getState();
+  for (const [sessionId, session] of state.sessions) {
+    if (sessionId !== session_id) continue;
+    for (const dialogTurn of session.dialogTurns) {
+      const toolItem = store.findToolItem(sessionId, dialogTurn.id, tool_id);
+      if (!toolItem) {
+        continue;
+      }
+      store.updateModelRoundItem(sessionId, dialogTurn.id, tool_id, {
+        questionRequest: questions,
+      } as any);
+      log.debug('Attached resolved question request to existing tool item', {
+        sessionId,
+        turnId: dialogTurn.id,
+        toolId: tool_id,
+      });
+      // The render pipeline projects the FlowChatStore session into the modern
+      // virtualized store; force that re-projection now so the AskUserQuestion
+      // card picks up `questionRequest` without waiting for the next auto-sync
+      // (which the awaiting-event path does not reliably trigger).
+      syncSessionToModernStore(sessionId);
+      pendingQuestionRequests.delete(tool_id);
+      return;
+    }
+  }
+
+  // Tool item not rendered yet (e.g. the AskUserQuestion execution path does
+  // not emit an agentic tool Started event that would create the item). Create
+  // a minimal tool item carrying the resolved question request so the ask card
+  // renders immediately instead of showing "cannot parse question data".
+  for (const [sessionId, session] of state.sessions) {
+    if (sessionId !== session_id) continue;
+    const dialogTurn = session.dialogTurns[session.dialogTurns.length - 1];
+    if (!dialogTurn || dialogTurn.modelRounds.length === 0) {
+      continue;
+    }
+    const rawParams = (questions as any)?.params;
+    const toolItem: FlowToolItem = {
+      id: tool_id,
+      type: 'tool',
+      toolName: 'AskUserQuestion',
+      toolCall: {
+        input: rawParams ?? {},
+        id: tool_id,
+      },
+      timestamp: Date.now(),
+      status: 'running',
+      requiresConfirmation: false,
+      startTime: Date.now(),
+      questionRequest: questions,
+    };
+    const targetRound =
+      dialogTurn.modelRounds[dialogTurn.modelRounds.length - 1];
+    store.addModelRoundItem(sessionId, dialogTurn.id, toolItem, targetRound?.id);
+    log.info('Created AskUserQuestion tool item from awaiting event (no Started event received)', {
+      toolId: tool_id,
+      turnId: dialogTurn.id,
+      roundId: targetRound?.id,
+    });
+    syncSessionToModernStore(sessionId);
+    pendingQuestionRequests.delete(tool_id);
+    return;
+  }
+
+  // No matching dialog turn yet; keep the payload cached for a later Started
+  // event or for the persistent cache fallback.
+  pendingQuestionRequests.set(tool_id, questions);
+  log.debug('Cached resolved question request for pending tool item', {
+    toolId: tool_id,
   });
 }

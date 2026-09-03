@@ -202,6 +202,7 @@ fn builtin_agent_definition_catalog_preserves_order_categories_models_and_visibi
             "DeepReview",
             "GenerateDoc",
             "MemoryPhase2",
+            "QtMigration",
         ]
     );
 
@@ -223,6 +224,7 @@ fn builtin_agent_definition_catalog_preserves_order_categories_models_and_visibi
         default_model_id_for_builtin_agent("MemoryPhase2"),
         "primary"
     );
+    assert_eq!(default_model_id_for_builtin_agent("QtMigration"), "auto");
     assert_eq!(
         default_model_id_for_builtin_agent("ResearchSpecialist"),
         "fast"

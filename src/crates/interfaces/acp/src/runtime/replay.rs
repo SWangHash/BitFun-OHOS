@@ -298,6 +298,7 @@ mod tests {
                 input: serde_json::json!({ "path": "a.txt" }),
                 id: id.to_string(),
             },
+            question_request: None,
             tool_result: None,
             ai_intent: None,
             start_time: 0,

@@ -2866,6 +2866,7 @@ mod tests {
                 input,
                 id: format!("call-{}", id),
             },
+            question_request: None,
             tool_result: success.map(|success| ToolResultData {
                 result: serde_json::json!({}),
                 success,

@@ -60,7 +60,6 @@ export class ToolAPI {
     }
   }
 
-   
   /**
    * Submit user answers.
    */

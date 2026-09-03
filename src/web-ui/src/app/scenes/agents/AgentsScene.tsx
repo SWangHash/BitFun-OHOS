@@ -24,6 +24,7 @@ import {
 } from '@/app/components';
 import AgentCard from './components/AgentCard';
 import CoreAgentCard, { type CoreAgentMeta } from './components/CoreAgentCard';
+import IndustryAgentCard from './components/IndustryAgentCard';
 import CreateAgentPage from './components/CreateAgentPage';
 import {
   AgentCapabilityTooltip,
@@ -50,6 +51,7 @@ import './AgentsScene.scss';
 import { useGallerySceneAutoRefresh } from '@/app/hooks/useGallerySceneAutoRefresh';
 import {
   CORE_AGENT_IDS,
+  INDUSTRY_AGENT_IDS,
   isAgentInOverviewZone,
   isLocallyManageableSubagent,
 } from './agentVisibility';
@@ -259,6 +261,11 @@ const AgentsHomeView: React.FC = () => {
   }), [t]);
 
   const coreAgents = useMemo(() => allAgents.filter((agent) => CORE_AGENT_IDS.has(agent.id)), [allAgents]);
+
+  const industryAgents = useMemo(
+    () => allAgents.filter((agent) => INDUSTRY_AGENT_IDS.has(agent.id)),
+    [allAgents],
+  );
 
   const visibleAgents = useMemo(
     () => filteredAgents.filter((agent) => isAgentInOverviewZone(agent, hiddenAgentIds)),
@@ -702,6 +709,37 @@ const AgentsHomeView: React.FC = () => {
                       ? t('coreAgentsZone.computerUseDisabledBadge')
                       : undefined
                   }
+                />
+              ))}
+            </GalleryGrid>
+          )}
+        </GalleryZone>
+
+        <GalleryZone
+          id="industry-agents-zone"
+          data-testid="agents-industry-zone"
+          title={t('industryAgentsZone.title')}
+          subtitle={t('industryAgentsZone.subtitle')}
+          tools={(
+            <span className="gallery-zone-count">{industryAgents.length}</span>
+          )}
+        >
+          {loading ? (
+            <GallerySkeleton count={1} cardHeight={200} minCardWidth={360} className="industry-agent-skeleton" />
+          ) : industryAgents.length === 0 ? (
+            <GalleryEmpty
+              icon={<Bot size={32} strokeWidth={1.5} />}
+              message={t('industryAgentsZone.empty')}
+              testId="agent-list-empty"
+            />
+          ) : (
+            <GalleryGrid minCardWidth={360} data-bf-scene="agents" data-bf-part="industryGrid">
+              {industryAgents.map((agent, index) => (
+                <IndustryAgentCard
+                  key={agent.id}
+                  agent={agent}
+                  index={index}
+                  onOpenDetails={openAgentDetails}
                 />
               ))}
             </GalleryGrid>

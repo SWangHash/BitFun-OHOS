@@ -5,6 +5,7 @@ mod debug;
 mod deep_research;
 mod multitask;
 mod plan;
+mod qt_migration;
 mod team;
 
 pub use agentic::AgenticMode;
@@ -14,4 +15,5 @@ pub use debug::DebugMode;
 pub use deep_research::DeepResearchMode;
 pub use multitask::MultitaskMode;
 pub use plan::PlanMode;
+pub use qt_migration::QtMigrationMode;
 pub use team::TeamMode;

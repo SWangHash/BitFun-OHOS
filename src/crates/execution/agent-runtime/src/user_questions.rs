@@ -12,6 +12,8 @@ use tokio::sync::oneshot;
 pub struct QuestionOption {
     pub label: String,
     pub description: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -21,11 +23,111 @@ pub struct Question {
     pub options: Vec<QuestionOption>,
     #[serde(rename = "multiSelect", default)]
     pub multi_select: bool,
+    /// Optional placeholder for a custom text input shown below the options.
+    /// When present, the question always shows a text input and the submitted
+    /// answer prefers the typed value over the selected option. Omitted when
+    /// not provided so the frontend can distinguish "no input" from "empty".
+    #[serde(
+        rename = "inputPlaceholder",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub input_placeholder: Option<String>,
+    /// Field id the answer binds to (template-backed questions only, e.g.
+    /// `source_project`). Plain model-authored questions omit it and the
+    /// frontend keys answers by question index.
+    #[serde(rename = "field", default, skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+    /// Whether the question must be answered (backend template declares this;
+    /// the model can never widen it via inline `presentation`). Serialized only
+    /// when true so plain model questions keep their historical wire shape.
+    #[serde(
+        rename = "required",
+        default,
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub required: bool,
+}
+
+/// Template-level presentation policy. Only the backend versioned template
+/// produces this; inline model `presentation` is ignored. The frontend renders
+/// generically and must NOT branch on `templateId`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct QuestionPresentation {
+    /// `list` (render all at once) or `wizard` (one question per step).
+    #[serde(default = "default_presentation_layout")]
+    pub layout: String,
+    #[serde(rename = "allowSkip", default)]
+    pub allow_skip: bool,
+    /// i18n key for explanatory text rendered immediately before the question
+    /// card. Template-owned so hosts do not branch on `templateId`.
+    #[serde(rename = "introKey", default, skip_serializing_if = "Option::is_none")]
+    pub intro_key: Option<String>,
+    /// i18n key for the footer hint, rendered only when provided.
+    #[serde(rename = "hintKey", default, skip_serializing_if = "Option::is_none")]
+    pub hint_key: Option<String>,
+    /// Field ids that must be answered (backend re-checks on submit).
+    #[serde(
+        rename = "requiredFields",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub required_fields: Option<Vec<String>>,
+}
+
+fn default_presentation_layout() -> String {
+    "list".to_string()
+}
+
+/// Single source of truth for the event payload that reaches every host:
+/// raw model params stay immutable for replay/audit, while the actually-waited
+/// questions, backend policy, and template version travel alongside as
+/// separate facts.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ResolvedQuestionRequest {
+    /// Immutable raw tool-call input as emitted by the model.
+    #[serde(rename = "params")]
+    pub raw_params: Value,
+    /// Questions this tool invocation actually waits on (UI renders these).
+    #[serde(rename = "resolvedQuestions")]
+    pub resolved_questions: Vec<Question>,
+    /// Backend-derived presentation policy; `None` for plain questions.
+    #[serde(
+        rename = "presentation",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub presentation: Option<QuestionPresentation>,
+    #[serde(
+        rename = "templateId",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub template_id: Option<String>,
+    #[serde(
+        rename = "templateVersion",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub template_version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AskUserQuestionInput {
+    /// Questions provided directly by the model. May be empty when
+    /// `templateId` is set (the tool then loads questions from the backend
+    /// template registry).
+    #[serde(default)]
     pub questions: Vec<Question>,
+    /// Optional reference to a static backend question template. When set, the
+    /// tool loads the questions itself and ignores `questions`. Kept opaque to
+    /// the model so template content stays accurate.
+    #[serde(
+        rename = "templateId",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub template_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,11 +141,71 @@ pub struct UserInputResponse {
     pub answers: Value,
 }
 
+/// Pending-request metadata captured when a question tool registers its waiting
+/// channel. Answer submission re-validates the payload against the exact
+/// template this request references, so the answering host does not need to
+/// know or trust template details.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PendingQuestionRequestMeta {
+    /// Session the waiting question tool call belongs to.
+    #[serde(
+        rename = "sessionId",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub session_id: String,
+    /// Backend template id the request resolved from (None for plain questions).
+    #[serde(
+        rename = "templateId",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub template_id: Option<String>,
+    /// Template version the waiting request was bound to at emit time.
+    #[serde(
+        rename = "templateVersion",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub template_version: Option<String>,
+    /// Required field ids carried by the waiting template.
+    #[serde(
+        rename = "requiredFields",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub required_fields: Option<Vec<String>>,
+}
+
+impl PendingQuestionRequestMeta {
+    /// Build a `PendingUserQuestion` bound to this template metadata.
+    pub fn into_pending_question(
+        &self,
+        tool_id: impl Into<String>,
+        dialog_turn_id: Option<String>,
+        model_round_id: Option<String>,
+        questions: Value,
+    ) -> PendingUserQuestion {
+        PendingUserQuestion::new_with_meta(
+            tool_id,
+            self.session_id.clone(),
+            dialog_turn_id,
+            model_round_id,
+            questions,
+            Some(self.clone()),
+        )
+    }
+}
+
 /// One blocking user-question interaction owned by the running Agent Runtime.
 ///
 /// This is process-local live state, not persisted Session history. Product
 /// surfaces use it to re-attach after an event gap without restarting or
 /// cancelling the Dialog Turn that is waiting for the answer.
+///
+/// Template-bound requests additionally carry the backend template metadata
+/// (id/version/required fields) so answer submission can re-validate the
+/// payload against the exact template the request referenced.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct PendingUserQuestion {
@@ -55,6 +217,15 @@ pub struct PendingUserQuestion {
     pub model_round_id: Option<String>,
     pub questions: Value,
     pub registered_at_ms: u64,
+    /// Backend template id the request resolved from (None for plain questions).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub template_id: Option<String>,
+    /// Template version the waiting request was bound to at emit time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub template_version: Option<String>,
+    /// Required field ids carried by the waiting template.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub required_fields: Option<Vec<String>>,
 }
 
 impl PendingUserQuestion {
@@ -76,7 +247,50 @@ impl PendingUserQuestion {
                 .unwrap_or_default()
                 .as_millis()
                 .min(u64::MAX as u128) as u64,
+            template_id: None,
+            template_version: None,
+            required_fields: None,
         }
+    }
+
+    /// Build a pending question bound to a resolved backend template.
+    pub fn new_with_meta(
+        tool_id: impl Into<String>,
+        session_id: impl Into<String>,
+        dialog_turn_id: Option<String>,
+        model_round_id: Option<String>,
+        questions: Value,
+        meta: Option<PendingQuestionRequestMeta>,
+    ) -> Self {
+        let mut question = Self::new(
+            tool_id,
+            session_id,
+            dialog_turn_id,
+            model_round_id,
+            questions,
+        );
+        if let Some(meta) = meta {
+            question.template_id = meta.template_id;
+            question.template_version = meta.template_version;
+            question.required_fields = meta.required_fields;
+        }
+        question
+    }
+
+    /// Template metadata of this pending request, when template-bound.
+    pub fn meta(&self) -> Option<PendingQuestionRequestMeta> {
+        if self.template_id.is_none()
+            && self.template_version.is_none()
+            && self.required_fields.is_none()
+        {
+            return None;
+        }
+        Some(PendingQuestionRequestMeta {
+            session_id: self.session_id.clone(),
+            template_id: self.template_id.clone(),
+            template_version: self.template_version.clone(),
+            required_fields: self.required_fields.clone(),
+        })
     }
 }
 
@@ -173,8 +387,8 @@ impl UserInputManager {
     ) -> UserInputRegistration {
         let tool_id = question.tool_id.clone();
         debug!(
-            "Registered pending user question: tool_id={}, session_id={}",
-            tool_id, question.session_id
+            "Registered pending user question: tool_id={}, session_id={}, template={:?}",
+            tool_id, question.session_id, question.template_id
         );
         let registration_sequence = self.insert_pending(tool_id.clone(), sender, Some(question));
         UserInputRegistration {
@@ -292,6 +506,20 @@ impl UserInputManager {
                 .collect(),
         }
     }
+
+    /// Metadata of the currently registered waiting request, if the request was
+    /// template-bound at registration time.
+    pub fn pending_meta(&self, tool_id: &str) -> Option<PendingQuestionRequestMeta> {
+        lock_user_input_state(&self.state)
+            .pending
+            .get(tool_id)
+            .and_then(|pending| {
+                pending
+                    .question
+                    .as_ref()
+                    .and_then(|question| question.meta())
+            })
+    }
 }
 
 fn lock_user_input_state(state: &Mutex<UserInputState>) -> MutexGuard<'_, UserInputState> {
@@ -325,7 +553,17 @@ pub fn ask_user_question_available_in_context(
         && !user_input_available.is_some_and(|value| value == "false" || value == &json!(false))
 }
 
-pub fn validate_ask_user_question_input(input: &AskUserQuestionInput) -> Result<(), String> {
+/// Validate an `AskUserQuestion` call before it waits for user input.
+///
+/// `allow_single_option` relaxes the "2-10 options" guard for backend-resolved
+/// template questions (e.g. `qt-migration-paths`): a template field may carry
+/// exactly one candidate option (a single probed path) and still render a
+/// clickable choice next to its text input. Model-written questions must keep
+/// the strict 2-10 rule (`false`).
+pub fn validate_ask_user_question_input(
+    input: &AskUserQuestionInput,
+    allow_single_option: bool,
+) -> Result<(), String> {
     if input.questions.is_empty() {
         return Err("At least one question is required".to_string());
     }
@@ -350,8 +588,35 @@ pub fn validate_ask_user_question_input(input: &AskUserQuestionInput) -> Result<
             ));
         }
 
-        if question.options.len() < 2 || question.options.len() > 10 {
+        let has_single_option = allow_single_option && question.options.len() == 1;
+        if question.options.is_empty() {
+            // Text-only question: valid only when an input placeholder exists
+            // (Qt migration questions are real text input with no "default
+            // path" style placeholder options).
+            if question.input_placeholder.is_none() {
+                return Err(format!(
+                    "Question {} with no options must provide inputPlaceholder",
+                    q_num
+                ));
+            }
+        } else if !has_single_option && (question.options.len() < 2 || question.options.len() > 10)
+        {
             return Err(format!("Question {} must have 2-10 options", q_num));
+        }
+
+        if let Some(placeholder) = &question.input_placeholder {
+            if placeholder.trim().is_empty() {
+                return Err(format!(
+                    "Question {} inputPlaceholder must not be empty",
+                    q_num
+                ));
+            }
+            if placeholder.chars().count() > 200 {
+                return Err(format!(
+                    "Question {} inputPlaceholder must be less than 200 characters",
+                    q_num
+                ));
+            }
         }
 
         for (opt_idx, opt) in question.options.iter().enumerate() {
@@ -422,8 +687,10 @@ fn format_result_for_assistant(questions: &[Question], answers: &Value) -> Strin
         let mut result_lines = vec!["User has answered your questions:".to_string()];
 
         for (idx, question) in questions.iter().enumerate() {
-            let idx_str = idx.to_string();
-            let answer_text = if let Some(answer_value) = answers_map.get(&idx_str) {
+            // Template-backed questions bind answers by field id; plain
+            // questions keep the positional index key.
+            let answer_key = question.field.clone().unwrap_or_else(|| idx.to_string());
+            let answer_text = if let Some(answer_value) = answers_map.get(&answer_key) {
                 if let Some(arr) = answer_value.as_array() {
                     arr.iter()
                         .filter_map(|v| v.as_str())
@@ -438,9 +705,18 @@ fn format_result_for_assistant(questions: &[Question], answers: &Value) -> Strin
                 "N/A".to_string()
             };
 
+            // Template-backed questions carry a stable `field` id (e.g.
+            // `source_project`) that the plan/skill flow references; expose it
+            // so the assistant can bind the confirmed value to the named
+            // migration input instead of guessing from the header text.
+            let field_label = question
+                .field
+                .as_ref()
+                .map(|field| format!(" [field={field}]"))
+                .unwrap_or_default();
             result_lines.push(format!(
-                "- {} ({}): \"{}\"",
-                question.question, question.header, answer_text
+                "- {}{} ({}): \"{}\"",
+                question.question, field_label, question.header, answer_text
             ));
         }
 
@@ -453,7 +729,10 @@ fn format_result_for_assistant(questions: &[Question], answers: &Value) -> Strin
 
 #[cfg(test)]
 mod tests {
-    use super::{PendingUserQuestion, UserInputManager, UserInputResponse, UserInputSendError};
+    use super::{
+        PendingQuestionRequestMeta, PendingUserQuestion, UserInputManager, UserInputResponse,
+        UserInputSendError,
+    };
     use serde_json::json;
 
     #[tokio::test]
@@ -573,5 +852,51 @@ mod tests {
         let after_drop = manager.pending_question_snapshot("session-1");
         assert!(after_drop.questions.is_empty());
         assert!(after_drop.revision > registered_revision);
+    }
+
+    #[tokio::test]
+    async fn registered_meta_is_queryable_while_pending_and_dropped_after_answer() {
+        let manager = UserInputManager::new();
+        let (sender, receiver) = tokio::sync::oneshot::channel::<UserInputResponse>();
+        let meta = PendingQuestionRequestMeta {
+            session_id: "session-1".to_string(),
+            template_id: Some("qt-migration-paths".to_string()),
+            template_version: Some("1".to_string()),
+            required_fields: Some(vec![
+                "source_project".to_string(),
+                "output_project".to_string(),
+                "toolchain".to_string(),
+                "template".to_string(),
+            ]),
+        };
+        let question = PendingUserQuestion::new_with_meta(
+            "tool-meta",
+            "session-1",
+            Some("turn-1".to_string()),
+            Some("round-1".to_string()),
+            json!({ "templateId": "qt-migration-paths" }),
+            Some(meta.clone()),
+        );
+        let registration = manager.register_question(question.clone(), sender);
+
+        assert_eq!(
+            manager
+                .pending_meta("tool-meta")
+                .expect("meta present while pending"),
+            meta
+        );
+        assert!(manager.pending_meta("missing-tool").is_none());
+
+        manager
+            .send_answer("tool-meta", json!({ "source_project": "D:/x" }))
+            .expect("answer delivered");
+        assert_eq!(
+            receiver.await.expect("receiver gets answer").answers,
+            json!({ "source_project": "D:/x" })
+        );
+        // The pending record (and its metadata) are removed atomically with the answer.
+        assert!(manager.pending_meta("tool-meta").is_none());
+        assert!(!manager.has_pending("tool-meta"));
+        drop(registration);
     }
 }

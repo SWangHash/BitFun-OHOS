@@ -141,6 +141,7 @@ export const FlowToolCard: React.FC<FlowToolCardProps> = React.memo(({
     prevProgress === nextProgress &&
     prevProgressLogs === nextProgressLogs &&
     prevProps.toolItem.partialParams === nextProps.toolItem.partialParams &&
+    JSON.stringify(prevProps.toolItem.questionRequest) === JSON.stringify(nextProps.toolItem.questionRequest) &&
     prevProps.toolItem.toolResult === nextProps.toolItem.toolResult
   );
 });

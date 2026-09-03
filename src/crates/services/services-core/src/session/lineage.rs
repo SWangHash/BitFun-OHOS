@@ -562,6 +562,7 @@ mod tests {
                     id: "call-1".to_string(),
                     input: json!({ "file_path": "src/lib.rs" }),
                 },
+                question_request: None,
                 tool_result: None,
                 ai_intent: None,
                 start_time: 1,

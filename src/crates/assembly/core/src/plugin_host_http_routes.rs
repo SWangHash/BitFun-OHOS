@@ -712,6 +712,7 @@ mod tests {
                 input: json!({"value": 7}),
                 id: "call-1".to_string(),
             },
+            question_request: None,
             tool_result: Some(ToolResultData {
                 result: json!({"echo": 7}),
                 success: true,

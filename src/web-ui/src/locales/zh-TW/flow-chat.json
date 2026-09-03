@@ -860,7 +860,8 @@
       "Cowork": "Cowork",
       "ComputerUse": "Computer Use",
       "DeepResearch": "Deep Research",
-      "Team": "Team"
+      "Team": "Team",
+      "QtMigration": "QT 遷移專家"
     },
     "openFolder": "開啟資料夾…",
     "selectWorkspaceTitle": "選擇工作區目錄",
@@ -1780,6 +1781,14 @@
       "completed": "已完成",
       "submittedWaiting": "已提交，等待處理",
       "submitting": "提交中...",
+      "submitFailed": "提交失敗，請檢查輸入後重試",
+      "submitPathNotFound": "{{field}}路徑不存在：{{path}}",
+      "fieldName": {
+        "source_project": "原始工程",
+        "output_project": "輸出工程",
+        "toolchain": "遷移工具鏈",
+        "template": "模板工程"
+      },
       "waitingAnswer": "等待回答",
       "questionsCount": "{{count}} 個問題",
       "answerAllBeforeSubmit": "請回答所有問題後再提交",
@@ -1791,7 +1800,12 @@
       "loadingQuestions": "正在接收問題…",
       "other": "其他",
       "customInputHint": "提供自定義文字",
-      "pleaseSpecify": "請輸入..."
+      "pleaseSpecify": "請輸入...",
+      "browsePath": "從檔案管理員中選擇路徑",
+      "qtMigration": {
+        "pathsIntro": "偵測到提示詞中未指定遷移路徑，需要先確認4項路徑設定。",
+        "pathsHint": "💡在提示詞中寫明4項路徑即可跳過設定"
+      }
     },
     "think": {
       "analysis": "思考分析",

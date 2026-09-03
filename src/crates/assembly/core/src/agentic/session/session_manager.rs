@@ -259,6 +259,15 @@ pub struct ResolvedSessionTitle {
 // older snapshots lazily based on this persisted cutoff.
 const LISTING_BASELINE_REBUILD_TURN_INDEX_METADATA_KEY: &str = "listingBaselineRebuildTurnIndex";
 
+/// Custom-metadata key that persists the QtMigration intake snapshot for a
+/// session. Stored next to edit-constraint state so restore and fork paths can
+/// re-seed the in-memory intake store.
+pub const INTAKE_STATE_METADATA_KEY: &str = "qtMigrationIntakeState";
+/// Session metadata key persisting the QtMigration activation flag so a
+/// restart can still tell an activated migration from a non-migration session
+/// even when the intake snapshot is missing.
+pub const MIGRATION_ACTIVE_METADATA_KEY: &str = "qtMigrationActive";
+
 fn current_unix_secs() -> i64 {
     SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -346,6 +355,16 @@ pub struct SessionManager {
     /// restore and fork paths preserve both constraints and extraction evidence.
     edit_constraints_store:
         Arc<DashMap<String, crate::agentic::execution::edit_constraint_guard::EditConstraintState>>,
+    /// Session-scoped QtMigration intake snapshot. Mirrors the edit-constraint
+    /// pattern: the in-memory copy serves the answer-submission validation path
+    /// and is persisted in session metadata for restore/fork.
+    intake_state_store:
+        Arc<DashMap<String, bitfun_agent_runtime::intake_state::IntakeStateSnapshot>>,
+    /// Session-scoped QtMigration activation flag. True once the analyzer
+    /// confirmed an app_migration request for this session. Lets the gate fail
+    /// closed when the intake snapshot is missing instead of treating absence
+    /// as non-migration.
+    migration_active_store: Arc<DashMap<String, bool>>,
     file_read_state_store: Arc<FileReadStateStore>,
     evidence_ledger: Arc<SessionEvidenceLedger>,
     persistence_manager: Arc<PersistenceManager>,
@@ -370,6 +389,8 @@ fn clear_session_runtime_stores(
     skill_agent_baseline_override_snapshot_store: &DashMap<String, TurnSkillAgentSnapshot>,
     file_read_state_store: &FileReadStateStore,
     evidence_ledger: &SessionEvidenceLedger,
+    intake_state_store: &DashMap<String, bitfun_agent_runtime::intake_state::IntakeStateSnapshot>,
+    migration_active_store: &DashMap<String, bool>,
 ) {
     context_store.delete_session(session_id);
     prompt_cache_store.delete_session(session_id);
@@ -378,6 +399,8 @@ fn clear_session_runtime_stores(
     skill_agent_baseline_override_snapshot_store.remove(session_id);
     file_read_state_store.delete_session(session_id);
     evidence_ledger.delete_session(session_id);
+    intake_state_store.remove(session_id);
+    migration_active_store.remove(session_id);
 }
 
 #[derive(Clone)]
@@ -2025,6 +2048,8 @@ impl SessionManager {
             turn_skill_agent_snapshot_store: Arc::new(TurnSkillAgentSnapshotStore::new()),
             skill_agent_baseline_override_snapshot_store: Arc::new(DashMap::new()),
             edit_constraints_store: Arc::new(DashMap::new()),
+            intake_state_store: Arc::new(DashMap::new()),
+            migration_active_store: Arc::new(DashMap::new()),
             file_read_state_store: Arc::new(FileReadStateStore::new()),
             evidence_ledger: Arc::new(SessionEvidenceLedger::new()),
             persistence_manager,
@@ -2358,6 +2383,8 @@ impl SessionManager {
         let skill_agent_baseline_override_snapshot_store =
             self.skill_agent_baseline_override_snapshot_store.clone();
         let edit_constraints_store = self.edit_constraints_store.clone();
+        let intake_state_store = self.intake_state_store.clone();
+        let migration_active_store = self.migration_active_store.clone();
         let file_read_state_store = self.file_read_state_store.clone();
         let evidence_ledger = self.evidence_ledger.clone();
         let persistence_manager = self.persistence_manager.clone();
@@ -2391,6 +2418,8 @@ impl SessionManager {
                 turn_skill_agent_snapshot_store,
                 skill_agent_baseline_override_snapshot_store,
                 edit_constraints_store,
+                intake_state_store,
+                migration_active_store,
                 file_read_state_store,
                 evidence_ledger,
                 persistence_manager,
@@ -3240,6 +3269,161 @@ impl SessionManager {
         self.edit_constraints_store
             .get(session_id)
             .map(|value| value.clone())
+    }
+
+    /// QtMigration intake snapshot for a session. The in-memory store serves the
+    /// answer-submission hot path; restored sessions re-seed it from persisted
+    /// metadata during restore.
+    pub fn intake_state(
+        &self,
+        session_id: &str,
+    ) -> Option<bitfun_agent_runtime::intake_state::IntakeStateSnapshot> {
+        self.intake_state_store
+            .get(session_id)
+            .map(|value| value.clone())
+    }
+
+    /// Atomically swap the session intake snapshot in memory and mirror it into
+    /// persisted session metadata so restore/fork paths preserve it.
+    pub async fn remember_intake_state(
+        &self,
+        session_id: &str,
+        snapshot: bitfun_agent_runtime::intake_state::IntakeStateSnapshot,
+    ) {
+        self.intake_state_store
+            .insert(session_id.to_string(), snapshot.clone());
+
+        if self.should_persist_session_id(session_id) {
+            if let Err(error) = self
+                .merge_session_custom_metadata(
+                    session_id,
+                    json!({
+                        INTAKE_STATE_METADATA_KEY: snapshot,
+                    }),
+                )
+                .await
+            {
+                warn!(
+                    "Failed to persist qt-migration intake state: session_id={}, error={}",
+                    session_id, error
+                );
+            }
+        }
+    }
+
+    fn intake_state_from_metadata(
+        metadata: Option<&SessionMetadata>,
+    ) -> Option<bitfun_agent_runtime::intake_state::IntakeStateSnapshot> {
+        let value = metadata?
+            .custom_metadata
+            .as_ref()?
+            .get(INTAKE_STATE_METADATA_KEY)?;
+        match serde_json::from_value(value.clone()) {
+            Ok(snapshot) => Some(snapshot),
+            Err(error) => {
+                warn!(
+                    "Failed to restore qt-migration intake state from session metadata: {}",
+                    error
+                );
+                None
+            }
+        }
+    }
+
+    /// Subagent forks inherit the parent's intake snapshot so migration path
+    /// confirmation survives delegation boundaries.
+    pub async fn seed_forked_intake_state(&self, parent_session_id: &str, child_session_id: &str) {
+        if let Some(snapshot) = self.intake_state(parent_session_id) {
+            self.intake_state_store
+                .insert(child_session_id.to_string(), snapshot.clone());
+            if self.should_persist_session_id(child_session_id) {
+                if let Err(error) = self
+                    .merge_session_custom_metadata(
+                        child_session_id,
+                        json!({
+                            INTAKE_STATE_METADATA_KEY: snapshot,
+                        }),
+                    )
+                    .await
+                {
+                    warn!(
+                        "Failed to persist inherited intake state: session_id={}, error={}",
+                        child_session_id, error
+                    );
+                }
+            }
+        }
+    }
+
+    /// Whether the session has an activated QtMigration admission context. The
+    /// gate uses this to fail closed when the intake snapshot is missing
+    /// instead of treating absence as non-migration.
+    pub fn migration_active(&self, session_id: &str) -> bool {
+        self.migration_active_store
+            .get(session_id)
+            .map(|v| *v)
+            .unwrap_or(false)
+    }
+
+    /// Atomically mark the session's QtMigration admission context as active
+    /// (or inactive on terminal/cancel) and mirror it into persisted metadata.
+    pub async fn remember_migration_active(&self, session_id: &str, active: bool) {
+        self.migration_active_store
+            .insert(session_id.to_string(), active);
+        if self.should_persist_session_id(session_id) {
+            if let Err(error) = self
+                .merge_session_custom_metadata(
+                    session_id,
+                    json!({
+                        MIGRATION_ACTIVE_METADATA_KEY: active,
+                    }),
+                )
+                .await
+            {
+                warn!(
+                    "Failed to persist qt-migration active flag: session_id={}, error={}",
+                    session_id, error
+                );
+            }
+        }
+    }
+
+    fn migration_active_from_metadata(metadata: Option<&SessionMetadata>) -> bool {
+        metadata
+            .and_then(|m| m.custom_metadata.as_ref())
+            .and_then(|cm| cm.get(MIGRATION_ACTIVE_METADATA_KEY))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+    }
+
+    /// Subagent forks inherit the parent's migration activation flag so a
+    /// delegated subagent is still gated even before its own intake is seeded.
+    pub async fn seed_forked_migration_active(
+        &self,
+        parent_session_id: &str,
+        child_session_id: &str,
+    ) {
+        let active = self.migration_active(parent_session_id);
+        if active {
+            self.migration_active_store
+                .insert(child_session_id.to_string(), active);
+            if self.should_persist_session_id(child_session_id) {
+                if let Err(error) = self
+                    .merge_session_custom_metadata(
+                        child_session_id,
+                        json!({
+                            MIGRATION_ACTIVE_METADATA_KEY: active,
+                        }),
+                    )
+                    .await
+                {
+                    warn!(
+                        "Failed to persist inherited migration active flag: session_id={}, error={}",
+                        child_session_id, error
+                    );
+                }
+            }
+        }
     }
 
     fn edit_constraint_state_from_metadata(
@@ -4797,6 +4981,8 @@ impl SessionManager {
             self.skill_agent_baseline_override_snapshot_store.as_ref(),
             self.file_read_state_store.as_ref(),
             self.evidence_ledger.as_ref(),
+            self.intake_state_store.as_ref(),
+            self.migration_active_store.as_ref(),
         );
         self.release_session_write_lock(session_id);
         Ok(true)
@@ -4840,6 +5026,8 @@ impl SessionManager {
             self.skill_agent_baseline_override_snapshot_store.as_ref(),
             self.file_read_state_store.as_ref(),
             self.evidence_ledger.as_ref(),
+            self.intake_state_store.as_ref(),
+            self.migration_active_store.as_ref(),
         );
 
         if let Some(cron) = crate::service::cron::get_global_cron_service() {
@@ -5602,6 +5790,9 @@ impl SessionManager {
             Self::listing_baseline_rebuild_turn_index_from_metadata(session_metadata.as_ref());
         let restored_edit_constraint_state =
             Self::edit_constraint_state_from_metadata(session_metadata.as_ref());
+        let restored_intake_state = Self::intake_state_from_metadata(session_metadata.as_ref());
+        let restored_migration_active =
+            Self::migration_active_from_metadata(session_metadata.as_ref());
         debug!(
             "Session restore phase completed: session_id={}, phase=load_metadata, duration_ms={}",
             session_id,
@@ -5990,6 +6181,8 @@ impl SessionManager {
                 self.skill_agent_baseline_override_snapshot_store.as_ref(),
                 self.file_read_state_store.as_ref(),
                 self.evidence_ledger.as_ref(),
+                self.intake_state_store.as_ref(),
+                self.migration_active_store.as_ref(),
             );
         }
 
@@ -6030,6 +6223,15 @@ impl SessionManager {
         if let Some(state) = restored_edit_constraint_state {
             self.edit_constraints_store
                 .insert(session_id.to_string(), state);
+        }
+
+        if let Some(snapshot) = restored_intake_state {
+            self.intake_state_store
+                .insert(session_id.to_string(), snapshot);
+        }
+        if restored_migration_active {
+            self.migration_active_store
+                .insert(session_id.to_string(), true);
         }
 
         Ok((session, persisted_turns))
@@ -7212,6 +7414,35 @@ impl SessionManager {
         Ok(turn)
     }
 
+    /// Build the persisted AskUserQuestion payload for a template-backed tool
+    /// call, mirroring the runtime `ToolAwaitingUserInput` event payload (raw
+    /// params + resolved questions + presentation + template version). Template
+    /// resolution is backend-owned and idempotent, so restoring a session can
+    /// rebuild the question card without the live event. Returns `None` for
+    /// plain questions or unknown template ids so unchanged records serialize
+    /// without the extra field.
+    fn build_ask_user_question_request(arguments: &serde_json::Value) -> Option<serde_json::Value> {
+        use bitfun_agent_runtime::question_templates::resolve_question_template_full;
+        use bitfun_agent_runtime::user_questions::ResolvedQuestionRequest;
+
+        let template_id = arguments
+            .get("templateId")
+            .and_then(|value| value.as_str())?;
+        let candidates: std::collections::HashMap<String, Vec<String>> = arguments
+            .get("candidates")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        let resolved = resolve_question_template_full(template_id, &candidates)?;
+        let request = ResolvedQuestionRequest {
+            raw_params: arguments.clone(),
+            resolved_questions: resolved.questions,
+            presentation: Some(resolved.presentation),
+            template_id: Some(template_id.to_string()),
+            template_version: Some(resolved.template_version),
+        };
+        serde_json::to_value(request).ok()
+    }
+
     /// Build model rounds from execution messages.
     ///
     /// Used by `complete_dialog_turn` to populate `model_rounds` when the
@@ -7299,6 +7530,15 @@ impl SessionManager {
                                         id: tc.tool_id.clone(),
                                     },
                                     tool_result: None,
+                                    // Persist the backend-resolved AskUserQuestion
+                                    // payload for template-backed calls so the question
+                                    // card survives a session restore (the live
+                                    // ToolAwaitingUserInput event is not replayed).
+                                    question_request: if tc.tool_name == "AskUserQuestion" {
+                                        Self::build_ask_user_question_request(&tc.arguments)
+                                    } else {
+                                        None
+                                    },
                                     ai_intent: None,
                                     start_time: timestamp,
                                     end_time: None,
@@ -7677,6 +7917,12 @@ impl SessionManager {
                             previous.subagent_model_display_name.clone();
                         tool_item.status = previous.status.clone().or(tool_item.status.clone());
                         tool_item.interruption_reason = previous.interruption_reason.clone();
+                        // Prefer the already-persisted question payload (if any)
+                        // so re-appending the same round cannot drop it.
+                        tool_item.question_request = previous
+                            .question_request
+                            .clone()
+                            .or_else(|| tool_item.question_request.clone());
                     }
                 }
                 // Client-derived display cards are not part of the model's
@@ -9253,6 +9499,8 @@ impl SessionManager {
         let skill_agent_baseline_override_snapshot_store =
             self.skill_agent_baseline_override_snapshot_store.clone();
         let edit_constraints_store = self.edit_constraints_store.clone();
+        let intake_state_store = self.intake_state_store.clone();
+        let migration_active_store = self.migration_active_store.clone();
         let file_read_state_store = self.file_read_state_store.clone();
         let evidence_ledger = self.evidence_ledger.clone();
 
@@ -9352,6 +9600,8 @@ impl SessionManager {
                             skill_agent_baseline_override_snapshot_store.as_ref(),
                             file_read_state_store.as_ref(),
                             evidence_ledger.as_ref(),
+                            intake_state_store.as_ref(),
+                            migration_active_store.as_ref(),
                         );
                         edit_constraints_store.remove(&candidate.session_id);
                     }
@@ -14229,6 +14479,7 @@ mod tests {
                     id: "call-1".to_string(),
                     input: json!({ "command": "printf output" }),
                 },
+                question_request: None,
                 tool_result: Some(ToolResultData {
                     result: json!({
                         "stdout": visible_output,
@@ -16414,5 +16665,161 @@ mod tests {
                 .await,
             None
         );
+    }
+
+    #[tokio::test]
+    async fn intake_state_round_trips_through_memory_and_persisted_metadata() {
+        let workspace = TestWorkspace::new();
+        let manager = test_manager(Arc::new(
+            PersistenceManager::new(workspace.path_manager()).expect("persistence manager"),
+        ));
+        let session = manager
+            .create_session(
+                "Intake".to_string(),
+                "QtMigration".to_string(),
+                SessionConfig {
+                    workspace_path: Some(workspace.path().to_string_lossy().to_string()),
+                    ..SessionConfig::default()
+                },
+            )
+            .await
+            .expect("session should be created");
+
+        assert!(manager.intake_state(&session.session_id).is_none());
+
+        let snapshot = bitfun_agent_runtime::intake_state::IntakeStateSnapshot {
+            schema_version: 1,
+            fields: std::collections::BTreeMap::from([
+                (
+                    "source_project".to_string(),
+                    bitfun_agent_runtime::intake_state::IntakeFieldState {
+                        state: bitfun_agent_runtime::intake_state::FieldResolutionState::Resolved,
+                        value: Some("D:/work/myqt".to_string()),
+                    },
+                ),
+                (
+                    "output_project".to_string(),
+                    bitfun_agent_runtime::intake_state::IntakeFieldState {
+                        state: bitfun_agent_runtime::intake_state::FieldResolutionState::Resolved,
+                        value: Some("D:/out/hm".to_string()),
+                    },
+                ),
+                (
+                    "toolchain".to_string(),
+                    bitfun_agent_runtime::intake_state::IntakeFieldState {
+                        state: bitfun_agent_runtime::intake_state::FieldResolutionState::Resolved,
+                        value: Some("D:/sdk/ohos".to_string()),
+                    },
+                ),
+                (
+                    "template".to_string(),
+                    bitfun_agent_runtime::intake_state::IntakeFieldState {
+                        state: bitfun_agent_runtime::intake_state::FieldResolutionState::Resolved,
+                        value: Some("qt-hm-template-1".to_string()),
+                    },
+                ),
+            ]),
+            status: bitfun_agent_runtime::intake_state::IntakeStatus::NeedsValidation,
+            loaded_skill_receipt: None,
+        };
+        manager
+            .remember_intake_state(&session.session_id, snapshot.clone())
+            .await;
+
+        // In-memory read path.
+        assert_eq!(
+            manager.intake_state(&session.session_id),
+            Some(snapshot.clone())
+        );
+
+        // Restore path re-seeds the intake store from persisted metadata.
+        manager.evict_loaded_session_for_test(&session.session_id);
+        let restored = test_manager(Arc::new(
+            PersistenceManager::new(workspace.path_manager()).expect("persistence manager"),
+        ));
+        restored
+            .restore_session(workspace.path(), &session.session_id)
+            .await
+            .expect("session should restore");
+        assert_eq!(restored.intake_state(&session.session_id), Some(snapshot));
+    }
+
+    #[test]
+    fn build_model_rounds_persists_template_question_request() {
+        use crate::agentic::core::message::MessageMetadata;
+
+        let turn_id = "turn-1";
+        let assistant_message = Message {
+            id: "msg-1".to_string(),
+            role: MessageRole::Assistant,
+            content: MessageContent::Mixed {
+                reasoning_content: None,
+                text: "collect migration paths".to_string(),
+                tool_calls: vec![ToolCall {
+                    tool_id: "call-1".to_string(),
+                    tool_name: "AskUserQuestion".to_string(),
+                    arguments: serde_json::json!({
+                        "templateId": "qt-migration-paths",
+                        "candidates": {
+                            "source_project": ["D:/work/myqt"],
+                            "toolchain": ["D:/ohos/sdk", "D:/ohos/sdk2"],
+                        },
+                    }),
+                    ..ToolCall::default()
+                }],
+            },
+            timestamp: std::time::SystemTime::now(),
+            metadata: MessageMetadata::default(),
+        };
+        let rounds =
+            SessionManager::build_model_rounds_from_messages(&[assistant_message], turn_id, 1000);
+        assert_eq!(rounds.len(), 1);
+        let tool_item = &rounds[0].tool_items[0];
+        assert_eq!(tool_item.tool_name, "AskUserQuestion");
+
+        // Template-backed calls persist the backend-resolved payload so the
+        // question card can be rebuilt after a session restore without the
+        // live ToolAwaitingUserInput event.
+        let question_request = tool_item
+            .question_request
+            .as_ref()
+            .expect("question_request should be persisted");
+        assert_eq!(question_request["templateId"], "qt-migration-paths");
+        assert_eq!(question_request["templateVersion"], "1");
+        let questions = question_request["resolvedQuestions"]
+            .as_array()
+            .expect("resolved questions present");
+        assert_eq!(questions.len(), 4);
+        assert_eq!(questions[0]["options"][0]["label"], "默认路径");
+        assert_eq!(questions[0]["options"][0]["description"], "D:/work/myqt");
+
+        // Plain (inline questions) AskUserQuestion calls carry the questions in
+        // `tool_call.input`, so no question_request needs to be persisted.
+        let plain_message = Message {
+            id: "msg-2".to_string(),
+            role: MessageRole::Assistant,
+            content: MessageContent::Mixed {
+                reasoning_content: None,
+                text: "ask inline".to_string(),
+                tool_calls: vec![ToolCall {
+                    tool_id: "call-2".to_string(),
+                    tool_name: "AskUserQuestion".to_string(),
+                    arguments: serde_json::json!({
+                        "questions": [{
+                            "question": "Confirm?",
+                            "header": "h",
+                            "options": [],
+                            "multiSelect": false
+                        }],
+                    }),
+                    ..ToolCall::default()
+                }],
+            },
+            timestamp: std::time::SystemTime::now(),
+            metadata: MessageMetadata::default(),
+        };
+        let plain_rounds =
+            SessionManager::build_model_rounds_from_messages(&[plain_message], turn_id, 1000);
+        assert!(plain_rounds[0].tool_items[0].question_request.is_none());
     }
 }

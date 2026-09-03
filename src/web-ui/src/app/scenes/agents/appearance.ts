@@ -7,6 +7,7 @@ export const agentsAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'anchorBar' },
     { id: 'zones' },
     { id: 'coreGrid' },
+    { id: 'industryGrid' },
     { id: 'filters' },
     { id: 'detailSection' },
   ],

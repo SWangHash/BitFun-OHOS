@@ -3,8 +3,8 @@ use super::visibility::SubagentVisibilityPolicy;
 use crate::agentic::agents::{
     Agent, AgenticMode, ClawMode, CodeReviewAgent, ComputerUseMode, CoworkMode, DebugMode,
     DeepResearchMode, DeepReviewAgent, ExploreAgent, FileFinderAgent, GeneralPurposeAgent,
-    GenerateDocAgent, MultitaskMode, PlanMode, ResearchSpecialistAgent, ReviewFixerAgent,
-    ReviewJudgeAgent, ReviewWorkerAgent, TeamMode,
+    GenerateDocAgent, MultitaskMode, PlanMode, QtMigrationMode, ResearchSpecialistAgent,
+    ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent, TeamMode,
 };
 use crate::agentic::memories::MemoryPhase2Agent;
 use bitfun_agent_runtime::agents as runtime_agents;
@@ -50,6 +50,7 @@ fn builtin_agent_factory(id: &str) -> fn() -> Arc<dyn Agent> {
         "DeepReview" => || Arc::new(DeepReviewAgent::new()),
         "GenerateDoc" => || Arc::new(GenerateDocAgent::new()),
         "MemoryPhase2" => || Arc::new(MemoryPhase2Agent::new()),
+        "QtMigration" => || Arc::new(QtMigrationMode::new()),
         _ => panic!("missing legacy Agent factory for builtin agent {id}"),
     }
 }

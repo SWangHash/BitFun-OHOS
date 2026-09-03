@@ -6,6 +6,7 @@ export const askUserQuestionCardAppearanceDescriptor: AppearanceSurfaceDescripto
     { id: 'root' }, { id: 'header' }, { id: 'questions' }, { id: 'question' },
     { id: 'options' }, { id: 'option' }, { id: 'customInput' }, { id: 'footer' },
     { id: 'status' }, { id: 'summary' }, { id: 'loading' }, { id: 'error' },
+    { id: 'browse' }, { id: 'intro' }, { id: 'hint' },
   ],
   states: [
     { id: 'loading', selector: { kind: 'self', suffix: '[data-bf-state~="loading"]' } },

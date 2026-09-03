@@ -171,13 +171,19 @@ pub fn builtin_agent_definition_specs() -> Vec<BuiltinAgentDefinitionSpec> {
             "primary",
             SubagentVisibilityPolicy::default(),
         ),
+        builtin_agent_spec(
+            "QtMigration",
+            Mode,
+            "auto",
+            SubagentVisibilityPolicy::default(),
+        ),
     ]
 }
 
 pub fn default_model_id_for_builtin_agent(agent_type: &str) -> &'static str {
     match agent_type {
         "agentic" | "Cowork" | "ComputerUse" | "Plan" | "debug" | "Claw" | "DeepResearch"
-        | "Team" | "Multitask" => "auto",
+        | "Team" | "Multitask" | "QtMigration" => "auto",
         "Explore" | "FileFinder" | "CodeReview" | "GeneralPurpose" | "MemoryPhase2" => "primary",
         "GenerateDoc"
         | "ResearchSpecialist"
