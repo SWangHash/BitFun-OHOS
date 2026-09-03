@@ -70,6 +70,8 @@ pub struct SkillInfo {
     pub allow_user_invocation: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub argument_hint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub market_install_id: Option<String>,
 }
 
 impl SkillInfo {
@@ -120,6 +122,7 @@ pub struct SkillData {
     pub allow_user_invocation: bool,
     pub argument_hint: Option<String>,
     pub argument_names: Vec<String>,
+    pub market_install_id: Option<String>,
 }
 
 fn default_allow_implicit_invocation() -> bool {
@@ -436,6 +439,7 @@ impl SkillData {
             allow_user_invocation,
             argument_hint,
             argument_names,
+            market_install_id: None,
         })
     }
 

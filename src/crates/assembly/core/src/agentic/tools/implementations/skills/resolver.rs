@@ -34,6 +34,7 @@ mod tests {
             allow_implicit_invocation: true,
             allow_user_invocation: true,
             argument_hint: None,
+            market_install_id: None,
         }
     }
 
@@ -55,6 +56,7 @@ mod tests {
             allow_implicit_invocation: true,
             allow_user_invocation: true,
             argument_hint: None,
+            market_install_id: None,
         }
     }
 

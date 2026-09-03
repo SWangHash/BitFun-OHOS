@@ -11,9 +11,15 @@ const log = createLogger('SkillsScene:useSkillMarket');
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_TOTAL_SKILLS = 500;
 
+interface InstalledDirNamesByLevel {
+  user: Set<string>;
+  project: Set<string>;
+}
+
 interface UseSkillMarketOptions {
   searchQuery: string;
-  installedSkillNames: Set<string>;
+  isMarketSkillInstalled: (skill: SkillMarketItem) => boolean;
+  installedDirNamesByLevel: InstalledDirNamesByLevel;
   onInstalledChanged?: () => Promise<void> | void;
   pageSize?: number;
   enabled?: boolean;
@@ -21,7 +27,8 @@ interface UseSkillMarketOptions {
 
 export function useSkillMarket({
   searchQuery,
-  installedSkillNames,
+  isMarketSkillInstalled,
+  installedDirNamesByLevel,
   onInstalledChanged,
   pageSize = DEFAULT_PAGE_SIZE,
   enabled = true,
@@ -125,7 +132,7 @@ export function useSkillMarket({
     const entries = marketSkills.map((skill, index) => ({
       skill,
       index,
-      installed: installedSkillNames.has(skill.name),
+      installed: isMarketSkillInstalled(skill),
     }));
 
     // Sort by install count (popular first), then original fetch order for a
@@ -142,7 +149,7 @@ export function useSkillMarket({
     });
 
     return entries.map((entry) => entry.skill);
-  }, [installedSkillNames, marketSkills]);
+  }, [isMarketSkillInstalled, marketSkills]);
 
   const goToNextPage = useCallback(async () => {
     const capabilityEpoch = currentCapabilityEpoch();
@@ -210,6 +217,21 @@ export function useSkillMarket({
       notification.warning(t('messages.noWorkspace'));
       return;
     }
+
+    // Block install: a same-level skill with this dirName already exists.
+    // Cross-level installs land in a different directory and are allowed.
+    const atIdx = skill.installId.lastIndexOf('@');
+    const subdir = atIdx < 0 ? skill.installId : skill.installId.slice(atIdx + 1);
+    const slashIdx = subdir.lastIndexOf('/');
+    const dirName = slashIdx < 0 ? subdir : subdir.slice(slashIdx + 1);
+    const conflictSet = resolvedLevel === 'user'
+      ? installedDirNamesByLevel.user
+      : installedDirNamesByLevel.project;
+    if (conflictSet.has(dirName) && !isMarketSkillInstalled(skill)) {
+      notification.error(t('messages.nameConflict', { name: skill.name }));
+      return;
+    }
+
     try {
       setDownloadingPackage(skill.installId);
       const result = await configAPI.downloadSkillMarket({
@@ -237,7 +259,7 @@ export function useSkillMarket({
         setDownloadingPackage(null);
       }
     }
-  }, [capabilityIsCurrent, currentCapabilityEpoch, hasWorkspace, isAssistantWorkspace, isRemoteWorkspace, notification, onInstalledChanged, t, workspacePath]);
+  }, [capabilityIsCurrent, currentCapabilityEpoch, hasWorkspace, installedDirNamesByLevel, isAssistantWorkspace, isMarketSkillInstalled, isRemoteWorkspace, notification, onInstalledChanged, t, workspacePath]);
 
   const retryLoadMore = useCallback(() => {
     setLoadMoreError(false);

@@ -270,6 +270,7 @@
     "toggleFailed": "切换状态失败: {{error}}",
     "marketDownloadSuccess": "技能 \"{{name}}\" 下载成功",
     "marketDownloadFailed": "下载失败: {{error}}",
+    "nameConflict": "已安装同名技能 \"{{name}}\"，无法重复安装。请先卸载已有的同名技能后再安装。",
     "enabled": "启用",
     "disabled": "禁用",
     "revealPathFailed": "无法在资源管理器中打开: {{error}}"
