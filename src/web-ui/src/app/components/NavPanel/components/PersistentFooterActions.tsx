@@ -298,6 +298,7 @@ const PersistentFooterActions: React.FC = () => {
                     role="menuitem"
                     data-bf-component="nav-panel"
                     data-bf-part="footerMenuItem"
+                    data-testid="nav-footer-remote-item"
                     onClick={handleRemoteConnect}
                   >
                     <Smartphone size={14} />
@@ -317,6 +318,7 @@ const PersistentFooterActions: React.FC = () => {
                     role="menuitem"
                     data-bf-component="nav-panel"
                     data-bf-part="footerMenuItem"
+                    data-testid="nav-footer-floating-item"
                     onClick={handleFloatingMode}
                   >
                     <PictureInPicture2 size={14} />
@@ -329,6 +331,7 @@ const PersistentFooterActions: React.FC = () => {
                     role="menuitem"
                     data-bf-component="nav-panel"
                     data-bf-part="footerMenuItem"
+                    data-testid="nav-footer-insights-item"
                     onClick={handleOpenInsights}
                   >
                     <BarChart3 size={14} />
@@ -350,6 +353,7 @@ const PersistentFooterActions: React.FC = () => {
                     type="button"
                     className="bitfun-nav-panel__footer-menu-item"
                     role="menuitem"
+                    data-testid="nav-footer-feedback-item"
                     onClick={handleFeedback}
                     aria-label={hasUnreadFeedback
                       ? t('feedback.inbox.entryUnread')
@@ -367,6 +371,7 @@ const PersistentFooterActions: React.FC = () => {
                       role="menuitem"
                       data-bf-component="nav-panel"
                       data-bf-part="footerMenuItem"
+                      data-testid="nav-footer-about-item"
                       onClick={handleShowAbout}
                       aria-label={hasPrivacyUpdate
                         ? t('privacy.aboutEntryUpdated')

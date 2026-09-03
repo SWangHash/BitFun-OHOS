@@ -96,6 +96,7 @@ const AssistantQuickInput: React.FC<AssistantQuickInputProps> = ({
       <div className="aqi__box" data-bf-component="assistant-quick-input" data-bf-part="box">
         <Textarea
           className="aqi__embed"
+          data-testid="aqi-message-textarea"
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
@@ -123,6 +124,7 @@ const AssistantQuickInput: React.FC<AssistantQuickInputProps> = ({
             onClick={() => { void handleSend(); }}
             aria-label={t('actions.send')}
             className="aqi__send"
+            data-testid="aqi-send-btn"
           >
             {sending
               ? <Loader2 size={14} />

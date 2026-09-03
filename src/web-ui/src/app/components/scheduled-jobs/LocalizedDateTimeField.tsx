@@ -124,6 +124,7 @@ const LocalizedDateTimeField: React.FC<LocalizedDateTimeFieldProps> = ({
       data-bf-state={error ? 'error' : undefined}
     >
       <Input
+        data-testid="asv-schedule-datetime-input"
         size="small"
         value={text}
         error={error}
@@ -140,6 +141,7 @@ const LocalizedDateTimeField: React.FC<LocalizedDateTimeFieldProps> = ({
       <IconButton
         type="button"
         size="xs"
+        data-testid="asv-schedule-datetime-picker-btn"
         disabled={disabled}
         aria-label={t('dateTimeField.openPicker')}
         tooltip={t('dateTimeField.openPicker')}

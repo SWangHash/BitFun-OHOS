@@ -49,7 +49,7 @@ const AgentCard: React.FC<AgentCardProps> = ({
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && openDetails()}
       aria-label={agent.name}
-      data-testid="agent-list-item"
+      data-testid={`agent-list-item-${agent.id || agent.name}`}
       data-agent-id={agent.id}
       data-agent-name={agent.name}
       data-agent-kind={agent.agentKind}
@@ -64,7 +64,7 @@ const AgentCard: React.FC<AgentCardProps> = ({
         </div>
         <div className="agent-card__header-info" data-bf-component="agent-card" data-bf-part="headerInfo">
           <div className="agent-card__title-row" data-bf-component="agent-card" data-bf-part="titleRow">
-            <span className="agent-card__name" data-bf-component="agent-card" data-bf-part="name" data-testid="agent-list-item-title">{agent.name}</span>
+            <span className="agent-card__name" data-bf-component="agent-card" data-bf-part="name" data-testid={`agent-list-item-title-${agent.id || agent.name}`}>{agent.name}</span>
             <div className="agent-card__badges" data-bf-component="agent-card" data-bf-part="badges">
               <Badge variant={badge.variant}>
                 {agent.agentKind === 'mode' ? <Cpu size={10} /> : <Bot size={10} />}
@@ -77,7 +77,7 @@ const AgentCard: React.FC<AgentCardProps> = ({
 
       {/* Body: description + meta */}
       <div className="agent-card__body" data-bf-component="agent-card" data-bf-part="body">
-        <p className="agent-card__desc" data-bf-component="agent-card" data-bf-part="description" data-testid="agent-list-item-description">
+        <p className="agent-card__desc" data-bf-component="agent-card" data-bf-part="description" data-testid={`agent-list-item-description-${agent.id || agent.name}`}>
           {getAgentDescription(t, agent)}
         </p>
       </div>
