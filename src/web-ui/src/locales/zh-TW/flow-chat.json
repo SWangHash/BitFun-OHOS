@@ -1804,7 +1804,33 @@
       "browsePath": "從檔案管理員中選擇路徑",
       "qtMigration": {
         "pathsIntro": "偵測到提示詞中未指定遷移路徑，需要先確認4項路徑設定。",
-        "pathsHint": "💡在提示詞中寫明4項路徑即可跳過設定"
+        "pathsHint": "💡在提示詞中寫明4項路徑即可跳過設定",
+        "question": {
+          "sourceProject": "你想從哪個原始工程開始遷移？",
+          "outputProject": "遷移後的鴻蒙工程輸出在哪裡？",
+          "toolchain": "使用哪個QT遷移工具鏈？",
+          "template": "使用哪個鴻蒙模板工程？"
+        },
+        "field": {
+          "sourceProject": "原始工程",
+          "outputProject": "輸出路徑",
+          "toolchain": "遷移工具鏈",
+          "template": "模板工程"
+        },
+        "option": {
+          "default": "預設路徑",
+          "alternate": "備選路徑",
+          "officialToolchain": "鴻蒙OS推薦工具鏈",
+          "officialTemplate": "鴻蒙OS推薦模板",
+          "officialDescription": "由 ohos-qt-skills 負責準備",
+          "recommend": "推薦"
+        },
+        "placeholder": {
+          "sourceProject": "請填寫您的原始工程路徑",
+          "outputProject": "請填寫輸出工程路徑",
+          "toolchain": "請填寫QT遷移工具鏈路徑",
+          "template": "請填寫模板工程路徑"
+        }
       }
     },
     "think": {

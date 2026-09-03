@@ -1803,7 +1803,33 @@
       "browsePath": "Pick a path from the file manager",
       "qtMigration": {
         "pathsIntro": "The prompt does not specify migration paths. Please confirm the four required path settings first.",
-        "pathsHint": "💡 Add the four paths to your prompt to skip the setup."
+        "pathsHint": "💡 Add the four paths to your prompt to skip the setup.",
+        "question": {
+          "sourceProject": "Which source project do you want to migrate from?",
+          "outputProject": "Where should the migrated HarmonyOS project be output?",
+          "toolchain": "Which QT migration toolchain should be used?",
+          "template": "Which HarmonyOS template project should be used?"
+        },
+        "field": {
+          "sourceProject": "Source project",
+          "outputProject": "Output path",
+          "toolchain": "Migration toolchain",
+          "template": "Template project"
+        },
+        "option": {
+          "default": "Default path",
+          "alternate": "Alternate path",
+          "officialToolchain": "HarmonyOS recommended toolchain",
+          "officialTemplate": "HarmonyOS recommended template",
+          "officialDescription": "Prepared by ohos-qt-skills",
+          "recommend": "Recommended"
+        },
+        "placeholder": {
+          "sourceProject": "Enter the source project path",
+          "outputProject": "Enter the output project path",
+          "toolchain": "Enter the QT migration toolchain path",
+          "template": "Enter the template project path"
+        }
       }
     },
     "think": {

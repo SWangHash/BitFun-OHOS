@@ -1804,7 +1804,33 @@
       "browsePath": "从文件管理器中选择路径",
       "qtMigration": {
         "pathsIntro": "检测到提示词中未指定迁移路径，需要先确认4项路径配置。",
-        "pathsHint": "💡在提示词中写明4项路径即可跳过配置"
+        "pathsHint": "💡在提示词中写明4项路径即可跳过配置",
+        "question": {
+          "sourceProject": "你希望从哪个原始工程开始迁移？",
+          "outputProject": "迁移后的鸿蒙工程输出在哪里？",
+          "toolchain": "使用哪个QT迁移工具链？",
+          "template": "使用哪个鸿蒙模板工程？"
+        },
+        "field": {
+          "sourceProject": "原始工程",
+          "outputProject": "输出路径",
+          "toolchain": "迁移工具链",
+          "template": "模板工程"
+        },
+        "option": {
+          "default": "默认路径",
+          "alternate": "备选路径",
+          "officialToolchain": "鸿蒙OS推荐工具链",
+          "officialTemplate": "鸿蒙OS推荐模板",
+          "officialDescription": "由 ohos-qt-skills 负责准备",
+          "recommend": "推荐"
+        },
+        "placeholder": {
+          "sourceProject": "请填写您原始工程路径",
+          "outputProject": "请填写输出工程路径",
+          "toolchain": "请填写QT迁移工具链路径",
+          "template": "请填写模板工程路径"
+        }
       }
     },
     "think": {
