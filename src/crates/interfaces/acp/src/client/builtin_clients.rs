@@ -17,9 +17,15 @@ pub(crate) struct OhosNpmManagedPreset {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OhosHarmonyBrewFormulaPreset {
+    pub(crate) formula: &'static str,
+    pub(crate) auto_install: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OhosAcpSupport {
     Unsupported,
-    HarmonyBrewFormula(&'static str),
+    HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset),
     HarmonyBrewNpm(OhosNpmManagedPreset),
 }
 
@@ -30,8 +36,16 @@ impl OhosAcpSupport {
 
     pub(crate) fn formula(self) -> Option<&'static str> {
         match self {
-            Self::HarmonyBrewFormula(formula) => Some(formula),
+            Self::HarmonyBrewFormula(preset) => Some(preset.formula),
             Self::Unsupported | Self::HarmonyBrewNpm(_) => None,
+        }
+    }
+
+    pub(crate) fn allows_managed_install(self) -> bool {
+        match self {
+            Self::HarmonyBrewFormula(preset) => preset.auto_install,
+            Self::HarmonyBrewNpm(_) => true,
+            Self::Unsupported => false,
         }
     }
 
@@ -81,7 +95,13 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         args: &["acp"],
         tool_command: "opencode",
         install_package: Some("opencode-ai"),
-        ohos: OhosAcpSupport::Unsupported,
+        // OpenCode's verified HarmonyOS formula lives in a third-party tap.
+        // HiShell owns that tap's private trust state, which BitFun cannot
+        // observe or reuse. Detect existing installations, but never install.
+        ohos: OhosAcpSupport::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
+            formula: "opencode",
+            auto_install: false,
+        }),
         adapter_package: None,
         adapter_bin: None,
         bundled_profile: None,
@@ -95,7 +115,10 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         args: &["acp"],
         tool_command: "kimi",
         install_package: Some("@moonshot-ai/kimi-code"),
-        ohos: OhosAcpSupport::HarmonyBrewFormula("kimi-code"),
+        ohos: OhosAcpSupport::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
+            formula: "kimi-code",
+            auto_install: true,
+        }),
         adapter_package: None,
         adapter_bin: None,
         bundled_profile: None,
@@ -109,7 +132,10 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         args: &["--acp"],
         tool_command: "qwen",
         install_package: Some("@qwen-code/qwen-code"),
-        ohos: OhosAcpSupport::HarmonyBrewFormula("qwen-code"),
+        ohos: OhosAcpSupport::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
+            formula: "qwen-code",
+            auto_install: true,
+        }),
         adapter_package: None,
         adapter_bin: None,
         bundled_profile: None,
@@ -315,7 +341,7 @@ mod tests {
                 .filter(|preset| preset.supports_ohos())
                 .map(|preset| preset.id)
                 .collect::<Vec<_>>(),
-            vec!["kimi-code", "qwen-code", "codebuddy-code"]
+            vec!["opencode", "kimi-code", "qwen-code", "codebuddy-code"]
         );
     }
 

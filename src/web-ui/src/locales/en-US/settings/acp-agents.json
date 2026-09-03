@@ -3,6 +3,7 @@
   "subtitle": "Manage ACP-compatible agents for FlowChat sessions.",
   "actions": {
     "add": "Add",
+    "get": "Get",
     "addConfig": "Add config",
     "download": "Download",
     "installCli": "Install CLI",
@@ -22,6 +23,10 @@
     "predownloadAcp": "Predownload ACP"
   },
   "presets": {
+    "openCode": {
+      "name": "OpenCode",
+      "description": "Native ACP coding agent available through a trusted third-party HarmonyBrew tap."
+    },
     "kimiCode": {
       "name": "Kimi Code",
       "description": "Native ACP coding agent available through HarmonyBrew."
