@@ -1150,14 +1150,19 @@ export const RichTextInput = React.forwardRef<HTMLDivElement, RichTextInputProps
 
     if (syncAction === 'clear') {
       editor.textContent = '';
+      editor.scrollTop = 0;
       return;
     }
     
     if (syncAction === 'replace') {
       renderValueWithInlineTokens(editor, value);
+      // External updates such as live voice transcription append text without
+      // producing a native input event, so keep the newest line visible.
+      editor.scrollTop = editor.scrollHeight;
       
       // Restore cursor to the end
       requestAnimationFrame(() => {
+        editor.scrollTop = editor.scrollHeight;
         if (editor.childNodes.length > 0) {
           const range = document.createRange();
           const sel = window.getSelection();

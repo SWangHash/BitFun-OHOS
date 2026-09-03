@@ -1021,8 +1021,8 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
         <div className="asv__form-actions" data-bf-component="scheduled-jobs-view" data-bf-part="formActions">
           <Button
             size="small"
-            className="asv__action-btn asv__action-btn--ghost"
-            variant="ghost"
+            className="asv__new-job"
+            variant="secondary"
             data-testid="asv-cancel-btn"
             onClick={handleCloseEditor}
           >

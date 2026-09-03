@@ -45,11 +45,16 @@ $_indent-width: 8px;
     flex-shrink: 0;
     width: 24px;
     height: 24px;
-    color: var(--bf-appearance-token-color-text-muted);
+    border: 1px solid var(--bf-appearance-token-border-subtle);
+    border-radius: var(--bf-appearance-token-size-radius-sm);
+    color: var(--bf-appearance-token-color-accent-500);
+    background: var(--bf-appearance-token-element-bg-soft);
+    box-sizing: border-box;
     
-    &:hover {
+    &:hover:not(:disabled) {
       color: var(--bf-appearance-token-color-text-primary);
-      background: var(--bf-appearance-token-color-overlay-white-08);
+      border-color: var(--bf-appearance-token-color-accent-500);
+      background: var(--bf-appearance-token-element-bg-medium);
     }
     
     svg {

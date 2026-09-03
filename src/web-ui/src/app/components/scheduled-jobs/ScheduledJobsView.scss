@@ -80,10 +80,12 @@
 
   &__new-job.btn {
     flex-shrink: 0;
+    border: 1px solid var(--bf-appearance-token-border-base);
     background: var(--bf-appearance-token-element-bg-medium);
     color: var(--bf-appearance-token-color-text-primary);
 
     &:hover:not(:disabled) {
+      border-color: var(--bf-appearance-token-color-accent-500);
       background: var(--bf-appearance-token-element-bg-strong);
       color: var(--bf-appearance-token-color-text-primary);
     }
@@ -466,9 +468,6 @@
     letter-spacing: 0;
   }
 
-  &__action-btn--ghost.btn {
-    color: var(--bf-appearance-token-color-text-secondary);
-  }
 }
 
 .asv__agent-select-dropdown,
