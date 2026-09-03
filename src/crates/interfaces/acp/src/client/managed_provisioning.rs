@@ -151,16 +151,7 @@ pub(crate) async fn build_managed_provisioning_plan(
                 Some(working_directory),
             ),
         );
-        if !preset.ohos.allows_managed_install()
-            && !requirement_is_exact_runnable(&tool, Path::new(&expected_tool_path))
-        {
-            return Err(BitFunError::service(format!(
-                "[ACP_PROVISIONING_CLIENT_NOT_DETECTED] ACP client '{}' is not runnable at '{}'. No installation was attempted.",
-                client_id, expected_tool_path
-            )));
-        }
-        let plan = build_formula_plan_from_environment(client_id, &brew, &tool)?;
-        return Ok(plan);
+        return build_formula_plan_from_environment(client_id, &brew, &tool);
     }
 
     let npm = preset.ohos.npm().expect("validated HarmonyBrew npm recipe");
@@ -897,14 +888,12 @@ mod tests {
     }
 
     #[test]
-    fn opencode_formula_is_detect_only() {
-        let preset = managed_ohos_preset("opencode").expect("managed OpenCode preset");
-        assert_eq!(preset.ohos.formula(), Some("opencode"));
-        assert!(!preset.ohos.allows_managed_install());
-        assert!(managed_ohos_preset("kimi-code")
-            .expect("managed Kimi preset")
-            .ohos
-            .allows_managed_install());
+    fn other_presets_are_not_claimed_as_harmonyos_installable() {
+        let error = managed_ohos_preset("opencode")
+            .expect_err("unverified preset must be rejected")
+            .to_string();
+
+        assert!(error.contains("ACP_PROVISIONING_METHOD_UNSUPPORTED"));
     }
 
     #[test]

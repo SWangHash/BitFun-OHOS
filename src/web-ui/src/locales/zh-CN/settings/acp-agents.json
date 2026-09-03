@@ -42,7 +42,12 @@
     "codeBuddyCode": {
       "name": "CodeBuddy Code",
       "description": "使用 HarmonyBrew Node 运行的原生 ACP 编码 Agent。"
-    }
+    },
+    "opencode": { "description": "原生支持 ACP" },
+    "dsh": { "description": "通过 BitFun 内置 ACP 桥接，沿用 dsh 的模型与 API 密钥" },
+    "omp": { "description": "原生支持 ACP" },
+    "claudeCode": { "description": "通过官方 ACP 适配器连接" },
+    "codex": { "description": "通过官方 ACP 适配器连接" }
   },
   "json": {
     "title": "高级 JSON 配置",
@@ -60,13 +65,6 @@
     "localHost": "当前执行主机",
     "packageUnknown": "无法确认此智能体的安装包，已取消安装",
     "confirm": "在目标主机安装"
-  },
-  "presets": {
-    "opencode": { "description": "原生支持 ACP" },
-    "dsh": { "description": "通过 BitFun 内置 ACP 桥接，沿用 dsh 的模型与 API 密钥" },
-    "omp": { "description": "原生支持 ACP" },
-    "claudeCode": { "description": "通过官方 ACP 适配器连接" },
-    "codex": { "description": "通过官方 ACP 适配器连接" }
   },
   "registry": {
     "title": "智能体列表",

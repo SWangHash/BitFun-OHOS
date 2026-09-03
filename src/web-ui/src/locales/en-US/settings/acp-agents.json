@@ -42,7 +42,12 @@
     "codeBuddyCode": {
       "name": "CodeBuddy Code",
       "description": "Native ACP coding agent that runs on HarmonyBrew Node."
-    }
+    },
+    "opencode": { "description": "Native ACP support." },
+    "dsh": { "description": "Uses BitFun's bundled ACP bridge and the model settings from dsh." },
+    "omp": { "description": "Native ACP support." },
+    "claudeCode": { "description": "Connects through the official ACP adapter." },
+    "codex": { "description": "Connects through the official ACP adapter." }
   },
   "json": {
     "title": "Advanced JSON configuration",
@@ -60,13 +65,6 @@
     "localHost": "Current execution host",
     "packageUnknown": "BitFun could not verify the install package for this Agent, so installation was cancelled",
     "confirm": "Install on target host"
-  },
-  "presets": {
-    "opencode": { "description": "Native ACP support." },
-    "dsh": { "description": "Uses BitFun's bundled ACP bridge and the model settings from dsh." },
-    "omp": { "description": "Native ACP support." },
-    "claudeCode": { "description": "Connects through the official ACP adapter." },
-    "codex": { "description": "Connects through the official ACP adapter." }
   },
   "registry": {
     "title": "Agents",
