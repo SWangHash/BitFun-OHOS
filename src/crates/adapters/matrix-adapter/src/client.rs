@@ -15,6 +15,7 @@ use std::path::Path;
 use std::time::Duration;
 
 const MATRIX_HTTP_TIMEOUT_SECS: u64 = 25;
+const MATRIX_ZIP_DOWNLOAD_TIMEOUT_SECS: u64 = 300;
 const MAX_MATRIX_REDIRECTS: usize = 5;
 pub(crate) const DEFAULT_JSON_RESPONSE_MAX_BYTES: usize = 16 * 1024 * 1024;
 pub(crate) const DEFAULT_BYTES_RESPONSE_MAX_BYTES: usize = 64 * 1024 * 1024;
@@ -273,7 +274,13 @@ impl MatrixHttpClient {
             // Clean up any partial file from a previous attempt.
             let _ = std::fs::remove_file(dest);
 
-            let response = match self.inner.get(&url).send().await {
+            let response = match self
+                .inner
+                .get(&url)
+                .timeout(Duration::from_secs(MATRIX_ZIP_DOWNLOAD_TIMEOUT_SECS))
+                .send()
+                .await
+            {
                 Ok(response) => response,
                 Err(error) => {
                     let retryable = error.is_timeout()
