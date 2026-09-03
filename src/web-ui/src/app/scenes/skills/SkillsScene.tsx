@@ -695,8 +695,7 @@ const SkillsScene: React.FC = () => {
              onLoadMore={() => void matrix.loadMore()}
              onRetryLoadMore={() => matrix.retryLoadMore()}
              installingEnName={matrix.installingEnName}
-            installError={matrix.installError}
-            onInstall={matrix.handleInstall}
+             onInstall={matrix.handleInstall}
             onOpenDetails={(skill) => setSelectedDetail({ type: 'matrix', skill })}
             installedEnNames={installedMatrixEnNames}
           />
