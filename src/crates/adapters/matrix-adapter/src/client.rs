@@ -15,7 +15,7 @@ use std::time::Duration;
 const MATRIX_HTTP_TIMEOUT_SECS: u64 = 25;
 const MAX_MATRIX_REDIRECTS: usize = 5;
 pub(crate) const DEFAULT_JSON_RESPONSE_MAX_BYTES: usize = 16 * 1024 * 1024;
-pub(crate) const DEFAULT_BYTES_RESPONSE_MAX_BYTES: usize = 16 * 1024 * 1024;
+pub(crate) const DEFAULT_BYTES_RESPONSE_MAX_BYTES: usize = 64 * 1024 * 1024;
 const HTTP_ERROR_BODY_MAX_BYTES: usize = 8 * 1024;
 const MATRIX_USER_AGENT: &str = concat!("bitfun-matrix-adapter/", env!("CARGO_PKG_VERSION"));
 const DEFAULT_MATRIX_API_URL: &str = "https://matrix.openharmony.cn/";

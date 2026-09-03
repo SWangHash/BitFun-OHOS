@@ -45,7 +45,6 @@ interface MatrixMarketViewProps {
   onRetryLoadMore: () => void;
 
   installingEnName: string | null;
-  installError: string | null;
   onInstall: (skill: MatrixSkillSummary, targetLevel?: SkillLevel) => Promise<void>;
   onOpenDetails: (skill: MatrixSkillSummary) => void;
 
@@ -87,7 +86,6 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
   onLoadMore,
   onRetryLoadMore,
   installingEnName,
-  installError,
   onInstall,
   onOpenDetails,
   hasWorkspace,
@@ -404,13 +402,6 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
       </div>
 
       <div ref={contentRef} className="skills-discover__content">
-        {installError && (
-          <div className="skills-discover__empty skills-discover__empty--error" data-testid="matrix-install-error">
-            <Package size={28} strokeWidth={1.5} />
-            <span>{installError}</span>
-          </div>
-        )}
-
         {skillsLoading && (
           <div className="skills-discover__grid" aria-busy="true" aria-label={t('list.loading')}>
             {Array.from({ length: 12 }).map((_, i) => (
