@@ -601,23 +601,36 @@ export async function ensureMicrophonePermission(context: Context): Promise<void
   if (currentStatus === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
     return;
   }
+  let needSettingFallback: boolean = false;
   try {
     const result = await atManager.requestPermissionsFromUser(context, [MICROPHONE_PERMISSION]);
     if (result.authResults.length > 0 &&
       result.authResults[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
       return;
     }
+    // dialogShownResults tells us whether the system actually showed a
+    // permission dialog. When it is true the user just denied in a visible
+    // dialog, so calling requestPermissionOnSetting immediately would pop a
+    // second, confusing dialog. When it is false the permission was already
+    // permanently denied (or cannot be prompted via pop-up), so we fall back
+    // to the settings sheet to give the user another chance.
+    const dialogShown: boolean = result.dialogShownResults !== undefined &&
+      result.dialogShownResults.length > 0 &&
+      result.dialogShownResults[0] === true;
+    needSettingFallback = !dialogShown;
   } catch (err) {
     hilog.warn(VOICE_DOMAIN, VOICE_TAG, 'microphone permission prompt failed: %{public}s', `${err}`);
   }
-  try {
-    const settingResult = await atManager.requestPermissionOnSetting(context, [MICROPHONE_PERMISSION]);
-    if (settingResult.length > 0 &&
-      settingResult[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
-      return;
+  if (needSettingFallback) {
+    try {
+      const settingResult = await atManager.requestPermissionOnSetting(context, [MICROPHONE_PERMISSION]);
+      if (settingResult.length > 0 &&
+        settingResult[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
+        return;
+      }
+    } catch (err) {
+      hilog.warn(VOICE_DOMAIN, VOICE_TAG, 'microphone permission settings failed: %{public}s', `${err}`);
     }
-  } catch (err) {
-    hilog.warn(VOICE_DOMAIN, VOICE_TAG, 'microphone permission settings failed: %{public}s', `${err}`);
   }
   throw new Error('Microphone permission denied');
 }
