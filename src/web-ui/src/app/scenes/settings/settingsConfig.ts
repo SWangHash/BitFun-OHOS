@@ -21,11 +21,9 @@ export type ConfigTab =
   | 'review'
   | 'memories'
   | 'mcp-tools'
-  | 'external-sources'
-  | 'hooks'
-  | 'acp-agents'
-  | 'external-sources' // temporarily hidden from config center
-  | 'acp-agents' // temporarily hidden from config center
+  | 'external-sources' // hidden from config center; retained for legacy deep links
+  | 'hooks' // legacy deep-link target
+  | 'acp-agents' // hidden from config center; retained for legacy deep links
   // | 'lsp' // temporarily hidden from config center
   | 'editor'
   | 'keyboard';
@@ -262,43 +260,10 @@ export const SETTINGS_CATEGORIES: ConfigCategoryDef[] = [
         ],
       },
       {
-        id: 'external-sources',
-        labelKey: 'configCenter.tabs.externalSources',
-        descriptionKey: 'configCenter.tabDescriptions.externalSources',
-        beta: true,
-        keywords: [
-          'external ai applications',
-          'import work',
-          'extensions',
-          'commands',
-          'opencode',
-          'claude code',
-          'codex',
-          'hook',
-          'hooks',
-          'agent hooks',
-          'compatibility',
-        ],
-      },
-      {
         id: 'mcp-tools',
         labelKey: 'configCenter.tabs.mcpTools',
         descriptionKey: 'configCenter.tabDescriptions.mcpTools',
         keywords: ['mcp', 'server', 'plugin', 'stdio', 'sse', 'tools'],
-      },
-      {
-        id: 'acp-agents',
-        labelKey: 'configCenter.tabs.acpAgents',
-        descriptionKey: 'configCenter.tabDescriptions.acpAgents',
-        keywords: [
-          'acp',
-          'agent client protocol',
-          'external agent',
-          'opencode',
-          'claude code',
-          'codex',
-          'stdio',
-        ],
       },
     ],
   },
