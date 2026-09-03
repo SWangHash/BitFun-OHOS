@@ -164,22 +164,6 @@ test('fails when mobile-web dist is missing', (t) => {
   assert.match(result.stderr, /Fix: pnpm run prepare:mobile-web/);
 });
 
-test('does not require the DeepSeek profile for cargo check', (t) => {
-  const root = createTestRoot({
-    nodeModules: true,
-    mobileWebDist: true,
-    pluginHostDist: true,
-    sherpaOnnx: ['sherpa-onnx-v1.13.4-osx-arm64-static-lib'],
-  });
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-
-  const result = runCheck(root, { sherpaEnv: '' });
-
-  assert.equal(result.status, 0);
-  assert.doesNotMatch(result.stderr, /dsh bridge profile/);
-  assert.doesNotMatch(result.stderr, /prepare:dsh-profile/);
-});
-
 test('fails when OpenCode extension Host dist is missing', (t) => {
   const root = createTestRoot({
     nodeModules: true,
@@ -236,7 +220,6 @@ test('--fix runs fix commands, re-verifies, and exits 0 when errors resolved', (
   assert.match(result.stdout, /\$ pnpm install/);
   assert.match(result.stdout, /\$ pnpm run prepare:mobile-web/);
   assert.match(result.stdout, /\$ pnpm run plugin-host:prepare/);
-  assert.doesNotMatch(result.stdout, /prepare:dsh-profile/);
   assert.match(result.stdout, /Re-checking prerequisites/);
   assert.match(result.stdout, /All errors resolved/);
 });

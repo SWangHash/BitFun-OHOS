@@ -9,7 +9,6 @@ import {
   availableRemotePresetIds,
   canInstallPresetCli,
   getManualInstallGuide,
-  isManagedInstallPresetForRuntime,
   visiblePresetIdsForRuntime,
 } from './acpAgentPresetPolicy';
 
@@ -251,6 +250,22 @@ describe('AcpAgentsConfig', () => {
       issueKind: 'cli_missing',
       hasConfigEntry: false,
     })).toBe(true);
+    for (const presetId of ['claude-code', 'codex']) {
+      expect(canInstallPresetCli({
+        isOhos: true,
+        presetId,
+        status: 'not_installed',
+        issueKind: 'cli_missing',
+        hasConfigEntry: false,
+      })).toBe(true);
+      expect(canInstallPresetCli({
+        isOhos: true,
+        presetId,
+        status: 'partial',
+        issueKind: 'adapter_missing',
+        hasConfigEntry: false,
+      })).toBe(true);
+    }
     expect(canInstallPresetCli({
       isOhos: true,
       presetId: 'kimi-code',
@@ -276,45 +291,38 @@ describe('AcpAgentsConfig', () => {
 
   it('shows only HarmonyOS-supported presets on HarmonyOS', () => {
     const ohosPresetIds = visiblePresetIdsForRuntime(true);
-    expect(ohosPresetIds).toContain('kimi-code');
-    expect(ohosPresetIds.filter(id => id === 'kimi-code')).toHaveLength(1);
-    expect(ohosPresetIds).toContain('qwen-code');
-    expect(ohosPresetIds.filter(id => id.startsWith('qwen-code'))).toHaveLength(1);
-    expect(ohosPresetIds).toContain('codebuddy-code');
-    expect(ohosPresetIds.filter(id => id.startsWith('codebuddy-code'))).toHaveLength(1);
-    expect(ohosPresetIds).toContain('opencode');
-    expect(ohosPresetIds).not.toContain('dsh');
-    expect(ohosPresetIds).not.toContain('omp');
-    expect(ohosPresetIds).not.toContain('claude-code');
-    expect(ohosPresetIds).not.toContain('codex');
+    expect(ohosPresetIds).toEqual([
+      'opencode',
+      'kimi-code',
+      'qwen-code',
+      'codebuddy-code',
+      'claude-code',
+      'codex',
+    ]);
 
     const desktopPresetIds = visiblePresetIdsForRuntime(false);
-    expect(desktopPresetIds).toContain('opencode');
-    expect(desktopPresetIds).toContain('dsh');
-    expect(desktopPresetIds).toContain('omp');
-    expect(desktopPresetIds).toContain('claude-code');
-    expect(desktopPresetIds).toContain('codex');
+    expect(desktopPresetIds).toEqual([
+      'opencode',
+      'kimi-code',
+      'qwen-code',
+      'codebuddy-code',
+      'omp',
+      'claude-code',
+      'codex',
+    ]);
   });
 
   it('keeps the full preset catalog available to remote hosts', () => {
     const remotePresetIds = availableRemotePresetIds();
-    expect(remotePresetIds).toContain('opencode');
-    expect(remotePresetIds).toContain('dsh');
-    expect(remotePresetIds).toContain('omp');
-    expect(remotePresetIds).toContain('claude-code');
-    expect(remotePresetIds).toContain('codex');
-    expect(remotePresetIds.filter(id => id === 'kimi-code')).toHaveLength(1);
-  });
-
-  it('marks only the verified HarmonyOS presets as managed installs', () => {
-    expect(isManagedInstallPresetForRuntime({
-      isOhos: true,
-      presetId: 'kimi-code',
-    })).toBe(true);
-    expect(isManagedInstallPresetForRuntime({
-      isOhos: true,
-      presetId: 'opencode',
-    })).toBe(false);
+    expect(remotePresetIds).toEqual([
+      'opencode',
+      'kimi-code',
+      'qwen-code',
+      'codebuddy-code',
+      'omp',
+      'claude-code',
+      'codex',
+    ]);
   });
 
   it('offers the OpenCode installation guide only when its HarmonyOS CLI is missing', () => {
@@ -784,88 +792,6 @@ describe('AcpAgentsConfig', () => {
     expect(installClientCliMock).not.toHaveBeenCalled();
     expect(saveJsonConfigMock).toHaveBeenCalledWith(expect.stringContaining('"omp"'));
     expect(notifySuccessMock).toHaveBeenCalledWith('notifications.configAddedManualCliRequired');
-  });
-
-  it('offers the one-click installer for DeepSeek Harness and launches the bundled profile', async () => {
-    probeClientRequirementsMock.mockResolvedValue([
-      {
-        id: 'dsh',
-        tool: { name: 'dsh', installed: false },
-        runnable: false,
-        notes: ['dsh is not available on PATH'],
-      },
-    ]);
-
-    await act(async () => {
-      root.render(<AcpAgentsConfig />);
-    });
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(container.textContent).toContain('DeepSeek Harness');
-    // Unlike omp, the harness is a plain npm global, so BitFun installs it.
-    // The bridge is not a separate adapter — it ships inside BitFun.
-    expect(container.textContent).not.toContain('registry.adapterMissing');
-
-    const installButtons = Array.from(container.querySelectorAll('button'))
-      .filter(button => button.textContent?.includes('actions.installCli'));
-    expect(installButtons.length).toBeGreaterThan(0);
-
-    await act(async () => {
-      installButtons[0].click();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(installClientCliMock).toHaveBeenCalledWith(
-      expect.objectContaining({ clientId: 'dsh' }),
-    );
-  });
-
-  it('adds DeepSeek Harness as a launch of the profile BitFun materializes', async () => {
-    probeClientRequirementsMock.mockResolvedValue([
-      {
-        id: 'dsh',
-        tool: { name: 'dsh', installed: true, version: '0.1.0-rc.6' },
-        runnable: true,
-        notes: [],
-      },
-    ]);
-
-    await act(async () => {
-      root.render(<AcpAgentsConfig />);
-    });
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    // Address the harness row by name: row order is whatever the saved config
-    // and the preset list happen to produce, so "the last add button" belongs
-    // to some other agent as often as not.
-    const harnessRow = Array.from(
-      container.querySelectorAll('.bitfun-acp-agents__registry-row'),
-    ).find(row => row.querySelector('.bitfun-acp-agents__registry-name')
-      ?.textContent === 'DeepSeek Harness');
-    expect(harnessRow).toBeTruthy();
-
-    const addButton = Array.from(harnessRow!.querySelectorAll('button'))
-      .find(button => button.textContent?.includes('actions.add'));
-    expect(addButton).toBeTruthy();
-
-    await act(async () => {
-      addButton!.click();
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    // The command has to name the profile BitFun materializes; a bare `dsh`
-    // would drop the user into the harness's own default composition, which
-    // does not speak ACP at all.
-    expect(saveJsonConfigMock).toHaveBeenCalledWith(expect.stringContaining('bitfun-acp'));
   });
 
   it('does not downgrade enabled agents on transient probe timeouts during refresh', async () => {

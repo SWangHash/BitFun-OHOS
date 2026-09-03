@@ -12,10 +12,13 @@ use bitfun_core::util::errors::{BitFunError, BitFunResult};
 use serde::{Deserialize, Serialize};
 
 use super::builtin_clients::{
-    builtin_acp_client_preset, BuiltinAcpClientPreset, OhosNpmManagedPreset,
+    builtin_acp_client_preset, BuiltinAcpClientPreset, OhosHarmonyBrewFormulaPreset,
+    OhosNpmManagedAdapterPreset, OhosNpmManagedPreset,
 };
 use super::config::{AcpClientRequirementProbe, AcpClientRuntimeOverride, AcpRequirementProbeItem};
-use super::ohos_node_compat::{prepare_node_command, sanitize_node_environment};
+use super::ohos_node_compat::{
+    prepare_node_child_environment, prepare_node_command, sanitize_node_environment,
+};
 use super::requirements::probe_executable_with_environment;
 
 const HARMONYBREW_PREFIX: &str = "/storage/Users/currentUser/.harmonybrew";
@@ -103,7 +106,7 @@ impl AcpClientInstallOutcome {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ManagedProvisioningRecipe {
-    HarmonyBrewFormula(&'static str),
+    HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset),
     HarmonyBrewNpm(OhosNpmManagedPreset),
 }
 
@@ -112,10 +115,13 @@ pub(crate) struct ManagedProvisioningPlan {
     pub(crate) client_id: String,
     pub(crate) brew_path: PathBuf,
     recipe: ManagedProvisioningRecipe,
+    adapter: Option<OhosNpmManagedAdapterPreset>,
     pub(crate) tool_path: PathBuf,
+    adapter_path: Option<PathBuf>,
     runtime_path: PathBuf,
     runtime_args: Vec<String>,
     tool_was_runnable: bool,
+    adapter_was_runnable: bool,
     node_was_runnable: bool,
     npm_cli_was_runnable: bool,
 }
@@ -135,63 +141,82 @@ pub(crate) async fn build_managed_provisioning_plan(
     path_manager: &PathManager,
 ) -> BitFunResult<ManagedProvisioningPlan> {
     let preset = managed_ohos_preset(client_id)?;
+    let plan = managed_plan_for_preset(preset, false, false, false, false);
     let environment = harmonybrew_process_environment();
     let working_directory = Path::new(HARMONYOS_USER_HOME);
-    if preset.ohos.formula().is_some() {
-        let expected_tool_path = format!("{HARMONYBREW_BIN}/{}", preset.tool_command);
-        let (brew, tool) = tokio::join!(
-            probe_executable_with_environment(
-                HARMONYBREW_EXECUTABLE,
-                Some(&environment),
-                Some(working_directory),
-            ),
-            probe_executable_with_environment(
-                &expected_tool_path,
-                Some(&environment),
-                Some(working_directory),
-            ),
-        );
-        if !preset.ohos.allows_managed_install()
-            && !requirement_is_exact_runnable(&tool, Path::new(&expected_tool_path))
-        {
-            return Err(BitFunError::service(format!(
-                "[ACP_PROVISIONING_CLIENT_NOT_DETECTED] ACP client '{}' is not runnable at '{}'. No installation was attempted.",
-                client_id, expected_tool_path
-            )));
-        }
-        let plan = build_formula_plan_from_environment(client_id, &brew, &tool)?;
-        return Ok(plan);
-    }
-
-    let npm = preset.ohos.npm().expect("validated HarmonyBrew npm recipe");
-    let tool_path = PathBuf::from(format!("{HARMONYBREW_PREFIX}/{}", npm.entry_relative_path));
-    let (brew, node, npm_cli, tool) = tokio::join!(
+    let needs_node = matches!(plan.recipe, ManagedProvisioningRecipe::HarmonyBrewNpm(_))
+        || plan.adapter.is_some();
+    let (brew, node, npm_cli, tool, adapter) = tokio::join!(
         probe_executable_with_environment(
             HARMONYBREW_EXECUTABLE,
             Some(&environment),
             Some(working_directory),
         ),
-        probe_executable_with_environment(
-            HARMONYBREW_NODE,
-            Some(&environment),
-            Some(working_directory),
-        ),
-        probe_node_script_with_environment(
-            HARMONYBREW_NPM_CLI,
-            "npm",
-            &environment,
-            working_directory,
-            path_manager,
-        ),
-        probe_node_script_with_environment(
-            &tool_path,
-            preset.tool_command,
-            &environment,
-            working_directory,
-            path_manager,
-        ),
+        async {
+            if needs_node {
+                probe_executable_with_environment(
+                    HARMONYBREW_NODE,
+                    Some(&environment),
+                    Some(working_directory),
+                )
+                .await
+            } else {
+                exact_requirement_item("node", Path::new(HARMONYBREW_NODE))
+            }
+        },
+        async {
+            if needs_node {
+                probe_node_script_with_environment(
+                    HARMONYBREW_NPM_CLI,
+                    "npm",
+                    &environment,
+                    working_directory,
+                    path_manager,
+                )
+                .await
+            } else {
+                exact_requirement_item("npm", Path::new(HARMONYBREW_NPM_CLI))
+            }
+        },
+        async {
+            match plan.recipe {
+                ManagedProvisioningRecipe::HarmonyBrewFormula(_) => {
+                    probe_executable_with_environment(
+                        &plan.tool_path.to_string_lossy(),
+                        Some(&environment),
+                        Some(working_directory),
+                    )
+                    .await
+                }
+                ManagedProvisioningRecipe::HarmonyBrewNpm(_) => {
+                    probe_node_script_with_environment(
+                        &plan.tool_path,
+                        preset.tool_command,
+                        &environment,
+                        working_directory,
+                        path_manager,
+                    )
+                    .await
+                }
+            }
+        },
+        async {
+            match (plan.adapter, plan.adapter_path.as_deref()) {
+                (Some(adapter), Some(adapter_path)) => {
+                    probe_node_script_with_environment(
+                        adapter_path,
+                        adapter.npm.package,
+                        &environment,
+                        working_directory,
+                        path_manager,
+                    )
+                    .await
+                }
+                _ => exact_requirement_item("adapter", Path::new("/adapter-not-required")),
+            }
+        },
     );
-    build_npm_plan_from_environment(client_id, &brew, &node, &npm_cli, &tool)
+    build_plan_from_environment(preset, &brew, &node, &npm_cli, &tool, &adapter)
 }
 
 #[cfg(target_env = "ohos")]
@@ -200,9 +225,62 @@ pub(crate) async fn probe_existing_managed_client(
     path_manager: &PathManager,
 ) -> BitFunResult<(ManagedProvisioningPlan, AcpClientRequirementProbe)> {
     let preset = managed_ohos_preset(client_id)?;
-    let plan = managed_plan_for_preset(preset, true, true, true);
+    let plan = managed_plan_for_preset(preset, true, true, true, true);
     let probe = probe_managed_installation(&plan, path_manager).await;
     Ok((plan, probe))
+}
+
+fn build_plan_from_environment(
+    preset: &'static BuiltinAcpClientPreset,
+    brew: &AcpRequirementProbeItem,
+    node: &AcpRequirementProbeItem,
+    npm_cli: &AcpRequirementProbeItem,
+    tool: &AcpRequirementProbeItem,
+    adapter: &AcpRequirementProbeItem,
+) -> BitFunResult<ManagedProvisioningPlan> {
+    let mut plan = managed_plan_for_preset(preset, false, false, false, false);
+    plan.node_was_runnable = requirement_is_exact_runnable(node, Path::new(HARMONYBREW_NODE));
+    plan.npm_cli_was_runnable =
+        requirement_is_exact_runnable(npm_cli, Path::new(HARMONYBREW_NPM_CLI));
+    plan.tool_was_runnable = requirement_is_exact_runnable(tool, &plan.tool_path)
+        && (!matches!(plan.recipe, ManagedProvisioningRecipe::HarmonyBrewNpm(_))
+            || plan.node_was_runnable);
+    plan.adapter_was_runnable = plan
+        .adapter_path
+        .as_deref()
+        .map(|path| plan.node_was_runnable && requirement_is_exact_runnable(adapter, path))
+        .unwrap_or(true);
+
+    if !plan.tool_was_runnable && !preset.ohos.allows_managed_install() {
+        return Err(BitFunError::service(format!(
+            "[ACP_PROVISIONING_CLIENT_NOT_DETECTED] ACP client '{}' is not runnable at '{}'. No installation was attempted.",
+            preset.id,
+            plan.tool_path.display()
+        )));
+    }
+
+    let needs_npm_install = (matches!(plan.recipe, ManagedProvisioningRecipe::HarmonyBrewNpm(_))
+        && !plan.tool_was_runnable)
+        || (plan.adapter.is_some() && !plan.adapter_was_runnable);
+    let needs_formula_install = matches!(
+        plan.recipe,
+        ManagedProvisioningRecipe::HarmonyBrewFormula(formula)
+            if formula.auto_install && !plan.tool_was_runnable
+    );
+    let needs_node_install =
+        needs_npm_install && (!plan.node_was_runnable || !plan.npm_cli_was_runnable);
+    if (needs_formula_install || needs_node_install)
+        && !requirement_is_exact_runnable(brew, Path::new(HARMONYBREW_EXECUTABLE))
+    {
+        return Err(BitFunError::service(format!(
+            "[ACP_PROVISIONING_PREREQUISITE_MISSING] '{}' requires a usable HarmonyBrew launcher at '{}'. Install or repair HarmonyBrew/HiShell, then retry.{}",
+            preset.id,
+            HARMONYBREW_EXECUTABLE,
+            requirement_detail(brew)
+        )));
+    }
+
+    Ok(plan)
 }
 
 fn build_formula_plan_from_environment(
@@ -211,26 +289,14 @@ fn build_formula_plan_from_environment(
     tool: &AcpRequirementProbeItem,
 ) -> BitFunResult<ManagedProvisioningPlan> {
     let preset = harmonybrew_formula_preset(client_id)?;
-    let tool_path = PathBuf::from(format!("{HARMONYBREW_BIN}/{}", preset.tool_command));
-    let tool_was_runnable = requirement_is_exact_runnable(tool, &tool_path);
-
-    if !tool_was_runnable {
-        let expected_brew_path = Path::new(HARMONYBREW_EXECUTABLE);
-        if !requirement_is_exact_runnable(brew, expected_brew_path) {
-            return Err(BitFunError::service(format!(
-                "[ACP_PROVISIONING_PREREQUISITE_MISSING] HarmonyBrew is missing or unusable at '{}'. Install or repair HarmonyBrew/HiShell, then retry.{}",
-                expected_brew_path.display(),
-                requirement_detail(brew)
-            )));
-        }
-    }
-
-    Ok(managed_plan_for_preset(
+    build_plan_from_environment(
         preset,
-        tool_was_runnable,
-        true,
-        true,
-    ))
+        brew,
+        &exact_requirement_item("node", Path::new(HARMONYBREW_NODE)),
+        &exact_requirement_item("npm", Path::new(HARMONYBREW_NPM_CLI)),
+        tool,
+        &exact_requirement_item("adapter", Path::new("/adapter-not-required")),
+    )
 }
 
 fn build_npm_plan_from_environment(
@@ -241,31 +307,14 @@ fn build_npm_plan_from_environment(
     tool: &AcpRequirementProbeItem,
 ) -> BitFunResult<ManagedProvisioningPlan> {
     let preset = harmonybrew_npm_preset(client_id)?;
-    let npm = preset.ohos.npm().expect("validated HarmonyBrew npm recipe");
-    let tool_path = PathBuf::from(format!("{HARMONYBREW_PREFIX}/{}", npm.entry_relative_path));
-    let node_path = Path::new(HARMONYBREW_NODE);
-    let npm_cli_path = Path::new(HARMONYBREW_NPM_CLI);
-    let node_was_runnable = requirement_is_exact_runnable(node, node_path);
-    let npm_cli_was_runnable = requirement_is_exact_runnable(npm_cli, npm_cli_path);
-    let tool_was_runnable = node_was_runnable && requirement_is_exact_runnable(tool, &tool_path);
-
-    if !tool_was_runnable
-        && !(node_was_runnable && npm_cli_was_runnable)
-        && !requirement_is_exact_runnable(brew, Path::new(HARMONYBREW_EXECUTABLE))
-    {
-        return Err(BitFunError::service(format!(
-            "[ACP_PROVISIONING_PREREQUISITE_MISSING] CodeBuddy requires HarmonyBrew's exact Node/npm runtime or a usable HarmonyBrew launcher at '{}'. Install or repair HarmonyBrew/HiShell, then retry.{}",
-            HARMONYBREW_EXECUTABLE,
-            requirement_detail(brew)
-        )));
-    }
-
-    Ok(managed_plan_for_preset(
+    build_plan_from_environment(
         preset,
-        tool_was_runnable,
-        node_was_runnable,
-        npm_cli_was_runnable,
-    ))
+        brew,
+        node,
+        npm_cli,
+        tool,
+        &exact_requirement_item("adapter", Path::new("/adapter-not-required")),
+    )
 }
 
 pub(crate) async fn install_managed_client(
@@ -275,21 +324,28 @@ pub(crate) async fn install_managed_client(
 ) -> BitFunResult<ManagedInstallation> {
     ensure_not_cancelled(cancelled)?;
 
-    // A working HarmonyBrew-owned Agent installation should be reused. This
-    // keeps the one-click action idempotent and avoids replacing user state.
+    let needs_npm_install = (matches!(plan.recipe, ManagedProvisioningRecipe::HarmonyBrewNpm(_))
+        && !plan.tool_was_runnable)
+        || (plan.adapter.is_some() && !plan.adapter_was_runnable);
+    if needs_npm_install && (!plan.node_was_runnable || !plan.npm_cli_was_runnable) {
+        run_brew_install(plan, "node", cancelled).await?;
+        ensure_harmonybrew_node_toolchain(path_manager).await?;
+    }
+
+    // Reuse every package-manager-owned installation that already passed its
+    // exact-path probe. Installing the adapter never replaces the Agent CLI.
     if !plan.tool_was_runnable {
         match plan.recipe {
             ManagedProvisioningRecipe::HarmonyBrewFormula(formula) => {
-                run_brew_install(plan, formula, cancelled).await?;
+                run_brew_install(plan, formula.formula, cancelled).await?;
             }
             ManagedProvisioningRecipe::HarmonyBrewNpm(npm) => {
-                if !plan.node_was_runnable || !plan.npm_cli_was_runnable {
-                    run_brew_install(plan, "node", cancelled).await?;
-                }
-                ensure_harmonybrew_node_toolchain(path_manager).await?;
                 run_harmonybrew_npm_install(plan, npm, cancelled, path_manager).await?;
             }
         }
+    }
+    if let Some(adapter) = plan.adapter.filter(|_| !plan.adapter_was_runnable) {
+        run_harmonybrew_npm_install(plan, adapter.npm, cancelled, path_manager).await?;
     }
     ensure_not_cancelled(cancelled)?;
 
@@ -302,7 +358,15 @@ pub(crate) async fn install_managed_client(
             probe.notes.join("; ")
         )));
     }
-    let runtime_override = runtime_override_from_plan(plan, &probe)?;
+    let mut runtime_override = runtime_override_from_plan(plan, &probe)?;
+    if plan
+        .adapter
+        .map(|adapter| adapter.propagate_node_compat)
+        .unwrap_or(false)
+    {
+        prepare_node_child_environment(path_manager, &plan.runtime_path, &mut runtime_override.env)
+            .await?;
+    }
 
     Ok(ManagedInstallation {
         cleanup_path: None,
@@ -494,23 +558,57 @@ async fn probe_managed_installation(
         }
     };
     tool.name = preset.tool_command.to_string();
-    let runnable = requirement_is_exact_runnable(&tool, &plan.tool_path);
-    let notes = if runnable {
-        Vec::new()
-    } else {
-        vec![tool.error.clone().unwrap_or_else(|| {
+    let tool_runnable = requirement_is_exact_runnable(&tool, &plan.tool_path);
+    let mut adapter = match (plan.adapter, plan.adapter_path.as_deref()) {
+        (Some(adapter), Some(adapter_path)) => Some(
+            probe_node_script_with_environment(
+                adapter_path,
+                adapter.npm.package,
+                &environment,
+                working_directory,
+                path_manager,
+            )
+            .await,
+        ),
+        _ => None,
+    };
+    if let (Some(item), Some(adapter)) = (adapter.as_mut(), plan.adapter) {
+        item.name = adapter.npm.package.to_string();
+    }
+    let adapter_runnable = adapter
+        .as_ref()
+        .zip(plan.adapter_path.as_deref())
+        .map(|(item, path)| requirement_is_exact_runnable(item, path))
+        .unwrap_or(true);
+    let runnable = tool_runnable && adapter_runnable;
+    let mut notes = Vec::new();
+    if !tool_runnable {
+        notes.push(tool.error.clone().unwrap_or_else(|| {
             format!(
                 "{} is not runnable at {}",
                 preset.tool_command,
                 plan.tool_path.display()
             )
-        })]
-    };
+        }));
+    }
+    if !adapter_runnable {
+        let fallback = plan
+            .adapter_path
+            .as_deref()
+            .map(|path| format!("ACP adapter is not runnable at {}", path.display()))
+            .unwrap_or_else(|| "ACP adapter is not runnable".to_string());
+        notes.push(
+            adapter
+                .as_ref()
+                .and_then(|item| item.error.clone())
+                .unwrap_or(fallback),
+        );
+    }
 
     AcpClientRequirementProbe {
         id: plan.client_id.clone(),
         tool,
-        adapter: None,
+        adapter,
         runnable,
         notes,
     }
@@ -605,36 +703,59 @@ fn harmonybrew_process_environment() -> HashMap<String, String> {
 fn managed_plan_for_preset(
     preset: &'static BuiltinAcpClientPreset,
     tool_was_runnable: bool,
+    adapter_was_runnable: bool,
     node_was_runnable: bool,
     npm_cli_was_runnable: bool,
 ) -> ManagedProvisioningPlan {
-    if let Some(formula) = preset.ohos.formula() {
-        let tool_path = PathBuf::from(format!("{HARMONYBREW_BIN}/{}", preset.tool_command));
-        return ManagedProvisioningPlan {
-            client_id: preset.id.to_string(),
-            brew_path: PathBuf::from(HARMONYBREW_EXECUTABLE),
-            recipe: ManagedProvisioningRecipe::HarmonyBrewFormula(formula),
-            runtime_path: tool_path.clone(),
-            runtime_args: preset.args.iter().map(|arg| (*arg).to_string()).collect(),
+    let (recipe, tool_path, native_runtime_path, native_runtime_args) = if let Some(formula) =
+        preset.ohos.formula()
+    {
+        let tool_path = PathBuf::from(format!(
+            "{HARMONYBREW_PREFIX}/{}",
+            formula.entry_relative_path
+        ));
+        (
+            ManagedProvisioningRecipe::HarmonyBrewFormula(formula),
+            tool_path.clone(),
             tool_path,
-            tool_was_runnable,
-            node_was_runnable,
-            npm_cli_was_runnable,
-        };
-    }
-
-    let npm = preset.ohos.npm().expect("validated HarmonyBrew npm recipe");
-    let tool_path = PathBuf::from(format!("{HARMONYBREW_PREFIX}/{}", npm.entry_relative_path));
-    let mut runtime_args = vec![tool_path.to_string_lossy().to_string()];
-    runtime_args.extend(preset.args.iter().map(|arg| (*arg).to_string()));
+            preset.args.iter().map(|arg| (*arg).to_string()).collect(),
+        )
+    } else {
+        let npm = preset.ohos.npm().expect("validated HarmonyBrew npm recipe");
+        let tool_path = PathBuf::from(format!("{HARMONYBREW_PREFIX}/{}", npm.entry_relative_path));
+        let mut runtime_args = vec![tool_path.to_string_lossy().to_string()];
+        runtime_args.extend(preset.args.iter().map(|arg| (*arg).to_string()));
+        (
+            ManagedProvisioningRecipe::HarmonyBrewNpm(npm),
+            tool_path,
+            PathBuf::from(HARMONYBREW_NODE),
+            runtime_args,
+        )
+    };
+    let adapter_path = preset.ohos_adapter.map(|adapter| {
+        PathBuf::from(format!(
+            "{HARMONYBREW_PREFIX}/{}",
+            adapter.npm.entry_relative_path
+        ))
+    });
+    let (runtime_path, runtime_args) = match adapter_path.as_ref() {
+        Some(adapter_path) => (
+            PathBuf::from(HARMONYBREW_NODE),
+            vec![adapter_path.to_string_lossy().to_string()],
+        ),
+        None => (native_runtime_path, native_runtime_args),
+    };
     ManagedProvisioningPlan {
         client_id: preset.id.to_string(),
         brew_path: PathBuf::from(HARMONYBREW_EXECUTABLE),
-        recipe: ManagedProvisioningRecipe::HarmonyBrewNpm(npm),
+        recipe,
+        adapter: preset.ohos_adapter,
         tool_path,
-        runtime_path: PathBuf::from(HARMONYBREW_NODE),
+        adapter_path,
+        runtime_path,
         runtime_args,
         tool_was_runnable,
+        adapter_was_runnable,
         node_was_runnable,
         npm_cli_was_runnable,
     }
@@ -658,13 +779,25 @@ fn runtime_override_from_plan(
         )));
     }
 
+    let preset = managed_ohos_preset(&plan.client_id)?;
+    let mut env = HashMap::from([
+        ("HOME".to_string(), HARMONYOS_USER_HOME.to_string()),
+        (
+            "HOMEBREW_PREFIX".to_string(),
+            HARMONYBREW_PREFIX.to_string(),
+        ),
+        ("PATH".to_string(), format!("{HARMONYBREW_BIN}:/system/bin")),
+    ]);
+    if let Some(adapter) = preset.ohos_adapter {
+        env.insert(
+            adapter.cli_path_env.to_string(),
+            plan.tool_path.to_string_lossy().to_string(),
+        );
+    }
     Ok(AcpClientRuntimeOverride {
         command: plan.runtime_path.to_string_lossy().to_string(),
         args: plan.runtime_args.clone(),
-        env: HashMap::from([
-            ("HOME".to_string(), HARMONYOS_USER_HOME.to_string()),
-            ("PATH".to_string(), format!("{HARMONYBREW_BIN}:/system/bin")),
-        ]),
+        env,
     })
 }
 
@@ -723,6 +856,16 @@ fn requirement_is_exact_runnable(item: &AcpRequirementProbeItem, expected: &Path
     item.installed
         && item.error.is_none()
         && item.path.as_deref() == Some(expected.to_string_lossy().as_ref())
+}
+
+fn exact_requirement_item(name: &str, path: &Path) -> AcpRequirementProbeItem {
+    AcpRequirementProbeItem {
+        name: name.to_string(),
+        installed: true,
+        version: None,
+        path: Some(path.to_string_lossy().to_string()),
+        error: None,
+    }
 }
 
 fn requirement_detail(item: &AcpRequirementProbeItem) -> String {
@@ -835,7 +978,11 @@ mod tests {
 
         assert_eq!(
             plan.recipe,
-            ManagedProvisioningRecipe::HarmonyBrewFormula("kimi-code")
+            ManagedProvisioningRecipe::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
+                formula: "kimi-code",
+                auto_install: true,
+                entry_relative_path: "bin/kimi",
+            })
         );
         assert_eq!(plan.brew_path, PathBuf::from(HARMONYBREW_EXECUTABLE));
         assert_eq!(
@@ -856,7 +1003,11 @@ mod tests {
 
         assert_eq!(
             plan.recipe,
-            ManagedProvisioningRecipe::HarmonyBrewFormula("qwen-code")
+            ManagedProvisioningRecipe::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
+                formula: "qwen-code",
+                auto_install: true,
+                entry_relative_path: "bin/qwen",
+            })
         );
         assert_eq!(plan.brew_path, PathBuf::from(HARMONYBREW_EXECUTABLE));
         assert_eq!(
@@ -899,7 +1050,10 @@ mod tests {
     #[test]
     fn opencode_formula_is_detect_only() {
         let preset = managed_ohos_preset("opencode").expect("managed OpenCode preset");
-        assert_eq!(preset.ohos.formula(), Some("opencode"));
+        assert_eq!(
+            preset.ohos.formula().map(|formula| formula.formula),
+            Some("opencode")
+        );
         assert!(!preset.ohos.allows_managed_install());
         assert!(managed_ohos_preset("kimi-code")
             .expect("managed Kimi preset")
@@ -1010,7 +1164,63 @@ mod tests {
         .to_string();
 
         assert!(error.contains("ACP_PROVISIONING_PREREQUISITE_MISSING"));
-        assert!(error.contains("HarmonyBrew's exact Node/npm runtime"));
+        assert!(error.contains("requires a usable HarmonyBrew launcher"));
+    }
+
+    #[test]
+    fn claude_npm_plan_binds_adapter_to_the_exact_cli_script() {
+        let preset = managed_ohos_preset("claude-code").expect("Claude npm preset");
+        let tool_path =
+            format!("{HARMONYBREW_PREFIX}/lib/node_modules/@anthropic-ai/claude-code/cli.js");
+        let adapter_path = format!(
+            "{HARMONYBREW_PREFIX}/lib/node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js"
+        );
+        let plan = build_plan_from_environment(
+            preset,
+            &probe("brew", false, None),
+            &probe("node", true, Some(HARMONYBREW_NODE)),
+            &probe("npm", true, Some(HARMONYBREW_NPM_CLI)),
+            &probe("claude", true, Some(&tool_path)),
+            &probe("claude-agent-acp", true, Some(&adapter_path)),
+        )
+        .expect("existing managed packages should be reusable");
+
+        assert_eq!(plan.runtime_path, PathBuf::from(HARMONYBREW_NODE));
+        assert_eq!(plan.runtime_args, vec![adapter_path.clone()]);
+        let runtime = runtime_override_from_plan(
+            &plan,
+            &AcpClientRequirementProbe {
+                id: "claude-code".to_string(),
+                tool: probe("claude", true, Some(&tool_path)),
+                adapter: Some(probe("claude-agent-acp", true, Some(&adapter_path))),
+                runnable: true,
+                notes: Vec::new(),
+            },
+        )
+        .expect("runtime override");
+        assert_eq!(
+            runtime
+                .env
+                .get("CLAUDE_CODE_EXECUTABLE")
+                .map(String::as_str),
+            Some(tool_path.as_str())
+        );
+    }
+
+    #[test]
+    fn codex_uses_harmonybrew_entries_without_changing_portable_commands() {
+        let codex = managed_plan_for_preset(
+            managed_ohos_preset("codex").expect("Codex preset"),
+            true,
+            true,
+            true,
+            true,
+        );
+        assert_eq!(
+            codex.tool_path,
+            PathBuf::from(format!("{HARMONYBREW_PREFIX}/bin/codex"))
+        );
+        assert_eq!(codex.runtime_path, PathBuf::from(HARMONYBREW_NODE));
     }
 
     #[test]

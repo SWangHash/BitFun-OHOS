@@ -48,7 +48,6 @@ use super::config::{
     AcpClientConfig, AcpClientConfigFile, AcpClientInfo, AcpClientPermissionMode,
     AcpClientRequirementProbe, AcpClientStatus, RemoteAcpClientRequirementSnapshot,
 };
-use super::dsh_profile::{ensure_bundled_profile, ensure_bundled_profile_remote};
 #[cfg(target_env = "ohos")]
 use super::managed_provisioning::probe_existing_managed_client;
 use super::managed_provisioning::{
@@ -2020,13 +2019,6 @@ impl AcpClientService {
         Child,
         StderrTail,
     )> {
-        // An agent whose runtime BitFun ships (dsh) needs it in place before the
-        // command runs, because the command's only job is to boot it.
-        if let Some(profile) = builtin_acp_client_preset(client_id).and_then(|p| p.bundled_profile)
-        {
-            ensure_bundled_profile(profile).await?;
-        }
-
         let program = resolve_configured_command(&config.command, &config.env);
         let mut args = config.args.clone();
         prepare_node_command(&self.path_manager, &program, &mut args).await?;
@@ -2137,19 +2129,6 @@ impl AcpClientService {
         let ssh_manager = remote_manager.get_ssh_manager().await.ok_or_else(|| {
             BitFunError::service("SSH manager is not available for remote ACP".to_string())
         })?;
-        // Same reason as `start_local_transport`: the command below only boots
-        // the runtime BitFun ships, so it has to be on that host first.
-        if let Some(profile) = builtin_acp_client_preset(client_id).and_then(|p| p.bundled_profile)
-        {
-            ensure_bundled_profile_remote(
-                profile,
-                config.command.trim(),
-                &config.env,
-                &ssh_manager,
-                remote_connection_id,
-            )
-            .await?;
-        }
         let transport = ssh_manager
             .open_workspace_stdio(remote_connection_id, &command)
             .await
@@ -3258,22 +3237,24 @@ mod tests {
         // thing the user already knows.
         let said = "SyntaxError: The requested module 'node:util' does not provide an export named 'parseEnv'\nNode.js v18.19.1";
         assert_eq!(
-            startup_exit_error_message("dsh", said),
-            format!("ACP client 'dsh' exited before initialization completed. It said:\n{said}")
+            startup_exit_error_message("test-agent", said),
+            format!(
+                "ACP client 'test-agent' exited before initialization completed. It said:\n{said}"
+            )
         );
 
         // An agent that died silently gets the plain sentence, not a dangling
         // colon over an empty quote.
         assert_eq!(
-            startup_exit_error_message("dsh", "   "),
-            "ACP client 'dsh' exited before initialization completed"
+            startup_exit_error_message("test-agent", "   "),
+            "ACP client 'test-agent' exited before initialization completed"
         );
     }
 
     #[tokio::test]
     async fn the_stderr_tail_keeps_the_last_lines_and_waits_for_eof() {
         let (mut writer, reader) = tokio::io::duplex(1024);
-        let tail = spawn_stderr_reader("dsh", reader);
+        let tail = spawn_stderr_reader("test-agent", reader);
 
         let mut written = String::new();
         for line in 0..STDERR_TAIL_LINES + 4 {
@@ -3435,19 +3416,5 @@ mod tests {
         assert_eq!(resolved.args, vec!["acp"]);
         assert_eq!(resolved.env.get("PORTABLE").map(String::as_str), Some("1"));
         assert!(resolved.env.get("HOME").is_none());
-    }
-
-    #[test]
-    fn resolves_builtin_dsh_config_for_remote_workspace() {
-        let resolved =
-            resolve_config_for_client(&AcpClientConfigFile::default(), "dsh", Some("remote-host"))
-                .expect("built-in DSH config");
-
-        assert_eq!(resolved.command, "dsh");
-        // A remote workspace resolves the same launch as a local one, and both
-        // transports materialize the profile first, so the command finds it
-        // there either way.
-        assert_eq!(resolved.args, vec!["--profile", "bitfun-acp"]);
-        assert!(resolved.enabled);
     }
 }

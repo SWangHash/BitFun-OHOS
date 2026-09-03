@@ -73,7 +73,6 @@
     "type-check:skin-market": "pnpm --dir src/skin-market-web type-check",
     "test:skin-market": "pnpm --dir src/skin-market-web test",
     "prepare:mobile-web": "node scripts/mobile-web-build.cjs",
-    "prepare:dsh-profile": "node scripts/prepare-dsh-profile.mjs",
     "plugin-host:install": "bun install --cwd src/apps/extension-host --frozen-lockfile",
     "plugin-host:build": "bun run --cwd src/apps/extension-host build",
     "plugin-host:prepare": "pnpm run plugin-host:install && pnpm run plugin-host:build",
