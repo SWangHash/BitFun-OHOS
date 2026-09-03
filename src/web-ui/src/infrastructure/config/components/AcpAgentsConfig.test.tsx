@@ -352,6 +352,50 @@ describe('AcpAgentsConfig', () => {
     expect(opencodeRow!.textContent).not.toContain('registry.enabled');
   });
 
+  it('shows a configured agent with enabled false as disabled instead of invalid', async () => {
+    loadJsonConfigMock.mockResolvedValue(JSON.stringify({
+      acpClients: {
+        opencode: {
+          name: 'opencode',
+          command: 'opencode',
+          args: ['acp'],
+          env: {},
+          enabled: false,
+          readonly: false,
+          permissionMode: 'ask',
+        },
+      },
+    }));
+    probeClientRequirementsMock.mockResolvedValue([{
+      id: 'opencode',
+      tool: {
+        name: 'opencode',
+        installed: true,
+        path: '/usr/bin/opencode',
+      },
+      runnable: true,
+      notes: [],
+    }]);
+
+    await act(async () => {
+      root.render(<AcpAgentsConfig />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const opencodeRow = Array.from(
+      container.querySelectorAll('.bitfun-acp-agents__registry-row'),
+    ).find(row => row.querySelector('.bitfun-acp-agents__registry-name')
+      ?.textContent === 'opencode');
+    expect(opencodeRow).toBeTruthy();
+    expect(opencodeRow!.querySelector('.bitfun-acp-agents__status.is-disabled')).not.toBeNull();
+    expect(opencodeRow!.querySelector('.bitfun-acp-agents__status.is-invalid')).toBeNull();
+    expect(opencodeRow!.textContent).toContain('registry.disabled');
+    expect(opencodeRow!.textContent).not.toContain('actions.viewError');
+  });
+
   it('renders saved remote servers as global agent rows without override controls', async () => {
     listSavedConnectionsMock.mockResolvedValue([{
       id: 'huawei-server',

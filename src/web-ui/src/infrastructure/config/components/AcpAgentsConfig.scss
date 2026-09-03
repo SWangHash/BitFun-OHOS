@@ -193,6 +193,12 @@
       color: var(--bf-appearance-token-color-success);
     }
 
+    &.is-disabled {
+      border-color: var(--bf-appearance-token-border-subtle);
+      background: var(--bf-appearance-token-element-bg-subtle);
+      color: var(--bf-appearance-token-color-text-muted);
+    }
+
     &.is-partial {
       border-color: color-mix(in srgb, var(--bf-appearance-token-color-warning) 24%, transparent);
       background: color-mix(in srgb, var(--bf-appearance-token-color-warning) 10%, transparent);
