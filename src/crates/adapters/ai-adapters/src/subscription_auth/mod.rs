@@ -16,7 +16,7 @@ mod opencode;
 mod pkce;
 pub mod store;
 
-pub use store::{set_subscription_credential_vault, set_store_path_for_test, StoredCredential};
+pub use store::{set_store_path_for_test, set_subscription_credential_vault, StoredCredential};
 
 use crate::types::ProxyConfig;
 use anyhow::{anyhow, Context, Result};
@@ -56,6 +56,23 @@ impl SubscriptionHttpOptions {
             proxy_config,
             skip_ssl_verify,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TokenRefreshPolicy {
+    WhenExpiring,
+    Force,
+}
+
+impl TokenRefreshPolicy {
+    pub(crate) fn should_refresh(
+        self,
+        expires_at_ms: i64,
+        now_ms: i64,
+        refresh_leeway_ms: i64,
+    ) -> bool {
+        self == Self::Force || expires_at_ms <= now_ms + refresh_leeway_ms
     }
 }
 
@@ -820,7 +837,7 @@ pub async fn resolve_opencode_with_options(
     opencode::resolve_for(plan, format, options).await
 }
 
-/// Forces a resolve (which refreshes and saves), then returns the account entry.
+/// Forces a provider refresh, then returns the persisted account entry.
 pub async fn refresh_account(provider: SubscriptionProvider) -> Result<SubscriptionAccount> {
     refresh_account_with_options(provider, &SubscriptionHttpOptions::default()).await
 }
@@ -831,10 +848,9 @@ pub async fn refresh_account_with_options(
     options: &SubscriptionHttpOptions,
 ) -> Result<SubscriptionAccount> {
     match provider {
+        SubscriptionProvider::Codex => codex::refresh_account(options).await?,
+        SubscriptionProvider::Antigravity => antigravity::refresh_account(options).await?,
         SubscriptionProvider::Opencode => opencode::refresh_profile(options).await?,
-        _ => {
-            resolve_with_options(provider, options).await?;
-        }
     }
     Ok(account_snapshot(provider).await)
 }
@@ -866,6 +882,20 @@ mod tests {
 
     fn test_session_id() -> String {
         uuid::Uuid::new_v4().to_string()
+    }
+
+    #[test]
+    fn manual_refresh_forces_unexpired_oauth_tokens_to_refresh() {
+        let now_ms = 1_800_000_000_000;
+        let expires_at_ms = now_ms + 60 * 60 * 1000;
+        let refresh_leeway_ms = 5 * 60 * 1000;
+
+        assert!(!TokenRefreshPolicy::WhenExpiring.should_refresh(
+            expires_at_ms,
+            now_ms,
+            refresh_leeway_ms,
+        ));
+        assert!(TokenRefreshPolicy::Force.should_refresh(expires_at_ms, now_ms, refresh_leeway_ms,));
     }
 
     #[test]
