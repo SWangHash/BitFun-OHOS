@@ -8,6 +8,13 @@ const LEGACY_CLAUDE_ACP_ARGS: &[&str] = &["--yes", "@zed-industries/claude-code-
 const CODEX_ACP_PACKAGE: &str = "@agentclientprotocol/codex-acp";
 const CODEX_ACP_ARGS: &[&str] = &["--yes", "@agentclientprotocol/codex-acp@latest"];
 const LEGACY_CODEX_ACP_ARGS: &[&str] = &["--yes", "@zed-industries/codex-acp@latest"];
+const CLAUDE_CODE_OHOS_VERSION: &str = "2.1.112";
+// 0.29.1 depends on claude-agent-sdk 0.2.112, matching the pinned CLI release.
+const CLAUDE_ACP_OHOS_VERSION: &str = "0.29.1";
+// HarmonyBrew currently packages Codex 0.151. codex-acp 1.8 moved its
+// app-server baseline to Codex 0.152, while 1.7 targets the preceding protocol
+// generation and remains the safer adapter for the packaged OHOS binary.
+const CODEX_ACP_OHOS_VERSION: &str = "1.7.0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct OhosNpmManagedPreset {
@@ -20,6 +27,14 @@ pub(crate) struct OhosNpmManagedPreset {
 pub(crate) struct OhosHarmonyBrewFormulaPreset {
     pub(crate) formula: &'static str,
     pub(crate) auto_install: bool,
+    pub(crate) entry_relative_path: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OhosNpmManagedAdapterPreset {
+    pub(crate) npm: OhosNpmManagedPreset,
+    pub(crate) cli_path_env: &'static str,
+    pub(crate) propagate_node_compat: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,9 +49,9 @@ impl OhosAcpSupport {
         !matches!(self, Self::Unsupported)
     }
 
-    pub(crate) fn formula(self) -> Option<&'static str> {
+    pub(crate) fn formula(self) -> Option<OhosHarmonyBrewFormulaPreset> {
         match self {
-            Self::HarmonyBrewFormula(preset) => Some(preset.formula),
+            Self::HarmonyBrewFormula(preset) => Some(preset),
             Self::Unsupported | Self::HarmonyBrewNpm(_) => None,
         }
     }
@@ -70,6 +85,11 @@ pub(crate) struct BuiltinAcpClientPreset {
     /// Optional local HarmonyOS strategy. Standard local and remote hosts keep
     /// using the portable command and npm metadata above.
     pub(crate) ohos: OhosAcpSupport,
+    /// Optional ACP adapter installed with HarmonyBrew's exact Node/npm
+    /// toolchain. Its runtime is bound to the managed CLI through
+    /// `cli_path_env`, so an HNP or system executable cannot be selected by
+    /// accident.
+    pub(crate) ohos_adapter: Option<OhosNpmManagedAdapterPreset>,
     pub(crate) adapter_package: Option<&'static str>,
     pub(crate) adapter_bin: Option<&'static str>,
     /// A profile directory BitFun ships and copies into the agent's own home
@@ -101,7 +121,9 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         ohos: OhosAcpSupport::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
             formula: "opencode",
             auto_install: false,
+            entry_relative_path: "bin/opencode",
         }),
+        ohos_adapter: None,
         adapter_package: None,
         adapter_bin: None,
         bundled_profile: None,
@@ -118,7 +140,9 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         ohos: OhosAcpSupport::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
             formula: "kimi-code",
             auto_install: true,
+            entry_relative_path: "bin/kimi",
         }),
+        ohos_adapter: None,
         adapter_package: None,
         adapter_bin: None,
         bundled_profile: None,
@@ -135,7 +159,9 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         ohos: OhosAcpSupport::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
             formula: "qwen-code",
             auto_install: true,
+            entry_relative_path: "bin/qwen",
         }),
+        ohos_adapter: None,
         adapter_package: None,
         adapter_bin: None,
         bundled_profile: None,
@@ -155,6 +181,7 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
             install_version: "2.138.0",
             entry_relative_path: "lib/node_modules/@tencent-ai/codebuddy-code/bin/codebuddy",
         }),
+        ohos_adapter: None,
         adapter_package: None,
         adapter_bin: None,
         bundled_profile: None,
@@ -171,6 +198,7 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         tool_command: "dsh",
         install_package: Some("@deepseek-ai/dsh"),
         ohos: OhosAcpSupport::Unsupported,
+        ohos_adapter: None,
         adapter_package: None,
         adapter_bin: None,
         bundled_profile: Some(DSH_BUNDLED_PROFILE),
@@ -188,6 +216,7 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         tool_command: "omp",
         install_package: None,
         ohos: OhosAcpSupport::Unsupported,
+        ohos_adapter: None,
         adapter_package: None,
         adapter_bin: None,
         bundled_profile: None,
@@ -198,7 +227,21 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         args: CLAUDE_ACP_ARGS,
         tool_command: "claude",
         install_package: Some("@anthropic-ai/claude-code"),
-        ohos: OhosAcpSupport::Unsupported,
+        ohos: OhosAcpSupport::HarmonyBrewNpm(OhosNpmManagedPreset {
+            package: "@anthropic-ai/claude-code",
+            install_version: CLAUDE_CODE_OHOS_VERSION,
+            entry_relative_path: "lib/node_modules/@anthropic-ai/claude-code/cli.js",
+        }),
+        ohos_adapter: Some(OhosNpmManagedAdapterPreset {
+            npm: OhosNpmManagedPreset {
+                package: CLAUDE_ACP_PACKAGE,
+                install_version: CLAUDE_ACP_OHOS_VERSION,
+                entry_relative_path:
+                    "lib/node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js",
+            },
+            cli_path_env: "CLAUDE_CODE_EXECUTABLE",
+            propagate_node_compat: true,
+        }),
         adapter_package: Some(CLAUDE_ACP_PACKAGE),
         adapter_bin: Some("claude-agent-acp"),
         bundled_profile: None,
@@ -209,7 +252,21 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         args: CODEX_ACP_ARGS,
         tool_command: "codex",
         install_package: Some("@openai/codex"),
-        ohos: OhosAcpSupport::Unsupported,
+        ohos: OhosAcpSupport::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
+            formula: "codex",
+            auto_install: true,
+            entry_relative_path: "bin/codex",
+        }),
+        ohos_adapter: Some(OhosNpmManagedAdapterPreset {
+            npm: OhosNpmManagedPreset {
+                package: CODEX_ACP_PACKAGE,
+                install_version: CODEX_ACP_OHOS_VERSION,
+                entry_relative_path:
+                    "lib/node_modules/@agentclientprotocol/codex-acp/dist/index.js",
+            },
+            cli_path_env: "CODEX_PATH",
+            propagate_node_compat: false,
+        }),
         adapter_package: Some(CODEX_ACP_PACKAGE),
         adapter_bin: Some("codex-acp"),
         bundled_profile: None,
@@ -309,7 +366,10 @@ mod tests {
         assert_eq!(kimi.command, "kimi");
         assert_eq!(kimi.args, &["acp"]);
         assert_eq!(kimi.install_package, Some("@moonshot-ai/kimi-code"));
-        assert_eq!(kimi.ohos, OhosAcpSupport::HarmonyBrewFormula("kimi-code"));
+        assert_eq!(
+            kimi.ohos.formula().map(|formula| formula.formula),
+            Some("kimi-code")
+        );
         assert!(kimi.adapter_package.is_none());
         assert!(kimi.adapter_bin.is_none());
 
@@ -317,7 +377,10 @@ mod tests {
         assert_eq!(qwen.command, "qwen");
         assert_eq!(qwen.args, &["--acp"]);
         assert_eq!(qwen.install_package, Some("@qwen-code/qwen-code"));
-        assert_eq!(qwen.ohos, OhosAcpSupport::HarmonyBrewFormula("qwen-code"));
+        assert_eq!(
+            qwen.ohos.formula().map(|formula| formula.formula),
+            Some("qwen-code")
+        );
         assert!(qwen.adapter_package.is_none());
         assert!(qwen.adapter_bin.is_none());
 
@@ -342,7 +405,41 @@ mod tests {
                 .filter(|preset| preset.supports_ohos())
                 .map(|preset| preset.id)
                 .collect::<Vec<_>>(),
-            vec!["opencode", "kimi-code", "qwen-code", "codebuddy-code"]
+            vec![
+                "opencode",
+                "kimi-code",
+                "qwen-code",
+                "codebuddy-code",
+                "claude-code",
+                "codex"
+            ]
+        );
+    }
+
+    #[test]
+    fn ohos_adapter_presets_bind_to_exact_managed_cli_paths() {
+        let claude_npm = builtin_acp_client_preset("claude-code").expect("Claude npm preset");
+        assert_eq!(
+            claude_npm.ohos.npm(),
+            Some(OhosNpmManagedPreset {
+                package: "@anthropic-ai/claude-code",
+                install_version: CLAUDE_CODE_OHOS_VERSION,
+                entry_relative_path: "lib/node_modules/@anthropic-ai/claude-code/cli.js",
+            })
+        );
+        assert_eq!(
+            claude_npm.ohos_adapter.map(|adapter| adapter.cli_path_env),
+            Some("CLAUDE_CODE_EXECUTABLE")
+        );
+
+        let codex = builtin_acp_client_preset("codex").expect("Codex preset");
+        assert_eq!(
+            codex.ohos.formula().map(|formula| formula.formula),
+            Some("codex")
+        );
+        assert_eq!(
+            codex.ohos_adapter.map(|adapter| adapter.cli_path_env),
+            Some("CODEX_PATH")
         );
     }
 

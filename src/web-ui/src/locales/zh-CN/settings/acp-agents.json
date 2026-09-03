@@ -46,8 +46,14 @@
     "opencode": { "description": "原生支持 ACP" },
     "dsh": { "description": "通过 BitFun 内置 ACP 桥接，沿用 dsh 的模型与 API 密钥" },
     "omp": { "description": "原生支持 ACP" },
-    "claudeCode": { "description": "通过官方 ACP 适配器连接" },
-    "codex": { "description": "通过官方 ACP 适配器连接" }
+    "claudeCode": {
+      "name": "Claude Code",
+      "description": "使用 HarmonyBrew Node/npm 安装，并通过 ACP 适配器接入的编码 Agent。"
+    },
+    "codex": {
+      "name": "Codex",
+      "description": "通过 HarmonyBrew 安装，并由 ACP 适配器接入的编码 Agent。"
+    }
   },
   "json": {
     "title": "高级 JSON 配置",

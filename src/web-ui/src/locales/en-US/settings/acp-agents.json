@@ -46,8 +46,14 @@
     "opencode": { "description": "Native ACP support." },
     "dsh": { "description": "Uses BitFun's bundled ACP bridge and the model settings from dsh." },
     "omp": { "description": "Native ACP support." },
-    "claudeCode": { "description": "Connects through the official ACP adapter." },
-    "codex": { "description": "Connects through the official ACP adapter." }
+    "claudeCode": {
+      "name": "Claude Code",
+      "description": "Claude Code installed with HarmonyBrew Node/npm and connected through the ACP adapter."
+    },
+    "codex": {
+      "name": "Codex",
+      "description": "Codex installed through HarmonyBrew and connected through the ACP adapter."
+    }
   },
   "json": {
     "title": "Advanced JSON configuration",

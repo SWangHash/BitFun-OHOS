@@ -45,6 +45,13 @@ const OHOS_MANAGED_INSTALL_PRESET_IDS = new Set([
   'kimi-code',
   'qwen-code',
   'codebuddy-code',
+  'claude-code',
+  'codex',
+]);
+
+const OHOS_MANAGED_ADAPTER_PRESET_IDS = new Set([
+  'claude-code',
+  'codex',
 ]);
 
 const OHOS_SUPPORTED_PRESET_IDS = new Set([
@@ -172,18 +179,11 @@ export function canInstallPresetCli({
   if (isOhos) {
     if (!OHOS_SUPPORTED_PRESET_IDS.has(presetId)) return false;
     if (status === 'ready' && !hasConfigEntry) return true;
+    if (status === 'partial' && issueKind === 'adapter_missing') {
+      return OHOS_MANAGED_ADAPTER_PRESET_IDS.has(presetId);
+    }
     if (status !== 'not_installed') return false;
     return OHOS_MANAGED_INSTALL_PRESET_IDS.has(presetId);
   }
   return status === 'not_installed' && !SELF_MANAGED_INSTALL_PRESET_IDS.has(presetId);
-}
-
-export function isManagedInstallPresetForRuntime({
-  isOhos,
-  presetId,
-}: {
-  isOhos: boolean;
-  presetId: string;
-}): boolean {
-  return isOhos && OHOS_MANAGED_INSTALL_PRESET_IDS.has(presetId);
 }

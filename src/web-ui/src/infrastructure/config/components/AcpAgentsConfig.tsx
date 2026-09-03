@@ -53,7 +53,6 @@ import {
   availableRemotePresetIds,
   canInstallPresetCli,
   getManualInstallGuide,
-  isManagedInstallPresetForRuntime,
   presetsForRuntime,
   type AcpClientPreset,
   type AgentRowStatus,
@@ -1285,6 +1284,35 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     });
   }, [notifyError, t]);
 
+  const ohosPresetCopy: Record<string, { name: string; description: string }> = IS_OHOS
+    ? {
+        opencode: {
+          name: t('presets.openCode.name'),
+          description: t('presets.openCode.description'),
+        },
+        'kimi-code': {
+          name: t('presets.kimiCode.name'),
+          description: t('presets.kimiCode.description'),
+        },
+        'qwen-code': {
+          name: t('presets.qwenCode.name'),
+          description: t('presets.qwenCode.description'),
+        },
+        'codebuddy-code': {
+          name: t('presets.codeBuddyCode.name'),
+          description: t('presets.codeBuddyCode.description'),
+        },
+        'claude-code': {
+          name: t('presets.claudeCode.name'),
+          description: t('presets.claudeCode.description'),
+        },
+        codex: {
+          name: t('presets.codex.name'),
+          description: t('presets.codex.description'),
+        },
+      }
+    : {};
+
   const remoteAgentIds = useMemo(() => {
     const ids = new Set<string>([
       ...availableRemotePresetIds(),
@@ -1645,16 +1673,12 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                   issueKind,
                   hasConfigEntry,
                 });
-                const managedInstallPreset = isManagedInstallPresetForRuntime({
-                  isOhos: IS_OHOS,
-                  presetId: preset.id,
-                });
                 const manualInstallGuide = getManualInstallGuide({
                   isOhos: IS_OHOS,
                   presetId: preset.id,
                   status,
                 });
-                const ohosOpenCodePreset = IS_OHOS && preset.id === 'opencode';
+                const presetCopy = ohosPresetCopy[preset.id];
                 const canConfigureAcp = !requiresAdapter
                   ? false
                   : issueKind === 'adapter_missing' || (status === 'partial' && issueKind === 'config_invalid');
@@ -1681,20 +1705,10 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                       </span>
                       <div className="bitfun-acp-agents__registry-copy">
                         <OverflowText className="bitfun-acp-agents__registry-name">
-                          {ohosOpenCodePreset
-                            ? t('presets.openCode.name')
-                            : managedInstallPreset
-                            ? preset.id === 'codebuddy-code'
-                              ? t('presets.codeBuddyCode.name')
-                              : preset.id === 'qwen-code'
-                                ? t('presets.qwenCode.name')
-                                : t('presets.kimiCode.name')
-                            : preset.name}
+                          {presetCopy?.name ?? preset.name}
                         </OverflowText>
                         <p className="bitfun-acp-agents__registry-description">
-                          {formatStandaloneUiText(ohosOpenCodePreset
-                            ? t('presets.openCode.description')
-                            : getPresetDescription(preset.id))}
+                          {formatStandaloneUiText(presetCopy?.description ?? getPresetDescription(preset.id))}
                         </p>
                       </div>
                     </div>
