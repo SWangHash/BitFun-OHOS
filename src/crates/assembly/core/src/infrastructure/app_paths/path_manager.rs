@@ -92,16 +92,7 @@ impl PathManager {
     /// - macOS: ~/Library/Application Support/bitfun/
     /// - Linux: ~/.config/bitfun/
     fn get_user_config_root() -> BitFunResult<PathBuf> {
-        if let Some(path) =
-            Self::env_path("BITFUN_USER_ROOT").or_else(|| Self::env_path("BITFUN_E2E_USER_ROOT"))
-        {
-            return Ok(path);
-        }
-
-        let config_dir = dirs::config_dir()
-            .ok_or_else(|| BitFunError::config("Failed to get config directory".to_string()))?;
-
-        Ok(config_dir.join("bitfun"))
+        Ok(PathBuf::from("/data/storage/el2/base/files/bitfun"))
     }
 
     fn get_bitfun_home_override() -> Option<PathBuf> {
