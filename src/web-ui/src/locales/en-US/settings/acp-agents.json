@@ -38,6 +38,17 @@
     "codeBuddyCode": {
       "name": "CodeBuddy Code",
       "description": "Native ACP coding agent that runs on HarmonyBrew Node."
+    },
+    "deepSeekHarness": {
+      "description": "DeepSeek Harness installed through HarmonyBrew and connected through BitFun's bundled ACP bridge."
+    },
+    "claudeCode": {
+      "name": "Claude Code",
+      "description": "Claude Code installed with HarmonyBrew Node/npm and connected through the ACP adapter."
+    },
+    "codex": {
+      "name": "Codex",
+      "description": "Codex installed through HarmonyBrew and connected through the ACP adapter."
     }
   },
   "json": {
