@@ -774,6 +774,12 @@ impl SkillRegistry {
                     Ok(mut skill_data) => {
                         cacheable &= Self::apply_local_openai_policy(&mut skill_data, &path).await;
                         skill_data.dir_name = dir_name;
+                        if let Ok(market_source) = fs::read_to_string(path.join(".market-source")).await {
+                            let trimmed = market_source.trim();
+                            if !trimmed.is_empty() {
+                                skill_data.market_install_id = Some(trimmed.to_string());
+                            }
+                        }
                         let key_prefix = match entry.level {
                             SkillLocation::User => USER_SKILL_KEY_PREFIX,
                             SkillLocation::Project => PROJECT_SKILL_KEY_PREFIX,

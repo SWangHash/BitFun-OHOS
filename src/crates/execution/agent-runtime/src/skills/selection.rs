@@ -48,6 +48,7 @@ impl SkillCandidate {
                 allow_implicit_invocation: data.allow_implicit_invocation,
                 allow_user_invocation: data.allow_user_invocation,
                 argument_hint: data.argument_hint,
+                market_install_id: data.market_install_id,
             },
             priority,
         }
@@ -341,6 +342,7 @@ mod tests {
                 allow_implicit_invocation: true,
                 allow_user_invocation: true,
                 argument_hint: None,
+                market_install_id: None,
             },
             priority: 0,
         }

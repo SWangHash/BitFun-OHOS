@@ -113,8 +113,12 @@ const SkillsScene: React.FC = () => {
     enabled: desktopConfigAvailable,
   });
 
-  const installedSkillNames = useMemo(
-    () => new Set(installed.skills.map((skill) => skill.name)),
+  const installedInstallIds = useMemo(
+    () => new Set(
+      installed.skills
+        .map((skill) => skill.marketInstallId)
+        .filter((id): id is string => Boolean(id)),
+    ),
     [installed.skills],
   );
   const installedMatrixEnNames = useMemo(
@@ -124,6 +128,21 @@ const SkillsScene: React.FC = () => {
         .map((skill) => skill.dirName),
     ),
     [installed.skills],
+  );
+  const installedDirNamesByLevel = useMemo(
+    () => {
+      const user = new Set<string>();
+      const project = new Set<string>();
+      for (const skill of installed.skills) {
+        (skill.level === 'user' ? user : project).add(skill.dirName);
+      }
+      return { user, project };
+    },
+    [installed.skills],
+  );
+  const isMarketSkillInstalled = useCallback(
+    (skill: SkillMarketItem): boolean => installedInstallIds.has(skill.installId),
+    [installedInstallIds],
   );
   const coverageSourceBySkillKey = useMemo(
     () => buildSkillCoverageSourceMap(installed.skills, t('list.item.unknownSource')),
@@ -157,7 +176,8 @@ const SkillsScene: React.FC = () => {
 
   const market = useSkillMarket({
     searchQuery: marketQuery,
-    installedSkillNames,
+    isMarketSkillInstalled,
+    installedDirNamesByLevel,
     pageSize: 12,
     enabled: desktopConfigAvailable,
     onInstalledChanged: async () => {
@@ -594,7 +614,7 @@ const SkillsScene: React.FC = () => {
 
                   <div className="skills-discover__grid" data-testid="skill-list" data-bf-scene="skills" data-bf-part="list">
                     {market.marketSkills.map((skill) => {
-                      const isInstalled = installedSkillNames.has(skill.name);
+                      const isInstalled = isMarketSkillInstalled(skill);
                       const isDownloading = market.downloadingPackage === skill.installId;
                       return (
                         <SkillCard
@@ -744,7 +764,7 @@ const SkillsScene: React.FC = () => {
                   : t('list.item.project')}
             </Badge>
           </>
-        ) : selectedMarketSkill && installedSkillNames.has(selectedMarketSkill.name) ? (
+        ) : selectedMarketSkill && isMarketSkillInstalled(selectedMarketSkill) ? (
           <Badge variant="success">
             <CheckCircle2 size={11} />
             {t('market.item.installed')}
@@ -780,7 +800,7 @@ const SkillsScene: React.FC = () => {
           </Button>
         ) : selectedMarketSkill ? (
           <>
-            {installedSkillNames.has(selectedMarketSkill.name) ? (
+            {selectedMarketSkill && isMarketSkillInstalled(selectedMarketSkill) ? (
               <Button variant="secondary" size="small" disabled>
                 {t('market.item.installed')}
               </Button>

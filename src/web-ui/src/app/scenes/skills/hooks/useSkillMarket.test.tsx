@@ -40,18 +40,39 @@ vi.mock('@/shared/notification-system', () => ({
   useNotification: () => notificationMocks,
 }));
 
+interface HarnessProps {
+  enabled: boolean;
+  installedDirNamesByLevel?: { user: Set<string>; project: Set<string> };
+  isMarketSkillInstalled?: (skill: SkillMarketItem) => boolean;
+}
+
 let currentMarket: ReturnType<typeof useSkillMarket> | null = null;
 
-function Harness({ enabled }: { enabled: boolean }) {
+function Harness({
+  enabled,
+  installedDirNamesByLevel = { user: new Set<string>(), project: new Set<string>() },
+  isMarketSkillInstalled = () => false,
+}: HarnessProps) {
   const market = useSkillMarket({
     searchQuery: '',
-    installedSkillNames: new Set(),
+    isMarketSkillInstalled,
+    installedDirNamesByLevel,
     enabled,
     onInstalledChanged: installedChangedMock,
   });
   currentMarket = market;
   return <span>{market.marketLoading ? 'loading' : 'idle'}</span>;
 }
+
+const SKILL_FOO: SkillMarketItem = {
+  id: 'foo',
+  name: 'foo',
+  description: '',
+  source: 'test',
+  installs: 0,
+  url: 'https://example.com/foo',
+  installId: 'org/repo@foo',
+};
 
 describe('useSkillMarket', () => {
   let container: HTMLDivElement;
@@ -63,7 +84,7 @@ describe('useSkillMarket', () => {
     root = createRoot(container);
     listSkillMarketMock.mockReset().mockResolvedValue([]);
     searchSkillMarketMock.mockReset().mockResolvedValue([]);
-    downloadSkillMarketMock.mockReset();
+    downloadSkillMarketMock.mockReset().mockResolvedValue({ installedSkills: ['foo'] });
     getSkillDescriptionsMock.mockReset().mockResolvedValue({});
     installedChangedMock.mockReset();
     notificationMocks.success.mockReset();
@@ -163,5 +184,47 @@ describe('useSkillMarket', () => {
     expect(notificationMocks.success).not.toHaveBeenCalled();
     expect(notificationMocks.error).not.toHaveBeenCalled();
     expect(installedChangedMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks download with an error when the same-level dirName is already installed', async () => {
+    await act(async () => {
+      root.render(
+        <Harness
+          enabled
+          installedDirNamesByLevel={{ user: new Set<string>(), project: new Set(['foo']) }}
+        />
+      );
+      await Promise.resolve();
+    });
+
+    let download: Promise<void> | undefined;
+    await act(async () => {
+      download = currentMarket?.handleDownload(SKILL_FOO, 'project');
+      await download;
+    });
+
+    expect(notificationMocks.error).toHaveBeenCalledTimes(1);
+    expect(notificationMocks.error).toHaveBeenCalledWith('messages.nameConflict');
+    expect(downloadSkillMarketMock).not.toHaveBeenCalled();
+    expect(installedChangedMock).not.toHaveBeenCalled();
+  });
+
+  it('allows download when the dirName exists only in a different level', async () => {
+    await act(async () => {
+      root.render(
+        <Harness
+          enabled
+          installedDirNamesByLevel={{ user: new Set(['foo']), project: new Set<string>() }}
+        />
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await currentMarket?.handleDownload(SKILL_FOO, 'project');
+    });
+
+    expect(notificationMocks.error).not.toHaveBeenCalled();
+    expect(downloadSkillMarketMock).toHaveBeenCalledTimes(1);
   });
 });

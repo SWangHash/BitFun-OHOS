@@ -409,6 +409,8 @@ export interface SkillInfo {
   allowUserInvocation?: boolean;
   /** Optional usage hint displayed by invocation pickers. */
   argumentHint?: string | null;
+  /** Market install identifier (source@name), present only for market-installed skills. */
+  marketInstallId?: string;
 }
 
 export interface ModeSkillInfo extends SkillInfo {

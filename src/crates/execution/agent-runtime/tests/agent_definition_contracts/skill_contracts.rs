@@ -32,6 +32,7 @@ fn builtin_skill(dir_name: &str) -> SkillInfo {
         allow_implicit_invocation: true,
         allow_user_invocation: true,
         argument_hint: None,
+        market_install_id: None,
     }
 }
 
@@ -53,6 +54,7 @@ fn custom_user_skill(dir_name: &str) -> SkillInfo {
         allow_implicit_invocation: true,
         allow_user_invocation: true,
         argument_hint: None,
+        market_install_id: None,
     }
 }
 
@@ -275,6 +277,7 @@ fn project_skill(dir_name: &str) -> SkillInfo {
         allow_implicit_invocation: true,
         allow_user_invocation: true,
         argument_hint: None,
+        market_install_id: None,
     }
 }
 

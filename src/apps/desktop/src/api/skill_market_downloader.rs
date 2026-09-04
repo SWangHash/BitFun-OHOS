@@ -111,6 +111,10 @@ pub async fn install_skill_from_market(
         target_dir.display()
     );
 
+    // Persist the market install id so the scanner can report precise
+    // installed-status matching instead of relying on the display name.
+    let _ = fs::write(target_dir.join(".market-source"), trimmed).await;
+
     Ok(InstallOutcome { skill_dir_name, target_dir })
 }
 

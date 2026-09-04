@@ -270,6 +270,7 @@
     "toggleFailed": "Failed to toggle: {{error}}",
     "marketDownloadSuccess": "Skill \"{{name}}\" downloaded successfully",
     "marketDownloadFailed": "Failed to download: {{error}}",
+    "nameConflict": "A skill named \"{{name}}\" is already installed. Uninstall the existing one before installing this.",
     "enabled": "enabled",
     "disabled": "disabled",
     "revealPathFailed": "Could not open in file explorer: {{error}}"
