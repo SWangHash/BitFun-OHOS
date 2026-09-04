@@ -306,7 +306,6 @@ export class ReviewPlatformAPI {
         request: { repositoryPath, remoteId, page, perPage },
       });
     } catch (error) {
-      log.error('Failed to load review platform snapshot', { repositoryPath, remoteId, page, perPage, error });
       throw createTauriCommandError('review_platform_get_workspace_snapshot', error, {
         repositoryPath,
         remoteId,
