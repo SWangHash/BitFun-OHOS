@@ -4305,6 +4305,77 @@ fn parse_repository_root_output(output: &str) -> Result<String, ReviewPlatformEr
         })
 }
 
+async fn resolve_git_program(current_dir: &Path) -> PathBuf {
+    #[cfg(not(unix))]
+    let _ = current_dir;
+
+    if let Some(path) = std::env::var_os("PATH").and_then(|value| {
+        std::env::split_paths(&value).find_map(|directory| {
+            let candidate = directory.join(if cfg!(windows) { "git.exe" } else { "git" });
+            candidate.is_file().then_some(candidate)
+        })
+    }) {
+        return path;
+    }
+
+    #[cfg(unix)]
+    {
+        let home = harmony_user_home(current_dir);
+        let candidates = [
+            (
+                "zsh",
+                ["-lic", "command -v git"].as_slice(),
+            ),
+            (
+                "sh",
+                [
+                    "-lc",
+                    "[ -r \"$HOME/.zshrc\" ] && . \"$HOME/.zshrc\"; command -v git",
+                ]
+                .as_slice(),
+            ),
+        ];
+        for (shell, args) in candidates {
+            let mut command = process_manager::create_tokio_command(shell);
+            command.args(args);
+            if let Some(home) = home.as_ref() {
+                command.env("HOME", home);
+                command.current_dir(home);
+            } else {
+                command.current_dir("/");
+            }
+            match command.output().await {
+                Ok(output) if output.status.success() => {
+                    if let Some(path) = String::from_utf8_lossy(&output.stdout)
+                        .lines()
+                        .map(str::trim)
+                        .find(|line| line.starts_with('/') && line.ends_with("/git"))
+                        .map(PathBuf::from)
+                        .filter(|path| path.is_file())
+                    {
+                        return path;
+                    }
+                }
+                Ok(_) | Err(_) => {}
+            }
+        }
+    }
+
+    PathBuf::from(if cfg!(windows) { "git.exe" } else { "git" })
+}
+
+#[cfg(unix)]
+fn harmony_user_home(path: &Path) -> Option<PathBuf> {
+    let mut components = path.components();
+    while let Some(component) = components.next() {
+        if component.as_os_str() == "Users" {
+            let user = components.next()?.as_os_str();
+            return Some(Path::new("/storage/Users").join(user));
+        }
+    }
+    None
+}
+
 async fn execute_git_command(
     current_dir: &str,
     args: &[&str],
@@ -4316,7 +4387,8 @@ async fn execute_git_command(
         current_dir_path
     };
 
-    let output = process_manager::create_tokio_command("git")
+    let git_program = resolve_git_program(current_dir_path).await;
+    let output = process_manager::create_tokio_command(&git_program)
         .current_dir(current_dir_path)
         .args(args)
         .output()
