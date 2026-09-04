@@ -201,6 +201,31 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     });
   }, [questions, awaitingPayload, status, optionValue]);
 
+  // Selecting "Other" swaps the option row for the free-text input. React's
+  // autoFocus runs at commit, but the browser's click default-action focus
+  // handling runs afterwards and targets the just-unmounted radio, dropping
+  // focus to <body> — the next keystroke then lands in the chat composer.
+  // Re-focus the new input one frame later, after the click settles.
+  const otherInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  useEffect(() => {
+    const raf = window.requestAnimationFrame(() => {
+      if (document.activeElement !== document.body) return;
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (q.inputPlaceholder) continue;
+        const answer = answers[i];
+        const isOther = q.multiSelect
+          ? Array.isArray(answer) && answer.includes('Other')
+          : answer === 'Other';
+        if (isOther && otherInputRefs.current[i]) {
+          otherInputRefs.current[i]?.focus({ preventScroll: true });
+          break;
+        }
+      }
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [answers, questions]);
+
   const { cardRootRef, applyExpandedState } = useToolCardHeightContract({
     toolId,
     toolName: toolItem.toolName,
@@ -580,6 +605,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
                 onChange={(e) => handleOtherInputChange(questionIndex, e.target.value)}
                 disabled={isSubmitted || status === 'completed' || Boolean(isParamsStreaming)}
                 autoFocus
+                ref={(el) => { otherInputRefs.current[questionIndex] = el; }}
               />
             </div>
           )}
