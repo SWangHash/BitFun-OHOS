@@ -208,8 +208,11 @@ pub struct FileSnapshotSystem {
     active_snapshots: HashMap<String, FileSnapshot>,
     compression_enabled: bool,
     dedup_enabled: bool,
+    streamed_snapshot_threshold: u64,
     baseline_cache: BaselineCache,
 }
+
+const SNAPSHOT_ENCODING_SNIFF_LIMIT_BYTES: u64 = 8 * 1024;
 
 impl FileSnapshotSystem {
     /// Creates a new file snapshot system.
@@ -224,6 +227,7 @@ impl FileSnapshotSystem {
             active_snapshots: HashMap::new(),
             compression_enabled: true,
             dedup_enabled: true,
+            streamed_snapshot_threshold: 32 * 1024 * 1024,
             baseline_cache: BaselineCache::new(runtime_context.snapshot_baselines_dir.clone()),
         }
     }
@@ -391,52 +395,78 @@ impl FileSnapshotSystem {
             return Err(SnapshotError::FileNotFound(file_path.to_path_buf()));
         }
 
-        let content = match fs::read(file_path) {
-            Ok(data) => data,
-            Err(e) => {
-                error!(
-                    "Failed to read file for snapshot: file_path={} error={}",
-                    file_path.display(),
-                    e
-                );
-                return Err(SnapshotError::Io(e));
-            }
-        };
+        let file_size = fs::metadata(file_path).map(|metadata| metadata.len()).unwrap_or(0);
 
         let metadata = self.extract_file_metadata(file_path).await?;
 
-        let content_hash = self.calculate_content_hash(&content);
+        let (content_hash, compressed_content) = if file_size > self.streamed_snapshot_threshold {
+            // Large files must never be loaded into memory: reading the whole
+            // file, hashing it, and attempting gzip on top can each allocate
+            // another copy of the file and exhaust the process. Stream the
+            // bytes straight into the content store instead.
+            let hash = self.stream_content_into_store(file_path)?;
 
-        if !independent_handle
-            && self.dedup_enabled
-            && self.hash_to_path.contains_key(&content_hash)
-        {
-            if let Some(snapshot_id) = self.find_snapshot_by_hash(&content_hash) {
-                debug!(
-                    "Found duplicate content, reusing existing snapshot: content_hash={}",
-                    content_hash
-                );
-                return Ok(snapshot_id);
+            if !independent_handle
+                && self.dedup_enabled
+                && self.hash_to_path.contains_key(&hash)
+            {
+                if let Some(snapshot_id) = self.find_snapshot_by_hash(&hash) {
+                    debug!(
+                        "Found duplicate content, reusing existing snapshot: content_hash={}",
+                        hash
+                    );
+                    return Ok(snapshot_id);
+                }
             }
 
-            debug!(
-                "Found reusable content without active snapshot metadata, creating new snapshot metadata: content_hash={}",
-                content_hash
-            );
-        }
+            (hash, Vec::new())
+        } else {
+            let content = match fs::read(file_path) {
+                Ok(data) => data,
+                Err(e) => {
+                    error!(
+                        "Failed to read file for snapshot: file_path={} error={}",
+                        file_path.display(),
+                        e
+                    );
+                    return Err(SnapshotError::Io(e));
+                }
+            };
 
-        let optimized_content = self.optimize_content(&content);
+            let content_hash = self.calculate_content_hash(&content);
+
+            if !independent_handle
+                && self.dedup_enabled
+                && self.hash_to_path.contains_key(&content_hash)
+            {
+                if let Some(snapshot_id) = self.find_snapshot_by_hash(&content_hash) {
+                    debug!(
+                        "Found duplicate content, reusing existing snapshot: content_hash={}",
+                        content_hash
+                    );
+                    return Ok(snapshot_id);
+                }
+
+                debug!(
+                    "Found reusable content without active snapshot metadata, creating new snapshot metadata: content_hash={}",
+                    content_hash
+                );
+            }
+
+            let compressed_content = match self.optimize_content(&content) {
+                OptimizedContent::Raw(data) => data,
+                OptimizedContent::Compressed(data) => data,
+                OptimizedContent::Reference(_) => Vec::new(),
+            };
+            (content_hash, compressed_content)
+        };
 
         let snapshot = FileSnapshot {
             snapshot_id: Uuid::new_v4().to_string(),
             file_path: file_path.to_path_buf(),
             content_hash: content_hash.clone(),
             snapshot_type: SnapshotType::Before,
-            compressed_content: match optimized_content {
-                OptimizedContent::Raw(data) => data,
-                OptimizedContent::Compressed(data) => data,
-                OptimizedContent::Reference(_) => Vec::new(),
-            },
+            compressed_content,
             timestamp: SystemTime::now(),
             metadata,
         };
@@ -450,6 +480,58 @@ impl FileSnapshotSystem {
 
         debug!("Snapshot created successfully: snapshot_id={}", snapshot_id);
         Ok(snapshot_id)
+    }
+
+    /// Streams a large file into the content store and returns its MD5 hash.
+    ///
+    /// Memory use stays bounded by the copy buffer regardless of file size.
+    /// Content is staged next to the store and renamed into place, so a crash
+    /// mid-stream never leaves a partial file under the content-addressed name.
+    fn stream_content_into_store(&self, file_path: &Path) -> SnapshotResult<String> {
+        use std::io::{BufReader, BufWriter, Read, Write};
+
+        fs::create_dir_all(&self.snapshot_by_hash_dir)?;
+
+        let staging_path = self
+            .snapshot_by_hash_dir
+            .join(format!(".streaming-{}", Uuid::new_v4()));
+
+        let hashed = (|| -> std::io::Result<String> {
+            let input = fs::File::open(file_path)?;
+            let mut reader = BufReader::with_capacity(1024 * 1024, input);
+            let output = fs::File::create(&staging_path)?;
+            let mut writer = BufWriter::with_capacity(1024 * 1024, output);
+
+            let mut hasher = md5::Context::new();
+            let mut buffer = vec![0u8; 1024 * 1024];
+            loop {
+                let read = reader.read(&mut buffer)?;
+                if read == 0 {
+                    break;
+                }
+                hasher.consume(&buffer[..read]);
+                writer.write_all(&buffer[..read])?;
+            }
+            writer.flush()?;
+            Ok(format!("{:x}", hasher.compute()))
+        })();
+
+        let content_hash = match hashed {
+            Ok(hash) => hash,
+            Err(e) => {
+                let _ = fs::remove_file(&staging_path);
+                return Err(SnapshotError::Io(e));
+            }
+        };
+
+        let content_path = self.get_content_path(&content_hash);
+        if content_path.exists() {
+            fs::remove_file(&staging_path)?;
+        } else {
+            fs::rename(&staging_path, &content_path)?;
+        }
+
+        Ok(content_hash)
     }
 
     /// Extracts file metadata.
@@ -468,8 +550,14 @@ impl FileSnapshotSystem {
             }
         };
 
+        let encoding_limit = if metadata.len() > self.streamed_snapshot_threshold {
+            Some(SNAPSHOT_ENCODING_SNIFF_LIMIT_BYTES)
+        } else {
+            None
+        };
+
         let encoding = self
-            .detect_file_encoding(file_path)
+            .detect_file_encoding(file_path, encoding_limit)
             .await
             .unwrap_or_else(|| "utf-8".to_string());
 
@@ -482,18 +570,40 @@ impl FileSnapshotSystem {
     }
 
     /// Detects file encoding.
-    async fn detect_file_encoding(&self, file_path: &Path) -> Option<String> {
-        match fs::read(file_path) {
-            Ok(bytes) => {
-                if bytes.is_ascii() {
-                    Some("ascii".to_string())
-                } else if String::from_utf8(bytes).is_ok() {
-                    Some("utf-8".to_string())
-                } else {
-                    Some("binary".to_string())
+    ///
+    /// `read_limit` bounds how many bytes are inspected; `None` reads the
+    /// whole file and keeps the previous exactness for small files.
+    async fn detect_file_encoding(&self, file_path: &Path, read_limit: Option<u64>) -> Option<String> {
+        use std::io::{BufReader, Read};
+
+        let input = fs::File::open(file_path).ok()?;
+        let mut reader = BufReader::new(input);
+        let mut bytes = Vec::new();
+        let mut chunk = [0u8; 8192];
+        loop {
+            let want = match read_limit {
+                Some(limit) => {
+                    let remaining = limit.saturating_sub(bytes.len() as u64);
+                    if remaining == 0 {
+                        break;
+                    }
+                    (remaining as usize).min(chunk.len())
                 }
+                None => chunk.len(),
+            };
+            match reader.read(&mut chunk[..want]) {
+                Ok(0) => break,
+                Ok(read) => bytes.extend_from_slice(&chunk[..read]),
+                Err(_) => return None,
             }
-            Err(_) => None,
+        }
+
+        if bytes.is_ascii() {
+            Some("ascii".to_string())
+        } else if String::from_utf8(bytes).is_ok() {
+            Some("utf-8".to_string())
+        } else {
+            Some("binary".to_string())
         }
     }
 
@@ -680,13 +790,18 @@ impl FileSnapshotSystem {
         let snapshot = self.load_snapshot_from_disk(snapshot_id).await?;
         let metadata = snapshot.metadata.clone();
 
-        let content = self.restore_snapshot_content(snapshot_id).await?;
-
         if let Some(parent) = target_path.parent() {
             fs::create_dir_all(parent)?;
         }
 
-        fs::write(target_path, content)?;
+        if !snapshot.compressed_content.is_empty() {
+            // Legacy metadata embeds the content inline; that only happens for
+            // small files, so this in-memory path stays bounded.
+            let content = self.extract_content_from_snapshot(&snapshot)?;
+            fs::write(target_path, content)?;
+        } else {
+            self.stream_content_to_path(&snapshot.content_hash, target_path)?;
+        }
 
         self.restore_file_metadata(target_path, &metadata).await?;
 
@@ -694,6 +809,71 @@ impl FileSnapshotSystem {
             "File restored successfully: target_path={}",
             target_path.display()
         );
+        Ok(())
+    }
+
+    /// Streams snapshot content into `target_path` without loading it into memory.
+    ///
+    /// Content on disk is detected as gzip by magic bytes and streamed through a
+    /// decoder when needed. The destination is staged first, so a failed restore
+    /// never truncates the original file.
+    fn stream_content_to_path(&self, content_hash: &str, target_path: &Path) -> SnapshotResult<()> {
+        use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
+
+        let content_path = self.get_content_path(content_hash);
+        if !content_path.exists() {
+            return Err(SnapshotError::SnapshotNotFound(format!(
+                "content file not found: {}",
+                content_path.display()
+            )));
+        }
+
+        let input = fs::File::open(&content_path)?;
+        let mut reader = BufReader::with_capacity(1024 * 1024, input);
+
+        const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
+        let mut magic = [0u8; 2];
+        let is_gzip = reader.read_exact(&mut magic).is_ok() && magic == GZIP_MAGIC;
+        if !is_gzip {
+            reader.seek(SeekFrom::Start(0))?;
+        }
+
+        let staging_path = target_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(format!(".restore-staging-{}", Uuid::new_v4()));
+
+        let staging = match fs::File::create(&staging_path) {
+            Ok(file) => file,
+            Err(e) => {
+                let _ = fs::remove_file(&staging_path);
+                return Err(SnapshotError::Io(e));
+            }
+        };
+        let mut writer = BufWriter::with_capacity(1024 * 1024, staging);
+
+        let copy_result = if is_gzip {
+            let mut decoder = flate2::read::GzDecoder::new(reader);
+            std::io::copy(&mut decoder, &mut writer).and_then(|_| writer.flush())
+        } else {
+            std::io::copy(&mut reader, &mut writer).and_then(|_| writer.flush())
+        };
+
+        match copy_result {
+            Ok(_) => {
+                if fs::rename(&staging_path, target_path).is_err() {
+                    if target_path.exists() {
+                        fs::remove_file(target_path)?;
+                    }
+                    fs::rename(&staging_path, target_path)?;
+                }
+            }
+            Err(e) => {
+                let _ = fs::remove_file(&staging_path);
+                return Err(SnapshotError::Io(e));
+            }
+        }
+
         Ok(())
     }
 
@@ -1005,6 +1185,84 @@ mod tests {
                 .await
                 .expect("existing snapshot must survive"),
             "same content"
+        );
+
+        fs::remove_dir_all(&context.runtime_root).expect("cleanup runtime root");
+    }
+
+    #[tokio::test]
+    async fn create_snapshot_streams_large_files_without_embedding_content() {
+        let context = test_runtime_context();
+        create_runtime_dirs(&context);
+        let file_path = context.runtime_root.join("workspace").join("big.bin");
+        fs::create_dir_all(file_path.parent().expect("file has parent")).expect("create parent");
+
+        let mut snapshot_system = FileSnapshotSystem::new(context.clone());
+        snapshot_system.streamed_snapshot_threshold = 16;
+        snapshot_system
+            .initialize()
+            .await
+            .expect("initialize snapshots");
+
+        let payload = vec![7u8; 64];
+        fs::write(&file_path, &payload).expect("write fixture");
+
+        let snapshot_id = snapshot_system
+            .create_snapshot(&file_path)
+            .await
+            .expect("create snapshot");
+
+        let snapshot = snapshot_system
+            .active_snapshots
+            .get(&snapshot_id)
+            .expect("active snapshot")
+            .clone();
+        assert!(snapshot.compressed_content.is_empty());
+        assert_eq!(snapshot.metadata.size, 64);
+
+        let metadata_path = snapshot_system.get_metadata_path(&snapshot_id);
+        let metadata_json = fs::read_to_string(&metadata_path).expect("read metadata");
+        assert!(
+            !metadata_json.contains("[7, 7, 7"),
+            "streamed snapshot metadata must not embed file content"
+        );
+
+        let content_path = snapshot_system.get_content_path(&snapshot.content_hash);
+        assert!(content_path.exists(), "streamed content file must exist");
+        let content_dir = content_path.parent().expect("content dir");
+        let entries = fs::read_dir(content_dir).expect("read content dir");
+        assert_eq!(
+            entries.count(),
+            1,
+            "staging file must be renamed or removed, not left behind"
+        );
+
+        let restored = snapshot_system
+            .restore_snapshot_content(&snapshot_id)
+            .await
+            .expect("restore snapshot content");
+        assert_eq!(restored, payload);
+
+        let restore_target = context.runtime_root.join("workspace").join("restored.bin");
+        snapshot_system
+            .restore_file(&snapshot_id, &restore_target)
+            .await
+            .expect("restore file via streaming");
+        assert_eq!(
+            fs::read(&restore_target).expect("read restored file"),
+            payload
+        );
+
+        let leftover_staging = restore_target
+            .parent()
+            .expect("restore parent")
+            .read_dir()
+            .expect("read restore parent")
+            .filter_map(|entry| entry.ok())
+            .any(|entry| entry.file_name().to_string_lossy().starts_with(".restore-staging-"));
+        assert!(
+            !leftover_staging,
+            "restore staging file must be renamed into place, not left behind"
         );
 
         fs::remove_dir_all(&context.runtime_root).expect("cleanup runtime root");
