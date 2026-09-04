@@ -9,7 +9,6 @@ import {
   availableRemotePresetIds,
   canInstallPresetCli,
   getManualInstallGuide,
-  isManagedInstallPresetForRuntime,
   visiblePresetIdsForRuntime,
 } from './acpAgentPresetPolicy';
 
@@ -253,6 +252,29 @@ describe('AcpAgentsConfig', () => {
     })).toBe(true);
     expect(canInstallPresetCli({
       isOhos: true,
+      presetId: 'dsh',
+      status: 'not_installed',
+      issueKind: 'cli_missing',
+      hasConfigEntry: false,
+    })).toBe(true);
+    for (const presetId of ['claude-code', 'codex']) {
+      expect(canInstallPresetCli({
+        isOhos: true,
+        presetId,
+        status: 'not_installed',
+        issueKind: 'cli_missing',
+        hasConfigEntry: false,
+      })).toBe(true);
+      expect(canInstallPresetCli({
+        isOhos: true,
+        presetId,
+        status: 'partial',
+        issueKind: 'adapter_missing',
+        hasConfigEntry: false,
+      })).toBe(true);
+    }
+    expect(canInstallPresetCli({
+      isOhos: true,
       presetId: 'kimi-code',
       status: 'ready',
       issueKind: 'none',
@@ -276,45 +298,41 @@ describe('AcpAgentsConfig', () => {
 
   it('shows only HarmonyOS-supported presets on HarmonyOS', () => {
     const ohosPresetIds = visiblePresetIdsForRuntime(true);
-    expect(ohosPresetIds).toContain('kimi-code');
-    expect(ohosPresetIds.filter(id => id === 'kimi-code')).toHaveLength(1);
-    expect(ohosPresetIds).toContain('qwen-code');
-    expect(ohosPresetIds.filter(id => id.startsWith('qwen-code'))).toHaveLength(1);
-    expect(ohosPresetIds).toContain('codebuddy-code');
-    expect(ohosPresetIds.filter(id => id.startsWith('codebuddy-code'))).toHaveLength(1);
-    expect(ohosPresetIds).toContain('opencode');
-    expect(ohosPresetIds).not.toContain('dsh');
-    expect(ohosPresetIds).not.toContain('omp');
-    expect(ohosPresetIds).not.toContain('claude-code');
-    expect(ohosPresetIds).not.toContain('codex');
+    expect(ohosPresetIds).toEqual([
+      'opencode',
+      'kimi-code',
+      'qwen-code',
+      'codebuddy-code',
+      'dsh',
+      'claude-code',
+      'codex',
+    ]);
 
     const desktopPresetIds = visiblePresetIdsForRuntime(false);
-    expect(desktopPresetIds).toContain('opencode');
-    expect(desktopPresetIds).toContain('dsh');
-    expect(desktopPresetIds).toContain('omp');
-    expect(desktopPresetIds).toContain('claude-code');
-    expect(desktopPresetIds).toContain('codex');
+    expect(desktopPresetIds).toEqual([
+      'opencode',
+      'kimi-code',
+      'qwen-code',
+      'codebuddy-code',
+      'dsh',
+      'omp',
+      'claude-code',
+      'codex',
+    ]);
   });
 
   it('keeps the full preset catalog available to remote hosts', () => {
     const remotePresetIds = availableRemotePresetIds();
-    expect(remotePresetIds).toContain('opencode');
-    expect(remotePresetIds).toContain('dsh');
-    expect(remotePresetIds).toContain('omp');
-    expect(remotePresetIds).toContain('claude-code');
-    expect(remotePresetIds).toContain('codex');
-    expect(remotePresetIds.filter(id => id === 'kimi-code')).toHaveLength(1);
-  });
-
-  it('marks only the verified HarmonyOS presets as managed installs', () => {
-    expect(isManagedInstallPresetForRuntime({
-      isOhos: true,
-      presetId: 'kimi-code',
-    })).toBe(true);
-    expect(isManagedInstallPresetForRuntime({
-      isOhos: true,
-      presetId: 'opencode',
-    })).toBe(false);
+    expect(remotePresetIds).toEqual([
+      'opencode',
+      'kimi-code',
+      'qwen-code',
+      'codebuddy-code',
+      'dsh',
+      'omp',
+      'claude-code',
+      'codex',
+    ]);
   });
 
   it('offers the OpenCode installation guide only when its HarmonyOS CLI is missing', () => {

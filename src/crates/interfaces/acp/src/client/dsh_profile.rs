@@ -27,7 +27,7 @@ use serde::Deserialize;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use super::remote_shell::{remote_user_shell_command, render_remote_env_assignments, shell_escape};
-use super::requirements::probe_executable;
+use super::requirements::probe_executable_with_environment;
 
 /// Points directly at a built profile directory, overriding every other
 /// candidate. This is how a packaged build that lays resources out unusually —
@@ -42,13 +42,27 @@ const DSH_HOME_ENV: &str = "DSH_HOME";
 /// Basename of the build stamp `scripts/build-profile.mjs` writes.
 const STAMP_FILENAME: &str = ".bitfun-bridge.json";
 
+/// HarmonyOS `resfile` uses package-safe names. They are normalized back to
+/// DSH's canonical layout while the profile is copied into the user's home.
+const PACKAGED_STAMP_FILENAME: &str = "bitfun-bridge.json";
+const PACKAGED_NODE_MODULES_DIRECTORY: &str = "vendor-node-modules";
+
+#[cfg(target_env = "ohos")]
+const OHOS_BUNDLED_PROFILE_DIRECTORY: &str =
+    "/data/storage/el1/bundle/entry/resources/resfile/dsh-profile";
+
 /// Directories the build owns end to end, replaced rather than merged.
 ///
 /// Merging would leave a previous build's emit behind — a `lib/*.js` that no
 /// longer exists in the source still resolves, and the profile boots a mix of
-/// two versions. Everything outside these three is left untouched, so anything
-/// the user added to the profile directory survives an upgrade.
-const MANAGED_SUBDIRECTORIES: &[&str] = &["lib", "presets", "node_modules"];
+/// two versions. The resource-only alias is cleared as well, while everything
+/// else is left untouched so user additions survive an upgrade.
+const MANAGED_SUBDIRECTORIES: &[&str] = &[
+    "lib",
+    "presets",
+    "node_modules",
+    PACKAGED_NODE_MODULES_DIRECTORY,
+];
 
 /// What `scripts/build-profile.mjs` records about a build.
 #[derive(Debug, Deserialize)]
@@ -69,14 +83,18 @@ struct BridgeStamp {
 /// a filesystem that refused the write — each of which would otherwise surface
 /// as `dsh` complaining about a profile that does not exist, or as a pile of
 /// module resolution failures with no hint about the cause.
-pub(crate) async fn ensure_bundled_profile(profile: &str) -> BitFunResult<PathBuf> {
+pub(crate) async fn ensure_bundled_profile(
+    profile: &str,
+    launcher: &str,
+    environment: &HashMap<String, String>,
+) -> BitFunResult<PathBuf> {
     let (source, stamp) = bundled_build(profile)?;
 
     // Checked on every launch, not just when copying: the pairing can break
     // later by the user downgrading dsh under a profile that is already current.
-    require_supported_dsh(&stamp.min_dsh_version).await?;
+    require_supported_dsh(&stamp.min_dsh_version, launcher, environment).await?;
 
-    let destination = dsh_profiles_directory()?.join(profile);
+    let destination = dsh_profiles_directory(environment)?.join(profile);
     if read_stamp(&destination)
         .ok()
         .flatten()
@@ -126,8 +144,19 @@ fn bundled_build(profile: &str) -> BitFunResult<(PathBuf, BridgeStamp)> {
 /// failure here: a missing `dsh` already surfaces as an install prompt in the
 /// agent list, and guessing about an unrecognized version string would block a
 /// launch that may well work.
-async fn require_supported_dsh(minimum: &str) -> BitFunResult<()> {
-    let Some(installed) = probe_executable("dsh").await.version else {
+async fn require_supported_dsh(
+    minimum: &str,
+    launcher: &str,
+    environment: &HashMap<String, String>,
+) -> BitFunResult<()> {
+    let working_directory = environment_value(environment, "HOME")
+        .map(Path::new)
+        .filter(|path| path.is_dir());
+    let Some(installed) =
+        probe_executable_with_environment(launcher, Some(environment), working_directory)
+            .await
+            .version
+    else {
         return Ok(());
     };
     if version_is_supported(&installed, minimum) {
@@ -135,7 +164,7 @@ async fn require_supported_dsh(minimum: &str) -> BitFunResult<()> {
     }
     Err(BitFunError::service(format!(
         "DeepSeek Harness {installed} is older than {minimum}, which this BitFun build requires. \
-         Update it with `npm install -g @deepseek-ai/dsh`."
+         Update DeepSeek Harness and try again."
     )))
 }
 
@@ -182,6 +211,8 @@ fn bundled_profile_source(profile: &str) -> Option<PathBuf> {
     }
 
     let mut candidates: Vec<PathBuf> = Vec::new();
+    #[cfg(target_env = "ohos")]
+    candidates.push(PathBuf::from(OHOS_BUNDLED_PROFILE_DIRECTORY));
     if let Ok(executable) = std::env::current_exe() {
         if let Some(directory) = executable.parent() {
             candidates.push(directory.join("resources").join("dsh-profile"));
@@ -231,7 +262,7 @@ fn profile_name_of(directory: &Path) -> Option<String> {
     struct NamedProfile {
         profile: String,
     }
-    let contents = std::fs::read(directory.join(STAMP_FILENAME)).ok()?;
+    let contents = std::fs::read(profile_stamp_path(directory)?).ok()?;
     serde_json::from_slice::<NamedProfile>(&contents)
         .ok()
         .map(|stamp| stamp.profile)
@@ -239,7 +270,9 @@ fn profile_name_of(directory: &Path) -> Option<String> {
 
 /// Read a build stamp, distinguishing "not installed" from "unreadable".
 fn read_stamp(directory: &Path) -> BitFunResult<Option<BridgeStamp>> {
-    let path = directory.join(STAMP_FILENAME);
+    let Some(path) = profile_stamp_path(directory) else {
+        return Ok(None);
+    };
     let contents = match std::fs::read(&path) {
         Ok(contents) => contents,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -257,20 +290,45 @@ fn read_stamp(directory: &Path) -> BitFunResult<Option<BridgeStamp>> {
         })
 }
 
+/// Locate either the canonical build marker or its HarmonyOS resource name.
+fn profile_stamp_path(directory: &Path) -> Option<PathBuf> {
+    [STAMP_FILENAME, PACKAGED_STAMP_FILENAME]
+        .into_iter()
+        .map(|name| directory.join(name))
+        .find(|path| path.is_file())
+}
+
 /// `$DSH_HOME/profiles`, created if the user has not run dsh yet.
-fn dsh_profiles_directory() -> BitFunResult<PathBuf> {
-    let home = match std::env::var_os(DSH_HOME_ENV) {
-        Some(home) if !home.is_empty() => PathBuf::from(home),
-        _ => dirs::home_dir()
-            .ok_or_else(|| {
-                BitFunError::service(
-                    "Cannot locate the home directory that holds the DeepSeek Harness install"
-                        .to_string(),
-                )
-            })?
-            .join(".dsh"),
-    };
+fn dsh_profiles_directory(environment: &HashMap<String, String>) -> BitFunResult<PathBuf> {
+    let home = environment_value(environment, DSH_HOME_ENV)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os(DSH_HOME_ENV)
+                .filter(|value| !value.is_empty())
+                .map(PathBuf::from)
+        })
+        .or_else(|| {
+            environment_value(environment, "HOME")
+                .filter(|value| !value.is_empty())
+                .map(|home| PathBuf::from(home).join(".dsh"))
+        })
+        .or_else(|| dirs::home_dir().map(|home| home.join(".dsh")))
+        .ok_or_else(|| {
+            BitFunError::service(
+                "Cannot locate the home directory that holds the DeepSeek Harness install"
+                    .to_string(),
+            )
+        })?;
     Ok(home.join("profiles"))
+}
+
+fn environment_value<'a>(environment: &'a HashMap<String, String>, key: &str) -> Option<&'a str> {
+    environment.iter().find_map(|(candidate, value)| {
+        candidate
+            .eq_ignore_ascii_case(key)
+            .then_some(value.as_str())
+    })
 }
 
 /// Write the built profile into `destination`, stamp last.
@@ -301,30 +359,33 @@ fn install_profile(source: &Path, destination: &Path) -> BitFunResult<()> {
         }
     }
 
-    copy_tree(source, destination, true).map_err(write_error)?;
-    std::fs::copy(
-        source.join(STAMP_FILENAME),
-        destination.join(STAMP_FILENAME),
-    )
-    .map_err(write_error)?;
+    copy_profile_tree(source, destination).map_err(write_error)?;
+    let source_stamp = profile_stamp_path(source).ok_or_else(|| {
+        BitFunError::service(format!(
+            "The bundled DeepSeek Harness profile at {} has no build stamp",
+            source.display()
+        ))
+    })?;
+    std::fs::copy(source_stamp, destination.join(STAMP_FILENAME)).map_err(write_error)?;
     Ok(())
 }
 
-/// Copy `source` over `destination`, overwriting files and keeping extras.
-///
-/// `skip_stamp` holds for the top level only — the stamp is the install marker
-/// and its own step.
-fn copy_tree(source: &Path, destination: &Path, skip_stamp: bool) -> std::io::Result<()> {
+/// Copy the packaged profile into DSH's canonical directory layout.
+fn copy_profile_tree(source: &Path, destination: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(destination)?;
     for entry in std::fs::read_dir(source)? {
         let entry = entry?;
         let name = entry.file_name();
-        if skip_stamp && name == STAMP_FILENAME {
+        if name == STAMP_FILENAME || name == PACKAGED_STAMP_FILENAME {
             continue;
         }
-        let target = destination.join(&name);
+        let target = if name == PACKAGED_NODE_MODULES_DIRECTORY {
+            destination.join("node_modules")
+        } else {
+            destination.join(&name)
+        };
         if entry.file_type()?.is_dir() {
-            copy_tree(&entry.path(), &target, false)?;
+            copy_tree(&entry.path(), &target)?;
         } else {
             // Remove first: overwriting in place would follow a symlink the
             // user (or a previous vendoring step) left behind.
@@ -334,6 +395,26 @@ fn copy_tree(source: &Path, destination: &Path, skip_stamp: bool) -> std::io::Re
                 Err(error) => return Err(error),
             }
             std::fs::copy(entry.path(), &target)?;
+        }
+    }
+    Ok(())
+}
+
+/// Copy a nested directory without applying top-level resource-name mapping.
+fn copy_tree(source: &Path, destination: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(destination)?;
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let target = destination.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_tree(&entry.path(), &target)?;
+        } else {
+            match std::fs::remove_file(&target) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
+            }
+            std::fs::copy(entry.path(), target)?;
         }
     }
     Ok(())
@@ -602,17 +683,41 @@ fn archive_profile(source: &Path) -> BitFunResult<Vec<u8>> {
     // Deterministic order, so an unchanged build produces an identical stream.
     paths.sort();
 
-    let stamp = Path::new(STAMP_FILENAME);
     let mut builder = tar::Builder::new(Vec::new());
-    for relative in paths.iter().filter(|path| path.as_path() != stamp) {
+    for relative in paths.iter().filter(|path| !is_profile_stamp(path)) {
+        let archive_name = canonical_archive_path(relative);
         builder
-            .append_path_with_name(source.join(relative), relative)
+            .append_path_with_name(source.join(relative), archive_name)
             .map_err(pack_error)?;
     }
+    let source_stamp = profile_stamp_path(source).ok_or_else(|| {
+        BitFunError::service(format!(
+            "The bundled DeepSeek Harness profile at {} has no build stamp",
+            source.display()
+        ))
+    })?;
     builder
-        .append_path_with_name(source.join(stamp), stamp)
+        .append_path_with_name(source_stamp, Path::new(STAMP_FILENAME))
         .map_err(pack_error)?;
     builder.into_inner().map_err(pack_error)
+}
+
+fn is_profile_stamp(path: &Path) -> bool {
+    path == Path::new(STAMP_FILENAME) || path == Path::new(PACKAGED_STAMP_FILENAME)
+}
+
+fn canonical_archive_path(path: &Path) -> PathBuf {
+    let mut components = path.components();
+    let Some(first) = components.next() else {
+        return PathBuf::new();
+    };
+    if first.as_os_str() != PACKAGED_NODE_MODULES_DIRECTORY {
+        return path.to_path_buf();
+    }
+
+    let mut normalized = PathBuf::from("node_modules");
+    normalized.extend(components.map(|component| component.as_os_str()));
+    normalized
 }
 
 /// Every file under `root/relative`, as paths relative to `root`.
@@ -674,6 +779,23 @@ mod tests {
         .expect("stamp should be written");
     }
 
+    fn write_packaged_profile(root: &Path, content: &str) {
+        write_built_profile(root, content);
+        std::fs::rename(
+            root.join(STAMP_FILENAME),
+            root.join(PACKAGED_STAMP_FILENAME),
+        )
+        .expect("packaged stamp should be renamed");
+        std::fs::create_dir_all(root.join(PACKAGED_NODE_MODULES_DIRECTORY).join("example"))
+            .expect("packaged dependency directory should be created");
+        std::fs::write(
+            root.join(PACKAGED_NODE_MODULES_DIRECTORY)
+                .join("example/index.js"),
+            "export {};",
+        )
+        .expect("packaged dependency should be written");
+    }
+
     #[test]
     fn installs_the_built_profile_and_replaces_a_previous_build() {
         let source = scratch_directory("source");
@@ -710,6 +832,24 @@ mod tests {
     }
 
     #[test]
+    fn installs_the_harmonyos_resource_with_canonical_dsh_names() {
+        let source = scratch_directory("packaged-source");
+        let destination = scratch_directory("packaged-destination");
+        write_packaged_profile(&source, "packaged");
+
+        install_profile(&source, &destination).expect("packaged profile should install");
+
+        assert!(destination.join(STAMP_FILENAME).is_file());
+        assert!(!destination.join(PACKAGED_STAMP_FILENAME).exists());
+        assert!(destination.join("node_modules/example/index.js").is_file());
+        assert!(!destination.join(PACKAGED_NODE_MODULES_DIRECTORY).exists());
+        assert_eq!(profile_name_of(&source).as_deref(), Some("bitfun-acp"));
+
+        let _ = std::fs::remove_dir_all(&source);
+        let _ = std::fs::remove_dir_all(&destination);
+    }
+
+    #[test]
     fn reads_the_content_digest_that_decides_whether_to_reinstall() {
         let source = scratch_directory("stamp");
         write_built_profile(&source, "digest");
@@ -728,6 +868,26 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&source);
         let _ = std::fs::remove_dir_all(&empty);
+    }
+
+    #[test]
+    fn configured_home_selects_the_same_profile_directory_as_the_launcher() {
+        temp_env(DSH_HOME_ENV, None, || {
+            let environment = HashMap::from([("HOME".to_string(), "/managed/home".to_string())]);
+            assert_eq!(
+                dsh_profiles_directory(&environment).expect("configured home"),
+                PathBuf::from("/managed/home/.dsh/profiles")
+            );
+
+            let environment = HashMap::from([
+                ("HOME".to_string(), "/managed/home".to_string()),
+                ("dsh_home".to_string(), "/managed/dsh".to_string()),
+            ]);
+            assert_eq!(
+                dsh_profiles_directory(&environment).expect("configured DSH home"),
+                PathBuf::from("/managed/dsh/profiles")
+            );
+        });
     }
 
     #[test]
@@ -875,6 +1035,34 @@ mod tests {
         assert!(entries.contains(&"lib/app.js".to_string()));
         assert!(entries.contains(&"cordis.patch.yml".to_string()));
         // Last, so an interrupted upload leaves a profile that reads as stale.
+        assert_eq!(entries.last().map(String::as_str), Some(STAMP_FILENAME));
+
+        let _ = std::fs::remove_dir_all(&source);
+    }
+
+    #[test]
+    fn the_uploaded_harmonyos_resource_uses_canonical_dsh_names() {
+        let source = scratch_directory("packaged-archive");
+        write_packaged_profile(&source, "packed");
+
+        let archive = archive_profile(&source).expect("packaged profile should pack");
+        let entries: Vec<String> = tar::Archive::new(archive.as_slice())
+            .entries()
+            .expect("entries")
+            .map(|entry| {
+                entry
+                    .expect("entry")
+                    .path()
+                    .expect("path")
+                    .display()
+                    .to_string()
+            })
+            .collect();
+
+        assert!(entries.contains(&"node_modules/example/index.js".to_string()));
+        assert!(!entries
+            .iter()
+            .any(|entry| entry.starts_with(PACKAGED_NODE_MODULES_DIRECTORY)));
         assert_eq!(entries.last().map(String::as_str), Some(STAMP_FILENAME));
 
         let _ = std::fs::remove_dir_all(&source);

@@ -2024,7 +2024,7 @@ impl AcpClientService {
         // command runs, because the command's only job is to boot it.
         if let Some(profile) = builtin_acp_client_preset(client_id).and_then(|p| p.bundled_profile)
         {
-            ensure_bundled_profile(profile).await?;
+            ensure_bundled_profile(profile, &config.command, &config.env).await?;
         }
 
         let program = resolve_configured_command(&config.command, &config.env);

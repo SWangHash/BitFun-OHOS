@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -12,7 +13,10 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { getDshProfileRebuildPlan } from './prepare-dsh-profile.mjs';
+import {
+  getDshProfileRebuildPlan,
+  syncOhosDshProfile,
+} from './prepare-dsh-profile.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -144,6 +148,34 @@ test('skips when a complete stamp is newer than every input', () => {
     const plan = getDshProfileRebuildPlan({ packageDir, outDir, prepareScriptPath });
     assert.equal(plan.shouldBuild, false);
     assert.match(plan.reason, /up to date/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('stages a clean HarmonyOS profile with resfile-compatible names', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'bitfun-dsh-ohos-profile-'));
+  const sourceDir = path.join(root, 'dist-profile');
+  const destinationDir = path.join(root, 'resfile', 'dsh-profile');
+  try {
+    mkdirSync(path.join(sourceDir, 'node_modules', '@example', 'bridge'), { recursive: true });
+    writeFileSync(path.join(sourceDir, '.bitfun-bridge.json'), '{"profile":"bitfun-acp"}\n');
+    writeFileSync(path.join(sourceDir, 'node_modules', '@example', 'bridge', 'index.js'), '');
+    mkdirSync(destinationDir, { recursive: true });
+    writeFileSync(path.join(destinationDir, 'stale.js'), 'stale');
+
+    syncOhosDshProfile({ sourceDir, destinationDir });
+
+    assert.equal(existsSync(path.join(destinationDir, 'stale.js')), false);
+    assert.equal(existsSync(path.join(destinationDir, '.bitfun-bridge.json')), false);
+    assert.equal(existsSync(path.join(destinationDir, 'node_modules')), false);
+    assert.equal(existsSync(path.join(destinationDir, 'bitfun-bridge.json')), true);
+    assert.equal(
+      existsSync(
+        path.join(destinationDir, 'vendor-node-modules', '@example', 'bridge', 'index.js'),
+      ),
+      true,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
