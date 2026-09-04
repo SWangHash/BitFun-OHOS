@@ -44,6 +44,9 @@ export interface Language {
   prismId?: string;
   
    
+  lspId?: string;
+  
+   
   textmateScope?: string;
   
    
@@ -76,6 +79,103 @@ export interface Language {
 // ============================================================================
 
  
+export type ProjectType =
+  
+  | 'react'
+  | 'vue'
+  | 'angular'
+  | 'svelte'
+  | 'nextjs'
+  | 'nuxt'
+  | 'vite'
+  | 'webpack'
+  
+  | 'nodejs'
+  | 'express'
+  | 'nestjs'
+  | 'fastify'
+  
+  | 'tauri'
+  | 'electron'
+  
+  | 'react-native'
+  | 'flutter'
+  
+  | 'rust'
+  | 'cargo'
+  | 'go'
+  | 'python'
+  | 'django'
+  | 'flask'
+  | 'java'
+  | 'maven'
+  | 'gradle'
+  | 'dotnet'
+  
+  | 'monorepo'
+  | 'library'
+  | 'cli'
+  | 'unknown';
+
+ 
+export interface FrameworkInfo {
+   
+  name: string;
+  
+   
+  version?: string;
+  
+   
+  source?: string;
+}
+
+ 
+export interface ProjectInfo {
+   
+  type: ProjectType;
+  
+   
+  primaryLanguage: string;
+  
+   
+  languages: string[];
+  
+   
+  languageStats: Record<string, number>;
+  
+   
+  frameworks: FrameworkInfo[];
+  
+   
+  packageManager?: 'npm' | 'yarn' | 'pnpm' | 'bun' | 'cargo' | 'pip' | 'poetry' | 'maven' | 'gradle' | 'go';
+  
+   
+  buildTools?: string[];
+  
+   
+  rootPath: string;
+  
+   
+  configFiles: string[];
+  
+   
+  isMonorepo: boolean;
+  
+   
+  subProjects?: ProjectInfo[];
+  
+   
+  confidence: number;
+  
+   
+  metadata?: Record<string, unknown>;
+}
+
+// ============================================================================
+
+// ============================================================================
+
+ 
 export interface DetectionContext {
    
   workspacePath?: string;
@@ -87,8 +187,12 @@ export interface DetectionContext {
   fileContent?: string;
   
    
+  projectInfo?: ProjectInfo;
+  
+   
   hints?: {
     language?: string;
+    projectType?: ProjectType;
   };
 }
 
@@ -112,6 +216,27 @@ export interface FileDetectionResult {
 // ============================================================================
 
  
+export interface ProjectDetectionPlugin {
+   
+  id: string;
+  
+   
+  name: string;
+  
+   
+  supportedTypes: ProjectType[];
+  
+   
+  priority: number;
+  
+   
+  detect(context: DetectionContext): Promise<ProjectInfo | null>;
+  
+   
+  getConfigFiles(): string[];
+}
+
+ 
 export interface LanguagePlugin {
    
   id: string;
@@ -131,7 +256,26 @@ export interface LanguagePlugin {
 // ============================================================================
 
  
+export interface LspConfig {
+   
+  serverId: string;
+  
+   
+  enabled: boolean;
+  
+   
+  initOptions?: Record<string, unknown>;
+  
+   
+  workspaceConfig?: Record<string, unknown>;
+}
+
+// ============================================================================
+
+// ============================================================================
+
+ 
 export interface LanguageDetectionEvent {
-  type: 'language-detected' | 'plugin-registered';
+  type: 'project-detected' | 'language-detected' | 'plugin-registered';
   payload: unknown;
 }

@@ -16,7 +16,9 @@
 
 use std::path::Path;
 
+#[cfg(target_os = "windows")]
 use tauri::Manager;
+#[cfg(target_os = "windows")]
 use tauri_plugin_window_state::AppHandleExt;
 
 const MAIN_WINDOW_LABEL: &str = "main";

@@ -65,6 +65,7 @@ pub(crate) async fn apply_language_runtime_effects(
             .map_err(|error| format!("Failed to rebuild the localized menu: {error}"))?;
     }
 
+    #[cfg(not(target_env = "ohos"))]
     crate::tray::rebuild_tray_menu_public(app).await;
     Ok(())
 }

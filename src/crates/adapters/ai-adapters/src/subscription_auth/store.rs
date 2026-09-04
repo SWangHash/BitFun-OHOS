@@ -427,11 +427,7 @@ fn current_vault() -> Arc<dyn SecureCredentialVault> {
             return Arc::new(TestSubscriptionVault);
         }
     }
-    if let Some(vault) = vault_override()
-        .read()
-        .ok()
-        .and_then(|guard| guard.clone())
-    {
+    if let Some(vault) = vault_override().read().ok().and_then(|guard| guard.clone()) {
         return vault;
     }
     #[cfg(feature = "system-vault")]
@@ -459,13 +455,22 @@ struct UnavailableVault;
 #[async_trait::async_trait]
 impl SecureCredentialVault for UnavailableVault {
     async fn get_secret(&self, _alias: &str) -> Result<Option<Vec<u8>>, String> {
-        Err("subscription credential vault unavailable: no system backend and no vault injected".to_string())
+        Err(
+            "subscription credential vault unavailable: no system backend and no vault injected"
+                .to_string(),
+        )
     }
     async fn set_secret(&self, _alias: &str, _secret: &[u8]) -> Result<(), String> {
-        Err("subscription credential vault unavailable: no system backend and no vault injected".to_string())
+        Err(
+            "subscription credential vault unavailable: no system backend and no vault injected"
+                .to_string(),
+        )
     }
     async fn delete_secret(&self, _alias: &str) -> Result<(), String> {
-        Err("subscription credential vault unavailable: no system backend and no vault injected".to_string())
+        Err(
+            "subscription credential vault unavailable: no system backend and no vault injected"
+                .to_string(),
+        )
     }
 }
 
@@ -487,12 +492,7 @@ impl SecureCredentialVault for TestSubscriptionVault {
         test_secrets()
             .lock()
             .map_err(|_| "subscription test vault lock poisoned".to_string())
-            .map(|vault| {
-                vault
-                    .get(&path)
-                    .and_then(|items| items.get(alias))
-                    .cloned()
-            })
+            .map(|vault| vault.get(&path).and_then(|items| items.get(alias)).cloned())
     }
 
     async fn set_secret(&self, alias: &str, secret: &[u8]) -> Result<(), String> {
@@ -1154,7 +1154,7 @@ async fn get_legacy_password(provider: &str) -> Result<Option<String>> {
     vault
         .get_legacy_secret_text(provider)
         .await
-        .map_err(vault_unavailable)
+        .map_err(vault_unavailable)?;
     if let Some(path) = overridden_store_path() {
         if test_vault_is_unavailable(&path) {
             return Err(vault_unavailable("subscription test vault unavailable"));
@@ -1207,7 +1207,7 @@ async fn set_secret_bytes(entry_name: &str, secret: Vec<u8>) -> Result<()> {
     vault
         .set_secret(entry_name, &secret)
         .await
-        .map_err(vault_unavailable)
+        .map_err(vault_unavailable)?;
     if let Some(path) = overridden_store_path() {
         if test_vault_is_unavailable(&path) {
             return Err(vault_unavailable("subscription test vault unavailable"));
@@ -1258,7 +1258,7 @@ async fn delete_secret_entry(entry_name: &str) -> Result<()> {
     vault
         .delete_secret(entry_name)
         .await
-        .map_err(vault_unavailable)
+        .map_err(vault_unavailable)?;
     if let Some(path) = overridden_store_path() {
         if test_vault_is_unavailable(&path) {
             return Err(vault_unavailable("subscription test vault unavailable"));

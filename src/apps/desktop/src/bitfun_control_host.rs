@@ -27,6 +27,7 @@ use bitfun_product_domains::product_control::{
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use tauri::{AppHandle, Manager};
+#[cfg(not(target_env = "ohos"))]
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 use tokio::sync::oneshot;
 
@@ -148,11 +149,14 @@ async fn current_option_value(
             provider_id,
             option_id,
         } => match desktop_provider_option(provider_id, option_id) {
+            #[cfg(not(target_env = "ohos"))]
             Some(DesktopProviderOption::LaunchAtLogin) => app
                 .autolaunch()
                 .is_enabled()
                 .map(Value::Bool)
                 .map_err(|error| error.to_string()),
+            #[cfg(target_env = "ohos")]
+            Some(DesktopProviderOption::LaunchAtLogin) => Ok(Value::Bool(false)),
             Some(DesktopProviderOption::PreventSleep) => state
                 .config_service
                 .get_config(Some("app.prevent_sleep"))
@@ -775,12 +779,17 @@ async fn configure_desktop_provider_option(
         .ok_or_else(|| "Desktop lifecycle options require a boolean value".to_string())?;
     match option {
         DesktopProviderOption::LaunchAtLogin => {
+            #[cfg(target_env = "ohos")]
+            { let _ = (app, enabled); Ok(()) }
+            #[cfg(not(target_env = "ohos"))]
+            {
             if enabled {
                 app.autolaunch().enable().map_err(|error| error.to_string())
             } else {
                 app.autolaunch()
                     .disable()
                     .map_err(|error| error.to_string())
+            }
             }
         }
         DesktopProviderOption::PreventSleep => {

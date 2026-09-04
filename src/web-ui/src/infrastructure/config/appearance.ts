@@ -35,7 +35,6 @@ export const configAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'pageHeaderTitle' },
     { id: 'pageHeaderSubtitle' },
     { id: 'pageHeaderExtra' },
-    { id: 'subagentModel' },
   ],
   facets: [
     { id: 'align', attribute: 'data-bf-align', values: ['start', 'center'] },

@@ -179,6 +179,16 @@ pub trait Tool: Send + Sync {
         }
     }
 
+    /// Compatibility hook for tools using the legacy invariant validator.
+    async fn validate_non_relaxable_input(
+        &self,
+        input: &Value,
+        context: Option<&ToolUseContext>,
+    ) -> Option<ValidationResult> {
+        let validation = self.validate_input_rewrite_invariants(input, context).await;
+        validation.blocks_input_rewrite().then_some(validation)
+    }
+
     /// Render result for assistant
     fn render_result_for_assistant(&self, _output: &Value) -> String {
         "Tool result".to_string()

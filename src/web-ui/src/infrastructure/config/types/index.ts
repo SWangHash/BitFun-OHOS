@@ -465,6 +465,53 @@ export interface SkillMarketDownloadResult {
   output: string;
 }
 
+/** Legacy debug instrumentation settings retained for the session settings panel. */
+export interface DebugModeConfig {
+  log_path: string;
+  ingest_port: number;
+  enabled_languages: string[];
+  language_templates: Record<string, LanguageDebugTemplate>;
+}
+
+export interface LanguageDebugTemplate {
+  language: string;
+  display_name: string;
+  enabled: boolean;
+  instrumentation_template: string;
+  region_start: string;
+  region_end: string;
+  notes: string[];
+}
+
+export const DEFAULT_DEBUG_MODE_CONFIG: DebugModeConfig = {
+  log_path: '.bitfun/debug.log',
+  ingest_port: 7242,
+  enabled_languages: [],
+  language_templates: {},
+};
+
+export const LANGUAGE_TEMPLATE_LABELS: Record<string, string> = {
+  javascript: t('settings/debug:languageLabels.javascript'),
+  python: t('settings/debug:languageLabels.python'),
+  rust: t('settings/debug:languageLabels.rust'),
+  go: t('settings/debug:languageLabels.go'),
+  java: t('settings/debug:languageLabels.java'),
+};
+
+export const ALL_LANGUAGES = ['javascript', 'python', 'rust', 'go', 'java'] as const;
+
+export const DEFAULT_LANGUAGE_TEMPLATES: Record<string, LanguageDebugTemplate> = Object.fromEntries(
+  ALL_LANGUAGES.map((language) => [language, {
+    language,
+    display_name: LANGUAGE_TEMPLATE_LABELS[language] ?? language,
+    enabled: false,
+    instrumentation_template: '',
+    region_start: '// #region agent log',
+    region_end: '// #endregion',
+    notes: [],
+  }]),
+);
+
 export interface SkillValidationResult {
   valid: boolean;
   name?: string;

@@ -104,6 +104,8 @@ export interface FileTreeItemProps {
   onToggleExpand?: () => void;
   renderContent?: (node: FileSystemNode, level: number) => React.ReactNode;
   renderActions?: (node: FileSystemNode) => React.ReactNode;
+  renameSiblings?: string[];
+  isRemoteWorkspace?: boolean;
 }
 
 export const FileTreeItem: React.FC<FileTreeItemProps> = ({
@@ -121,6 +123,8 @@ export const FileTreeItem: React.FC<FileTreeItemProps> = ({
   onToggleExpand,
   renderContent,
   renderActions,
+  renameSiblings: _renameSiblings,
+  isRemoteWorkspace: _isRemoteWorkspace,
 }) => {
   const { t } = useI18n('tools');
   const dragImageRef = React.useRef<HTMLDivElement | null>(null);

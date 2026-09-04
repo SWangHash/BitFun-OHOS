@@ -1747,6 +1747,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       previousSessionId,
       effectiveTargetSessionId,
       useContextStore.getState().contexts,
+      richTextInputRef.current?.getComposerPresentation?.() ?? null,
       !surfaceChanged,
     );
     previousComposerSessionIdRef.current = effectiveTargetSessionId;

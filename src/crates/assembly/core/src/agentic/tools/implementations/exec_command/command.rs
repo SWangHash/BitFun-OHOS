@@ -87,6 +87,17 @@ impl ExecCommandTool {
         }
     }
 
+    fn guard_workdir(input: &Value, context: &ToolUseContext) -> Option<String> {
+        let raw = input
+            .get("workdir")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|workdir| !workdir.is_empty())
+            .map(str::to_string)
+            .or_else(|| context.workspace.as_ref().map(|workspace| workspace.root_path_string()))?;
+        context.resolve_workspace_tool_path(&raw).ok()
+    }
+
     fn context_rejection(decision: &str, reason: &str) -> ValidationResult {
         let meta = json!({"blocks_input_rewrite":true,"executed":false,"failure_kind":"edit_constraint_guard","guard_decision":decision,"analysis_status":"unsupported","reason":reason});
         ValidationResult {

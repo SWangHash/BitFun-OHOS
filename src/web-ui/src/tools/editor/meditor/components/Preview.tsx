@@ -7,6 +7,7 @@ import './Preview.scss';
 interface PreviewProps {
   value: string;
   basePath?: string;
+  progressive?: boolean;
 }
 
 export const Preview: React.FC<PreviewProps> = ({ value, basePath }) => {

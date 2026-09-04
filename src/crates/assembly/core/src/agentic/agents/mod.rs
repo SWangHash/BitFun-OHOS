@@ -177,6 +177,11 @@ pub trait Agent: Send + Sync + 'static {
     /// Description of what the agent does
     fn description(&self) -> &str;
 
+    /// Whether the mode receives the main-session goal lifecycle implicitly.
+    fn include_implicit_thread_goal_tools(&self) -> bool {
+        true
+    }
+
     /// Prompt template name for the agent.
     fn prompt_template_name(&self, model_name: Option<&str>) -> &str;
 

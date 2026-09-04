@@ -263,6 +263,7 @@ async fn builtin_browser_status(preference: &str) -> Result<BrowserControlStatus
         port: 0,
         page_count,
         selected_browser: canonical_browser_preference(preference),
+        setup_url: None,
     })
 }
 

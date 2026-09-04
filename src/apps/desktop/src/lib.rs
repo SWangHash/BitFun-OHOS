@@ -103,11 +103,6 @@ use api::subagent_api::*;
 use api::system_api::*;
 use api::tool_api::*;
 use startup_trace::{DesktopStartupTrace, DesktopStartupTraceSnapshot};
-use std::path::PathBuf;
-
-pub(crate) const PLUGIN_HOST_LAUNCH_POLICY: bitfun_core::plugin_host::PluginHostLaunchPolicy =
-    bitfun_core::plugin_host::PluginHostLaunchPolicy::Disabled;
-
 pub(crate) const PLUGIN_HOST_LAUNCH_POLICY: bitfun_core::plugin_host::PluginHostLaunchPolicy =
     bitfun_core::plugin_host::PluginHostLaunchPolicy::Enabled;
 
@@ -358,6 +353,7 @@ fn main_window_state_flags() -> StateFlags {
     main_window_geometry_state_flags() | StateFlags::MAXIMIZED
 }
 
+#[cfg(not(target_env = "ohos"))]
 fn main_window_geometry_state_flags() -> StateFlags {
     StateFlags::SIZE | StateFlags::POSITION | StateFlags::FULLSCREEN
 }
@@ -367,19 +363,22 @@ fn main_window_geometry_state_flags() -> StateFlags {
 /// bogus normal-placement rect. Other platforms use the plugin's complete
 /// restore behavior.
 #[cfg(target_os = "windows")]
+#[cfg(not(target_env = "ohos"))]
 fn main_window_restore_flags() -> StateFlags {
     main_window_geometry_state_flags()
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(all(not(target_os = "windows"), not(target_env = "ohos")))]
 fn main_window_restore_flags() -> StateFlags {
     main_window_state_flags()
 }
 
+#[cfg(not(target_env = "ohos"))]
 fn persist_main_window_state(app: &tauri::AppHandle, reason: &str) -> Result<(), String> {
     persist_main_window_state_with_flags(app, reason, main_window_state_flags())
 }
 
+#[cfg(not(target_env = "ohos"))]
 fn persist_main_window_geometry_state(app: &tauri::AppHandle, reason: &str) -> Result<(), String> {
     persist_main_window_state_with_flags(app, reason, main_window_geometry_state_flags())
 }
@@ -435,6 +434,10 @@ pub(crate) fn set_main_window_transient_geometry(
     app: &tauri::AppHandle,
     transient: bool,
 ) -> Result<(), String> {
+    #[cfg(target_env = "ohos")]
+    { let _ = (app, transient); return Ok(()); }
+    #[cfg(not(target_env = "ohos"))]
+    {
     if transient {
         if MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.load(Ordering::SeqCst) {
             return Ok(());
@@ -459,6 +462,7 @@ pub(crate) fn set_main_window_transient_geometry(
             error
         )
     })
+    }
 }
 
 fn has_standard_main_window_size(width: f64, height: f64) -> bool {
@@ -2069,6 +2073,7 @@ pub async fn _run() {
             api::browser_api::browser_webview_navigate,
             api::browser_api::browser_webview_reload,
             api::browser_api::browser_webview_set_bounds,
+            #[cfg(not(target_env = "ohos"))]
             api::browser_api::browser_webview_set_agent_target_state,
             api::browser_api::browser_webview_show,
             api::browser_api::browser_webview_hide,
@@ -2299,7 +2304,6 @@ async fn init_agentic_system() -> anyhow::Result<(
         session_manager.clone(),
         context_compressor,
         execution_config,
-        Default::default(),
     ));
 
     let runtime_ownership = Arc::new(

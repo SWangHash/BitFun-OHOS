@@ -160,7 +160,11 @@ impl EmbeddedWebviewAutomation {
                     .and_then(Value::as_u64)
                     .unwrap_or(80)
                     .min(100) as u8;
-                let png = platform::take_screenshot(self.webview()?, SCRIPT_TIMEOUT_MS)
+                let webview = self.webview()?;
+                #[cfg(target_env = "ohos")]
+                let png = return Err("HarmonyOS ArkWeb screenshots require a native capture provider".to_string());
+                #[cfg(not(target_env = "ohos"))]
+                let png = platform::take_screenshot(webview, SCRIPT_TIMEOUT_MS)
                     .await
                     .map_err(format_webdriver_error)?;
                 let data = if format.eq_ignore_ascii_case("jpeg") {
@@ -198,6 +202,7 @@ impl EmbeddedWebviewAutomation {
                 Ok(json!({ "success": true }))
             }
             "Page.close" => {
+                #[cfg(not(target_env = "ohos"))]
                 self.webview()?
                     .close()
                     .map_err(|error| format!("Failed to close WebView: {error}"))?;

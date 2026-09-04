@@ -970,6 +970,7 @@ impl FrontendWorkbenchManager {
             .get()
             .and_then(|app| app.get_webview_window(CONFIRM_WINDOW_LABEL))
         {
+            #[cfg(not(target_env = "ohos"))]
             let _ = window.close();
         }
     }
@@ -1076,18 +1077,31 @@ fn show_confirmation_window(
     manager: Arc<FrontendWorkbenchManager>,
 ) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(CONFIRM_WINDOW_LABEL) {
+        #[cfg(not(target_env = "ohos"))]
         let _ = window.close();
     }
     let url = confirmation_window_url(transaction_id);
-    let window = WebviewWindowBuilder::new(app, CONFIRM_WINDOW_LABEL, url)
-        .title("Review BitFun frontend update")
-        .inner_size(440.0, 286.0)
-        .resizable(false)
-        .always_on_top(true)
-        .center()
-        .focused(true)
-        .build()
-        .map_err(|error| format!("Failed to open frontend confirmation window: {error}"))?;
+    let builder = WebviewWindowBuilder::new(app, CONFIRM_WINDOW_LABEL, url);
+    let window = {
+        #[cfg(not(target_env = "ohos"))]
+        {
+            builder
+                .title("Review BitFun frontend update")
+                .inner_size(440.0, 286.0)
+                .resizable(false)
+                .always_on_top(true)
+                .center()
+                .focused(true)
+                .build()
+                .map_err(|error| format!("Failed to open frontend confirmation window: {error}"))?
+        }
+        #[cfg(target_env = "ohos")]
+        {
+            builder
+                .build()
+                .map_err(|error| format!("Failed to open frontend confirmation window: {error}"))?
+        }
+    };
     let closed_transaction_id = transaction_id.to_string();
     window.on_window_event(move |event| {
         if !matches!(event, tauri::WindowEvent::CloseRequested { .. }) {

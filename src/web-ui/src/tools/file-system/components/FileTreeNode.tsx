@@ -7,6 +7,8 @@ import { getPathDepth } from './fileTreeDepth';
 interface ExtendedFileTreeNodeProps extends FileTreeNodeProps {
   selectedFile?: string;
   expandedFolders?: Set<string>;
+  renameSiblings?: string[];
+  isRemoteWorkspace?: boolean;
 }
 
 export const FileTreeNode: React.FC<ExtendedFileTreeNodeProps> = ({
@@ -25,7 +27,9 @@ export const FileTreeNode: React.FC<ExtendedFileTreeNodeProps> = ({
   onRename,
   onCancelRename,
   renderContent,
-  renderActions
+  renderActions,
+  renameSiblings,
+  isRemoteWorkspace = false,
 }) => {
   const indentDepth = getPathDepth(node.path, workspacePath);
 
@@ -45,6 +49,8 @@ export const FileTreeNode: React.FC<ExtendedFileTreeNodeProps> = ({
         onToggleExpand={() => onToggleExpand?.(node.path)}
         renderContent={renderContent}
         renderActions={renderActions}
+        renameSiblings={renameSiblings}
+        isRemoteWorkspace={isRemoteWorkspace}
       />
 
       {node.isDirectory && isExpanded && (
@@ -69,6 +75,8 @@ export const FileTreeNode: React.FC<ExtendedFileTreeNodeProps> = ({
               onCancelRename={onCancelRename}
               renderContent={renderContent}
               renderActions={renderActions}
+              renameSiblings={(node.children ?? []).filter(c => c.path !== child.path).map(c => c.name)}
+              isRemoteWorkspace={isRemoteWorkspace}
             />
           ))}
         </div>

@@ -19,7 +19,7 @@ use bitfun_core::agentic::tools::browser_control::BuiltInBrowserTarget;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::Manager;
 
 const VIDEO_DECODER_MODE_ENV: &str = "BITFUN_BROWSER_VIDEO_DECODER_MODE";
@@ -222,13 +222,13 @@ pub(crate) fn list_browser_targets(app: &tauri::AppHandle) -> Vec<BuiltInBrowser
     let mut registry = lock_browser_targets();
     registry
         .records
-        .retain(|label, _| app.get_webview(label).is_some());
+        .retain(|label, _| app.get_webview_window(label).is_some());
     let mut targets = registry
         .records
         .iter()
         .map(|(label, record)| {
             let url = app
-                .get_webview(label)
+                .get_webview_window(label)
                 .and_then(|webview| {
                     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| webview.url()))
                         .ok()

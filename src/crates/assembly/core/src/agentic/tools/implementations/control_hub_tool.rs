@@ -33,6 +33,8 @@ use crate::agentic::tools::framework::{
 use crate::service::config::{get_global_config_service, GlobalConfig};
 use crate::util::errors::{BitFunError, BitFunResult};
 use crate::util::types::ToolImageAttachment;
+use crate::infrastructure::events::get_global_event_system;
+use crate::infrastructure::events::BackendEvent;
 use async_trait::async_trait;
 use bitfun_services_core::system::{truncate_with_marker, LocalSystemProvider};
 #[cfg(target_env = "ohos")]
@@ -2492,6 +2494,7 @@ Branch on `ok` and `error.code`, not on English messages.
                 let total = pages.len();
                 let filtered: Vec<Value> = pages
                     .into_iter()
+                    .map(|page| json!({"id": page.id, "title": page.title, "url": page.url, "type": page.page_type, "target": "external"}))
                     .filter(|p| {
                         if only_pages && p.get("type").and_then(Value::as_str) != Some("page") {
                             return false;

@@ -7,7 +7,6 @@ use std::path::PathBuf;
 use tauri::State;
 
 use bitfun_agent_runtime::sdk::AgentUserAnswersRequest;
-use bitfun_core::agentic::tools::product_runtime::{build_tool_info, ToolInfoDto};
 use bitfun_core::agentic::{
     tools::framework::ToolUseContext,
     tools::{get_all_tools, get_readonly_tools},

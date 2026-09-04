@@ -665,10 +665,10 @@ fn show_main_window_for_startup(
         }
         startup_trace.record_elapsed_step("native_window", "show_window", show_started_at);
         debug!(
-        "Main window startup show step completed: step=show duration_ms={} since_create_start_ms={}",
-        show_started_at.elapsed().as_millis(),
-        total_started_at.elapsed().as_millis()
-    );
+            "Main window startup show step completed: step=show duration_ms={} since_create_start_ms={}",
+            show_started_at.elapsed().as_millis(),
+            total_started_at.elapsed().as_millis()
+        );
 
         let focus_started_at = Instant::now();
         if let Err(error) = window.set_focus() {
@@ -677,15 +677,15 @@ fn show_main_window_for_startup(
         }
         startup_trace.record_elapsed_step("native_window", "focus_window", focus_started_at);
         debug!(
-        "Main window startup show step completed: step=focus duration_ms={} since_create_start_ms={}",
-        focus_started_at.elapsed().as_millis(),
-        total_started_at.elapsed().as_millis()
-    );
+            "Main window startup show step completed: step=focus duration_ms={} since_create_start_ms={}",
+            focus_started_at.elapsed().as_millis(),
+            total_started_at.elapsed().as_millis()
+        );
 
     // Maximize only after the window is visible: maximizing a hidden
     // undecorated window on Windows is dropped on show and leaves a bogus
     // normal-placement rect behind (see `main_window_restore_flags`).
-    if reapply_maximized {
+        if reapply_maximized {
         match window.is_maximized() {
             Ok(true) => {}
             Ok(false) => {
@@ -703,6 +703,12 @@ fn show_main_window_for_startup(
                 )
             }
         }
+        }
+    }
+
+    #[cfg(target_env = "ohos")]
+    {
+        let _ = (window, total_started_at, startup_trace, reapply_maximized);
     }
 }
 
@@ -1116,6 +1122,11 @@ pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
             "Main window shown: total_duration_ms={}",
             total_started_at.elapsed().as_millis()
         );
+        Ok(())
+    }
+    #[cfg(target_env = "ohos")]
+    {
+        let _ = app;
         Ok(())
     }
 }
