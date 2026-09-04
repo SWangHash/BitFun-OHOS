@@ -5,6 +5,7 @@
     "description": "$string:module_desc",
     "mainElement": "EntryAbility",
     "deviceTypes": [
+      "tablet",
       "2in1"
     ],
     "deliveryWithInstall": true,
@@ -125,16 +126,6 @@
       {
         "name": "ohos.permission.MICROPHONE",
         "reason": "$string:permission_microphone_reason",
-        "usedScene": {
-          "abilities": [
-            "EntryAbility"
-          ],
-          "when": "always"
-        }
-      },
-      {
-        "name": "ohos.permission.WINDOW_TOPMOST",
-        "reason": "$string:permission_window_topmost_reason",
         "usedScene": {
           "abilities": [
             "EntryAbility"
