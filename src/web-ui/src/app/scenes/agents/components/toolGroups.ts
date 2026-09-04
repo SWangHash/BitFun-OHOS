@@ -46,6 +46,22 @@ const BUILTIN_TOOL_GROUPS: BuiltinToolGroupDefinition[] = [
     toolNames: ['ExecCommand', 'WriteStdin', 'ExecControl'],
   },
   {
+    id: 'builtin:harmonyos',
+    labelKey: 'agentsOverview.toolGroups.harmonyos',
+    toolNames: [
+      'build_project',
+      'start_app',
+      'hdc_log',
+      'arkts_knowledge_search',
+      'check_arkts_files',
+      'check_cpp_files',
+      'switch_cwd',
+      'verify_ui',
+      'get_ui_verification_log',
+      'save_ui_screenshot',
+    ],
+  },
+  {
     id: 'builtin:delegation',
     labelKey: 'agentsOverview.toolGroups.delegation',
     toolNames: ['Task', 'ListModels', 'AgentWait', 'Skill'],
