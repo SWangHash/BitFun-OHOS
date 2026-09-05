@@ -32,6 +32,7 @@
       "name": "default",
       "config": {
         "deviceType": [
+          "tablet",
           "2in1"
         ]
       }
