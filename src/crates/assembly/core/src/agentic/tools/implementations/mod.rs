@@ -25,10 +25,14 @@ pub mod control_hub_tool;
 #[cfg(feature = "tools-agent-control")]
 pub mod cron_tool;
 pub mod delete_file_tool;
+pub(crate) mod devecocli_run;
+pub(crate) mod deveco_mcp_check;
 pub mod exec_command;
 pub mod file_edit_tool;
 pub mod file_read_tool;
 pub mod file_write_tool;
+pub(crate) mod harmony_device;
+pub(crate) mod hdc_fallback;
 pub mod arkts_knowledge_search_tool;
 pub mod build_project_tool;
 pub mod check_arkts_files_tool;
@@ -36,8 +40,10 @@ pub mod check_cpp_files_tool;
 pub mod get_ui_verification_log_tool;
 pub mod hdc_log_tool;
 pub mod save_ui_screenshot_tool;
+pub(crate) mod session_cwd;
 pub mod start_app_tool;
 pub mod switch_cwd_tool;
+pub(crate) mod ui_verification_mcp;
 pub mod verify_ui_tool;
 #[cfg(feature = "tools-creation")]
 pub mod frontend_workbench_tool;

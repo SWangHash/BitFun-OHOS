@@ -829,7 +829,7 @@ use napi_derive_ohos::napi;
 pub fn ohos_mark_clean_shutdown() {
     log::info!("Quit requested via quit_app command");
     crate::crash_diagnostics::mark_clean_shutdown("quit_app_command");
-    crate::perform_process_exit_cleanup();
+    crate::perform_process_exit_cleanup().await;
 }
 
 #[cfg(target_env = "ohos")]
