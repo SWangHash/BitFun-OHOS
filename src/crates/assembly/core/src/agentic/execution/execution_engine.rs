@@ -654,7 +654,9 @@ const QT_MIGRATION_CONFIRM_INSTRUCTION: &str = r#"## 迁移前置输入（系统
 
 用户请求已分类为 Qt → HarmonyOS 应用迁移任务。在四项最小输入（source_project、output_project、toolchain、template）全部达到 Validated 之前，禁止执行任何迁移副作用（写文件、构建、部署、删除），禁止加载技能、禁止做任何其它事情。
 
-你的下一步必须且只能是调用 AskUserQuestion 工具，参数传入 {"templateId": "qt-migration-paths", "candidates": {...}}。在调用前可使用只读工具探测当前工作区；一旦发现用户当前指定或明确指代的 Qt 工程，必须把其工程目录或 `.pro` 文件路径放入 `candidates.source_project`，且置于数组第一项。不得只在分析文字中描述候选而省略 `candidates`。其他已探测候选也应按字段传入；不要自行构造 questions，不要在工具调用前后输出说明文字，也不能用纯文本提示代替工具调用。调用后等待用户提交答案。"#;
+你的下一步必须且只能是调用 AskUserQuestion 工具，参数传入 {"templateId": "qt-migration-paths", "candidates": {...}}。在调用前可使用只读工具探测当前工作区；一旦发现用户当前指定或明确指代的 Qt 工程，必须把其工程目录或 `.pro` 文件路径放入 `candidates.source_project`，且置于数组第一项。不得只在分析文字中描述候选而省略 `candidates`。其他已探测候选也应按字段传入；不要自行构造 questions，不要在工具调用前后输出说明文字，也不能用纯文本提示代替工具调用。调用后等待用户提交答案。
+
+用户提交答案后，AskUserQuestion 工具结果返回的四项绑定值就是本次迁移的唯一输入事实，必须直接采用，不得重新询问或替换为其他路径。"#;
 
 // Engine-level constraint ensuring Qt migration work always uses the
 // `ohos-qt-skills` knowledge base. Gate semantics only: which skill must load
@@ -665,6 +667,99 @@ const QT_MIGRATION_SKILL_GATE_INSTRUCTION: &str = r#"## 必用技能（系统约
 这是一个 Qt → HarmonyOS(OpenHarmony) 迁移任务。在每个新的迁移任务开始前（包括同一会话中迁移另一个 Qt 工程），你**必须**先调用 Skill 工具加载技能 ohos-qt-skills，并遵循该技能当前版本的流程（以其 _index/_task-routing 与 procedural 页面为准）。上一次迁移任务中已经加载过的技能不满足本次任务的要求。
 
 技能未加载、技能不可用或加载失败时，禁止产生任何迁移副作用。领域流程细节本系统不重复提供，一律以 ohos-qt-skills 当前版本为唯一事实源。"#;
+
+/// Host platform value expected by the skill's download scripts
+/// (`--platform=<macos|windows|linux|harmonyos>`).
+fn qt_migration_download_platform() -> &'static str {
+    if cfg!(target_env = "ohos") {
+        "harmonyos"
+    } else {
+        match std::env::consts::OS {
+            "macos" => "macos",
+            "linux" => "linux",
+            _ => "windows",
+        }
+    }
+}
+
+/// Guidance for `__official__` toolchain/template bindings: the question card
+/// already explored the environment and found no candidates, so the skill flow
+/// must skip exploration and download directly into the BitFun-managed dirs.
+fn qt_migration_official_input_guidance(
+    toolchains_dir: &str,
+    templates_dir: &str,
+    platform: &str,
+) -> String {
+    format!(
+        r#"### toolchain / template 为 __official__ 时的执行方式
+
+toolchain 或 template 的绑定值为 __official__ 时，表示使用鸿蒙OS官方推荐版本。问题卡片阶段已完成环境探索并确认当前环境没有可用的工具链/模板工程候选，因此不要再做任何存在性探索或检查，直接按 ohos-qt-skills 流程运行下载脚本安装：
+
+- 工具链：`bash skills/kb-init/scripts/download-qt-sdk.sh --platform={platform}`，安装目标目录 `{toolchains_dir}`（脚本经 Bash 工具注入的 BITFUN_QT_MIGRATION_ROOT 默认就安装到这里，不要用 --dest 改到其他位置），安装完成后使用脚本输出的 QT5_12_OHOS_SDK。
+- 模板：`bash skills/kb-init/scripts/download-template.sh --platform={platform}`，安装目标目录 `{templates_dir}`，安装完成后使用脚本输出的 OHOS_TEMPLATE_SRC。"#
+    )
+}
+
+/// Skill-gate instruction plus concrete `__official__` download semantics.
+fn qt_migration_skill_gate_instruction(
+    toolchains_dir: &str,
+    templates_dir: &str,
+    platform: &str,
+) -> String {
+    format!(
+        "{}\n\n{}",
+        QT_MIGRATION_SKILL_GATE_INSTRUCTION,
+        qt_migration_official_input_guidance(toolchains_dir, templates_dir, platform)
+    )
+}
+
+/// Snapshot instruction listing the four bound inputs once all of them are
+/// resolved. Returns `None` while any field is still unresolved.
+fn qt_migration_bound_inputs_instruction(
+    snapshot: &bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot,
+    toolchains_dir: &str,
+    templates_dir: &str,
+    platform: &str,
+) -> Option<String> {
+    use bitfun_agent_runtime::qt_migration_intake_state::{
+        QtMigrationFieldResolutionState, QT_MIGRATION_INTAKE_REQUIRED_FIELDS,
+        QT_MIGRATION_OFFICIAL_VALUE,
+    };
+
+    let mut values = std::collections::BTreeMap::new();
+    for field in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
+        let state = snapshot.fields.get(field)?;
+        if state.state != QtMigrationFieldResolutionState::Resolved {
+            return None;
+        }
+        values.insert(field, state.value.as_deref()?);
+    }
+
+    let mut text = String::from(
+        "## 迁移绑定输入（系统事实，必须使用）\n\n用户已通过问题卡片确认本次迁移的四项最小输入。迁移操作必须使用以下绑定值，不得替换为其他路径，不得重新询问：\n",
+    );
+    for field in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
+        let value = values[field];
+        if value == QT_MIGRATION_OFFICIAL_VALUE {
+            text.push_str(&format!(
+                "- {field}：__official__（使用鸿蒙OS官方推荐版本，执行方式见下方）\n"
+            ));
+        } else {
+            text.push_str(&format!("- {field}：{value}\n"));
+        }
+    }
+    if values["toolchain"] == QT_MIGRATION_OFFICIAL_VALUE
+        || values["template"] == QT_MIGRATION_OFFICIAL_VALUE
+    {
+        text.push_str("\n\n");
+        text.push_str(&qt_migration_official_input_guidance(
+            toolchains_dir,
+            templates_dir,
+            platform,
+        ));
+    }
+    Some(text)
+}
 
 impl ExecutionEngine {
     const AUTO_COMPRESSION_SAFETY_RESERVE_TOKENS: usize = 10_000;
@@ -3470,6 +3565,16 @@ impl ExecutionEngine {
                     dialog_turn_id, missing_or_referenced
                 );
                 let mut instruction = String::new();
+                let path_manager = crate::infrastructure::get_path_manager_arc();
+                let toolchains_dir = path_manager
+                    .qt_migration_toolchains_dir()
+                    .to_string_lossy()
+                    .into_owned();
+                let templates_dir = path_manager
+                    .qt_migration_templates_dir()
+                    .to_string_lossy()
+                    .into_owned();
+                let platform = qt_migration_download_platform();
                 if missing_or_referenced {
                     let pending_fields =
                         ["source_project", "output_project", "toolchain", "template"]
@@ -3490,8 +3595,20 @@ impl ExecutionEngine {
                     ));
                     instruction
                         .push_str("\n\n输入收集完成后，迁移工作必须遵守下面的必用技能约束：\n");
+                } else if let Some(bound_inputs) = qt_migration_bound_inputs_instruction(
+                    &bound_intake,
+                    &toolchains_dir,
+                    &templates_dir,
+                    platform,
+                ) {
+                    instruction.push_str(&bound_inputs);
+                    instruction.push_str("\n\n迁移工作必须遵守下面的必用技能约束：\n");
                 }
-                instruction.push_str(QT_MIGRATION_SKILL_GATE_INSTRUCTION);
+                instruction.push_str(&qt_migration_skill_gate_instruction(
+                    &toolchains_dir,
+                    &templates_dir,
+                    platform,
+                ));
                 initial_messages.insert(0, Message::user(instruction));
             }
         }
@@ -5411,9 +5528,11 @@ mod compression_tests;
 mod tests {
     use super::{
         activate_conditional_instructions_after_round, manual_compaction_terminal_error,
-        reached_fixed_model_round_limit, resolve_round_permission_mode,
-        runtime_context_needs_for_manifest, skill_agent_listing_reminders, ContextHealthSnapshot,
-        ExecutionEngine, ExecutionEngineConfig, RoundResult, TurnPromptScaffold,
+        qt_migration_bound_inputs_instruction, qt_migration_download_platform,
+        qt_migration_skill_gate_instruction, reached_fixed_model_round_limit,
+        resolve_round_permission_mode, runtime_context_needs_for_manifest,
+        skill_agent_listing_reminders, ContextHealthSnapshot, ExecutionEngine,
+        ExecutionEngineConfig, RoundResult, TurnPromptScaffold,
     };
     use crate::agentic::agents::{
         PrependedPromptReminders, PromptBuilderContext, ToolListingSections, UserContextPolicy,
@@ -5434,6 +5553,12 @@ mod tests {
     use crate::service::config::types::AIModelConfig;
     use crate::service::remote_ssh::workspace_state::workspace_session_identity;
     use crate::util::types::ToolDefinition;
+    use bitfun_agent_runtime::qt_migration_intake_state::{
+        QtMigrationFieldResolutionState, QtMigrationIntakeFieldState,
+        QtMigrationIntakeStateSnapshot, QT_MIGRATION_INTAKE_REQUIRED_FIELDS,
+        QT_MIGRATION_OFFICIAL_VALUE,
+    };
+    use bitfun_agent_runtime::thread_goal_tools::THREAD_GOAL_TOOL_NAMES;
     use bitfun_runtime_ports::{
         PermissionMode, WorkspaceDirEntry, WorkspaceFileSystem, WorkspacePathKind,
     };
@@ -7017,5 +7142,103 @@ mod tests {
             duration_ms: Some(1),
             image_attachments: None,
         })
+    }
+
+    fn bound_snapshot(toolchain: &str, template: &str) -> QtMigrationIntakeStateSnapshot {
+        let mut snapshot = QtMigrationIntakeStateSnapshot::empty();
+        for field in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
+            let value = match field {
+                "source_project" => "D:/work/myqt",
+                "output_project" => "D:/out/hm",
+                "toolchain" => toolchain,
+                _ => template,
+            };
+            snapshot.fields.insert(
+                field.to_string(),
+                QtMigrationIntakeFieldState {
+                    state: QtMigrationFieldResolutionState::Resolved,
+                    value: Some(value.to_string()),
+                },
+            );
+        }
+        snapshot.status =
+            bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStatus::Ready;
+        snapshot
+    }
+
+    #[test]
+    fn bound_inputs_instruction_lists_values_and_official_guidance() {
+        let snapshot = bound_snapshot(QT_MIGRATION_OFFICIAL_VALUE, "D:/tpl");
+        let text = qt_migration_bound_inputs_instruction(
+            &snapshot,
+            "/root/toolchains",
+            "/root/templates",
+            "harmonyos",
+        )
+        .expect("all resolved");
+
+        assert!(text.contains("source_project：D:/work/myqt"));
+        assert!(text.contains("output_project：D:/out/hm"));
+        assert!(text.contains("toolchain：__official__"));
+        assert!(text.contains("template：D:/tpl"));
+        // official 语义：跳过探索、直接下载、指定目标目录与平台参数
+        assert!(text.contains("不要再做任何存在性探索或检查"));
+        assert!(text.contains("download-qt-sdk.sh --platform=harmonyos"));
+        assert!(text.contains("download-template.sh --platform=harmonyos"));
+        assert!(text.contains("/root/toolchains"));
+        assert!(text.contains("/root/templates"));
+        assert!(text.contains("BITFUN_QT_MIGRATION_ROOT"));
+    }
+
+    #[test]
+    fn bound_inputs_instruction_skips_official_guidance_without_official_value() {
+        let snapshot = bound_snapshot("D:/sdk/qt", "D:/tpl");
+        let text = qt_migration_bound_inputs_instruction(
+            &snapshot,
+            "/root/toolchains",
+            "/root/templates",
+            "windows",
+        )
+        .expect("all resolved");
+
+        assert!(!text.contains("__official__"));
+        assert!(!text.contains("download-qt-sdk.sh"));
+    }
+
+    #[test]
+    fn bound_inputs_instruction_returns_none_when_any_field_unresolved() {
+        let mut snapshot = bound_snapshot("D:/sdk/qt", "D:/tpl");
+        if let Some(state) = snapshot.fields.get_mut("output_project") {
+            state.state = QtMigrationFieldResolutionState::Missing;
+            state.value = None;
+        }
+        assert!(qt_migration_bound_inputs_instruction(
+            &snapshot,
+            "/root/toolchains",
+            "/root/templates",
+            "windows",
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn skill_gate_instruction_carries_official_download_targets() {
+        let text =
+            qt_migration_skill_gate_instruction("/root/toolchains", "/root/templates", "harmonyos");
+        assert!(text.contains("必须**先调用 Skill 工具加载技能 ohos-qt-skills"));
+        assert!(text.contains("download-qt-sdk.sh --platform=harmonyos"));
+        assert!(text.contains("/root/toolchains"));
+    }
+
+    #[test]
+    fn download_platform_matches_host_family() {
+        if cfg!(target_env = "ohos") {
+            assert_eq!(qt_migration_download_platform(), "harmonyos");
+        } else {
+            assert!(matches!(
+                qt_migration_download_platform(),
+                "windows" | "macos" | "linux"
+            ));
+        }
     }
 }
