@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 
-const port = Number.parseInt(process.env.BITFUN_FEEDBACK_MOCK_PORT ?? '38971', 10);
+const port = Number.parseInt(process.env.OPENBITFUN_FEEDBACK_MOCK_PORT ?? '38971', 10);
 const enrollments = new Map();
 const refreshTokens = new Map();
 const createRequests = new Map();

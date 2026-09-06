@@ -1,13 +1,31 @@
-import { Button, Icon, IconButton, Input, Select, Textarea, Tooltip } from '@bitfun/ui';
+import {
+  Button,
+  ConfirmDialog,
+  Icon,
+  IconButton,
+  Input,
+  Select,
+  Spinner,
+  StatusPill,
+  TabGroup,
+  Textarea,
+  Tooltip,
+  type StatusPillTone,
+} from '@openbitfun/ui';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, CircleAlert, EyeOff, FileJson, LoaderCircle, Save, Server } from 'lucide-react';
+import { Bot, CircleAlert, EyeOff, FileJson, Save, Server } from 'lucide-react';
 import {
   ConfigPageContent,
   ConfigPageHeader,
   ConfigPageLayout,
   ConfigPageSection,
   ConfigPageSectionStack,
+  ConfigLoadingState,
+  ConfigRefreshButton,
+  formatStandaloneUiText,
+  ConfigMessage,
+  ConfigRetryState,
 } from './common';
 import {
   ACPClientAPI,
@@ -22,11 +40,12 @@ import { sshApi } from '@/features/ssh-remote/sshApi';
 import type { SavedConnection } from '@/features/ssh-remote/types';
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
+import { useSettingsDraft } from '@/infrastructure/config/settingsDraftRegistry';
 import './AcpAgentsConfig.scss';
 
 const log = createLogger('AcpAgentsConfig');
 const HIDDEN_REMOTE_CONNECTION_IDS_STORAGE_KEY =
-  'bitfun:settings:acp-agents:hidden-remote-connections:v1';
+  'openbitfun:settings:acp-agents:hidden-remote-connections:v1';
 
 function loadHiddenRemoteConnectionIds(): Set<string> {
   try {
@@ -78,10 +97,17 @@ interface AcpClientPreset {
 // package (their CLI binary is launched directly).
 const NATIVE_ACP_PRESET_IDS = new Set(['opencode', 'dsh', 'omp']);
 
-// Presets BitFun cannot install on the user's behalf — the agent must be
+// Presets OpenBitFun cannot install on the user's behalf — the agent must be
 // installed manually (e.g. omp targets bun and ships via its own installer).
 // The UI hides the one-click "Install CLI" action for these.
 const SELF_MANAGED_INSTALL_PRESET_IDS = new Set(['omp']);
+
+const CLI_INSTALL_PACKAGES: Record<string, string> = {
+  opencode: 'opencode-ai',
+  dsh: '@deepseek-ai/dsh',
+  'claude-code': '@anthropic-ai/claude-code',
+  codex: '@openai/codex',
+};
 
 const PRESETS: AcpClientPreset[] = [
   {
@@ -90,14 +116,14 @@ const PRESETS: AcpClientPreset[] = [
     command: 'opencode',
     args: ['acp'],
   },
-  // BitFun ships the ACP bridge for DeepSeek Harness and installs it into the
+  // OpenBitFun ships the ACP bridge for DeepSeek Harness and installs it into the
   // user's own dsh as a profile on first launch, so the only setup left is the
   // harness itself and the model the user picks inside it.
   {
     id: 'dsh',
     name: 'DeepSeek Harness',
     command: 'dsh',
-    args: ['--profile', 'bitfun-acp'],
+    args: ['--profile', 'openbitfun-acp'],
   },
   {
     id: 'omp',
@@ -124,6 +150,26 @@ const PRESET_BY_ID = new Map(PRESETS.map(preset => [preset.id, preset]));
 interface SelfManagedInstallInfo extends Record<string, string> {
   name: string;
   command: string;
+}
+
+interface InstallConfirmation {
+  preset: AcpClientPreset;
+  remoteConnectionId?: string;
+  hostLabel: string;
+  packageName: string;
+}
+
+export type AcpConfigView = 'local' | 'ssh' | 'json';
+
+interface AcpAgentsConfigProps {
+  viewId?: AcpConfigView;
+  navigationRequestId?: number;
+  onViewChange?: (view: AcpConfigView) => void;
+  settingsDraftEnabled?: boolean;
+}
+
+function normalizeAcpConfigView(viewId?: string): AcpConfigView {
+  return viewId === 'ssh' || viewId === 'json' ? viewId : 'local';
 }
 
 function selfManagedInstallInfoForPreset(preset?: AcpClientPreset): SelfManagedInstallInfo | null {
@@ -249,9 +295,12 @@ function formatEnv(env: Record<string, string>): string {
   return Object.entries(env).map(([key, value]) => `${key}=${value}`).join('\n');
 }
 
-function requirementTone(item?: AcpRequirementProbeItem): 'ok' | 'error' | 'muted' {
-  if (!item) return 'muted';
-  return item.installed ? 'ok' : 'error';
+function requirementTone(
+  item?: AcpRequirementProbeItem,
+  checking = false,
+): StatusPillTone {
+  if (!item) return checking ? 'info' : 'neutral';
+  return item.installed ? 'success' : 'danger';
 }
 
 type RegistryFilter = 'all' | 'installed' | 'not_installed' | 'invalid';
@@ -342,7 +391,23 @@ function getAgentRowStatus({
   return 'enabled';
 }
 
-function CapabilityBadge({
+function agentStatusTone(status: AgentRowStatus): StatusPillTone {
+  switch (status) {
+    case 'enabled':
+    case 'ready':
+      return 'success';
+    case 'partial':
+      return 'warning';
+    case 'invalid':
+      return 'danger';
+    case 'checking':
+      return 'info';
+    case 'not_installed':
+      return 'neutral';
+  }
+}
+
+function CapabilityStatusPill({
   icon,
   item,
   label,
@@ -359,7 +424,7 @@ function CapabilityBadge({
   missingText: string;
   checkingText: string;
 }) {
-  const tone = item ? requirementTone(item) : 'muted';
+  const tone = requirementTone(item, checking);
   const title = item
     ? [label, item.installed ? installedText : missingText, item.path, item.version, item.error]
       .filter(Boolean)
@@ -367,17 +432,19 @@ function CapabilityBadge({
     : checking ? `${label}\n${checkingText}` : label;
 
   return (
-    <span
-      className={`bitfun-acp-agents__capability is-${tone}`}
+    <StatusPill
+      aria-label={title}
+      data-openbitfun-state={item ? (item.installed ? 'installed' : 'missing') : checking ? 'checking' : 'unknown'}
+      leading={icon}
       title={title}
+      tone={tone}
     >
-      {icon}
-      <span>{label}</span>
-    </span>
+      {label}
+    </StatusPill>
   );
 }
 
-function AgentStatusBadge({
+function AgentStatusPill({
   status,
   label,
   title,
@@ -387,14 +454,24 @@ function AgentStatusBadge({
   title?: string;
 }) {
   return (
-    <span className={`bitfun-acp-agents__status is-${status}`} title={title}>
-      {status === 'checking' && <LoaderCircle size={12} />}
-      <span>{label}</span>
-    </span>
+    <StatusPill
+      aria-label={title ? `${label}. ${title}` : label}
+      data-openbitfun-state={status}
+      leading={status === 'checking' ? <Spinner size="xs" /> : undefined}
+      title={title}
+      tone={agentStatusTone(status)}
+    >
+      {label}
+    </StatusPill>
   );
 }
 
-const AcpAgentsConfig: React.FC = () => {
+const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
+  viewId,
+  navigationRequestId = 0,
+  onViewChange,
+  settingsDraftEnabled = false,
+}) => {
   const { t } = useTranslation('settings/acp-agents');
   const { error: notifyError, info: notifyInfo, success: notifySuccess } = useNotification();
   const jsonEditorRef = useRef<HTMLTextAreaElement>(null);
@@ -403,10 +480,14 @@ const AcpAgentsConfig: React.FC = () => {
   const [clients, setClients] = useState<AcpClientInfo[]>([]);
   const [savedConnections, setSavedConnections] = useState<SavedConnection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [showJsonEditor, setShowJsonEditor] = useState(false);
   const [jsonConfig, setJsonConfig] = useState('');
+  const [jsonBaseline, setJsonBaseline] = useState(formatConfig({ acpClients: {} }));
+  const [jsonDirty, setJsonDirty] = useState(false);
+  const [activeView, setActiveView] = useState<AcpConfigView>(() => normalizeAcpConfigView(viewId));
+  const [pendingView, setPendingView] = useState<AcpConfigView | null>(null);
   const [envDrafts, setEnvDrafts] = useState<Record<string, string>>({});
   const [requirementProbes, setRequirementProbes] = useState<AcpClientRequirementProbe[]>([]);
   const [remoteRequirementProbes, setRemoteRequirementProbes] = useState<Record<string, AcpClientRequirementProbe[]>>({});
@@ -418,8 +499,12 @@ const AcpAgentsConfig: React.FC = () => {
   const [installingRemoteClientIds, setInstallingRemoteClientIds] = useState<Set<string>>(() => new Set());
   const [hiddenRemoteConnectionIds, setHiddenRemoteConnectionIds] = useState(loadHiddenRemoteConnectionIds);
   const [showHiddenRemoteConnections, setShowHiddenRemoteConnections] = useState(false);
+  const [installConfirmation, setInstallConfirmation] = useState<InstallConfirmation | null>(null);
   const requirementProbeRequestIdRef = useRef(0);
   const savingConfigRef = useRef(false);
+  const lastNavigationRequestIdRef = useRef(navigationRequestId);
+  const activeViewRef = useRef(activeView);
+  const localRequirementProbeStartedRef = useRef(false);
   const loadedRemoteProbeIdsRef = useRef<Set<string>>(new Set());
   const [remoteProbeRefreshNonce, setRemoteProbeRefreshNonce] = useState(0);
 
@@ -542,10 +627,15 @@ const AcpAgentsConfig: React.FC = () => {
     });
   }, [clientsById, config.acpClients, customClientRows, probesById, probingRequirements, registryFilter, registrySearch]);
 
+  useEffect(() => {
+    activeViewRef.current = activeView;
+  }, [activeView]);
+
   const refreshRequirementProbes = useCallback(async (
     options: { force?: boolean; notifyOnError?: boolean } = {}
   ) => {
     const requestId = ++requirementProbeRequestIdRef.current;
+    localRequirementProbeStartedRef.current = true;
     setProbingRequirements(true);
     try {
       const nextRequirementProbes = await loadRequirementProbes({ force: options.force });
@@ -613,6 +703,7 @@ const AcpAgentsConfig: React.FC = () => {
     try {
       if (showLoading) {
         setLoading(true);
+        setLoadFailed(false);
       }
       const [rawConfig, nextClients] = await Promise.all([
         ACPClientAPI.loadJsonConfig(),
@@ -624,7 +715,9 @@ const AcpAgentsConfig: React.FC = () => {
       });
       const parsed = normalizeConfigValue(JSON.parse(rawConfig || '{}'));
       setConfig(parsed);
-      setJsonConfig(formatConfig(parsed));
+      const formattedConfig = formatConfig(parsed);
+      setJsonConfig(formattedConfig);
+      setJsonBaseline(formattedConfig);
       setEnvDrafts(
         Object.fromEntries(
           Object.entries(parsed.acpClients).map(([clientId, clientConfig]) => [
@@ -636,14 +729,18 @@ const AcpAgentsConfig: React.FC = () => {
       setClients(nextClients);
       setSavedConnections(nextSavedConnections);
       setDirty(false);
-      if (refreshRequirements) {
+      setJsonDirty(false);
+      if (refreshRequirements && activeViewRef.current === 'local') {
         void refreshRequirementProbes({ notifyOnError: false });
       }
     } catch (error) {
       log.error('Failed to load ACP agent config', error);
-      notifyError(error instanceof Error ? error.message : String(error), {
-        title: t('notifications.loadFailed'),
-      });
+      if (showLoading) setLoadFailed(true);
+      else {
+        notifyError(error instanceof Error ? error.message : String(error), {
+          title: t('notifications.loadFailed'),
+        });
+      }
     } finally {
       if (showLoading) {
         setLoading(false);
@@ -680,24 +777,45 @@ const AcpAgentsConfig: React.FC = () => {
   }, [loadConfig]);
 
   useEffect(() => {
+    if (settingsDraftEnabled || (!dirty && !jsonDirty)) return undefined;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [dirty, jsonDirty, settingsDraftEnabled]);
+
+  useEffect(() => {
+    if (loading || activeView !== 'local' || localRequirementProbeStartedRef.current) return;
+    void refreshRequirementProbes({ notifyOnError: false });
+  }, [activeView, loading, refreshRequirementProbes]);
+
+  useEffect(() => {
     const handleAcpClientsChanged = () => {
-      if (savingConfigRef.current) {
+      if (savingConfigRef.current || dirty || jsonDirty) {
         return;
       }
       void loadConfig({ showLoading: false });
     };
-    window.addEventListener('bitfun:acp-clients-changed', handleAcpClientsChanged);
+    window.addEventListener('openbitfun:acp-clients-changed', handleAcpClientsChanged);
     return () => {
-      window.removeEventListener('bitfun:acp-clients-changed', handleAcpClientsChanged);
+      window.removeEventListener('openbitfun:acp-clients-changed', handleAcpClientsChanged);
     };
-  }, [loadConfig]);
+  }, [dirty, jsonDirty, loadConfig]);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || activeView !== 'ssh') return;
     for (const connection of visibleRemoteConnectionRows) {
       void refreshRemoteRequirementProbes(connection.id, { notifyOnError: false });
     }
-  }, [loading, refreshRemoteRequirementProbes, remoteProbeRefreshNonce, visibleRemoteConnectionRows]);
+  }, [
+    activeView,
+    loading,
+    refreshRemoteRequirementProbes,
+    remoteProbeRefreshNonce,
+    visibleRemoteConnectionRows,
+  ]);
 
   const patchClientConfig = (clientId: string, patch: Partial<AcpClientConfig>) => {
     setConfig(prev => {
@@ -716,10 +834,29 @@ const AcpAgentsConfig: React.FC = () => {
           },
         },
       };
-      setJsonConfig(formatConfig(next));
+      const formattedConfig = formatConfig(next);
+      setJsonConfig(formattedConfig);
+      setJsonBaseline(formattedConfig);
       return next;
     });
     setDirty(true);
+  };
+
+  const requestInstallPresetClient = (
+    preset: AcpClientPreset,
+    options: { remoteConnectionId?: string; hostLabel?: string } = {},
+  ) => {
+    const packageName = CLI_INSTALL_PACKAGES[preset.id];
+    if (!packageName) {
+      notifyError(t('installConfirm.packageUnknown'));
+      return;
+    }
+    setInstallConfirmation({
+      preset,
+      remoteConnectionId: options.remoteConnectionId,
+      hostLabel: options.hostLabel || t('installConfirm.localHost'),
+      packageName,
+    });
   };
 
   const installPresetClient = async (
@@ -754,6 +891,15 @@ const AcpAgentsConfig: React.FC = () => {
         return next;
       });
     }
+  };
+
+  const confirmInstallPresetClient = () => {
+    const request = installConfirmation;
+    if (!request) return;
+    setInstallConfirmation(null);
+    void installPresetClient(request.preset, {
+      remoteConnectionId: request.remoteConnectionId,
+    });
   };
 
   const configurePresetClient = async (preset: AcpClientPreset) => {
@@ -796,28 +942,34 @@ const AcpAgentsConfig: React.FC = () => {
   const saveConfig = async (
     nextConfig = config,
     options: { mergeEnvDrafts?: boolean; successMessage?: string } = {}
-  ) => {
+  ): Promise<boolean> => {
+    if (savingConfigRef.current) return false;
     savingConfigRef.current = true;
     try {
       setSaving(true);
       const configToSave = options.mergeEnvDrafts === false
         ? nextConfig
         : mergeEnvDrafts(nextConfig);
-      await ACPClientAPI.saveJsonConfig(formatConfig(configToSave));
+      const formattedConfig = formatConfig(configToSave);
+      await ACPClientAPI.saveJsonConfig(formattedConfig);
       const nextClients = await ACPClientAPI.getClients();
       setClients(nextClients);
       setConfig(configToSave);
-      setJsonConfig(formatConfig(configToSave));
+      setJsonConfig(formattedConfig);
+      setJsonBaseline(formattedConfig);
       setDirty(false);
+      setJsonDirty(false);
       await refreshRequirementProbes({ force: true, notifyOnError: false });
       loadedRemoteProbeIdsRef.current.clear();
       setRemoteProbeRefreshNonce(prev => prev + 1);
       notifySuccess(options.successMessage ?? t('notifications.saveSuccess'));
+      return true;
     } catch (error) {
       log.error('Failed to save ACP agent config', error);
       notifyError(error instanceof Error ? error.message : String(error), {
         title: t('notifications.saveFailed'),
       });
+      return false;
     } finally {
       savingConfigRef.current = false;
       setSaving(false);
@@ -837,7 +989,9 @@ const AcpAgentsConfig: React.FC = () => {
       },
     };
     setConfig(next);
-    setJsonConfig(formatConfig(next));
+    const formattedConfig = formatConfig(next);
+    setJsonConfig(formattedConfig);
+    setJsonBaseline(formattedConfig);
     setEnvDrafts(prev => ({
       ...prev,
       [preset.id]: formatEnv(nextClient.env),
@@ -854,10 +1008,11 @@ const AcpAgentsConfig: React.FC = () => {
     });
   };
 
-  const saveJsonConfig = async () => {
+  const saveJsonConfig = async (): Promise<boolean> => {
     try {
       const parsed = normalizeConfigValue(JSON.parse(jsonConfig));
-      await saveConfig(parsed, { mergeEnvDrafts: false });
+      const saved = await saveConfig(parsed, { mergeEnvDrafts: false });
+      if (!saved) return false;
       setConfig(parsed);
       setEnvDrafts(
         Object.fromEntries(
@@ -867,13 +1022,36 @@ const AcpAgentsConfig: React.FC = () => {
           ])
         )
       );
-      setShowJsonEditor(false);
+      setJsonDirty(false);
+      return true;
     } catch (error) {
       notifyError(error instanceof Error ? error.message : String(error), {
         title: t('notifications.invalidJson'),
       });
+      return false;
     }
   };
+
+  const discardAcpDraft = useCallback(async () => {
+    if (activeView === 'json' && jsonDirty) {
+      setJsonConfig(jsonBaseline);
+      setJsonDirty(false);
+      return;
+    }
+    await loadConfig({ showLoading: false, refreshRequirements: false });
+  }, [activeView, jsonBaseline, jsonDirty, loadConfig]);
+
+  useSettingsDraft({
+    id: 'acp-agent-config',
+    pageId: 'tools.acp',
+    viewId: activeView === 'json' && jsonDirty ? 'json' : undefined,
+    label: activeView === 'json' && jsonDirty ? t('json.title') : t('title'),
+    dirty: dirty || jsonDirty,
+    saving,
+    save: () => activeView === 'json' ? saveJsonConfig() : saveConfig(),
+    discard: discardAcpDraft,
+    enabled: settingsDraftEnabled,
+  });
 
   const permissionOptions = useMemo(() => [
     { value: 'ask', label: t('permissionMode.ask') },
@@ -1037,12 +1215,108 @@ const AcpAgentsConfig: React.FC = () => {
     });
   }, [config.acpClients]);
 
+  const viewTabs = useMemo(() => [
+    {
+      id: 'acp-config-local-tab',
+      label: t('views.local'),
+      panelId: 'acp-config-local-panel',
+      value: 'local',
+    },
+    {
+      id: 'acp-config-ssh-tab',
+      label: t('views.ssh'),
+      panelId: 'acp-config-ssh-panel',
+      value: 'ssh',
+    },
+    {
+      id: 'acp-config-json-tab',
+      label: t('views.json'),
+      panelId: 'acp-config-json-panel',
+      value: 'json',
+    },
+  ], [t]);
+
+  const activateView = useCallback((nextView: AcpConfigView) => {
+    if (nextView === 'json') {
+      const formattedConfig = formatConfig(config);
+      setJsonConfig(formattedConfig);
+      setJsonBaseline(formattedConfig);
+      setJsonDirty(false);
+    }
+    setActiveView(nextView);
+  }, [config]);
+
+  const handleViewChange = useCallback((value: string) => {
+    if (value !== 'local' && value !== 'ssh' && value !== 'json') return;
+    if (value === activeView) return;
+    if (!settingsDraftEnabled && activeView === 'json' && jsonDirty) {
+      setPendingView(value);
+      return;
+    }
+    if (onViewChange) {
+      onViewChange(value);
+      return;
+    }
+    activateView(value);
+  }, [activateView, activeView, jsonDirty, onViewChange, settingsDraftEnabled]);
+
+  const discardJsonChanges = useCallback(() => {
+    const nextView = pendingView;
+    setJsonConfig(jsonBaseline);
+    setJsonDirty(false);
+    setPendingView(null);
+    if (nextView) {
+      activateView(nextView);
+      onViewChange?.(nextView);
+    }
+  }, [activateView, jsonBaseline, onViewChange, pendingView]);
+
+  const keepEditingJson = useCallback(() => {
+    setPendingView(null);
+    onViewChange?.('json');
+  }, [onViewChange]);
+
+  useEffect(() => {
+    if (lastNavigationRequestIdRef.current === navigationRequestId) return;
+    lastNavigationRequestIdRef.current = navigationRequestId;
+    const requestedView = normalizeAcpConfigView(viewId);
+    if (requestedView === activeView) return;
+    if (!settingsDraftEnabled && activeView === 'json' && jsonDirty) {
+      setPendingView(requestedView);
+      return;
+    }
+    activateView(requestedView);
+  }, [activeView, activateView, jsonDirty, navigationRequestId, settingsDraftEnabled, viewId]);
+
+  if (loading || loadFailed) {
+    return (
+      <ConfigPageLayout
+        className="openbitfun-acp-agents"
+        data-openbitfun-component="acp-agents-config"
+        data-openbitfun-part="root"
+      >
+        <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
+        <ConfigPageContent>
+          {loading ? (
+            <ConfigLoadingState label={t('clients.loading')} />
+          ) : (
+            <ConfigRetryState
+              message={t('notifications.loadFailedLocked')}
+              retryLabel={t('actions.retry')}
+              onRetry={() => void loadConfig()}
+            />
+          )}
+        </ConfigPageContent>
+      </ConfigPageLayout>
+    );
+  }
+
   return (
     <ConfigPageLayout
-      className="bitfun-acp-agents"
-      data-bf-component="acp-agents-config"
-      data-bf-part="root"
-      data-bf-view={showJsonEditor ? 'json' : 'registry'}
+      className="openbitfun-acp-agents"
+      data-openbitfun-component="acp-agents-config"
+      data-openbitfun-part="root"
+      data-openbitfun-view={activeView}
     >
       <ConfigPageHeader
         title={t('title')}
@@ -1051,7 +1325,7 @@ const AcpAgentsConfig: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            trailingIcon={<Icon name="arrow-up-right" size="lg" />}
+            trailingIcon={<Icon name="arrow-up-right" size="sm" />}
             onClick={openLearnMore}
           >
             {t('actions.learnMore')}
@@ -1059,41 +1333,120 @@ const AcpAgentsConfig: React.FC = () => {
         )}
       />
 
-      <ConfigPageContent data-bf-component="acp-agents-config" data-bf-part="content">
+      <ConfigPageContent
+        data-openbitfun-component="acp-agents-config"
+        data-openbitfun-part="content"
+        aria-busy={saving}
+        {...(saving ? { inert: '' } : {})}
+      >
+        <TabGroup
+          className="openbitfun-acp-agents__tabs"
+          data-openbitfun-component="acp-agents-config"
+          data-openbitfun-part="tabs"
+          size="sm"
+          items={viewTabs}
+          onValueChange={handleViewChange}
+          value={activeView}
+        />
+        {activeView === 'json' && (
+          <ConfigMessage message={{ type: 'warning', text: t('security.secretWarning') }} />
+        )}
         <ConfigPageSectionStack
-          className="bitfun-acp-agents__manager"
-          data-bf-component="acp-agents-config"
-          data-bf-part="manager"
+          className="openbitfun-acp-agents__manager"
+          data-openbitfun-component="acp-agents-config"
+          data-openbitfun-part="manager"
         >
+          {activeView === 'json' && (
+            <ConfigPageSection
+              title={t('json.title')}
+              description={t('json.description')}
+            >
+              <Textarea
+                ref={jsonEditorRef}
+                className="openbitfun-acp-agents__json-textarea"
+                data-openbitfun-component="acp-agents-config"
+                data-openbitfun-part="jsonEditor"
+                value={jsonConfig}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setJsonConfig(nextValue);
+                  setJsonDirty(nextValue !== jsonBaseline);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Tab') return;
+                  event.preventDefault();
+                  const target = event.currentTarget;
+                  const start = target.selectionStart ?? 0;
+                  const end = target.selectionEnd ?? 0;
+                  const nextValue = jsonConfig.slice(0, start) + '  ' + jsonConfig.slice(end);
+                  setJsonConfig(nextValue);
+                  setJsonDirty(nextValue !== jsonBaseline);
+                  requestAnimationFrame(() => {
+                    jsonEditorRef.current?.focus();
+                    jsonEditorRef.current?.setSelectionRange(start + 2, start + 2);
+                  });
+                }}
+                rows={16}
+                spellCheck={false}
+                disabled={saving}
+              />
+              <div
+                className="openbitfun-acp-agents__json-actions"
+                data-openbitfun-component="acp-agents-config"
+                data-openbitfun-part="jsonActions"
+              >
+                <Button variant="outline" size="sm" onClick={() => {
+                  setJsonConfig(jsonBaseline);
+                  setJsonDirty(false);
+                }}>
+                  {t('actions.revert')}
+                </Button>
+                <Button
+                  variant="fill"
+                  size="sm"
+                  onClick={() => { void saveJsonConfig(); }}
+                  loading={saving}
+                  disabled={!jsonDirty && !dirty}
+                >
+                  {t('actions.saveJson')}
+                </Button>
+              </div>
+            </ConfigPageSection>
+          )}
+
+          {activeView === 'local' && (
+          <ConfigPageSection
+            title={t('registry.title')}
+            extra={(
+              <ConfigRefreshButton
+                tooltip={t('actions.refresh')}
+                onClick={() => { void refreshRequirementProbes({ force: true }); }}
+                loading={probingRequirements}
+              />
+            )}
+          >
           <div
-            className="bitfun-acp-agents__toolbar"
-            data-bf-component="acp-agents-config"
-            data-bf-part="toolbar"
+            className="openbitfun-acp-agents__toolbar"
+            data-openbitfun-component="acp-agents-config"
+            data-openbitfun-part="toolbar"
           >
             <Input
-              className="bitfun-acp-agents__search"
+              className="openbitfun-acp-agents__search"
               value={registrySearch}
               onChange={(event) => setRegistrySearch(event.target.value)}
               placeholder={t('registry.searchPlaceholder')}
+              aria-label={t('registry.searchPlaceholder')}
               leading={<Icon name="search" size="sm" />}
-              size="md"
+              size="sm"
             />
-            <div className="bitfun-acp-agents__toolbar-actions">
+            <div className="openbitfun-acp-agents__toolbar-actions">
               <Select
-                className="bitfun-acp-agents__filter-select"
+                className="openbitfun-acp-agents__filter-select"
                 options={registryFilterOptions}
                 value={registryFilter}
                 onValueChange={(value) => setRegistryFilter(value as RegistryFilter)}
                 size="sm"
               />
-              <Button
-                variant="outline"
-                size="sm"
-                leadingIcon={<FileJson />}
-                onClick={() => setShowJsonEditor(prev => !prev)}
-              >
-                {showJsonEditor ? t('actions.closeJson') : t('actions.editJson')}
-              </Button>
               {dirty && (
                 <Button
                   variant="fill"
@@ -1107,81 +1460,19 @@ const AcpAgentsConfig: React.FC = () => {
               )}
             </div>
           </div>
-
-          {showJsonEditor && (
-            <ConfigPageSection
-              title={t('json.title')}
-              description={t('json.description')}
-            >
-              <Textarea
-                ref={jsonEditorRef}
-                className="bitfun-acp-agents__json-textarea"
-                data-bf-component="acp-agents-config"
-                data-bf-part="jsonEditor"
-                value={jsonConfig}
-                onChange={(event) => {
-                  setJsonConfig(event.target.value);
-                  setDirty(true);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Tab') return;
-                  event.preventDefault();
-                  const target = event.currentTarget;
-                  const start = target.selectionStart ?? 0;
-                  const end = target.selectionEnd ?? 0;
-                  const nextValue = jsonConfig.slice(0, start) + '  ' + jsonConfig.slice(end);
-                  setJsonConfig(nextValue);
-                  setDirty(true);
-                  requestAnimationFrame(() => {
-                    jsonEditorRef.current?.focus();
-                    jsonEditorRef.current?.setSelectionRange(start + 2, start + 2);
-                  });
-                }}
-                rows={16}
-                spellCheck={false}
-              />
-              <div
-                className="bitfun-acp-agents__json-actions"
-                data-bf-component="acp-agents-config"
-                data-bf-part="jsonActions"
-              >
-                <Button variant="outline" size="sm" onClick={() => setJsonConfig(formatConfig(config))}>
-                  {t('actions.revert')}
-                </Button>
-                <Button variant="fill" size="sm" onClick={() => { void saveJsonConfig(); }} loading={saving}>
-                  {t('actions.saveJson')}
-                </Button>
-              </div>
-            </ConfigPageSection>
-          )}
-
-          <ConfigPageSection
-            title={t('registry.title')}
-            extra={(
-              <Button
-                variant="outline"
-                size="sm"
-                leadingIcon={<Icon name="refresh" size="lg" />}
-                onClick={() => { void refreshRequirementProbes({ force: true }); }}
-                loading={probingRequirements}
-              >
-                {t('actions.refresh')}
-              </Button>
-            )}
-          >
           {loading ? (
-            <div className="bitfun-acp-agents__empty" data-bf-component="acp-agents-config" data-bf-part="empty">
+            <div className="openbitfun-acp-agents__empty" data-openbitfun-component="acp-agents-config" data-openbitfun-part="empty">
               {t('clients.loading')}
             </div>
           ) : registryPresets.length === 0 && visibleCustomClientRows.length === 0 ? (
-            <div className="bitfun-acp-agents__empty" data-bf-component="acp-agents-config" data-bf-part="empty">
+            <div className="openbitfun-acp-agents__empty" data-openbitfun-component="acp-agents-config" data-openbitfun-part="empty">
               {t('registry.empty')}
             </div>
           ) : (
             <div
-              className="bitfun-acp-agents__registry-list"
-              data-bf-component="acp-agents-config"
-              data-bf-part="registryList"
+              className="openbitfun-acp-agents__registry-list"
+              data-openbitfun-component="acp-agents-config"
+              data-openbitfun-part="registryList"
             >
               {registryPresets.map(preset => {
                 const clientConfig = config.acpClients[preset.id] ?? defaultConfigForPreset(preset);
@@ -1236,55 +1527,40 @@ const AcpAgentsConfig: React.FC = () => {
                 return (
                   <div
                     key={preset.id}
-                    className="bitfun-acp-agents__registry-row"
-                    data-bf-component="acp-agents-config"
-                    data-bf-part="registryRow"
+                    className="openbitfun-acp-agents__registry-row"
+                    data-openbitfun-component="acp-agents-config"
+                    data-openbitfun-part="registryRow"
                   >
                     <div
-                      className="bitfun-acp-agents__registry-main"
-                      data-bf-component="acp-agents-config"
-                      data-bf-part="registryMain"
+                      className="openbitfun-acp-agents__registry-main"
+                      data-openbitfun-component="acp-agents-config"
+                      data-openbitfun-part="registryMain"
                     >
-                      <span className="bitfun-acp-agents__registry-icon">
+                      <span className="openbitfun-acp-agents__registry-icon">
                         <Bot size={16} />
                       </span>
-                      <div className="bitfun-acp-agents__registry-copy">
-                        <span className="bitfun-acp-agents__registry-name">{preset.name}</span>
-                        <p className="bitfun-acp-agents__registry-description">
-                          {getPresetDescription(preset.id)}
+                      <div className="openbitfun-acp-agents__registry-copy">
+                        <span className="openbitfun-acp-agents__registry-name">{preset.name}</span>
+                        <p className="openbitfun-acp-agents__registry-description">
+                          {formatStandaloneUiText(getPresetDescription(preset.id))}
                         </p>
                       </div>
                     </div>
                     <div
-                      className="bitfun-acp-agents__capabilities"
-                      data-bf-component="acp-agents-config"
-                      data-bf-part="capabilities"
+                      className="openbitfun-acp-agents__status-cell"
+                      data-openbitfun-component="acp-agents-config"
+                      data-openbitfun-part="status"
                     >
-                      <CapabilityBadge
-                        icon={<Icon name="terminal" size="xs" />}
-                        item={requirementProbe?.tool}
-                        label={t('requirements.tool')}
-                        installedText={t('requirements.installed')}
-                        missingText={t('requirements.missing')}
-                        checking={probePending}
-                        checkingText={t('requirements.checking')}
-                      />
+                      <AgentStatusPill status={status} label={statusLabel} title={statusTitle} />
                     </div>
                     <div
-                      className="bitfun-acp-agents__status-cell"
-                      data-bf-component="acp-agents-config"
-                      data-bf-part="status"
-                    >
-                      <AgentStatusBadge status={status} label={statusLabel} title={statusTitle} />
-                    </div>
-                    <div
-                      className="bitfun-acp-agents__confirmation-cell"
-                      data-bf-component="acp-agents-config"
-                      data-bf-part="confirmation"
+                      className="openbitfun-acp-agents__confirmation-cell"
+                      data-openbitfun-component="acp-agents-config"
+                      data-openbitfun-part="confirmation"
                     >
                       {showSelect ? (
                         <Select
-                          className="bitfun-acp-agents__confirmation-select"
+                          className="openbitfun-acp-agents__confirmation-select"
                           options={permissionOptions}
                           value={clientConfig.permissionMode}
                           onValueChange={(value) => patchClientConfig(preset.id, {
@@ -1296,8 +1572,8 @@ const AcpAgentsConfig: React.FC = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          leadingIcon={<Icon name="download" size="lg" />}
-                          onClick={() => { void installPresetClient(preset); }}
+                          leadingIcon={<Icon name="arrow-down" size="sm" />}
+                          onClick={() => requestInstallPresetClient(preset)}
                           loading={installing}
                         >
                           {t('actions.installCli')}
@@ -1339,7 +1615,7 @@ const AcpAgentsConfig: React.FC = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          leadingIcon={<Icon name="plus" size="lg" />}
+                          leadingIcon={<Icon name="plus" size="sm" />}
                           onClick={() => addPresetClient(preset, {
                             manualCliRequired: selfManagedCliMissing,
                           })}
@@ -1393,55 +1669,40 @@ const AcpAgentsConfig: React.FC = () => {
                 return (
                   <div
                     key={clientId}
-                    className="bitfun-acp-agents__registry-row"
-                    data-bf-component="acp-agents-config"
-                    data-bf-part="registryRow"
+                    className="openbitfun-acp-agents__registry-row"
+                    data-openbitfun-component="acp-agents-config"
+                    data-openbitfun-part="registryRow"
                   >
                     <div
-                      className="bitfun-acp-agents__registry-main"
-                      data-bf-component="acp-agents-config"
-                      data-bf-part="registryMain"
+                      className="openbitfun-acp-agents__registry-main"
+                      data-openbitfun-component="acp-agents-config"
+                      data-openbitfun-part="registryMain"
                     >
-                      <span className="bitfun-acp-agents__registry-icon">
+                      <span className="openbitfun-acp-agents__registry-icon">
                         <Bot size={16} />
                       </span>
-                      <div className="bitfun-acp-agents__registry-copy">
-                        <span className="bitfun-acp-agents__registry-name">{displayName}</span>
-                        <p className="bitfun-acp-agents__registry-description bitfun-acp-agents__registry-command">
+                      <div className="openbitfun-acp-agents__registry-copy">
+                        <span className="openbitfun-acp-agents__registry-name">{displayName}</span>
+                        <p className="openbitfun-acp-agents__registry-description openbitfun-acp-agents__registry-command">
                           {[clientConfig.command, ...clientConfig.args].join(' ')}
                         </p>
                       </div>
                     </div>
                     <div
-                      className="bitfun-acp-agents__capabilities"
-                      data-bf-component="acp-agents-config"
-                      data-bf-part="capabilities"
+                      className="openbitfun-acp-agents__status-cell"
+                      data-openbitfun-component="acp-agents-config"
+                      data-openbitfun-part="status"
                     >
-                      <CapabilityBadge
-                        icon={<Icon name="terminal" size="xs" />}
-                        item={requirementProbe?.tool}
-                        label={t('requirements.tool')}
-                        installedText={t('requirements.installed')}
-                        missingText={t('requirements.missing')}
-                        checking={probePending}
-                        checkingText={t('requirements.checking')}
-                      />
+                      <AgentStatusPill status={status} label={statusLabel} title={statusTitle} />
                     </div>
                     <div
-                      className="bitfun-acp-agents__status-cell"
-                      data-bf-component="acp-agents-config"
-                      data-bf-part="status"
-                    >
-                      <AgentStatusBadge status={status} label={statusLabel} title={statusTitle} />
-                    </div>
-                    <div
-                      className="bitfun-acp-agents__confirmation-cell"
-                      data-bf-component="acp-agents-config"
-                      data-bf-part="confirmation"
+                      className="openbitfun-acp-agents__confirmation-cell"
+                      data-openbitfun-component="acp-agents-config"
+                      data-openbitfun-part="confirmation"
                     >
                       {status === 'enabled' || status === 'ready' ? (
                         <Select
-                          className="bitfun-acp-agents__confirmation-select"
+                          className="openbitfun-acp-agents__confirmation-select"
                           options={permissionOptions}
                           value={clientConfig.permissionMode}
                           onValueChange={(value) => patchClientConfig(clientId, {
@@ -1471,7 +1732,9 @@ const AcpAgentsConfig: React.FC = () => {
             </div>
           )}
           </ConfigPageSection>
+          )}
 
+          {activeView === 'ssh' && (
           <ConfigPageSection
             title={t('remote.title')}
             description={t('remote.description')}
@@ -1493,14 +1756,14 @@ const AcpAgentsConfig: React.FC = () => {
             ) : undefined}
           >
             {visibleRemoteConnectionRows.length === 0 ? (
-              <div className="bitfun-acp-agents__empty" data-bf-component="acp-agents-config" data-bf-part="empty">
+              <div className="openbitfun-acp-agents__empty" data-openbitfun-component="acp-agents-config" data-openbitfun-part="empty">
                 {t(remoteConnectionRows.length === 0 ? 'remote.empty' : 'remote.emptyVisible')}
               </div>
             ) : (
               <div
-                className="bitfun-acp-agents__remote-list"
-                data-bf-component="acp-agents-config"
-                data-bf-part="remoteList"
+                className="openbitfun-acp-agents__remote-list"
+                data-openbitfun-component="acp-agents-config"
+                data-openbitfun-part="remoteList"
               >
                 {visibleRemoteConnectionRows.map(connection => {
                   const hostLabel = [connection.username, connection.host]
@@ -1566,51 +1829,55 @@ const AcpAgentsConfig: React.FC = () => {
                     row.status === 'not_installed' ||
                     row.status === 'invalid'
                   )).length;
+                  const remoteChecking = remoteRows.some(row => row.status === 'checking');
 
                   return (
                     <div
                       key={connection.id}
-                      className="bitfun-acp-agents__remote-server"
-                      data-bf-component="acp-agents-config"
-                      data-bf-part="remoteServer"
+                      className="openbitfun-acp-agents__remote-server"
+                      data-openbitfun-component="acp-agents-config"
+                      data-openbitfun-part="remoteServer"
                     >
                       <div
-                        className="bitfun-acp-agents__remote-head"
-                        data-bf-component="acp-agents-config"
-                        data-bf-part="remoteHeader"
+                        className="openbitfun-acp-agents__remote-head"
+                        data-openbitfun-component="acp-agents-config"
+                        data-openbitfun-part="remoteHeader"
                       >
                         <div
-                          className="bitfun-acp-agents__registry-main"
-                          data-bf-component="acp-agents-config"
-                          data-bf-part="registryMain"
+                          className="openbitfun-acp-agents__registry-main"
+                          data-openbitfun-component="acp-agents-config"
+                          data-openbitfun-part="registryMain"
                         >
-                          <span className="bitfun-acp-agents__registry-icon">
+                          <span className="openbitfun-acp-agents__registry-icon">
                             <Server size={16} />
                           </span>
-                          <div className="bitfun-acp-agents__registry-copy">
-                            <span className="bitfun-acp-agents__registry-name">
+                          <div className="openbitfun-acp-agents__registry-copy">
+                            <span className="openbitfun-acp-agents__registry-name">
                               {connection.name || connection.id}
                             </span>
-                            <p className="bitfun-acp-agents__registry-description">
+                            <p className="openbitfun-acp-agents__registry-description">
                               {hostLabel || connection.id}
                             </p>
-                            <div className="bitfun-acp-agents__remote-summary">
-                              <span className="bitfun-acp-agents__summary-pill is-success">
+                            <div className="openbitfun-acp-agents__remote-summary">
+                              <StatusPill
+                                leading={remoteChecking ? <Spinner size="xs" /> : undefined}
+                                tone={remoteChecking ? 'info' : availableCount > 0 ? 'success' : 'neutral'}
+                              >
                                 {getRemoteSummary(availableCount, remoteRows.length)}
-                              </span>
+                              </StatusPill>
                               {issueCount > 0 && (
-                                <span className="bitfun-acp-agents__summary-pill is-warning">
+                                <StatusPill tone="warning">
                                   {t('remote.issueSummary', { count: issueCount })}
-                                </span>
+                                </StatusPill>
                               )}
                             </div>
                           </div>
                         </div>
-                        <div className="bitfun-acp-agents__remote-actions">
+                        <div className="openbitfun-acp-agents__remote-actions">
                           <Button
                             variant="outline"
                             size="sm"
-                            leadingIcon={<Icon name="refresh" size="lg" />}
+                            leadingIcon={<Icon name="refresh" size="sm" />}
                             onClick={() => {
                               loadedRemoteProbeIdsRef.current.delete(connection.id);
                               void refreshRemoteRequirementProbes(connection.id, {
@@ -1636,9 +1903,9 @@ const AcpAgentsConfig: React.FC = () => {
                         </div>
                       </div>
                       <div
-                        className="bitfun-acp-agents__remote-agent-list"
-                        data-bf-component="acp-agents-config"
-                        data-bf-part="remoteAgents"
+                        className="openbitfun-acp-agents__remote-agent-list"
+                        data-openbitfun-component="acp-agents-config"
+                        data-openbitfun-part="remoteAgents"
                       >
                         {remoteRows.map(row => {
                           const statusLabel = getStatusLabel({
@@ -1669,29 +1936,29 @@ const AcpAgentsConfig: React.FC = () => {
                           return (
                             <div
                               key={row.clientId}
-                              className="bitfun-acp-agents__registry-row bitfun-acp-agents__registry-row--remote"
-                              data-bf-component="acp-agents-config"
-                              data-bf-part="registryRow"
+                              className="openbitfun-acp-agents__registry-row openbitfun-acp-agents__registry-row--remote"
+                              data-openbitfun-component="acp-agents-config"
+                              data-openbitfun-part="registryRow"
                             >
                               <div
-                                className="bitfun-acp-agents__registry-main"
-                                data-bf-component="acp-agents-config"
-                                data-bf-part="registryMain"
+                                className="openbitfun-acp-agents__registry-main"
+                                data-openbitfun-component="acp-agents-config"
+                                data-openbitfun-part="registryMain"
                               >
-                                <span className="bitfun-acp-agents__registry-icon">
+                                <span className="openbitfun-acp-agents__registry-icon">
                                   <Bot size={16} />
                                 </span>
-                                <div className="bitfun-acp-agents__registry-copy">
-                                  <span className="bitfun-acp-agents__registry-name">{row.displayName}</span>
-                                  <p className="bitfun-acp-agents__registry-description">{row.description}</p>
+                                <div className="openbitfun-acp-agents__registry-copy">
+                                  <span className="openbitfun-acp-agents__registry-name">{row.displayName}</span>
+                                  <p className="openbitfun-acp-agents__registry-description">{row.preset ? formatStandaloneUiText(row.description) : row.description}</p>
                                 </div>
                               </div>
                               <div
-                                className="bitfun-acp-agents__capabilities"
-                                data-bf-component="acp-agents-config"
-                                data-bf-part="capabilities"
+                                className="openbitfun-acp-agents__capabilities"
+                                data-openbitfun-component="acp-agents-config"
+                                data-openbitfun-part="capabilities"
                               >
-                                <CapabilityBadge
+                                <CapabilityStatusPill
                                   icon={<Icon name="terminal" size="xs" />}
                                   item={row.requirementProbe?.tool}
                                   label={t('requirements.tool')}
@@ -1701,7 +1968,7 @@ const AcpAgentsConfig: React.FC = () => {
                                   checkingText={t('requirements.checking')}
                                 />
                                 {row.requirementProbe?.adapter && (
-                                  <CapabilityBadge
+                                  <CapabilityStatusPill
                                     icon={<FileJson size={12} />}
                                     item={row.requirementProbe.adapter}
                                     label={t('requirements.adapter')}
@@ -1713,27 +1980,28 @@ const AcpAgentsConfig: React.FC = () => {
                                 )}
                               </div>
                               <div
-                                className="bitfun-acp-agents__status-cell"
-                                data-bf-component="acp-agents-config"
-                                data-bf-part="status"
+                                className="openbitfun-acp-agents__status-cell"
+                                data-openbitfun-component="acp-agents-config"
+                                data-openbitfun-part="status"
                               >
-                                <AgentStatusBadge status={row.status} label={statusLabel} title={statusTitle} />
+                                <AgentStatusPill status={row.status} label={statusLabel} title={statusTitle} />
                               </div>
                               <div
-                                className="bitfun-acp-agents__confirmation-cell"
-                                data-bf-component="acp-agents-config"
-                                data-bf-part="confirmation"
+                                className="openbitfun-acp-agents__confirmation-cell"
+                                data-openbitfun-component="acp-agents-config"
+                                data-openbitfun-part="confirmation"
                               >
                                 {canInstallCli ? (
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    leadingIcon={<Icon name="download" size="lg" />}
-                                    onClick={() => {
-                                      void installPresetClient(row.preset!, {
-                                        remoteConnectionId: connection.id,
-                                      });
-                                    }}
+                                    leadingIcon={<Icon name="arrow-down" size="sm" />}
+                                    onClick={() => requestInstallPresetClient(row.preset!, {
+                                      remoteConnectionId: connection.id,
+                                      hostLabel: [connection.username, connection.host]
+                                        .filter(Boolean)
+                                        .join('@') || connection.name || connection.id,
+                                    })}
                                     loading={row.installingRemote}
                                   >
                                     {t('actions.installCli')}
@@ -1750,7 +2018,7 @@ const AcpAgentsConfig: React.FC = () => {
                                 ) : row.status === 'enabled' || row.status === 'ready' ? (
                                   row.clientConfig ? (
                                     <Select
-                                      className="bitfun-acp-agents__confirmation-select"
+                                      className="openbitfun-acp-agents__confirmation-select"
                                       options={permissionOptions}
                                       value={row.clientConfig.permissionMode}
                                       onValueChange={(value) => patchClientConfig(row.clientId, {
@@ -1762,7 +2030,7 @@ const AcpAgentsConfig: React.FC = () => {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    leadingIcon={<Icon name="plus" size="lg" />}
+                                    leadingIcon={<Icon name="plus" size="sm" />}
                                     onClick={() => addPresetClient(row.preset!)}
                                   >
                                     {t('actions.add')}
@@ -1797,9 +2065,9 @@ const AcpAgentsConfig: React.FC = () => {
             )}
             {showHiddenRemoteConnections && hiddenRemoteConnectionRows.length > 0 && (
               <div
-                className="bitfun-acp-agents__hidden-remote-list"
-                data-bf-component="acp-agents-config"
-                data-bf-part="hiddenRemoteList"
+                className="openbitfun-acp-agents__hidden-remote-list"
+                data-openbitfun-component="acp-agents-config"
+                data-openbitfun-part="hiddenRemoteList"
               >
                 {hiddenRemoteConnectionRows.map(connection => {
                   const hostLabel = [connection.username, connection.host]
@@ -1808,19 +2076,19 @@ const AcpAgentsConfig: React.FC = () => {
                   return (
                     <div
                       key={connection.id}
-                      className="bitfun-acp-agents__hidden-remote-row"
-                      data-bf-component="acp-agents-config"
-                      data-bf-part="hiddenRemoteRow"
+                      className="openbitfun-acp-agents__hidden-remote-row"
+                      data-openbitfun-component="acp-agents-config"
+                      data-openbitfun-part="hiddenRemoteRow"
                     >
-                      <div className="bitfun-acp-agents__registry-main">
-                        <span className="bitfun-acp-agents__registry-icon">
+                      <div className="openbitfun-acp-agents__registry-main">
+                        <span className="openbitfun-acp-agents__registry-icon">
                           <Server size={16} />
                         </span>
-                        <div className="bitfun-acp-agents__registry-copy">
-                          <span className="bitfun-acp-agents__registry-name">
+                        <div className="openbitfun-acp-agents__registry-copy">
+                          <span className="openbitfun-acp-agents__registry-name">
                             {connection.name || connection.id}
                           </span>
-                          <p className="bitfun-acp-agents__registry-description">
+                          <p className="openbitfun-acp-agents__registry-description">
                             {hostLabel || connection.id}
                           </p>
                         </div>
@@ -1843,8 +2111,32 @@ const AcpAgentsConfig: React.FC = () => {
               </div>
             )}
           </ConfigPageSection>
+          )}
         </ConfigPageSectionStack>
       </ConfigPageContent>
+      <ConfirmDialog
+        open={!settingsDraftEnabled && pendingView !== null}
+        onOpenChange={(open) => { if (!open) keepEditingJson(); }}
+        onConfirm={discardJsonChanges}
+        title={t('json.discardTitle')}
+        message={t('json.discardMessage')}
+        confirmText={t('json.discardConfirm')}
+        type="warning"
+      />
+      <ConfirmDialog
+        open={!!installConfirmation}
+        onOpenChange={(open) => { if (!open) setInstallConfirmation(null); }}
+        onConfirm={confirmInstallPresetClient}
+        title={t('installConfirm.title', { name: installConfirmation?.preset.name || '' })}
+        message={t('installConfirm.message', {
+          host: installConfirmation?.hostLabel || '',
+          command: installConfirmation
+            ? `npm install -g ${installConfirmation.packageName}`
+            : '',
+        })}
+        confirmText={t('installConfirm.confirm')}
+        type="warning"
+      />
     </ConfigPageLayout>
   );
 };

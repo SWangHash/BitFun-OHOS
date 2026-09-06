@@ -1,11 +1,11 @@
-.bitfun-application-settings__content {
+.openbitfun-application-settings__content {
   display: flex;
   flex-direction: column;
-  gap: var(--bf-space-6);
+  gap: var(--openbitfun-space-6);
   padding: 0;
 }
 
-.bitfun-logging-config {
+.openbitfun-logging-config {
   &__content {
     display: flex;
     flex-direction: column;
@@ -14,70 +14,24 @@
 
   &__path-row {
     display: flex;
-    align-items: stretch;
-    gap: 8px;
-    width: 100%;
-
-    .bitfun-logging-config__path-box {
-      flex: 1;
-      min-width: 0;
-    }
-  }
-
-  &__open-btn {
-    flex-shrink: 0;
-    align-self: stretch;
-    display: flex;
     align-items: center;
-    justify-content: center;
-    width: 36px;
-    min-width: 36px;
-    padding: 0;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--bf-color-content-secondary);
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-
-    &:hover:not(:disabled) {
-      background: var(--bf-color-action-neutral-surface);
-      border-color: var(--bf-color-border-subtle);
-      color: var(--bf-color-content-primary);
-    }
-
-    &:active:not(:disabled) {
-      background: var(--bf-color-action-neutral-surface-hover);
-    }
-
-    &:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
+    gap: var(--openbitfun-space-2);
+    width: 100%;
+    min-width: 0;
   }
 
   &__path-box {
-    width: 100%;
-    padding: 10px 12px;
-    border-radius: 6px;
-    background: transparent;
-    border: 1px dashed var(--bf-color-border-default);
-    color: var(--bf-color-content-primary);
-    font-family:var(--bf-font-family-mono);
-    font-size: var(--bf-font-size-xs);
-    word-break: break-all;
-    overflow-wrap: anywhere;
-    line-height: var(--bf-line-height-relaxed);
-    user-select: text;
+    flex: 1;
+    min-width: 0;
   }
 }
 
 
-.bitfun-terminal-config {
+.openbitfun-terminal-config {
   &__content {
     display: flex;
     flex-direction: column;
-    gap: var(--bf-space-6);
+    gap: var(--openbitfun-space-6);
   }
 
   &__shell-option,
@@ -103,26 +57,26 @@
   }
 
   &__shell-tooltip-name {
-    font-weight: var(--bf-font-weight-medium);
+    font-weight: var(--openbitfun-type-label-sm-font-weight);
   }
 
   &__shell-tooltip-path {
     margin-top: 4px;
     overflow-wrap: anywhere;
-    font-family:var(--bf-font-family-mono);
+    font-family:var(--openbitfun-type-code-md-font-family);
   }
 
   &__no-shells {
     width: 100%;
     padding: 12px 16px;
-    border: 1px dashed var(--bf-color-border-default);
-    border-radius: var(--bf-radius-sm);
-    color: var(--bf-color-content-muted);
-    font-size: var(--bf-font-size-sm);
+    border: 1px dashed var(--openbitfun-color-border-default);
+    border-radius: var(--openbitfun-radius-sm);
+    color: var(--openbitfun-color-content-muted);
+    font-size: var(--openbitfun-type-label-md-font-size);
   }
 }
 
-.bitfun-env-vars-config {
+.openbitfun-env-vars-config {
   &__content {
     display: flex;
     flex-direction: column;
@@ -148,7 +102,7 @@
     gap: 8px;
 
     &--header {
-      .bitfun-env-vars-config__cell {
+      .openbitfun-env-vars-config__cell {
         color: var(--bf-appearance-token-color-text-muted);
         font-size: var(--bf-appearance-token-font-size-xs);
         font-weight: 600;

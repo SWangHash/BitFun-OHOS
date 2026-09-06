@@ -31,5 +31,5 @@
 
 ### Task 4: Verify
 
-- [ ] `cargo check -p bitfun-cli`
-- [ ] Rebuild Ubuntu `~/bitfun-build/target/debug/bitfun-cli`
+- [ ] `cargo check -p openbitfun-cli`
+- [ ] Rebuild Ubuntu `~/openbitfun-build/target/debug/openbitfun-cli`

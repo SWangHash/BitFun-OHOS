@@ -3,7 +3,15 @@
 import React, { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
-import AcpAgentsConfig from './AcpAgentsConfig';
+import AcpAgentsConfigPage from './AcpAgentsConfig';
+import {
+  discardAndContinueSettingsNavigation,
+  getSettingsDraftSnapshot,
+  requestSettingsNavigation,
+  resetSettingsDraftRegistryForTests,
+} from '@/infrastructure/config/settingsDraftRegistry';
+
+const AcpAgentsConfig = () => <AcpAgentsConfigPage navigationRequestId={0} />;
 
 const loadJsonConfigMock = vi.hoisted(() => vi.fn());
 const getClientsMock = vi.hoisted(() => vi.fn());
@@ -25,8 +33,29 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@bitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@bitfun/ui')>(),
+vi.mock('@openbitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@openbitfun/ui')>(),
+  ConfirmDialog: ({
+    confirmText,
+    message,
+    onConfirm,
+    open,
+    title,
+  }: {
+    confirmText: string;
+    message: React.ReactNode;
+    onConfirm: () => void;
+    open: boolean;
+    title: string;
+  }) => open ? (
+    <div role="dialog">
+      <h2>{title}</h2>
+      <div>{message}</div>
+      <button type="button" data-testid="confirm-install" onClick={onConfirm}>
+        {confirmText}
+      </button>
+    </div>
+  ) : null,
   Tooltip: ({ children }: React.PropsWithChildren) => <>{children}</>,
   Button: ({
     children,
@@ -83,12 +112,53 @@ vi.mock('@bitfun/ui', async importOriginal => ({
       ))}
     </select>
   ),
+  TabGroup: ({
+    items,
+    onValueChange,
+    value,
+  }: {
+    items: Array<{ label: React.ReactNode; value: string }>;
+    onValueChange: (value: string) => void;
+    value: string;
+  }) => (
+    <div role="tablist">
+      {items.map((item) => (
+        <button
+          key={item.value}
+          type="button"
+          role="tab"
+          aria-selected={item.value === value}
+          onClick={() => onValueChange(item.value)}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  ),
   Textarea: React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
     (props, ref) => <textarea ref={ref} {...props} />,
   ),
 }));
 
 vi.mock('./common', () => ({
+  formatStandaloneUiText: (text: string) => text.replace(/[。.]$/, ''),
+  ConfigRefreshButton: ({ tooltip, onClick }: { tooltip: string; onClick: () => void }) => (
+    <button type="button" aria-label={tooltip} onClick={onClick}>{tooltip}</button>
+  ),
+  ConfigLoadingState: ({ label }: { label: string }) => <div>{label}</div>,
+  ConfigMessage: ({ message }: { message: { text: string } | null }) => (
+    message ? <div>{message.text}</div> : null
+  ),
+  ConfigRetryState: ({ message, onRetry, retryLabel }: {
+    message: string;
+    onRetry: () => void;
+    retryLabel: string;
+  }) => (
+    <div>
+      <span>{message}</span>
+      <button type="button" onClick={onRetry}>{retryLabel}</button>
+    </div>
+  ),
   ConfigPageContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   ConfigPageHeader: ({ title, subtitle, extra }: {
     title: string;
@@ -163,6 +233,17 @@ vi.mock('@/shared/utils/logger', () => ({
   }),
 }));
 
+async function openView(container: HTMLElement, label: string): Promise<void> {
+  const tab = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
+    .find(button => button.textContent === label);
+  expect(tab).toBeTruthy();
+  await act(async () => {
+    tab?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 describe('AcpAgentsConfig', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -198,7 +279,7 @@ describe('AcpAgentsConfig', () => {
     listSavedConnectionsMock.mockResolvedValue([]);
     probeClientRequirementsMock.mockResolvedValue([]);
     saveJsonConfigMock.mockImplementation(async () => {
-      window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
+      window.dispatchEvent(new Event('openbitfun:acp-clients-changed'));
     });
     installClientCliMock.mockResolvedValue(undefined);
     predownloadClientAdapterMock.mockResolvedValue(undefined);
@@ -215,6 +296,7 @@ describe('AcpAgentsConfig', () => {
       });
     }
     container?.remove();
+    resetSettingsDraftRegistryForTests();
     vi.clearAllMocks();
   });
 
@@ -231,6 +313,37 @@ describe('AcpAgentsConfig', () => {
     expect(getClientsMock).toHaveBeenCalledTimes(1);
     expect(probeClientRequirementsMock).toHaveBeenCalledTimes(1);
     expect(container.textContent).not.toContain('registry.configInvalid');
+  });
+
+  it('omits the redundant CLI capability column from local agent rows', async () => {
+    probeClientRequirementsMock.mockResolvedValue([{
+      id: 'opencode',
+      tool: { name: 'opencode', installed: false },
+      runnable: false,
+      notes: [],
+    }]);
+
+    await act(async () => {
+      root.render(<AcpAgentsConfig />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const row = Array.from(
+      container.querySelectorAll('.openbitfun-acp-agents__registry-row'),
+    ).find(candidate => candidate.querySelector('.openbitfun-acp-agents__registry-name')
+      ?.textContent === 'opencode');
+    expect(row).toBeTruthy();
+
+    const status = row?.querySelector(
+      '[data-openbitfun-component="status-pill"][data-openbitfun-state="not_installed"]',
+    );
+
+    expect(row?.querySelector('[data-openbitfun-part="capabilities"]')).toBeNull();
+    expect(row?.querySelectorAll('[data-openbitfun-component="status-pill"]')).toHaveLength(1);
+    expect(status?.getAttribute('data-tone')).toBe('neutral');
   });
 
   it('keeps page help and agent detection with their owning surfaces', async () => {
@@ -252,6 +365,123 @@ describe('AcpAgentsConfig', () => {
     expect(registrySection?.textContent).not.toContain('Native ACP coding agent');
   });
 
+  it('separates local agents, SSH hosts, and advanced JSON into focused views', async () => {
+    await act(async () => {
+      root.render(<AcpAgentsConfig />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('registry.title');
+    expect(container.textContent).not.toContain('remote.title');
+    expect(container.textContent).not.toContain('security.secretWarning');
+
+    await openView(container, 'views.ssh');
+    expect(container.textContent).toContain('remote.title');
+    expect(container.textContent).not.toContain('registry.title');
+
+    await openView(container, 'views.json');
+    expect(container.textContent).toContain('json.title');
+    expect(container.textContent).toContain('security.secretWarning');
+    expect(container.textContent).not.toContain('registry.title');
+    expect(container.textContent).not.toContain('remote.title');
+  });
+
+  it('registers advanced JSON changes with the shared settings navigation guard', async () => {
+    await act(async () => {
+      root.render(<AcpAgentsConfigPage navigationRequestId={0} settingsDraftEnabled />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await openView(container, 'views.json');
+    const editor = container.querySelector<HTMLTextAreaElement>('textarea');
+    expect(editor).not.toBeNull();
+
+    await act(async () => {
+      if (!editor) return;
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        'value',
+      )?.set;
+      valueSetter?.call(editor, `${editor.value}\n`);
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const commit = vi.fn();
+    expect(requestSettingsNavigation(
+      { pageId: 'tools.acp', viewId: 'json' },
+      { kind: 'settings', pageId: 'tools.acp', viewId: 'local' },
+      commit,
+    )).toBe(false);
+    expect(getSettingsDraftSnapshot().pendingNavigation?.resourceLabels).toEqual([
+      'json.title',
+    ]);
+
+    await act(async () => {
+      await discardAndContinueSettingsNavigation();
+      await Promise.resolve();
+    });
+
+    expect(commit).toHaveBeenCalledOnce();
+    expect(getSettingsDraftSnapshot().pendingNavigation).toBeNull();
+    expect(saveJsonConfigMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps the ecosystem compatibility fallback guard without registering a Settings draft', async () => {
+    await act(async () => {
+      root.render(<AcpAgentsConfig />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await openView(container, 'views.json');
+    const editor = container.querySelector<HTMLTextAreaElement>('textarea');
+    expect(editor).not.toBeNull();
+    await act(async () => {
+      if (!editor) return;
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(
+        editor,
+        `${editor.value}\n`,
+      );
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const commit = vi.fn();
+    expect(requestSettingsNavigation(
+      { pageId: 'tools.acp', viewId: 'json' },
+      { kind: 'settings', pageId: 'tools.acp', viewId: 'local' },
+      commit,
+    )).toBe(true);
+    expect(commit).toHaveBeenCalledOnce();
+    expect(getSettingsDraftSnapshot().resources).toHaveLength(0);
+
+    const beforeUnload = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(beforeUnload);
+    expect(beforeUnload.defaultPrevented).toBe(true);
+
+    await openView(container, 'views.local');
+    expect(container.textContent).toContain('json.discardTitle');
+    expect(container.textContent).toContain('json.title');
+
+    const discardButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="confirm-install"]',
+    );
+    await act(async () => {
+      discardButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('registry.title');
+    expect(container.textContent).not.toContain('json.title');
+    expect(saveJsonConfigMock).not.toHaveBeenCalled();
+  });
+
   it('renders saved remote servers as global agent rows without override controls', async () => {
     listSavedConnectionsMock.mockResolvedValue([{
       id: 'huawei-server',
@@ -270,6 +500,8 @@ describe('AcpAgentsConfig', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
+    expect(container.textContent).not.toContain('huawei-server');
+    await openView(container, 'views.ssh');
 
     expect(container.textContent).toContain('huawei-server');
     expect(container.textContent).toContain('ssh-root@119.8.182.138');
@@ -298,6 +530,7 @@ describe('AcpAgentsConfig', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
+    await openView(container, 'views.ssh');
 
     const hideButton = container.querySelector<HTMLButtonElement>(
       'button[aria-label="remote.hideConnection"]'
@@ -311,14 +544,14 @@ describe('AcpAgentsConfig', () => {
 
     expect(listSavedConnectionsMock).toHaveBeenCalledTimes(1);
     expect(container.textContent).not.toContain('Huawei Server');
-    expect(JSON.parse(localStorage.getItem('bitfun:settings:acp-agents:hidden-remote-connections:v1') || '[]'))
+    expect(JSON.parse(localStorage.getItem('openbitfun:settings:acp-agents:hidden-remote-connections:v1') || '[]'))
       .toEqual(['huawei-server']);
     expect(container.textContent).toContain('remote.showHiddenConnections');
   });
 
   it('restores a hidden remote server from the hidden list', async () => {
     localStorage.setItem(
-      'bitfun:settings:acp-agents:hidden-remote-connections:v1',
+      'openbitfun:settings:acp-agents:hidden-remote-connections:v1',
       JSON.stringify(['huawei-server'])
     );
     listSavedConnectionsMock.mockResolvedValue([{
@@ -337,6 +570,7 @@ describe('AcpAgentsConfig', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
+    await openView(container, 'views.ssh');
 
     const showHiddenButton = Array.from(container.querySelectorAll('button'))
       .find(button => button.textContent?.includes('remote.showHiddenConnections'));
@@ -358,14 +592,14 @@ describe('AcpAgentsConfig', () => {
       await Promise.resolve();
     });
 
-    expect(localStorage.getItem('bitfun:settings:acp-agents:hidden-remote-connections:v1'))
+    expect(localStorage.getItem('openbitfun:settings:acp-agents:hidden-remote-connections:v1'))
       .toBe('[]');
     expect(container.textContent).toContain('Huawei Server');
   });
 
   it('does not probe hidden remote servers until they are restored', async () => {
     localStorage.setItem(
-      'bitfun:settings:acp-agents:hidden-remote-connections:v1',
+      'openbitfun:settings:acp-agents:hidden-remote-connections:v1',
       JSON.stringify(['huawei-server'])
     );
     listSavedConnectionsMock.mockResolvedValue([{
@@ -384,6 +618,7 @@ describe('AcpAgentsConfig', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
+    await openView(container, 'views.ssh');
 
     expect(probeClientRequirementsMock).not.toHaveBeenCalledWith({
       remoteConnectionId: 'huawei-server',
@@ -472,7 +707,7 @@ describe('AcpAgentsConfig', () => {
     ];
     probeClientRequirementsMock.mockResolvedValue(healthyProbes);
     saveJsonConfigMock.mockImplementation(async () => {
-      window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
+      window.dispatchEvent(new Event('openbitfun:acp-clients-changed'));
       loadJsonConfigMock.mockResolvedValue(JSON.stringify({
         acpClients: {
           opencode: {
@@ -593,8 +828,8 @@ describe('AcpAgentsConfig', () => {
     });
 
     expect(container.textContent).toContain('DeepSeek Harness');
-    // Unlike omp, the harness is a plain npm global, so BitFun installs it.
-    // The bridge is not a separate adapter — it ships inside BitFun.
+    // Unlike omp, the harness is a plain npm global, so OpenBitFun installs it.
+    // The bridge is not a separate adapter — it ships inside OpenBitFun.
     expect(container.textContent).not.toContain('registry.adapterMissing');
 
     const installButtons = Array.from(container.querySelectorAll('button'))
@@ -604,6 +839,13 @@ describe('AcpAgentsConfig', () => {
     await act(async () => {
       installButtons[0].click();
       await Promise.resolve();
+    });
+    const confirmInstall = container.querySelector<HTMLButtonElement>(
+      '[data-testid="confirm-install"]',
+    );
+    expect(confirmInstall).not.toBeNull();
+    await act(async () => {
+      confirmInstall?.click();
       await Promise.resolve();
     });
 
@@ -612,7 +854,7 @@ describe('AcpAgentsConfig', () => {
     );
   });
 
-  it('adds DeepSeek Harness as a launch of the profile BitFun materializes', async () => {
+  it('adds DeepSeek Harness as a launch of the profile OpenBitFun materializes', async () => {
     probeClientRequirementsMock.mockResolvedValue([
       {
         id: 'dsh',
@@ -634,8 +876,8 @@ describe('AcpAgentsConfig', () => {
     // and the preset list happen to produce, so "the last add button" belongs
     // to some other agent as often as not.
     const harnessRow = Array.from(
-      container.querySelectorAll('.bitfun-acp-agents__registry-row'),
-    ).find(row => row.querySelector('.bitfun-acp-agents__registry-name')
+      container.querySelectorAll('.openbitfun-acp-agents__registry-row'),
+    ).find(row => row.querySelector('.openbitfun-acp-agents__registry-name')
       ?.textContent === 'DeepSeek Harness');
     expect(harnessRow).toBeTruthy();
 
@@ -650,10 +892,10 @@ describe('AcpAgentsConfig', () => {
       await Promise.resolve();
     });
 
-    // The command has to name the profile BitFun materializes; a bare `dsh`
+    // The command has to name the profile OpenBitFun materializes; a bare `dsh`
     // would drop the user into the harness's own default composition, which
     // does not speak ACP at all.
-    expect(saveJsonConfigMock).toHaveBeenCalledWith(expect.stringContaining('bitfun-acp'));
+    expect(saveJsonConfigMock).toHaveBeenCalledWith(expect.stringContaining('openbitfun-acp'));
   });
 
   it('does not downgrade enabled agents on transient probe timeouts during refresh', async () => {
@@ -771,6 +1013,7 @@ describe('AcpAgentsConfig', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
+    await openView(container, 'views.ssh');
 
     const installButtons = Array.from(container.querySelectorAll('button'))
       .filter(button => button.textContent?.includes('actions.installCli'));
@@ -778,6 +1021,14 @@ describe('AcpAgentsConfig', () => {
 
     await act(async () => {
       installButtons[installButtons.length - 1].click();
+      await Promise.resolve();
+    });
+    const confirmInstall = container.querySelector<HTMLButtonElement>(
+      '[data-testid="confirm-install"]',
+    );
+    expect(confirmInstall).not.toBeNull();
+    await act(async () => {
+      confirmInstall?.click();
       await Promise.resolve();
     });
 

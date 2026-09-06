@@ -14,16 +14,16 @@ use serde_json::Value;
 use std::sync::{Arc, OnceLock};
 
 use super::encryption;
-use bitfun_services_integrations::remote_connect::{
+use openbitfun_services_integrations::remote_connect::{
     build_remote_image_contexts, cancel_remote_task, generate_remote_initial_sync,
     handle_remote_command, handle_remote_interaction_command, handle_remote_poll_command,
     handle_remote_session_command, handle_remote_workspace_command,
     handle_remote_workspace_file_command, submit_remote_dialog, RemoteCancelTaskRequest,
-    RemoteCommandRuntimeHost, RemoteConnectSubmissionSource, RemoteDialogSubmissionPolicy,
-    RemoteDialogSubmissionRequest, RemoteDialogSubmitOutcome, RemoteImageContext,
-    RemoteSessionTrackerRegistry,
+    RemoteCommandRuntimeHost, RemoteConnectSubmissionSource, RemoteDialogSteerOutcome,
+    RemoteDialogSteerRequest, RemoteDialogSubmissionPolicy, RemoteDialogSubmissionRequest,
+    RemoteDialogSubmitOutcome, RemoteImageContext, RemoteSessionTrackerRegistry,
 };
-pub use bitfun_services_integrations::remote_connect::{
+pub use openbitfun_services_integrations::remote_connect::{
     ActiveTurnSnapshot, AssistantEntry, ChatImageAttachment, ChatMessage, ChatMessageItem,
     ImageAttachment, RecentWorkspaceEntry, RemoteCommand, RemoteDefaultModelsConfig,
     RemoteModelCatalog, RemoteModelConfig, RemoteResponse, RemoteSessionStateTracker,
@@ -58,7 +58,7 @@ fn remote_image_context_to_core(
 
 /// Shared tracker adapter for remote relay and bot execution paths.
 ///
-/// Command routing lives in `bitfun-services-integrations`; core only keeps the
+/// Command routing lives in `openbitfun-services-integrations`; core only keeps the
 /// global tracker registry adapter needed by concrete session/runtime hosts.
 pub struct RemoteExecutionDispatcher {
     tracker_registry: RemoteSessionTrackerRegistry,
@@ -105,7 +105,7 @@ impl RemoteExecutionDispatcher {
 
     /// Dispatch a SendMessage command through the remote-connect runtime owner.
     ///
-    /// `bitfun-services-integrations` owns the orchestration order; core supplies
+    /// `openbitfun-services-integrations` owns the orchestration order; core supplies
     /// the concrete tracker, session restore, terminal, and scheduler adapters.
     /// When the session is already processing, the message is queued and the current turn
     /// may yield after the current model round for interactive remote sources.
@@ -129,6 +129,7 @@ impl RemoteExecutionDispatcher {
             RemoteDialogSubmissionRequest {
                 session_id: session_id.to_string(),
                 content,
+                display_content: None,
                 agent_type: agent_type.map(ToOwned::to_owned),
                 image_contexts,
                 policy: RemoteDialogSubmissionPolicy::for_source(source),
@@ -201,8 +202,8 @@ impl RemoteCommandRuntimeHost for CoreRemoteCommandRuntimeHost<'_> {
     async fn handle_device_command(&self, command: &RemoteCommand) -> RemoteResponse {
         match command {
             RemoteCommand::DeviceQueryInfo => {
-                use bitfun_runtime_ports::RemoteSessionWorkspaceIdentity;
-                use bitfun_services_integrations::remote_connect::{
+                use openbitfun_runtime_ports::RemoteSessionWorkspaceIdentity;
+                use openbitfun_services_integrations::remote_connect::{
                     RemoteInitialSyncRuntimeHost, RemoteWorkspaceRuntimeHost,
                 };
 
@@ -274,6 +275,14 @@ impl RemoteCommandRuntimeHost for CoreRemoteCommandRuntimeHost<'_> {
     ) -> std::result::Result<RemoteDialogSubmitOutcome, String> {
         let host = CoreServiceAgentRuntime::remote_dialog_host(self.dispatcher)?;
         submit_remote_dialog(&host, request).await
+    }
+
+    async fn steer_dialog(
+        &self,
+        request: RemoteDialogSteerRequest<Self::ImageContext>,
+    ) -> std::result::Result<RemoteDialogSteerOutcome, String> {
+        let host = CoreServiceAgentRuntime::remote_dialog_host(self.dispatcher)?;
+        host.steer_dialog(request).await
     }
 
     async fn cancel_task(
@@ -365,7 +374,7 @@ impl RemoteServer {
 mod tests {
     use super::*;
     use crate::service::remote_connect::encryption::KeyPair;
-    use bitfun_services_integrations::remote_connect::{
+    use openbitfun_services_integrations::remote_connect::{
         remote_session_restore_target, resolve_remote_cancel_decision,
         resolve_remote_execution_image_contexts, RemoteCancelDecision,
         RemoteDialogWorkspaceBinding,
@@ -550,6 +559,8 @@ mod tests {
         let command = RemoteCommand::SendMessage {
             session_id: "session-1".to_string(),
             content: "hello".to_string(),
+            display_content: None,
+            turn_id: Some("harmony-turn-1".to_string()),
             agent_type: Some("code".to_string()),
             images: Some(vec![ImageAttachment {
                 name: "clip.png".to_string(),
@@ -560,6 +571,7 @@ mod tests {
         let json = serde_json::to_value(command).expect("serialize send command");
         assert_eq!(json["cmd"], "send_message");
         assert_eq!(json["session_id"], "session-1");
+        assert_eq!(json["turn_id"], "harmony-turn-1");
         assert_eq!(json["agent_type"], "code");
         assert_eq!(json["images"][0]["name"], "clip.png");
         assert!(json["image_contexts"].is_null());
@@ -622,10 +634,13 @@ mod tests {
                 start_ms: Some(42),
                 input_preview: Some("{\"path\":\"README.md\"}".to_string()),
                 tool_input: None,
+                plan: None,
             }],
             round_index: 2,
             items: Some(vec![ChatMessageItem {
                 item_type: "tool".to_string(),
+                steering_id: None,
+                round_index: None,
                 content: None,
                 tool: None,
                 is_subagent: None,

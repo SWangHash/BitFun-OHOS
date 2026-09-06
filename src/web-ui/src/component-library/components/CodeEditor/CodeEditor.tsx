@@ -150,18 +150,18 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   const computedWidth = typeof width === 'number' ? `${width}px` : width;
 
   return (
-    <div className={classNames} data-bf-component="code-editor" data-bf-part="root" data-bf-state={[isFullscreen && 'fullscreen', readOnly && 'readOnly'].filter(Boolean).join(' ') || undefined}>
+    <div className={classNames} data-openbitfun-component="code-editor" data-openbitfun-part="root" data-openbitfun-state={[isFullscreen && 'fullscreen', readOnly && 'readOnly'].filter(Boolean).join(' ') || undefined}>
       <div 
         className="code-editor__wrapper"
-        data-bf-component="code-editor"
-        data-bf-part="wrapper"
+        data-openbitfun-component="code-editor"
+        data-openbitfun-part="wrapper"
         style={{ height: computedHeight, width: computedWidth }}
       >
         {showFullscreenButton && (
           <button
             className="code-editor__fullscreen-btn"
-            data-bf-component="code-editor"
-            data-bf-part="fullscreenButton"
+            data-openbitfun-component="code-editor"
+            data-openbitfun-part="fullscreenButton"
             onClick={toggleFullscreen}
             title={isFullscreen ? t('codeEditor.exitFullscreenHint') : t('codeEditor.enterFullscreen')}
             aria-label={isFullscreen ? t('codeEditor.exitFullscreen') : t('codeEditor.enterFullscreen')}
@@ -177,7 +177,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             )}
           </button>
         )}
-        <div data-bf-component="code-editor" data-bf-part="editor">
+        <div data-openbitfun-component="code-editor" data-openbitfun-part="editor">
           <MonacoEditorCore
             ref={editorCoreRef}
             filePath={filePath}

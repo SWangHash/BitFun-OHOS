@@ -7,7 +7,7 @@
 
 use super::ui_verification_mcp::call_ui_verification_mcp;
 use crate::agentic::tools::framework::{Tool, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult};
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
@@ -25,7 +25,7 @@ impl VerifyUiTool {
 impl Tool for VerifyUiTool {
     fn name(&self) -> &str { "verify_ui" }
 
-    async fn description(&self) -> BitFunResult<String> {
+    async fn description(&self) -> OpenBitFunResult<String> {
         Ok(r#"Run UI verification on a HarmonyOS device via the ui-verification-mcp server.
 
 Provide a natural-language test plan. The tool runs the app on a connected device, captures screenshots, performs UI operations (tap, swipe, long-press, key), and verifies whether each step succeeds.
@@ -76,9 +76,9 @@ Example:
         if options.verbose { format!("HarmonyOS UI verify: {}", preview) } else { format!("Verify UI: {}", preview) }
     }
 
-    async fn call_impl(&self, input: &Value, _ctx: &ToolUseContext) -> BitFunResult<Vec<ToolResult>> {
+    async fn call_impl(&self, input: &Value, _ctx: &ToolUseContext) -> OpenBitFunResult<Vec<ToolResult>> {
         let test_plan = input.get("testPlan").and_then(|v| v.as_str())
-            .ok_or_else(|| BitFunError::tool("testPlan is required".to_string()))?;
+            .ok_or_else(|| OpenBitFunError::tool("testPlan is required".to_string()))?;
         let bundle_name = input.get("bundleName").and_then(|v| v.as_str());
         let device = input.get("device").and_then(|v| v.as_str());
         let fresh_start = input.get("freshStart").and_then(|v| v.as_bool()).unwrap_or(false);

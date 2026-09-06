@@ -9,11 +9,13 @@ pub mod policy;
 pub mod ports;
 pub mod reference;
 pub mod runtime;
+#[path = "sdk_contract.generated.rs"]
+mod sdk_contract_generated;
 pub mod types;
 
 pub use policy::{
     validate_canvas_imports, validate_canvas_source_policy, CanvasImportPolicyDiagnostic,
-    CanvasImportPolicyDiagnosticKind, BITFUN_CANVAS_IMPORT,
+    CanvasImportPolicyDiagnosticKind, OPENBITFUN_CANVAS_IMPORT,
 };
 pub use ports::{
     CanvasPortError, CanvasPortErrorKind, CanvasPortFuture, CanvasPortResult, CanvasStoragePort,
@@ -22,4 +24,5 @@ pub use reference::{
     is_safe_canvas_ref_segment, parse_canvas_artifact_ref, CanvasArtifactRefParseError,
 };
 pub use runtime::*;
+pub use sdk_contract_generated::*;
 pub use types::*;

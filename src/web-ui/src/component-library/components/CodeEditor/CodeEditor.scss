@@ -238,10 +238,10 @@
             0 2px 12px var(--code-editor-blue-25);
           backdrop-filter: blur(20px);
           -webkit-backdrop-filter: blur(20px);
-          animation: bitfun-code-editor-hover-in 160ms cubic-bezier(0.23, 1, 0.32, 1);
+          animation: openbitfun-code-editor-hover-in 160ms cubic-bezier(0.23, 1, 0.32, 1);
         }
 
-        @keyframes bitfun-code-editor-hover-in {
+        @keyframes openbitfun-code-editor-hover-in {
           0% {
             opacity: 0;
             transform: translateY(-4px);
@@ -386,7 +386,7 @@
     height: 100vh !important;
     z-index: tokens.$z-fullscreen;
     background: var(--bf-appearance-token-color-bg-primary);
-    animation: bitfun-code-editor-fullscreen-in 180ms cubic-bezier(0.23, 1, 0.32, 1);
+    animation: openbitfun-code-editor-fullscreen-in 180ms cubic-bezier(0.23, 1, 0.32, 1);
 
     .code-editor__wrapper {
       width: 100%;
@@ -407,7 +407,7 @@
     }
   }
 
-  @keyframes bitfun-code-editor-fullscreen-in {
+  @keyframes openbitfun-code-editor-fullscreen-in {
     0% {
       opacity: 0;
     }

@@ -40,7 +40,8 @@ vi.mock('react-i18next', async () => {
   };
 });
 
-vi.mock('@bitfun/ui', () => ({
+vi.mock('@openbitfun/ui', () => ({
+  Icon: ({ name }: { name: string }) => <span data-openbitfun-component="icon" data-openbitfun-name={name} />,
   Button: ({
     children,
     disabled,
@@ -537,7 +538,7 @@ describeWithJsdom('DeepReviewActionBar', () => {
     });
 
     expect(container.textContent).toContain('Waiting for model capacity');
-    expect(container.textContent).toContain('BitFun is waiting for temporary model capacity.');
+    expect(container.textContent).toContain('OpenBitFun is waiting for temporary model capacity.');
     expect(container.textContent).toContain('Reason: model concurrency limit');
     expect(container.textContent).toContain('Waited 12s of 1m 0s');
     expect(container.textContent).toContain('Your active session is busy.');
@@ -569,6 +570,7 @@ describeWithJsdom('DeepReviewActionBar', () => {
 
     const { useSettingsStore } = await import('@/app/scenes/settings/settingsStore');
     expect(useSettingsStore.getState().activePageId).toBe('tools.execution');
+    expect(useSettingsStore.getState().activeViewId).toBeNull();
   });
 
   it('sends backend queue control actions for event-driven capacity waits', async () => {

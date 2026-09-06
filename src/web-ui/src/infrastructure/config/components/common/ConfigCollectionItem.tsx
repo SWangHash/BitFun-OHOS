@@ -1,6 +1,7 @@
 import React, { useId, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
-import { PresenceBoundary } from '@/component-library';
+import { Icon } from '@openbitfun/ui';
+;
+import { RetainedMountBoundary } from '@/shared/presence';
 import './ConfigCollectionItem.scss';
 
 export interface ConfigCollectionItemProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -12,6 +13,8 @@ export interface ConfigCollectionItemProps extends React.HTMLAttributes<HTMLDivE
   disabled?: boolean;
   expanded?: boolean;
   onToggle?: () => void;
+  /** Lets non-interactive row space toggle details while preserving nested controls. */
+  toggleOnRowClick?: boolean;
   className?: string;
 }
 
@@ -24,6 +27,7 @@ export const ConfigCollectionItem: React.FC<ConfigCollectionItemProps> = ({
   disabled = false,
   expanded: expandedProp,
   onToggle,
+  toggleOnRowClick = false,
   className = '',
   ...rootProps
 }) => {
@@ -43,27 +47,46 @@ export const ConfigCollectionItem: React.FC<ConfigCollectionItemProps> = ({
     }
   };
 
+  const handleRowClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!toggleOnRowClick || !hasDetails || disabled) return;
+    const target = event.target;
+    if (
+      target instanceof Element
+      && target.closest('a, button, input, select, textarea, [role="button"], [role="link"], [role="checkbox"], [contenteditable="true"]')
+    ) {
+      return;
+    }
+    toggleDetails();
+  };
+
   return (
     <div
-      className={`bitfun-collection-item ${isExpanded ? 'is-expanded' : ''} ${disabled ? 'is-disabled' : ''} ${className}`}
-      data-bf-component="config"
-      data-bf-part="collectionItem"
+      className={`openbitfun-collection-item ${isExpanded ? 'is-expanded' : ''} ${disabled ? 'is-disabled' : ''} ${className}`}
+      data-openbitfun-component="config"
+      data-openbitfun-part="collectionItem"
       {...rootProps}
     >
-      <div className="bitfun-config-page-row bitfun-config-page-row--center bitfun-collection-item__row" data-bf-component="config" data-bf-part="collectionRow">
-        <div className="bitfun-config-page-row__meta" data-bf-component="config" data-bf-part="collectionMeta">
+      <div
+        className={`openbitfun-config-page-row openbitfun-config-page-row--center openbitfun-collection-item__row ${
+          toggleOnRowClick && hasDetails && !disabled ? 'openbitfun-collection-item__row--toggleable' : ''
+        }`}
+        data-openbitfun-component="config"
+        data-openbitfun-part="collectionRow"
+        onClick={handleRowClick}
+      >
+        <div className="openbitfun-config-page-row__meta" data-openbitfun-component="config" data-openbitfun-part="collectionMeta">
           <div
-            className={`bitfun-config-page-row__label bitfun-collection-item__label ${
-              badgePlacement === 'below' ? 'bitfun-collection-item__label--stacked' : ''
+            className={`openbitfun-config-page-row__label openbitfun-collection-item__label ${
+              badgePlacement === 'below' ? 'openbitfun-collection-item__label--stacked' : ''
             }`}
           >
-            <span id={labelId} className="bitfun-collection-item__name" data-bf-component="config" data-bf-part="collectionName">{label}</span>
+            <span id={labelId} className="openbitfun-collection-item__name" data-openbitfun-component="config" data-openbitfun-part="collectionName">{label}</span>
             {badge && (
               <span
-                className={`bitfun-collection-item__badges ${
+                className={`openbitfun-collection-item__badges ${
                   badgePlacement === 'below'
-                    ? 'bitfun-collection-item__badges--stacked'
-                    : 'bitfun-collection-item__badges--inline'
+                    ? 'openbitfun-collection-item__badges--stacked'
+                    : 'openbitfun-collection-item__badges--inline'
                 }`}
               >
                 {badge}
@@ -71,20 +94,20 @@ export const ConfigCollectionItem: React.FC<ConfigCollectionItemProps> = ({
             )}
           </div>
         </div>
-        <div className="bitfun-config-page-row__control" data-bf-component="config" data-bf-part="collectionControl">
-          <div className="bitfun-collection-item__control">
+        <div className="openbitfun-config-page-row__control" data-openbitfun-component="config" data-openbitfun-part="collectionControl">
+          <div className="openbitfun-collection-item__control">
             {control}
             {hasDetails ? (
               <button
                 type="button"
-                className="bitfun-collection-btn bitfun-collection-item__details-toggle"
+                className="openbitfun-collection-btn openbitfun-collection-item__details-toggle"
                 onClick={toggleDetails}
                 disabled={disabled}
                 aria-labelledby={labelId}
                 aria-expanded={isExpanded}
                 aria-controls={detailsId}
               >
-                <ChevronDown size={14} aria-hidden="true" />
+                <Icon name="chevron-down" size="sm" aria-hidden="true" />
               </button>
             ) : null}
           </div>
@@ -92,21 +115,21 @@ export const ConfigCollectionItem: React.FC<ConfigCollectionItemProps> = ({
       </div>
 
       {details ? (
-        <PresenceBoundary
-          active={isExpanded}
-          exitDurationMs={180}
-          minimumExitDurationMs={180}
+        <RetainedMountBoundary
+          present={isExpanded}
+          retainForMs={180}
+          minimumRetainMs={180}
         >
           <div
             id={detailsId}
-            className="bitfun-collection-item__details-collapse"
+            className="openbitfun-collection-item__details-collapse"
             data-open={isExpanded ? 'true' : 'false'}
             aria-hidden={!isExpanded}
             {...(!isExpanded ? { inert: '' } : {})}
           >
-            <div className="bitfun-collection-item__details" data-bf-component="config" data-bf-part="collectionDetails">{details}</div>
+            <div className="openbitfun-collection-item__details" data-openbitfun-component="config" data-openbitfun-part="collectionDetails">{details}</div>
           </div>
-        </PresenceBoundary>
+        </RetainedMountBoundary>
       ) : null}
     </div>
   );

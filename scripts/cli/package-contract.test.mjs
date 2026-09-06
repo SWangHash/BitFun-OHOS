@@ -26,7 +26,7 @@ for (const workflow of [
   '.github/workflows/cli-package.yml',
   '.github/workflows/cli-package-manual.yml',
   '.github/workflows/linux-binaries.yml',
-  '.github/workflows/nightly.yml',
+  '.github/workflows/nightly-artifacts.yml',
 ]) {
   const content = read(workflow);
   assert.match(content, /oven-sh\/setup-bun@v2/);
@@ -45,7 +45,7 @@ for (const workflow of [
 }
 
 const releaseWorkflow = read('.github/workflows/cli-package.yml');
-assert.match(releaseWorkflow, /primary_binary:\s*"bitfun"/);
-assert.match(releaseWorkflow, /deprecated_binary:\s*"bitfun-cli"/);
+assert.match(releaseWorkflow, /primary_binary:\s*"openbitfun"/);
+assert.doesNotMatch(releaseWorkflow, /deprecated_binary|deprecated:\s*true/);
 assert.match(releaseWorkflow, /post-publication/i);
 assert.doesNotMatch(releaseWorkflow, /Homebrew release gate/i);

@@ -1,30 +1,33 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import LanguageToggleButton from '../components/LanguageToggleButton';
+import { MobileIconButton, MobileStatus } from '@openbitfun/ui/mobile';
+import PairingForm from '../components/PairingForm';
+import QrScannerSheet from '../components/QrScannerSheet';
 import { useI18n } from '../i18n';
+import { CloudAccountClient, CloudAccountRequestError } from '../services/CloudAccountClient';
+import {
+  loadMatchingCloudAccountSession,
+  saveCloudAccountSession,
+  type StoredCloudAccountSession,
+} from '../services/CloudAccountSessionStore';
+import { normalizeRelayUrl, validPairingSecret } from '../services/pairingLink';
 import { RelayHttpClient } from '../services/RelayHttpClient';
 import { RemoteSessionManager } from '../services/RemoteSessionManager';
 import { useMobileStore } from '../services/store';
-import { useTheme } from '../theme';
-import logoIcon from '../assets/Logo-ICON.png';
 
 interface PairingPageProps {
-  onPaired: (client: RelayHttpClient, sessionMgr: RemoteSessionManager) => void;
+  onPaired: (client: RelayHttpClient, sessionMgr: RemoteSessionManager, preferredDeviceId?: string) => void;
 }
 
-const ThemeToggleIcon: React.FC<{ isDark: boolean }> = ({ isDark }) => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    {isDark ? (
-      <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM3 8a5 5 0 0 1 5-5v10a5 5 0 0 1-5-5Z" fill="currentColor"/>
-    ) : (
-      <path d="M8 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 8 1Zm0 11a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 8 12Zm7-4a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1 0-1h1A.5.5 0 0 1 15 8ZM3 8a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1 0-1h1A.5.5 0 0 1 3 8Zm9.95-3.54a.5.5 0 0 1 0 .71l-.71.7a.5.5 0 1 1-.7-.7l.7-.71a.5.5 0 0 1 .71 0ZM5.46 11.24a.5.5 0 0 1 0 .71l-.7.71a.5.5 0 0 1-.71-.71l.7-.71a.5.5 0 0 1 .71 0Zm7.08 1.42a.5.5 0 0 1-.7 0l-.71-.71a.5.5 0 0 1 .7-.7l.71.7a.5.5 0 0 1 0 .71ZM5.46 4.76a.5.5 0 0 1-.71 0l-.71-.7a.5.5 0 0 1 .71-.71l.7.7a.5.5 0 0 1 0 .71ZM8 5a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" fill="currentColor"/>
-    )}
-  </svg>
-);
+interface PairAttemptOptions {
+  autoReconnect?: boolean;
+  installId?: string;
+  accountSession?: StoredCloudAccountSession;
+}
 
-const MOBILE_INSTALL_ID_KEY = 'bitfun.mobile.install_id';
-const MOBILE_USER_ID_KEY = 'bitfun.mobile.user_id';
-const MOBILE_LOCK_UNTIL_KEY = 'bitfun.mobile.user_id_lock_until';
-const MOBILE_FAILURE_COUNT_KEY = 'bitfun.mobile.user_id_failure_count';
+const MOBILE_INSTALL_ID_KEY = 'openbitfun.mobile.install_id';
+const MOBILE_USER_ID_KEY = 'openbitfun.mobile.user_id';
+const MOBILE_LOCK_UNTIL_KEY = 'openbitfun.mobile.user_id_lock_until';
+const MOBILE_FAILURE_COUNT_KEY = 'openbitfun.mobile.user_id_failure_count';
 const MAX_FAILED_USER_ID_ATTEMPTS = 3;
 const USER_ID_LOCKOUT_MS = 60_000;
 
@@ -35,38 +38,6 @@ function isProtectedUserIdError(message: string): boolean {
     || message.includes('Missing password')
     || message.includes('Missing username')
     || message.includes('Too many pairing attempts');
-}
-
-function normalizeRelayUrl(value: string): string | null {
-  try {
-    const normalized = value
-      .replace(/^wss:\/\//, 'https://')
-      .replace(/^ws:\/\//, 'http://')
-      .replace(/\/ws\/?$/, '')
-      .replace(/\/$/, '');
-    const url = new URL(normalized);
-    if (!['http:', 'https:'].includes(url.protocol)
-      || !url.hostname
-      || url.username
-      || url.password
-      || url.search
-      || url.hash) {
-      return null;
-    }
-    return url.toString().replace(/\/$/, '');
-  } catch {
-    return null;
-  }
-}
-
-function validPairingSecret(room: string | null, publicKey: string | null): boolean {
-  return !!room
-    && room.length <= 128
-    && /^[A-Za-z0-9_-]+$/.test(room)
-    && !['_store', 'page-data', 'pages'].includes(room)
-    && !!publicKey
-    && publicKey.length <= 512
-    && /^[A-Za-z0-9+/=_-]+$/.test(publicKey);
 }
 
 function generateInstallId(): string {
@@ -84,28 +55,50 @@ function getOrCreateInstallId(): string {
   return created;
 }
 
+function currentPairingRouteKey(): string {
+  return `${window.location.pathname}${window.location.hash}`;
+}
+
 function resolvePairingTarget(): {
   room: string | null;
   pk: string | null;
   httpBaseUrl: string;
   accountAuth: boolean;
   accountUsername: string | null;
+  targetDeviceId: string | null;
+  targetDeviceName: string | null;
+  directAccountLogin: boolean;
+  hasPairingDescriptor: boolean;
 } {
   const hash = window.location.hash;
   const params = new URLSearchParams(hash.replace(/^#\/pair\?/, ''));
   const room = params.get('room');
   const pk = params.get('pk');
   const relayParam = params.get('relay');
-  const accountAuth = params.get('auth') === 'account';
+  const authMode = params.get('auth');
+  const isPairingRoute = hash === '#/pair' || hash.startsWith('#/pair?');
+  // A direct visit is the account-facing product entry, so it must expose the
+  // same username/password form as the native mobile app. QR links from older
+  // Desktop builds remain legacy-compatible when they omit `auth`; they can
+  // also opt in explicitly with `auth=legacy`.
+  const accountAuth = authMode === 'account' || (!isPairingRoute && authMode !== 'legacy');
   const accountUsername = params.get('user')?.trim() || null;
+  const targetDeviceId = params.get('did')?.trim() || null;
+  const targetDeviceName = params.get('dn')?.trim() || null;
+  const directAccountLogin = accountAuth && !isPairingRoute;
 
   if (relayParam) {
+    const httpBaseUrl = normalizeRelayUrl(relayParam) ?? '';
     return {
       room,
       pk,
-      httpBaseUrl: normalizeRelayUrl(relayParam) ?? '',
+      httpBaseUrl,
       accountAuth,
       accountUsername,
+      targetDeviceId,
+      targetDeviceName,
+      directAccountLogin,
+      hasPairingDescriptor: validPairingSecret(room, pk) && !!httpBaseUrl,
     };
   }
 
@@ -113,18 +106,22 @@ function resolvePairingTarget(): {
   const pathname = window.location.pathname
     .replace(/\/[^/]*$/, '')
     .replace(/\/r\/[^/]*$/, '');
+  const httpBaseUrl = directAccountLogin ? `${origin}/relay` : origin + pathname;
   return {
     room,
     pk,
-    httpBaseUrl: origin + pathname,
+    httpBaseUrl,
     accountAuth,
     accountUsername,
+    targetDeviceId,
+    targetDeviceName,
+    directAccountLogin,
+    hasPairingDescriptor: validPairingSecret(room, pk) && !!normalizeRelayUrl(httpBaseUrl),
   };
 }
 
-const PairingPage: React.FC<PairingPageProps> = ({ onPaired }) => {
+const PairingPageContent: React.FC<PairingPageProps> = ({ onPaired }) => {
   const { t } = useI18n();
-  const { isDark, toggleTheme } = useTheme();
   const {
     connectionStatus,
     setConnectionStatus,
@@ -135,37 +132,62 @@ const PairingPage: React.FC<PairingPageProps> = ({ onPaired }) => {
   } = useMobileStore();
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [failureCount, setFailureCount] = useState(0);
   const [lockUntil, setLockUntil] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const failureCountRef = useRef(0);
   const lockUntilRef = useRef<number | null>(null);
+  const usernameInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
   // Generation token so a superseded or unmounted pairing attempt cannot
   // overwrite UI after a later bootstrap/manual attempt owns the page.
   const pairAttemptGenerationRef = useRef(0);
   const attemptPairRef = useRef<(
     providedUserId: string,
     providedPassword: string,
-    options?: { autoReconnect?: boolean; installId?: string },
+    options?: PairAttemptOptions,
   ) => Promise<void>>(async () => {});
   const onPairedRef = useRef(onPaired);
   onPairedRef.current = onPaired;
 
   const pairingTarget = useMemo(() => resolvePairingTarget(), []);
+  const [relayUrl, setRelayUrl] = useState(pairingTarget.httpBaseUrl);
   const requiresAccountAuth = pairingTarget.accountAuth;
   const isLocked = !!lockUntil && lockUntil > now;
   const remainingLockSeconds = isLocked
     ? Math.max(1, Math.ceil((lockUntil - now) / 1000))
     : 0;
 
+  useEffect(() => {
+    // Password managers can restore values without dispatching React change
+    // events. Reconcile the visible controls so enabled/disabled state stays
+    // identical to the native login page.
+    const reconcileAutofill = () => {
+      const restoredUsername = usernameInputRef.current?.value ?? '';
+      const restoredPassword = passwordInputRef.current?.value ?? '';
+      if (restoredUsername && !userId) setUserId(restoredUsername);
+      if (restoredPassword && !password) setPassword(restoredPassword);
+    };
+    const frame = window.requestAnimationFrame(reconcileAutofill);
+    const timer = window.setTimeout(reconcileAutofill, 250);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [password, userId]);
+
   const attemptPair = useCallback(async (
     providedUserId: string,
     providedPassword: string,
-    options?: { autoReconnect?: boolean; installId?: string },
+    options?: PairAttemptOptions,
   ) => {
     const roomId = pairingTarget.room;
     const desktopPublicKey = pairingTarget.pk;
+    const httpBaseUrl = normalizeRelayUrl(relayUrl) ?? '';
     const userIdValue = providedUserId.trim();
     // Passwords are opaque credentials: preserve intentional leading or
     // trailing spaces exactly as entered.
@@ -183,10 +205,10 @@ const PairingPage: React.FC<PairingPageProps> = ({ onPaired }) => {
     const attemptGeneration = ++pairAttemptGenerationRef.current;
     const isCurrentAttempt = () => pairAttemptGenerationRef.current === attemptGeneration;
 
-    if (!roomId
+    if (!pairingTarget.directAccountLogin && (!roomId
       || !desktopPublicKey
       || !validPairingSecret(roomId, desktopPublicKey)
-      || !pairingTarget.httpBaseUrl) {
+      || !httpBaseUrl)) {
       if (!isCurrentAttempt()) return;
       setError(t('pairing.invalidQrCode'));
       setConnectionStatus('error');
@@ -204,7 +226,7 @@ const PairingPage: React.FC<PairingPageProps> = ({ onPaired }) => {
       setConnectionStatus('error');
       return;
     }
-    if (requiresAccountAuth && !passwordValue) {
+    if (requiresAccountAuth && !passwordValue && !options?.accountSession) {
       if (!isCurrentAttempt()) return;
       setError(t('pairing.passwordRequired'));
       setConnectionStatus('error');
@@ -221,10 +243,65 @@ const PairingPage: React.FC<PairingPageProps> = ({ onPaired }) => {
     setError(null);
     setConnectionStatus('pairing');
 
-    const client = new RelayHttpClient(pairingTarget.httpBaseUrl, roomId);
+    const client = new RelayHttpClient(httpBaseUrl, roomId ?? '');
 
     try {
-      const initialSync = await client.pair(desktopPublicKey, {
+      // HarmonyOS treats an account-auth QR as an account-device selection:
+      // once the account proof exists, `did` identifies the exact desktop and
+      // the room is no longer the data plane. Direct account login uses the
+      // same route but falls back to the first available desktop.
+      if (requiresAccountAuth
+        && (pairingTarget.directAccountLogin || !!pairingTarget.targetDeviceId)) {
+        const restoredAccount = options?.accountSession;
+        const accountSession = restoredAccount
+          ? {
+            token: restoredAccount.session.token,
+            userId: restoredAccount.session.userId,
+            masterKey: restoredAccount.session.masterKey.slice(),
+          }
+          : await new CloudAccountClient().login(
+            httpBaseUrl,
+            userIdValue,
+            passwordValue,
+            currentInstallId,
+          );
+        restoredAccount?.session.masterKey.fill(0);
+        if (!isCurrentAttempt()) {
+          accountSession.masterKey.fill(0);
+          return;
+        }
+        client.installDirectAccountIdentity({
+          ...accountSession,
+          deviceId: currentInstallId,
+        });
+        saveCloudAccountSession({
+          relayUrl: httpBaseUrl,
+          username: userIdValue,
+          controllerDeviceId: currentInstallId,
+          session: accountSession,
+        });
+        accountSession.masterKey.fill(0);
+
+        // Account authentication is complete. Device discovery and connection
+        // belong to the authenticated directory, including empty/offline/error
+        // states; none of them may return a successful login to this form.
+        const store = useMobileStore.getState();
+        store.resetForDeviceSwitch();
+        store.setAuthenticatedUserId(accountSession.userId);
+        store.setAuthenticatedUserLabel(userIdValue);
+        store.setControlTarget(null);
+        setConnectionStatus('paired');
+        localStorage.setItem(MOBILE_USER_ID_KEY, userIdValue);
+        localStorage.removeItem(MOBILE_FAILURE_COUNT_KEY);
+        localStorage.removeItem(MOBILE_LOCK_UNTIL_KEY);
+        setFailureCount(0);
+        setLockUntil(null);
+        setPassword('');
+        onPairedRef.current(client, new RemoteSessionManager(client), pairingTarget.targetDeviceId?.trim() || undefined);
+        return;
+      }
+
+      const initialSync = await client.pair(desktopPublicKey!, {
         userId: userIdValue,
         mobileInstallId: currentInstallId,
         password: requiresAccountAuth ? passwordValue : undefined,
@@ -239,15 +316,12 @@ const PairingPage: React.FC<PairingPageProps> = ({ onPaired }) => {
       setLockUntil(null);
       setPassword('');
       // `authenticated_user_id` is the canonical account UUID used for
-      // ownership checks. The submitted value is the verified username in
-      // account mode and is the appropriate user-facing label.
-      setAuthenticatedUserId(
-        initialSync.authenticated_user_id
-        ?? (requiresAccountAuth ? null : userIdValue),
-      );
-      setAuthenticatedUserLabel(userIdValue);
+      // ownership checks. A QR pairing id is only a connection credential; it
+      // must never be presented as a browser-authenticated account.
+      setAuthenticatedUserId(initialSync.authenticated_user_id ?? null);
+      setAuthenticatedUserLabel(requiresAccountAuth ? userIdValue : null);
 
-      const sessionMgr = new RemoteSessionManager(client);
+      const sessionMgr = new RemoteSessionManager(client, initialSync.capabilities);
       const store = useMobileStore.getState();
       if (initialSync.has_workspace) {
         if (initialSync.workspace_kind === 'assistant' && initialSync.path) {
@@ -324,13 +398,17 @@ const PairingPage: React.FC<PairingPageProps> = ({ onPaired }) => {
     } catch (e: any) {
       if (!isCurrentAttempt()) return;
       const rawErrorMessage = e?.message || '';
-      const errorMessage = rawErrorMessage.includes('timed out')
+      const status = e instanceof CloudAccountRequestError ? e.status : e?.status;
+      const errorMessage = status === 401 && !!options?.accountSession
+        ? t('pairing.accountSessionExpired')
+        : rawErrorMessage.includes('timed out')
         ? t('pairing.requestTimedOut')
-        : rawErrorMessage.includes('HTTP 404')
+        : status === 404 || rawErrorMessage.includes('HTTP 404')
           ? t('pairing.qrExpired')
-          : rawErrorMessage.includes('HTTP 429')
+          : status === 429 || rawErrorMessage.includes('HTTP 429')
             ? t('pairing.rateLimited')
-            : rawErrorMessage.includes('HTTP 503') || rawErrorMessage.includes('HTTP 504')
+            : status === 503 || status === 504
+              || rawErrorMessage.includes('HTTP 503') || rawErrorMessage.includes('HTTP 504')
               ? t('pairing.relayUnavailable')
               : rawErrorMessage || t('pairing.pairingFailed');
       if (!autoReconnect && isProtectedUserIdError(errorMessage)) {
@@ -362,9 +440,12 @@ const PairingPage: React.FC<PairingPageProps> = ({ onPaired }) => {
       }
     }
   }, [
-    pairingTarget.httpBaseUrl,
+    pairingTarget.directAccountLogin,
     pairingTarget.pk,
     pairingTarget.room,
+    pairingTarget.targetDeviceId,
+    pairingTarget.targetDeviceName,
+    relayUrl,
     requiresAccountAuth,
     setAuthenticatedUserId,
     setAuthenticatedUserLabel,
@@ -382,8 +463,18 @@ const PairingPage: React.FC<PairingPageProps> = ({ onPaired }) => {
   useEffect(() => {
     const savedUserId = localStorage.getItem(MOBILE_USER_ID_KEY)?.trim() ?? '';
     const qrUsername = pairingTarget.accountUsername?.trim() ?? '';
-    const prefilledUserId = qrUsername || savedUserId;
     const currentInstallId = getOrCreateInstallId();
+    // Reuse is scan-driven. A plain account landing page must stay idle after
+    // an explicit disconnect instead of immediately reconnecting itself.
+    const hasScannedAccountTarget = !!pairingTarget.targetDeviceId;
+    const restoredAccount = requiresAccountAuth && hasScannedAccountTarget
+      ? loadMatchingCloudAccountSession(
+        pairingTarget.httpBaseUrl,
+        qrUsername,
+        currentInstallId,
+      )
+      : null;
+    const prefilledUserId = qrUsername || restoredAccount?.username || savedUserId;
     const persistedFailureCount = Number(localStorage.getItem(MOBILE_FAILURE_COUNT_KEY) || '0');
     const persistedLockUntil = Number(localStorage.getItem(MOBILE_LOCK_UNTIL_KEY) || '0');
     const normalizedLockUntil = persistedLockUntil > Date.now() ? persistedLockUntil : null;
@@ -391,8 +482,10 @@ const PairingPage: React.FC<PairingPageProps> = ({ onPaired }) => {
       localStorage.removeItem(MOBILE_LOCK_UNTIL_KEY);
       localStorage.removeItem(MOBILE_FAILURE_COUNT_KEY);
     }
-    // Account mode always needs a password — never auto-reconnect without it.
-    const shouldAutoReconnect = !requiresAccountAuth
+    // A valid account session is already proof for a same-account QR. Legacy
+    // room pairing remains auto-reconnectable only in its passwordless mode.
+    const shouldRestoreAccount = !!restoredAccount;
+    const shouldRestoreRoom = !requiresAccountAuth
       && !!savedUserId
       && !!currentInstallId
       && !!pairingTarget.room
@@ -402,13 +495,14 @@ const PairingPage: React.FC<PairingPageProps> = ({ onPaired }) => {
     setLockUntil(normalizedLockUntil);
     setError(null);
 
-    if (shouldAutoReconnect) {
+    if (shouldRestoreAccount || shouldRestoreRoom) {
       // Show the spinner immediately; attemptPair also sets pairing when the
       // network attempt actually starts (after validation).
       setConnectionStatus('pairing');
-      void attemptPairRef.current(savedUserId, '', {
+      void attemptPairRef.current(prefilledUserId, '', {
         autoReconnect: true,
         installId: currentInstallId,
+        accountSession: restoredAccount ?? undefined,
       });
     } else {
       setConnectionStatus('idle');
@@ -451,101 +545,118 @@ const PairingPage: React.FC<PairingPageProps> = ({ onPaired }) => {
   }, [lockUntil]);
 
   const handleConnect = async () => {
-    await attemptPair(userId, password, { autoReconnect: false });
+    await attemptPair(
+      usernameInputRef.current?.value ?? userId,
+      passwordInputRef.current?.value ?? password,
+      { autoReconnect: false },
+    );
   };
 
-  const stateLabels: Record<string, string> = {
-    idle: requiresAccountAuth
-      ? t('pairing.enterAccountToContinue')
-      : t('pairing.enterUserIdToContinue'),
-    pairing: t('pairing.connectingAndPairing'),
-    paired: t('pairing.pairedLoadingSessions'),
-    error: t('pairing.connectionError'),
-  };
   const showSpinner = connectionStatus === 'pairing';
   const showForm = connectionStatus === 'idle' || connectionStatus === 'error';
 
   return (
     <div className="pairing-page">
-      <div className="pairing-page__actions">
-        <LanguageToggleButton />
-        <button
-          className="pairing-page__theme-btn"
-          onClick={toggleTheme}
-          aria-label={t('common.toggleTheme')}
-        >
-          <ThemeToggleIcon isDark={isDark} />
-        </button>
-      </div>
-      <img src={logoIcon} alt="BitFun" className="pairing-page__logo" />
-      <div className="pairing-page__brand">{t('shared.product.remote')}</div>
-
-      <div className="pairing-page__spinner-wrap">
-        {showSpinner && <div className="spinner" />}
-      </div>
-
-      <div className="pairing-page__state">
-        {stateLabels[connectionStatus] || connectionStatus}
-      </div>
-
-      {showForm && (
-        <div className="pairing-page__form">
-          <label className="pairing-page__field">
-            <span className="pairing-page__field-label">
-              {requiresAccountAuth ? t('pairing.usernameLabel') : t('pairing.fieldLabel')}
-            </span>
-            <input
-              className="pairing-page__input"
-              type="text"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              placeholder={
-                requiresAccountAuth
-                  ? t('pairing.usernamePlaceholder')
-                  : t('pairing.placeholder')
-              }
-              autoCapitalize="off"
-              autoCorrect="off"
-              autoComplete="username"
-              maxLength={128}
-              disabled={submitting || isLocked}
+      <div className="pairing-page__shell">
+        <aside className="pairing-page__hero" aria-labelledby="pairing-desktop-title">
+          <div className="pairing-page__hero-copy">
+            <div className="pairing-page__eyebrow">{t('pairing.secureRemote')}</div>
+            <h2 id="pairing-desktop-title">{t('pairing.heroTitle')}</h2>
+            <p>{t('pairing.heroDescription')}</p>
+          </div>
+          <div className="pairing-page__connection-visual" aria-hidden="true">
+            <div className="pairing-page__device pairing-page__device--desktop">
+              <span className="pairing-page__device-screen" />
+              <span className="pairing-page__device-base" />
+            </div>
+            <span className="pairing-page__connection-line"><i /><i /><i /></span>
+            <div className="pairing-page__device pairing-page__device--phone">
+              <span className="pairing-page__device-screen" />
+            </div>
+          </div>
+          <div className="pairing-page__security-note">
+            <span className="pairing-page__security-dot" />
+            {t('pairing.encryptedConnection')}
+          </div>
+        </aside>
+        <section className="pairing-page__panel">
+          <header className="pairing-page__header">
+            <span className="pairing-page__header-spacer" aria-hidden="true" />
+            <MobileIconButton
+              appearance="plain"
+              className="pairing-page__back"
+              onClick={() => history.length > 1 && history.back()}
+              aria-label={t('common.close')}
+              icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
+                <path d="m6 6 12 12M18 6 6 18" />
+              </svg>}
             />
-          </label>
-          {requiresAccountAuth && (
-            <label className="pairing-page__field">
-              <span className="pairing-page__field-label">{t('pairing.passwordLabel')}</span>
-              <input
-                className="pairing-page__input"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={t('pairing.passwordPlaceholder')}
-                autoComplete="current-password"
-                maxLength={1024}
-                disabled={submitting || isLocked}
-              />
-            </label>
-          )}
-          <p className="pairing-page__note">
-            {requiresAccountAuth ? t('pairing.accountNote') : t('pairing.note')}
-          </p>
-          <button
-            className="pairing-page__retry"
-            onClick={handleConnect}
-            disabled={submitting || isLocked}
-          >
-            {submitting
-              ? t('pairing.connecting')
-              : isLocked
-                ? t('pairing.retryIn', { seconds: remainingLockSeconds })
-                : t('pairing.continue')}
-          </button>
-        </div>
-      )}
+          </header>
 
-      {error && <div className="pairing-page__error">{error}</div>}
+          {showForm && (
+            <PairingForm
+              advancedOpen={advancedOpen}
+              error={error}
+              hasPairingDescriptor={pairingTarget.hasPairingDescriptor}
+              isLocked={isLocked}
+              password={password}
+              passwordInputRef={passwordInputRef}
+              relayUrl={relayUrl}
+              remainingLockSeconds={remainingLockSeconds}
+              requiresAccountAuth={requiresAccountAuth}
+              showPassword={showPassword}
+              showSpinner={showSpinner}
+              submitting={submitting}
+              userId={userId}
+              usernameInputRef={usernameInputRef}
+              onAdvancedOpenChange={setAdvancedOpen}
+              onConnect={() => void handleConnect()}
+              onOpenScanner={() => setScannerOpen(true)}
+              onPasswordChange={setPassword}
+              onRelayUrlChange={setRelayUrl}
+              onShowPasswordChange={setShowPassword}
+              onUserIdChange={setUserId}
+            />
+          )}
+
+          {!showForm && (
+            <MobileStatus
+              className="pairing-page__progress"
+              loading
+              title={connectionStatus === 'paired'
+                ? t(requiresAccountAuth ? 'devices.accountReady' : 'pairing.pairedLoadingSessions')
+                : t('pairing.connectingAndPairing')}
+            />
+          )}
+        </section>
+      </div>
+      {scannerOpen && (
+        <QrScannerSheet
+          onClose={() => setScannerOpen(false)}
+          onDetected={(url) => window.location.assign(url)}
+        />
+      )}
     </div>
   );
+};
+
+/**
+ * A scanner result commonly changes only the hash on the current Mobile Web
+ * document. Hash navigation does not remount React by itself, but pairing
+ * bootstrap is intentionally mount-scoped so stale attempts cannot cross
+ * targets. Key the content by the complete pairing route to give every
+ * scanned descriptor a fresh, single-owner connection lifecycle.
+ */
+const PairingPage: React.FC<PairingPageProps> = (props) => {
+  const [routeKey, setRouteKey] = useState(currentPairingRouteKey);
+
+  useEffect(() => {
+    const handleHashChange = () => setRouteKey(currentPairingRouteKey());
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  return <PairingPageContent key={routeKey} {...props} />;
 };
 
 export default PairingPage;

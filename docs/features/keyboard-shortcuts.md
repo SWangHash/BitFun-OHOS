@@ -1,7 +1,7 @@
 # 快捷键（Keyboard Shortcuts）需求文档
 
 > 状态：能力规格 / 需求
-> 仓库：BitFun-OHOS
+> 仓库：OpenBitFun-OHOS
 > 相关架构入口：
 > - [`src/web-ui/src/infrastructure/services/ShortcutManager.ts`](../../src/web-ui/src/infrastructure/services/ShortcutManager.ts)
 > - [`src/web-ui/src/shared/types/shortcut.ts`](../../src/web-ui/src/shared/types/shortcut.ts)
@@ -10,7 +10,7 @@
 
 ## 背景与需求描述
 
-桌面端需要一个统一的快捷键体系：用户通过键盘高效触发面板切换、搜索、文件树操作、编辑器命令、终端复制粘贴等。BitFun 已有 `ShortcutManager` 单例 + `useShortcut` hook + 快捷键目录（`EDITOR_SHORTCUTS` / `FILETREE_SHORTCUTS` 等）+ 用户自定义覆盖（`app.keybindings`）+ 作用域（app / chat / editor / canvas / terminal）+ 冲突检测 + 设置 UI（`KeyboardShortcutsTab`）。
+桌面端需要一个统一的快捷键体系：用户通过键盘高效触发面板切换、搜索、文件树操作、编辑器命令、终端复制粘贴等。OpenBitFun 已有 `ShortcutManager` 单例 + `useShortcut` hook + 快捷键目录（`EDITOR_SHORTCUTS` / `FILETREE_SHORTCUTS` 等）+ 用户自定义覆盖（`app.keybindings`）+ 作用域（app / chat / editor / canvas / terminal）+ 冲突检测 + 设置 UI（`KeyboardShortcutsTab`）。
 
 本需求定义快捷键能力的目标范围与行为契约，确保体系一致、可定制、不冲突、跨平台、IME 安全。
 

@@ -13,103 +13,232 @@ function readRelative(filename: string): string {
 const cardCss = compile(fileURLToPath(new URL('./MiniAppCard.scss', import.meta.url))).css;
 
 describe('Mini App card presentation', () => {
-  it('uses the catalog deletion glyph and shared running-count badge', () => {
-    expect(readRelative('./MiniAppCard.tsx')).toContain('icon={<Icon name="delete" size="lg" />}');
-    expect(readRelative('../views/MiniAppGalleryView.tsx')).toContain('<NumberBadge value={activeApps.length} />');
-    expect(readRelative('../views/MiniAppGalleryView.tsx')).not.toContain('gallery-zone-badge');
+  it('keeps destructive actions in details and uses one unified app count', () => {
+    const library = readRelative('../views/MiniAppLibraryView.tsx');
+
+    expect(readRelative('./MiniAppCard.tsx')).not.toContain('name="delete"');
+    expect(library).toContain('<NumberBadge value={libraryItems.length} />');
+    expect(library).not.toContain('miniapp-running-zone');
+    expect(library).not.toContain('gallery-zone-badge');
   });
 
-  it('uses shared controls and card anatomy across Mini App surfaces', () => {
-    const gallery = readRelative('../views/MiniAppGalleryView.tsx');
-    const market = readRelative('../views/MiniAppMarketView.tsx');
+  it('merges installed and marketplace apps into the shared library surface', () => {
+    const library = readRelative('../views/MiniAppLibraryView.tsx');
     const submissions = readRelative('../views/MiniAppSubmissionsView.tsx');
+    const tabs = readRelative('../MiniAppGalleryScene.tsx');
 
-    expect(gallery).toContain('<SegmentedControl');
-    expect(gallery).not.toContain('gallery-cat-chip');
-    expect(market).toContain('<SegmentedControl');
-    expect(market).toContain('<Card');
-    expect(market).toContain('<CardMedia');
-    expect(market).toContain('<CardBody');
-    expect(market).toContain('<IconButton');
-    expect(market).not.toContain('gallery-cat-chip');
+    expect(library).toContain('className="miniapp-gallery__filters"');
+    expect(library).toContain('className="miniapp-gallery__categories"');
+    expect(library).not.toContain('<SegmentedControl');
+    expect(library).toContain(
+      'buildMiniAppLibraryItems(marketItems, apps, marketOrigins, sort)',
+    );
+    expect(library).toContain('<MiniAppLibraryRow');
+    expect(library).not.toContain('<MiniAppCard');
+    expect(tabs).toContain('<TabGroup');
+    expect(tabs).not.toContain('distribution="fill"');
+    expect(tabs).toContain('size="sm"');
+    expect(tabs).toContain("type MiniAppGalleryTab = 'apps' | 'submissions';");
+    expect(tabs).not.toContain('MiniAppMarketView');
     expect(submissions).toContain('<Disclosure');
     expect(submissions).toContain('<IconButton');
     expect(submissions).not.toContain('miniapp-submissions__advanced-toggle');
   });
-  it('bounds the card without coupling its height to its width', () => {
+
+  it('keeps both gallery panes on the same content rail', () => {
+    const sceneStyles = readRelative('../MiniAppGalleryScene.scss');
+    const gallery = readRelative('../views/MiniAppLibraryView.tsx');
+    const submissions = readRelative('../views/MiniAppSubmissionsView.tsx');
+    const submissionStyles = readRelative('../views/MiniAppSubmissionsView.scss');
+
+    expect(gallery).toContain('className="miniapp-gallery-pane miniapp-gallery"');
+    expect(submissions.match(/className="miniapp-gallery-pane miniapp-submissions"/g)).toHaveLength(3);
+    expect(submissions.match(/<GalleryPageHeader/g)).toHaveLength(3);
+    expect(sceneStyles).toContain(
+      '$miniapp-gallery-content-inline-size: min(calc(100% - var(--openbitfun-space-6)), 880px);',
+    );
+    expect(sceneStyles).toMatch(
+      /\.miniapp-gallery-pane \{[\s\S]*?\.gallery-page-header \{[\s\S]*?width: \$miniapp-gallery-content-inline-size;/,
+    );
+    expect(sceneStyles).toMatch(
+      /\.miniapp-gallery-pane \{[\s\S]*?\.gallery-zones \{[\s\S]*?width: \$miniapp-gallery-content-inline-size;/,
+    );
+    expect(sceneStyles).toContain('scrollbar-gutter: stable;');
+    expect(submissionStyles).not.toContain('1360px');
+    expect(submissionStyles).toMatch(/&__workspace \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);/);
+  });
+
+  it('uses the compact vertical catalog-card geometry', () => {
     const stylesheet = readRelative('./MiniAppCard.scss');
     const rootStart = stylesheet.indexOf('.miniapp-card {');
     const rootEnd = stylesheet.indexOf('&:hover {', rootStart);
     const rootGeometry = stylesheet.slice(rootStart, rootEnd);
 
-    expect(rootGeometry).toContain('max-width: 400px;');
-    expect(rootGeometry).toContain('min-height: 152px;');
+    expect(rootGeometry).not.toContain('max-width:');
+    expect(rootGeometry).toContain('min-height: 193px;');
     expect(rootGeometry).not.toContain('aspect-ratio:');
-    expect(stylesheet).toContain('grid-template-columns: clamp(60px, 18%, 72px) minmax(0, 1fr);');
+    expect(stylesheet).toMatch(/&__main \{[\s\S]*?flex-direction: column;/);
+    expect(stylesheet).toContain('-webkit-line-clamp: 3;');
     expect(stylesheet).toMatch(/&__footer \{[\s\S]*?margin-top: auto;/);
   });
 
-  it('packs cards densely and keeps skeleton geometry aligned', () => {
-    const source = readRelative('../views/MiniAppGalleryView.tsx');
-    const stylesheet = readRelative('../views/MiniAppGalleryView.scss');
+  it('renders one full-width app per row and keeps skeleton geometry aligned', () => {
+    const source = readRelative('../views/MiniAppLibraryView.tsx');
+    const stylesheet = readRelative('../views/MiniAppLibraryView.scss');
+    const sceneStyles = readRelative('../MiniAppGalleryScene.scss');
 
-    expect(source).toContain('const MINIAPP_CARD_MIN_WIDTH = 280;');
-    expect(source.match(/minCardWidth=\{MINIAPP_CARD_MIN_WIDTH\}/g)).toHaveLength(3);
-    expect(stylesheet).toMatch(/&__card-grid \{\s+justify-items: start;/);
+    expect(source).toContain('className="miniapp-gallery__list" role="list"');
+    expect(source.match(/cardHeight=\{126\}/g)).toHaveLength(2);
+    expect(stylesheet).toMatch(/&__list \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);/);
     expect(stylesheet).toMatch(
-      /&__card-grid\.gallery-grid--skeleton \.gallery-skeleton-card \{[\s\S]*?max-width: 400px;[\s\S]*?height: 152px;/,
+      /&__list\.gallery-grid--skeleton \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);/,
     );
-    expect(stylesheet).toMatch(
-      /@media \(max-width: 480px\) \{[\s\S]*?\.miniapp-card,[\s\S]*?\.gallery-skeleton-card \{\s+max-width: 100%;/,
+    expect(sceneStyles).toContain('container-name: miniapp-gallery-scene;');
+    expect(sceneStyles).toMatch(
+      /@container miniapp-gallery-scene \(max-width: 760px\) \{[\s\S]*?\.gallery-page-header \{[\s\S]*?flex-direction: column;/,
     );
-    expect(stylesheet).not.toContain('aspect-ratio: 12 / 5;');
+    expect(stylesheet).toContain('@container miniapp-gallery-scene (min-width: 640px)');
+    expect(stylesheet).not.toContain('@container miniapp-gallery-scene (min-width: 520px)');
+    expect(stylesheet).toContain('grid-template-columns: minmax(0, 224px) minmax(0, 1fr);');
   });
 
-  it('lets actions move to a new line instead of squeezing tags into the remaining width', () => {
-    const footer = cardCss.match(/\.miniapp-card__footer \{([^}]+)\}/)?.[1];
-    const actions = cardCss.match(/\.miniapp-card__actions \{([^}]+)\}/)?.[1];
+  it('groups catalog controls below the tabs without repeating the page heading', () => {
+    const source = readRelative('../views/MiniAppLibraryView.tsx');
+    const headerStart = source.indexOf('<GalleryPageHeader');
+    const tabsStart = source.indexOf('{tabs}', headerStart);
+    const allAppsStart = source.indexOf('<section className="gallery-zone"', tabsStart);
+    const allAppsEnd = source.indexOf('</section>', allAppsStart);
+    const pageHeader = source.slice(headerStart, tabsStart);
+    const allAppsZone = source.slice(allAppsStart, allAppsEnd);
 
-    expect(footer).toContain('display: flex;');
-    expect(footer).toContain('flex-wrap: wrap;');
+    expect(pageHeader).not.toContain('<SearchField');
+    expect(allAppsZone).toContain("aria-label={t('allApps')}");
+    expect(allAppsZone).toMatch(
+      /miniapp-gallery__filters[\s\S]*?<SearchField[\s\S]*?miniapp-gallery__categories[\s\S]*?miniapp-gallery__sort[\s\S]*?<NumberBadge/,
+    );
+  });
+
+  it('aligns identity, runtime state, and icon metadata with their owning rows', () => {
+    const row = readRelative('./MiniAppLibraryRow.tsx');
+    const stylesheet = readRelative('../views/MiniAppLibraryView.scss');
+    const titleStart = row.indexOf('className="miniapp-library-row__title-row"');
+    const titleEnd = row.indexOf('</span>', titleStart);
+    const titleRow = row.slice(titleStart, titleEnd);
+    const actionsStart = row.indexOf('className="miniapp-library-row__actions"');
+    const actions = row.slice(actionsStart);
+
+    expect(titleRow.indexOf('miniapp-library-row__name')).toBeLessThan(
+      titleRow.indexOf('miniapp-library-row__category'),
+    );
+    expect(actions.indexOf('miniapp-library-row__status-rail')).toBeLessThan(
+      actions.indexOf('<Button'),
+    );
+    expect(row).toContain('<Package size={13}');
+    expect(row).toContain('<UserRound size={13}');
+    expect(row).toContain('<Star size={13}');
+    expect(row).toContain('<Icon name="arrow-down" size="xs"');
+    expect(row).toContain('<HardDrive size={13}');
+    expect(stylesheet).toMatch(
+      /&__summary \{[\s\S]*?grid-template-rows: auto minmax\(0, 1fr\) var\(--openbitfun-type-meta-line-height\);[\s\S]*?block-size: 126px;[\s\S]*?padding: var\(--openbitfun-space-3\) var\(--openbitfun-space-4\);/,
+    );
+    expect(stylesheet).toMatch(
+      /&__meta \{[\s\S]*?align-self: end;[\s\S]*?block-size: var\(--openbitfun-type-meta-line-height\);/,
+    );
+    expect(stylesheet).toMatch(
+      /&__actions \{[\s\S]*?align-self: end;[\s\S]*?align-items: center;/,
+    );
+    expect(stylesheet).not.toContain("content: '·';");
+  });
+
+  it('keeps local-only and installed status tags mutually exclusive', () => {
+    const source = readRelative('../views/MiniAppLibraryView.tsx');
+    const statusesStart = source.indexOf('function libraryStatuses(');
+    const statusesEnd = source.indexOf('\nfunction requiresWorkspace', statusesStart);
+    const statusPolicy = source.slice(statusesStart, statusesEnd);
+
+    expect(statusPolicy).toContain(
+      'const isLocalOnly = Boolean(item.app && !item.listing && !item.origin);',
+    );
+    expect(statusPolicy).toMatch(
+      /else if \(isLocalOnly\) \{[\s\S]*?market\.library\.local[\s\S]*?\} else if \(item\.app\) \{[\s\S]*?market\.library\.installed/,
+    );
+  });
+
+  it('uses local rating and download defaults for sorting without displaying them', () => {
+    const source = readRelative('../views/MiniAppLibraryView.tsx');
+    const projection = readRelative('../views/miniAppLibraryItems.ts');
+
+    expect(projection).toMatch(
+      /key: `local:\$\{app\.id\}`,[\s\S]*?downloadCount: 0,[\s\S]*?ratingAverage: 3,/,
+    );
+    expect(source).toMatch(
+      /downloadCount=\{item\.listing\s*\? formatNumber\(item\.downloadCount\)\s*: undefined\}/,
+    );
+    expect(source).toMatch(
+      /rating=\{item\.listing \? item\.ratingAverage\.toFixed\(1\) : undefined\}/,
+    );
+  });
+
+  it('crops marketplace images into one fixed showcase slot with a neutral fallback', () => {
+    const row = readRelative('./MiniAppLibraryRow.tsx');
+    const library = readRelative('../views/MiniAppLibraryView.tsx');
+    const stylesheet = readRelative('../views/MiniAppLibraryView.scss');
+
+    expect(library).toContain('getMiniAppShowcaseAsset(item.app.id)');
+    expect(row).toContain('marketImageSrcSet(showcaseUrl)');
+    expect(row).toContain('<GalleryHorizontalEnd');
+    expect(row).not.toContain('renderMiniAppIcon');
+    expect(row).not.toContain('getMiniAppIconGradient');
+    expect(stylesheet).toMatch(
+      /&__showcase \{[\s\S]*?aspect-ratio: 16 \/ 9;[\s\S]*?overflow: hidden;/,
+    );
+    expect(stylesheet).toMatch(
+      /&__showcase[\s\S]*?img \{[\s\S]*?position: absolute;[\s\S]*?inset: 0;[\s\S]*?width: 100%;[\s\S]*?height: 100%;[\s\S]*?object-fit: cover;[\s\S]*?object-position: center;/,
+    );
+  });
+
+  it('keeps tags and the circular run action on one footer row', () => {
+    const stylesheet = readRelative('./MiniAppCard.scss');
+    const footer = cardCss.match(/\.miniapp-card__footer \{([^}]+)\}/)?.[1];
+    const actionsStart = stylesheet.lastIndexOf('&__actions {');
+    const actions = stylesheet.slice(actionsStart, stylesheet.indexOf('}', actionsStart));
+    const source = readRelative('./MiniAppCard.tsx');
+
+    expect(footer).toContain('margin-top: auto;');
+    expect(footer).not.toContain('flex-wrap: wrap;');
     expect(footer).not.toContain('grid-template-columns:');
     expect(actions).toContain('margin-inline-start: auto;');
-    expect(actions).toContain('flex-shrink: 0;');
+    expect(actions).toContain('flex: 0 0 auto;');
     expect(actions).not.toContain('grid-column:');
+    expect(source).toContain('shape="circle"');
+    expect(source).toContain('variant="primary"');
   });
 
-  it('wraps whole tag pills and applies ellipsis in a block formatting context', () => {
+  it('keeps version and tags in a clipped single-line metadata rail', () => {
     const tags = cardCss.match(/\.miniapp-card__tags \{([^}]+)\}/)?.[1];
     const tag = cardCss.match(/\.miniapp-card__tag \{([^}]+)\}/)?.[1];
-    const sharedTag = cardCss.match(/\.miniapp-card__tag,\s*\.miniapp-card__tag-overflow \{([^}]+)\}/)?.[1];
+    const source = readRelative('./MiniAppCard.tsx');
 
     expect(tags).toContain('flex: 1 1 auto;');
-    expect(tags).toContain('flex-wrap: wrap;');
-    expect(tags).toContain('max-width: 100%;');
-    expect(tags).not.toContain('overflow: hidden;');
+    expect(tags).toContain('overflow: hidden;');
+    expect(tags).toContain('white-space: nowrap;');
     expect(tag).toContain('display: block;');
-    expect(tag).toContain('flex: 0 0 auto;');
+    expect(tag).toContain('flex: 0 1 auto;');
     expect(tag).toContain('box-sizing: border-box;');
-    expect(tag).toContain('max-width: min(100%, 16ch);');
-    expect(sharedTag).toContain('white-space: nowrap;');
-    expect(sharedTag).toContain('overflow: hidden;');
-    expect(sharedTag).toContain('text-overflow: ellipsis;');
+    expect(tag).toContain('text-overflow: ellipsis;');
+    expect(source).toContain('V{marketReleaseNumber ?? app.version}');
+    expect(source).toContain('localizedTags.slice(0, 4)');
   });
 
-  it('keeps the overflow count intact and retains the compact tag summary', () => {
-    const overflow = cardCss.match(/(?:^|\})\s*\.miniapp-card__tag-overflow \{([^}]+)\}/)?.[1];
+  it('keeps App Store actions inline and never auto-opens after install or update', () => {
+    const source = readRelative('../views/MiniAppLibraryView.tsx');
+    const row = readRelative('./MiniAppLibraryRow.tsx');
 
-    expect(overflow).toContain('flex: 0 0 auto;');
-    expect(cardCss).toMatch(/@container miniapp-card \(max-width: 519px\) \{\s*\.miniapp-card__tag--compact-hidden,\s*\.miniapp-card__tag-overflow--wide \{\s*display: none;/);
-    expect(cardCss).toMatch(/@container miniapp-card[\s\S]*?\.miniapp-card__tag-overflow--compact \{\s*display: inline-flex;/);
-  });
-
-  it('bounds market cards while preserving the media preview ratio', () => {
-    const source = readRelative('../views/MiniAppMarketView.tsx');
-    const stylesheet = readRelative('../views/MiniAppMarketView.scss');
-
-    expect(source.match(/className="miniapp-market-native__card-grid"/g)).toHaveLength(2);
-    expect(stylesheet).toContain('max-width: 360px;');
-    expect(stylesheet).toMatch(/&__card-grid \{\s+justify-items: center;/);
-    expect(stylesheet).toMatch(/&__visual \{[\s\S]*?aspect-ratio: 16 \/ 9;/);
+    expect(source).toContain("item.action === 'get'");
+    expect(source).toContain("item.action === 'update'");
+    expect(source).toContain("item.action === 'open'");
+    expect(source).toContain('setMarketOrigin(result.app.id, result.origin);');
+    expect(source).not.toContain('openInstalledApp(result.app.id)');
+    expect(row).toContain("variant={action === 'open' ? 'outline' : 'primary'}");
   });
 });

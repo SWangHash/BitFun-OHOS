@@ -1,7 +1,7 @@
 use super::audio::pcm16_le_to_f32_samples;
 use super::recognizer::{SpeechRecognizer, SpeechRecognizerWarmupRequest};
 use super::types::{SpeechTranscribeRequest, SpeechTranscriptionResult};
-use super::{BitFunError, BitFunResult};
+use super::{OpenBitFunError, OpenBitFunResult};
 use async_trait::async_trait;
 #[cfg(not(target_env = "ohos"))]
 use sherpa_onnx::{OfflineQwen3ASRModelConfig, OfflineRecognizer, OfflineRecognizerConfig};
@@ -35,63 +35,63 @@ impl Qwen3AsrInt8Recognizer {
 #[cfg(not(target_env = "ohos"))]
 #[async_trait]
 impl SpeechRecognizer for Qwen3AsrInt8Recognizer {
-    async fn warmup(&self, request: SpeechRecognizerWarmupRequest) -> BitFunResult<()> {
+    async fn warmup(&self, request: SpeechRecognizerWarmupRequest) -> OpenBitFunResult<()> {
         let cache = Arc::clone(&self.cache);
         tokio::task::spawn_blocking(move || {
             let paths = qwen3_paths(&request.model_dir);
             ensure_model_files(&paths)?;
             let mut cache = cache
                 .lock()
-                .map_err(|_| BitFunError::service("Speech recognizer cache lock is poisoned"))?;
+                .map_err(|_| OpenBitFunError::service("Speech recognizer cache lock is poisoned"))?;
             ensure_cached_recognizer(&mut cache, paths)?;
             Ok(())
         })
         .await
-        .map_err(|e| BitFunError::service(format!("Speech recognizer warmup task failed: {e}")))?
+        .map_err(|e| OpenBitFunError::service(format!("Speech recognizer warmup task failed: {e}")))?
     }
 
-    async fn unload(&self) -> BitFunResult<()> {
+    async fn unload(&self) -> OpenBitFunResult<()> {
         let cache = Arc::clone(&self.cache);
         tokio::task::spawn_blocking(move || {
             let mut cache = cache
                 .lock()
-                .map_err(|_| BitFunError::service("Speech recognizer cache lock is poisoned"))?;
+                .map_err(|_| OpenBitFunError::service("Speech recognizer cache lock is poisoned"))?;
             *cache = None;
             Ok(())
         })
         .await
-        .map_err(|e| BitFunError::service(format!("Speech recognizer unload task failed: {e}")))?
+        .map_err(|e| OpenBitFunError::service(format!("Speech recognizer unload task failed: {e}")))?
     }
 
     async fn transcribe(
         &self,
         request: SpeechTranscribeRequest,
-    ) -> BitFunResult<SpeechTranscriptionResult> {
+    ) -> OpenBitFunResult<SpeechTranscriptionResult> {
         let cache = Arc::clone(&self.cache);
         tokio::task::spawn_blocking(move || transcribe_blocking(request, cache))
             .await
-            .map_err(|e| BitFunError::service(format!("Speech transcription task failed: {e}")))?
+            .map_err(|e| OpenBitFunError::service(format!("Speech transcription task failed: {e}")))?
     }
 }
 
 #[cfg(target_env = "ohos")]
 #[async_trait]
 impl SpeechRecognizer for Qwen3AsrInt8Recognizer {
-    async fn warmup(&self, _request: SpeechRecognizerWarmupRequest) -> BitFunResult<()> {
-        Err(BitFunError::service(
+    async fn warmup(&self, _request: SpeechRecognizerWarmupRequest) -> OpenBitFunResult<()> {
+        Err(OpenBitFunError::service(
             "Qwen3-ASR speech recognition is not supported on this platform",
         ))
     }
 
-    async fn unload(&self) -> BitFunResult<()> {
+    async fn unload(&self) -> OpenBitFunResult<()> {
         Ok(())
     }
 
     async fn transcribe(
         &self,
         _request: SpeechTranscribeRequest,
-    ) -> BitFunResult<SpeechTranscriptionResult> {
-        Err(BitFunError::service(
+    ) -> OpenBitFunResult<SpeechTranscriptionResult> {
+        Err(OpenBitFunError::service(
             "Qwen3-ASR speech recognition is not supported on this platform",
         ))
     }
@@ -120,20 +120,20 @@ fn qwen3_paths(model_dir: &Path) -> Qwen3Paths {
 fn transcribe_blocking(
     request: SpeechTranscribeRequest,
     cache: Arc<Mutex<Option<CachedQwen3AsrRecognizer>>>,
-) -> BitFunResult<SpeechTranscriptionResult> {
+) -> OpenBitFunResult<SpeechTranscriptionResult> {
     let started = Instant::now();
     let paths = qwen3_paths(&request.model_dir);
     ensure_model_files(&paths)?;
 
     let samples = pcm16_le_to_f32_samples(&request.pcm16_le)?;
     if samples.is_empty() {
-        return Err(BitFunError::validation("No audio samples were provided"));
+        return Err(OpenBitFunError::validation("No audio samples were provided"));
     }
 
     let text = {
         let mut cache = cache
             .lock()
-            .map_err(|_| BitFunError::service("Speech recognizer cache lock is poisoned"))?;
+            .map_err(|_| OpenBitFunError::service("Speech recognizer cache lock is poisoned"))?;
         let cached = ensure_cached_recognizer(&mut cache, paths)?;
         let stream = cached.recognizer.create_stream();
         stream.accept_waveform(request.sample_rate as i32, &samples);
@@ -141,7 +141,7 @@ fn transcribe_blocking(
 
         stream
             .get_result()
-            .ok_or_else(|| BitFunError::service("Failed to read speech result"))?
+            .ok_or_else(|| OpenBitFunError::service("Failed to read speech result"))?
             .text
             .trim()
             .to_string()
@@ -157,7 +157,7 @@ fn transcribe_blocking(
 }
 
 #[cfg(not(target_env = "ohos"))]
-fn ensure_model_files(paths: &Qwen3Paths) -> BitFunResult<()> {
+fn ensure_model_files(paths: &Qwen3Paths) -> OpenBitFunResult<()> {
     if !paths.conv_frontend.is_file()
         || !paths.encoder.is_file()
         || !paths.decoder.is_file()
@@ -166,7 +166,7 @@ fn ensure_model_files(paths: &Qwen3Paths) -> BitFunResult<()> {
         || !paths.tokenizer.join("tokenizer_config.json").is_file()
         || !paths.tokenizer.join("vocab.json").is_file()
     {
-        return Err(BitFunError::NotFound(
+        return Err(OpenBitFunError::NotFound(
             "Qwen3-ASR model files are missing; download or repair the model first".to_string(),
         ));
     }
@@ -177,7 +177,7 @@ fn ensure_model_files(paths: &Qwen3Paths) -> BitFunResult<()> {
 fn ensure_cached_recognizer(
     cache: &mut Option<CachedQwen3AsrRecognizer>,
     paths: Qwen3Paths,
-) -> BitFunResult<&mut CachedQwen3AsrRecognizer> {
+) -> OpenBitFunResult<&mut CachedQwen3AsrRecognizer> {
     let should_reload = cache.as_ref().is_none_or(|cached| {
         cached.conv_frontend_path != paths.conv_frontend
             || cached.encoder_path != paths.encoder
@@ -198,11 +198,11 @@ fn ensure_cached_recognizer(
 
     cache
         .as_mut()
-        .ok_or_else(|| BitFunError::service("Speech recognizer cache is empty"))
+        .ok_or_else(|| OpenBitFunError::service("Speech recognizer cache is empty"))
 }
 
 #[cfg(not(target_env = "ohos"))]
-fn create_recognizer(paths: &Qwen3Paths) -> BitFunResult<OfflineRecognizer> {
+fn create_recognizer(paths: &Qwen3Paths) -> OpenBitFunResult<OfflineRecognizer> {
     let mut config = OfflineRecognizerConfig::default();
     config.model_config.qwen3_asr = OfflineQwen3ASRModelConfig {
         conv_frontend: Some(paths.conv_frontend.to_string_lossy().to_string()),
@@ -216,5 +216,5 @@ fn create_recognizer(paths: &Qwen3Paths) -> BitFunResult<OfflineRecognizer> {
     config.decoding_method = Some("greedy_search".to_string());
 
     OfflineRecognizer::create(&config)
-        .ok_or_else(|| BitFunError::service("Failed to create Qwen3-ASR speech recognizer"))
+        .ok_or_else(|| OpenBitFunError::service("Failed to create Qwen3-ASR speech recognizer"))
 }

@@ -1,7 +1,7 @@
 use super::credentials::{
     system_market_credential_store, MarketCredentialStore, StoredMarketCredentials,
 };
-use bitfun_product_domains::miniapp::market::{
+use openbitfun_product_domains::miniapp::market::{
     CursorPage, MarketListingDetail, MarketListingSummary, MarketSort, MarketSubmission,
     MarketSubmissionDraftRequest, MarketUserSummary, MARKET_PACKAGE_CONTENT_TYPE,
 };
@@ -128,7 +128,7 @@ impl MarketClient {
     pub async fn from_environment_with_credential_store(
         credential_store: Arc<dyn MarketCredentialStore>,
     ) -> Result<Self, MarketClientError> {
-        let base_url = std::env::var("BITFUN_MINIAPP_MARKET_API_URL")
+        let base_url = std::env::var("OPENBITFUN_MINIAPP_MARKET_API_URL")
             .unwrap_or_else(|_| DEFAULT_MARKET_API_URL.to_string());
         Self::new_with_credential_store(base_url, credential_store).await
     }
@@ -155,7 +155,7 @@ impl MarketClient {
             ));
         }
         let client = crate::reqwest_client_builder()
-            .user_agent(format!("BitFun-Desktop/{}", env!("CARGO_PKG_VERSION")))
+            .user_agent(format!("OpenBitFun-Desktop/{}", env!("CARGO_PKG_VERSION")))
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|error| local_error("market_client_init_failed", error.to_string()))?;

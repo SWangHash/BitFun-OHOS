@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from '@bitfun/ui';
+} from '@openbitfun/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
@@ -32,6 +32,7 @@ import {
   ConfigPageRow,
   ConfigPageSection,
   ConfigLoadingState,
+  ConfigRetryState,
 } from './common';
 
 const log = createLogger('HooksConfig');
@@ -71,6 +72,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
     || Boolean(workspace?.connectionId);
 
   const [loading, setLoading] = useState(true);
+  const [configLoadFailed, setConfigLoadFailed] = useState(false);
   const [config, setConfig] = useState<AgentHooksConfigShape>(DEFAULT_HOOKS_CONFIG);
   const [savingKey, setSavingKey] = useState<keyof AgentHooksConfigShape | null>(null);
   const [importSnapshot, setImportSnapshot] = useState<ExternalHookImportSnapshot | null>(null);
@@ -84,12 +86,14 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
     | { kind: 'reset'; scope: ExternalHookSource['scope'] }
     | null
   >(null);
+  const [projectHooksEnableConfirmOpen, setProjectHooksEnableConfirmOpen] = useState(false);
   const requestSequence = useRef(0);
   const mountedRef = useRef(true);
 
   const loadData = useCallback(async () => {
     const sequence = ++requestSequence.current;
     setLoading(true);
+    setConfigLoadFailed(false);
     setImportError(null);
     const [configResult, importResult] = await Promise.allSettled([
       configManager.getConfig<Partial<AgentHooksConfigShape>>('app.hooks'),
@@ -102,11 +106,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
       setConfig(normalizeHooksConfig(configResult.value));
     } else {
       log.error('Failed to load hooks config', configResult.reason);
-      notifyError(
-        configResult.reason instanceof Error
-          ? configResult.reason.message
-          : t('messages.loadFailed'),
-      );
+      setConfigLoadFailed(true);
     }
     if (importResult.status === 'fulfilled') {
       setImportSnapshot(importResult.value);
@@ -116,7 +116,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
       setImportError(t('imports.loadFailed'));
     }
     setLoading(false);
-  }, [notifyError, remoteWorkspace, t, workspacePath]);
+  }, [remoteWorkspace, t, workspacePath]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -307,15 +307,31 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
     && item.source.key.sourceId === reviewPlan.source.key.sourceId
   ));
 
-  if (loading) {
+  if (loading || configLoadFailed) {
     if (embedded) {
-      return <ConfigLoadingState label={t('loading')} />;
+      return loading ? (
+        <ConfigLoadingState label={t('loading')} />
+      ) : (
+        <ConfigRetryState
+          message={t('messages.loadFailedLocked')}
+          retryLabel={t('messages.retry')}
+          onRetry={() => void loadData()}
+        />
+      );
     }
     return (
       <ConfigPageLayout>
         <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
         <ConfigPageContent>
-          <ConfigLoadingState label={t('loading')} />
+          {loading ? (
+            <ConfigLoadingState label={t('loading')} />
+          ) : (
+            <ConfigRetryState
+              message={t('messages.loadFailedLocked')}
+              retryLabel={t('messages.retry')}
+              onRetry={() => void loadData()}
+            />
+          )}
         </ConfigPageContent>
       </ConfigPageLayout>
     );
@@ -343,7 +359,10 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
           >
             <Switch
               checked={config.project_hooks_enabled}
-              onChange={(event) => void updateConfig('project_hooks_enabled', event.target.checked)}
+              onChange={(event) => {
+                if (event.target.checked) setProjectHooksEnableConfirmOpen(true);
+                else void updateConfig('project_hooks_enabled', false);
+              }}
               disabled={savingKey !== null || !config.enabled}
             />
           </ConfigPageRow>
@@ -483,7 +502,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
                 && availableSources.length === 0
                 && corruptDiagnostics.length === 0 ? (
                   <ConfigPageRow
-                    className="bitfun-hooks-config__empty"
+                    className="openbitfun-hooks-config__empty"
                     label={<span data-hooks-empty="true">{t('imports.empty')}</span>}
                     multiline
                   >
@@ -595,12 +614,26 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
           : t('imports.removeConfirm')}
         confirmDanger
       />
+      <ConfirmDialog
+        open={projectHooksEnableConfirmOpen}
+        onOpenChange={(open) => { if (!open) setProjectHooksEnableConfirmOpen(false); }}
+        onConfirm={() => {
+          setProjectHooksEnableConfirmOpen(false);
+          void updateConfig('project_hooks_enabled', true);
+        }}
+        title={t('projectHooksRisk.title')}
+        message={t('projectHooksRisk.message', {
+          workspace: workspacePath || t('projectHooksRisk.currentWorkspace'),
+        })}
+        confirmText={t('projectHooksRisk.confirm')}
+        type="warning"
+      />
     </>
   );
 
   if (embedded) {
     return (
-      <div className="bitfun-hooks-config bitfun-hooks-config--embedded">
+      <div className="openbitfun-hooks-config openbitfun-hooks-config--embedded">
         {content}
       </div>
     );

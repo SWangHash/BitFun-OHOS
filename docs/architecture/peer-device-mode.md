@@ -1,7 +1,7 @@
 # Peer Device Mode
 
 Peer Device Mode switches the desktop (and mobile control target) data plane
-onto another same-account online BitFun device. The React shell stays local;
+onto another same-account online OpenBitFun device. The React shell stays local;
 product invokes and agentic events come from the peer. The peer may be Desktop
 or CLI: both speak the same HostInvoke / DeviceEvent protocol.
 
@@ -9,7 +9,7 @@ or CLI: both speak the same HostInvoke / DeviceEvent protocol.
 
 After login, clicking an online peer device **B** from controller **A** must make
 A's workspace list, sessions, assistants, chat, and tools behave like using
-BitFun on B's machine. The authority is **B's live local BitFun state** via
+OpenBitFun on B's machine. The authority is **B's live local OpenBitFun state** via
 HostInvoke / DeviceEvent fan-out — not a merged cloud session history.
 
 ## Attachment vs rendered surface
@@ -38,9 +38,9 @@ Two rules follow, and both are load-bearing:
 - **Product events are routed by their source device.** The controller re-emits
   peer DeviceEvents under their original event name, so with peers attached in
   the background one bus carries several agent streams. The desktop controller
-  tags each re-emitted payload with `__bitfunSourceDeviceId`
+  tags each re-emitted payload with `__openbitfunSourceDeviceId`
   (`remote_connect_api::PEER_EVENT_SOURCE_KEY`; non-object payloads are wrapped
-  under `__bitfunSourcePayload`), and `deviceSurfaceRouting.ts` — applied inside
+  under `__openbitfunSourcePayload`), and `deviceSurfaceRouting.ts` — applied inside
   `TauriTransportAdapter.listen` — delivers a surface-scoped event only when its
   producing device is the rendered one. Untagged events are local by definition.
   Control-plane events (`account://…`, window chrome, updater) are never scoped
@@ -136,6 +136,16 @@ ordering, so an old response cannot erase a newer request or revive one that was
 already answered. Reattachment only repairs presentation state: it never
 restarts, cancels, or moves the Session, Dialog Turn, or Tool future.
 
+Rendering a mailbox entry and answering it are separate compatibility
+contracts. A Peer Host that accepts `submit_user_answers` advertises
+`peer_mode_ping.capabilities.user_question_response`. Older Desktop hosts are
+compatible because they already exposed the command; older CLI hosts are not,
+so controllers must leave the card visible but disabled with an explicit
+upgrade/unsupported state instead of sending a mutation that cannot complete.
+Current controllers include the owning Session id, and the host rejects an
+answer when that Session no longer owns the pending Tool id. New hosts retain
+the legacy process-wide Tool-id form for older controllers that omit Session id.
+
 This is the contract for any new blocking interaction: its execution owner must
 retain replayable request state and expose it through an attach/snapshot path.
 A one-shot frontend event plus an unresolved channel is not a complete
@@ -210,11 +220,22 @@ FS) and must not be mixed with Peer Device Mode.
   any other.
 - Selecting this machine only changes what is rendered; peers stay attached and
   keep working. `Disconnect` in the switcher is the separate, explicit action
-  that ends a peer's control link and cancels the work it runs for us.
+  that ends a peer's control link and discards that peer's cached Surface state
+  on the controller. It does not cancel a Turn the peer has already accepted;
+  reconnecting later reattaches to the Host-owned Runtime projection. Pending
+  controller-only interactions still follow their owner's mailbox or fail-closed
+  policy.
 - Local-only commands (window chrome, updater, account login/logout, peer
-  control plane) never execute on the peer on behalf of a controller.
+  control plane) never execute on the peer on behalf of a controller. Which
+  commands those are is declared once, per command, in the Product Operation
+  Registry (`openbitfun_product_domains::remote_surface`); the desktop host, the
+  CLI host, and the Web UI transport adapter derive their tables from it. See
+  [remote-surface-contract.md](remote-surface-contract.md).
 - Unsupported or denied commands fail loudly; they must not fall back to the
-  local host (that would leak local content).
+  local host (that would leak local content). The CLI host distinguishes
+  "controller-owned", "unsupported on a CLI host (reason)", "retired", and
+  "unknown to this host version" so a controller can tell a policy refusal
+  from a version mismatch.
 
 ## Transport
 
@@ -226,7 +247,7 @@ FS) and must not be mixed with Peer Device Mode.
   editor RPCs so hydrate is not starved into relay HTTP 504s. Terminal commands
   are always interactive priority, and one slot is kept free from normal and
   low-priority work so input cannot be trapped behind slow polling requests.
-- Idempotent read HostInvokes use a 10s per-attempt deadline and at most two
+- Idempotent read HostInvokes use a 10s per-attempt deadline and at most four
   exponential-backoff retries. Mutating commands use a 30s deadline and are
   not replayed unless both ends share an explicit idempotency contract.
   `start_dialog_turn` and `start_acp_dialog_turn` use their stable
@@ -286,17 +307,21 @@ FS) and must not be mixed with Peer Device Mode.
   the exact observed tool and turn. Confirmable Peer tools always wait for the
   controller even when the host's global policy skips confirmation, so an Agent
   pauses until the controller responds; exact background-result follow-ups
-  retain this Peer-only confirmation requirement. The host cancels tracked turns when the
-  last controller detaches/goes offline or the agent-event subscription
-  lags/closes; continuity loss also projects the existing dialog-turn-failed
-  terminal event. Terminal ownership remains tracked until the event reaches the
-  delivery attempt, and a closed local delivery queue uses the same direct
-  DeviceEvent path. Delivery targets are captured when an event is queued and
-  rechecked against the currently attached set before each send. A per-target
-  delivery lease serializes detach or offline removal with the local Relay
-  enqueue attempt. An explicit disconnect still restores the local controller
-  UI, but reports a warning when host cancellation was not confirmed. This
-  boundary does not change the Relay envelope or add ACK or replay.
+  retain this Peer-only confirmation requirement. The host keeps tracked Turns
+  running when the last controller detaches or goes offline and continues
+  materializing their Runtime projection for a later attach. Actual agent-event
+  subscription lag or closure remains a continuity failure: it cancels tracked
+  Turns and projects the existing dialog-turn-failed terminal event. Terminal
+  ownership remains tracked until the event reaches the delivery attempt, and a
+  closed local delivery queue uses the same direct DeviceEvent path. Delivery
+  targets are captured when an event is queued and rechecked against the
+  currently attached set before each send. A per-target delivery lease serializes
+  detach or offline removal with the local Relay enqueue attempt. An explicit
+  disconnect still restores the local controller UI and reports a warning when
+  the host does not confirm attachment teardown; that uncertainty concerns the
+  control link and controller-scoped interaction cleanup, not cancellation of
+  Host-accepted work. This boundary does not change the Relay envelope or add
+  ACK or replay.
 - Relay `POST /api/devices/:id/rpc` still permits up to **120s** for generic
   callers. Peer controllers normally cancel earlier through their per-command
   10s/30s deadlines; reverse proxies must still accommodate any other caller
@@ -331,6 +356,8 @@ and may represent a different operating system.
 
 ## Ownership
 
+- Command policy and peer capabilities (all surfaces):
+  `src/crates/contracts/product-domains/src/remote_surface/`
 - Desktop host invoke / fan-out: `src/apps/desktop/src/api/peer_host_invoke.rs`,
   `remote_connect_api.rs`
 - CLI host invoke / fan-out: `src/apps/cli/src/peer_host/` (Core registry; no

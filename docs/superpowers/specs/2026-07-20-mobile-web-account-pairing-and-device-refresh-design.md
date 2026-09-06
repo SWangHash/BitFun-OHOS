@@ -6,7 +6,7 @@ Scope: `src/mobile-web`, `src/crates/services/services-integrations` (pairing/QR
 ## 背景
 
 1. Mobile-web 设备页在桌面换号后展示「账号授权已过期」死胡同：委派 token 失效后未向配对桌面重新拉取身份。
-2. 扫码配对的「用户 ID」原用于 URL 防盗用；桌面已登录 BitFun 账号时，应改为校验与桌面相同的账号密码，且必须是被扫码桌面当前账号。
+2. 扫码配对的「用户 ID」原用于 URL 防盗用；桌面已登录 OpenBitFun 账号时，应改为校验与桌面相同的账号密码，且必须是被扫码桌面当前账号。
 
 ## 已确认产品规则
 
@@ -45,7 +45,7 @@ Scope: `src/mobile-web`, `src/crates/services/services-integrations` (pairing/QR
 
 ## 验证
 
-- `cargo test -p bitfun-services-integrations --features remote-connect --test remote_connect_contracts`（不带 `--features remote-connect` 时整个测试文件被 cfg 门掉，0 测试静默通过）
-- `cargo check -p bitfun-desktop`
+- `cargo test -p openbitfun-services-integrations --features remote-connect --test remote_connect_contracts`（不带 `--features remote-connect` 时整个测试文件被 cfg 门掉，0 测试静默通过）
+- `cargo check -p openbitfun-desktop`
 - `pnpm --dir src/mobile-web run type-check`
 - 手工：未登录扫码；已登录扫码（预填用户名+密码）；错密码；换号后设备列表刷新无过期页

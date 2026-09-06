@@ -33,6 +33,10 @@ import { RealtimeVoiceCallProvider } from '../flow_chat/components/voice/Realtim
 import type { AgentCompanionPetCommand } from './services/agentCompanionPetCommands';
 import AskUserAnnouncer from './components/NavPanel/AskUserAnnouncer';
 import { shouldBlockBrowserShortcut } from './browserShortcutPolicy';
+import { activateCreationRuntime } from '@/infrastructure/creation/creationRuntime';
+import { attachCreationRuntime, recordCreationActivationError } from '@/infrastructure/creation/creationBridge';
+import { createCreationUiApi } from './creation/creationUiApi';
+import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
 
 const log = createLogger('App');
 
@@ -76,7 +80,7 @@ const LazyAppLayout = lazy(async () => {
 const LazyGlobalSearchRoot = lazy(() => import('./global-search/GlobalSearchRoot'));
 
 /**
- * BitFun main application component.
+ * OpenBitFun main application component.
  *
  * Unified architecture:
  * - Use a single AppLayout component
@@ -96,6 +100,7 @@ function App() {
 
   // Workspace loading state — drives splash exit timing
   const { loading: workspaceLoading } = useWorkspaceContext();
+  const peerSurfaceActive = usePeerDeviceModeOptional()?.peerMode.active ?? false;
 
   const [startupOverlayVisible, setStartupOverlayVisible] = useState(isStartupOverlayPresent);
   const mainWindowShownRef = useRef(false);
@@ -103,7 +108,8 @@ function App() {
   const interactiveShellReadyRef = useRef(false);
   const interactiveShellReadyFrameRef = useRef<number | null>(null);
   const reportedFrontendTransactionRef = useRef<string | null>(null);
-  const bitFunControlStartupRef = useRef(false);
+  const openOpenBitFunControlStartupRef = useRef(false);
+  const [openOpenBitFunControlReady, setOpenBitFunControlReady] = useState(false);
   const workspaceLoadingRef = useRef(workspaceLoading);
   const appLayoutReadyRef = useRef(false);
   const [interactiveShellReady, setInteractiveShellReady] = useState(false);
@@ -111,7 +117,7 @@ function App() {
 
   workspaceLoadingRef.current = workspaceLoading;
 
-  const releaseInteractiveShellReadyIfReady = useCallback((reason: string) => {
+  const releaseInteractiveShellReadyIfReady = useCallback((reason: string, afterPaint = true) => {
     const latestWorkspaceLoading = workspaceLoadingRef.current;
     const latestAppLayoutReady = appLayoutReadyRef.current;
     startupTrace.markPhase('interactive_shell_ready_gate_check', {
@@ -119,14 +125,18 @@ function App() {
       appLayoutReady: latestAppLayoutReady,
       alreadyReady: interactiveShellReadyRef.current,
       reason,
-      afterPaint: true,
+      afterPaint,
     });
     if (latestWorkspaceLoading || !latestAppLayoutReady || interactiveShellReadyRef.current) {
       return;
     }
+    if (interactiveShellReadyFrameRef.current !== null) {
+      window.cancelAnimationFrame(interactiveShellReadyFrameRef.current);
+      interactiveShellReadyFrameRef.current = null;
+    }
     interactiveShellReadyRef.current = true;
-    startupTrace.markPhase('interactive_shell_ready', { reason });
-    window.dispatchEvent(new CustomEvent('bitfun:interactive-shell-ready', {
+    startupTrace.markPhase('interactive_shell_ready', { reason, afterPaint });
+    window.dispatchEvent(new CustomEvent('openbitfun:interactive-shell-ready', {
       detail: { reason },
     }));
     setInteractiveShellReady(true);
@@ -180,14 +190,15 @@ function App() {
   // immutable host confirmation window keeps its primary action disabled
   // until this handshake succeeds.
   useEffect(() => {
-    if (!interactiveShellReady || !isTauriRuntime()) {
+    if (!interactiveShellReady || !openOpenBitFunControlReady || !isTauriRuntime() || peerSurfaceActive) {
       return;
     }
     const transactionId = new URLSearchParams(window.location.search)
-      .get('bitfunFrontendTransaction');
-    if (!transactionId || reportedFrontendTransactionRef.current === transactionId) {
-      return;
-    }
+      .get('openbitfunFrontendTransaction');
+    const controller = new AbortController();
+    const creation = createCreationUiApi(controller.signal);
+    recordCreationActivationError(null);
+    let detachCreation: (() => void) | undefined;
     let cancelled = false;
     let retryTimer: number | undefined;
     const retryUntil = Date.now() + 12_000;
@@ -210,14 +221,39 @@ function App() {
         log.error('Failed to report Creative frontend readiness', error);
       }
     };
-    void reportReady();
+    void activateCreationRuntime({
+      api: creation.api, disposeApi: creation.dispose, signal: controller.signal,
+    }).then(() => {
+      if (cancelled) return;
+      detachCreation = attachCreationRuntime(creation);
+      if (!cancelled && transactionId && reportedFrontendTransactionRef.current !== transactionId) {
+        return reportReady();
+      }
+    }).catch(async error => {
+      if (cancelled) return;
+      recordCreationActivationError(error);
+      log.error('Failed to activate UI customization', error);
+      if (transactionId) {
+        try {
+          await api.invoke('frontend_update_candidate_failed', {
+            request: { transactionId, message: error instanceof Error ? error.message : String(error) },
+          });
+        } catch (reportError) {
+          // An older host can reject this additive command; its independent
+          // deadline still rolls back. Never send success on the failure path.
+          log.warn('Failed to report UI customization failure', reportError);
+        }
+      }
+    });
     return () => {
       cancelled = true;
+      detachCreation?.();
+      controller.abort();
       if (retryTimer !== undefined) {
         window.clearTimeout(retryTimer);
       }
     };
-  }, [interactiveShellReady]);
+  }, [interactiveShellReady, openOpenBitFunControlReady, peerSurfaceActive]);
 
   // Once the workspace finishes loading, wait for the remaining min-display
   // time and then begin the exit animation.
@@ -236,6 +272,10 @@ function App() {
         if (!cancelled) {
           setStartupOverlayVisible(false);
           startupTrace.markPhase('startup_overlay_hidden');
+          // WebKit can suspend animation frames in an occluded/reloaded window.
+          // The completed handoff still proves the layout and workspace mounted;
+          // do not leave product control and customization waiting for a paint.
+          releaseInteractiveShellReadyIfReady('startup-overlay-hidden', false);
           window.dispatchEvent(new CustomEvent(STARTUP_OVERLAY_HIDDEN_EVENT));
         }
       });
@@ -244,7 +284,7 @@ function App() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [workspaceLoading, appLayoutReady]);
+  }, [workspaceLoading, appLayoutReady, releaseInteractiveShellReadyIfReady]);
 
   useEffect(() => {
     if (!isTauriRuntime()) {
@@ -255,7 +295,7 @@ function App() {
     let disposed = false;
 
     void import('@tauri-apps/api/event')
-      .then(({ listen }) => listen('bitfun_main_window_close_requested', () => {
+      .then(({ listen }) => listen('openbitfun_main_window_close_requested', () => {
         userCloseRequestedRef.current = true;
         startupTrace.markPhase('main_window_user_close_requested', { reason: 'user-close-requested' });
       }))
@@ -288,7 +328,7 @@ function App() {
       await api.invoke('show_main_window');
       log.debug('Main window shown', { reason });
       startupTrace.markPhase('main_window_shown', { reason });
-      window.dispatchEvent(new CustomEvent('bitfun:main-window-shown', { detail: { reason } }));
+      window.dispatchEvent(new CustomEvent('openbitfun:main-window-shown', { detail: { reason } }));
     } catch (error: any) {
       log.error('Failed to show main window', error);
 
@@ -299,7 +339,7 @@ function App() {
         await mainWindow.setFocus();
         log.debug('Main window shown via fallback', { reason });
         startupTrace.markPhase('main_window_shown_fallback', { reason });
-        window.dispatchEvent(new CustomEvent('bitfun:main-window-shown', { detail: { reason } }));
+        window.dispatchEvent(new CustomEvent('openbitfun:main-window-shown', { detail: { reason } }));
       } catch (fallbackError) {
         log.error('Fallback window show failed', fallbackError);
         mainWindowShownRef.current = false;
@@ -343,7 +383,7 @@ function App() {
     if (isTauriRuntime()) {
       mainWindowShownRef.current = true;
       startupTrace.markPhase('main_window_shown', { reason: 'startup-native' });
-      window.dispatchEvent(new CustomEvent('bitfun:main-window-shown', {
+      window.dispatchEvent(new CustomEvent('openbitfun:main-window-shown', {
         detail: { reason: 'startup-native' },
       }));
       return;
@@ -387,17 +427,20 @@ function App() {
     if (
       !isTauriRuntime()
       || !shouldScheduleDeferredStartupSystems({ interactiveShellReady, startupOverlayVisible })
-      || bitFunControlStartupRef.current
+      || openOpenBitFunControlStartupRef.current
     ) {
       return;
     }
-    bitFunControlStartupRef.current = true;
-    void import('./global-search/bitfunControlBridge')
-      .then(({ initializeBitFunControlBridge }) => initializeBitFunControlBridge())
-      .then(() => startupTrace.markPhase('bitfun_control_surface_ready'))
+    openOpenBitFunControlStartupRef.current = true;
+    void import('./global-search/openBitFunControlBridge')
+      .then(({ initializeOpenBitFunControlBridge }) => initializeOpenBitFunControlBridge())
+      .then(() => {
+        startupTrace.markPhase('openbitfun_control_surface_ready');
+        setOpenBitFunControlReady(true);
+      })
       .catch(error => {
-        bitFunControlStartupRef.current = false;
-        log.error('Failed to initialize the BitFun control surface', error);
+        openOpenBitFunControlStartupRef.current = false;
+        log.error('Failed to initialize the OpenBitFun control surface', error);
       });
   }, [interactiveShellReady, startupOverlayVisible]);
 
@@ -844,7 +887,7 @@ function App() {
         if (cancelled || !runtimeInfo.previousUnexpectedExit?.notifyOnStartup) {
           return;
         }
-        const recoveryKey = `bitfun:unexpected-exit-notice:${runtimeInfo.previousUnexpectedExit.sessionLogDir || 'unknown'}`;
+        const recoveryKey = `openbitfun:unexpected-exit-notice:${runtimeInfo.previousUnexpectedExit.sessionLogDir || 'unknown'}`;
         if (sessionStorage.getItem(recoveryKey) === 'shown') {
           return;
         }
@@ -887,54 +930,6 @@ function App() {
         });
       } catch (error) {
         log.warn('Failed to check previous unexpected exit status', error);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [interactiveShellReady, t]);
-
-  useEffect(() => {
-    if (!interactiveShellReady) {
-      return;
-    }
-
-    let cancelled = false;
-    void (async () => {
-      try {
-        const { configAPI } = await import('@/infrastructure/api');
-        const validation = await configAPI.validateConfig();
-        const recoveryDiagnostics = (validation.diagnostics || []).filter(diagnostic =>
-          diagnostic.code === 'CONFIG_DEFAULT_RECOVERY' ||
-          diagnostic.code === 'CONFIG_SHAPE_REPAIRED' ||
-          diagnostic.code === 'INVALID_MODEL_DISABLED' ||
-          diagnostic.code === 'MODEL_FIELD_NOT_APPLICABLE' ||
-          diagnostic.code === 'MODEL_REFERENCE_REPAIRED'
-        );
-        if (cancelled || recoveryDiagnostics.length === 0) {
-          return;
-        }
-        const recoveryKey = `bitfun:config-recovery-notice:${recoveryDiagnostics
-          .map(diagnostic => `${diagnostic.code}:${diagnostic.path}`)
-          .join('|')}`;
-        if (sessionStorage.getItem(recoveryKey) === 'shown') {
-          return;
-        }
-        sessionStorage.setItem(recoveryKey, 'shown');
-        notificationService.warning(t('logging.configRecovery.message', {
-          count: recoveryDiagnostics.length,
-        }), {
-          title: t('logging.configRecovery.title'),
-          duration: 0,
-          metadata: {
-            source: 'config-startup-recovery',
-            diagnosticCodes: recoveryDiagnostics.map(diagnostic => diagnostic.code),
-            diagnosticPaths: recoveryDiagnostics.map(diagnostic => diagnostic.path),
-          },
-        });
-      } catch (error) {
-        log.warn('Failed to check configuration recovery status', error);
       }
     })();
 

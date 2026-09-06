@@ -2,7 +2,7 @@
 
 # Design Tokens
 
-This directory defines BitFun component design tokens to unify colors, typography, spacing, shadows, motion, and layering.
+This directory defines OpenBitFun component design tokens to unify colors, typography, spacing, shadows, motion, and layering.
 
 ## Files
 

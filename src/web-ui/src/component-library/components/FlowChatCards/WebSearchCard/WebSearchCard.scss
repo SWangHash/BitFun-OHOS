@@ -230,11 +230,11 @@
   }
 
   &__searching-icon {
-    animation: bitfun-web-search-card-pulse 2s ease-in-out infinite;
+    animation: openbitfun-web-search-card-pulse 2s ease-in-out infinite;
   }
 }
 
-@keyframes bitfun-web-search-card-pulse {
+@keyframes openbitfun-web-search-card-pulse {
   0%, 100% {
     opacity: 1;
   }

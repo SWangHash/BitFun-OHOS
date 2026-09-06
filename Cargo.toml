@@ -49,15 +49,15 @@ members = [
 ]
 
 exclude = [
-    "BitFun-Installer/src-tauri",
+    "OpenBitFun-Installer/src-tauri",
 ]
 
 resolver = "2"
 
 # Shared package metadata — single source of truth for version
 [workspace.package]
-version = "0.2.19" # x-release-please-version
-authors = ["BitFun Team"]
+version = "1.0.0" # x-release-please-version
+authors = ["OpenBitFun Team"]
 edition = "2021"
 
 [workspace.lints.rust]
@@ -145,6 +145,7 @@ tower-http = "0.6.11"
 # File system
 glob = "0.3"
 ignore = "0.4"
+mime_guess = "2.0"
 notify = "8.2"
 dirs = "6.0"
 keyring-core = "1.0.0"
@@ -216,6 +217,7 @@ tauri-build = { git = "https://github.com/richerfu/tauri", branch = "feat/open-h
 tauri-plugin-global-shortcut = "2.3"
 napi-ohos = { version = "1.1" }
 napi-derive-ohos = { version = "1.1" }
+notify-rust = { version = "4.18", default-features = false }
 keepawake = "0.6.0"
 
 # Desktop support
@@ -253,6 +255,7 @@ unic-langid = "0.9"
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 aes-gcm = "0.10"
 sha2 = "0.10"
+minisign-verify = "0.2"
 sha1 = "0.10"
 argon2 = "0.5"
 rand = "0.8"

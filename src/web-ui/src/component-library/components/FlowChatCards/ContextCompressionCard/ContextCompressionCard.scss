@@ -118,7 +118,7 @@
 }
 
 .context-compression-card__status-spinner {
-  animation: bitfun-context-compression-card-spin 1s linear infinite;
+  animation: openbitfun-context-compression-card-spin 1s linear infinite;
   color: var(--context-compression-accent);
 }
 
@@ -134,7 +134,7 @@
   color: var(--context-compression-accent);
 }
 
-@keyframes bitfun-context-compression-card-spin {
+@keyframes openbitfun-context-compression-card-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
@@ -210,7 +210,7 @@
 
 .context-compression-card__processing-icon {
   color: var(--context-compression-accent);
-  animation: bitfun-context-compression-card-spin 1s linear infinite;
+  animation: openbitfun-context-compression-card-spin 1s linear infinite;
   flex-shrink: 0;
 }
 

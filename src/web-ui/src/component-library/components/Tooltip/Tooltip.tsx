@@ -407,10 +407,10 @@ export const Tooltip: React.FC<TooltipProps> = ({
   });
 
   const tooltipClass = [
-    'bitfun-tooltip',
-    `bitfun-tooltip--${layout.placement}`,
-    visible && layout.ready && 'bitfun-tooltip--visible',
-    interactive && 'bitfun-tooltip--interactive',
+    'openbitfun-tooltip',
+    `openbitfun-tooltip--${layout.placement}`,
+    visible && layout.ready && 'openbitfun-tooltip--visible',
+    interactive && 'openbitfun-tooltip--interactive',
     className
   ].filter(Boolean).join(' ');
 
@@ -438,15 +438,15 @@ export const Tooltip: React.FC<TooltipProps> = ({
             left: `${layout.left}px`,
             zIndex: 9999,
           }}
-          data-bf-component="tooltip"
-          data-bf-part="root"
-          data-bf-placement={layout.placement}
-          data-bf-interactive={String(interactive)}
-          data-bf-state={visible && layout.ready ? 'visible' : undefined}
+          data-openbitfun-component="tooltip"
+          data-openbitfun-part="root"
+          data-openbitfun-placement={layout.placement}
+          data-openbitfun-interactive={String(interactive)}
+          data-openbitfun-state={visible && layout.ready ? 'visible' : undefined}
         >
-          <div className="bitfun-tooltip__arrow" data-bf-component="tooltip" data-bf-part="arrow" aria-hidden="true" />
-          <div className="bitfun-tooltip__content" data-bf-component="tooltip" data-bf-part="content">
-            <div className="bitfun-tooltip__body" data-bf-component="tooltip" data-bf-part="body">{content}</div>
+          <div className="openbitfun-tooltip__arrow" data-openbitfun-component="tooltip" data-openbitfun-part="arrow" aria-hidden="true" />
+          <div className="openbitfun-tooltip__content" data-openbitfun-component="tooltip" data-openbitfun-part="content">
+            <div className="openbitfun-tooltip__body" data-openbitfun-component="tooltip" data-openbitfun-part="body">{content}</div>
           </div>
         </div>,
         getAppearanceOverlayHost()

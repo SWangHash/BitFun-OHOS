@@ -33,7 +33,7 @@ export const MarkdownMathRenderer: React.FC<MarkdownMathRendererProps> = ({
   );
 
   return (
-    <div data-bf-component="markdown" data-bf-part="math">
+    <div data-openbitfun-component="markdown" data-openbitfun-part="math">
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}

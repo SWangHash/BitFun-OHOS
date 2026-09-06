@@ -17,15 +17,19 @@
  */
 
 /** Payload key injected by the controller. Keep in sync with the Rust const. */
-export const PEER_EVENT_SOURCE_KEY = '__bitfunSourceDeviceId';
+export const PEER_EVENT_SOURCE_KEY = '__openbitfunSourceDeviceId';
 
 /** Wrapper key used when a peer payload is not a JSON object. */
-export const PEER_EVENT_WRAPPED_PAYLOAD_KEY = '__bitfunSourcePayload';
+export const PEER_EVENT_WRAPPED_PAYLOAD_KEY = '__openbitfunSourcePayload';
 
 /**
- * Product events that belong to one device surface. Mirrors the desktop
- * fan-out allowlist (`should_fanout_peer_ui_event`) plus the projected
- * `agentic://*` stream.
+ * Product events that belong to one device surface. A superset of the desktop
+ * fan-out allowlist (`should_fanout_peer_ui_event` in `remote_connect_api.rs`):
+ * it also covers events a host fans out through direct
+ * `fanout_peer_device_event` calls (for example `account://settings-applied`
+ * and `session_title_generated`) and the projected `agentic://*` stream.
+ * Adding a fanned-out event on the Rust side means adding it here too, or
+ * local and peer streams interleave in one store.
  */
 const SURFACE_SCOPED_EVENTS = new Set<string>([
   'terminal_event',

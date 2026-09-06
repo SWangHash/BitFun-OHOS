@@ -2,7 +2,7 @@
 
 # Component Library
 
-BitFun component library for reusable UI building blocks and previewable demos.
+OpenBitFun component library for reusable UI building blocks and previewable demos.
 
 ## Scope
 

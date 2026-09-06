@@ -87,7 +87,7 @@ Still to migrate, in order: the interaction mailbox, then history positions.
      history.
    - **Surface-scoped events must stay routed by source device.** Background
      attachments mean several agent streams share one event bus. The
-     controller tags re-emitted peer payloads with `__bitfunSourceDeviceId`
+     controller tags re-emitted peer payloads with `__openbitfunSourceDeviceId`
      and `deviceSurfaceRouting.ts` (applied inside
      `TauriTransportAdapter.listen`) drops anything not produced by the
      rendered device. Adding a fanned-out event on the Rust side means adding
@@ -133,8 +133,12 @@ Still to migrate, in order: the interaction mailbox, then history positions.
 
 7. **Account identity commands are LOCAL_ONLY** and must stay denied on the
    peer host (`account_login`, `account_finalize_login`, logout, device RPC,
-   …). Keep FE adapter, desktop `peer_host_invoke`, and CLI `peer_host/deny`
-   lists aligned.
+   …). The FE adapter, desktop `peer_host_invoke`, and CLI `peer_host` all
+   derive that set from one registry row (`peer: ControllerLocal` in
+   `src/crates/contracts/product-domains/src/remote_surface/table.rs`); the
+   FE set is the generated `PEER_CONTROLLER_LOCAL_COMMANDS`. Do not add a
+   hand-written list on any surface. See
+   `docs/architecture/remote-surface-contract.md`.
 
 8. **`relay_deploy_*` is LOCAL_ONLY.** One-click deploy SSHes from the
    controller to a user-owned host; do not HostInvoke it onto the peer.
@@ -242,8 +246,14 @@ Still to migrate, in order: the interaction mailbox, then history positions.
     and use it only to reconstruct UI in the owning Turn/round. Reattachment
     must never restart or cancel the
     running Session. Older peers may omit the field; absence is not an empty
-    authoritative mailbox. Any new interaction that can suspend execution is
-    incomplete until its owner exposes equivalent replayable attach state.
+    authoritative mailbox. Answering an `AskUserQuestion` is separately gated
+    by `peer_mode_ping.capabilities.user_question_response`: legacy Desktop
+    hosts already support the command, while legacy CLI hosts must show an
+    explicit unsupported/upgrade state. Current controllers include the owning
+    Session id with the mutation and hosts reject stale cross-Session answers;
+    newer hosts still accept the legacy Tool-id-only form. Any new
+    interaction that can suspend execution is incomplete until its owner
+    exposes equivalent replayable attach state and a negotiated response path.
 
 13. **Weak links use bounded, idempotency-aware recovery.** Default Peer
     HostInvoke concurrency is four with one slot reserved from normal/low
@@ -273,9 +283,10 @@ Still to migrate, in order: the interaction mailbox, then history positions.
     host. `git_trust_repository` writes the peer user's global Git
     configuration (`safe.directory`) and tells Git to run hooks from a tree
     they do not own, so it is denied on both the desktop and CLI peer hosts.
-    Keep it out of the FE `LOCAL_ONLY` set: running it on the controller would
-    write an exception for a path that only exists on the peer. A controller
-    surfaces the probe's `manualCommand` instead.
+    Its registry stance is `OperatorOnly`: the generated FE set deliberately
+    omits it, because running it on the controller would write an exception
+    for a path that only exists on the peer. A controller forwards it, receives
+    the explicit refusal, and surfaces the probe's `manualCommand` instead.
 
 16. **ProductControl commands follow the product host; presentation ACKs stay
     with the window.** `product_control_invoke` is a normal product mutation and
@@ -284,8 +295,8 @@ Still to migrate, in order: the interaction mailbox, then history positions.
     to the controller. Definitions that need a native provider or a live UI
     additionally declare `product_control_native_v1` or
     `product_control_presentation_v1`; the CLI host advertises neither and
-    returns a typed unsupported result. `mark_bitfun_control_surface_ready`,
-    `mark_bitfun_control_surface_unready`, and `report_bitfun_control_result`
+    returns a typed unsupported result. `mark_openbitfun_control_surface_ready`,
+    `mark_openbitfun_control_surface_unready`, and `report_openbitfun_control_result`
     describe or acknowledge the controller window's live Web UI and therefore
     remain `LOCAL_ONLY` in the frontend, Desktop host, and CLI host lists. A
     peer executes the same owner handler and uses its own attached presentation

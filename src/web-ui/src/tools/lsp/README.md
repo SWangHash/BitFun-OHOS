@@ -1,6 +1,6 @@
 # LSP (Language Server Protocol)
 
-BitFun’s plugin-based LSP implementation: completions, hover, definition, references, formatting, diagnostics, and related editor features.
+OpenBitFun’s plugin-based LSP implementation: completions, hover, definition, references, formatting, diagnostics, and related editor features.
 
 ## Scope
 
@@ -98,7 +98,7 @@ my-language-lsp-1.0.0.vcpkg
     "formatting": true,
     "diagnostics": true
   },
-  "min_bitfun_version": "1.0.0"
+  "min_openbitfun_version": "1.0.0"
 }
 ```
 

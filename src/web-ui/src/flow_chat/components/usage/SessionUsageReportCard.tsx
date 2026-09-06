@@ -1,25 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, IconButton } from '@bitfun/ui';
+import { Button, Icon, IconButton } from '@openbitfun/ui';
 import { useTranslation } from 'react-i18next';
-import {
-  Activity,
-  AlertTriangle,
-  Check,
-  ChevronRight,
-  Copy,
-  Clock3,
-  Database,
-  FileText,
-  GitBranch,
-  Globe2,
-  PencilLine,
-  Search,
-  Terminal,
-  Wrench,
-} from 'lucide-react';
+import { Activity, AlertTriangle, Database, FileText, Wrench, type LucideProps } from 'lucide-react';
 import { MarkdownRenderer } from '@/infrastructure/markdown';
-import { Tooltip } from '@bitfun/ui';
-import { ToolProcessingDots } from '@bitfun/ui/flow-chat';
+import { Tooltip } from '@openbitfun/ui';
+import { ToolProcessingDots } from '@openbitfun/ui/flow-chat';
 import type { SessionUsageReport } from '@/infrastructure/api/service-api/SessionAPI';
 import { copyTextToClipboard } from '@/shared/utils/textSelection';
 import {
@@ -27,6 +12,7 @@ import {
   formatHitRateSuffix,
   formatUsageDuration,
   formatUsageNumber,
+  formatTokenCount,
   formatUsageTimestamp,
   getCoverageLabel,
   getCoverageTone,
@@ -50,6 +36,15 @@ import './SessionUsageReportCard.scss';
 
 const SUMMARY_LIST_LIMIT = 3;
 
+const UsageClockIcon: React.FC<LucideProps> = ({ className, size = 18, style }) => (
+  <Icon
+    name="clock"
+    size="lg"
+    className={className}
+    style={{ width: size, height: size, ...style }}
+  />
+);
+
 interface SessionUsageReportCardProps {
   report?: SessionUsageReport;
   markdown?: string;
@@ -62,7 +57,7 @@ interface SessionUsageReportCardProps {
 const UsageMiniListFilePathLabel = React.forwardRef<HTMLSpanElement, { pathLabel: string }>(
   function UsageMiniListFilePathLabel({ pathLabel }, ref) {
     return (
-      <span data-bf-component="session-usage-report-card" data-bf-part="listRow" ref={ref} className="session-usage-report-card__mini-list-file-name">
+      <span data-openbitfun-component="session-usage-report-card" data-openbitfun-part="listRow" ref={ref} className="session-usage-report-card__mini-list-file-name">
         {getUsageFileNameFromPath(pathLabel)}
       </span>
     );
@@ -142,7 +137,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
 
   if (isLoading) {
     return (
-      <div data-bf-component="session-usage-report-card" data-bf-part="loading" data-bf-state="loading" className={`session-usage-report-card session-usage-report-card--loading${compactClassName}`} aria-live="polite">
+      <div data-openbitfun-component="session-usage-report-card" data-openbitfun-part="loading" data-openbitfun-state="loading" className={`session-usage-report-card session-usage-report-card--loading${compactClassName}`} aria-live="polite">
         <div className="session-usage-report-card__loading-main">
           <ToolProcessingDots className="session-usage-report-card__loading-dots" size={12} />
           <div>
@@ -159,14 +154,14 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
 
   if (!report) {
     return (
-      <div data-bf-component="session-usage-report-card" data-bf-part="fallback" data-bf-state="fallback" className={`session-usage-report-card session-usage-report-card--fallback${compactClassName}`}>
-        <div className="session-usage-report-card__fallback-actions" data-bf-component="session-usage-report-card" data-bf-part="actions">
+      <div data-openbitfun-component="session-usage-report-card" data-openbitfun-part="fallback" data-openbitfun-state="fallback" className={`session-usage-report-card session-usage-report-card--fallback${compactClassName}`}>
+        <div className="session-usage-report-card__fallback-actions" data-openbitfun-component="session-usage-report-card" data-openbitfun-part="actions">
           <Tooltip content={copied ? t('usage.actions.copied') : t('usage.actions.copyMarkdown')}>
             <IconButton
               size="sm"
               onClick={handleCopy}
               aria-label={copied ? t('usage.actions.copied') : t('usage.actions.copyMarkdown')}
-              icon={copied ? <Check size={14} /> : <Copy size={14} />}
+              icon={copied ? <Icon name="check-line" size="sm" /> : <Icon name="duplicate" size="sm" />}
             />
           </Tooltip>
         </div>
@@ -179,7 +174,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
   const tokenTotal = report.tokens.totalTokens;
   const cachedTokenText = report.tokens.cacheCoverage === 'unavailable'
     ? t('usage.status.cacheNotReported')
-    : `${formatUsageNumber(report.tokens.cachedTokens, t)}${formatHitRateSuffix(report.tokens.cacheHitRate, t)}`;
+    : `${formatTokenCount(report.tokens.cachedTokens, t)}${formatHitRateSuffix(report.tokens.cacheHitRate, t)}`;
   const cachedTokenHelp = report.tokens.cacheCoverage === 'unavailable'
     ? t('usage.help.cachedTokens')
     : report.tokens.cacheCoverage === 'partial'
@@ -208,7 +203,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
         key: 'wall',
         label: t('usage.metrics.wall'),
         value: formatUsageDuration(report.time.wallTimeMs, t),
-        icon: Clock3,
+        icon: UsageClockIcon,
         help: t('usage.help.wall'),
       },
       {
@@ -244,20 +239,20 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
 
     return (
       <div
-        data-bf-component="session-usage-report-card"
-        data-bf-part="root"
+        data-openbitfun-component="session-usage-report-card"
+        data-openbitfun-part="root"
         className="session-usage-report-card session-usage-report-card--compact"
         data-report-id={report.reportId}
       >
-        <div className="session-usage-report-card__header" data-bf-component="session-usage-report-card" data-bf-part="header">
-          <div className="session-usage-report-card__title-block" data-bf-component="session-usage-report-card" data-bf-part="title">
+        <div className="session-usage-report-card__header" data-openbitfun-component="session-usage-report-card" data-openbitfun-part="header">
+          <div className="session-usage-report-card__title-block" data-openbitfun-component="session-usage-report-card" data-openbitfun-part="title">
             <div className="session-usage-report-card__meta">
               <span>{formatUsageTimestamp(generatedAt ?? report.generatedAt, t)}</span>
               <span>{t('usage.card.turns', { count: report.scope.turnCount })}</span>
               <span>{workspacePathLabel}</span>
             </div>
           </div>
-          <div className="session-usage-report-card__actions" data-bf-component="session-usage-report-card" data-bf-part="actions">
+          <div className="session-usage-report-card__actions" data-openbitfun-component="session-usage-report-card" data-openbitfun-part="actions">
             <Tooltip content={copied ? t('usage.actions.copied') : t('usage.actions.copyMarkdown')}>
               <IconButton
                 className="session-usage-report-card__copy-action"
@@ -265,7 +260,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
                 onClick={handleCopy}
                 data-testid="session-usage-copy"
                 aria-label={copied ? t('usage.actions.copied') : t('usage.actions.copyMarkdown')}
-                icon={copied ? <Check size={17} /> : <Copy size={17} />}
+                icon={copied ? <Icon name="check-line" size="lg" style={{ width: 17, height: 17 }} /> : <Icon name="duplicate" size="lg" style={{ width: 17, height: 17 }} />}
               />
             </Tooltip>
             <Tooltip content={t('usage.actions.openDetails')}>
@@ -273,7 +268,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
                 type="button"
                 variant="outline"
                 size="sm"
-                trailingIcon={<ChevronRight size={15} aria-hidden />}
+                trailingIcon={<Icon name="chevron-right" size="lg" style={{ width: 15, height: 15 }} aria-hidden />}
                 onClick={handleOpenDetails}
                 disabled={!onOpenDetails}
                 data-testid="session-usage-details"
@@ -286,13 +281,13 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
         </div>
 
         <div className="session-usage-report-card__compact-overview">
-          <section className="session-usage-report-card__compact-token" data-bf-component="session-usage-report-card" data-bf-part="metric">
+          <section className="session-usage-report-card__compact-token" data-openbitfun-component="session-usage-report-card" data-openbitfun-part="metric">
             <div className="session-usage-report-card__compact-token-label">
               <Database size={16} strokeWidth={1.8} aria-hidden />
               <span>{t('usage.card.tokenUsage')}</span>
             </div>
             <div className="session-usage-report-card__compact-token-value">
-              {formatUsageNumber(tokenTotal, t)}
+              {formatTokenCount(tokenTotal, t)}
             </div>
             <div className="session-usage-report-card__compact-model">
               {primaryModelHelp ? (
@@ -314,13 +309,13 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
             </div>
           </section>
 
-          <div className="session-usage-report-card__compact-metrics" data-bf-component="session-usage-report-card" data-bf-part="metrics">
+          <div className="session-usage-report-card__compact-metrics" data-openbitfun-component="session-usage-report-card" data-openbitfun-part="metrics">
             {compactMetrics.map(metric => {
               const Icon = metric.icon;
               return (
                 <div
-                  data-bf-component="session-usage-report-card"
-                  data-bf-part="metric"
+                  data-openbitfun-component="session-usage-report-card"
+                  data-openbitfun-part="metric"
                   className={`session-usage-report-card__compact-metric${metric.tone ? ` session-usage-report-card__compact-metric--${metric.tone}` : ''}`}
                   key={metric.key}
                 >
@@ -335,7 +330,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
           </div>
         </div>
 
-        <section className="session-usage-report-card__compact-tools" data-bf-component="session-usage-report-card" data-bf-part="lists">
+        <section className="session-usage-report-card__compact-tools" data-openbitfun-component="session-usage-report-card" data-openbitfun-part="lists">
           <div className="session-usage-report-card__compact-tools-header">
             <h4>{t('usage.sections.tools')}</h4>
             {showAllTools && (
@@ -344,7 +339,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
                   type="button"
                   variant="outline"
                   size="sm"
-                  trailingIcon={<ChevronRight size={14} aria-hidden />}
+                  trailingIcon={<Icon name="chevron-right" size="sm" aria-hidden />}
                   onClick={showAllTools.onClick}
                   data-testid="session-usage-tools-details"
                   aria-label={showAllTools.ariaLabel}
@@ -354,7 +349,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
               </Tooltip>
             )}
           </div>
-          <div className="session-usage-report-card__compact-tool-list" data-bf-component="session-usage-report-card" data-bf-part="list">
+          <div className="session-usage-report-card__compact-tool-list" data-openbitfun-component="session-usage-report-card" data-openbitfun-part="list">
             {topTools.length === 0 ? (
               <div className="session-usage-report-card__compact-tool-empty">
                 {t('usage.empty.tools')}
@@ -362,8 +357,8 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
             ) : topTools.map(tool => (
               <div
                 className="session-usage-report-card__compact-tool-row"
-                data-bf-component="session-usage-report-card"
-                data-bf-part="listRow"
+                data-openbitfun-component="session-usage-report-card"
+                data-openbitfun-part="listRow"
                 key={tool.toolName}
               >
                 <span className="session-usage-report-card__compact-tool-icon" aria-hidden>
@@ -392,7 +387,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
       key: 'wall',
       label: t('usage.metrics.wall'),
       value: formatUsageDuration(report.time.wallTimeMs, t),
-      icon: Clock3,
+      icon: UsageClockIcon,
       help: t('usage.help.wall'),
     },
     {
@@ -405,7 +400,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
     {
       key: 'tokens',
       label: t('usage.metrics.tokens'),
-      value: formatUsageNumber(tokenTotal, t),
+      value: formatTokenCount(tokenTotal, t),
       icon: Database,
     },
     {
@@ -433,9 +428,9 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
   ];
 
   return (
-    <div data-bf-component="session-usage-report-card" data-bf-part="root" className={`session-usage-report-card${compactClassName}`} data-report-id={report.reportId}>
-      <div className="session-usage-report-card__header" data-bf-component="session-usage-report-card" data-bf-part="header">
-        <div className="session-usage-report-card__title-block" data-bf-component="session-usage-report-card" data-bf-part="title">
+    <div data-openbitfun-component="session-usage-report-card" data-openbitfun-part="root" className={`session-usage-report-card${compactClassName}`} data-report-id={report.reportId}>
+      <div className="session-usage-report-card__header" data-openbitfun-component="session-usage-report-card" data-openbitfun-part="header">
+        <div className="session-usage-report-card__title-block" data-openbitfun-component="session-usage-report-card" data-openbitfun-part="title">
           <h3 className="session-usage-report-card__title">{t('usage.card.heading')}</h3>
           <div className="session-usage-report-card__meta">
             <span>{formatUsageTimestamp(generatedAt ?? report.generatedAt, t)}</span>
@@ -443,7 +438,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
             <span>{workspacePathLabel}</span>
           </div>
         </div>
-        <div className="session-usage-report-card__actions" data-bf-component="session-usage-report-card" data-bf-part="actions">
+        <div className="session-usage-report-card__actions" data-openbitfun-component="session-usage-report-card" data-openbitfun-part="actions">
           {report.coverage.level !== 'complete' ? (
             <Tooltip content={t('usage.coverage.partialNotice')} placement="top">
               <span className={coverageBadgeClassName}>
@@ -473,7 +468,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
                 size="sm"
                 onClick={handleCopy}
                 aria-label={copied ? t('usage.actions.copied') : t('usage.actions.copyMarkdown')}
-                icon={copied ? <Check size={14} /> : <Copy size={14} />}
+                icon={copied ? <Icon name="check-line" size="sm" /> : <Icon name="duplicate" size="sm" />}
               />
             </Tooltip>
             <Tooltip content={t('usage.actions.openDetails')}>
@@ -481,7 +476,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
                 type="button"
                 variant="outline"
                 size="sm"
-                trailingIcon={<ChevronRight size={13} aria-hidden />}
+                trailingIcon={<Icon name="chevron-right" size="lg" style={{ width: 13, height: 13 }} aria-hidden />}
                 onClick={handleOpenDetails}
                 disabled={!onOpenDetails}
                 aria-label={t('usage.actions.openDetails')}
@@ -493,11 +488,11 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
         </div>
       </div>
 
-      <div className="session-usage-report-card__metrics" data-bf-component="session-usage-report-card" data-bf-part="metrics">
+      <div className="session-usage-report-card__metrics" data-openbitfun-component="session-usage-report-card" data-openbitfun-part="metrics">
         {metrics.map(metric => {
           const Icon = metric.icon;
           return (
-            <div data-bf-component="session-usage-report-card" data-bf-part="metric"
+            <div data-openbitfun-component="session-usage-report-card" data-openbitfun-part="metric"
               className={`session-usage-report-card__metric${metric.tone ? ` session-usage-report-card__metric--${metric.tone}` : ''}`}
               key={metric.key}
             >
@@ -509,7 +504,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
         })}
       </div>
 
-      <div className="session-usage-report-card__lists" data-bf-component="session-usage-report-card" data-bf-part="lists">
+      <div className="session-usage-report-card__lists" data-openbitfun-component="session-usage-report-card" data-openbitfun-part="lists">
         <UsageMiniList
           title={t('usage.sections.models')}
           showAll={buildShowAllAction({
@@ -524,8 +519,8 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
             const help = getModelHelp(source, t, model.modelId);
             const label = getModelLabel(model.modelId, t, source);
             const tokenValue = typeof model.totalTokens === 'number' && Number.isFinite(model.totalTokens)
-              ? t('usage.card.tokens', { value: formatUsageNumber(model.totalTokens, t) })
-              : formatUsageNumber(model.totalTokens, t);
+              ? t('usage.card.tokens', { value: formatTokenCount(model.totalTokens, t) })
+              : formatTokenCount(model.totalTokens, t);
             return {
               label: help ? { value: label, help } : label,
               value: tokenValue,
@@ -594,7 +589,9 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
 
 function renderCompactToolIcon(toolName: string, category?: string) {
   const normalizedName = toolName.toLowerCase();
-  const iconProps = { size: 17, strokeWidth: 1.8 } as const;
+  const catalogIcon = (name: 'browser' | 'edit' | 'git' | 'search' | 'terminal') => (
+    <Icon name={name} size="lg" style={{ width: 17, height: 17 }} />
+  );
 
   if (
     normalizedName.includes('exec')
@@ -603,36 +600,36 @@ function renderCompactToolIcon(toolName: string, category?: string) {
     || normalizedName.includes('terminal')
     || category === 'shell'
   ) {
-    return <Terminal {...iconProps} />;
+    return catalogIcon('terminal');
   }
   if (
     normalizedName.includes('grep')
     || normalizedName.includes('glob')
     || normalizedName.includes('search')
   ) {
-    return <Search {...iconProps} />;
+    return catalogIcon('search');
   }
   if (
     normalizedName.includes('edit')
     || normalizedName.includes('write')
     || normalizedName.includes('patch')
   ) {
-    return <PencilLine {...iconProps} />;
+    return catalogIcon('edit');
   }
   if (normalizedName.includes('web')) {
-    return <Globe2 {...iconProps} />;
+    return catalogIcon('browser');
   }
   if (normalizedName.includes('git') || category === 'git') {
-    return <GitBranch {...iconProps} />;
+    return catalogIcon('git');
   }
   if (
     normalizedName.includes('read')
     || normalizedName.includes('file')
     || category === 'file'
   ) {
-    return <FileText {...iconProps} />;
+    return <FileText size={17} strokeWidth={1.8} />;
   }
-  return <Wrench {...iconProps} />;
+  return <Wrench size={17} strokeWidth={1.8} />;
 }
 
 function UsageMetricValue({ value, help }: { value: string; help?: string }) {
@@ -731,7 +728,7 @@ function UsageFileChangeDetail({
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   return (
-    <span data-bf-component="session-usage-report-card" data-bf-part="fileStat"
+    <span data-openbitfun-component="session-usage-report-card" data-openbitfun-part="fileStat"
       className="session-usage-report-card__file-stat"
       aria-label={`${t('usage.table.added')}: ${formatUsageNumber(addedLines, t)}, ${t('usage.table.deleted')}: ${formatUsageNumber(deletedLines, t)}`}
     >
@@ -757,7 +754,7 @@ function formatSignedFileLineCount(
 
 function UsageMiniList({ title, showAll, items, emptyLabel, emptyDescription }: UsageMiniListProps) {
   return (
-    <div data-bf-component="session-usage-report-card" data-bf-part="list" className="session-usage-report-card__mini-list">
+    <div data-openbitfun-component="session-usage-report-card" data-openbitfun-part="list" className="session-usage-report-card__mini-list">
       <div className="session-usage-report-card__mini-list-header">
         <div className="session-usage-report-card__mini-list-title">{title}</div>
         {showAll && (
@@ -766,7 +763,7 @@ function UsageMiniList({ title, showAll, items, emptyLabel, emptyDescription }: 
               type="button"
               variant="outline"
               size="sm"
-              trailingIcon={<ChevronRight size={12} aria-hidden />}
+              trailingIcon={<Icon name="chevron-right" size="xs" aria-hidden />}
               onClick={showAll.onClick}
               aria-label={showAll.ariaLabel}
             >
@@ -782,7 +779,7 @@ function UsageMiniList({ title, showAll, items, emptyLabel, emptyDescription }: 
         </div>
       ) : (
         items.map(item => (
-          <div className="session-usage-report-card__mini-list-row" key={`${getMiniListLabelText(item.label)}-${item.value}`} data-bf-component="session-usage-report-card" data-bf-part="listRow">
+          <div className="session-usage-report-card__mini-list-row" key={`${getMiniListLabelText(item.label)}-${item.value}`} data-openbitfun-component="session-usage-report-card" data-openbitfun-part="listRow">
             <UsageMiniListLabelView label={item.label} />
             <span className="session-usage-report-card__mini-list-value">{item.value}</span>
             <span className="session-usage-report-card__mini-list-detail">{item.detail}</span>

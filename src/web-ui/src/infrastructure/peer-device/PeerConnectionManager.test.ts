@@ -32,6 +32,7 @@ describe('PeerConnectionManager attach', () => {
         productControlV1: true,
         productControlNativeV1: false,
         productControlPresentationV1: false,
+        userQuestionResponse: true,
       },
     });
     expect(manager.get('peer-1')).toBe(connection);
@@ -83,6 +84,7 @@ describe('PeerConnectionManager attach', () => {
           capabilities: {
             cancel_tool: true,
             tool_catalog: true,
+            user_question_response: true,
             miniapp_agent_context_files_v1: true,
           },
         },
@@ -323,7 +325,7 @@ describe('PeerConnectionManager disposal', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it('detaches, disposes the transport, and drops the entry', async () => {
+  it('detaches without issuing a Turn cancellation command', async () => {
     const rpc = createRpc();
     const manager = createManager(rpc.deviceRpc);
     const connection = await manager.connect('peer-1', 'Studio');
@@ -331,6 +333,8 @@ describe('PeerConnectionManager disposal', () => {
     await manager.dispose('peer-1');
 
     expect(rpc.commands()).toContain('peer_control_detach');
+    expect(rpc.commands()).not.toContain('cancel_dialog_turn');
+    expect(rpc.commands()).not.toContain('cancel_acp_dialog_turn');
     expect(connection.adapter.isDisposed()).toBe(true);
     expect(manager.get('peer-1')).toBeUndefined();
     expect(manager.list()).toEqual([]);
@@ -570,6 +574,7 @@ function createRpc(options: { failCommands?: Set<string> } = {}) {
             product_control_v1: true,
             cancel_tool: true,
             tool_catalog: true,
+            user_question_response: true,
           },
         },
       });

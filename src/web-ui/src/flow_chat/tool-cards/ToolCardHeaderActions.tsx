@@ -16,8 +16,8 @@ export const ToolCardHeaderActions: React.FC<ToolCardHeaderActionsProps> = ({
   <span
     className={`tool-card-header-actions${className ? ` ${className}` : ''}`}
     onClick={(event) => event.stopPropagation()}
-    data-bf-component="tool-card-header-actions"
-    data-bf-part="root"
+    data-openbitfun-component="tool-card-header-actions"
+    data-openbitfun-part="root"
   >
     {children}
   </span>
@@ -55,8 +55,8 @@ export const ToolCardCopyAction: React.FC<ToolCardCopyActionProps> = ({
 
   return (
     <IconButton
-      data-bf-component="tool-card-header-actions"
-      data-bf-part="action"
+      data-openbitfun-component="tool-card-header-actions"
+      data-openbitfun-part="action"
       className={`tool-card-header-action tool-card-copy-action${copied ? ' copied' : ''}${className ? ` ${className}` : ''}`}
       variant="ghost"
       size="xs"

@@ -19,6 +19,7 @@ vi.mock('./settingsRegistry', () => {
       { id: 'application', labelKey: 'Application', pages: pages.slice(0, 2) },
       { id: 'ai', labelKey: 'AI', pages: pages.slice(2) },
     ],
+    isSettingsPageId: (value: string) => pages.some((page) => page.id === value),
     preloadSettingsPage: vi.fn(async () => undefined),
   };
 });
@@ -37,6 +38,10 @@ vi.mock('@/shared/utils/motionPreference', () => ({
 
 import SettingsNav from './SettingsNav';
 import { useSettingsStore } from './settingsStore';
+import {
+  registerSettingsDraft,
+  resetSettingsDraftRegistryForTests,
+} from '@/infrastructure/config/settingsDraftRegistry';
 
 describe('SettingsNav shared component composition', () => {
   let container: HTMLDivElement;
@@ -44,6 +49,7 @@ describe('SettingsNav shared component composition', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    resetSettingsDraftRegistryForTests();
     useSettingsStore.setState(useSettingsStore.getInitialState());
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -54,6 +60,7 @@ describe('SettingsNav shared component composition', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    resetSettingsDraftRegistryForTests();
     vi.useRealTimers();
   });
 
@@ -73,17 +80,17 @@ describe('SettingsNav shared component composition', () => {
 
   it('keeps the header outside the scroll area and applies content styles to the real content slot', () => {
     const nav = container.querySelector('nav')!;
-    const header = nav.querySelector(':scope > [data-bf-part="header"]')!;
-    const viewport = nav.querySelector('[data-bf-component="scroll-area"]')!;
-    const content = viewport.querySelector('[data-bf-part="content"]')!;
-    expect(header.querySelector('.bitfun-settings-nav__title')).not.toBeNull();
+    const header = nav.querySelector(':scope > [data-openbitfun-part="header"]')!;
+    const viewport = nav.querySelector('[data-openbitfun-component="scroll-area"]')!;
+    const content = viewport.querySelector('[data-openbitfun-part="content"]')!;
+    expect(header.querySelector('.openbitfun-settings-nav__title')).not.toBeNull();
     expect(header.querySelector('input')).not.toBeNull();
     expect(viewport.contains(header)).toBe(false);
-    expect(content.classList.contains('bitfun-settings-nav__content')).toBe(true);
+    expect(content.classList.contains('openbitfun-settings-nav__content')).toBe(true);
     expect(content.querySelectorAll(':scope > section')).toHaveLength(2);
-    expect(content.querySelectorAll('[data-bf-part="heading-label"]')).toHaveLength(2);
-    const caption = content.querySelector('.bitfun-settings-nav__category-label')!;
-    expect(caption.parentElement?.getAttribute('data-bf-part')).toBe('heading-label');
+    expect(content.querySelectorAll('[data-openbitfun-part="heading-label"]')).toHaveLength(2);
+    const caption = content.querySelector('.openbitfun-settings-nav__category-label')!;
+    expect(caption.parentElement?.getAttribute('data-openbitfun-part')).toBe('heading-label');
     expect(content.querySelectorAll('[data-testid="settings-nav-page"]')).toHaveLength(3);
   });
 
@@ -91,13 +98,13 @@ describe('SettingsNav shared component composition', () => {
     const general = container.querySelector<HTMLButtonElement>('[data-settings-page="application.general"]')!;
     const appearance = container.querySelector<HTMLButtonElement>('[data-settings-page="application.appearance"]')!;
     expect(general.getAttribute('aria-current')).toBe('page');
-    expect(general.parentElement?.getAttribute('data-bf-component')).toBe('action-item');
+    expect(general.parentElement?.getAttribute('data-openbitfun-component')).toBe('action-item');
     await act(async () => appearance.click());
     expect(useSettingsStore.getState().activePageId).toBe('application.appearance');
     expect(appearance.getAttribute('aria-current')).toBe('page');
-    const selectedLabel = appearance.querySelector('[data-bf-part="label"]')!;
-    expect(selectedLabel.matches('.bitfun-settings-nav__item > [data-bf-part="trigger"][aria-current] > [data-bf-part="label"]')).toBe(true);
-    expect(selectedLabel.querySelector('.bitfun-settings-nav__item-label')).not.toBeNull();
+    const selectedLabel = appearance.querySelector('[data-openbitfun-part="label"]')!;
+    expect(selectedLabel.matches('.openbitfun-settings-nav__item > [data-openbitfun-part="trigger"][aria-current] > [data-openbitfun-part="label"]')).toBe(true);
+    expect(selectedLabel.querySelector('.openbitfun-settings-nav__item-label')).not.toBeNull();
     expect(general.hasAttribute('aria-current')).toBe(false);
     expect(container.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
     expect(container.querySelector('.is-active')).toBeNull();
@@ -108,9 +115,9 @@ describe('SettingsNav shared component composition', () => {
     const results = container.querySelector<HTMLDivElement>('[role="listbox"]')!;
     expect(results.querySelectorAll('[role="option"]')).toHaveLength(3);
     const first = results.querySelector('[role="option"]')!;
-    const label = first.querySelector('[data-bf-part="label"]')!;
-    expect(label.querySelector('.bitfun-settings-nav__search-result-line')).not.toBeNull();
-    expect(label.querySelector('.bitfun-settings-nav__search-result-desc')).not.toBeNull();
+    const label = first.querySelector('[data-openbitfun-part="label"]')!;
+    expect(label.querySelector('.openbitfun-settings-nav__search-result-line')).not.toBeNull();
+    expect(label.querySelector('.openbitfun-settings-nav__search-result-desc')).not.toBeNull();
     expect(first.getAttribute('aria-current')).toBe('page');
 
     await act(async () => pressKey(input, 'ArrowDown'));
@@ -132,5 +139,23 @@ describe('SettingsNav shared component composition', () => {
     expect(input.value).toBe('');
     expect(container.querySelectorAll('[data-testid="settings-nav-page"]')).toHaveLength(3);
     expect(container.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it('marks only pages that currently own an unsaved draft', () => {
+    act(() => {
+      registerSettingsDraft({
+        id: 'model-proxy',
+        pageId: 'ai.models',
+        label: 'Proxy',
+        dirty: true,
+        save: vi.fn(),
+        discard: vi.fn(),
+      });
+    });
+
+    const models = container.querySelector('[data-settings-page="ai.models"]');
+    const general = container.querySelector('[data-settings-page="application.general"]');
+    expect(models?.querySelector('[data-openbitfun-part="dirtyMarker"]')).not.toBeNull();
+    expect(general?.querySelector('[data-openbitfun-part="dirtyMarker"]')).toBeNull();
   });
 });

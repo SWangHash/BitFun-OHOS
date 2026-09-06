@@ -116,14 +116,14 @@ function getNewestInputMtime(entryPath) {
 
 // Marker lives outside dist/ so it never ships as a bundled Tauri resource.
 function getMobileWebBuildMarkerPath(mobileWebDir) {
-  return path.join(mobileWebDir, 'node_modules', '.cache', 'bitfun-mobile-web-build-marker');
+  return path.join(mobileWebDir, 'node_modules', '.cache', 'openbitfun-mobile-web-build-marker');
 }
 
 /**
  * mtime-based short-circuit (same idea as dev.cjs getDesktopPreviewRebuildPlan):
  * when dist/ exists and the build marker is newer than every input, the whole
  * clean/install/build cycle can be skipped. Escape hatches:
- *   --force flag / BITFUN_MOBILE_WEB_FORCE_BUILD=1 env.
+ *   --force flag / OPENBITFUN_MOBILE_WEB_FORCE_BUILD=1 env.
  */
 function getMobileWebRebuildPlan(mobileWebDir, force = false, rootDir = ROOT_DIR) {
   const fs = require('fs');
@@ -151,9 +151,9 @@ function getMobileWebRebuildPlan(mobileWebDir, force = false, rootDir = ROOT_DIR
     path.join(rootDir, 'design-system', 'packages', 'design-tokens', 'package.json'),
     path.join(rootDir, 'design-system', 'packages', 'design-tokens', 'scripts'),
     path.join(rootDir, 'design-system', 'packages', 'design-tokens', 'src'),
-    path.join(rootDir, 'design-system', 'packages', 'theme-bitfun', 'package.json'),
-    path.join(rootDir, 'design-system', 'packages', 'theme-bitfun', 'scripts'),
-    path.join(rootDir, 'design-system', 'packages', 'theme-bitfun', 'src'),
+    path.join(rootDir, 'design-system', 'packages', 'theme-openbitfun', 'package.json'),
+    path.join(rootDir, 'design-system', 'packages', 'theme-openbitfun', 'scripts'),
+    path.join(rootDir, 'design-system', 'packages', 'theme-openbitfun', 'src'),
     path.join(rootDir, 'design-system', 'tooling', 'token-engine', 'package.json'),
     path.join(rootDir, 'design-system', 'tooling', 'token-engine', 'src'),
   ];
@@ -180,7 +180,7 @@ function getMobileWebRebuildPlan(mobileWebDir, force = false, rootDir = ROOT_DIR
 
   return {
     shouldBuild: false,
-    reason: 'mobile-web dist is up to date; skipping clean/install/build (use --force or BITFUN_MOBILE_WEB_FORCE_BUILD=1 to rebuild)',
+    reason: 'mobile-web dist is up to date; skipping clean/install/build (use --force or OPENBITFUN_MOBILE_WEB_FORCE_BUILD=1 to rebuild)',
   };
 }
 
@@ -191,17 +191,29 @@ function writeMobileWebBuildMarker(mobileWebDir) {
   fs.writeFileSync(markerPath, `${new Date().toISOString()}\n`);
 }
 
-function cleanStaleMobileWebResources(logInfo = printInfo) {
+function cleanStaleMobileWebResources(logInfo = printInfo, rootDir = ROOT_DIR) {
   const fs = require('fs');
-  const targetDir = path.join(ROOT_DIR, 'target');
+  const targetDir = path.join(rootDir, 'target');
   if (!fs.existsSync(targetDir)) return 0;
 
   let cleaned = 0;
-  for (const profile of fs.readdirSync(targetDir)) {
-    const mobileWebDir = path.join(targetDir, profile, 'mobile-web');
-    if (fs.existsSync(mobileWebDir) && fs.statSync(mobileWebDir).isDirectory()) {
-      fs.rmSync(mobileWebDir, { recursive: true, force: true });
-      cleaned++;
+  const cleanIfPresent = (candidate) => {
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+      fs.rmSync(candidate, { recursive: true, force: true });
+      cleaned += 1;
+    }
+  };
+
+  for (const firstLevelEntry of fs.readdirSync(targetDir, { withFileTypes: true })) {
+    if (!firstLevelEntry.isDirectory()) continue;
+    const firstLevelDir = path.join(targetDir, firstLevelEntry.name);
+    cleanIfPresent(path.join(firstLevelDir, 'mobile-web'));
+
+    // Explicit Cargo targets stage resources under
+    // target/<target-triple>/<profile>/mobile-web.
+    for (const secondLevelEntry of fs.readdirSync(firstLevelDir, { withFileTypes: true })) {
+      if (!secondLevelEntry.isDirectory()) continue;
+      cleanIfPresent(path.join(firstLevelDir, secondLevelEntry.name, 'mobile-web'));
     }
   }
 
@@ -215,7 +227,7 @@ function cleanStaleMobileWebResources(logInfo = printInfo) {
 function buildMobileWeb(options = {}) {
   const {
     install = false,
-    force = process.env.BITFUN_MOBILE_WEB_FORCE_BUILD === '1',
+    force = process.env.OPENBITFUN_MOBILE_WEB_FORCE_BUILD === '1',
     logInfo = printInfo,
     logSuccess = printSuccess,
     logError = printError,
@@ -265,7 +277,7 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   const result = buildMobileWeb({
     install: args.includes('--install'),
-    force: args.includes('--force') || process.env.BITFUN_MOBILE_WEB_FORCE_BUILD === '1',
+    force: args.includes('--force') || process.env.OPENBITFUN_MOBILE_WEB_FORCE_BUILD === '1',
   });
   process.exit(result.ok ? 0 : 1);
 }

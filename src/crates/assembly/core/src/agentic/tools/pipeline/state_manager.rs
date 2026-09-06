@@ -5,10 +5,10 @@
 use super::types::ToolTask;
 use crate::agentic::core::ToolExecutionState;
 use crate::agentic::events::AgenticEvent;
-use bitfun_agent_stream::StreamEventSink;
-use bitfun_agent_tools::ValidationResult;
 use dashmap::DashMap;
 use log::debug;
+use openbitfun_agent_stream::StreamEventSink;
+use openbitfun_agent_tools::ValidationResult;
 use std::sync::Arc;
 use tool_runtime::pipeline::{
     count_tool_states, tool_state_event_data, ToolStateEventFacts, ToolStateEventKind,
@@ -244,7 +244,7 @@ impl ToolStateManager {
             },
         };
         let tool_event = tool_state_event_data(ToolStateEventFacts {
-            identity: bitfun_events::ToolEventIdentity::resolved(
+            identity: openbitfun_events::ToolEventIdentity::resolved(
                 task.tool_call.tool_id.clone(),
                 task.invocation.wire_tool_name.clone(),
                 task.effective_tool_name().to_string(),
@@ -302,7 +302,7 @@ mod tests {
         async fn enqueue(
             &self,
             event: AgenticEvent,
-            _priority: Option<bitfun_events::AgenticEventPriority>,
+            _priority: Option<openbitfun_events::AgenticEventPriority>,
         ) {
             self.events.lock().await.push(event);
         }
@@ -318,7 +318,7 @@ mod tests {
         async fn enqueue(
             &self,
             _event: AgenticEvent,
-            _priority: Option<bitfun_events::AgenticEventPriority>,
+            _priority: Option<openbitfun_events::AgenticEventPriority>,
         ) {
             self.started.notify_one();
             self.release.notified().await;
@@ -349,7 +349,7 @@ mod tests {
                 context_vars: HashMap::new(),
                 subagent_parent_info: None,
                 permission_delegation: None,
-                delegation_policy: bitfun_runtime_ports::DelegationPolicy::top_level(),
+                delegation_policy: openbitfun_runtime_ports::DelegationPolicy::top_level(),
                 deferred_tools: Vec::new(),
                 loaded_deferred_tool_specs: Vec::new(),
                 allowed_tools: Vec::new(),
@@ -412,10 +412,10 @@ mod tests {
             "args": { "name": "Plan" }
         });
         let mut task = test_task("tool-1");
-        task.tool_call.tool_name = bitfun_agent_tools::CALL_DEFERRED_TOOL_NAME.to_string();
+        task.tool_call.tool_name = openbitfun_agent_tools::CALL_DEFERRED_TOOL_NAME.to_string();
         task.tool_call.arguments = wire_arguments.clone();
-        task.invocation = bitfun_agent_tools::ResolvedToolInvocation::from_wire_call(
-            bitfun_agent_tools::CALL_DEFERRED_TOOL_NAME,
+        task.invocation = openbitfun_agent_tools::ResolvedToolInvocation::from_wire_call(
+            openbitfun_agent_tools::CALL_DEFERRED_TOOL_NAME,
             wire_arguments.clone(),
         )
         .expect("valid deferred invocation");
@@ -436,7 +436,7 @@ mod tests {
         let events = sink.events.lock().await;
         let AgenticEvent::ToolEvent {
             tool_event:
-                bitfun_events::ToolEventData::Started {
+                openbitfun_events::ToolEventData::Started {
                     identity, params, ..
                 },
             ..
@@ -446,7 +446,7 @@ mod tests {
         };
         assert_eq!(
             identity.tool_name,
-            bitfun_agent_tools::CALL_DEFERRED_TOOL_NAME
+            openbitfun_agent_tools::CALL_DEFERRED_TOOL_NAME
         );
         assert_eq!(identity.effective_name(), "CreatePlan");
         assert_eq!(params, &wire_arguments);
@@ -456,7 +456,7 @@ mod tests {
     async fn direct_started_event_uses_hook_rewritten_arguments() {
         let mut task = test_task("tool-direct-rewrite");
         task.tool_call.arguments = serde_json::json!({ "command": "old" });
-        task.invocation = bitfun_agent_tools::ResolvedToolInvocation::direct(
+        task.invocation = openbitfun_agent_tools::ResolvedToolInvocation::direct(
             "Bash",
             task.tool_call.arguments.clone(),
         );
@@ -482,7 +482,7 @@ mod tests {
 
         let events = sink.events.lock().await;
         let AgenticEvent::ToolEvent {
-            tool_event: bitfun_events::ToolEventData::Started { params, .. },
+            tool_event: openbitfun_events::ToolEventData::Started { params, .. },
             ..
         } = &events[0]
         else {
@@ -498,10 +498,10 @@ mod tests {
             "args": { "name": "old" }
         });
         let mut task = test_task("tool-deferred-rewrite");
-        task.tool_call.tool_name = bitfun_agent_tools::CALL_DEFERRED_TOOL_NAME.to_string();
+        task.tool_call.tool_name = openbitfun_agent_tools::CALL_DEFERRED_TOOL_NAME.to_string();
         task.tool_call.arguments = wire_arguments.clone();
-        task.invocation = bitfun_agent_tools::ResolvedToolInvocation::from_wire_call(
-            bitfun_agent_tools::CALL_DEFERRED_TOOL_NAME,
+        task.invocation = openbitfun_agent_tools::ResolvedToolInvocation::from_wire_call(
+            openbitfun_agent_tools::CALL_DEFERRED_TOOL_NAME,
             wire_arguments,
         )
         .expect("valid deferred invocation");
@@ -527,7 +527,7 @@ mod tests {
 
         let events = sink.events.lock().await;
         let AgenticEvent::ToolEvent {
-            tool_event: bitfun_events::ToolEventData::Started { params, .. },
+            tool_event: openbitfun_events::ToolEventData::Started { params, .. },
             ..
         } = &events[0]
         else {

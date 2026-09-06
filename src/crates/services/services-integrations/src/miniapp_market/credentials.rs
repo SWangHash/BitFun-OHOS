@@ -1,10 +1,10 @@
 use async_trait::async_trait;
-use bitfun_services_core::secure_credentials::SecureCredentialVault;
+use openbitfun_services_core::secure_credentials::SecureCredentialVault;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, OnceLock};
 
-const MARKET_ALIAS: &str = "bitfun.market.credentials.v1";
-const KEYRING_SERVICE: &str = "openbitfun.bitfun.miniapp-market.v1";
+const MARKET_ALIAS: &str = "openbitfun.market.credentials.v1";
+const KEYRING_SERVICE: &str = "openbitfun.openbitfun.miniapp-market.v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -28,7 +28,7 @@ pub trait MarketCredentialStore: std::fmt::Debug + Send + Sync {
 /// and appearance market (both use the GitHub OAuth flow), subscription
 /// auth, and feedback services — alias formats are consumer-specific and
 /// do not collide inside the shared vault namespace. The market alias
-/// `bitfun.market.credentials.v1` matches the pre-unification layout so
+/// `openbitfun.market.credentials.v1` matches the pre-unification layout so
 /// existing on-disk and keychain entries continue to read back without a
 /// migration step.
 #[derive(Debug)]
@@ -90,7 +90,7 @@ pub fn system_market_credential_store() -> Arc<dyn MarketCredentialStore> {
 fn default_vault() -> Arc<dyn SecureCredentialVault> {
     #[cfg(feature = "system-vault")]
     {
-        use bitfun_services_core::secure_credentials::SystemSecureCredentialVault;
+        use openbitfun_services_core::secure_credentials::SystemSecureCredentialVault;
         return Arc::new(SystemSecureCredentialVault::new(KEYRING_SERVICE));
     }
     #[cfg(not(feature = "system-vault"))]

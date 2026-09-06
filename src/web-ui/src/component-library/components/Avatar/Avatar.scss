@@ -1,10 +1,10 @@
 /**
  * Avatar component styles
- * Based on the BitFun glassmorphism design system
+ * Based on the OpenBitFun glassmorphism design system
  */
-.bitfun-avatar {
-  --bitfun-avatar-rest-start-rgb: 30, 41, 59;
-  --bitfun-avatar-rest-end-rgb: 51, 65, 85;
+.openbitfun-avatar {
+  --openbitfun-avatar-rest-start-rgb: 30, 41, 59;
+  --openbitfun-avatar-rest-end-rgb: 51, 65, 85;
 
   display: inline-flex;
   align-items: center;
@@ -66,11 +66,11 @@
   }
 }
 
-.bitfun-avatar-group {
+.openbitfun-avatar-group {
   display: inline-flex;
   align-items: center;
 
-  .bitfun-avatar {
+  .openbitfun-avatar {
     margin-left: -8px;
     border: 2px solid rgba(var(--bf-appearance-token-color-overlay-slate-rgb), 0.8);
     transition:
@@ -90,14 +90,14 @@
 
   &__rest {
     background: linear-gradient(135deg,
-      rgba(var(--bitfun-avatar-rest-start-rgb), 0.9) 0%,
-      rgba(var(--bitfun-avatar-rest-end-rgb), 0.9) 100%);
+      rgba(var(--openbitfun-avatar-rest-start-rgb), 0.9) 0%,
+      rgba(var(--openbitfun-avatar-rest-end-rgb), 0.9) 100%);
     font-size: 12px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bitfun-avatar-group .bitfun-avatar {
+  .openbitfun-avatar-group .openbitfun-avatar {
     transition: none;
 
     &:hover {

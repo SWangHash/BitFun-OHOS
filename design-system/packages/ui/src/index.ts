@@ -100,6 +100,7 @@ export {
   FieldRow,
   FormSection,
   type FieldGroupAppearance,
+  type FieldGroupFieldSurface,
   type FieldGroupProps,
   type FieldRowAlignment,
   type FieldRowPadding,
@@ -120,6 +121,10 @@ export {
 export { IconButton, type IconButtonProps } from "./components/IconButton";
 export { Input, type InputProps } from "./components/Input";
 export { KeyHint, type KeyHintProps } from "./components/KeyHint";
+export {
+  LauncherButton,
+  type LauncherButtonProps,
+} from "./components/LauncherButton";
 export {
   Listbox,
   ListboxEmpty,
@@ -231,6 +236,7 @@ export {
   TabGroup,
   type TabGroupItem,
   type TabGroupProps,
+  type TabGroupSize,
 } from "./components/TabGroup";
 export {
   Toolbar,
@@ -252,7 +258,11 @@ export {
   type TooltipTrigger,
 } from "./components/Tooltip";
 export { SessionIcon, type SessionIconProps } from "./icons";
-export { OverflowText, type OverflowTextProps } from "./primitives/OverflowText";
+export {
+  OverflowText,
+  type OverflowTextBehavior,
+  type OverflowTextProps,
+} from "./primitives/OverflowText";
 export { Stack, type StackProps } from "./primitives/Stack";
 export {
   ThemeRoot,

@@ -16,8 +16,8 @@ export const FullPageLayout: React.FC<FullPageLayoutProps> = ({ components }) =>
   if (components.length === 1) {
     const Component = components[0].component;
     return (
-      <div className="full-page-layout" data-bf-component="component-preview" data-bf-part="fullPageRoot">
-        <div className="full-page-item" data-bf-component="component-preview" data-bf-part="fullPageContent">
+      <div className="full-page-layout" data-openbitfun-component="component-preview" data-openbitfun-part="fullPageRoot">
+        <div className="full-page-item" data-openbitfun-component="component-preview" data-openbitfun-part="fullPageContent">
           <Component />
         </div>
       </div>
@@ -27,16 +27,16 @@ export const FullPageLayout: React.FC<FullPageLayoutProps> = ({ components }) =>
   const ActiveComponent = components[activeIndex].component;
 
   return (
-    <div className="full-page-layout" data-bf-component="component-preview" data-bf-part="fullPageRoot">
-      <div className="full-page-tabs" data-bf-component="component-preview" data-bf-part="fullPageTabs">
+    <div className="full-page-layout" data-openbitfun-component="component-preview" data-openbitfun-part="fullPageRoot">
+      <div className="full-page-tabs" data-openbitfun-component="component-preview" data-openbitfun-part="fullPageTabs">
         {components.map((component, index) => (
           <button
             key={component.id}
             className={`full-page-tab ${index === activeIndex ? 'active' : ''}`}
             onClick={() => setActiveIndex(index)}
-            data-bf-component="component-preview"
-            data-bf-part="fullPageTab"
-            data-bf-state={index === activeIndex ? 'active' : undefined}
+            data-openbitfun-component="component-preview"
+            data-openbitfun-part="fullPageTab"
+            data-openbitfun-state={index === activeIndex ? 'active' : undefined}
           >
             <span className="tab-name">{component.name}</span>
             <span className="tab-description">{component.description}</span>
@@ -44,7 +44,7 @@ export const FullPageLayout: React.FC<FullPageLayoutProps> = ({ components }) =>
         ))}
       </div>
 
-      <div className="full-page-content" data-bf-component="component-preview" data-bf-part="fullPageContent">
+      <div className="full-page-content" data-openbitfun-component="component-preview" data-openbitfun-part="fullPageContent">
         <ActiveComponent />
       </div>
     </div>

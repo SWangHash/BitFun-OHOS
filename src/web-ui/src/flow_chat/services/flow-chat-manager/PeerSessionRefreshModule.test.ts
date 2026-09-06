@@ -170,7 +170,7 @@ describe('PeerSessionRefreshModule re-attach after a surface switch', () => {
       sessions: new Map([
         ['session-1', {
           sessionId: 'session-1',
-          workspacePath: '/repo/BitFun',
+          workspacePath: '/repo/OpenBitFun',
           historyState: 'ready',
           isHistorical: false,
           isTransient: false,
@@ -474,6 +474,50 @@ describe('PeerSessionRefreshModule re-attach after a surface switch', () => {
     cleanup();
   });
 
+  it('reconciles the blocking mailbox when the Runtime projection is already current', async () => {
+    stateMachineMock.get.mockReturnValue({
+      getCurrentState: () => 'processing',
+      getContext: () => ({ lastUpdateTime: Date.now(), version: 0 }),
+    });
+    const pendingUserQuestions = {
+      revision: 5,
+      questions: [{
+        toolId: 'ask-tool-1',
+        sessionId: 'session-1',
+        dialogTurnId: 'turn-live',
+        modelRoundId: 'round-0',
+        questions: { questions: [] },
+        registeredAtMs: 1,
+      }],
+    };
+    const refresh = vi.fn(async () => ({
+      applied: false,
+      backendState: 'Processing { current_turn_id: "turn-live", phase: ToolExecution }',
+      latestTurnId: 'turn-live',
+      latestTurnStatus: 'processing',
+      runtimeEventReplayRequired: false,
+      runtimeEventSnapshot: {
+        sessionId: 'session-1',
+        streamId: 'runtime-a',
+        cursor: 8,
+        activeTurnId: 'turn-live',
+        events: [],
+      },
+      pendingUserQuestions,
+    }));
+    const context = contextWithSnapshot(refresh);
+
+    const cleanup = installPeerSessionRefresh(context);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(context.flowChatStore.reconcilePendingUserQuestions).toHaveBeenCalledWith(
+      'session-1',
+      pendingUserQuestions,
+    );
+    expect(agenticListenerMock.dispatchExternal).not.toHaveBeenCalled();
+    cleanup();
+  });
+
   it('replays the Runtime journal even when persist merge was skipped', async () => {
     stateMachineMock.get.mockReturnValue({
       getCurrentState: () => 'processing',
@@ -530,7 +574,7 @@ describe('PeerSessionRefreshModule dead subscription recovery', () => {
       sessions: new Map([
         ['session-1', {
           sessionId: 'session-1',
-          workspacePath: '/repo/BitFun',
+          workspacePath: '/repo/OpenBitFun',
           historyState: 'ready',
           isHistorical: false,
           isTransient: false,
@@ -617,7 +661,7 @@ describe('PeerSessionRefreshModule dead subscription recovery', () => {
 
 describe('isSessionProjectionAttachable', () => {
   const base = {
-    workspacePath: '/repo/BitFun',
+    workspacePath: '/repo/OpenBitFun',
     isTransient: false,
     isHistorical: false,
     historyState: 'ready' as const,
@@ -677,7 +721,7 @@ describe('PeerSessionRefreshModule attach eligibility after a surface switch', (
       sessions: new Map([
         ['session-new', {
           sessionId: 'session-new',
-          workspacePath: '/repo/BitFun',
+          workspacePath: '/repo/OpenBitFun',
           historyState: 'new',
           isHistorical: false,
           isTransient: false,
@@ -701,7 +745,7 @@ describe('PeerSessionRefreshModule attach eligibility after a surface switch', (
 
     expect(refreshPeerSessionSnapshot).toHaveBeenCalledWith(
       'session-new',
-      '/repo/BitFun',
+      '/repo/OpenBitFun',
       expect.objectContaining({ requireActiveSession: false }),
     );
     cleanup();
@@ -714,7 +758,7 @@ describe('PeerSessionRefreshModule attach eligibility after a surface switch', (
       sessions: new Map([
         ['session-meta', {
           sessionId: 'session-meta',
-          workspacePath: '/repo/BitFun',
+          workspacePath: '/repo/OpenBitFun',
           historyState: 'metadata-only',
           isHistorical: true,
           isTransient: false,
@@ -751,14 +795,14 @@ describe('PeerSessionRefreshModule attach eligibility after a surface switch', (
       sessions: new Map([
         ['session-active', {
           sessionId: 'session-active',
-          workspacePath: '/repo/BitFun',
+          workspacePath: '/repo/OpenBitFun',
           historyState: 'new',
           isHistorical: false,
           isTransient: false,
         }],
         ['session-bg', {
           sessionId: 'session-bg',
-          workspacePath: '/repo/BitFun',
+          workspacePath: '/repo/OpenBitFun',
           historyState: 'new',
           isHistorical: false,
           isTransient: false,
@@ -785,7 +829,7 @@ describe('PeerSessionRefreshModule attach eligibility after a surface switch', (
 
     expect(refreshPeerSessionSnapshot).toHaveBeenCalledWith(
       'session-bg',
-      '/repo/BitFun',
+      '/repo/OpenBitFun',
       expect.objectContaining({ requireActiveSession: false }),
     );
     cleanup();
@@ -816,14 +860,14 @@ describe('PeerSessionRefreshModule attach eligibility after a surface switch', (
       sessions: new Map([
         ['session-active', {
           sessionId: 'session-active',
-          workspacePath: '/repo/BitFun',
+          workspacePath: '/repo/OpenBitFun',
           historyState: 'new',
           isHistorical: false,
           isTransient: false,
         }],
         ['session-bg', {
           sessionId: 'session-bg',
-          workspacePath: '/repo/BitFun',
+          workspacePath: '/repo/OpenBitFun',
           historyState: 'new',
           isHistorical: false,
           isTransient: false,
@@ -859,7 +903,7 @@ describe('PeerSessionRefreshModule attach eligibility after a surface switch', (
 
     expect(refreshPeerSessionSnapshot).toHaveBeenCalledWith(
       'session-bg',
-      '/repo/BitFun',
+      '/repo/OpenBitFun',
       expect.objectContaining({ requireActiveSession: false }),
     );
     cleanup();
@@ -912,7 +956,7 @@ describe('PeerSessionRefreshModule journal apply', () => {
         {
           sessionId: 'session-1',
           title: 'Live',
-          workspacePath: '/repo/BitFun',
+          workspacePath: '/repo/OpenBitFun',
           historyState: 'ready',
           isHistorical: false,
           isTransient: false,

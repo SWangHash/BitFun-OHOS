@@ -1,79 +1,8 @@
 .font-pref-panel {
-  /* 界面字体：多行区块，标题与说明之间略松一点 */
-  &__row--ui.bitfun-config-page-row--multiline {
-    gap: var(--bf-space-3);
-
-    .bitfun-config-page-row__description {
-      max-width: 52ch;
-    }
-  }
-
-  &__ui-size {
-    display: flex;
-    flex-direction: column;
-    gap: var(--bf-space-3);
+  &__custom-controls,
+  &__preview,
+  &__preview-input {
     width: 100%;
     min-width: 0;
-    flex: 1 1 auto;
-    align-self: stretch;
-  }
-
-  &__ui-segment-block {
-    width: 100%;
-    min-width: 0;
-  }
-
-  &__level-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--bf-space-2);
-    width: 100%;
-    min-width: 0;
-  }
-
-  &__custom-controls {
-    display: inline-flex;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: var(--bf-space-2);
-    flex-shrink: 0;
-    box-sizing: border-box;
-  }
-
-  &__level-label {
-    display: block;
-    line-height: var(--bf-line-height-tight);
-    font-weight: inherit;
-    color: inherit;
-  }
-
-  &__custom-number-input {
-    width: 116px;
-  }
-
-  &__custom-hint {
-    width: 100%;
-    font-size: var(--bf-font-size-xs);
-    color: var(--bf-color-content-muted);
-    line-height: var(--bf-line-height-ui);
-  }
-
-  &__preview {
-    width: 100%;
-    box-sizing: border-box;
-    margin-top: var(--bf-space-2);
-    padding: var(--bf-space-3) var(--bf-space-4);
-    background: var(--bf-color-surface-panel);
-    border: 1px solid var(--bf-color-border-subtle);
-    border-radius: var(--bf-radius-sm);
-    color: var(--bf-color-content-secondary);
-    line-height: var(--bf-line-height-relaxed);
-    word-wrap: break-word;
-    transition: font-size var(--bf-motion-duration-base) var(--bf-motion-easing-standard);
-  }
-
-  &__reset-btn {
-    margin-left: auto;
   }
 }

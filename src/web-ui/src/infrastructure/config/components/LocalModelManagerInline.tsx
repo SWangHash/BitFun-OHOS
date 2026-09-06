@@ -33,7 +33,7 @@ import type {
   LocalModelPullProgress,
   LocalModelStatus,
 } from '@/infrastructure/api/service-api/LocalModelAPI';
-import { ConfigPageMessage } from './common';
+import { ConfigMessage } from './common';
 import { createLogger } from '@/shared/utils/logger';
 import './LocalModelManagerInline.scss';
 
@@ -352,7 +352,7 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
       && !(progress && progress.total > 0);
 
     return (
-      <div key={model.name} className="local-model-manager__model-row" data-bf-component="local-model-manager" data-bf-part="modelRow">
+      <div key={model.name} className="local-model-manager__model-row" data-openbitfun-component="local-model-manager" data-openbitfun-part="modelRow">
         <div className="local-model-manager__model-row-top">
           <div className="local-model-manager__model-info">
             <StatusIcon status={effectiveStatus} />
@@ -406,7 +406,7 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
           )}
 
           {effectiveStatus === 'downloaded' && (
-            <span className="local-model-manager__ready-badge" data-bf-component="local-model-manager" data-bf-part="readyBadge">
+            <span className="local-model-manager__ready-badge" data-openbitfun-component="local-model-manager" data-openbitfun-part="readyBadge">
               <CheckCircle size={14} />
               {t('status.ready')}
             </span>
@@ -428,7 +428,7 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
 
         {/* Full-width progress bar below the info/actions row */}
         {hasProgress && (
-          <div className="local-model-manager__progress" data-bf-component="local-model-manager" data-bf-part="progress">
+          <div className="local-model-manager__progress" data-openbitfun-component="local-model-manager" data-openbitfun-part="progress">
             <div className="local-model-manager__progress-bar">
               <div
                 className={
@@ -455,8 +455,8 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
   const isBusy = detecting || loadingModels;
 
   return (
-    <div className="local-model-manager" data-bf-component="local-model-manager" data-bf-part="root">
-      <div className="local-model-manager__header" data-bf-component="local-model-manager" data-bf-part="header">
+    <div className="local-model-manager" data-openbitfun-component="local-model-manager" data-openbitfun-part="root">
+      <div className="local-model-manager__header" data-openbitfun-component="local-model-manager" data-openbitfun-part="header">
         <span className="local-model-manager__header-title">{t('section.title')}</span>
         <IconButton
           variant="ghost"
@@ -471,13 +471,13 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
 
       {/* Service status banner */}
       {!isAvailable && !detecting && (
-        <ConfigPageMessage
+        <ConfigMessage
           message={{ type: 'info', text: t('service.unavailable') }}
         />
       )}
 
       {isAvailable && serviceStatus && (
-        <div className="local-model-manager__service-info" data-bf-component="local-model-manager" data-bf-part="serviceInfo">
+        <div className="local-model-manager__service-info" data-openbitfun-component="local-model-manager" data-openbitfun-part="serviceInfo">
           <span className="local-model-manager__service-name">
             {serviceStatus.serviceName || 'Ollama'}
           </span>
@@ -491,28 +491,28 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
 
       {/* Message */}
       {message && (
-        <ConfigPageMessage
+        <ConfigMessage
           message={{ type: message.type, text: message.text }}
         />
       )}
 
       {/* Model list */}
       {isAvailable && models.length > 0 && (
-        <div className="local-model-manager__model-list" data-bf-component="local-model-manager" data-bf-part="modelList">
+        <div className="local-model-manager__model-list" data-openbitfun-component="local-model-manager" data-openbitfun-part="modelList">
           {models.map(renderModelRow)}
         </div>
       )}
 
       {/* Empty state */}
       {isAvailable && models.length === 0 && !loadingModels && (
-        <div className="local-model-manager__empty" data-bf-component="local-model-manager" data-bf-part="empty">
+        <div className="local-model-manager__empty" data-openbitfun-component="local-model-manager" data-openbitfun-part="empty">
           {t('empty.description')}
         </div>
       )}
 
       {/* Loading state */}
       {loadingModels && (
-        <div className="local-model-manager__loading" data-bf-component="local-model-manager" data-bf-part="loading">
+        <div className="local-model-manager__loading" data-openbitfun-component="local-model-manager" data-openbitfun-part="loading">
           {t('loading')}
         </div>
       )}

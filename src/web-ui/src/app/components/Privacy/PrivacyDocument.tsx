@@ -4,7 +4,7 @@ import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 
 export const PrivacyDocument: React.FC<{ content: string }> = ({ content }) => (
-  <div className="bitfun-privacy-document" data-testid="privacy-document">
+  <div className="openbitfun-privacy-document" data-testid="privacy-document">
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeSanitize]}

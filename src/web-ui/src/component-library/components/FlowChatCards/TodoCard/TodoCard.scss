@@ -134,7 +134,7 @@
 
     &--in-progress {
       color: var(--bf-appearance-token-color-warning);
-      animation: bitfun-todo-card-status-pulse 2s ease-in-out infinite;
+      animation: openbitfun-todo-card-status-pulse 2s ease-in-out infinite;
     }
 
     &--completed {
@@ -167,7 +167,7 @@
   }
 }
 
-@keyframes bitfun-todo-card-status-pulse {
+@keyframes openbitfun-todo-card-status-pulse {
   0%, 100% {
     opacity: 1;
   }

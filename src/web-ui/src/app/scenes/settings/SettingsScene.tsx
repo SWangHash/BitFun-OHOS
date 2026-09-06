@@ -1,5 +1,13 @@
 import React, { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ConfirmDialog } from '@openbitfun/ui';
+import { useTranslation } from 'react-i18next';
 import { NavigationTransitionBoundary } from '@/app/navigation/NavigationTransitionBoundary';
+import {
+  cancelPendingSettingsNavigation,
+  discardAndContinueSettingsNavigation,
+  saveAndContinueSettingsNavigation,
+  useSettingsDraftSnapshot,
+} from '@/infrastructure/config/settingsDraftRegistry';
 import {
   getSettingsPageManifest,
   isSettingsPageReady,
@@ -12,27 +20,33 @@ import './SettingsScene.scss';
 function SettingsSceneLoading() {
   return (
     <div
-      className="bitfun-settings-scene__loading"
+      className="openbitfun-settings-scene__loading"
       aria-busy="true"
       aria-hidden="true"
-      data-bf-scene="settings"
-      data-bf-part="loading"
+      data-openbitfun-scene="settings"
+      data-openbitfun-part="loading"
     >
-      <div className="bitfun-settings-scene__loading-line bitfun-settings-scene__loading-line--title" />
-      <div className="bitfun-settings-scene__loading-line" />
-      <div className="bitfun-settings-scene__loading-line" />
-      <div className="bitfun-settings-scene__loading-block" />
+      <div className="openbitfun-settings-scene__loading-line openbitfun-settings-scene__loading-line--title" />
+      <div className="openbitfun-settings-scene__loading-line" />
+      <div className="openbitfun-settings-scene__loading-line" />
+      <div className="openbitfun-settings-scene__loading-block" />
     </div>
   );
 }
 
-const SettingsScene: React.FC = () => {
+interface SettingsSceneProps {
+  isActive?: boolean;
+}
+
+const SettingsScene: React.FC<SettingsSceneProps> = ({ isActive = true }) => {
+  const { t } = useTranslation('settings');
   const activePageId = useSettingsStore((state) => state.activePageId);
   const activeViewId = useSettingsStore((state) => state.activeViewId);
   const navigationRequestId = useSettingsStore((state) => state.navigationRequestId);
   const pageTransitionTarget = useSettingsStore((state) => state.pageTransitionTarget);
   const pageTransitionMotion = useSettingsStore((state) => state.pageTransitionMotion);
   const pageTransitionSequence = useSettingsStore((state) => state.pageTransitionSequence);
+  const { pendingNavigation } = useSettingsDraftSnapshot();
   const appliedTransitionSequenceRef = useRef(pageTransitionSequence);
   const [preparedPageId, setPreparedPageId] = useState<SettingsPageId | null>(() => (
     isSettingsPageReady(activePageId) ? activePageId : null
@@ -68,28 +82,29 @@ const SettingsScene: React.FC = () => {
 
   return (
     <div
-      className="bitfun-settings-scene"
+      className="openbitfun-settings-scene"
       data-testid="settings-scene"
       data-settings-page={activePageId}
-      data-bf-scene="settings"
-      data-bf-part="root"
-      data-bf-page={activePageId}
+      data-openbitfun-scene="settings"
+      data-openbitfun-part="root"
+      data-openbitfun-page={activePageId}
     >
       {Content ? (
         <NavigationTransitionBoundary
           transitionKey={activePageId}
           motion={shouldAnimatePageTransition ? 'pointer' : 'none'}
-          className="bitfun-settings-scene__content-transition"
-          layerClassName="bitfun-settings-scene__content-wrapper"
+          className="openbitfun-settings-scene__content-transition"
+          layerClassName="openbitfun-settings-scene__content-wrapper"
         >
           <div
             data-testid="settings-scene-content"
-            data-bf-scene="settings"
-            data-bf-part="content"
-            data-bf-page={activePageId}
+            data-openbitfun-scene="settings"
+            data-openbitfun-part="content"
+            data-openbitfun-page={activePageId}
           >
             <Suspense fallback={<SettingsSceneLoading />}>
               <Content
+                isActive={isActive}
                 viewId={activeViewId ?? undefined}
                 navigationRequestId={navigationRequestId}
               />
@@ -97,6 +112,40 @@ const SettingsScene: React.FC = () => {
           </div>
         </NavigationTransitionBoundary>
       ) : <SettingsSceneLoading />}
+      <ConfirmDialog
+        open={pendingNavigation !== null}
+        testId="settings-unsaved-navigation-dialog"
+        title={t('changeGuard.title')}
+        message={pendingNavigation?.failed
+          ? t('changeGuard.saveFailed')
+          : t('changeGuard.message', {
+              count: pendingNavigation?.resourceLabels.length ?? 0,
+            })}
+        preview={pendingNavigation?.resourceLabels.length ? (
+          <ul className="openbitfun-settings-scene__draft-list">
+            {pendingNavigation.resourceLabels.map((label, index) => (
+              <li key={`${label}:${index}`}>{label}</li>
+            ))}
+          </ul>
+        ) : undefined}
+        cancelText={t('changeGuard.keepEditing')}
+        secondaryText={t('changeGuard.discardAndLeave')}
+        confirmText={t('changeGuard.saveAndLeave')}
+        pendingAction={pendingNavigation?.action === 'save'
+          ? 'confirm'
+          : pendingNavigation?.action === 'discard'
+            ? 'secondary'
+            : null}
+        onOpenChange={() => cancelPendingSettingsNavigation()}
+        onSecondary={async () => {
+          await discardAndContinueSettingsNavigation();
+        }}
+        onConfirm={async () => {
+          await saveAndContinueSettingsNavigation();
+        }}
+        closeOnPointerOutside={false}
+        type={pendingNavigation?.failed ? 'error' : 'warning'}
+      />
     </div>
   );
 };

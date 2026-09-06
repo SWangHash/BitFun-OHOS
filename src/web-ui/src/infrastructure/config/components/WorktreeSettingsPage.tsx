@@ -1,4 +1,4 @@
-import { Button, ConfirmDialog, Icon, IconButton, Input, NumberInput, Switch, Tooltip } from '@bitfun/ui';
+import { Button, ConfirmDialog, Icon, IconButton, Input, NumberInput, Switch, Tooltip } from '@openbitfun/ui';
 import React, {
   useCallback,
   useEffect,
@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { FolderGit2, LoaderCircle, MessageSquareText, RotateCcw, Save } from 'lucide-react';
+import { FolderGit2, LoaderCircle, MessageSquareText, RotateCcw } from 'lucide-react';
 import { openAgentCompanionSession } from '@/app/services/openAgentCompanionSession';
 import { confirmWarning } from '@/infrastructure/confirm-dialog';
 import { flowChatManager } from '@/flow_chat/services/FlowChatManager';
@@ -22,6 +22,8 @@ import type {
 import { useI18n } from '@/infrastructure/i18n';
 import { notificationService } from '@/shared/notification-system';
 import {
+  ConfigActionBar,
+  ConfigEmptyState,
   ConfigPageContent,
   ConfigPageHeader,
   ConfigPageLayout,
@@ -30,7 +32,9 @@ import {
   ConfigLoadingState,
   ConfigMessage,
   ConfigRefreshButton,
+  ConfigRetryState,
 } from './common';
+import { useSettingsDraft } from '@/infrastructure/config/settingsDraftRegistry';
 import './WorktreeSettingsPage.scss';
 
 const AUTO_DELETE_LIMIT_MIN = 1;
@@ -38,8 +42,8 @@ const AUTO_DELETE_LIMIT_MAX = 100;
 const WORKTREE_REMOVE_ANIMATION_MS = 180;
 
 const DEFAULT_SETTINGS: WorktreeSettings = {
-  rootPath: '~/.bitfun/worktrees',
-  branchPrefix: 'bitfun/',
+  rootPath: '~/.openbitfun/worktrees',
+  branchPrefix: 'openbitfun/',
   copyLocalChanges: false,
   autoDeleteEnabled: true,
   autoDeleteLimit: 15,
@@ -90,6 +94,14 @@ function normalizeSettings(configured: unknown): WorktreeSettings {
   };
 }
 
+function settingsEqual(left: WorktreeSettings, right: WorktreeSettings): boolean {
+  return left.rootPath === right.rootPath
+    && left.branchPrefix === right.branchPrefix
+    && left.copyLocalChanges === right.copyLocalChanges
+    && left.autoDeleteEnabled === right.autoDeleteEnabled
+    && left.autoDeleteLimit === right.autoDeleteLimit;
+}
+
 function createDeleteRequestId(): string {
   return globalThis.crypto?.randomUUID?.()
     ?? `worktree-settings-delete-${Date.now()}-${Math.random()}`;
@@ -138,6 +150,7 @@ function waitFor(ms: number): Promise<void> {
 const WorktreeSettingsPage: React.FC = () => {
   const { t } = useI18n('worktrees');
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [trustedSettings, setTrustedSettings] = useState<WorktreeSettings | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState<PageMessage | null>(null);
@@ -155,6 +168,8 @@ const WorktreeSettingsPage: React.FC = () => {
   const pendingScrollSnapshotRef = useRef<ScrollSnapshot | null>(null);
   const worktreeMutationInFlightRef = useRef(false);
   const pendingWorktreeRefreshRef = useRef(false);
+  const settingsSaveInFlightRef = useRef(false);
+  const settingsDirty = trustedSettings !== null && !settingsEqual(settings, trustedSettings);
 
   const loadSettings = useCallback(async () => {
     setSettingsLoading(true);
@@ -163,17 +178,24 @@ const WorktreeSettingsPage: React.FC = () => {
       const configured = await configAPI.getConfig('app.worktrees', {
         skipRetryOnNotFound: true,
       });
-      setSettings(normalizeSettings(configured));
+      const nextSettings = normalizeSettings(configured);
+      setSettings(nextSettings);
+      setTrustedSettings(nextSettings);
     } catch {
-      setSettingsMessage({ type: 'error', text: t('settings.loadFailed') });
+      setTrustedSettings(null);
     } finally {
       setSettingsLoading(false);
     }
-  }, [t]);
+  }, []);
+
+  const updateSettings = useCallback((patch: Partial<WorktreeSettings>) => {
+    setSettings(current => ({ ...current, ...patch }));
+    setSettingsMessage(null);
+  }, []);
 
   const captureScrollSnapshot = useCallback((): ScrollSnapshot | null => {
     const anchor = projectsResultsRef.current;
-    const scrollContainer = anchor?.closest<HTMLElement>('.bitfun-config-page-layout');
+    const scrollContainer = anchor?.closest<HTMLElement>('.openbitfun-config-page-layout');
     if (!anchor || !scrollContainer) {
       return null;
     }
@@ -243,10 +265,14 @@ const WorktreeSettingsPage: React.FC = () => {
     });
   }, [loadProjects, loadSettings]);
 
-  const save = async () => {
+  const save = async (): Promise<boolean> => {
+    if (!trustedSettings || !settingsDirty) {
+      return !settingsDirty;
+    }
+    if (settingsSaveInFlightRef.current || saving) return false;
     if (!settings.rootPath.trim() || !settings.branchPrefix.trim()) {
       setSettingsMessage({ type: 'error', text: t('settings.required') });
-      return;
+      return false;
     }
     if (
       settings.autoDeleteLimit < AUTO_DELETE_LIMIT_MIN
@@ -259,9 +285,10 @@ const WorktreeSettingsPage: React.FC = () => {
           max: AUTO_DELETE_LIMIT_MAX,
         }),
       });
-      return;
+      return false;
     }
 
+    settingsSaveInFlightRef.current = true;
     setSaving(true);
     setSettingsMessage(null);
     try {
@@ -273,13 +300,33 @@ const WorktreeSettingsPage: React.FC = () => {
       };
       await configAPI.setConfig('app.worktrees', normalized);
       setSettings(normalized);
+      setTrustedSettings(normalized);
       setSettingsMessage({ type: 'success', text: t('settings.saved') });
+      return true;
     } catch {
       setSettingsMessage({ type: 'error', text: t('settings.saveFailed') });
+      return false;
     } finally {
+      settingsSaveInFlightRef.current = false;
       setSaving(false);
     }
   };
+
+  const discardSettings = useCallback(() => {
+    if (!trustedSettings) return;
+    setSettings(trustedSettings);
+    setSettingsMessage(null);
+  }, [trustedSettings]);
+
+  useSettingsDraft({
+    id: 'worktree-settings',
+    pageId: 'workspace.worktrees',
+    label: t('settings.title'),
+    dirty: settingsDirty,
+    saving,
+    save,
+    discard: discardSettings,
+  });
 
   const confirmDelete = async () => {
     const target = deleteTarget;
@@ -395,12 +442,32 @@ const WorktreeSettingsPage: React.FC = () => {
       return <ConfigLoadingState label={t('settings.loading')} />;
     }
 
+    if (!trustedSettings) {
+      return (
+        <ConfigRetryState
+          message={t('settings.loadFailed')}
+          retryLabel={t('settings.retry')}
+          onRetry={() => void loadSettings()}
+        />
+      );
+    }
+
     return (
       <>
-        <ConfigMessage message={settingsMessage} />
         <ConfigPageSection
           title={t('settings.isolation.title')}
           description={t('settings.isolation.description')}
+          extra={(
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => updateSettings(DEFAULT_SETTINGS)}
+              disabled={saving || settingsEqual(settings, DEFAULT_SETTINGS)}
+              leadingIcon={<RotateCcw size={14} aria-hidden />}
+            >
+              {t('settings.reset')}
+            </Button>
+          )}
         >
           <ConfigPageRow
             label={t('settings.rootPath.label')}
@@ -408,10 +475,7 @@ const WorktreeSettingsPage: React.FC = () => {
           >
             <Input
               value={settings.rootPath}
-              onChange={event => setSettings(current => ({
-                ...current,
-                rootPath: event.target.value,
-              }))}
+              onChange={event => updateSettings({ rootPath: event.target.value })}
               disabled={saving}
             />
           </ConfigPageRow>
@@ -421,10 +485,7 @@ const WorktreeSettingsPage: React.FC = () => {
           >
             <Input
               value={settings.branchPrefix}
-              onChange={event => setSettings(current => ({
-                ...current,
-                branchPrefix: event.target.value,
-              }))}
+              onChange={event => updateSettings({ branchPrefix: event.target.value })}
               disabled={saving}
             />
           </ConfigPageRow>
@@ -435,10 +496,7 @@ const WorktreeSettingsPage: React.FC = () => {
           >
             <Switch
               checked={settings.copyLocalChanges}
-              onChange={event => setSettings(current => ({
-                ...current,
-                copyLocalChanges: event.target.checked,
-              }))}
+              onChange={event => updateSettings({ copyLocalChanges: event.target.checked })}
               disabled={saving}
             />
           </ConfigPageRow>
@@ -449,10 +507,7 @@ const WorktreeSettingsPage: React.FC = () => {
           >
             <Switch
               checked={settings.autoDeleteEnabled}
-              onChange={event => setSettings(current => ({
-                ...current,
-                autoDeleteEnabled: event.target.checked,
-              }))}
+              onChange={event => updateSettings({ autoDeleteEnabled: event.target.checked })}
               disabled={saving}
             />
           </ConfigPageRow>
@@ -463,10 +518,7 @@ const WorktreeSettingsPage: React.FC = () => {
           >
             <NumberInput
               value={settings.autoDeleteLimit}
-              onValueChange={value => setSettings(current => ({
-                ...current,
-                autoDeleteLimit: value,
-              }))}
+              onValueChange={value => updateSettings({ autoDeleteLimit: value })}
               min={AUTO_DELETE_LIMIT_MIN}
               max={AUTO_DELETE_LIMIT_MAX}
               showButtons={false}
@@ -475,30 +527,22 @@ const WorktreeSettingsPage: React.FC = () => {
             />
           </ConfigPageRow>
         </ConfigPageSection>
-        <div className="bitfun-worktree-settings__actions">
-          <Button
-            className="bitfun-worktree-settings__action"
-            variant="outline"
-            size="sm"
-            onClick={() => setSettings(DEFAULT_SETTINGS)}
-            disabled={saving}
-            leadingIcon={<RotateCcw size={14} aria-hidden />}
-          >
-
-            {t('settings.reset')}
-          </Button>
-          <Button
-            className="bitfun-worktree-settings__action"
-            variant="fill"
-            size="sm"
-            onClick={() => void save()}
-            loading={saving}
-            leadingIcon={<Save size={14} aria-hidden />}
-          >
-
-            {t('settings.save')}
-          </Button>
-        </div>
+        <ConfigActionBar
+          status={settingsMessage?.type === 'error'
+            ? 'error'
+            : saving
+              ? 'saving'
+              : settingsDirty
+                ? 'unsaved'
+                : 'saved'}
+          statusMessage={settingsMessage?.text}
+          saving={saving}
+          saveDisabled={!settingsDirty}
+          discardDisabled={!settingsDirty}
+          saveLabel={t('settings.save')}
+          onSave={() => void save()}
+          onDiscard={discardSettings}
+        />
       </>
     );
   };
@@ -537,18 +581,18 @@ const WorktreeSettingsPage: React.FC = () => {
     return (
       <article
         className={[
-          'bitfun-worktree-settings__worktree',
+          'openbitfun-worktree-settings__worktree',
           removingWorktreeId === worktree.worktreeId
-            && 'bitfun-worktree-settings__worktree--removing',
+            && 'openbitfun-worktree-settings__worktree--removing',
         ].filter(Boolean).join(' ')}
         key={worktree.worktreeId}
         data-worktree-id={worktree.worktreeId}
       >
-        <div className="bitfun-worktree-settings__worktree-main">
-          <div className="bitfun-worktree-settings__worktree-copy">
-            <div className="bitfun-worktree-settings__worktree-heading">
-              <h5 className="bitfun-worktree-settings__worktree-title">{branchLabel}</h5>
-              <div className="bitfun-worktree-settings__metadata">
+        <div className="openbitfun-worktree-settings__worktree-main">
+          <div className="openbitfun-worktree-settings__worktree-copy">
+            <div className="openbitfun-worktree-settings__worktree-heading">
+              <h5 className="openbitfun-worktree-settings__worktree-title">{branchLabel}</h5>
+              <div className="openbitfun-worktree-settings__metadata">
                 {worktree.lifecycle !== 'managed' && <span>{lifecycleLabel}</span>}
                 {worktree.dirty && <span>{t('management.state.dirty')}</span>}
                 {worktree.hasUnpublishedCommits && (
@@ -558,12 +602,12 @@ const WorktreeSettingsPage: React.FC = () => {
                 {worktree.missing && <span>{t('management.state.missing')}</span>}
               </div>
             </div>
-            <code className="bitfun-worktree-settings__path" title={worktree.path}>
+            <code className="openbitfun-worktree-settings__path" title={worktree.path}>
               {worktree.path}
             </code>
             {worktree.associatedSessionCount > 0 && (
               <div
-                className="bitfun-worktree-settings__sessions-summary"
+                className="openbitfun-worktree-settings__sessions-summary"
                 title={sessionNames}
               >
                 <MessageSquareText size={13} aria-hidden />
@@ -572,12 +616,12 @@ const WorktreeSettingsPage: React.FC = () => {
                     count: worktree.associatedSessionCount,
                   })}
                 </span>
-                <span className="bitfun-worktree-settings__session-links">
+                <span className="openbitfun-worktree-settings__session-links">
                   {worktree.sessions.map(session => (
                     <button
                       key={session.sessionId}
                       type="button"
-                      className="bitfun-worktree-settings__session-link"
+                      className="openbitfun-worktree-settings__session-link"
                       disabled={openingSessionId !== null}
                       title={t('management.sessions.openLabel', {
                         name: session.sessionName,
@@ -589,14 +633,14 @@ const WorktreeSettingsPage: React.FC = () => {
                     >
                       {openingSessionId === session.sessionId && (
                         <LoaderCircle
-                          className="bitfun-worktree-settings__session-link-spinner"
+                          className="openbitfun-worktree-settings__session-link-spinner"
                           size={12}
                           aria-hidden
                         />
                       )}
                       <span>{session.sessionName}</span>
                       {session.archived && (
-                        <span className="bitfun-worktree-settings__session-link-state">
+                        <span className="openbitfun-worktree-settings__session-link-state">
                           {t('management.sessions.status.archived')}
                         </span>
                       )}
@@ -606,7 +650,7 @@ const WorktreeSettingsPage: React.FC = () => {
               </div>
             )}
           </div>
-          <div className="bitfun-worktree-settings__delete-control">
+          <div className="openbitfun-worktree-settings__delete-control">
             <Tooltip content={blockReason ?? t('management.delete.action')}>
               <IconButton
                 tone="danger"
@@ -629,17 +673,17 @@ const WorktreeSettingsPage: React.FC = () => {
   };
 
   const renderProjectsSkeleton = () => (
-    <div className="bitfun-worktree-settings__skeleton">
-      <span className="bitfun-sr-only" role="status">
+    <div className="openbitfun-worktree-settings__skeleton">
+      <span className="openbitfun-sr-only" role="status">
         {t('management.loading')}
       </span>
-      <div className="bitfun-worktree-settings__skeleton-header" aria-hidden="true">
+      <div className="openbitfun-worktree-settings__skeleton-header" aria-hidden="true">
         <span />
         <span />
       </div>
-      <div className="bitfun-worktree-settings__skeleton-list" aria-hidden="true">
+      <div className="openbitfun-worktree-settings__skeleton-list" aria-hidden="true">
         {[0, 1, 2].map(index => (
-          <div className="bitfun-worktree-settings__skeleton-row" key={index}>
+          <div className="openbitfun-worktree-settings__skeleton-row" key={index}>
             <span />
             <span />
             <span />
@@ -655,13 +699,12 @@ const WorktreeSettingsPage: React.FC = () => {
     }
     if (projects.length === 0 && !projectsMessage) {
       return (
-        <div className="bitfun-worktree-settings__empty">
-          <FolderGit2 size={22} aria-hidden />
-          <div>
-            <h4>{t('management.empty.title')}</h4>
-            <p>{t('management.empty.description')}</p>
-          </div>
-        </div>
+        <ConfigEmptyState
+          className="openbitfun-worktree-settings__empty"
+          icon={<FolderGit2 size={36} aria-hidden />}
+          title={t('management.empty.title')}
+          description={t('management.empty.description')}
+        />
       );
     }
     if (projects.length === 0) {
@@ -669,16 +712,16 @@ const WorktreeSettingsPage: React.FC = () => {
     }
 
     return (
-      <div className="bitfun-worktree-settings__projects">
+      <div className="openbitfun-worktree-settings__projects">
         {projects.map(project => (
           <section
-            className="bitfun-worktree-settings__project"
-            data-bf-component="worktree-settings"
-            data-bf-part="project"
+            className="openbitfun-worktree-settings__project"
+            data-openbitfun-component="worktree-settings"
+            data-openbitfun-part="project"
             key={project.projectWorkspacePath}
           >
-            <header className="bitfun-worktree-settings__project-header">
-              <div className="bitfun-worktree-settings__project-identity">
+            <header className="openbitfun-worktree-settings__project-header">
+              <div className="openbitfun-worktree-settings__project-identity">
                 <h4>{workspaceName(project.projectWorkspacePath)}</h4>
                 <code title={project.projectWorkspacePath}>
                   {project.projectWorkspacePath}
@@ -689,9 +732,9 @@ const WorktreeSettingsPage: React.FC = () => {
               </span>
             </header>
             <div
-              className="bitfun-worktree-settings__worktree-list"
-              data-bf-component="worktree-settings"
-              data-bf-part="worktreeList"
+              className="openbitfun-worktree-settings__worktree-list"
+              data-openbitfun-component="worktree-settings"
+              data-openbitfun-part="worktreeList"
             >
               {project.worktrees.map(worktree => renderWorktree(project, worktree))}
             </div>
@@ -720,9 +763,9 @@ const WorktreeSettingsPage: React.FC = () => {
 
   return (
     <ConfigPageLayout
-      className="bitfun-worktree-settings"
-      data-bf-component="worktree-settings"
-      data-bf-part="root"
+      className="openbitfun-worktree-settings"
+      data-openbitfun-component="worktree-settings"
+      data-openbitfun-part="root"
     >
       <ConfigPageHeader
         icon={<Icon name="git" size="lg" aria-hidden />}
@@ -732,7 +775,7 @@ const WorktreeSettingsPage: React.FC = () => {
       <ConfigPageContent>
         {renderSettings()}
         <ConfigPageSection
-          className="bitfun-worktree-settings__management-section"
+          className="openbitfun-worktree-settings__management-section"
           bodySurface={false}
           title={t('management.title')}
           description={t('management.description')}
@@ -757,25 +800,25 @@ const WorktreeSettingsPage: React.FC = () => {
           )}
           <div
             ref={projectsResultsRef}
-            data-bf-component="worktree-settings"
-            data-bf-part="results"
+            data-openbitfun-component="worktree-settings"
+            data-openbitfun-part="results"
             className={[
-              'bitfun-worktree-settings__results',
+              'openbitfun-worktree-settings__results',
               projectsLoading
                 && projectsInitialized
-                && 'bitfun-worktree-settings__results--refreshing',
+                && 'openbitfun-worktree-settings__results--refreshing',
             ].filter(Boolean).join(' ')}
             aria-busy={projectsLoading}
           >
             {projectsLoading && projectsInitialized && (
               <>
                 <div
-                  className="bitfun-worktree-settings__refresh-progress"
+                  className="openbitfun-worktree-settings__refresh-progress"
                   aria-hidden="true"
                 >
                   <span />
                 </div>
-                <span className="bitfun-sr-only" role="status">
+                <span className="openbitfun-sr-only" role="status">
                   {t('management.loading')}
                 </span>
               </>

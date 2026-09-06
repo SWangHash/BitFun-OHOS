@@ -5,8 +5,8 @@
 //! (same as `deveco-mcp`) with the `ui-verification-mcp` server id.
 
 use crate::service::mcp::get_global_mcp_service;
-use crate::util::errors::{BitFunError, BitFunResult};
-use bitfun_services_integrations::mcp::protocol::{MCPToolResult, MCPToolResultContent};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use openbitfun_services_integrations::mcp::protocol::{MCPToolResult, MCPToolResultContent};
 use serde_json::Value;
 
 pub(crate) const MCP_SERVER_ID: &str = "ui-verification-mcp";
@@ -15,9 +15,9 @@ pub(crate) const MCP_SERVER_ID: &str = "ui-verification-mcp";
 pub(crate) async fn call_ui_verification_mcp(
     tool_name: &str,
     args: Value,
-) -> BitFunResult<String> {
+) -> OpenBitFunResult<String> {
     let mcp_service = get_global_mcp_service().ok_or_else(|| {
-        BitFunError::tool("MCP service is not initialized".to_string())
+        OpenBitFunError::tool("MCP service is not initialized".to_string())
     })?;
 
     let connection = mcp_service
@@ -25,7 +25,7 @@ pub(crate) async fn call_ui_verification_mcp(
         .get_connection(MCP_SERVER_ID)
         .await
         .ok_or_else(|| {
-            BitFunError::tool(format!(
+            OpenBitFunError::tool(format!(
                 "MCP server '{}' is not connected. Configure it in app settings.",
                 MCP_SERVER_ID
             ))
@@ -34,10 +34,10 @@ pub(crate) async fn call_ui_verification_mcp(
     let result = connection
         .call_tool(tool_name, Some(args))
         .await
-        .map_err(|e| BitFunError::tool(format!("MCP {} call failed: {}", tool_name, e)))?;
+        .map_err(|e| OpenBitFunError::tool(format!("MCP {} call failed: {}", tool_name, e)))?;
 
     if result.is_error {
-        return Err(BitFunError::tool(extract_text(&result)));
+        return Err(OpenBitFunError::tool(extract_text(&result)));
     }
 
     Ok(extract_text(&result))

@@ -86,17 +86,17 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
   return (
     <div 
       className={`window-controls ${className}`}
-      data-bf-component="window-controls"
-      data-bf-part="root"
-      data-bf-state={[disabled && 'disabled', isMaximized && 'maximized'].filter(Boolean).join(' ') || undefined}
+      data-openbitfun-component="window-controls"
+      data-openbitfun-part="root"
+      data-openbitfun-state={[disabled && 'disabled', isMaximized && 'maximized'].filter(Boolean).join(' ') || undefined}
       {...props}
     >
       {showMinimize && (
         <Tooltip content={t('window.minimize')} placement="bottom">
           <button
             className="window-controls__btn window-controls__btn--minimize"
-            data-bf-component="window-controls"
-            data-bf-part="minimize"
+            data-openbitfun-component="window-controls"
+            data-openbitfun-part="minimize"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -118,8 +118,8 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
         <Tooltip content={isMaximized ? t('window.restore') : t('window.maximize')} placement="bottom">
           <button
             className="window-controls__btn window-controls__btn--maximize"
-            data-bf-component="window-controls"
-            data-bf-part="maximize"
+            data-openbitfun-component="window-controls"
+            data-openbitfun-part="maximize"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -144,8 +144,8 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
         <Tooltip content={t('window.close')} placement="bottom">
           <button
             className="window-controls__btn window-controls__btn--close"
-            data-bf-component="window-controls"
-            data-bf-part="close"
+            data-openbitfun-component="window-controls"
+            data-openbitfun-part="close"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();

@@ -69,7 +69,7 @@ vi.mock('@/shared/notification-system', () => ({
   },
 }));
 
-vi.mock('@bitfun/ui', () => ({
+vi.mock('@openbitfun/ui', () => ({
   Icon: ({ name, ...props }: { name: string } & React.HTMLAttributes<HTMLSpanElement>) => <span data-icon={name} {...props} />,
   Tooltip: ({ children }: React.PropsWithChildren) => <>{children}</>,
   Button: ({ children, disabled, onClick }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
@@ -140,8 +140,46 @@ vi.mock('@bitfun/ui', () => ({
 }));
 
 vi.mock('./common', () => ({
+  ConfigEmptyState: ({ icon, title, description, ...props }: {
+    icon: React.ReactNode;
+    title?: React.ReactNode;
+    description: React.ReactNode;
+    className?: string;
+  }) => (
+    <div {...props}>
+      {icon}
+      <div>{title}</div>
+      <div>{description}</div>
+    </div>
+  ),
+  ConfigActionBar: ({
+    discardLabel,
+    onDiscard,
+    onSave,
+    saveLabel,
+  }: {
+    discardLabel?: React.ReactNode;
+    onDiscard: () => void;
+    onSave: () => void;
+    saveLabel?: React.ReactNode;
+  }) => (
+    <div>
+      <button type="button" onClick={onDiscard}>{discardLabel ?? 'discard'}</button>
+      <button type="button" onClick={onSave}>{saveLabel ?? 'save'}</button>
+    </div>
+  ),
   ConfigLoadingState: ({ label }: { label: string }) => <div>{label}</div>,
   ConfigMessage: ({ message }: { message: { text: string } | null }) => message ? <div>{message.text}</div> : null,
+  ConfigRetryState: ({ message, onRetry, retryLabel }: {
+    message: string;
+    onRetry: () => void;
+    retryLabel: string;
+  }) => (
+    <div>
+      <span>{message}</span>
+      <button type="button" onClick={onRetry}>{retryLabel}</button>
+    </div>
+  ),
   ConfigRefreshButton: ({ onClick }: { onClick: () => void }) => (
     <button type="button" onClick={onClick}>refresh</button>
   ),
@@ -153,7 +191,7 @@ vi.mock('./common', () => ({
     </header>
   ),
   ConfigPageLayout: ({ children }: { children: React.ReactNode }) => (
-    <main className="bitfun-config-page-layout">{children}</main>
+    <main className="openbitfun-config-page-layout">{children}</main>
   ),
   ConfigPageRow: ({
     children,
@@ -194,7 +232,7 @@ function worktree(overrides: Record<string, unknown> = {}) {
   return {
     worktreeId: 'wt-1',
     projectWorkspacePath: '/repo',
-    path: '/managed/BitFun-wt-1',
+    path: '/managed/OpenBitFun-wt-1',
     head: '0123456789abcdef',
     lifecycle: 'managed',
     isMain: false,
@@ -285,8 +323,39 @@ describe('WorktreeSettingsPage', () => {
     expect(checkboxes[1].checked).toBe(true);
     expect(limit?.value).toBe('15');
     expect(container.textContent).toContain('/repo');
-    expect(container.textContent).toContain('/managed/BitFun-wt-1');
+    expect(container.textContent).toContain('/managed/OpenBitFun-wt-1');
     expect(container.textContent).toContain('Ship worktree management');
+  });
+
+  it('locks untrusted fallback settings after a failed read and supports retry', async () => {
+    getConfigMock
+      .mockRejectedValueOnce(new Error('read failed'))
+      .mockResolvedValueOnce({
+        rootPath: '/retried/worktrees',
+        branchPrefix: 'retried/',
+        copyLocalChanges: true,
+      });
+
+    await act(async () => {
+      root.render(<WorktreeSettingsPage />);
+    });
+    await flushPromises();
+
+    expect(container.textContent).toContain('settings.loadFailed');
+    expect(container.textContent).not.toContain('settings.save');
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+
+    const retryButton = Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent === 'settings.retry');
+    await act(async () => {
+      retryButton?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getConfigMock).toHaveBeenCalledTimes(2);
+    expect(container.querySelector<HTMLInputElement>('input[value="/retried/worktrees"]'))
+      .not.toBeNull();
   });
 
   it('saves the auto-delete policy with the existing worktree settings', async () => {
@@ -321,6 +390,38 @@ describe('WorktreeSettingsPage', () => {
       copyLocalChanges: false,
       autoDeleteEnabled: true,
       autoDeleteLimit: 24,
+    });
+  });
+
+  it('submits a settings draft only once when save is triggered twice synchronously', async () => {
+    const saveRequest = deferred<void>();
+    setConfigMock.mockReturnValueOnce(saveRequest.promise);
+
+    await act(async () => {
+      root.render(<WorktreeSettingsPage />);
+    });
+    await flushPromises();
+
+    const limit = container.querySelector<HTMLInputElement>('input[type="number"]');
+    await act(async () => {
+      if (!limit) return;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(limit, '24');
+      limit.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const saveButton = Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent?.includes('settings.save'));
+    act(() => {
+      saveButton?.click();
+      saveButton?.click();
+    });
+
+    expect(setConfigMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      saveRequest.resolve();
+      await saveRequest.promise;
+      await Promise.resolve();
     });
   });
 
@@ -425,9 +526,9 @@ describe('WorktreeSettingsPage', () => {
       .find(button => button.textContent === 'refresh');
     act(() => refreshButton?.click());
 
-    const results = container.querySelector('.bitfun-worktree-settings__results');
+    const results = container.querySelector('.openbitfun-worktree-settings__results');
     expect(results?.getAttribute('aria-busy')).toBe('true');
-    expect(container.textContent).toContain('/managed/BitFun-wt-1');
+    expect(container.textContent).toContain('/managed/OpenBitFun-wt-1');
 
     await act(async () => {
       refresh.resolve([{
@@ -439,7 +540,7 @@ describe('WorktreeSettingsPage', () => {
     });
 
     expect(results?.getAttribute('aria-busy')).toBe('false');
-    expect(container.textContent).toContain('/managed/BitFun-wt-1');
+    expect(container.textContent).toContain('/managed/OpenBitFun-wt-1');
   });
 
   it('keeps the settings scroll position while deletion refreshes the list', async () => {
@@ -454,7 +555,7 @@ describe('WorktreeSettingsPage', () => {
     await flushPromises();
     listProjectsMock.mockReturnValueOnce(refresh.promise);
 
-    const layout = container.querySelector<HTMLElement>('.bitfun-config-page-layout');
+    const layout = container.querySelector<HTMLElement>('.openbitfun-config-page-layout');
     expect(layout).not.toBeNull();
     if (layout) {
       layout.scrollTop = 420;
@@ -472,9 +573,9 @@ describe('WorktreeSettingsPage', () => {
       await Promise.resolve();
     });
 
-    const results = container.querySelector('.bitfun-worktree-settings__results');
+    const results = container.querySelector('.openbitfun-worktree-settings__results');
     expect(results?.getAttribute('aria-busy')).toBe('true');
-    expect(container.querySelector('.bitfun-worktree-settings__skeleton')).toBeNull();
+    expect(container.querySelector('.openbitfun-worktree-settings__skeleton')).toBeNull();
     expect(layout?.scrollTop).toBe(420);
 
     await act(async () => {

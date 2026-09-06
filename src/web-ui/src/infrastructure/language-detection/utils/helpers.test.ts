@@ -1,16 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { getEditorType, getFileIconType } from './helpers';
 
-describe('language detection editor routing', () => {
-  it('routes SVG files to the image viewer', () => {
-    expect(getFileIconType('icon.svg')).toBe('image');
-    expect(getEditorType('icon.svg')).toBe('image-viewer');
+import { getEditorType } from './helpers';
+
+describe('getEditorType', () => {
+  it('routes PDF files to the PDF viewer case-insensitively', () => {
+    expect(getEditorType('report.PDF')).toBe('pdf-viewer');
   });
 
-  it('keeps executable and archive files in the text editor route', () => {
-    expect(getFileIconType('app.exe')).toBe('binary');
-    expect(getFileIconType('bundle.zip')).toBe('archive');
-    expect(getEditorType('app.exe')).toBe('code-editor');
-    expect(getEditorType('bundle.zip')).toBe('code-editor');
+  it('routes HTML files to the embedded preview case-insensitively', () => {
+    expect(getEditorType('index.HTML')).toBe('html-preview');
+    expect(getEditorType('legacy.HTM')).toBe('html-preview');
   });
 });

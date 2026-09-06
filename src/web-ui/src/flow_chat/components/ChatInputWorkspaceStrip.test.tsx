@@ -33,12 +33,14 @@ vi.mock('react-i18next', () => ({
       'reasoningSelector.auto': 'Auto',
       'chatInput.permissionMode.ask.label': 'Ask',
       'strip.newWorktree': 'New Worktree',
+      'workspaceStrip.primaryAssistant': 'Primary assistant',
+      'workspaceStrip.personalAssistant': 'Personal assistant',
     } as Record<string, string>)[key] ?? options?.defaultValue ?? key,
   }),
 }));
 
-vi.mock('@bitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@bitfun/ui')>(),
+vi.mock('@openbitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@openbitfun/ui')>(),
   // Forwards the rest of the props so state carried on data attributes stays
   // observable; `variant`/`size` are the library's own and have no DOM meaning.
   IconButton: ({
@@ -152,7 +154,7 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
       root.unmount();
     });
     container.remove();
-    document.querySelector('[data-bf-overlay-host="true"]')?.remove();
+    document.querySelector('[data-openbitfun-overlay-host="true"]')?.remove();
     vi.clearAllMocks();
   });
 
@@ -160,35 +162,35 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     await act(async () => {
       root.render(
         <ChatInputWorkspaceStrip
-          repositoryPath="D:/workspace/BitFun"
-          workspaceLabel="BitFun"
+          repositoryPath="D:/workspace/OpenBitFun"
+          workspaceLabel="OpenBitFun"
           deferPassiveGitRefresh
         />
       );
     });
 
     expect(mocks.useGitState).toHaveBeenCalledWith(expect.objectContaining({
-      repositoryPath: 'D:/workspace/BitFun',
+      repositoryPath: 'D:/workspace/OpenBitFun',
       layers: ['basic'],
       isActive: false,
       refreshOnMount: false,
       refreshOnActive: false,
     }));
-    expect(container.textContent).toContain('BitFun');
+    expect(container.textContent).toContain('OpenBitFun');
   });
 
   it('keeps passive git refresh enabled for normal sessions', async () => {
     await act(async () => {
       root.render(
         <ChatInputWorkspaceStrip
-          repositoryPath="D:/workspace/BitFun"
-          workspaceLabel="BitFun"
+          repositoryPath="D:/workspace/OpenBitFun"
+          workspaceLabel="OpenBitFun"
         />
       );
     });
 
     expect(mocks.useGitState).toHaveBeenCalledWith(expect.objectContaining({
-      repositoryPath: 'D:/workspace/BitFun',
+      repositoryPath: 'D:/workspace/OpenBitFun',
       isActive: true,
       refreshOnMount: true,
       refreshOnActive: false,
@@ -199,15 +201,15 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     await act(async () => {
       root.render(
         <ChatInputWorkspaceStrip
-          repositoryPath="D:/workspace/BitFun"
-          workspaceLabel="BitFun"
+          repositoryPath="D:/workspace/OpenBitFun"
+          workspaceLabel="OpenBitFun"
         />
       );
     });
 
     // No provider, one workspace — same outcome: the name is a span, not a
     // trigger, and no menu can appear.
-    const workspace = container.querySelector('[data-bf-part="workspace"]');
+    const workspace = container.querySelector('[data-openbitfun-part="workspace"]');
     expect(workspace?.tagName).toBe('SPAN');
     expect(container.querySelector('[data-testid="chat-input-workspace-trigger"]')).toBeNull();
   });
@@ -216,8 +218,8 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     await act(async () => {
       root.render(
         <ChatInputWorkspaceStrip
-          repositoryPath="D:/workspace/BitFun"
-          workspaceLabel="BitFun"
+          repositoryPath="D:/workspace/OpenBitFun"
+          workspaceLabel="OpenBitFun"
         />
       );
     });
@@ -243,18 +245,47 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
   it('switches the active workspace from the strip menu when several are open', async () => {
     mocks.useOptionalWorkspaceContext.mockReturnValue({
       openedWorkspacesList: [
-        { id: 'ws-1', name: 'BitFun', path: 'D:/workspace/BitFun' },
-        { id: 'ws-2', name: 'Other', path: 'D:/workspace/Other' },
+        {
+          id: 'ws-1',
+          name: 'OpenBitFun',
+          rootPath: 'D:/workspace/OpenBitFun',
+          workspaceKind: 'normal',
+        },
+        {
+          id: 'ws-2',
+          name: 'Other',
+          rootPath: 'D:/workspace/Other',
+          workspaceKind: 'normal',
+        },
+        {
+          id: 'ws-3',
+          name: 'Primary',
+          rootPath: 'D:/internal/assistants/ws-3',
+          workspaceKind: 'assistant',
+        },
+        {
+          id: 'ws-4',
+          name: 'Personal',
+          rootPath: 'D:/internal/assistants/ws-4',
+          workspaceKind: 'assistant',
+          assistantId: 'assistant-4',
+        },
       ],
-      activeWorkspace: { id: 'ws-1', name: 'BitFun', path: 'D:/workspace/BitFun' },
+      activeWorkspace: {
+        id: 'ws-1',
+        name: 'OpenBitFun',
+        rootPath: 'D:/workspace/OpenBitFun',
+        workspaceKind: 'normal',
+      },
+      primaryAssistantWorkspaceId: 'ws-3',
       setActiveWorkspace: mocks.setActiveWorkspace,
     });
 
     await act(async () => {
       root.render(
         <ChatInputWorkspaceStrip
-          repositoryPath="D:/workspace/BitFun"
-          workspaceLabel="BitFun"
+          repositoryPath="D:/workspace/OpenBitFun"
+          workspaceLabel="OpenBitFun"
         />
       );
     });
@@ -275,6 +306,19 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     expect(
       menu?.querySelector('[data-testid="chat-input-workspace-option-ws-1"]')?.getAttribute('aria-checked'),
     ).toBe('true');
+    expect(
+      menu?.querySelector('[data-testid="chat-input-workspace-option-ws-1"]')?.textContent,
+    ).toContain('D:/workspace/OpenBitFun');
+    expect(
+      menu?.querySelector('[data-testid="chat-input-workspace-option-ws-2"]')?.textContent,
+    ).toContain('D:/workspace/Other');
+    expect(
+      menu?.querySelector('[data-testid="chat-input-workspace-option-ws-3"]')?.textContent,
+    ).toContain('Primary assistant');
+    expect(
+      menu?.querySelector('[data-testid="chat-input-workspace-option-ws-4"]')?.textContent,
+    ).toContain('Personal assistant');
+    expect(menu?.textContent).not.toContain('D:/internal/assistants/');
 
     const other = menu?.querySelector<HTMLButtonElement>(
       '[data-testid="chat-input-workspace-option-ws-2"]',
@@ -291,8 +335,8 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     await act(async () => {
       root.render(
         <ChatInputWorkspaceStrip
-          repositoryPath="D:/workspace/BitFun"
-          workspaceLabel="BitFun"
+          repositoryPath="D:/workspace/OpenBitFun"
+          workspaceLabel="OpenBitFun"
           worktreeControl={{ enabled: false, locked: false, onChange: vi.fn() }}
           permissionControl={{ mode: 'auto', onChange: vi.fn() }}
           usageReport={{ visible: true, currentTokens: 480, maxTokens: 4000, onOpen: vi.fn() }}
@@ -300,15 +344,15 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
       );
     });
 
-    const context = container.querySelector<HTMLElement>('[data-bf-part="context"]');
-    const next = container.querySelector<HTMLElement>('[data-bf-part="next"]');
+    const context = container.querySelector<HTMLElement>('[data-openbitfun-part="context"]');
+    const next = container.querySelector<HTMLElement>('[data-openbitfun-part="next"]');
     expect(context).not.toBeNull();
     expect(next).not.toBeNull();
 
     // Where the session runs, and whether it runs there in isolation, read as
     // one situation.
-    expect(context?.querySelector('[data-bf-part="workspace"]')).not.toBeNull();
-    expect(context?.querySelector('[data-bf-part="branch"]')).not.toBeNull();
+    expect(context?.querySelector('[data-openbitfun-part="workspace"]')).not.toBeNull();
+    expect(context?.querySelector('[data-openbitfun-part="branch"]')).not.toBeNull();
     expect(context?.querySelector('[data-testid="chat-input-worktree-toggle"]')).not.toBeNull();
 
     // What the next submission runs with reads as one contract.
@@ -317,28 +361,27 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     );
     expect(permissionTrigger?.textContent).toContain('chatInput.permissionMode.auto.label');
     // The ring carries the reading on its own; the number is not repeated.
-    expect(next?.querySelector('[data-bf-part="usageAction"]')).not.toBeNull();
-    expect(next?.querySelector('.bitfun-chat-input-workspace-strip__usage-ring')).not.toBeNull();
-    expect(next?.querySelector('[data-bf-part="usageAction"]')?.getAttribute('data-tooltip'))
+    expect(next?.querySelector('[data-openbitfun-part="usageAction"]')).not.toBeNull();
+    expect(next?.querySelector('.openbitfun-chat-input-workspace-strip__usage-ring')).not.toBeNull();
+    expect(next?.querySelector('[data-openbitfun-part="usageAction"]')?.getAttribute('data-tooltip'))
       .toBe('480/4K 12%');
     expect(container.textContent).not.toContain('12%');
 
     // The harness and the reasoning strength live in the capsule now, so the
     // strip must not grow a second home for either.
     expect(container.querySelector('[data-testid="harness-profile-selector"]')).toBeNull();
-    expect(container.querySelector('[data-bf-part="harness"]')).toBeNull();
-    expect(container.querySelector('[data-bf-part="runtime"]')).toBeNull();
+    expect(container.querySelector('[data-openbitfun-part="harness"]')).toBeNull();
+    expect(container.querySelector('[data-openbitfun-part="runtime"]')).toBeNull();
   });
 
-  it('keeps an ask-mode permission entry visible and switches from its menu', async () => {
+  it('keeps an ask-mode permission entry visible and switches without a hide action', async () => {
     const onChange = vi.fn();
-    const onHide = vi.fn();
     await act(async () => {
       root.render(
         <ChatInputWorkspaceStrip
           repositoryPath=""
           workspaceLabel=""
-          permissionControl={{ mode: 'ask', onChange, onHide }}
+          permissionControl={{ mode: 'ask', onChange }}
         />
       );
     });
@@ -355,6 +398,9 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     );
     expect(permissionMenu).not.toBeNull();
     expect(permissionMenu?.style.visibility).toBe('visible');
+    expect(
+      permissionMenu?.querySelector('[data-testid="chat-input-permission-hide-control"]'),
+    ).toBeNull();
 
     await act(async () => {
       document
@@ -362,17 +408,6 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
         ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(onChange).toHaveBeenCalledWith('auto');
-    expect(document.querySelector('[data-testid="chat-input-permission-menu"]')).toBeNull();
-
-    await act(async () => {
-      trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      document
-        .querySelector<HTMLButtonElement>('[data-testid="chat-input-permission-hide-control"]')
-        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    expect(onHide).toHaveBeenCalledOnce();
     expect(document.querySelector('[data-testid="chat-input-permission-menu"]')).toBeNull();
   });
 
@@ -833,8 +868,8 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     await act(async () => {
       root.render(
         <ChatInputWorkspaceStrip
-          repositoryPath="D:/workspace/BitFun"
-          workspaceLabel="BitFun"
+          repositoryPath="D:/workspace/OpenBitFun"
+          workspaceLabel="OpenBitFun"
           permissionControl={{ mode: 'acp' }}
         />
       );
@@ -853,8 +888,8 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     await act(async () => {
       root.render(
         <ChatInputWorkspaceStrip
-          repositoryPath="D:/workspace/BitFun"
-          workspaceLabel="BitFun"
+          repositoryPath="D:/workspace/OpenBitFun"
+          workspaceLabel="OpenBitFun"
           permissionControl={{ mode: 'acp' }}
           usageReport={{ visible: true, currentTokens: 1680, maxTokens: 4000, onOpen: vi.fn() }}
         />
@@ -862,16 +897,16 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     });
 
     const strip = container.querySelector<HTMLElement>('[data-testid="chat-input-workspace-strip"]');
-    expect(strip?.className).toBe('bitfun-chat-input-workspace-strip');
+    expect(strip?.className).toBe('openbitfun-chat-input-workspace-strip');
     expect(strip?.children.length).toBe(2);
-    expect(strip?.children[0]?.getAttribute('data-bf-part')).toBe('context');
-    expect(strip?.children[1]?.getAttribute('data-bf-part')).toBe('next');
+    expect(strip?.children[0]?.getAttribute('data-openbitfun-part')).toBe('context');
+    expect(strip?.children[1]?.getAttribute('data-openbitfun-part')).toBe('next');
 
     await act(async () => {
       root.render(
         <ChatInputWorkspaceStrip
-          repositoryPath="D:/workspace/BitFun"
-          workspaceLabel="BitFun"
+          repositoryPath="D:/workspace/OpenBitFun"
+          workspaceLabel="OpenBitFun"
           permissionControl={{ mode: 'acp' }}
         />
       );
@@ -880,9 +915,9 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     const withoutUsage = container.querySelector<HTMLElement>(
       '[data-testid="chat-input-workspace-strip"]',
     );
-    expect(withoutUsage?.className).toBe('bitfun-chat-input-workspace-strip');
+    expect(withoutUsage?.className).toBe('openbitfun-chat-input-workspace-strip');
     expect(withoutUsage?.children.length).toBe(2);
-    expect(withoutUsage?.querySelector('[data-bf-part="usageAction"]')).toBeNull();
+    expect(withoutUsage?.querySelector('[data-openbitfun-part="usageAction"]')).toBeNull();
   });
 
   it('reuses the permission control with dispatch-scoped choices', async () => {
@@ -995,7 +1030,7 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
             worktreeId: 'wt-1',
             rootPath: '/worktrees/wt-1',
             baseCommit: '0123456789abcdef',
-            branch: 'bitfun/isolated',
+            branch: 'openbitfun/isolated',
             lifecycle: 'managed',
           }}
           worktreeControl={{ enabled: true, locked: false, onChange }}
@@ -1005,7 +1040,7 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
 
     const toggle = container.querySelector<HTMLButtonElement>('[data-testid="chat-input-worktree-toggle"]');
     expect(toggle?.dataset.worktreeEnabled).toBe('true');
-    expect(container.textContent).toContain('bitfun/isolated');
+    expect(container.textContent).toContain('openbitfun/isolated');
     expect(container.querySelector('[data-testid="chat-input-branch-trigger"]')).toBeNull();
 
     await act(async () => {
@@ -1097,8 +1132,8 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
       );
     });
 
-    const context = container.querySelector<HTMLElement>('[data-bf-part="context"]');
-    const location = context?.querySelector('.bitfun-chat-input-workspace-strip__location');
+    const context = container.querySelector<HTMLElement>('[data-openbitfun-part="context"]');
+    const location = context?.querySelector('.openbitfun-chat-input-workspace-strip__location');
     const dispatchTrigger = context?.querySelector<HTMLElement>(
       '[data-testid="chat-input-dispatch-trigger"]',
     );
@@ -1137,14 +1172,14 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
               displayName: 'build-host',
             },
             locked: true,
-            branch: 'bitfun/dispatch/job-1',
+            branch: 'openbitfun/dispatch/job-1',
             onSelectTarget: vi.fn(),
           }}
         />
       );
     });
 
-    expect(container.textContent).toContain('bitfun/dispatch/job-1');
+    expect(container.textContent).toContain('openbitfun/dispatch/job-1');
     expect(container.textContent).not.toContain('main');
     expect(container.querySelector('[data-testid="chat-input-branch-trigger"]')).toBeNull();
   });

@@ -7,11 +7,10 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Icon, IconButton, Input } from '@bitfun/ui';
+import { Icon, IconButton, Input } from '@openbitfun/ui';
 import { AlertTriangle, MousePointer2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@/shared/utils/logger';
-import { useSceneStore } from '@/app/stores/sceneStore';
 import { useContextStore } from '@/shared/context-system';
 import type { WebElementContext } from '@/shared/types/context';
 import { createInspectorScript, CANCEL_INSPECTOR_SCRIPT } from './browserInspectorScript';
@@ -40,8 +39,6 @@ export interface BrowserPanelProps {
 
 const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openRequestId }) => {
   const { t } = useTranslation('common');
-  const activeTabId = useSceneStore((s) => s.activeTabId);
-  const shouldShowWebview = isActive && activeTabId === 'session';
   const addContext = useContextStore((s) => s.addContext);
   const inspectorUnlistenRef = useRef<(() => void) | null>(null);
   const [isInspectorActive, setIsInspectorActive] = useState(false);
@@ -49,7 +46,7 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
   const browser = useEmbeddedBrowserWebview({
     defaultUrl: DEFAULT_URL,
     initialUrl,
-    isVisible: shouldShowWebview,
+    isVisible: isActive,
     labelPrefix: 'embedded-browser-panel-view',
     log,
     openRequestId,
@@ -161,8 +158,8 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
   }, [addContext, evalInWebview, getCurrentUrl, getWebviewLabel, hasWebview, isInspectorActive, isTauri, stopInspector]);
 
   return (
-    <div data-bf-component="browser-panel" data-bf-part="root" data-bf-state={isLoading ? 'loading' : ''} className="browser-panel" data-testid="browser-panel">
-      <form data-bf-component="browser-panel" data-bf-part="toolbar" className="browser-panel__toolbar" onSubmit={handleSubmit} data-testid="browser-panel-title">
+    <div data-openbitfun-component="browser-panel" data-openbitfun-part="root" data-openbitfun-state={isLoading ? 'loading' : ''} className="browser-panel" data-testid="browser-panel">
+      <form data-openbitfun-component="browser-panel" data-openbitfun-part="toolbar" className="browser-panel__toolbar" onSubmit={handleSubmit} data-testid="browser-panel-title">
         <IconButton
           type="button"
           size="sm"
@@ -190,7 +187,7 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
           )}
           data-testid="browser-refresh-button"
         />
-        <div data-bf-component="browser-panel" data-bf-part="address" className="browser-panel__address">
+        <div data-openbitfun-component="browser-panel" data-openbitfun-part="address" className="browser-panel__address">
           <Input
             className="browser-panel__address-field"
             type="text"
@@ -216,17 +213,17 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
       </form>
 
       {error ? (
-        <div data-bf-component="browser-panel" data-bf-part="error" className="browser-panel__error" data-testid="browser-error-message">
+        <div data-openbitfun-component="browser-panel" data-openbitfun-part="error" className="browser-panel__error" data-testid="browser-error-message">
           <AlertTriangle size={16} />
           <span>{error}</span>
         </div>
       ) : null}
 
-      <div data-bf-component="browser-panel" data-bf-part="content" className="browser-panel__content" data-testid="browser-page-frame">
+      <div data-openbitfun-component="browser-panel" data-openbitfun-part="content" className="browser-panel__content" data-testid="browser-page-frame">
         {!isTauri ? (
           <iframe
-            data-bf-component="browser-panel"
-            data-bf-part="iframe"
+            data-openbitfun-component="browser-panel"
+            data-openbitfun-part="iframe"
             className="browser-panel__iframe"
             src={currentUrl}
             title="Embedded Browser Panel"
@@ -235,12 +232,12 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
         ) : (
           <div
             ref={viewportRef}
-            data-bf-component="browser-panel"
-            data-bf-part="webviewHost"
+            data-openbitfun-component="browser-panel"
+            data-openbitfun-part="webviewHost"
             className="browser-panel__webview-host"
             data-webview-label={webviewLabel}
           >
-            <div data-bf-component="browser-panel" data-bf-part="placeholder" className="browser-panel__webview-placeholder">
+            <div data-openbitfun-component="browser-panel" data-openbitfun-part="placeholder" className="browser-panel__webview-placeholder">
               <Icon name="browser" size="lg" />
               <span data-testid="browser-current-url">{currentUrl}</span>
             </div>

@@ -14,7 +14,10 @@ import type { PeerHostCapabilities } from './PeerConnectionManager';
  *   (`true`); an old CLI never did (`false`). `hostKind === null` (truly
  *   unknown / still probing) stays optimistic.
  *
- * Mirrors {@link resolveCanCancelTool} for `cancel_tool`. See PR #2428 round 5 #1.
+ * `cancel_tool` is resolved by the same rule when a consumer needs it. The
+ * Terminal Interrupt button that used to consume it left with the legacy
+ * TerminalControl tool; hosts keep advertising the capability for older
+ * controllers that still render that button. See PR #2428 round 5 #1.
  */
 export function canQueryToolCatalogOnSurface(
   peerActive: boolean,
@@ -33,5 +36,29 @@ export function canQueryToolCatalogOnSurface(
     return false;
   }
   // toolCatalog === null: older host, field absent — decide by host kind.
+  return capabilities.hostKind !== 'cli';
+}
+
+/**
+ * Resolve whether the rendered host can answer a Runtime-owned
+ * AskUserQuestion. Desktop has always exposed `submit_user_answers`; CLI only
+ * gained the Peer Host command together with the advertised capability.
+ */
+export function canSubmitUserQuestionsOnSurface(
+  peerActive: boolean,
+  capabilities: PeerHostCapabilities | null,
+): boolean {
+  if (!peerActive) {
+    return true;
+  }
+  if (capabilities === null) {
+    return true;
+  }
+  if (capabilities.userQuestionResponse === true) {
+    return true;
+  }
+  if (capabilities.userQuestionResponse === false) {
+    return false;
+  }
   return capabilities.hostKind !== 'cli';
 }

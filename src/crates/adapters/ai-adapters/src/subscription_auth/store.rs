@@ -1,13 +1,13 @@
 //! Persistence for subscription-account credentials.
 //!
 //! OAuth tokens and API keys are stored outside the metadata JSON. macOS uses
-//! a prompt-free encrypted file vault in BitFun's application data directory;
+//! a prompt-free encrypted file vault in OpenBitFun's application data directory;
 //! Windows and Linux continue to use their native credential stores.
 //!
-//! Path: `{dirs::config_dir()}/bitfun/data/subscription_auth.json`.
+//! Path: `{dirs::config_dir()}/openbitfun/data/subscription_auth.json`.
 
 use anyhow::{anyhow, Context, Result};
-use bitfun_services_core::secure_credentials::SecureCredentialVault;
+use openbitfun_services_core::secure_credentials::SecureCredentialVault;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt;
@@ -19,7 +19,7 @@ use std::time::Duration;
 const STORE_VERSION: u8 = 2;
 const CLEANUP_JOURNAL_VERSION: u8 = 1;
 #[cfg(not(target_os = "macos"))]
-const KEYRING_SERVICE: &str = "openbitfun.bitfun.subscription-auth.v1";
+const KEYRING_SERVICE: &str = "openbitfun.openbitfun.subscription-auth.v1";
 const STORE_FILE_LOCK_TIMEOUT: Duration = Duration::from_secs(10);
 const PROVIDER_REFRESH_LOCK_TIMEOUT: Duration = Duration::from_secs(40);
 const STORE_FILE_LOCK_RETRY_INTERVAL: Duration = Duration::from_millis(25);
@@ -231,7 +231,7 @@ struct SecureStoreFile {
     /// Monotonic provider epochs, retained even after an account is removed.
     ///
     /// The retained entry is a tombstone: an authorization or token refresh
-    /// that began in another BitFun process before logout must not be able to
+    /// that began in another OpenBitFun process before logout must not be able to
     /// publish its stale credential after logout has completed.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     provider_revisions: HashMap<String, u64>,
@@ -432,7 +432,7 @@ fn current_vault() -> Arc<dyn SecureCredentialVault> {
     }
     #[cfg(feature = "system-vault")]
     {
-        use bitfun_services_core::secure_credentials::SystemSecureCredentialVault;
+        use openbitfun_services_core::secure_credentials::SystemSecureCredentialVault;
         return Arc::new(SystemSecureCredentialVault::new(KEYRING_SERVICE));
     }
     #[cfg(not(feature = "system-vault"))]
@@ -748,7 +748,7 @@ async fn acquire_store_file_lock_with_timeout(
                 if tokio::time::Instant::now() >= deadline {
                     let _ = fs2::FileExt::unlock(&file);
                     return Err(anyhow!(
-                        "timed out waiting for subscription credential transaction lock {}; another BitFun process may be updating credentials",
+                        "timed out waiting for subscription credential transaction lock {}; another OpenBitFun process may be updating credentials",
                         lock_path.display()
                     ));
                 }
@@ -761,7 +761,7 @@ async fn acquire_store_file_lock_with_timeout(
                 let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
                 if remaining.is_zero() {
                     return Err(anyhow!(
-                        "timed out waiting for subscription credential transaction lock {}; another BitFun process may be updating credentials",
+                        "timed out waiting for subscription credential transaction lock {}; another OpenBitFun process may be updating credentials",
                         lock_path.display()
                     ));
                 }
@@ -794,7 +794,7 @@ async fn acquire_store_transaction() -> Result<(PathBuf, StoreTransactionGuard)>
     ))
 }
 
-/// Serializes rotating-token refreshes for one provider across BitFun
+/// Serializes rotating-token refreshes for one provider across OpenBitFun
 /// processes. The caller must reload the credential after acquiring the lease.
 pub(crate) async fn acquire_provider_refresh_lease(provider: &str) -> Result<ProviderRefreshLease> {
     if provider.is_empty()
@@ -992,7 +992,7 @@ fn store_path() -> Result<PathBuf> {
     }
     let base = dirs::config_dir().ok_or_else(|| anyhow!("system config directory unavailable"))?;
     Ok(base
-        .join("bitfun")
+        .join("openbitfun")
         .join("data")
         .join("subscription_auth.json"))
 }
@@ -1127,9 +1127,9 @@ fn open_native_keyring_entry(entry_name: &str) -> std::result::Result<keyring_co
 #[cfg(target_os = "macos")]
 fn macos_credential_vault(
     metadata_path: &Path,
-) -> bitfun_services_core::credential_vault::CredentialVault {
+) -> openbitfun_services_core::credential_vault::CredentialVault {
     let parent = metadata_path.parent().unwrap_or_else(|| Path::new("."));
-    bitfun_services_core::credential_vault::CredentialVault::new(
+    openbitfun_services_core::credential_vault::CredentialVault::new(
         parent.join(".subscription_auth_vault.key"),
         parent.join("subscription_auth_vault.json"),
     )
@@ -1960,16 +1960,16 @@ pub(crate) async fn replace_metadata_file_windows(tmp: &Path, path: &Path) -> Re
 mod file_lock_tests {
     use super::*;
 
-    const LOCK_CHILD_METADATA_ENV: &str = "BITFUN_SUBAUTH_LOCK_CHILD_METADATA";
-    const LOCK_CHILD_STARTED_ENV: &str = "BITFUN_SUBAUTH_LOCK_CHILD_STARTED";
-    const LOCK_CHILD_OBSERVED_ENV: &str = "BITFUN_SUBAUTH_LOCK_CHILD_OBSERVED";
+    const LOCK_CHILD_METADATA_ENV: &str = "OPENBITFUN_SUBAUTH_LOCK_CHILD_METADATA";
+    const LOCK_CHILD_STARTED_ENV: &str = "OPENBITFUN_SUBAUTH_LOCK_CHILD_STARTED";
+    const LOCK_CHILD_OBSERVED_ENV: &str = "OPENBITFUN_SUBAUTH_LOCK_CHILD_OBSERVED";
     const CROSS_PROCESS_TEST_LOCK_TIMEOUT: Duration = Duration::from_secs(30);
     const CROSS_PROCESS_TEST_PROCESS_TIMEOUT: Duration = Duration::from_secs(10);
 
     fn temporary_metadata_path(label: &str) -> PathBuf {
         std::env::temp_dir()
             .join(format!(
-                "bitfun-subauth-lock-{label}-{}",
+                "openbitfun-subauth-lock-{label}-{}",
                 uuid::Uuid::new_v4()
             ))
             .join("subscription_auth.json")
@@ -2126,7 +2126,7 @@ mod file_lock_tests {
         )
         .await
         .expect("stage cleanup intent before vault write and metadata commit");
-        let mut child = bitfun_services_core::process_manager::create_command(
+        let mut child = openbitfun_services_core::process_manager::create_command(
             std::env::current_exe().expect("test binary"),
         )
         .arg("--exact")

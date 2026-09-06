@@ -1482,11 +1482,11 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ),
     ("remote_write_file", RemoteWorkspacePolicy::RemoteRouted),
     (
-        "mark_bitfun_control_surface_ready",
+        "mark_openbitfun_control_surface_ready",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
-        "mark_bitfun_control_surface_unready",
+        "mark_openbitfun_control_surface_unready",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
@@ -1507,7 +1507,7 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     (
-        "report_bitfun_control_result",
+        "report_openbitfun_control_result",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
@@ -2126,11 +2126,11 @@ mod tests {
     }
 
     #[test]
-    fn token_usage_statistics_are_scoped_to_the_current_bitfun_host() {
+    fn token_usage_statistics_are_scoped_to_the_current_openbitfun_host() {
         assert_eq!(
             remote_workspace_policy("get_token_usage_statistics"),
             Some(RemoteWorkspacePolicy::WorkspaceAgnostic),
-            "token usage is recorded by the current BitFun runtime and does not follow the workspace filesystem to an SSH host"
+            "token usage is recorded by the current OpenBitFun runtime and does not follow the workspace filesystem to an SSH host"
         );
     }
 
@@ -2151,11 +2151,11 @@ mod tests {
     }
 
     #[test]
-    fn token_usage_statistics_are_scoped_to_the_current_bitfun_host() {
+    fn token_usage_statistics_are_scoped_to_the_current_openbitfun_host() {
         assert_eq!(
             remote_workspace_policy("get_token_usage_statistics"),
             Some(RemoteWorkspacePolicy::WorkspaceAgnostic),
-            "token usage is recorded by the current BitFun runtime and does not follow the workspace filesystem to an SSH host"
+            "token usage is recorded by the current OpenBitFun runtime and does not follow the workspace filesystem to an SSH host"
         );
     }
 

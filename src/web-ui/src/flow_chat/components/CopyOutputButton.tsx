@@ -4,9 +4,9 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { Button } from '@bitfun/ui';
+import { Button, Icon } from '@openbitfun/ui';
 import { useTranslation } from 'react-i18next';
-import { Copy, Check, Edit } from 'lucide-react';
+
 import type { DialogTurn, FlowTextItem, FlowToolItem, FlowThinkingItem } from '../types/flow-chat';
 import { createMarkdownEditorTab } from '@/shared/utils/tabUtils';
 import { i18nService } from '@/infrastructure/i18n';
@@ -143,13 +143,13 @@ export const CopyOutputButton: React.FC<CopyOutputButtonProps> = ({
   }
 
   return (
-    <div data-bf-component="copy-output-button" data-bf-part="root" data-bf-state={copied ? 'copied' : ''} className={`copy-output-button-group ${className}`}>
+    <div data-openbitfun-component="copy-output-button" data-openbitfun-part="root" data-openbitfun-state={copied ? 'copied' : ''} className={`copy-output-button-group ${className}`}>
       <Button
         type="button"
         variant={copied ? 'fill' : 'outline'}
         size="sm"
-        leadingIcon={copied ? <Check size={14} /> : <Copy size={14} />}
-        data-bf-action="copy"
+        leadingIcon={copied ? <Icon name="check-line" size="sm" /> : <Icon name="duplicate" size="sm" />}
+        data-openbitfun-action="copy"
         onClick={handleCopy}
         title={copied ? t('copyOutput.copiedOutputContent') : t('copyOutput.copyOutputContent')}
         aria-label={copied ? t('copyOutput.copiedOutputContent') : t('copyOutput.copyOutputContent')}
@@ -161,8 +161,8 @@ export const CopyOutputButton: React.FC<CopyOutputButtonProps> = ({
         type="button"
         variant="outline"
         size="sm"
-        leadingIcon={<Edit size={14} />}
-        data-bf-action="edit"
+        leadingIcon={<Icon name="edit" size="sm" />}
+        data-openbitfun-action="edit"
         onClick={handleOpenInEditor}
         title={t('copyOutput.openInEditor')}
         aria-label={t('copyOutput.openInEditor')}

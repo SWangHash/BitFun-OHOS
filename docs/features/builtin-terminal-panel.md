@@ -1,7 +1,7 @@
 # 内置终端面板（Built-in Terminal Panel）需求文档
 
 > 状态：能力规格 / 需求
-> 仓库：BitFun-OHOS
+> 仓库：OpenBitFun-OHOS
 > 相关架构入口：
 > - [`src/web-ui/src/tools/terminal/`](../../src/web-ui/src/tools/terminal/)
 > - [`src/web-ui/AGENTS.md`](../../src/web-ui/AGENTS.md)
@@ -9,7 +9,7 @@
 
 ## 背景与需求描述
 
-BitFun 桌面端在工具区提供一个**内置终端面板**，让用户在应用内直接与 shell 交互（区别于 Agent 经 `BashTool` / `ExecCommand` 调用的终端能力——见 `terminal-capability.md`）。面板基于 xterm.js 渲染，消费后端 `terminal-core` 的 PTY / 会话服务。
+OpenBitFun 桌面端在工具区提供一个**内置终端面板**，让用户在应用内直接与 shell 交互（区别于 Agent 经 `BashTool` / `ExecCommand` 调用的终端能力——见 `terminal-capability.md`）。面板基于 xterm.js 渲染，消费后端 `terminal-core` 的 PTY / 会话服务。
 
 本需求定义内置终端面板的目标范围与行为契约：多会话 / 多标签、shell 配置、输入输出、resize、回放、外观、快捷键作用域、复制粘贴。
 

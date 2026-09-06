@@ -39,6 +39,15 @@ const RETRYABLE_REMOTE_READ_COMMANDS = new Set([
   'read_file_chunk',
 ]);
 
+// Session settings are small, idempotent writes. Keeping their deadline well
+// below turn execution prevents a lost relay response from making the selector
+// look frozen for the generic 65/130-second command timeout.
+const REMOTE_SETTING_WRITE_TIMEOUT_MS = 20_000;
+
+interface RemoteRequestOptions {
+  timeoutMs?: number;
+}
+
 export interface WorkspaceInfo {
   has_workspace: boolean;
   path?: string;
@@ -50,6 +59,7 @@ export interface WorkspaceInfo {
   /** Required to disambiguate multiple SSH hosts that share the same POSIX path. */
   remote_connection_id?: string;
   remote_ssh_host?: string;
+  capabilities?: string[];
 }
 
 export interface RemoteWorkspaceIdentity {
@@ -200,17 +210,36 @@ export interface InitialSyncData {
   sessions: SessionInfo[];
   has_more_sessions: boolean;
   authenticated_user_id?: string;
+  capabilities?: string[];
 }
+
+export const REMOTE_CAPABILITY_HARNESS_PROFILES_V1 = 'harness_profiles_v1';
 
 export class RemoteSessionManager {
   private client: RelayHttpClient;
+  private hostCapabilities = new Set<string>();
 
-  constructor(client: RelayHttpClient) {
+  constructor(client: RelayHttpClient, capabilities: string[] = []) {
     this.client = client;
+    this.replaceHostCapabilities(capabilities);
   }
 
   get controlTargetEpoch(): number {
     return this.client.controlTargetEpoch;
+  }
+
+  get controlTargetDeviceId(): string | null {
+    return this.client.pairedDeviceId;
+  }
+
+  supportsHostCapability(capability: string): boolean {
+    return this.hostCapabilities.has(capability);
+  }
+
+  private replaceHostCapabilities(capabilities: string[] | undefined): void {
+    this.hostCapabilities = new Set(
+      (capabilities ?? []).filter((capability) => typeof capability === 'string'),
+    );
   }
 
   onControlTargetChange(listener: () => void): () => void {
@@ -226,6 +255,7 @@ export class RemoteSessionManager {
   private async request<T>(
     cmd: object,
     target: ControlTargetSnapshot = this.client.getControlTargetSnapshot(),
+    options: RemoteRequestOptions = {},
   ): Promise<T> {
     // A caller may bind several transport requests into one logical operation
     // (for example, a chunked file download). Fence before any transport call
@@ -236,6 +266,9 @@ export class RemoteSessionManager {
     const commandName = (cmd as { cmd?: unknown }).cmd;
     const retryable = typeof commandName === 'string'
       && RETRYABLE_REMOTE_READ_COMMANDS.has(commandName);
+    const relayOptions = options.timeoutMs === undefined
+      ? { retryable }
+      : { retryable, timeoutMs: options.timeoutMs };
     // The QR-paired desktop keeps the proven room channel. Only a switched
     // control target (another same-account device) is reached through the
     // relay device RPC API using the delegated identity.
@@ -249,10 +282,10 @@ export class RemoteSessionManager {
         resp = await this.client.sendDeviceRpc<T>(
           targetDeviceId,
           cmdWithId,
-          { retryable },
+          relayOptions,
         );
       } else {
-        resp = await this.client.sendCommand<T>(cmdWithId, { retryable });
+        resp = await this.client.sendCommand<T>(cmdWithId, relayOptions);
       }
       this.ensureControlTargetCurrent(target);
       const respAny = resp as any;
@@ -273,6 +306,7 @@ export class RemoteSessionManager {
     const resp = await this.request<{ resp: string } & WorkspaceInfo>({
       cmd: 'get_workspace_info',
     });
+    this.replaceHostCapabilities(resp.capabilities);
     return {
       has_workspace: resp.has_workspace,
       path: resp.path,
@@ -282,6 +316,7 @@ export class RemoteSessionManager {
       assistant_id: resp.assistant_id,
       remote_connection_id: resp.remote_connection_id,
       remote_ssh_host: resp.remote_ssh_host,
+      capabilities: resp.capabilities,
     };
   }
 
@@ -418,7 +453,7 @@ export class RemoteSessionManager {
       cmd: 'set_session_model',
       session_id: sessionId,
       model_id: modelId,
-    });
+    }, undefined, { timeoutMs: REMOTE_SETTING_WRITE_TIMEOUT_MS });
     return resp.model_id;
   }
 
@@ -437,7 +472,7 @@ export class RemoteSessionManager {
       session_id: sessionId,
       model_id: modelId,
       reasoning_preset: reasoningPreset,
-    });
+    }, undefined, { timeoutMs: REMOTE_SETTING_WRITE_TIMEOUT_MS });
     return {
       model_id: resp.model_id,
       reasoning_preset: resp.reasoning_preset ?? null,
@@ -477,6 +512,18 @@ export class RemoteSessionManager {
   async cancelTool(toolId: string, reason?: string): Promise<void> {
     await this.request({
       cmd: 'cancel_tool',
+      tool_id: toolId,
+      reason: reason ?? undefined,
+    });
+  }
+
+  async confirmTool(toolId: string): Promise<void> {
+    await this.request({ cmd: 'confirm_tool', tool_id: toolId });
+  }
+
+  async rejectTool(toolId: string, reason?: string): Promise<void> {
+    await this.request({
+      cmd: 'reject_tool',
       tool_id: toolId,
       reason: reason ?? undefined,
     });

@@ -7,14 +7,14 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::Mutex;
 
-use bitfun_core::infrastructure::{try_get_path_manager_arc, PathManager};
-use bitfun_core::service::config::{load_terminal_default_shell, load_terminal_env_vars};
-use bitfun_core::service::remote_ssh::workspace_state::{
+use openbitfun_core::infrastructure::{try_get_path_manager_arc, PathManager};
+use openbitfun_core::service::config::{load_terminal_default_shell, load_terminal_env_vars};
+use openbitfun_core::service::remote_ssh::workspace_state::{
     get_remote_workspace_manager, init_remote_workspace_manager,
 };
-use bitfun_core::service::runtime::RuntimeManager;
-use bitfun_core::service::terminal::TerminalEvent;
-use bitfun_core::service::terminal::{
+use openbitfun_core::service::runtime::RuntimeManager;
+use openbitfun_core::service::terminal::TerminalEvent;
+use openbitfun_core::service::terminal::{
     AcknowledgeRequest as CoreAcknowledgeRequest, CloseSessionRequest as CoreCloseSessionRequest,
     CommandCompletionReason as CoreCommandCompletionReason,
     CreateSessionRequest as CoreCreateSessionRequest,
@@ -49,7 +49,7 @@ impl TerminalState {
         if !*initialized {
             let mut config = TerminalConfig::default();
 
-            // Set scripts directory to app data dir: {config_dir}/bitfun/temp/scripts
+            // Set scripts directory to app data dir: {config_dir}/openbitfun/temp/scripts
             let scripts_dir = Self::get_scripts_dir();
             config.shell_integration.scripts_dir = Some(scripts_dir);
 
@@ -66,7 +66,7 @@ impl TerminalState {
                 }
             }
 
-            // Prepend BitFun-managed runtime dirs to PATH so Bash/Skill commands can
+            // Prepend OpenBitFun-managed runtime dirs to PATH so Bash/Skill commands can
             // run on machines without preinstalled dev tools.
             if let Ok(runtime_manager) = RuntimeManager::new() {
                 let current_path = std::env::var("PATH").ok();
@@ -380,7 +380,7 @@ fn remote_terminal_signal_bytes(signal: &str) -> Option<&'static [u8]> {
 
 async fn spawn_remote_pty_session(
     app: &AppHandle,
-    terminal_manager: &bitfun_core::service::remote_ssh::RemoteTerminalManager,
+    terminal_manager: &openbitfun_core::service::remote_ssh::RemoteTerminalManager,
     connection_id: &str,
     request: &CreateSessionRequest,
     initial_cwd: Option<&str>,

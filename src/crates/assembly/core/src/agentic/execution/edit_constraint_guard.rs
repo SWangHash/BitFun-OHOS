@@ -45,14 +45,14 @@ use shell_targets::{explicit_bash_mutation_targets, has_unresolved_bash_mutation
 
 pub const EDIT_CONSTRAINT_METADATA_KEY: &str = "editConstraintGuard";
 #[cfg(test)]
-pub(crate) const TEST_EDIT_CONSTRAINT_STATE_KEY: &str = "__bitfun_test_edit_constraint_state";
+pub(crate) const TEST_EDIT_CONSTRAINT_STATE_KEY: &str = "__openbitfun_test_edit_constraint_state";
 const EDIT_CONSTRAINT_SCHEMA_VERSION: u32 = 6;
 const MAX_PROMPT_CHARS: usize = 8_000;
 const MAX_RESPONSE_TELEMETRY_CHARS: usize = 4_000;
 const MAX_MODEL_ATTEMPTS: usize = 2;
 const MAX_RECURSIVE_INSPECTION_ENTRIES: usize = 100_000;
 const TELEMETRY_RELATIVE_PATH: &str = "telemetry/edit-constraint-guard.jsonl";
-const TELEMETRY_ENV: &str = "BITFUN_EDIT_CONSTRAINT_TELEMETRY";
+const TELEMETRY_ENV: &str = "OPENBITFUN_EDIT_CONSTRAINT_TELEMETRY";
 
 const EXTRACTION_SYSTEM_PROMPT: &str = r#"You update the active file-edit prohibitions for a software task.
 
@@ -1200,7 +1200,7 @@ fn command_target_path(
     let Some(working_directory) = working_directory else {
         return target.to_string();
     };
-    bitfun_agent_tools::resolve_workspace_tool_path(
+    openbitfun_agent_tools::resolve_workspace_tool_path(
         target,
         Some(working_directory),
         context.is_remote(),

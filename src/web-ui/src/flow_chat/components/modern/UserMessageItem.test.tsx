@@ -139,8 +139,8 @@ vi.mock('@/infrastructure/event-bus', () => ({
   },
 }));
 
-vi.mock('@bitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@bitfun/ui')>(),
+vi.mock('@openbitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@openbitfun/ui')>(),
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
@@ -193,6 +193,11 @@ describe('UserMessageItem steering tag', () => {
     vi.stubGlobal('window', dom.window);
     vi.stubGlobal('document', dom.window.document);
     vi.stubGlobal('HTMLElement', dom.window.HTMLElement);
+    vi.stubGlobal('CustomEvent', dom.window.CustomEvent);
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
     vi.stubGlobal('navigator', {
       clipboard: {
         writeText: vi.fn(),
@@ -233,6 +238,50 @@ describe('UserMessageItem steering tag', () => {
     const tag = main?.querySelector('.user-message-item__steering-tag');
 
     expect(tag?.textContent).toBe('等待触发');
+  });
+
+  it('renders a localized send time outside the user message bubble', () => {
+    const timestamp = Date.UTC(2026, 8, 3, 6, 32, 8);
+
+    act(() => {
+      root.render(
+        <FlowChatContext.Provider value={{ allowUserMessageRollback: false }}>
+          <UserMessageItem
+            message={{ id: 'user-time-1', content: 'Timestamped message', timestamp }}
+            turnId="turn-time-1"
+          />
+        </FlowChatContext.Provider>,
+      );
+    });
+
+    const bubble = container.querySelector('[data-testid="chat-user-message"]');
+    const shell = bubble?.parentElement;
+    const meta = container.querySelector('.user-message-item__meta');
+    const time = container.querySelector<HTMLTimeElement>('[data-testid="chat-user-message-timestamp"]');
+
+    expect(shell?.classList.contains('user-message-item-shell--with-timestamp')).toBe(true);
+    expect(meta?.parentElement).toBe(shell);
+    expect(time?.parentElement).toBe(meta);
+    expect(container.querySelector('.user-message-item__actions')?.parentElement).toBe(meta);
+    expect(time?.parentElement).not.toBe(bubble);
+    expect(time?.dateTime).toBe('2026-09-03T06:32:08.000Z');
+    expect(time?.textContent?.trim()).not.toBe('');
+  });
+
+  it('does not invent a send time when the persisted timestamp is invalid', () => {
+    act(() => {
+      root.render(
+        <FlowChatContext.Provider value={{ allowUserMessageRollback: false }}>
+          <UserMessageItem
+            message={{ id: 'user-time-invalid', content: 'Legacy message', timestamp: 0 }}
+            turnId="turn-time-invalid"
+          />
+        </FlowChatContext.Provider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="chat-user-message-timestamp"]')).toBeNull();
+    expect(container.querySelector('.user-message-item-shell--with-timestamp')).toBeNull();
   });
 
   it('does not render a steering tag after steering is triggered', () => {
@@ -308,7 +357,7 @@ describe('UserMessageItem steering tag', () => {
     expect(content?.querySelectorAll('.user-message-item__reference')).toHaveLength(2);
   });
 
-  it('includes the persisted presentation when a failed message is restored to the input', () => {
+  it('restores persisted references and images from a failed message to the input', () => {
     const composerPresentation = {
       version: 1,
       segments: [
@@ -344,6 +393,13 @@ describe('UserMessageItem steering tag', () => {
               content: '[session: Delete all files]',
               timestamp: 1000,
               metadata: { composerPresentation },
+              images: [{
+                id: 'image-failed-1',
+                name: 'failure.png',
+                dataUrl: 'data:image/png;base64,failed',
+                imagePath: 'E:/uploads/failure.png',
+                mimeType: 'image/png',
+              }],
             }}
             turnId="turn-failed-1"
           />
@@ -359,6 +415,21 @@ describe('UserMessageItem steering tag', () => {
 
     expect(globalEventBus.emit).toHaveBeenCalledWith('fill-chat-input', {
       content: '[session: Delete all files]',
+      contexts: [
+        expect.objectContaining({
+          id: 'session-reference-1',
+          type: 'session-reference',
+          sessionId: 'session-1',
+        }),
+        expect.objectContaining({
+          id: 'image-failed-1',
+          type: 'image',
+          imagePath: 'E:/uploads/failure.png',
+          imageName: 'failure.png',
+          dataUrl: 'data:image/png;base64,failed',
+          isLocal: true,
+        }),
+      ],
       composerPresentation,
     });
   });
@@ -421,6 +492,53 @@ describe('UserMessageItem steering tag', () => {
     });
 
     expect(container.querySelector('.user-message-item__rollback-btn')).not.toBeNull();
+  });
+
+  it('restores image attachments to the composer after rollback', async () => {
+    activeSessionRef.current = {
+      sessionId: 'main-session',
+      sessionKind: 'normal',
+      dialogTurns: [{ id: 'turn-1', status: 'completed' }],
+    };
+
+    act(() => {
+      root.render(
+        <FlowChatContext.Provider value={{ sessionId: 'main-session', allowUserMessageRollback: true }}>
+          <UserMessageItem
+            message={{
+              id: 'user-main-1',
+              content: 'inspect this image',
+              timestamp: 1000,
+              images: [{
+                id: 'image-1',
+                name: 'screenshot.png',
+                imagePath: 'E:/uploads/screenshot.png',
+                mimeType: 'image/png',
+              }],
+            }}
+            turnId="turn-1"
+          />
+        </FlowChatContext.Provider>,
+      );
+    });
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('.user-message-item__rollback-btn')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(globalEventBus.emit).toHaveBeenCalledWith('fill-chat-input', {
+      content: 'restored prompt',
+      contexts: [expect.objectContaining({
+        id: 'image-1',
+        type: 'image',
+        imagePath: 'E:/uploads/screenshot.png',
+        imageName: 'screenshot.png',
+        mimeType: 'image/png',
+        isLocal: true,
+      })],
+    });
   });
 
   it('disables file-consistent rollback and message editing for remote workspaces', () => {

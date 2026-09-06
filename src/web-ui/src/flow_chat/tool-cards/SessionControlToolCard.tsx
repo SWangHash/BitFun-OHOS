@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolCardProps } from '../types/flow-chat';
-import { SessionControlToolCard as SessionControlToolCardView } from '@bitfun/ui/flow-chat';
+import { SessionControlToolCard as SessionControlToolCardView } from '@openbitfun/ui/flow-chat';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 
 interface SessionSummary {
@@ -168,8 +168,8 @@ export const SessionControlToolCard: React.FC<ToolCardProps> = React.memo(({
   };
 
   const fields = [
-    workspace ? { label: `${t('shared:features.workspace')}:`, value: workspace, monospace: true } : null,
-    sessionId ? { label: `${t('toolCards.sessionControl.sessionId')}:`, value: sessionId, monospace: true } : null,
+    workspace ? { label: `${t('shared:features.workspace')}:`, value: workspace } : null,
+    sessionId ? { label: `${t('toolCards.sessionControl.sessionId')}:`, value: sessionId } : null,
     sessionName ? { label: `${t('toolCards.sessionControl.sessionName')}:`, value: sessionName } : null,
     agentType ? { label: `${t('toolCards.sessionControl.agentType')}:`, value: agentType } : null,
     action === 'cancel' && cancelStatus ? {
@@ -179,7 +179,7 @@ export const SessionControlToolCard: React.FC<ToolCardProps> = React.memo(({
         : t('toolCards.sessionControl.cancelRequestedStatus'),
     } : null,
     action === 'cancel' && cancelledTurnId
-      ? { label: `${t('toolCards.sessionControl.cancelledTurnId')}:`, value: cancelledTurnId, monospace: true }
+      ? { label: `${t('toolCards.sessionControl.cancelledTurnId')}:`, value: cancelledTurnId }
       : null,
     action === 'cancel' && hadActiveTurn !== undefined ? {
       label: `${t('toolCards.sessionControl.hadActiveTurn')}:`,
@@ -193,7 +193,7 @@ export const SessionControlToolCard: React.FC<ToolCardProps> = React.memo(({
   ].filter((field): field is NonNullable<typeof field> => Boolean(field));
 
   return (
-    <div ref={cardRootRef} data-bf-adapter="session-control" data-tool-card-id={toolId ?? ''}>
+    <div ref={cardRootRef} data-openbitfun-adapter="session-control" data-tool-card-id={toolId ?? ''}>
       <SessionControlToolCardView
         status={status}
         isExpanded={isExpanded}

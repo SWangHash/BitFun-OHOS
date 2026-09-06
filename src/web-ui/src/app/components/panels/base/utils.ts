@@ -4,11 +4,10 @@
  */
 
 import React from 'react';
-import { Icon, type IconName, type IconSize } from '@bitfun/ui';
+import { Icon, type IconName, type IconSize } from '@openbitfun/ui';
 import { 
   Code, 
   FileText, 
-  Edit3,
   BookOpen,
   ClipboardList,
   Network,
@@ -100,6 +99,22 @@ export const PANEL_CONTENT_CONFIGS: Record<PanelContentType, PanelContentConfig>
     supportsDownload: false,
     showHeader: false
   },
+  'pdf-viewer': {
+    type: 'pdf-viewer',
+    displayName: 'PDF Viewer',
+    icon: FileText,
+    supportsCopy: false,
+    supportsDownload: false,
+    showHeader: false
+  },
+  'html-preview': {
+    type: 'html-preview',
+    displayName: 'HTML Preview',
+    icon: catalogPanelIcon('browser'),
+    supportsCopy: false,
+    supportsDownload: false,
+    showHeader: false
+  },
   'diff-code-editor': {
     type: 'diff-code-editor',
     displayName: 'Diff Editor',
@@ -159,7 +174,7 @@ export const PANEL_CONTENT_CONFIGS: Record<PanelContentType, PanelContentConfig>
   'ui-editor': {
     type: 'ui-editor',
     displayName: 'UI Editor',
-    icon: Edit3,
+    icon: catalogPanelIcon('edit'),
     supportsCopy: false,
     supportsDownload: false,
     showHeader: false
@@ -252,9 +267,9 @@ export const PANEL_CONTENT_CONFIGS: Record<PanelContentType, PanelContentConfig>
     supportsDownload: false,
     showHeader: false
   },
-  'bitfun-canvas': {
-    type: 'bitfun-canvas',
-    displayName: 'BitFun Canvas',
+  'openbitfun-canvas': {
+    type: 'openbitfun-canvas',
+    displayName: 'OpenBitFun Canvas',
     icon: Network,
     supportsCopy: false,
     supportsDownload: false,

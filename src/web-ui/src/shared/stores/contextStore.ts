@@ -1,10 +1,9 @@
  
 
 import { create } from 'zustand';
-import { devtools, persist, StorageValue } from 'zustand/middleware';
+import { devtools, persist } from 'zustand/middleware';
 import { ContextItem, ValidationResult } from '../types/context';
 import { createLogger } from '@/shared/utils/logger';
-import { storage } from '@/shared/utils/storageAdapter';
 
 const log = createLogger('ContextStore');
 
@@ -144,30 +143,8 @@ export const useContextStore = create<ContextState>()(
         }
       }),
       {
-        name: 'bitfun-context-storage',
-        storage: {
-          getItem(name: string) {
-            try {
-              return storage.getItem(name);
-            } catch (e) {
-              console.error(`Failed to get item from storage ${e}`);
-            }
-          },
-          setItem(name: string, value: StorageValue<ContextState>) {
-            try {
-              return storage.setItem(name, JSON.stringify(value));
-            } catch (e) {
-              console.error(`Failed to set item from storage ${e}`);
-            }
-          },
-          removeItem(name: string) {
-            try {
-              return storage.removeItem(name);
-            } catch (e) {
-              console.error(`Failed to remove item from storage ${e}`);
-            }
-          }
-        },
+        name: 'openbitfun-context-storage',
+        
         serialize: (state: any) => {
           return JSON.stringify({
             ...state.state,
@@ -218,9 +195,9 @@ export const selectHasInvalidContexts = (state: ContextState) =>
  
 export const cleanupImageContextsFromStorage = () => {
   try {
-    const storageKey = 'bitfun-context-storage';
-    const stored = storage.getItem(storageKey);
-
+    const storageKey = 'openbitfun-context-storage';
+    const stored = localStorage.getItem(storageKey);
+    
     if (stored) {
       const parsed = JSON.parse(stored);
       
@@ -230,9 +207,9 @@ export const cleanupImageContextsFromStorage = () => {
         if (imageCount > 0) {
           
           parsed.state.contexts = parsed.state.contexts.filter((ctx: any) => ctx.type !== 'image');
-
-
-          storage.setItem(storageKey, JSON.stringify(parsed));
+          
+          
+          localStorage.setItem(storageKey, JSON.stringify(parsed));
         }
       }
     }

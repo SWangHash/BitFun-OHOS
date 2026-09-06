@@ -130,7 +130,7 @@ describe('Markdown file links', () => {
   });
 
   it('opens chat http links in the built-in browser by default', async () => {
-    container.className = 'bitfun-session-scene modern-flowchat-container';
+    container.className = 'openbitfun-session-scene modern-flowchat-container';
     const onCreateTab = vi.fn();
     window.addEventListener('agent-create-tab', onCreateTab);
 
@@ -164,8 +164,8 @@ describe('Markdown file links', () => {
 
   it('expands a collapsed right panel before creating a browser tab', async () => {
     vi.useFakeTimers();
-    container.className = 'bitfun-session-scene modern-flowchat-container';
-    (window as any).__BITFUN_LAYOUT_STATE__ = { rightPanelCollapsed: true };
+    container.className = 'openbitfun-session-scene modern-flowchat-container';
+    (window as any).__OPENBITFUN_LAYOUT_STATE__ = { rightPanelCollapsed: true };
     const onExpandPanel = vi.fn();
     const onCreateTab = vi.fn();
     window.addEventListener('expand-right-panel', onExpandPanel);
@@ -193,7 +193,7 @@ describe('Markdown file links', () => {
 
       expect(onCreateTab).toHaveBeenCalledTimes(1);
     } finally {
-      delete (window as any).__BITFUN_LAYOUT_STATE__;
+      delete (window as any).__OPENBITFUN_LAYOUT_STATE__;
       window.removeEventListener('expand-right-panel', onExpandPanel);
       window.removeEventListener('agent-create-tab', onCreateTab);
       vi.useRealTimers();
@@ -201,7 +201,7 @@ describe('Markdown file links', () => {
   });
 
   it('opens modified chat link clicks in the external browser', async () => {
-    container.className = 'bitfun-session-scene modern-flowchat-container';
+    container.className = 'openbitfun-session-scene modern-flowchat-container';
     const onCreateTab = vi.fn();
     window.addEventListener('agent-create-tab', onCreateTab);
 
@@ -422,7 +422,7 @@ describe('Markdown file links', () => {
     });
 
     expect(container.querySelector('img[alt="Missing diagram"]')).toBeNull();
-    const fallback = container.querySelector('[data-bf-part="imageFallback"]');
+    const fallback = container.querySelector('[data-openbitfun-part="imageFallback"]');
     expect(fallback?.textContent).toBe('Missing diagram');
 
     await act(async () => {
@@ -436,7 +436,7 @@ describe('Markdown file links', () => {
       await Promise.resolve();
     });
 
-    expect(container.querySelector('[data-bf-part="imageFallback"]')).toBe(fallback);
+    expect(container.querySelector('[data-openbitfun-part="imageFallback"]')).toBe(fallback);
     expect(mocks.readFileContent).toHaveBeenCalledTimes(1);
   });
 
@@ -454,7 +454,7 @@ describe('Markdown file links', () => {
     });
 
     expect(container.querySelector('img[alt="Unavailable chart"]')).toBeNull();
-    expect(container.querySelector('[data-bf-part="imageFallback"]')?.textContent)
+    expect(container.querySelector('[data-openbitfun-part="imageFallback"]')?.textContent)
       .toBe('Unavailable chart');
   });
 

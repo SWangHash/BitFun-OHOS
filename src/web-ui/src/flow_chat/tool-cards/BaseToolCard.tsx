@@ -125,20 +125,20 @@ export const BaseToolCard: React.FC<BaseToolCardProps> = ({
   ].filter(Boolean).join(' ');
   
   return (
-    <div data-bf-component="tool-card" data-bf-part="root" data-bf-status={status} data-bf-state={appearanceState}
+    <div data-openbitfun-component="tool-card" data-openbitfun-part="root" data-openbitfun-status={status} data-openbitfun-state={appearanceState}
       className={`base-tool-card-wrapper ${showConfirmationHighlight ? 'requires-confirmation' : ''} ${loadingShimmer ? 'base-tool-card-wrapper--loading-shimmer' : ''} ${className}`.trim()}
     >
       <div 
         className={`base-tool-card status-${status} ${isExpanded ? 'expanded' : ''} ${resolvedHeaderExpandAffordance ? 'base-tool-card--header-expandable' : ''}`.trim()}
-        data-bf-component="tool-card"
-        data-bf-part="surface"
-        data-bf-status={status}
-        data-bf-state={appearanceState}
+        data-openbitfun-component="tool-card"
+        data-openbitfun-part="surface"
+        data-openbitfun-status={status}
+        data-openbitfun-state={appearanceState}
         data-testid={onClick ? toggleTestId : undefined}
         onClick={handleCardClick}
       >
         <ToolCardHeaderLayoutContext.Provider value={headerLayoutValue}>
-          <div className="base-tool-card-header" data-bf-component="tool-card" data-bf-part="header" data-bf-status={status}>
+          <div className="base-tool-card-header" data-openbitfun-component="tool-card" data-openbitfun-part="header" data-openbitfun-status={status}>
             {header}
           </div>
         </ToolCardHeaderLayoutContext.Provider>
@@ -150,7 +150,7 @@ export const BaseToolCard: React.FC<BaseToolCardProps> = ({
         durationMs={FLOWCHAT_COLLAPSE_DURATION_MS}
         disableAnimation={disableExpandAnimation}
       >
-        <div className="base-tool-card-expanded" data-bf-component="tool-card" data-bf-part="expanded" data-bf-status={status} data-bf-state="expanded">
+        <div className="base-tool-card-expanded" data-openbitfun-component="tool-card" data-openbitfun-part="expanded" data-openbitfun-status={status} data-openbitfun-state="expanded">
           {expandedContent}
         </div>
       </SmoothHeightCollapse>
@@ -160,7 +160,7 @@ export const BaseToolCard: React.FC<BaseToolCardProps> = ({
         className="base-tool-card-error-collapse"
         durationMs={FLOWCHAT_COLLAPSE_DURATION_MS}
       >
-        <div className="base-tool-card-error" data-bf-component="tool-card" data-bf-part="error" data-bf-status={status} data-bf-state="failed">
+        <div className="base-tool-card-error" data-openbitfun-component="tool-card" data-openbitfun-part="error" data-openbitfun-status={status} data-openbitfun-state="failed">
           {errorContent}
         </div>
       </SmoothHeightCollapse>
@@ -233,12 +233,12 @@ export const ToolCardHeader: React.FC<ToolCardHeaderProps> = ({
         />
       )}
       {action && (
-        <span className="tool-card-action" data-bf-component="tool-card" data-bf-part="action" data-testid={actionTestId} {...actionDataAttributes}>
+        <span className="tool-card-action" data-openbitfun-component="tool-card" data-openbitfun-part="action" data-testid={actionTestId} {...actionDataAttributes}>
           {action}
         </span>
       )}
-      {content && <div className="tool-card-content" data-bf-component="tool-card" data-bf-part="content">{content}</div>}
-      {extra && <div className="tool-card-extra" data-bf-component="tool-card" data-bf-part="extra">{extra}</div>}
+      {content && <div className="tool-card-content" data-openbitfun-component="tool-card" data-openbitfun-part="content">{content}</div>}
+      {extra && <div className="tool-card-extra" data-openbitfun-component="tool-card" data-openbitfun-part="extra">{extra}</div>}
       {statusIcon && (
         <ToolCardStatusIcon
           icon={statusIcon}

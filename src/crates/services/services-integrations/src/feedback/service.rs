@@ -2,7 +2,7 @@ use super::identity::FeedbackIdentityStore;
 use super::message_cache::{MessageCache, MessageCacheData};
 use super::state_cache::{FeedbackStateCache, FeedbackStateCacheData};
 use super::vault::{FeedbackCredentialStore, FileFeedbackCredentialStore};
-use bitfun_product_domains::feedback::{
+use openbitfun_product_domains::feedback::{
     validate_content, validate_inbox_page_size, validate_message_page_size,
     AcknowledgeFeedbackRequest, AcknowledgeFeedbackResponse, FeedbackAccessState,
     FeedbackConversationPage, FeedbackError, FeedbackInboxPage, FeedbackMessage,
@@ -24,8 +24,8 @@ use uuid::Uuid;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 const ACCESS_TOKEN_REFRESH_MARGIN_SECONDS: i64 = 600;
 
-const DEBUG_FEEDBACK_API_BASE_URL: &str = "http://api-test.infra-bitfun.com";
-const RELEASE_FEEDBACK_API_BASE_URL: &str = "https://api.infra-bitfun.com";
+const DEBUG_FEEDBACK_API_BASE_URL: &str = "http://api-test.infra-openbitfun.com";
+const RELEASE_FEEDBACK_API_BASE_URL: &str = "https://api.infra-openbitfun.com";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct StoredCredentials {
@@ -139,7 +139,7 @@ struct CreateResponse {
 
 #[derive(Debug, Serialize)]
 struct CreateRequestBody<'a> {
-    category: bitfun_product_domains::feedback::FeedbackCategory,
+    category: openbitfun_product_domains::feedback::FeedbackCategory,
     content: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     trace_id: Option<&'a str>,
@@ -159,7 +159,7 @@ struct InboxResponse {
 #[derive(Debug, Deserialize)]
 struct InboxItem {
     feedback_id: String,
-    category: bitfun_product_domains::feedback::FeedbackCategory,
+    category: openbitfun_product_domains::feedback::FeedbackCategory,
     status: FeedbackStatus,
     has_new_reply: bool,
     created_at: String,
@@ -1457,7 +1457,7 @@ fn cache_encryption_key(enroll_key: &str) -> Option<[u8; 32]> {
         return None;
     }
     let mut digest = Sha256::new();
-    digest.update(b"bitfun-feedback-cache-v2\0");
+    digest.update(b"openbitfun-feedback-cache-v2\0");
     digest.update(enroll_key.as_bytes());
     Some(digest.finalize().into())
 }
@@ -1619,7 +1619,7 @@ mod tests {
     use crate::feedback::FeedbackCredentialStore;
     use anyhow::{anyhow, Result};
     use async_trait::async_trait;
-    use bitfun_product_domains::feedback::{
+    use openbitfun_product_domains::feedback::{
         AcknowledgeFeedbackRequest, FeedbackCategory, FeedbackMessage, FeedbackRecordSummary,
         FeedbackSender, FeedbackStatus, ListFeedbackRecordsRequest,
         OpenFeedbackConversationRequest, ReplyFeedbackRequest, SubmitFeedbackRequest,
@@ -1664,11 +1664,11 @@ mod tests {
     fn selects_a_fixed_feedback_endpoint_for_each_build_profile() {
         assert_eq!(
             DEBUG_FEEDBACK_API_BASE_URL,
-            "http://api-test.infra-bitfun.com"
+            "http://api-test.infra-openbitfun.com"
         );
         assert_eq!(
             RELEASE_FEEDBACK_API_BASE_URL,
-            "https://api.infra-bitfun.com"
+            "https://api.infra-openbitfun.com"
         );
         assert_eq!(feedback_api_base_url(true), DEBUG_FEEDBACK_API_BASE_URL);
         assert_eq!(feedback_api_base_url(false), RELEASE_FEEDBACK_API_BASE_URL);
@@ -2034,7 +2034,7 @@ mod tests {
             ..MemoryStore::default()
         });
         let cache_dir = std::env::temp_dir().join(format!(
-            "bitfun-feedback-service-cache-{}-{}",
+            "openbitfun-feedback-service-cache-{}-{}",
             std::process::id(),
             uuid::Uuid::new_v4()
         ));
@@ -2264,7 +2264,7 @@ mod tests {
             ..MemoryStore::default()
         });
         let cache_dir = std::env::temp_dir().join(format!(
-            "bitfun-feedback-reply-cache-{}-{}",
+            "openbitfun-feedback-reply-cache-{}-{}",
             std::process::id(),
             uuid::Uuid::new_v4()
         ));
@@ -2458,7 +2458,7 @@ mod tests {
 
     fn test_cache_dir(name: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!(
-            "bitfun-feedback-{name}-{}-{}",
+            "openbitfun-feedback-{name}-{}-{}",
             std::process::id(),
             uuid::Uuid::new_v4()
         ))

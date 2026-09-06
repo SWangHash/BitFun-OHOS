@@ -52,16 +52,16 @@ export const PreviewApp: React.FC = () => {
   return (
     <div
       className="preview-app"
-      data-bf-component="component-preview"
-      data-bf-part="root"
+      data-openbitfun-component="component-preview"
+      data-openbitfun-part="root"
     >
-      <header className="preview-header" data-bf-component="component-preview" data-bf-part="header">
-        <div className="preview-logo" data-bf-component="component-preview" data-bf-part="logo">
+      <header className="preview-header" data-openbitfun-component="component-preview" data-openbitfun-part="header">
+        <div className="preview-logo" data-openbitfun-component="component-preview" data-openbitfun-part="logo">
           <h1>{t('componentLibrary.previewApp.title')}</h1>
           <span className="preview-version">v0.2.15</span>
         </div>
-        <div className="preview-header-actions" data-bf-component="component-preview" data-bf-part="headerActions">
-          <label className="preview-appearance-selector" data-bf-component="component-preview" data-bf-part="appearanceSelector">
+        <div className="preview-header-actions" data-openbitfun-component="component-preview" data-openbitfun-part="headerActions">
+          <label className="preview-appearance-selector" data-openbitfun-component="component-preview" data-openbitfun-part="appearanceSelector">
             <span className="preview-appearance-selector__label">
               {t('componentLibrary.previewApp.appearanceLabel')}
             </span>
@@ -88,14 +88,14 @@ export const PreviewApp: React.FC = () => {
         </div>
       </header>
 
-      <div className="preview-container" data-bf-component="component-preview" data-bf-part="container">
+      <div className="preview-container" data-openbitfun-component="component-preview" data-openbitfun-part="container">
         <aside
           className={`preview-sidebar ${isSidebarCollapsed ? 'preview-sidebar--collapsed' : ''}`}
-          data-bf-component="component-preview"
-          data-bf-part="sidebar"
-          data-bf-state={isSidebarCollapsed ? 'collapsed' : undefined}
+          data-openbitfun-component="component-preview"
+          data-openbitfun-part="sidebar"
+          data-openbitfun-state={isSidebarCollapsed ? 'collapsed' : undefined}
         >
-          <div className="preview-sidebar-header" data-bf-component="component-preview" data-bf-part="sidebarHeader">
+          <div className="preview-sidebar-header" data-openbitfun-component="component-preview" data-openbitfun-part="sidebarHeader">
             {!isSidebarCollapsed && (
               <span className="preview-sidebar-title">
                 {t('componentLibrary.previewApp.sidebarTitle')}
@@ -111,9 +111,9 @@ export const PreviewApp: React.FC = () => {
               title={isSidebarCollapsed
                 ? t('componentLibrary.previewApp.expandSidebar')
                 : t('componentLibrary.previewApp.collapseSidebar')}
-              data-bf-component="component-preview"
-              data-bf-part="sidebarToggle"
-              data-bf-state={isSidebarCollapsed ? 'collapsed' : undefined}
+              data-openbitfun-component="component-preview"
+              data-openbitfun-part="sidebarToggle"
+              data-openbitfun-state={isSidebarCollapsed ? 'collapsed' : undefined}
             >
               <span className={`preview-sidebar-toggle__icon ${isSidebarCollapsed ? 'is-collapsed' : ''}`}>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -122,7 +122,7 @@ export const PreviewApp: React.FC = () => {
               </span>
             </button>
           </div>
-          <nav className="preview-nav" data-bf-component="component-preview" data-bf-part="navigation">
+          <nav className="preview-nav" data-openbitfun-component="component-preview" data-openbitfun-part="navigation">
             {componentRegistry.map((category: ComponentCategory) => (
               <div key={category.id} className="category-section">
                 <button
@@ -131,9 +131,9 @@ export const PreviewApp: React.FC = () => {
                   }`}
                   onClick={() => handleCategorySelect(category.id)}
                   title={category.name}
-                  data-bf-component="component-preview"
-                  data-bf-part="category"
-                  data-bf-state={selectedCategory === category.id ? 'active' : undefined}
+                  data-openbitfun-component="component-preview"
+                  data-openbitfun-part="category"
+                  data-openbitfun-state={selectedCategory === category.id ? 'active' : undefined}
                 >
                   <span className="category-button__dot" />
                   <span className="category-name">
@@ -152,13 +152,13 @@ export const PreviewApp: React.FC = () => {
 
         <main
           className={`preview-main ${currentCategory?.layoutType === 'full-page' ? 'preview-main--full' : ''}`}
-          data-bf-component="component-preview"
-          data-bf-part="main"
+          data-openbitfun-component="component-preview"
+          data-openbitfun-part="main"
         >
           {currentCategory ? (
             <>
               {currentCategory.layoutType !== 'full-page' && (
-                <div className="component-header" data-bf-component="component-preview" data-bf-part="componentHeader">
+                <div className="component-header" data-openbitfun-component="component-preview" data-openbitfun-part="componentHeader">
                   <h2 className="component-title">{currentCategory.name}</h2>
                   <p className="component-description">
                     {currentCategory.description}
@@ -183,7 +183,7 @@ export const PreviewApp: React.FC = () => {
               )}
             </>
           ) : (
-            <div className="empty-state" data-bf-component="component-preview" data-bf-part="emptyState">
+            <div className="empty-state" data-openbitfun-component="component-preview" data-openbitfun-part="emptyState">
               <p>{t('componentLibrary.previewApp.emptyState')}</p>
             </div>
           )}

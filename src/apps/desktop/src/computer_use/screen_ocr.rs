@@ -1,29 +1,43 @@
-use bitfun_core::agentic::tools::computer_use_host::ComputerScreenshot;
-use bitfun_core::infrastructure::try_get_path_manager_arc;
-use bitfun_core::util::errors::{BitFunError, BitFunResult};
 use log::{info, warn};
+use openbitfun_core::agentic::tools::computer_use_host::ComputerScreenshot;
+use openbitfun_core::infrastructure::try_get_path_manager_arc;
+use openbitfun_core::util::errors::{OpenBitFunError, OpenBitFunResult};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
 use chrono::Utc;
 
-#[derive(Debug, Clone)]
-pub(super) struct OcrTextMatch {
-    pub text: String,
-    pub confidence: f32,
-    pub center_x: f64,
-    pub center_y: f64,
-    pub bounds_left: f64,
-    pub bounds_top: f64,
-    pub bounds_width: f64,
-    pub bounds_height: f64,
+#[cfg(all(test, target_os = "macos"))]
+mod native_fixture_tests {
+    use super::*;
+
+    /// Exercises the actual Vision backend and global-coordinate projection on
+    /// a browser-rendered image, without capturing or operating the user's UI.
+    #[test]
+    #[ignore = "requires OPENBITFUN_OCR_FIXTURE containing a rendered screenshot DTO"]
+    fn native_vision_reads_rendered_fixture() {
+        let path = std::env::var("OPENBITFUN_OCR_FIXTURE").expect("rendered OCR fixture path");
+        let shot: ComputerScreenshot =
+            serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        let matches = macos::find_text_matches(&shot, "Save report").expect("real Vision OCR");
+        let hit = &matches[0];
+        assert!(hit.text.to_lowercase().contains("save report"), "{hit:?}");
+        assert!(hit.confidence > 0.5, "{hit:?}");
+        // Text is rendered at x=100..400, y=100..180 in an 800x600 image;
+        // the DTO maps the image to (-500,100,400,300) global coordinates.
+        assert!((-450.0..-300.0).contains(&hit.center_x), "{hit:?}");
+        assert!((150.0..190.0).contains(&hit.center_y), "{hit:?}");
+        assert!(hit.bounds_width > 0.0 && hit.bounds_height > 0.0);
+    }
 }
+
+pub(super) use openbitfun_core::agentic::tools::computer_use_host::OcrTextMatch;
 
 pub(super) fn find_text_matches(
     shot: &ComputerScreenshot,
     text_query: &str,
-) -> BitFunResult<Vec<OcrTextMatch>> {
+) -> OpenBitFunResult<Vec<OcrTextMatch>> {
     let query = normalize_query(text_query)?;
     save_ocr_debug_jpeg(shot, &query);
 
@@ -38,33 +52,33 @@ pub(super) fn find_text_matches(
     }
 
     #[allow(unreachable_code)]
-    Err(BitFunError::tool(
+    Err(OpenBitFunError::tool(
         "move_to_text OCR is not supported on this platform.".to_string(),
     ))
 }
 
-/// If unset or non-zero: write the exact JPEG passed to OCR into `computer_use_debug` under the app data dir (see implementation). Set `BITFUN_COMPUTER_USE_OCR_DEBUG=0` to disable.
+/// If unset or non-zero: write the exact JPEG passed to OCR into `computer_use_debug` under the app data dir (see implementation). Set `OPENBITFUN_COMPUTER_USE_OCR_DEBUG=0` to disable.
 fn ocr_debug_save_enabled() -> bool {
     !matches!(
-        std::env::var("BITFUN_COMPUTER_USE_OCR_DEBUG"),
+        std::env::var("OPENBITFUN_COMPUTER_USE_OCR_DEBUG"),
         Ok(v) if v == "0" || v.eq_ignore_ascii_case("false")
     )
 }
 
-/// Same directory as agent `screenshot` debug (`workspace/.bitfun/computer_use_debug`), when PathManager is available.
+/// Same directory as agent `screenshot` debug (`workspace/.openbitfun/computer_use_debug`), when PathManager is available.
 fn computer_use_ocr_debug_dir() -> PathBuf {
     if let Ok(pm) = try_get_path_manager_arc() {
         return pm
             .default_assistant_workspace_dir(None)
-            .join(".bitfun")
+            .join(openbitfun_core_types::product_identity::hidden_data_directory())
             .join("computer_use_debug");
     }
     dirs::home_dir()
         .map(|h| {
-            h.join(".bitfun")
+            h.join(openbitfun_core_types::product_identity::hidden_data_directory())
                 .join("personal_assistant")
                 .join("workspace")
-                .join(".bitfun")
+                .join(openbitfun_core_types::product_identity::hidden_data_directory())
                 .join("computer_use_debug")
         })
         .unwrap_or_else(|| std::env::temp_dir().join("computer_use_debug"))
@@ -121,197 +135,17 @@ fn save_ocr_debug_jpeg(shot: &ComputerScreenshot, text_query: &str) {
     }
 }
 
-fn normalize_query(text_query: &str) -> BitFunResult<String> {
+fn normalize_query(text_query: &str) -> OpenBitFunResult<String> {
     let q = text_query.trim();
     if q.is_empty() {
-        return Err(BitFunError::tool(
+        return Err(OpenBitFunError::tool(
             "move_to_text requires a non-empty text_query.".to_string(),
         ));
     }
     Ok(q.to_string())
 }
 
-/// Normalize for substring / fuzzy matching. Strips **all** Unicode whitespace so that
-/// Vision output like `"尉 怡 青"` or `"尉怡 青"` still matches query `"尉怡青"` (CJK UIs often
-/// insert spaces between glyphs). Latin phrases become `"helloworld"`-style; substring checks
-/// remain meaningful for short tokens.
-fn normalize_for_match(s: &str) -> String {
-    s.chars()
-        .filter(|c| !c.is_whitespace())
-        .collect::<String>()
-        .to_lowercase()
-}
-
-/// Levenshtein distance on Unicode scalar values (not UTF-8 bytes).
-fn levenshtein_chars(a: &str, b: &str) -> usize {
-    let a: Vec<char> = a.chars().collect();
-    let b: Vec<char> = b.chars().collect();
-    let n = a.len();
-    let m = b.len();
-    if n == 0 {
-        return m;
-    }
-    if m == 0 {
-        return n;
-    }
-    let mut prev: Vec<usize> = (0..=m).collect();
-    let mut curr = vec![0usize; m + 1];
-    for (i, a_ch) in a.iter().enumerate().take(n) {
-        curr[0] = i + 1;
-        for j in 0..m {
-            let cost = usize::from(*a_ch != b[j]);
-            curr[j + 1] = (prev[j] + cost).min(prev[j + 1] + 1).min(curr[j] + 1);
-        }
-        std::mem::swap(&mut prev, &mut curr);
-    }
-    prev[m]
-}
-
-/// Max allowed edit distance for fuzzy OCR match (Vision mis-reads one CJK glyph, etc.).
-fn fuzzy_max_distance(query_len_chars: usize) -> usize {
-    match query_len_chars {
-        0 => 0,
-        1 => 0,
-        2..=4 => 1,
-        5..=8 => 2,
-        _ => 3,
-    }
-}
-
-fn fuzzy_text_matches_query(ocr_text: &str, query: &str) -> bool {
-    let t = normalize_for_match(ocr_text);
-    let q = normalize_for_match(query);
-    if q.is_empty() {
-        return false;
-    }
-    if t.contains(&q) {
-        return true;
-    }
-    let ql = q.chars().count();
-    let dist = levenshtein_chars(&t, &q);
-    dist <= fuzzy_max_distance(ql)
-}
-
-#[cfg(test)]
-mod ocr_match_tests {
-    use super::*;
-
-    #[test]
-    fn normalize_strips_whitespace_for_cjk_substring() {
-        let q = normalize_for_match("尉怡青");
-        assert!(normalize_for_match("尉 怡 青").contains(&q));
-        assert!(normalize_for_match(" 尉怡 青 ").contains(&q));
-    }
-
-    #[test]
-    fn fuzzy_one_glyph_substitution_three_chars() {
-        assert!(fuzzy_text_matches_query("卫怡青", "尉怡青"));
-    }
-
-    #[test]
-    fn levenshtein_ascii() {
-        assert_eq!(levenshtein_chars("cat", "cats"), 1);
-    }
-}
-
-fn rank_matches(mut matches: Vec<OcrTextMatch>, query: &str) -> Vec<OcrTextMatch> {
-    let normalized_query = normalize_for_match(query);
-    matches.sort_by(|a, b| compare_match(a, b, &normalized_query));
-    matches
-}
-
-fn compare_match(a: &OcrTextMatch, b: &OcrTextMatch, normalized_query: &str) -> std::cmp::Ordering {
-    let sa = match_score(a, normalized_query);
-    let sb = match_score(b, normalized_query);
-    sb.cmp(&sa)
-        .then_with(|| {
-            b.confidence
-                .partial_cmp(&a.confidence)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-        .then_with(|| {
-            let da = normalized_len_delta(&a.text, normalized_query);
-            let db = normalized_len_delta(&b.text, normalized_query);
-            da.cmp(&db)
-        })
-}
-
-fn match_score(m: &OcrTextMatch, normalized_query: &str) -> i32 {
-    let text = normalize_for_match(&m.text);
-    if text == normalized_query {
-        4
-    } else if text.starts_with(normalized_query) {
-        3
-    } else if text.contains(normalized_query) {
-        2
-    } else {
-        1
-    }
-}
-
-fn normalized_len_delta(text: &str, normalized_query: &str) -> usize {
-    let l = normalize_for_match(text).chars().count();
-    let q = normalized_query.chars().count();
-    l.abs_diff(q)
-}
-
-fn filter_and_rank(query: &str, raw_matches: Vec<OcrTextMatch>) -> Vec<OcrTextMatch> {
-    let normalized_query = normalize_for_match(query);
-    let filtered = raw_matches
-        .into_iter()
-        .filter(|m| {
-            let t = normalize_for_match(&m.text);
-            t.contains(&normalized_query) || fuzzy_text_matches_query(&m.text, query)
-        })
-        .collect::<Vec<_>>();
-    rank_matches(filtered, query)
-}
-
-fn image_content_rect_or_full(shot: &ComputerScreenshot) -> (u32, u32, u32, u32) {
-    if let Some(rect) = &shot.image_content_rect {
-        (rect.left, rect.top, rect.width, rect.height)
-    } else {
-        (0, 0, shot.image_width, shot.image_height)
-    }
-}
-
-/// Map a rectangle in **full JPEG pixel space** (top-left origin) to global pointer coordinates.
-/// Uses `image_content_rect`: only the inner content area maps linearly to `native_width` × `native_height`.
-fn image_box_to_global_match(
-    shot: &ComputerScreenshot,
-    text: String,
-    confidence: f32,
-    local_left: f64,
-    local_top: f64,
-    width: f64,
-    height: f64,
-) -> OcrTextMatch {
-    let (cl, ct, cw, ch) = image_content_rect_or_full(shot);
-    let cw = cw as f64;
-    let ch = ch as f64;
-    let cl = cl as f64;
-    let ct = ct as f64;
-    let rel_x = local_left - cl;
-    let rel_y = local_top - ct;
-    let nw = shot.native_width as f64;
-    let nh = shot.native_height as f64;
-    let global_left = shot.display_origin_x as f64 + (rel_x / cw.max(1e-9)) * nw;
-    let global_top = shot.display_origin_y as f64 + (rel_y / ch.max(1e-9)) * nh;
-    let global_width = (width / cw.max(1e-9)) * nw;
-    let global_height = (height / ch.max(1e-9)) * nh;
-    let center_x = global_left + global_width / 2.0;
-    let center_y = global_top + global_height / 2.0;
-    OcrTextMatch {
-        text,
-        confidence,
-        center_x,
-        center_y,
-        bounds_left: global_left,
-        bounds_top: global_top,
-        bounds_width: global_width,
-        bounds_height: global_height,
-    }
-}
+use super::ocr_context::*;
 
 // ---------------------------------------------------------------------------
 // macOS: Vision framework OCR via objc2-vision
@@ -322,8 +156,6 @@ mod macos {
         filter_and_rank, fuzzy_text_matches_query, image_box_to_global_match,
         image_content_rect_or_full, levenshtein_chars, normalize_for_match, OcrTextMatch,
     };
-    use bitfun_core::agentic::tools::computer_use_host::ComputerScreenshot;
-    use bitfun_core::util::errors::{BitFunError, BitFunResult};
     use objc2::msg_send;
     use objc2::rc::Retained;
     use objc2::AnyThread;
@@ -333,6 +165,8 @@ mod macos {
         VNRecognizeTextRequestRevision3, VNRecognizedTextObservation, VNRequest,
         VNRequestTextRecognitionLevel,
     };
+    use openbitfun_core::agentic::tools::computer_use_host::ComputerScreenshot;
+    use openbitfun_core::util::errors::{OpenBitFunError, OpenBitFunResult};
 
     /// Top-N candidates per observation; Chinese matches often appear below rank 1.
     const TOP_CANDIDATES_MAX: usize = 10;
@@ -340,11 +174,11 @@ mod macos {
     pub(super) fn find_text_matches(
         shot: &ComputerScreenshot,
         text_query: &str,
-    ) -> BitFunResult<Vec<OcrTextMatch>> {
+    ) -> OpenBitFunResult<Vec<OcrTextMatch>> {
         let (_content_left, _content_top, content_width, content_height) =
             image_content_rect_or_full(shot);
         if content_width == 0 || content_height == 0 {
-            return Err(BitFunError::tool(
+            return Err(OpenBitFunError::tool(
                 "Screenshot content rect is empty; cannot run macOS Vision OCR.".to_string(),
             ));
         }
@@ -359,7 +193,7 @@ mod macos {
 
         let ranked = filter_and_rank(text_query, raw_matches);
         if ranked.is_empty() {
-            return Err(BitFunError::tool(format!(
+            return Err(OpenBitFunError::tool(format!(
                 "No OCR text matched {:?} on screen (macOS Vision found {} text regions total). \
                  Matching strips whitespace between glyphs and allows small edit distance for OCR errors. \
                  If the UI is Chinese, try a shorter substring or ensure the text is visible in the capture.",
@@ -372,7 +206,7 @@ mod macos {
 
     fn recognize_text_observations(
         jpeg_bytes: &[u8],
-    ) -> BitFunResult<Vec<Retained<VNRecognizedTextObservation>>> {
+    ) -> OpenBitFunResult<Vec<Retained<VNRecognizedTextObservation>>> {
         // Create NSData from the raw JPEG bytes.
         let ns_data = NSData::with_bytes(jpeg_bytes);
 
@@ -414,7 +248,7 @@ mod macos {
         // Perform the request synchronously.
         handler
             .performRequests_error(&requests)
-            .map_err(ns_error_to_bitfun)?;
+            .map_err(ns_error_to_openbitfun)?;
 
         // Collect results.
         let results = match request.results() {
@@ -424,9 +258,9 @@ mod macos {
         Ok(results.to_vec())
     }
 
-    fn ns_error_to_bitfun(err: Retained<NSError>) -> BitFunError {
+    fn ns_error_to_openbitfun(err: Retained<NSError>) -> OpenBitFunError {
         let desc = err.localizedDescription().to_string();
-        BitFunError::tool(format!("macOS Vision OCR failed: {}", desc))
+        OpenBitFunError::tool(format!("macOS Vision OCR failed: {}", desc))
     }
 
     fn observation_to_match(
@@ -498,7 +332,7 @@ mod macos {
         let width = image_rect.size.width;
         let height = image_rect.size.height;
 
-        Some(image_box_to_global_match(
+        image_box_to_global_match(
             shot,
             text,
             chosen_confidence,
@@ -506,7 +340,7 @@ mod macos {
             local_top,
             width,
             height,
-        ))
+        )
     }
 }
 
@@ -519,8 +353,8 @@ mod windows_backend {
         filter_and_rank, fuzzy_text_matches_query, image_box_to_global_match,
         image_content_rect_or_full, normalize_for_match, OcrTextMatch,
     };
-    use bitfun_core::agentic::tools::computer_use_host::ComputerScreenshot;
-    use bitfun_core::util::errors::{BitFunError, BitFunResult};
+    use openbitfun_core::agentic::tools::computer_use_host::ComputerScreenshot;
+    use openbitfun_core::util::errors::{OpenBitFunError, OpenBitFunResult};
     use windows::core::HSTRING;
     use windows::Graphics::Imaging::BitmapDecoder;
     use windows::Media::Ocr::{OcrEngine, OcrWord};
@@ -530,18 +364,18 @@ mod windows_backend {
         COINIT_DISABLE_OLE1DDE,
     };
 
-    fn w<T>(r: windows::core::Result<T>) -> BitFunResult<T> {
-        r.map_err(|e| BitFunError::tool(format!("Windows OCR: {}", e)))
+    fn w<T>(r: windows::core::Result<T>) -> OpenBitFunResult<T> {
+        r.map_err(|e| OpenBitFunError::tool(format!("Windows OCR: {}", e)))
     }
 
     pub(super) fn find_text_matches(
         shot: &ComputerScreenshot,
         text_query: &str,
-    ) -> BitFunResult<Vec<OcrTextMatch>> {
+    ) -> OpenBitFunResult<Vec<OcrTextMatch>> {
         let (content_left, content_top, content_width, content_height) =
             image_content_rect_or_full(shot);
         if content_width == 0 || content_height == 0 {
-            return Err(BitFunError::tool(
+            return Err(OpenBitFunError::tool(
                 "Screenshot content rect is empty; cannot run Windows OCR.".to_string(),
             ));
         }
@@ -554,7 +388,7 @@ mod windows_backend {
             let hr =
                 unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) };
             if hr.is_err() {
-                return Err(BitFunError::tool(format!(
+                return Err(OpenBitFunError::tool(format!(
                     "Windows OCR COM initialization failed: {:?}",
                     hr
                 )));
@@ -562,7 +396,7 @@ mod windows_backend {
             co_init = Some(());
         }
 
-        let result = (|| -> BitFunResult<Vec<OcrTextMatch>> {
+        let result = (|| -> OpenBitFunResult<Vec<OcrTextMatch>> {
             // 1. Write JPEG bytes to in-memory stream
             let stream = w(InMemoryRandomAccessStream::new())?;
             let writer = w(DataWriter::CreateDataWriter(&stream))?;
@@ -584,7 +418,7 @@ mod windows_backend {
                         &HSTRING::from("en-US"),
                     ))?;
                     if !w(OcrEngine::IsLanguageSupported(&lang))? {
-                        return Err(BitFunError::tool(
+                        return Err(OpenBitFunError::tool(
                             "Windows OCR: No supported language packs installed.".to_string(),
                         ));
                     }
@@ -617,7 +451,7 @@ mod windows_backend {
 
             let ranked = filter_and_rank(text_query, raw_matches);
             if ranked.is_empty() {
-                return Err(BitFunError::tool(format!(
+                return Err(OpenBitFunError::tool(format!(
                     "No OCR text matched {:?} on screen (Windows OCR found {} text regions total).",
                     text_query, line_count
                 )));
@@ -637,8 +471,8 @@ mod windows_backend {
         shot: &ComputerScreenshot,
         text_query: &str,
         word: &OcrWord,
-        content_left: u32,
-        content_top: u32,
+        _content_left: u32,
+        _content_top: u32,
         _content_width: u32,
         _content_height: u32,
     ) -> Option<OcrTextMatch> {
@@ -653,14 +487,12 @@ mod windows_backend {
 
         // Windows OCR returns bounding rect in pixels, top-left origin, within the image
         let rect = word.BoundingRect().ok()?;
-        let local_left = content_left as f64 + f64::from(rect.X);
-        let local_top = content_top as f64 + f64::from(rect.Y);
+        let local_left = f64::from(rect.X);
+        let local_top = f64::from(rect.Y);
         let width = f64::from(rect.Width);
         let height = f64::from(rect.Height);
 
-        Some(image_box_to_global_match(
-            shot, text, 0.8, local_left, local_top, width, height,
-        ))
+        image_box_to_global_match(shot, text, 0.8, local_left, local_top, width, height)
     }
 }
 
@@ -673,19 +505,19 @@ mod linux_backend {
         filter_and_rank, fuzzy_text_matches_query, image_box_to_global_match,
         image_content_rect_or_full, normalize_for_match, OcrTextMatch,
     };
-    use bitfun_core::agentic::tools::computer_use_host::ComputerScreenshot;
-    use bitfun_core::util::errors::{BitFunError, BitFunResult};
     use leptess::capi::TessPageIteratorLevel_RIL_WORD;
     use leptess::{leptonica, tesseract::TessApi};
+    use openbitfun_core::agentic::tools::computer_use_host::ComputerScreenshot;
+    use openbitfun_core::util::errors::{OpenBitFunError, OpenBitFunResult};
 
     pub(super) fn find_text_matches(
         shot: &ComputerScreenshot,
         text_query: &str,
-    ) -> BitFunResult<Vec<OcrTextMatch>> {
+    ) -> OpenBitFunResult<Vec<OcrTextMatch>> {
         let (content_left, content_top, content_width, content_height) =
             image_content_rect_or_full(shot);
         if content_width == 0 || content_height == 0 {
-            return Err(BitFunError::tool(
+            return Err(OpenBitFunError::tool(
                 "Screenshot content rect is empty; cannot run Linux Tesseract OCR.".to_string(),
             ));
         }
@@ -709,14 +541,14 @@ mod linux_backend {
                         }
                     }
                 }
-                api.ok_or_else(|| BitFunError::tool(
+                api.ok_or_else(|| OpenBitFunError::tool(
                     "Linux OCR: Tesseract initialization failed. Please install tesseract-ocr and tesseract-ocr-eng packages, or ensure TESSDATA_PREFIX is set correctly.".to_string()
                 ))?
             }
         };
 
         let pix = leptonica::pix_read_mem(&shot.bytes).map_err(|e| {
-            BitFunError::tool(format!(
+            OpenBitFunError::tool(format!(
                 "Linux OCR: Failed to decode screenshot image with Leptonica: {}",
                 e
             ))
@@ -724,7 +556,7 @@ mod linux_backend {
 
         api.set_image(&pix);
         if api.recognize() != 0 {
-            return Err(BitFunError::tool(
+            return Err(OpenBitFunError::tool(
                 "Linux OCR: Tesseract recognition failed.".to_string(),
             ));
         }
@@ -732,7 +564,9 @@ mod linux_backend {
         let boxa = api
             .get_component_images(TessPageIteratorLevel_RIL_WORD, true)
             .ok_or_else(|| {
-                BitFunError::tool("Linux OCR: Tesseract did not return word regions.".to_string())
+                OpenBitFunError::tool(
+                    "Linux OCR: Tesseract did not return word regions.".to_string(),
+                )
             })?;
 
         let word_region_count = boxa.get_n();
@@ -773,7 +607,7 @@ mod linux_backend {
 
         let ranked = filter_and_rank(text_query, raw_matches);
         if ranked.is_empty() {
-            return Err(BitFunError::tool(format!(
+            return Err(OpenBitFunError::tool(format!(
                 "No OCR text matched {:?} on screen (Tesseract found {} word regions total).",
                 text_query, word_region_count
             )));
@@ -790,8 +624,8 @@ mod linux_backend {
         y1: i32,
         x2: i32,
         y2: i32,
-        content_left: u32,
-        content_top: u32,
+        _content_left: u32,
+        _content_top: u32,
         _content_width: u32,
         _content_height: u32,
     ) -> Option<OcrTextMatch> {
@@ -802,8 +636,8 @@ mod linux_backend {
         }
 
         // Tesseract returns bounding box in pixels, top-left origin, within the image
-        let local_left = content_left as f64 + x1 as f64;
-        let local_top = content_top as f64 + y1 as f64;
+        let local_left = x1 as f64;
+        let local_top = y1 as f64;
         let width = (x2 - x1) as f64;
         let height = (y2 - y1) as f64;
 
@@ -811,7 +645,7 @@ mod linux_backend {
             return None;
         }
 
-        Some(image_box_to_global_match(
+        image_box_to_global_match(
             shot,
             text.to_string(),
             confidence,
@@ -819,6 +653,6 @@ mod linux_backend {
             local_top,
             width,
             height,
-        ))
+        )
     }
 }

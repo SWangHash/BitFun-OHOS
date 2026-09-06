@@ -1,15 +1,9 @@
 {
   "features": {
     "pet": {
-      "title": "宠物显示",
-      "subtitle": "控制 BitFun 宠物的显示位置和角色。",
+      "title": "桌面宠物",
+      "subtitle": "控制 OpenBitFun 桌面宠物是否显示以及使用的形象",
       "enable": "显示宠物",
-      "displayModeLabel": "显示位置",
-      "displayModeDescription": "选择宠物显示在输入框内，还是作为软件外的悬浮桌面宠物。",
-      "displayInput": "输入框内",
-      "displayInputDesc": "在会话输入框收起时显示。",
-      "displayDesktop": "悬浮桌面宠物",
-      "displayDesktopDesc": "在软件外显示为置顶的无边框小窗口，可拖动。",
       "petLabel": "宠物形象",
       "petDescription": "选择预置形象，或导入从 petdex.dev 下载的 Petdex zip。",
       "petPlaceholder": "选择宠物形象",
@@ -17,7 +11,7 @@
       "groupImported": "已导入",
       "import": "导入",
       "importing": "导入中",
-      "importHint": "可以去 https://petdex.dev/ 下载形象 zip 后导入。",
+      "importHint": "可以去 https://petdex.dev/ 下载形象 zip 后导入",
       "importDialogTitle": "选择 Petdex 形象 zip",
       "importFailed": "导入宠物形象失败",
       "delete": "删除已导入形象",
@@ -25,7 +19,6 @@
       "deleteConfirmBody": "从本机删除该已导入的宠物形象？此操作不可恢复。",
       "deleteSuccess": "已删除导入的形象",
       "deleteFailed": "删除导入形象失败",
-      "refresh": "刷新形象列表",
       "presets": {
         "blueGolden": {
           "name": "困困"
@@ -34,7 +27,7 @@
     },
     "workspaceSearch": {
       "title": "加速工作区搜索",
-      "subtitle": "提升大型工作区中的文件搜索速度。关闭后仍可正常搜索。",
+      "subtitle": "提升大型工作区中的文件搜索速度。关闭后仍可正常搜索",
       "enable": "启用加速工作区搜索"
     }
   },
@@ -44,7 +37,7 @@
   },
   "permissionPolicy": {
     "sectionTitle": "工具权限",
-    "sectionDescription": "设置 BitFun 何时需要你确认工具操作。",
+    "sectionDescription": "设置 OpenBitFun 何时需要你确认工具操作。",
     "mode": "默认权限模式",
     "ask": "需要确认",
     "askDescription": "修改文件、执行命令或访问外部服务时先确认。",
@@ -79,7 +72,7 @@
     "modeDescription": "作为新会话的默认设置，可在输入框中临时切换。"
   },
   "projectPermissions": {
-    "description": "“始终允许”会保存为当前项目的记忆授权；静态项目规则会在工具执行前直接应用。",
+    "description": "“始终允许”会保存为当前项目的记忆授权；静态项目规则会在工具执行前直接应用",
     "grantsTitle": "记忆授权",
     "grantsEmpty": "当前项目没有记忆授权。",
     "removeGrant": "撤销授权",
@@ -121,18 +114,20 @@
   },
   "computerUse": {
     "sectionTitle": "桌面控制",
-    "sectionDescription": "允许 BitFun 查看屏幕并操作鼠标和键盘。",
+    "sectionDescription": "允许 OpenBitFun 查看屏幕并操作鼠标和键盘。",
     "enable": "允许桌面控制",
-    "enableDesc": "关闭后，BitFun 将不再操作桌面应用。浏览器控制可单独设置。",
+    "enableDesc": "关闭后，OpenBitFun 将不再操作桌面应用。浏览器控制可单独设置",
     "accessibility": "辅助功能",
-    "accessibilityDesc": "允许 BitFun 识别并操作其他应用中的界面。",
+    "accessibilityDesc": "允许 OpenBitFun 识别并操作其他应用中的界面",
     "screenCapture": "屏幕录制",
-    "screenCaptureDesc": "允许 BitFun 查看屏幕内容。",
+    "screenCaptureDesc": "允许 OpenBitFun 查看屏幕内容",
     "granted": "已授权",
     "notGranted": "未授权",
+    "statusUnavailable": "状态未知",
+    "statusLoadFailed": "无法读取桌面控制状态。相关设置已锁定，请刷新后重试。",
     "openSettings": "系统设置",
     "refreshStatus": "刷新状态",
-    "desktopOnly": "桌面控制仅在 BitFun 桌面应用中可用。",
+    "desktopOnly": "桌面控制仅在 OpenBitFun 桌面应用中可用。",
     "peerUnsupported": "桌面控制运行在所连接的 Peer 主机上。该 Peer 主机（CLI）不支持此功能，无法在此配置。",
     "platformNote": "说明",
     "platformNotes": {
@@ -144,32 +139,34 @@
   },
   "browserControl": {
     "sectionTitle": "浏览器控制",
-    "sectionDescription": "选择 BitFun 使用的浏览器和连接方式。",
-    "desktopOnly": "浏览器控制仅在 BitFun 桌面应用中可用。",
+    "sectionDescription": "选择 OpenBitFun 使用的浏览器和连接方式。",
+    "desktopOnly": "浏览器控制仅在 OpenBitFun 桌面应用中可用。",
     "peerUnsupported": "浏览器控制运行在所连接的 Peer 主机上。该 Peer 主机（CLI）不支持此功能，无法在此配置。",
+    "defaultBrowser": "系统默认浏览器",
+    "preferredBrowserConnectedDesc": "断开连接后可切换浏览器",
+    "connected": "已连接",
+    "ready": "已就绪",
     "preferredBrowser": "浏览器",
-    "preferredBrowserDesc": "默认使用 BitFun 内置浏览器；外部浏览器无法连接时会自动回退到内置浏览器。",
-    "builtinBrowser": "BitFun 内置浏览器",
+    "preferredBrowserDesc": "默认使用系统浏览器",
     "notInstalled": "未安装",
     "status": "连接状态",
     "statusDesc": "",
     "notConnected": "未连接",
+    "statusUnavailable": "状态未知",
+    "statusLoadFailed": "无法读取浏览器控制状态。相关设置已锁定，请刷新后重试。",
     "readyNotConnected": "已就绪，使用时自动连接",
-    "builtinReady": "内置浏览器已就绪，使用时自动连接",
-    "builtinConnected": "内置浏览器已连接",
     "refreshStatus": "刷新状态",
     "connect": "连接浏览器",
     "defaultCdp": "使用现有浏览器",
-    "defaultCdpDesc": "使用已打开的 Chrome 或 Edge，并保留标签页和登录状态。连接时仍需在浏览器中确认。",
+    "defaultCdpDesc": "使用已打开的 Chrome 或 Edge，并保留标签页和登录状态。连接时仍需在浏览器中确认",
     "autoConnectOnStartup": "启动时自动连接",
-    "autoConnectOnStartupDesc": "BitFun 启动后自动连接已打开的浏览器。浏览器重启后可能需要重新确认。",
+    "autoConnectOnStartupDesc": "OpenBitFun 启动后自动连接已打开的浏览器。浏览器重启后可能需要重新确认",
     "defaultCdpEnabled": "已启用",
     "defaultCdpDisabled": "未启用",
     "enableDefaultCdp": "启用并连接",
-    "defaultCdpEnablePrompt": "正在尝试打开 {{browser}} 的 Remote debugging 设置页（该页面仅有英文）。请勾选 “Allow remote debugging for this browser instance”；若页面未自动打开，请在浏览器地址栏输入 {{url}}。BitFun 检测到后会自动继续连接，再请在浏览器中选择“允许”。",
+    "defaultCdpEnablePrompt": "正在尝试打开 {{browser}} 的 Remote debugging 设置页（该页面仅有英文）。请勾选 “Allow remote debugging for this browser instance”；若页面未自动打开，请在浏览器地址栏输入 {{url}}。OpenBitFun 检测到后会自动继续连接，再请在浏览器中选择“允许”。",
     "defaultCdpConnectPrompt": "正在连接你当前的 {{browser}}；请在浏览器弹窗中选择“允许”。若未出现连接请求，可在浏览器地址栏输入 {{url}} 检查 Remote debugging 设置。",
     "connectSuccess": "已连接 {{browser}}",
-    "fallbackToBuiltin": "无法连接 {{browser}}，已回退到内置浏览器",
     "connectFailed": "连接浏览器失败",
     "disconnect": "断开连接",
     "disconnectSuccess": "已断开与 {{browser}} 的连接；浏览器标签页不会关闭，Remote debugging 设置保持不变。",
@@ -181,7 +178,7 @@
     "restartFailed": "无法重新启动并连接 {{browser}}",
     "restartModal": {
       "title": "重新启动浏览器",
-      "description": "BitFun 需要重新启动当前的 {{browser}} 才能连接。",
+      "description": "OpenBitFun 需要重新启动当前的 {{browser}} 才能连接。",
       "warning": "此操作会关闭当前浏览器窗口。",
       "cancel": "取消",
       "confirm": "重新启动并连接",
@@ -193,7 +190,9 @@
     "enable": "启用"
   },
   "loading": {
-    "text": "加载配置中..."
+    "text": "加载配置中...",
+    "failed": "无法读取设置。为避免覆盖现有配置，当前页面已锁定。",
+    "retry": "重新加载"
   },
   "messages": {
     "saveSuccess": "设置已保存",

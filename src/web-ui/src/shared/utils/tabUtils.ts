@@ -7,7 +7,7 @@ import { enqueuePendingTab } from '@/shared/services/pendingTabQueue';
 import { resolveAndFocusOpenTarget } from '@/shared/services/sceneOpenTargetResolver';
 import type { OpenSource } from '@/shared/services/sceneOpenTargetResolver';
 import { TAB_EVENTS } from '@/app/components/panels/content-canvas/types';
-import { useSceneStore } from '@/app/stores/sceneStore';
+import { parseCanvasArtifactReference } from '@/shared/utils/canvasArtifactReference';
 export type TabTargetMode = 'agent' | 'project' | 'git';
 
 export interface TabCreationOptions {
@@ -20,8 +20,6 @@ export interface TabCreationOptions {
   replaceExisting?: boolean;
   /** Target canvas: agent (AuxPane), project (FileViewer), git (Git scene diff area) */
   mode?: TabTargetMode;
-  /** Focus the target scene and make its panel visible before creating the tab. */
-  ensureVisible?: boolean;
 }
 
 interface CreateTerminalTabOptions {
@@ -36,9 +34,22 @@ export interface CreateReviewPlatformPullRequestDetailTabOptions {
   title?: string;
 }
 
+export interface OpenCanvasArtifactTabOptions {
+  artifactReference: string;
+  title?: string;
+  source?: string;
+  status?: string;
+  diagnostics?: unknown[];
+  workspacePath?: string;
+  remoteConnectionId?: string;
+  remoteSshHost?: string;
+  sourceMetadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
 function isRightPanelCollapsed(): boolean {
   try {
-    const layoutState = (window as any).__BITFUN_LAYOUT_STATE__;
+    const layoutState = (window as any).__OPENBITFUN_LAYOUT_STATE__;
     return layoutState?.rightPanelCollapsed ?? false;
   } catch {
     return false;
@@ -55,48 +66,67 @@ export function createTab(options: TabCreationOptions): void {
     checkDuplicate = false,
     duplicateCheckKey,
     replaceExisting = false,
-    mode = 'agent',
-    ensureVisible = false,
+    mode = 'agent' 
   } = options;
 
   const eventName =
     mode === 'project' ? 'project-create-tab' : mode === 'git' ? 'git-create-tab' : 'agent-create-tab';
 
-  const detail = {
-    type,
-    title,
-    data,
-    metadata,
-    checkDuplicate,
-    duplicateCheckKey,
-    replaceExisting,
-  };
-  const dispatchCreateTab = () => {
-    window.dispatchEvent(new CustomEvent(eventName, { detail }));
-  };
-
-  if (mode === 'agent' && ensureVisible) {
-    const sceneState = useSceneStore.getState();
-    const sceneJustOpened = !sceneState.openTabs.some(tab => tab.id === 'session');
-    sceneState.openScene('session');
-    window.dispatchEvent(new CustomEvent(TAB_EVENTS.EXPAND_RIGHT_PANEL));
-    if (sceneJustOpened) {
-      enqueuePendingTab('agent', detail);
-      return;
+  const createTabEvent = new CustomEvent(eventName, {
+    detail: {
+      type,
+      title,
+      data,
+      metadata,
+      checkDuplicate,
+      duplicateCheckKey,
+      replaceExisting
     }
-    // Scene activation and panel expansion both publish React layout updates.
-    // Dispatch after they have committed so the browser host has real bounds.
-    window.setTimeout(dispatchCreateTab, 300);
-    return;
-  }
+  });
 
   if (mode === 'agent' && isRightPanelCollapsed()) {
     window.dispatchEvent(new CustomEvent(TAB_EVENTS.EXPAND_RIGHT_PANEL));
-    window.setTimeout(dispatchCreateTab, 300);
+    window.setTimeout(() => {
+      window.dispatchEvent(createTabEvent);
+    }, 300);
     return;
   }
 
-  dispatchCreateTab();
+  window.dispatchEvent(createTabEvent);
+}
+
+/** Open a persisted Canvas artifact through the same panel path as Canvas tool cards. */
+export function openCanvasArtifactTab(options: OpenCanvasArtifactTabOptions): boolean {
+  const artifactReference = options.artifactReference.trim();
+  if (!parseCanvasArtifactReference(artifactReference)) {
+    return false;
+  }
+
+  const duplicateCheckKey = `openbitfun-canvas-${artifactReference}`;
+  createTab({
+    type: 'openbitfun-canvas',
+    title: options.title?.trim() || 'OpenBitFun Canvas',
+    data: {
+      artifactReference,
+      source: options.source,
+      status: options.status,
+      diagnostics: options.diagnostics,
+      workspacePath: options.workspacePath,
+      remoteConnectionId: options.remoteConnectionId,
+      remoteSshHost: options.remoteSshHost,
+      ...(options.sourceMetadata ? { _source: options.sourceMetadata } : {}),
+    },
+    metadata: {
+      duplicateCheckKey,
+      artifactReference,
+      ...options.metadata,
+    },
+    checkDuplicate: true,
+    duplicateCheckKey,
+    replaceExisting: true,
+    mode: 'agent',
+  });
+  return true;
 }
 
  
@@ -470,11 +500,12 @@ interface OpenFileTargetContext {
 
 /**
  * Open a file to the best target:
- * - active scene is session: open in agent AuxPane tabs
- * - otherwise: open in file-viewer scene project tabs
+ * - explicit project navigation: open in the file-viewer scene
+ * - contextual open while Session is active: open in agent AuxPane tabs
+ * - otherwise: open in the file-viewer scene
  *
- * This avoids unexpected focus stealing when session is merely opened but
- * not the currently active scene.
+ * Explicit user navigation outranks ambient scene state. This keeps the file
+ * tree deterministic while contextual links avoid unexpected focus stealing.
  */
 export function openFileInBestTarget(
   options: OpenFileInBestTargetOptions,

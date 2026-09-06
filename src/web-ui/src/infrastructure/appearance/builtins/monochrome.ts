@@ -1,25 +1,25 @@
 import type { AppearancePalette } from './AppearancePalette';
-import { bitfunDarkPalette } from './dark';
-import { bitfunLightPalette } from './light';
+import { openOpenBitFunDarkPalette } from './dark';
+import { openOpenBitFunLightPalette } from './light';
 import {
   createAccentScale,
   createSecondaryAccentScale,
   STATIC_BLACK,
   STATIC_WHITE,
 } from './paletteHelpers';
-import { bitfunSlatePalette } from './slate';
+import { openOpenBitFunSlatePalette } from './slate';
 
-const content = bitfunLightPalette;
-const chrome = bitfunSlatePalette;
+const content = openOpenBitFunLightPalette;
+const chrome = openOpenBitFunSlatePalette;
 const paper = STATIC_WHITE;
 const ink = chrome.colors.background.primary;
 
-export const bitfunMonochromePalette: AppearancePalette = {
-  id: 'bitfun-monochrome',
+export const openOpenBitFunMonochromePalette: AppearancePalette = {
+  id: 'openbitfun-monochrome',
   name: 'Black & White',
   type: 'light',
   description: 'Black-and-white contrast appearance - Deep black chrome, bright white workspace, soft neutral blocks',
-  author: 'BitFun Team',
+  author: 'OpenBitFun Team',
   version: '1.0.0',
 
   layout: content.layout,
@@ -69,19 +69,19 @@ export const bitfunMonochromePalette: AppearancePalette = {
       },
       text: {
         primary: content.colors.element.soft,
-        secondary: bitfunDarkPalette.colors.text.secondary,
-        muted: content.colors.text.disabled,
-        disabled: content.colors.text.muted,
+        secondary: openOpenBitFunDarkPalette.colors.text.secondary,
+        muted: openOpenBitFunDarkPalette.colors.text.muted,
+        disabled: openOpenBitFunDarkPalette.colors.text.disabled,
       },
       accent: createAccentScale({
         base: content.colors.element.soft,
         hover: STATIC_WHITE,
         stops: {
-          50: bitfunDarkPalette.colors.element.subtle,
-          100: bitfunDarkPalette.colors.element.soft,
-          200: bitfunDarkPalette.colors.element.base,
-          300: bitfunDarkPalette.colors.element.medium,
-          400: bitfunDarkPalette.colors.element.strong,
+          50: openOpenBitFunDarkPalette.colors.element.subtle,
+          100: openOpenBitFunDarkPalette.colors.element.soft,
+          200: openOpenBitFunDarkPalette.colors.element.base,
+          300: openOpenBitFunDarkPalette.colors.element.medium,
+          400: openOpenBitFunDarkPalette.colors.element.strong,
         },
       }),
       border: chrome.colors.border,

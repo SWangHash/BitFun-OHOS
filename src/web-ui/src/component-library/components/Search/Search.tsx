@@ -228,15 +228,15 @@ export const Search = forwardRef<HTMLInputElement, SearchProps>(({
     .join(' ');
 
   return (
-    <div className={classNames} data-bf-component="search" data-bf-part="root" data-bf-size={size} data-bf-state={[isFocused && 'focused', isHovered && 'hover', disabled && 'disabled', error && 'error', loading && 'loading', expandOnFocus && 'expandable'].filter(Boolean).join(' ') || undefined} {...rootProps}>
+    <div className={classNames} data-openbitfun-component="search" data-openbitfun-part="root" data-openbitfun-size={size} data-openbitfun-state={[isFocused && 'focused', isHovered && 'hover', disabled && 'disabled', error && 'error', loading && 'loading', expandOnFocus && 'expandable'].filter(Boolean).join(' ') || undefined} {...rootProps}>
       <div 
         className="search__wrapper"
-        data-bf-component="search"
-        data-bf-part="wrapper"
+        data-openbitfun-component="search"
+        data-openbitfun-part="wrapper"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <div className="search__prefix" data-bf-component="search" data-bf-part="prefix">
+        <div className="search__prefix" data-openbitfun-component="search" data-openbitfun-part="prefix">
           {loading ? <LoadingGlyph /> : (prefixIcon || <SearchGlyph />)}
         </div>
 
@@ -261,7 +261,7 @@ export const Search = forwardRef<HTMLInputElement, SearchProps>(({
           aria-busy={loading || undefined}
           aria-invalid={error || undefined}
           aria-describedby={error && errorMessage ? errorId : undefined}
-         data-bf-component="search" data-bf-part="input"/>
+         data-openbitfun-component="search" data-openbitfun-part="input"/>
 
         {clearable && inputValue && !loading && !disabled && (
           <button
@@ -270,8 +270,8 @@ export const Search = forwardRef<HTMLInputElement, SearchProps>(({
             onClick={handleClear}
             aria-label={t('search.clear')}
             tabIndex={-1}
-            data-bf-component="search"
-            data-bf-part="clear"
+            data-openbitfun-component="search"
+            data-openbitfun-part="clear"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path
@@ -285,7 +285,7 @@ export const Search = forwardRef<HTMLInputElement, SearchProps>(({
         )}
 
         {suffixContent && (
-          <div className="search__suffix-content" data-bf-component="search" data-bf-part="suffix">
+          <div className="search__suffix-content" data-openbitfun-component="search" data-openbitfun-part="suffix">
             {suffixContent}
           </div>
         )}
@@ -297,8 +297,8 @@ export const Search = forwardRef<HTMLInputElement, SearchProps>(({
             onClick={handleSearch}
             disabled={disabled || loading}
             aria-label={t('search.placeholder')}
-            data-bf-component="search"
-            data-bf-part="button"
+            data-openbitfun-component="search"
+            data-openbitfun-part="button"
           >
             {resolvedSearchButtonText}
           </button>
@@ -306,7 +306,7 @@ export const Search = forwardRef<HTMLInputElement, SearchProps>(({
       </div>
 
       {error && errorMessage && (
-        <div id={errorId} className="search__error-message" role="alert" data-bf-component="search" data-bf-part="message">{errorMessage}</div>
+        <div id={errorId} className="search__error-message" role="alert" data-openbitfun-component="search" data-openbitfun-part="message">{errorMessage}</div>
       )}
     </div>
   );

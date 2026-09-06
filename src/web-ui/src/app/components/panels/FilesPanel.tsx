@@ -3,7 +3,7 @@
  * Displays the file explorer for the current workspace
  */
 
-import { Button, Icon, IconButton, SearchField, StatusPill, Tooltip, ScrollArea } from '@bitfun/ui';
+import { Button, Icon, IconButton, SearchField, StatusPill, Tooltip, ScrollArea } from '@openbitfun/ui';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CaseSensitive, Regex, WholeWord, List, Loader2 } from 'lucide-react';
@@ -22,7 +22,7 @@ import { workspaceAPI } from '@/infrastructure/api';
 import type { FileSystemNode } from '@/tools/file-system/types';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { useNotification } from '@/shared/notification-system';
-import { LoadingState } from '@bitfun/ui';
+import { LoadingState } from '@openbitfun/ui';
 import { InputDialog } from '@/app/components/InputDialog';
 import { openFileInBestTarget } from '@/shared/utils/tabUtils';
 import { getMotionAwareScrollBehavior } from '@/shared/utils/motionPreference';
@@ -46,15 +46,12 @@ import type {
 import {
   downloadWorkspaceFileToDisk,
   joinWorkspaceTargetPath,
-  isFilePermissionError,
-  isSourceFileMissingError,
   normalizeWorkspaceTargetDirectory,
   pasteClipboardFilesToWorkspaceDirectory,
   resolvePasteTargetDirectory,
   type TransferProgressState,
 } from '@/tools/file-system/services/workspaceFileTransfer';
 import { useWorkspaceFileDrop } from '@/tools/file-system/hooks/useWorkspaceFileDrop';
-import { validateFileName } from '@/tools/file-system/utils/validateFileName';
 import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { sshApi } from '@/features/ssh-remote/sshApi';
 import { formatBytes } from '@/shared/utils/format';
@@ -65,50 +62,6 @@ const log = createLogger('FilesPanel');
 const FOCUS_REFRESH_THROTTLE_MS = 1000;
 const REMOTE_REFRESH_POLL_MS = 15000;
 const LARGE_FILE_THRESHOLD_BYTES = 2 * 1024 * 1024;
-
-function getChildNames(nodes: FileSystemNode[], parentPath: string): string[] {
-  for (const node of nodes) {
-    if (pathsEquivalentFs(node.path, parentPath)) {
-      return (node.children ?? []).map((child) => child.name);
-    }
-    if (node.children) {
-      const childNames = getChildNames(node.children, parentPath);
-      if (childNames.length > 0) {
-        return childNames;
-      }
-    }
-  }
-  return [];
-}
-
-function isAlreadyExistsError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /already exists|file exists|os error 17|os error 183|EEXIST/i.test(message);
-}
-
-function getLocalizedPasteFailureReason(
-  t: (key: string, options?: Record<string, unknown>) => string,
-  error: unknown,
-): string {
-  if (isFilePermissionError(error)) {
-    return t('notifications.pastePermissionDenied');
-  }
-  if (isSourceFileMissingError(error)) {
-    return t('notifications.pasteSourceMissing');
-  }
-  return error instanceof Error ? error.message : String(error);
-}
-
-function getPasteErrorMessage(
-  t: (key: string, options?: Record<string, unknown>) => string,
-  name: string,
-  error: string,
-): string {
-  return t('notifications.pasteErrorDetail', {
-    name,
-    error: getLocalizedPasteFailureReason(t, error),
-  });
-}
 
 /** Format a byte-per-second speed value for display, e.g. "1.4 MB/s". */
 function formatSpeed(bytesPerSec: number): string {
@@ -314,7 +267,6 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     expandFolder,
     expandFolderLazy,
     expandFolderEnsure,
-    collapseAll,
     removePath,
   } = useFileSystem({
     rootPath: workspacePath,
@@ -324,11 +276,6 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     // Local filesystem watchers are unavailable for remote SSH workspaces.
     enableAutoWatch: !isRemoteCurrentWorkspace,
   });
-  const fileTreeError = error
-    ? isFilePermissionError(error)
-      ? t('errors.fileTreePermissionDenied')
-      : t('errors.fileTreeLoadFailed', { message: error })
-    : null;
   const handleNodeExpandLazy = useCallback((path: string) => {
     expandFolderLazy(path);
   }, [expandFolderLazy]);
@@ -404,7 +351,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         workspacePath,
         ...(data.line ? { jumpToLine: data.line } : {}),
         ...(data.column ? { jumpToColumn: data.column } : {}),
-      });
+      }, { source: 'project-nav' });
     });
   }, [workspacePath, shouldOpenLargeFile]);
 
@@ -416,23 +363,15 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     });
   }, []);
 
-  const focusFileTree = useCallback(() => {
-    window.requestAnimationFrame(() => {
-      panelRef.current
-        ?.querySelector<HTMLElement>('[data-shortcut-scope="filetree"]')
-        ?.focus();
+  const handleInputDialogClose = useCallback(() => {
+    setInputDialog({
+      isOpen: false,
+      type: null,
+      parentPath: '',
     });
   }, []);
 
-  const handleInputDialogClose = useCallback(() => {
-    setInputDialog((current) => ({
-      ...current,
-      isOpen: false,
-    }));
-    focusFileTree();
-  }, [focusFileTree]);
-
-  const handleConfirmNewFile = useCallback(async (fileName: string): Promise<boolean> => {
+  const handleConfirmNewFile = useCallback(async (fileName: string) => {
     const filePath = joinWorkspaceTargetPath(
       inputDialog.parentPath,
       fileName,
@@ -442,17 +381,13 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     try {
       await workspaceAPI.createFile(filePath, currentWorkspace?.connectionId);
       log.info('File created', { path: filePath });
-      void loadFileTree(workspacePath || '', true);
-      return true;
+      handleInputDialogClose();
+      loadFileTree(workspacePath || '', true);
     } catch (error) {
       log.error('Failed to create file', error);
-      const messageKey = isAlreadyExistsError(error)
-        ? 'notifications.createFileAlreadyExists'
-        : 'notifications.createFileFailed';
-      notification.error(t(messageKey));
-      return false;
+      notification.error(t('notifications.createFileFailed', { error: String(error) }));
     }
-  }, [inputDialog.parentPath, workspacePath, loadFileTree, notification, t, currentWorkspace]);
+  }, [inputDialog.parentPath, workspacePath, loadFileTree, notification, t, handleInputDialogClose, currentWorkspace]);
 
   const handleNewFolder = useCallback((data: { parentPath: string }) => {
     setInputDialog({
@@ -462,7 +397,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     });
   }, []);
 
-  const handleConfirmNewFolder = useCallback(async (folderName: string): Promise<boolean> => {
+  const handleConfirmNewFolder = useCallback(async (folderName: string) => {
     const folderPath = joinWorkspaceTargetPath(
       inputDialog.parentPath,
       folderName,
@@ -472,26 +407,20 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     try {
       await workspaceAPI.createDirectory(folderPath, currentWorkspace?.connectionId);
       log.info('Directory created', { path: folderPath });
-      void loadFileTree(workspacePath || '', true);
-      return true;
+      handleInputDialogClose();
+      loadFileTree(workspacePath || '', true);
     } catch (error) {
       log.error('Failed to create directory', error);
-      const messageKey = isAlreadyExistsError(error)
-        ? 'notifications.createFolderAlreadyExists'
-        : 'notifications.createFolderFailed';
-      notification.error(t(messageKey));
-      return false;
+      notification.error(t('notifications.createFolderFailed', { error: String(error) }));
     }
-  }, [inputDialog.parentPath, workspacePath, loadFileTree, notification, t, currentWorkspace]);
+  }, [inputDialog.parentPath, workspacePath, loadFileTree, notification, t, handleInputDialogClose, currentWorkspace]);
 
-  const handleInputDialogConfirm = useCallback((value: string): Promise<boolean> | boolean => {
+  const handleInputDialogConfirm = useCallback((value: string) => {
     if (inputDialog.type === 'newFile') {
-      return handleConfirmNewFile(value);
+      handleConfirmNewFile(value);
+    } else if (inputDialog.type === 'newFolder') {
+      handleConfirmNewFolder(value);
     }
-    if (inputDialog.type === 'newFolder') {
-      return handleConfirmNewFolder(value);
-    }
-    return false;
   }, [inputDialog.type, handleConfirmNewFile, handleConfirmNewFolder]);
 
   const handleStartRename = useCallback((data: { path: string; name: string }) => {
@@ -586,7 +515,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       const ws = workspaceManager.getState().currentWorkspace;
       const remoteCid = ws?.connectionId;
       try {
-        await workspaceAPI.compressPath(data.path, data.isDirectory === true, remoteCid);
+        await workspaceAPI.compressPath(data.path, data.isDirectory ?? false, remoteCid);
         notification.success(
           t('archive.compressSuccess', { name: data.path.split(/[/\\]/).pop() || '' }),
         );
@@ -700,9 +629,9 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
           behavior: getMotionAwareScrollBehavior('smooth'),
           block: 'center',
         });
-        targetElement.classList.add('bitfun-file-explorer__node-content--highlighted');
+        targetElement.classList.add('openbitfun-file-explorer__node-content--highlighted');
         setTimeout(() => {
-          targetElement.classList.remove('bitfun-file-explorer__node-content--highlighted');
+          targetElement.classList.remove('openbitfun-file-explorer__node-content--highlighted');
         }, 2000);
       }
     };
@@ -754,6 +683,13 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
 
       targetDirectory = normalizeWorkspaceTargetDirectory(targetDirectory, currentWorkspace);
 
+      notification.info(
+        t('notifications.pastingFiles', {
+          count: 1,
+          target: targetDirectory.split(/[/\\]/).pop(),
+        })
+      );
+
       const result = await pasteClipboardFilesToWorkspaceDirectory(
         targetDirectory,
         currentWorkspace,
@@ -767,6 +703,16 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       }
 
       if (result.successCount > 0) {
+        const dirCount = result.directoryCount ?? 0;
+        let key: string;
+        if (dirCount === 0) {
+          key = 'notifications.pasteSuccessFiles';
+        } else if (dirCount === result.successCount) {
+          key = 'notifications.pasteSuccessFolders';
+        } else {
+          key = 'notifications.pasteSuccessItems';
+        }
+        notification.success(t(key, { count: result.successCount }));
         await loadFileTree(undefined, true);
 
         if (!pathsEquivalentFs(targetDirectory, workspacePath)) {
@@ -777,20 +723,12 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       if (result.failedFiles.length > 0) {
         const failedNames = result.failedFiles.map((entry) => {
           const name = entry.path.split(/[/\\]/).pop() || entry.path;
-          return getPasteErrorMessage(t, name, entry.error);
+          return `${name}: ${entry.error}`;
         }).join('\n');
         notification.error(
           t('notifications.pasteFailed', { count: result.failedFiles.length }) + `:\n${failedNames}`,
           { duration: 5000 }
         );
-      } else {
-        const dirCount = result.directoryCount ?? 0;
-        const key = dirCount === 0
-          ? 'notifications.pasteSuccessFiles'
-          : dirCount === result.successCount
-            ? 'notifications.pasteSuccessFolders'
-            : 'notifications.pasteSuccessItems';
-        notification.success(t(key, { count: result.successCount }));
       }
     } catch (error) {
       log.error('Failed to paste files', error);
@@ -798,11 +736,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       if (cancelledTransferIdsRef.current.has(id)) {
         cancelledTransferIdsRef.current.delete(id);
       } else {
-        notification.error(
-          t('notifications.pasteFailedWithReason', {
-            error: getLocalizedPasteFailureReason(t, error),
-          })
-        );
+        notification.error(t('notifications.pasteFailed', { count: 1 }));
       }
     }
   }, [
@@ -833,19 +767,13 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     () => handlePaste(),
     { enabled: Boolean(workspacePath) }
   );
-  useShortcut(
-    'filetree.collapseAll',
-    { key: '[', ctrl: true, shift: true, scope: 'filetree' },
-    collapseAll,
-    { enabled: Boolean(workspacePath) && viewMode === 'tree' }
-  );
 
   // macOS bridge: the native menu bar intercepts Cmd+V before the DOM sees a
   // keydown event, so ShortcutManager never fires. In "System" edit-menu mode
   // (the default when no text editor is focused) the menu tells the WebView to
   // perform a native paste, which surfaces as a DOM `paste` event. In
   // "Renderer" mode (when a Monaco editor was recently focused) the menu emits
-  // a Tauri `bitfun_menu_edit_paste` event. We listen to both so file-tree
+  // a Tauri `openbitfun_menu_edit_paste` event. We listen to both so file-tree
   // paste works regardless of which mode the menu is in.
   useEffect(() => {
     if (!workspacePath) return;
@@ -875,7 +803,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       (async () => {
         try {
           const { listen } = await import('@tauri-apps/api/event');
-          const unsubscribe = await listen('bitfun_menu_edit_paste', () => {
+          const unsubscribe = await listen('openbitfun_menu_edit_paste', () => {
             if (isPanelFocused()) {
               handlePaste();
             }
@@ -1111,17 +1039,17 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
 
   return (
     <div
-      data-bf-component="files-panel"
-      data-bf-part="root"
+      data-openbitfun-component="files-panel"
+      data-openbitfun-part="root"
       ref={panelRef}
-      className="bitfun-files-panel"
+      className="openbitfun-files-panel"
       tabIndex={-1}
       onFocus={() => {}}
     >
       {!hideHeader && (
         <PanelHeader
           title={t('title')}
-          className="bitfun-files-panel__header"
+          className="openbitfun-files-panel__header"
           actions={
             workspacePath && (
               <Tooltip content={viewMode === 'tree' ? t('actions.switchToSearch') : t('actions.switchToTree')} placement="bottom">
@@ -1137,9 +1065,9 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         />
       )}
       
-      <div className="bitfun-files-panel__content" data-bf-component="files-panel" data-bf-part="content">
+      <div className="openbitfun-files-panel__content" data-openbitfun-component="files-panel" data-openbitfun-part="content">
         {workspacePath && viewMode === 'search' && (
-          <div className="bitfun-files-panel__search" data-bf-component="files-panel" data-bf-part="search" data-bf-search-mode={searchMode}>
+          <div className="openbitfun-files-panel__search" data-openbitfun-component="files-panel" data-openbitfun-part="search" data-openbitfun-search-mode={searchMode}>
             <SearchField
               placeholder={t('search.placeholder')}
               aria-label={t('search.placeholder')}
@@ -1149,31 +1077,31 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
               onClear={searchQuery ? handleClearSearch : undefined}
               size="sm"
               leadingIcon={isSearching
-                ? <Loader2 className="bitfun-files-panel__search-spinner" size={14} aria-hidden />
+                ? <Loader2 className="openbitfun-files-panel__search-spinner" size={14} aria-hidden />
                 : <Icon name="search" size="sm" aria-hidden />}
             />
-            <div className="bitfun-files-panel__search-toolbar" data-bf-component="files-panel" data-bf-part="searchToolbar">
-              <div className="bitfun-files-panel__search-modes">
+            <div className="openbitfun-files-panel__search-toolbar" data-openbitfun-component="files-panel" data-openbitfun-part="searchToolbar">
+              <div className="openbitfun-files-panel__search-modes">
                 <button
                   type="button"
-                  className={`bitfun-files-panel__search-mode ${searchMode === 'content' ? 'active' : ''}`}
+                  className={`openbitfun-files-panel__search-mode ${searchMode === 'content' ? 'active' : ''}`}
                   onClick={() => setSearchMode('content')}
                 >
                   {t('search.modeContent')}
                 </button>
                 <button
                   type="button"
-                  className={`bitfun-files-panel__search-mode ${searchMode === 'filenames' ? 'active' : ''}`}
+                  className={`openbitfun-files-panel__search-mode ${searchMode === 'filenames' ? 'active' : ''}`}
                   onClick={() => setSearchMode('filenames')}
                 >
                   {t('search.modeFiles')}
                 </button>
               </div>
-              <div className="bitfun-files-panel__search-options">
+              <div className="openbitfun-files-panel__search-options">
                 <Tooltip content={t('options.caseSensitive')}>
                   <button
                     type="button"
-                    className={`bitfun-files-panel__search-option ${searchOptions.caseSensitive ? 'active' : ''}`}
+                    className={`openbitfun-files-panel__search-option ${searchOptions.caseSensitive ? 'active' : ''}`}
                     onClick={() => setSearchOptions(prev => ({ ...prev, caseSensitive: !prev.caseSensitive }))}
                   >
                     <CaseSensitive size={14} />
@@ -1182,7 +1110,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                 <Tooltip content={t('options.wholeWord')}>
                   <button
                     type="button"
-                    className={`bitfun-files-panel__search-option ${searchOptions.wholeWord ? 'active' : ''}`}
+                    className={`openbitfun-files-panel__search-option ${searchOptions.wholeWord ? 'active' : ''}`}
                     onClick={() => setSearchOptions(prev => ({ ...prev, wholeWord: !prev.wholeWord }))}
                   >
                     <WholeWord size={14} />
@@ -1191,7 +1119,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                 <Tooltip content={t('options.useRegex')}>
                   <button
                     type="button"
-                    className={`bitfun-files-panel__search-option ${searchOptions.useRegex ? 'active' : ''}`}
+                    className={`openbitfun-files-panel__search-option ${searchOptions.useRegex ? 'active' : ''}`}
                     onClick={() => setSearchOptions(prev => ({ ...prev, useRegex: !prev.useRegex }))}
                   >
                     <Regex size={14} />
@@ -1203,15 +1131,15 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         )}
 
         <div
-          className={`bitfun-files-panel__main-content${
-            fileDropHighlight ? ' bitfun-files-panel__main-content--drop-target' : ''
+          className={`openbitfun-files-panel__main-content${
+            fileDropHighlight ? ' openbitfun-files-panel__main-content--drop-target' : ''
           }`}
-          data-bf-component="files-panel"
-          data-bf-part="main"
+          data-openbitfun-component="files-panel"
+          data-openbitfun-part="main"
         >
         {!workspacePath ? (
-          <div className="bitfun-files-panel__placeholder" data-bf-component="files-panel" data-bf-part="placeholder">
-            <div className="bitfun-files-panel__placeholder-icon">
+          <div className="openbitfun-files-panel__placeholder" data-openbitfun-component="files-panel" data-openbitfun-part="placeholder">
+            <div className="openbitfun-files-panel__placeholder-icon">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                 <polyline points="14,2 14,8 20,8"/>
@@ -1224,16 +1152,16 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
           </div>
         ) : viewMode === 'search' ? (
           searchQuery ? (
-            <div className="bitfun-files-panel__search-content">
+            <div className="openbitfun-files-panel__search-content">
               {searchLimitNotice && (
-                <div className="bitfun-files-panel__search-limit-notice">
+                <div className="openbitfun-files-panel__search-limit-notice">
                   <span>{searchLimitNotice}</span>
                 </div>
               )}
 
               {showContentSearchMetadata && contentSearchMetadata && (
-                <div className="bitfun-files-panel__search-backend">
-                  <div className="bitfun-files-panel__search-backend-badges">
+                <div className="openbitfun-files-panel__search-backend">
+                  <div className="openbitfun-files-panel__search-backend-badges">
                     <StatusPill tone={getSearchBackendBadgeVariant(contentSearchMetadata)}>
                       {contentSearchBackendLabel}
                     </StatusPill>
@@ -1255,7 +1183,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                       </StatusPill>
                     ) : null}
                   </div>
-                  <div className="bitfun-files-panel__search-backend-summary">
+                  <div className="openbitfun-files-panel__search-backend-summary">
                     {t('search.backendSummary', {
                       candidateDocs: contentSearchMetadata.candidateDocs,
                       matchedLines: contentSearchMetadata.matchedLines,
@@ -1266,7 +1194,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
               )}
 
               {searchError && (
-                <div className="bitfun-files-panel__error" data-bf-component="files-panel" data-bf-part="error">
+                <div className="openbitfun-files-panel__error" data-openbitfun-component="files-panel" data-openbitfun-part="error">
                   <p>❌ {searchError}</p>
                   <Button
                     variant="outline"
@@ -1285,12 +1213,12 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                   onFileSelect={handleSearchResultSelect}
                   onFolderNavigate={handleSearchFolderNavigate}
                   workspacePath={workspacePath}
-                  className="bitfun-files-panel__search-results"
+                  className="openbitfun-files-panel__search-results"
                 />
               ) : (
                 !isSearching && !searchError && (
-                  <div className="bitfun-files-panel__placeholder" data-bf-component="files-panel" data-bf-part="placeholder">
-                    <div className="bitfun-files-panel__placeholder-icon">
+                  <div className="openbitfun-files-panel__placeholder" data-openbitfun-component="files-panel" data-openbitfun-part="placeholder">
+                    <div className="openbitfun-files-panel__placeholder-icon">
                       <Icon name="search" size="lg" />
                     </div>
                     <p>{t('search.noResults')}</p>
@@ -1299,8 +1227,8 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
               )}
             </div>
           ) : (
-            <div className="bitfun-files-panel__placeholder" data-bf-component="files-panel" data-bf-part="placeholder">
-              <div className="bitfun-files-panel__placeholder-icon">
+            <div className="openbitfun-files-panel__placeholder" data-openbitfun-component="files-panel" data-openbitfun-part="placeholder">
+              <div className="openbitfun-files-panel__placeholder-icon">
                 <Icon name="search" size="lg" />
               </div>
               <p>{t('search.enterKeyword')}</p>
@@ -1308,11 +1236,11 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
           )
         ) : (
           loading && fileTree.length === 0 ? (
-            <div className="bitfun-files-panel__loading">
+            <div className="openbitfun-files-panel__loading">
               <LoadingState size="md">{t('status.loadingFileTree')}</LoadingState>
             </div>
-          ) : fileTreeError ? (
-            <div className="bitfun-files-panel__error" data-bf-component="files-panel" data-bf-part="error">
+          ) : error ? (
+            <div className="openbitfun-files-panel__error" data-openbitfun-component="files-panel" data-openbitfun-part="error">
               <p>❌ {error}</p>
               <Button
                 variant="outline"
@@ -1332,7 +1260,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
               onNodeExpand={handleNodeExpandLazy}
               onFileSelect={handleFileSelect}
               onFileDoubleClick={handleFileDoubleClick}
-              className="bitfun-files-panel__explorer"
+              className="openbitfun-files-panel__explorer"
               enablePathCompression={true}
               renamingPath={renamingPath}
               onRename={handleExecuteRename}
@@ -1342,7 +1270,6 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
               onNewFolder={handleNewFolder}
               onRefresh={() => loadFileTree(workspacePath || '', false)}
               hideToolbar={hideExplorerToolbar}
-              isRemoteWorkspace={isRemoteCurrentWorkspace}
             />
           )
         )}
@@ -1350,11 +1277,11 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       </div>
 
       {transfers.size > 0 && (
-        <ScrollArea className="bitfun-files-panel__transfers" data-bf-component="files-panel" data-bf-part="transfers">
+        <ScrollArea className="openbitfun-files-panel__transfers" data-openbitfun-component="files-panel" data-openbitfun-part="transfers">
           {Array.from(transfers.entries()).map(([id, tp]) => (
-            <div className="bitfun-files-panel__transfer" data-bf-component="files-panel" data-bf-part="transfer" role="status" key={id}>
-              <div className="bitfun-files-panel__transfer-label">
-                <span className="bitfun-files-panel__transfer-label-text">
+            <div className="openbitfun-files-panel__transfer" data-openbitfun-component="files-panel" data-openbitfun-part="transfer" role="status" key={id}>
+              <div className="openbitfun-files-panel__transfer-label">
+                <span className="openbitfun-files-panel__transfer-label-text">
                   {tp.phase === 'download'
                     ? t('transfer.downloading')
                     : t('transfer.uploading')}
@@ -1363,7 +1290,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                 {!tp.indeterminate &&
                 tp.bytesTotal &&
                 tp.bytesTotal > 0 ? (
-                  <span className="bitfun-files-panel__transfer-stats">
+                  <span className="openbitfun-files-panel__transfer-stats">
                     {Math.min(
                       100,
                       Math.round(
@@ -1377,16 +1304,16 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                 ) : null}
               </div>
               <div
-                className={`bitfun-files-panel__transfer-track${
-                  tp.indeterminate ? ' bitfun-files-panel__transfer-track--indeterminate' : ''
+                className={`openbitfun-files-panel__transfer-track${
+                  tp.indeterminate ? ' openbitfun-files-panel__transfer-track--indeterminate' : ''
                 }`}
-                data-bf-component="files-panel"
-                data-bf-part="transferTrack"
+                data-openbitfun-component="files-panel"
+                data-openbitfun-part="transferTrack"
               >
                 <div
-                  className="bitfun-files-panel__transfer-fill"
-                  data-bf-component="files-panel"
-                  data-bf-part="transferFill"
+                  className="openbitfun-files-panel__transfer-fill"
+                  data-openbitfun-component="files-panel"
+                  data-openbitfun-part="transferFill"
                   style={
                     tp.indeterminate || !tp.total
                       ? undefined
@@ -1399,11 +1326,11 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                   }
                 />
               </div>
-              <div className="bitfun-files-panel__transfer-bottom">
+              <div className="openbitfun-files-panel__transfer-bottom">
                 {!tp.indeterminate &&
                 tp.bytesTotal &&
                 tp.bytesTotal > 0 ? (
-                  <span className="bitfun-files-panel__transfer-detail">
+                  <span className="openbitfun-files-panel__transfer-detail">
                     {formatBytes(tp.bytesTransferred ?? 0)} /{' '}
                     {formatBytes(tp.bytesTotal)}
                   </span>
@@ -1432,13 +1359,15 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         confirmText={inputDialog.type === 'newFile' ? t('dialog.newFile.confirm') : t('dialog.newFolder.confirm')}
         cancelText={inputDialog.type === 'newFile' ? t('dialog.newFile.cancel') : t('dialog.newFolder.cancel')}
         validator={(value) => {
-          const siblingNames = getChildNames(fileTree, inputDialog.parentPath);
-          const errorKey = validateFileName(value, {
-            isRemote: isRemoteCurrentWorkspace,
-            isDirectory: inputDialog.type === 'newFolder',
-            siblings: siblingNames,
-          });
-          return errorKey ? t(errorKey, { name: value.trim() }) : null;
+          const validPattern = isRemoteCurrentWorkspace
+            // eslint-disable-next-line no-control-regex -- filename rules explicitly forbid ASCII control characters.
+            ? /^[^/\x00-\x1F]+$/
+            // eslint-disable-next-line no-control-regex -- filename rules explicitly forbid ASCII control characters.
+            : /^[^<>:"/\\|?*\x00-\x1F]+$/;
+          if (!validPattern.test(value)) {
+            return t('validation.invalidFilename');
+          }
+          return null;
         }}
       />
     </div>

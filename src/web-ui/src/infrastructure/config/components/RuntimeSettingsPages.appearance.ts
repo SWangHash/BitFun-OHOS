@@ -21,12 +21,17 @@ export const runtimeSettingsAppearanceDescriptor: AppearanceSurfaceDescriptor = 
   facets: [
     {
       id: 'view',
-      attribute: 'data-bf-view',
-      values: ['pet', 'session-workspace', 'execution', 'execution-control', 'device-control'],
+      attribute: 'data-openbitfun-view',
+      values: [
+        'pet',
+        'session-workspace',
+        'execution',
+        'browser-desktop-control',
+      ],
     },
   ],
   states: [
-    { id: 'selected', selector: { kind: 'self', suffix: '[data-bf-state~="selected"]' } },
-    { id: 'expanded', selector: { kind: 'self', suffix: '[data-bf-state~="expanded"]' } },
+    { id: 'selected', selector: { kind: 'self', suffix: '[data-openbitfun-state~="selected"]' } },
+    { id: 'expanded', selector: { kind: 'self', suffix: '[data-openbitfun-state~="expanded"]' } },
   ],
 };

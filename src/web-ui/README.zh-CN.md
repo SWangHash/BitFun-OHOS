@@ -1,10 +1,10 @@
-# BitFun Web UI
+# OpenBitFun Web UI
 
 中文 | [English](./README.md)
 
 ## 概述
 
-本目录是 BitFun 的 **Web UI**（React + TypeScript）。同一份前端代码会被复用在：
+本目录是 OpenBitFun 的 **Web UI**（React + TypeScript）。同一份前端代码会被复用在：
 
 - **Desktop**：通过 **Tauri** 加载运行
 - **Server/Web**：构建为静态资源，由后端提供访问
@@ -95,6 +95,15 @@ VITE_BUILD_TARGET=web pnpm --dir src/web-ui run build
 - [i18n README](src/infrastructure/i18n/README.md)
 
 ## 注意事项
+
+打包后的 Desktop 可在创造模式中通过 prompt 控制已有设置、增删改已安装的 MiniApp，
+以及持久修改客户端 UI，无需源码或构建工具。修改 UI 时，在原生预览窗口选择保留或
+撤销；只有真实界面和自定义代码激活成功才开始确认倒计时，失败或超时恢复原版本。
+
+自定义模块还能注册 Agent 可调用的命令，并通过持久状态与事件组合能力。随客户端
+附带的 [Creation API](public/openbitfun-creation-api.md) 说明发现、激活与清理接口。
+这些扩展需要可见的本地 Desktop，远程/Peer/无界面场景明确不可用。MiniApp 的结构化
+源码操作走已安装产品的生命周期管理器，更新保留未提供的源码字段和已有应用数据。
 
 1. **不要在组件里直接调用 Tauri API**，应通过适配器层统一封装。
 2. **注意 Web 兼容性**（浏览器环境不一定具备所有能力）。

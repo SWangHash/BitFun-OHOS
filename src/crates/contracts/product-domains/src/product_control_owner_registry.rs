@@ -1,4 +1,4 @@
-//! Typed owner facts for user-facing BitFun product controls.
+//! Typed owner facts for user-facing OpenBitFun product controls.
 //!
 //! This registry is deliberately separate from the explanatory capability
 //! overlay. Config paths, command handlers, value schemas, risk, and argument
@@ -175,6 +175,62 @@ fn empty_input() -> Value {
     json!({ "type": "object", "additionalProperties": false })
 }
 
+fn miniapp_input(action: &str) -> Value {
+    let mut properties = serde_json::Map::new();
+    let mut required = Vec::new();
+    if action != "list" && action != "create" {
+        properties.insert("appId".into(), json!({ "type": "string", "minLength": 1 }));
+        required.push("appId");
+    }
+    if matches!(action, "update" | "delete") {
+        properties.insert(
+            "expectedVersion".into(),
+            json!({ "type": "integer", "minimum": 1 }),
+        );
+    }
+    if matches!(action, "create" | "update") {
+        for field in [
+            "name",
+            "description",
+            "icon",
+            "category",
+            "html",
+            "css",
+            "uiJs",
+            "workerJs",
+        ] {
+            properties.insert(
+                field.into(),
+                if field == "name" {
+                    json!({ "type": "string", "minLength": 1 })
+                } else {
+                    json!({ "type": "string" })
+                },
+            );
+        }
+        properties.insert(
+            "tags".into(),
+            json!({ "type": "array", "items": { "type": "string" } }),
+        );
+        properties.insert("permissions".into(), json!({ "type": "object" }));
+        properties.insert("esmDependencies".into(), json!({ "type": "array", "items": {
+            "type": "object", "required": ["name"], "additionalProperties": false,
+            "properties": { "name": { "type": "string" }, "version": { "type": "string" }, "url": { "type": "string" } }
+        } }));
+        properties.insert(
+            "npmDependencies".into(),
+            json!({ "type": "array", "items": {
+            "type": "object", "required": ["name", "version"], "additionalProperties": false,
+            "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+        } }),
+        );
+        if action == "create" {
+            required.push("name");
+        }
+    }
+    json!({ "type": "object", "additionalProperties": false, "properties": properties, "required": required })
+}
+
 /// Return the complete compiled registry of executable product-control facts.
 ///
 /// Every public option and operation must appear exactly once. Structural
@@ -189,6 +245,46 @@ pub fn owner_definitions() -> Vec<ProductControlOwnerDefinition> {
     use ProductControlRisk::{Destructive, Read, Ui, Write};
 
     vec![
+        operation(
+            "feature.miniapps",
+            "list-apps",
+            Read,
+            miniapp_input("list"),
+            &[],
+            operation_provider("miniapp", "list"),
+        ),
+        operation(
+            "feature.miniapps",
+            "inspect-app",
+            Read,
+            miniapp_input("inspect"),
+            &[],
+            operation_provider("miniapp", "inspect"),
+        ),
+        operation(
+            "feature.miniapps",
+            "create-app",
+            Write,
+            miniapp_input("create"),
+            &[],
+            operation_provider("miniapp", "create"),
+        ),
+        operation(
+            "feature.miniapps",
+            "update-app",
+            Write,
+            miniapp_input("update"),
+            &[],
+            operation_provider("miniapp", "update"),
+        ),
+        operation(
+            "feature.miniapps",
+            "delete-app",
+            Destructive,
+            miniapp_input("delete"),
+            &[],
+            operation_provider("miniapp", "delete"),
+        ),
         operation(
             "feature.ai-assistant",
             "new-session",
@@ -281,12 +377,6 @@ pub fn owner_definitions() -> Vec<ProductControlOwnerDefinition> {
             boolean(),
             merge_config("app.ai_experience", &["enable_agent_companion"]),
         ),
-        option(
-            "setting.application.pet",
-            "display-mode",
-            string_enum(&["desktop", "input"]),
-            merge_config("app.ai_experience", &["agent_companion_display_mode"]),
-        ),
         operation(
             "setting.application.pet",
             "list-pets",
@@ -320,7 +410,7 @@ pub fn owner_definitions() -> Vec<ProductControlOwnerDefinition> {
                 "additionalProperties": false,
                 "properties": {
                     "id": { "type": "string", "minLength": 1, "description": "Imported pet ID." },
-                    "packagePath": { "type": "string", "minLength": 1, "description": "Imported BitFun pet-package directory." }
+                    "packagePath": { "type": "string", "minLength": 1, "description": "Imported OpenBitFun pet-package directory." }
                 },
                 "anyOf": [{ "required": ["id"] }, { "required": ["packagePath"] }]
             }),
@@ -346,13 +436,13 @@ pub fn owner_definitions() -> Vec<ProductControlOwnerDefinition> {
             merge_config("app.ai_experience", &["voice_input.max_recording_seconds"]),
         ),
         option(
-            "setting.application.development",
+            "setting.application.terminal",
             "terminal-default-shell",
             string(),
             config("terminal.default_shell"),
         ),
         option(
-            "setting.application.development",
+            "setting.application.terminal",
             "terminal-panel-position",
             string_enum(&["right", "bottom"]),
             config("terminal.terminal_panel_position"),
@@ -411,6 +501,12 @@ pub fn owner_definitions() -> Vec<ProductControlOwnerDefinition> {
             "editor-insert-spaces",
             boolean(),
             config("editor.insert_spaces"),
+        ),
+        option(
+            "setting.application.development",
+            "editor-detect-indentation",
+            boolean(),
+            config("editor.detect_indentation"),
         ),
         option(
             "setting.application.development",

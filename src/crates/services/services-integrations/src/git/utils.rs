@@ -6,8 +6,8 @@ pub use super::{
  */
 use super::{config, trust};
 use super::{GitCommandOutput, GitError, GitFileStatus};
-use bitfun_services_core::process_manager;
 use git2::{Repository, Status, StatusOptions};
+use openbitfun_services_core::process_manager;
 use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;

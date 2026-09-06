@@ -1,6 +1,7 @@
 import {
   Button,
-  Card,
+  Field,
+  StatusPill,
   Combobox,
   Icon,
   IconButton,
@@ -21,7 +22,8 @@ import {
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from '@bitfun/ui';
+  ConfirmDialog,
+} from '@openbitfun/ui';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Wifi, Loader, AlertTriangle, EyeOff, FolderOpen } from 'lucide-react';
@@ -37,17 +39,23 @@ import { configManager } from '../services/ConfigManager';
 import { getCapabilitiesByCategory, resolveModelCategory } from '../services/modelCategory';
 import {
   allocateModelConfigId,
+  countModelConfigReferences,
   getModelDisplayName,
   getProviderDisplayName,
   getProviderGroupKey,
   getProviderInstanceId,
   getProviderTemplateId,
   PROVIDER_INSTANCE_METADATA_KEY,
+  removeProviderModelConfigs,
 } from '../services/modelConfigs';
 import { resolveProviderTemplates } from '../services/builtinProviderCatalog';
 import { normalizeProviderBaseUrl } from '../services/providerCatalog';
 import { supportsResponsesReasoning } from '../utils/reasoning';
-import { canonicalReasoningConfig, validateReasoningConfig } from '../utils/reasoningPresets';
+import {
+  canonicalReasoningConfig,
+  cloneReasoningConfig,
+  validateReasoningConfig,
+} from '../utils/reasoningPresets';
 import { aiApi, systemAPI } from '@/infrastructure/api';
 import type {
   SubscriptionAccount,
@@ -57,7 +65,25 @@ import type {
 import type { ProviderRegion } from '@/shared/types';
 import type { OpenCodePlan, SubscriptionProvider } from '../types';
 import { useNotification } from '@/shared/notification-system';
-import { ConfigPageHeader, ConfigPageLayout, ConfigPageContent, ConfigPageSection, ConfigPageRow, ConfigCollectionItem } from './common';
+import {
+  ConfigActionBar,
+  ConfigEmptyState,
+  ConfigPageHeader,
+  ConfigPageLayout,
+  ConfigPageContent,
+  ConfigPageSection,
+  ConfigPageRow,
+  ConfigCollectionItem,
+  ConfigRetryState,
+} from './common';
+import {
+  useSettingsDraft,
+} from '@/infrastructure/config/settingsDraftRegistry';
+import {
+  configsNeedingAutoTest,
+  providerConnectionChanged,
+  stableJson,
+} from './modelConnectionTestPlan';
 import DefaultModelConfig from './DefaultModelConfig';
 import ReasoningConfigPanel, { type ReasoningConfigApplyResult } from './ReasoningConfigPanel';
 import { createLogger } from '@/shared/utils/logger';
@@ -65,6 +91,7 @@ import { translateConnectionTestMessage } from '@/shared/utils/aiConnectionTestM
 import { i18nService } from '@/infrastructure/i18n';
 import { isTauriRuntime } from '@/infrastructure/runtime';
 import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFlag';
+import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
 import { LONG_CONTEXT_WARNING_THRESHOLD_TOKENS } from '@/shared/constants/modelContext';
 import {
   preferredSubscriptionLoginMethod,
@@ -123,8 +150,35 @@ interface SubscriptionLogoutRequest {
   affectedModels: AIModelConfigType[];
 }
 
+interface ModelDeleteRequest {
+  kind: 'model';
+  config: AIModelConfigType;
+  modelIds: string[];
+  referenceCount: number;
+}
+
+interface ProviderDeleteRequest {
+  kind: 'provider';
+  groupKey: string;
+  providerName: string;
+  modelIds: string[];
+  modelCount: number;
+  referenceCount: number;
+  discardsRetainedDraft: boolean;
+}
+
+type DeleteRequest = ModelDeleteRequest | ProviderDeleteRequest;
+
+interface PendingEditorOpen {
+  open: () => void;
+}
+
+interface ActiveConnectionTest {
+  token: symbol;
+  signature: string;
+}
+
 const SUBSCRIPTION_LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
-const SUBSCRIPTION_MIGRATION_NOTICE_KEY = 'bitfun.subscription-auth.secure-store-notice.v1';
 
 function subscriptionLoginCancelledError(): Error {
   const error = new Error('Login cancelled');
@@ -302,58 +356,8 @@ function hasHttpUrlScheme(value: string): boolean {
   return /^https?:\/\//i.test(value.trim());
 }
 
-function stableJson(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map(stableJson).join(',')}]`;
-  }
-  if (value && typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableJson(entryValue)}`)
-      .join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
-
 function normalizeComparableString(value: string | undefined): string {
   return (value || '').trim();
-}
-
-function providerConnectionChanged(
-  previous: AIModelConfigType | undefined,
-  next: AIModelConfigType
-): boolean {
-  if (!previous) return true;
-
-  return (
-    normalizeComparableString(previous.provider) !== normalizeComparableString(next.provider) ||
-    normalizeComparableString(previous.base_url) !== normalizeComparableString(next.base_url) ||
-    normalizeComparableString(previous.api_key) !== normalizeComparableString(next.api_key) ||
-    stableJson(previous.auth || { type: 'api_key' }) !== stableJson(next.auth || { type: 'api_key' }) ||
-    stableJson(previous.custom_headers || {}) !== stableJson(next.custom_headers || {}) ||
-    normalizeComparableString(previous.custom_headers_mode) !== normalizeComparableString(next.custom_headers_mode) ||
-    normalizeComparableString(previous.custom_request_body) !== normalizeComparableString(next.custom_request_body) ||
-    normalizeComparableString(previous.custom_request_body_mode) !== normalizeComparableString(next.custom_request_body_mode) ||
-    (previous.skip_ssl_verify ?? false) !== (next.skip_ssl_verify ?? false)
-  );
-}
-
-function modelRequestBehaviorChanged(
-  previous: AIModelConfigType | undefined,
-  next: AIModelConfigType
-): boolean {
-  if (!previous) return true;
-
-  return (
-    normalizeComparableString(previous.model_name) !== normalizeComparableString(next.model_name) ||
-    normalizeComparableString(previous.request_url) !== normalizeComparableString(next.request_url) ||
-    previous.context_window !== next.context_window ||
-    previous.max_tokens !== next.max_tokens ||
-    previous.category !== next.category ||
-    stableJson(previous.capabilities || []) !== stableJson(next.capabilities || []) ||
-    stableJson(canonicalReasoningConfig(previous)) !== stableJson(next.reasoning || canonicalReasoningConfig(next)) ||
-    (previous.inline_think_in_text ?? true) !== (next.inline_think_in_text ?? true)
-  );
 }
 
 function modelDraftHasUnsavedChanges(
@@ -375,46 +379,32 @@ function modelDraftHasUnsavedChanges(
   );
 }
 
-function configsNeedingAutoTest(
-  previousModels: AIModelConfigType[],
-  nextConfigs: AIModelConfigType[],
-  isProviderGroupEdit: boolean
-): AIModelConfigType[] {
-  const previousById = new Map(previousModels.map(model => [model.id, model]));
-  const providerConnectionWasChanged = isProviderGroupEdit && nextConfigs.some(config =>
-    providerConnectionChanged(previousById.get(config.id), config)
-  );
-
-  if (providerConnectionWasChanged) {
-    return nextConfigs;
-  }
-
-  return nextConfigs.filter(config => {
-    const previous = previousById.get(config.id);
-    return (
-      !previous ||
-      providerConnectionChanged(previous, config) ||
-      modelRequestBehaviorChanged(previous, config)
-    );
-  });
-}
-
 const ModelSettingsPage: React.FC = () => {
   const { t, i18n } = useTranslation('settings/models');
   const { t: tDefault } = useTranslation('settings/default-model');
   const { t: tComponents } = useTranslation('components');
+  const peerDevice = usePeerDeviceModeOptional();
+  const connectionTestSupported = !peerDevice?.peerMode.active
+    || peerDevice.currentPeerCapabilities?.hostKind !== 'cli';
   const [aiModels, setAiModels] = useState<AIModelConfigType[]>([]);
+  const [isConfigLoading, setIsConfigLoading] = useState(true);
+  const [configLoadError, setConfigLoadError] = useState(false);
   const [modelCatalog, setModelCatalog] = useState<Awaited<ReturnType<typeof aiApi.getModelCatalog>> | null>(null);
   const [modelsDevStatus, setModelsDevStatus] = useState<Awaited<ReturnType<typeof aiApi.getModelsDevCatalogStatus>> | null>(null);
   const [modelsDevStatusAvailable, setModelsDevStatusAvailable] = useState(true);
   const [isRefreshingModelsDev, setIsRefreshingModelsDev] = useState(false);
   const [showModelsDevDetails, setShowModelsDevDetails] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditorSaving, setIsEditorSaving] = useState(false);
   const [editingConfig, setEditingConfig] = useState<Partial<AIModelConfigType> | null>(null);
+  const [editingTargetKey, setEditingTargetKey] = useState<string | null>(null);
+  const [draftCloseConfirmOpen, setDraftCloseConfirmOpen] = useState(false);
+  const [draftConflictConfirmOpen, setDraftConflictConfirmOpen] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [testingConfigs, setTestingConfigs] = useState<Record<string, boolean>>({});
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string } | null>>({});
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [expandedProviderGroupKeys, setExpandedProviderGroupKeys] = useState<Set<string>>(new Set());
   const notification = useNotification();
   
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
@@ -430,10 +420,21 @@ const ModelSettingsPage: React.FC = () => {
     username: '',
     password: ''
   });
+  const [savedProxyConfig, setSavedProxyConfig] = useState<ProxyConfig>({
+    enabled: false,
+    url: '',
+    username: '',
+    password: ''
+  });
   const [streamIdleTimeoutInput, setStreamIdleTimeoutInput] = useState('');
   const [streamTtftTimeoutInput, setStreamTtftTimeoutInput] = useState('');
+  const [savedStreamTimeouts, setSavedStreamTimeouts] = useState({ idle: '', ttft: '' });
   const [isStreamTimeoutSaving, setIsStreamTimeoutSaving] = useState(false);
   const [isProxySaving, setIsProxySaving] = useState(false);
+  const [streamTimeoutSaveError, setStreamTimeoutSaveError] = useState<string | null>(null);
+  const [proxySaveError, setProxySaveError] = useState<string | null>(null);
+  const streamTimeoutSavingRef = React.useRef(false);
+  const proxySavingRef = React.useRef(false);
   const [remoteModelOptions, setRemoteModelOptions] = useState<RemoteModelOption[]>([]);
   const [isFetchingRemoteModels, setIsFetchingRemoteModels] = useState(false);
   const [remoteModelsError, setRemoteModelsError] = useState<string | null>(null);
@@ -443,22 +444,22 @@ const ModelSettingsPage: React.FC = () => {
   const [manualModelInput, setManualModelInput] = useState('');
   const [expandedModelCards, setExpandedModelCards] = useState<Set<string>>(new Set());
   const [reasoningPanelDraftKey, setReasoningPanelDraftKey] = useState<string | null>(null);
+  const reasoningPanelInitialRef = React.useRef<Pick<
+    SelectedModelDraft,
+    'key' | 'reasoning' | 'reasoningProjectionCatalog' | 'reasoningProjectionSnapshot'
+  > | null>(null);
   const [subscriptionAccounts, setSubscriptionAccounts] = useState<SubscriptionAccount[]>([]);
   const [isLoadingSubscriptions, setIsLoadingSubscriptions] = useState(false);
   const [loggingInProvider, setLoggingInProvider] = useState<SubscriptionProvider | null>(null);
   const [subscriptionLoginPanel, setSubscriptionLoginPanel] = useState<SubscriptionLoginPanelState | null>(null);
   const [subscriptionLoginClock, setSubscriptionLoginClock] = useState(() => Date.now());
   const [subscriptionLogoutRequest, setSubscriptionLogoutRequest] = useState<SubscriptionLogoutRequest | null>(null);
-  const [showSubscriptionMigrationNotice, setShowSubscriptionMigrationNotice] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      return window.localStorage.getItem(SUBSCRIPTION_MIGRATION_NOTICE_KEY) !== 'dismissed';
-    } catch {
-      return true;
-    }
-  });
+  const [deleteRequest, setDeleteRequest] = useState<DeleteRequest | null>(null);
   const lastRemoteFetchSignatureRef = React.useRef<string | null>(null);
   const activeRemoteFetchSignatureRef = React.useRef<string | null>(null);
+  const editorSavingRef = React.useRef(false);
+  const pendingEditorOpenRef = React.useRef<PendingEditorOpen | null>(null);
+  const activeConnectionTestsRef = React.useRef<Record<string, ActiveConnectionTest>>({});
 
   const requestFormatOptions = useMemo(
     () => [
@@ -505,6 +506,9 @@ const ModelSettingsPage: React.FC = () => {
   const isStreamIdleTimeoutInvalid = parsedStreamIdleTimeout === undefined;
   const isStreamTtftTimeoutInvalid = parsedStreamTtftTimeout === undefined;
   const isStreamTimeoutInvalid = isStreamIdleTimeoutInvalid || isStreamTtftTimeoutInvalid;
+  const isProxyDirty = stableJson(proxyConfig) !== stableJson(savedProxyConfig);
+  const isStreamTimeoutDirty = streamIdleTimeoutInput !== savedStreamTimeouts.idle
+    || streamTtftTimeoutInput !== savedStreamTimeouts.ttft;
 
   const getCustomRequestBodyTrimHint = useCallback((provider?: string): string => {
     switch (provider) {
@@ -568,6 +572,8 @@ const ModelSettingsPage: React.FC = () => {
   }, [loadModelCatalog, loadModelsDevStatus, notification, t]);
 
   const loadConfig = useCallback(async () => {
+    setIsConfigLoading(true);
+    setConfigLoadError(false);
     try {
       const [models, proxy, streamIdleTimeoutSecs, streamTtftTimeoutSecs] = await Promise.all([
         configManager.getConfig<AIModelConfigType[]>('ai.models'),
@@ -575,20 +581,22 @@ const ModelSettingsPage: React.FC = () => {
         configManager.getConfig<number | null>('ai.stream_idle_timeout_secs'),
         configManager.getConfig<number | null>('ai.stream_ttft_timeout_secs'),
       ]);
-      setAiModels(models);
+      setAiModels(models || []);
       await loadModelCatalog();
       await loadModelsDevStatus();
-      if (proxy) {
-        setProxyConfig(proxy);
-      }
-      setStreamIdleTimeoutInput(
-        streamIdleTimeoutSecs != null ? String(streamIdleTimeoutSecs) : ''
-      );
-      setStreamTtftTimeoutInput(
-        streamTtftTimeoutSecs != null ? String(streamTtftTimeoutSecs) : ''
-      );
+      const resolvedProxy = proxy || { enabled: false, url: '', username: '', password: '' };
+      const idle = streamIdleTimeoutSecs != null ? String(streamIdleTimeoutSecs) : '';
+      const ttft = streamTtftTimeoutSecs != null ? String(streamTtftTimeoutSecs) : '';
+      setProxyConfig(resolvedProxy);
+      setSavedProxyConfig(resolvedProxy);
+      setStreamIdleTimeoutInput(idle);
+      setStreamTtftTimeoutInput(ttft);
+      setSavedStreamTimeouts({ idle, ttft });
     } catch (error) {
       log.error('Failed to load AI config', error);
+      setConfigLoadError(true);
+    } finally {
+      setIsConfigLoading(false);
     }
   }, [loadModelCatalog, loadModelsDevStatus]);
 
@@ -697,6 +705,26 @@ const ModelSettingsPage: React.FC = () => {
     };
   }, [providerTemplates, selectedProviderId, t]);
 
+  const editingModalHasUnsavedChanges = useMemo(() => {
+    if (!editingConfig) return false;
+    const persistedModels = editingConfig.id
+      ? aiModels.filter(model => model.id === editingConfig.id)
+      : aiModels.filter(model => editingProviderModelIds.has(model.id || ''));
+    if (persistedModels.length === 0) return true;
+
+    const persisted = persistedModels[0];
+    const comparableConfig = { ...persisted, ...editingConfig } as AIModelConfigType;
+    const providerFieldsChanged = providerConnectionChanged(persisted, comparableConfig)
+      || normalizeComparableString(editingConfig.name) !== normalizeComparableString(getProviderDisplayName(persisted));
+    const draftFieldsChanged = selectedModelDrafts.some(draft => modelDraftHasUnsavedChanges(draft, aiModels));
+    const persistedIds = new Set(persistedModels.map(model => model.id).filter(Boolean));
+    const draftIds = new Set(selectedModelDrafts.map(draft => draft.configId).filter(Boolean));
+    const selectionChanged = persistedIds.size !== draftIds.size
+      || Array.from(persistedIds).some(id => !draftIds.has(id));
+
+    return providerFieldsChanged || draftFieldsChanged || selectionChanged;
+  }, [aiModels, editingConfig, editingProviderModelIds, selectedModelDrafts]);
+
   const createDraftsFromConfigs = (configs: AIModelConfigType[]) => (
     configs.map(config => createModelDraft(config.model_name, config, {
       configId: config.id,
@@ -775,7 +803,8 @@ const ModelSettingsPage: React.FC = () => {
         return createModelDraft(modelName, draftBaseConfig, {
           configId: pinnedRowId,
           contextWindow: catalogModel?.limits?.context,
-          category: catalogModel?.capabilities.attachment ? 'multimodal' : undefined,
+          // New selections start as multimodal; existing model edits retain their category.
+          category: pinnedRowId ? (baseConfig?.category ?? 'general_chat') : 'multimodal',
         });
       })
     );
@@ -1012,65 +1041,87 @@ const ModelSettingsPage: React.FC = () => {
     void fetchRemoteModels(editingConfig);
   };
 
+  const requestEditorOpen = useCallback((targetKey: string, open: () => void) => {
+    const matchesSuspendedDraft = editingTargetKey === targetKey
+      || (targetKey === 'new-provider' && editingTargetKey?.startsWith('new-provider:'));
+    if (!isEditing && editingConfig && editingModalHasUnsavedChanges) {
+      if (matchesSuspendedDraft) {
+        setIsEditing(true);
+        return;
+      }
+      pendingEditorOpenRef.current = { open };
+      setDraftConflictConfirmOpen(true);
+      return;
+    }
+    open();
+  }, [editingConfig, editingModalHasUnsavedChanges, editingTargetKey, isEditing]);
+
   
   const handleCreateNew = () => {
-    resetRemoteModelDiscovery();
-    setSelectedModelDrafts([]);
-    setEditingProviderModelIds(new Set());
-    setManualModelInput('');
-    setShowApiKey(false);
-    setSelectedProviderId(null);
-    setProviderQuery('');
-    setShowAllProviders(false);
-    setCreationMode('selection');
+    requestEditorOpen('new-provider', () => {
+      resetRemoteModelDiscovery();
+      setSelectedModelDrafts([]);
+      setEditingProviderModelIds(new Set());
+      setManualModelInput('');
+      setShowApiKey(false);
+      setSelectedProviderId(null);
+      setProviderQuery('');
+      setShowAllProviders(false);
+      setEditingTargetKey(null);
+      setCreationMode('selection');
+    });
   };
 
   const handleImportFromSubscription = useCallback((
     account: SubscriptionAccount,
     offering?: SubscriptionApiOffering,
   ) => {
-    resetRemoteModelDiscovery();
-    const offeringModels = (offering?.models || []).map((model) => ({
-      id: model.id,
-      display_name: model.display_name || undefined,
-    }));
-    if (offeringModels.length > 0) {
-      setRemoteModelOptions(offeringModels);
-      setHasAttemptedRemoteFetch(true);
-    }
-    setManualModelInput('');
-    setShowApiKey(false);
-    setSelectedProviderId(null);
-    setEditingConfig({
-      name: offering
-        ? getOpenCodePlanLabel(offering.plan)
-        : account.display_label,
-      provider: offering?.format || account.suggested_format,
-      base_url: offering?.base_url || account.suggested_base_url,
-      // Leave request_url + model_name empty so the user must pick a model
-      // from the live list. We never inject a hard-coded default slug.
-      request_url: '',
-      api_key: '',
-      model_name: '',
-      enabled: true,
-      context_window: 200000,
-      category: 'general_chat',
-      capabilities: ['text_chat', 'function_calling'],
-      recommended_for: [],
-      metadata: {},
-      inline_think_in_text: true,
-      auth: {
-        type: 'subscription',
-        provider: account.provider,
-        ...(offering ? { plan: offering.plan } : {}),
-      },
+    const targetKey = `new-provider:subscription:${account.provider}:${offering?.plan || offering?.format || 'default'}`;
+    requestEditorOpen(targetKey, () => {
+      resetRemoteModelDiscovery();
+      const offeringModels = (offering?.models || []).map((model) => ({
+        id: model.id,
+        display_name: model.display_name || undefined,
+      }));
+      if (offeringModels.length > 0) {
+        setRemoteModelOptions(offeringModels);
+        setHasAttemptedRemoteFetch(true);
+      }
+      setManualModelInput('');
+      setShowApiKey(false);
+      setSelectedProviderId(null);
+      setEditingTargetKey(targetKey);
+      setEditingConfig({
+        name: offering
+          ? getOpenCodePlanLabel(offering.plan)
+          : account.display_label,
+        provider: offering?.format || account.suggested_format,
+        base_url: offering?.base_url || account.suggested_base_url,
+        // Leave request_url + model_name empty so the user must pick a model
+        // from the live list. We never inject a hard-coded default slug.
+        request_url: '',
+        api_key: '',
+        model_name: '',
+        enabled: true,
+        context_window: 200000,
+        category: 'multimodal',
+        capabilities: getCapabilitiesByCategory('multimodal'),
+        recommended_for: [],
+        metadata: {},
+        inline_think_in_text: true,
+        auth: {
+          type: 'subscription',
+          provider: account.provider,
+          ...(offering ? { plan: offering.plan } : {}),
+        },
+      });
+      setSelectedModelDrafts([]);
+      setEditingProviderModelIds(new Set());
+      setShowAdvancedSettings(false);
+      setCreationMode('form');
+      setIsEditing(true);
     });
-    setSelectedModelDrafts([]);
-    setEditingProviderModelIds(new Set());
-    setShowAdvancedSettings(false);
-    setCreationMode('form');
-    setIsEditing(true);
-  }, [getOpenCodePlanLabel, resetRemoteModelDiscovery]);
+  }, [getOpenCodePlanLabel, requestEditorOpen, resetRemoteModelDiscovery]);
 
   const loginCoordinatorRef = React.useRef(new SubscriptionLoginCoordinator());
   const subscriptionLoginMountedRef = React.useRef(true);
@@ -1382,15 +1433,6 @@ const ModelSettingsPage: React.FC = () => {
     }
   }, [notification, refreshSubscriptionAccounts, subscriptionLogoutRequest, t]);
 
-  const dismissSubscriptionMigrationNotice = useCallback(() => {
-    setShowSubscriptionMigrationNotice(false);
-    try {
-      window.localStorage.setItem(SUBSCRIPTION_MIGRATION_NOTICE_KEY, 'dismissed');
-    } catch (error) {
-      log.debug('Unable to persist subscription migration notice dismissal', { error: String(error) });
-    }
-  }, []);
-
   const handleSubscriptionRefresh = useCallback(async (provider: SubscriptionProvider) => {
     try {
       await aiApi.refreshSubscriptionAccount(provider);
@@ -1409,36 +1451,28 @@ const ModelSettingsPage: React.FC = () => {
     setManualModelInput('');
     setShowApiKey(false);
     setSelectedProviderId(providerId);
+    setEditingTargetKey(`new-provider:${providerId}`);
     
     // Dynamically get translated name
     const providerName = t(`providers.${template.id}.name`);
-    const defaultModel = template.models[0] || '';
     
     setEditingConfig({
       name: providerName,
       base_url: template.baseUrl,
-      request_url: resolveRequestUrl(
-        template.baseUrl,
-        template.format,
-        defaultModel
-      ),
+      request_url: '',
       api_key: '',
-      model_name: defaultModel,
+      model_name: '',
       provider: template.format,
       enabled: true,
       context_window: 200000,
-      category: 'general_chat',
-      capabilities: ['text_chat', 'function_calling'],
+      category: 'multimodal',
+      capabilities: getCapabilitiesByCategory('multimodal'),
       recommended_for: [],
       metadata: {},
       inline_think_in_text: true,
     });
-    setSelectedModelDrafts(
-      defaultModel ? [createModelDraft(defaultModel, {
-        context_window: 200000,
-        reasoning: { catalog: { source: 'auto' }, presets: [] },
-      })] : []
-    );
+    // Provider templates supply available choices, never an implicit selection.
+    setSelectedModelDrafts([]);
     setEditingProviderModelIds(new Set());
     setShowAdvancedSettings(false);
     setCreationMode('form');
@@ -1452,6 +1486,7 @@ const ModelSettingsPage: React.FC = () => {
     setEditingProviderModelIds(new Set());
     setShowApiKey(false);
     setSelectedProviderId(null);
+    setEditingTargetKey('new-provider:custom');
     setEditingConfig({
       name: '',
       base_url: 'https://open.bigmodel.cn/api/paas/v4',
@@ -1461,8 +1496,8 @@ const ModelSettingsPage: React.FC = () => {
       provider: 'openai',  
       enabled: true,
       context_window: 200000,
-      category: 'general_chat',
-      capabilities: ['text_chat'],
+      category: 'multimodal',
+      capabilities: getCapabilitiesByCategory('multimodal'),
       recommended_for: [],
       metadata: {},
       inline_think_in_text: true,
@@ -1474,107 +1509,168 @@ const ModelSettingsPage: React.FC = () => {
   };
 
   const handleEditProvider = (config: AIModelConfigType) => {
-    resetRemoteModelDiscovery();
-    setManualModelInput('');
-    setShowApiKey(false);
-
     const providerName = getProviderDisplayName(config);
     const providerGroupKey = getProviderGroupKey(config);
-    const configuredProviderModels = aiModels
-      .filter(model => getProviderGroupKey(model) === providerGroupKey)
-      .sort((a, b) => a.model_name.localeCompare(b.model_name));
-    const providerTemplateId = getProviderTemplateId(config);
-    setEditingProviderModelIds(new Set(
-      configuredProviderModels
-        .map(model => model.id)
-        .filter((id): id is string => !!id)
-    ));
-    setSelectedProviderId(providerTemplateId || null);
-    setEditingConfig({
-      name: providerName,
-      base_url: config.base_url,
-      request_url: resolveRequestUrl(config.base_url, config.provider || 'openai'),
-      api_key: config.api_key || '',
-      model_name: '',
-      provider: config.provider,
-      enabled: true,
-      context_window: config.context_window || 200000,
-      max_tokens: config.max_tokens,
-      category: config.category || 'general_chat',
-      capabilities: config.capabilities || getCapabilitiesByCategory(config.category || 'general_chat'),
-      recommended_for: config.recommended_for || [],
-      metadata: config.metadata || {},
-      inline_think_in_text: config.inline_think_in_text ?? true,
-      custom_headers: config.custom_headers,
-      custom_headers_mode: config.custom_headers_mode,
-      skip_ssl_verify: config.skip_ssl_verify ?? false,
-      custom_request_body: config.custom_request_body,
-      custom_request_body_mode: config.custom_request_body_mode,
-      auth: config.auth || { type: 'api_key' },
+    const targetKey = `provider:${providerGroupKey}`;
+    requestEditorOpen(targetKey, () => {
+      resetRemoteModelDiscovery();
+      setManualModelInput('');
+      setShowApiKey(false);
+
+      const configuredProviderModels = aiModels
+        .filter(model => getProviderGroupKey(model) === providerGroupKey)
+        .sort((a, b) => a.model_name.localeCompare(b.model_name));
+      const providerTemplateId = getProviderTemplateId(config);
+      setEditingProviderModelIds(new Set(
+        configuredProviderModels
+          .map(model => model.id)
+          .filter((id): id is string => !!id)
+      ));
+      setSelectedProviderId(providerTemplateId || null);
+      setEditingTargetKey(targetKey);
+      setEditingConfig({
+        name: providerName,
+        base_url: config.base_url,
+        request_url: resolveRequestUrl(config.base_url, config.provider || 'openai'),
+        api_key: config.api_key || '',
+        model_name: '',
+        provider: config.provider,
+        enabled: true,
+        context_window: config.context_window || 200000,
+        max_tokens: config.max_tokens,
+        category: config.category || 'general_chat',
+        capabilities: config.capabilities || getCapabilitiesByCategory(config.category || 'general_chat'),
+        recommended_for: config.recommended_for || [],
+        metadata: config.metadata || {},
+        inline_think_in_text: config.inline_think_in_text ?? true,
+        custom_headers: config.custom_headers,
+        custom_headers_mode: config.custom_headers_mode,
+        skip_ssl_verify: config.skip_ssl_verify ?? false,
+        custom_request_body: config.custom_request_body,
+        custom_request_body_mode: config.custom_request_body_mode,
+        auth: config.auth || { type: 'api_key' },
+      });
+      setSelectedModelDrafts(createDraftsFromConfigs(configuredProviderModels));
+      setShowAdvancedSettings(
+        !!config.skip_ssl_verify ||
+        config.custom_request_body_mode === 'trim' ||
+        (!!config.custom_request_body && config.custom_request_body.trim() !== '') ||
+        (!!config.custom_headers && Object.keys(config.custom_headers).length > 0)
+      );
+      setCreationMode('form');
+      setIsEditing(true);
     });
-    setSelectedModelDrafts(createDraftsFromConfigs(configuredProviderModels));
-    setShowAdvancedSettings(
-      !!config.skip_ssl_verify ||
-      config.custom_request_body_mode === 'trim' ||
-      (!!config.custom_request_body && config.custom_request_body.trim() !== '') ||
-      (!!config.custom_headers && Object.keys(config.custom_headers).length > 0)
-    );
-    setCreationMode('form');
-    setIsEditing(true);
   };
 
   const handleEdit = (config: AIModelConfigType) => {
-    resetRemoteModelDiscovery();
-    setManualModelInput('');
-    setEditingProviderModelIds(new Set());
-    setShowApiKey(false);
-    setEditingConfig({ ...config, name: getProviderDisplayName(config) });
-    setSelectedModelDrafts([
-      createModelDraft(config.model_name, config, {
-        contextWindow: config.context_window || 200000,
-        maxTokens: config.max_tokens,
-        reasoning: canonicalReasoningConfig(config),
-      })
-    ]);
-    
-    const hasCustomHeaders = !!config.custom_headers && Object.keys(config.custom_headers).length > 0;
-    const hasCustomBody = !!config.custom_request_body && config.custom_request_body.trim() !== '';
-    setShowAdvancedSettings(
-      hasCustomHeaders ||
-      hasCustomBody ||
-      config.custom_request_body_mode === 'trim' ||
-      !!config.skip_ssl_verify
-    );
-    setIsEditing(true);
+    const targetKey = `model:${config.id || `${config.provider}:${config.base_url}:${config.model_name}`}`;
+    requestEditorOpen(targetKey, () => {
+      resetRemoteModelDiscovery();
+      setManualModelInput('');
+      setEditingProviderModelIds(new Set());
+      setShowApiKey(false);
+      setEditingTargetKey(targetKey);
+      setEditingConfig({ ...config, name: getProviderDisplayName(config) });
+      setSelectedModelDrafts([
+        createModelDraft(config.model_name, config, {
+          contextWindow: config.context_window || 200000,
+          maxTokens: config.max_tokens,
+          reasoning: canonicalReasoningConfig(config),
+        })
+      ]);
+
+      const hasCustomHeaders = !!config.custom_headers && Object.keys(config.custom_headers).length > 0;
+      const hasCustomBody = !!config.custom_request_body && config.custom_request_body.trim() !== '';
+      setShowAdvancedSettings(
+        hasCustomHeaders ||
+        hasCustomBody ||
+        config.custom_request_body_mode === 'trim' ||
+        !!config.skip_ssl_verify
+      );
+      setIsEditing(true);
+    });
   };
 
-  const handleSave = async () => {
+  const runConfigConnectionTest = useCallback(async (config: AIModelConfigType) => {
+    const configId = config.id;
+    if (!configId || !connectionTestSupported) return;
+
+    const signature = stableJson(config);
+    const activeTest = activeConnectionTestsRef.current[configId];
+    if (activeTest?.signature === signature) return;
+
+    const token = Symbol(configId);
+    activeConnectionTestsRef.current[configId] = { token, signature };
+    setTestingConfigs(previous => ({ ...previous, [configId]: true }));
+    setTestResults(previous => ({ ...previous, [configId]: null }));
+
+    try {
+      const result = await aiApi.testAIConfigConnection(config);
+      if (activeConnectionTestsRef.current[configId]?.token !== token) return;
+
+      const baseMessage = result.success ? t('messages.testSuccess') : t('messages.testFailed');
+      let message = baseMessage + (result.response_time_ms ? ` (${result.response_time_ms}ms)` : '');
+      const localizedMessage = translateConnectionTestMessage(result.message_code, t);
+
+      if (localizedMessage) {
+        message += `\n${localizedMessage}`;
+      }
+      if (result.error_details) {
+        message += result.success
+          ? `\n${result.error_details}`
+          : `\n${t('messages.errorDetails')}: ${result.error_details}`;
+      }
+
+      setTestResults(previous => ({
+        ...previous,
+        [configId]: { success: result.success, message },
+      }));
+    } catch (error) {
+      if (activeConnectionTestsRef.current[configId]?.token !== token) return;
+      const message = `${t('messages.testFailed')}\n${t('messages.errorDetails')}: ${error}`;
+      setTestResults(previous => ({
+        ...previous,
+        [configId]: { success: false, message },
+      }));
+      log.warn('Model connection test failed', { configId, error });
+    } finally {
+      if (activeConnectionTestsRef.current[configId]?.token === token) {
+        delete activeConnectionTestsRef.current[configId];
+        setTestingConfigs(previous => ({ ...previous, [configId]: false }));
+      }
+    }
+  }, [connectionTestSupported, t]);
+
+  const handleSave = async (): Promise<boolean> => {
+    if (editorSavingRef.current) return false;
     
     if (!editingConfig || !editingConfig.name || !editingConfig.base_url) {
       notification.warning(t('messages.fillRequired'));
-      return;
+      return false;
     }
     
     if (selectedModelDrafts.length === 0) {
       notification.warning(t('messages.fillModelName'));
-      return;
+      return false;
     }
 
+    editorSavingRef.current = true;
+    setIsEditorSaving(true);
     try {
       const providerName = editingConfig.name.trim();
       const baseUrl = editingConfig.base_url.trim();
       if (!providerName || !baseUrl) {
         notification.warning(t('messages.fillRequired'));
-        return;
+        return false;
       }
       if (!hasHttpUrlScheme(baseUrl)) {
         notification.warning(t('messages.invalidBaseUrlScheme'));
-        return;
+        return false;
       }
       const draftsToSave = dedupeSelectedModelDraftsByModelName(selectedModelDrafts);
       if (draftsToSave.some(draft => draft.contextWindow < 32000)) {
         notification.warning(t('messages.contextWindowTooSmall'));
-        return;
+        return false;
       }
       const reasoningValidationResults = draftsToSave.map(draft => ({
         modelName: draft.modelName,
@@ -1590,7 +1686,7 @@ const ModelSettingsPage: React.FC = () => {
       }));
       if (reasoningValidationResults.some(entry => entry.validationError !== null)) {
         notification.warning(t('messages.invalidReasoningPresets'));
-        return;
+        return false;
       }
       const existingProviderInstanceId = getProviderInstanceId(editingConfig);
       const isProviderGroupEdit = !editingConfig.id && editingProviderModelIds.size > 0;
@@ -1651,13 +1747,9 @@ const ModelSettingsPage: React.FC = () => {
           auth: editingConfig.auth || { type: 'api_key' },
         };
       });
-      const configsToAutoTest = configsNeedingAutoTest(
-        aiModels,
-        configsToSave,
-        isProviderGroupEdit
-      );
-
+      let previousModelsBeforeSave: AIModelConfigType[] = [];
       const updatedModels = await configManager.updateConfig<AIModelConfigType[]>('ai.models', current => {
+        previousModelsBeforeSave = current;
         if (editingConfig.id) {
           if (!current.some(model => model.id === editingConfig.id)) {
             throw new Error('The model was removed while it was being edited');
@@ -1672,6 +1764,11 @@ const ModelSettingsPage: React.FC = () => {
         }
         return [...current, ...configsToSave];
       });
+      const configsToAutoTest = configsNeedingAutoTest(
+        previousModelsBeforeSave,
+        configsToSave,
+        isProviderGroupEdit
+      );
       setAiModels(updatedModels);
       // The host reconciles default selectors using model capabilities.
       
@@ -1681,72 +1778,166 @@ const ModelSettingsPage: React.FC = () => {
       setCreationMode(null);
       setSelectedProviderId(null);
       setEditingProviderModelIds(new Set());
+      setSelectedModelDrafts([]);
+      setEditingTargetKey(null);
+      setDraftCloseConfirmOpen(false);
+      setDraftConflictConfirmOpen(false);
       
       
       const autoTestConfigIds = configsToAutoTest.map(config => config.id).filter((id): id is string => !!id);
-      if (autoTestConfigIds.length > 0) {
+      if (connectionTestSupported && autoTestConfigIds.length > 0) {
         setExpandedIds(prev => new Set([...prev, ...autoTestConfigIds]));
       }
       
       
       
-      configsToAutoTest.forEach(config => {
-        const configId = config.id;
-        if (!configId) return;
-
+      if (connectionTestSupported) {
         void (async () => {
-          setTestingConfigs(prev => ({ ...prev, [configId]: true }));
-          setTestResults(prev => ({ ...prev, [configId]: null }));
-
-          try {
-            const result = await aiApi.testAIConfigConnection(config);
-            const baseMessage = result.success ? t('messages.testSuccess') : t('messages.testFailed');
-            let message = baseMessage + (result.response_time_ms ? ` (${result.response_time_ms}ms)` : '');
-            const localizedMessage = translateConnectionTestMessage(result.message_code, t);
-
-            if (localizedMessage) {
-              message += `\n${localizedMessage}`;
-            }
-
-            if (result.error_details) {
-              message += result.success
-                ? `\n${result.error_details}`
-                : `\n${t('messages.errorDetails')}: ${result.error_details}`;
-            }
-
-            setTestResults(prev => ({
-              ...prev,
-              [configId]: {
-                success: result.success,
-                message
-              }
-            }));
-          } catch (error) {
-            const message = `${t('messages.testFailed')}\n${t('messages.errorDetails')}: ${error}`;
-            setTestResults(prev => ({
-              ...prev,
-              [configId]: { success: false, message }
-            }));
-            log.warn('Auto test failed after save', { configId, error });
-          } finally {
-            setTestingConfigs(prev => ({ ...prev, [configId]: false }));
+          for (const config of configsToAutoTest) {
+            await runConfigConnectionTest(config);
           }
         })();
-      });
+      } else if (configsToAutoTest.length > 0) {
+        notification.info(t('messages.testUnsupportedOnHost'));
+      }
+      return true;
     } catch (error) {
       log.error('Failed to save config', error);
       notification.error(t('messages.saveFailed'));
+      return false;
+    } finally {
+      editorSavingRef.current = false;
+      setIsEditorSaving(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const closeEditingModal = () => {
+    resetRemoteModelDiscovery();
+    setSelectedModelDrafts([]);
+    setEditingProviderModelIds(new Set());
+    setManualModelInput('');
+    setShowApiKey(false);
+    setIsEditing(false);
+    setEditingConfig(null);
+    setCreationMode(null);
+    setSelectedProviderId(null);
+    setEditingTargetKey(null);
+    setProviderQuery('');
+    setShowAllProviders(false);
+    setReasoningPanelDraftKey(null);
+    setDraftCloseConfirmOpen(false);
+    setDraftConflictConfirmOpen(false);
+    pendingEditorOpenRef.current = null;
+    reasoningPanelInitialRef.current = null;
+  };
+
+  const inspectModelReferenceCount = async (modelIds: string[]): Promise<number> => {
+    const [defaultModels, taskModels, agentModelDefaults] = await Promise.all([
+      configManager.getConfig<unknown>('ai.default_models'),
+      configManager.getConfig<unknown>('ai.task_models'),
+      configManager.getConfig<unknown>('ai.agent_model_defaults'),
+    ]);
+    const ids = new Set(modelIds);
+    return [defaultModels, taskModels, agentModelDefaults]
+      .reduce<number>((count, value) => count + countModelConfigReferences(value, ids), 0);
+  };
+
+  const requestDelete = async (config: AIModelConfigType) => {
+    if (!config.id) return;
+    try {
+      const referenceCount = await inspectModelReferenceCount([config.id]);
+      setDeleteRequest({ kind: 'model', config, modelIds: [config.id], referenceCount });
+    } catch (error) {
+      log.error('Failed to inspect model references before deletion', { configId: config.id, error });
+      notification.error(t('messages.referenceCheckFailed'));
+    }
+  };
+
+  const requestProviderDelete = async (group: ProviderGroup) => {
+    const modelIds = group.models
+      .map(model => model.id)
+      .filter((id): id is string => !!id);
+    try {
+      const referenceCount = await inspectModelReferenceCount(modelIds);
+      setDeleteRequest({
+        kind: 'provider',
+        groupKey: group.key,
+        providerName: group.providerName,
+        modelIds,
+        modelCount: group.models.length,
+        referenceCount,
+        discardsRetainedDraft: editingModalHasUnsavedChanges
+          && editingTargetKey === `provider:${group.key}`,
+      });
+    } catch (error) {
+      log.error('Failed to inspect provider model references before deletion', {
+        providerGroupKey: group.key,
+        error,
+      });
+      notification.error(t('messages.providerReferenceCheckFailed'));
+    }
+  };
+
+  const handleDelete = async () => {
+    const request = deleteRequest;
+    if (!request) return;
+    let deletedModelIds = request.modelIds;
     try {
       const updatedModels = await configManager.updateConfig<AIModelConfigType[]>(
-        'ai.models', current => current.filter(model => model.id !== id)
+        'ai.models',
+        (current) => {
+          if (request.kind === 'provider') {
+            const result = removeProviderModelConfigs(current, request.groupKey);
+            deletedModelIds = result.removed
+              .map(model => model.id)
+              .filter((id): id is string => !!id);
+            return result.remaining;
+          }
+          return current.filter(model => model.id !== request.config.id);
+        },
       );
+      const deletedIdSet = new Set(deletedModelIds);
+      deletedIdSet.forEach(id => {
+        delete activeConnectionTestsRef.current[id];
+      });
+      setTestingConfigs(current => Object.fromEntries(
+        Object.entries(current).filter(([id]) => !deletedIdSet.has(id)),
+      ));
+      setTestResults(current => Object.fromEntries(
+        Object.entries(current).filter(([id]) => !deletedIdSet.has(id)),
+      ));
+      setExpandedIds(current => new Set([...current].filter(id => !deletedIdSet.has(id))));
+      if (request.kind === 'provider') {
+        setExpandedProviderGroupKeys(current => {
+          const next = new Set(current);
+          next.delete(request.groupKey);
+          return next;
+        });
+        if (editingTargetKey === `provider:${request.groupKey}`) {
+          closeEditingModal();
+        }
+      } else if (editingTargetKey === `model:${request.config.id}`) {
+        closeEditingModal();
+      }
       setAiModels(updatedModels);
+      setDeleteRequest(null);
+      notification.success(t(
+        request.kind === 'provider'
+          ? 'messages.providerDeleteSuccess'
+          : 'messages.deleteSuccess',
+      ));
     } catch (error) {
-      log.error('Failed to delete config', { configId: id, error });
+      log.error(
+        request.kind === 'provider' ? 'Failed to delete provider config' : 'Failed to delete model config',
+        request.kind === 'provider'
+          ? { providerGroupKey: request.groupKey, error }
+          : { configId: request.config.id, error },
+      );
+      notification.error(t(
+        request.kind === 'provider'
+          ? 'messages.providerDeleteFailed'
+          : 'messages.deleteFailed',
+      ));
     }
   };
 
@@ -1763,45 +1954,7 @@ const ModelSettingsPage: React.FC = () => {
   };
 
   const handleTest = async (config: AIModelConfigType) => {
-    if (!config.id) return;
-    
-    const configId = config.id;
-    setTestingConfigs(prev => ({ ...prev, [configId]: true }));
-    setTestResults(prev => ({ ...prev, [configId]: null }));
-
-    try {
-      
-      const result = await aiApi.testAIConfigConnection(config);
-      
-      
-      const baseMessage = result.success ? t('messages.testSuccess') : t('messages.testFailed');
-      let message = baseMessage + (result.response_time_ms ? ` (${result.response_time_ms}ms)` : '');
-      const localizedMessage = translateConnectionTestMessage(result.message_code, t);
-      
-      if (localizedMessage) {
-        message += `\n${localizedMessage}`;
-      }
-
-      if (result.error_details) {
-        message += `\n${t('messages.errorDetails')}: ${result.error_details}`;
-      }
-      
-      setTestResults(prev => ({
-        ...prev,
-        [configId]: { 
-          success: result.success, 
-          message
-        }
-      }));
-    } catch (error) {
-      const message = `${t('messages.testFailed')}\n${t('messages.errorDetails')}: ${error}`;
-      setTestResults(prev => ({
-        ...prev,
-        [configId]: { success: false, message }
-      }));
-    } finally {
-      setTestingConfigs(prev => ({ ...prev, [configId]: false }));
-    }
+    await runConfigConnectionTest(config);
   };
 
   const handleToggleEnabled = async (config: AIModelConfigType, enabled: boolean) => {
@@ -1819,26 +1972,45 @@ const ModelSettingsPage: React.FC = () => {
   };
 
   
-  const handleSaveProxy = async () => {
+  const handleSaveProxy = async (): Promise<boolean> => {
+    if (!isProxyDirty) return true;
+    if (proxySavingRef.current) return false;
+    if (proxyConfig.enabled && !proxyConfig.url.trim()) {
+      setProxySaveError(t('messages.fillRequired'));
+      return false;
+    }
+    proxySavingRef.current = true;
     setIsProxySaving(true);
+    setProxySaveError(null);
     try {
       await configManager.setConfig('ai.proxy', proxyConfig);
+      setSavedProxyConfig(proxyConfig);
+      setProxySaveError(null);
       notification.success(t('proxy.saveSuccess'));
+      return true;
     } catch (error) {
       log.error('Failed to save proxy config', error);
+      setProxySaveError(t('messages.saveFailed'));
       notification.error(t('messages.saveFailed'));
+      return false;
     } finally {
+      proxySavingRef.current = false;
       setIsProxySaving(false);
     }
   };
 
-  const handleSaveStreamTimeouts = async () => {
+  const handleSaveStreamTimeouts = async (): Promise<boolean> => {
+    if (!isStreamTimeoutDirty) return true;
+    if (streamTimeoutSavingRef.current) return false;
     if (isStreamTimeoutInvalid) {
+      setStreamTimeoutSaveError(t('streamIdleTimeout.invalid'));
       notification.warning(t('streamIdleTimeout.invalid'));
-      return;
+      return false;
     }
 
+    streamTimeoutSavingRef.current = true;
     setIsStreamTimeoutSaving(true);
+    setStreamTimeoutSaveError(null);
     try {
       await Promise.all([
         configManager.setConfig(
@@ -1856,29 +2028,100 @@ const ModelSettingsPage: React.FC = () => {
       setStreamTtftTimeoutInput(
         parsedStreamTtftTimeout != null ? String(parsedStreamTtftTimeout) : ''
       );
+      setSavedStreamTimeouts({
+        idle: parsedStreamIdleTimeout != null ? String(parsedStreamIdleTimeout) : '',
+        ttft: parsedStreamTtftTimeout != null ? String(parsedStreamTtftTimeout) : '',
+      });
+      setStreamTimeoutSaveError(null);
       notification.success(t('streamIdleTimeout.saveSuccess'));
+      return true;
     } catch (error) {
       log.error('Failed to save stream timeouts', error);
+      setStreamTimeoutSaveError(t('messages.saveFailed'));
       notification.error(t('messages.saveFailed'));
+      return false;
     } finally {
+      streamTimeoutSavingRef.current = false;
       setIsStreamTimeoutSaving(false);
     }
   };
 
-  const closeEditingModal = () => {
-    resetRemoteModelDiscovery();
-    setSelectedModelDrafts([]);
-    setEditingProviderModelIds(new Set());
-    setManualModelInput('');
-    setShowApiKey(false);
+  const preserveEditingDraftAndClose = () => {
+    setDraftCloseConfirmOpen(false);
     setIsEditing(false);
-    setEditingConfig(null);
-    setCreationMode(null);
-    setSelectedProviderId(null);
-    setProviderQuery('');
-    setShowAllProviders(false);
-    setReasoningPanelDraftKey(null);
   };
+
+  const requestCloseEditingModal = () => {
+    if (editorSavingRef.current) return;
+    if (editingModalHasUnsavedChanges) {
+      setDraftCloseConfirmOpen(true);
+      return;
+    }
+    closeEditingModal();
+  };
+
+  const continueEditingCurrentDraft = () => {
+    pendingEditorOpenRef.current = null;
+    setDraftConflictConfirmOpen(false);
+    setIsEditing(true);
+  };
+
+  const discardDraftBeforeOpeningPendingEditor = () => {
+    const pending = pendingEditorOpenRef.current;
+    closeEditingModal();
+    pending?.open();
+  };
+
+  const cancelPendingEditorOpen = () => {
+    pendingEditorOpenRef.current = null;
+    setDraftConflictConfirmOpen(false);
+  };
+
+  const discardProxyDraft = useCallback(() => {
+    setProxyConfig(savedProxyConfig);
+    setProxySaveError(null);
+  }, [savedProxyConfig]);
+  const discardStreamTimeoutDraft = useCallback(() => {
+    setStreamIdleTimeoutInput(savedStreamTimeouts.idle);
+    setStreamTtftTimeoutInput(savedStreamTimeouts.ttft);
+    setStreamTimeoutSaveError(null);
+  }, [savedStreamTimeouts]);
+
+  useSettingsDraft({
+    id: 'model-stream-timeouts',
+    pageId: 'ai.models',
+    label: t('streamIdleTimeout.title'),
+    dirty: isStreamTimeoutDirty,
+    saving: isStreamTimeoutSaving,
+    save: handleSaveStreamTimeouts,
+    discard: discardStreamTimeoutDraft,
+  });
+  useSettingsDraft({
+    id: 'model-network-proxy',
+    pageId: 'ai.models',
+    label: tDefault('sections.proxy'),
+    dirty: isProxyDirty,
+    saving: isProxySaving,
+    save: handleSaveProxy,
+    discard: discardProxyDraft,
+  });
+  useSettingsDraft({
+    id: 'model-provider-editor',
+    pageId: 'ai.models',
+    label: editingConfig?.id
+      ? t('editModel')
+      : getProviderInstanceId(editingConfig)
+        ? t('editProvider')
+        : t('newProvider'),
+    dirty: editingConfig !== null && editingModalHasUnsavedChanges,
+    saving: isEditorSaving,
+    save: handleSave,
+    discard: closeEditingModal,
+  });
+
+  const hasSuspendedEditorDraft = !isEditing
+    && editingConfig !== null
+    && editingModalHasUnsavedChanges;
 
   const providerGroups = useMemo<ProviderGroup[]>(() => {
     const grouped = aiModels.reduce<Map<string, ProviderGroup>>((map, model) => {
@@ -1911,37 +2154,67 @@ const ModelSettingsPage: React.FC = () => {
     });
   }, [aiModels, providerOrder]);
 
+  const toggleProviderGroup = (groupKey: string) => {
+    setExpandedProviderGroupKeys(previous => {
+      const next = new Set(previous);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  };
+
   
+  if (isConfigLoading || configLoadError) {
+    return (
+      <ConfigPageLayout className="openbitfun-model-settings" data-openbitfun-component="model-settings" data-openbitfun-part="root" data-openbitfun-view="settings">
+        <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
+        <ConfigPageContent className="openbitfun-model-settings__content">
+          {isConfigLoading ? (
+            <div className="openbitfun-model-settings__loading" role="status">{t('messages.loading')}</div>
+          ) : (
+            <ConfigRetryState
+              message={t('messages.loadFailedLocked')}
+              retryLabel={t('messages.retry')}
+              onRetry={() => void loadConfig()}
+            />
+          )}
+        </ConfigPageContent>
+      </ConfigPageLayout>
+    );
+  }
+
   if (creationMode === 'selection') {
     return (
-      <ConfigPageLayout className="bitfun-model-settings" data-bf-component="model-settings" data-bf-part="root" data-bf-view="selection">
+      <ConfigPageLayout className="openbitfun-model-settings" data-openbitfun-component="model-settings" data-openbitfun-part="root" data-openbitfun-view="selection">
         <ConfigPageHeader
           title={t('providerSelection.title')}
           subtitle={t('providerSelection.subtitle')}
         />
 
-        <ConfigPageContent className="bitfun-model-settings__content bitfun-model-settings__content--selection">
-          <div className="bitfun-model-settings__provider-selection" data-bf-component="model-settings" data-bf-part="providerSelection">
+        <ConfigPageContent className="openbitfun-model-settings__content openbitfun-model-settings__content--selection">
+          <div className="openbitfun-model-settings__provider-selection" data-openbitfun-component="model-settings" data-openbitfun-part="providerSelection">
             
-            <Card
+            <button
+              type="button"
               data-testid="settings-model-custom-config-btn"
               data-provider-id="custom"
-              appearance="neutral"
-              padding="sm"
-              className="bitfun-model-settings__custom-option"
+              className="openbitfun-model-settings__custom-option"
               onClick={handleSelectCustom}
             >
-              <div className="bitfun-model-settings__custom-option-content" data-bf-component="model-settings" data-bf-part="customOption">
+              <div className="openbitfun-model-settings__custom-option-content" data-openbitfun-component="model-settings" data-openbitfun-part="customOption">
                 <Icon name="settings" size="lg" />
                 <div>
-                  <div className="bitfun-model-settings__custom-option-title" data-bf-component="model-settings" data-bf-part="customOptionTitle">{t('providerSelection.customTitle')}</div>
-                  <div className="bitfun-model-settings__custom-option-description" data-bf-component="model-settings" data-bf-part="customOptionDescription">{t('providerSelection.customDescription')}</div>
+                  <div className="openbitfun-model-settings__custom-option-title" data-openbitfun-component="model-settings" data-openbitfun-part="customOptionTitle">{t('providerSelection.customTitle')}</div>
+                  <div className="openbitfun-model-settings__custom-option-description" data-openbitfun-component="model-settings" data-openbitfun-part="customOptionDescription">{t('providerSelection.customDescription')}</div>
                 </div>
               </div>
-            </Card>
+            </button>
 
             
-            <div className="bitfun-model-settings__selection-divider" data-bf-component="model-settings" data-bf-part="selectionDivider">
+            <div className="openbitfun-model-settings__selection-divider" data-openbitfun-component="model-settings" data-openbitfun-part="selectionDivider">
               <span>{t('providerSelection.orSelectProvider')}</span>
             </div>
 
@@ -1949,10 +2222,10 @@ const ModelSettingsPage: React.FC = () => {
             <SearchField
               leadingIcon={<Icon name="search" size="lg" aria-hidden />}
               size="sm"
-              className="bitfun-model-settings__provider-search"
+              className="openbitfun-model-settings__provider-search"
               data-testid="settings-model-provider-search"
-              data-bf-component="model-settings"
-              data-bf-part="providerSearch"
+              data-openbitfun-component="model-settings"
+              data-openbitfun-part="providerSearch"
               value={providerQuery}
               placeholder={t('providerSelection.searchProviders')}
               aria-label={t('providerSelection.searchProviders')}
@@ -1964,34 +2237,34 @@ const ModelSettingsPage: React.FC = () => {
             />
 
 
-            <div className="bitfun-model-settings__provider-list" data-bf-component="model-settings" data-bf-part="providerList">
+            <div className="openbitfun-model-settings__provider-list" data-openbitfun-component="model-settings" data-openbitfun-part="providerList">
               {visibleProviders.map(provider => (
                 // The help link is a sibling of the select button, not a child:
                 // a button may not contain interactive content.
                 <div
                   key={provider.id}
-                  className="bitfun-model-settings__provider-row"
-                  data-bf-component="model-settings"
-                  data-bf-part="providerRow"
+                  className="openbitfun-model-settings__provider-row"
+                  data-openbitfun-component="model-settings"
+                  data-openbitfun-part="providerRow"
                 >
                   <button
                     type="button"
                     data-testid="settings-model-provider-option"
                     data-provider-id={provider.id}
-                    className="bitfun-model-settings__provider-select"
-                    data-bf-component="model-settings"
-                    data-bf-part="providerSelect"
+                    className="openbitfun-model-settings__provider-select"
+                    data-openbitfun-component="model-settings"
+                    data-openbitfun-part="providerSelect"
                     onClick={() => handleSelectProvider(provider.id)}
                   >
-                    <span className="bitfun-model-settings__provider-name" data-bf-component="model-settings" data-bf-part="providerName">{provider.name}</span>
-                    <span className="bitfun-model-settings__provider-description" data-bf-component="model-settings" data-bf-part="providerDescription">{provider.description}</span>
+                    <span className="openbitfun-model-settings__provider-name" data-openbitfun-component="model-settings" data-openbitfun-part="providerName">{provider.name}</span>
+                    <span className="openbitfun-model-settings__provider-description" data-openbitfun-component="model-settings" data-openbitfun-part="providerDescription">{provider.description}</span>
                   </button>
                   {provider.helpUrl && (
                     <a
                       href={provider.helpUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="bitfun-model-settings__provider-help-link"
+                      className="openbitfun-model-settings__provider-help-link"
                       onClick={async (e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -2006,12 +2279,12 @@ const ModelSettingsPage: React.FC = () => {
                       {t('providerSelection.getApiKey')}
                     </a>
                   )}
-                  <Icon name="chevron-right" size="sm" className="bitfun-model-settings__provider-chevron" aria-hidden="true" />
+                  <Icon name="chevron-right" size="sm" className="openbitfun-model-settings__provider-chevron" aria-hidden="true" />
                 </div>
               ))}
 
               {visibleProviders.length === 0 && (
-                <div className="bitfun-model-settings__provider-empty" data-bf-component="model-settings" data-bf-part="providerEmpty">
+                <div className="openbitfun-model-settings__provider-empty" data-openbitfun-component="model-settings" data-openbitfun-part="providerEmpty">
                   {t('providerSelection.noProviderMatches')}
                 </div>
               )}
@@ -2020,9 +2293,9 @@ const ModelSettingsPage: React.FC = () => {
                 <button
                   type="button"
                   data-testid="settings-model-provider-expand-btn"
-                  className="bitfun-model-settings__provider-more"
-                  data-bf-component="model-settings"
-                  data-bf-part="providerMore"
+                  className="openbitfun-model-settings__provider-more"
+                  data-openbitfun-component="model-settings"
+                  data-openbitfun-part="providerMore"
                   onClick={() => setShowAllProviders(previous => !previous)}
                 >
                   {isProviderListCollapsed
@@ -2034,8 +2307,8 @@ const ModelSettingsPage: React.FC = () => {
             </div>
 
 
-            <div className="bitfun-model-settings__selection-actions" data-bf-component="model-settings" data-bf-part="selectionActions">
-              <Button variant="outline" onClick={() => setCreationMode(null)}>
+            <div className="openbitfun-model-settings__selection-actions" data-openbitfun-component="model-settings" data-openbitfun-part="selectionActions">
+              <Button variant="outline" size="sm" onClick={() => setCreationMode(null)}>
                 {t('actions.cancel')}
               </Button>
             </div>
@@ -2138,7 +2411,7 @@ const ModelSettingsPage: React.FC = () => {
     const apiKeySuffix = (
       <button
         type="button"
-        className="bitfun-model-settings__input-visibility-toggle"
+        className="openbitfun-model-settings__input-visibility-toggle"
         onClick={() => setShowApiKey(prev => !prev)}
         aria-label={apiKeyVisibilityLabel}
         title={apiKeyVisibilityLabel}
@@ -2182,7 +2455,7 @@ const ModelSettingsPage: React.FC = () => {
       if (selectedModelDrafts.length === 0) {
         return (
           <div
-            className="bitfun-model-settings__selected-models-empty"
+            className="openbitfun-model-settings__selected-models-empty"
             data-testid="settings-model-selected-list-empty"
             data-selected-count="0"
           >
@@ -2193,7 +2466,7 @@ const ModelSettingsPage: React.FC = () => {
 
       return (
         <div
-          className="bitfun-model-settings__selected-models-list"
+          className="openbitfun-model-settings__selected-models-list"
           data-testid="settings-model-selected-list"
           data-selected-count={selectedModelDrafts.length}
         >
@@ -2208,7 +2481,7 @@ const ModelSettingsPage: React.FC = () => {
             return (
               <div
                 key={draft.key}
-                className="bitfun-model-settings__selected-model-row"
+                className="openbitfun-model-settings__selected-model-row"
                 data-testid="settings-model-selected-row"
                 data-model-id={draft.modelName}
                 data-model-name={draft.modelName}
@@ -2218,8 +2491,8 @@ const ModelSettingsPage: React.FC = () => {
               >
                 <div
                   className={[
-                    'bitfun-model-settings__selected-model-head',
-                    canToggleExpand && 'bitfun-model-settings__selected-model-head--toggleable',
+                    'openbitfun-model-settings__selected-model-head',
+                    canToggleExpand && 'openbitfun-model-settings__selected-model-head--toggleable',
                   ].filter(Boolean).join(' ')}
                   onClick={canToggleExpand ? () => toggleSelectedModelCardExpanded(draft.key) : undefined}
                   onKeyDown={canToggleExpand ? (e) => onSelectedModelHeadKeyDown(e, draft.key) : undefined}
@@ -2237,21 +2510,24 @@ const ModelSettingsPage: React.FC = () => {
                       : undefined
                   }
                 >
-                  <div className="bitfun-model-settings__selected-model-head-title">
-                    <div className="bitfun-model-settings__selected-model-head-top">
-                      <div className="bitfun-model-settings__selected-model-toggle">
-                        {isExpanded ? <Icon name="chevron-down" size="sm" /> : <Icon name="chevron-right" size="sm" />}
-                      </div>
-                      <div className="bitfun-model-settings__selected-model-name">{modelDisplayName}</div>
+                  <div className="openbitfun-model-settings__selected-model-head-title">
+                    <div className="openbitfun-model-settings__selected-model-head-top">
+                      {canToggleExpand && (
+                        <div className="openbitfun-model-settings__selected-model-toggle">
+                          {isExpanded ? <Icon name="chevron-down" size="sm" /> : <Icon name="chevron-right" size="sm" />}
+                        </div>
+                      )}
+                      <div className="openbitfun-model-settings__selected-model-name">{modelDisplayName}</div>
                       {hasUnsavedChanges && (
-                        <span
-                          className="bitfun-model-settings__selected-model-unsaved"
+                        <StatusPill
+                          tone="warning"
+                          className="openbitfun-model-settings__selected-model-unsaved"
                           title={t('providerSelection.unsavedModelHint')}
                           aria-label={t('providerSelection.unsavedModelHint')}
                           data-testid="settings-model-unsaved-badge"
                         >
                           {t('providerSelection.unsavedModel')}
-                        </span>
+                        </StatusPill>
                       )}
                     </div>
                     {!editingConfig.id && (
@@ -2262,7 +2538,7 @@ const ModelSettingsPage: React.FC = () => {
                           data-model-id={draft.modelName}
                           data-model-name={draft.modelName}
                           size="sm"
-                          className="bitfun-model-settings__selected-model-remove"
+                          className="openbitfun-model-settings__selected-model-remove"
                           onClick={(e) => {
                             e.stopPropagation();
                             removeSelectedModelDraft(draft.modelName);
@@ -2273,8 +2549,8 @@ const ModelSettingsPage: React.FC = () => {
                     )}
                   </div>
                   {!isExpanded && (
-                    <div className="bitfun-model-settings__selected-model-head-bottom">
-                      <span className="bitfun-model-settings__selected-model-summary">
+                    <div className="openbitfun-model-settings__selected-model-head-bottom">
+                      <span className="openbitfun-model-settings__selected-model-summary">
                         {categoryLabel}
                         {' · '}
                         {formatTokenCountShort(draft.contextWindow)} ctx
@@ -2285,33 +2561,33 @@ const ModelSettingsPage: React.FC = () => {
                   )}
                 </div>
                 {isExpanded && (
-                  <div className="bitfun-model-settings__selected-model-grid">
-                    <div className="bitfun-model-settings__selected-model-field">
-                      <span>{t('category.label')}</span>
+                  <div className="openbitfun-model-settings__selected-model-grid">
+                    <Field className="openbitfun-model-settings__selected-model-field" label={t('category.label')} controlWidth="fill">
                       <Combobox
                         value={draft.category}
                         onValueChange={(value) => updateModelDraft(draft.modelName, { category: value as ModelCategory })}
                         options={categoryOptions}
                         size="sm"
-                        className="bitfun-model-settings__selected-model-category-select"
+                        className="openbitfun-model-settings__selected-model-category-select"
                       />
-                    </div>
-                    <div className="bitfun-model-settings__selected-model-field">
-                      <span className="bitfun-model-settings__inline-header-main">
-                        <span>{t('form.contextWindow')}</span>
+                    </Field>
+                    <Field
+                      className="openbitfun-model-settings__selected-model-field"
+                      label={t('form.contextWindow')}
+                      controlWidth="fill"
+                      labelAction={(
                         <Tooltip content={t('form.contextWindowHint')} placement="top">
-                          <span
-                            className="bitfun-model-settings__inline-header-info"
-                            role="button"
-                            tabIndex={0}
+                          <IconButton
+                            size="xs"
+                            variant="quiet"
                             aria-label={t('form.contextWindowHint')}
-                          >
-                            <Icon name="info" size="sm" aria-hidden="true" />
-                          </span>
+                            icon={<Icon name="info" size="sm" />}
+                          />
                         </Tooltip>
-                      </span>
+                      )}
+                    >
                       <NumberInput
-                        className="bitfun-model-settings__selected-model-context-input"
+                        className="openbitfun-model-settings__selected-model-context-input"
                         value={draft.contextWindow}
                         onValueChange={(value) => updateModelDraft(draft.modelName, { contextWindow: value })}
                         min={32000}
@@ -2320,27 +2596,35 @@ const ModelSettingsPage: React.FC = () => {
                         size="sm"
                         disableWheel
                       />
-                    </div>
+                    </Field>
                     {draft.contextWindow > LONG_CONTEXT_WARNING_THRESHOLD_TOKENS && (
-                      <div className="bitfun-model-settings__warning-inline bitfun-model-settings__context-window-warning">
+                      <div className="openbitfun-model-settings__warning-inline openbitfun-model-settings__context-window-warning">
                         <AlertTriangle size={14} />
                         <span>{t('form.contextWindowLongWarning')}</span>
                       </div>
                     )}
                     <button
                       type="button"
-                      className="bitfun-model-settings__reasoning-summary"
-                      onClick={() => setReasoningPanelDraftKey(draft.key)}
+                      className="openbitfun-model-settings__reasoning-summary"
+                      onClick={() => {
+                        reasoningPanelInitialRef.current = {
+                          key: draft.key,
+                          reasoning: cloneReasoningConfig(draft.reasoning),
+                          reasoningProjectionCatalog: draft.reasoningProjectionCatalog,
+                          reasoningProjectionSnapshot: draft.reasoningProjectionSnapshot,
+                        };
+                        setReasoningPanelDraftKey(draft.key);
+                      }}
                       data-testid="settings-model-reasoning-edit"
                     >
-                      <span className="bitfun-model-settings__reasoning-summary-icon">
+                      <span className="openbitfun-model-settings__reasoning-summary-icon">
                         <Icon name="thinking" size="md" aria-hidden="true" />
                       </span>
-                      <span className="bitfun-model-settings__reasoning-summary-content">
+                      <span className="openbitfun-model-settings__reasoning-summary-content">
                         <strong>{t('reasoningPresets.configTitle')}</strong>
                         <span>{formatReasoningSummary(draft, reasoningProjection)}</span>
                       </span>
-                      <span className="bitfun-model-settings__reasoning-summary-action">
+                      <span className="openbitfun-model-settings__reasoning-summary-action">
                         {t('actions.edit')}
                       </span>
                     </button>
@@ -2382,7 +2666,7 @@ const ModelSettingsPage: React.FC = () => {
 
     const renderAuthRow = () => (
       <ConfigPageRow label={t('subscriptionAuth.label')} align={authIsSubscription ? 'start' : 'center'} wide>
-        <div className="bitfun-model-settings__control-stack">
+        <div className="openbitfun-model-settings__control-stack">
           <Select
             value={authSelectValue}
             onValueChange={(value) => {
@@ -2424,8 +2708,8 @@ const ModelSettingsPage: React.FC = () => {
           />
           {authIsSubscription && (
             <small className={matchedSubscription?.connected
-              ? 'resolved-url__hint bitfun-model-settings__cli-auth-hint'
-              : 'resolved-url__hint bitfun-model-settings__cli-auth-hint bitfun-model-settings__json-status--error'}
+              ? 'resolved-url__hint openbitfun-model-settings__cli-auth-hint'
+              : 'resolved-url__hint openbitfun-model-settings__cli-auth-hint openbitfun-model-settings__json-status--error'}
             >
               {matchedSubscription?.connected
                 ? t('subscriptionAuth.detected', {
@@ -2442,9 +2726,10 @@ const ModelSettingsPage: React.FC = () => {
     );
 
     const renderApiKeyRow = (label: string) => (
-      <ConfigPageRow label={label} align="center" wide>
+      <ConfigPageRow label={label} required align="center" wide>
         <Input
           data-testid="settings-model-api-key-input"
+          required
           type={showApiKey ? 'text' : 'password'}
           value={editingConfig.api_key || ''}
           onChange={(e) => {
@@ -2460,17 +2745,19 @@ const ModelSettingsPage: React.FC = () => {
 
     return (
       <>
-        <div className="bitfun-model-settings__form bitfun-model-settings__form--modal" data-bf-component="model-settings" data-bf-part="form">
-          <ScrollArea className="bitfun-model-settings__form-scrollable" data-bf-component="model-settings" data-bf-part="formBody">
+        <div className="openbitfun-model-settings__form openbitfun-model-settings__form--modal" data-openbitfun-component="model-settings" data-openbitfun-part="form">
+          <ScrollArea className="openbitfun-model-settings__form-scrollable" data-openbitfun-component="model-settings" data-openbitfun-part="formBody">
             <ConfigPageSection
               title={isProviderScopedEditing ? t('editProviderSubtitle') : t('editSubtitle')}
-              className="bitfun-model-settings__edit-section"
+              className="openbitfun-model-settings__edit-section"
+              fieldSurface="default"
             >
             {isFromTemplate ? (
               <>
-                <ConfigPageRow label={`${t('form.configName')} *`} align="center" wide>
+                <ConfigPageRow label={t('form.configName')} required align="center" wide>
                   <Input
                     data-testid="settings-model-provider-name-input"
+                    required
                     value={editingConfig.name || ''}
                     onChange={(e) => setEditingConfig(prev => ({ ...prev, name: e.target.value }))}
                     placeholder={t('form.configNamePlaceholder')}
@@ -2478,9 +2765,9 @@ const ModelSettingsPage: React.FC = () => {
                   />
                 </ConfigPageRow>
                 {renderAuthRow()}
-                {!authIsSubscription && renderApiKeyRow(`${t('form.apiKey')} *`)}
+                {!authIsSubscription && renderApiKeyRow(t('form.apiKey'))}
                 <ConfigPageRow label={t('form.baseUrl')} align="center" wide>
-                  <div className="bitfun-model-settings__control-stack">
+                  <div className="openbitfun-model-settings__control-stack">
                     {currentTemplate?.baseUrlOptions && currentTemplate.baseUrlOptions.length > 0 && (
                       <Combobox
                         value={currentTemplate.baseUrlOptions.some(opt => opt.url === editingConfig.base_url) ? editingConfig.base_url : ''}
@@ -2496,7 +2783,7 @@ const ModelSettingsPage: React.FC = () => {
                           }));
                         }}
                         placeholder={t('form.baseUrl')}
-                        options={currentTemplate.baseUrlOptions.map(opt => ({ label: opt.url, value: opt.url, description: `${opt.format.toUpperCase()} · ${opt.note}` }))}
+                        options={currentTemplate.baseUrlOptions.map(opt => ({ label: opt.note || opt.url, value: opt.url, description: `${opt.format.toUpperCase()} · ${opt.url}` }))}
                         size="sm"
                       />
                     )}
@@ -2517,14 +2804,9 @@ const ModelSettingsPage: React.FC = () => {
                       size="sm"
                     />
                     {editingConfig.base_url && (
-                      <div className="bitfun-model-settings__resolved-url">
-                        <Input
-                          value={previewRequestUrl(editingConfig.base_url, editingConfig.provider || 'openai')}
-                          readOnly
-                          onFocus={(e) => e.target.select()}
-                          className="bitfun-model-settings__resolved-url-input"
-                          size="sm"
-                        />
+                      <div className="openbitfun-model-settings__resolved-url">
+                        <span className="openbitfun-model-settings__resolved-url-label">{t('form.resolvedUrlLabel')}</span>
+                          <span className="openbitfun-model-settings__resolved-url-value">{previewRequestUrl(editingConfig.base_url, editingConfig.provider || 'openai')}</span>
                       </div>
                     )}
                   </div>
@@ -2547,10 +2829,11 @@ const ModelSettingsPage: React.FC = () => {
                     size="sm"
                   />
                 </ConfigPageRow>
-                <ConfigPageRow label={`${t('form.modelSelection')} *`} wide multiline>
-                  <div className="bitfun-model-settings__control-stack">
-                    <div className="bitfun-model-settings__model-picker-row">
+                <ConfigPageRow label={t('form.modelSelection')} required multiline className="openbitfun-model-settings__model-selection-row">
+                  <div className="openbitfun-model-settings__control-stack">
+                    <div className="openbitfun-model-settings__model-picker-row">
                       <MultiSelect
+                        aria-required="true"
                         data-testid="settings-model-select"
                         value={selectedModelValues}
                         onValueChange={(value) => {
@@ -2565,7 +2848,7 @@ const ModelSettingsPage: React.FC = () => {
                         onOpenChange={handleModelSelectionOpenChange}
                       />
                     </div>
-                    <div className="bitfun-model-settings__manual-model-entry">
+                    <div className="openbitfun-model-settings__manual-model-entry">
                       <Input
                         data-testid="settings-model-manual-name-input"
                         value={manualModelInput}
@@ -2579,12 +2862,12 @@ const ModelSettingsPage: React.FC = () => {
                         placeholder={t('providerSelection.inputModelName')}
                         size="sm"
                       />
-                      <Button className="bitfun-model-settings__manual-model-add" data-testid="settings-model-add-custom-btn" variant="outline" size="sm" onClick={addManualModelDraft}>
+                      <Button className="openbitfun-model-settings__manual-model-add" data-testid="settings-model-add-custom-btn" variant="outline" size="sm" onClick={addManualModelDraft}>
                         {t('providerSelection.addCustomModel')}
                       </Button>
                     </div>
                     {modelFetchHint && (
-                      <small className={`resolved-url__hint ${remoteModelsError ? 'bitfun-model-settings__json-status--error' : ''}`}>
+                      <small className={`resolved-url__hint openbitfun-model-settings__model-fetch-hint ${remoteModelsError ? 'openbitfun-model-settings__json-status--error' : ''}`}>
                         {modelFetchHint}
                       </small>
                     )}
@@ -2596,9 +2879,10 @@ const ModelSettingsPage: React.FC = () => {
               <>
                 {isProviderScopedEditing && (
                   <>
-                    <ConfigPageRow label={`${t('form.configName')} *`} align="center" wide>
+                    <ConfigPageRow label={t('form.configName')} required align="center" wide>
                       <Input
                         data-testid="settings-model-provider-name-input"
+                        required
                         value={editingConfig.name || ''}
                         onChange={(e) => setEditingConfig(prev => ({ ...prev, name: e.target.value }))}
                         placeholder={t('form.configNamePlaceholder')}
@@ -2606,11 +2890,12 @@ const ModelSettingsPage: React.FC = () => {
                       />
                     </ConfigPageRow>
                     {renderAuthRow()}
-                    {!authIsSubscription && renderApiKeyRow(`${t('form.apiKey')} *`)}
-                    <ConfigPageRow label={`${t('form.baseUrl')} *`} align="center" wide>
-                      <div className="bitfun-model-settings__control-stack">
+                    {!authIsSubscription && renderApiKeyRow(t('form.apiKey'))}
+                    <ConfigPageRow label={t('form.baseUrl')} required align="center" wide>
+                      <div className="openbitfun-model-settings__control-stack">
                         <Input
                           data-testid="settings-model-base-url-input"
+                          required
                           type="url"
                           value={editingConfig.base_url || ''}
                           onChange={(e) => {
@@ -2626,14 +2911,9 @@ const ModelSettingsPage: React.FC = () => {
                           size="sm"
                         />
                         {editingConfig.base_url && (
-                          <div className="bitfun-model-settings__resolved-url">
-                            <Input
-                              value={previewRequestUrl(editingConfig.base_url, editingConfig.provider || 'openai')}
-                              readOnly
-                              onFocus={(e) => e.target.select()}
-                              className="bitfun-model-settings__resolved-url-input"
-                              size="sm"
-                            />
+                          <div className="openbitfun-model-settings__resolved-url">
+                            <span className="openbitfun-model-settings__resolved-url-label">{t('form.resolvedUrlLabel')}</span>
+                          <span className="openbitfun-model-settings__resolved-url-value">{previewRequestUrl(editingConfig.base_url, editingConfig.provider || 'openai')}</span>
                           </div>
                         )}
                       </div>
@@ -2656,11 +2936,12 @@ const ModelSettingsPage: React.FC = () => {
 
             {!isFromTemplate && (
               <>
-                <ConfigPageRow label={`${t('form.modelSelection')} *`} wide multiline>
-                  <div className="bitfun-model-settings__control-stack">
-                    <div className="bitfun-model-settings__model-picker-row">
+                <ConfigPageRow label={t('form.modelSelection')} required multiline className="openbitfun-model-settings__model-selection-row">
+                  <div className="openbitfun-model-settings__control-stack">
+                    <div className="openbitfun-model-settings__model-picker-row">
                       {editingConfig.id ? (
                         <Combobox
+                          aria-required="true"
                           data-testid="settings-model-select"
                           value={selectedModelValues[0] || ''}
                           onValueChange={(value) => {
@@ -2675,6 +2956,7 @@ const ModelSettingsPage: React.FC = () => {
                         />
                       ) : (
                         <MultiSelect
+                          aria-required="true"
                           data-testid="settings-model-select"
                           value={selectedModelValues}
                           onValueChange={(value) => {
@@ -2689,7 +2971,7 @@ const ModelSettingsPage: React.FC = () => {
                         />
                       )}
                     </div>
-                    <div className="bitfun-model-settings__manual-model-entry">
+                    <div className="openbitfun-model-settings__manual-model-entry">
                       <Input
                         data-testid="settings-model-manual-name-input"
                         value={manualModelInput}
@@ -2703,12 +2985,12 @@ const ModelSettingsPage: React.FC = () => {
                         placeholder={t('providerSelection.inputModelName')}
                         size="sm"
                       />
-                      <Button className="bitfun-model-settings__manual-model-add" data-testid="settings-model-add-custom-btn" variant="outline" size="sm" onClick={addManualModelDraft}>
+                      <Button className="openbitfun-model-settings__manual-model-add" data-testid="settings-model-add-custom-btn" variant="outline" size="sm" onClick={addManualModelDraft}>
                         {t('providerSelection.addCustomModel')}
                       </Button>
                     </div>
                     {modelFetchHint && (
-                      <small className={`resolved-url__hint ${remoteModelsError ? 'bitfun-model-settings__json-status--error' : ''}`}>
+                      <small className={`resolved-url__hint openbitfun-model-settings__model-fetch-hint ${remoteModelsError ? 'openbitfun-model-settings__json-status--error' : ''}`}>
                         {modelFetchHint}
                       </small>
                     )}
@@ -2721,9 +3003,10 @@ const ModelSettingsPage: React.FC = () => {
 
           <ConfigPageSection
             title={t('advancedSettings.title')}
-            className="bitfun-model-settings__edit-section"
+            className="openbitfun-model-settings__edit-section"
+            fieldSurface="default"
           >
-            <ConfigPageRow className="bitfun-model-settings__toggle-row" label={t('advancedSettings.title')} align="center">
+            <ConfigPageRow className="openbitfun-model-settings__toggle-row" label={t('advancedSettings.title')} align="center">
               <Switch checked={showAdvancedSettings} onChange={(e) => setShowAdvancedSettings(e.target.checked)} />
             </ConfigPageRow>
 
@@ -2734,7 +3017,7 @@ const ModelSettingsPage: React.FC = () => {
                     label={t('advancedSettings.inlineThinkInText.label')}
                     description={t('advancedSettings.inlineThinkInText.hint')}
                     align="center"
-                    className="bitfun-model-settings__toggle-row"
+                    className="openbitfun-model-settings__toggle-row"
                   >
                     <Switch
                       checked={editingConfig.inline_think_in_text ?? true}
@@ -2745,13 +3028,13 @@ const ModelSettingsPage: React.FC = () => {
                 <ConfigPageRow
                   label={t('advancedSettings.skipSslVerify.label')}
                   description={editingConfig.skip_ssl_verify ? (
-                    <span className="bitfun-model-settings__warning-inline">
+                    <span className="openbitfun-model-settings__warning-inline">
                       <AlertTriangle size={14} />
                       <span>{t('advancedSettings.skipSslVerify.warning')}</span>
                     </span>
                   ) : undefined}
                   align="center"
-                  className="bitfun-model-settings__toggle-row"
+                  className="openbitfun-model-settings__toggle-row"
                 >
                   <Switch
                     checked={editingConfig.skip_ssl_verify || false}
@@ -2760,12 +3043,12 @@ const ModelSettingsPage: React.FC = () => {
                 </ConfigPageRow>
                 <ConfigPageRow
                   label={(
-                    <span className="bitfun-model-settings__inline-header">
-                      <span className="bitfun-model-settings__inline-header-main">
+                    <span className="openbitfun-model-settings__inline-header">
+                      <span className="openbitfun-model-settings__inline-header-main">
                         <span>{t('advancedSettings.customHeaders.label')}</span>
                         <Tooltip
                           content={(
-                            <span className="bitfun-model-settings__header-tooltip">
+                            <span className="openbitfun-model-settings__header-tooltip">
                               <span>{t('advancedSettings.customHeaders.hint')}</span>
                               <span>
                                 {(editingConfig.custom_headers_mode || 'merge') === 'replace'
@@ -2777,7 +3060,7 @@ const ModelSettingsPage: React.FC = () => {
                           placement="top"
                         >
                           <span
-                            className="bitfun-model-settings__inline-header-info"
+                            className="openbitfun-model-settings__inline-header-info"
                             role="button"
                             tabIndex={0}
                             aria-label={t('advancedSettings.customHeaders.hint')}
@@ -2786,13 +3069,13 @@ const ModelSettingsPage: React.FC = () => {
                           </span>
                         </Tooltip>
                       </span>
-                      <span className="bitfun-model-settings__inline-header-actions">
+                      <span className="openbitfun-model-settings__inline-header-actions">
                         <Tooltip content={t('advancedSettings.customHeaders.modeMergeHint')} placement="top">
                           <Button
                             type="button"
                             variant={(editingConfig.custom_headers_mode || 'merge') === 'merge' ? 'fill' : 'outline'}
                             size="sm"
-                            className="bitfun-model-settings__mode-button"
+                            className="openbitfun-model-settings__mode-button"
                             onClick={() => setEditingConfig(prev => ({ ...prev, custom_headers_mode: 'merge' }))}
                           >
                             {t('advancedSettings.customHeaders.modeMerge')}
@@ -2803,7 +3086,7 @@ const ModelSettingsPage: React.FC = () => {
                             type="button"
                             variant={editingConfig.custom_headers_mode === 'replace' ? 'fill' : 'outline'}
                             size="sm"
-                            className="bitfun-model-settings__mode-button"
+                            className="openbitfun-model-settings__mode-button"
                             onClick={() => setEditingConfig(prev => ({ ...prev, custom_headers_mode: 'replace' }))}
                           >
                             {t('advancedSettings.customHeaders.modeReplace')}
@@ -2813,24 +3096,24 @@ const ModelSettingsPage: React.FC = () => {
                     </span>
                   )}
                   multiline
-                  className="bitfun-model-settings__custom-headers-row"
+                  className="openbitfun-model-settings__custom-headers-row"
                 >
-                  <div className="bitfun-model-settings__row-control--stack">
-                    <div className="bitfun-model-settings__custom-headers">
+                  <div className="openbitfun-model-settings__row-control--stack">
+                    <div className="openbitfun-model-settings__custom-headers">
                       {Object.entries(editingConfig.custom_headers || {}).map(([key, value], index) => (
-                        <div key={index} className="bitfun-model-settings__header-row">
+                        <div key={index} className="openbitfun-model-settings__header-row">
                           <Input
                             value={key}
                             onChange={(e) => { const nh = { ...editingConfig.custom_headers }; const ov = nh[key]; delete nh[key]; if (e.target.value) nh[e.target.value] = ov; setEditingConfig(prev => ({ ...prev, custom_headers: nh })); }}
                             placeholder={t('advancedSettings.customHeaders.keyPlaceholder')}
-                            className="bitfun-model-settings__header-key"
+                            className="openbitfun-model-settings__header-key"
                             size="sm"
                           />
                           <Input
                             value={value}
                             onChange={(e) => { const nh = { ...editingConfig.custom_headers }; nh[key] = e.target.value; setEditingConfig(prev => ({ ...prev, custom_headers: nh })); }}
                             placeholder={t('advancedSettings.customHeaders.valuePlaceholder')}
-                            className="bitfun-model-settings__header-value"
+                            className="openbitfun-model-settings__header-value"
                             size="sm"
                           />
                           <Tooltip content={t('actions.delete')}>
@@ -2843,18 +3126,18 @@ const ModelSettingsPage: React.FC = () => {
                           </Tooltip>
                         </div>
                       ))}
-                      <Button type="button" variant="outline" size="sm" onClick={() => setEditingConfig(prev => ({ ...prev, custom_headers: { ...prev?.custom_headers, '': '' } }))} className="bitfun-model-settings__add-header-btn" leadingIcon={<Icon name="plus" size="sm" />}>{t('advancedSettings.customHeaders.addHeader')}</Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setEditingConfig(prev => ({ ...prev, custom_headers: { ...prev?.custom_headers, '': '' } }))} className="openbitfun-model-settings__add-header-btn" leadingIcon={<Icon name="plus" size="sm" />}>{t('advancedSettings.customHeaders.addHeader')}</Button>
                     </div>
                   </div>
                 </ConfigPageRow>
                 <ConfigPageRow
                   label={(
-                    <span className="bitfun-model-settings__inline-header">
-                      <span className="bitfun-model-settings__inline-header-main">
+                    <span className="openbitfun-model-settings__inline-header">
+                      <span className="openbitfun-model-settings__inline-header-main">
                         <span>{t('advancedSettings.customRequestBody.label')}</span>
                         <Tooltip
                           content={(
-                            <span className="bitfun-model-settings__header-tooltip">
+                            <span className="openbitfun-model-settings__header-tooltip">
                               <span>{t('advancedSettings.customRequestBody.hint')}</span>
                               <span>{getCustomRequestBodyModeHint(editingConfig.provider, editingConfig.custom_request_body_mode)}</span>
                             </span>
@@ -2862,7 +3145,7 @@ const ModelSettingsPage: React.FC = () => {
                           placement="top"
                         >
                           <span
-                            className="bitfun-model-settings__inline-header-info"
+                            className="openbitfun-model-settings__inline-header-info"
                             role="button"
                             tabIndex={0}
                             aria-label={t('advancedSettings.customRequestBody.hint')}
@@ -2871,13 +3154,13 @@ const ModelSettingsPage: React.FC = () => {
                           </span>
                         </Tooltip>
                       </span>
-                      <span className="bitfun-model-settings__inline-header-actions">
+                      <span className="openbitfun-model-settings__inline-header-actions">
                         <Tooltip content={t('advancedSettings.customRequestBody.modeMergeHint')} placement="top">
                           <Button
                             type="button"
                             variant={(editingConfig.custom_request_body_mode || 'merge') === 'merge' ? 'fill' : 'outline'}
                             size="sm"
-                            className="bitfun-model-settings__mode-button"
+                            className="openbitfun-model-settings__mode-button"
                             onClick={() => setEditingConfig(prev => ({ ...prev, custom_request_body_mode: 'merge' }))}
                           >
                             {t('advancedSettings.customRequestBody.modeMerge')}
@@ -2888,7 +3171,7 @@ const ModelSettingsPage: React.FC = () => {
                             type="button"
                             variant={editingConfig.custom_request_body_mode === 'trim' ? 'fill' : 'outline'}
                             size="sm"
-                            className="bitfun-model-settings__mode-button"
+                            className="openbitfun-model-settings__mode-button"
                             onClick={() => setEditingConfig(prev => ({ ...prev, custom_request_body_mode: 'trim' }))}
                           >
                             {t('advancedSettings.customRequestBody.modeTrim')}
@@ -2898,13 +3181,13 @@ const ModelSettingsPage: React.FC = () => {
                     </span>
                   )}
                   multiline
-                  className="bitfun-model-settings__custom-request-body-row"
+                  className="openbitfun-model-settings__custom-request-body-row"
                 >
-                  <div className="bitfun-model-settings__row-control--stack">
-                    <Textarea value={editingConfig.custom_request_body || ''} onChange={(e) => setEditingConfig(prev => ({ ...prev, custom_request_body: e.target.value }))} placeholder={t('advancedSettings.customRequestBody.placeholder')} rows={8} style={{ fontFamily: 'var(--bf-type-code-md-font-family)', fontSize: 'var(--bf-type-code-md-font-size)' }} />
+                  <div className="openbitfun-model-settings__row-control--stack">
+                    <Textarea value={editingConfig.custom_request_body || ''} onChange={(e) => setEditingConfig(prev => ({ ...prev, custom_request_body: e.target.value }))} placeholder={t('advancedSettings.customRequestBody.placeholder')} rows={8} style={{ fontFamily: 'var(--openbitfun-type-code-md-font-family)', fontSize: 'var(--openbitfun-type-code-md-font-size)' }} />
                     {editingConfig.custom_request_body && editingConfig.custom_request_body.trim() !== '' && (() => {
-                      try { JSON.parse(editingConfig.custom_request_body); return <small className="bitfun-model-settings__json-status bitfun-model-settings__json-status--success">{t('advancedSettings.customRequestBody.validJson')}</small>; }
-                      catch { return <small className="bitfun-model-settings__json-status bitfun-model-settings__json-status--error">{t('advancedSettings.customRequestBody.invalidJson')}</small>; }
+                      try { JSON.parse(editingConfig.custom_request_body); return <small className="openbitfun-model-settings__json-status openbitfun-model-settings__json-status--success">{t('advancedSettings.customRequestBody.validJson')}</small>; }
+                      catch { return <small className="openbitfun-model-settings__json-status openbitfun-model-settings__json-status--error">{t('advancedSettings.customRequestBody.invalidJson')}</small>; }
                     })()}
                   </div>
                 </ConfigPageRow>
@@ -2929,9 +3212,9 @@ const ModelSettingsPage: React.FC = () => {
     const badge = (
       <>
         <span
-          className="bitfun-model-settings__meta-tag"
-          data-bf-component="model-settings"
-          data-bf-part="modelMeta"
+          className="openbitfun-model-settings__meta-tag"
+          data-openbitfun-component="model-settings"
+          data-openbitfun-part="modelMeta"
         >
           {t(`category.${config.category}`)}
         </span>
@@ -2942,7 +3225,7 @@ const ModelSettingsPage: React.FC = () => {
             data-model-id={config.model_name}
             data-model-name={config.model_name}
             data-status={testResult.success ? 'success' : 'error'}
-            className={`bitfun-model-settings__status-dot ${testResult.success ? 'is-success' : 'is-error'}`}
+            className={`openbitfun-model-settings__status-dot ${testResult.success ? 'is-success' : 'is-error'}`}
             title={testResult.message}
           />
         )}
@@ -2951,37 +3234,37 @@ const ModelSettingsPage: React.FC = () => {
 
     const details = (
       <div
-        className="bitfun-model-settings__details"
-        data-bf-component="model-settings"
-        data-bf-part="modelDetails"
+        className="openbitfun-model-settings__details"
+        data-openbitfun-component="model-settings"
+        data-openbitfun-part="modelDetails"
       >
-        <div className="bitfun-model-settings__details-section">
-          <div className="bitfun-model-settings__details-section-title">
+        <div className="openbitfun-model-settings__details-section">
+          <div className="openbitfun-model-settings__details-section-title">
             {t('details.basicInfo')}
           </div>
-          <div className="bitfun-model-settings__details-grid">
-            <div className="bitfun-model-settings__details-item">
-              <span className="bitfun-model-settings__details-label">{t('form.configName')}</span>
-              <span className="bitfun-model-settings__details-value">{providerDisplayName}</span>
+          <div className="openbitfun-model-settings__details-grid">
+            <div className="openbitfun-model-settings__details-item">
+              <span className="openbitfun-model-settings__details-label">{t('form.configName')}</span>
+              <span className="openbitfun-model-settings__details-value">{providerDisplayName}</span>
             </div>
-            <div className="bitfun-model-settings__details-item">
-              <span className="bitfun-model-settings__details-label">{t('details.modelName')}</span>
-              <span className="bitfun-model-settings__details-value">{config.model_name}</span>
+            <div className="openbitfun-model-settings__details-item">
+              <span className="openbitfun-model-settings__details-label">{t('details.modelName')}</span>
+              <span className="openbitfun-model-settings__details-value">{config.model_name}</span>
             </div>
-            <div className="bitfun-model-settings__details-item">
-              <span className="bitfun-model-settings__details-label">{t('details.contextWindow')}</span>
-              <span className="bitfun-model-settings__details-value">{config.context_window != null ? i18nService.formatNumber(config.context_window) : '128,000'}</span>
+            <div className="openbitfun-model-settings__details-item">
+              <span className="openbitfun-model-settings__details-label">{t('details.contextWindow')}</span>
+              <span className="openbitfun-model-settings__details-value">{config.context_window != null ? i18nService.formatNumber(config.context_window) : '128,000'}</span>
             </div>
-            <div className="bitfun-model-settings__details-item bitfun-model-settings__details-item--wide">
-              <span className="bitfun-model-settings__details-label">{t('details.apiUrl')}</span>
-              <span className="bitfun-model-settings__details-value">{config.base_url}</span>
+            <div className="openbitfun-model-settings__details-item openbitfun-model-settings__details-item--wide">
+              <span className="openbitfun-model-settings__details-label">{t('details.apiUrl')}</span>
+              <span className="openbitfun-model-settings__details-value">{config.base_url}</span>
             </div>
             {config.capabilities && config.capabilities.length > 0 && (
-              <div className="bitfun-model-settings__details-item bitfun-model-settings__details-item--wide">
-                <span className="bitfun-model-settings__details-label">{t('details.capabilities')}</span>
-                <div className="bitfun-model-settings__details-tags">
+              <div className="openbitfun-model-settings__details-item openbitfun-model-settings__details-item--wide">
+                <span className="openbitfun-model-settings__details-label">{t('details.capabilities')}</span>
+                <div className="openbitfun-model-settings__details-tags">
                   {config.capabilities.map(capability => (
-                    <span key={capability} className="bitfun-model-settings__details-tag">
+                    <span key={capability} className="openbitfun-model-settings__details-tag">
                       {t(`capabilities.${capability}`, { defaultValue: capability })}
                     </span>
                   ))}
@@ -2991,11 +3274,11 @@ const ModelSettingsPage: React.FC = () => {
           </div>
         </div>
         {testResult && (
-          <div className="bitfun-model-settings__details-section">
-            <div className="bitfun-model-settings__details-section-title">
+          <div className="openbitfun-model-settings__details-section">
+            <div className="openbitfun-model-settings__details-section-title">
               {t('actions.test')}
             </div>
-            <div className={`bitfun-model-settings__test-result ${testResult.success ? 'success' : 'error'}`}>
+            <div className={`openbitfun-model-settings__test-result ${testResult.success ? 'success' : 'error'}`}>
               {testResult.message}
             </div>
           </div>
@@ -3004,44 +3287,51 @@ const ModelSettingsPage: React.FC = () => {
     );
 
     const control = (
-      <div
-        className="bitfun-model-settings__model-actions"
-        data-bf-component="model-settings"
-        data-bf-part="modelActions"
-      >
-        <Switch
-          checked={config.enabled}
-          onChange={(e) => {
-            void handleToggleEnabled(config, e.target.checked);
-          }}
-        />
-        <Tooltip content={t('actions.test')}>
-          <IconButton
-            aria-label={t('actions.test')}
-            size="sm"
-            loading={isTesting}
-            onClick={() => void handleTest(config)}
-            icon={isTesting ? <Loader size={14} /> : <Wifi size={14} />}
+      <>
+        <span className="openbitfun-model-settings__model-enable">
+          <Switch
+            checked={config.enabled}
+            onChange={(e) => {
+              void handleToggleEnabled(config, e.target.checked);
+            }}
           />
-        </Tooltip>
-        <Tooltip content={t('actions.edit')}>
-          <IconButton
-            aria-label={t('actions.edit')}
-            size="sm"
-            onClick={() => handleEdit(config)}
-            icon={<Icon name="edit" size="sm" />}
-          />
-        </Tooltip>
-        <Tooltip content={t('actions.delete')}>
-          <IconButton
-            aria-label={t('actions.delete')}
-            tone="danger"
-            size="sm"
-            onClick={() => void handleDelete(config.id!)}
-            icon={<Icon name="delete" size="sm" />}
-          />
-        </Tooltip>
-      </div>
+        </span>
+        <div
+          className="openbitfun-model-settings__model-actions"
+          data-openbitfun-component="model-settings"
+          data-openbitfun-part="modelActions"
+        >
+          <Tooltip content={connectionTestSupported
+            ? t('actions.test')
+            : t('messages.testUnsupportedOnHost')}>
+            <IconButton
+              aria-label={t('actions.test')}
+              size="sm"
+              loading={isTesting}
+              disabled={!connectionTestSupported}
+              onClick={() => void handleTest(config)}
+              icon={isTesting ? <Loader size={14} /> : <Wifi size={14} />}
+            />
+          </Tooltip>
+          <Tooltip content={t('actions.edit')}>
+            <IconButton
+              aria-label={t('actions.edit')}
+              size="sm"
+              onClick={() => handleEdit(config)}
+              icon={<Icon name="edit" size="sm" />}
+            />
+          </Tooltip>
+          <Tooltip content={t('actions.delete')}>
+            <IconButton
+              aria-label={t('actions.delete')}
+              tone="danger"
+              size="sm"
+              onClick={() => void requestDelete(config)}
+              icon={<Icon name="delete" size="sm" />}
+            />
+          </Tooltip>
+        </div>
+      </>
     );
 
     return (
@@ -3053,24 +3343,25 @@ const ModelSettingsPage: React.FC = () => {
         details={details}
         expanded={isExpanded}
         onToggle={() => config.id && toggleExpanded(config.id)}
+        toggleOnRowClick
         disabled={!config.enabled}
         data-testid="settings-model-row"
         data-config-id={config.id || ''}
         data-model-id={config.model_name}
         data-model-name={config.model_name}
-        data-bf-component="model-settings"
-        data-bf-part="modelItem"
-        data-bf-state={[isExpanded && 'expanded', !config.enabled && 'disabled'].filter(Boolean).join(' ') || undefined}
+        data-openbitfun-component="model-settings"
+        data-openbitfun-part="modelItem"
+        data-openbitfun-state={[isExpanded && 'expanded', !config.enabled && 'disabled'].filter(Boolean).join(' ') || undefined}
       />
     );
   };
 
   const streamTtftTimeoutLabel = (
-    <span className="bitfun-model-settings__inline-header-main">
+    <span className="openbitfun-model-settings__inline-header-main">
       <span>{t('streamTtftTimeout.label')}</span>
       <Tooltip content={t('streamTtftTimeout.hint')} placement="top">
         <span
-          className="bitfun-model-settings__inline-header-info"
+          className="openbitfun-model-settings__inline-header-info"
           role="button"
           tabIndex={0}
           aria-label={t('streamTtftTimeout.hint')}
@@ -3082,11 +3373,11 @@ const ModelSettingsPage: React.FC = () => {
   );
 
   const streamIdleTimeoutLabel = (
-    <span className="bitfun-model-settings__inline-header-main">
+    <span className="openbitfun-model-settings__inline-header-main">
       <span>{t('streamIdleTimeout.label')}</span>
       <Tooltip content={t('streamIdleTimeout.hint')} placement="top">
         <span
-          className="bitfun-model-settings__inline-header-info"
+          className="openbitfun-model-settings__inline-header-info"
           role="button"
           tabIndex={0}
           aria-label={t('streamIdleTimeout.hint')}
@@ -3111,6 +3402,32 @@ const ModelSettingsPage: React.FC = () => {
         maxTokens: reasoningPanelDraft.maxTokens,
       }
     : undefined;
+  const updateReasoningPanelDraft = (result: ReasoningConfigApplyResult) => {
+    if (!reasoningPanelDraft) return;
+    updateModelDraft(reasoningPanelDraft.modelName, {
+      reasoning: result.reasoning,
+      reasoningProjectionCatalog: result.projectionCatalog,
+      reasoningProjectionSnapshot: {
+        catalog: result.projectionCatalog,
+        projection: result.projection,
+      },
+    });
+  };
+  const finishReasoningPanel = () => {
+    reasoningPanelInitialRef.current = null;
+    setReasoningPanelDraftKey(null);
+  };
+  const cancelReasoningPanel = () => {
+    const initial = reasoningPanelInitialRef.current;
+    if (reasoningPanelDraft && initial?.key === reasoningPanelDraft.key) {
+      updateModelDraft(reasoningPanelDraft.modelName, {
+        reasoning: cloneReasoningConfig(initial.reasoning),
+        reasoningProjectionCatalog: initial.reasoningProjectionCatalog,
+        reasoningProjectionSnapshot: initial.reasoningProjectionSnapshot,
+      });
+    }
+    finishReasoningPanel();
+  };
   const modelsDevSourceLabel = modelsDevStatus
     ? t(`modelsDevCatalog.source.${modelsDevStatus.active_source}`)
     : t('modelsDevCatalog.loading');
@@ -3123,13 +3440,13 @@ const ModelSettingsPage: React.FC = () => {
 
   
   return (
-    <ConfigPageLayout className="bitfun-model-settings" data-bf-component="model-settings" data-bf-part="root" data-bf-view="settings">
+    <ConfigPageLayout className="openbitfun-model-settings" data-openbitfun-component="model-settings" data-openbitfun-part="root" data-openbitfun-view="settings">
       <ConfigPageHeader
         title={t('title')}
         subtitle={t('subtitle')}
       />
 
-      <ConfigPageContent className="bitfun-model-settings__content">
+      <ConfigPageContent className="openbitfun-model-settings__content">
         <ConfigPageSection
           title={tDefault('sections.defaults')}
           description={tDefault('subtitle')}
@@ -3147,25 +3464,12 @@ const ModelSettingsPage: React.FC = () => {
                 onClick={refreshSubscriptionAccounts}
                 aria-label={t('subscriptionAuth.rescan')}
                 disabled={isLoadingSubscriptions}
-                icon={<Icon name="refresh" size="md" className={isLoadingSubscriptions ? 'bitfun-model-settings__spin' : ''} />}
+                icon={<Icon name="refresh" size="md" className={isLoadingSubscriptions ? 'openbitfun-model-settings__spin' : ''} />}
               />
             </Tooltip>
           )}
         >
-          <div className="bitfun-model-settings__cli-discovery" data-bf-component="model-settings" data-bf-part="subscriptionArea">
-            {showSubscriptionMigrationNotice && (
-              <div className="bitfun-model-settings__subscription-migration-notice" data-bf-component="model-settings" data-bf-part="subscriptionNotice" role="status">
-                <Icon name="info" size="md" aria-hidden="true" />
-                <span>{t('subscriptionAuth.secureStoreMigrationNotice')}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={dismissSubscriptionMigrationNotice}
-                >
-                  {t('subscriptionAuth.dismissMigrationNotice')}
-                </Button>
-              </div>
-            )}
+          <div className="openbitfun-model-settings__cli-discovery" data-openbitfun-component="model-settings" data-openbitfun-part="subscriptionArea">
             {subscriptionAccounts.map((account) => {
               const descriptionParts: string[] = [];
               if (account.connected && account.account) {
@@ -3220,15 +3524,15 @@ const ModelSettingsPage: React.FC = () => {
                     description={descriptionParts.map((part) => (
                       <span
                         key={part}
-                        className="bitfun-model-settings__cli-description-line"
+                        className="openbitfun-model-settings__cli-description-line"
                       >
                         {part}
                       </span>
                     ))}
-                    className="bitfun-model-settings__cli-account"
+                    className="openbitfun-model-settings__cli-account"
                     align="center"
                   >
-                    <div className="bitfun-model-settings__cli-actions">
+                    <div className="openbitfun-model-settings__cli-actions">
                       {account.connected ? (
                         <>
                           <Button
@@ -3298,10 +3602,10 @@ const ModelSettingsPage: React.FC = () => {
                       key={`${account.provider}:${plan}`}
                       label={getOpenCodePlanLabel(plan)}
                       description={getOpenCodePlanDescription(plan)}
-                      className="bitfun-model-settings__opencode-plan"
+                      className="openbitfun-model-settings__opencode-plan"
                       align="center"
                     >
-                      <div className="bitfun-model-settings__cli-actions bitfun-model-settings__opencode-plan-actions">
+                      <div className="openbitfun-model-settings__cli-actions openbitfun-model-settings__opencode-plan-actions">
                         {offerings.map((offering) => {
                           const formatLabel = getOpenCodeFormatLabel(offering.format);
                           const label = offering.models.length > 0
@@ -3328,13 +3632,13 @@ const ModelSettingsPage: React.FC = () => {
 
                   {loginPanel && (
                     <div
-                      className={`bitfun-model-settings__subscription-login-panel bitfun-model-settings__subscription-login-panel--${loginPanel.status}`}
-                      data-bf-component="model-settings"
-                      data-bf-part="subscriptionPanel"
-                      data-bf-status={loginPanel.status}
+                      className={`openbitfun-model-settings__subscription-login-panel openbitfun-model-settings__subscription-login-panel--${loginPanel.status}`}
+                      data-openbitfun-component="model-settings"
+                      data-openbitfun-part="subscriptionPanel"
+                      data-openbitfun-status={loginPanel.status}
                       role={loginPanel.status === 'failed' ? 'alert' : undefined}
                     >
-                      <div className="bitfun-model-settings__subscription-login-summary" data-bf-component="model-settings" data-bf-part="subscriptionSummary">
+                      <div className="openbitfun-model-settings__subscription-login-summary" data-openbitfun-component="model-settings" data-openbitfun-part="subscriptionSummary">
                         <strong>
                           {loginPanel.status === 'failed'
                             ? t('subscriptionAuth.loginNeedsRetry')
@@ -3358,14 +3662,14 @@ const ModelSettingsPage: React.FC = () => {
                       </div>
 
                       {loginPanel.status === 'pending' && loginPanel.userCode && (
-                        <div className="bitfun-model-settings__subscription-code" data-bf-component="model-settings" data-bf-part="subscriptionCode">
+                        <div className="openbitfun-model-settings__subscription-code" data-openbitfun-component="model-settings" data-openbitfun-part="subscriptionCode">
                           <span>{t('subscriptionAuth.verificationCode')}</span>
                           <code>{loginPanel.userCode}</code>
                         </div>
                       )}
 
                       {loginPanel.status === 'pending' && (
-                        <div className="bitfun-model-settings__subscription-login-actions" data-bf-component="model-settings" data-bf-part="subscriptionActions">
+                        <div className="openbitfun-model-settings__subscription-login-actions" data-openbitfun-component="model-settings" data-openbitfun-part="subscriptionActions">
                           {loginPanel.userCode && (
                             <Button
                               size="sm"
@@ -3396,7 +3700,7 @@ const ModelSettingsPage: React.FC = () => {
         </ConfigPageSection>
 
         <ConfigPageSection
-          className="bitfun-model-settings__models-section"
+          className="openbitfun-model-settings__models-section"
           bodySurface={false}
           title={tDefault('sections.providers')}
           description={t('subtitle')}
@@ -3411,43 +3715,96 @@ const ModelSettingsPage: React.FC = () => {
             </Tooltip>
           )}
         >
+          {hasSuspendedEditorDraft && (
+            <ConfigActionBar
+              status="unsaved"
+              statusMessage={t('draftClose.retainedHint')}
+              saveLabel={t('draftClose.continueEditing')}
+              discardLabel={t('draftClose.discardDraft')}
+              onSave={() => setIsEditing(true)}
+              onDiscard={closeEditingModal}
+            />
+          )}
           {aiModels.length === 0 ? (
-            <div className="bitfun-model-settings__empty" data-bf-component="model-settings" data-bf-part="empty">
-              <Wifi size={36} />
-              <p>{t('empty.noModels')}</p>
-              <Button data-testid="settings-model-create-first-config-btn" variant="fill" size="sm" onClick={handleCreateNew} leadingIcon={<Icon name="plus" size="sm" />}>
-
-                {t('actions.createFirst')}
-              </Button>
-            </div>
+            <ConfigEmptyState
+              data-openbitfun-component="model-settings"
+              data-openbitfun-part="empty"
+              icon={<Wifi size={36} aria-hidden="true" />}
+              description={t('empty.noModels')}
+              actions={(
+                <Button data-testid="settings-model-create-first-config-btn" variant="fill" size="sm" onClick={handleCreateNew} leadingIcon={<Icon name="plus" size="sm" />}>
+                  {t('actions.createFirst')}
+                </Button>
+              )}
+            />
           ) : (
-            <div className="bitfun-model-settings__collection" data-bf-component="model-settings" data-bf-part="collection" data-testid="settings-model-list">
-              {providerGroups.map(group => (
-                <div key={group.key} className="bitfun-model-settings__provider-group" data-bf-component="model-settings" data-bf-part="providerGroup">
-                  <div className="bitfun-model-settings__provider-group-header" data-bf-component="model-settings" data-bf-part="providerGroupHeader">
-                    <div className="bitfun-model-settings__provider-group-title" data-bf-component="model-settings" data-bf-part="providerGroupTitle">
-                      <span>{group.providerName}</span>
-                      <span className="bitfun-model-settings__provider-group-count">{group.models.length}</span>
-                      <span className="bitfun-model-settings__meta-tag">
-                        {requestFormatLabelMap[group.models[0]?.provider || 'openai'] || (group.models[0]?.provider || 'openai')}
-                      </span>
-                    </div>
-                    <div className="bitfun-model-settings__provider-group-actions" data-bf-component="model-settings" data-bf-part="providerGroupActions">
-                      <Tooltip content={t('actions.edit')}>
-                        <IconButton
-                          aria-label={t('actions.edit')}
+            <div className="openbitfun-model-settings__collection" data-openbitfun-component="model-settings" data-openbitfun-part="collection" data-testid="settings-model-list">
+              {providerGroups.map(group => {
+                const isExpanded = expandedProviderGroupKeys.has(group.key);
+
+                return (
+                  <div
+                    key={group.key}
+                    className="openbitfun-model-settings__provider-group"
+                    data-openbitfun-component="model-settings"
+                    data-openbitfun-part="providerGroup"
+                    data-openbitfun-state={isExpanded ? 'expanded' : undefined}
+                  >
+                    <div
+                      className="openbitfun-model-settings__provider-group-header"
+                      data-openbitfun-component="model-settings"
+                      data-openbitfun-part="providerGroupHeader"
+                      data-expanded={isExpanded ? 'true' : 'false'}
+                    >
+                      <button
+                        type="button"
+                        className="openbitfun-model-settings__provider-group-toggle"
+                        aria-expanded={isExpanded}
+                        aria-label={`${tComponents(isExpanded ? 'tooltip.collapse' : 'tooltip.expand')} ${group.providerName}`}
+                        onClick={() => toggleProviderGroup(group.key)}
+                      >
+                        <Icon
+                          name={isExpanded ? 'chevron-down' : 'chevron-right'}
                           size="sm"
-                          onClick={() => handleEditProvider(group.models[0])}
-                          icon={<Icon name="edit" size="sm" />}
+                          className="openbitfun-model-settings__provider-group-chevron"
+                          aria-hidden="true"
                         />
-                      </Tooltip>
+                        <span className="openbitfun-model-settings__provider-group-title" data-openbitfun-component="model-settings" data-openbitfun-part="providerGroupTitle">
+                          <span>{group.providerName}</span>
+                          <span className="openbitfun-model-settings__provider-group-count">{group.models.length}</span>
+                          <span className="openbitfun-model-settings__meta-tag">
+                            {requestFormatLabelMap[group.models[0]?.provider || 'openai'] || (group.models[0]?.provider || 'openai')}
+                          </span>
+                        </span>
+                      </button>
+                      <div className="openbitfun-model-settings__provider-group-actions" data-openbitfun-component="model-settings" data-openbitfun-part="providerGroupActions">
+                        <Tooltip content={t('actions.edit')}>
+                          <IconButton
+                            aria-label={t('actions.edit')}
+                            size="sm"
+                            onClick={() => handleEditProvider(group.models[0])}
+                            icon={<Icon name="edit" size="sm" />}
+                          />
+                        </Tooltip>
+                        <Tooltip content={t('actions.deleteProvider')}>
+                          <IconButton
+                            aria-label={`${t('actions.deleteProvider')}: ${group.providerName}`}
+                            tone="danger"
+                            size="sm"
+                            onClick={() => void requestProviderDelete(group)}
+                            icon={<Icon name="delete" size="sm" />}
+                          />
+                        </Tooltip>
+                      </div>
                     </div>
+                    {isExpanded && (
+                      <div className="openbitfun-model-settings__provider-group-list" data-openbitfun-component="model-settings" data-openbitfun-part="providerGroupList">
+                        {group.models.map(config => renderModelCollectionItem(config))}
+                      </div>
+                    )}
                   </div>
-                  <div className="bitfun-model-settings__provider-group-list" data-bf-component="model-settings" data-bf-part="providerGroupList">
-                    {group.models.map(config => renderModelCollectionItem(config))}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </ConfigPageSection>
@@ -3457,7 +3814,7 @@ const ModelSettingsPage: React.FC = () => {
           description={t('modelsDevCatalog.description')}
           bodySurface={false}
           extra={(
-            <div className="bitfun-model-settings__catalog-actions">
+            <div className="openbitfun-model-settings__catalog-actions">
               <Tooltip content={t('modelsDevCatalog.viewDetails')}>
                 <IconButton
                   aria-label={t('modelsDevCatalog.viewDetails')}
@@ -3476,7 +3833,7 @@ const ModelSettingsPage: React.FC = () => {
                   size="sm"
                   onClick={() => void handleRefreshModelsDev()}
                   disabled={isRefreshingModelsDev}
-                  icon={<Icon name="refresh" size="sm" className={isRefreshingModelsDev ? 'bitfun-model-settings__spin' : ''} />}
+                  icon={<Icon name="refresh" size="sm" className={isRefreshingModelsDev ? 'openbitfun-model-settings__spin' : ''} />}
                 />
               </Tooltip>
             </div>
@@ -3488,20 +3845,6 @@ const ModelSettingsPage: React.FC = () => {
         <ConfigPageSection
           title={t('streamIdleTimeout.title')}
           description={t('streamIdleTimeout.effectiveNextRound')}
-          extra={(
-            <Button
-              variant="fill"
-              size="sm"
-              onClick={handleSaveStreamTimeouts}
-              disabled={isStreamTimeoutSaving || isStreamTimeoutInvalid}
-            >
-              {isStreamTimeoutSaving ? (
-                <Loader size={16} className="spinning" />
-              ) : (
-                t('streamIdleTimeout.save')
-              )}
-            </Button>
-          )}
         >
           <ConfigPageRow
             label={streamTtftTimeoutLabel}
@@ -3525,21 +3868,27 @@ const ModelSettingsPage: React.FC = () => {
               size="sm"
             />
           </ConfigPageRow>
+          <ConfigActionBar
+            status={isStreamTimeoutSaving
+              ? 'saving'
+              : streamTimeoutSaveError
+                ? 'error'
+                : isStreamTimeoutDirty
+                  ? 'unsaved'
+                  : 'saved'}
+            statusMessage={streamTimeoutSaveError}
+            saving={isStreamTimeoutSaving}
+            saveDisabled={isStreamTimeoutInvalid || !isStreamTimeoutDirty}
+            discardDisabled={!isStreamTimeoutDirty}
+            saveLabel={t('streamIdleTimeout.save')}
+            onSave={() => void handleSaveStreamTimeouts()}
+            onDiscard={discardStreamTimeoutDraft}
+          />
         </ConfigPageSection>
 
         <ConfigPageSection
           title={tDefault('sections.proxy')}
           description={t('proxy.enableHint')}
-          extra={(
-            <Button
-              variant="fill"
-              size="sm"
-              onClick={handleSaveProxy}
-              disabled={isProxySaving || (proxyConfig.enabled && !proxyConfig.url)}
-            >
-              {isProxySaving ? <Loader size={16} className="spinning" /> : t('proxy.save')}
-            </Button>
-          )}
         >
           <ConfigPageRow label={t('proxy.enable')} align="center">
             <Switch
@@ -3575,6 +3924,22 @@ const ModelSettingsPage: React.FC = () => {
               size="sm"
             />
           </ConfigPageRow>
+          <ConfigActionBar
+            status={isProxySaving
+              ? 'saving'
+              : proxySaveError
+                ? 'error'
+                : isProxyDirty
+                  ? 'unsaved'
+                  : 'saved'}
+            statusMessage={proxySaveError}
+            saving={isProxySaving}
+            saveDisabled={!isProxyDirty || (proxyConfig.enabled && !proxyConfig.url.trim())}
+            discardDisabled={!isProxyDirty}
+            saveLabel={t('proxy.save')}
+            onSave={() => void handleSaveProxy()}
+            onDiscard={discardProxyDraft}
+          />
         </ConfigPageSection>
       </ConfigPageContent>
 
@@ -3590,12 +3955,12 @@ const ModelSettingsPage: React.FC = () => {
           <DialogClose />
         </DialogHeader>
         <DialogBody inset="none">
-        <div className="bitfun-model-settings__catalog-details">
+        <div className="openbitfun-model-settings__catalog-details">
           <ConfigPageRow label={t('modelsDevCatalog.activeSource')} align="center">
-            <span className="bitfun-model-settings__catalog-status-value">{modelsDevSourceLabel}</span>
+            <span className="openbitfun-model-settings__catalog-status-value">{modelsDevSourceLabel}</span>
           </ConfigPageRow>
           <ConfigPageRow label={t('modelsDevCatalog.catalogSize')} align="center">
-            <span className="bitfun-model-settings__catalog-status-value">
+            <span className="openbitfun-model-settings__catalog-status-value">
               {modelsDevStatus
                 ? t('modelsDevCatalog.catalogSizeValue', {
                     providers: i18nService.formatNumber(modelsDevStatus.provider_count),
@@ -3605,10 +3970,10 @@ const ModelSettingsPage: React.FC = () => {
             </span>
           </ConfigPageRow>
           <ConfigPageRow label={t('modelsDevCatalog.cacheUpdatedAt')} align="center">
-            <span className="bitfun-model-settings__catalog-status-value">{modelsDevUpdatedAt}</span>
+            <span className="openbitfun-model-settings__catalog-status-value">{modelsDevUpdatedAt}</span>
           </ConfigPageRow>
           <ConfigPageRow label={t('modelsDevCatalog.cachePath')} align="center" wide>
-            <div className="bitfun-model-settings__catalog-path">
+            <div className="openbitfun-model-settings__catalog-path">
               <code title={modelsDevStatus?.cache_path}>{modelsDevStatus?.cache_path || '—'}</code>
               <Tooltip content={t('modelsDevCatalog.reveal')}>
                 <IconButton
@@ -3626,16 +3991,16 @@ const ModelSettingsPage: React.FC = () => {
             </div>
           </ConfigPageRow>
           <ConfigPageRow label={t('modelsDevCatalog.revision')} align="center">
-            <code className="bitfun-model-settings__catalog-revision" title={modelsDevStatus?.revision}>
+            <code className="openbitfun-model-settings__catalog-revision" title={modelsDevStatus?.revision}>
               {modelsDevStatus?.revision ? `${modelsDevStatus.revision.slice(0, 12)}…` : '—'}
             </code>
           </ConfigPageRow>
-          <div className="bitfun-model-settings__catalog-offline-help" role="note">
+          <div className="openbitfun-model-settings__catalog-offline-help" role="note">
             <Icon name="info" size="sm" aria-hidden="true" />
             <div>
               <strong>{t('modelsDevCatalog.offlineTitle')}</strong>
               <p>{t('modelsDevCatalog.offlineDescription')}</p>
-              <div className="bitfun-model-settings__catalog-offline-actions">
+              <div className="openbitfun-model-settings__catalog-offline-actions">
                 <Button
                   variant="outline"
                   size="sm"
@@ -3679,7 +4044,7 @@ const ModelSettingsPage: React.FC = () => {
           <DialogClose />
         </DialogHeader>
         <DialogBody inset="none">
-        <div className="bitfun-model-settings__subscription-logout-confirm" data-bf-component="model-settings" data-bf-part="logoutConfirm">
+        <div className="openbitfun-model-settings__subscription-logout-confirm" data-openbitfun-component="model-settings" data-openbitfun-part="logoutConfirm">
           <p>
             {subscriptionLogoutRequest?.affectedModels.length
               ? t('subscriptionAuth.logoutAffectedModels', {
@@ -3688,7 +4053,7 @@ const ModelSettingsPage: React.FC = () => {
               : t('subscriptionAuth.logoutNoAffectedModels')}
           </p>
           {!!subscriptionLogoutRequest?.affectedModels.length && (
-            <ScrollArea className="bitfun-model-settings__subscription-logout-list">
+            <ScrollArea className="openbitfun-model-settings__subscription-logout-list">
               <ul>
                 {subscriptionLogoutRequest.affectedModels.map((model) => (
                   <li key={model.id}>{model.name} · {model.model_name}</li>
@@ -3723,12 +4088,13 @@ const ModelSettingsPage: React.FC = () => {
       <Dialog
         open={isEditing && !!editingConfig}
         onOpenChange={(nextOpen) => {
-          if (!nextOpen) {
-            if (reasoningPanelDraft) setReasoningPanelDraftKey(null);
-            else closeEditingModal();
+          if (!nextOpen && !isEditorSaving) {
+            if (reasoningPanelDraft) finishReasoningPanel();
+            else requestCloseEditingModal();
           }
         }}
-        size="2xl"
+        className="openbitfun-model-settings__editor-dialog"
+        size="xl"
       >
         <DialogHeader>
           <DialogHeading>
@@ -3746,9 +4112,13 @@ const ModelSettingsPage: React.FC = () => {
               ? t('editProvider')
               : (currentTemplate ? `${t('newProvider')} - ${currentTemplate.name}` : t('newProvider')))}</DialogTitle>
           </DialogHeading>
-          <DialogClose />
+          <DialogClose disabled={isEditorSaving} />
         </DialogHeader>
-        <DialogBody inset="none">
+        <DialogBody
+          inset="none"
+          aria-busy={isEditorSaving}
+          {...(isEditorSaving ? { inert: '' } : {})}
+        >
         {reasoningPanelDraft ? (
           <ReasoningConfigPanel
             key={reasoningPanelDraft.key}
@@ -3760,30 +4130,83 @@ const ModelSettingsPage: React.FC = () => {
               ? requestFormatLabelMap[reasoningPanelProjectionRequest.provider]
                 || reasoningPanelProjectionRequest.provider
               : undefined}
-            onCancel={() => setReasoningPanelDraftKey(null)}
+            onCancel={cancelReasoningPanel}
+            onDraftChange={updateReasoningPanelDraft}
             onApply={(result: ReasoningConfigApplyResult) => {
-              updateModelDraft(reasoningPanelDraft.modelName, {
-                reasoning: result.reasoning,
-                reasoningProjectionCatalog: result.projectionCatalog,
-                reasoningProjectionSnapshot: {
-                  catalog: result.projectionCatalog,
-                  projection: result.projection,
-                },
-              });
-              setReasoningPanelDraftKey(null);
+              updateReasoningPanelDraft(result);
+              finishReasoningPanel();
             }}
           />
         ) : renderEditingForm()}
               </DialogBody>
-        <DialogFooter>{reasoningPanelDraft ? undefined : (
-          <>
-            <Button variant="fill" onClick={closeEditingModal}>{t('actions.cancel')}</Button>
-            <Button data-testid="settings-model-save-btn" variant="primary" onClick={handleSave}>
+        {!reasoningPanelDraft && (
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={requestCloseEditingModal} disabled={isEditorSaving}>
+              {t('actions.cancel')}
+            </Button>
+            <Button
+              data-testid="settings-model-save-btn"
+              variant="fill"
+              size="sm"
+              onClick={() => void handleSave()}
+              loading={isEditorSaving}
+            >
               {t('actions.save')}
             </Button>
-          </>
-        )}</DialogFooter>
+          </DialogFooter>
+        )}
       </Dialog>
+      <ConfirmDialog
+        open={draftCloseConfirmOpen}
+        onOpenChange={(open) => { if (!open) setDraftCloseConfirmOpen(false); }}
+        onConfirm={preserveEditingDraftAndClose}
+        onSecondary={closeEditingModal}
+        title={t('draftClose.title')}
+        message={t('draftClose.message')}
+        confirmText={t('draftClose.keepAndClose')}
+        secondaryText={t('draftClose.discard')}
+        cancelText={t('draftClose.continueEditing')}
+        closeOnPointerOutside={false}
+        type="warning"
+      />
+      <ConfirmDialog
+        open={draftConflictConfirmOpen}
+        onOpenChange={(open) => { if (!open) cancelPendingEditorOpen(); }}
+        onConfirm={continueEditingCurrentDraft}
+        onSecondary={discardDraftBeforeOpeningPendingEditor}
+        title={t('draftConflict.title')}
+        message={t('draftConflict.message')}
+        confirmText={t('draftConflict.continueDraft')}
+        secondaryText={t('draftConflict.discardAndContinue')}
+        cancelText={t('draftConflict.cancel')}
+        closeOnPointerOutside={false}
+        type="warning"
+      />
+      <ConfirmDialog
+        open={!!deleteRequest}
+        onOpenChange={(open) => { if (!open) setDeleteRequest(null); }}
+        onConfirm={handleDelete}
+        title={t(deleteRequest?.kind === 'provider'
+          ? 'providerDeleteConfirm.title'
+          : 'deleteConfirm.title')}
+        message={deleteRequest?.kind === 'provider'
+          ? t(deleteRequest.discardsRetainedDraft
+            ? 'providerDeleteConfirm.messageWithDraft'
+            : 'providerDeleteConfirm.message', {
+              name: deleteRequest.providerName,
+              modelCount: deleteRequest.modelCount,
+              referenceCount: deleteRequest.referenceCount,
+            })
+          : t('deleteConfirm.message', {
+              name: deleteRequest?.config.model_name || '',
+              count: deleteRequest?.referenceCount ?? 0,
+            })}
+        confirmText={t(deleteRequest?.kind === 'provider'
+          ? 'providerDeleteConfirm.confirm'
+          : 'deleteConfirm.confirm')}
+        type="warning"
+        confirmDanger
+      />
     </ConfigPageLayout>
   );
 };

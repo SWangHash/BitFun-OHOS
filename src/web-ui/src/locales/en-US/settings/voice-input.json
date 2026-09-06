@@ -1,9 +1,10 @@
 {
   "title": "Voice Input",
-  "subtitle": "Turn speech into editable text, processed on this device by default.",
+  "subtitle": "Local transcription stays on this device and does not upload audio; realtime voice calls use a separate cloud configuration.",
   "loading": "Loading voice input settings...",
   "sections": {
-    "basic": "Voice input"
+    "basic": "Voice input",
+    "basicDescription": "Recognition runs on this device. Recordings and transcription audio are not uploaded."
   },
   "languages": {
     "auto": "Auto",
@@ -50,9 +51,11 @@
   },
   "voiceCall": {
     "title": "Realtime voice call",
+    "description": "When enabled, microphone audio is sent from this controller to Volcengine for realtime processing. This is separate from local transcription.",
+    "loading": "Loading realtime voice settings…",
     "enabled": {
       "label": "Enable the client voice assistant",
-      "description": "Talk to Volcengine's end-to-end realtime voice model from the bottom-right client launcher, let it understand workspace state, and start BitFun tasks."
+      "description": "Talk to Volcengine's end-to-end realtime voice model from the bottom-right client launcher, let it understand workspace state, and start OpenBitFun tasks."
     },
     "apiKey": {
       "label": "Volcengine API key",
@@ -65,31 +68,36 @@
     },
     "status": {
       "label": "Connection setup",
-      "description": "After saving, the Hello launcher at the bottom-right of the client can start a full-duplex voice conversation."
+      "description": "Saving stores this configuration without verifying the API key or connection. Then open Hello at the bottom-right of the client and switch from text chat to realtime voice."
     },
     "save": "Save realtime voice",
     "messages": {
       "loadFailed": "Failed to load controller realtime voice settings",
       "saved": "Realtime voice settings saved",
-      "saveFailed": "Failed to save realtime voice settings"
+      "saveFailed": "Failed to save realtime voice settings",
+      "required": "Enter an API key and voice before enabling realtime voice.",
+      "unsaved": "You have unsaved realtime voice changes."
     },
     "call": {
-      "title": "BitFun realtime call",
+      "title": "OpenBitFun realtime call",
       "button": "Start a realtime voice call",
+      "launcherCompactLabel": "Hi",
       "launcherLabel": "Hello",
-      "empty": "Just start talking. When you ask for work, I will start a new BitFun session.",
+      "switchToVoice": "Switch to realtime voice",
+      "switchToChat": "Return to text chat",
+      "empty": "Just start talking. When you ask for work, I will start a new OpenBitFun session.",
       "mute": "Mute microphone",
       "unmute": "Unmute microphone",
       "hangUp": "Hang up",
       "settings": "Realtime voice settings",
       "configureFirst": "Configure a Volcengine realtime voice API key first.",
       "startFailed": "Failed to start the realtime voice call",
-      "taskComplete": "The BitFun task is complete. I am preparing the result.",
-      "taskFailed": "The BitFun task failed. I am preparing an explanation.",
-      "taskStopping": "Stopping the current BitFun task…",
-      "taskStopped": "The current BitFun task has stopped.",
+      "taskComplete": "The OpenBitFun task is complete. I am preparing the result.",
+      "taskFailed": "The OpenBitFun task failed. I am preparing an explanation.",
+      "taskStopping": "Stopping the current OpenBitFun task…",
+      "taskStopped": "The current OpenBitFun task has stopped.",
       "taskAlreadyComplete": "The task already finished, so there is nothing to stop.",
-      "noActiveTask": "There is no BitFun task running right now.",
+      "noActiveTask": "There is no OpenBitFun task running right now.",
       "taskOutcome": {
         "completed": "The task is complete. {{conclusion}}",
         "completedWithoutConclusion": "The task is complete, but it returned no written conclusion.",
@@ -113,13 +121,13 @@
         "audioPlaybackFailed": "Voice playback failed. Check the system audio output."
       },
       "taskPhases": {
-        "starting": "Creating a new BitFun session.",
-        "working": "BitFun is still working on the task. I will keep following it.",
-        "using_tools": "BitFun is using tools to move the task forward.",
-        "waiting_approval": "The task is waiting for your approval in BitFun.",
-        "needs_input": "BitFun needs more information in the task session.",
-        "finishing": "The main work is done and BitFun is preparing the final result.",
-        "stopping": "Stopping the current BitFun task."
+        "starting": "Creating a new OpenBitFun session.",
+        "working": "OpenBitFun is still working on the task. I will keep following it.",
+        "using_tools": "OpenBitFun is using tools to move the task forward.",
+        "waiting_approval": "The task is waiting for your approval in OpenBitFun.",
+        "needs_input": "OpenBitFun needs more information in the task session.",
+        "finishing": "The main work is done and OpenBitFun is preparing the final result.",
+        "stopping": "Stopping the current OpenBitFun task."
       }
     }
   },
@@ -128,16 +136,15 @@
       "label": "Input device",
       "description": "Uses the system default unless you choose a device for this computer.",
       "systemDefault": "System default",
-      "unnamed": "Microphone {{index}}",
-      "refresh": "Refresh microphones"
+      "unnamed": "Microphone {{index}}"
     },
     "recognition": {
       "label": "Test voice input",
       "description": "Say a short phrase to check the microphone and local recognition together.",
       "start": "Start test",
-      "finish": "Finish and transcribe",
-      "modelRequired": "Install a local model before testing recognition.",
-      "cloudUnavailable": "Cloud transcription is not connected yet. Switch to local processing first.",
+      "finish": "Stop recording",
+      "preparing": "Preparing",
+      "transcribing": "Recognizing",
       "timing": "Inference took {{duration}} ms"
     },
     "messages": {
@@ -148,35 +155,48 @@
   },
   "status": {
     "label": "Status",
-    "manageModels": "Local models",
+    "manageModels": "Manage models",
     "unknownModel": "Local speech model",
-    "useLocal": "Switch to local processing",
-    "downloadAndEnable": "Download and enable",
-    "repair": "Check and repair",
+    "useLocal": "Switch to local recognition",
+    "downloadModel": "Download model",
+    "viewDetails": "View details",
+    "repair": "Review and repair",
     "ready": {
       "badge": "Ready",
       "title": "Voice input is ready",
-      "description": "Audio is processed by {{model}} on this device and is not uploaded."
+      "description": "{{model}} processes speech on this device. Audio is not uploaded.",
+      "summary": "Downloaded model: <model>{{model}}</model>"
     },
     "setup": {
-      "badge": "Setup needed",
-      "title": "Download local recognition resources",
-      "description": "Download {{size}} for {{model}} to use voice input in the composer."
+      "badge": "Not downloaded",
+      "title": "Voice model not downloaded",
+      "description": "Download it to use voice input. It uses about {{size}}.",
+      "summary": "Voice model <warning>not downloaded</warning> — download it to use voice input."
     },
     "downloading": {
-      "badge": "Preparing",
-      "title": "Preparing voice input",
-      "description": "Downloading or verifying {{model}}."
+      "badge": "Downloading",
+      "title": "Downloading voice model",
+      "description": "Voice input will be available when {{model}} finishes downloading."
+    },
+    "verifying": {
+      "badge": "Verifying",
+      "title": "Verifying voice model",
+      "description": "Checking that {{model}} is complete and ready to use."
+    },
+    "deleting": {
+      "badge": "Removing",
+      "title": "Removing voice model",
+      "description": "Removing {{model}} from this device."
     },
     "unavailable": {
       "badge": "Unavailable",
-      "title": "Cloud transcription is currently unavailable",
-      "description": "Your cloud model configuration is preserved, but this version cannot transcribe with it yet. Switch back to local processing."
+      "title": "Cloud voice input is unavailable",
+      "description": "Your cloud configuration is preserved. Switch to local recognition to use voice input."
     },
     "error": {
-      "badge": "Needs attention",
-      "title": "The local speech model needs repair",
-      "description": "Download or verify the current model again."
+      "badge": "Needs repair",
+      "title": "Voice model unavailable",
+      "description": "{{model}} cannot be used. Review it and download it again."
     }
   },
   "localModels": {
@@ -217,8 +237,10 @@
     }
   },
   "messages": {
-    "unsupported": "Voice input is available in the BitFun desktop app.",
+    "unsupported": "Voice input is available in the OpenBitFun desktop app.",
     "loadFailed": "Failed to load voice input settings",
+    "modelsLoadFailed": "Failed to load local speech model status.",
+    "retry": "Try again",
     "saveFailed": "Failed to save voice input settings",
     "downloadSuccess": "Speech model downloaded",
     "localActivated": "Switched to local voice input",

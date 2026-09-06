@@ -1,10 +1,10 @@
 # PPT Live MiniApp — Developer Guide
 
-PPT Live 是 BitFun 的内置 MiniApp，用于 AI 驱动的 PPT 生成、编辑和导出。
+PPT Live 是 OpenBitFun 的内置 MiniApp，用于 AI 驱动的 PPT 生成、编辑和导出。
 
 ## Agentic MiniApp 样板间：复用悬浮会话气泡
 
-PPT Live 同时是 BitFun **Agentic MiniApp** 的样板间：它自己**没有输入框，也没有
+PPT Live 同时是 OpenBitFun **Agentic MiniApp** 的样板间：它自己**没有输入框，也没有
 过程显示**——右侧栏只有样式设置和一张引导卡。用户在右下角的悬浮会话气泡里描述
 需求，链路如下：
 
@@ -34,7 +34,7 @@ PPT Live 同时是 BitFun **Agentic MiniApp** 的样板间：它自己**没有�
 | `app.agent.ensureSession(options)` | 在主题打开时创建或重新绑定专属隐藏会话；PPT Live 用 `agentSession.id` 恢复老主题，用新的 appdata 工作目录初始化新主题 |
 | `app.agent.run(prompt, options)` | `prompt` 承载 MiniApp 内部任务协议；`options.displayText` 单独承载会话框中显示的用户原始输入，避免把内部 prompt 或通用占位文案展示给用户 |
 | `app.chat.claimComposer(options)` | 注册到标准气泡聊天窗；本应用 tab 激活时用户输入改送本应用。可声明 `title`、`composer.placeholder` 与 `welcome`（标题、说明、工作区标签、示例 prompt），由宿主在共享组件内按主题安全渲染。不能修改面板尺寸、输入器布局或控件。幂等 upsert，locale 变更时重调可更新文案 |
-| `app.chat.onUserMessage(fn)` | 接收共享 ChatInput 的提交，payload 至少含 `{ text }`，并可包含 `displayText`、`contexts`、`composerPresentation`、`sessionId` 与 `workspacePath` |
+| `app.chat.onUserMessage(fn)` | 接收共享 ChatInput 或实时语音的提交，payload 至少含 `{ text }`，并可包含 `displayText`、`contexts`、`composerPresentation`、`sessionId`、`workspacePath`、`requestId` 与 `source`。回调应返回覆盖完整处理周期的 Promise，宿主据此等待 MiniApp 后处理完成 |
 | `app.chat.focusSession(sessionId)` | 把经校验的本应用 Agent 会话绑定到气泡；气泡打开时临时展示该会话，关闭后恢复用户原来的普通会话 |
 | `app.chat.clearSession()` | 新建或切换主题时先清除旧绑定，避免准备新会话期间短暂显示上一个主题 |
 | `app.chat.setComposerDraft(text)` | 展开气泡并预填输入框，**不发送**——欢迎页的示例 prompt 用它，用户仍可编辑后再发 |
@@ -60,9 +60,9 @@ Agent 会话的 `workspacePath`，不会泄露或展示用户普通会话的全�
 ppt-live/
 ├── index.html              # MiniApp 入口 HTML（由 builtin.rs 加载）
 ├── style.css               # 全局样式
-├── ui.js                   # UI 入口 JS（build-bitfun.mjs 的打包入口）
+├── ui.js                   # UI 入口 JS（build-openbitfun.mjs 的打包入口）
 ├── worker.js               # 空文件（PPT Live 不使用 worker）
-├── build-bitfun.mjs        # 唯一的构建脚本 → 产出 dist/ui.bundle.js
+├── build-openbitfun.mjs        # 唯一的构建脚本 → 产出 dist/ui.bundle.js
 ├── meta.json               # MiniApp 元数据（含 version）
 ├── bundle.json             # bundle 标识（含 version）
 ├── source_manifest.json    # 构建产物清单
@@ -87,7 +87,7 @@ ppt-live/
     ├── export-html.js            # HTML 导出
     ├── export-format-icons.js    # 导出格式图标
     ├── flat-select.js            # 自定义下拉组件
-    └── bitfun-backend-adapter.js # BitFun 后端适配器
+    └── openbitfun-backend-adapter.js # OpenBitFun 后端适配器
 ```
 
 ## 构建
@@ -96,7 +96,7 @@ ppt-live/
 
 PPT Live 的 JS 是**预构建的静态资源**，通过 Rust 的 `include_str!` 在编译时
 直接嵌入到二进制中。`desktop:dev` 只提供 web-ui 前端的 Vite HMR 和 Rust 代码的
-自动重新编译，**不会运行 `build-bitfun.mjs`**。
+自动重新编译，**不会运行 `build-openbitfun.mjs`**。
 
 修改 PPT Live 的 JS 源码后，必须**手动**运行构建脚本。
 
@@ -106,7 +106,7 @@ PPT Live 的 JS 是**预构建的静态资源**，通过 Rust 的 `include_str!`
 |---|---|---|---|
 | `ui.js` | ✅ 是 | ✅ 是 | UI 入口，改动直接影响运行时 |
 | `src/*.js`（所有子文件） | ✅ 是 | ✅ 是 | 打包源码，改动直接影响运行时 |
-| `build-bitfun.mjs` | ❌ 否（本身是构建工具） | ❌ 否 | 下次构建时自动生效 |
+| `build-openbitfun.mjs` | ❌ 否（本身是构建工具） | ❌ 否 | 下次构建时自动生效 |
 | `index.html` | ❌ 否 | ✅ 是 | 由 `include_str!` 直接嵌入，bump 版本触发 Rust 重编译即可 |
 | `style.css` | ❌ 否 | ✅ 是 | 同上 |
 | `worker.js` | ❌ 否 | ✅ 是 | 同上 |
@@ -117,11 +117,11 @@ PPT Live 的 JS 是**预构建的静态资源**，通过 Rust 的 `include_str!`
 
 ```bash
 # 从 repo 根目录
-node src/crates/contracts/product-domains/src/miniapp/builtin/assets/ppt-live/build-bitfun.mjs
+node src/crates/contracts/product-domains/src/miniapp/builtin/assets/ppt-live/build-openbitfun.mjs
 
 # 或进入 ppt-live 目录后运行
 cd src/crates/contracts/product-domains/src/miniapp/builtin/assets/ppt-live
-node build-bitfun.mjs
+node build-openbitfun.mjs
 ```
 
 产出：`dist/ui.bundle.js`（未压缩，可读，开源项目不需要压缩 JS）。
@@ -131,23 +131,23 @@ node build-bitfun.mjs
 ```
 1. 编辑 ui.js 或 src/ 下的 .js 文件
 2. 运行构建：
-   node src/crates/contracts/product-domains/src/miniapp/builtin/assets/ppt-live/build-bitfun.mjs
+   node src/crates/contracts/product-domains/src/miniapp/builtin/assets/ppt-live/build-openbitfun.mjs
 3. bump 版本号（三处必须一致，当前 +1）：
    - meta.json:   "version": N
    - bundle.json: "version": N
    - builtin.rs:  version: N,  （路径: src/crates/contracts/product-domains/src/miniapp/builtin.rs）
-4. cargo check -p bitfun-product-domains
+4. cargo check -p openbitfun-product-domains
 5. 重启 pnpm run desktop:dev（或 touch builtin.rs 触发 Rust 重编译）让新 bundle 生效
 ```
 
 ### 构建原理
 
-`build-bitfun.mjs` 使用 esbuild 从 `ui.js` 入口打包所有 `src/*.js` 和 npm 依赖
+`build-openbitfun.mjs` 使用 esbuild 从 `ui.js` 入口打包所有 `src/*.js` 和 npm 依赖
 （`pptxgenjs`、`pdf-lib`、`jszip`），单次产出最终的 `dist/ui.bundle.js`。
 
 **不存在中间 bundle**。历史上曾有一个 `vendor/ppt-export.bundle.mjs` 中间产物
 和单独的 `build-vendor-bundle.mjs` 脚本，已于 2025 年移除。现在所有依赖在
-`build-bitfun.mjs` 单次构建中统一解析和内联。
+`build-openbitfun.mjs` 单次构建中统一解析和内联。
 
 > **为什么需要 bump 版本号？**
 > `builtin.rs` 用 `include_str!` 将 `dist/ui.bundle.js` 嵌入 Rust 二进制。
@@ -215,7 +215,7 @@ prepareEditableSlides(slides, options)
 | `pdf-lib` | PDF 合并 |
 | `jszip` | PNG 打包 |
 
-这些包在 `build-bitfun.mjs` 打包时从 `node_modules` 解析并内联到最终 bundle 中。
+这些包在 `build-openbitfun.mjs` 打包时从 `node_modules` 解析并内联到最终 bundle 中。
 运行时不需要 `node_modules`——所有依赖已经编译进 `dist/ui.bundle.js`。
 
 ## 单位换算速查

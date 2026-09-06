@@ -2,9 +2,9 @@
 
 > **For agentic workers:** Implement task-by-task. No CLI-disk-scan compatibility.
 
-**Goal:** Let BitFun sign in to Codex / Antigravity / OpenCode subscriptions and use them as model API auth, aligned with OpenCode.
+**Goal:** Let OpenBitFun sign in to Codex / Antigravity / OpenCode subscriptions and use them as model API auth, aligned with OpenCode.
 
-**Architecture:** `subscription_auth` store + OAuth login sessions in `bitfun-ai-adapters`; `AuthConfig::Subscription`; desktop Tauri + AIModelConfig UI.
+**Architecture:** `subscription_auth` store + OAuth login sessions in `openbitfun-ai-adapters`; `AuthConfig::Subscription`; desktop Tauri + AIModelConfig UI.
 
 **Tech Stack:** Rust (tokio, reqwest, sha2), Tauri commands, React settings UI.
 

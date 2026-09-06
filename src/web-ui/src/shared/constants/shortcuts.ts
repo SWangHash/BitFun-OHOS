@@ -12,17 +12,9 @@ export interface ShortcutDef {
   descriptionKey: string;
 }
 
-/**
- * These bindings always use catalog defaults; user overrides in config are ignored
- * and the keyboard settings UI does not allow remapping them.
- */
-export const NON_USER_CUSTOMIZABLE_SHORTCUT_IDS = new Set<string>([
-  'scene.openSession',
-]);
-
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-/** Build a ShortcutConfig using BitFun's logical primary modifier.
+/** Build a ShortcutConfig using OpenBitFun's logical primary modifier.
  * ShortcutManager maps it to Ctrl on Windows/Linux and Command on macOS.
  */
 function mod(

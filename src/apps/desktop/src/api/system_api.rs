@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::api::app_state::AppState;
 use crate::startup_trace::DesktopStartupTrace;
-use bitfun_core::service::system;
+use openbitfun_core::service::system;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, Position, Size, State};
 #[cfg(not(target_env = "ohos"))]
@@ -14,15 +14,15 @@ use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
 
 /// Emitted during `install_update` download; matches `installUpdateWithProgress` / frontend listener.
-const UPDATE_PROGRESS_EVENT: &str = "bitfun-update-progress";
+const UPDATE_PROGRESS_EVENT: &str = "openbitfun-update-progress";
 
 /// Updater origins, in configured (fallback) order. Kept in step with
 /// `scripts/desktop-tauri-build.mjs`, which bakes the same pair into the bundle.
-const GITHUB_UPDATER_ENDPOINT: &str = match option_env!("BITFUN_UPDATER_PRIMARY_ENDPOINT") {
+const GITHUB_UPDATER_ENDPOINT: &str = match option_env!("OPENBITFUN_UPDATER_PRIMARY_ENDPOINT") {
     Some(endpoint) => endpoint,
-    None => "https://github.com/GCWing/BitFun/releases/latest/download/latest.json",
+    None => "https://github.com/GCWing/OpenBitFun/releases/latest/download/latest.json",
 };
-const OPENBITFUN_UPDATER_ENDPOINT: &str = match option_env!("BITFUN_UPDATER_FALLBACK_ENDPOINT") {
+const OPENBITFUN_UPDATER_ENDPOINT: &str = match option_env!("OPENBITFUN_UPDATER_FALLBACK_ENDPOINT") {
     Some(endpoint) => endpoint,
     None => "https://openbitfun.com/release/latest.json",
 };
@@ -791,7 +791,7 @@ pub async fn set_main_window_transient_geometry(
 #[cfg(target_env = "ohos")]
 async fn call_ohos_window_host(name: &str) -> Result<(), String> {
     let function = {
-        let lock = bitfun_core::util::JS_THREADSAFE_FUNCTION.read();
+        let lock = openbitfun_core::util::JS_THREADSAFE_FUNCTION.read();
         lock.get(name).cloned()
     };
     let Some(function) = function else {
@@ -829,7 +829,14 @@ use napi_derive_ohos::napi;
 pub fn ohos_mark_clean_shutdown() {
     log::info!("Quit requested via quit_app command");
     crate::crash_diagnostics::mark_clean_shutdown("quit_app_command");
-    crate::perform_process_exit_cleanup().await;
+    if let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        runtime.block_on(async {
+            crate::perform_process_exit_cleanup().await;
+        });
+    }
 }
 
 #[cfg(target_env = "ohos")]
@@ -844,7 +851,7 @@ pub fn get_app_config_bool(path: String) -> bool {
             .expect("failed to build napi config runtime")
     });
     runtime.block_on(async {
-        let Ok(service) = bitfun_core::service::config::get_global_config_service().await else {
+        let Ok(service) = openbitfun_core::service::config::get_global_config_service().await else {
             return false;
         };
         service
@@ -1133,7 +1140,7 @@ pub async fn notify_system_error_if_minimized(error: &str) {
     // The error string may carry a multi-line trace; the notification body
     // only needs the first line to be useful.
     let body = error.lines().next().unwrap_or(error).to_string();
-    let payload = serde_json::json!({ "title": "BitFun system error", "body": body });
+    let payload = serde_json::json!({ "title": "OpenBitFun system error", "body": body });
     if let Err(e) =
         crate::api::ohos::ohos_file_system::send_system_notification_ohos(payload.to_string()).await
     {
@@ -1225,11 +1232,11 @@ mod tests {
     fn updater_uses_mirror_only_for_a_slow_github_and_the_same_release() {
         let github = UpdaterManifestInfo {
             version: "1.2.3".into(),
-            package_url: "https://github.example/bitfun.tar.gz".into(),
+            package_url: "https://github.example/openbitfun.tar.gz".into(),
         };
         let synchronized_mirror = UpdaterManifestInfo {
             version: "1.2.3".into(),
-            package_url: "https://mirror.example/bitfun.tar.gz".into(),
+            package_url: "https://mirror.example/openbitfun.tar.gz".into(),
         };
         let stale_mirror = UpdaterManifestInfo {
             version: "1.2.2".into(),

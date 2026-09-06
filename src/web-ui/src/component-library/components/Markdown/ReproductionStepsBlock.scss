@@ -19,7 +19,7 @@
   position: relative;
 
 
-  animation: bitfun-reproduction-steps-waiting-pulse 2s ease-in-out infinite;
+  animation: openbitfun-reproduction-steps-waiting-pulse 2s ease-in-out infinite;
 
 
   &:hover:not(.proceeded) {
@@ -242,7 +242,7 @@
   }
 
   .spin {
-    animation: bitfun-reproduction-steps-spin 1s linear infinite;
+    animation: openbitfun-reproduction-steps-spin 1s linear infinite;
   }
 }
 
@@ -265,7 +265,7 @@
 }
 
 
-@keyframes bitfun-reproduction-steps-spin {
+@keyframes openbitfun-reproduction-steps-spin {
   from {
     transform: rotate(0deg);
   }
@@ -274,7 +274,7 @@
   }
 }
 
-@keyframes bitfun-reproduction-steps-content-in {
+@keyframes openbitfun-reproduction-steps-content-in {
   from {
     opacity: 0;
     transform: translateY(-4px);
@@ -286,7 +286,7 @@
 }
 
 
-@keyframes bitfun-reproduction-steps-waiting-pulse {
+@keyframes openbitfun-reproduction-steps-waiting-pulse {
   0%, 100% {
     box-shadow: 0 0 0 0 transparent;
   }
@@ -296,7 +296,7 @@
 }
 
 .reproduction-steps-content {
-  animation: bitfun-reproduction-steps-content-in 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+  animation: openbitfun-reproduction-steps-content-in 0.2s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {

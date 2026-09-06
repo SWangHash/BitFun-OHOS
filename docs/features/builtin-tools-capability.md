@@ -1,7 +1,7 @@
 # 内置 Tools（Built-in Tools）能力支持需求文档
 
 > 状态：能力规格 / 需求
-> 仓库：BitFun-OHOS
+> 仓库：OpenBitFun-OHOS
 > 相关架构入口：
 > - [`docs/architecture/product-architecture.md`](../architecture/product-architecture.md)
 > - [`docs/architecture/agent-runtime-services-design.md`](../architecture/agent-runtime-services-design.md)
@@ -10,7 +10,7 @@
 
 ## 背景与需求描述
 
-BitFun Agent 要"进入真实环境"完成任务，必须能读 / 写文件、执行命令、检索代码、控制会话、操作浏览器与桌面、对接 MCP、覆盖鸿蒙开发链。这些能力以**工具（Tools）**形式暴露给模型，模型在对话回合中按 schema 调用，运行时校验权限、执行、回传结构化结果。
+OpenBitFun Agent 要"进入真实环境"完成任务，必须能读 / 写文件、执行命令、检索代码、控制会话、操作浏览器与桌面、对接 MCP、覆盖鸿蒙开发链。这些能力以**工具（Tools）**形式暴露给模型，模型在对话回合中按 schema 调用，运行时校验权限、执行、回传结构化结果。
 
 工具来源分三类，本需求只覆盖第一类：
 
@@ -42,7 +42,7 @@ BitFun Agent 要"进入真实环境"完成任务，必须能读 / 写文件、�
 | `core.integration` | browser-web, mcp, git, miniapp, computer-use | `WebSearch`、`WebFetch`、MCP 资源 / prompt 工具、`GenerativeUI`、`Git`、`Worktree`、`ReviewPlatform`、MiniApp / Appearance / Page 发布工具、`ControlHub`、`ComputerUse`、`Playbook` |
 | `core.openharmony` | basic | `build_project`、`start_app`、`hdc_log`、`arkts_knowledge_search`、`check_arkts_files`、`check_cpp_files`、`switch_cwd`、`verify_ui`、`get_ui_verification_log`、`save_ui_screenshot` |
 
-- 一个 provider 可包含来自多个 feature owner 的工具；**工具到 feature group 的精确映射**由 `bitfun-tool-packs` 作为 owner 权威。
+- 一个 provider 可包含来自多个 feature owner 的工具；**工具到 feature group 的精确映射**由 `openbitfun-tool-packs` 作为 owner 权威。
 - 编译期 availability 是**验证事实**而非运行时推断来源；materialization 必须在"计划请求了未编译 group"时 fail closed。
 
 ### 2. 装配与可见性
@@ -89,7 +89,7 @@ BitFun Agent 要"进入真实环境"完成任务，必须能读 / 写文件、�
 依据仓库的分层与边界规则，内置 Tools 的各部分应归属：
 
 1. **Contracts (`src/crates/contracts`)** — 工具调用 / 结果 / 权限 / `ToolUseContext` 的稳定 DTO 与 port trait，行为轻量、不向上依赖。
-2. **Execution / Tool Provider Groups (`src/crates/execution/tool-provider-groups`，包名 `bitfun-tool-packs`)** — 内置工具的**事实层**：
+2. **Execution / Tool Provider Groups (`src/crates/execution/tool-provider-groups`，包名 `openbitfun-tool-packs`)** — 内置工具的**事实层**：
    - feature group 元数据、稳定的 tool→feature 映射、product tool provider group plan、按 id 选择 provider group plan；
    - **不拥有** manifest / 暴露契约、具体运行时 manifest 装配、`GetToolSpec` 执行、collapsed unlock 状态、snapshot 装饰、`ToolUseContext`；
    - 边界：`default = []`，`product-full` 可聚合但不得静默启用新运行时行为；不依赖 core / service / app / Tauri / Git / MCP / 网络 / CLI UI。
@@ -112,7 +112,7 @@ BitFun Agent 要"进入真实环境"完成任务，必须能读 / 写文件、�
 
 ## 设计草案 / 参考示例
 
-- **provider group 计划参考**：`bitfun-tool-packs` 的 `PRODUCT_TOOL_PROVIDER_GROUP_PLAN` 把六个 provider（basic / agent / canvas / session / integration / openharmony）的 feature groups 与 tool names 登记为静态事实；新增工具在此登记，并保证 `try_product_tool_provider_group_plan_for_ids` 对未知 provider id 报错。
+- **provider group 计划参考**：`openbitfun-tool-packs` 的 `PRODUCT_TOOL_PROVIDER_GROUP_PLAN` 把六个 provider（basic / agent / canvas / session / integration / openharmony）的 feature groups 与 tool names 登记为静态事实；新增工具在此登记，并保证 `try_product_tool_provider_group_plan_for_ids` 对未知 provider id 报错。
 - **feature 映射参考**：`tool_feature_group` 是 tool→feature 的 owner 权威映射；一个 provider 可跨多 feature owner（如 `core.integration` 跨 browser-web / mcp / git / miniapp / computer-use）。
 - **fail-closed 装配参考**：`unavailable_feature_groups` 报告请求但二进制未编译的 group；materialization 拿到该报告后必须失败，不静默降级。
 - **manifest 暴露参考**：展开 / 折叠两态 + `GetToolSpec` 按需取规格；迁移工具必须保持 collapsed 暴露、prompt stub、unlock 状态不变。

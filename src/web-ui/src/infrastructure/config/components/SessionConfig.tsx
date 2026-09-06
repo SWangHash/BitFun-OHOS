@@ -50,7 +50,7 @@ import {
   DEFAULT_LANGUAGE_TEMPLATES,
 } from '../types';
 import { GlobalPermissionRulesDialog } from './GlobalPermissionRulesDialog';
-import { ChatInputPixelPet } from '@/flow_chat/components/ChatInputPixelPet';
+import { AgentCompanionPet } from '@/flow_chat/components/AgentCompanionPet';
 import { ask, open } from '@tauri-apps/plugin-dialog';
 import { createLogger } from '@/shared/utils/logger';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
@@ -966,7 +966,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
           ? t('computerUse.platformNotes.linux')
           : t('computerUse.platformNotes.generic')
     : null;
-  // A ready browser is not a failure state: BitFun attaches to it the moment
+  // A ready browser is not a failure state: OpenBitFun attaches to it the moment
   // something needs it, so say that rather than the bare "not connected".
   const browserStatusLabel = browserCdpAvailable
     ? preferredBrowser === 'builtin'
@@ -996,9 +996,9 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
 
   if (isLoading || !settings) {
     return (
-      <ConfigPageLayout className="bitfun-func-agent-config" data-bf-component="session-config" data-bf-part="root" data-bf-view={variant}>
+      <ConfigPageLayout className="openbitfun-func-agent-config" data-openbitfun-component="session-config" data-openbitfun-part="root" data-openbitfun-view={variant}>
         <ConfigPageHeader title={pageTitle} subtitle={pageSubtitle} />
-        <ConfigPageContent className="bitfun-func-agent-config__content" data-bf-component="session-config" data-bf-part="content">
+        <ConfigPageContent className="openbitfun-func-agent-config__content" data-openbitfun-component="session-config" data-openbitfun-part="content">
           <ConfigPageLoading text={t('loading.text')} />
         </ConfigPageContent>
       </ConfigPageLayout>
@@ -1006,10 +1006,10 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
   }
 
   return (
-    <ConfigPageLayout className="bitfun-func-agent-config" data-bf-component="session-config" data-bf-part="root" data-bf-view={variant}>
+    <ConfigPageLayout className="openbitfun-func-agent-config" data-openbitfun-component="session-config" data-openbitfun-part="root" data-openbitfun-view={variant}>
       <ConfigPageHeader title={pageTitle} subtitle={pageSubtitle} />
 
-      <ConfigPageContent className="bitfun-func-agent-config__content" data-bf-component="session-config" data-bf-part="content">
+      <ConfigPageContent className="openbitfun-func-agent-config__content" data-openbitfun-component="session-config" data-openbitfun-part="content">
 
         {variant === 'personalization' ? (
           <>
@@ -1020,7 +1020,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
           description={t('features.agentCompanion.subtitle')}
         >
           <ConfigPageRow label={t('features.agentCompanion.enable')} align="center">
-            <div className="bitfun-func-agent-config__row-control" data-bf-component="session-config" data-bf-part="control">
+            <div className="openbitfun-func-agent-config__row-control" data-openbitfun-component="session-config" data-openbitfun-part="control">
               <Switch
                 checked={settings.enable_agent_companion}
                 onChange={(e) => updateSetting('enable_agent_companion', e.target.checked)}
@@ -1034,8 +1034,8 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
             align="center"
           >
             <Select
-              className="bitfun-func-agent-config__pet-select"
-              dropdownClassName="bitfun-func-agent-config__pet-select-dropdown"
+              className="openbitfun-func-agent-config__pet-select"
+              dropdownClassName="openbitfun-func-agent-config__pet-select-dropdown"
               size="small"
               options={companionDisplayModeOptions}
               value={settings.agent_companion_display_mode}
@@ -1050,16 +1050,16 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
           </ConfigPageRow>
           <ConfigPageRow
             label={(
-              <span className="bitfun-func-agent-config__pet-row-heading">
-                <span className="bitfun-func-agent-config__pet-row-copy">
-                  <span className="bitfun-func-agent-config__pet-row-title">
+              <span className="openbitfun-func-agent-config__pet-row-heading">
+                <span className="openbitfun-func-agent-config__pet-row-copy">
+                  <span className="openbitfun-func-agent-config__pet-row-title">
                     {t('features.agentCompanion.petLabel')}
                   </span>
-                  <span className="bitfun-func-agent-config__pet-row-description">
+                  <span className="openbitfun-func-agent-config__pet-row-description">
                     {t('features.agentCompanion.petDescription')}
                   </span>
                 </span>
-                <span className="bitfun-func-agent-config__pet-actions" data-bf-component="session-config" data-bf-part="petActions">
+                <span className="openbitfun-func-agent-config__pet-actions" data-openbitfun-component="session-config" data-openbitfun-part="petActions">
                   <IconButton
                     type="button"
                     size="small"
@@ -1086,46 +1086,46 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
             )}
             align="start"
             multiline
-            className="bitfun-func-agent-config__pet-row"
+            className="openbitfun-func-agent-config__pet-row"
           >
-            <div className="bitfun-func-agent-config__pet-picker" data-bf-component="session-config" data-bf-part="petPicker">
-              <div className="bitfun-func-agent-config__pet-chooser" data-bf-component="session-config" data-bf-part="petChooser">
+            <div className="openbitfun-func-agent-config__pet-picker" data-openbitfun-component="session-config" data-openbitfun-part="petPicker">
+              <div className="openbitfun-func-agent-config__pet-chooser" data-openbitfun-component="session-config" data-openbitfun-part="petChooser">
                 <button
                   type="button"
-                  className="bitfun-func-agent-config__pet-expand-button"
-                  data-bf-component="session-config"
-                  data-bf-part="petTrigger"
-                  data-bf-state={companionPetListExpanded ? 'expanded' : ''}
+                  className="openbitfun-func-agent-config__pet-expand-button"
+                  data-openbitfun-component="session-config"
+                  data-openbitfun-part="petTrigger"
+                  data-openbitfun-state={companionPetListExpanded ? 'expanded' : ''}
                   aria-expanded={companionPetListExpanded}
-                  aria-controls="bitfun-companion-pet-list"
+                  aria-controls="openbitfun-companion-pet-list"
                   onClick={() => setCompanionPetListExpanded((expanded) => !expanded)}
                 >
-                  <span className="bitfun-func-agent-config__pet-expand-current">
-                    <span className="bitfun-func-agent-config__pet-select-thumb" aria-hidden>
+                  <span className="openbitfun-func-agent-config__pet-expand-current">
+                    <span className="openbitfun-func-agent-config__pet-select-thumb" aria-hidden>
                       {selectedCompanionPetPackage ? (
                         <span
-                          className="bitfun-func-agent-config__pet-preview-sprite"
-                          style={{ '--bitfun-pet-preview-src': `url("${selectedCompanionPetPackage.previewSrc}")` } as React.CSSProperties}
+                          className="openbitfun-func-agent-config__pet-preview-sprite"
+                          style={{ '--openbitfun-pet-preview-src': `url("${selectedCompanionPetPackage.previewSrc}")` } as React.CSSProperties}
                         />
                       ) : (
-                        <ChatInputPixelPet mood="rest" pet={selectedCompanionPet} className="bitfun-func-agent-config__pet-select-panda" />
+                        <AgentCompanionPet mood="rest" pet={selectedCompanionPet} className="openbitfun-func-agent-config__pet-select-panda" />
                       )}
                     </span>
-                    <span className="bitfun-func-agent-config__pet-select-value">
+                    <span className="openbitfun-func-agent-config__pet-select-value">
                       {selectedCompanionPetOption?.label ?? t('features.agentCompanion.petPlaceholder')}
                     </span>
                   </span>
                   <ChevronDown
                     size={14}
-                    className={companionPetListExpanded ? 'bitfun-func-agent-config__pet-expand-chevron--open' : undefined}
+                    className={companionPetListExpanded ? 'openbitfun-func-agent-config__pet-expand-chevron--open' : undefined}
                   />
                 </button>
                 {companionPetListExpanded && (
                   <div
-                    id="bitfun-companion-pet-list"
-                    className="bitfun-func-agent-config__pet-list"
-                    data-bf-component="session-config"
-                    data-bf-part="petList"
+                    id="openbitfun-companion-pet-list"
+                    className="openbitfun-func-agent-config__pet-list"
+                    data-openbitfun-component="session-config"
+                    data-openbitfun-part="petList"
                     role="radiogroup"
                     aria-label={t('features.agentCompanion.petLabel')}
                   >
@@ -1138,15 +1138,15 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                       return (
                         <React.Fragment key={String(option.value)}>
                           {showGroup && (
-                            <div className="bitfun-func-agent-config__pet-list-group" data-bf-component="session-config" data-bf-part="petGroup">
+                            <div className="openbitfun-func-agent-config__pet-list-group" data-openbitfun-component="session-config" data-openbitfun-part="petGroup">
                               {option.group}
                             </div>
                           )}
                           <div
-                            className={`bitfun-func-agent-config__pet-select-option${isSelected ? ' bitfun-func-agent-config__pet-select-option--selected' : ''}`}
-                            data-bf-component="session-config"
-                            data-bf-part="petOption"
-                            data-bf-state={isSelected ? 'selected' : ''}
+                            className={`openbitfun-func-agent-config__pet-select-option${isSelected ? ' openbitfun-func-agent-config__pet-select-option--selected' : ''}`}
+                            data-openbitfun-component="session-config"
+                            data-openbitfun-part="petOption"
+                            data-openbitfun-state={isSelected ? 'selected' : ''}
                             role="radio"
                             tabIndex={0}
                             aria-checked={isSelected}
@@ -1158,38 +1158,38 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                               }
                             }}
                           >
-                            <div className="bitfun-func-agent-config__pet-select-option-main" data-bf-component="session-config" data-bf-part="petOptionMain">
-                              <span className="bitfun-func-agent-config__pet-select-thumb" aria-hidden>
+                            <div className="openbitfun-func-agent-config__pet-select-option-main" data-openbitfun-component="session-config" data-openbitfun-part="petOptionMain">
+                              <span className="openbitfun-func-agent-config__pet-select-thumb" aria-hidden>
                                 {pet ? (
                                   <span
-                                    className="bitfun-func-agent-config__pet-preview-sprite"
-                                    style={{ '--bitfun-pet-preview-src': `url("${pet.previewSrc}")` } as React.CSSProperties}
+                                    className="openbitfun-func-agent-config__pet-preview-sprite"
+                                    style={{ '--openbitfun-pet-preview-src': `url("${pet.previewSrc}")` } as React.CSSProperties}
                                   />
                                 ) : (
-                                  <ChatInputPixelPet
+                                  <AgentCompanionPet
                                     mood="rest"
                                     pet={DEFAULT_AGENT_COMPANION_PET}
-                                    className="bitfun-func-agent-config__pet-select-panda"
+                                    className="openbitfun-func-agent-config__pet-select-panda"
                                   />
                                 )}
                               </span>
-                              <span className="bitfun-func-agent-config__pet-select-text">
-                                <span className="bitfun-func-agent-config__pet-select-label">{option.label}</span>
+                              <span className="openbitfun-func-agent-config__pet-select-text">
+                                <span className="openbitfun-func-agent-config__pet-select-label">{option.label}</span>
                                 {option.description && (
-                                  <span className="bitfun-func-agent-config__pet-select-description">{option.description}</span>
+                                  <span className="openbitfun-func-agent-config__pet-select-description">{option.description}</span>
                                 )}
                               </span>
                             </div>
-                            <div className={`bitfun-func-agent-config__pet-select-actions${isUserPet && IS_TAURI_DESKTOP && pet ? ' bitfun-func-agent-config__pet-select-actions--deletable' : ''}`} data-bf-component="session-config" data-bf-part="petActions">
+                            <div className={`openbitfun-func-agent-config__pet-select-actions${isUserPet && IS_TAURI_DESKTOP && pet ? ' openbitfun-func-agent-config__pet-select-actions--deletable' : ''}`} data-openbitfun-component="session-config" data-openbitfun-part="petActions">
                               {isSelected && (
-                                <Check className="bitfun-func-agent-config__pet-select-check" size={14} aria-hidden />
+                                <Check className="openbitfun-func-agent-config__pet-select-check" size={14} aria-hidden />
                               )}
                               {isUserPet && IS_TAURI_DESKTOP && pet && (
                                 <IconButton
                                   type="button"
                                   size="small"
                                   variant="danger"
-                                  className="bitfun-func-agent-config__pet-select-delete"
+                                  className="openbitfun-func-agent-config__pet-select-delete"
                                   disabled={isDeleting}
                                   aria-label={t('features.agentCompanion.delete')}
                                   tooltip={t('features.agentCompanion.delete')}
@@ -1222,7 +1222,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
           description={t('features.workspaceSearch.subtitle')}
         >
           <ConfigPageRow label={t('features.workspaceSearch.enable')} align="center">
-            <div className="bitfun-func-agent-config__row-control" data-bf-component="session-config" data-bf-part="control">
+            <div className="openbitfun-func-agent-config__row-control" data-openbitfun-component="session-config" data-openbitfun-part="control">
               <Switch
                 checked={settings.enable_workspace_search}
                 onChange={(e) => updateSetting('enable_workspace_search', e.target.checked)}
@@ -1245,7 +1245,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                 : t('permissionPolicy.askDescription')} ${t('permissionPolicy.modeDescription')}`}
             align="center"
           >
-            <div className="bitfun-func-agent-config__row-control" data-bf-component="session-config" data-bf-part="control">
+            <div className="openbitfun-func-agent-config__row-control" data-openbitfun-component="session-config" data-openbitfun-part="control">
               <Select
                 size="small"
                 value={resolveToolPermissionMode(toolPermissionConfig)}
@@ -1264,7 +1264,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
             description={t('permissionPolicy.showInChatInputDescription')}
             align="center"
           >
-            <div className="bitfun-func-agent-config__row-control">
+            <div className="openbitfun-func-agent-config__row-control">
               <Switch
                 checked={showPermissionModeControl}
                 disabled={permissionModeControlVisibilitySaving}
@@ -1278,7 +1278,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
             description={t('permissionPolicy.globalRulesDescription')}
             align="center"
           >
-            <div className="bitfun-func-agent-config__row-control" data-bf-component="session-config" data-bf-part="control">
+            <div className="openbitfun-func-agent-config__row-control" data-openbitfun-component="session-config" data-openbitfun-part="control">
               <Button
                 type="button"
                 size="small"
@@ -1310,7 +1310,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
             description={tTools('config.executionTimeoutDesc')}
             align="center"
           >
-            <div className="bitfun-func-agent-config__row-control" data-bf-component="session-config" data-bf-part="control">
+            <div className="openbitfun-func-agent-config__row-control" data-openbitfun-component="session-config" data-openbitfun-part="control">
               <NumberInput
                 value={executionTimeout === '' ? 0 : parseInt(executionTimeout, 10)}
                 onChange={(val) => handleToolTimeoutChange(val === 0 ? '' : String(val))}
@@ -1328,7 +1328,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
             description={tTools('config.subagentBatchPolicy.desc')}
             align="center"
           >
-            <div className="bitfun-func-agent-config__row-control" data-bf-component="session-config" data-bf-part="control">
+            <div className="openbitfun-func-agent-config__row-control" data-openbitfun-component="session-config" data-openbitfun-part="control">
               <Select
                 value={subagentBatchExecutionPolicy}
                 options={subagentBatchExecutionPolicyOptions}
@@ -1343,7 +1343,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
             description={tTools('config.subagentMaxConcurrencyDesc')}
             align="center"
           >
-            <div className="bitfun-func-agent-config__row-control" data-bf-component="session-config" data-bf-part="control">
+            <div className="openbitfun-func-agent-config__row-control" data-openbitfun-component="session-config" data-openbitfun-part="control">
               <NumberInput
                 value={subagentMaxConcurrency}
                 onChange={(val) => void handleSubagentMaxConcurrencyChange(val)}
@@ -1366,7 +1366,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
             description={!enableDeferredToolLoading ? t('deferredToolLoading.warning') : undefined}
             align="center"
           >
-            <div className="bitfun-func-agent-config__row-control" data-bf-component="session-config" data-bf-part="control">
+            <div className="openbitfun-func-agent-config__row-control" data-openbitfun-component="session-config" data-openbitfun-part="control">
               <Switch
                 checked={enableDeferredToolLoading}
                 onChange={(event) => handleDeferredToolLoadingChange(event.target.checked)}
@@ -1388,7 +1388,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
           {IS_TAURI_DESKTOP && !peerBrowserControlUnsupported ? (
             <>
               <ConfigPageRow label={t('computerUse.enable')} description={t('computerUse.enableDesc')} align="center">
-                <div className="bitfun-func-agent-config__row-control" data-bf-component="session-config" data-bf-part="control">
+                <div className="openbitfun-func-agent-config__row-control" data-openbitfun-component="session-config" data-openbitfun-part="control">
                   <Switch
                     checked={computerUseEnabled}
                     onChange={(e) => handleComputerUseEnabledChange(e.target.checked)}
@@ -1404,9 +1404,9 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                 balanced
               >
                 <div
-                  className="bitfun-func-agent-config__row-control"
-                  data-bf-component="session-config"
-                  data-bf-part="control"
+                  className="openbitfun-func-agent-config__row-control"
+                  data-openbitfun-component="session-config"
+                  data-openbitfun-part="control"
                   style={{
                     display: 'flex',
                     flexDirection: 'row',
@@ -1417,7 +1417,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                   }}
                 >
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <span className={!computerUseStatusLoading && computerUseAccess ? 'bitfun-func-agent-config__perm-status--granted' : undefined}>
+                    <span className={!computerUseStatusLoading && computerUseAccess ? 'openbitfun-func-agent-config__perm-status--granted' : undefined}>
                       {computerUseAccessLabel}
                     </span>
                     <IconButton
@@ -1434,7 +1434,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                   </span>
                   {platform === 'macos' && (
                     <Button
-                      className="bitfun-func-agent-config__row-action-btn"
+                      className="openbitfun-func-agent-config__row-action-btn"
                       size="small"
                       variant="secondary"
                       disabled={computerUseBusy || computerUseStatusLoading}
@@ -1452,9 +1452,9 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                 balanced
               >
                 <div
-                  className="bitfun-func-agent-config__row-control"
-                  data-bf-component="session-config"
-                  data-bf-part="control"
+                  className="openbitfun-func-agent-config__row-control"
+                  data-openbitfun-component="session-config"
+                  data-openbitfun-part="control"
                   style={{
                     display: 'flex',
                     flexDirection: 'row',
@@ -1465,7 +1465,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                   }}
                 >
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <span className={!computerUseStatusLoading && computerUseScreen ? 'bitfun-func-agent-config__perm-status--granted' : undefined}>
+                    <span className={!computerUseStatusLoading && computerUseScreen ? 'openbitfun-func-agent-config__perm-status--granted' : undefined}>
                       {computerUseScreenLabel}
                     </span>
                     <IconButton
@@ -1482,7 +1482,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                   </span>
                   {platform === 'macos' && (
                     <Button
-                      className="bitfun-func-agent-config__row-action-btn"
+                      className="openbitfun-func-agent-config__row-action-btn"
                       size="small"
                       variant="secondary"
                       disabled={computerUseBusy || computerUseStatusLoading}
@@ -1495,9 +1495,9 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
               </ConfigPageRow>
               {computerUsePlatformMessage && (
                 <div
-                  className="bitfun-func-agent-config__platform-note"
-                  data-bf-component="session-config"
-                  data-bf-part="platformNote"
+                  className="openbitfun-func-agent-config__platform-note"
+                  data-openbitfun-component="session-config"
+                  data-openbitfun-part="platformNote"
                   style={{
                     display: 'flex',
                     alignItems: 'flex-start',
@@ -1506,7 +1506,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                   }}
                 >
                   <Info size={14} style={{ flexShrink: 0, marginTop: 2, opacity: 0.7 }} />
-                  <p className="bitfun-config-page-row__description" style={{ margin: 0 }}>
+                  <p className="openbitfun-config-page-row__description" style={{ margin: 0 }}>
                     <strong>{t('computerUse.platformNote')}: </strong>
                     {computerUsePlatformMessage}
                   </p>
@@ -1540,7 +1540,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                 align="center"
                 balanced
               >
-                <div className="bitfun-func-agent-config__row-control" data-bf-component="session-config" data-bf-part="control">
+                <div className="openbitfun-func-agent-config__row-control" data-openbitfun-component="session-config" data-openbitfun-part="control">
                   <Select
                     value={preferredBrowser}
                     options={browserSelectOptions}
@@ -1560,9 +1560,9 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                   balanced
                 >
                   <div
-                    className="bitfun-func-agent-config__row-control"
-                    data-bf-component="session-config"
-                    data-bf-part="control"
+                    className="openbitfun-func-agent-config__row-control"
+                    data-openbitfun-component="session-config"
+                    data-openbitfun-part="control"
                     style={{
                       display: 'flex',
                       flexDirection: 'row',
@@ -1572,14 +1572,14 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                       gap: 8,
                     }}
                   >
-                    <span className={browserDefaultCdpEnabled ? 'bitfun-func-agent-config__perm-status--granted' : undefined}>
+                    <span className={browserDefaultCdpEnabled ? 'openbitfun-func-agent-config__perm-status--granted' : undefined}>
                       {t(browserDefaultCdpEnabled
                         ? 'browserControl.defaultCdpEnabled'
                         : 'browserControl.defaultCdpDisabled')}
                     </span>
                     {!browserCdpAvailable && (
                       <Button
-                        className="bitfun-func-agent-config__row-action-btn"
+                        className="openbitfun-func-agent-config__row-action-btn"
                         size="small"
                         variant="secondary"
                         disabled={browserControlBusy || browserStatusLoading}
@@ -1600,7 +1600,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                   align="center"
                   balanced
                 >
-                  <div className="bitfun-func-agent-config__row-control" data-bf-component="session-config" data-bf-part="control">
+                  <div className="openbitfun-func-agent-config__row-control" data-openbitfun-component="session-config" data-openbitfun-part="control">
                     <Switch
                       checked={browserAutoConnectOnStartup}
                       onChange={(e) => void handleBrowserAutoConnectChange(e.target.checked)}
@@ -1616,9 +1616,9 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                 balanced
               >
                 <div
-                  className="bitfun-func-agent-config__row-control"
-                  data-bf-component="session-config"
-                  data-bf-part="control"
+                  className="openbitfun-func-agent-config__row-control"
+                  data-openbitfun-component="session-config"
+                  data-openbitfun-part="control"
                   style={{
                     display: 'flex',
                     flexDirection: 'row',
@@ -1640,7 +1640,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                     title={browserCdpAvailable && browserVersion ? `${browserKind} ${browserVersion}` : undefined}
                   >
                     <span
-                      className={!browserStatusLoading && browserCdpAvailable ? 'bitfun-func-agent-config__perm-status--granted' : undefined}
+                      className={!browserStatusLoading && browserCdpAvailable ? 'openbitfun-func-agent-config__perm-status--granted' : undefined}
                       style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
                     >
                       {browserStatusLabel}
@@ -1659,7 +1659,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                   </span>
                   {!browserCdpAvailable && !browserDefaultCdpSupported && (
                     <Button
-                      className="bitfun-func-agent-config__row-action-btn"
+                      className="openbitfun-func-agent-config__row-action-btn"
                       size="small"
                       variant="secondary"
                       disabled={browserControlBusy || browserStatusLoading}
@@ -1693,7 +1693,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
             label={tDebug('settings.logPath.label')}
             description={tDebug('settings.logPath.description')}
           >
-            <div className="bitfun-debug-config__input-group" data-bf-component="session-config" data-bf-part="debugInputs">
+            <div className="openbitfun-debug-config__input-group" data-openbitfun-component="session-config" data-openbitfun-part="debugInputs">
               <Input
                 value={debugConfig.log_path}
                 onChange={(e) => updateDebugConfig({ log_path: e.target.value })}
@@ -1730,7 +1730,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
           {/* Save / cancel for basic settings changes (not shown while modal is open) */}
           {debugHasChanges && !isTemplatesModalOpen && (
             <ConfigPageRow label={tDebug('actions.save')} align="center">
-              <div className="bitfun-debug-config__settings-actions" data-bf-component="session-config" data-bf-part="debugActions">
+              <div className="openbitfun-debug-config__settings-actions" data-openbitfun-component="session-config" data-openbitfun-part="debugActions">
                 <Button
                   variant="primary"
                   size="small"
@@ -1778,7 +1778,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
               type="button"
               variant="ghost"
               size="xs"
-              className="bitfun-debug-config__modal-reset-icon"
+              className="openbitfun-debug-config__modal-reset-icon"
               onClick={resetDebugTemplates}
               tooltip={tDebug('templates.reset')}
               aria-label={tDebug('templates.reset')}
@@ -1788,7 +1788,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
           )}
           size="large"
         >
-          <div className="bitfun-debug-config__modal-body" data-bf-component="session-config" data-bf-part="templateModal">
+          <div className="openbitfun-debug-config__modal-body" data-openbitfun-component="session-config" data-openbitfun-part="templateModal">
             {templateEntries.map(([language, template]) => {
               const isExpanded = expandedTemplates.has(language);
               return (
@@ -1797,18 +1797,18 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                   variant="default"
                   padding="none"
                   interactive
-                  className={`bitfun-debug-config__template-card${isExpanded ? ' is-expanded' : ''}`}
-                  data-bf-component="session-config"
-                  data-bf-part="templateCard"
-                  data-bf-state={isExpanded ? 'expanded' : ''}
+                  className={`openbitfun-debug-config__template-card${isExpanded ? ' is-expanded' : ''}`}
+                  data-openbitfun-component="session-config"
+                  data-openbitfun-part="templateCard"
+                  data-openbitfun-state={isExpanded ? 'expanded' : ''}
                 >
                   <div
-                    className="bitfun-debug-config__template-header"
-                    data-bf-component="session-config"
-                    data-bf-part="templateHeader"
+                    className="openbitfun-debug-config__template-header"
+                    data-openbitfun-component="session-config"
+                    data-openbitfun-part="templateHeader"
                     onClick={() => toggleTemplateExpand(language)}
                   >
-                    <div className="bitfun-debug-config__template-info" data-bf-component="session-config" data-bf-part="templateInfo">
+                    <div className="openbitfun-debug-config__template-info" data-openbitfun-component="session-config" data-openbitfun-part="templateInfo">
                       <div onClick={(e) => e.stopPropagation()}>
                         <Switch
                           checked={template.enabled}
@@ -1816,19 +1816,19 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                           size="small"
                         />
                       </div>
-                      <span className="bitfun-debug-config__template-name">
+                      <span className="openbitfun-debug-config__template-name">
                         {template.display_name || LANGUAGE_TEMPLATE_LABELS[language] || language}
                       </span>
                     </div>
                     <ChevronDown
                       size={16}
-                      className={`bitfun-debug-config__template-arrow${isExpanded ? ' is-expanded' : ''}`}
+                      className={`openbitfun-debug-config__template-arrow${isExpanded ? ' is-expanded' : ''}`}
                     />
                   </div>
 
                   {isExpanded && (
-                    <CardBody className="bitfun-debug-config__template-content" data-bf-component="session-config" data-bf-part="templateContent">
-                      <div className="bitfun-debug-config__template-field" data-bf-component="session-config" data-bf-part="templateField">
+                    <CardBody className="openbitfun-debug-config__template-content" data-openbitfun-component="session-config" data-openbitfun-part="templateContent">
+                      <div className="openbitfun-debug-config__template-field" data-openbitfun-component="session-config" data-openbitfun-part="templateField">
                         <Textarea
                           label={tDebug('templates.instrumentation.label')}
                           value={template.instrumentation_template}
@@ -1839,11 +1839,11 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                           autoResize
                         />
                       </div>
-                      <div className="bitfun-debug-config__template-field" data-bf-component="session-config" data-bf-part="templateField">
-                        <label className="bitfun-debug-config__template-label">
+                      <div className="openbitfun-debug-config__template-field" data-openbitfun-component="session-config" data-openbitfun-part="templateField">
+                        <label className="openbitfun-debug-config__template-label">
                           {tDebug('templates.region.label')}
                         </label>
-                        <div className="bitfun-debug-config__region-inputs">
+                        <div className="openbitfun-debug-config__region-inputs">
                           <Input
                             value={template.region_start}
                             onChange={(e) => updateTemplate(language, { region_start: e.target.value })}
@@ -1861,13 +1861,13 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                         </div>
                       </div>
                       {template.notes && template.notes.length > 0 && (
-                        <div className="bitfun-debug-config__template-field" data-bf-component="session-config" data-bf-part="templateField">
-                          <label className="bitfun-debug-config__template-label">
+                        <div className="openbitfun-debug-config__template-field" data-openbitfun-component="session-config" data-openbitfun-part="templateField">
+                          <label className="openbitfun-debug-config__template-label">
                             {tDebug('templates.notes')}
                           </label>
-                          <div className="bitfun-debug-config__template-notes" data-bf-component="session-config" data-bf-part="templateNotes">
+                          <div className="openbitfun-debug-config__template-notes" data-openbitfun-component="session-config" data-openbitfun-part="templateNotes">
                             {template.notes.map((note, idx) => (
-                              <span key={idx} className="bitfun-debug-config__template-note">
+                              <span key={idx} className="openbitfun-debug-config__template-note">
                                 {note}
                               </span>
                             ))}
@@ -1882,7 +1882,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
           </div>
 
           {debugHasChanges && (
-            <div className="bitfun-debug-config__modal-footer" data-bf-component="session-config" data-bf-part="modalFooter">
+            <div className="openbitfun-debug-config__modal-footer" data-openbitfun-component="session-config" data-openbitfun-part="modalFooter">
               <Button
                 variant="primary"
                 size="small"
@@ -1912,14 +1912,14 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
           size="small"
           closeOnOverlayClick={!browserControlBusy}
         >
-          <div className="bitfun-debug-config__modal-body" data-bf-component="session-config" data-bf-part="restartModal">
+          <div className="openbitfun-debug-config__modal-body" data-openbitfun-component="session-config" data-openbitfun-part="restartModal">
             <p>{t('browserControl.restartModal.description', { browser: browserRestartPrompt?.browserKind || browserKind })}</p>
             <p>{t('browserControl.restartModal.warning')}</p>
             {browserRestartPrompt?.message ? (
-              <p className="bitfun-func-agent-config__hint">{browserRestartPrompt.message}</p>
+              <p className="openbitfun-func-agent-config__hint">{browserRestartPrompt.message}</p>
             ) : null}
           </div>
-          <div className="bitfun-debug-config__modal-footer" data-bf-component="session-config" data-bf-part="modalFooter">
+          <div className="openbitfun-debug-config__modal-footer" data-openbitfun-component="session-config" data-openbitfun-part="modalFooter">
             <Button
               variant="secondary"
               size="small"

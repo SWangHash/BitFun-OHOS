@@ -1,3 +1,5 @@
+@use '@/shared/styles/overlay-layout' as overlay-layout;
+
 .dispatch-target-picker {
   position: relative;
   display: inline-flex;
@@ -14,13 +16,13 @@
     height: 18px;
     padding: 0 5px;
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--bf-color-accent-default) 28%, transparent);
-    border-radius: var(--bf-radius-sm);
-    background: color-mix(in srgb, var(--bf-color-accent-default) 7%, transparent);
-    color: var(--bf-color-content-secondary);
+    border: 1px solid color-mix(in srgb, var(--openbitfun-color-accent-default) 28%, transparent);
+    border-radius: var(--openbitfun-radius-sm);
+    background: color-mix(in srgb, var(--openbitfun-color-accent-default) 7%, transparent);
+    color: var(--openbitfun-color-content-secondary);
     font: inherit;
-    font-size: var(--bf-type-flow-micro-font-size);
-    line-height: var(--bf-line-height-none);
+    font-size: var(--openbitfun-type-flow-micro-font-size);
+    line-height: var(--openbitfun-type-modifier-leading-none-line-height);
     cursor: pointer;
     transition:
       background-color 120ms ease,
@@ -30,13 +32,13 @@
 
     &:hover:not(:disabled),
     &[aria-expanded='true'] {
-      border-color: color-mix(in srgb, var(--bf-color-accent-default) 52%, transparent);
-      background: color-mix(in srgb, var(--bf-color-accent-default) 12%, transparent);
-      color: var(--bf-color-content-primary);
+      border-color: color-mix(in srgb, var(--openbitfun-color-accent-default) 52%, transparent);
+      background: color-mix(in srgb, var(--openbitfun-color-accent-default) 12%, transparent);
+      color: var(--openbitfun-color-content-primary);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--bf-color-accent-default);
+      outline: 2px solid var(--openbitfun-color-accent-default);
       outline-offset: 1px;
     }
 
@@ -62,20 +64,35 @@
   }
 
   &__menu {
+    @include overlay-layout.anchored-picker-inline-size;
+
+    --openbitfun-overlay-menu-section-gap: var(--openbitfun-space-1);
+
     position: fixed;
-    z-index: var(--bf-layer-popover);
+    z-index: var(--openbitfun-layer-popover);
   }
 
   &__option-row {
-    min-height: 46px;
-    padding-block: 5px;
+    min-height: var(--openbitfun-control-height-md);
+
+    // The two local execution modes keep matching title ink regardless of
+    // which row is selected. Every option detail shares the quieter treatment
+    // declared on `small` below.
+    &[data-openbitfun-part='option'] {
+      .dispatch-target-picker__option-copy {
+        strong {
+          color: var(--openbitfun-color-content-secondary);
+          opacity: var(--openbitfun-opacity-focus);
+        }
+      }
+    }
   }
 
   &__option-copy {
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 2px;
+    gap: calc(var(--openbitfun-space-1) / 2);
 
     strong,
     small {
@@ -85,23 +102,36 @@
     }
 
     strong {
-      font-size: var(--bf-font-size-xs);
-      font-weight: var(--bf-font-weight-medium);
+      font-family: var(--openbitfun-type-label-md-font-family);
+      font-size: var(--openbitfun-type-label-md-font-size);
+      font-weight: var(--openbitfun-type-label-md-font-weight);
+      line-height: var(--openbitfun-type-label-md-line-height);
+      letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
     }
 
     small {
-      color: var(--bf-color-content-muted);
-      font-size: var(--bf-font-size-micro);
+      color: var(--openbitfun-color-content-muted);
+      opacity: 0.5;
+      font-family: var(--openbitfun-type-meta-font-family);
+      font-size: var(--openbitfun-type-meta-font-size);
+      font-weight: var(--openbitfun-type-meta-font-weight);
+      line-height: var(--openbitfun-type-meta-line-height);
+      letter-spacing: var(--openbitfun-type-meta-letter-spacing);
     }
   }
 
   &__status {
     display: flex;
     align-items: center;
-    gap: var(--bf-space-2);
-    padding: 9px 8px;
-    color: var(--bf-color-content-muted);
-    font-size: var(--bf-font-size-xs);
+    gap: var(--openbitfun-space-2);
+    min-height: var(--openbitfun-overlay-menu-heading-height);
+    padding-inline: var(--openbitfun-overlay-menu-item-padding-inline);
+    color: var(--openbitfun-color-content-muted);
+    font-family: var(--openbitfun-type-meta-font-family);
+    font-size: var(--openbitfun-type-meta-font-size);
+    font-weight: var(--openbitfun-type-meta-font-weight);
+    line-height: var(--openbitfun-type-meta-line-height);
+    letter-spacing: var(--openbitfun-type-meta-letter-spacing);
   }
 
   &__spin {

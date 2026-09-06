@@ -1,6 +1,11 @@
 {
   "title": "ACP Agent",
-  "subtitle": "管理透過 ACP 連線的外部 Agent。",
+  "subtitle": "管理透過 ACP 連線的外部 Agent",
+  "views": {
+    "local": "本機",
+    "ssh": "SSH",
+    "json": "進階 JSON"
+  },
   "actions": {
     "add": "新增",
     "addConfig": "新增設定",
@@ -12,24 +17,36 @@
     "save": "儲存",
     "refresh": "重新檢測",
     "learnMore": "ACP 文件",
-    "editJson": "編輯 JSON",
-    "closeJson": "關閉 JSON",
     "saveJson": "儲存 JSON",
     "revert": "還原",
     "install": "安裝",
     "restorePreset": "恢復預設",
-    "predownloadAcp": "預下載 ACP"
+    "predownloadAcp": "預下載 ACP",
+    "retry": "重新載入"
   },
   "json": {
-    "title": "JSON 設定",
-    "description": "直接編輯 acpClients 設定。"
+    "title": "進階 JSON 設定",
+    "description": "直接編輯目前執行主機上的 acpClients 設定。僅在列表無法表達所需參數時使用",
+    "discardTitle": "放棄未儲存的 JSON 修改？",
+    "discardMessage": "離開進階 JSON 後，這些未儲存的修改將遺失。",
+    "discardConfirm": "放棄修改"
+  },
+  "security": {
+    "secretWarning": "ACP JSON 和環境變數可能包含 API 金鑰或存取權杖。OpenBitFun 會把它們儲存到目前執行主機的設定中；請勿貼到線上 JSON 驗證工具、聊天或工單中。"
+  },
+  "installConfirm": {
+    "title": "安裝 {{name}} CLI？",
+    "message": "目標主機：{{host}}。OpenBitFun 將執行「{{command}}」，把 npm 套件全域安裝到該主機；這會修改該主機的全域命令環境，並可能需要網路與寫入權限。",
+    "localHost": "目前執行主機",
+    "packageUnknown": "無法確認此 Agent 的安裝套件，已取消安裝",
+    "confirm": "在目標主機安裝"
   },
   "presets": {
-    "opencode": { "description": "原生支援 ACP。" },
-    "dsh": { "description": "透過 BitFun 內建 ACP 橋接，沿用 dsh 的模型與 API 金鑰。" },
-    "omp": { "description": "原生支援 ACP。" },
-    "claudeCode": { "description": "透過官方 ACP 適配器連線。" },
-    "codex": { "description": "透過官方 ACP 適配器連線。" }
+    "opencode": { "description": "原生支援 ACP" },
+    "dsh": { "description": "透過 OpenBitFun 內建 ACP 橋接，沿用 dsh 的模型與 API 金鑰" },
+    "omp": { "description": "原生支援 ACP" },
+    "claudeCode": { "description": "透過官方 ACP 適配器連線" },
+    "codex": { "description": "透過官方 ACP 適配器連線" }
   },
   "registry": {
     "title": "Agent 列表",
@@ -57,7 +74,7 @@
     "permissionDenied": "權限不足",
     "partialDetail": "CLI 已就緒，但 ACP 適配器尚未設定。",
     "cliMissingDetail": "未檢測到對應命令，請確認已安裝並加入 PATH。",
-    "selfManagedCliMissingDetail": "{{name}} 需要在 BitFun 外單獨安裝。請安裝 {{command}} CLI 並確認它已加入 PATH，然後重新整理檢測。",
+    "selfManagedCliMissingDetail": "{{name}} 需要在 OpenBitFun 外單獨安裝。請安裝 {{command}} CLI 並確認它已加入 PATH，然後重新整理檢測。",
     "acpMissingDetail": "ACP 適配器暫不可用。",
     "pathInvalidDetail": "命令路徑無法解析，請確認路徑有效。",
     "versionMismatchDetail": "偵測到的版本與目前執行環境不匹配。",
@@ -66,17 +83,17 @@
     "configInvalidDetail": "目前 ACP 設定暫時無法直接使用。",
     "toolPath": "路徑",
     "toolVersion": "版本",
-    "empty": "沒有匹配的 ACP Agent。"
+    "empty": "沒有匹配的 ACP Agent"
   },
   "clients": {
     "loading": "正在載入 ACP Agent…"
   },
   "remote": {
     "title": "SSH 伺服器",
-    "description": "檢測已儲存 SSH 伺服器上的 ACP Agent。",
-    "empty": "沒有已儲存的 SSH 伺服器。",
-    "emptyVisible": "沒有顯示中的 SSH 伺服器。",
-    "noAgents": "請先新增 ACP Agent，再檢測遠端伺服器。",
+    "description": "檢測已儲存 SSH 伺服器上的 ACP Agent",
+    "empty": "沒有已儲存的 SSH 伺服器",
+    "emptyVisible": "沒有顯示中的 SSH 伺服器",
+    "noAgents": "請先新增 ACP Agent，再檢測遠端伺服器",
     "refreshDetection": "重新整理檢測",
     "hideConnection": "在 ACP Agents 中隱藏「{{name}}」",
     "restoreConnection": "在 ACP Agents 中顯示「{{name}}」",
@@ -108,6 +125,7 @@
   },
   "notifications": {
     "loadFailed": "載入 ACP 設定失敗",
+    "loadFailedLocked": "無法讀取 ACP 設定。為避免把現有 Agent 設定覆蓋為空，目前頁面已鎖定。",
     "saveSuccess": "ACP 設定已儲存",
     "configAdded": "ACP Agent 設定已新增",
     "configAddedManualCliRequired": "{{name}} 設定已新增。請手動安裝 {{command}} CLI，然後重新整理檢測。",

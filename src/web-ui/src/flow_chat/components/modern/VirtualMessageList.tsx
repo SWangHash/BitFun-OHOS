@@ -34,7 +34,10 @@ import {
 } from '../../store/modernFlowChatStore';
 import { useChatInputState } from '../../store/chatInputStateStore';
 import type { ActiveTurnRenderRange } from '../../types/flow-chat';
-import { computeFlowChatInputStackFooterPx } from '../../utils/flowChatScrollLayout';
+import {
+  computeFlowChatInputOverlayInsetPx,
+  computeFlowChatInputStackFooterPx,
+} from '../../utils/flowChatScrollLayout';
 import { getMotionAwareScrollBehavior } from '../../utils/motionPreference';
 import { ScrollToLatestBar } from '../ScrollToLatestBar';
 import { ScrollToTurnHeaderButton } from '../ScrollToTurnHeaderButton';
@@ -80,6 +83,7 @@ import {
 import { resolveVisibleFlowChatTurnIds } from './flowChatVisibleTurns';
 import type { FlowChatViewportSnapshot } from './flowChatViewportSnapshot';
 import { getVirtualItemStableKey } from './virtualItemIdentity';
+import { isAmbientToolRunContinuationAfter } from './flowChatRhythm';
 import { warnHistoryPagingRefusedWithPendingTurns } from '../../services/historySessionDiagnostics';
 import {
   VIEWPORT_PLACEMENT_SETTLE_MS,
@@ -96,6 +100,12 @@ const SEARCH_NAVIGATION_MAX_ATTEMPTS = 24;
 const OPEN_REVEAL_QUIET_FRAMES = 2;
 /** Hard cap so the transcript is always revealed, settled or not. */
 const OPEN_REVEAL_MAX_FRAMES = 40;
+/**
+ * Treat sub-pixel scroll offsets as the scroll start. WebView2 and inertial
+ * scrolling can leave a tiny positive value after the viewport reaches the
+ * top, which would otherwise make the edge fade flicker back on.
+ */
+const FLOWCHAT_SCROLL_START_THRESHOLD_PX = 1;
 /**
  * Resize callbacks over which a viewport resting at the end is re-aligned after
  * the scroller's own box changes.
@@ -221,8 +231,8 @@ const FlowChatListHeader = forwardRef<HTMLDivElement, {
   <div ref={ref} className="message-list-header-block">
     <div
       className="message-list-header"
-      data-bf-component="virtual-message-list"
-      data-bf-part="header"
+      data-openbitfun-component="virtual-message-list"
+      data-openbitfun-part="header"
       style={{
         height: `${FLOWCHAT_TURN_TOP_GAP_PX}px`,
         minHeight: `${FLOWCHAT_TURN_TOP_GAP_PX}px`,
@@ -247,8 +257,8 @@ const FlowChatListFooter = ({
   <>
     <div
       className="message-list-footer"
-      data-bf-component="virtual-message-list"
-      data-bf-part="footer"
+      data-openbitfun-component="virtual-message-list"
+      data-openbitfun-part="footer"
       style={{
         height: `${bottomLayoutInsetPx}px`,
         minHeight: `${bottomLayoutInsetPx}px`,
@@ -264,8 +274,8 @@ const FlowChatListFooter = ({
     */}
     <div
       className="message-list-tail-spacer"
-      data-bf-component="virtual-message-list"
-      data-bf-part="tailSpacer"
+      data-openbitfun-component="virtual-message-list"
+      data-openbitfun-part="tailSpacer"
       aria-hidden="true"
       style={{
         height: `${tailSpacerPx}px`,
@@ -284,9 +294,9 @@ const FlowChatHistoryPagingSentinel = ({
 }) => (
   <div
     className="virtual-message-list__history-paging-sentinel"
-    data-bf-component="virtual-message-list"
-    data-bf-part="boundaryStatus"
-    data-bf-state={state === 'loading' ? 'preparing' : state === 'error' ? 'unavailable' : undefined}
+    data-openbitfun-component="virtual-message-list"
+    data-openbitfun-part="boundaryStatus"
+    data-openbitfun-state={state === 'loading' ? 'preparing' : state === 'error' ? 'unavailable' : undefined}
     data-history-paging-sentinel={state}
     data-history-boundary-status={state === 'loading' ? 'preparing' : state === 'error' ? 'not-ready' : undefined}
     aria-hidden={state === 'idle'}
@@ -442,6 +452,11 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     before: false,
     after: false,
   });
+  /** Re-arming is a transition out of a boundary, not a repeated level read. */
+  const boundaryReachedRef = useRef<Record<SessionHistoryWindowDirection, boolean>>({
+    before: false,
+    after: false,
+  });
   /**
    * `exhausted` describes the window that asked, not the session.
    *
@@ -464,6 +479,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
   if (previousWindowBoundsKeyRef.current !== windowBoundsKey) {
     previousWindowBoundsKeyRef.current = windowBoundsKey;
     exhaustedBoundaryRef.current = { before: false, after: false };
+    boundaryReachedRef.current = { before: false, after: false };
   }
   /**
    * Whether a boundary may be asked about again.
@@ -533,6 +549,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
   }, [activeSession, activeSessionState.isProcessing, viewportMode]);
 
   const inputHeight = useChatInputState(state => state.inputHeight);
+  const inputOverlayInsetPx = computeFlowChatInputOverlayInsetPx(inputHeight);
   const bottomLayoutInsetPx = computeFlowChatInputStackFooterPx(inputHeight);
 
   const tailSpacerPx = tailSpacerPxForViewport(viewportHeightPx, bottomLayoutInsetPx);
@@ -1398,6 +1415,19 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     setIsAtBottom(atTail);
   }, [getFollowTargetScrollTop, isFollowCorrectingViewport, readContentEndScrollTop]);
 
+  const updateIsAtScrollStart = useCallback(() => {
+    const scroller = scrollerElementRef.current;
+    if (!scroller) return;
+    const nextIsAtScrollStart = scroller.scrollTop <= FLOWCHAT_SCROLL_START_THRESHOLD_PX;
+    const nextAttribute = nextIsAtScrollStart ? 'true' : 'false';
+    if (scroller.dataset.scrollAtStart !== nextAttribute) {
+      // This attribute drives only the CSS mask. Keeping it out of React state
+      // prevents a visual scroll update from re-rendering the virtualizer and
+      // evaluating the history boundary a second time for the same gesture.
+      scroller.dataset.scrollAtStart = nextAttribute;
+    }
+  }, []);
+
   /*
    * The band's lower edge is whatever the follow rule owns, so it moves when
    * ownership changes — and that can happen with the viewport perfectly still.
@@ -1511,6 +1541,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
        * the drag transfers ownership to the reader and preserves where it ends.
        */
       if (isScrollbarPressRef.current) notifyUserScrollIntent();
+      updateIsAtScrollStart();
       updateIsAtBottom();
       handleScroll();
       /*
@@ -1569,6 +1600,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     publishViewportSnapshot,
     scheduleVisibleTurnInfoUpdate,
     scrollerElement,
+    updateIsAtScrollStart,
     updateIsAtBottom,
     viewportAnchor,
     viewportOwner,
@@ -1614,6 +1646,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
         }
         return;
       }
+      updateIsAtScrollStart();
       const isResumingSuspendedViewport = isViewportSuspendedRef.current;
       if (isResumingSuspendedViewport) {
         traceViewport({
@@ -1709,6 +1742,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     scheduleViewportSnapshot,
     scheduleVisibleTurnInfoUpdate,
     scrollerElement,
+    updateIsAtScrollStart,
     updateIsAtBottom,
     viewportAnchor,
     viewportOwner,
@@ -2308,9 +2342,11 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     for (const direction of HISTORY_WINDOW_DIRECTIONS) {
       // Off the boundary: whatever the last page added has been absorbed, and
       // arriving there again will be the reader's own doing.
-      if (!reached.has(direction)) {
+      const isReached = reached.has(direction);
+      if (!isReached && boundaryReachedRef.current[direction]) {
         boundaryArmedRef.current[direction] = true;
       }
+      boundaryReachedRef.current[direction] = isReached;
       if (asking.has(direction)) requestHistoryBoundary(direction);
     }
   }, [
@@ -2362,6 +2398,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     scrollerElementRef.current = scroller;
     setScrollerElement(scroller);
     if (scroller) {
+      updateIsAtScrollStart();
       if (!scroller.hasAttribute('tabindex')) {
         scroller.tabIndex = -1;
       }
@@ -2376,7 +2413,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
         observedViewportBoxRef.current = initialViewportBox;
       }
     }
-  }, []);
+  }, [updateIsAtScrollStart]);
 
   const scrollToPhysicalBottom = useCallback(() => {
     setNavigatedTurn(null);
@@ -2472,14 +2509,14 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
   if (virtualItems.length === 0) {
     return (
       <div
-        data-bf-component="virtual-message-list"
-        data-bf-part="root"
-        data-bf-state="empty"
+        data-openbitfun-component="virtual-message-list"
+        data-openbitfun-part="root"
+        data-openbitfun-state="empty"
         className="virtual-message-list virtual-message-list--empty"
         data-testid="flowchat-message-list-empty"
       >
-        <div className="empty-state" data-bf-component="virtual-message-list" data-bf-part="empty">
-          <p data-bf-component="virtual-message-list" data-bf-part="emptyMessage">No messages yet</p>
+        <div className="empty-state" data-openbitfun-component="virtual-message-list" data-openbitfun-part="empty">
+          <p data-openbitfun-component="virtual-message-list" data-openbitfun-part="emptyMessage">No messages yet</p>
         </div>
       </div>
     );
@@ -2487,8 +2524,8 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
 
   return (
     <div
-      data-bf-component="virtual-message-list"
-      data-bf-part="root"
+      data-openbitfun-component="virtual-message-list"
+      data-openbitfun-part="root"
       className="virtual-message-list"
       data-testid="flowchat-message-list"
       data-presentation-mode={presentationMode}
@@ -2501,6 +2538,9 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
         className="virtual-message-list__scroller"
         data-flowchat-scroller="true"
         data-testid="flowchat-scroller"
+        style={{
+          '--_flow-chat-input-overlay-inset': `${inputOverlayInsetPx}px`,
+        } as React.CSSProperties}
       >
         <FlowChatListHeader
           ref={headerElementRef}
@@ -2513,22 +2553,28 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
         */}
         <div
           className="virtual-message-list__items"
-          data-bf-component="virtual-message-list"
-          data-bf-part="items"
+          data-openbitfun-component="virtual-message-list"
+          data-openbitfun-part="items"
           data-testid="flowchat-item-list"
           style={{
             paddingTop: `${virtualizer.paddingTopPx}px`,
             paddingBottom: `${virtualizer.paddingBottomPx}px`,
           }}
         >
-          {virtualizer.rows.map(row => (
-            <VirtualItemRenderer
-              key={row.key}
-              item={virtualItems[row.index]}
-              index={row.index}
-              measureRef={virtualizer.measureRowElement}
-            />
-          ))}
+          {virtualizer.rows.map(row => {
+            const item = virtualItems[row.index];
+            const nextItem = virtualItems[row.index + 1];
+            return (
+              <VirtualItemRenderer
+                key={row.key}
+                item={item}
+                index={row.index}
+                endsBeforeUserTurn={nextItem?.type === 'user-message'}
+                continuesAmbientToolRunAfter={isAmbientToolRunContinuationAfter(item, nextItem)}
+                measureRef={virtualizer.measureRowElement}
+              />
+            );
+          })}
         </div>
         <FlowChatListFooter
           bottomLayoutInsetPx={bottomLayoutInsetPx}

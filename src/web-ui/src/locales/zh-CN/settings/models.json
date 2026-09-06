@@ -1,6 +1,6 @@
 {
   "title": "模型",
-  "subtitle": "管理默认模型、模型服务、订阅账户、模型目录与网络连接。",
+  "subtitle": "管理默认模型、模型服务、订阅账户、模型目录与网络连接",
   "editProvider": "编辑服务商配置",
   "newProvider": "新建服务商配置",
   "editModel": "编辑模型配置",
@@ -11,7 +11,10 @@
   "sessionTitle": {
     "title": "会话标题自动生成",
     "subtitle": "新对话时 AI 自动生成简洁标题",
+    "enable": "启用",
     "loadFailed": "加载会话标题配置失败",
+    "loadFailedLocked": "无法读取会话标题设置。当前开关和模型选择已锁定。",
+    "retry": "重新加载",
     "model": {
       "label": "会话标题生成模型",
       "inherit": "当前会话模型",
@@ -19,7 +22,8 @@
       "fast": "快速模型"
     },
     "models": {
-      "empty": "暂无可用模型，请先在「模型」中添加模型。",
+      "empty": "暂无可用模型，请先在「模型」中添加模型",
+      "unavailable": "{{id}}（已停用或不存在）",
       "updateSuccess": "{{agentName}} 将使用 {{modelName}}"
     },
     "messages": {
@@ -44,7 +48,7 @@
     "refreshFailed": "刷新失败：{{error}}",
     "loginSuccess": "登录成功",
     "loginFailed": "登录失败：{{error}}",
-    "peerLoginRequiresLocalDevice": "Antigravity 登录必须在运行 BitFun 的设备上完成，请切换到该设备后再登录。",
+    "peerLoginRequiresLocalDevice": "Antigravity 登录必须在运行 OpenBitFun 的设备上完成，请切换到该设备后再登录。",
     "logoutSuccess": "已退出登录",
     "logoutCleanupPending": "已退出登录，凭据清理仍在等待中，稍后会自动重试。",
     "logoutFailed": "退出登录失败：{{error}}",
@@ -83,13 +87,11 @@
     "detected": "将使用 {{label}}（账号 {{account}}）",
     "notConnected": "尚未登录 {{kind}}，请先在上方完成登录",
     "unknownAccount": "当前登录账号",
-    "secureStoreMigrationNotice": "订阅凭据现已由 BitFun 凭据存储保护。旧版从第三方 CLI 自动导入的凭据不会被读取；如果你曾使用该方式，请在此重新登录一次。",
-    "dismissMigrationNotice": "知道了",
     "reauthenticationRequired": "凭据存储中未找到可用凭据，请重新登录一次",
     "vaultUnavailable": "凭据存储暂时不可用，请重试；你的登录信息并未被移除",
     "retryVault": "重试凭据库",
     "loginPending": "正在进行登录授权",
-    "browserInstructions": "请在 BitFun 打开的浏览器页面中完成登录，并保持此页面开启；授权后会自动完成。",
+    "browserInstructions": "请在 OpenBitFun 打开的浏览器页面中完成登录，并保持此页面开启；授权后会自动完成。",
     "deviceInstructions": "请在任意设备打开授权页面，输入下方验证码，然后返回此处。",
     "loginCancelling": "正在取消登录并关闭授权会话",
     "loginCompletedBeforeCancel": "授权已在取消前完成，因此该账号仍保持登录状态",
@@ -143,13 +145,13 @@
     "expandModelSettings": "展开「{{name}}」的详细设置",
     "collapseModelSettings": "收起「{{name}}」的详细设置",
     "unsavedModel": "待保存",
-    "unsavedModelHint": "此模型包含尚未保存的修改，请点击模型编辑弹窗底部的“保存”完成持久化。",
+    "unsavedModelHint": "此模型包含尚未保存的修改，请点击模型编辑弹窗底部的“保存”完成持久化",
     "urlHint": "已预填官方 API 地址，如使用代理或私有部署可修改",
     "formatHint": "已根据提供商自动选择，通常无需修改"
   },
   "providers": {
     "openbitfun": {
-      "name": "OpenBitFun",
+      "name": "OpenBitFun 服务",
       "description": "OpenBitFun 大模型平台",
       "urlOptions": {
         "default": "Anthropic格式-默认",
@@ -295,7 +297,7 @@
     "provider": "请求格式",
     "providerPlaceholder": "选择请求格式",
     "contextWindow": "上下文窗口大小",
-    "contextWindowHint": "此值主要用于判断何时触发上下文压缩，可以小于供应商标称的模型最大上下文窗口。",
+    "contextWindowHint": "此值主要用于判断何时触发上下文压缩，可以小于供应商标称的模型最大上下文窗口",
     "contextWindowLongWarning": "当前模型配置的上下文窗口超过 400K。超长上下文可能降低模型效果，建议将其调整到 300K 左右。",
     "maxTokens": "最大输出Tokens",
     "maxTokensHint": "单次请求时限制模型输出的最大token数量（影响响应长度）",
@@ -330,7 +332,7 @@
     "catalogAuto": "自动检测",
     "catalogModelsDev": "指定 models.dev 模型",
     "catalogDisabled": "仅使用自定义预设",
-    "catalogAutoTooltip": "自动检测官方供应商地址下受支持模型的思考预设，同时保留自定义预设。",
+    "catalogAutoTooltip": "优先使用已识别模型的精确思考预设；未命中时提供可手动选择的通用开启、关闭和低/中/高强度，同时保留自定义预设。",
     "catalogModelsDevTooltip": "使用指定 models.dev 供应商和模型的思考预设。模型名称是别名，或兼容网关需要显式绑定时使用。",
     "catalogDisabledTooltip": "不生成 models.dev 和适配器预设，仅保留你配置的自定义预设。",
     "catalogSummary": {
@@ -342,7 +344,7 @@
     "catalogModel": "模型",
     "catalogSearch": "快速查找",
     "catalogSearchPlaceholder": "输入供应商或模型关键词",
-    "catalogSearchHint": "选择结果后自动填充下方供应商和模型。",
+    "catalogSearchHint": "选择结果后自动填充下方供应商和模型",
     "catalogSearchResults": "models.dev 模型搜索结果",
     "catalogSearchEmpty": "没有匹配的 models.dev 思考模型",
     "catalogSearchLimit": "结果较多，请继续输入以缩小范围",
@@ -358,9 +360,8 @@
     "unavailableDescription": "当前 API 格式“{{format}}”无法可靠应用以下预设：{{presets}}。请参考服务提供商的官方文档，并在自定义预设中使用“请求体补丁”配置所需字段。",
     "unknownRequestFormat": "未知",
     "customTitle": "自定义预设",
-    "customTooltip": "自定义预设会把一组思考参数保存为聊天输入框中的可选项。请为每个预设填写名称，再按模型 API 支持情况添加推理强度、思考开关或思考预算；仅在需要补充供应商专用参数时添加请求体补丁。",
+    "customTooltip": "自定义预设会把一个请求体补丁保存为聊天输入框中的可选项。请按当前模型 API 的请求体结构填写 JSON Merge Patch。",
     "add": "添加预设",
-    "addAction": "添加操作",
     "empty": "暂无自定义预设",
     "label": "名称",
     "labelPlaceholder": "显示名称",
@@ -370,12 +371,13 @@
     "moveDown": "下移预设",
     "remove": "删除预设",
     "settingEffort": "推理强度",
-    "effortSearchPlaceholder": "选择或输入思考强度",
-    "effortCustomValueHint": "使用自定义强度",
-    "effortCustomWarning": "这是自定义值，请确认模型 API 支持该值。",
     "settingToggle": "开启 / 关闭",
     "settingBudget": "Token 预算",
     "settingPatch": "请求体补丁",
+    "patchPlaceholder": "不同供应商和 API 格式使用的思考设置字段并不相同，请参考当前服务提供商针对 {{format}} 格式的官方文档。\n示例：\n{\n  \"thinking\": {\n    \"type\": \"enabled\"\n  },\n  \"output_config\": {\n    \"effort\": \"high\"\n  }\n}",
+    "legacyTitle": "旧版操作配置",
+    "legacyDescription": "此预设包含旧版类型化操作或多个补丁。它们会按原顺序保留；只有明确改为单一请求体补丁时才会被替换。",
+    "convertToSinglePatch": "改为单一请求体补丁",
     "actionSummaryEffort": "推理强度：{{value}}",
     "actionSummaryEnabled": "开启思考",
     "actionSummaryDisabled": "关闭思考",
@@ -401,7 +403,7 @@
   },
   "proxy": {
     "enable": "启用代理",
-    "enableHint": "启用后所有AI请求将通过代理发送（需重启IDE生效）",
+    "enableHint": "启用后所有 AI 请求将通过代理发送（需重启 OpenBitFun 生效）",
     "url": "代理地址",
     "urlPlaceholder": "http://127.0.0.1:7890 或 socks5://127.0.0.1:1080",
     "urlHint": "支持 HTTP/HTTPS/SOCKS5 代理，格式：协议://地址:端口",
@@ -410,13 +412,13 @@
     "password": "密码（可选）",
     "passwordPlaceholder": "代理认证密码",
     "save": "保存代理配置",
-    "saveSuccess": "代理配置已保存，重启IDE后生效"
+    "saveSuccess": "代理配置已保存，重启 OpenBitFun 后生效"
   },
   "streamIdleTimeout": {
     "title": "流式超时",
     "effectiveNextRound": "修改后下一次对话生效",
     "label": "Chunk 空闲超时（秒）",
-    "hint": "流式响应开始后，两次 chunk 之间的最大等待时间。留空表示无限等待。",
+    "hint": "流式响应开始后，两次 chunk 之间的最大等待时间。留空表示无限等待",
     "placeholder": "留空表示不设超时",
     "invalid": "请输入正整数秒数，或留空。",
     "save": "保存流式超时",
@@ -425,7 +427,7 @@
   "streamTtftTimeout": {
     "title": "首 Token 超时",
     "label": "TTFT 超时（秒）",
-    "hint": "请求发出后，等待首个有效流式输出的最长时间。留空表示无限等待。",
+    "hint": "请求发出后，等待首个有效流式输出的最长时间。留空表示无限等待",
     "placeholder": "留空表示不设超时",
     "invalid": "请输入正整数秒数，或留空。",
     "save": "保存首 Token 超时",
@@ -433,9 +435,9 @@
   },
   "toolArgumentJsonRepair": {
     "title": "工具参数 JSON 修复",
-    "description": "修改将在下一轮模型调用生效。",
+    "description": "修改将在下一轮模型调用生效",
     "label": "修复非法 JSON 工具参数",
-    "hint": "仅在供应商确认工具调用正常完成后尝试。修复可能在常规工具校验前改写非法 JSON。",
+    "hint": "仅在供应商确认工具调用正常完成后尝试。修复可能在常规工具校验前改写非法 JSON",
     "saveSuccess": "工具参数 JSON 修复设置已保存"
   },
   "capabilities": {
@@ -456,11 +458,39 @@
     "cancel": "取消",
     "edit": "编辑",
     "delete": "删除",
+    "deleteProvider": "删除服务商",
     "test": "测试连接",
     "newConfig": "新建配置",
     "addModel": "添加模型",
     "addProvider": "添加服务商",
     "createFirst": "创建第一个配置"
+  },
+  "deleteConfirm": {
+    "title": "删除模型配置？",
+    "message": "将删除模型“{{name}}”。当前有 {{count}} 处设置显式引用此模型；这些引用不会自动改为其他模型，相关功能可能回退或不可用。",
+    "confirm": "删除模型"
+  },
+  "providerDeleteConfirm": {
+    "title": "删除服务商？",
+    "message": "将删除服务商“{{name}}”及其 {{modelCount}} 个模型配置。当前有 {{referenceCount}} 处设置显式引用这些模型；这些引用不会自动改为其他模型，相关功能可能回退或不可用。关联的订阅账号不会退出登录。",
+    "messageWithDraft": "将删除服务商“{{name}}”及其 {{modelCount}} 个模型配置，同时丢弃该服务商尚未保存的编辑草稿。当前有 {{referenceCount}} 处设置显式引用这些模型；这些引用不会自动改为其他模型，相关功能可能回退或不可用。关联的订阅账号不会退出登录。",
+    "confirm": "删除服务商"
+  },
+  "draftClose": {
+    "title": "保留这次编辑草稿？",
+    "message": "这些修改尚未写入模型配置。保留草稿不会触发连接测试，再次打开此编辑器时可以继续。",
+    "keepAndClose": "保留草稿并关闭",
+    "discard": "放弃修改",
+    "continueEditing": "继续编辑",
+    "discardDraft": "放弃草稿",
+    "retainedHint": "模型编辑草稿已保留，尚未写入正式配置"
+  },
+  "draftConflict": {
+    "title": "先处理未完成的模型草稿",
+    "message": "打开另一个模型或服务商前，请继续处理当前草稿，或放弃草稿后打开所选配置。",
+    "continueDraft": "继续当前草稿",
+    "discardAndContinue": "放弃草稿并继续",
+    "cancel": "取消"
   },
   "empty": {
     "noModels": "暂无模型配置",
@@ -470,6 +500,10 @@
     "placeholder": "搜索模型名称、提供商..."
   },
   "messages": {
+    "loading": "正在加载模型设置…",
+    "loadFailedLocked": "无法读取模型设置。为避免覆盖现有配置，当前页面已锁定。",
+    "retry": "重新加载",
+    "unsaved": "未保存",
     "fillRequired": "请填写必要字段",
     "fillModelName": "请填写模型名称",
     "duplicateModelNameUnderProvider": "该服务商下已有同名模型，请改用其他名称或编辑已有条目",
@@ -478,9 +512,15 @@
     "invalidReasoningPresets": "请先修正思考预设的 ID、设置、默认项或 JSON。",
     "saveFailed": "保存失败",
     "deleteFailed": "删除配置失败",
+    "deleteSuccess": "模型配置已删除",
+    "providerDeleteFailed": "删除服务商失败",
+    "providerDeleteSuccess": "服务商及其模型配置已删除",
+    "referenceCheckFailed": "无法确认此模型是否仍被其他设置引用，已取消删除",
+    "providerReferenceCheckFailed": "无法确认该服务商的模型是否仍被其他设置引用，已取消删除",
     "loadFailed": "加载AI配置失败",
     "testSuccess": "测试成功",
     "testFailed": "测试失败",
+    "testUnsupportedOnHost": "配置已保存，当前 CLI 设备不支持模型连接测试",
     "errorDetails": "详细错误",
     "connectionTestMessages": {
       "toolCallsNotDetected": "本次测试未检测到工具调用，因此暂时无法验证工具调用能力。",
@@ -499,7 +539,7 @@
     "title": "models.dev 模型目录",
     "detailsTitle": "models.dev 目录详情",
     "viewDetails": "查看 models.dev 目录详情",
-    "description": "用于推理预设供应商和模型绑定的目录状态。打开模型设置时会自动检查更新。",
+    "description": "用于推理预设供应商和模型绑定的目录状态。打开模型设置时会自动检查更新",
     "activeSource": "当前来源",
     "source": { "cache": "缓存", "bundle": "内置快照", "empty": "不可用" },
     "catalogSize": "目录规模",
@@ -518,7 +558,7 @@
     "reveal": "在文件夹中显示",
     "revealFailed": "无法打开缓存所在文件夹",
     "offlineTitle": "无法联网时如何更新",
-    "offlineDescription": "在可联网的设备上下载 models.dev 原始文件，将其命名为 catalog.json 并放入上方缓存目录。替换后重启 BitFun 即可生效；点击立即更新可能会覆盖该文件。",
+    "offlineDescription": "在可联网的设备上下载 models.dev 原始文件，将其命名为 catalog.json 并放入上方缓存目录。替换后重启 OpenBitFun 即可生效；点击立即更新可能会覆盖该文件。",
     "downloadOriginal": "下载原始目录",
     "openCacheDirectory": "打开缓存目录"
   },
@@ -549,7 +589,7 @@
       "hint": "输入JSON格式的请求体字段，用于覆盖默认请求参数",
       "modeMerge": "合并",
       "modeTrim": "精简",
-      "modeMergeHint": "在默认请求体基础上合并自定义字段，可覆盖已有字段。",
+      "modeMergeHint": "在默认请求体基础上合并自定义字段，可覆盖已有字段",
       "trimHintOpenAI": "发送前仅保留 model、messages、max_tokens，以及 stream / tools 等运行必需字段，再应用自定义请求体。",
       "trimHintResponses": "发送前仅保留 model、input、instructions、max_output_tokens，以及 stream / tools 等运行必需字段，再应用自定义请求体。",
       "trimHintAnthropic": "发送前仅保留 model、messages、system、max_tokens，以及 stream / tools 等运行必需字段，再应用自定义请求体。",

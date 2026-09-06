@@ -1,4 +1,4 @@
-use bitfun_core::util::JS_THREADSAFE_FUNCTION;
+use openbitfun_core::util::JS_THREADSAFE_FUNCTION;
 use log::info;
 
 pub async fn check_app_update_ohos() -> Result<String, String> {

@@ -5,11 +5,11 @@
 
 use super::client::{MarketClient, MarketClientError};
 use super::package::build_market_package;
-use bitfun_product_domains::miniapp::market::{
+use openbitfun_product_domains::miniapp::market::{
     MarketSubmission, MarketSubmissionDraftRequest, MarketSubmissionStatus, MARKET_CATEGORIES,
     MARKET_MAX_SCREENSHOTS, MARKET_MAX_SCREENSHOT_BYTES,
 };
-use bitfun_product_domains::miniapp::types::MiniApp;
+use openbitfun_product_domains::miniapp::types::MiniApp;
 use std::path::Path;
 
 /// Upload progress callback: (submission_id, phase, completed, total).
@@ -121,19 +121,19 @@ pub fn map_local_category_to_market(category: &str) -> String {
     }
 }
 
-/// Read one screenshot from disk, enforcing the market's type and size limits.
+/// Read one marketplace image from disk, enforcing the market's type and size limits.
 pub async fn read_screenshot_file(
     path: &Path,
 ) -> Result<(&'static str, Vec<u8>), MarketClientError> {
     let metadata = tokio::fs::metadata(path).await.map_err(|error| {
         screenshot_error(format!(
-            "Could not read screenshot metadata for {}: {error}",
+            "Could not read marketplace image metadata for {}: {error}",
             path.display()
         ))
     })?;
     if !metadata.is_file() || metadata.len() > MARKET_MAX_SCREENSHOT_BYTES {
         return Err(screenshot_error(format!(
-            "Each screenshot must be a file no larger than 5 MiB: {}",
+            "Each marketplace image must be a file no larger than 5 MiB: {}",
             path.display()
         )));
     }
@@ -149,14 +149,14 @@ pub async fn read_screenshot_file(
         "webp" => "image/webp",
         _ => {
             return Err(screenshot_error(format!(
-                "Screenshots must be PNG, JPEG, or WebP: {}",
+                "Marketplace images must be PNG, JPEG, or WebP: {}",
                 path.display()
             )))
         }
     };
     let bytes = tokio::fs::read(path).await.map_err(|error| {
         screenshot_error(format!(
-            "Could not read screenshot {}: {error}",
+            "Could not read marketplace image {}: {error}",
             path.display()
         ))
     })?;
@@ -177,7 +177,7 @@ pub async fn submit_installed_app(
 ) -> Result<MarketSubmission, MarketClientError> {
     if screenshot_paths.is_empty() || screenshot_paths.len() > MARKET_MAX_SCREENSHOTS {
         return Err(screenshot_error(
-            "Choose between 1 and 5 screenshots.".to_string(),
+            "Choose between 1 and 5 marketplace images.".to_string(),
         ));
     }
     let mut package_app = app.clone();
@@ -230,8 +230,8 @@ fn screenshot_error(message: String) -> MarketClientError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitfun_product_domains::miniapp::market::MarketLicense;
-    use bitfun_product_domains::miniapp::types::MiniAppPermissions;
+    use openbitfun_product_domains::miniapp::market::MarketLicense;
+    use openbitfun_product_domains::miniapp::types::MiniAppPermissions;
 
     fn submission(
         slug: &str,
@@ -249,7 +249,7 @@ mod tests {
             icon: "📦".to_string(),
             category: "utilities".to_string(),
             tags: Vec::new(),
-            min_bitfun_version: "0.1.0".to_string(),
+            min_openbitfun_version: "1.0.0".to_string(),
             changelog: "Initial".to_string(),
             license: MarketLicense {
                 spdx_expression: Some("MIT".to_string()),

@@ -2,11 +2,11 @@
  * PageDeploy tool card — shows deploy slug / version result.
  */
 import React, { useCallback, useMemo, useState } from 'react';
-import { Button } from '@bitfun/ui';
+import { Button, Icon } from '@openbitfun/ui';
 import { useTranslation } from 'react-i18next';
-import { ExternalLink } from 'lucide-react';
+
 import type { ToolCardProps } from '../types/flow-chat';
-import { PageDeployToolCard } from '@bitfun/ui/flow-chat';
+import { PageDeployToolCard } from '@openbitfun/ui/flow-chat';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 import { pageAPI } from '@/infrastructure/api/service-api/PageAPI';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
@@ -82,15 +82,15 @@ export const PageDeployDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
   }, [isLoading, slug, t]);
 
   const fields = success ? [
-    slug ? { label: `${t('toolCards.pageDeploy.labelSlug')}:`, value: slug, monospace: true } : null,
-    deployedVersion ? { label: `${t('toolCards.pageDeploy.labelVersion')}:`, value: deployedVersion, monospace: true } : null,
-    urlPath ? { label: `${t('toolCards.pageDeploy.labelPath')}:`, value: urlPath, monospace: true } : null,
+    slug ? { label: `${t('toolCards.pageDeploy.labelSlug')}:`, value: slug } : null,
+    deployedVersion ? { label: `${t('toolCards.pageDeploy.labelVersion')}:`, value: deployedVersion } : null,
+    urlPath ? { label: `${t('toolCards.pageDeploy.labelPath')}:`, value: urlPath } : null,
   ].filter((field): field is NonNullable<typeof field> => Boolean(field)) : [];
 
   return (
     <div
       ref={cardRootRef}
-      data-bf-adapter="page-deploy"
+      data-openbitfun-adapter="page-deploy"
       data-testid="chat-page-deploy-card"
       data-tool-card-id={toolId ?? ''}
       data-status={status}
@@ -111,7 +111,7 @@ export const PageDeployDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
             type="button"
             variant="outline"
             size="sm"
-            leadingIcon={<ExternalLink size={12} />}
+            leadingIcon={<Icon name="arrow-up-right" size="xs" />}
             data-testid="chat-page-deploy-open-btn"
             onClick={() => void openPage(slug, generation).catch(() => {
               notificationService.error(t('toolCards.pageDeploy.openFailed'));

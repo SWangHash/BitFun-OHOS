@@ -2,10 +2,10 @@
  * Smart recommendations styles
  */
 
-.bitfun-smart-recommendations {
+.openbitfun-smart-recommendations {
   position: relative;
-  background: var(--bf-color-surface-panel);
-  border: 1px solid var(--bf-color-border-default);
+  background: var(--openbitfun-color-surface-panel);
+  border: 1px solid var(--openbitfun-color-border-default);
   border-radius: 8px;
   padding: 12px 16px;
   margin-bottom: 12px;
@@ -16,20 +16,16 @@
     align-items: center;
     justify-content: space-between;
     min-height: 24px;
-    padding-inline-end: 24px;
+    gap: var(--openbitfun-space-2);
     margin-bottom: 10px;
   }
 
   &__title {
-    font-size: var(--bf-type-flow-control-font-size);
-    font-weight: var(--bf-font-weight-semibold);
-    color: var(--bf-color-content-primary);
-  }
-
-  &__close {
-    position: absolute;
-    inset-block-start: 4px;
-    inset-inline-end: 4px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: var(--openbitfun-type-flow-control-font-size);
+    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    color: var(--openbitfun-color-content-primary);
   }
 
   &__actions {
@@ -51,7 +47,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bitfun-smart-recommendations {
+  .openbitfun-smart-recommendations {
     animation: none;
   }
 }

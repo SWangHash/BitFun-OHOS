@@ -12,7 +12,7 @@ describe('OpenHarmony feedback submission contract', () => {
 
     expect(footer).toContain("systemInfo.platform === 'openharmony'");
     expect(footer).toContain('setShowFeedback(true)');
-    expect(footer).toContain("systemAPI.openExternal('https://gitcode.com/OpenBitFun/bitfun_ade/issues')");
+    expect(footer).toContain("systemAPI.openExternal('https://gitcode.com/OpenBitFun/openbitfun_ade/issues')");
   });
 
   it('shows unread attention only for conversations that can be opened and acknowledged', () => {
@@ -55,7 +55,7 @@ describe('OpenHarmony feedback submission contract', () => {
   it('opens the read-only privacy statement from inline consent copy', () => {
     const dialog = readSource('./FeedbackDialog.tsx');
     const privacySection = dialog.slice(
-      dialog.indexOf('className="bitfun-feedback__privacy"'),
+      dialog.indexOf('className="openbitfun-feedback__privacy"'),
       dialog.indexOf('{submitError ?'),
     );
 
@@ -70,12 +70,12 @@ describe('OpenHarmony feedback submission contract', () => {
     const dialog = readSource('./FeedbackDialog.tsx');
     const styles = readSource('./FeedbackDialog.scss');
     const completeView = dialog.slice(
-      dialog.indexOf('className="bitfun-feedback__complete"'),
+      dialog.indexOf('className="openbitfun-feedback__complete"'),
       dialog.indexOf(') : (\n          <div ref={containerRef}'),
     );
     const completeStyles = styles.slice(
-      styles.indexOf('.bitfun-feedback__complete {'),
-      styles.indexOf('.bitfun-feedback__inbox-layout {'),
+      styles.indexOf('.openbitfun-feedback__complete {'),
+      styles.indexOf('.openbitfun-feedback__inbox-layout {'),
     );
 
     expect(completeView).toContain("t('shared:statuses.done')");
@@ -143,8 +143,8 @@ describe('OpenHarmony feedback submission contract', () => {
     const styles = readSource('./FeedbackDialog.scss');
     const builtStyles = compile(stylesheetPath).css;
     const actionStyles = styles.slice(
-      styles.indexOf('.bitfun-feedback__actions {'),
-      styles.indexOf('.bitfun-feedback__complete {'),
+      styles.indexOf('.openbitfun-feedback__actions {'),
+      styles.indexOf('.openbitfun-feedback__complete {'),
     );
 
     expect(styles).toContain('padding: 48px clamp(12px, 5.882vw, 40px) 32px;');
@@ -152,12 +152,12 @@ describe('OpenHarmony feedback submission contract', () => {
     expect(dialog).toContain('dimensions={{');
     expect(dialog).toContain("width: '100%'");
     expect(dialog).toContain('maxWidth: completed ? 560 : 960');
-    expect(dialog).toContain("maxHeight: 'var(--bitfun-feedback-modal-max-height)'");
-    expect(styles).toContain('--bitfun-feedback-modal-max-height: calc(100vh - 80px);');
+    expect(dialog).toContain("maxHeight: 'var(--openbitfun-feedback-modal-max-height)'");
+    expect(styles).toContain('--openbitfun-feedback-modal-max-height: calc(100vh - 80px);');
     expect(styles).toContain('height: calc(100vh - 114px);');
     expect(styles).toContain('max-height: 620px;');
-    expect(styles).toContain('.bitfun-feedback__root {\n  width: 100%;');
-    expect(styles).not.toContain('.bitfun-feedback__overlay > .modal');
+    expect(styles).toContain('.openbitfun-feedback__root {\n  width: 100%;');
+    expect(styles).not.toContain('.openbitfun-feedback__overlay > .modal');
     expect(styles).not.toContain('min(960px, calc(100vw - 80px))');
     expect(styles).not.toContain('min(620px, calc(100vh - 114px))');
     expect(builtStyles).toContain('padding: 48px clamp(12px, 5.882vw, 40px) 32px;');
@@ -166,16 +166,16 @@ describe('OpenHarmony feedback submission contract', () => {
     expect(builtStyles).not.toContain('min(620px, 100vh - 114px)');
     expect(styles).toContain('@media (max-width: 680px) {');
     expect(styles).toContain('@media (max-height: 540px) {');
-    expect(styles).toContain('--bitfun-feedback-modal-max-height: calc(100vh - 56px);');
+    expect(styles).toContain('--openbitfun-feedback-modal-max-height: calc(100vh - 56px);');
     expect(styles).toContain('padding-top: 44px;');
     expect(styles).toContain('padding-bottom: 12px;');
-    expect(dialog).toContain('<div className="bitfun-feedback__primary-actions">');
-    expect(dialog).not.toContain('bitfun-feedback__action-spacer');
+    expect(dialog).toContain('<div className="openbitfun-feedback__primary-actions">');
+    expect(dialog).not.toContain('openbitfun-feedback__action-spacer');
     expect(actionStyles).toContain('display: flex;');
     expect(actionStyles).toContain('flex-wrap: wrap;');
     expect(actionStyles).toContain('width: 100%;');
     expect(actionStyles).toContain('min-width: 0;');
-    expect(actionStyles).toContain('.bitfun-feedback__primary-actions {');
+    expect(actionStyles).toContain('.openbitfun-feedback__primary-actions {');
     expect(actionStyles).toContain('flex-shrink: 0;');
     expect(actionStyles).toContain('margin-left: auto;');
     expect(actionStyles).not.toContain('grid-template-columns:');

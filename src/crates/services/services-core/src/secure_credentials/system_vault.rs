@@ -23,7 +23,7 @@ fn keyring_lock() -> &'static Mutex<()> {
 /// `Entry` for `alias` under `service`.
 ///
 /// The cfg ladder mirrors the platform branches used by every previous
-/// BitFun keyring call site, with the explicit `target_env = "ohos"`
+/// OpenBitFun keyring call site, with the explicit `target_env = "ohos"`
 /// exclusion so this module never selects the Linux Secret Service on
 /// HarmonyOS — there is no D-Bus session there, and the desktop host
 /// injects an ArkTS-backed vault instead.

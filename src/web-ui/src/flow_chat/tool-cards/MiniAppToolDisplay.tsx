@@ -2,11 +2,11 @@
  * MiniAppToolDisplay — InitMiniApp result on the prominent FlowChat framework.
  */
 import React, { useCallback, useMemo, useState } from 'react';
-import { Button, Spinner } from '@bitfun/ui';
+import { Button, Icon } from '@openbitfun/ui';
 import { useTranslation } from 'react-i18next';
-import { AppWindow, ExternalLink } from 'lucide-react';
+
 import type { ToolCardProps } from '../types/flow-chat';
-import { ProminentToolCard, ProminentToolCardHeader } from '@bitfun/ui/flow-chat';
+import { ProminentToolCard, ProminentToolCardSummary, ToolProcessingDots } from '@openbitfun/ui/flow-chat';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 import { useSceneManager } from '@/app/hooks/useSceneManager';
 import './MiniAppToolDisplay.scss';
@@ -79,18 +79,18 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
 
   const renderStatusIcon = () => {
     if (isLoading) {
-      return <Spinner size="sm" />;
+      return <ToolProcessingDots size={16} />;
     }
     return null;
   };
 
-  const renderHeader = () => (
-    <ProminentToolCardHeader
-      icon={<span className="miniapp-icon"><AppWindow size={16} /></span>}
+  const renderSummary = () => (
+    <ProminentToolCardSummary
+      icon={<span className="miniapp-icon"><Icon name="floating-window" size="md" /></span>}
       action={`${t('toolCards.initMiniApp.title')}:`}
       content={
-        <span data-bf-component="mini-app-tool-display" data-bf-part="info" className="miniapp-tool-info">
-          <span data-bf-component="mini-app-tool-display" data-bf-part="operation" className="operation-tag">
+        <span data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="info" className="miniapp-tool-info">
+          <span data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="operation" className="operation-tag">
             {isLoading
               ? t('toolCards.initMiniApp.operationInit')
               : isFailed
@@ -98,8 +98,8 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
                 : t('toolCards.initMiniApp.skeletonReady')}
           </span>
           <span
-            data-bf-component="mini-app-tool-display"
-            data-bf-part="command"
+            data-openbitfun-component="mini-app-tool-display"
+            data-openbitfun-part="command"
             className="command-text"
             data-testid="chat-miniapp-title"
             data-app-id={appId || ''}
@@ -111,12 +111,12 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
       extra={
         <>
           {success && appId && status === 'completed' && (
-            <span data-bf-component="mini-app-tool-display" data-bf-part="output" className="output-summary" title={appId}>
+            <span data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="output" className="output-summary" title={appId}>
               {appId}
             </span>
           )}
           {isFailed && (
-            <div data-bf-component="mini-app-tool-display" data-bf-part="errorIndicator" className="error-indicator">
+            <div data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="errorIndicator" className="error-indicator">
               <span className="error-text">{t('toolCards.initMiniApp.failed')}</span>
             </div>
           )}
@@ -129,36 +129,36 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
   const renderExpandedSuccess = () => {
     if (!appId) return null;
     return (
-      <div data-bf-component="mini-app-tool-display" data-bf-part="result" className="miniapp-result-container">
-        <div data-bf-component="mini-app-tool-display" data-bf-part="rows" className="miniapp-result-rows" data-testid="chat-miniapp-file-list">
-          <div data-bf-component="mini-app-tool-display" data-bf-part="row" className="miniapp-result-row">
-            <span data-bf-component="mini-app-tool-display" data-bf-part="label" className="miniapp-result-label">{t('toolCards.initMiniApp.labelAppId')}</span>
-            <span data-bf-component="mini-app-tool-display" data-bf-part="value" className="miniapp-result-value" title={appId}>
+      <div data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="result" className="miniapp-result-container">
+        <div data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="rows" className="miniapp-result-rows" data-testid="chat-miniapp-file-list">
+          <div data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="row" className="miniapp-result-row">
+            <span data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="label" className="miniapp-result-label">{t('toolCards.initMiniApp.labelAppId')}</span>
+            <span data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="value" className="miniapp-result-value" title={appId}>
               {appId}
             </span>
           </div>
           {miniAppFiles.map(filePath => (
             <div
               key={filePath}
-              data-bf-component="mini-app-tool-display"
-              data-bf-part="row"
+              data-openbitfun-component="mini-app-tool-display"
+              data-openbitfun-part="row"
               className="miniapp-result-row"
               data-testid="chat-miniapp-file-row"
               data-path={filePath}
             >
-              <span data-bf-component="mini-app-tool-display" data-bf-part="label" className="miniapp-result-label">{t('toolCards.initMiniApp.labelPath')}</span>
-              <span data-bf-component="mini-app-tool-display" data-bf-part="value" className="miniapp-result-value" title={filePath}>
+              <span data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="label" className="miniapp-result-label">{t('toolCards.initMiniApp.labelPath')}</span>
+              <span data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="value" className="miniapp-result-value" title={filePath}>
                 {filePath}
               </span>
             </div>
           ))}
         </div>
-        <div data-bf-component="mini-app-tool-display" data-bf-part="footer" className="miniapp-result-footer miniapp-action-buttons">
+        <div data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="footer" className="miniapp-result-footer miniapp-action-buttons">
           <Button
             type="button"
             variant="outline"
             size="sm"
-            leadingIcon={<ExternalLink size={12} />}
+            leadingIcon={<Icon name="arrow-up-right" size="xs" />}
             data-testid="chat-miniapp-open-btn"
             data-app-id={appId}
             onClick={() => openScene(`miniapp:${appId}`)}
@@ -172,7 +172,7 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
   };
 
   const renderExpandedError = () => (
-    <div data-bf-component="mini-app-tool-display" data-bf-part="error" className="error-content">
+    <div data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="error" className="error-content">
       <div className="error-message">{getErrorMessage()}</div>
       {name ? (
         <div className="error-meta">
@@ -193,8 +193,8 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
   };
 
   return (
-    <div data-bf-component="mini-app-tool-display" data-bf-part="root"
-      data-bf-state={[isExpanded && 'expanded', isFailed && 'failed', isLoading && 'loading'].filter(Boolean).join(' ')}
+    <div data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="root"
+      data-openbitfun-state={[isExpanded && 'expanded', isFailed && 'failed', isLoading && 'loading'].filter(Boolean).join(' ')}
       ref={cardRootRef}
       data-testid="chat-miniapp-card"
       data-tool-card-id={toolId ?? ''}
@@ -205,11 +205,11 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
       <ProminentToolCard
         status={status}
         isExpanded={isExpanded}
-        onClick={hasExpandableDetails ? handleCardClick : undefined}
+        onToggle={hasExpandableDetails ? handleCardClick : undefined}
         className="miniapp-tool-display"
-        header={renderHeader()}
+        summary={renderSummary()}
         expandedContent={isExpanded ? renderDetailsWhenExpanded() : null}
-        headerExpandAffordance={hasExpandableDetails}
+        summaryExpandAffordance={hasExpandableDetails}
       />
     </div>
   );

@@ -4,9 +4,8 @@ export const appearanceSettingsAppearanceDescriptor: AppearanceSurfaceDescriptor
   id: 'appearance-settings',
   parts: [
     { id: 'root' }, { id: 'content' }, { id: 'settings' },
-    { id: 'settingsContent' }, { id: 'language' }, { id: 'palettePicker' },
-    { id: 'paletteSelect' },
-    { id: 'packageSection' }, { id: 'packageSelect' }, { id: 'packagePreview' },
+    { id: 'settingsContent' }, { id: 'language' },
+    { id: 'packageSection' }, { id: 'packagePreview' }, { id: 'packageBuiltinTheme' },
     { id: 'packageActions' },
     { id: 'packageDiagnostics' }, { id: 'packageDiagnosticsHeader' },
     { id: 'packageDiagnosticsGroup' }, { id: 'packageDiagnosticIssue' },
@@ -25,12 +24,12 @@ export const appearanceSettingsAppearanceDescriptor: AppearanceSurfaceDescriptor
     { id: 'marketReviewDetail' }, { id: 'marketReviewActions' },
   ],
   facets: [
-    { id: 'packageType', attribute: 'data-bf-package-type', values: ['native', 'imported'] },
+    { id: 'packageType', attribute: 'data-openbitfun-package-type', values: ['native', 'imported'] },
   ],
   states: [
     { id: 'hover', selector: { kind: 'self', suffix: ':hover' } },
-    { id: 'selected', selector: { kind: 'self', suffix: '[data-bf-state~="selected"]' } },
-    { id: 'disabled', selector: { kind: 'self', suffix: '[data-bf-state~="disabled"]' } },
-    { id: 'loading', selector: { kind: 'self', suffix: '[data-bf-state~="loading"]' } },
+    { id: 'selected', selector: { kind: 'self', suffix: '[data-openbitfun-state~="selected"]' } },
+    { id: 'disabled', selector: { kind: 'self', suffix: '[data-openbitfun-state~="disabled"]' } },
+    { id: 'loading', selector: { kind: 'self', suffix: '[data-openbitfun-state~="loading"]' } },
   ],
 };

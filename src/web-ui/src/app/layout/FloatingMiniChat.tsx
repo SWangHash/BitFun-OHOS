@@ -1,7 +1,7 @@
 /**
- * Floating mini chat — circular button in bottom-right that expands to a panel
- * hosting the main window session surface. Used in non-agent scenes only; the
- * agent scene already shows that surface as its own scene.
+ * Hello — the bottom-right entry that expands to the shared session surface.
+ * Text chat is always the default; realtime voice is an explicit mode switch
+ * inside the expanded panel.
  *
  * The panel renders ChatPane verbatim — same conversation view, same full
  * composer as the session scene — so it never lags behind the main chat UI and
@@ -19,19 +19,19 @@ import type {
   ChatInputRegistration,
   ChatInputSubmission,
 } from '@/flow_chat/components/chatInputRegistration';
-import { Icon, IconButton, Tooltip } from '@bitfun/ui';
+import { Icon, IconButton, LauncherButton, Tooltip } from '@openbitfun/ui';
 
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
 import { SessionMenu, useFlowChatSessions } from '../../flow_chat/components/session-menu';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import {
   useMiniAppStore,
-  MINIAPP_COMPOSER_MESSAGE_EVENT,
   MINIAPP_COMPOSER_DRAFT_EVENT,
   type MiniAppComposerClaim,
   type MiniAppDraftEventDetail,
   type MiniAppComposerMessageDetail,
 } from '@/app/scenes/miniapps/miniAppStore';
+import { postMiniAppComposerMessage } from '@/app/scenes/miniapps/miniAppComposerMessages';
 import { pickLocalizedString } from '@/app/scenes/miniapps/utils/pickLocalizedString';
 import { renderMiniAppIcon } from '@/app/scenes/miniapps/utils/miniAppIcons';
 import MiniAppBubbleWelcome from './MiniAppBubbleWelcome';
@@ -40,6 +40,12 @@ import {
   canRenderFloatingMiniChatSession,
   isFloatingMiniChatIsolated,
 } from './floatingMiniChatIsolation';
+import {
+  ConversationModeSurface,
+  ConversationVoiceModeIcon,
+} from '@/flow_chat/components/voice/ConversationModeSurface';
+import { useRealtimeVoiceCall } from '@/flow_chat/components/voice/RealtimeVoiceCallContext';
+import type { VoiceMiniAppCallTarget } from '@/flow_chat/components/voice/voiceClientContext';
 import './FloatingMiniChat.scss';
 
 /**
@@ -55,6 +61,11 @@ const PANEL_OPEN_SETTLE_MS = 280;
 
 export const FloatingMiniChat: React.FC = () => {
   const { t, i18n } = useTranslation('flow-chat');
+  const { t: tVoice } = useTranslation('settings/voice-input');
+  const {
+    phase: voicePhase,
+    end: endVoiceCall,
+  } = useRealtimeVoiceCall();
   const activeTabId = useSceneStore((state) => state.activeTabId);
   const customizingAppIds = useMiniAppStore((state) => state.customizingAppIds);
   const composerClaims = useMiniAppStore((state) => state.composerClaims);
@@ -73,6 +84,7 @@ export const FloatingMiniChat: React.FC = () => {
   /** True while a press that may legitimately close the panel is in flight. */
   const backdropArmedRef = useRef(false);
   const isOpen = phase !== 'closed';
+  const isVoiceMode = voicePhase !== 'idle';
   const panelRef = useRef<HTMLDivElement>(null);
   const previousHostSessionRef = useRef<{
     claimToken: string;
@@ -128,9 +140,35 @@ export const FloatingMiniChat: React.FC = () => {
   const displayedSession = isMiniAppBubbleIsolated
     ? activeMiniAppSession
     : activeSession;
+  const miniAppVoiceTarget = useMemo<VoiceMiniAppCallTarget | undefined>(() => {
+    if (
+      !isMiniAppBubbleIsolated
+      || !activeMiniAppId
+      || !activeComposerToken
+      || !activeComposerSessionId
+      || !isMiniAppSessionReady
+    ) return undefined;
+    return {
+      kind: 'miniapp',
+      appId: activeMiniAppId,
+      appName: activeMiniAppName,
+      claimToken: activeComposerToken,
+      sessionId: activeComposerSessionId,
+      workspacePath: displayedSession?.workspacePath,
+    };
+  }, [
+    activeComposerSessionId,
+    activeComposerToken,
+    activeMiniAppId,
+    activeMiniAppName,
+    displayedSession?.workspacePath,
+    isMiniAppBubbleIsolated,
+    isMiniAppSessionReady,
+  ]);
   const displayedTitle = isMiniAppBubbleIsolated
     ? (bubbleCustomization?.title || activeMiniAppName)
     : sessionTitle;
+  const popupTitle = isVoiceMode ? tVoice('voiceCall.call.title') : displayedTitle;
 
   const isStreaming = useMemo(() => {
     const lastTurn = displayedSession?.dialogTurns.at(-1);
@@ -157,8 +195,9 @@ export const FloatingMiniChat: React.FC = () => {
   }, []);
 
   const handleClose = useCallback(() => {
+    if (isVoiceMode) endVoiceCall();
     setPhase('closed');
-  }, []);
+  }, [endVoiceCall, isVoiceMode]);
 
   const setMiniAppComposerDraft = useCallback((
     text: string,
@@ -183,7 +222,7 @@ export const FloatingMiniChat: React.FC = () => {
     setComposerPrefill((current) => (current?.id === id ? null : current));
   }, []);
 
-  const handleMiniAppSubmit = useCallback(async (submission: ChatInputSubmission) => {
+  const handleMiniAppSubmit = useCallback((submission: ChatInputSubmission) => {
     if (!activeComposerToken) {
       throw new Error('The active MiniApp no longer owns the floating chat registration.');
     }
@@ -196,7 +235,7 @@ export const FloatingMiniChat: React.FC = () => {
       sessionId: submission.sessionId,
       workspacePath: submission.workspacePath,
     };
-    window.dispatchEvent(new CustomEvent(MINIAPP_COMPOSER_MESSAGE_EVENT, { detail }));
+    postMiniAppComposerMessage(detail);
   }, [activeComposerToken]);
 
   const chatInputRegistration = useMemo<ChatInputRegistration | undefined>(() => {
@@ -335,7 +374,7 @@ export const FloatingMiniChat: React.FC = () => {
   // the bubble is open; if the Agent session has not reached FlowChat yet,
   // wait for that exact id instead of falling back to the latest normal chat.
   useEffect(() => {
-    if (!isOpen || !activeComposerToken || !activeComposerSessionId) return;
+    if (isVoiceMode || !isOpen || !activeComposerToken || !activeComposerSessionId) return;
 
     if (activateMiniAppSession(activeComposerClaim)) return;
     const unsubscribe = flowChatStore.subscribe((state) => {
@@ -350,6 +389,7 @@ export const FloatingMiniChat: React.FC = () => {
     activeComposerSessionId,
     activeComposerToken,
     isOpen,
+    isVoiceMode,
   ]);
 
   // A MiniApp holding the composer can hand it a prepared prompt (PPT Live's
@@ -407,7 +447,7 @@ export const FloatingMiniChat: React.FC = () => {
   // Mount the session surface only once the open transition has been handed to
   // the compositor, so ChatPane's mount cost can no longer stall the animation.
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || isVoiceMode) {
       setSurfaceMounted(false);
       return;
     }
@@ -429,7 +469,7 @@ export const FloatingMiniChat: React.FC = () => {
       cancelAnimationFrame(outerFrame);
       cancelAnimationFrame(innerFrame);
     };
-  }, [isOpen]);
+  }, [isOpen, isVoiceMode]);
 
   // Settle `opening` → `open` once the panel reaches full size.
   useEffect(() => {
@@ -459,23 +499,31 @@ export const FloatingMiniChat: React.FC = () => {
   );
 
   const panelClassName = [
-    'bitfun-fmc__panel',
-    isOpen && 'bitfun-fmc__panel--open',
-    isStreaming && 'bitfun-fmc__panel--processing',
+    'openbitfun-fmc__panel',
+    isOpen && 'openbitfun-fmc__panel--open',
+    isStreaming && 'openbitfun-fmc__panel--processing',
   ]
     .filter(Boolean)
     .join(' ');
 
   return (
-    <div data-bf-component="floating-mini-chat" data-bf-part="root" data-bf-mode={activeComposerClaim ? 'miniapp' : 'chat'} data-bf-state={[
-      isOpen && 'open',
-      isStreaming && 'processing',
-      shouldAvoidMiniAppCustomizer && 'customizing',
-    ].filter(Boolean).join(' ') || undefined} className={[
-      'bitfun-fmc',
-      isOpen && 'bitfun-fmc--open',
-      shouldAvoidMiniAppCustomizer && 'bitfun-fmc--miniapp-customizing',
-    ].filter(Boolean).join(' ')}>
+    <div
+      data-openbitfun-component="floating-mini-chat"
+      data-openbitfun-part="root"
+      data-openbitfun-mode={activeComposerClaim ? 'miniapp' : 'chat'}
+      data-openbitfun-communication-mode={isVoiceMode ? 'voice' : 'chat'}
+      data-openbitfun-state={[
+        isOpen && 'open',
+        isStreaming && 'processing',
+        isVoiceMode && 'voice',
+        shouldAvoidMiniAppCustomizer && 'customizing',
+      ].filter(Boolean).join(' ') || undefined}
+      className={[
+        'openbitfun-fmc',
+        isOpen && 'openbitfun-fmc--open',
+        shouldAvoidMiniAppCustomizer && 'openbitfun-fmc--miniapp-customizing',
+      ].filter(Boolean).join(' ')}
+    >
       {/* Fullscreen backdrop to catch outside clicks. It stays inert until the
           panel has finished scaling up: until then the panel's hit area is
           still smaller than its final rect, so a click aimed at the panel would
@@ -493,9 +541,9 @@ export const FloatingMiniChat: React.FC = () => {
           while the panel was still scaling up never closes it. */}
       {isOpen && (
         <div
-          data-bf-component="floating-mini-chat"
-          data-bf-part="backdrop"
-          className="bitfun-fmc__backdrop"
+          data-openbitfun-component="floating-mini-chat"
+          data-openbitfun-part="backdrop"
+          className="openbitfun-fmc__backdrop"
           onMouseDown={() => { backdropArmedRef.current = phase === 'open'; }}
           onClick={() => {
             if (backdropArmedRef.current) handleClose();
@@ -504,45 +552,64 @@ export const FloatingMiniChat: React.FC = () => {
         />
       )}
 
-      {/* Circular trigger — sits above the backdrop and the collapsed panel via
+      {/* Hello trigger — sits above the backdrop and the collapsed panel via
           an explicit z-index, and is taken out of hit testing with
           `visibility` (not just pointer-events) while the panel is open. */}
-      <button
-        data-bf-component="floating-mini-chat"
-        data-bf-part="trigger"
-        type="button"
-        className={[
-          'bitfun-fmc__button',
-          isMiniAppBubbleIsolated && 'bitfun-fmc__button--miniapp',
-          isMiniAppSessionExecuting && 'bitfun-fmc__button--processing',
-        ].filter(Boolean).join(' ')}
-        onPointerDown={handleTriggerPointerDown}
-        onClick={handleOpen}
-        aria-expanded={isOpen}
-        aria-busy={isMiniAppSessionExecuting || undefined}
-        aria-label={isMiniAppBubbleIsolated ? displayedTitle : t('toolCards.toolbar.startNewChat')}
-      >
-        {isMiniAppSessionExecuting && (
+      {isMiniAppBubbleIsolated ? (
+        <button
+          data-openbitfun-component="floating-mini-chat"
+          data-openbitfun-part="trigger"
+          type="button"
+          className={[
+            'openbitfun-fmc__button',
+            'openbitfun-fmc__button--miniapp',
+            isMiniAppSessionExecuting && 'openbitfun-fmc__button--processing',
+          ].filter(Boolean).join(' ')}
+          onPointerDown={handleTriggerPointerDown}
+          onClick={handleOpen}
+          aria-expanded={isOpen}
+          aria-busy={isMiniAppSessionExecuting || undefined}
+          aria-label={displayedTitle}
+        >
+          {isMiniAppSessionExecuting && (
+            <span
+              className="openbitfun-fmc__button-activity"
+              data-openbitfun-component="floating-mini-chat"
+              data-openbitfun-part="triggerActivity"
+              aria-hidden="true"
+            />
+          )}
           <span
-            className="bitfun-fmc__button-activity"
-            data-bf-component="floating-mini-chat"
-            data-bf-part="triggerActivity"
-            aria-hidden="true"
-          />
-        )}
-        {isMiniAppBubbleIsolated ? (
-          <span
-            className="bitfun-fmc__miniapp-trigger-icon"
-            data-bf-component="floating-mini-chat"
-            data-bf-part="triggerIcon"
+            className="openbitfun-fmc__miniapp-trigger-icon"
+            data-openbitfun-component="floating-mini-chat"
+            data-openbitfun-part="triggerIcon"
             aria-hidden="true"
           >
             {renderMiniAppIcon(activeMiniAppIcon, 20)}
           </span>
-        ) : (
-          <Icon name="side-chat" size="md" />
-        )}
-      </button>
+        </button>
+      ) : (
+        <LauncherButton
+          aria-expanded={isOpen}
+          aria-label={t('toolCards.toolbar.startNewChat')}
+          className="openbitfun-fmc__button openbitfun-fmc__button--hello"
+          onClick={handleOpen}
+          onPointerDown={handleTriggerPointerDown}
+        >
+          <span
+            aria-hidden="true"
+            className="openbitfun-fmc__button-label openbitfun-fmc__button-label--compact"
+          >
+            {tVoice('voiceCall.call.launcherCompactLabel')}
+          </span>
+          <span
+            aria-hidden="true"
+            className="openbitfun-fmc__button-label openbitfun-fmc__button-label--expanded"
+          >
+            {tVoice('voiceCall.call.launcherLabel')}
+          </span>
+        </LauncherButton>
+      )}
 
       {/* Expanded panel */}
       <div
@@ -550,18 +617,20 @@ export const FloatingMiniChat: React.FC = () => {
         className={panelClassName}
         onKeyDown={handlePanelKeyDown}
         onTransitionEnd={handlePanelTransitionEnd}
-        data-bf-component="floating-mini-chat"
-        data-bf-part="panel"
+        data-openbitfun-component="floating-mini-chat"
+        data-openbitfun-part="panel"
       >
         {/* Header — normal chat keeps the shared SessionMenu. An isolated
             Agentic MiniApp replaces that switcher with app identity, including
             during claim/session bootstrap, so normal chats are never exposed. */}
-        <div className="bitfun-fmc__header" data-bf-component="floating-mini-chat" data-bf-part="header">
-          {isMiniAppBubbleIsolated ? (
+        <div className="openbitfun-fmc__header" data-openbitfun-component="floating-mini-chat" data-openbitfun-part="header">
+          {isVoiceMode ? (
+            <ConversationVoiceModeIcon />
+          ) : isMiniAppBubbleIsolated ? (
             <div
-              className="bitfun-fmc__miniapp-session-icon"
-              data-bf-component="floating-mini-chat"
-              data-bf-part="sessionIcon"
+              className="openbitfun-fmc__miniapp-session-icon"
+              data-openbitfun-component="floating-mini-chat"
+              data-openbitfun-part="sessionIcon"
               aria-hidden="true"
             >
               {renderMiniAppIcon(activeMiniAppIcon, 14)}
@@ -570,9 +639,9 @@ export const FloatingMiniChat: React.FC = () => {
             <SessionMenu />
           )}
 
-          <div className="bitfun-fmc__title-wrapper" data-bf-component="floating-mini-chat" data-bf-part="title">
-            <div className="bitfun-fmc__title-display" title={displayedTitle}>
-              <span className="bitfun-fmc__title-text">{displayedTitle}</span>
+          <div className="openbitfun-fmc__title-wrapper" data-openbitfun-component="floating-mini-chat" data-openbitfun-part="title">
+            <div className="openbitfun-fmc__title-display" title={popupTitle}>
+              <span className="openbitfun-fmc__title-text">{popupTitle}</span>
             </div>
           </div>
 
@@ -581,12 +650,12 @@ export const FloatingMiniChat: React.FC = () => {
               so the header only owns bubble chrome. */}
           <Tooltip content={t('session.close')}>
             <IconButton
-              data-bf-component="floating-mini-chat"
-              data-bf-part="headerAction"
-              className="bitfun-fmc__close"
+              data-openbitfun-component="floating-mini-chat"
+              data-openbitfun-part="headerAction"
+              className="openbitfun-fmc__close"
               icon={<Icon name="xmark" size="lg" />}
               onClick={handleClose}
-              size="md"
+              size="sm"
               aria-label={t('session.close')}
             />
           </Tooltip>
@@ -595,46 +664,56 @@ export const FloatingMiniChat: React.FC = () => {
         {/* Main window session surface, reused as-is. Only mounted while the
             panel is open to avoid running a second VirtualMessageList and store
             sync in the background while the agent streams in another scene. */}
-        <div className="bitfun-fmc__body" data-bf-component="floating-mini-chat" data-bf-part="body">
-          {surfaceMounted && isMiniAppSessionReady && (
-            <ChatPane
-              width={0}
-              isFullscreen={false}
-              isSceneActive
-              workspacePath={
-                isMiniAppBubbleIsolated
-                  ? displayedSession?.workspacePath
-                  : workspacePath
-              }
-              showChatInput
-              chatInputRegistration={chatInputRegistration}
-              emptyState={activeComposerClaim ? (
-                <MiniAppBubbleWelcome
-                  appName={activeMiniAppName}
-                  appDescription={activeMiniAppDescription}
-                  appIcon={activeMiniAppIcon}
-                  customization={bubbleCustomization}
-                  workspacePath={displayedSession?.workspacePath}
-                  onSuggestion={handleMiniAppSuggestion}
-                />
-              ) : undefined}
-            />
-          )}
-          {surfaceMounted && isMiniAppBubbleIsolated && !isMiniAppSessionReady && (
-            <div className="bitfun-fmc__miniapp-session-pending" data-bf-component="floating-mini-chat" data-bf-part="pending">
-              <div
-                className="bitfun-fmc__miniapp-session-pending-icon"
-                data-bf-component="floating-mini-chat"
-                data-bf-part="pendingIcon"
-                aria-hidden="true"
-              >
-                {renderMiniAppIcon(activeMiniAppIcon, 22)}
+        <div
+          className="openbitfun-fmc__body"
+          data-openbitfun-component="floating-mini-chat"
+          data-openbitfun-part="body"
+        >
+          <ConversationModeSurface
+            voiceTarget={miniAppVoiceTarget}
+            voiceStartDisabled={isMiniAppBubbleIsolated && !miniAppVoiceTarget}
+            switchTestId="hello-realtime-voice-mode-switch"
+          >
+            {surfaceMounted && isMiniAppSessionReady && (
+              <ChatPane
+                width={0}
+                isFullscreen={false}
+                isSceneActive
+                workspacePath={
+                  isMiniAppBubbleIsolated
+                    ? displayedSession?.workspacePath
+                    : workspacePath
+                }
+                showChatInput
+                chatInputRegistration={chatInputRegistration}
+                emptyState={activeComposerClaim ? (
+                  <MiniAppBubbleWelcome
+                    appName={activeMiniAppName}
+                    appDescription={activeMiniAppDescription}
+                    appIcon={activeMiniAppIcon}
+                    customization={bubbleCustomization}
+                    workspacePath={displayedSession?.workspacePath}
+                    onSuggestion={handleMiniAppSuggestion}
+                  />
+                ) : undefined}
+              />
+            )}
+            {surfaceMounted && isMiniAppBubbleIsolated && !isMiniAppSessionReady && (
+              <div className="openbitfun-fmc__miniapp-session-pending" data-openbitfun-component="floating-mini-chat" data-openbitfun-part="pending">
+                <div
+                  className="openbitfun-fmc__miniapp-session-pending-icon"
+                  data-openbitfun-component="floating-mini-chat"
+                  data-openbitfun-part="pendingIcon"
+                  aria-hidden="true"
+                >
+                  {renderMiniAppIcon(activeMiniAppIcon, 22)}
+                </div>
+                <span>
+                  {t('miniAppComposer.hint', { app: activeMiniAppName })}
+                </span>
               </div>
-              <span>
-                {t('miniAppComposer.hint', { app: activeMiniAppName })}
-              </span>
-            </div>
-          )}
+            )}
+          </ConversationModeSurface>
         </div>
       </div>
     </div>

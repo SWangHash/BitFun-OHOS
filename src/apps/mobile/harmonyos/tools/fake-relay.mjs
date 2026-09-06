@@ -149,8 +149,8 @@ let createdSession = {
   agent_type: 'code',
 };
 let currentWorkspace = {
-  path: '/workspace/BitFun',
-  name: 'BitFun',
+  path: '/workspace/OpenBitFun',
+  name: 'OpenBitFun',
   git_branch: 'main',
   workspace_kind: 'normal',
   assistant_id: undefined,
@@ -173,12 +173,12 @@ const deletedSessions = new Set();
 
 const assistants = [
   {
-    path: '/workspace/.bitfun/assistants/daily',
+    path: '/workspace/.openbitfun/assistants/daily',
     name: 'Daily Assistant',
     assistant_id: 'assistant-daily-preview',
   },
   {
-    path: '/workspace/.bitfun/assistants/research',
+    path: '/workspace/.openbitfun/assistants/research',
     name: 'Research Assistant',
     assistant_id: 'assistant-research-preview',
   },
@@ -189,7 +189,7 @@ const assistants = [
 // Every kind the lexer knows appears once: comment, keyword, type, call,
 // constant, string and number.
 const PREVIEW_SOURCE = [
-  '// bitfun preview fixture',
+  '// openbitfun preview fixture',
   'fn main() {',
   '    let answer: Preview = 42;',
   '    println!("hello");',
@@ -199,10 +199,13 @@ const PREVIEW_SOURCE = [
 ].join('\n');
 
 const previewFiles = new Map([
-  ['README.md', Buffer.from('# BitFun Preview\n\nThis is a fake relay file download.\n', 'utf8')],
-  ['/workspace/BitFun/README.md', Buffer.from('# BitFun Preview\n\nThis is a fake relay file download.\n', 'utf8')],
+  ['README.md', Buffer.from('# OpenBitFun Preview\n\nThis is a fake relay file download.\n', 'utf8')],
+  ['/workspace/OpenBitFun/README.md', Buffer.from('# OpenBitFun Preview\n\nThis is a fake relay file download.\n', 'utf8')],
+  ['/workspace/OpenBitFun/IDENTITY.md', Buffer.from('# Identity\n\nOpenBitFun preview identity.\n', 'utf8')],
+  ['/workspace/OpenBitFun/USER.md', Buffer.from('# User\n\nOpenBitFun preview user.\n', 'utf8')],
+  ['/workspace/OpenBitFun/SOUL.md', Buffer.from('# Soul\n\nOpenBitFun preview soul.\n', 'utf8')],
   ['src/preview.rs', Buffer.from(PREVIEW_SOURCE, 'utf8')],
-  ['/workspace/BitFun/src/preview.rs', Buffer.from(PREVIEW_SOURCE, 'utf8')],
+  ['/workspace/OpenBitFun/src/preview.rs', Buffer.from(PREVIEW_SOURCE, 'utf8')],
 ]);
 
 function isScenario(name) {
@@ -210,6 +213,13 @@ function isScenario(name) {
 }
 
 function assistantResponseContent() {
+  if (isScenario('file-attachments')) {
+    return [
+      '附件应当保留为正文中的可读文件名，并在正文下方形成独立的纵向卡片列表：',
+      '',
+      '[IDENTITY.md](computer:///workspace/OpenBitFun/IDENTITY.md)、[USER.md](computer:///workspace/OpenBitFun/USER.md) 和 [SOUL.md](computer:///workspace/OpenBitFun/SOUL.md)。',
+    ].join('\n');
+  }
   if (isScenario('long-markdown')) {
     return [
       '## 鸿蒙端聊天回归验证',
@@ -303,12 +313,12 @@ function assistantResponseItems(status = 'completed') {
 
 function activeTurnText() {
   if (isScenario('slow-active')) {
-    return 'BitFun 正在持续执行，用于验证运行态停止按钮。';
+    return 'OpenBitFun 正在持续执行，用于验证运行态停止按钮。';
   }
   if (isScenario('long-markdown')) {
     return '## 鸿蒙端聊天回归验证\n\n- 正在生成长 Markdown 响应...\n- active turn 应保持稳定。';
   }
-  return 'BitFun 正在执行...';
+  return 'OpenBitFun 正在执行...';
 }
 
 function currentModelCatalog() {
@@ -580,14 +590,14 @@ function responseFor(command) {
             workspace_kind: currentWorkspace.workspace_kind,
           },
           {
-            path: '/workspace/BitFun_mobile',
-            name: 'BitFun_mobile',
+            path: '/workspace/OpenBitFun_mobile',
+            name: 'OpenBitFun_mobile',
             last_opened: new Date(Date.now() - 86_400_000).toISOString(),
             workspace_kind: 'normal',
           },
           {
-            path: '/workspace/BitFun-docs',
-            name: 'BitFun-docs',
+            path: '/workspace/OpenBitFun-docs',
+            name: 'OpenBitFun-docs',
             last_opened: new Date(Date.now() - 2 * 86_400_000).toISOString(),
             workspace_kind: 'normal',
           },
@@ -913,6 +923,14 @@ function readBody(req) {
 
 const server = http.createServer(async (req, res) => {
   try {
+    res.setHeader('access-control-allow-origin', '*');
+    res.setHeader('access-control-allow-headers', 'content-type');
+    res.setHeader('access-control-allow-methods', 'POST, OPTIONS');
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
     if (req.method !== 'POST') {
       res.writeHead(404);
       res.end();

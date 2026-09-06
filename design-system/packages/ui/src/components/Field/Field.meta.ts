@@ -21,7 +21,7 @@ export const fieldMeta = {
   ],
   states: ["default", "invalid"],
   tokens: [
-    "color.accent.default",
+    "color.content.requiredIndicator",
     "color.content.primary",
     "color.content.muted",
     "color.status.danger.content",
@@ -35,10 +35,7 @@ export const fieldMeta = {
     "layout.field.labelGap",
     "layout.field.labelActionGap",
     "layout.field.controlGap",
-    "font.family.control",
-    "font.size.xs",
-    "font.size.sm",
-    "font.weight.regular",
-    "font.weight.semibold",
+    "type.label.md.fontSize",
+    "type.support.fontSize",
   ],
 } as const satisfies ComponentMeta;

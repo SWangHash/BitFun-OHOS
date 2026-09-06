@@ -26,10 +26,10 @@ describe('Modal behavior', () => {
 
   afterEach(() => {
     act(() => root.unmount());
-    document.querySelectorAll('style[data-bf-appearance-runtime="test"]')
+    document.querySelectorAll('style[data-openbitfun-appearance-runtime="test"]')
       .forEach(style => style.remove());
-    document.documentElement.removeAttribute('data-bf-appearance');
-    document.documentElement.removeAttribute('data-bf-appearance-revision');
+    document.documentElement.removeAttribute('data-openbitfun-appearance');
+    document.documentElement.removeAttribute('data-openbitfun-appearance-revision');
     container.remove();
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -113,17 +113,17 @@ describe('Modal behavior', () => {
     });
 
     const runtimeStyle = document.createElement('style');
-    runtimeStyle.setAttribute('data-bf-appearance-runtime', 'test');
+    runtimeStyle.setAttribute('data-openbitfun-appearance-runtime', 'test');
     runtimeStyle.textContent = `
-      :root[data-bf-appearance="builtin"][data-bf-appearance-revision="7"]
-      [data-bf-component="modal"][data-bf-part="dialog"][data-bf-size="xlarge"] {
+      :root[data-openbitfun-appearance="builtin"][data-openbitfun-appearance-revision="7"]
+      [data-openbitfun-component="modal"][data-openbitfun-part="dialog"][data-openbitfun-size="xlarge"] {
         width: 100%;
         max-width: 720px;
         max-height: 100%;
       }
     `;
-    document.documentElement.setAttribute('data-bf-appearance', 'builtin');
-    document.documentElement.setAttribute('data-bf-appearance-revision', '7');
+    document.documentElement.setAttribute('data-openbitfun-appearance', 'builtin');
+    document.documentElement.setAttribute('data-openbitfun-appearance-revision', '7');
     document.head.appendChild(runtimeStyle);
 
     const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]');

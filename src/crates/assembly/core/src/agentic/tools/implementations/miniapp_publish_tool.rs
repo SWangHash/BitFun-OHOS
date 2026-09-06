@@ -4,13 +4,13 @@
 use crate::agentic::tools::framework::{PermissionIntent, Tool, ToolResult, ToolUseContext};
 use crate::infrastructure::events::{emit_global_event, BackendEvent};
 use crate::miniapp::try_get_global_miniapp_manager;
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use async_trait::async_trait;
-use bitfun_product_domains::miniapp::market::{
+use openbitfun_product_domains::miniapp::market::{
     MarketLicense, MarketSubmissionDraftRequest, MARKET_CATEGORIES, MARKET_MAX_SCREENSHOTS,
 };
-use bitfun_product_domains::miniapp::types::MiniAppMeta;
-use bitfun_services_integrations::miniapp_market::{
+use openbitfun_product_domains::miniapp::types::MiniAppMeta;
+use openbitfun_services_integrations::miniapp_market::{
     map_local_category_to_market, resolve_release_target, submit_installed_app,
     suggest_market_slug, DesktopAuthPollRequest, MarketClient, ReleaseTarget,
 };
@@ -19,8 +19,31 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const DEFAULT_LICENSE: &str = "MIT";
 
-fn default_min_bitfun_version() -> &'static str {
+fn default_min_openbitfun_version() -> &'static str {
     crate::VERSION
+}
+
+fn read_string_paths(input: &Value, key: &str) -> Option<Vec<String>> {
+    input.get(key).and_then(Value::as_array).map(|items| {
+        items
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect()
+    })
+}
+
+fn listing_image_paths(input: &Value) -> OpenBitFunResult<Vec<String>> {
+    let current = read_string_paths(input, "listing_image_paths");
+    let legacy = read_string_paths(input, "screenshot_paths");
+    match (current, legacy) {
+        (Some(current), Some(legacy)) if current == legacy => Ok(current),
+        (Some(_), Some(_)) => Err(OpenBitFunError::validation(
+            "listing_image_paths and its deprecated screenshot_paths compatibility alias must not disagree.",
+        )),
+        (Some(paths), None) | (None, Some(paths)) => Ok(paths),
+        (None, None) => Ok(Vec::new()),
+    }
 }
 
 pub struct PublishMiniAppTool;
@@ -43,12 +66,14 @@ impl Tool for PublishMiniAppTool {
         "PublishMiniApp"
     }
 
-    async fn description(&self) -> BitFunResult<String> {
-        Ok(r#"Submit an installed MiniApp to the BitFun MiniApp market for human review.
+    async fn description(&self) -> OpenBitFunResult<String> {
+        Ok(r#"Submit an installed MiniApp to the OpenBitFun MiniApp market for human review.
 
 Identify the app by `app_name` — the display name the user used (e.g. "循天问命"), matched against installed apps' manifest names in every locale — or by `app_id` if you already have one. Installed apps are resolved through the running MiniApp manager: do NOT search the filesystem for the app; if the name does not resolve, the error lists every installed app to pick from.
 
-Listing metadata (name, description, icon, category, tags) is derived from the app's manifest; the marketplace slug and release number are derived automatically from the user's submission history. Provide 1-5 screenshot file paths (PNG/JPEG/WebP, each <= 5 MiB) — ask the user for screenshots, or have them use 市场 → 我的投稿 → 截取当前画面 to capture one.
+Listing metadata (name, description, icon, category, tags) is derived from the app's manifest; the marketplace slug and release number are derived automatically from the user's submission history. Provide 1-5 `listing_image_paths` (PNG/JPEG/WebP, each <= 5 MiB) for the marketplace gallery. A 16:9 composition is recommended; the first image becomes the listing-card cover. Keep key content clear and away from the edges because marketplace surfaces crop images to 16:9. If no image path is available, ask the user to provide one or have them use 市场 → 我的投稿 → 截取当前画面.
+
+Marketplace administrators may submit a new release for an existing listing even when another user published it originally. The listing keeps its original creator attribution.
 
 If the user is not signed in to the market, the tool returns a GitHub authorization link. Show the link to the user, wait for them to authorize in the browser, then call this tool again with the same arguments.
 
@@ -64,7 +89,7 @@ Publishing is an outward-facing action: only call this when the user explicitly 
         json!({
             "type": "object",
             "additionalProperties": false,
-            "required": ["screenshot_paths"],
+            "required": ["listing_image_paths"],
             "properties": {
                 "app_name": {
                     "type": "string",
@@ -74,12 +99,12 @@ Publishing is an outward-facing action: only call this when the user explicitly 
                     "type": "string",
                     "description": "Installed MiniApp id (e.g. returned by InitMiniApp or an earlier PublishMiniApp error). Provide this or app_name."
                 },
-                "screenshot_paths": {
+                "listing_image_paths": {
                     "type": "array",
                     "items": { "type": "string" },
                     "minItems": 1,
                     "maxItems": 5,
-                    "description": "1-5 absolute paths to PNG/JPEG/WebP screenshots of the running app, each <= 5 MiB. Use a 16:9 aspect ratio (1920x1080 recommended, 2560x1440 max useful): both the web market and the BitFun desktop client crop screenshots to 16:9, so other ratios lose their edges. The first screenshot is the listing card cover — pick the one that best shows what the app does, and keep key content away from the edges."
+                    "description": "1-5 absolute paths to PNG/JPEG/WebP marketplace images, each <= 5 MiB. A 16:9 composition works best (1920x1080 recommended, 2560x1440 max useful); the first image becomes the listing-card cover. Keep key content clear and away from the edges because the web market and OpenBitFun desktop client crop images to 16:9."
                 },
                 "changelog": {
                     "type": "string",
@@ -109,7 +134,7 @@ Publishing is an outward-facing action: only call this when the user explicitly 
         &self,
         input: &Value,
         _context: &ToolUseContext,
-    ) -> BitFunResult<Vec<PermissionIntent>> {
+    ) -> OpenBitFunResult<Vec<PermissionIntent>> {
         let identity = input
             .get("app_id")
             .and_then(Value::as_str)
@@ -133,9 +158,9 @@ Publishing is an outward-facing action: only call this when the user explicitly 
         &self,
         input: &Value,
         _context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         let manager = try_get_global_miniapp_manager()
-            .ok_or_else(|| BitFunError::tool("MiniAppManager not initialized".to_string()))?;
+            .ok_or_else(|| OpenBitFunError::tool("MiniAppManager not initialized".to_string()))?;
 
         let app_id = input
             .get("app_id")
@@ -157,7 +182,7 @@ Publishing is an outward-facing action: only call this when the user explicitly 
                 Ok(app) => app,
                 Err(error) => {
                     let apps = manager.list().await.unwrap_or_default();
-                    return Err(BitFunError::validation(format!(
+                    return Err(OpenBitFunError::validation(format!(
                         "Installed MiniApp '{app_id}' not found: {error}\nInstalled apps (id — name):\n{}",
                         installed_roster(apps.iter())
                     )));
@@ -165,22 +190,21 @@ Publishing is an outward-facing action: only call this when the user explicitly 
             }
         } else if let Some(app_name) = app_name {
             let apps = manager.list().await.map_err(|e| {
-                BitFunError::tool(format!("Could not list installed MiniApps: {e}"))
+                OpenBitFunError::tool(format!("Could not list installed MiniApps: {e}"))
             })?;
             let matches = find_apps_by_name(&apps, app_name);
             match matches.as_slice() {
-                [only] => manager
-                    .get(&only.id)
-                    .await
-                    .map_err(|e| BitFunError::tool(format!("Installed MiniApp not found: {e}")))?,
+                [only] => manager.get(&only.id).await.map_err(|e| {
+                    OpenBitFunError::tool(format!("Installed MiniApp not found: {e}"))
+                })?,
                 [] => {
-                    return Err(BitFunError::validation(format!(
+                    return Err(OpenBitFunError::validation(format!(
                         "No installed MiniApp is named '{app_name}'. Installed apps (id — name):\n{}",
                         installed_roster(apps.iter())
                     )));
                 }
                 many => {
-                    return Err(BitFunError::validation(format!(
+                    return Err(OpenBitFunError::validation(format!(
                         "'{app_name}' matches several installed MiniApps — call again with the app_id:\n{}",
                         installed_roster(many.iter().copied())
                     )));
@@ -188,52 +212,40 @@ Publishing is an outward-facing action: only call this when the user explicitly 
             }
         } else {
             let apps = manager.list().await.unwrap_or_default();
-            return Err(BitFunError::validation(format!(
+            return Err(OpenBitFunError::validation(format!(
                 "Provide app_name (the display name the user used) or app_id. Installed apps (id — name):\n{}",
                 installed_roster(apps.iter())
             )));
         };
 
-        let screenshot_paths: Vec<String> = input
-            .get("screenshot_paths")
-            .and_then(Value::as_array)
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .map(str::to_string)
-                    .collect()
-            })
-            .unwrap_or_default();
-        if screenshot_paths.is_empty() || screenshot_paths.len() > MARKET_MAX_SCREENSHOTS {
-            return Err(BitFunError::validation(
-                "screenshot_paths must contain 1-5 image paths (PNG/JPEG/WebP). Ask the user for screenshots of the running app, or have them capture one via 市场 → 我的投稿 → 截取当前画面.",
+        let listing_image_paths = listing_image_paths(input)?;
+        if listing_image_paths.is_empty() || listing_image_paths.len() > MARKET_MAX_SCREENSHOTS {
+            return Err(OpenBitFunError::validation(
+                "listing_image_paths must contain 1-5 marketplace image paths (PNG/JPEG/WebP). Ask the user to provide an image, or have them add one via 市场 → 我的投稿.",
             ));
         }
-        for path in &screenshot_paths {
+        for path in &listing_image_paths {
             if tokio::fs::metadata(path).await.is_err() {
-                return Err(BitFunError::validation(format!(
-                    "Screenshot not found: {path}"
+                return Err(OpenBitFunError::validation(format!(
+                    "Marketplace image file not found: {path}"
                 )));
             }
         }
 
         let mut client = MarketClient::from_environment()
             .await
-            .map_err(|e| BitFunError::tool(format!("MiniApp market unavailable: {e}")))?;
+            .map_err(|e| OpenBitFunError::tool(format!("MiniApp market unavailable: {e}")))?;
 
         // Not signed in: hand the GitHub authorization link to the user and
         // keep polling in the background so their browser approval lands in
         // the shared credential vault before the next tool call.
-        let me = client
-            .me()
-            .await
-            .map_err(|e| BitFunError::tool(format!("MiniApp market sign-in check failed: {e}")))?;
+        let me = client.me().await.map_err(|e| {
+            OpenBitFunError::tool(format!("MiniApp market sign-in check failed: {e}"))
+        })?;
         let Some(me) = me else {
-            let start = client
-                .start_desktop_auth()
-                .await
-                .map_err(|e| BitFunError::tool(format!("Could not start GitHub sign-in: {e}")))?;
+            let start = client.start_desktop_auth().await.map_err(|e| {
+                OpenBitFunError::tool(format!("Could not start GitHub sign-in: {e}"))
+            })?;
             let authorization_url = start.authorization_url.clone();
             let poll_request = DesktopAuthPollRequest {
                 transaction_id: start.transaction_id.clone(),
@@ -256,7 +268,7 @@ Publishing is an outward-facing action: only call this when the user explicitly 
                 }
             });
             let message = format!(
-                "The user is not signed in to the MiniApp market. Show this GitHub authorization link to the user and ask them to open it in a browser: {authorization_url}\nBitFun keeps polling in the background; after the user finishes authorizing, call PublishMiniApp again with the same arguments to continue publishing."
+                "The user is not signed in to the MiniApp market. Show this GitHub authorization link to the user and ask them to open it in a browser: {authorization_url}\nOpenBitFun keeps polling in the background; after the user finishes authorizing, call PublishMiniApp again with the same arguments to continue publishing."
             );
             return Ok(vec![ToolResult::Result {
                 data: json!({
@@ -279,7 +291,7 @@ Publishing is an outward-facing action: only call this when the user explicitly 
             .map(str::to_string)
             .unwrap_or_else(|| app.description.trim().to_string());
         if description.is_empty() {
-            return Err(BitFunError::validation(
+            return Err(OpenBitFunError::validation(
                 "The app has no description. Update meta.json's description (or pass the description parameter) before publishing.",
             ));
         }
@@ -291,7 +303,7 @@ Publishing is an outward-facing action: only call this when the user explicitly 
         {
             Some(value) if MARKET_CATEGORIES.contains(&value) => value.to_string(),
             Some(value) => {
-                return Err(BitFunError::validation(format!(
+                return Err(OpenBitFunError::validation(format!(
                     "Unknown market category '{value}'. Use one of: {}.",
                     MARKET_CATEGORIES.join(", ")
                 )))
@@ -309,8 +321,23 @@ Publishing is an outward-facing action: only call this when the user explicitly 
         let submissions = client
             .list_submissions()
             .await
-            .map_err(|e| BitFunError::tool(format!("Could not load submission history: {e}")))?;
-        let (listing_id, release_number) = match resolve_release_target(&submissions, &slug) {
+            .map_err(|e| OpenBitFunError::tool(format!("Could not load submission history: {e}")))?;
+        let release_target = match resolve_release_target(&submissions, &slug) {
+            ReleaseTarget::NewListing if me.is_admin => match client.listing(&slug).await {
+                Ok(listing) => ReleaseTarget::ExistingListing {
+                    listing_id: listing.summary.listing_id,
+                    next_release: listing.summary.latest_release + 1,
+                },
+                Err(error) if error.code == "not_found" => ReleaseTarget::NewListing,
+                Err(error) => {
+                    return Err(OpenBitFunError::tool(format!(
+                        "Could not resolve the administrator release target for '{slug}': {error}"
+                    )))
+                }
+            },
+            target => target,
+        };
+        let (listing_id, release_number) = match release_target {
             ReleaseTarget::NewListing => (None, 1),
             ReleaseTarget::ExistingListing {
                 listing_id,
@@ -367,7 +394,7 @@ Publishing is an outward-facing action: only call this when the user explicitly 
             icon: app.icon.clone(),
             category,
             tags,
-            min_bitfun_version: default_min_bitfun_version().to_string(),
+            min_openbitfun_version: default_min_openbitfun_version().to_string(),
             changelog,
             license: MarketLicense {
                 spdx_expression: Some(DEFAULT_LICENSE.to_string()),
@@ -397,8 +424,14 @@ Publishing is an outward-facing action: only call this when the user explicitly 
         let mut progress = |submission_id: Option<&str>, phase: &'static str, completed, total| {
             let _ = progress_tx.send((submission_id.map(str::to_string), phase, completed, total));
         };
-        let result =
-            submit_installed_app(&mut client, &app, &draft, &screenshot_paths, &mut progress).await;
+        let result = submit_installed_app(
+            &mut client,
+            &app,
+            &draft,
+            &listing_image_paths,
+            &mut progress,
+        )
+        .await;
         drop(progress_tx);
         let _ = forwarder.await;
         let submission = result.map_err(|error| {
@@ -410,7 +443,7 @@ Publishing is an outward-facing action: only call this when the user explicitly 
                 }
                 _ => "",
             };
-            BitFunError::tool(format!(
+            OpenBitFunError::tool(format!(
                 "Publishing failed ({}): {}{hint}",
                 error.code, error
             ))
@@ -494,9 +527,11 @@ fn unix_now() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{default_min_bitfun_version, find_apps_by_name, PublishMiniAppTool};
+    use super::{
+        default_min_openbitfun_version, find_apps_by_name, listing_image_paths, PublishMiniAppTool,
+    };
     use crate::agentic::tools::framework::{Tool, ToolExposure, ToolUseContext};
-    use bitfun_product_domains::miniapp::types::MiniAppMeta;
+    use openbitfun_product_domains::miniapp::types::MiniAppMeta;
     use serde_json::json;
 
     #[test]
@@ -507,7 +542,7 @@ mod tests {
 
     #[test]
     fn publish_miniapp_defaults_to_current_client_version() {
-        assert_eq!(default_min_bitfun_version(), crate::VERSION);
+        assert_eq!(default_min_openbitfun_version(), crate::VERSION);
     }
 
     #[test]
@@ -527,13 +562,38 @@ mod tests {
     }
 
     #[test]
-    fn publish_miniapp_schema_requires_only_screenshots() {
+    fn publish_miniapp_schema_requires_listing_images() {
         let tool = PublishMiniAppTool::new();
         let schema = tool.input_schema();
-        assert_eq!(schema["required"], json!(["screenshot_paths"]));
+        assert_eq!(schema["required"], json!(["listing_image_paths"]));
+        assert!(schema["properties"]["listing_image_paths"]["description"]
+            .as_str()
+            .is_some_and(|description| description.contains("listing-card cover")));
+        assert!(schema["properties"].get("screenshot_paths").is_none());
         assert!(schema["properties"]["app_name"].is_object());
         assert!(schema["properties"]["app_id"].is_object());
         assert_eq!(schema["additionalProperties"], json!(false));
+    }
+
+    #[test]
+    fn publish_miniapp_accepts_legacy_screenshot_paths_for_pending_calls() {
+        assert_eq!(
+            listing_image_paths(&json!({ "screenshot_paths": ["/tmp/cover.webp"] })).unwrap(),
+            vec!["/tmp/cover.webp".to_string()]
+        );
+        assert_eq!(
+            listing_image_paths(&json!({
+                "listing_image_paths": ["/tmp/cover.webp"],
+                "screenshot_paths": ["/tmp/cover.webp"]
+            }))
+            .unwrap(),
+            vec!["/tmp/cover.webp".to_string()]
+        );
+        assert!(listing_image_paths(&json!({
+            "listing_image_paths": ["/tmp/new.webp"],
+            "screenshot_paths": ["/tmp/old.webp"]
+        }))
+        .is_err());
     }
 
     #[test]
@@ -550,7 +610,7 @@ mod tests {
     }
 
     fn meta(id: &str, name: &str, locale_name: Option<&str>) -> MiniAppMeta {
-        use bitfun_product_domains::miniapp::types::{MiniAppI18n, MiniAppLocaleStrings};
+        use openbitfun_product_domains::miniapp::types::{MiniAppI18n, MiniAppLocaleStrings};
         use std::collections::HashMap;
         MiniAppMeta {
             id: id.to_string(),

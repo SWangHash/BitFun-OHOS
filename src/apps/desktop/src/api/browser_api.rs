@@ -15,14 +15,14 @@
 //! `emit_browser_page_load` `#[napi]` function (mirrors the desktop
 //! `.on_page_load` handler in `lib.rs`).
 
-use bitfun_core::agentic::tools::browser_control::BuiltInBrowserTarget;
+use openbitfun_core::agentic::tools::browser_control::BuiltInBrowserTarget;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use serde::Serialize;
 use tauri::Manager;
 
-const VIDEO_DECODER_MODE_ENV: &str = "BITFUN_BROWSER_VIDEO_DECODER_MODE";
+const VIDEO_DECODER_MODE_ENV: &str = "OPENBITFUN_BROWSER_VIDEO_DECODER_MODE";
 
 fn video_decoder_compatibility_script() -> String {
     let mode =
@@ -35,10 +35,10 @@ fn video_decoder_compatibility_script() -> String {
     let script = format!(
         r#"
 const isWebView2 = Boolean(window.chrome && window.chrome.webview);
-const isBitFunDocument = location.protocol === 'tauri:'
+const isOpenBitFunDocument = location.protocol === 'tauri:'
   || location.hostname === 'tauri.localhost'
   || (location.hostname === 'localhost' && location.port === '1422');
-if (isWebView2 && !isBitFunDocument) {{
+if (isWebView2 && !isOpenBitFunDocument) {{
   const decoderMode = {mode_json};
   if (decoderMode && typeof VideoDecoder === 'function') {{
     const originalConfigure = VideoDecoder.prototype.configure;
@@ -288,7 +288,7 @@ fn validate_webview_bounds(x: f64, y: f64, width: f64, height: f64) -> Result<()
 
 #[cfg(target_env = "ohos")]
 async fn ohos_browser_call(name: &str, json_arg: &str) -> Result<String, String> {
-    use bitfun_core::util::JS_THREADSAFE_FUNCTION;
+    use openbitfun_core::util::JS_THREADSAFE_FUNCTION;
     let function = {
         let lock = JS_THREADSAFE_FUNCTION.read();
         lock.get(name).cloned()

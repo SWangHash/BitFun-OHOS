@@ -46,6 +46,7 @@ export struct AppSidebar {
   @Param selectedSessionId: string = '';
   @Param connectionState: string = 'idle';
   @Param accountUserId: string = '';
+  @Param controlTargetType: string = 'none';
   @Param showCollapseButton: boolean = false;
   @Param showViewSettingsButton: boolean = false;
   @Param showWorkspaceSection: boolean = false;
@@ -87,8 +88,8 @@ export struct AppSidebar {
   @Builder
   private SidebarContent() {
     Column() {
-      if (this.isAccountAuthenticated()) {
-        this.AuthenticatedHeader()
+      if (this.shouldShowPrimaryNavigation()) {
+        this.PrimaryNavigationHeader()
       } else {
         this.SignedOutHeader()
       }
@@ -116,10 +117,10 @@ export struct AppSidebar {
         .scrollable(ScrollDirection.Vertical)
         .scrollBar(BarState.Off)
 
-        // Signed-out actions form a conventional footer and retain a fade.
-        // Authenticated navigation uses two independent floating controls, so
-        // the scroll remains visible all the way to the bottom behind them.
-        if (!this.isAccountAuthenticated()) {
+        // Pre-connection actions form a conventional footer and retain a fade.
+        // Once either account or QR access unlocks the workspace, navigation
+        // uses two floating controls and the scroll stays visible behind them.
+        if (!this.shouldShowPrimaryNavigation()) {
           Column()
             .width('100%')
             .height(this.usesCompactFooter() ? 92 : 120)
@@ -130,8 +131,8 @@ export struct AppSidebar {
             })
         }
 
-        if (this.isAccountAuthenticated()) {
-          this.AuthenticatedFooter()
+        if (this.shouldShowPrimaryNavigation()) {
+          this.PrimaryNavigationFooter()
         } else {
           this.SignedOutFooter()
         }
@@ -213,9 +214,9 @@ export struct AppSidebar {
   }
 
   @Builder
-  private AuthenticatedHeader() {
+  private PrimaryNavigationHeader() {
     Row() {
-      Text('BitFun')
+      Text('OpenBitFun')
         .fontSize(MobileDesignTypography.headlineMedium.size)
         .fontWeight(FontWeight.Medium)
         .fontColor(INK)
@@ -326,7 +327,7 @@ export struct AppSidebar {
   }
 
   @Builder
-  private AuthenticatedFooter() {
+  private PrimaryNavigationFooter() {
     Row() {
       Button() {
         Row({ space: 8 }) {
@@ -396,7 +397,7 @@ export struct AppSidebar {
       }
 
       Button() {
-        Text(RemoteI18n.t('sidebar.signInBitFunAccount'))
+        Text(RemoteI18n.t('sidebar.signInOpenBitFunAccount'))
           .fontSize(MobileDesignTypography.bodyMedium.size)
           .fontWeight(FontWeight.Bold)
           .fontColor(CARD)
@@ -743,12 +744,16 @@ export struct AppSidebar {
     return AdaptiveSheetOptions.fromPlacement(this.sessionDetailsPlacement);
   }
 
-  private isAccountAuthenticated(): boolean {
-    return this.accountUserId.trim().length > 0;
+  private shouldShowPrimaryNavigation(): boolean {
+    return SidebarConnectionActionPolicy.shouldShowPrimaryNavigation(
+      this.accountUserId,
+      this.controlTargetType,
+      this.connectionState
+    );
   }
 
   private usesCompactFooter(): boolean {
-    return this.isAccountAuthenticated() ||
+    return this.shouldShowPrimaryNavigation() ||
       !SidebarConnectionActionPolicy.shouldShowScan(this.connectionState);
   }
 }

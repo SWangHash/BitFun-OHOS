@@ -1,7 +1,7 @@
-export const MOUSE_GLOW_STORAGE_KEY = 'bitfun:appearance:mouse-glow-enabled';
+export const MOUSE_GLOW_STORAGE_KEY = 'openbitfun:appearance:mouse-glow-enabled';
 export const DEFAULT_MOUSE_GLOW_ENABLED = true;
 
-const MOUSE_GLOW_OVERLAY_ID = 'bitfun-mouse-glow-overlay';
+const MOUSE_GLOW_OVERLAY_ID = 'openbitfun-mouse-glow-overlay';
 // Detection is computed-style first. These class patterns are fallbacks only for
 // borderless visual surfaces and floating-layer placement, not an allowlist.
 const AUTOMATIC_SURFACE_CLASS_PATTERN =
@@ -352,7 +352,7 @@ export class MouseGlowService {
 
     const overlay = document.createElement('div');
     overlay.id = MOUSE_GLOW_OVERLAY_ID;
-    overlay.className = 'bitfun-mouse-glow-overlay';
+    overlay.className = 'openbitfun-mouse-glow-overlay';
     overlay.setAttribute('aria-hidden', 'true');
     overlay.hidden = true;
     document.body.appendChild(overlay);

@@ -4,6 +4,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { MenuItem } from '@/shared/context-menu-system/types';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
 const mocks = vi.hoisted(() => ({
@@ -11,7 +12,10 @@ const mocks = vi.hoisted(() => ({
   revealInExplorer: vi.fn(),
   readFileContent: vi.fn(),
   openExternal: vi.fn(),
+  openFileInBestTarget: vi.fn(),
+  openHtmlFileInExternalBrowser: vi.fn(),
   renderMath: vi.fn(),
+  showContextMenu: vi.fn(),
 }));
 
 vi.mock('@/infrastructure/api', () => ({
@@ -54,8 +58,18 @@ vi.mock('./AsyncPrismSyntaxHighlighter', () => ({
 
 vi.mock('@/shared/context-menu-system/core/ContextMenuController', () => ({
   contextMenuController: {
-    show: vi.fn(),
+    show: (...args: unknown[]) => mocks.showContextMenu(...args),
   },
+}));
+
+vi.mock('@/shared/utils/tabUtils', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/shared/utils/tabUtils')>(),
+  openFileInBestTarget: (...args: unknown[]) => mocks.openFileInBestTarget(...args),
+}));
+
+vi.mock('@/shared/utils/htmlFilePreview', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/shared/utils/htmlFilePreview')>(),
+  openHtmlFileInExternalBrowser: (...args: unknown[]) => mocks.openHtmlFileInExternalBrowser(...args),
 }));
 
 vi.mock('@/shared/utils/logger', () => ({
@@ -93,7 +107,10 @@ describe('Markdown file links', () => {
     mocks.revealInExplorer.mockReset();
     mocks.readFileContent.mockReset();
     mocks.openExternal.mockReset();
+    mocks.openFileInBestTarget.mockReset();
+    mocks.openHtmlFileInExternalBrowser.mockReset();
     mocks.renderMath.mockReset();
+    mocks.showContextMenu.mockReset();
     mocks.getCurrentWorkspacePath.mockResolvedValue(EXAMPLE_WORKSPACE);
     mocks.readFileContent.mockResolvedValue('cmVsdS1wbmc=');
   });
@@ -121,8 +138,59 @@ describe('Markdown file links', () => {
     expect(mocks.getCurrentWorkspacePath).not.toHaveBeenCalled();
   });
 
+  it.each([
+    '[Open Canvas](openbitfun-canvas://session/session_1/canvas/canvas_1)',
+    'openbitfun-canvas://session/session_1/canvas/canvas_1',
+  ])('opens Canvas artifact links in the Canvas panel: %s', async (content) => {
+    const onCreateTab = vi.fn();
+    window.addEventListener('agent-create-tab', onCreateTab);
+
+    try {
+      await act(async () => {
+        root.render(
+          <MarkdownRenderer
+            content={content}
+            basePath="/srv/project"
+            remoteConnectionId="remote-connection-1"
+            remoteSshHost="workspace.example"
+          />,
+        );
+        await Promise.resolve();
+      });
+
+      const link = container.querySelector<HTMLButtonElement>('button.canvas-link');
+      expect(link).not.toBeNull();
+
+      act(() => link?.click());
+
+      expect(onCreateTab).toHaveBeenCalledTimes(1);
+      const event = onCreateTab.mock.calls[0][0] as CustomEvent;
+      expect(event.detail).toMatchObject({
+        type: 'openbitfun-canvas',
+        title: 'OpenBitFun Canvas',
+        data: {
+          artifactReference: 'openbitfun-canvas://session/session_1/canvas/canvas_1',
+          workspacePath: '/srv/project',
+          remoteConnectionId: 'remote-connection-1',
+          remoteSshHost: 'workspace.example',
+          _source: { type: 'markdown-link' },
+        },
+        metadata: {
+          artifactReference: 'openbitfun-canvas://session/session_1/canvas/canvas_1',
+          fromMarkdown: true,
+        },
+        checkDuplicate: true,
+        duplicateCheckKey: 'openbitfun-canvas-openbitfun-canvas://session/session_1/canvas/canvas_1',
+        replaceExisting: true,
+      });
+      expect(mocks.getCurrentWorkspacePath).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('agent-create-tab', onCreateTab);
+    }
+  });
+
   it('opens chat http links in the built-in browser by default', async () => {
-    container.className = 'bitfun-session-scene modern-flowchat-container';
+    container.className = 'openbitfun-session-scene modern-flowchat-container';
     const onCreateTab = vi.fn();
     window.addEventListener('agent-create-tab', onCreateTab);
 
@@ -156,8 +224,8 @@ describe('Markdown file links', () => {
 
   it('expands a collapsed right panel before creating a browser tab', async () => {
     vi.useFakeTimers();
-    container.className = 'bitfun-session-scene modern-flowchat-container';
-    (window as any).__BITFUN_LAYOUT_STATE__ = { rightPanelCollapsed: true };
+    container.className = 'openbitfun-session-scene modern-flowchat-container';
+    (window as any).__OPENBITFUN_LAYOUT_STATE__ = { rightPanelCollapsed: true };
     const onExpandPanel = vi.fn();
     const onCreateTab = vi.fn();
     window.addEventListener('expand-right-panel', onExpandPanel);
@@ -185,7 +253,7 @@ describe('Markdown file links', () => {
 
       expect(onCreateTab).toHaveBeenCalledTimes(1);
     } finally {
-      delete (window as any).__BITFUN_LAYOUT_STATE__;
+      delete (window as any).__OPENBITFUN_LAYOUT_STATE__;
       window.removeEventListener('expand-right-panel', onExpandPanel);
       window.removeEventListener('agent-create-tab', onCreateTab);
       vi.useRealTimers();
@@ -193,7 +261,7 @@ describe('Markdown file links', () => {
   });
 
   it('opens modified chat link clicks in the external browser', async () => {
-    container.className = 'bitfun-session-scene modern-flowchat-container';
+    container.className = 'openbitfun-session-scene modern-flowchat-container';
     const onCreateTab = vi.fn();
     window.addEventListener('agent-create-tab', onCreateTab);
 
@@ -220,6 +288,113 @@ describe('Markdown file links', () => {
     } finally {
       window.removeEventListener('agent-create-tab', onCreateTab);
     }
+  });
+
+  it('adds source, integrated browser, and system browser actions to FlowChat HTML file links', async () => {
+    container.className = 'openbitfun-session-scene modern-flowchat-container';
+
+    await act(async () => {
+      root.render(
+        <MarkdownRenderer
+          content={'[Preview](docs/index.html#L7)'}
+          basePath={EXAMPLE_WORKSPACE}
+          onFileViewRequest={onFileViewRequest}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const link = container.querySelector<HTMLButtonElement>('button.file-link');
+    expect(link).not.toBeNull();
+
+    act(() => {
+      link?.dispatchEvent(new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 12,
+        clientY: 24,
+      }));
+    });
+
+    expect(mocks.showContextMenu).toHaveBeenCalledTimes(1);
+    const [, items, context] = mocks.showContextMenu.mock.calls[0] as [
+      unknown,
+      MenuItem[],
+      Parameters<NonNullable<MenuItem['onClick']>>[0],
+    ];
+    expect(items.slice(0, 3)).toMatchObject([
+      {
+        id: 'markdown-open-html-as-text',
+        label: 'common:actions.open',
+        icon: 'FileText',
+      },
+      {
+        id: 'markdown-open-html-in-integrated-browser',
+        label: 'common:file.openInIntegratedBrowser',
+        icon: 'PanelRightOpen',
+      },
+      {
+        id: 'markdown-open-html-in-system-browser',
+        label: 'common:file.openInSystemBrowser',
+        icon: 'ExternalLink',
+        disabled: false,
+      },
+    ]);
+
+    await items[0].onClick?.(context);
+    expect(mocks.openFileInBestTarget).toHaveBeenLastCalledWith(expect.objectContaining({
+      fileName: 'index.html',
+      workspacePath: EXAMPLE_WORKSPACE,
+      editorType: 'code-editor',
+      jumpToRange: { start: 7, end: undefined },
+    }));
+
+    await items[1].onClick?.(context);
+    expect(mocks.openFileInBestTarget).toHaveBeenLastCalledWith(expect.objectContaining({
+      fileName: 'index.html',
+      workspacePath: EXAMPLE_WORKSPACE,
+      editorType: 'html-preview',
+    }));
+
+    await items[2].onClick?.(context);
+    expect(mocks.openHtmlFileInExternalBrowser).toHaveBeenCalledWith(
+      expect.stringMatching(/docs[\\/]index\.html$/),
+    );
+  });
+
+  it('keeps system-browser opening disabled for remote FlowChat HTML links', async () => {
+    container.className = 'openbitfun-session-scene modern-flowchat-container';
+
+    await act(async () => {
+      root.render(
+        <MarkdownRenderer
+          content={'[Preview](site/page.htm)'}
+          basePath={'/srv/project'}
+          remoteConnectionId={'remote-connection-1'}
+          onFileViewRequest={onFileViewRequest}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('button.file-link')?.dispatchEvent(
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+      );
+    });
+
+    const items = mocks.showContextMenu.mock.calls[0]?.[1] as MenuItem[];
+    const integrated = items.find(item => item.id === 'markdown-open-html-in-integrated-browser');
+    const system = items.find(item => item.id === 'markdown-open-html-in-system-browser');
+
+    expect(system?.disabled).toBe(true);
+    await integrated?.onClick?.(mocks.showContextMenu.mock.calls[0][2]);
+    expect(mocks.openFileInBestTarget).toHaveBeenCalledWith(expect.objectContaining({
+      filePath: '/srv/project/site/page.htm',
+      workspacePath: '/srv/project',
+      remoteConnectionId: 'remote-connection-1',
+      editorType: 'html-preview',
+    }));
   });
 
   it('routes same-label relative, absolute, and computer links independently', async () => {
@@ -414,7 +589,7 @@ describe('Markdown file links', () => {
     });
 
     expect(container.querySelector('img[alt="Missing diagram"]')).toBeNull();
-    const fallback = container.querySelector('[data-bf-part="imageFallback"]');
+    const fallback = container.querySelector('[data-openbitfun-part="imageFallback"]');
     expect(fallback?.textContent).toBe('Missing diagram');
 
     await act(async () => {
@@ -428,7 +603,7 @@ describe('Markdown file links', () => {
       await Promise.resolve();
     });
 
-    expect(container.querySelector('[data-bf-part="imageFallback"]')).toBe(fallback);
+    expect(container.querySelector('[data-openbitfun-part="imageFallback"]')).toBe(fallback);
     expect(mocks.readFileContent).toHaveBeenCalledTimes(1);
   });
 
@@ -446,7 +621,7 @@ describe('Markdown file links', () => {
     });
 
     expect(container.querySelector('img[alt="Unavailable chart"]')).toBeNull();
-    expect(container.querySelector('[data-bf-part="imageFallback"]')?.textContent)
+    expect(container.querySelector('[data-openbitfun-part="imageFallback"]')?.textContent)
       .toBe('Unavailable chart');
   });
 

@@ -11,7 +11,7 @@ export const lspAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'pluginDetails' },
   ],
   states: [
-    { id: 'empty', selector: { kind: 'self', suffix: '[data-bf-state~="empty"]' } },
-    { id: 'expanded', selector: { kind: 'self', suffix: '[data-bf-state~="expanded"]' } },
+    { id: 'empty', selector: { kind: 'self', suffix: '[data-openbitfun-state~="empty"]' } },
+    { id: 'expanded', selector: { kind: 'self', suffix: '[data-openbitfun-state~="expanded"]' } },
   ],
 };

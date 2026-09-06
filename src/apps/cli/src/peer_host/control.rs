@@ -6,7 +6,10 @@ use std::sync::{Mutex, OnceLock};
 use serde_json::{json, Value};
 use tokio::sync::{RwLock, RwLockReadGuard};
 
-use bitfun_core::service::remote_connect::DeviceIdentity;
+use openbitfun_core::service::remote_connect::DeviceIdentity;
+use openbitfun_product_domains::remote_surface::{
+    capability_map, digest as remote_surface_digest, PeerHostKind,
+};
 
 #[derive(Default)]
 struct ControllerRegistry {
@@ -40,23 +43,28 @@ pub(crate) async fn attach_controller(device_id: String) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) async fn detach_controller(device_id: &str) -> bool {
+/// Remove one DeviceEvent delivery target.
+///
+/// Controller presence is not Runtime ownership. In particular, removing the
+/// final target must not expose a lifecycle signal that callers could turn into
+/// cancellation of a Host-accepted Turn.
+pub(crate) async fn detach_controller(device_id: &str) {
     let _delivery = controller_delivery().write().await;
-    control_subscribers()
-        .lock()
-        .map(|mut registry| detach_from_registry(&mut registry, device_id))
-        .unwrap_or(false)
+    if let Ok(mut registry) = control_subscribers().lock() {
+        detach_from_registry(&mut registry, device_id);
+    }
 }
 
-pub(crate) async fn retain_online_controllers<'a>(
-    online: impl IntoIterator<Item = &'a str>,
-) -> bool {
+/// Retain only currently reachable DeviceEvent delivery targets.
+///
+/// Losing every target does not end Host-owned Turns; the Runtime projection is
+/// kept for a later controller attachment.
+pub(crate) async fn retain_online_controllers<'a>(online: impl IntoIterator<Item = &'a str>) {
     let online = online.into_iter().collect::<HashSet<_>>();
     let _delivery = controller_delivery().write().await;
-    control_subscribers()
-        .lock()
-        .map(|mut registry| retain_online_in_registry(&mut registry, &online))
-        .unwrap_or(false)
+    if let Ok(mut registry) = control_subscribers().lock() {
+        retain_online_in_registry(&mut registry, &online);
+    }
 }
 
 pub(crate) async fn controller_delivery_lease(
@@ -70,17 +78,14 @@ pub(crate) async fn controller_delivery_lease(
     attached.then_some(lease)
 }
 
-fn detach_from_registry(registry: &mut ControllerRegistry, device_id: &str) -> bool {
-    let was_attached = registry.ids.remove(device_id);
-    was_attached && registry.ids.is_empty()
+fn detach_from_registry(registry: &mut ControllerRegistry, device_id: &str) {
+    registry.ids.remove(device_id);
 }
 
-fn retain_online_in_registry(registry: &mut ControllerRegistry, online: &HashSet<&str>) -> bool {
-    let had_controllers = !registry.ids.is_empty();
+fn retain_online_in_registry(registry: &mut ControllerRegistry, online: &HashSet<&str>) {
     registry
         .ids
         .retain(|device_id| online.contains(device_id.as_str()));
-    had_controllers && registry.ids.is_empty()
 }
 
 pub(crate) fn attached_controllers() -> Vec<String> {
@@ -101,25 +106,18 @@ pub(crate) fn peer_mode_ping_value() -> Value {
         "peer": true,
         "device_id": device_id,
         // Declares which kind of host answered so the controller can resolve
-        // capabilities that an older CLI did not advertise. An older CLI
-        // (pre-`50b76516`) omits `cancel_tool`/`tool_catalog` and never
-        // implemented them; reporting `host_type: "cli"` lets the controller
-        // gate the Terminal Interrupt button / tool list off instead of showing
-        // an action that silently fails. See PR #2428 round 5 #1.
-        "host_type": "cli",
-        "capabilities": {
-            "idempotent_dialog_submit": true,
-            "targeted_session_rollback": true,
-            "token_usage_statistics": true,
-            "product_control_v1": true,
-            // Per-tool interrupt and read-only tool catalog are implemented on
-            // this host (see commands::dialog::cancel_tool and
-            // commands::tools::get_all_tools_info). Advertising them lets the
-            // controller gate the Terminal Interrupt button and the tool
-            // catalog UI on a real capability instead of guessing.
-            "cancel_tool": true,
-            "tool_catalog": true,
-        },
+        // capabilities that an older CLI did not advertise. Older CLI hosts
+        // omitted `cancel_tool`/`tool_catalog` and lacked
+        // `submit_user_answers`; reporting the host kind lets the controller
+        // gate those controls instead of showing actions that silently fail.
+        "host_type": PeerHostKind::Cli.as_wire_str(),
+        // Only advertised keys, all `true`, taken from the Product Operation
+        // Registry so the desktop host, this host and the generated frontend
+        // artifact publish and consume one capability list.
+        "capabilities": Value::Object(capability_map(PeerHostKind::Cli)),
+        // Additive: lets a controller detect that this host and its own
+        // generated tables were built from different registries.
+        "surface_registry_digest": remote_surface_digest(),
     })
 }
 
@@ -148,24 +146,31 @@ mod tests {
     };
 
     #[test]
-    fn only_the_last_detach_reports_loss_of_all_controllers() {
+    fn detach_only_updates_delivery_subscribers() {
         let mut registry = ControllerRegistry {
             ids: HashSet::from(["controller-1".to_string(), "controller-2".to_string()]),
         };
-        assert!(!detach_from_registry(&mut registry, "controller-1"));
-        assert!(detach_from_registry(&mut registry, "controller-2"));
-        assert!(!detach_from_registry(&mut registry, "controller-2"));
+        detach_from_registry(&mut registry, "controller-1");
+        assert_eq!(registry.ids, HashSet::from(["controller-2".to_string()]));
+
+        detach_from_registry(&mut registry, "controller-2");
+        assert!(registry.ids.is_empty());
+
+        detach_from_registry(&mut registry, "controller-2");
+        assert!(registry.ids.is_empty());
     }
 
     #[test]
-    fn presence_removal_reports_when_the_last_controller_goes_offline() {
+    fn presence_removal_only_updates_delivery_subscribers() {
         let mut registry = ControllerRegistry {
             ids: HashSet::from(["controller-1".to_string(), "controller-2".to_string()]),
         };
         let first_online = HashSet::from(["controller-1"]);
-        assert!(!retain_online_in_registry(&mut registry, &first_online));
+        retain_online_in_registry(&mut registry, &first_online);
+        assert_eq!(registry.ids, HashSet::from(["controller-1".to_string()]));
 
-        assert!(retain_online_in_registry(&mut registry, &HashSet::new()));
+        retain_online_in_registry(&mut registry, &HashSet::new());
+        assert!(registry.ids.is_empty());
     }
 
     #[tokio::test]

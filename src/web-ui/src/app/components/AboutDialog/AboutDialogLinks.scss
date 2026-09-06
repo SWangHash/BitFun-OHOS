@@ -9,7 +9,7 @@
 
 // ==================== Footer links ====================
 
-.bitfun-about-dialog__links {
+.openbitfun-about-dialog__links {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -17,7 +17,7 @@
   margin-bottom: 10px;
 }
 
-.bitfun-about-dialog__link {
+.openbitfun-about-dialog__link {
   font-size: 11px;
   color: var(--bf-appearance-token-color-text-muted);
   text-decoration: none;
@@ -34,7 +34,7 @@
   }
 }
 
-.bitfun-about-dialog__link-sep {
+.openbitfun-about-dialog__link-sep {
   font-size: 11px;
   color: var(--bf-appearance-token-border-subtle);
 }

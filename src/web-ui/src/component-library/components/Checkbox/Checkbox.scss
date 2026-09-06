@@ -4,7 +4,7 @@
  */
 @use '../../styles/tokens.scss' as tokens;
 
-.bitfun-checkbox {
+.openbitfun-checkbox {
   display: inline-flex;
   align-items: flex-start;
   gap: tokens.$size-gap-3;
@@ -154,26 +154,26 @@
   &--small {
     gap: tokens.$size-gap-2;
 
-    .bitfun-checkbox__wrapper {
+    .openbitfun-checkbox__wrapper {
       margin-top: 1px;
     }
 
-    .bitfun-checkbox__box {
+    .openbitfun-checkbox__box {
       width: 16px;
       height: 16px;
       border-radius: 4px;
     }
 
-    .bitfun-checkbox__icon {
+    .openbitfun-checkbox__icon {
       width: 9px;
       height: 9px;
     }
 
-    .bitfun-checkbox__label {
+    .openbitfun-checkbox__label {
       font-size: var(--bf-appearance-token-font-size-xs);
     }
 
-    .bitfun-checkbox__description {
+    .openbitfun-checkbox__description {
       font-size: 11px;
     }
   }
@@ -181,59 +181,59 @@
   &--large {
     gap: tokens.$size-gap-4;
 
-    .bitfun-checkbox__wrapper {
+    .openbitfun-checkbox__wrapper {
       margin-top: 3px;
     }
 
-    .bitfun-checkbox__box {
+    .openbitfun-checkbox__box {
       width: 20px;
       height: 20px;
       border-radius: 6px;
     }
 
-    .bitfun-checkbox__icon {
+    .openbitfun-checkbox__icon {
       width: 13px;
       height: 13px;
     }
 
-    .bitfun-checkbox__label {
+    .openbitfun-checkbox__label {
       font-size: var(--bf-appearance-token-font-size-base);
     }
 
-    .bitfun-checkbox__description {
+    .openbitfun-checkbox__description {
       font-size: var(--bf-appearance-token-font-size-xs);
     }
   }
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .bitfun-checkbox:not(.bitfun-checkbox--disabled):hover {
-    .bitfun-checkbox__box {
+  .openbitfun-checkbox:not(.openbitfun-checkbox--disabled):hover {
+    .openbitfun-checkbox__box {
       border-color: var(--bf-appearance-token-border-base);
       background: var(--bf-appearance-token-element-bg-subtle);
     }
 
-    .bitfun-checkbox__input:checked + .bitfun-checkbox__box,
-    .bitfun-checkbox__input:indeterminate + .bitfun-checkbox__box {
+    .openbitfun-checkbox__input:checked + .openbitfun-checkbox__box,
+    .openbitfun-checkbox__input:indeterminate + .openbitfun-checkbox__box {
       background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 15%, transparent);
       border-color: var(--bf-appearance-token-color-accent-400);
     }
 
-    .bitfun-checkbox__input:checked + .bitfun-checkbox__box .bitfun-checkbox__icon,
-    .bitfun-checkbox__input:indeterminate + .bitfun-checkbox__box .bitfun-checkbox__icon {
+    .openbitfun-checkbox__input:checked + .openbitfun-checkbox__box .openbitfun-checkbox__icon,
+    .openbitfun-checkbox__input:indeterminate + .openbitfun-checkbox__box .openbitfun-checkbox__icon {
       color: var(--bf-appearance-token-color-accent-400);
     }
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bitfun-checkbox__box {
+  .openbitfun-checkbox__box {
     transition:
       background-color var(--bf-appearance-token-motion-fast) ease,
       border-color var(--bf-appearance-token-motion-fast) ease;
   }
 
-  .bitfun-checkbox__input:active:not(:disabled) + .bitfun-checkbox__box {
+  .openbitfun-checkbox__input:active:not(:disabled) + .openbitfun-checkbox__box {
     transform: none;
   }
 }

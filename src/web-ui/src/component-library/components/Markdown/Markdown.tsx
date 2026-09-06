@@ -172,7 +172,7 @@ class MarkdownErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="markdown-renderer markdown-renderer--fallback" style={{ whiteSpace: 'pre-wrap' }} data-bf-component="markdown" data-bf-part="fallback" data-bf-state="fallback">
+        <div className="markdown-renderer markdown-renderer--fallback" style={{ whiteSpace: 'pre-wrap' }} data-openbitfun-component="markdown" data-openbitfun-part="fallback" data-openbitfun-state="fallback">
           {this.props.fallbackContent}
         </div>
       );
@@ -598,8 +598,8 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({
     return (
       <span
         className="markdown-image-fallback"
-        data-bf-component="markdown"
-        data-bf-part="imageFallback"
+        data-openbitfun-component="markdown"
+        data-openbitfun-part="imageFallback"
         title={typeof alt === 'string' && alt ? alt : undefined}
       >
         {typeof alt === 'string' ? alt : null}
@@ -738,13 +738,13 @@ const CodeBlockFallback: React.FC<FlowCodeBlockFallbackProps> = ({
     <pre
       className={`language-${language} code-block-fallback code-block-fallback--linenumbers`}
       style={bodyStyle}
-      data-bf-component="markdown"
-      data-bf-part="codePre"
+      data-openbitfun-component="markdown"
+      data-openbitfun-part="codePre"
     >
       <code
         style={{ ...codeTagStyle, display: 'flex' }}
-        data-bf-component="markdown"
-        data-bf-part="codeContent"
+        data-openbitfun-component="markdown"
+        data-openbitfun-part="codeContent"
       >
         <span
           aria-hidden="true"
@@ -1026,7 +1026,7 @@ export const Markdown = React.memo<MarkdownProps>(({
     }
 
     return Boolean(
-      targetElement.closest('.bitfun-session-scene') &&
+      targetElement.closest('.openbitfun-session-scene') &&
       targetElement.closest('.modern-flowchat-container, .flow-chat-container')
     );
   }, []);
@@ -1244,12 +1244,12 @@ export const Markdown = React.memo<MarkdownProps>(({
         : 'color-mix(in srgb, var(--bf-appearance-token-color-static-white) 40%, var(--bf-appearance-token-color-static-black))';
 
       return (
-        <div className={`code-block-wrapper${hasMultipleLines ? '' : ' code-block-wrapper--single-line'}`} data-bf-component="markdown" data-bf-part="codeBlock" data-bf-state={streaming ? 'streaming' : undefined}>
-          <div className="code-block-toolbar" data-bf-component="markdown" data-bf-part="codeToolbar">
+        <div className={`code-block-wrapper${hasMultipleLines ? '' : ' code-block-wrapper--single-line'}`} data-openbitfun-component="markdown" data-openbitfun-part="codeBlock" data-openbitfun-state={streaming ? 'streaming' : undefined}>
+          <div className="code-block-toolbar" data-openbitfun-component="markdown" data-openbitfun-part="codeToolbar">
             <span className="code-block-lang">{formatCodeLanguageLabel(normalizedLang)}</span>
             <CopyButton code={code} />
           </div>
-          <div className="code-block-body" data-bf-component="markdown" data-bf-part="codeBody">
+          <div className="code-block-body" data-openbitfun-component="markdown" data-openbitfun-part="codeBody">
             {/*
               Always mount AsyncPrismSyntaxHighlighter. While streaming,
               preferFallback keeps the lightweight line-numbered pre so we do
@@ -1342,8 +1342,8 @@ export const Markdown = React.memo<MarkdownProps>(({
           const fileLinkButton = (
             <button
               className="file-link"
-              data-bf-component="markdown"
-              data-bf-part="fileLink"
+              data-openbitfun-component="markdown"
+              data-openbitfun-part="fileLink"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1385,8 +1385,8 @@ export const Markdown = React.memo<MarkdownProps>(({
         return (
           <button
             className="visualization-link"
-            data-bf-component="markdown"
-            data-bf-part="visualizationLink"
+            data-openbitfun-component="markdown"
+            data-openbitfun-part="visualizationLink"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -1410,8 +1410,8 @@ export const Markdown = React.memo<MarkdownProps>(({
         return (
           <button
             className="tab-link"
-            data-bf-component="markdown"
-            data-bf-part="tabLink"
+            data-openbitfun-component="markdown"
+            data-openbitfun-part="tabLink"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -1490,7 +1490,7 @@ export const Markdown = React.memo<MarkdownProps>(({
     
     table({ children }: any) {
       return (
-        <div className="table-wrapper" data-bf-component="markdown" data-bf-part="table">
+        <div className="table-wrapper" data-openbitfun-component="markdown" data-openbitfun-part="table">
           <table>{children}</table>
         </div>
       );
@@ -1515,7 +1515,7 @@ export const Markdown = React.memo<MarkdownProps>(({
     },
     
     blockquote({ children }: any) {
-      return <blockquote className="custom-blockquote" data-bf-component="markdown" data-bf-part="blockquote">{children}</blockquote>;
+      return <blockquote className="custom-blockquote" data-openbitfun-component="markdown" data-openbitfun-part="blockquote">{children}</blockquote>;
     },
     
     ul({ children, ...props }: any) {
@@ -1573,7 +1573,7 @@ export const Markdown = React.memo<MarkdownProps>(({
   ), [components, markdownContent]);
 
   return (
-    <div className={wrapperClassName} data-bf-component="markdown" data-bf-part="root" data-bf-state={isStreaming ? 'streaming' : undefined}>
+    <div className={wrapperClassName} data-openbitfun-component="markdown" data-openbitfun-part="root" data-openbitfun-state={isStreaming ? 'streaming' : undefined}>
       {renderTraceEnabled && renderTraceStartedAtMs !== null && (
         <MarkdownRenderTrace
           startedAtMs={renderTraceStartedAtMs}

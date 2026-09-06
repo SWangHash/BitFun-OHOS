@@ -2,11 +2,11 @@
  * PagePublish tool card — shows publish slug / version / URLs.
  */
 import React, { useCallback, useMemo, useState } from 'react';
-import { Button } from '@bitfun/ui';
+import { Button, Icon } from '@openbitfun/ui';
 import { useTranslation } from 'react-i18next';
-import { ExternalLink } from 'lucide-react';
+
 import type { ToolCardProps } from '../types/flow-chat';
-import { PagePublishToolCard } from '@bitfun/ui/flow-chat';
+import { PagePublishToolCard } from '@openbitfun/ui/flow-chat';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 import { pageAPI } from '@/infrastructure/api/service-api/PageAPI';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
@@ -80,16 +80,16 @@ export const PagePublishDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
   }, [isLoading, slug, t]);
 
   const fields = success ? [
-    slug ? { label: `${t('toolCards.pagePublish.labelSlug')}:`, value: slug, monospace: true } : null,
-    versionId ? { label: `${t('toolCards.pagePublish.labelVersion')}:`, value: versionId, monospace: true } : null,
-    deployed && urlPath ? { label: `${t('toolCards.pagePublish.labelPath')}:`, value: urlPath, monospace: true } : null,
-    !deployed && previewPath ? { label: `${t('toolCards.pagePublish.labelPreview')}:`, value: previewPath, monospace: true } : null,
+    slug ? { label: `${t('toolCards.pagePublish.labelSlug')}:`, value: slug } : null,
+    versionId ? { label: `${t('toolCards.pagePublish.labelVersion')}:`, value: versionId } : null,
+    deployed && urlPath ? { label: `${t('toolCards.pagePublish.labelPath')}:`, value: urlPath } : null,
+    !deployed && previewPath ? { label: `${t('toolCards.pagePublish.labelPreview')}:`, value: previewPath } : null,
   ].filter((field): field is NonNullable<typeof field> => Boolean(field)) : [];
 
   return (
     <div
       ref={cardRootRef}
-      data-bf-adapter="page-publish"
+      data-openbitfun-adapter="page-publish"
       data-testid="chat-page-publish-card"
       data-tool-card-id={toolId ?? ''}
       data-status={status}
@@ -112,7 +112,7 @@ export const PagePublishDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
                 type="button"
                 variant="fill"
                 size="sm"
-                leadingIcon={<ExternalLink size={12} />}
+                leadingIcon={<Icon name="arrow-up-right" size="xs" />}
                 data-testid="chat-page-publish-open-prod-btn"
                 onClick={() => void openPage(slug, generation).catch(() => {
                   notificationService.error(t('toolCards.pagePublish.openFailed'));
@@ -126,7 +126,7 @@ export const PagePublishDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
                 type="button"
                 variant="outline"
                 size="sm"
-                leadingIcon={<ExternalLink size={12} />}
+                leadingIcon={<Icon name="arrow-up-right" size="xs" />}
                 data-testid="chat-page-publish-open-preview-btn"
                 onClick={() => void openPage(slug, generation, versionId).catch(() => {
                   notificationService.error(t('toolCards.pagePublish.openFailed'));

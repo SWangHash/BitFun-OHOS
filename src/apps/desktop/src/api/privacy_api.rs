@@ -1,9 +1,9 @@
-use bitfun_product_domains::privacy::{
+use openbitfun_product_domains::privacy::{
     AcceptPrivacyRequest, ApplyPrivacyCollectionPolicyRequest, EnterPrivacyNotAcceptedRequest,
     GetPrivacyStatusRequest, InitializePrivacyRequest, MarkPrivacyViewedRequest,
     PrivacyEffectiveMode, PrivacyError, PrivacyStatus,
 };
-use bitfun_services_integrations::privacy::{PrivacyCollectionPolicy, PrivacyService};
+use openbitfun_services_integrations::privacy::{PrivacyCollectionPolicy, PrivacyService};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -73,7 +73,7 @@ impl PrivacyServiceState {
         mut status: PrivacyStatus,
     ) -> Result<PrivacyStatus, PrivacyError> {
         status.effective_mode = self.collection_policy.effective_mode();
-        if status.lifecycle_state == bitfun_product_domains::privacy::PrivacyLifecycleState::Full
+        if status.lifecycle_state == openbitfun_product_domains::privacy::PrivacyLifecycleState::Full
             && status.effective_mode != PrivacyEffectiveMode::Full
         {
             status.configuration_error = Some("PRIVACY_POLICY_NOT_APPLIED".to_string());

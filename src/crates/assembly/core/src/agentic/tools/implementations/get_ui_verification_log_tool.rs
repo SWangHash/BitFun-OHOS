@@ -5,7 +5,7 @@
 
 use super::ui_verification_mcp::call_ui_verification_mcp;
 use crate::agentic::tools::framework::{Tool, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult};
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
@@ -23,7 +23,7 @@ impl GetUiVerificationLogTool {
 impl Tool for GetUiVerificationLogTool {
     fn name(&self) -> &str { "get_ui_verification_log" }
 
-    async fn description(&self) -> BitFunResult<String> {
+    async fn description(&self) -> OpenBitFunResult<String> {
         Ok(r#"Retrieve device logs for a UI verification run.
 
 Use after `verify_ui` to get the device logs collected during the verification. Provide the `id` returned by `verify_ui`.
@@ -69,9 +69,9 @@ Example:
         if options.verbose { format!("HarmonyOS UI log: {}", id) } else { format!("UI log: {}", id) }
     }
 
-    async fn call_impl(&self, input: &Value, _ctx: &ToolUseContext) -> BitFunResult<Vec<ToolResult>> {
+    async fn call_impl(&self, input: &Value, _ctx: &ToolUseContext) -> OpenBitFunResult<Vec<ToolResult>> {
         let id = input.get("id").and_then(|v| v.as_str())
-            .ok_or_else(|| BitFunError::tool("id is required".to_string()))?;
+            .ok_or_else(|| OpenBitFunError::tool("id is required".to_string()))?;
         let mut payload = json!({ "id": id });
         if let Some(size) = input.get("maxLogSize").and_then(|v| v.as_i64()) {
             payload["maxLogSize"] = json!(size);

@@ -7,11 +7,12 @@ const prominentTokens = [
   "color.surface.canvas",
   "color.surface.raised",
   "color.border.default",
+  "color.codeChange.added",
+  "color.codeChange.removed",
   "color.status.danger.content",
   "color.status.success.content",
   "color.status.warning.content",
-  "font.family.control",
-  "font.family.mono",
+  "font.family.sans",
   "font.size.sm",
   "font.weight.medium",
   "font.weight.regular",
@@ -27,10 +28,18 @@ const expandableProps = [
 
 export const agentControlToolCardMeta = {
   category: "flow-chat",
-  description: "A prominent subagent card with an openable identity pill, lifecycle state, and prompt detail.",
+  description: "A prominent subagent card with shared tool-card status, actions, execution metadata, and expandable detail.",
   maturity: "stable",
   name: "AgentControlToolCard",
-  props: expandableProps,
+  props: [
+    ...expandableProps,
+    { name: "agentName", type: "ReactNode" },
+    { name: "agentModel", type: "ReactNode" },
+    { name: "summary", type: "ReactNode" },
+    { name: "statusMeta", type: "ReactNode" },
+    { name: "interruptAction", type: "AgentControlToolCardAction" },
+    { name: "onOpenAgent", type: "(event: MouseEvent<HTMLButtonElement>) => void" },
+  ],
   states: ["default", "hover", "loading", "expanded", "error"],
   tokens: prominentTokens,
 } as const satisfies ComponentMeta;
@@ -48,7 +57,7 @@ export const fileDiffToolCardMeta = {
     { name: "preview", type: "ReactNode" },
   ],
   states: ["default", "hover", "loading", "expanded", "error"],
-  tokens: prominentTokens,
+  tokens: [...prominentTokens, "font.family.mono"],
 } as const satisfies ComponentMeta;
 
 export const gitToolCardMeta = {

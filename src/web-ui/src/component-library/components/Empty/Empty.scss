@@ -1,8 +1,8 @@
 /**
  * Empty component styles
- * Based on the BitFun glassmorphism design system
+ * Based on the OpenBitFun glassmorphism design system
  */
-.bitfun-empty {
+.openbitfun-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -10,7 +10,7 @@
   gap: var(--bf-appearance-token-size-gap-4);
   padding: var(--bf-appearance-token-size-gap-10) var(--bf-appearance-token-size-gap-5);
   text-align: center;
-  animation: bitfun-empty-fade-in calc(var(--bf-appearance-token-motion-fast) + 70ms) var(--bf-appearance-token-easing-standard);
+  animation: openbitfun-empty-fade-in calc(var(--bf-appearance-token-motion-fast) + 70ms) var(--bf-appearance-token-easing-standard);
 
   &__image {
     opacity: 0.8;
@@ -24,15 +24,15 @@
     font-size: 14px;
     color: var(--bf-appearance-token-color-overlay-white-60);
     margin-bottom: 16px;
-    animation: bitfun-empty-fade-in 0.5s ease-out 0.1s both;
+    animation: openbitfun-empty-fade-in 0.5s ease-out 0.1s both;
   }
 
   &__footer {
-    animation: bitfun-empty-fade-in 0.5s ease-out 0.2s both;
+    animation: openbitfun-empty-fade-in 0.5s ease-out 0.2s both;
   }
 }
 
-@keyframes bitfun-empty-fade-in {
+@keyframes openbitfun-empty-fade-in {
   from {
     opacity: 0;
     transform: translateY(4px);
@@ -44,12 +44,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bitfun-empty {
-    animation: bitfun-empty-fade-only var(--bf-appearance-token-motion-fast) ease;
+  .openbitfun-empty {
+    animation: openbitfun-empty-fade-only var(--bf-appearance-token-motion-fast) ease;
   }
 }
 
-@keyframes bitfun-empty-fade-only {
+@keyframes openbitfun-empty-fade-only {
   from { opacity: 0; }
   to { opacity: 1; }
 }

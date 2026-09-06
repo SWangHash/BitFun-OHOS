@@ -33,7 +33,7 @@
 //! and optional CDP trace (1000 cap). Queries support filter, since, and limit.
 
 use crate::agentic::tools::browser_control::cdp_client::{CdpClient, CdpEvent};
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use log::{info, warn};
 use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
@@ -508,10 +508,10 @@ impl BrowserSessionRegistry {
     }
 
     /// Promote an existing session to the default. No-op if the id is unknown.
-    pub async fn set_default(&self, session_id: &str) -> BitFunResult<()> {
+    pub async fn set_default(&self, session_id: &str) -> OpenBitFunResult<()> {
         let mut g = self.inner.write().await;
         if !g.sessions.contains_key(session_id) {
-            return Err(BitFunError::tool(format!(
+            return Err(OpenBitFunError::tool(format!(
                 "Browser session '{}' not registered.",
                 session_id
             )));
@@ -524,18 +524,18 @@ impl BrowserSessionRegistry {
     /// requiring its current transport to be alive. Built-in ArkWeb recovery
     /// uses this to retain the target identity across a transient WebSocket
     /// disconnect.
-    pub async fn registered(&self, session_id: Option<&str>) -> BitFunResult<BrowserSession> {
+    pub async fn registered(&self, session_id: Option<&str>) -> OpenBitFunResult<BrowserSession> {
         let g = self.inner.read().await;
         let id = match session_id {
             Some(session_id) => session_id.to_string(),
             None => g.default_id.clone().ok_or_else(|| {
-                BitFunError::tool(
+                OpenBitFunError::tool(
                     "No browser session registered. Use action 'connect' first.".to_string(),
                 )
             })?,
         };
         g.sessions.get(&id).cloned().ok_or_else(|| {
-            BitFunError::tool(
+            OpenBitFunError::tool(
                 "Browser session is not connected. Use action 'connect' or 'switch_page'."
                     .to_string(),
             )
@@ -548,7 +548,7 @@ impl BrowserSessionRegistry {
     /// for its 30-second timeout. Built-in ArkWeb entries retain their target
     /// descriptor because the WebView can outlive a transient CDP connection
     /// and ControlHub can safely reattach to the same registered target.
-    pub async fn get(&self, session_id: Option<&str>) -> BitFunResult<BrowserSession> {
+    pub async fn get(&self, session_id: Option<&str>) -> OpenBitFunResult<BrowserSession> {
         let session = self.registered(session_id).await?;
         let id = session.session_id.clone();
 
@@ -567,7 +567,7 @@ impl BrowserSessionRegistry {
                     g.default_id = None;
                 }
             }
-            return Err(BitFunError::tool(format!(
+            return Err(OpenBitFunError::tool(format!(
                 "Browser session '{}' is no longer connected. Call 'connect' or 'switch_page' to attach a new one.",
                 id
             )));
@@ -617,7 +617,7 @@ impl BrowserSessionRegistry {
     /// Snapshot of registered sessions for backend-scoped tab discovery.
     /// Built-in ArkWeb callers use this instead of enumerating every target
     /// exposed by the process-wide DevTools socket, which also contains the
-    /// BitFun application UI.
+    /// OpenBitFun application UI.
     pub async fn sessions(&self) -> Vec<BrowserSession> {
         let g = self.inner.read().await;
         let mut sessions: Vec<BrowserSession> = g.sessions.values().cloned().collect();

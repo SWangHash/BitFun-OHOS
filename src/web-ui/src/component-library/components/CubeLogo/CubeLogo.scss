@@ -125,9 +125,9 @@
   }
 }
 
-:root[data-bf-appearance-mode="light"] .cube-logo,
-:root[data-bf-appearance-mode="light"] .cube-logo,
-[data-bf-appearance-mode="light"] .cube-logo {
+:root[data-openbitfun-appearance-mode="light"] .cube-logo,
+:root[data-openbitfun-appearance-mode="light"] .cube-logo,
+[data-openbitfun-appearance-mode="light"] .cube-logo {
   --private-cube-logo-particle-rgb: 90, 123, 178;
   --private-cube-logo-particle-secondary-rgb: 124, 107, 153;
   --private-cube-logo-face-border-rgb: 90, 123, 178;
@@ -145,7 +145,7 @@
   --private-cube-logo-face-left-shadow-rgb: 107, 90, 137;
 }
 
-:root[data-bf-appearance-mode="light"] {
+:root[data-openbitfun-appearance-mode="light"] {
   .cube-logo__face {
     border: 0.3px solid rgba(var(--private-cube-logo-face-border-rgb), 0.4);
 

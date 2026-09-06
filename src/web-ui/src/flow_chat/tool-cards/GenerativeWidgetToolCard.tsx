@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Loader2, Sparkles } from 'lucide-react';
-import { Spinner, Tooltip } from '@bitfun/ui';
+import { Loader2 } from 'lucide-react';
+import { Tooltip, Icon } from '@openbitfun/ui';
 import type { ToolCardProps } from '../types/flow-chat';
-import { ProminentToolCard, ProminentToolCardHeader } from '@bitfun/ui/flow-chat';
+import { ProminentToolCard, ProminentToolCardSummary, ToolProcessingDots } from '@openbitfun/ui/flow-chat';
 import { useTranslation } from 'react-i18next';
 import GenerativeWidgetFrame, {
   type WidgetContextMenuMessage,
@@ -158,20 +158,20 @@ export const GenerativeWidgetToolCard: React.FC<ToolCardProps> = ({ toolItem, se
   );
 
   const handleWidgetEvent = useCallback((event: WidgetMessage) => {
-    if (event.type === 'bitfun-widget:context-menu') {
+    if (event.type === 'openbitfun-widget:context-menu') {
       setMenuSelectionActive(true);
       openPromptMenu(event as WidgetContextMenuMessage, previewRef.current);
       return;
     }
-    if (event.type === 'bitfun-widget:selection-cleared') {
+    if (event.type === 'openbitfun-widget:selection-cleared') {
       setMenuSelectionActive(false);
       hideMenu();
       return;
     }
     if (
-      event.type === 'bitfun-widget:ready' ||
-      event.type === 'bitfun-widget:resize' ||
-      event.type === 'bitfun-widget:clear-selection'
+      event.type === 'openbitfun-widget:ready' ||
+      event.type === 'openbitfun-widget:resize' ||
+      event.type === 'openbitfun-widget:clear-selection'
     ) {
       return;
     }
@@ -245,16 +245,16 @@ export const GenerativeWidgetToolCard: React.FC<ToolCardProps> = ({ toolItem, se
       ? t('toolCards.generativeUI.streamingPreview')
       : t('toolCards.generativeUI.openSource');
 
-  const header = (
-    <ProminentToolCardHeader
-      icon={<span className="generative-widget-card__icon"><Sparkles size={16} /></span>}
+  const summary = (
+    <ProminentToolCardSummary
+      icon={<span className="generative-widget-card__icon"><Icon name="spark" size="md" /></span>}
       action={t('toolCards.generativeUI.action')}
-      content={<span data-bf-component="generative-widget-tool-card" data-bf-part="title" className="generative-widget-card__title">{title}</span>}
+      content={<span data-openbitfun-component="generative-widget-tool-card" data-openbitfun-part="title" className="generative-widget-card__title">{title}</span>}
       extra={(
-        <div data-bf-component="generative-widget-tool-card" data-bf-part="extra" className="generative-widget-card__extra">
+        <div data-openbitfun-component="generative-widget-tool-card" data-openbitfun-part="extra" className="generative-widget-card__extra">
           <span
-            data-bf-component="generative-widget-tool-card"
-            data-bf-part="status"
+            data-openbitfun-component="generative-widget-tool-card"
+            data-openbitfun-part="status"
             className={`generative-widget-card__status ${isFailed ? 'generative-widget-card__status--error' : ''}`.trim()}
           >
             {statusText}
@@ -267,29 +267,29 @@ export const GenerativeWidgetToolCard: React.FC<ToolCardProps> = ({ toolItem, se
           placement="top"
         >
           <button
-            data-bf-component="generative-widget-tool-card"
-            data-bf-part="exportAction"
-            data-bf-state={isExporting ? 'exporting' : undefined}
+            data-openbitfun-component="generative-widget-tool-card"
+            data-openbitfun-part="exportAction"
+            data-openbitfun-state={isExporting ? 'exporting' : undefined}
             type="button"
             className="generative-widget-card__export-image-btn"
             onClick={handleExportImage}
             disabled={isExporting}
             aria-label={t('exportImage.exportToImage')}
           >
-            {isExporting ? <Loader2 size={14} className="spinning" /> : <Image size={14} />}
+            {isExporting ? <Loader2 size={14} className="spinning" /> : <Icon name="image" size="sm" />}
           </button>
         </Tooltip>
       )}
-      statusIcon={isLoading ? <Spinner size="sm" /> : null}
+      statusIcon={isLoading ? <ToolProcessingDots size={16} /> : null}
     />
   );
 
   const previewInner = isFailed ? (
-    <div data-bf-component="generative-widget-tool-card" data-bf-part="placeholder" data-bf-state="failed" className="generative-widget-card__placeholder generative-widget-card__placeholder--error">
+    <div data-openbitfun-component="generative-widget-tool-card" data-openbitfun-part="placeholder" data-openbitfun-state="failed" className="generative-widget-card__placeholder generative-widget-card__placeholder--error">
       {toolResult?.error || t('toolCards.generativeUI.renderFailed')}
     </div>
   ) : widgetCode.trim().length > 0 ? (
-    <div data-bf-component="generative-widget-tool-card" data-bf-part="preview" ref={previewRef} className="generative-widget-card__preview">
+    <div data-openbitfun-component="generative-widget-tool-card" data-openbitfun-part="preview" ref={previewRef} className="generative-widget-card__preview">
       <GenerativeWidgetFrame
         widgetId={widgetId}
         title={title}
@@ -300,38 +300,38 @@ export const GenerativeWidgetToolCard: React.FC<ToolCardProps> = ({ toolItem, se
       />
     </div>
   ) : (
-    <div data-bf-component="generative-widget-tool-card" data-bf-part="placeholder" className="generative-widget-card__placeholder">
+    <div data-openbitfun-component="generative-widget-tool-card" data-openbitfun-part="placeholder" className="generative-widget-card__placeholder">
       {t('toolCards.generativeUI.waitingForContent')}
     </div>
   );
 
   const expandedBody = (
-    <div data-bf-component="generative-widget-tool-card" data-bf-part="captureRoot" ref={captureRootRef} className="generative-widget-card__capture-root">
+    <div data-openbitfun-component="generative-widget-tool-card" data-openbitfun-part="captureRoot" ref={captureRootRef} className="generative-widget-card__capture-root">
       {previewInner}
     </div>
   );
 
   return (
     <>
-      <div data-bf-component="generative-widget-tool-card" data-bf-part="root" data-bf-state={isFailed ? 'failed' : undefined}>
+      <div data-openbitfun-component="generative-widget-tool-card" data-openbitfun-part="root" data-openbitfun-state={isFailed ? 'failed' : undefined}>
         <ProminentToolCard
         status={status}
         isExpanded={isCardExpanded}
-        onClick={isFailed || isClickable ? handleCardClick : undefined}
+        onToggle={isFailed || isClickable ? handleCardClick : undefined}
         className={`generative-widget-card ${isClickable || isFailed ? 'clickable' : ''}`.trim()}
-        header={header}
+        summary={summary}
         expandedContent={expandedBody}
         errorContent={showFailedErrorPanel ? expandedBody : undefined}
         isFailed={isFailed}
-        headerExpandAffordance={isClickable || isFailed}
-        headerAffordanceKind={isFailed ? 'expand' : 'open-panel-right'}
+        summaryExpandAffordance={isClickable || isFailed}
+        summaryAffordanceKind={isFailed ? 'expand' : 'open-panel-right'}
         />
       </div>
       {shouldRenderExportClone && hasRenderableWidget && (
         <div
           className="generative-widget-card__export-stage"
-          data-bf-component="generative-widget-tool-card"
-          data-bf-part="exportStage"
+          data-openbitfun-component="generative-widget-tool-card"
+          data-openbitfun-part="exportStage"
         >
           <div
             ref={exportPreviewRef}

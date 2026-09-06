@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef, Component, type ReactNode } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { Tooltip } from '@bitfun/ui';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
+import { Tooltip } from '@openbitfun/ui';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
@@ -19,9 +19,11 @@ import { getPrismLanguageFromAlias } from '@/infrastructure/language-detection';
 import { useAppearance } from '@/infrastructure/appearance';
 import { contextMenuController } from '@/shared/context-menu-system/core/ContextMenuController';
 import { ContextType, type CustomContext, type MenuItem } from '@/shared/context-menu-system/types';
-import { createTab } from '@/shared/utils/tabUtils';
+import { createTab, openCanvasArtifactTab, openFileInBestTarget } from '@/shared/utils/tabUtils';
+import { isHtmlFilePath, openHtmlFileInExternalBrowser } from '@/shared/utils/htmlFilePreview';
 import { createLogger } from '@/shared/utils/logger';
 import type { LineRange } from '@/shared/editor/LineRange';
+import { parseCanvasArtifactReference } from '@/shared/utils/canvasArtifactReference';
 import {
   isStartupRenderTraceEnabled,
   recordReactRenderProfile,
@@ -33,9 +35,17 @@ import './Markdown.scss';
 const log = createLogger('Markdown');
 const COMPUTER_LINK_PREFIX = 'computer://';
 const FILE_LINK_PREFIX = 'file://';
+const CANVAS_LINK_PREFIX = 'openbitfun-canvas://';
 const WORKSPACE_FOLDER_PLACEHOLDER = '{{workspaceFolder}}';
 
 const MarkdownMathRenderer = React.lazy(() => import('./MarkdownMathRenderer'));
+
+function markdownUrlTransform(value: string): string {
+  if (value.startsWith(CANVAS_LINK_PREFIX) && parseCanvasArtifactReference(value)) {
+    return value;
+  }
+  return defaultUrlTransform(value);
+}
 
 // Module-level cache so that all simultaneously-mounting Markdown instances
 // (e.g. dozens of history blocks after a workspace switch) share a single
@@ -125,13 +135,13 @@ function mayNeedWorkspacePathForMarkdownLinks(content: string): boolean {
   // while false negatives could make relative local links display poorly.
   if (
     hasMarkdownLinkSyntax &&
-    /!?\[[^\]]+\]\(\s*(?!https?:|mailto:|data:|asset:|tauri:|visualization:|tab:|#)[^)]+\)/i.test(content)
+    /!?\[[^\]]+\]\(\s*(?!https?:|mailto:|data:|asset:|tauri:|visualization:|tab:|openbitfun-canvas:|#)[^)]+\)/i.test(content)
   ) {
     return true;
   }
 
   return hasRawAnchorSyntax &&
-    /<a\s+[^>]*href=["']\s*(?!https?:|mailto:|visualization:|tab:|#)[^"']+["']/i.test(content);
+    /<a\s+[^>]*href=["']\s*(?!https?:|mailto:|visualization:|tab:|openbitfun-canvas:|#)[^"']+["']/i.test(content);
 }
 
 function mayContainMarkdownMath(content: string): boolean {
@@ -170,7 +180,7 @@ class MarkdownErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="markdown-renderer markdown-renderer--fallback" style={{ whiteSpace: 'pre-wrap' }} data-bf-component="markdown" data-bf-part="fallback" data-bf-state="fallback">
+        <div className="markdown-renderer markdown-renderer--fallback" style={{ whiteSpace: 'pre-wrap' }} data-openbitfun-component="markdown" data-openbitfun-part="fallback" data-openbitfun-state="fallback">
           {this.props.fallbackContent}
         </div>
       );
@@ -250,12 +260,12 @@ const sanitizeSchema = {
   },
   protocols: {
     ...defaultSchema.protocols,
-    href: [...(defaultSchema.protocols?.href || []), 'computer', 'file', 'tab', 'visualization'],
+    href: [...(defaultSchema.protocols?.href || []), 'openbitfun-canvas', 'computer', 'file', 'tab', 'visualization'],
     src: [...(defaultSchema.protocols?.src || []), 'asset', 'data', 'http', 'https', 'tauri'],
   },
 };
 
-function remarkAutolinkComputerFileLinks() {
+function remarkAutolinkInternalLinks() {
   return (tree: any) => {
     visit(tree, 'text', (node: any, index: number | undefined, parent: any) => {
       if (index === undefined || !parent || !Array.isArray(parent.children)) {
@@ -267,11 +277,18 @@ function remarkAutolinkComputerFileLinks() {
       }
 
       const value = node.value;
-      if (typeof value !== 'string' || (!value.includes(COMPUTER_LINK_PREFIX) && !value.includes(FILE_LINK_PREFIX))) {
+      if (
+        typeof value !== 'string'
+        || (
+          !value.includes(COMPUTER_LINK_PREFIX)
+          && !value.includes(FILE_LINK_PREFIX)
+          && !value.includes(CANVAS_LINK_PREFIX)
+        )
+      ) {
         return;
       }
 
-      const re = /(computer:\/\/|file:\/\/)[^\s<>()]+/g;
+      const re = /(computer:\/\/|file:\/\/|openbitfun-canvas:\/\/)[^\s<>()]+/g;
       let match: RegExpExecArray | null;
       let lastIndex = 0;
       const nextChildren: any[] = [];
@@ -593,8 +610,8 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({
     return (
       <span
         className="markdown-image-fallback"
-        data-bf-component="markdown"
-        data-bf-part="imageFallback"
+        data-openbitfun-component="markdown"
+        data-openbitfun-part="imageFallback"
         title={typeof alt === 'string' && alt ? alt : undefined}
       >
         {typeof alt === 'string' ? alt : null}
@@ -733,13 +750,13 @@ const CodeBlockFallback: React.FC<FlowCodeBlockFallbackProps> = ({
     <pre
       className={`language-${language} code-block-fallback code-block-fallback--linenumbers`}
       style={bodyStyle}
-      data-bf-component="markdown"
-      data-bf-part="codePre"
+      data-openbitfun-component="markdown"
+      data-openbitfun-part="codePre"
     >
       <code
         style={{ ...codeTagStyle, display: 'flex' }}
-        data-bf-component="markdown"
-        data-bf-part="codeContent"
+        data-openbitfun-component="markdown"
+        data-openbitfun-part="codeContent"
       >
         <span
           aria-hidden="true"
@@ -808,6 +825,7 @@ export interface MarkdownRendererProps {
   content: string;
   basePath?: string;
   remoteConnectionId?: string;
+  remoteSshHost?: string;
   className?: string;
   isStreaming?: boolean;
   expandDetailsByDefault?: boolean;
@@ -828,6 +846,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
   content, 
   basePath,
   remoteConnectionId,
+  remoteSshHost,
   className = '',
   isStreaming = false,
   expandDetailsByDefault = false,
@@ -847,6 +866,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
   isStreamingRef.current = isStreaming;
   const basePathRef = useLiveValueRef(basePath);
   const remoteConnectionIdRef = useLiveValueRef(remoteConnectionId);
+  const remoteSshHostRef = useLiveValueRef(remoteSshHost);
   const currentWorkspacePathRef = useLiveValueRef(currentWorkspacePath);
   const expandDetailsByDefaultRef = useLiveValueRef(expandDetailsByDefault);
   const onOpenVisualizationRef = useLiveValueRef(onOpenVisualization);
@@ -1004,7 +1024,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
     }
 
     return Boolean(
-      targetElement.closest('.bitfun-session-scene') &&
+      targetElement.closest('.openbitfun-session-scene') &&
       targetElement.closest('.modern-flowchat-container, .flow-chat-container')
     );
   }, []);
@@ -1046,9 +1066,57 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
   const handleLocalFileContextMenu = useCallback((
     event: React.MouseEvent<HTMLElement>,
     filePath: string,
-    displayPath: string
+    displayPath: string,
+    fileName: string,
+    lineRange?: LineRange,
   ) => {
-    const items: MenuItem[] = [
+    const items: MenuItem[] = [];
+    const isHtmlFile = isHtmlFilePath(filePath) && canOpenInBuiltInBrowser(event.currentTarget);
+
+    if (isHtmlFile) {
+      const workspacePath = currentWorkspacePathRef.current || basePathRef.current;
+      const remoteConnectionId = remoteConnectionIdRef.current;
+      const openFileOptions = {
+        filePath,
+        fileName,
+        workspacePath,
+        remoteConnectionId,
+      };
+
+      items.push(
+        {
+          id: 'markdown-open-html-as-text',
+          label: i18nService.t('common:actions.open'),
+          icon: 'FileText',
+          onClick: () => openFileInBestTarget({
+            ...openFileOptions,
+            editorType: 'code-editor',
+            jumpToRange: lineRange,
+          }),
+        },
+        {
+          id: 'markdown-open-html-in-integrated-browser',
+          label: i18nService.t('common:file.openInIntegratedBrowser'),
+          icon: 'PanelRightOpen',
+          onClick: () => openFileInBestTarget({
+            ...openFileOptions,
+            editorType: 'html-preview',
+          }),
+        },
+        {
+          id: 'markdown-open-html-in-system-browser',
+          label: i18nService.t('common:file.openInSystemBrowser'),
+          icon: 'ExternalLink',
+          disabled: Boolean(remoteConnectionId),
+          onClick: () => {
+            if (remoteConnectionId) return;
+            void openHtmlFileInExternalBrowser(displayPath || filePath);
+          },
+        },
+      );
+    }
+
+    items.push(
       {
         id: 'markdown-open-in-explorer',
         label: translateMarkdownLabel('markdown.openInExplorer'),
@@ -1061,13 +1129,21 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
         icon: 'Copy',
         onClick: () => void handleCopyLink(displayPath || filePath),
       },
-    ];
+    );
 
     showLinkContextMenu(event, items, 'markdown-local-file-link', {
       filePath,
       displayPath,
     });
-  }, [handleRevealInExplorer, handleCopyLink, showLinkContextMenu]);
+  }, [
+    basePathRef,
+    canOpenInBuiltInBrowser,
+    currentWorkspacePathRef,
+    handleRevealInExplorer,
+    handleCopyLink,
+    remoteConnectionIdRef,
+    showLinkContextMenu,
+  ]);
 
   const handleWebLinkContextMenu = useCallback((event: React.MouseEvent<HTMLElement>, url: string) => {
     const targetElement = event.currentTarget;
@@ -1146,24 +1222,24 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
       const codeBodyStyle: React.CSSProperties = {
         margin: 0,
         borderRadius: '0 0 8px 8px',
-        fontSize: 'var(--bf-type-code-md-font-size)',
-        lineHeight: 'var(--bf-type-code-md-line-height)',
+        fontSize: 'var(--openbitfun-type-code-md-font-size)',
+        lineHeight: 'var(--openbitfun-type-code-md-line-height)',
       };
       const codeTagStyle: React.CSSProperties = {
-        fontFamily: 'var(--bf-type-code-md-font-family)',
-        fontWeight: 'var(--bf-type-code-md-font-weight)',
+        fontFamily: 'var(--openbitfun-type-code-md-font-family)',
+        fontWeight: 'var(--openbitfun-type-code-md-font-weight)',
       };
       const gutterColor = isLightRef.current
-        ? 'color-mix(in srgb, var(--bf-color-content-on-light) 40%, var(--bf-color-content-on-dark))'
-        : 'color-mix(in srgb, var(--bf-color-content-on-dark) 40%, var(--bf-color-content-on-light))';
+        ? 'color-mix(in srgb, var(--openbitfun-color-content-on-light) 40%, var(--openbitfun-color-content-on-dark))'
+        : 'color-mix(in srgb, var(--openbitfun-color-content-on-dark) 40%, var(--openbitfun-color-content-on-light))';
 
       return (
-        <div className={`code-block-wrapper${hasMultipleLines ? '' : ' code-block-wrapper--single-line'}`} data-bf-component="markdown" data-bf-part="codeBlock" data-bf-state={streaming ? 'streaming' : undefined}>
-          <div className="code-block-toolbar" data-bf-component="markdown" data-bf-part="codeToolbar">
+        <div className={`code-block-wrapper${hasMultipleLines ? '' : ' code-block-wrapper--single-line'}`} data-openbitfun-component="markdown" data-openbitfun-part="codeBlock" data-openbitfun-state={streaming ? 'streaming' : undefined}>
+          <div className="code-block-toolbar" data-openbitfun-component="markdown" data-openbitfun-part="codeToolbar">
             <span className="code-block-lang">{formatCodeLanguageLabel(normalizedLang)}</span>
             <CopyButton code={code} />
           </div>
-          <div className="code-block-body" data-bf-component="markdown" data-bf-part="codeBody">
+          <div className="code-block-body" data-openbitfun-component="markdown" data-openbitfun-part="codeBody">
             {/*
               Always mount AsyncPrismSyntaxHighlighter. While streaming,
               preferFallback keeps the lightweight line-numbered pre so we do
@@ -1209,11 +1285,12 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
       const isHashLink = typeof hrefValue === 'string' && hrefValue.startsWith('#');
       const isVisualizationLink = typeof hrefValue === 'string' && hrefValue.startsWith('visualization:');
       const isTabLink = typeof hrefValue === 'string' && hrefValue.startsWith('tab:');
+      const isCanvasLink = typeof hrefValue === 'string' && hrefValue.startsWith(CANVAS_LINK_PREFIX);
       const isHttpLink = typeof hrefValue === 'string' &&
         (hrefValue.startsWith('http://') || hrefValue.startsWith('https://'));
       const isMailtoLink = typeof hrefValue === 'string' && hrefValue.startsWith('mailto:');
 
-      if (typeof hrefValue === 'string' && !isVisualizationLink && !isTabLink && !isHttpLink && !isMailtoLink && !isHashLink) {
+      if (typeof hrefValue === 'string' && !isVisualizationLink && !isTabLink && !isCanvasLink && !isHttpLink && !isMailtoLink && !isHashLink) {
         let filePath = normalizeFileLikeHref(hrefValue);
 
         let lineRange: LineRange | undefined;
@@ -1256,8 +1333,8 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
           const fileLinkButton = (
             <button
               className="file-link"
-              data-bf-component="markdown"
-              data-bf-part="fileLink"
+              data-openbitfun-component="markdown"
+              data-openbitfun-part="fileLink"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1267,7 +1344,13 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
                 }
                 handleFileViewRequest(filePath, fileName, lineRange);
               }}
-              onContextMenu={(e) => handleLocalFileContextMenu(e, filePath, displayFilePath)}
+              onContextMenu={(e) => handleLocalFileContextMenu(
+                e,
+                filePath,
+                displayFilePath,
+                fileName,
+                lineRange,
+              )}
               type="button"
               style={{
                 cursor: 'pointer',
@@ -1292,6 +1375,41 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
           );
         }
       }
+
+      if (isCanvasLink && typeof hrefValue === 'string') {
+        return (
+          <button
+            className="canvas-link"
+            data-openbitfun-component="markdown"
+            data-openbitfun-part="canvasLink"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const opened = openCanvasArtifactTab({
+                artifactReference: hrefValue,
+                workspacePath: basePathRef.current || currentWorkspacePathRef.current || undefined,
+                remoteConnectionId: remoteConnectionIdRef.current,
+                remoteSshHost: remoteSshHostRef.current,
+                sourceMetadata: { type: 'markdown-link' },
+                metadata: { fromMarkdown: true },
+              });
+              if (!opened) {
+                log.warn('Ignored invalid Canvas artifact link', { artifactReference: hrefValue });
+              }
+            }}
+            type="button"
+            style={{
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              background: 'none',
+              border: 'none',
+              font: 'inherit',
+            }}
+          >
+            {children}
+          </button>
+        );
+      }
       
       if (isVisualizationLink && typeof hrefValue === 'string') {
         const vizData = hrefValue.replace('visualization:', '');
@@ -1299,8 +1417,8 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
         return (
           <button
             className="visualization-link"
-            data-bf-component="markdown"
-            data-bf-part="visualizationLink"
+            data-openbitfun-component="markdown"
+            data-openbitfun-part="visualizationLink"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -1324,8 +1442,8 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
         return (
           <button
             className="tab-link"
-            data-bf-component="markdown"
-            data-bf-part="tabLink"
+            data-openbitfun-component="markdown"
+            data-openbitfun-part="tabLink"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -1404,7 +1522,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
     
     table({ children }: any) {
       return (
-        <div className="table-wrapper" data-bf-component="markdown" data-bf-part="table">
+        <div className="table-wrapper" data-openbitfun-component="markdown" data-openbitfun-part="table">
           <table>{children}</table>
         </div>
       );
@@ -1429,7 +1547,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
     },
     
     blockquote({ children }: any) {
-      return <blockquote className="custom-blockquote" data-bf-component="markdown" data-bf-part="blockquote">{children}</blockquote>;
+      return <blockquote className="custom-blockquote" data-openbitfun-component="markdown" data-openbitfun-part="blockquote">{children}</blockquote>;
     },
     
     ul({ children, ...props }: any) {
@@ -1471,6 +1589,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
     markdownContentRef,
     onHttpLinkClickRef,
     remoteConnectionIdRef,
+    remoteSshHostRef,
     syntaxThemeRef,
     traceContextRef,
   ]);
@@ -1478,8 +1597,9 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
   const wrapperClassName = `markdown-renderer ${className}`.trim();
   const basicMarkdownRenderer = (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkAutolinkComputerFileLinks]}
+      remarkPlugins={[remarkGfm, remarkAutolinkInternalLinks]}
       rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
+      urlTransform={markdownUrlTransform}
       components={components}
     >
       {markdownContent}
@@ -1487,7 +1607,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
   );
 
   return (
-    <div className={wrapperClassName} data-bf-component="markdown" data-bf-part="root" data-bf-state={isStreaming ? 'streaming' : undefined}>
+    <div className={wrapperClassName} data-openbitfun-component="markdown" data-openbitfun-part="root" data-openbitfun-state={isStreaming ? 'streaming' : undefined}>
       {renderTraceEnabled && renderTraceStartedAtMs !== null && (
         <MarkdownRenderTrace
           startedAtMs={renderTraceStartedAtMs}
@@ -1505,7 +1625,8 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
               markdownContent={markdownContent}
               components={components}
               sanitizeSchema={sanitizeSchema}
-              remarkAutolinkComputerFileLinks={remarkAutolinkComputerFileLinks}
+              remarkAutolinkComputerFileLinks={remarkAutolinkInternalLinks}
+              urlTransform={markdownUrlTransform}
             />
           </React.Suspense>
         ) : basicMarkdownRenderer}

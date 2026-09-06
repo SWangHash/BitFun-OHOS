@@ -3,11 +3,18 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance/ty
 export const confirmDialogAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'confirm-dialog',
   parts: [
-    { id: 'root' }, { id: 'icon' }, { id: 'content' }, { id: 'title' },
-    { id: 'message' }, { id: 'messageRow' }, { id: 'preview' }, { id: 'actions' },
+    { id: 'root' },
+    { id: 'icon' },
+    { id: 'content' },
+    { id: 'title' },
+    { id: 'message' },
+    { id: 'messageRow' },
+    { id: 'preview' },
+    { id: 'actions' },
   ],
   facets: [{
-    id: 'type', attribute: 'data-bf-type',
-    values: ['info', 'warning', 'error', 'success'],
+    id: 'status',
+    attribute: 'data-openbitfun-status',
+    values: ['info', 'warning', 'danger', 'success'],
   }],
 };

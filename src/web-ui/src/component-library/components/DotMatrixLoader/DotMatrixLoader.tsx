@@ -24,13 +24,13 @@ export const DotMatrixLoader: React.FC<DotMatrixLoaderProps> = ({
 }) => (
   <span
     className={`dot-matrix-loader ${sizeClass[size]} ${className}`.trim()}
-    data-bf-component="dot-matrix-loader"
-    data-bf-part="root"
-    data-bf-size={size}
+    data-openbitfun-component="dot-matrix-loader"
+    data-openbitfun-part="root"
+    data-openbitfun-size={size}
     aria-hidden={ariaHidden}
   >
     {Array.from({ length: 9 }, (_, i) => (
-      <span key={i} className="dot-matrix-loader__dot" data-bf-component="dot-matrix-loader" data-bf-part="dot" />
+      <span key={i} className="dot-matrix-loader__dot" data-openbitfun-component="dot-matrix-loader" data-openbitfun-part="dot" />
     ))}
   </span>
 );

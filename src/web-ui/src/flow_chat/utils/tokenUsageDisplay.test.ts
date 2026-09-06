@@ -45,7 +45,7 @@ const makeSession = (overrides: Partial<Session> = {}): Session => ({
   isHistorical: false,
   todos: [],
   mode: 'agentic',
-  workspacePath: 'D:/workspace/BitFun',
+  workspacePath: 'D:/workspace/OpenBitFun',
   isTransient: false,
   maxContextTokens: 4000,
   ...overrides,
@@ -190,8 +190,9 @@ describe('tokenUsageDisplay', () => {
 
   it('keeps compact token formatting stable for tooltip strings', () => {
     expect(formatCompactTokenCount(950)).toBe('950');
-    expect(formatCompactTokenCount(1200)).toBe('1.2K');
-    expect(formatCompactTokenCount(4000)).toBe('4K');
+    expect(formatCompactTokenCount(1234)).toBe('1.23K');
+    expect(formatCompactTokenCount(12_345)).toBe('12.35K');
+    expect(formatCompactTokenCount(1_000_000_000)).toBe('1B');
   });
 });
 

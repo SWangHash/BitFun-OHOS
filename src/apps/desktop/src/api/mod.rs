@@ -7,6 +7,7 @@ pub mod app_state;
 pub mod appearance_market_api;
 pub mod browser_api;
 pub mod browser_control_api;
+pub mod browser_file_drop_api;
 pub mod btw_api;
 #[cfg(not(target_env = "ohos"))]
 pub mod canvas_api;
@@ -29,6 +30,7 @@ pub mod external_sources_api;
 pub mod feedback_api;
 pub mod git_agent_api;
 pub mod git_api;
+pub mod html_preview_api;
 pub mod i18n_api;
 pub mod insights_api;
 pub mod mcp_api;
@@ -59,6 +61,8 @@ pub mod system_api;
 pub mod terminal_api;
 pub mod token_usage_api;
 pub mod tool_api;
+#[cfg(not(target_env = "ohos"))]
+pub mod update_api;
 pub mod workspace_activation;
 pub mod worktree_api;
 

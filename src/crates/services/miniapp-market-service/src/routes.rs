@@ -6,7 +6,9 @@ use crate::auth::{
 use crate::config::MarketConfig;
 use crate::db::{AuthenticatedUser, Database};
 use crate::error::{MarketError, MarketResult};
-use crate::package::{validate_market_package, validate_min_bitfun_version, validate_screenshot};
+use crate::package::{
+    validate_market_package, validate_min_openbitfun_version, validate_screenshot,
+};
 use axum::body::{Body, Bytes};
 use axum::extract::{DefaultBodyLimit, Path, Query, Request, State};
 use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
@@ -16,15 +18,17 @@ use axum::routing::{any, get, post, put};
 use axum::{Json, Router};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use bitfun_product_domains::miniapp::market::{
+use chrono::Utc;
+use openbitfun_product_domains::miniapp::market::{
     compute_review_bundle_hash, validate_market_category, validate_market_slug, CursorPage,
     MarketLicense, MarketListingDetail, MarketListingSummary, MarketRelease, MarketSort,
     MarketSubmission, MarketSubmissionDraftRequest, MarketSubmissionStatus, MarketUserSummary,
     ReviewDecision, ReviewDecisionRequest, MARKET_CATEGORIES, MARKET_DEFAULT_PAGE_SIZE,
     MARKET_MAX_PAGE_SIZE, MARKET_MAX_SCREENSHOTS, MARKET_PACKAGE_CONTENT_TYPE,
 };
-use bitfun_product_domains::miniapp::types::{MiniAppI18n, MiniAppPermissions, NodePermissions};
-use chrono::Utc;
+use openbitfun_product_domains::miniapp::types::{
+    MiniAppI18n, MiniAppPermissions, NodePermissions,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use similar::TextDiff;
@@ -49,7 +53,8 @@ struct StoredSubmissionMetadata {
     icon: String,
     category: String,
     tags: Vec<String>,
-    min_bitfun_version: String,
+    #[serde(rename = "minOpenBitFunVersion")]
+    min_openbitfun_version: String,
     changelog: String,
     license: MarketLicense,
     repository_url: Option<String>,
@@ -461,7 +466,7 @@ async fn get_screenshot(
     Query(query): Query<ImageVariantQuery>,
 ) -> MarketResult<Response> {
     if sha256.len() != 64 || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(MarketError::not_found("Screenshot was not found."));
+        return Err(MarketError::not_found("Marketplace image was not found."));
     }
     let variant = match query.variant.as_deref() {
         None => None,
@@ -643,7 +648,7 @@ async fn create_submission(
         icon: request.icon.trim().to_string(),
         category: request.category.clone(),
         tags: request.tags.clone(),
-        min_bitfun_version: request.min_bitfun_version.clone(),
+        min_openbitfun_version: request.min_openbitfun_version.clone(),
         changelog: request.changelog.trim().to_string(),
         license: request.license.clone(),
         repository_url: request.repository_url.clone(),
@@ -732,7 +737,7 @@ async fn upload_submission_screenshot(
     if position as usize >= MARKET_MAX_SCREENSHOTS {
         return Err(MarketError::bad_request(
             "invalid_screenshot_position",
-            "Screenshot positions range from 0 through 4.",
+            "Marketplace image positions range from 0 through 4.",
         ));
     }
     let submission = submission_by_id(&state, &submission_id, auth.user.internal_id, false).await?;
@@ -816,7 +821,7 @@ async fn submit_submission(
     if submission.screenshot_urls.is_empty() {
         return Err(MarketError::bad_request(
             "screenshot_required",
-            "At least one screenshot is required.",
+            "At least one marketplace image is required.",
         ));
     }
     validate_listing_ownership_and_release(
@@ -1272,7 +1277,7 @@ async fn summary_from_row(
             avatar_url: row.get("avatar_url"),
         },
         latest_release: row.get::<i64, _>("release_number") as u32,
-        min_bitfun_version: metadata.min_bitfun_version,
+        min_openbitfun_version: metadata.min_openbitfun_version,
         permissions: metadata.permissions,
         screenshot_urls: screenshot_urls_for_release(state, &release_id).await?,
         rating_average: row.get("rating_average"),
@@ -1352,7 +1357,7 @@ fn release_from_row(row: sqlx::sqlite::SqliteRow) -> MarketResult<MarketRelease>
         release_id: row.get("id"),
         listing_id: row.get("listing_id"),
         release_number: row.get::<i64, _>("release_number") as u32,
-        min_bitfun_version: metadata.min_bitfun_version,
+        min_openbitfun_version: metadata.min_openbitfun_version,
         changelog: metadata.changelog,
         package_sha256: row.get("package_sha256"),
         package_size: row.get::<i64, _>("package_size") as u64,
@@ -1453,7 +1458,7 @@ async fn submission_from_row(
         icon: metadata.icon,
         category: metadata.category,
         tags: metadata.tags,
-        min_bitfun_version: metadata.min_bitfun_version,
+        min_openbitfun_version: metadata.min_openbitfun_version,
         changelog: metadata.changelog,
         license: metadata.license,
         repository_url: metadata.repository_url,
@@ -1557,9 +1562,13 @@ async fn approve_submission(
         .await
         .map_err(MarketError::internal)?;
     let submission = sqlx::query(
-        "SELECT listing_id, owner_user_id, slug, release_number, metadata_json,
-                package_sha256, package_size
-         FROM submissions WHERE id = ? AND status = 'submitted'",
+        "SELECT s.listing_id AS listing_id, s.owner_user_id AS owner_user_id,
+                s.slug AS slug, s.release_number AS release_number,
+                s.metadata_json AS metadata_json, s.package_sha256 AS package_sha256,
+                s.package_size AS package_size, u.github_id AS submitter_github_id
+         FROM submissions s
+         JOIN users u ON u.id = s.owner_user_id
+         WHERE s.id = ? AND s.status = 'submitted'",
     )
     .bind(submission_id)
     .fetch_optional(&mut *transaction)
@@ -1572,6 +1581,10 @@ async fn approve_submission(
         )
     })?;
     let owner_user_id: i64 = submission.get("owner_user_id");
+    let submitter_is_admin = state
+        .config
+        .admin_github_ids
+        .contains(&submission.get::<i64, _>("submitter_github_id"));
     let slug: String = submission.get("slug");
     let release_number: i64 = submission.get("release_number");
     let metadata_json: String = submission.get("metadata_json");
@@ -1599,7 +1612,7 @@ async fn approve_submission(
         .await
         .map_err(MarketError::internal)?
         .ok_or_else(|| MarketError::not_found("The target listing no longer exists."))?;
-        if listing.get::<i64, _>("owner_user_id") != owner_user_id
+        if (listing.get::<i64, _>("owner_user_id") != owner_user_id && !submitter_is_admin)
             || listing.get::<String, _>("slug") != slug
             || release_number != listing.get::<i64, _>("latest") + 1
         {
@@ -1635,7 +1648,7 @@ async fn approve_submission(
     if screenshot_rows.is_empty() {
         return Err(MarketError::conflict(
             "screenshot_required",
-            "The submission lost its screenshots before approval.",
+            "The submission lost its marketplace images before approval.",
         ));
     }
     let screenshot_hashes = screenshot_rows
@@ -1785,9 +1798,9 @@ async fn validate_listing_ownership_and_release(
         .await
         .map_err(MarketError::internal)?
         .ok_or_else(|| MarketError::not_found("Listing was not found."))?;
-        if row.get::<i64, _>("owner_user_id") != user.internal_id {
+        if row.get::<i64, _>("owner_user_id") != user.internal_id && !state.auth.is_admin(user) {
             return Err(MarketError::forbidden(
-                "Only the listing owner may publish a new release.",
+                "Only the listing owner or an administrator may publish a new release.",
             ));
         }
         if row.get::<String, _>("slug") != slug {
@@ -1838,7 +1851,7 @@ fn validate_submission_request(request: &MarketSubmissionDraftRequest) -> Market
             "The selected category is not supported.",
         ));
     }
-    validate_min_bitfun_version(&request.min_bitfun_version)?;
+    validate_min_openbitfun_version(&request.min_openbitfun_version)?;
     if request.name.trim().is_empty()
         || request.description.trim().is_empty()
         || request.changelog.trim().is_empty()
@@ -1920,7 +1933,7 @@ async fn require_submission_write_auth(
         return Err(MarketError::new(
             StatusCode::FORBIDDEN,
             "web_submissions_disabled",
-            "Web submissions are disabled. Use BitFun Desktop to submit MiniApps.",
+            "Web submissions are disabled. Use OpenBitFun Desktop to submit MiniApps.",
         ));
     }
     state.auth.require_csrf(headers, &auth)?;
@@ -2226,7 +2239,7 @@ mod tests {
         let mut first_locales = std::collections::HashMap::new();
         first_locales.insert(
             "zh-CN".to_string(),
-            bitfun_product_domains::miniapp::types::MiniAppLocaleStrings {
+            openbitfun_product_domains::miniapp::types::MiniAppLocaleStrings {
                 name: Some("正则工具".to_string()),
                 description: Some("本地测试".to_string()),
                 tags: Some(vec!["开发".to_string()]),
@@ -2234,7 +2247,7 @@ mod tests {
         );
         first_locales.insert(
             "en-US".to_string(),
-            bitfun_product_domains::miniapp::types::MiniAppLocaleStrings {
+            openbitfun_product_domains::miniapp::types::MiniAppLocaleStrings {
                 name: Some("Regex Tool".to_string()),
                 description: None,
                 tags: None,
@@ -2246,7 +2259,7 @@ mod tests {
             icon: ".*".to_string(),
             category: "developer".to_string(),
             tags: vec!["regex".to_string()],
-            min_bitfun_version: "0.2.14".to_string(),
+            min_openbitfun_version: "1.0.0".to_string(),
             changelog: "Initial".to_string(),
             license: MarketLicense {
                 spdx_expression: Some("MIT".to_string()),
@@ -2318,13 +2331,13 @@ mod tests {
             icon: ".*".to_string(),
             category: "developer".to_string(),
             tags: vec!["regex".to_string(), "offline".to_string()],
-            min_bitfun_version: "0.2.14".to_string(),
+            min_openbitfun_version: "1.0.0".to_string(),
             changelog: "Initial reviewed release.".to_string(),
             license: MarketLicense {
                 spdx_expression: Some("MIT".to_string()),
                 custom_url: None,
             },
-            repository_url: Some("https://github.com/openbitfun/bitfun".to_string()),
+            repository_url: Some("https://github.com/openbitfun/openbitfun".to_string()),
             permissions: MiniAppPermissions {
                 node: Some(NodePermissions {
                     enabled: false,
@@ -2458,6 +2471,181 @@ mod tests {
         assert_eq!(audit_count, 2);
     }
 
+    #[tokio::test]
+    async fn administrator_can_publish_update_without_reassigning_listing_owner() {
+        let temporary = tempfile::tempdir().unwrap();
+        let config = MarketConfig {
+            bind: "127.0.0.1:0".parse().unwrap(),
+            public_base_url: "https://market.openbitfun.com/miniapp".to_string(),
+            database_path: temporary.path().join("market.sqlite"),
+            artifact_dir: temporary.path().join("artifacts"),
+            web_dir: temporary.path().join("web"),
+            github_client_id: Some("client-id".to_string()),
+            github_client_secret: Some("client-secret".to_string()),
+            session_secret: "test-session-secret-at-least-24".to_string(),
+            admin_github_ids: HashSet::from([24753352]),
+            public_browse: true,
+            web_submissions_enabled: false,
+        };
+        let db = Database::open(&config.database_path).await.unwrap();
+        let artifacts = ArtifactStore::open(config.artifact_dir.clone())
+            .await
+            .unwrap();
+        let auth = AuthService::new(config.clone(), db.clone()).unwrap();
+        let state = Arc::new(MarketState {
+            config,
+            db: db.clone(),
+            artifacts,
+            auth,
+        });
+        let original_owner = db
+            .upsert_github_user(1001, "original-owner", "https://example.com/owner.png")
+            .await
+            .unwrap();
+        let administrator = db
+            .upsert_github_user(24753352, "administrator", "https://example.com/admin.png")
+            .await
+            .unwrap();
+        let unrelated_user = db
+            .upsert_github_user(1002, "unrelated-user", "https://example.com/user.png")
+            .await
+            .unwrap();
+        let metadata = StoredSubmissionMetadata {
+            name: "Owner Preserving App".to_string(),
+            description: "Verifies delegated release publishing.".to_string(),
+            icon: "box".to_string(),
+            category: "utilities".to_string(),
+            tags: vec!["ownership".to_string()],
+            min_openbitfun_version: "1.0.0".to_string(),
+            changelog: "Initial release.".to_string(),
+            license: MarketLicense {
+                spdx_expression: Some("MIT".to_string()),
+                custom_url: None,
+            },
+            repository_url: None,
+            permissions: MiniAppPermissions::default(),
+            i18n: None,
+        };
+        let now = Utc::now().timestamp();
+        let initial_submission_id = Uuid::new_v4().to_string();
+        sqlx::query(
+            "INSERT INTO submissions(
+                id, owner_user_id, slug, release_number, metadata_json, status,
+                package_sha256, package_size, submitted_at, created_at, updated_at
+             ) VALUES(?, ?, ?, 1, ?, 'submitted', ?, 128, ?, ?, ?)",
+        )
+        .bind(&initial_submission_id)
+        .bind(original_owner.internal_id)
+        .bind("owner-preserving-app")
+        .bind(canonical_metadata_json(&metadata).unwrap())
+        .bind("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        .bind(now)
+        .bind(now)
+        .bind(now)
+        .execute(db.pool())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO screenshots(
+                id, submission_id, position, sha256, media_type, size_bytes,
+                width, height, created_at
+             ) VALUES(?, ?, 0, ?, 'image/webp', 64, 1600, 900, ?)",
+        )
+        .bind(Uuid::new_v4().to_string())
+        .bind(&initial_submission_id)
+        .bind("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+        .bind(now)
+        .execute(db.pool())
+        .await
+        .unwrap();
+        approve_submission(state.as_ref(), &administrator, &initial_submission_id)
+            .await
+            .unwrap();
+
+        let initial_detail = listing_detail_by_slug(state.as_ref(), "owner-preserving-app", -1)
+            .await
+            .unwrap();
+        let listing_id = initial_detail.summary.listing_id.clone();
+        assert_eq!(initial_detail.summary.owner.login, "original-owner");
+        assert_eq!(
+            validate_listing_ownership_and_release(
+                state.as_ref(),
+                &administrator,
+                Some(&listing_id),
+                "owner-preserving-app",
+                2,
+            )
+            .await
+            .unwrap(),
+            Some(listing_id.clone()),
+        );
+        assert_eq!(
+            validate_listing_ownership_and_release(
+                state.as_ref(),
+                &unrelated_user,
+                Some(&listing_id),
+                "owner-preserving-app",
+                2,
+            )
+            .await
+            .unwrap_err()
+            .status,
+            StatusCode::FORBIDDEN,
+        );
+
+        let update_submission_id = Uuid::new_v4().to_string();
+        let mut update_metadata = metadata;
+        update_metadata.changelog = "Administrator-published artwork refresh.".to_string();
+        sqlx::query(
+            "INSERT INTO submissions(
+                id, listing_id, owner_user_id, slug, release_number, metadata_json, status,
+                package_sha256, package_size, submitted_at, created_at, updated_at
+             ) VALUES(?, ?, ?, ?, 2, ?, 'submitted', ?, 128, ?, ?, ?)",
+        )
+        .bind(&update_submission_id)
+        .bind(&listing_id)
+        .bind(administrator.internal_id)
+        .bind("owner-preserving-app")
+        .bind(canonical_metadata_json(&update_metadata).unwrap())
+        .bind("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
+        .bind(now + 1)
+        .bind(now + 1)
+        .bind(now + 1)
+        .execute(db.pool())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO screenshots(
+                id, submission_id, position, sha256, media_type, size_bytes,
+                width, height, created_at
+             ) VALUES(?, ?, 0, ?, 'image/webp', 64, 1600, 900, ?)",
+        )
+        .bind(Uuid::new_v4().to_string())
+        .bind(&update_submission_id)
+        .bind("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
+        .bind(now + 1)
+        .execute(db.pool())
+        .await
+        .unwrap();
+        approve_submission(state.as_ref(), &administrator, &update_submission_id)
+            .await
+            .unwrap();
+
+        let updated_detail = listing_detail_by_slug(state.as_ref(), "owner-preserving-app", -1)
+            .await
+            .unwrap();
+        assert_eq!(updated_detail.summary.latest_release, 2);
+        assert_eq!(updated_detail.summary.owner.login, "original-owner");
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT owner_user_id FROM listings WHERE id = ?")
+                .bind(&listing_id)
+                .fetch_one(db.pool())
+                .await
+                .unwrap(),
+            original_owner.internal_id,
+        );
+    }
+
     #[test]
     fn submission_write_policy_excludes_reads_and_admin_review_routes() {
         assert!(is_submission_write_request(&Method::POST, "/submissions"));
@@ -2535,7 +2723,8 @@ mod tests {
             auth,
         });
         let app = api_router(state.clone());
-        let cookie = "bitfun_market_session=web-session-token; bitfun_market_csrf=csrf-token";
+        let cookie =
+            "openbitfun_market_session=web-session-token; openbitfun_market_csrf=csrf-token";
 
         let response = app
             .clone()

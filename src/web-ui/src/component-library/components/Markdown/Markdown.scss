@@ -619,9 +619,9 @@
   will-change: auto;
 }
 
-:root[data-bf-appearance-mode="light"] .markdown-renderer,
-:root[data-bf-appearance-mode="light"] .markdown-renderer,
-[data-bf-appearance-mode="light"] .markdown-renderer,
+:root[data-openbitfun-appearance-mode="light"] .markdown-renderer,
+:root[data-openbitfun-appearance-mode="light"] .markdown-renderer,
+[data-openbitfun-appearance-mode="light"] .markdown-renderer,
 .light .markdown-renderer {
   --markdown-code-bg-elevated: var(--private-markdown-code-bg-light);
   --markdown-inline-code-bg: rgba(var(--bf-appearance-token-color-static-black-rgb), 0.05);
@@ -675,7 +675,7 @@
   }
 }
 
-:root[data-bf-appearance-mode='dark'] .markdown-renderer {
+:root[data-openbitfun-appearance-mode='dark'] .markdown-renderer {
   --markdown-code-bg-elevated: color-mix(in srgb, var(--bf-appearance-token-color-bg-primary) 94%, var(--bf-appearance-token-color-static-white) 6%);
   --markdown-pre-border: rgba(var(--bf-appearance-token-color-static-white-rgb), 0.09);
 }

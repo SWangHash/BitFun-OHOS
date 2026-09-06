@@ -50,7 +50,7 @@ describe('Tabs view transitions', () => {
     expect(container.querySelector('[data-testid="first-pane"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="second-pane"]')).not.toBeNull();
     expect(
-      container.querySelector('.bitfun-view-transition-boundary__view--outgoing')?.hasAttribute('inert'),
+      container.querySelector('.openbitfun-view-transition-boundary__view--outgoing')?.hasAttribute('inert'),
     ).toBe(true);
   });
 
@@ -67,6 +67,6 @@ describe('Tabs view transitions', () => {
 
     expect(container.querySelector('[data-testid="first-pane"]')).toBeNull();
     expect(container.querySelector('[data-testid="second-pane"]')).not.toBeNull();
-    expect(container.querySelectorAll('.bitfun-view-transition-boundary__view')).toHaveLength(1);
+    expect(container.querySelectorAll('.openbitfun-view-transition-boundary__view')).toHaveLength(1);
   });
 });

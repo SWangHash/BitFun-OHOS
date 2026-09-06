@@ -1,7 +1,7 @@
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use anyhow::{Context, Result};
-use bitfun_product_domains::feedback::FeedbackRecordSummary;
+use openbitfun_product_domains::feedback::FeedbackRecordSummary;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 const CACHE_VERSION: u8 = 1;
 const NONCE_LEN: usize = 12;
-const STATE_CACHE_AAD: &[u8] = b"bitfun-feedback-state-cache-v1";
+const STATE_CACHE_AAD: &[u8] = b"openbitfun-feedback-state-cache-v1";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub(super) struct FeedbackStateCacheData {
@@ -148,14 +148,14 @@ fn set_owner_only(_path: &Path) {}
 #[cfg(test)]
 mod tests {
     use super::{FeedbackStateCache, FeedbackStateCacheData};
-    use bitfun_product_domains::feedback::{
+    use openbitfun_product_domains::feedback::{
         FeedbackCategory, FeedbackRecordSummary, FeedbackStatus,
     };
 
     #[tokio::test]
     async fn encrypts_state_and_treats_corruption_as_invalid_cache() {
         let directory = std::env::temp_dir().join(format!(
-            "bitfun-feedback-state-cache-{}-{}",
+            "openbitfun-feedback-state-cache-{}-{}",
             std::process::id(),
             uuid::Uuid::new_v4()
         ));

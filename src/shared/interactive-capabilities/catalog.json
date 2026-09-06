@@ -1,7 +1,7 @@
 {
   "schemaVersion": 5,
-  "product": "BitFun",
-  "title": "BitFun Playbook",
+  "product": "OpenBitFun",
+  "title": "OpenBitFun Playbook",
   "origin": "https://playbook.openbitfun.com",
   "searchAcceptance": [
     {
@@ -182,6 +182,9 @@
     }
   ],
   "implementationOnlyCommands": {
+    "legacyUpdateCompatibility": [
+      "install_update"
+    ],
     "commandDiscovery": [
       "check_command_exists",
       "check_commands_exist"
@@ -207,19 +210,28 @@
       "touch_session_activity"
     ],
     "hostBridges": [
-      "mark_bitfun_control_surface_ready",
-      "mark_bitfun_control_surface_unready",
+      "mark_openbitfun_control_surface_ready",
+      "mark_openbitfun_control_surface_unready",
       "peer_host_invoke_complete",
       "product_control_invoke",
-      "report_bitfun_control_result",
+      "report_openbitfun_control_result",
       "report_ide_control_result",
       "webdriver_bridge_result"
     ],
     "platformWindowLifecycle": [
       "hide_main_window_after_close_request",
+      "restart_app",
       "set_macos_edit_menu_mode",
       "set_main_window_transient_geometry",
       "startup_window_control"
+    ],
+    "fileTransferPrimitives": [
+      "export_local_file_to_path",
+      "paste_files"
+    ],
+    "htmlPreview": [
+      "html_preview_create",
+      "html_preview_release"
     ]
   },
   "capabilities": [
@@ -257,13 +269,13 @@
         "创建、归档、恢复和分叉会话",
         "暂停、继续或引导正在运行的任务",
         "查看工具调用、权限请求和用量",
-        "用创造模式安全定制正在运行的 BitFun 前端"
+        "用创造模式安全定制正在运行的 OpenBitFun 前端"
       ],
       "highlightsEn": [
         "Create, archive, restore, and fork sessions",
         "Pause, continue, or steer running work",
         "Inspect tool calls, permission requests, and usage",
-        "Safely customize the running BitFun frontend in Creative mode"
+        "Safely customize the running OpenBitFun frontend in Creative mode"
       ],
       "items": [
         {
@@ -324,8 +336,8 @@
         },
         {
           "id": "creative-frontend-authoring",
-          "titleZh": "让创造模式安全修改正在运行的 BitFun 前端",
-          "titleEn": "Let Creative mode safely customize the running BitFun frontend",
+          "titleZh": "让创造模式扩展客户端界面与运行时能力",
+          "titleEn": "Extend client UI and runtime capabilities in Creative mode",
           "control": {
             "kind": "delegate",
             "tools": [
@@ -335,12 +347,14 @@
               "Edit"
             ],
             "workflowZh": [
-              "仅在本地桌面的创造模式中调用 FrontendWorkbench prepare，随后只编辑返回的草稿目录",
-              "用原草稿 ID 调用 apply；宿主在真实应用界面就绪后才启动不可变确认窗口的 15 秒倒计时，apply 会等待并返回 confirmed 或 rolled_back 的最终结果"
+              "在本地桌面创造模式中调用 FrontendWorkbench prepare，阅读随包 API；只编辑草稿中的 CSS、JavaScript 和自有资源，无需源码或构建工具",
+              "用原草稿 ID 调用 apply；宿主在真实界面和自定义代码激活后才启动不可变确认窗口的 15 秒倒计时，apply 会等待并返回 confirmed 或 rolled_back 的最终结果",
+              "用 commands、state 和 events 组合可复用能力；通过 FrontendWorkbench inspect 发现命令和错误，再按 schema 用 invoke 验证执行"
             ],
             "workflowEn": [
-              "Call FrontendWorkbench prepare only from Creative mode on the local desktop, then edit only the returned draft directory",
-              "Apply with the original draft ID; the host starts the immutable review window's 15-second countdown only after the real app shell is ready, and apply waits for a final confirmed or rolled_back outcome"
+              "Call FrontendWorkbench prepare on the local Desktop in Creative mode, read the packaged API, and edit only draft CSS, JavaScript and owned assets without source or build tools",
+              "Apply with the original draft ID; the host starts the immutable review window's 15-second countdown only after the real shell and customization activate, and apply waits for a final confirmed or rolled_back outcome",
+              "Compose commands, state and events into reusable capabilities; use FrontendWorkbench inspect to discover schemas and diagnostics, then invoke to verify execution"
             ]
           },
           "evidence": [
@@ -349,7 +363,8 @@
             "command:frontend_update_candidate_ready",
             "command:get_frontend_update_status",
             "command:confirm_frontend_update",
-            "command:rollback_frontend_update"
+            "command:rollback_frontend_update",
+            "command:frontend_update_candidate_failed"
           ]
         },
         {
@@ -520,11 +535,11 @@
               "AskUserQuestion"
             ],
             "workflowZh": [
-              "复杂任务用 TodoWrite 维护当前进度；正式计划产物通过 Write 写入项目的 .bitfun/plans 目录",
+              "复杂任务用 TodoWrite 维护当前进度；正式计划产物通过 Write 写入项目的 .openbitfun/plans 目录",
               "缺少会改变结果的用户选择时用 AskUserQuestion；能从仓库或当前上下文查明的信息不重复询问"
             ],
             "workflowEn": [
-              "Use TodoWrite to maintain progress for complex work; create formal plan artifacts with Write under the project's .bitfun/plans directory",
+              "Use TodoWrite to maintain progress for complex work; create formal plan artifacts with Write under the project's .openbitfun/plans directory",
               "Use AskUserQuestion only for a missing choice that changes the outcome; do not ask again for facts available from the repository or current context"
             ]
           },
@@ -586,12 +601,12 @@
       "stepsZh": [
         "打开 AI 助手或新建会话",
         "选择项目、模型和工作模式",
-        "描述目标；BitFun 会在会话中持续记录进度"
+        "描述目标；OpenBitFun 会在会话中持续记录进度"
       ],
       "stepsEn": [
         "Open the AI assistant or create a session",
         "Choose a project, model, and working mode",
-        "Describe the goal; BitFun keeps progress in the session"
+        "Describe the goal; OpenBitFun keeps progress in the session"
       ],
       "agentExamplesZh": [
         "新建一个会话，我们来排查这个构建错误",
@@ -1377,11 +1392,11 @@
             ],
             "workflowZh": [
               "先用 Read 读取当前内容，再根据改动范围选择 Edit 精确替换或 Write 创建/完整写入文件",
-              "文件工具沿用 BitFun 的工作区、权限与变更快照语义；写入后重新读取或查看差异确认结果"
+              "文件工具沿用 OpenBitFun 的工作区、权限与变更快照语义；写入后重新读取或查看差异确认结果"
             ],
             "workflowEn": [
               "Read the current content first, then use Edit for exact replacements or Write for creation/full rewrites",
-              "The file tools preserve BitFun workspace, permission, and change-snapshot semantics; read back or inspect the diff after writing"
+              "The file tools preserve OpenBitFun workspace, permission, and change-snapshot semantics; read back or inspect the diff after writing"
             ]
           },
           "evidence": [
@@ -1477,8 +1492,8 @@
         },
         {
           "id": "attachments",
-          "titleZh": "粘贴、拖放或上传文件与图片作为会话上下文",
-          "titleEn": "Paste, drop, or upload files and images as session context",
+          "titleZh": "在 Desktop 本地会话中粘贴或拖入本机文件、文件夹与图片",
+          "titleEn": "Paste or drop local files, folders, and images into Desktop local sessions",
           "control": {
             "kind": "open",
             "reasonCode": "visualSelection",
@@ -1487,9 +1502,12 @@
           },
           "evidence": [
             "command:get_clipboard_files",
-            "command:paste_files",
+            "command:resolve_browser_dropped_file_paths",
             "command:upload_image_contexts",
-            "command:export_local_file_to_path"
+            "source:src/web-ui/src/flow_chat/utils/externalFileIntake.ts#buildExternalFileContexts",
+            "source:src/web-ui/src/flow_chat/utils/externalFileIntake.test.ts#buildExternalFileContexts",
+            "source:src/web-ui/src/infrastructure/files/resolveBrowserDroppedFilePaths.ts#resolveBrowserDroppedFilePaths",
+            "source:src/web-ui/src/infrastructure/files/useLocalFileDrop.ts#useLocalFileDrop"
           ]
         },
         {
@@ -2244,8 +2262,8 @@
       "categoryId": "workspace",
       "titleZh": "内置浏览器",
       "titleEn": "Built-in browser",
-      "summaryZh": "在 BitFun 内打开网页和本地服务；Agent 可直接读取页面、选择元素并点击、填写、滚动或截图。",
-      "summaryEn": "Open webpages and local services inside BitFun, where an agent can inspect the page and select, click, fill, scroll, or capture elements directly.",
+      "summaryZh": "在 OpenBitFun 内打开网页和本地服务；Agent 可直接读取页面、选择元素并点击、填写、滚动或截图。",
+      "summaryEn": "Open webpages and local services inside OpenBitFun, where an agent can inspect the page and select, click, fill, scroll, or capture elements directly.",
       "keywordsZh": [
         "浏览器",
         "网页",
@@ -2285,8 +2303,8 @@
       "items": [
         {
           "id": "open-urls",
-          "titleZh": "输入完整网址、本地域名或开发服务端口并在 BitFun 内打开",
-          "titleEn": "Open full URLs, local hostnames, or development-service ports inside BitFun",
+          "titleZh": "输入完整网址、本地域名或开发服务端口并在 OpenBitFun 内打开",
+          "titleEn": "Open full URLs, local hostnames, or development-service ports inside OpenBitFun",
           "control": {
             "kind": "delegate"
           },
@@ -2469,12 +2487,12 @@
       "agentControl": {
         "tool": "ControlHub",
         "workflowZh": [
-          "用户给出网址时，用 browser.open_builtin 打开并取得内置页面的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
+          "用户给出网址时，用 browser.open_builtin 打开并取得内置页面的 session_id；用户只要求显示内置浏览器且没有网址时，改用 OpenBitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
           "对同一个 session_id 指定 target 为 builtin，也可用 target_url 或 target_title 定位；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
           "页面变化后重新快照并使用最新元素引用；只有网络追踪、原始 CDP 和文件输入等协议扩展才切换到 external"
         ],
         "workflowEn": [
-          "When the user supplies a URL, open it with browser.open_builtin and keep the returned built-in session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
+          "When the user supplies a URL, open it with browser.open_builtin and keep the returned built-in session_id; when they only want the built-in browser surface, open the feature.browser capability root with OpenBitFunControl and never invent about:blank",
           "Address that session_id with target set to builtin, or locate it by target_url or target_title; snapshots, clicks, fills, scrolling, screenshots, and other portable actions share the external CDP contract",
           "Take a new snapshot after page changes and use fresh element refs; switch to external only for protocol extensions such as network tracing, raw CDP, or file-input injection"
         ]
@@ -2868,8 +2886,8 @@
       "categoryId": "automation",
       "titleZh": "Mini Apps 小应用",
       "titleEn": "Mini Apps",
-      "summaryZh": "在 BitFun 内安装、创建和运行轻量应用，让界面、数据与 Agent 工作流组合在一起。",
-      "summaryEn": "Install, create, and run lightweight apps inside BitFun, combining UI, data, and agent workflows.",
+      "summaryZh": "在 OpenBitFun 内安装、创建和运行轻量应用，让界面、数据与 Agent 工作流组合在一起。",
+      "summaryEn": "Install, create, and run lightweight apps inside OpenBitFun, combining UI, data, and agent workflows.",
       "keywordsZh": [
         "Mini App",
         "小应用",
@@ -2897,13 +2915,18 @@
       "items": [
         {
           "id": "gallery-lifecycle",
-          "titleZh": "查看、搜索、创建、导入、编辑和删除 Mini App",
-          "titleEn": "Browse, search, create, import, edit, and delete Mini Apps",
+          "titleZh": "查看、创建、编辑和删除已安装 Mini App",
+          "titleEn": "Inspect, create, update, and delete installed MiniApps",
           "control": {
-            "kind": "open",
-            "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“查看、搜索、创建、导入、编辑和删除 Mini App”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Browse, search, create, import, edit, and delete Mini Apps” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+            "kind": "direct",
+            "operations": [
+              "list-apps",
+              "inspect-app",
+              "create-app",
+              "update-app",
+              "delete-app"
+            ],
+            "options": []
           },
           "evidence": [
             "command:list_miniapps",
@@ -3149,17 +3172,59 @@
       ],
       "agentExamplesZh": [
         "打开 Mini Apps",
-        "带我去小应用市场"
+        "带我去小应用市场",
+        "创建一个番茄钟小应用",
+        "把已有小应用的按钮改成圆角",
+        "删除我指定的小应用"
       ],
       "agentExamplesEn": [
         "Open Mini Apps",
-        "Take me to the Mini App market"
+        "Take me to the Mini App market",
+        "Create a Pomodoro MiniApp",
+        "Round the buttons in an existing MiniApp",
+        "Delete the MiniApp I specify"
       ],
       "destination": {
         "kind": "action",
         "actionId": "surface.miniapps.open"
       },
-      "operations": []
+      "operations": [
+        {
+          "id": "list-apps",
+          "titleZh": "列出已安装小应用",
+          "titleEn": "List installed MiniApps",
+          "descriptionZh": "读取产品宿主上的已安装应用及版本。",
+          "descriptionEn": "Read installed apps and versions from the product host."
+        },
+        {
+          "id": "inspect-app",
+          "titleZh": "读取小应用源码",
+          "titleEn": "Inspect a MiniApp",
+          "descriptionZh": "按应用 ID 读取可编辑字段、源码、权限和版本，不返回控制端路径。",
+          "descriptionEn": "Read editable fields, source, permissions and version by app ID without controller-local paths."
+        },
+        {
+          "id": "create-app",
+          "titleZh": "创建小应用",
+          "titleEn": "Create a MiniApp",
+          "descriptionZh": "直接提交名称和源码，编译并保存到客户端；无需源码仓库或构建工具。",
+          "descriptionEn": "Compile and install a name and source directly in the client, without a repository or build tools."
+        },
+        {
+          "id": "update-app",
+          "titleZh": "修改小应用",
+          "titleEn": "Update a MiniApp",
+          "descriptionZh": "按应用 ID 修改指定字段，保留未提供的源码和用户数据，通知已打开的应用刷新。expectedVersion 可防止覆盖新的修改。",
+          "descriptionEn": "Patch specified fields by app ID, preserve omitted source and user data, and notify open runtimes. expectedVersion guards against stale edits."
+        },
+        {
+          "id": "delete-app",
+          "titleZh": "删除小应用",
+          "titleEn": "Delete a MiniApp",
+          "descriptionZh": "按应用 ID 停止后台任务并删除应用；仅在用户明确要求删除时使用。",
+          "descriptionEn": "Stop the worker and delete an installed app by ID, only on an explicit deletion request."
+        }
+      ]
     },
     {
       "id": "feature.canvas",
@@ -3221,17 +3286,18 @@
               "UpdateCanvas"
             ],
             "workflowZh": [
-              "用 CreateCanvas 提交单文件 TSX，并仅从 bitfun/canvas 导入允许的运行时组件",
-              "保留返回的 bitfun-canvas 引用，先 ReadCanvas 获取当前版本，再用 PatchCanvas 做局部改动或 UpdateCanvas 完整更新"
+              "用 CreateCanvas 提交单文件 TSX，并仅从 openbitfun/canvas 导入允许的运行时组件",
+              "保留返回的 openbitfun-canvas 引用，先 ReadCanvas 获取当前版本，再用 PatchCanvas 做局部改动或 UpdateCanvas 完整更新"
             ],
             "workflowEn": [
-              "Use CreateCanvas with a single TSX file and import runtime components only from bitfun/canvas",
-              "Keep the returned bitfun-canvas reference, inspect it with ReadCanvas, then use PatchCanvas for focused changes or UpdateCanvas for a full update"
+              "Use CreateCanvas with a single TSX file and import runtime components only from openbitfun/canvas",
+              "Keep the returned openbitfun-canvas reference, inspect it with ReadCanvas, then use PatchCanvas for focused changes or UpdateCanvas for a full update"
             ]
           },
           "evidence": [
-            "source:src/web-ui/src/tools/bitfun-canvas/reactRuntime.ts#runtime: 'react'",
-            "source:src/web-ui/src/tools/bitfun-canvas/BitfunCanvasPanel.tsx#renderedHtml"
+            "command:report_canvas_runtime_ready",
+            "source:src/web-ui/src/tools/openbitfun-canvas/reactRuntime.ts#runtime: 'react'",
+            "source:src/web-ui/src/tools/openbitfun-canvas/OpenBitFunCanvasPanel.tsx#renderedHtml"
           ]
         },
         {
@@ -3288,7 +3354,7 @@
             ]
           },
           "evidence": [
-            "source:src/web-ui/src/tools/bitfun-canvas/BitfunCanvasPanel.tsx#lastKnownGoodRevision"
+            "source:src/web-ui/src/tools/openbitfun-canvas/OpenBitFunCanvasPanel.tsx#lastKnownGoodRevision"
           ]
         },
         {
@@ -3302,7 +3368,7 @@
             "reasonEn": "“Select an element inside Canvas and add its reference to session context” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           },
           "evidence": [
-            "source:src/web-ui/src/tools/bitfun-canvas/BitfunCanvasPanel.tsx#createCanvasElementContext"
+            "source:src/web-ui/src/tools/openbitfun-canvas/OpenBitFunCanvasPanel.tsx#createCanvasElementContext"
           ]
         },
         {
@@ -3317,7 +3383,7 @@
           },
           "evidence": [
             "command:report_canvas_runtime_error",
-            "source:src/web-ui/src/tools/bitfun-canvas/BitfunCanvasPanel.tsx#canvas-runtime-auto-repair"
+            "source:src/web-ui/src/tools/openbitfun-canvas/OpenBitFunCanvasPanel.tsx#canvas-runtime-auto-repair"
           ]
         },
         {
@@ -3331,7 +3397,7 @@
             "reasonEn": "“Export the current Canvas as a standalone HTML file” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           },
           "evidence": [
-            "source:src/web-ui/src/tools/bitfun-canvas/canvasHtmlExportService.ts#export async function exportCanvasHtml"
+            "source:src/web-ui/src/tools/openbitfun-canvas/canvasHtmlExportService.ts#export async function exportCanvasHtml"
           ]
         }
       ],
@@ -4139,8 +4205,8 @@
       "categoryId": "connect",
       "titleZh": "Remote Connect 与多设备",
       "titleEn": "Remote Connect & devices",
-      "summaryZh": "从手机、Bot 或另一台 BitFun 设备连接当前主机，远程查看会话、回答权限并继续工作。",
-      "summaryEn": "Connect to this host from mobile, a bot, or another BitFun device to inspect sessions, answer permissions, and continue work remotely.",
+      "summaryZh": "从手机、Bot 或另一台 OpenBitFun 设备连接当前主机，远程查看会话、回答权限并继续工作。",
+      "summaryEn": "Connect to this host from mobile, a bot, or another OpenBitFun device to inspect sessions, answer permissions, and continue work remotely.",
       "keywordsZh": [
         "Remote Connect",
         "远程控制",
@@ -4268,8 +4334,8 @@
           "control": {
             "kind": "open",
             "reasonCode": "externalAuth",
-            "reasonZh": "BitFun 账户登录必须由用户在外部认证页面确认；Agent 可以打开入口并读取非秘密状态，但不能冒充账户持有人。",
-            "reasonEn": "BitFun account sign-in requires confirmation on an external authentication page; the Agent may open the entry and read non-secret status but cannot impersonate the account holder."
+            "reasonZh": "OpenBitFun 账户登录必须由用户在外部认证页面确认；Agent 可以打开入口并读取非秘密状态，但不能冒充账户持有人。",
+            "reasonEn": "OpenBitFun account sign-in requires confirmation on an external authentication page; the Agent may open the entry and read non-secret status but cannot impersonate the account holder."
           },
           "evidence": [
             "command:account_login",
@@ -4324,13 +4390,13 @@
         },
         {
           "id": "settings-sync",
-          "titleZh": "在设备间自动或手动同步 BitFun 设置",
-          "titleEn": "Synchronize BitFun settings across devices automatically or on demand",
+          "titleZh": "在设备间自动或手动同步 OpenBitFun 设置",
+          "titleEn": "Synchronize OpenBitFun settings across devices automatically or on demand",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“在设备间自动或手动同步 BitFun 设置”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Synchronize BitFun settings across devices automatically or on demand” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+            "reasonZh": "“在设备间自动或手动同步 OpenBitFun 设置”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Synchronize OpenBitFun settings across devices automatically or on demand” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           },
           "evidence": [
             "command:account_sync_settings",
@@ -4341,13 +4407,13 @@
         },
         {
           "id": "peer-device",
-          "titleZh": "进入 Peer Device Mode，把另一台 BitFun 设备作为命令与事件数据面",
-          "titleEn": "Enter Peer Device Mode and use another BitFun device as the command and event data plane",
+          "titleZh": "进入 Peer Device Mode，把另一台 OpenBitFun 设备作为命令与事件数据面",
+          "titleEn": "Enter Peer Device Mode and use another OpenBitFun device as the command and event data plane",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“进入 Peer Device Mode，把另一台 BitFun 设备作为命令与事件数据面”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Enter Peer Device Mode and use another BitFun device as the command and event data plane” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+            "reasonZh": "“进入 Peer Device Mode，把另一台 OpenBitFun 设备作为命令与事件数据面”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Enter Peer Device Mode and use another OpenBitFun device as the command and event data plane” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           },
           "evidence": [
             "command:peer_control_attach",
@@ -4379,7 +4445,7 @@
       ],
       "destination": {
         "kind": "event",
-        "eventName": "bitfun:open-remote-connect"
+        "eventName": "openbitfun:open-remote-connect"
       },
       "operations": []
     },
@@ -4389,8 +4455,8 @@
       "categoryId": "connect",
       "titleZh": "Detached Dispatch 远程派发",
       "titleEn": "Detached Dispatch",
-      "summaryZh": "把可持续运行的任务派发到另一台 BitFun 主机；控制端可以断开，目标主机继续执行并保留记录。",
-      "summaryEn": "Dispatch durable work to another BitFun host; the controller may disconnect while the target continues and keeps the record.",
+      "summaryZh": "把可持续运行的任务派发到另一台 OpenBitFun 主机；控制端可以断开，目标主机继续执行并保留记录。",
+      "summaryEn": "Dispatch durable work to another OpenBitFun host; the controller may disconnect while the target continues and keeps the record.",
       "keywordsZh": [
         "派发任务",
         "Detached Dispatch",
@@ -4433,13 +4499,13 @@
         },
         {
           "id": "provision",
-          "titleZh": "为目标主机配置运行环境并安装或更新 BitFun CLI",
-          "titleEn": "Provision the target runtime and install or update the BitFun CLI",
+          "titleZh": "为目标主机配置运行环境并安装或更新 OpenBitFun CLI",
+          "titleEn": "Provision the target runtime and install or update the OpenBitFun CLI",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“为目标主机配置运行环境并安装或更新 BitFun CLI”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Provision the target runtime and install or update the BitFun CLI” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+            "reasonZh": "“为目标主机配置运行环境并安装或更新 OpenBitFun CLI”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Provision the target runtime and install or update the OpenBitFun CLI” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           },
           "evidence": [
             "command:dispatch_provision_target",
@@ -4559,7 +4625,7 @@
       ],
       "destination": {
         "kind": "event",
-        "eventName": "bitfun:open-remote-connect",
+        "eventName": "openbitfun:open-remote-connect",
         "detail": {
           "group": "account"
         }
@@ -4713,12 +4779,12 @@
         }
       ],
       "stepsZh": [
-        "登录 BitFun 账户",
+        "登录 OpenBitFun 账户",
         "打开 Pages",
         "选择页面并确认发布与可见性"
       ],
       "stepsEn": [
-        "Sign in to a BitFun account",
+        "Sign in to a OpenBitFun account",
         "Open Pages",
         "Choose a page and confirm publishing and visibility"
       ],
@@ -4920,12 +4986,12 @@
         }
       ],
       "stepsZh": [
-        "打开输入设置的“语音”页",
+        "打开独立的语音设置页",
         "启用语音并准备模型",
         "在聊天输入框点击麦克风开始录音"
       ],
       "stepsEn": [
-        "Open the Voice input settings view",
+        "Open the standalone Voice settings page",
         "Enable voice and prepare a model",
         "Use the microphone button in the chat composer"
       ],
@@ -4939,8 +5005,7 @@
       ],
       "destination": {
         "kind": "settings",
-        "pageId": "application.input",
-        "viewId": "voice"
+        "pageId": "application.voice"
       },
       "operations": []
     },
@@ -4950,8 +5015,8 @@
       "categoryId": "application",
       "titleZh": "Agent 桌面伙伴",
       "titleEn": "Agent desktop companion",
-      "summaryZh": "在输入框或桌面上显示 Agent 伙伴，并选择、导入或管理 Petdex 角色包。",
-      "summaryEn": "Show an agent companion in the composer or on the desktop, and choose, import, or manage Petdex character packs.",
+      "summaryZh": "在桌面上显示 Agent 伙伴，并选择、导入或管理 Petdex 角色包。",
+      "summaryEn": "Show an agent companion on the desktop, and choose, import, or manage Petdex character packs.",
       "keywordsZh": [
         "桌面宠物",
         "Agent 伙伴",
@@ -4967,12 +5032,12 @@
         "character pack"
       ],
       "highlightsZh": [
-        "在桌面或输入框显示伙伴",
+        "显示或隐藏桌面伙伴",
         "选择预设角色",
         "导入和删除 Petdex 包"
       ],
       "highlightsEn": [
-        "Show the companion on desktop or in the composer",
+        "Show or hide the desktop companion",
         "Choose a preset character",
         "Import and remove Petdex packs"
       ],
@@ -4986,17 +5051,6 @@
           },
           "evidence": [
             "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#features.pet.enable"
-          ]
-        },
-        {
-          "id": "display-modes",
-          "titleZh": "选择在聊天输入框或独立桌面窗口显示",
-          "titleEn": "Show the companion in the chat composer or a desktop window",
-          "control": {
-            "kind": "delegate"
-          },
-          "evidence": [
-            "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#features.pet.displayModeLabel"
           ]
         },
         {
@@ -5052,24 +5106,24 @@
       ],
       "stepsZh": [
         "打开桌面伙伴设置",
-        "启用伙伴并选择显示位置",
+        "启用或停用桌面伙伴",
         "选择预设或导入 Petdex 包"
       ],
       "stepsEn": [
         "Open Companion settings",
-        "Enable it and choose where it appears",
+        "Enable or disable the desktop companion",
         "Choose a preset or import a Petdex pack"
       ],
       "agentControl": {
-        "tool": "BitFunControl",
+        "tool": "OpenBitFunControl",
         "workflowZh": [
           "先用 search 搜索“桌面宠物 / Petdex / companion”，再 get `setting.application.pet` 读取当前选项和受支持操作",
-          "用 configure 修改 `enabled` 或 `display-mode`；用 execute 的 `list-pets`、`use-pet`、`delete-pet` 查看、导入/选择或删除角色",
+          "用 configure 修改 `enabled`；用 execute 的 `list-pets`、`use-pet`、`delete-pet` 查看、导入/选择或删除角色",
           "执行后再次 get 或 list-pets 回读真实状态；本地包路径不可用于远程工作区，失败时明确返回而不是伪成功"
         ],
         "workflowEn": [
           "Search for desktop pet, Petdex, or companion first, then get `setting.application.pet` for current options and supported operations",
-          "Use configure for `enabled` or `display-mode`, and execute `list-pets`, `use-pet`, or `delete-pet` to inspect, import/select, or remove a character",
+          "Use configure for `enabled`, and execute `list-pets`, `use-pet`, or `delete-pet` to inspect, import/select, or remove a character",
           "Read back the real state with get or list-pets; local package paths are unavailable to remote workspaces and failures must be explicit"
         ]
       },
@@ -5142,25 +5196,26 @@
         },
         {
           "id": "manual-update",
-          "titleZh": "手动检查、下载并安装可用更新，然后按需重启",
-          "titleEn": "Check for, download, and install an available update manually, then restart when needed",
+          "titleZh": "手动检查并后台下载更新，确认后安装并重启，或稍后从关于页面安装",
+          "titleEn": "Check and download updates in the background, then confirm installation and restart or install later from About",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“手动检查、下载并安装可用更新，然后按需重启”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Check for, download, and install an available update manually, then restart when needed” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+            "reasonZh": "“手动检查并后台下载更新，确认后安装并重启，或稍后从关于页面安装”需要下载后由用户确认安装与重启；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Check and download updates in the background, then confirm installation and restart or install later from About” requires user confirmation after downloading, before installation and restart; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           },
           "evidence": [
             "command:check_for_updates",
-            "command:install_update",
-            "command:restart_app",
+            "command:download_update",
+            "command:get_pending_update",
+            "command:install_pending_update",
             "command:get_app_version"
           ]
         },
         {
           "id": "launch-at-login",
-          "titleZh": "控制 BitFun 是否在登录系统后自动启动",
-          "titleEn": "Choose whether BitFun launches automatically after system sign-in",
+          "titleZh": "控制 OpenBitFun 是否在登录系统后自动启动",
+          "titleEn": "Choose whether OpenBitFun launches automatically after system sign-in",
           "control": {
             "kind": "direct",
             "operations": [],
@@ -5176,8 +5231,8 @@
         },
         {
           "id": "prevent-sleep",
-          "titleZh": "控制 BitFun 运行期间是否阻止电脑自动睡眠",
-          "titleEn": "Choose whether BitFun prevents the computer from sleeping while it runs",
+          "titleZh": "控制 OpenBitFun 运行期间是否阻止电脑自动睡眠",
+          "titleEn": "Choose whether OpenBitFun prevents the computer from sleeping while it runs",
           "control": {
             "kind": "direct",
             "operations": [],
@@ -5287,15 +5342,15 @@
           "id": "launch-at-login",
           "titleZh": "登录后自动启动",
           "titleEn": "Launch at login",
-          "descriptionZh": "在当前桌面系统登录后自动启动 BitFun。",
-          "descriptionEn": "Launch BitFun automatically after signing in to this desktop system."
+          "descriptionZh": "在当前桌面系统登录后自动启动 OpenBitFun。",
+          "descriptionEn": "Launch OpenBitFun automatically after signing in to this desktop system."
         },
         {
           "id": "prevent-sleep",
           "titleZh": "阻止系统睡眠",
           "titleEn": "Prevent system sleep",
-          "descriptionZh": "在 BitFun 运行期间持有本机睡眠抑制器。",
-          "descriptionEn": "Hold a local sleep inhibitor while BitFun is running."
+          "descriptionZh": "在 OpenBitFun 运行期间持有本机睡眠抑制器。",
+          "descriptionEn": "Hold a local sleep inhibitor while OpenBitFun is running."
         },
         {
           "id": "auto-update",
@@ -5385,7 +5440,7 @@
             ]
           },
           "evidence": [
-            "source:src/web-ui/src/locales/zh-CN/settings/application.json#appearance.presets.bitfun-tokyo-night.name"
+            "source:src/web-ui/src/locales/zh-CN/settings/application.json#appearance.presets.openbitfun-tokyo-night.name"
           ]
         },
         {
@@ -5465,11 +5520,11 @@
               "PublishAppearance"
             ],
             "workflowZh": [
-              "仅在用户明确要求对外投稿时调用 PublishAppearance，并使用本机绝对 `.bitfun-appearance` 路径及用户确认的许可证",
+              "仅在用户明确要求对外投稿时调用 PublishAppearance，并使用本机绝对 `.openbitfun-appearance` 路径及用户确认的许可证",
               "登录或校验返回待处理状态时展示具体下一步；工具不支持远程 SSH 路径，也不能把提交审核报告为已经上架"
             ],
             "workflowEn": [
-              "Call PublishAppearance only after an explicit external-submission request, using a local absolute `.bitfun-appearance` path and a user-confirmed license",
+              "Call PublishAppearance only after an explicit external-submission request, using a local absolute `.openbitfun-appearance` path and a user-confirmed license",
               "Show the exact next step for pending authentication or validation; remote SSH paths are unsupported and submission for review is not publication"
             ]
           },
@@ -5539,15 +5594,15 @@
           "id": "theme",
           "titleZh": "主题",
           "titleEn": "Theme",
-          "descriptionZh": "使用系统、BitFun 深色或 BitFun 浅色外观。",
-          "descriptionEn": "Use the system, BitFun dark, or BitFun light appearance."
+          "descriptionZh": "使用系统、OpenBitFun 深色或 OpenBitFun 浅色外观。",
+          "descriptionEn": "Use the system, OpenBitFun dark, or OpenBitFun light appearance."
         },
         {
           "id": "language",
           "titleZh": "界面语言",
           "titleEn": "Interface language",
-          "descriptionZh": "设置 BitFun 的界面语言。",
-          "descriptionEn": "Set the BitFun interface language."
+          "descriptionZh": "设置 OpenBitFun 的界面语言。",
+          "descriptionEn": "Set the OpenBitFun interface language."
         }
       ]
     },
@@ -5557,14 +5612,13 @@
       "categoryId": "application",
       "titleZh": "桌面伙伴设置",
       "titleEn": "Companion settings",
-      "summaryZh": "启用 Agent 伙伴、选择显示位置，并管理当前角色。",
-      "summaryEn": "Enable the agent companion, choose where it appears, and manage the active character.",
+      "summaryZh": "启用桌面 Agent 伙伴并管理当前角色。",
+      "summaryEn": "Enable the desktop agent companion and manage the active character.",
       "keywordsZh": [
         "桌面伙伴设置",
         "桌面宠物",
         "萌宠",
         "吉祥物",
-        "显示位置",
         "Petdex"
       ],
       "keywordsEn": [
@@ -5572,17 +5626,14 @@
         "desktop pet",
         "pet",
         "mascot",
-        "display location",
         "Petdex"
       ],
       "highlightsZh": [
         "启用或停用伙伴",
-        "桌面与输入框显示模式",
         "角色选择与 Petdex 导入"
       ],
       "highlightsEn": [
         "Enable or disable the companion",
-        "Desktop and composer display modes",
         "Character selection and Petdex import"
       ],
       "items": [
@@ -5601,42 +5652,6 @@
           },
           "evidence": [
             "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#features.pet.enable"
-          ]
-        },
-        {
-          "id": "composer-display",
-          "titleZh": "控制伙伴是否显示在聊天输入框旁",
-          "titleEn": "Choose whether the companion appears beside the chat composer",
-          "control": {
-            "kind": "direct",
-            "operations": [],
-            "options": [
-              {
-                "id": "display-mode",
-                "value": "input"
-              }
-            ]
-          },
-          "evidence": [
-            "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#features.pet.displayInput"
-          ]
-        },
-        {
-          "id": "desktop-display",
-          "titleZh": "控制伙伴是否显示为独立桌面窗口",
-          "titleEn": "Choose whether the companion appears as a standalone desktop window",
-          "control": {
-            "kind": "direct",
-            "operations": [],
-            "options": [
-              {
-                "id": "display-mode",
-                "value": "desktop"
-              }
-            ]
-          },
-          "evidence": [
-            "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#features.pet.displayDesktop"
           ]
         },
         {
@@ -5685,27 +5700,27 @@
           },
           "evidence": [
             "command:delete_agent_companion_pet_package",
-            "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#features.pet.refresh"
+            "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#features.pet.delete"
           ]
         }
       ],
       "stepsZh": [
         "打开设置",
         "进入“应用 > 桌面伙伴”",
-        "选择开关、位置和角色"
+        "选择开关和角色"
       ],
       "stepsEn": [
         "Open Settings",
         "Go to Application > Companion",
-        "Choose its state, location, and character"
+        "Choose its state and character"
       ],
       "agentExamplesZh": [
         "关闭桌面伙伴",
-        "让 BitFun 使用 /path/to/pet 里的萌宠"
+        "让 OpenBitFun 使用 /path/to/pet 里的萌宠"
       ],
       "agentExamplesEn": [
         "Turn off the desktop companion",
-        "Make BitFun use the pet at /path/to/pet"
+        "Make OpenBitFun use the pet at /path/to/pet"
       ],
       "destination": {
         "kind": "settings",
@@ -5716,8 +5731,8 @@
           "id": "list-pets",
           "titleZh": "列出可用萌宠",
           "titleEn": "List available pets",
-          "descriptionZh": "读取当前角色以及 BitFun 已导入的 Petdex 角色。",
-          "descriptionEn": "Read the active character and Petdex characters imported into BitFun."
+          "descriptionZh": "读取当前角色以及 OpenBitFun 已导入的 Petdex 角色。",
+          "descriptionEn": "Read the active character and Petdex characters imported into OpenBitFun."
         },
         {
           "id": "use-pet",
@@ -5730,8 +5745,8 @@
           "id": "delete-pet",
           "titleZh": "删除已导入萌宠",
           "titleEn": "Delete an imported pet",
-          "descriptionZh": "按角色 ID 或 BitFun 包目录删除已导入角色；若正在使用则安全回退到默认角色。",
-          "descriptionEn": "Delete an imported character by ID or BitFun package path, safely falling back when it is active."
+          "descriptionZh": "按角色 ID 或 OpenBitFun 包目录删除已导入角色；若正在使用则安全回退到默认角色。",
+          "descriptionEn": "Delete an imported character by ID or OpenBitFun package path, safely falling back when it is active."
         }
       ],
       "options": [
@@ -5741,13 +5756,6 @@
           "titleEn": "Enable companion",
           "descriptionZh": "显示或隐藏 Agent 伙伴。",
           "descriptionEn": "Show or hide the agent companion."
-        },
-        {
-          "id": "display-mode",
-          "titleZh": "显示位置",
-          "titleEn": "Display location",
-          "descriptionZh": "在桌面或聊天输入框中显示。",
-          "descriptionEn": "Show on the desktop or in the chat composer."
         }
       ]
     },
@@ -5755,35 +5763,33 @@
       "id": "setting.application.input",
       "kind": "setting",
       "categoryId": "application",
-      "titleZh": "输入与快捷键",
-      "titleEn": "Input & shortcuts",
-      "summaryZh": "配置语音输入、麦克风、识别语言以及键盘快捷键。",
-      "summaryEn": "Configure voice input, microphone, recognition language, and keyboard shortcuts.",
+      "titleZh": "语音",
+      "titleEn": "Voice",
+      "summaryZh": "配置语音输入、麦克风、识别语言、本地模型与实时语音通话。",
+      "summaryEn": "Configure voice input, microphones, recognition language, local models, and realtime voice calls.",
       "keywordsZh": [
-        "输入设置",
+        "语音设置",
         "语音",
         "麦克风",
-        "快捷键",
-        "热键",
-        "键位"
+        "听写",
+        "语音识别"
       ],
       "keywordsEn": [
-        "input settings",
+        "voice settings",
         "voice",
         "microphone",
-        "shortcut",
-        "hotkey",
-        "keybinding"
+        "dictation",
+        "speech recognition"
       ],
       "highlightsZh": [
         "语音输入与本地模型",
         "识别语言和最长录音时间",
-        "应用与编辑器快捷键"
+        "实时语音通话"
       ],
       "highlightsEn": [
         "Voice input and local models",
         "Recognition language and maximum recording time",
-        "App and editor shortcuts"
+        "Realtime voice calls"
       ],
       "items": [
         {
@@ -5792,8 +5798,7 @@
           "titleEn": "Enable or disable voice input in the chat composer",
           "destination": {
             "kind": "settings",
-            "pageId": "application.input",
-            "viewId": "voice"
+            "pageId": "application.voice"
           },
           "control": {
             "kind": "direct",
@@ -5814,8 +5819,7 @@
           "titleEn": "Choose automatic detection or Chinese, Cantonese, English, Japanese, and other recognition languages",
           "destination": {
             "kind": "settings",
-            "pageId": "application.input",
-            "viewId": "voice"
+            "pageId": "application.voice"
           },
           "control": {
             "kind": "direct",
@@ -5836,8 +5840,7 @@
           "titleEn": "Choose a microphone and run a speech-recognition test",
           "destination": {
             "kind": "settings",
-            "pageId": "application.input",
-            "viewId": "voice"
+            "pageId": "application.voice"
           },
           "control": {
             "kind": "open",
@@ -5856,8 +5859,7 @@
           "titleEn": "Download, select, verify, repair, or delete local speech models",
           "destination": {
             "kind": "settings",
-            "pageId": "application.input",
-            "viewId": "voice"
+            "pageId": "application.voice"
           },
           "control": {
             "kind": "open",
@@ -5878,8 +5880,7 @@
           "titleEn": "Set the maximum duration of one voice-input recording",
           "destination": {
             "kind": "settings",
-            "pageId": "application.input",
-            "viewId": "voice"
+            "pageId": "application.voice"
           },
           "control": {
             "kind": "direct",
@@ -5893,68 +5894,27 @@
           "evidence": [
             "source:src/web-ui/src/infrastructure/config/types/index.ts#max_recording_seconds"
           ]
-        },
-        {
-          "id": "shortcut-browser",
-          "titleZh": "搜索和查看全部应用、场景、编辑器与终端快捷键",
-          "titleEn": "Search and browse all app, scene, editor, and terminal shortcuts",
-          "destination": {
-            "kind": "settings",
-            "pageId": "application.input",
-            "viewId": "shortcuts"
-          },
-          "control": {
-            "kind": "open",
-            "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“搜索和查看全部应用、场景、编辑器与终端快捷键”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Search and browse all app, scene, editor, and terminal shortcuts” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
-          },
-          "evidence": [
-            "source:src/web-ui/src/app/scenes/settings/components/KeyboardShortcutsTab.tsx#lists every known shortcut"
-          ]
-        },
-        {
-          "id": "shortcut-remap",
-          "titleZh": "录制新快捷键、检测冲突、恢复单项或重置全部自定义键位",
-          "titleEn": "Record new shortcuts, detect conflicts, revert one binding, or reset all custom bindings",
-          "destination": {
-            "kind": "settings",
-            "pageId": "application.input",
-            "viewId": "shortcuts"
-          },
-          "control": {
-            "kind": "open",
-            "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“录制新快捷键、检测冲突、恢复单项或重置全部自定义键位”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Record new shortcuts, detect conflicts, revert one binding, or reset all custom bindings” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
-          },
-          "evidence": [
-            "source:src/web-ui/src/app/scenes/settings/components/KeyboardShortcutsTab.tsx#checkConflicts",
-            "source:src/web-ui/src/app/scenes/settings/components/KeyboardShortcutsTab.tsx#buildStoredKeybindings({})"
-          ]
         }
       ],
       "stepsZh": [
         "打开设置",
-        "进入“应用 > 输入”",
-        "切换“语音”或“快捷键”视图"
+        "进入“应用与界面 > 语音”"
       ],
       "stepsEn": [
         "Open Settings",
-        "Go to Application > Input",
-        "Switch between Voice and Shortcuts"
+        "Go to App & Interface > Voice"
       ],
       "agentExamplesZh": [
-        "打开快捷键设置",
+        "打开语音输入设置",
         "把语音输入的默认语言设为中文"
       ],
       "agentExamplesEn": [
-        "Open keyboard-shortcut settings",
+        "Open voice-input settings",
         "Set the voice-input language to Chinese"
       ],
       "destination": {
         "kind": "settings",
-        "pageId": "application.input"
+        "pageId": "application.voice"
       },
       "operations": [],
       "options": [
@@ -5982,16 +5942,105 @@
       ]
     },
     {
+      "id": "setting.application.shortcuts",
+      "kind": "setting",
+      "categoryId": "application",
+      "titleZh": "快捷键",
+      "titleEn": "Keyboard shortcuts",
+      "summaryZh": "搜索、查看、自定义与重置应用、场景、编辑器和终端快捷键。",
+      "summaryEn": "Search, browse, customize, and reset app, scene, editor, and terminal shortcuts.",
+      "keywordsZh": [
+        "快捷键",
+        "热键",
+        "键位",
+        "键盘"
+      ],
+      "keywordsEn": [
+        "keyboard shortcuts",
+        "shortcut",
+        "hotkey",
+        "keybinding"
+      ],
+      "highlightsZh": [
+        "全部快捷键浏览与搜索",
+        "键位录制与冲突检测",
+        "单项恢复与全部重置"
+      ],
+      "highlightsEn": [
+        "Browse and search every shortcut",
+        "Key recording and conflict detection",
+        "Individual revert and full reset"
+      ],
+      "items": [
+        {
+          "id": "shortcut-browser",
+          "titleZh": "搜索和查看全部应用、场景、编辑器与终端快捷键",
+          "titleEn": "Search and browse all app, scene, editor, and terminal shortcuts",
+          "destination": {
+            "kind": "settings",
+            "pageId": "application.shortcuts"
+          },
+          "control": {
+            "kind": "open",
+            "reasonCode": "unstructuredInteraction",
+            "reasonZh": "“搜索和查看全部应用、场景、编辑器与终端快捷键”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Search and browse all app, scene, editor, and terminal shortcuts” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+          },
+          "evidence": [
+            "source:src/web-ui/src/app/scenes/settings/components/KeyboardShortcutsTab.tsx#lists every known shortcut"
+          ]
+        },
+        {
+          "id": "shortcut-remap",
+          "titleZh": "录制新快捷键、检测冲突、恢复单项或重置全部自定义键位",
+          "titleEn": "Record new shortcuts, detect conflicts, revert one binding, or reset all custom bindings",
+          "destination": {
+            "kind": "settings",
+            "pageId": "application.shortcuts"
+          },
+          "control": {
+            "kind": "open",
+            "reasonCode": "unstructuredInteraction",
+            "reasonZh": "“录制新快捷键、检测冲突、恢复单项或重置全部自定义键位”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Record new shortcuts, detect conflicts, revert one binding, or reset all custom bindings” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+          },
+          "evidence": [
+            "source:src/web-ui/src/app/scenes/settings/components/KeyboardShortcutsTab.tsx#buildFinalConflictMap",
+            "source:src/web-ui/src/app/scenes/settings/components/KeyboardShortcutsTab.tsx#buildStoredKeybindings({})"
+          ]
+        }
+      ],
+      "stepsZh": [
+        "打开设置",
+        "进入“应用与界面 > 快捷键”"
+      ],
+      "stepsEn": [
+        "Open Settings",
+        "Go to App & Interface > Keyboard Shortcuts"
+      ],
+      "agentExamplesZh": [
+        "打开快捷键设置"
+      ],
+      "agentExamplesEn": [
+        "Open keyboard-shortcut settings"
+      ],
+      "destination": {
+        "kind": "settings",
+        "pageId": "application.shortcuts"
+      },
+      "operations": [],
+      "options": []
+    },
+    {
       "id": "setting.application.development",
       "kind": "setting",
       "categoryId": "application",
-      "titleZh": "终端与编辑器设置",
-      "titleEn": "Terminal & editor settings",
-      "summaryZh": "选择默认 Shell，并调整代码编辑器的字体、缩进、换行、格式化与 Minimap。",
-      "summaryEn": "Choose the default shell and tune editor font, indentation, wrapping, formatting, and minimap behavior.",
+      "titleZh": "编辑器",
+      "titleEn": "Editor",
+      "summaryZh": "调整代码编辑器的字体、缩进、换行、格式化与 Minimap。",
+      "summaryEn": "Tune code editor font, indentation, wrapping, formatting, and minimap behavior.",
       "keywordsZh": [
         "开发设置",
-        "默认 Shell",
         "编辑器",
         "字体大小",
         "缩进",
@@ -6000,7 +6049,6 @@
       ],
       "keywordsEn": [
         "development settings",
-        "default shell",
         "editor",
         "font size",
         "indentation",
@@ -6008,69 +6056,23 @@
         "minimap"
       ],
       "highlightsZh": [
-        "默认终端 Shell",
+        "编辑器外观与光标",
         "编辑器字号与缩进",
         "自动换行、格式化和 Minimap"
       ],
       "highlightsEn": [
-        "Default terminal shell",
+        "Editor appearance and cursor",
         "Editor font size and indentation",
         "Word wrapping, formatting, and minimap"
       ],
       "items": [
-        {
-          "id": "default-shell",
-          "titleZh": "自动检测或指定默认终端 Shell",
-          "titleEn": "Auto-detect or choose the default terminal shell",
-          "destination": {
-            "kind": "settings",
-            "pageId": "application.development",
-            "viewId": "terminal"
-          },
-          "control": {
-            "kind": "direct",
-            "operations": [],
-            "options": [
-              {
-                "id": "terminal-default-shell"
-              }
-            ]
-          },
-          "evidence": [
-            "command:terminal_get_shells",
-            "source:src/web-ui/src/locales/zh-CN/settings/application.json#terminal.sections.defaultTerminal"
-          ]
-        },
-        {
-          "id": "terminal-position",
-          "titleZh": "把终端面板放在右侧或底部",
-          "titleEn": "Place the terminal panel on the right or at the bottom",
-          "destination": {
-            "kind": "settings",
-            "pageId": "application.development",
-            "viewId": "terminal"
-          },
-          "control": {
-            "kind": "direct",
-            "operations": [],
-            "options": [
-              {
-                "id": "terminal-panel-position"
-              }
-            ]
-          },
-          "evidence": [
-            "source:src/web-ui/src/locales/zh-CN/settings/application.json#terminal.panelPosition.label"
-          ]
-        },
         {
           "id": "editor-appearance",
           "titleZh": "设置编辑器字体、字重、字号、行高与光标样式",
           "titleEn": "Configure editor font, weight, size, line height, and cursor behavior",
           "destination": {
             "kind": "settings",
-            "pageId": "application.development",
-            "viewId": "editor"
+            "pageId": "application.editor"
           },
           "control": {
             "kind": "direct",
@@ -6107,8 +6109,7 @@
           "titleEn": "Configure tab size, space indentation, word wrapping, line numbers, and smooth scrolling",
           "destination": {
             "kind": "settings",
-            "pageId": "application.development",
-            "viewId": "editor"
+            "pageId": "application.editor"
           },
           "control": {
             "kind": "direct",
@@ -6119,6 +6120,9 @@
               },
               {
                 "id": "editor-insert-spaces"
+              },
+              {
+                "id": "editor-detect-indentation"
               },
               {
                 "id": "editor-word-wrap"
@@ -6142,8 +6146,7 @@
           "titleEn": "Control the minimap, whitespace rendering, current-line highlight, and scroll bounds",
           "destination": {
             "kind": "settings",
-            "pageId": "application.development",
-            "viewId": "editor"
+            "pageId": "application.editor"
           },
           "control": {
             "kind": "direct",
@@ -6180,8 +6183,7 @@
           "titleEn": "Control autosave, semantic highlighting, bracket colors, formatting, and whitespace trimming",
           "destination": {
             "kind": "settings",
-            "pageId": "application.development",
-            "viewId": "editor"
+            "pageId": "application.editor"
           },
           "control": {
             "kind": "direct",
@@ -6218,42 +6220,24 @@
       ],
       "stepsZh": [
         "打开设置",
-        "进入“应用 > 开发”",
-        "切换“终端”或“编辑器”视图"
+        "进入“应用与界面 > 编辑器”"
       ],
       "stepsEn": [
         "Open Settings",
-        "Go to Application > Development",
-        "Switch between Terminal and Editor"
+        "Go to App & Interface > Editor"
       ],
       "agentExamplesZh": [
-        "把编辑器字号改成 15",
-        "打开终端设置"
+        "把编辑器字号改成 15"
       ],
       "agentExamplesEn": [
-        "Set the editor font size to 15",
-        "Open terminal settings"
+        "Set the editor font size to 15"
       ],
       "destination": {
         "kind": "settings",
-        "pageId": "application.development"
+        "pageId": "application.editor"
       },
       "operations": [],
       "options": [
-        {
-          "id": "terminal-default-shell",
-          "titleZh": "默认终端 Shell",
-          "titleEn": "Default terminal shell",
-          "descriptionZh": "设置 Shell 路径；空字符串表示自动检测。",
-          "descriptionEn": "Set the shell path; an empty string enables automatic detection."
-        },
-        {
-          "id": "terminal-panel-position",
-          "titleZh": "终端面板位置",
-          "titleEn": "Terminal panel position",
-          "descriptionZh": "把终端面板放在右侧或底部。",
-          "descriptionEn": "Place the terminal panel on the right or at the bottom."
-        },
         {
           "id": "editor-font-family",
           "titleZh": "编辑器字体",
@@ -6309,6 +6293,13 @@
           "titleEn": "Insert spaces",
           "descriptionZh": "按 Tab 时插入空格而不是制表符。",
           "descriptionEn": "Insert spaces instead of a tab character."
+        },
+        {
+          "id": "editor-detect-indentation",
+          "titleZh": "自动检测缩进",
+          "titleEn": "Detect indentation",
+          "descriptionZh": "打开文件时识别已有缩进，否则使用默认缩进设置。",
+          "descriptionEn": "Detect indentation when opening files, using configured defaults as a fallback."
         },
         {
           "id": "editor-word-wrap",
@@ -6695,8 +6686,8 @@
       "categoryId": "assistant",
       "titleZh": "记忆设置",
       "titleEn": "Memory settings",
-      "summaryZh": "控制 BitFun 是否从会话中提取和使用长期记忆，以及保留、整理和模型策略。",
-      "summaryEn": "Control whether BitFun extracts and uses long-term memory from sessions, including retention, consolidation, and model policy.",
+      "summaryZh": "控制 OpenBitFun 是否从会话中提取和使用长期记忆，以及保留、整理和模型策略。",
+      "summaryEn": "Control whether OpenBitFun extracts and uses long-term memory from sessions, including retention, consolidation, and model policy.",
       "keywordsZh": [
         "记忆设置",
         "长期记忆",
@@ -7329,8 +7320,8 @@
           "id": "worktree-root-path",
           "titleZh": "受管 Worktree 根目录",
           "titleEn": "Managed-worktree root",
-          "descriptionZh": "设置 BitFun 创建受管 Worktree 的统一根目录。",
-          "descriptionEn": "Set the common root where BitFun creates managed worktrees."
+          "descriptionZh": "设置 OpenBitFun 创建受管 Worktree 的统一根目录。",
+          "descriptionEn": "Set the common root where OpenBitFun creates managed worktrees."
         },
         {
           "id": "worktree-branch-prefix",
@@ -7350,8 +7341,8 @@
           "id": "worktree-auto-delete-enabled",
           "titleZh": "自动清理 Worktree",
           "titleEn": "Automatic worktree cleanup",
-          "descriptionZh": "允许 BitFun 自动清理超过保留上限的受管 Worktree。",
-          "descriptionEn": "Allow BitFun to prune managed worktrees beyond the retention limit."
+          "descriptionZh": "允许 OpenBitFun 自动清理超过保留上限的受管 Worktree。",
+          "descriptionEn": "Allow OpenBitFun to prune managed worktrees beyond the retention limit."
         },
         {
           "id": "worktree-auto-delete-limit",
@@ -7408,6 +7399,11 @@
           "id": "permission-mode",
           "titleZh": "选择询问、自动批准或完全访问权限模式，并确认高风险警告",
           "titleEn": "Choose Ask, Auto-approve, or Full Access permission mode and acknowledge high-risk warnings",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.execution",
+            "viewId": "common"
+          },
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
@@ -7423,6 +7419,11 @@
           "id": "permission-selector",
           "titleZh": "控制权限模式选择器是否显示在聊天输入框下方",
           "titleEn": "Choose whether the permission-mode selector appears below the chat composer",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.execution",
+            "viewId": "common"
+          },
           "control": {
             "kind": "direct",
             "operations": [],
@@ -7440,6 +7441,11 @@
           "id": "global-project-rules",
           "titleZh": "创建、排序和保存全局或项目级 Allow、Ask、Deny 规则",
           "titleEn": "Create, reorder, and save global or project-level Allow, Ask, and Deny rules",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.execution",
+            "viewId": "common"
+          },
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
@@ -7456,6 +7462,11 @@
           "id": "remembered-grants",
           "titleZh": "查看、撤销或清空项目中记住的权限授权与审计记录",
           "titleEn": "Review, revoke, or clear remembered project permission grants and audit records",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.execution",
+            "viewId": "common"
+          },
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
@@ -7473,6 +7484,11 @@
           "id": "deferred-tools",
           "titleZh": "按需延迟加载工具定义以减少 Agent 初始上下文",
           "titleEn": "Deferred tool loading on demand to reduce initial agent context",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.execution",
+            "viewId": "advanced"
+          },
           "control": {
             "kind": "direct",
             "operations": [],
@@ -7490,6 +7506,11 @@
           "id": "parallelism",
           "titleZh": "设置子 Agent 与 Swarm 最大并发及安全、强制并行或串行策略",
           "titleEn": "Set subagent and swarm concurrency plus safe-only, forced-parallel, or serial policy",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.execution",
+            "viewId": "advanced"
+          },
           "control": {
             "kind": "direct",
             "operations": [],
@@ -7514,6 +7535,11 @@
           "id": "timeouts",
           "titleZh": "设置或取消单次工具调用超时",
           "titleEn": "Set or disable the per-tool execution timeout",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.execution",
+            "viewId": "advanced"
+          },
           "control": {
             "kind": "direct",
             "operations": [],
@@ -7531,6 +7557,11 @@
           "id": "review-capacity",
           "titleZh": "设置 Deep Review 最大并行评审者和队列等待时间",
           "titleEn": "Set the maximum parallel Deep Review workers and queue wait time",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.execution",
+            "viewId": "advanced"
+          },
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
@@ -7576,8 +7607,8 @@
         },
         {
           "id": "browser-auto-connect",
-          "titleZh": "控制 BitFun 启动时是否自动连接浏览器",
-          "titleEn": "Choose whether BitFun reconnects browser control at startup",
+          "titleZh": "控制 OpenBitFun 启动时是否自动连接浏览器",
+          "titleEn": "Choose whether OpenBitFun reconnects browser control at startup",
           "control": {
             "kind": "direct",
             "operations": [],
@@ -7610,6 +7641,11 @@
           "id": "json-repair",
           "titleZh": "控制是否在安全边界内修复模型生成的非法工具参数 JSON",
           "titleEn": "Choose whether malformed model-generated tool-argument JSON may be repaired within safety boundaries",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.execution",
+            "viewId": "advanced"
+          },
           "control": {
             "kind": "direct",
             "operations": [],
@@ -7703,8 +7739,8 @@
           "id": "browser-auto-connect",
           "titleZh": "启动时连接浏览器",
           "titleEn": "Connect browser on startup",
-          "descriptionZh": "BitFun 启动后自动尝试连接浏览器控制。",
-          "descriptionEn": "Automatically try to connect browser control after BitFun starts."
+          "descriptionZh": "OpenBitFun 启动后自动尝试连接浏览器控制。",
+          "descriptionEn": "Automatically try to connect browser control after OpenBitFun starts."
         },
         {
           "id": "tool-json-repair",
@@ -7714,6 +7750,268 @@
           "descriptionEn": "Allow minor model-generated JSON formatting errors to be repaired within the safety boundary."
         }
       ]
+    },
+    {
+      "id": "setting.application.terminal",
+      "kind": "setting",
+      "categoryId": "application",
+      "titleZh": "终端",
+      "titleEn": "Terminal",
+      "summaryZh": "选择默认终端 Shell，并设置新终端面板在会话中的打开位置。",
+      "summaryEn": "Choose the default terminal shell and where new terminal panels open in a session.",
+      "keywordsZh": [
+        "终端设置",
+        "终端",
+        "默认 Shell",
+        "PowerShell",
+        "终端面板",
+        "面板位置"
+      ],
+      "keywordsEn": [
+        "terminal settings",
+        "terminal",
+        "default shell",
+        "PowerShell",
+        "terminal panel",
+        "panel position"
+      ],
+      "highlightsZh": [
+        "自动检测或选择默认 Shell",
+        "右侧或底部终端面板",
+        "Agent 与本地工作区共用 Shell 偏好"
+      ],
+      "highlightsEn": [
+        "Auto-detect or choose a default shell",
+        "Right-side or bottom terminal panel",
+        "Shared shell preference for agents and local workspaces"
+      ],
+      "items": [
+        {
+          "id": "default-shell",
+          "titleZh": "自动检测或指定默认终端 Shell",
+          "titleEn": "Auto-detect or choose the default terminal shell",
+          "control": {
+            "kind": "direct",
+            "operations": [],
+            "options": [
+              {
+                "id": "terminal-default-shell"
+              }
+            ]
+          },
+          "evidence": [
+            "command:terminal_get_shells",
+            "source:src/web-ui/src/locales/zh-CN/settings/application.json#terminal.sections.defaultTerminal"
+          ]
+        },
+        {
+          "id": "terminal-position",
+          "titleZh": "把终端面板放在右侧或底部",
+          "titleEn": "Place the terminal panel on the right or at the bottom",
+          "control": {
+            "kind": "direct",
+            "operations": [],
+            "options": [
+              {
+                "id": "terminal-panel-position"
+              }
+            ]
+          },
+          "evidence": [
+            "source:src/web-ui/src/locales/zh-CN/settings/application.json#terminal.panelPosition.label"
+          ]
+        }
+      ],
+      "stepsZh": [
+        "打开设置",
+        "进入“应用与界面 > 终端”"
+      ],
+      "stepsEn": [
+        "Open Settings",
+        "Go to App & Interface > Terminal"
+      ],
+      "agentExamplesZh": [
+        "打开终端设置",
+        "把终端面板放到底部"
+      ],
+      "agentExamplesEn": [
+        "Open terminal settings",
+        "Move the terminal panel to the bottom"
+      ],
+      "destination": {
+        "kind": "settings",
+        "pageId": "application.terminal"
+      },
+      "operations": [],
+      "options": [
+        {
+          "id": "terminal-default-shell",
+          "titleZh": "默认终端 Shell",
+          "titleEn": "Default terminal shell",
+          "descriptionZh": "设置 Shell 路径；空字符串表示自动检测。",
+          "descriptionEn": "Set the shell path; an empty string enables automatic detection."
+        },
+        {
+          "id": "terminal-panel-position",
+          "titleZh": "终端面板位置",
+          "titleEn": "Terminal panel position",
+          "descriptionZh": "把终端面板放在右侧或底部。",
+          "descriptionEn": "Place the terminal panel on the right or at the bottom."
+        }
+      ]
+    },
+    {
+      "id": "setting.tools.desktop-control",
+      "kind": "setting",
+      "categoryId": "assistant",
+      "titleZh": "桌面控制",
+      "titleEn": "Desktop control",
+      "summaryZh": "管理 Computer Use 开关，并检查辅助功能与屏幕录制授权。",
+      "summaryEn": "Manage Computer Use and inspect accessibility and screen-recording permissions.",
+      "keywordsZh": [
+        "桌面控制",
+        "Computer Use",
+        "辅助功能",
+        "屏幕录制",
+        "系统授权"
+      ],
+      "keywordsEn": [
+        "desktop control",
+        "computer use",
+        "accessibility",
+        "screen recording",
+        "system permissions"
+      ],
+      "highlightsZh": [
+        "单独控制桌面操作能力",
+        "查看当前系统授权状态",
+        "前往系统设置完成必要授权"
+      ],
+      "highlightsEn": [
+        "Control desktop interaction separately",
+        "Inspect current operating-system grants",
+        "Open system settings for required permissions"
+      ],
+      "items": [
+        {
+          "id": "permissions",
+          "titleZh": "查看 Computer Use、辅助功能与屏幕录制状态并完成系统授权",
+          "titleEn": "Inspect Computer Use, accessibility, and screen-recording status and complete system authorization",
+          "control": {
+            "kind": "open",
+            "reasonCode": "visualSelection",
+            "reasonZh": "操作系统权限必须由用户在系统界面中确认；Agent 会打开独立的桌面控制页，并保留系统授权步骤给用户完成。",
+            "reasonEn": "Operating-system permissions require confirmation in system UI; the Agent opens the dedicated Desktop Control page and leaves authorization visible to the user."
+          },
+          "evidence": [
+            "command:computer_use_get_status",
+            "command:computer_use_request_permissions",
+            "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#computerUse.sectionTitle"
+          ]
+        }
+      ],
+      "stepsZh": [
+        "打开设置",
+        "进入“工具 > 桌面控制”",
+        "检查开关和系统授权状态"
+      ],
+      "stepsEn": [
+        "Open Settings",
+        "Go to Tools > Desktop Control",
+        "Inspect the toggle and operating-system grants"
+      ],
+      "agentExamplesZh": [
+        "打开桌面控制设置",
+        "检查 Computer Use 权限"
+      ],
+      "agentExamplesEn": [
+        "Open Desktop Control settings",
+        "Check Computer Use permissions"
+      ],
+      "destination": {
+        "kind": "settings",
+        "pageId": "tools.desktop-control"
+      },
+      "operations": [],
+      "options": []
+    },
+    {
+      "id": "setting.tools.browser-control",
+      "kind": "setting",
+      "categoryId": "assistant",
+      "titleZh": "浏览器控制",
+      "titleEn": "Browser control",
+      "summaryZh": "选择浏览器，检查连接状态，并配置 CDP 与启动连接行为。",
+      "summaryEn": "Choose a browser, inspect connection status, and configure CDP and startup connection behavior.",
+      "keywordsZh": [
+        "浏览器控制",
+        "浏览器连接",
+        "CDP",
+        "Chrome",
+        "Edge",
+        "远程调试"
+      ],
+      "keywordsEn": [
+        "browser control",
+        "browser connection",
+        "CDP",
+        "Chrome",
+        "Edge",
+        "remote debugging"
+      ],
+      "highlightsZh": [
+        "选择受支持的浏览器",
+        "查看连接与页面状态",
+        "配置现有浏览器和启动连接"
+      ],
+      "highlightsEn": [
+        "Choose a supported browser",
+        "Inspect connection and page status",
+        "Configure existing-browser and startup connection behavior"
+      ],
+      "items": [
+        {
+          "id": "connection",
+          "titleZh": "选择浏览器并查看、建立或断开 CDP 连接",
+          "titleEn": "Choose a browser and inspect, establish, or disconnect its CDP connection",
+          "control": {
+            "kind": "open",
+            "reasonCode": "visualSelection",
+            "reasonZh": "浏览器与 CDP 状态来自当前执行主机，并可能需要浏览器确认或重启；Agent 会打开“浏览器与桌面控制”设置页供用户完成。",
+            "reasonEn": "Browser and CDP state comes from the current execution host and may require browser confirmation or restart; the Agent opens the Browser & Desktop Control settings page for completion."
+          },
+          "evidence": [
+            "command:browser_control_get_status",
+            "command:browser_control_list_browsers",
+            "command:browser_control_enable_default_cdp",
+            "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#browserControl.sectionTitle"
+          ]
+        }
+      ],
+      "stepsZh": [
+        "打开设置",
+        "进入“工具 > 浏览器与桌面控制”",
+        "选择浏览器并检查连接状态"
+      ],
+      "stepsEn": [
+        "Open Settings",
+        "Go to Tools > Browser & Desktop Control",
+        "Choose a browser and inspect its connection status"
+      ],
+      "agentExamplesZh": [
+        "打开浏览器控制设置",
+        "检查浏览器连接"
+      ],
+      "agentExamplesEn": [
+        "Open Browser Control settings",
+        "Check the browser connection"
+      ],
+      "destination": {
+        "kind": "settings",
+        "pageId": "tools.desktop-control"
+      },
+      "operations": [],
+      "options": []
     },
     {
       "id": "setting.tools.automation",
@@ -7814,8 +8112,8 @@
         },
         {
           "id": "project-hooks",
-          "titleZh": "对可信仓库单独启用项目级 .bitfun/config/hooks.json",
-          "titleEn": "Enable project-level .bitfun/config/hooks.json separately for trusted repositories",
+          "titleZh": "对可信仓库单独启用项目级 .openbitfun/config/hooks.json",
+          "titleEn": "Enable project-level .openbitfun/config/hooks.json separately for trusted repositories",
           "destination": {
             "kind": "settings",
             "pageId": "tools.automation",
@@ -7831,7 +8129,7 @@
             ]
           },
           "evidence": [
-            "source:src/web-ui/src/locales/zh-CN/settings/hooks.json#.bitfun/config/hooks.json"
+            "source:src/web-ui/src/locales/zh-CN/settings/hooks.json#.openbitfun/config/hooks.json"
           ]
         },
         {
@@ -7963,6 +8261,132 @@
           "descriptionEn": "Allow hook configuration from the current project."
         }
       ]
+    },
+    {
+      "id": "setting.tools.web-search",
+      "kind": "setting",
+      "categoryId": "automation",
+      "titleZh": "网页搜索",
+      "titleEn": "Web Search",
+      "summaryZh": "选择 WebSearch 工具运行时使用的搜索服务，并配置自建 HTTP 端点与当前执行主机的设备凭据。",
+      "summaryEn": "Choose the search provider used by the WebSearch tool at runtime and configure custom HTTP endpoints and credentials on the current execution host.",
+      "keywordsZh": [
+        "网页搜索",
+        "WebSearch",
+        "Exa",
+        "Tavily",
+        "搜索服务",
+        "API Key",
+        "自定义端点"
+      ],
+      "keywordsEn": [
+        "web search",
+        "WebSearch",
+        "Exa",
+        "Tavily",
+        "search provider",
+        "API key",
+        "custom endpoint"
+      ],
+      "highlightsZh": [
+        "切换 WebSearch 运行时搜索服务",
+        "在执行主机上加密保存设备凭据",
+        "配置和查看 OpenBitFun Search HTTP Protocol v1"
+      ],
+      "highlightsEn": [
+        "Switch the WebSearch runtime provider",
+        "Store device credentials encrypted on the execution host",
+        "Configure and inspect OpenBitFun Search HTTP Protocol v1"
+      ],
+      "items": [
+        {
+          "id": "provider",
+          "titleZh": "在免费 Exa MCP、Exa Search API、Tavily 与 OpenBitFun Search HTTP Protocol 之间选择运行时服务",
+          "titleEn": "Choose free Exa MCP, Exa Search API, Tavily, or OpenBitFun Search HTTP Protocol as the runtime provider",
+          "control": {
+            "kind": "open",
+            "reasonCode": "unstructuredInteraction",
+            "reasonZh": "“在免费 Exa MCP、Exa Search API、Tavily 与 OpenBitFun Search HTTP Protocol 之间选择运行时服务”与各服务的配置状态相关，目前没有一个能安全完成选择、检查和保存整个流程的单一结构化 Command；Agent 会打开精确设置入口，由用户确认配置。",
+            "reasonEn": "“Choose free Exa MCP, Exa Search API, Tavily, or OpenBitFun Search HTTP Protocol as the runtime provider” depends on provider-specific configuration state, and no single structured Command can safely complete selection, validation, and saving; the Agent opens the exact settings entry for user confirmation."
+          },
+          "evidence": [
+            "source:src/web-ui/src/locales/zh-CN/settings/web-search.json#providers"
+          ]
+        },
+        {
+          "id": "http-endpoint",
+          "titleZh": "为 OpenBitFun Search HTTP Protocol 配置端点、认证方式和受限凭据 Header",
+          "titleEn": "Configure the endpoint, authentication mode, and restricted credential header for OpenBitFun Search HTTP Protocol",
+          "control": {
+            "kind": "open",
+            "reasonCode": "unstructuredInteraction",
+            "reasonZh": "“为 OpenBitFun Search HTTP Protocol 配置端点、认证方式和受限凭据 Header”包含 URL、安全限制和认证方式等关联字段，需要在设置页中一起校验并明确保存；Agent 会打开对应入口而不猜测端点配置。",
+            "reasonEn": "“Configure the endpoint, authentication mode, and restricted credential header for OpenBitFun Search HTTP Protocol” combines URL, security restrictions, and authentication fields that must be validated and explicitly saved together in Settings; the Agent opens the corresponding entry instead of guessing endpoint configuration."
+          },
+          "evidence": [
+            "source:src/web-ui/src/locales/zh-CN/settings/web-search.json#fields.endpoint",
+            "source:src/web-ui/src/locales/zh-CN/settings/web-search.json#fields.authMode",
+            "source:src/web-ui/src/locales/zh-CN/settings/web-search.json#fields.headerName"
+          ]
+        },
+        {
+          "id": "device-credential",
+          "titleZh": "查看当前执行主机的凭据状态，并保存、替换或清除 API Key/Secret",
+          "titleEn": "Inspect credential status on the current execution host and save, replace, or clear an API key or secret",
+          "control": {
+            "kind": "open",
+            "reasonCode": "secretEntry",
+            "reasonZh": "WebSearch API Key 和 Secret 只应在受保护的设备凭据输入框中录入或清除；Agent 可以打开该设置入口，但不会读取、回显或代填凭据原值。",
+            "reasonEn": "WebSearch API keys and secrets must only be entered or cleared through the protected device-credential field; the Agent can open that settings entry but does not read, echo, or fill raw credential values."
+          },
+          "evidence": [
+            "command:get_web_search_credential_status",
+            "command:save_web_search_credential",
+            "command:clear_web_search_credential",
+            "source:src/web-ui/src/locales/zh-CN/settings/web-search.json#sections.credential.description"
+          ]
+        },
+        {
+          "id": "http-protocol",
+          "titleZh": "查看并复制 OpenBitFun Search HTTP Protocol v1 的请求、响应和传输限制",
+          "titleEn": "Inspect and copy the request, response, and transport limits for OpenBitFun Search HTTP Protocol v1",
+          "control": {
+            "kind": "open",
+            "reasonCode": "visualSelection",
+            "reasonZh": "协议说明仅在选中 OpenBitFun Search HTTP Protocol 时显示，并由设置页提供完整可复制内容；Agent 会打开精确入口，避免用不完整摘要替代产品内协议。",
+            "reasonEn": "The protocol specification is shown only when OpenBitFun Search HTTP Protocol is selected and the Settings page owns the complete copyable content; the Agent opens the exact entry instead of substituting an incomplete summary."
+          },
+          "evidence": [
+            "source:src/web-ui/src/locales/zh-CN/settings/web-search.json#protocol.request.description",
+            "source:src/web-ui/src/locales/zh-CN/settings/web-search.json#protocol.success.description",
+            "source:src/web-ui/src/locales/zh-CN/settings/web-search.json#protocol.notes.transportLimits"
+          ]
+        }
+      ],
+      "stepsZh": [
+        "打开设置",
+        "进入“工具 > 网页搜索”",
+        "选择搜索服务，完成所需配置并保存"
+      ],
+      "stepsEn": [
+        "Open Settings",
+        "Go to Tools > Web Search",
+        "Choose a provider, complete its required configuration, and save"
+      ],
+      "agentExamplesZh": [
+        "打开网页搜索设置",
+        "带我配置 WebSearch 搜索服务"
+      ],
+      "agentExamplesEn": [
+        "Open Web Search settings",
+        "Take me to WebSearch provider setup"
+      ],
+      "destination": {
+        "kind": "settings",
+        "pageId": "tools.webSearch"
+      },
+      "operations": [],
+      "options": []
     },
     {
       "id": "setting.tools.mcp",
@@ -8238,6 +8662,11 @@
           "id": "presets",
           "titleZh": "使用 OpenCode、dsh、OMP、Claude Code 和 Codex 等预设",
           "titleEn": "Use presets for OpenCode, dsh, OMP, Claude Code, Codex, and others",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.acp",
+            "viewId": "local"
+          },
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
@@ -8252,6 +8681,11 @@
           "id": "json-config",
           "titleZh": "通过 JSON 查看、添加和保存 ACP Agent 配置",
           "titleEn": "View, add, and save ACP agent configuration through JSON",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.acp",
+            "viewId": "json"
+          },
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
@@ -8267,6 +8701,11 @@
           "id": "probe",
           "titleZh": "探测 CLI、适配器、路径、版本、连接与权限要求",
           "titleEn": "Probe CLI, adapter, path, version, connection, and permission requirements",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.acp",
+            "viewId": "local"
+          },
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
@@ -8284,6 +8723,11 @@
           "id": "install",
           "titleZh": "安装外部 Agent CLI 并预下载 ACP 客户端适配器",
           "titleEn": "Install external-agent CLIs and predownload ACP client adapters",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.acp",
+            "viewId": "local"
+          },
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
@@ -8299,6 +8743,11 @@
           "id": "remote-detection",
           "titleZh": "在 SSH 远程工作区探测可用外部 Agent 并显示不支持原因",
           "titleEn": "Detect available external agents in SSH workspaces and show explicit unsupported reasons",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.acp",
+            "viewId": "ssh"
+          },
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
@@ -8871,7 +9320,7 @@
     "surface.todos.open": "feature.tasks-automation",
     "surface.insights.open": "feature.insights",
     "settings.open": "setting.application.general",
-    "settings.shortcuts.open": "setting.application.input"
+    "settings.shortcuts.open": "setting.application.shortcuts"
   },
   "sceneOwners": {
     "session": "feature.ai-assistant",
@@ -8935,6 +9384,9 @@
     "system": {
       "capabilityId": "setting.application.general"
     },
+    "update": {
+      "capabilityId": "setting.application.general"
+    },
     "miniapp_market": {
       "capabilityId": "feature.miniapps"
     },
@@ -8970,6 +9422,9 @@
     },
     "browser": {
       "capabilityId": "feature.browser"
+    },
+    "html_preview": {
+      "capabilityId": "feature.files-editor"
     },
     "announcement": {
       "capabilityId": "setting.application.general"
@@ -9034,6 +9489,9 @@
     "clipboard_file": {
       "capabilityId": "feature.files-editor"
     },
+    "browser_file_drop": {
+      "capabilityId": "feature.files-editor"
+    },
     "sleep_prevention": {
       "capabilityId": "setting.application.general"
     },
@@ -9046,7 +9504,7 @@
     "miniapp_export": {
       "capabilityId": "feature.miniapps"
     },
-    "bitfun_control_host": {
+    "openbitfun_control_host": {
       "capabilityId": null
     },
     "context_upload": {

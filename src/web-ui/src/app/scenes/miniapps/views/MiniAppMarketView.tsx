@@ -11,7 +11,7 @@ import {
   Select,
   type SelectOption,
   StatusPill,
-} from '@bitfun/ui';
+} from '@openbitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Heart, Loader2, PackageCheck, ShieldCheck } from 'lucide-react';
 
@@ -62,7 +62,11 @@ const CATEGORIES = [
   'other',
 ] as const;
 
-const MiniAppMarketView: React.FC = () => {
+interface MiniAppMarketViewProps {
+  tabs?: React.ReactNode;
+}
+
+const MiniAppMarketView: React.FC<MiniAppMarketViewProps> = ({ tabs }) => {
   const { t, formatNumber, currentLanguage } = useI18n('scenes/miniapp');
   const notification = useNotification();
   const { workspace } = useCurrentWorkspace();
@@ -262,15 +266,15 @@ const MiniAppMarketView: React.FC = () => {
   ], [t]);
 
   return (
-    <GalleryLayout className="miniapp-market-native">
+    <GalleryLayout className="miniapp-gallery-pane miniapp-market-native">
       <GalleryPageHeader
         title={t('market.title')}
         subtitle={t('market.subtitle')}
         actions={(
           <div
             className="miniapp-market-native__header-actions"
-            data-bf-component="miniapp-market-view"
-            data-bf-part="headerActions"
+            data-openbitfun-component="miniapp-market-view"
+            data-openbitfun-part="headerActions"
           >
             <SearchField
               leadingIcon={<Icon name="search" size="lg" aria-hidden />}
@@ -288,10 +292,12 @@ const MiniAppMarketView: React.FC = () => {
         )}
       />
 
+      {tabs}
+
       <div
         className="gallery-zones"
-        data-bf-component="miniapp-market-view"
-        data-bf-part="root"
+        data-openbitfun-component="miniapp-market-view"
+        data-openbitfun-part="root"
       >
         <GalleryZone
           title={t('market.catalog')}
@@ -357,8 +363,8 @@ const MiniAppMarketView: React.FC = () => {
                       <button
                         type="button"
                         className="miniapp-market-card__trigger"
-                        data-bf-component="miniapp-market-view"
-                        data-bf-part="card"
+                        data-openbitfun-component="miniapp-market-view"
+                        data-openbitfun-part="card"
                         onClick={() => void openDetail(item)}
                       >
                         <CardMedia className="miniapp-market-card__visual">
@@ -388,7 +394,7 @@ const MiniAppMarketView: React.FC = () => {
                           <p>{description}</p>
                           <div className="miniapp-market-card__stats">
                             <span><Icon name="star" size="xs" /> {item.ratingAverage.toFixed(1)}</span>
-                            <span><Icon name="download" size="xs" /> {formatNumber(item.downloadCount)}</span>
+                            <span><Icon name="arrow-down" size="xs" /> {formatNumber(item.downloadCount)}</span>
                             <span><Heart size={12} /> {formatNumber(item.favoriteCount)}</span>
                           </div>
                         </CardBody>
@@ -468,7 +474,7 @@ const MiniAppMarketView: React.FC = () => {
                 disabled={actionBusy || workspaceUnsupported}
                 onClick={() => setInstallPrompt(true)}
               >
-                {actionBusy ? <Loader2 size={14} className="gallery-spinning" /> : canUpdate ? <Icon name="refresh" size="sm" /> : <Icon name="download" size="sm" />}
+                {actionBusy ? <Loader2 size={14} className="gallery-spinning" /> : canUpdate ? <Icon name="refresh" size="sm" /> : <Icon name="arrow-down" size="sm" />}
                 {installLabel}
               </Button>
             ) : null}
@@ -478,8 +484,8 @@ const MiniAppMarketView: React.FC = () => {
         {detail ? (
               <div
                 className="miniapp-market-detail"
-                data-bf-component="miniapp-market-view"
-                data-bf-part="detail"
+                data-openbitfun-component="miniapp-market-view"
+                data-openbitfun-part="detail"
               >
             {detail.screenshotUrls.length ? (
               <div className="miniapp-market-detail__screenshots">
@@ -549,7 +555,7 @@ const MiniAppMarketView: React.FC = () => {
                 {releaseHistory.visible.map((release) => (
                   <div key={release.releaseId}>
                     <span>v{release.releaseNumber}</span>
-                    <span>{release.minBitfunVersion}+</span>
+                    <span>{release.minOpenBitFunVersion}+</span>
                     {release.yanked ? <StatusPill tone="warning">{t('market.detail.yanked')}</StatusPill> : <Icon name="check-line" size="sm" />}
                   </div>
                 ))}

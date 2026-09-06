@@ -1,11 +1,11 @@
-# BitFun 存储路径清单
+# OpenBitFun 存储路径清单
 
-本文记录 BitFun 当前各产品表面的存储路径、数据边界和路径覆盖规则。内容以本仓库当前实现为准。当前 HarmonyOS PC 定制构建的主路径恢复为应用沙箱路径；与上游 `D:\workspace\wc\github\BitFun` 的 `main` 分支存在明确的平台差异。
+本文记录 OpenBitFun 当前各产品表面的存储路径、数据边界和路径覆盖规则。内容以本仓库当前实现为准。当前 HarmonyOS PC 定制构建的主路径恢复为应用沙箱路径；与上游 `D:\workspace\wc\github\OpenBitFun` 的 `main` 分支存在明确的平台差异。
 
 本文中的“路径”分为两类：
 
 - **物理路径**：由操作系统、Tauri、浏览器或 HarmonyOS 分配的真实目录。
-- **逻辑路径**：BitFun 在其数据根下定义的稳定目录和文件名，例如 `projects/<workspace-slug>/sessions`。
+- **逻辑路径**：OpenBitFun 在其数据根下定义的稳定目录和文件名，例如 `projects/<workspace-slug>/sessions`。
 
 除特别说明外，下面的路径均为模板，不代表某个用户机器上的固定绝对路径。
 
@@ -15,19 +15,19 @@
 
 | 符号 | 默认值 | 作用 | 覆盖变量 |
 | --- | --- | --- | --- |
-| `U` | `/data/storage/el2/base/files/bitfun` | 用户配置、缓存、模型、日志、临时文件 | 当前实现不覆盖 |
-| `H` | `dirs::home_dir()/.bitfun` | 助手工作区、跨工作区运行时、远程镜像、派发任务 | `BITFUN_HOME`、`BITFUN_E2E_HOME` |
-| `P` | `<workspace>/.bitfun` | 项目级配置、规则、插件和搜索索引 | 无 |
+| `U` | `/data/storage/el2/base/files/openbitfun` | 用户配置、缓存、模型、日志、临时文件 | 当前实现不覆盖 |
+| `H` | `dirs::home_dir()/.openbitfun` | 助手工作区、跨工作区运行时、远程镜像、派发任务 | `OPENBITFUN_HOME`、`OPENBITFUN_E2E_HOME` |
+| `P` | `<workspace>/.openbitfun` | 项目级配置、规则、插件和搜索索引 | 无 |
 | `R` | `H/projects/<workspace-slug>` | 工作区级会话、计划、快照和插件信任 | 间接受 `H` 影响 |
 
 当前定制构建默认值：
 
 ```text
-U = /data/storage/el2/base/files/bitfun
-H = dirs::home_dir()/.bitfun
+U = /data/storage/el2/base/files/openbitfun
+H = dirs::home_dir()/.openbitfun
 ```
 
-当前构建仅将 `U` 固定到应用沙箱路径；`H` 仍保持跨平台实现，并支持 `BITFUN_HOME` / `BITFUN_E2E_HOME` 覆盖。`BITFUN_USER_ROOT` / `BITFUN_E2E_USER_ROOT` 当前不会改写 `U`，相关 E2E 隔离逻辑需要后续单独校正。
+当前构建仅将 `U` 固定到应用沙箱路径；`H` 仍保持跨平台实现，并支持 `OPENBITFUN_HOME` / `OPENBITFUN_E2E_HOME` 覆盖。`OPENBITFUN_USER_ROOT` / `OPENBITFUN_E2E_USER_ROOT` 当前不会改写 `U`，相关 E2E 隔离逻辑需要后续单独校正。
 
 ## 2. 用户配置根 `U`
 
@@ -71,7 +71,7 @@ U/
 | `U/data/cron` | 长期 | 定时任务定义 |
 | `U/data/miniapps` | 长期 | 用户 MiniApp 数据 |
 | `U/data/rules`、`U/data/plugins` | 长期 | 用户级规则和插件包 |
-| `U/runtimes` | 长期、可升级 | BitFun 管理的 Node/Python/Office 等运行时 |
+| `U/runtimes` | 长期、可升级 | OpenBitFun 管理的 Node/Python/Office 等运行时 |
 | `U/temp` | 临时 | 语音输入分片等短期文件 |
 
 路径 owner 主要是 `PathManager` 以及 services 层对应的持久化模块。清理逻辑必须区分 `cache`/`temp` 与用户数据，不能用“删除整个 `U`”恢复错误状态。
@@ -81,12 +81,12 @@ U/
 `PathManager::user_skills_dir()` 当前仍直接根据 `dirs::data_dir()`、`dirs::data_local_dir()` 和平台条件计算：
 
 ```text
-Windows: dirs::data_dir()/BitFun/skills/
-macOS:   ~/Library/Application Support/BitFun/skills/
-Linux:   dirs::data_local_dir()/BitFun/skills/
+Windows: dirs::data_dir()/OpenBitFun/skills/
+macOS:   ~/Library/Application Support/OpenBitFun/skills/
+Linux:   dirs::data_local_dir()/OpenBitFun/skills/
 ```
 
-因此它不一定落在 `U` 下，也不能完全通过 `BITFUN_USER_ROOT` 隔离。内置技能位于该目录的 `.system/` 子目录。
+因此它不一定落在 `U` 下，也不能完全通过 `OPENBITFUN_USER_ROOT` 隔离。内置技能位于该目录的 `.system/` 子目录。
 
 ## 3. 助手根 `H`
 
@@ -120,7 +120,7 @@ H/
 - 旧版本的 `H/workspace` 和 `H/workspace-<assistant_id>` 仍需兼容读取，不能直接删除。
 - `projects/<workspace-slug>` 是工作区运行时根，slug 由规范化工作区路径生成。
 - `plugin-runtime/<path_digest>/trust.json` 保存工作区插件信任状态。
-- `worktrees` 是 BitFun 管理的 Git worktree 根。
+- `worktrees` 是 OpenBitFun 管理的 Git worktree 根。
 - `memories` 是助手级记忆工作区；SQLite 主库位于 `U/data/memories`。
 - `remote_ssh` 保存远程 SSH 工作区对应的本地会话镜像。
 - `dispatch` 是 Detached Dispatch 控制端的持久化根。
@@ -128,10 +128,10 @@ H/
 
 ## 4. 项目根 `P`
 
-对工作区 `<workspace>`，项目路径为 `<workspace>/.bitfun`：
+对工作区 `<workspace>`，项目路径为 `<workspace>/.openbitfun`：
 
 ```text
-<workspace>/.bitfun/
+<workspace>/.openbitfun/
 ├── config/
 │   ├── agent_profiles.json
 │   ├── tool_permissions.json
@@ -151,13 +151,13 @@ H/
 
 | 路径 | 生命周期 | 是否应提交到项目 Git |
 | --- | --- | --- |
-| `.bitfun/config` | 长期 | 取决于项目策略；可能包含用户本地设置 |
-| `.bitfun/agents` | 长期 | 取决于项目是否共享 Agent |
-| `.bitfun/rules` | 长期 | 可作为项目规则共享 |
-| `.bitfun/plugins` | 长期 | 取决于插件来源和安全策略 |
-| `.bitfun/search/flashgrep-index` | 可重建缓存 | 通常不应提交 |
-| `.bitfun/computer_use_debug` | 调试期 | 通常不应提交 |
-| `.bitfun/tmp` | 临时 | 不应提交 |
+| `.openbitfun/config` | 长期 | 取决于项目策略；可能包含用户本地设置 |
+| `.openbitfun/agents` | 长期 | 取决于项目是否共享 Agent |
+| `.openbitfun/rules` | 长期 | 可作为项目规则共享 |
+| `.openbitfun/plugins` | 长期 | 取决于插件来源和安全策略 |
+| `.openbitfun/search/flashgrep-index` | 可重建缓存 | 通常不应提交 |
+| `.openbitfun/computer_use_debug` | 调试期 | 通常不应提交 |
+| `.openbitfun/tmp` | 临时 | 不应提交 |
 
 项目路径不应被替换为控制端本地路径。远程工作区必须在实际执行端使用其自己的项目根和临时目录。
 
@@ -220,7 +220,7 @@ H/remote_ssh/<sanitized-host>/<remote-path-segments>/sessions/<session_id>/
 Desktop/Server 的 SSH 管理器当前仍使用另一套目录：
 
 ```text
-dirs::data_local_dir()/BitFun/ssh/
+dirs::data_local_dir()/OpenBitFun/ssh/
 ├── ssh_connections.json
 ├── known_hosts
 └── remote_workspace.json
@@ -278,7 +278,7 @@ Web UI 运行在 WebView 浏览器沙箱中，使用以下存储：
 
 - `localStorage`：更新提示、模型配置、UI 偏好、待发送队列、Review/设置偏好等。
 - `sessionStorage`：当前页面恢复标记、导航状态、临时模式选择等。
-- IndexedDB：数据库 `bitfun-appearance`，object stores 为 `packages` 和 `catalog`。
+- IndexedDB：数据库 `openbitfun-appearance`，object stores 为 `packages` 和 `catalog`。
 
 IndexedDB owner：[AppearanceStorage.ts](../../src/web-ui/src/infrastructure/appearance/storage/AppearanceStorage.ts)。这些数据不经过 Rust `PathManager`，也不受统一的文件清理和 E2E 根目录控制；清除 WebView 站点数据会使其丢失。
 
@@ -287,13 +287,13 @@ IndexedDB owner：[AppearanceStorage.ts](../../src/web-ui/src/infrastructure/app
 Mobile Web 使用浏览器 `localStorage`，典型键包括：
 
 ```text
-bitfun-mobile-language
-bitfun-mobile-theme
-bitfun.mobile.install_id
-bitfun.mobile.user_id
-bitfun.mobile.failure_count
-bitfun.mobile.lock_until
-bitfun.mobile.last_selected_model_id
+openbitfun-mobile-language
+openbitfun-mobile-theme
+openbitfun.mobile.install_id
+openbitfun.mobile.user_id
+openbitfun.mobile.failure_count
+openbitfun.mobile.lock_until
+openbitfun.mobile.last_selected_model_id
 ```
 
 主要 owner：
@@ -307,23 +307,23 @@ bitfun.mobile.last_selected_model_id
 
 ## 10. HarmonyOS
 
-HarmonyOS Mobile 使用应用沙箱中的 ArkData；真实物理目录由系统分配，BitFun 只持有逻辑名称和 URI 转换规则。
+HarmonyOS Mobile 使用应用沙箱中的 ArkData；真实物理目录由系统分配，OpenBitFun 只持有逻辑名称和 URI 转换规则。
 
 ### 10.1 Preferences
 
 ```text
-bitfun_remote_identity
-bitfun_cloud_account
-bitfun_general_chat_config
-bitfun_app_locale
+openbitfun_remote_identity
+openbitfun_cloud_account
+openbitfun_general_chat_config
+openbitfun_app_locale
 ```
 
 ### 10.2 RelationalStore
 
 ```text
-bitfun_remote_chat.db
-bitfun_remote_sessions.db
-bitfun_general_chat.db
+openbitfun_remote_chat.db
+openbitfun_remote_sessions.db
+openbitfun_general_chat.db
 ```
 
 当前代码中涉及的 URI/路径转换前缀：
@@ -349,7 +349,7 @@ HarmonyOS 的 URI 转换目前存在多处实现，后续应集中到一个平�
 
 ```text
 静态资源目录：由 RELAY_STATIC_DIR 指定
-Room Web 目录：/tmp/bitfun-room-web
+Room Web 目录：/tmp/openbitfun-room-web
 Page 数据：<room_web_dir>/page-data/
 账户数据库：由 RELAY_DB_PATH 指定，未设置时不启用账户功能
 ```
@@ -359,7 +359,7 @@ Docker Compose 默认值：
 ```text
 /app/static
 /app/room-web
-/app/data/bitfun_relay.db
+/app/data/openbitfun_relay.db
 ```
 
 Docker volumes：
@@ -375,7 +375,7 @@ relay-server_relay-db
 - [`main.rs`](../../src/apps/relay-server/src/main.rs)
 - [`docker-compose.yml`](../../src/apps/relay-server/docker-compose.yml)
 
-`/tmp/bitfun-room-web` 是非持久化默认值；生产部署应显式设置 `RELAY_ROOM_WEB_DIR` 和 `RELAY_DB_PATH` 到持久化卷。`RELAY_DB_PATH` 未设置时，Relay 只提供房间配对和桥接，不提供账户、设备路由和同步数据库。
+`/tmp/openbitfun-room-web` 是非持久化默认值；生产部署应显式设置 `RELAY_ROOM_WEB_DIR` 和 `RELAY_DB_PATH` 到持久化卷。`RELAY_DB_PATH` 未设置时，Relay 只提供房间配对和桥接，不提供账户、设备路由和同步数据库。
 
 ## 12. 路径统一性和迁移注意事项
 
@@ -384,10 +384,10 @@ relay-server_relay-db
 | 优先级 | 位置 | 风险 |
 | --- | --- | --- |
 | 高 | `user_skills_dir()` 使用 `dirs::*` | E2E 隔离、备份和清理无法覆盖全部技能数据 |
-| 高 | Desktop/Server SSH 使用 `data_local_dir()/BitFun/ssh` | SSH 配置与其他用户数据分散 |
-| 中 | 部分 Remote Connect 代码直接拼接 `home_dir()/.bitfun` | `BITFUN_HOME` 覆盖可能不完整 |
+| 高 | Desktop/Server SSH 使用 `data_local_dir()/OpenBitFun/ssh` | SSH 配置与其他用户数据分散 |
+| 中 | 部分 Remote Connect 代码直接拼接 `home_dir()/.openbitfun` | `OPENBITFUN_HOME` 覆盖可能不完整 |
 | 中 | WebView local/session storage 与 IndexedDB | 不受 Rust 存储统计、迁移和清理控制 |
-| 中 | Relay 默认 `/tmp/bitfun-room-web` | 重启或系统清理可能丢失 page data |
+| 中 | Relay 默认 `/tmp/openbitfun-room-web` | 重启或系统清理可能丢失 page data |
 | 中 | HarmonyOS URI 转换重复 | 逻辑路径与物理路径可能不一致 |
 | 低 | OHOS Desktop 隐私/反馈固定 `/data/storage/...` | 仅平台适配层，不能作为跨平台规范 |
 | 低 | 旧助手工作区路径 | 升级时不能删除旧目录或强制改写引用 |
@@ -395,7 +395,7 @@ relay-server_relay-db
 建议的后续收敛顺序：
 
 1. 把技能目录和 SSH 配置路径纳入 `PathManager`，保留旧路径只读迁移和兼容读取。
-2. 清点所有 `dirs::home_dir()`、`dirs::data_*()` 和 `.join(".bitfun")` 调用，改为注入 `PathManager` 或明确的平台 adapter。
+2. 清点所有 `dirs::home_dir()`、`dirs::data_*()` 和 `.join(".openbitfun")` 调用，改为注入 `PathManager` 或明确的平台 adapter。
 3. 为 WebView/移动端存储建立命名空间、版本号和导出/清除策略；不要把浏览器键值假设成 Rust 文件已持久化。
 4. Relay 生产配置禁止使用 `/tmp` 作为 page data 根，部署检查应要求显式持久化路径。
 5. 合并 HarmonyOS URI 转换实现，并为 `/storage/Users/currentUser/appdata` 与 `/data/storage` 建立转换契约测试。
@@ -405,7 +405,7 @@ relay-server_relay-db
 新增或修改存储路径时，至少检查：
 
 - 是否属于 `U`、`H`、`P`、`R` 中的某一层；如果不属于，是否有明确的 owner 和理由。
-- 是否支持 `BITFUN_USER_ROOT` / `BITFUN_HOME` 的 E2E 隔离。
+- 是否支持 `OPENBITFUN_USER_ROOT` / `OPENBITFUN_HOME` 的 E2E 隔离。
 - 是否区分长期数据、缓存、临时文件和密钥材料。
 - 是否影响 Remote workspace、Remote control、Peer Device Mode 或 Detached Dispatch。
 - 是否需要旧路径读取、字段默认值和迁移测试。

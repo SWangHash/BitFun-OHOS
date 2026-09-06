@@ -210,7 +210,7 @@ describe('McpToolsConfig remote behavior', () => {
     await act(async () => openEditor.click());
 
     expect(container.textContent).toContain('jsonEditor.loadFailed');
-    expect(container.querySelector('.bitfun-mcp-tools__json-textarea')).toBeNull();
+    expect(container.querySelector('.openbitfun-mcp-tools__json-textarea')).toBeNull();
     expect(container.textContent).not.toContain('example-server');
 
     const retry = container.querySelector('[aria-label="actions.refresh"]') as HTMLButtonElement;
@@ -221,7 +221,7 @@ describe('McpToolsConfig remote behavior', () => {
     });
     expect(loadJsonConfigMock).toHaveBeenCalledTimes(2);
     expect(container.textContent).not.toContain('jsonEditor.loadFailed');
-    expect(container.querySelector('.bitfun-mcp-tools__json-textarea')).not.toBeNull();
+    expect(container.querySelector('.openbitfun-mcp-tools__json-textarea')).not.toBeNull();
   });
 
   it('saves the JSON editor against the fingerprint that was loaded with it', async () => {
@@ -234,6 +234,18 @@ describe('McpToolsConfig remote behavior', () => {
     await act(async () => {
       (container.querySelector('[aria-label="actions.jsonConfig"]') as HTMLButtonElement).click();
     });
+    const textarea = container.querySelector(
+      '.openbitfun-mcp-tools__json-textarea textarea',
+    ) as HTMLTextAreaElement;
+    const editedJson = '{\n  "mcpServers": {}\n}';
+    await act(async () => {
+      const setValue = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        'value',
+      )?.set;
+      setValue?.call(textarea, editedJson);
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
     const saveButton = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'actions.saveConfig',
     );
@@ -243,7 +255,7 @@ describe('McpToolsConfig remote behavior', () => {
       await Promise.resolve();
     });
 
-    expect(saveJsonConfigMock).toHaveBeenCalledWith('{"mcpServers":{}}', 'sha256:test');
+    expect(saveJsonConfigMock).toHaveBeenCalledWith(editedJson, 'sha256:test');
     expect(initializeServersMock).not.toHaveBeenCalled();
   });
 
@@ -355,7 +367,7 @@ describe('McpToolsConfig remote behavior', () => {
     expect(openExternalMock).toHaveBeenCalledWith('https://mcp.notion.test/authorize');
     expect(getRemoteOAuthSessionMock).not.toHaveBeenCalled();
     expect(notificationMocks.error).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-bf-part="authEditor"]')).not.toBeNull();
+    expect(document.querySelector('[data-openbitfun-part="authEditor"]')).not.toBeNull();
   });
 
   it('reauthorizes after an auth handshake challenge without reporting a start failure', async () => {
@@ -392,7 +404,7 @@ describe('McpToolsConfig remote behavior', () => {
     expect(startServerMock).toHaveBeenCalledWith('notion');
     expect(startRemoteOAuthMock).toHaveBeenCalledWith({ serverId: 'notion' });
     expect(notificationMocks.error).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-bf-part="authEditor"]')).not.toBeNull();
+    expect(document.querySelector('[data-openbitfun-part="authEditor"]')).not.toBeNull();
   });
 
   it('deletes a server after confirmation and reloads the list', async () => {

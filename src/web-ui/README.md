@@ -1,10 +1,10 @@
-# BitFun Web UI
+# OpenBitFun Web UI
 
 [中文](./README.zh-CN.md) | English
 
 ## Overview
 
-This directory contains BitFun’s **Web UI** (React + TypeScript). The same frontend codebase is reused by:
+This directory contains OpenBitFun’s **Web UI** (React + TypeScript). The same frontend codebase is reused by:
 
 - **Desktop**: loaded via **Tauri**
 - **Server/Web**: built into static assets and served by the backend
@@ -96,6 +96,19 @@ VITE_BUILD_TARGET=web pnpm --dir src/web-ui run build
 - [i18n README](src/infrastructure/i18n/README.md)
 
 ## Notes
+
+Creative mode in the packaged Desktop can control existing settings, manage
+installed MiniApps, and apply persistent UI customizations without a source
+checkout or build tools. Ask for the client change in Creative mode and review
+the native Keep/Revert preview. The host confirms only after the shell and
+customization activate; failure or timeout restores the previous revision.
+
+Custom modules can also register Agent-callable commands and compose persistent
+state with events. The shipped [Creation API](public/openbitfun-creation-api.md)
+documents runtime discovery, activation and cleanup. These extensions require
+the visible local Desktop; they are unavailable on remote/Peer/headless surfaces.
+MiniApp source operations use the installed product's lifecycle owner and
+preserve omitted source fields and existing app storage when updating.
 
 1. **Don’t call Tauri APIs directly** in UI components; use the adapter layer.
 2. **Keep Web compatibility** in mind (some capabilities may not exist in browsers).

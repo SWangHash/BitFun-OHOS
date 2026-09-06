@@ -4,8 +4,6 @@ import type {
   ReactNode,
 } from "react";
 import {
-  Check,
-  Copy,
   ExternalLink,
   Square,
   Terminal,
@@ -14,10 +12,11 @@ import { IconButton } from "../../components/IconButton/IconButton";
 import { classNames } from "../../internal/classNames";
 import {
   ProminentToolCard,
-  ProminentToolCardHeader,
-  ToolCardHeaderActions,
+  ProminentToolCardSummary,
+  ToolCardActions,
   type FlowChatToolStatus,
 } from "./FlowChatToolCard";
+import { ToolCardCopyButton } from "./ToolCardCopyButton";
 import { ToolProcessingDots } from "./ToolProcessingDots";
 import styles from "./CommandToolCard.module.css";
 
@@ -36,7 +35,6 @@ export interface CommandToolCardCopyAction extends CommandToolCardAction {
 export interface CommandToolCardFooterItem {
   grow?: boolean;
   label?: ReactNode;
-  monospace?: boolean;
   pushToEnd?: boolean;
   tone?: "danger" | "neutral" | "success" | "warning";
   value: ReactNode;
@@ -122,11 +120,23 @@ export function CommandToolCard({
     const label = copied && "copiedLabel" in item && item.copiedLabel
       ? item.copiedLabel
       : item.label;
-    const icon = kind === "copy"
-      ? copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />
-      : kind === "open"
-        ? <ExternalLink aria-hidden="true" />
-        : <Square aria-hidden="true" fill="currentColor" />;
+    if (kind === "copy") {
+      const copyItem = item as CommandToolCardCopyAction;
+      return (
+        <ToolCardCopyButton
+          copied={copied}
+          copiedLabel={copyItem.copiedLabel}
+          disabled={copyItem.disabled}
+          label={copyItem.label}
+          onPress={copyItem.onPress}
+          testId={copyItem.testId}
+        />
+      );
+    }
+
+    const icon = kind === "open"
+      ? <ExternalLink aria-hidden="true" />
+      : <Square aria-hidden="true" fill="currentColor" />;
 
     return (
       <IconButton
@@ -145,27 +155,26 @@ export function CommandToolCard({
   };
 
   const details = hasDetails ? (
-    <div className={styles.details} data-bf-part="details">
+    <div className={styles.details} data-openbitfun-part="details">
       {hasOutputFrame && (
         <div
           className={styles.outputFrame}
-          data-bf-part="outputFrame"
+          data-openbitfun-part="outputFrame"
           data-density={outputDensity}
           data-sizing={outputSizing}
         >
           {outputAction && <span className={styles.outputActions}>{outputAction}</span>}
           {output
-            ? <div className={styles.output} data-bf-part="output">{output}</div>
-            : <div className={styles.waiting} data-bf-part="waiting">{waitingContent}</div>}
+            ? <div className={styles.output} data-openbitfun-part="output">{output}</div>
+            : <div className={styles.waiting} data-openbitfun-part="waiting">{waitingContent}</div>}
         </div>
       )}
       {hasFooter && (
-        <div className={styles.footer} data-bf-part="footer">
+        <div className={styles.footer} data-openbitfun-part="footer">
           {footerItems.map((item, index) => (
             <span
               className={styles.footerItem}
               data-grow={item.grow ? "true" : "false"}
-              data-monospace={item.monospace ? "true" : "false"}
               data-push-to-end={item.pushToEnd ? "true" : "false"}
               data-tone={item.tone ?? "neutral"}
               key={index}
@@ -185,27 +194,27 @@ export function CommandToolCard({
     <div
       {...props}
       className={classNames(styles.root, className)}
-      data-bf-component="command-tool-card"
-      data-bf-part="root"
-      data-bf-status={status}
+      data-openbitfun-component="command-tool-card"
+      data-openbitfun-part="root"
+      data-openbitfun-status={status}
     >
       <ProminentToolCard
         errorContent={error ? <div className={styles.error}>{error}</div> : undefined}
         expandedContent={details}
-        header={(
-          <ProminentToolCardHeader
+        summary={(
+          <ProminentToolCardSummary
             action={action}
             actions={actionItems ? (
-              <ToolCardHeaderActions>
+              <ToolCardActions>
                 {renderAction("interrupt", interruptAction)}
                 {renderAction("copy", copyAction)}
                 {renderAction("open", openAction)}
-              </ToolCardHeaderActions>
+              </ToolCardActions>
             ) : undefined}
             content={(
               <code
                 className={styles.command}
-                data-bf-part="command"
+                data-openbitfun-part="command"
                 data-empty={resolvedCommand ? "false" : "true"}
                 data-testid={commandTestId}
                 title={resolvedCommand ?? undefined}
@@ -214,7 +223,7 @@ export function CommandToolCard({
               </code>
             )}
             extra={(statusSummary || statusLabel) ? (
-              <span className={styles.statusSummary} data-bf-part="statusSummary">
+              <span className={styles.statusSummary} data-openbitfun-part="statusSummary">
                 {statusSummary}
                 {statusLabel && (
                   <span className={styles.statusLabel} data-tone={statusTone}>{statusLabel}</span>
@@ -225,10 +234,10 @@ export function CommandToolCard({
             statusIcon={loading ? <ToolProcessingDots size={16} /> : undefined}
           />
         )}
-        headerExpandAffordance={hasDetails}
+        summaryExpandAffordance={hasDetails}
         isExpanded={isExpanded}
         isFailed={failed}
-        onClick={hasDetails && onToggle ? () => onToggle() : undefined}
+        onToggle={hasDetails && onToggle ? () => onToggle() : undefined}
         requiresConfirmation={requiresConfirmation}
         status={status}
         toggleTestId={toggleTestId}

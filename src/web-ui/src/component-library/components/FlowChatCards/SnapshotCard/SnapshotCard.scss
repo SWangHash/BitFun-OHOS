@@ -136,7 +136,7 @@
 }
 
 .snapshot-card__status-spinner {
-  animation: bitfun-snapshot-card-spin 1s linear infinite;
+  animation: openbitfun-snapshot-card-spin 1s linear infinite;
   color: var(--bf-appearance-token-color-info);
 }
 
@@ -152,7 +152,7 @@
   color: var(--bf-appearance-token-color-warning);
 }
 
-@keyframes bitfun-snapshot-card-spin {
+@keyframes openbitfun-snapshot-card-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
@@ -344,7 +344,7 @@
 }
 
 .snapshot-card__processing-icon {
-  animation: bitfun-snapshot-card-spin 1s linear infinite;
+  animation: openbitfun-snapshot-card-spin 1s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

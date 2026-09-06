@@ -36,11 +36,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   const supportId = `${generatedId}-support`;
   const resolvedInputSize = size ?? inputSize;
   const classNames = [
-    'bitfun-input-wrapper',
-    `bitfun-input-wrapper--${variant}`,
-    `bitfun-input-wrapper--${resolvedInputSize}`,
-    error && 'bitfun-input-wrapper--error',
-    disabled && 'bitfun-input-wrapper--disabled',
+    'openbitfun-input-wrapper',
+    `openbitfun-input-wrapper--${variant}`,
+    `openbitfun-input-wrapper--${resolvedInputSize}`,
+    error && 'openbitfun-input-wrapper--error',
+    disabled && 'openbitfun-input-wrapper--disabled',
     className
   ]
     .filter(Boolean)
@@ -50,33 +50,33 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   return (
     <div
       className={classNames}
-      data-bf-component="input"
-      data-bf-part="root"
-      data-bf-variant={variant}
-      data-bf-size={resolvedInputSize}
-      data-bf-state={appearanceState || undefined}
+      data-openbitfun-component="input"
+      data-openbitfun-part="root"
+      data-openbitfun-variant={variant}
+      data-openbitfun-size={resolvedInputSize}
+      data-openbitfun-state={appearanceState || undefined}
     >
-      {label && <label className="bitfun-input-label" htmlFor={inputId} data-bf-component="input" data-bf-part="label">{label}</label>}
-      <div className="bitfun-input-container" data-bf-component="input" data-bf-part="container">
-        {prefix && <span className="bitfun-input-prefix" data-bf-component="input" data-bf-part="prefix">{prefix}</span>}
+      {label && <label className="openbitfun-input-label" htmlFor={inputId} data-openbitfun-component="input" data-openbitfun-part="label">{label}</label>}
+      <div className="openbitfun-input-container" data-openbitfun-component="input" data-openbitfun-part="container">
+        {prefix && <span className="openbitfun-input-prefix" data-openbitfun-component="input" data-openbitfun-part="prefix">{prefix}</span>}
         <input
           {...props}
           ref={ref}
           id={inputId}
-          className="bitfun-input"
-          data-bf-component="input"
-          data-bf-part="control"
+          className="openbitfun-input"
+          data-openbitfun-component="input"
+          data-openbitfun-part="control"
           disabled={disabled}
           aria-invalid={error || undefined}
           aria-describedby={(error && errorMessage) || (!error && hint) ? supportId : props['aria-describedby']}
         />
-        {suffix && <span className="bitfun-input-suffix" data-bf-component="input" data-bf-part="suffix">{suffix}</span>}
+        {suffix && <span className="openbitfun-input-suffix" data-openbitfun-component="input" data-openbitfun-part="suffix">{suffix}</span>}
       </div>
       {!error && hint && (
-        <span id={supportId} className="bitfun-input-hint" data-bf-component="input" data-bf-part="message">{hint}</span>
+        <span id={supportId} className="openbitfun-input-hint" data-openbitfun-component="input" data-openbitfun-part="message">{hint}</span>
       )}
       {error && errorMessage && (
-        <span id={supportId} className="bitfun-input-error-message" role="alert" data-bf-component="input" data-bf-part="message">{errorMessage}</span>
+        <span id={supportId} className="openbitfun-input-error-message" role="alert" data-openbitfun-component="input" data-openbitfun-part="message">{errorMessage}</span>
       )}
     </div>
   );

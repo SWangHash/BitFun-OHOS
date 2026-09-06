@@ -8,7 +8,7 @@ use anyhow::{anyhow, Result};
 #[cfg(target_env = "ohos")]
 use async_trait::async_trait;
 #[cfg(not(target_env = "ohos"))]
-use bitfun_services_core::process_manager;
+use openbitfun_services_core::process_manager;
 #[allow(unused_imports)]
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
@@ -718,11 +718,11 @@ impl BrowserLauncher {
 
         let instructions = if opened {
             format!(
-                "{kind} opened its Remote debugging settings. Turn on \"Allow remote debugging for this browser instance\" there; the browser remembers this preference for normal future starts. Then connect again and approve BitFun's connection request. This guarded flow uses your current browser profile, including its existing tabs and login state."
+                "{kind} opened its Remote debugging settings. Turn on \"Allow remote debugging for this browser instance\" there; the browser remembers this preference for normal future starts. Then connect again and approve OpenBitFun's connection request. This guarded flow uses your current browser profile, including its existing tabs and login state."
             )
         } else {
             format!(
-                "Open {setup_url} in {kind} and turn on \"Allow remote debugging for this browser instance\"; the browser remembers this preference for normal future starts. Then connect again and approve BitFun's connection request. This guarded flow uses your current browser profile, including its existing tabs and login state."
+                "Open {setup_url} in {kind} and turn on \"Allow remote debugging for this browser instance\"; the browser remembers this preference for normal future starts. Then connect again and approve OpenBitFun's connection request. This guarded flow uses your current browser profile, including its existing tabs and login state."
             )
         };
 
@@ -739,7 +739,7 @@ impl BrowserLauncher {
         dirs::data_local_dir()
             .or_else(dirs::data_dir)
             .unwrap_or_else(std::env::temp_dir)
-            .join("BitFun")
+            .join("OpenBitFun")
     }
 
     #[cfg(not(target_env = "ohos"))]
@@ -1335,7 +1335,7 @@ mod tests {
 
     #[test]
     fn managed_user_data_dir_sanitizes_unknown_browser_name() {
-        let root = PathBuf::from("/tmp/bitfun-test");
+        let root = PathBuf::from("/tmp/openbitfun-test");
         let dir = BrowserLauncher::managed_user_data_dir(
             &root,
             &BrowserKind::Unknown("Custom Browser!".to_string()),

@@ -13,7 +13,7 @@
 //! the reported file set cannot be represented safely, alignment is skipped
 //! and retried later.
 
-use bitfun_services_core::process_manager;
+use openbitfun_services_core::process_manager;
 use git2::{opts, ConfigLevel};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
@@ -361,7 +361,7 @@ fn libgit2_search_path_for(file: &Path) -> Result<(ConfigLevel, PathBuf), String
         return Ok((
             ConfigLevel::Global,
             std::env::temp_dir().join(format!(
-                ".bitfun-global-config-disabled-{}",
+                ".openbitfun-global-config-disabled-{}",
                 std::process::id()
             )),
         ));
@@ -543,7 +543,7 @@ mod tests {
     #[test]
     fn dedupes_origins_that_reappear_once_per_entry() {
         let output = b"file:/home/currentUser/.gitconfig\tsafe.directory\t/home/repo\n\
-                       file:/home/currentUser/.gitconfig\tuser.name\tBitFun\n";
+                       file:/home/currentUser/.gitconfig\tuser.name\tOpenBitFun\n";
 
         assert_eq!(
             parse_show_origin_files(output),
@@ -604,7 +604,7 @@ mod tests {
 
     #[test]
     fn git_cli_write_is_visible_through_the_aligned_libgit2_config() {
-        const CHILD_ENV: &str = "BITFUN_GIT_CONFIG_ROUNDTRIP_CHILD";
+        const CHILD_ENV: &str = "OPENBITFUN_GIT_CONFIG_ROUNDTRIP_CHILD";
         if std::env::var_os(CHILD_ENV).is_none() {
             // libgit2 search paths are process-global. Run the actual mutation
             // in an isolated test process so a parallel repository test can

@@ -18,14 +18,14 @@ export const ToolProcessingDots: React.FC<ToolProcessingDotsProps> = ({
   className = '',
 }) => (
   <span
-    className={`bitfun-tool-processing-dots bitfun-tool-processing-dots--s${size} ${className}`.trim()}
-    data-bf-component="flow-chat-card"
-    data-bf-part="processing"
+    className={`openbitfun-tool-processing-dots openbitfun-tool-processing-dots--s${size} ${className}`.trim()}
+    data-openbitfun-component="flow-chat-card"
+    data-openbitfun-part="processing"
     aria-hidden
     role="presentation"
   >
-    <span className="bitfun-tool-processing-dots__dot" data-bf-component="flow-chat-card" data-bf-part="processingDot" />
-    <span className="bitfun-tool-processing-dots__dot" data-bf-component="flow-chat-card" data-bf-part="processingDot" />
-    <span className="bitfun-tool-processing-dots__dot" data-bf-component="flow-chat-card" data-bf-part="processingDot" />
+    <span className="openbitfun-tool-processing-dots__dot" data-openbitfun-component="flow-chat-card" data-openbitfun-part="processingDot" />
+    <span className="openbitfun-tool-processing-dots__dot" data-openbitfun-component="flow-chat-card" data-openbitfun-part="processingDot" />
+    <span className="openbitfun-tool-processing-dots__dot" data-openbitfun-component="flow-chat-card" data-openbitfun-part="processingDot" />
   </span>
 );

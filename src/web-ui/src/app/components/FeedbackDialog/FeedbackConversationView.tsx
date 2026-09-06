@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { LockKeyhole, RefreshCw, Send } from 'lucide-react';
-import { Button, ConfirmDialog, IconButton, Textarea } from '@bitfun/ui';
+import { Button, ConfirmDialog, IconButton, Textarea } from '@openbitfun/ui';
 import { usePrivacy } from '@/app/components/Privacy/PrivacyContext';
 import { PrivacyStatementDialog } from '@/app/components/Privacy/PrivacyStatementDialog';
 import { useImeOwnedKeyGuard } from '@/flow_chat/hooks/useImeOwnedKeyGuard';
@@ -455,8 +455,8 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
   }, [messages, queueVisibleAcknowledgement]);
 
   return (
-    <div className="bitfun-feedback__conversation">
-      <div className="bitfun-feedback__conversation-toolbar">
+    <div className="openbitfun-feedback__conversation">
+      <div className="openbitfun-feedback__conversation-toolbar">
         <span>{t('feedback.conversation.messages')}</span>
         <IconButton
           type="button"
@@ -470,9 +470,9 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
         />
       </div>
       {error || ackError ? (
-        <div className="bitfun-feedback__conversation-notices">
+        <div className="openbitfun-feedback__conversation-notices">
           {error ? (
-            <div className="bitfun-feedback__message-error" role="alert">
+            <div className="openbitfun-feedback__message-error" role="alert">
               <span>{conversationErrorText(error.code, t)}</span>
               <Button
                 type="button"
@@ -486,30 +486,30 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
             </div>
           ) : null}
           {ackError ? (
-            <div className="bitfun-feedback__message-notice" role="status">
+            <div className="openbitfun-feedback__message-notice" role="status">
               {t('feedback.conversation.ackFailed')}
             </div>
           ) : null}
         </div>
       ) : null}
-      <div ref={scrollRef} className="bitfun-feedback__messages" aria-live="polite">
-        <div ref={topSentinelRef} className="bitfun-feedback__message-sentinel" aria-hidden="true" />
+      <div ref={scrollRef} className="openbitfun-feedback__messages" aria-live="polite">
+        <div ref={topSentinelRef} className="openbitfun-feedback__message-sentinel" aria-hidden="true" />
         {loading || loadingEarlier ? (
-          <div className="bitfun-feedback__message-state" role="status">
+          <div className="openbitfun-feedback__message-state" role="status">
             {loadingEarlier
               ? t('feedback.conversation.loadingEarlier')
               : t('feedback.conversation.loading')}
           </div>
         ) : null}
         {!loading && !refreshing && messages.length === 0 && !error ? (
-          <div className="bitfun-feedback__message-empty">
+          <div className="openbitfun-feedback__message-empty">
             {t('feedback.conversation.empty')}
           </div>
         ) : null}
         {messages.map(message => (
           <article
             key={message.messageId}
-            className={`bitfun-feedback__message is-${message.sender}${message.contentDeleted ? ' is-content-deleted' : ''}`}
+            className={`openbitfun-feedback__message is-${message.sender}${message.contentDeleted ? ' is-content-deleted' : ''}`}
             data-content-deleted={message.contentDeleted ? 'true' : undefined}
             data-admin-created-at={message.sender === 'admin' ? message.createdAt : undefined}
           >
@@ -526,12 +526,12 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
         ))}
       </div>
       {record.status === 'resolved' ? (
-        <div className="bitfun-feedback__resolved-notice">
+        <div className="openbitfun-feedback__resolved-notice">
           <LockKeyhole size={14} aria-hidden="true" />
           {t('feedback.conversation.resolvedReadonly')}
         </div>
       ) : (
-        <form className="bitfun-feedback__reply" onSubmit={requestReply}>
+        <form className="openbitfun-feedback__reply" onSubmit={requestReply}>
           <Textarea
             value={draft}
             maxLength={draftNativeMaxLength}
@@ -551,16 +551,16 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
             onBeforeInput={handleDraftBeforeInput}
             onChange={event => handleDraftChange(event.target)}
           />
-          <div className="bitfun-feedback__reply-meta" aria-live="polite">
+          <div className="openbitfun-feedback__reply-meta" aria-live="polite">
             <span>{draftTruncated ? t('feedback.contentTruncated') : ''}</span>
             <span>{draftLength}/2000</span>
           </div>
           {replyError ? (
-            <div className="bitfun-feedback__reply-error" role="alert">
+            <div className="openbitfun-feedback__reply-error" role="alert">
               {replyErrorText(replyError, t)}
             </div>
           ) : null}
-          <div className="bitfun-feedback__reply-actions">
+          <div className="openbitfun-feedback__reply-actions">
             <Button
               type="submit"
               disabled={!canReply}
@@ -583,7 +583,7 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
         onConfirm={() => void acceptAndSend()}
         title={t('feedback.reply.consentTitle')}
         message={(
-          <div className="bitfun-feedback__consent-message">
+          <div className="openbitfun-feedback__consent-message">
             {replyError === 'PRIVACY_SAVE_FAILED' ? (
               <span>{t('feedback.reply.consentSaveFailed')}</span>
             ) : null}

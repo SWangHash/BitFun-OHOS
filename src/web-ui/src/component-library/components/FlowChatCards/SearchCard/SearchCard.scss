@@ -82,7 +82,7 @@
 }
 
 .search-card__status-spinner {
-  animation: bitfun-search-card-spin 1s linear infinite;
+  animation: openbitfun-search-card-spin 1s linear infinite;
   color: var(--bf-appearance-token-color-info);
 }
 
@@ -98,7 +98,7 @@
   color: var(--bf-appearance-token-color-warning);
 }
 
-@keyframes bitfun-search-card-spin {
+@keyframes openbitfun-search-card-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }

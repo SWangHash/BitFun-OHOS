@@ -58,14 +58,14 @@ export const Empty: React.FC<EmptyProps> = ({
   const size = getImageSize();
 
   return (
-    <div className={`bitfun-empty ${className}`} style={style} data-bf-component="empty" data-bf-part="root">
-      <div className="bitfun-empty__image" data-bf-component="empty" data-bf-part="image">
+    <div className={`openbitfun-empty ${className}`} style={style} data-openbitfun-component="empty" data-openbitfun-part="root">
+      <div className="openbitfun-empty__image" data-openbitfun-component="empty" data-openbitfun-part="image">
         {image || <DefaultImage size={size} />}
       </div>
       {description && (
-        <div className="bitfun-empty__description" data-bf-component="empty" data-bf-part="description">{description}</div>
+        <div className="openbitfun-empty__description" data-openbitfun-component="empty" data-openbitfun-part="description">{description}</div>
       )}
-      {children && <div className="bitfun-empty__footer" data-bf-component="empty" data-bf-part="footer">{children}</div>}
+      {children && <div className="openbitfun-empty__footer" data-openbitfun-component="empty" data-openbitfun-part="footer">{children}</div>}
     </div>
   );
 };

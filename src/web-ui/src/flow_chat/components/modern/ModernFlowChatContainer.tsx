@@ -20,6 +20,7 @@ import {
 } from './FlowChatHeader';
 import type { SessionTreeSelection } from './SessionTreePopover';
 import { FlowChatTurnRail, type FlowChatTurnRailItem } from './FlowChatTurnRail';
+import { composerPresentationToTurnRailPreview, parseComposerPresentation } from '../../utils/composerPresentation';
 import { BackgroundCommandInputDialog } from '../background-command/BackgroundCommandInputDialog';
 import { WelcomePanel } from '../WelcomePanel';
 import { HistorySessionPlaceholder } from './HistorySessionPlaceholder';
@@ -59,7 +60,6 @@ import {
   useBackgroundSubagentActivityStore,
 } from '../../store/backgroundSubagentActivityStore';
 import { type LineRange } from '@/shared/editor/LineRange';
-import { isChatPopupActive, subscribeChatPopupChange } from '../chatPopupState';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { flowChatSessionConfigForCurrentWorkspace } from '@/app/utils/projectSessionWorkspace';
 import { createLogger } from '@/shared/utils/logger';
@@ -197,7 +197,7 @@ const LATEST_TURN_AUTO_PIN_MAX_ATTEMPTS = 8;
 const HISTORY_INITIAL_CONTENT_PAINT_MAX_ATTEMPTS = 30;
 const HISTORY_LOADING_LAYER_STALL_WARN_MS = 800;
 const TURN_PIN_RETRY_MAX_ATTEMPTS = 120;
-const MOCK_BACKGROUND_COMMANDS_STORAGE_KEY = 'bitfun.flowChat.mockBackgroundCommands';
+const MOCK_BACKGROUND_COMMANDS_STORAGE_KEY = 'openbitfun.flowChat.mockBackgroundCommands';
 
 const MOCK_BACKGROUND_COMMANDS: BackgroundCommandSummary[] = [
   {
@@ -467,17 +467,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
   const [queuedTurnNavigation, setQueuedTurnNavigation] = useState<QueuedTurnNavigation | null>(null);
   const [pendingHistoryOpenSession, setPendingHistoryOpenSession] = useState<HistorySessionOpenIntentDetail | null>(null);
   const [searchOpenRequest, setSearchOpenRequest] = useState(0);
-  // Track whether a slash-command or @-mention popup is open in ChatInput.
-  // When a popup is active, the global Escape shortcut is disabled so the
-  // popup can be closed with Escape instead of cancelling the current task.
-  const [chatPopupActive, setChatPopupActive] = useState(() => isChatPopupActive());
   const backgroundCommandActivities = useBackgroundCommandActivityStore(state => state.activities);
-
-  useEffect(() => {
-    return subscribeChatPopupChange(() => {
-      setChatPopupActive(isChatPopupActive());
-    });
-  }, []);
   const [stoppingBackgroundCommandIds, setStoppingBackgroundCommandIds] = useState<Set<string>>(() => new Set());
   const [backgroundCommandInputTarget, setBackgroundCommandInputTarget] = useState<FlowChatHeaderCommandSummary | null>(null);
   const [isSendingBackgroundCommandInput, setIsSendingBackgroundCommandInput] = useState(false);
@@ -1020,11 +1010,17 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
       ...(historyView?.loadedRanges.flatMap(range => range.turns) ?? []),
     ];
     const dialogTurnById = new Map(loadedTurns.map(turn => [turn.id, turn]));
-    const loadedByStorageIndex = new Map<number, { turnId: string; content: string }>();
-    const loadedByOrdinal = new Map<number, { turnId: string; content: string }>();
+    const loadedByStorageIndex = new Map<number, { turnId: string; content: string; capsulePreview?: FlowChatTurnRailItem['capsulePreview'] }>();
+    const loadedByOrdinal = new Map<number, { turnId: string; content: string; capsulePreview?: FlowChatTurnRailItem['capsulePreview'] }>();
     for (const range of historyView?.loadedRanges ?? []) {
       range.turns.forEach((turn, index) => {
-        const loaded = { turnId: turn.id, content: turn.userMessage?.content ?? '' };
+        const loaded = {
+          turnId: turn.id,
+          content: turn.userMessage?.content ?? '',
+          capsulePreview: composerPresentationToTurnRailPreview(
+            parseComposerPresentation(turn.userMessage?.metadata?.composerPresentation),
+          ),
+        };
         loadedByOrdinal.set(range.startOrdinal + index, loaded);
         const storageTurnIndex = turn.storageTurnIndex ?? turn.backendTurnIndex;
         if (typeof storageTurnIndex === 'number') {
@@ -1033,9 +1029,13 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
       });
     }
     for (const summary of absoluteRenderedTurnSummaries) {
+      const dialogTurn = dialogTurnById.get(summary.turnId);
       const loaded = {
         turnId: summary.turnId,
-        content: dialogTurnById.get(summary.turnId)?.userMessage?.content ?? '',
+        content: dialogTurn?.userMessage?.content ?? '',
+        capsulePreview: composerPresentationToTurnRailPreview(
+          parseComposerPresentation(dialogTurn?.userMessage?.metadata?.composerPresentation),
+        ),
       };
       loadedByOrdinal.set(Math.max(0, summary.turnIndex - 1), loaded);
       if (typeof summary.storageTurnIndex === 'number') {
@@ -1058,6 +1058,9 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
         ?? (catalogEntry?.turnId && catalogDialogTurn ? {
           turnId: catalogEntry.turnId,
           content: catalogDialogTurn.userMessage?.content ?? '',
+          capsulePreview: composerPresentationToTurnRailPreview(
+            parseComposerPresentation(catalogDialogTurn.userMessage?.metadata?.composerPresentation),
+          ),
         } : undefined)
         ?? loadedByOrdinal.get(ordinal);
       const turnId = loaded?.turnId ?? catalogEntry?.turnId ?? null;
@@ -1070,6 +1073,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
         ordinal,
         turnIndex: ordinal + 1,
         content: loaded?.content ?? catalogEntry?.preview ?? null,
+        capsulePreview: loaded?.capsulePreview ?? catalogEntry?.capsulePreview,
       };
     });
 
@@ -1085,6 +1089,9 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
         ordinal: Math.max(0, summary.turnIndex - 1),
         turnIndex: summary.turnIndex,
         content: dialogTurnById.get(summary.turnId)?.userMessage?.content ?? '',
+        capsulePreview: composerPresentationToTurnRailPreview(
+          parseComposerPresentation(dialogTurnById.get(summary.turnId)?.userMessage?.metadata?.composerPresentation),
+        ),
       });
     }
 
@@ -2491,15 +2498,6 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
   }, [handleStopBackgroundCommand, headerBackgroundCommands]);
 
   useShortcut(
-    'chat.stopGeneration',
-    { key: 'Escape', scope: 'chat', allowInInput: true },
-    () => {
-      void FlowChatManager.getInstance().cancelCurrentTask();
-    },
-    { priority: 20, enabled: !chatPopupActive, description: 'keyboard.shortcuts.chat.stopGeneration' }
-  );
-
-  useShortcut(
     'chat.newSession',
     { key: 'N', ctrl: true, scope: 'chat' },
     () => {
@@ -2555,8 +2553,8 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
         data-shortcut-scope="chat"
         data-testid="flowchat-container"
         data-session-id={activeSession?.sessionId ?? ''}
-        data-bf-component="modern-flow-chat"
-        data-bf-part="root"
+        data-openbitfun-component="modern-flow-chat"
+        data-openbitfun-part="root"
       >
         <FlowChatHeader
           visible={virtualItems.length > 0}
@@ -2591,8 +2589,8 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
         <div
           className="modern-flowchat-container__messages"
           data-testid="flowchat-messages"
-          data-bf-component="modern-flow-chat"
-          data-bf-part="messages"
+          data-openbitfun-component="modern-flow-chat"
+          data-openbitfun-part="messages"
           data-active-session-id={activeSession?.sessionId ?? ''}
           data-history-state={historyState ?? 'none'}
           data-context-restore-state={activeSession?.contextRestoreState ?? 'none'}
@@ -2673,8 +2671,8 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
                 className="modern-flowchat-container__history-overlay"
                 role="status"
                 aria-label={t('historyState.loadingTitle')}
-                data-bf-component="modern-flow-chat"
-                data-bf-part="historyOverlay"
+                data-openbitfun-component="modern-flow-chat"
+                data-openbitfun-part="historyOverlay"
               >
                 <HistorySessionPlaceholder
                   state={historyState === 'metadata-only' ? 'metadata-only' : 'hydrating'}
@@ -2684,15 +2682,15 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
             {showHistoryOpenIntentOverlay && (
               <div
                 className="modern-flowchat-container__history-open-intent-shield"
-                data-bf-component="modern-flow-chat"
-                data-bf-part="historyOpenIntent"
+                data-openbitfun-component="modern-flow-chat"
+                data-openbitfun-part="historyOpenIntent"
                 role="status"
                 aria-label={t('historyState.loadingTitle')}
               >
                 <span
                   className="modern-flowchat-container__history-open-intent-spinner"
-                  data-bf-component="modern-flow-chat"
-                  data-bf-part="historyOpenIntentSpinner"
+                  data-openbitfun-component="modern-flow-chat"
+                  data-openbitfun-part="historyOpenIntentSpinner"
                   aria-hidden="true"
                 />
               </div>

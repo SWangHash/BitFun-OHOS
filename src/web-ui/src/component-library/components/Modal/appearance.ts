@@ -17,27 +17,27 @@ export const modalAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   facets: [
     {
       id: 'size',
-      attribute: 'data-bf-size',
+      attribute: 'data-openbitfun-size',
       values: ['small', 'medium', 'large', 'xlarge'],
     },
     {
       id: 'placement',
-      attribute: 'data-bf-placement',
+      attribute: 'data-openbitfun-placement',
       values: ['center', 'bottom-left', 'bottom-right'],
     },
     {
       id: 'resizeDirection',
-      attribute: 'data-bf-resize-direction',
+      attribute: 'data-openbitfun-resize-direction',
       values: ['n', 's', 'w', 'e', 'nw', 'ne', 'sw', 'se'],
     },
   ],
   states: [
     { id: 'hover', selector: { kind: 'self', suffix: ':hover' } },
     { id: 'focusVisible', selector: { kind: 'self', suffix: ':focus-visible' } },
-    { id: 'draggable', selector: { kind: 'self', suffix: '[data-bf-state~="draggable"]' } },
-    { id: 'dragging', selector: { kind: 'self', suffix: '[data-bf-state~="dragging"]' } },
-    { id: 'resizable', selector: { kind: 'self', suffix: '[data-bf-state~="resizable"]' } },
-    { id: 'resizing', selector: { kind: 'self', suffix: '[data-bf-state~="resizing"]' } },
-    { id: 'contentInset', selector: { kind: 'self', suffix: '[data-bf-state~="contentInset"]' } },
+    { id: 'draggable', selector: { kind: 'self', suffix: '[data-openbitfun-state~="draggable"]' } },
+    { id: 'dragging', selector: { kind: 'self', suffix: '[data-openbitfun-state~="dragging"]' } },
+    { id: 'resizable', selector: { kind: 'self', suffix: '[data-openbitfun-state~="resizable"]' } },
+    { id: 'resizing', selector: { kind: 'self', suffix: '[data-openbitfun-state~="resizing"]' } },
+    { id: 'contentInset', selector: { kind: 'self', suffix: '[data-openbitfun-state~="contentInset"]' } },
   ],
 };

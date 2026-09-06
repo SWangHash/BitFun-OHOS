@@ -1,11 +1,11 @@
-# @bitfun/ui
+# @openbitfun/ui
 
 Theme-independent React primitives and components.
 
 ```tsx
-import "@bitfun/theme-bitfun/default.css";
-import "@bitfun/ui/styles.css";
-import { Button, ThemeRoot } from "@bitfun/ui";
+import "@openbitfun/theme-openbitfun/default.css";
+import "@openbitfun/ui/styles.css";
+import { Button, ThemeRoot } from "@openbitfun/ui";
 
 export function Example() {
   return (
@@ -18,10 +18,53 @@ export function Example() {
 
 The package owns component anatomy, behavior, accessibility, and stable variants. It does not own theme selection persistence, product state, routes, locale resources, or platform APIs.
 
-Use `OverflowText` for single-line labels that should fade at the inline end only
-when their rendered content is actually clipped. The primitive keeps the full
-text in the accessibility tree, supports right-to-left direction, and leaves
-width constraints and any tooltip content to the consumer.
+## Mobile controls
+
+Touch-first controls use the isolated mobile entry so compact and foldable
+surfaces do not inherit desktop component geometry or ship desktop component
+styles:
+
+```tsx
+import "@openbitfun/ui/mobile.css";
+import {
+  MobileActionSheet,
+  MobileBadge,
+  MobileBanner,
+  MobileButton,
+  MobileCard,
+  MobileChoiceSheet,
+  MobileConfirmSheet,
+  MobileComposer,
+  MobileDisclosure,
+  MobileFileButton,
+  MobileFloatingActions,
+  MobileIconButton,
+  MobileLink,
+  MobileListRow,
+  MobileMessage,
+  MobilePageHeader,
+  MobileScrim,
+  MobileSection,
+  MobileSegmentedControl,
+  MobileSheet,
+  MobileStatus,
+  MobileTextField,
+  MobileTextarea,
+} from "@openbitfun/ui/mobile";
+```
+
+These components own mobile touch targets, pressed/focus/disabled states,
+surface elevation, responsive inline sizing, composer geometry, transparent
+floating action layout, and sheet accessibility. Product state, localized copy,
+routing, and device or session operations stay in the consuming application.
+
+Use `OverflowText` for single-line labels that need a treatment only when their
+rendered content is actually clipped. Its default `fade` behavior softens the
+inline end. `behavior="marquee"` keeps that resting cue, then reveals the full
+label with a measured hover/focus marquee; reduced-motion users keep the static
+fade. The primitive preserves the full text in the accessibility tree, supports
+right-to-left direction, and leaves width constraints and tooltip content to
+the consumer.
 
 `Disclosure` is the shared expandable-content primitive. It owns controlled or
 uncontrolled open state, trigger/region accessibility wiring, focus exclusion
@@ -33,6 +76,12 @@ Pass catalog `Icon` nodes through `leadingIcon`, `trailingIcon`, `icon` or the
 matching component slot, just as for SVG icons. These slots constrain catalog
 icons to the component's size; a standalone `Icon` retains its explicit size
 (24px by default). Do not shrink the catalog globally to correct a slot mismatch.
+
+`IconButton` defaults to `quiet`: its resting surface is transparent, hover and
+pressed states use shared action feedback, and keyboard focus keeps a visible
+focus ring. Use it for toolbar, dialog, and row utilities. `fill` and `primary`
+keep an opaque backing surface for persistent emphasis. Disabled quiet actions
+remain transparent and do not show hover or pressed feedback.
 
 The catalog uses exported vectors, including their view boxes and per-path
 opacity. Theme colors remain caller-owned through `currentColor`. Asset
@@ -63,6 +112,9 @@ The Web UI's legacy Select implementation is retired. Like retired Button and
 Switch overrides, legacy `components.select` Appearance rules are ignored at
 the existing read-only migration boundary; original packages are not rewritten.
 Selection visuals now come from the public field/menu semantic tokens.
+`FieldGroup fieldSurface="ambient"` keeps text and picker field borders while
+letting their shells reuse the grouped surface. The default field surface stays
+theme-owned, and portalled menus remain on the opaque panel surface.
 
 `Menu` remains composable inline anatomy. `MenuPopover` composes it into a
 controlled anchored or coordinate popup. Pass `items`, `open`, `onClose` and
@@ -103,10 +155,11 @@ import {
   ContextCompressionToolCard,
   FileOperationToolCard,
   ProminentToolCard,
-  ProminentToolCardHeader,
+  ProminentToolCardSummary,
   ReadFileToolCard,
+  ToolCardCopyButton,
   ToolCardChangeSummary,
-} from "@bitfun/ui/flow-chat";
+} from "@openbitfun/ui/flow-chat";
 ```
 
 `ChatComposer` owns the reusable 32px context band and the compact/expanded

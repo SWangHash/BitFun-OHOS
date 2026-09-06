@@ -1,4 +1,4 @@
-import { Combobox, Switch } from '@bitfun/ui';
+import { Combobox, Switch } from '@openbitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNotification, notificationService } from '@/shared/notification-system';
@@ -6,7 +6,7 @@ import { createLogger } from '@/shared/utils/logger';
 import { aiExperienceConfigService, type AIExperienceSettings } from '../services/AIExperienceConfigService';
 import { configManager } from '../services/ConfigManager';
 import type { AIModelConfig, TaskModelSelection, TaskModelsConfig } from '../types';
-import { ConfigPageRow, ConfigPageSection } from './common';
+import { ConfigPageRow, ConfigPageSection, ConfigRetryState } from './common';
 import { type ModelSelectOption, useModelSelectPresentation } from './ModelSelectPresentation';
 import './RuntimeSettingsPages.scss';
 
@@ -32,6 +32,7 @@ export const SessionTitleConfig: React.FC = () => {
   const { t } = useTranslation('settings/models');
   const { success: notifySuccess, error: notifyError } = useNotification();
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [settings, setSettings] = useState<AIExperienceSettings | null>(null);
   const [models, setModels] = useState<AIModelConfig[]>([]);
   const [taskModels, setTaskModels] = useState<TaskModelsConfig>(DEFAULT_TASK_MODELS);
@@ -39,6 +40,7 @@ export const SessionTitleConfig: React.FC = () => {
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(false);
     try {
       const [loadedSettings, allModels, taskModelsData] = await Promise.all([
         aiExperienceConfigService.getSettingsAsync(),
@@ -50,11 +52,11 @@ export const SessionTitleConfig: React.FC = () => {
       setTaskModels(normalizeTaskModels(taskModelsData));
     } catch (error) {
       log.error('Failed to load session title config', error);
-      notifyError(t('sessionTitle.loadFailed'));
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
-  }, [notifyError, t]);
+  }, []);
 
   useEffect(() => {
     void loadData();
@@ -75,16 +77,28 @@ export const SessionTitleConfig: React.FC = () => {
     selection.kind === 'inherit' ? 'inherit' : selection.model_id
   );
   const sessionTitleModelId = selectionValue(taskModels.session_title);
-  const modelOptions = useMemo<ModelSelectOption[]>(() => [
-    { label: t('sessionTitle.model.inherit'), value: 'inherit' },
-    { label: t('sessionTitle.model.fast'), value: 'fast' },
-    { label: t('sessionTitle.model.primary'), value: 'primary' },
-    ...enabledModels
-      .filter((model): model is AIModelConfig & { id: string } => (
-        typeof model.id === 'string' && model.id.trim().length > 0
-      ))
-      .map(buildModelOption),
-  ], [buildModelOption, enabledModels, t]);
+  const modelOptions = useMemo<ModelSelectOption[]>(() => {
+    const options: ModelSelectOption[] = [
+      { label: t('sessionTitle.model.inherit'), value: 'inherit' },
+      { label: t('sessionTitle.model.fast'), value: 'fast' },
+      { label: t('sessionTitle.model.primary'), value: 'primary' },
+      ...enabledModels
+        .filter((model): model is AIModelConfig & { id: string } => (
+          typeof model.id === 'string' && model.id.trim().length > 0
+        ))
+        .map(buildModelOption),
+    ];
+    if (sessionTitleModelId
+      && !['inherit', 'fast', 'primary'].includes(sessionTitleModelId)
+      && !options.some(option => option.value === sessionTitleModelId)) {
+      options.push({
+        label: t('sessionTitle.models.unavailable', { id: sessionTitleModelId }),
+        value: sessionTitleModelId,
+        disabled: true,
+      });
+    }
+    return options;
+  }, [buildModelOption, enabledModels, sessionTitleModelId, t]);
 
   const updateEnabled = async (checked: boolean) => {
     if (!settings) return;
@@ -140,19 +154,41 @@ export const SessionTitleConfig: React.FC = () => {
     }
   };
 
+  if (loadError) {
+    return (
+      <ConfigPageSection
+        className="openbitfun-runtime-settings"
+        data-openbitfun-component="session-title-config"
+        data-openbitfun-part="root"
+        title={t('sessionTitle.title')}
+        description={t('sessionTitle.subtitle')}
+      >
+        <ConfigRetryState
+          message={t('sessionTitle.loadFailedLocked')}
+          retryLabel={t('sessionTitle.retry')}
+          onRetry={() => void loadData()}
+        />
+      </ConfigPageSection>
+    );
+  }
+
   return (
     <>
       <ConfigPageSection
-        className="bitfun-runtime-settings"
-        data-bf-component="session-title-config"
-        data-bf-part="root"
+        className="openbitfun-runtime-settings"
+        data-openbitfun-component="session-title-config"
+        data-openbitfun-part="root"
         title={t('sessionTitle.title')}
         description={t('sessionTitle.subtitle')}
-        extra={(
+      >
+        <ConfigPageRow
+          label={t('sessionTitle.enable')}
+          align="center"
+        >
           <div
-            className="bitfun-runtime-settings__appearance-host"
-            data-bf-component="session-title-config"
-            data-bf-part="enableControl"
+            className="openbitfun-runtime-settings__appearance-host"
+            data-openbitfun-component="session-title-config"
+            data-openbitfun-part="enableControl"
           >
             <Switch
               checked={settings?.enable_session_title_generation ?? false}
@@ -161,28 +197,29 @@ export const SessionTitleConfig: React.FC = () => {
               aria-label={t('sessionTitle.title')}
             />
           </div>
-        )}
-      >
-        <ConfigPageRow
-          label={t('sessionTitle.model.label')}
-          description={enabledModels.length === 0 ? t('sessionTitle.models.empty') : undefined}
-          align="center"
-        >
-          <div
-            className="bitfun-runtime-settings__appearance-host"
-            data-bf-component="session-title-config"
-            data-bf-part="modelControl"
-          >
-            <Combobox
-              size="sm"
-              options={modelOptions}
-              value={sessionTitleModelId}
-              onValueChange={(value) => void handleModelChange(normalizeSelectValue(value))}
-              disabled={isLoading}
-              data-testid="settings-session-title-model-select"
-            />
-          </div>
         </ConfigPageRow>
+        {settings?.enable_session_title_generation ? (
+          <ConfigPageRow
+            label={t('sessionTitle.model.label')}
+            description={enabledModels.length === 0 ? t('sessionTitle.models.empty') : undefined}
+            align="center"
+          >
+            <div
+              className="openbitfun-runtime-settings__appearance-host"
+              data-openbitfun-component="session-title-config"
+              data-openbitfun-part="modelControl"
+            >
+              <Combobox
+                size="sm"
+                options={modelOptions}
+                value={sessionTitleModelId}
+                onValueChange={(value) => void handleModelChange(normalizeSelectValue(value))}
+                disabled={isLoading}
+                data-testid="settings-session-title-model-select"
+              />
+            </div>
+          </ConfigPageRow>
+        ) : null}
       </ConfigPageSection>
     </>
   );

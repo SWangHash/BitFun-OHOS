@@ -1,7 +1,7 @@
 /**
  * Three-dot "processing" indicator for tool cards
  */
-.bitfun-tool-processing-dots {
+.openbitfun-tool-processing-dots {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -9,11 +9,11 @@
   vertical-align: middle;
 }
 
-.bitfun-tool-processing-dots__dot {
+.openbitfun-tool-processing-dots__dot {
   flex-shrink: 0;
   border-radius: 50%;
   background: currentColor;
-  animation: bitfun-tool-processing-dots-bounce 1.05s ease-in-out infinite;
+  animation: openbitfun-tool-processing-dots-bounce 1.05s ease-in-out infinite;
 
   &:nth-child(2) {
     animation-delay: 0.15s;
@@ -24,43 +24,43 @@
   }
 }
 
-.bitfun-tool-processing-dots--s10 {
+.openbitfun-tool-processing-dots--s10 {
   gap: 1px;
 
-  .bitfun-tool-processing-dots__dot {
+  .openbitfun-tool-processing-dots__dot {
     width: 2px;
     height: 2px;
   }
 }
 
-.bitfun-tool-processing-dots--s12 {
+.openbitfun-tool-processing-dots--s12 {
   gap: 2px;
 
-  .bitfun-tool-processing-dots__dot {
+  .openbitfun-tool-processing-dots__dot {
     width: 2px;
     height: 2px;
   }
 }
 
-.bitfun-tool-processing-dots--s14 {
+.openbitfun-tool-processing-dots--s14 {
   gap: 2px;
 
-  .bitfun-tool-processing-dots__dot {
+  .openbitfun-tool-processing-dots__dot {
     width: 2.5px;
     height: 2.5px;
   }
 }
 
-.bitfun-tool-processing-dots--s16 {
+.openbitfun-tool-processing-dots--s16 {
   gap: 3px;
 
-  .bitfun-tool-processing-dots__dot {
+  .openbitfun-tool-processing-dots__dot {
     width: 3px;
     height: 3px;
   }
 }
 
-@keyframes bitfun-tool-processing-dots-bounce {
+@keyframes openbitfun-tool-processing-dots-bounce {
   0%,
   60%,
   100% {
@@ -75,7 +75,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bitfun-tool-processing-dots__dot {
+  .openbitfun-tool-processing-dots__dot {
     animation: none;
     opacity: 0.75;
     transform: none;

@@ -1,10 +1,8 @@
-import { storage } from "@/shared";
-
-export const REMOTE_CONNECT_DISCLAIMER_KEY = 'bitfun:remote-connect:disclaimer-agreed:v1';
+export const REMOTE_CONNECT_DISCLAIMER_KEY = 'openbitfun:remote-connect:disclaimer-agreed:v1';
 
 export const getRemoteConnectDisclaimerAgreed = (): boolean => {
   try {
-    return storage.getItem(REMOTE_CONNECT_DISCLAIMER_KEY) === 'true';
+    return localStorage.getItem(REMOTE_CONNECT_DISCLAIMER_KEY) === 'true';
   } catch {
     return false;
   }
@@ -12,9 +10,8 @@ export const getRemoteConnectDisclaimerAgreed = (): boolean => {
 
 export const setRemoteConnectDisclaimerAgreed = (): void => {
   try {
-    storage.setItem(REMOTE_CONNECT_DISCLAIMER_KEY, 'true');
+    localStorage.setItem(REMOTE_CONNECT_DISCLAIMER_KEY, 'true');
   } catch {
     // Ignore storage failures and fall back to in-memory state.
-    console.error('setRemoteConnectDisclaimerAgreed setItem error');
   }
 };

@@ -1,7 +1,7 @@
 # 鸿蒙 PC 浏览器使用（Browser Use）能力需求文档
 
 > 状态：需求 / 提案
-> 仓库：BitFun-OHOS
+> 仓库：OpenBitFun-OHOS
 > 相关架构入口：
 > - [`docs/plans/computer-use-refactor-plan.md`](../plans/computer-use-refactor-plan.md)（浏览器/计算机使用重构决策：语义引用优先、ControlHub 唯一栈、`browser_control_enabled` 真实门控、M5/M14 修复）
 > - [`docs/architecture/product-architecture.md`](../architecture/product-architecture.md)（分层与平台适配边界）
@@ -30,7 +30,7 @@
 
 ### 背景与动机
 <!-- 请描述你为什么需要这个功能，解决了什么痛点 -->
-- BitFun Agent 的浏览器使用（browser use）能力目前仅在桌面（Windows / macOS / Linux）通过 ControlHub Rust CDP 栈实现，绑定 Chromium `--remote-debugging-port=9222`，未覆盖鸿蒙 PC。
+- OpenBitFun Agent 的浏览器使用（browser use）能力目前仅在桌面（Windows / macOS / Linux）通过 ControlHub Rust CDP 栈实现，绑定 Chromium `--remote-debugging-port=9222`，未覆盖鸿蒙 PC。
 - 鸿蒙 PC（HarmonyOS NEXT PC）浏览器为华为浏览器 / 系统 ArkWeb 内核，**不暴露标准 CDP 9222 调试端口**；现有 `launcher.rs` 与 WebDriver 平台 evaluator（仅 windows / macos）无法在鸿蒙 PC 启动或连接浏览器，导致鸿蒙 PC 上 Agent 无法读 / 写 / 交互操作网页，任务闭环受限。
 - `computer-use-refactor-plan.md` 已确立关键决策——"语义引用优先（a11y / DOM `snapshot@ref`）、坐标仅作能力门控降级""ControlHub 为唯一浏览器自动化栈""`ai.browser_control_enabled` 真实门控 + `browser_control` permission intent"——鸿蒙 PC 适配应**继承这些稳定契约**，只替换底层浏览器后端，不在鸿蒙侧另造一套交互范式（避免重演 C1 双栈并存）。
 - 鸿蒙 PC 上无登录态内容读取（WebFetch）已可用，但交互式浏览器控制（导航 / 点击 / 输入 / 快照）缺失，登录态抓取、表单提交、多步网页任务无法完成。

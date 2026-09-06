@@ -108,10 +108,10 @@ export const SearchCard: React.FC<SearchCardProps> = ({
     return (
       <div
         className={`search-card search-card--compact search-card--${searchType} status-${status}`}
-        data-bf-component="flow-chat-card"
-        data-bf-part="compact"
-        data-bf-display="compact"
-        data-bf-status={status}
+        data-openbitfun-component="flow-chat-card"
+        data-openbitfun-part="compact"
+        data-openbitfun-display="compact"
+        data-openbitfun-status={status}
         style={{ '--private-search-card-identity-color': cardColor } as React.CSSProperties}
       >
         {isGrepSearch ? (
@@ -145,7 +145,7 @@ export const SearchCard: React.FC<SearchCardProps> = ({
       className={`search-card search-card--${searchType}`}
       {...baseProps}
     >
-        <div className="search-card__info" data-bf-component="flow-chat-card" data-bf-part="details">
+        <div className="search-card__info" data-openbitfun-component="flow-chat-card" data-openbitfun-part="details">
         <div className="search-card__info-row">
           <span className="search-card__label">{t('flowChatCards.searchCard.pattern')}:</span>
           <span className="search-card__value">{searchPattern}</span>
@@ -181,9 +181,9 @@ export const SearchCard: React.FC<SearchCardProps> = ({
           </button>
           
           {isExpanded && (
-            <div className="search-card__file-list" data-bf-component="flow-chat-card" data-bf-part="list">
+            <div className="search-card__file-list" data-openbitfun-component="flow-chat-card" data-openbitfun-part="list">
               {topFiles.map(({ file, count }, index) => (
-                <div key={index} className="search-card__file-item" data-bf-component="flow-chat-card" data-bf-part="item">
+                <div key={index} className="search-card__file-item" data-openbitfun-component="flow-chat-card" data-openbitfun-part="item">
                   <File size={12} />
                   <span className="search-card__file-name" title={file}>
                     {file.split('/').pop() || file}
@@ -197,7 +197,7 @@ export const SearchCard: React.FC<SearchCardProps> = ({
       )}
 
       {status === 'completed' && stats.matches === 0 && (
-        <div className="search-card__no-results" data-bf-component="flow-chat-card" data-bf-part="empty">
+        <div className="search-card__no-results" data-openbitfun-component="flow-chat-card" data-openbitfun-part="empty">
           {isGrepSearch ? t('flowChatCards.searchCard.noTextMatch') : t('flowChatCards.searchCard.noFileMatch')}
         </div>
       )}

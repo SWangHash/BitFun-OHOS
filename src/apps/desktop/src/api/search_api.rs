@@ -1,7 +1,9 @@
 use crate::api::app_state::AppState;
-use bitfun_core::infrastructure::{FileSearchResult, FileSearchResultGroup, SearchMatchType};
-use bitfun_core::service::remote_ssh::workspace_state::{is_remote_path, lookup_remote_connection};
-use bitfun_core::service::search::{
+use openbitfun_core::infrastructure::{FileSearchResult, FileSearchResultGroup, SearchMatchType};
+use openbitfun_core::service::remote_ssh::workspace_state::{
+    is_remote_path, lookup_remote_connection,
+};
+use openbitfun_core::service::search::{
     remote_workspace_search_service_for_path, workspace_search_daemon_available,
     workspace_search_feature_enabled, ContentSearchRequest, ContentSearchResult,
     RemoteWorkspaceSearchService, WorkspaceSearchBackend, WorkspaceSearchRepoPhase,
@@ -33,7 +35,7 @@ pub struct SearchMetadataResponse {
 
 #[derive(Clone)]
 pub(crate) enum WorkspaceContentSearchRunner {
-    Local(Arc<bitfun_core::service::search::WorkspaceSearchService>),
+    Local(Arc<openbitfun_core::service::search::WorkspaceSearchService>),
     Remote(RemoteWorkspaceSearchService),
 }
 
@@ -62,11 +64,11 @@ pub(crate) async fn remote_workspace_search_service(
         .get_remote_workspace_async()
         .await
         .and_then(|workspace| {
-            let remote_root = bitfun_core::service::remote_ssh::normalize_remote_workspace_path(
+            let remote_root = openbitfun_core::service::remote_ssh::normalize_remote_workspace_path(
                 &workspace.remote_path,
             );
             let root_path =
-                bitfun_core::service::remote_ssh::normalize_remote_workspace_path(root_path);
+                openbitfun_core::service::remote_ssh::normalize_remote_workspace_path(root_path);
             if root_path == remote_root || root_path.starts_with(&format!("{remote_root}/")) {
                 Some(workspace.connection_id)
             } else {
@@ -79,7 +81,7 @@ pub(crate) async fn remote_workspace_search_service(
 
 /// flashgrep refuses to open a directory that is not a Git worktree with a HEAD commit.
 /// That is a property of the workspace, not a failure of the index, so it is normalized into a
-/// stable BitFun-owned sentence the UI can recognize instead of leaking the raw daemon error.
+/// stable OpenBitFun-owned sentence the UI can recognize instead of leaking the raw daemon error.
 pub(crate) const NON_GIT_WORKSPACE_MESSAGE: &str =
     "Workspace search requires a Git worktree with a HEAD commit";
 
@@ -97,7 +99,9 @@ async fn workspace_search_unavailable_message(
 ) -> Option<String> {
     if is_remote_path(root_path.trim()).await {
         if lookup_remote_connection(root_path.trim()).await.is_none() {
-            return Some("Remote workspace is not registered with BitFun SSH state".to_string());
+            return Some(
+                "Remote workspace is not registered with OpenBitFun SSH state".to_string(),
+            );
         }
         if state.get_ssh_manager_async().await.is_err()
             || state.get_remote_file_service_async().await.is_err()
@@ -115,7 +119,7 @@ async fn workspace_search_unavailable_message(
 
     if !workspace_search_daemon_available() {
         return Some(
-            "Workspace search daemon is unavailable. BitFun will continue using legacy search."
+            "Workspace search daemon is unavailable. OpenBitFun will continue using legacy search."
                 .to_string(),
         );
     }
@@ -130,6 +134,38 @@ pub(crate) async fn should_use_workspace_search(
     workspace_search_unavailable_message(state, root_path)
         .await
         .is_none()
+}
+
+/// Builds the refusal sentence used when a remote workspace cannot be searched over SSH.
+///
+/// The legacy content walker only sees the controller filesystem, so running it for a remote
+/// root would answer a question about the wrong machine. Callers must surface this instead.
+pub(crate) fn remote_content_search_refusal_message(
+    command: &str,
+    root_path: &str,
+    reason: &str,
+) -> String {
+    format!(
+        "{} cannot search remote workspace path '{}': {}; local filesystem fallback was not attempted",
+        command, root_path, reason
+    )
+}
+
+/// Returns a refusal message when `root_path` belongs to a remote workspace whose remote search
+/// path is unavailable, and `None` when the path is local or remote search can serve the request.
+pub(crate) async fn remote_content_search_refusal(
+    state: &State<'_, AppState>,
+    command: &str,
+    root_path: &str,
+) -> Option<String> {
+    if !is_remote_path(root_path.trim()).await {
+        return None;
+    }
+
+    let reason = workspace_search_unavailable_message(state, root_path).await?;
+    Some(remote_content_search_refusal_message(
+        command, root_path, &reason,
+    ))
 }
 
 pub(crate) async fn prepare_content_search_runner(
@@ -155,7 +191,7 @@ pub(crate) async fn search_file_contents_via_workspace_search(
     use_regex: bool,
     whole_word: bool,
     max_results: usize,
-) -> Result<bitfun_core::service::search::ContentSearchResult, String> {
+) -> Result<openbitfun_core::service::search::ContentSearchResult, String> {
     search_content_request_via_workspace_search(
         state,
         build_content_search_request(
@@ -182,7 +218,7 @@ pub(crate) fn build_content_search_request(
         repo_root: root_path.into(),
         search_path: None,
         pattern: pattern.to_string(),
-        output_mode: bitfun_core::service::search::ContentSearchOutputMode::Content,
+        output_mode: openbitfun_core::service::search::ContentSearchOutputMode::Content,
         case_sensitive,
         use_regex,
         whole_word,
@@ -345,5 +381,18 @@ mod tests {
             repo_status_error_message(raw),
             "Failed to get search repository status: SSH handshake timed out after 30 seconds"
         );
+    }
+
+    #[test]
+    fn remote_content_search_refusal_names_command_and_denies_local_fallback() {
+        let message = remote_content_search_refusal_message(
+            "search_file_contents",
+            "/home/dev/project",
+            "Remote workspace search services are unavailable",
+        );
+        assert!(message.starts_with("search_file_contents cannot search remote workspace path"));
+        assert!(message.contains("/home/dev/project"));
+        assert!(message.contains("Remote workspace search services are unavailable"));
+        assert!(message.contains("local filesystem fallback was not attempted"));
     }
 }

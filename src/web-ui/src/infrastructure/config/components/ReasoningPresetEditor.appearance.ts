@@ -15,11 +15,13 @@ export const reasoningPresetEditorAppearanceDescriptor: AppearanceSurfaceDescrip
     { id: 'preset' },
     { id: 'presetSummary' },
     { id: 'presetEditor' },
+    { id: 'patchEditor' },
+    { id: 'legacy' },
+    { id: 'legacyNotice' },
     { id: 'actions' },
     { id: 'action' },
-    { id: 'actionControls' },
   ],
   states: [
-    { id: 'expanded', selector: { kind: 'self', suffix: '[data-bf-state~="expanded"]' } },
+    { id: 'expanded', selector: { kind: 'self', suffix: '[data-openbitfun-state~="expanded"]' } },
   ],
 };

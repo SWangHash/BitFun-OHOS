@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { classNames } from "../../internal/classNames";
+import { useFieldSurface } from "../../internal/fieldSurface";
 import { isImeOwnedKeyboardEvent } from "../../internal/ime";
 import styles from "./Input.module.css";
 
@@ -36,6 +37,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
   ...props
 }, ref) {
   const compositionActiveRef = useRef(false);
+  const fieldSurface = useFieldSurface();
   const handleChange: ChangeEventHandler<HTMLInputElement> = (event) => {
     onChange?.(event);
     onValueChange?.(event.currentTarget.value);
@@ -48,13 +50,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
   return (
     <span
       className={classNames(styles.field, className)}
-      data-bf-component="input"
+      data-openbitfun-component="input"
       data-disabled={disabled ? "true" : "false"}
+      data-field-surface={fieldSurface}
       data-invalid={isInvalid ? "true" : "false"}
       data-size={size}
     >
       {leading !== undefined && leading !== null && (
-        <span className={styles.leading} data-bf-part="leading">{leading}</span>
+        <span className={styles.leading} data-openbitfun-part="leading">{leading}</span>
       )}
       <input
         {...props}
@@ -84,7 +87,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
         type={type}
       />
       {trailing !== undefined && trailing !== null && (
-        <span className={styles.trailing} data-bf-part="trailing">{trailing}</span>
+        <span className={styles.trailing} data-openbitfun-part="trailing">{trailing}</span>
       )}
     </span>
   );

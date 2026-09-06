@@ -1,4 +1,4 @@
-import { Button, Icon } from '@bitfun/ui';
+import { Button, Icon } from '@openbitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Bot, CircleAlert, LoaderCircle, Wrench } from 'lucide-react';
@@ -32,25 +32,6 @@ interface TemplateStats {
 }
 
 type TemplateStatsStatus = 'loading' | 'ready' | 'error';
-
-const NurseryDefaultsArtwork: React.FC = () => (
-  <div
-    className="nursery-defaults__artwork"
-    aria-hidden="true"
-    data-bf-component="nursery-gallery"
-    data-bf-part="artwork"
-  >
-    <img
-      className="nursery-defaults__artwork-image"
-      data-bf-component="nursery-gallery"
-      data-bf-part="avatar"
-      src="/assets/assistant/defaults-illustration.webp"
-      alt=""
-      decoding="async"
-      draggable={false}
-    />
-  </div>
-);
 
 const NurseryGallery: React.FC = () => {
   const { t } = useTranslation('scenes/profile');
@@ -128,8 +109,6 @@ const NurseryGallery: React.FC = () => {
     },
     [assistantWorkspacesList, primaryAssistantWorkspaceId]
   );
-  const showGalleryCompanion = sortedAssistantWorkspacesList.length > 0
-    && sortedAssistantWorkspacesList.length <= 2;
 
   const handleSetPrimary = useCallback(async (workspace: WorkspaceInfo) => {
     if (settingPrimaryWorkspaceId || workspace.id === primaryAssistantWorkspaceId) return;
@@ -205,16 +184,11 @@ const NurseryGallery: React.FC = () => {
   return (
     <GalleryLayout
       className="nursery-gallery"
-      data-bf-component="nursery-gallery"
-      data-bf-part="root"
+      data-openbitfun-component="nursery-gallery"
+      data-openbitfun-part="root"
     >
       <GalleryPageHeader
-        title={(
-          <span className="nursery-gallery__page-title">
-            {t('nursery.gallery.title')}
-            <Icon name="spark" size="lg" aria-hidden="true" />
-          </span>
-        )}
+        title={t('nursery.gallery.title')}
         subtitle={t('nursery.gallery.subtitle')}
         actions={(
           <Button
@@ -237,11 +211,9 @@ const NurseryGallery: React.FC = () => {
         )}
       />
 
-      <div className="gallery-zones" data-bf-component="nursery-gallery" data-bf-part="content">
-        <section className="nursery-defaults" aria-labelledby="nursery-defaults-title" data-bf-component="nursery-gallery" data-bf-part="defaults">
-          <NurseryDefaultsArtwork />
-
-          <div className="nursery-defaults__content" data-bf-component="nursery-gallery" data-bf-part="defaultsContent">
+      <div className="gallery-zones" data-openbitfun-component="nursery-gallery" data-openbitfun-part="content">
+        <section className="nursery-defaults" aria-labelledby="nursery-defaults-title" data-openbitfun-component="nursery-gallery" data-openbitfun-part="defaults">
+          <div className="nursery-defaults__content" data-openbitfun-component="nursery-gallery" data-openbitfun-part="defaultsContent">
             <div className="nursery-defaults__title-row">
               <h3 className="nursery-defaults__title" id="nursery-defaults-title">
                 {t('nursery.template.title')}
@@ -252,8 +224,8 @@ const NurseryGallery: React.FC = () => {
 
             <div
               className="nursery-defaults__stats"
-              data-bf-component="nursery-gallery"
-              data-bf-part="stats"
+              data-openbitfun-component="nursery-gallery"
+              data-openbitfun-part="stats"
               aria-live="polite"
               aria-busy={templateStatsStatus === 'loading'}
             >
@@ -282,17 +254,16 @@ const NurseryGallery: React.FC = () => {
             </div>
           </div>
 
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             className="nursery-defaults__action"
+            leadingIcon={<Icon name="settings" size="sm" />}
+            trailingIcon={<Icon name="chevron-right" size="sm" />}
             onClick={openDefaults}
           >
-            <span className="nursery-defaults__action-icon" aria-hidden="true">
-              <Icon name="settings" size="md" />
-            </span>
-            <span className="nursery-defaults__action-label">{t('nursery.template.configure')}</span>
-            <Icon name="chevron-right" size="sm" className="nursery-defaults__action-chevron" aria-hidden="true" />
-          </button>
+            {t('nursery.template.configure')}
+          </Button>
         </section>
 
         <GalleryZone
@@ -345,49 +316,30 @@ const NurseryGallery: React.FC = () => {
               testId="nursery-gallery-empty"
             />
           ) : (
-            <div className={[
-              'nursery-gallery__assistant-showcase',
-              showGalleryCompanion && 'nursery-gallery__assistant-showcase--with-companion',
-            ].filter(Boolean).join(' ')}>
-              <GalleryGrid
-                minCardWidth={340}
-                className="nursery-gallery__assistant-grid"
-                role="list"
-              >
-                {sortedAssistantWorkspacesList.map((workspace, i) => {
-                  const isPrimary = workspace.id === primaryAssistantWorkspaceId;
-                  return (
-                    <AssistantCard
-                      key={workspace.id}
-                      workspace={workspace}
-                      isPrimary={isPrimary}
-                      isDeleting={deletingWorkspaceId === workspace.id}
-                      isStartingSession={startingSessionWorkspaceId === workspace.id}
-                      isSettingPrimary={settingPrimaryWorkspaceId === workspace.id}
-                      onClick={() => openAssistant(workspace.id)}
-                      onNewSession={() => { void handleNewAssistantSession(workspace); }}
-                      onDelete={isPrimary ? undefined : () => { void handleDeleteRequest(workspace); }}
-                      onSetPrimary={isPrimary ? undefined : () => { void handleSetPrimary(workspace); }}
-                      style={{ '--surface-stagger-index': i } as React.CSSProperties}
-                    />
-                  );
-                })}
-              </GalleryGrid>
-
-              {showGalleryCompanion ? (
-                <img
-                  className="nursery-gallery__companion"
-                  data-bf-component="nursery-gallery"
-                  data-bf-part="companion"
-                  src="/assets/assistant/gallery-companion.webp"
-                  alt=""
-                  aria-hidden="true"
-                  decoding="async"
-                  loading="lazy"
-                  draggable={false}
-                />
-              ) : null}
-            </div>
+            <GalleryGrid
+              minCardWidth={340}
+              className="nursery-gallery__assistant-grid"
+              role="list"
+            >
+              {sortedAssistantWorkspacesList.map((workspace, i) => {
+                const isPrimary = workspace.id === primaryAssistantWorkspaceId;
+                return (
+                  <AssistantCard
+                    key={workspace.id}
+                    workspace={workspace}
+                    isPrimary={isPrimary}
+                    isDeleting={deletingWorkspaceId === workspace.id}
+                    isStartingSession={startingSessionWorkspaceId === workspace.id}
+                    isSettingPrimary={settingPrimaryWorkspaceId === workspace.id}
+                    onClick={() => openAssistant(workspace.id)}
+                    onNewSession={() => { void handleNewAssistantSession(workspace); }}
+                    onDelete={isPrimary ? undefined : () => { void handleDeleteRequest(workspace); }}
+                    onSetPrimary={isPrimary ? undefined : () => { void handleSetPrimary(workspace); }}
+                    style={{ '--surface-stagger-index': i } as React.CSSProperties}
+                  />
+                );
+              })}
+            </GalleryGrid>
           )}
         </GalleryZone>
       </div>

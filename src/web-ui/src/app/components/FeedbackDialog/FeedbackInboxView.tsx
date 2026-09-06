@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowLeft, Circle, Inbox, RefreshCw } from 'lucide-react';
-import { Button } from '@bitfun/ui';
+import { Button } from '@openbitfun/ui';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import type {
   FeedbackCategory,
@@ -44,10 +44,10 @@ export const FeedbackInboxView: React.FC<FeedbackInboxViewProps> = ({
   const showDetail = wide || Boolean(selected);
 
   return (
-    <div className={`bitfun-feedback__inbox-layout${wide ? ' is-wide' : ' is-narrow'}`}>
+    <div className={`openbitfun-feedback__inbox-layout${wide ? ' is-wide' : ' is-narrow'}`}>
       {showList ? (
-        <section className="bitfun-feedback__inbox-list" aria-label={t('feedback.inbox.title')}>
-          <header className="bitfun-feedback__inbox-header">
+        <section className="openbitfun-feedback__inbox-list" aria-label={t('feedback.inbox.title')}>
+          <header className="openbitfun-feedback__inbox-header">
             <div>
               <strong>{t('feedback.inbox.title')}</strong>
               <span>{t('feedback.inbox.count', { count: records.length })}</span>
@@ -64,48 +64,48 @@ export const FeedbackInboxView: React.FC<FeedbackInboxViewProps> = ({
             </Button>
           </header>
           {error ? (
-            <div className="bitfun-feedback__inbox-error" role="alert">
+            <div className="openbitfun-feedback__inbox-error" role="alert">
               <span>{inboxErrorText(error.code, t)}</span>
             </div>
           ) : null}
           {loading && records.length === 0 ? (
-            <div className="bitfun-feedback__inbox-state" role="status">
+            <div className="openbitfun-feedback__inbox-state" role="status">
               {t('feedback.inbox.loading')}
             </div>
           ) : null}
           {!loading && loaded && records.length === 0 ? (
-            <div className="bitfun-feedback__inbox-empty">
+            <div className="openbitfun-feedback__inbox-empty">
               <Inbox size={28} aria-hidden="true" />
               <strong>{t('feedback.inbox.emptyTitle')}</strong>
               <span>{t('feedback.inbox.emptyDescription')}</span>
             </div>
           ) : null}
           {records.length > 0 ? (
-            <div className="bitfun-feedback__records" role="list">
+            <div className="openbitfun-feedback__records" role="list">
               {records.map(record => (
                 <button
                   key={record.feedbackId}
                   type="button"
                   role="listitem"
-                  className={`bitfun-feedback__record${selectedId === record.feedbackId ? ' is-selected' : ''}`}
+                  className={`openbitfun-feedback__record${selectedId === record.feedbackId ? ' is-selected' : ''}`}
                   disabled={replySending}
                   onClick={() => onSelect(record.feedbackId)}
                 >
-                  <span className="bitfun-feedback__record-topline">
+                  <span className="openbitfun-feedback__record-topline">
                     <strong>{categoryLabel(record.category, t)}</strong>
-                    <span className={`bitfun-feedback__status is-${record.status}`}>
+                    <span className={`openbitfun-feedback__status is-${record.status}`}>
                       {statusLabel(record.status, t)}
                     </span>
                   </span>
-                  <span className="bitfun-feedback__record-time">
+                  <span className="openbitfun-feedback__record-time">
                     {formatFeedbackDate(record.createdAt, formatDate)}
                   </span>
-                  <span className="bitfun-feedback__record-bottomline">
+                  <span className="openbitfun-feedback__record-bottomline">
                     <span>{t('feedback.inbox.updated', {
                       time: formatFeedbackDate(record.updatedAt, formatDate),
                     })}</span>
                     {hasActionableUnreadReply(record) ? (
-                      <span className="bitfun-feedback__unread">
+                      <span className="openbitfun-feedback__unread">
                         <Circle size={7} fill="currentColor" aria-hidden="true" />
                         {t('feedback.inbox.newReply')}
                       </span>
@@ -162,7 +162,7 @@ const FeedbackSummaryDetail: React.FC<FeedbackSummaryDetailProps> = ({
   const { t, formatDate } = useI18n('common');
   if (!record) {
     return (
-      <section className="bitfun-feedback__detail is-empty">
+      <section className="openbitfun-feedback__detail is-empty">
         <Inbox size={28} aria-hidden="true" />
         <span>{t('feedback.inbox.selectRecord')}</span>
       </section>
@@ -170,12 +170,12 @@ const FeedbackSummaryDetail: React.FC<FeedbackSummaryDetailProps> = ({
   }
 
   return (
-    <section className="bitfun-feedback__detail" aria-label={t('feedback.inbox.detailTitle')}>
-      <header className="bitfun-feedback__detail-header">
+    <section className="openbitfun-feedback__detail" aria-label={t('feedback.inbox.detailTitle')}>
+      <header className="openbitfun-feedback__detail-header">
         {!wide ? (
           <button
             type="button"
-            className="bitfun-feedback__back"
+            className="openbitfun-feedback__back"
             disabled={replySending}
             onClick={onBack}
             aria-label={t('feedback.inbox.back')}
@@ -187,11 +187,11 @@ const FeedbackSummaryDetail: React.FC<FeedbackSummaryDetailProps> = ({
           <strong>{categoryLabel(record.category, t)}</strong>
           <span>{formatFeedbackDate(record.createdAt, formatDate)}</span>
         </div>
-        <span className={`bitfun-feedback__status is-${record.status}`}>
+        <span className={`openbitfun-feedback__status is-${record.status}`}>
           {statusLabel(record.status, t)}
         </span>
       </header>
-      <div className="bitfun-feedback__detail-body">
+      <div className="openbitfun-feedback__detail-body">
         {record.canOpen ? (
           <FeedbackConversationView
             key={record.feedbackId}
@@ -200,7 +200,7 @@ const FeedbackSummaryDetail: React.FC<FeedbackSummaryDetailProps> = ({
             onInteractionStateChange={onReplyStateChange}
           />
         ) : (
-          <div className="bitfun-feedback__inaccessible" role="status">
+          <div className="openbitfun-feedback__inaccessible" role="status">
             <strong>{t('feedback.inbox.inaccessibleTitle')}</strong>
             <span>{t('feedback.inbox.inaccessibleDescription')}</span>
           </div>

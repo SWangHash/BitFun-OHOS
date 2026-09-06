@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url';
 
 import {
   buildCapabilityCatalog,
+  loadRemoteSurfaceRegistry,
   parseRegisteredCommands,
+  renderRemoteSurfaceTsBindings,
 } from './generate-interactive-capabilities.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -209,7 +211,7 @@ test('every product Agent tool is mapped to a user capability or explicitly clas
   assert.ok(item('feature.remote-workspaces', 'remote-files').control.tools.includes('Read'));
   assert.deepEqual(item('feature.remote-workspaces', 'port-forwarding').control.tools, ['PortForward']);
   assert.ok(item('setting.tools.mcp', 'resources').control.tools.includes('ReadMCPResource'));
-  assert.equal(byId.get('feature.desktop-pet').agentControl.tool, 'BitFunControl');
+  assert.equal(byId.get('feature.desktop-pet').agentControl.tool, 'OpenBitFunControl');
   assert.equal(item('feature.desktop-pet', 'petdex-import').control.kind, 'delegate');
   const { publicCatalog } = buildCapabilityCatalog();
   const petSetting = publicCatalog.capabilities
@@ -259,9 +261,9 @@ test('built-in and external browsers share one agent action contract', async () 
   assert.ok(browser.searchTerms.some((term) => /one BrowserActions/iu.test(term)));
   assert.equal(browser.agentControl.tool, 'ControlHub');
   assert.ok(browser.agentControl.workflowZh.some((step) => step.includes('browser.open_builtin')));
-  assert.ok(browser.agentControl.workflowZh.some((step) => step.includes('BitFunControl') && step.includes('about:blank')));
+  assert.ok(browser.agentControl.workflowZh.some((step) => step.includes('OpenBitFunControl') && step.includes('about:blank')));
   assert.ok(browser.agentControl.workflowEn.some((step) => /share.*contract/iu.test(step)));
-  assert.ok(browser.agentControl.workflowEn.some((step) => /BitFunControl/iu.test(step) && /about:blank/iu.test(step)));
+  assert.ok(browser.agentControl.workflowEn.some((step) => /OpenBitFunControl/iu.test(step) && /about:blank/iu.test(step)));
 
   const actions = await read(
     'src/crates/assembly/core/src/agentic/tools/browser_control/actions.rs',
@@ -387,9 +389,9 @@ test('website, global search, and agent control consume generated semantic proje
     'src/web-ui/src/app/global-search/providers/interactiveCapabilitySearchProvider.ts',
   );
   const searchProviders = await read('src/web-ui/src/app/global-search/providers/index.ts');
-  const controlBridge = await read('src/web-ui/src/app/global-search/bitfunControlBridge.ts');
+  const controlBridge = await read('src/web-ui/src/app/global-search/openOpenBitFunControlBridge.ts');
   const controlTool = await read(
-    'src/crates/assembly/core/src/agentic/tools/implementations/bitfun_control_tool.rs',
+    'src/crates/assembly/core/src/agentic/tools/implementations/openbitfun_control_tool.rs',
   );
 
   assert.match(websiteBuild, /docs\/interactive-capabilities\/capabilities\.json/u);
@@ -398,24 +400,24 @@ test('website, global search, and agent control consume generated semantic proje
   assert.doesNotMatch(searchProviders, /settingsSearchProvider/u);
   assert.match(controlBridge, /getInteractiveCapability/u);
   assert.match(controlBridge, /native ProductControl executor/u);
-  assert.doesNotMatch(controlBridge, /discoverBitFunCapabilities|configureOption|currentOptionValue/u);
+  assert.doesNotMatch(controlBridge, /discoverOpenBitFunCapabilities|configureOption|currentOptionValue/u);
   assert.doesNotMatch(controlTool, /include_(?:str|bytes)!/u);
   assert.match(controlTool, /two-step/u);
 });
 
-test('Desktop and Web UI share the BitFunControl transport contract', async () => {
-  const host = await read('src/apps/desktop/src/bitfun_control_host.rs');
-  const bridge = await read('src/web-ui/src/app/global-search/bitfunControlBridge.ts');
+test('Desktop and Web UI share the OpenBitFunControl transport contract', async () => {
+  const host = await read('src/apps/desktop/src/openbitfun_control_host.rs');
+  const bridge = await read('src/web-ui/src/app/global-search/openOpenBitFunControlBridge.ts');
   const desktopRegistration = await read('src/apps/desktop/src/lib.rs');
 
   for (const source of [host, bridge]) {
-    assert.match(source, /agentic:\/\/bitfun-control-request/u);
+    assert.match(source, /agentic:\/\/openbitfun-control-request/u);
   }
   assert.match(host, /#\[serde\(rename_all = "camelCase"\)\]/u);
-  assert.match(bridge, /api\.invoke\('mark_bitfun_control_surface_ready'\)/u);
-  assert.match(bridge, /api\.invoke\('report_bitfun_control_result'/u);
-  assert.match(desktopRegistration, /bitfun_control_host::mark_bitfun_control_surface_ready/u);
-  assert.match(desktopRegistration, /bitfun_control_host::report_bitfun_control_result/u);
+  assert.match(bridge, /api\.invoke\('mark_openbitfun_control_surface_ready',\s*\{\s*request:\s*\{\s*creationApiVersion:\s*1\s*\}\s*\}\)/u);
+  assert.match(bridge, /api\.invoke\('report_openbitfun_control_result'/u);
+  assert.match(desktopRegistration, /openbitfun_control_host::mark_openbitfun_control_surface_ready/u);
+  assert.match(desktopRegistration, /openbitfun_control_host::report_openbitfun_control_result/u);
 });
 
 test('GUI, Agent, CLI, and Peer config writes converge on the ProductControl executors', async () => {
@@ -429,12 +431,12 @@ test('GUI, Agent, CLI, and Peer config writes converge on the ProductControl exe
   );
   const sleepHost = await read('src/apps/desktop/src/sleep_prevention.rs');
   const desktopConfigApi = await read('src/apps/desktop/src/api/config_api.rs');
-  const desktopHost = await read('src/apps/desktop/src/bitfun_control_host.rs');
+  const desktopHost = await read('src/apps/desktop/src/openbitfun_control_host.rs');
   const sharedExecutor = await read(
-    'src/crates/assembly/core/src/agentic/tools/bitfun_control_config.rs',
+    'src/crates/assembly/core/src/agentic/tools/openbitfun_control_config.rs',
   );
   const controlTool = await read(
-    'src/crates/assembly/core/src/agentic/tools/implementations/bitfun_control_tool.rs',
+    'src/crates/assembly/core/src/agentic/tools/implementations/openbitfun_control_tool.rs',
   );
   const cliConfigHost = await read('src/apps/cli/src/peer_host/commands/config.rs');
   const cliProductControlHost = await read(
@@ -463,4 +465,39 @@ test('GUI, Agent, CLI, and Peer config writes converge on the ProductControl exe
   assert.match(cliProductControlHost, /ProductControlSource::Peer/u);
   assert.match(generatedBindings, new RegExp(publicCatalog.digest, 'u'));
   assert.match(generatedBindings, /ProductControlOptionIdsByCapability/u);
+});
+
+test('the remote surface bindings are a projection of the compiled Product Operation Registry', async () => {
+  const { raw, registry } = loadRemoteSurfaceRegistry();
+  const registrations = parseRegisteredCommands(await read('src/apps/desktop/src/lib.rs'));
+  const tauriRows = registry.operations.filter(({ surface }) => surface === 'tauri_command');
+  assert.deepEqual(
+    new Set(tauriRows.map(({ id }) => id)),
+    new Set(registrations.map(({ id }) => id)),
+    'every registered Tauri command has exactly one registry row and vice versa',
+  );
+  assert.equal(new Set(registry.operations.map(({ id }) => id)).size, registry.operations.length);
+  assert.ok(registry.digest.startsWith('fnv1a64:'));
+
+  const { technicalMap } = buildCapabilityCatalog();
+  const stanceById = new Map(tauriRows.map(({ id, remoteWorkspace }) => [id, remoteWorkspace]));
+  for (const command of technicalMap.commands) {
+    assert.equal(command.remoteWorkspacePolicy, stanceById.get(command.id), command.id);
+  }
+
+  const committed = await read('src/crates/contracts/product-domains/src/generated/remote-surface-registry.json');
+  assert.equal(committed, raw, 'committed registry export must match the compiled registry');
+  const committedTs = await read('src/web-ui/src/infrastructure/api/generated/remoteSurface.ts');
+  const rendered = renderRemoteSurfaceTsBindings(registry);
+  assert.equal(committedTs, rendered, 'committed remoteSurface.ts must match the renderer');
+
+  assert.match(rendered, /export const REMOTE_SURFACE_REGISTRY_DIGEST = "fnv1a64:[0-9a-f]{16}" as const;/u);
+  assert.ok(rendered.includes('"account_login",'));
+  assert.ok(rendered.includes('"peer_mode_ping",'));
+  assert.equal(rendered.includes('"git_trust_repository",'), false, 'operator-only rows stay forwarded');
+  assert.equal(rendered.includes('"dispatch_target_submit",'), false, 'HostInvoke-only rows never enter the FE local set');
+  for (const capability of registry.capabilities.ids) {
+    assert.ok(rendered.includes(`"${capability}",`), capability);
+  }
+  assert.ok(rendered.includes('"lsp_",'));
 });

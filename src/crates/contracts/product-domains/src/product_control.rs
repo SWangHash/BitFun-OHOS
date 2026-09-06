@@ -1,4 +1,4 @@
-//! Platform-agnostic contracts and discovery policy for controlling BitFun itself.
+//! Platform-agnostic contracts and discovery policy for controlling OpenBitFun itself.
 //!
 //! The resolved graph is generated from owner facts plus the same explanatory
 //! overlay used by the Playbook and global search. Concrete providers live in
@@ -589,7 +589,7 @@ impl ProductControlRegistry {
             .capabilities
             .iter()
             .find(|capability| capability.id == capability_id)
-            .ok_or_else(|| format!("Unknown BitFun capability: {capability_id}"))
+            .ok_or_else(|| format!("Unknown OpenBitFun capability: {capability_id}"))
     }
 
     pub fn definition(
@@ -600,7 +600,9 @@ impl ProductControlRegistry {
             .definitions
             .iter()
             .find(|definition| definition.id == definition_id)
-            .ok_or_else(|| format!("Unknown BitFun product-control definition: {definition_id}"))
+            .ok_or_else(|| {
+                format!("Unknown OpenBitFun product-control definition: {definition_id}")
+            })
     }
 
     pub fn option(
@@ -1151,7 +1153,7 @@ pub fn validate_operation_argument_scopes(
         match scope {
             ProductControlArgumentScope::ProductHostLocal => {
                 return Err(format!(
-                    "arguments.{argument} is a local BitFun product-host path and is unavailable in a remote workspace session; use a stable resource ID returned by the provider instead"
+                    "arguments.{argument} is a local OpenBitFun product-host path and is unavailable in a remote workspace session; use a stable resource ID returned by the provider instead"
                 ));
             }
         }
@@ -1312,6 +1314,53 @@ mod tests {
             .unwrap();
         assert!(!presentation.availability[&ProductControlDeliveryProfile::Cli].available);
         assert!(presentation.availability[&ProductControlDeliveryProfile::Peer].available);
+    }
+
+    #[test]
+    fn miniapp_lifecycle_is_discoverable_and_headless_profiles_degrade_explicitly() {
+        let registry = ProductControlRegistry::global();
+        for operation in [
+            "list-apps",
+            "inspect-app",
+            "create-app",
+            "update-app",
+            "delete-app",
+        ] {
+            let definition = registry
+                .definition(&format!("feature.miniapps:operation:{operation}"))
+                .unwrap();
+            assert!(definition.availability[&ProductControlDeliveryProfile::Desktop].available);
+            for profile in [
+                ProductControlDeliveryProfile::Cli,
+                ProductControlDeliveryProfile::DetachedDispatch,
+            ] {
+                let state = &definition.availability[&profile];
+                assert!(!state.available);
+                assert!(state
+                    .reason
+                    .as_ref()
+                    .is_some_and(|reason| !reason.is_empty()));
+            }
+        }
+        let update = registry
+            .operation("feature.miniapps", "update-app")
+            .unwrap();
+        validate_operation_arguments(
+            &update.input_schema,
+            Some(&json!({ "appId": "installed-id", "expectedVersion": 2, "css": "body {}" })),
+        )
+        .unwrap();
+        validate_operation_argument_scopes(
+            update,
+            Some(&json!({"appId": "installed-id", "css": "body {}"})),
+            true,
+        )
+        .unwrap();
+        assert!(validate_operation_arguments(
+            &update.input_schema,
+            Some(&json!({ "appId": "installed-id", "expectedVersion": 0 }))
+        )
+        .is_err());
     }
 
     #[test]
@@ -1532,10 +1581,10 @@ mod tests {
     #[test]
     fn open_targets_reject_stale_item_ids_before_surface_dispatch() {
         assert!(
-            validate_open_target("setting.application.input", Some("shortcut-browser")).is_ok()
+            validate_open_target("setting.application.shortcuts", Some("shortcut-browser")).is_ok()
         );
         assert!(
-            validate_open_target("setting.application.input", Some("removed-setting-row"))
+            validate_open_target("setting.application.shortcuts", Some("removed-setting-row"))
                 .unwrap_err()
                 .contains("Unknown documented item")
         );

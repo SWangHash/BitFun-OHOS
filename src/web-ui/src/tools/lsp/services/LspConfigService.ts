@@ -15,7 +15,7 @@ const DEFAULT_LSP_SETTINGS: LspSettings = {
   autoStartEnabled: true
 };
 
-const LSP_SETTINGS_KEY = 'bitfun_lsp_settings';
+const LSP_SETTINGS_KEY = 'openbitfun_lsp_settings';
 
 class LspConfigService {
   private static instance: LspConfigService;

@@ -3,8 +3,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use bitfun_services_integrations::mcp::config::ConfigLocation;
-use bitfun_services_integrations::mcp::server::{
+use openbitfun_services_integrations::mcp::config::ConfigLocation;
+use openbitfun_services_integrations::mcp::server::{
     MCPConnection, MCPProcessStartContext, MCPRuntimeErrorKind, MCPServerConfig,
     MCPServerRuntimeState, MCPServerStatus, MCPServerTimeouts, MCPServerTransport, MCPServerType,
 };
@@ -455,7 +455,7 @@ async fn remote_mcp_streamable_http_accepts_202_and_delivers_response_via_sse() 
         .expect("remote connection should be created");
 
     connection
-        .initialize("BitFunTest", "0.0.0")
+        .initialize("OpenBitFunTest", "0.0.0")
         .await
         .expect("initialize should succeed");
 
@@ -534,7 +534,7 @@ async fn remote_ping_is_healthy_when_server_does_not_implement_ping() {
         .await
         .expect("remote connection should be created");
     connection
-        .initialize("BitFunTest", "0.0.0")
+        .initialize("OpenBitFunTest", "0.0.0")
         .await
         .expect("initialize should succeed");
 

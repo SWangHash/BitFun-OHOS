@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import test from "node:test";
 import { NumberInput } from "../dist/index.js";
+
+const numberInputStyles = readFileSync(
+  new URL("../src/components/NumberInput/NumberInput.module.css", import.meta.url),
+  "utf8",
+);
 
 test("NumberInput exposes a decimal input, unit, and labelled step controls", () => {
   const markup = renderToStaticMarkup(createElement(NumberInput, {
@@ -16,7 +22,7 @@ test("NumberInput exposes a decimal input, unit, and labelled step controls", ()
   assert.match(markup, /aria-label="Less"/);
   assert.match(markup, /aria-label="More"/);
   assert.match(markup, />%<\/span>/);
-  assert.match(markup, /data-bf-component="number-input"/);
+  assert.match(markup, /data-openbitfun-component="number-input"/);
 });
 
 test("NumberInput exposes canonical size names", () => {
@@ -43,4 +49,11 @@ test("NumberInput forwards Field composition attributes onto its native input", 
     required: true, onValueChange: () => undefined, value: 1024,
   }));
   assert.match(markup, /<input[^>]*id="context-window"[^>]*required=""[^>]*aria-describedby="context-help"[^>]*aria-invalid="true"/);
+});
+
+test("NumberInput keeps numeric values, units, and step controls in a stable inline layout", () => {
+  assert.match(numberInputStyles, /\.input \{[^}]*flex: 1 1 auto;[^}]*font-variant-numeric: tabular-nums;/s);
+  assert.match(numberInputStyles, /\.unit \{[^}]*flex: 0 0 auto;[^}]*white-space: nowrap;/s);
+  assert.match(numberInputStyles, /\.buttons \{[^}]*flex: 0 0 auto;/s);
+  assert.match(numberInputStyles, /\.root\[data-disabled="true"\] \.unit \{ color: var\(--openbitfun-color-content-disabled\); \}/);
 });

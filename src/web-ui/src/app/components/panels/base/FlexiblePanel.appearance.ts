@@ -16,6 +16,7 @@ export const flexiblePanelAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'text' },
     { id: 'viewer' },
     { id: 'image' },
+    { id: 'pdf' },
     { id: 'error' },
     { id: 'aiSession' },
     { id: 'sessionHeader' },
@@ -26,7 +27,7 @@ export const flexiblePanelAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'unknown' },
   ],
   states: [
-    { id: 'needsFix', selector: { kind: 'self', suffix: '[data-bf-state~="needsFix"]' } },
-    { id: 'loading', selector: { kind: 'self', suffix: '[data-bf-state~="loading"]' } },
+    { id: 'needsFix', selector: { kind: 'self', suffix: '[data-openbitfun-state~="needsFix"]' } },
+    { id: 'loading', selector: { kind: 'self', suffix: '[data-openbitfun-state~="loading"]' } },
   ],
 };

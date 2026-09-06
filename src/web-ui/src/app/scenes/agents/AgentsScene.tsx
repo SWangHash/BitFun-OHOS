@@ -1,4 +1,4 @@
-import { Button, Combobox, Icon, IconButton, SearchField, Select, StatusPill, Tooltip, ScrollArea } from '@bitfun/ui';
+import { Button, Combobox, Icon, IconButton, SearchField, Select, StatusPill, Tooltip, ScrollArea } from '@openbitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { Bot, Cpu, FileText, MessageSquareText, RotateCcw, Wrench, type LucideIcon } from 'lucide-react';
@@ -15,6 +15,7 @@ import {
   GalleryZone,
 } from '@/app/components';
 import AgentCard from './components/AgentCard';
+import AgentHarnessOverview from './components/AgentHarnessOverview';
 import CoreAgentCard, { type CoreAgentMeta } from './components/CoreAgentCard';
 import CreateAgentPage from './components/CreateAgentPage';
 import {
@@ -62,14 +63,6 @@ import {
 import { openEcosystemCompatibility } from '@/app/scenes/ecosystem-compatibility/ecosystemCompatibilityStore';
 
 const DEFAULT_SUBAGENT_MODEL_OVERRIDE_VALUE = '__default_subagent_model__';
-
-const HARNESS_GEAR_PROFILES = [
-  { id: 'minimal', gear: 1 },
-  { id: 'balanced', gear: 2 },
-  { id: 'ultimate', gear: 3 },
-] as const;
-
-const HARNESS_DEFAULT_PROFILE_ID = 'balanced';
 
 type CapabilityTab = 'model' | 'tools' | 'skills' | 'subagents';
 type AgentDetailSection = 'basic' | 'behavior' | CapabilityTab;
@@ -657,10 +650,10 @@ const AgentsHomeView: React.FC = () => {
 
   return (
     <GalleryLayout
-      className="bitfun-agents-scene"
+      className="openbitfun-agents-scene"
       data-testid="agent-skill-panel"
-      data-bf-scene="agents"
-      data-bf-part="root"
+      data-openbitfun-scene="agents"
+      data-openbitfun-part="root"
     >
       <GalleryPageHeader
         title={t('page.title')}
@@ -668,7 +661,7 @@ const AgentsHomeView: React.FC = () => {
         actions={(
           <>
             <SearchField
-              className="bitfun-agents-scene__search"
+              className="openbitfun-agents-scene__search"
               value={searchQuery}
               onValueChange={setSearchQuery}
               leadingIcon={<Icon name="search" size="sm" aria-hidden />}
@@ -692,72 +685,8 @@ const AgentsHomeView: React.FC = () => {
         )}
       />
 
-      <div className="gallery-zones" data-bf-scene="agents" data-bf-part="zones" data-testid="agent-list">
-        <GalleryZone
-          id="harness-zone"
-          className="bitfun-agents-scene__harness-zone"
-          data-testid="agents-harness-zone"
-          title={t('harnessZone.title')}
-          subtitle={t('harnessZone.subtitle')}
-        >
-          <div
-            className="bitfun-agents-scene__harness-presentation"
-            role="group"
-            aria-label={t('harnessZone.title')}
-            data-bf-scene="agents"
-            data-bf-part="harnessPresentation"
-          >
-            <div className="bitfun-agents-scene__harness-track">
-              <div className="bitfun-agents-scene__harness-rail" aria-hidden>
-                <span className="bitfun-agents-scene__harness-rail-line" />
-                {HARNESS_GEAR_PROFILES.map(({ id }) => (
-                  <Icon name="circle" size="2xs" key={id} className={[
-                      'bitfun-agents-scene__harness-rail-node',
-                      id === HARNESS_DEFAULT_PROFILE_ID && 'is-default',
-                    ].filter(Boolean).join(' ')} />
-                ))}
-              </div>
-              <div className="bitfun-agents-scene__harness-profile-grid">
-                {HARNESS_GEAR_PROFILES.map(({ id, gear }) => (
-                  <div
-                    key={id}
-                    className="bitfun-agents-scene__harness-profile"
-                    data-bf-component="harness-profile-step"
-                    data-bf-part="root"
-                    data-bf-profile={id}
-                    data-harness-gear={gear}
-                    data-testid={`agents-harness-${id}`}
-                  >
-                    <strong>{t(`harnessZone.profiles.${id}.name`)}</strong>
-                    <span>{t(`harnessZone.profiles.${id}.purpose`)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div
-              className="bitfun-agents-scene__harness-creative"
-              data-bf-component="harness-profile-step"
-              data-bf-part="root"
-              data-bf-profile="creative"
-              data-harness-gear="creative"
-              data-testid="agents-harness-creative"
-            >
-              <span className="bitfun-agents-scene__harness-creative-icon" aria-hidden>
-                <Icon name="creative" size="lg" style={{ width: 28, height: 28 }} />
-              </span>
-              <span className="bitfun-agents-scene__harness-creative-copy">
-                <span className="bitfun-agents-scene__harness-creative-heading">
-                  <span>{t('harnessZone.creativeTrack')}</span>
-                  <strong>{t('harnessZone.profiles.creative.name')}</strong>
-                </span>
-                <span className="bitfun-agents-scene__harness-creative-purpose">
-                  {t('harnessZone.profiles.creative.purpose')}
-                </span>
-              </span>
-            </div>
-          </div>
-        </GalleryZone>
+      <div className="gallery-zones" data-openbitfun-scene="agents" data-openbitfun-part="zones" data-testid="agent-list">
+        <AgentHarnessOverview />
 
         <GalleryZone
           id="agents-zone"
@@ -766,16 +695,16 @@ const AgentsHomeView: React.FC = () => {
           subtitle={t('agentsZone.subtitle')}
           tools={(
             <>
-              <div className="bitfun-agents-scene__agent-filters" data-bf-scene="agents" data-bf-part="filters">
+              <div className="openbitfun-agents-scene__agent-filters" data-openbitfun-scene="agents" data-openbitfun-part="filters">
                 <div
-                  className="bitfun-agents-scene__agent-filter-group"
+                  className="openbitfun-agents-scene__agent-filter-group"
                   data-testid="agents-source-filter"
                 >
-                  <span className="bitfun-agents-scene__agent-filter-label">
+                  <span className="openbitfun-agents-scene__agent-filter-label">
                     {t('filters.source')}
                   </span>
                   <Select
-                    className="bitfun-agents-scene__agent-filter-select"
+                    className="openbitfun-agents-scene__agent-filter-select"
                     size="sm"
                     value={agentFilterLevel}
                     options={sourceFilterOptions}
@@ -786,14 +715,14 @@ const AgentsHomeView: React.FC = () => {
                   />
                 </div>
                 <div
-                  className="bitfun-agents-scene__agent-filter-group"
+                  className="openbitfun-agents-scene__agent-filter-group"
                   data-testid="agents-kind-filter"
                 >
-                  <span className="bitfun-agents-scene__agent-filter-label">
+                  <span className="openbitfun-agents-scene__agent-filter-label">
                     {t('filters.kind')}
                   </span>
                   <Select
-                    className="bitfun-agents-scene__agent-filter-select"
+                    className="openbitfun-agents-scene__agent-filter-select"
                     size="sm"
                     value={agentFilterType}
                     options={typeFilterOptions}
@@ -821,8 +750,8 @@ const AgentsHomeView: React.FC = () => {
           {!loading && catalogAgents.length > 0 ? (
             <GalleryGrid
               minCardWidth={300}
-              data-bf-scene="agents"
-              data-bf-part="catalogGrid"
+              data-openbitfun-scene="agents"
+              data-openbitfun-part="catalogGrid"
             >
               {catalogAgents.map((agent, index) => {
                 const commonCardProps = {
@@ -1063,7 +992,7 @@ const AgentsHomeView: React.FC = () => {
             </div>
 
             {selectedAgent.agentKind === 'mode' && selectedAgentUsesSharedProfile ? (
-              <div className="agent-card__section" data-bf-scene="agents" data-bf-part="detailSection">
+              <div className="agent-card__section" data-openbitfun-scene="agents" data-openbitfun-part="detailSection">
                 <div className="agent-card__section-head">
                   <div className="agent-card__section-title">
                     <span>{t('agentsOverview.sharedProfileLabel')}</span>
@@ -1282,7 +1211,7 @@ const AgentsHomeView: React.FC = () => {
                 && !selectedAgentIsExternal ? (
                   <Combobox
                     size="sm"
-                    className="bitfun-agents-scene__subagent-model-select"
+                    className="openbitfun-agents-scene__subagent-model-select"
                     options={subagentModelOptions}
                     value={selectedSubagentModelValue}
                     onValueChange={(value) => void handleSubagentModelChange(value)}
@@ -1434,7 +1363,7 @@ const AgentsScene: React.FC = () => {
 
   if (page === 'createAgent') {
     return (
-      <div className="bitfun-agents-scene bitfun-agents-scene--page" data-bf-scene="agents" data-bf-part="root">
+      <div className="openbitfun-agents-scene openbitfun-agents-scene--page" data-openbitfun-scene="agents" data-openbitfun-part="root">
         <CreateAgentPage />
       </div>
     );

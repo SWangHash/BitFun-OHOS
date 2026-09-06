@@ -1,7 +1,7 @@
 # MCP Server 管理与运行态（Desktop / Web UI）功能提案
 
 > 状态：提案 / 待评审
-> 仓库：BitFun-OHOS
+> 仓库：OpenBitFun-OHOS
 > 相关架构入口：
 > - [`src/crates/services/services-integrations/AGENTS.md`](../../src/crates/services/services-integrations/AGENTS.md)
 > - [`src/crates/assembly/core/AGENTS.md`](../../src/crates/assembly/core/AGENTS.md)
@@ -27,7 +27,7 @@
 
 ### 背景与动机
 <!-- 请描述你为什么需要这个功能，解决了什么痛点 -->
-- 用户希望把外部 MCP server（本地 stdio 进程、远程 SSE / streamable HTTP）作为可插拔工具源接入 BitFun agent，统一在会话中调用其工具、读取其 resource、使用其 prompt。当前缺少一个完整的「配置 → 启动 → 健康 → 重连 → 工具目录」管理面，用户难以在 Desktop/Web UI 内自助注册、诊断和运维 MCP server。
+- 用户希望把外部 MCP server（本地 stdio 进程、远程 SSE / streamable HTTP）作为可插拔工具源接入 OpenBitFun agent，统一在会话中调用其工具、读取其 resource、使用其 prompt。当前缺少一个完整的「配置 → 启动 → 健康 → 重连 → 工具目录」管理面，用户难以在 Desktop/Web UI 内自助注册、诊断和运维 MCP server。
 - 痛点：① MCP server 配置散落、缺校验与导入能力，添加门槛高；② server 进程/远程连接的健康状态、启动失败原因对用户不透明，排查困难；③ 连接断开后无自动重连或退避策略，会话中途工具失效；④ 多 server 并存时缺乏统一启停、自动启动与运行态视图；⑤ 需 OAuth 的远程 server 授权流程缺失或割裂。
 
 ### 功能描述
@@ -39,7 +39,7 @@
   4. **重连与容错**：连接断开后按退避策略（基础延迟 → 上限）自动重连，重连计数与下次重试时间可见；重连上限或用户主动停止后转为终态并保留可手动重启入口；远程 server 重连不得污染本地 stdio 进程的清理边界。
   5. **进程归属与隔离**：本地 stdio server 作为受管子进程托管，遵循仓库既定的 managed-descendant 清理边界（Unix 用独立进程组、Windows 用 kill-on-close Job Object，附加失败即 fail-closed），生命周期停机时回收子进程；该机制是生命周期收容，不是 OS 沙箱或资源限额，UI 需对残余风险保持明确。
   6. **授权**：远程 server 支持 OAuth 授权引导（授权码回跳、凭证存储、授权状态 `auth_configured` / `auth_source` / `oauth_enabled` 可见），未授权时阻止启动并提供授权入口。
-- 实现边界遵循服务层与服务集成层规则：MCP config/process/transport 生命周期、server runtime state（registry / 连接池 / catalog cache / reconnect / runtime-only config）、lifecycle policy、OAuth 凭证存储与授权引导、具体协议依赖与结果内容渲染归 `bitfun-services-integrations`（`mcp` feature）；Core 只保留兼容 facade 与产品级回调/会话/重连编排，不得重新引入具体协议依赖；MCP wire 类型可投影到执行层 tool bridge 描述符，但工具注册表装配、manifest 过滤、`GetToolSpec` 执行与 bridge 呈现/校验行为不在服务集成层。
+- 实现边界遵循服务层与服务集成层规则：MCP config/process/transport 生命周期、server runtime state（registry / 连接池 / catalog cache / reconnect / runtime-only config）、lifecycle policy、OAuth 凭证存储与授权引导、具体协议依赖与结果内容渲染归 `openbitfun-services-integrations`（`mcp` feature）；Core 只保留兼容 facade 与产品级回调/会话/重连编排，不得重新引入具体协议依赖；MCP wire 类型可投影到执行层 tool bridge 描述符，但工具注册表装配、manifest 过滤、`GetToolSpec` 执行与 bridge 呈现/校验行为不在服务集成层。
 - Desktop/Web UI 只消费稳定的运行态事实与服务接口，不在 UI 层重定义 MCP 协议、transport 实现或外部工具契约。
 
 ### 期望效果 / 使用场景
@@ -67,7 +67,7 @@
 ### 补充说明
 <!-- 其他你认为有助于理解功能建议的信息，如相关 Issue 链接、文档等 -->
 - 本提案聚焦 server 管理与运行态；MCP tool 目录呈现/调用、resource/prompt 交互、远程 workspace MCP 等作为独立 facet，可另立提案，避免范围扩散。
-- 边界约束：不得在 `core-types` / `runtime-ports` 内重定义 MCP 配置/transport；具体协议依赖与结果渲染归 `bitfun-services-integrations` 的 `mcp` feature；工具注册表装配与 `GetToolSpec` 执行属更高层；UI 层只消费稳定运行态事实。
+- 边界约束：不得在 `core-types` / `runtime-ports` 内重定义 MCP 配置/transport；具体协议依赖与结果渲染归 `openbitfun-services-integrations` 的 `mcp` feature；工具注册表装配与 `GetToolSpec` 执行属更高层；UI 层只消费稳定运行态事实。
 - 安全与隔离声明：受管子进程清理是生命周期收容，不等于 OS 沙箱或 CPU/内存/文件/网络资源限额；产品策略必须在禁用相应 server 时明确报告 `policy-limited`，不得宣称已被沙箱拦截。
-- 验证基线（建议）：`cargo check -p bitfun-services-integrations --no-default-features --features mcp`、`cargo test -p bitfun-services-integrations --no-default-features --features mcp --test mcp_contracts`、`pnpm run check:core-boundaries`；远程 streamable HTTP transport 契约测试独立；Desktop 侧 `cargo check -p bitfun-desktop && cargo test -p bitfun-desktop`；Web UI 侧 `pnpm run type-check:web`。
+- 验证基线（建议）：`cargo check -p openbitfun-services-integrations --no-default-features --features mcp`、`cargo test -p openbitfun-services-integrations --no-default-features --features mcp --test mcp_contracts`、`pnpm run check:core-boundaries`；远程 streamable HTTP transport 契约测试独立；Desktop 侧 `cargo check -p openbitfun-desktop && cargo test -p openbitfun-desktop`；Web UI 侧 `pnpm run type-check:web`。
 - 若后续需把该能力下沉到 CLI/TUI 或移动端，应作为同级 adapter 单独评审，不在本提案内合并 surface。

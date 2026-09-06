@@ -1,10 +1,10 @@
-use bitfun_product_domains::feedback::{
+use openbitfun_product_domains::feedback::{
     AcknowledgeFeedbackRequest, AcknowledgeFeedbackResponse, FeedbackAccessState,
     FeedbackConversationPage, FeedbackError, FeedbackInboxPage, ListFeedbackRecordsRequest,
     OpenFeedbackConversationRequest, ReplyFeedbackRequest, ReplyFeedbackResponse,
     SubmitFeedbackRequest, SubmitFeedbackResponse,
 };
-use bitfun_services_integrations::feedback::FeedbackService;
+use openbitfun_services_integrations::feedback::FeedbackService;
 use serde::Deserialize;
 use tauri::State;
 

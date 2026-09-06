@@ -22,7 +22,7 @@
 
 use super::devecocli_run::{resolve_harmony_cwd, run_hdc, DevecocliOptions, DevecocliOutput};
 use crate::agentic::tools::framework::{ToolResult, ToolUseContext};
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -46,14 +46,14 @@ pub(crate) async fn run_hdc_start_fallback(
     target: &str,
     ability: &str,
     context: &ToolUseContext,
-) -> BitFunResult<ToolResult> {
+) -> OpenBitFunResult<ToolResult> {
     let cwd_str = resolve_harmony_cwd(context);
     let cwd = PathBuf::from(&cwd_str);
 
     // 1. List devices via hdc directly.
     let targets = hdc_list_targets(context).await?;
     if targets.is_empty() {
-        return Err(BitFunError::tool(
+        return Err(OpenBitFunError::tool(
             "hdc found no devices either. devecocli and hdc both cannot enumerate a connected device/emulator. \
              Check USB debugging / wireless debugging (system settings → developer options), then hdc tconn <ip:port> for network devices."
                 .to_string(),
@@ -72,7 +72,7 @@ pub(crate) async fn run_hdc_start_fallback(
 
     // 3. Find the built HAP.
     let hap = find_hap(&cwd, module, target).ok_or_else(|| {
-        BitFunError::tool(format!(
+        OpenBitFunError::tool(format!(
             "No built .hap found under {} (looked for module \"{}\", target \"{}\"). \
              Run build_project first, then start_app again.",
             cwd.display(),
@@ -84,7 +84,7 @@ pub(crate) async fn run_hdc_start_fallback(
 
     // 4. Read bundleName from AppScope/app.json5.
     let bundle_name = read_bundle_name(&cwd).ok_or_else(|| {
-        BitFunError::tool(format!(
+        OpenBitFunError::tool(format!(
             "Could not read bundleName from {}/AppScope/app.json5. \
              Ensure the project is a HarmonyOS project with an AppScope/app.json5 containing app.bundleName.",
             cwd.display()
@@ -95,7 +95,7 @@ pub(crate) async fn run_hdc_start_fallback(
     let install_out = hdc_install(&device, &hap_path, context).await?;
     let install_combined = combine_output(&install_out);
     if install_out.exit_code != 0 {
-        return Err(BitFunError::tool(format!(
+        return Err(OpenBitFunError::tool(format!(
             "hdc install failed (exit {}):\n{}",
             install_out.exit_code, install_combined
         )));
@@ -105,7 +105,7 @@ pub(crate) async fn run_hdc_start_fallback(
     let start_out = hdc_aa_start(&device, ability, &bundle_name, context).await?;
     let start_combined = combine_output(&start_out);
     if start_out.exit_code != 0 {
-        return Err(BitFunError::tool(format!(
+        return Err(OpenBitFunError::tool(format!(
             "hdc aa start failed (exit {}):\n{}",
             start_out.exit_code, start_combined
         )));
@@ -150,10 +150,10 @@ fn parse_hdc_targets(output: &str) -> Vec<String> {
     out
 }
 
-async fn hdc_list_targets(context: &ToolUseContext) -> BitFunResult<Vec<String>> {
+async fn hdc_list_targets(context: &ToolUseContext) -> OpenBitFunResult<Vec<String>> {
     let out = run_hdc(&["list", "targets"], context, DevecocliOptions::default()).await?;
     if out.exit_code != 0 {
-        return Err(BitFunError::tool(format!(
+        return Err(OpenBitFunError::tool(format!(
             "hdc list targets failed (exit {}):\n{}",
             out.exit_code,
             if out.stderr.is_empty() {
@@ -171,7 +171,7 @@ enum TargetChoice {
     Ambiguous(ToolResult),
 }
 
-fn resolve_hdc_target(hvd: Option<&str>, targets: &[String]) -> BitFunResult<TargetChoice> {
+fn resolve_hdc_target(hvd: Option<&str>, targets: &[String]) -> OpenBitFunResult<TargetChoice> {
     let hvd = hvd.map(|h| h.trim()).filter(|h| !h.is_empty());
 
     let Some(query) = hvd else {
@@ -192,7 +192,7 @@ fn resolve_hdc_target(hvd: Option<&str>, targets: &[String]) -> BitFunResult<Tar
         }
     }
 
-    Err(BitFunError::tool(format!(
+    Err(OpenBitFunError::tool(format!(
         "Device \"{}\" not found by hdc. hdc targets:\n{}",
         query,
         targets.iter().map(|t| format!("- {}", t)).collect::<Vec<_>>().join("\n")
@@ -396,7 +396,7 @@ async fn hdc_install(
     device: &str,
     hap_path: &str,
     context: &ToolUseContext,
-) -> BitFunResult<DevecocliOutput> {
+) -> OpenBitFunResult<DevecocliOutput> {
     let quoted = quote_shell_arg(hap_path);
     let args: Vec<String> = vec![
         "-t".to_string(),
@@ -414,7 +414,7 @@ async fn hdc_aa_start(
     ability: &str,
     bundle_name: &str,
     context: &ToolUseContext,
-) -> BitFunResult<DevecocliOutput> {
+) -> OpenBitFunResult<DevecocliOutput> {
     let args: Vec<String> = vec![
         "-t".to_string(),
         device.to_string(),

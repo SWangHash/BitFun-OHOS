@@ -28,18 +28,18 @@ export const LargeCardLayout: React.FC<LargeCardLayoutProps> = ({ components }) 
   };
 
   return (
-    <div className="large-card-layout" data-bf-component="component-preview" data-bf-part="largeCardRoot">
+    <div className="large-card-layout" data-openbitfun-component="component-preview" data-openbitfun-part="largeCardRoot">
       {components.map((component) => {
         const isExpanded = expandedIds.has(component.id);
         return (
           <div
             key={component.id}
             className={`large-card ${isExpanded ? 'expanded' : ''}`}
-            data-bf-component="component-preview"
-            data-bf-part="largeCard"
-            data-bf-state={isExpanded ? 'expanded' : undefined}
+            data-openbitfun-component="component-preview"
+            data-openbitfun-part="largeCard"
+            data-openbitfun-state={isExpanded ? 'expanded' : undefined}
           >
-            <div className="large-card-header" data-bf-component="component-preview" data-bf-part="largeCardHeader">
+            <div className="large-card-header" data-openbitfun-component="component-preview" data-openbitfun-part="largeCardHeader">
               <div className="large-card-info">
                 <h3 className="large-card-title">{component.name}</h3>
                 <p className="large-card-description">{component.description}</p>
@@ -48,15 +48,15 @@ export const LargeCardLayout: React.FC<LargeCardLayoutProps> = ({ components }) 
                 className="expand-button"
                 onClick={() => toggleExpand(component.id)}
                 title={isExpanded ? t('collapse') : t('expand')}
-                data-bf-component="component-preview"
-                data-bf-part="expandButton"
-                data-bf-state={isExpanded ? 'expanded' : undefined}
+                data-openbitfun-component="component-preview"
+                data-openbitfun-part="expandButton"
+                data-openbitfun-state={isExpanded ? 'expanded' : undefined}
               >
                 {isExpanded ? t('collapse') : t('expand')}
               </button>
             </div>
             
-            <div className="large-card-preview" data-bf-component="component-preview" data-bf-part="largeCardPreview">
+            <div className="large-card-preview" data-openbitfun-component="component-preview" data-openbitfun-part="largeCardPreview">
               <component.component />
             </div>
           </div>

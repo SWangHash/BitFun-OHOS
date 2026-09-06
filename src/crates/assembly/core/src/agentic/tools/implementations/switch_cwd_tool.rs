@@ -8,7 +8,7 @@
 use crate::agentic::tools::framework::{
     Tool, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult,
 };
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -34,7 +34,7 @@ impl Tool for SwitchCwdTool {
         "switch_cwd"
     }
 
-    async fn description(&self) -> BitFunResult<String> {
+    async fn description(&self) -> OpenBitFunResult<String> {
         Ok(r#"Switch the session project directory for HarmonyOS tools (build_project, start_app, hdc_log, check_arkts_files, check_cpp_files).
 
 Only use this tool when the HarmonyOS project directory is DIFFERENT from the current workspace root. For example, when the `deveco-create-project` skill creates a project in a subdirectory like `./MyApp`, call this tool with `project_path` pointing to that subdirectory.
@@ -147,11 +147,11 @@ After a successful switch, all HarmonyOS tools use the new path until the sessio
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         let project_path = input
             .get("project_path")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| BitFunError::tool("project_path is required".to_string()))?;
+            .ok_or_else(|| OpenBitFunError::tool("project_path is required".to_string()))?;
 
         let resolved = resolve_target_path(project_path, Some(context));
         let resolved_str = resolved.to_string_lossy().to_string();

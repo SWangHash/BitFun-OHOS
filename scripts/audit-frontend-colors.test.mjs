@@ -33,10 +33,10 @@ test('frontend color surface registry covers every discovered MiniApp and names 
 });
 
 test('MiniApp audit accepts a narrow data-viz owner and rejects ordinary raw colors or host fallbacks', (t) => {
-  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bitfun-miniapp-colors-'));
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'openbitfun-miniapp-colors-'));
   t.after(() => fs.rmSync(fixtureRoot, { recursive: true, force: true }));
   writeText(path.join(fixtureRoot, 'app/ui.js'), "const SERIES = ['#ff00ff'];\n");
-  writeText(path.join(fixtureRoot, 'app/style.css'), '.app { color: #ffffff; background: var(--bitfun-bg, #000000); }\n');
+  writeText(path.join(fixtureRoot, 'app/style.css'), '.app { color: #ffffff; background: var(--openbitfun-bg, #000000); }\n');
   const surface = {
     id: 'fixture-miniapp',
     root: 'app',
@@ -52,17 +52,48 @@ test('MiniApp audit accepts a narrow data-viz owner and rejects ordinary raw col
     },
   };
   const contract = {
-    variables: [{ name: '--bitfun-bg' }],
+    variables: [{ name: '--openbitfun-bg' }],
   };
 
   const report = auditMiniappSurface(surface, contract, { repositoryRoot: fixtureRoot });
   assert.equal(report.specializedOwners[0].occurrences, 1);
   assert.match(report.failures.join('\n'), /unowned hex #ffffff/);
-  assert.match(report.failures.join('\n'), /fallback to public host variable --bitfun-bg/);
+  assert.match(report.failures.join('\n'), /fallback to public host variable --openbitfun-bg/);
+});
+
+test('MiniApp generated bundle checks ignore checkout-only line ending differences', (t) => {
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'openbitfun-miniapp-generated-eol-'));
+  t.after(() => fs.rmSync(fixtureRoot, { recursive: true, force: true }));
+  writeText(path.join(fixtureRoot, 'app/source/ui/part.js'), 'const ready = true;\r\n');
+  writeText(
+    path.join(fixtureRoot, 'app/source/ui.js'),
+    '/* ui/part.js */\nconst ready = true;\n\n',
+  );
+  const surface = {
+    id: 'fixture-generated-eol',
+    root: 'app',
+    audit: {
+      engine: 'miniapp',
+      generatedBundles: [{
+        output: 'source/ui.js',
+        inputs: ['source/ui/part.js'],
+      }],
+    },
+  };
+
+  const report = auditMiniappSurface(surface, { variables: [] }, { repositoryRoot: fixtureRoot });
+  assert.deepEqual(report.failures, []);
+
+  writeText(
+    path.join(fixtureRoot, 'app/source/ui.js'),
+    '/* ui/part.js */\nconst ready = false;\n\n',
+  );
+  const staleReport = auditMiniappSurface(surface, { variables: [] }, { repositoryRoot: fixtureRoot });
+  assert.match(staleReport.failures.join('\n'), /generated bundle source\/ui\.js is stale/);
 });
 
 test('native source audit rejects raw platform colors while ignoring generated projections', (t) => {
-  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bitfun-native-colors-'));
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'openbitfun-native-colors-'));
   t.after(() => fs.rmSync(fixtureRoot, { recursive: true, force: true }));
   writeText(path.join(fixtureRoot, 'android/ui/Screen.kt'), 'val color = Color.White\n');
   writeText(path.join(fixtureRoot, 'android/generated/Tokens.kt'), 'val color = Color.Black\n');
@@ -84,7 +115,7 @@ test('native source audit rejects raw platform colors while ignoring generated p
 });
 
 test('MiniApp reference mirrors are byte-exact, including file inventory', (t) => {
-  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bitfun-miniapp-mirror-'));
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'openbitfun-miniapp-mirror-'));
   t.after(() => fs.rmSync(fixtureRoot, { recursive: true, force: true }));
   const source = path.join(fixtureRoot, 'source');
   const mirror = path.join(fixtureRoot, 'mirror');

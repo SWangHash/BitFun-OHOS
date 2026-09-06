@@ -4,52 +4,45 @@
  */
 import React, { Suspense, lazy, useState } from 'react';
 
-import { Icon, TabGroup, type TabGroupItem } from '@bitfun/ui';
+import { TabGroup } from '@openbitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import './MiniAppGalleryScene.scss';
 
-const MiniAppGalleryView = lazy(() => import('./views/MiniAppGalleryView'));
-const MiniAppMarketView = lazy(() => import('./views/MiniAppMarketView'));
+const MiniAppLibraryView = lazy(() => import('./views/MiniAppLibraryView'));
 const MiniAppSubmissionsView = lazy(() => import('./views/MiniAppSubmissionsView'));
 
-type MiniAppGalleryTab = 'installed' | 'market' | 'submissions';
+type MiniAppGalleryTab = 'apps' | 'submissions';
 
 const MiniAppGalleryScene: React.FC = () => {
   const { t } = useI18n('scenes/miniapp');
-  const [activeTab, setActiveTab] = useState<MiniAppGalleryTab>('installed');
-
-  const tabItems: TabGroupItem[] = [
-    {
-      value: 'installed',
-      icon: <Icon name="download" size="sm" />,
-      label: t('market.tabs.installed'),
-    },
-    {
-      value: 'market',
-      icon: <Icon name="store" size="sm" />,
-      label: t('market.tabs.market'),
-    },
-    {
-      value: 'submissions',
-      icon: <Icon name="upload" size="sm" />,
-      label: t('market.tabs.submissions'),
-    },
-  ];
+  const [activeTab, setActiveTab] = useState<MiniAppGalleryTab>('apps');
+  const tabs = (
+    <div className="miniapp-gallery-tabs">
+    <TabGroup
+      aria-label={t('title')}
+      items={[
+        {
+          value: 'apps',
+          label: t('market.tabs.apps'),
+        },
+        {
+          value: 'submissions',
+          label: t('market.tabs.submissions'),
+        },
+      ]}
+      size="sm"
+      value={activeTab}
+      onValueChange={(value) => setActiveTab(value as MiniAppGalleryTab)}
+    />
+    </div>
+  );
 
   return (
-    <div className="miniapp-gallery-scene" data-bf-scene="miniapp-gallery" data-bf-part="root">
-      <div className="miniapp-gallery-scene__nav">
-        <TabGroup
-          items={tabItems}
-          value={activeTab}
-          onValueChange={(value) => setActiveTab(value as MiniAppGalleryTab)}
-        />
-      </div>
+    <div className="miniapp-gallery-scene" data-openbitfun-scene="miniapp-gallery" data-openbitfun-part="root">
       <div className="miniapp-gallery-scene__content">
         <Suspense fallback={null}>
-          {activeTab === 'installed' && <MiniAppGalleryView />}
-          {activeTab === 'market' && <MiniAppMarketView />}
-          {activeTab === 'submissions' && <MiniAppSubmissionsView />}
+          {activeTab === 'apps' && <MiniAppLibraryView tabs={tabs} />}
+          {activeTab === 'submissions' && <MiniAppSubmissionsView tabs={tabs} />}
         </Suspense>
       </div>
     </div>

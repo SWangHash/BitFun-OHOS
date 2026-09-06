@@ -4,7 +4,7 @@
 //! through an ArkTS bridge.
 //!
 //! This module is the OHOS counterpart of
-//! `bitfun_services_core::secure_credentials::SystemSecureCredentialVault`.
+//! `openbitfun_services_core::secure_credentials::SystemSecureCredentialVault`.
 //! The Rust side serializes each call as JSON and delegates to the ArkTS
 //! `secure_credentials` function registered in `EntryAbility.ets`. The
 //! ArkTS side owns the AssetStoreKit alias/secret lifecycle, the upsert
@@ -15,7 +15,7 @@
 //! do not collide inside the single AssetStoreKit namespace.
 
 use async_trait::async_trait;
-use bitfun_services_core::secure_credentials::SecureCredentialVault;
+use openbitfun_services_core::secure_credentials::SecureCredentialVault;
 use serde::{Deserialize, Serialize};
 
 const ARKTS_FUNCTION: &str = "secure_credentials";
@@ -64,7 +64,7 @@ impl OhosSecureCredentialVault {
     async fn call(&self, request: CredentialRequest<'_>) -> Result<CredentialResponse, String> {
         let input = serde_json::to_string(&request)
             .map_err(|error| format!("encode secure credential request: {error}"))?;
-        let output = bitfun_core::util::call_arkts_string_function(ARKTS_FUNCTION, input)
+        let output = openbitfun_core::util::call_arkts_string_function(ARKTS_FUNCTION, input)
             .await
             .map_err(|error| format!("call OpenHarmony secure credential store: {error}"))?;
         serde_json::from_str(&output)
@@ -150,7 +150,7 @@ impl SecureCredentialVault for OhosSecureCredentialVault {
         }
     }
 
-    /// OHOS is a fresh platform for BitFun; there is no pre-existing v1
+    /// OHOS is a fresh platform for OpenBitFun; there is no pre-existing v1
     /// password entry to migrate, so the legacy text read always returns
     /// `Ok(None)`. The store.rs migration code already treats `None` as
     /// "no v1 entry, proceed with v2" — no data is lost and no migration

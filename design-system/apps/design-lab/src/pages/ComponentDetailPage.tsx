@@ -40,6 +40,7 @@ import {
   NumberBadge,
   Input,
   KeyHint,
+  LauncherButton,
   Listbox,
   ListboxOption,
   LoadingState,
@@ -88,10 +89,36 @@ import {
   type ScrollAreaOrientation,
   type ScrollbarVisibility,
   type StatusPillTone,
+  type TabGroupSize,
   type ToolbarSize,
   type TokenOverrides,
-} from "@bitfun/ui";
-import type { ComponentMeta } from "@bitfun/ui/registry";
+} from "@openbitfun/ui";
+import {
+  MobileActionSheet,
+  MobileBadge,
+  MobileBanner,
+  MobileButton,
+  MobileCard,
+  MobileChoiceSheet,
+  MobileConfirmSheet,
+  MobileComposer,
+  MobileDisclosure,
+  MobileFileButton,
+  MobileFloatingActions,
+  MobileIconButton,
+  MobileLink,
+  MobileListRow,
+  MobileMessage,
+  MobilePageHeader,
+  MobileScrim,
+  MobileSection,
+  MobileSegmentedControl,
+  MobileSheet,
+  MobileStatus,
+  MobileTextField,
+  MobileTextarea,
+} from "@openbitfun/ui/mobile";
+import type { ComponentMeta } from "@openbitfun/ui/registry";
 import previewImage from "../assets/design-system-hero.webp";
 import { IconCompositionPreview } from "../preview/IconCompositionPreview";
 import { NestedMenuPattern } from "./ReferencePatterns";
@@ -124,7 +151,7 @@ type FieldOrientation = "horizontal" | "vertical";
 type PageHeaderAlign = "center" | "start";
 type PageHeaderSize = "display" | "lg" | "md" | "sm";
 
-const buttonVariants = ["outline", "fill", "primary", "text"] as const;
+const buttonVariants = ["outline", "fill", "secondary", "primary", "text"] as const;
 const iconButtonVariants = ["quiet", "fill", "primary"] as const;
 const buttonInspectorStates = ["default", "hover", "active"] as const;
 const fieldOrientations = ["vertical", "horizontal"] as const;
@@ -300,6 +327,7 @@ export function ComponentDetailPage({
   const [pageHeaderRequired, setPageHeaderRequired] = useState(false);
   const [actionItemShowMetadata, setActionItemShowMetadata] = useState(false);
   const [actionCardSize, setActionCardSize] = useState<ActionCardSize>("sm");
+  const [tabGroupSize, setTabGroupSize] = useState<TabGroupSize>("md");
   const [toolbarSize, setToolbarSize] = useState<ToolbarSize>("sm");
   const [previewState, setPreviewState] = useState(
     component.name === "Card"
@@ -329,6 +357,7 @@ export function ComponentDetailPage({
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>("properties");
   const [overlayOpen, setOverlayOpen] = useState(false);
+  const [mobileChoiceValue, setMobileChoiceValue] = useState("standard");
   const [menuShowScrollbar, setMenuShowScrollbar] = useState(true);
   const [navigationPanelShowScrollbar, setNavigationPanelShowScrollbar] = useState(true);
   const [composerShowContext, setComposerShowContext] = useState(false);
@@ -351,6 +380,8 @@ export function ComponentDetailPage({
       case "Button":
       case "IconButton":
         return ["default", "hover", "active", "disabled"] as const;
+      case "LauncherButton":
+        return ["default", "hover", "active", "focus-visible", "disabled"] as const;
       case "Composer":
         return ["default", "focus-within", "with-context", "invalid", "disabled"] as const;
       case "Combobox":
@@ -404,32 +435,47 @@ export function ComponentDetailPage({
     : states;
 
   const codeSample = useMemo(() => {
-    if (component.name === "Textarea") return `import { Textarea } from "@bitfun/ui";\n\n<Textarea\n  label="${t("components.preview.inputLabel")}"\n  defaultValue="${t("components.preview.fieldValue")}"\n  hint="${t("components.preview.fieldDescription")}"\n  maxLength={200}\n  rows={3}\n  showCount\n/>`;
-    if (component.name === "Alert") return `import { Alert } from "@bitfun/ui";\n\n<Alert tone="info" title="${t("components.preview.notifications")}" message="${t("components.preview.fieldDescription")}" />`;
-    if (component.name === "Avatar") return 'import { Avatar } from "@bitfun/ui";\n\n<Avatar>BF</Avatar>';
-    if (component.name === "Checkbox" || component.name === "Radio") return `import { ${component.name} } from "@bitfun/ui";\n\n<${component.name} label="${t("components.preview.notifications")}" defaultChecked />`;
-    if (component.name === "NumberBadge") return `import { NumberBadge } from "@bitfun/ui";\n\n<NumberBadge value={${JSON.stringify(numberBadgeValue)}} />;`;
-    if (component.name === "NumberInput") return 'import { useState } from "react";\nimport { NumberInput } from "@bitfun/ui";\n\nfunction Example() {\n  const [value, setValue] = useState(8);\n  return <NumberInput value={value} onValueChange={setValue} />;\n}';
-    if (component.name === "Empty") return `import { Empty } from "@bitfun/ui";\n\n<Empty title="${t("components.preview.cardTitle")}" description="${t("components.preview.cardDescription")}" />`;
+    if (component.name === "MobileActionSheet") return `import { MobileActionSheet } from "@openbitfun/ui/mobile";\n\n<MobileActionSheet\n  actions={[\n    { id: "rename", label: "${t("components.preview.modalSave")}" },\n    { id: "delete", label: "${t("components.preview.confirmDelete")}", tone: "danger" },\n  ]}\n  cancelLabel="${t("components.preview.modalCancel")}"\n  onAction={handleAction}\n  onOpenChange={() => setOpen(false)}\n  open={open}\n  title="${t("components.preview.session")}"\n/>`;
+    if (component.name === "MobileComposer") return `import { MobileComposer } from "@openbitfun/ui/mobile";\n\n<MobileComposer\n  expanded={expanded}\n  leading={<AttachButton />}\n  startActions={<ModelControls />}\n  endActions={<SendButton />}\n>\n  <textarea />\n</MobileComposer>`;
+    if (component.name === "MobileChoiceSheet") return `import { MobileChoiceSheet } from "@openbitfun/ui/mobile";\n\n<MobileChoiceSheet\n  cancelLabel="${t("components.preview.modalCancel")}"\n  onOpenChange={() => setOpen(false)}\n  onSelect={setMode}\n  open={open}\n  options={[\n    { label: "${t("components.preview.modeMinimal")}", value: "minimal" },\n    { label: "${t("components.preview.modeStandard")}", value: "standard" },\n    { label: "${t("components.preview.modeUltimate")}", value: "ultimate" },\n  ]}\n  selectedValue={mode}\n  title="${t("components.preview.selectExecutionMode")}"\n/>`;
+    if (component.name === "MobileConfirmSheet") return `import { MobileConfirmSheet } from "@openbitfun/ui/mobile";\n\n<MobileConfirmSheet\n  cancelLabel="${t("components.preview.modalCancel")}"\n  confirmLabel="${t("components.preview.confirmDelete")}"\n  confirmTone="danger"\n  onConfirm={handleDelete}\n  onOpenChange={() => setOpen(false)}\n  open={open}\n  title="${t("components.preview.confirmTitle")}"\n/>`;
+    if (component.name === "MobileFloatingActions") return `import { MobileFloatingActions } from "@openbitfun/ui/mobile";\n\n<MobileFloatingActions\n  leading={<NewChatButton />}\n  trailing={<SettingsButton />}\n/>`;
+    if (component.name === "MobileFileButton") return `import { MobileFileButton } from "@openbitfun/ui/mobile";\n\n<MobileFileButton accept="image/*" onChange={handleFile}>\n  ${t("components.preview.add")}\n</MobileFileButton>`;
+    if (component.name === "MobileScrim") return `import { MobileScrim } from "@openbitfun/ui/mobile";\n\n<MobileScrim\n  aria-label="${t("components.preview.close")}"\n  onClick={closeSidebar}\n/>`;
+    if (component.name === "MobileIconButton") return `import { Icon } from "@openbitfun/ui";\nimport { MobileIconButton } from "@openbitfun/ui/mobile";\n\n<MobileIconButton\n  appearance="floating"\n  aria-label="${t("components.preview.searchLabel")}"\n  icon={<Icon name="search" />}\n/>`;
+    if (component.name === "MobileLink") return `import { MobileLink } from "@openbitfun/ui/mobile";\n\n<MobileLink href="https://example.com">\n  ${t("nav.docs")}\n</MobileLink>`;
+    if (component.name === "MobileTextField") return `import { MobileTextField } from "@openbitfun/ui/mobile";\n\n<MobileTextField\n  aria-label="${t("components.preview.searchLabel")}"\n  placeholder="${t("components.preview.searchPlaceholder")}"\n/>`;
+    if (component.name === "MobileListRow") return `import { MobileListRow } from "@openbitfun/ui/mobile";\n\n<MobileListRow\n  appearance="surface"\n  label="${t("components.preview.session")}"\n  supportingText="/workspace"\n/>`;
+    if (component.name === "MobileSheet") return `import { MobileSheet } from "@openbitfun/ui/mobile";\n\n<MobileSheet\n  footer={<CancelButton />}\n  onOpenChange={() => setOpen(false)}\n  open={open}\n  title="${t("components.preview.modalTitle")}"\n>\n  <ActionList />\n</MobileSheet>`;
+    if (component.name === "Textarea") return `import { Textarea } from "@openbitfun/ui";\n\n<Textarea\n  label="${t("components.preview.inputLabel")}"\n  defaultValue="${t("components.preview.fieldValue")}"\n  hint="${t("components.preview.fieldDescription")}"\n  maxLength={200}\n  rows={3}\n  showCount\n/>`;
+    if (component.name === "Alert") return `import { Alert } from "@openbitfun/ui";\n\n<Alert tone="info" title="${t("components.preview.notifications")}" message="${t("components.preview.fieldDescription")}" />`;
+    if (component.name === "Avatar") return 'import { Avatar } from "@openbitfun/ui";\n\n<Avatar>BF</Avatar>';
+    if (component.name === "Checkbox" || component.name === "Radio") return `import { ${component.name} } from "@openbitfun/ui";\n\n<${component.name} label="${t("components.preview.notifications")}" defaultChecked />`;
+    if (component.name === "NumberBadge") return `import { NumberBadge } from "@openbitfun/ui";\n\n<NumberBadge value={${JSON.stringify(numberBadgeValue)}} />;`;
+    if (component.name === "NumberInput") return 'import { useState } from "react";\nimport { NumberInput } from "@openbitfun/ui";\n\nfunction Example() {\n  const [value, setValue] = useState(8);\n  return <NumberInput value={value} onValueChange={setValue} />;\n}';
+    if (component.name === "Empty") return `import { Empty } from "@openbitfun/ui";\n\n<Empty title="${t("components.preview.cardTitle")}" description="${t("components.preview.cardDescription")}" />`;
     if (flowChatPreview) {
       return flowChatPreview.codeSample(t);
     }
 
     if (component.name === "ActionCard") {
-      return `import { Icon, ActionCard } from "@bitfun/ui";\n\n<ActionCard\n  actions={[\n    { id: "more", icon: <Icon name="more" />, label: "${t("components.preview.more")}" },\n  ]}\n  description="${t("components.preview.actionCardDescription")}"\n  leading={<Icon name="session" />}\n  size="${actionCardSize}"\n>\n  ${t("components.preview.actionCardTitle")}\n</ActionCard>`;
+      return `import { Icon, ActionCard } from "@openbitfun/ui";\n\n<ActionCard\n  actions={[\n    { id: "more", icon: <Icon name="more" />, label: "${t("components.preview.more")}" },\n  ]}\n  description="${t("components.preview.actionCardDescription")}"\n  leading={<Icon name="session" />}\n  size="${actionCardSize}"\n>\n  ${t("components.preview.actionCardTitle")}\n</ActionCard>`;
+    }
+    if (component.name === "LauncherButton") {
+      return 'import { Icon, LauncherButton } from "@openbitfun/ui";\n\n<LauncherButton leadingIcon={<Icon name="mic" />}>\n  Hello\n</LauncherButton>';
     }
     if (component.name === "ActionItem") {
       const metadataProp = actionItemShowMetadata ? `\n  metadata="12"` : "";
-      return `import { Icon, ActionItem, KeyHint } from "@bitfun/ui";\n\n<ActionItem\n  actions={[\n    { id: "add", icon: <Icon name="plus" />, label: "${t("components.preview.add")}" },\n    { id: "more", icon: <Icon name="more" />, label: "${t("components.preview.more")}" },\n  ]}\n  leading={<Icon name="session" />}${metadataProp}\n  shortcut={<KeyHint>K</KeyHint>}\n>\n  ${t("components.preview.assistant")}\n</ActionItem>`;
+      return `import { Icon, ActionItem, KeyHint } from "@openbitfun/ui";\n\n<ActionItem\n  actions={[\n    { id: "add", icon: <Icon name="plus" />, label: "${t("components.preview.add")}" },\n    { id: "more", icon: <Icon name="more" />, label: "${t("components.preview.more")}" },\n  ]}\n  leading={<Icon name="session" />}${metadataProp}\n  shortcut={<KeyHint>K</KeyHint>}\n>\n  ${t("components.preview.assistant")}\n</ActionItem>`;
     }
     if (component.name === "ActivityItem") {
       if (activityItemAppearance === "inline") {
-        return `import { Icon, ActivityItem } from "@bitfun/ui";\n\n<ActivityItem\n  appearance="inline"\n  leading={<Icon name="check-line" />}\n>\n  ${t("components.preview.activityStatus")}\n</ActivityItem>`;
+        return `import { Icon, ActivityItem } from "@openbitfun/ui";\n\n<ActivityItem\n  appearance="inline"\n  leading={<Icon name="check-line" />}\n>\n  ${t("components.preview.activityStatus")}\n</ActivityItem>`;
       }
       const detailProp = activityShowDetail
         ? `\n  detail={<code>${t("components.preview.activityDetail")}</code>}`
         : "";
-      return `import { Icon, ActivityItem, ChangeCount } from "@bitfun/ui";\n\n<ActivityItem\n  actions={[\n    { id: "copy", icon: <Icon name="duplicate" />, label: "${t("components.preview.activityCopy")}" },\n    { id: "download", icon: <Icon name="arrow-down" />, label: "${t("components.preview.activityDownload")}" },\n    { id: "open", icon: <Icon name="arrow-up-right" />, label: "${t("components.preview.activityOpen")}" },\n  ]}\n  appearance="surface"${detailProp}\n  label="${t("components.preview.activityAction")}"\n  leading={<Icon name="terminal" />}\n  metadata={<ChangeCount additions={6} deletions={0} />}\n  onActivate={() => openActivity()}\n>\n  ${t("components.preview.activityDescription")}\n</ActivityItem>`;
+      return `import { Icon, ActivityItem, ChangeCount } from "@openbitfun/ui";\n\n<ActivityItem\n  actions={[\n    { id: "copy", icon: <Icon name="duplicate" />, label: "${t("components.preview.activityCopy")}" },\n    { id: "download", icon: <Icon name="arrow-down" />, label: "${t("components.preview.activityDownload")}" },\n    { id: "open", icon: <Icon name="arrow-up-right" />, label: "${t("components.preview.activityOpen")}" },\n  ]}\n  appearance="surface"${detailProp}\n  label="${t("components.preview.activityAction")}"\n  leading={<Icon name="terminal" />}\n  metadata={<ChangeCount additions={6} deletions={0} />}\n  onActivate={() => openActivity()}\n>\n  ${t("components.preview.activityDescription")}\n</ActivityItem>`;
     }
     if (component.name === "Button") {
       const stateProps = `${inspectorDisabled ? " disabled" : ""}${inspectorLoading ? " loading" : ""}`;
@@ -439,13 +485,13 @@ export function ComponentDetailPage({
       const iconProp = previewIcon === "chevron"
         ? ` ${previewIconPosition === "left" ? "leadingIcon" : "trailingIcon"}={<Icon name="chevron-right" />}`
         : "";
-      return `import { Button } from "@bitfun/ui";${iconImport}\n\n<Button variant="${variant}" size="${size}"${stateProps}${iconProp}>\n  ${t("components.preview.session")}\n</Button>`;
+      return `import { Button } from "@openbitfun/ui";${iconImport}\n\n<Button variant="${variant}" size="${size}"${stateProps}${iconProp}>\n  ${t("components.preview.session")}\n</Button>`;
     }
     if (component.name === "Card") {
       if (previewState === "media") {
-        return `import { Card, CardBody, CardHeader, CardMedia } from "@bitfun/ui";\n\n<Card appearance="neutral" clip radius="md">\n  <CardMedia>\n    <ProductArtwork />\n  </CardMedia>\n  <CardBody align="center" padding="sm">\n    <CardHeader\n      contentAlign="center"\n      title="${t("components.preview.cardMediaTitle")}"\n      description="${t("components.preview.cardMediaDescription")}"\n    />\n  </CardBody>\n</Card>`;
+        return `import { Card, CardBody, CardHeader, CardMedia } from "@openbitfun/ui";\n\n<Card appearance="neutral" clip radius="md">\n  <CardMedia>\n    <ProductArtwork />\n  </CardMedia>\n  <CardBody align="center" padding="sm">\n    <CardHeader\n      contentAlign="center"\n      title="${t("components.preview.cardMediaTitle")}"\n      description="${t("components.preview.cardMediaDescription")}"\n    />\n  </CardBody>\n</Card>`;
       }
-      return `import { Card, CardBody, CardFooter, CardHeader } from "@bitfun/ui";\n\n<Card appearance="${previewState}" gap="md" padding="md" radius="lg">\n  <CardHeader\n    contentAlign="${cardContentAlign}"\n    title="${t("components.preview.cardTitle")}"\n    description="${t("components.preview.cardDescription")}"\n  />\n  <CardBody>\n    <CommandGrid />\n  </CardBody>\n  <CardFooter align="end">\n    <Button>${t("components.preview.settings")}</Button>\n  </CardFooter>\n</Card>`;
+      return `import { Card, CardBody, CardFooter, CardHeader } from "@openbitfun/ui";\n\n<Card appearance="${previewState}" gap="md" padding="md" radius="lg">\n  <CardHeader\n    contentAlign="${cardContentAlign}"\n    title="${t("components.preview.cardTitle")}"\n    description="${t("components.preview.cardDescription")}"\n  />\n  <CardBody>\n    <CommandGrid />\n  </CardBody>\n  <CardFooter align="end">\n    <Button>${t("components.preview.settings")}</Button>\n  </CardFooter>\n</Card>`;
     }
     if (component.name === "Composer") {
       const stateProps = `${previewState === "disabled" ? " disabled" : ""}${previewState === "invalid" ? " invalid" : ""}`;
@@ -455,17 +501,18 @@ export function ComponentDetailPage({
       const toolbarProp = composerShowToolbar
         ? `\n  toolbar={<ComposerToolbar\n    leading={<IconButton aria-label="${t("components.preview.composerAdd")}" icon={<Icon name="plus" />} />}\n    trailing={<><Button variant="text">${t("components.preview.composerModel")}</Button><IconButton aria-label="${t("components.preview.composerSend")}" icon={<Icon name="arrow-up" />} variant="primary" /></>}\n  />}`
         : "";
-      return `import { Button, Composer, ComposerContextBar, ComposerDivider, ComposerToolbar, IconButton } from "@bitfun/ui";\n\n<Composer\n  aria-label="${t("components.preview.composerLabel")}"${contextProp}${toolbarProp}${stateProps}\n>\n  <textarea\n    aria-label="${t("components.preview.composerEditorLabel")}"\n    placeholder="${t("components.preview.composerPlaceholder")}"\n  />\n</Composer>`;
+      return `import { Button, Composer, ComposerContextBar, ComposerDivider, ComposerToolbar, IconButton } from "@openbitfun/ui";\n\n<Composer\n  aria-label="${t("components.preview.composerLabel")}"${contextProp}${toolbarProp}${stateProps}\n>\n  <textarea\n    aria-label="${t("components.preview.composerEditorLabel")}"\n    placeholder="${t("components.preview.composerPlaceholder")}"\n  />\n</Composer>`;
     }
     if (component.name === "ConfirmDialog") {
-      return `import { ConfirmDialog } from "@bitfun/ui";\n\n<ConfirmDialog\n  cancelText="${t("components.preview.modalCancel")}"\n  confirmDanger\n  confirmText="${t("components.preview.confirmDelete")}"\n  message="${t("components.preview.confirmMessage")}"\n  onConfirm={() => deleteItem()}\n  onOpenChange={() => setOpen(false)}\n  open={open}\n  preview="/workspace/project"\n  title="${t("components.preview.confirmTitle")}"\n  type="error"\n/>`;
+      return `import { ConfirmDialog } from "@openbitfun/ui";\n\n<ConfirmDialog\n  cancelText="${t("components.preview.modalCancel")}"\n  confirmDanger\n  confirmText="${t("components.preview.confirmDelete")}"\n  message="${t("components.preview.confirmMessage")}"\n  onConfirm={() => deleteItem()}\n  onOpenChange={() => setOpen(false)}\n  open={open}\n  preview="/workspace/project"\n  title="${t("components.preview.confirmTitle")}"\n  type="error"\n/>`;
     }
     if (component.name === "Icon") {
-      return `import { Icon } from "@bitfun/ui";\n\n<Icon name="${iconName}" size="${iconSize}" tone="${iconTone}" />`;
+      return `import { Icon } from "@openbitfun/ui";\n\n<Icon name="${iconName}" size="${iconSize}" tone="${iconTone}" />`;
     }
+
     if (component.name === "IconButton") {
       const stateProps = `${inspectorDisabled ? " disabled" : ""}${inspectorLoading ? " loading" : ""}`;
-      return `import { IconButton } from "@bitfun/ui";\nimport { List } from "lucide-react";\n\n<IconButton\n  aria-label="${t("components.preview.listView")}"\n  icon={<List />}\n  variant="${iconButtonVariant}"${stateProps}\n/>`;
+      return `import { IconButton } from "@openbitfun/ui";\nimport { List } from "lucide-react";\n\n<IconButton\n  aria-label="${t("components.preview.listView")}"\n  icon={<List />}\n  variant="${iconButtonVariant}"${stateProps}\n/>`;
     }
     if (component.name === "Field") {
       const labelAction = fieldShowLabelAction
@@ -477,7 +524,7 @@ export function ComponentDetailPage({
       const controlTrailing = fieldShowControlTrailing
         ? `\n  controlTrailing={<IconButton aria-label="${t("components.preview.more")}" icon={<Icon name="more" />} size="xs" />}`
         : "";
-      return `import { Icon, Field, IconButton, Input, Switch } from "@bitfun/ui";\n\n<Field\n  description="${t("components.preview.fieldDescription")}"\n  label="${t("components.preview.appearance")}"${labelAction}${controlLeading}${controlTrailing}\n  orientation="${fieldOrientation}"\n  required\n>\n  <Input defaultValue="${t("components.preview.fieldValue")}" trailing={<Icon name="chevron-down" />} />\n</Field>`;
+      return `import { Icon, Field, IconButton, Input, Switch } from "@openbitfun/ui";\n\n<Field\n  description="${t("components.preview.fieldDescription")}"\n  label="${t("components.preview.appearance")}"${labelAction}${controlLeading}${controlTrailing}\n  orientation="${fieldOrientation}"\n  required\n>\n  <Input defaultValue="${t("components.preview.fieldValue")}" trailing={<Icon name="chevron-down" />} />\n</Field>`;
     }
     if (component.name === "Input") {
       const stateProps = previewState === "disabled"
@@ -485,32 +532,32 @@ export function ComponentDetailPage({
         : previewState === "invalid"
           ? " invalid"
           : "";
-      return `import { Icon, Input } from "@bitfun/ui";\n\n<Input\n  aria-label="${t("components.preview.inputLabel")}"\n  placeholder="${t("components.preview.inputPlaceholder")}"\n  trailing={<Icon name="eye" />}${stateProps}\n/>`;
+      return `import { Icon, Input } from "@openbitfun/ui";\n\n<Input\n  aria-label="${t("components.preview.inputLabel")}"\n  placeholder="${t("components.preview.inputPlaceholder")}"\n  trailing={<Icon name="eye" />}${stateProps}\n/>`;
     }
     if (component.name === "KeyHint") {
-      return `import { Icon, KeyHint } from "@bitfun/ui";\n\n<KeyHint icon={<Icon name="command-mac" />}>K</KeyHint>`;
+      return `import { Icon, KeyHint } from "@openbitfun/ui";\n\n<KeyHint icon={<Icon name="command-mac" />}>K</KeyHint>`;
     }
     if (component.name === "FieldGroup") {
-      return `import { Icon, Field, FieldGroup, FieldRow, FormSection, Input } from "@bitfun/ui";\n\n<FormSection\n  description="${t("components.preview.fieldDescription")}"\n  headingAs="h3"\n  leading={<Icon name="gear" />}\n  title="${t("components.preview.modalSectionTitle")}"\n>\n  <FieldGroup appearance="subtle" dividers>\n    <FieldRow>\n      <Field controlWidth="fill" label="${t("components.preview.modalProviderName")}" labelWidth="md" orientation="horizontal" required>\n        <Input defaultValue="OpenBitFun" />\n      </Field>\n    </FieldRow>\n    <FieldRow>\n      <Field controlWidth="fill" label="${t("components.preview.modalApiUrl")}" labelWidth="md" orientation="horizontal">\n        <Input defaultValue="https://api.openbitfun.com" />\n      </Field>\n    </FieldRow>\n  </FieldGroup>\n</FormSection>`;
+      return `import { Icon, Field, FieldGroup, FieldRow, FormSection, Input } from "@openbitfun/ui";\n\n<FormSection\n  description="${t("components.preview.fieldDescription")}"\n  headingAs="h3"\n  leading={<Icon name="gear" />}\n  title="${t("components.preview.modalSectionTitle")}"\n>\n  <FieldGroup appearance="subtle" dividers>\n    <FieldRow>\n      <Field controlWidth="fill" label="${t("components.preview.modalProviderName")}" labelWidth="md" orientation="horizontal" required>\n        <Input defaultValue="OpenBitFun" />\n      </Field>\n    </FieldRow>\n    <FieldRow>\n      <Field controlWidth="fill" label="${t("components.preview.modalApiUrl")}" labelWidth="md" orientation="horizontal">\n        <Input defaultValue="https://api.openbitfun.com" />\n      </Field>\n    </FieldRow>\n  </FieldGroup>\n</FormSection>`;
     }
     if (component.name === "LoadingState") {
-      return `import { LoadingState } from "@bitfun/ui";\n\n<LoadingState>${t("detail.loading")}</LoadingState>`;
+      return `import { LoadingState } from "@openbitfun/ui";\n\n<LoadingState>${t("detail.loading")}</LoadingState>`;
     }
     if (component.name === "Tooltip") {
-      return `import { Tooltip } from "@bitfun/ui";\n\n<Tooltip\n  content="${t("components.preview.tooltipContent")}"\n  placement="${previewState}"\n>\n  <Button>${t("components.preview.tooltipTrigger")}</Button>\n</Tooltip>`;
+      return `import { Tooltip } from "@openbitfun/ui";\n\n<Tooltip\n  content="${t("components.preview.tooltipContent")}"\n  placement="${previewState}"\n>\n  <Button>${t("components.preview.tooltipTrigger")}</Button>\n</Tooltip>`;
     }
     if (component.name === "Menu") {
-      return `import { Icon, Menu, MenuItem, MenuSection, MenuSeparator } from "@bitfun/ui";\n\n<Menu\n  aria-label="${t("components.preview.menuLabel")}"\n  scrollbarVisibility="${menuShowScrollbar ? "auto" : "hidden"}"\n>\n  <MenuSection title="${t("components.preview.menuSectionTitle")}">\n    <MenuItem leading={<Icon name="session" />}>${t("components.preview.menuItemOne")}</MenuItem>\n    <MenuItem leading={<Icon name="session" />}>${t("components.preview.menuItemTwo")}</MenuItem>\n  </MenuSection>\n  <MenuSeparator />\n  <MenuSection aria-label="${t("components.preview.menuMoreSection")}">\n    <MenuItem disabled>${t("components.preview.menuDisabledItem")}</MenuItem>\n  </MenuSection>\n</Menu>`;
+      return `import { Icon, Menu, MenuItem, MenuSection, MenuSeparator } from "@openbitfun/ui";\n\n<Menu\n  aria-label="${t("components.preview.menuLabel")}"\n  scrollbarVisibility="${menuShowScrollbar ? "auto" : "hidden"}"\n>\n  <MenuSection title="${t("components.preview.menuSectionTitle")}">\n    <MenuItem leading={<Icon name="session" />}>${t("components.preview.menuItemOne")}</MenuItem>\n    <MenuItem leading={<Icon name="session" />}>${t("components.preview.menuItemTwo")}</MenuItem>\n  </MenuSection>\n  <MenuSeparator />\n  <MenuSection aria-label="${t("components.preview.menuMoreSection")}">\n    <MenuItem disabled>${t("components.preview.menuDisabledItem")}</MenuItem>\n  </MenuSection>\n</Menu>`;
     }
     if (component.name === "Dialog") {
-      return `import { Button, Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader, DialogHeading, DialogTitle } from "@bitfun/ui";\n\n<Dialog onOpenChange={() => setOpen(false)} open={open} size="2xl">\n  <DialogHeader>\n    <DialogHeading><DialogTitle>${t("components.preview.modalTitle")}</DialogTitle></DialogHeading>\n    <DialogClose />\n  </DialogHeader>\n  <DialogBody><ProviderConfigurationFields /></DialogBody>\n  <DialogFooter>\n    <Button onClick={() => setOpen(false)} variant="fill">${t("components.preview.modalCancel")}</Button>\n    <Button onClick={() => setOpen(false)} variant="primary">${t("components.preview.modalSave")}</Button>\n  </DialogFooter>\n</Dialog>`;
+      return `import { Button, Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader, DialogHeading, DialogTitle } from "@openbitfun/ui";\n\n<Dialog onOpenChange={() => setOpen(false)} open={open} size="xl">\n  <DialogHeader>\n    <DialogHeading><DialogTitle>${t("components.preview.modalTitle")}</DialogTitle></DialogHeading>\n    <DialogClose />\n  </DialogHeader>\n  <DialogBody><ProviderConfigurationFields /></DialogBody>\n  <DialogFooter appearance="floating">\n    <Button onClick={() => setOpen(false)} variant="secondary">${t("components.preview.modalCancel")}</Button>\n    <Button onClick={() => setOpen(false)} variant="primary">${t("components.preview.modalSave")}</Button>\n  </DialogFooter>\n</Dialog>`;
     }
     if (component.name === "Sheet") {
-      return `import { Button, DialogBody, DialogClose, DialogFooter, DialogHeader, DialogHeading, DialogTitle, Sheet } from "@bitfun/ui";\n\n<Sheet onOpenChange={() => setOpen(false)} open={open} placement="right" size="lg">\n  <DialogHeader>\n    <DialogHeading><DialogTitle>${t("components.preview.modalTitle")}</DialogTitle></DialogHeading>\n    <DialogClose />\n  </DialogHeader>\n  <DialogBody><ProviderConfigurationFields /></DialogBody>\n  <DialogFooter>\n    <Button onClick={() => setOpen(false)} variant="fill">${t("components.preview.modalCancel")}</Button>\n    <Button onClick={() => setOpen(false)} variant="primary">${t("components.preview.modalSave")}</Button>\n  </DialogFooter>\n</Sheet>`;
+      return `import { Button, DialogBody, DialogClose, DialogFooter, DialogHeader, DialogHeading, DialogTitle, Sheet } from "@openbitfun/ui";\n\n<Sheet onOpenChange={() => setOpen(false)} open={open} placement="right" size="lg">\n  <DialogHeader>\n    <DialogHeading><DialogTitle>${t("components.preview.modalTitle")}</DialogTitle></DialogHeading>\n    <DialogClose />\n  </DialogHeader>\n  <DialogBody><ProviderConfigurationFields /></DialogBody>\n  <DialogFooter>\n    <Button onClick={() => setOpen(false)} variant="fill">${t("components.preview.modalCancel")}</Button>\n    <Button onClick={() => setOpen(false)} variant="primary">${t("components.preview.modalSave")}</Button>\n  </DialogFooter>\n</Sheet>`;
     }
     if (component.name === "PageHeader") {
       const requiredProp = pageHeaderRequired ? "\n  required" : "";
-      return `import { Icon, IconButton, PageHeader } from "@bitfun/ui";\n\n<PageHeader\n  action={<IconButton aria-label="${t("components.preview.close")}" icon={<Icon name="xmark" />} />}\n  align="${pageHeaderAlign}"\n  description="${t("components.preview.appearanceDescription")}"\n  leading={<Icon name="gear" />}\n  level={2}${requiredProp}\n  size="${pageHeaderSize}"\n  title="${t("components.preview.appearance")}"\n/>`;
+      return `import { Icon, IconButton, PageHeader } from "@openbitfun/ui";\n\n<PageHeader\n  action={<IconButton aria-label="${t("components.preview.close")}" icon={<Icon name="xmark" />} />}\n  align="${pageHeaderAlign}"\n  description="${t("components.preview.appearanceDescription")}"\n  leading={<Icon name="gear" />}\n  level={2}${requiredProp}\n  size="${pageHeaderSize}"\n  title="${t("components.preview.appearance")}"\n/>`;
     }
     if (component.name === "SearchField") {
       const stateProps = previewState === "disabled"
@@ -518,46 +565,46 @@ export function ComponentDetailPage({
         : previewState === "invalid"
           ? " invalid"
           : "";
-      return `import { Icon, KeyHint, SearchField } from "@bitfun/ui";\n\n<SearchField\n  aria-label="${t("components.preview.searchLabel")}"\n  leadingIcon={<Icon name="search" />}\n  placeholder="${t("components.preview.searchPlaceholder")}"\n  shortcut={<KeyHint icon={<Icon name="command-mac" />}>K</KeyHint>}${stateProps}\n/>`;
+      return `import { Icon, KeyHint, SearchField } from "@openbitfun/ui";\n\n<SearchField\n  aria-label="${t("components.preview.searchLabel")}"\n  leadingIcon={<Icon name="search" />}\n  placeholder="${t("components.preview.searchPlaceholder")}"\n  shortcut={<KeyHint icon={<Icon name="command-mac" />}>K</KeyHint>}${stateProps}\n/>`;
     }
     if (component.name === "Combobox") {
-      return `import { Combobox } from "@bitfun/ui";\n\n<Combobox\n  aria-label="Mode"\n  onValueChange={setMode}\n  options={[\n    { label: "Ask", value: "ask" },\n    { label: "Plan", value: "plan" },\n    { disabled: true, label: "Agent", value: "agent" },\n  ]}\n  value={mode}\n/>`;
+      return `import { Combobox } from "@openbitfun/ui";\n\n<Combobox\n  aria-label="Mode"\n  onValueChange={setMode}\n  options={[\n    { label: "Ask", value: "ask" },\n    { label: "Plan", value: "plan" },\n    { disabled: true, label: "Agent", value: "agent" },\n  ]}\n  value={mode}\n/>`;
     }
     if (component.name === "Spinner") {
-      return `import { Spinner } from "@bitfun/ui";\n\n<Spinner aria-label="${t("detail.loading")}" size="${size}" variant="${previewState === "bars" ? "bars" : "matrix"}" />`;
+      return `import { Spinner } from "@openbitfun/ui";\n\n<Spinner aria-label="${t("detail.loading")}" size="${size}" variant="${previewState === "bars" ? "bars" : "matrix"}" />`;
     }
     if (component.name === "MultiSelect") {
-      return `import { MultiSelect } from "@bitfun/ui";\n\n<MultiSelect\n  aria-label="Modes"\n  onValueChange={setModes}\n  options={[\n    { label: "Ask", value: "ask" },\n    { label: "Plan", value: "plan" },\n    { disabled: true, label: "Agent", value: "agent" },\n  ]}\n  value={modes}\n/>`;
+      return `import { MultiSelect } from "@openbitfun/ui";\n\n<MultiSelect\n  aria-label="Modes"\n  onValueChange={setModes}\n  options={[\n    { label: "Ask", value: "ask" },\n    { label: "Plan", value: "plan" },\n    { disabled: true, label: "Agent", value: "agent" },\n  ]}\n  value={modes}\n/>`;
     }
     if (component.name === "Listbox") {
-      return `import { Listbox, ListboxOption } from "@bitfun/ui";\n\n<Listbox aria-label="Mode">\n  <ListboxOption selected value="ask">Ask</ListboxOption>\n  <ListboxOption value="plan">Plan</ListboxOption>\n  <ListboxOption disabled value="agent">Agent</ListboxOption>\n</Listbox>`;
+      return `import { Listbox, ListboxOption } from "@openbitfun/ui";\n\n<Listbox aria-label="Mode">\n  <ListboxOption selected value="ask">Ask</ListboxOption>\n  <ListboxOption value="plan">Plan</ListboxOption>\n  <ListboxOption disabled value="agent">Agent</ListboxOption>\n</Listbox>`;
     }
     if (component.name === "Select") {
-      return `import { Icon, Select } from "@bitfun/ui";\n\n<Select\n  aria-label="Mode"\n  leading={<Icon name="unselected" />}\n  onValueChange={setMode}\n  options={[\n    { label: "Ask", value: "ask" },\n    { label: "Plan", value: "plan" },\n    { disabled: true, label: "Agent", value: "agent" },\n  ]}\n  value="${selectValue}"\n/>`;
+      return `import { Icon, Select } from "@openbitfun/ui";\n\n<Select\n  aria-label="Mode"\n  leading={<Icon name="unselected" />}\n  onValueChange={setMode}\n  options={[\n    { label: "Ask", value: "ask" },\n    { label: "Plan", value: "plan" },\n    { disabled: true, label: "Agent", value: "agent" },\n  ]}\n  value="${selectValue}"\n/>`;
     }
     if (component.name === "SegmentedControl") {
       const defaultMode = previewState === "unselected" ? "agent" : "chat";
-      return `import { Icon, SegmentedControl } from "@bitfun/ui";\n\n<SegmentedControl\n  aria-label="${t("components.preview.segmentedLabel")}"\n  defaultValue="${defaultMode}"\n  onValueChange={setMode}\n  options={[\n    { icon: <Icon name="session" />, label: "${t("components.preview.segmentedChat")}", value: "chat" },\n    { label: "${t("components.preview.segmentedAgent")}", value: "agent" },\n  ]}\n/>`;
+      return `import { Icon, SegmentedControl } from "@openbitfun/ui";\n\n<SegmentedControl\n  aria-label="${t("components.preview.segmentedLabel")}"\n  defaultValue="${defaultMode}"\n  onValueChange={setMode}\n  options={[\n    { icon: <Icon name="session" />, label: "${t("components.preview.segmentedChat")}", value: "chat" },\n    { label: "${t("components.preview.segmentedAgent")}", value: "agent" },\n  ]}\n/>`;
     }
     if (component.name === "StatusPill") {
-      return `import { Icon, StatusPill } from "@bitfun/ui";\n\n<StatusPill leading={<Icon name="unselected" />} tone="${previewState}">\n  Ask\n</StatusPill>`;
+      return `import { Icon, StatusPill } from "@openbitfun/ui";\n\n<StatusPill leading={<Icon name="unselected" />} tone="${previewState}">\n  Ask\n</StatusPill>`;
     }
     if (component.name === "Disclosure") {
       const stateProps = previewState === "open" ? " defaultOpen" : previewState === "disabled" ? " disabled" : "";
-      return `import { Disclosure } from "@bitfun/ui";\n\n<Disclosure summary="${t("components.preview.appearance")}"${stateProps}>\n  ${t("components.preview.appearanceDescription")}\n</Disclosure>`;
+      return `import { Disclosure } from "@openbitfun/ui";\n\n<Disclosure summary="${t("components.preview.appearance")}"${stateProps}>\n  ${t("components.preview.appearanceDescription")}\n</Disclosure>`;
     }
     if (component.name === "NavigationPanel") {
-      return `import { Icon, IconButton, NavigationPanel, NavigationPanelBody, NavigationPanelContent, NavigationPanelFooter, NavigationPanelHeader, NavigationPanelItem, NavigationPanelSection, NavigationPanelSeparator, SearchField } from "@bitfun/ui";\n\n<NavigationPanel aria-label="${t("components.preview.navigationPanelLabel")}">\n  <NavigationPanelHeader>\n    <SearchField aria-label="${t("components.preview.searchLabel")}" leadingIcon={<Icon name="search" />} />\n  </NavigationPanelHeader>\n  <NavigationPanelBody scrollbarVisibility="${navigationPanelShowScrollbar ? "auto" : "hidden"}">\n    <NavigationPanelContent>\n      <NavigationPanelSection title="${t("components.preview.navigationPanelSectionTitle")}">\n        <NavigationPanelItem selected>${t("components.preview.menuItemOne")}</NavigationPanelItem>\n        <NavigationPanelItem>${t("components.preview.menuItemTwo")}</NavigationPanelItem>\n      </NavigationPanelSection>\n      <NavigationPanelSeparator />\n      <NavigationPanelSection title="${t("components.preview.navigationPanelMoreSection")}">\n        <NavigationPanelItem>${t("components.preview.navigationPanelMoreItem")}</NavigationPanelItem>\n      </NavigationPanelSection>\n    </NavigationPanelContent>\n  </NavigationPanelBody>\n  <NavigationPanelFooter>\n    <NavigationPanelItem leading={<Icon name="device-mac" />}>${t("components.preview.navigationPanelDevice")}</NavigationPanelItem>\n    <IconButton aria-label="${t("components.preview.settings")}" icon={<Icon name="gear" />} />\n  </NavigationPanelFooter>\n</NavigationPanel>`;
+      return `import { Icon, IconButton, NavigationPanel, NavigationPanelBody, NavigationPanelContent, NavigationPanelFooter, NavigationPanelHeader, NavigationPanelItem, NavigationPanelSection, NavigationPanelSeparator, SearchField } from "@openbitfun/ui";\n\n<NavigationPanel aria-label="${t("components.preview.navigationPanelLabel")}">\n  <NavigationPanelHeader>\n    <SearchField aria-label="${t("components.preview.searchLabel")}" leadingIcon={<Icon name="search" />} />\n  </NavigationPanelHeader>\n  <NavigationPanelBody scrollbarVisibility="${navigationPanelShowScrollbar ? "auto" : "hidden"}">\n    <NavigationPanelContent>\n      <NavigationPanelSection title="${t("components.preview.navigationPanelSectionTitle")}">\n        <NavigationPanelItem selected>${t("components.preview.menuItemOne")}</NavigationPanelItem>\n        <NavigationPanelItem>${t("components.preview.menuItemTwo")}</NavigationPanelItem>\n      </NavigationPanelSection>\n      <NavigationPanelSeparator />\n      <NavigationPanelSection title="${t("components.preview.navigationPanelMoreSection")}">\n        <NavigationPanelItem>${t("components.preview.navigationPanelMoreItem")}</NavigationPanelItem>\n      </NavigationPanelSection>\n    </NavigationPanelContent>\n  </NavigationPanelBody>\n  <NavigationPanelFooter>\n    <NavigationPanelItem leading={<Icon name="device-mac" />}>${t("components.preview.navigationPanelDevice")}</NavigationPanelItem>\n    <IconButton aria-label="${t("components.preview.settings")}" icon={<Icon name="gear" />} />\n  </NavigationPanelFooter>\n</NavigationPanel>`;
     }
     if (component.name === "ScrollArea") {
-      return `import { ScrollArea } from "@bitfun/ui";\n\n<ScrollArea\n  aria-label="${t("components.preview.scrollAreaLabel")}"\n  className="activity-scroll-area"\n  orientation="${scrollAreaOrientation}"\n  scrollbarVisibility="${previewState}"\n>\n  {items.map((item) => <div key={item.id}>{item.label}</div>)}\n</ScrollArea>`;
+      return `import { ScrollArea } from "@openbitfun/ui";\n\n<ScrollArea\n  aria-label="${t("components.preview.scrollAreaLabel")}"\n  className="activity-scroll-area"\n  orientation="${scrollAreaOrientation}"\n  scrollbarVisibility="${previewState}"\n>\n  {items.map((item) => <div key={item.id}>{item.label}</div>)}\n</ScrollArea>`;
     }
     if (component.name === "TabGroup") {
       const defaultTab = previewState === "unselected" ? "settings" : "welcome";
-      return `import { Icon, TabGroup } from "@bitfun/ui";\n\nconst items = [\n  { icon: <Icon name="session" />, label: "${t("components.preview.welcome")}", value: "welcome" },\n  { icon: <Icon name="session" />, label: "${t("components.preview.settings")}", value: "settings" },\n];\n\n<TabGroup\n  aria-label="${t("components.preview.tabGroupLabel")}"\n  defaultValue="${defaultTab}"\n  items={items}\n/>`;
+      return `import { Icon, TabGroup } from "@openbitfun/ui";\n\nconst items = [\n  { icon: <Icon name="session" />, label: "${t("components.preview.welcome")}", value: "welcome" },\n  { icon: <Icon name="session" />, label: "${t("components.preview.settings")}", value: "settings" },\n];\n\n<TabGroup\n  aria-label="${t("components.preview.tabGroupLabel")}"\n  defaultValue="${defaultTab}"\n  items={items}\n  size="${tabGroupSize}"\n/>`;
     }
     if (component.name === "Toolbar") {
-      return `import { Icon, ChangeCount, IconButton, TabGroup, Toolbar, ToolbarBadge, ToolbarGroup, ToolbarSeparator } from "@bitfun/ui";\n\nconst items = [\n  { label: "${t("components.preview.welcome")}", value: "welcome" },\n  { label: "${t("components.preview.settings")}", value: "settings" },\n];\n\n<Toolbar\n  aria-label="${t("components.preview.tabGroupLabel")}"\n  center={<ToolbarGroup>\n    <ToolbarBadge>18</ToolbarBadge>\n    <strong>${t("components.preview.session")}</strong>\n  </ToolbarGroup>}\n  leading={<TabGroup defaultValue="welcome" items={items} />}\n  size="${toolbarSize}"\n  trailing={<ToolbarGroup>\n    <ChangeCount additions={6} deletions={0} />\n    <ToolbarSeparator />\n    <IconButton aria-label="${t("components.preview.searchLabel")}" icon={<Icon name="search" />} size="xs" />\n    <IconButton aria-label="${t("components.preview.more")}" icon={<Icon name="more" />} size="xs" />\n  </ToolbarGroup>}\n/>`;
+      return `import { Icon, ChangeCount, IconButton, TabGroup, Toolbar, ToolbarBadge, ToolbarGroup, ToolbarSeparator } from "@openbitfun/ui";\n\nconst items = [\n  { label: "${t("components.preview.welcome")}", value: "welcome" },\n  { label: "${t("components.preview.settings")}", value: "settings" },\n];\n\n<Toolbar\n  aria-label="${t("components.preview.tabGroupLabel")}"\n  center={<ToolbarGroup>\n    <ToolbarBadge>18</ToolbarBadge>\n    <strong>${t("components.preview.session")}</strong>\n  </ToolbarGroup>}\n  leading={<TabGroup defaultValue="welcome" items={items} size="sm" />}\n  size="${toolbarSize}"\n  trailing={<ToolbarGroup>\n    <ChangeCount additions={6} deletions={0} />\n    <ToolbarSeparator />\n    <IconButton aria-label="${t("components.preview.searchLabel")}" icon={<Icon name="search" />} size="xs" />\n    <IconButton aria-label="${t("components.preview.more")}" icon={<Icon name="more" />} size="xs" />\n  </ToolbarGroup>}\n/>`;
     }
     if (component.name !== "Switch") return `// ${t("detail.previewUnavailable")}: ${component.name}`;
     const stateProps = previewState === "on"
@@ -565,7 +612,7 @@ export function ComponentDetailPage({
       : previewState === "disabled"
         ? " disabled"
         : "";
-    return `import { Switch } from "@bitfun/ui";\n\n<Switch\n  aria-label="${t("components.preview.notifications")}"${stateProps}\n/>`;
+    return `import { Switch } from "@openbitfun/ui";\n\n<Switch\n  aria-label="${t("components.preview.notifications")}"${stateProps}\n/>`;
   }, [
     actionItemShowMetadata,
     activityItemAppearance,
@@ -596,6 +643,7 @@ export function ComponentDetailPage({
     scrollAreaOrientation,
     selectValue,
     size,
+    tabGroupSize,
     t,
     toolbarSize,
     variant,
@@ -658,7 +706,7 @@ export function ComponentDetailPage({
               required
             >
               <Input
-                defaultValue="bitfun-provider-api-key"
+                defaultValue="openbitfun-provider-api-key"
                 readOnly
                 trailing={<Icon name="eye" size="lg" aria-hidden="true" />}
                 type="password"
@@ -728,7 +776,7 @@ export function ComponentDetailPage({
         <Dialog
           onOpenChange={closePreview}
           open={overlayOpen}
-          size="2xl"
+          size="xl"
         >
           <DialogHeader>
             <DialogHeading>
@@ -736,9 +784,9 @@ export function ComponentDetailPage({
             </DialogHeading>
             <DialogClose />
           </DialogHeader>
-          <DialogBody>{renderDialogConfigurationContent()}</DialogBody>
-          <DialogFooter>
-            <Button onClick={closePreview} variant="fill">
+          <DialogBody className="component-dialog-example__body">{renderDialogConfigurationContent()}</DialogBody>
+          <DialogFooter appearance="floating">
+            <Button onClick={closePreview} variant="secondary">
               {t("components.preview.modalCancel")}
             </Button>
             <Button onClick={closePreview} variant="primary">
@@ -795,7 +843,7 @@ export function ComponentDetailPage({
       <IconButton
         aria-label={t("components.preview.listView")}
         className={state === "focus-visible" ? "lab-force-focus" : undefined}
-        data-bf-preview-state={state === "hover" || state === "active" ? state : undefined}
+        data-openbitfun-preview-state={state === "hover" || state === "active" ? state : undefined}
         disabled={state === "disabled" || applyInspectorControls && inspectorDisabled}
         icon={<List aria-hidden="true" />}
         loading={state === "loading" || applyInspectorControls && inspectorLoading}
@@ -822,6 +870,131 @@ export function ComponentDetailPage({
 
     if (component.name === "Icon") {
       return <Icon name={iconName} size={iconSize} tone={iconTone} />;
+    }
+
+    if (component.name === "MobileButton") {
+      return <MobileButton data-openbitfun-preview-state={state} disabled={state === "disabled"} loading={state === "loading"}>{t("components.preview.actionCardTitle")}</MobileButton>;
+    }
+
+    if (component.name === "MobileCard") {
+      const appearance = state === "plain" || state === "elevated" ? state : "surface";
+      return <MobileCard appearance={appearance}><strong>{t("components.preview.cardTitle")}</strong><p>{t("components.preview.cardDescription")}</p></MobileCard>;
+    }
+
+    if (component.name === "MobileDisclosure") {
+      return <MobileDisclosure disabled={state === "disabled"} onToggle={() => undefined} open={state === "open"} title={t("detail.loading")}>{t("components.preview.fieldDescription")}</MobileDisclosure>;
+    }
+
+    if (component.name === "MobileMessage") {
+      const roleType = state === "user" || state === "system" ? state : "assistant";
+      return <MobileMessage roleType={roleType}>{t("components.preview.cardDescription")}</MobileMessage>;
+    }
+
+    if (component.name === "MobileBadge") {
+      const tone = state === "info" || state === "success" || state === "warning" || state === "danger" ? state : "neutral";
+      return <MobileBadge dot tone={tone}>{t("components.preview.notifications")}</MobileBadge>;
+    }
+
+    if (component.name === "MobileBanner") {
+      const tone = state === "info" || state === "warning" || state === "danger" ? state : "neutral";
+      return <MobileBanner action={<MobileButton appearance="plain" size="sm">{t("components.preview.modalSave")}</MobileButton>} tone={tone}>{t("components.preview.fieldDescription")}</MobileBanner>;
+    }
+
+    if (component.name === "MobileComposer") {
+      const expanded = state === "expanded";
+      return (
+        <MobileComposer
+          aria-label={t("components.preview.composerPlaceholder")}
+          endActions={<MobileIconButton appearance="plain" aria-label={t("components.preview.flowChat.askUserSubmit")} icon={<Icon name="arrow-up" aria-hidden="true" />} size="sm" />}
+          expanded={expanded}
+          leading={<MobileIconButton appearance="plain" aria-label={t("components.preview.add")} icon={<Icon name="plus" aria-hidden="true" />} size="sm" />}
+          startActions={expanded ? <Button size="sm" variant="fill">k3-256k</Button> : undefined}
+        >
+          {expanded ? <textarea aria-label={t("components.preview.composerPlaceholder")} placeholder={t("components.preview.composerPlaceholder")} /> : <span>{t("components.preview.composerPlaceholder")}</span>}
+        </MobileComposer>
+      );
+    }
+
+    if (component.name === "MobileFloatingActions") {
+      return (
+        <MobileFloatingActions
+          leading={<Button size="sm" variant="fill">{t("components.preview.actionCardTitle")}</Button>}
+          trailing={<MobileIconButton appearance="floating" aria-label={t("components.preview.settings")} icon={<Icon name="gear" aria-hidden="true" />} />}
+        />
+      );
+    }
+
+    if (component.name === "MobileFileButton") {
+      return <MobileFileButton disabled={state === "disabled"} leading={<Icon name="plus" aria-hidden="true" />} loading={state === "loading"}>{t("components.preview.add")}</MobileFileButton>;
+    }
+
+    if (component.name === "MobileIconButton") {
+      return (
+        <MobileIconButton
+          appearance="floating"
+          aria-label={t("components.preview.searchLabel")}
+          data-openbitfun-preview-state={state === "hover" || state === "active" || state === "focus-visible" ? state : undefined}
+          disabled={state === "disabled"}
+          icon={<Icon name="search" aria-hidden="true" />}
+          loading={state === "loading"}
+          selected={state === "selected"}
+        />
+      );
+    }
+
+    if (component.name === "MobileLink") {
+      return <MobileLink appearance={state === "surface" ? "surface" : "inline"} href="#mobile">{t("nav.docs")}</MobileLink>;
+    }
+
+    if (component.name === "MobileTextField") {
+      return (
+        <MobileTextField
+          aria-label={t("components.preview.searchLabel")}
+          disabled={state === "disabled"}
+          invalid={state === "invalid"}
+          leading={<Icon name="search" aria-hidden="true" />}
+          placeholder={t("components.preview.searchPlaceholder")}
+        />
+      );
+    }
+
+    if (component.name === "MobileListRow") {
+      return (
+        <MobileListRow
+          appearance="surface"
+          data-openbitfun-preview-state={state === "hover" || state === "active" || state === "focus-visible" ? state : undefined}
+          disabled={state === "disabled"}
+          label={t("components.preview.session")}
+          leading={<Icon name="session" aria-hidden="true" />}
+          selected={state === "selected"}
+          supportingText={t("components.preview.fieldDescription")}
+          trailing={<Icon name="chevron-right" aria-hidden="true" />}
+        />
+      );
+    }
+
+    if (component.name === "MobilePageHeader") {
+      return <MobilePageHeader actions={<MobileIconButton appearance="plain" aria-label={t("components.preview.more")} icon={<Icon name="more" aria-hidden="true" />} size="sm" />} centered={state === "centered"} leading={<MobileIconButton appearance="plain" aria-label={t("components.preview.close")} icon={<Icon name="chevron-left" aria-hidden="true" />} size="sm" />} subtitle={state === "with-subtitle" ? t("components.preview.fieldDescription") : undefined} title={t("components.preview.session")} />;
+    }
+
+    if (component.name === "MobileScrim") {
+      return <MobileScrim aria-label={t("components.preview.close")} style={{ blockSize: 120, inlineSize: "100%", position: "relative" }} visible={state !== "hidden"} />;
+    }
+
+    if (component.name === "MobileSection") {
+      return <MobileSection action={state === "with-action" ? <MobileButton appearance="plain" size="sm">{t("components.preview.more")}</MobileButton> : undefined} description={state === "content-only" ? undefined : t("components.preview.fieldDescription")} title={state === "content-only" ? undefined : t("components.preview.appearance")}><MobileCard>{t("components.preview.cardDescription")}</MobileCard></MobileSection>;
+    }
+
+    if (component.name === "MobileSegmentedControl") {
+      return <MobileSegmentedControl aria-label={t("components.preview.segmentedLabel")} onChange={() => undefined} options={[{ label: t("components.preview.segmentedChat"), value: "chat" }, { disabled: state === "disabled", label: t("components.preview.segmentedAgent"), value: "agent" }]} value={state === "selected" ? "agent" : "chat"} />;
+    }
+
+    if (component.name === "MobileStatus") {
+      return <MobileStatus action={state === "danger" ? <MobileButton size="sm">{t("components.preview.modalSave")}</MobileButton> : undefined} description={t("components.preview.fieldDescription")} loading={state === "loading"} title={t("components.preview.cardTitle")} tone={state === "danger" ? "danger" : state === "info" ? "info" : "neutral"} />;
+    }
+
+    if (component.name === "MobileTextarea") {
+      return <MobileTextarea aria-label={t("components.preview.composerPlaceholder")} disabled={state === "disabled"} invalid={state === "invalid"} placeholder={t("components.preview.composerPlaceholder")} />;
     }
 
     if (component.name === "Textarea") {
@@ -855,7 +1028,7 @@ export function ComponentDetailPage({
     if (component.name === "Avatar") {
       return state === "grouped"
         ? <AvatarGroup><Avatar>BF</Avatar><Avatar>UI</Avatar><Avatar>DS</Avatar></AvatarGroup>
-        : <Avatar alt="BitFun" key={state} src={state === "image" ? previewImage : undefined}>BF</Avatar>;
+        : <Avatar alt="OpenBitFun" key={state} src={state === "image" ? previewImage : undefined}>BF</Avatar>;
     }
     if (component.name === "Checkbox" || component.name === "Radio") {
       const Control = component.name === "Checkbox" ? Checkbox : Radio;
@@ -886,7 +1059,7 @@ export function ComponentDetailPage({
     if (component.name === "Disclosure") {
       return (
         <Disclosure
-          data-bf-preview-state={state === "hover" || state === "focus-visible" ? state : undefined}
+          data-openbitfun-preview-state={state === "hover" || state === "focus-visible" ? state : undefined}
           defaultOpen={state === "open"}
           disabled={state === "disabled"}
           key={state}
@@ -908,7 +1081,7 @@ export function ComponentDetailPage({
             },
           ]}
           className={state === "focus-visible" ? "lab-force-focus" : undefined}
-          data-bf-preview-state={state === "hover" || state === "active" ? state : undefined}
+          data-openbitfun-preview-state={state === "hover" || state === "active" ? state : undefined}
           description={t("components.preview.actionCardDescription")}
           disabled={state === "disabled"}
           leading={<Icon name="session" size="lg" aria-hidden="true" />}
@@ -918,6 +1091,24 @@ export function ComponentDetailPage({
         >
           {t("components.preview.actionCardTitle")}
         </ActionCard>
+      );
+    }
+
+    if (component.name === "LauncherButton") {
+      return (
+        <LauncherButton
+          className={state === "focus-visible" ? "lab-force-focus" : undefined}
+          data-openbitfun-preview-state={
+            state === "hover" || state === "active" || state === "focus-visible"
+              ? state
+              : undefined
+          }
+          disabled={state === "disabled"}
+          leadingIcon={<Icon name="mic" aria-hidden="true" />}
+          tabIndex={-1}
+        >
+          Hello
+        </LauncherButton>
       );
     }
 
@@ -996,7 +1187,7 @@ export function ComponentDetailPage({
       return (
         <Select
           aria-label="Mode"
-          data-bf-preview-state={state === "hover" || state === "focus-visible" ? state : undefined}
+          data-openbitfun-preview-state={state === "hover" || state === "focus-visible" ? state : undefined}
           disabled={state === "disabled"}
           invalid={state === "invalid"}
           leading={<Icon name="unselected" />}
@@ -1026,7 +1217,7 @@ export function ComponentDetailPage({
               label: t("components.preview.more"),
             },
           ]}
-          data-bf-preview-state={state === "hover" || state === "active" ? state : undefined}
+          data-openbitfun-preview-state={state === "hover" || state === "active" ? state : undefined}
           disabled={state === "disabled"}
           leading={<Icon name="session" size="lg" aria-hidden="true" />}
           metadata={actionItemShowMetadata ? "12" : undefined}
@@ -1062,7 +1253,7 @@ export function ComponentDetailPage({
           className={state === "focus-visible"
             ? "component-activity-item-example lab-force-focus"
             : "component-activity-item-example"}
-          data-bf-preview-state={state === "hover" || state === "active" ? state : undefined}
+          data-openbitfun-preview-state={state === "hover" || state === "active" ? state : undefined}
           detail={surface && activityShowDetail
             ? <code>{t("components.preview.activityDetail")}</code>
             : undefined}
@@ -1094,7 +1285,7 @@ export function ComponentDetailPage({
       return (
         <Button
           className={state === "focus-visible" ? "lab-force-focus" : undefined}
-          data-bf-preview-state={state === "hover" || state === "active" ? state : undefined}
+          data-openbitfun-preview-state={state === "hover" || state === "active" ? state : undefined}
           disabled={state === "disabled" || applyInspectorControls && inspectorDisabled}
           leadingIcon={leadingIcon}
           loading={state === "loading" || applyInspectorControls && inspectorLoading}
@@ -1467,6 +1658,82 @@ export function ComponentDetailPage({
 
     if (component.name === "Dialog") return renderDialogExample();
     if (component.name === "Sheet") return renderSheetExample();
+    if (component.name === "MobileActionSheet") {
+      return (
+        <>
+          <Button onClick={() => setOverlayOpen(true)} variant="fill">{t("components.preview.modalInteractionDemo")}</Button>
+          <MobileActionSheet
+            actions={[
+              { id: "rename", label: t("components.preview.modalSave") },
+              { id: "delete", label: t("components.preview.confirmDelete"), tone: "danger" },
+            ]}
+            cancelLabel={t("components.preview.modalCancel")}
+            onAction={() => setOverlayOpen(false)}
+            onOpenChange={() => setOverlayOpen(false)}
+            open={overlayOpen}
+            title={t("components.preview.session")}
+          />
+        </>
+      );
+    }
+
+    if (component.name === "MobileConfirmSheet") {
+      return (
+        <>
+          <Button onClick={() => setOverlayOpen(true)} variant="fill">{t("components.preview.modalInteractionDemo")}</Button>
+          <MobileConfirmSheet
+            cancelLabel={t("components.preview.modalCancel")}
+            confirmLabel={t("components.preview.confirmDelete")}
+            confirmTone="danger"
+            onConfirm={() => setOverlayOpen(false)}
+            onOpenChange={() => setOverlayOpen(false)}
+            open={overlayOpen}
+            pending={state === "pending"}
+            title={t("components.preview.confirmTitle")}
+          />
+        </>
+      );
+    }
+
+    if (component.name === "MobileSheet") {
+      return (
+        <>
+          <Button onClick={() => setOverlayOpen(true)} variant="fill">{t("components.preview.modalInteractionDemo")}</Button>
+          <MobileSheet
+            footer={<Button onClick={() => setOverlayOpen(false)} variant="fill">{t("components.preview.modalCancel")}</Button>}
+            onOpenChange={() => setOverlayOpen(false)}
+            open={overlayOpen}
+            title={t("components.preview.modalTitle")}
+          >
+            {renderDialogConfigurationContent()}
+          </MobileSheet>
+        </>
+      );
+    }
+
+    if (component.name === "MobileChoiceSheet") {
+      return (
+        <>
+          <Button onClick={() => setOverlayOpen(true)} variant="fill">{t("components.preview.modalInteractionDemo")}</Button>
+          <MobileChoiceSheet
+            cancelLabel={t("components.preview.modalCancel")}
+            onOpenChange={() => setOverlayOpen(false)}
+            onSelect={(value) => {
+              setMobileChoiceValue(value);
+              setOverlayOpen(false);
+            }}
+            open={overlayOpen}
+            options={[
+              { label: t("components.preview.modeMinimal"), value: "minimal" },
+              { disabled: state === "disabled", label: t("components.preview.modeStandard"), value: "standard" },
+              { label: t("components.preview.modeUltimate"), value: "ultimate" },
+            ]}
+            selectedValue={mobileChoiceValue}
+            title={t("components.preview.selectExecutionMode")}
+          />
+        </>
+      );
+    }
 
     if (component.name === "PageHeader") {
       return (
@@ -1592,7 +1859,7 @@ export function ComponentDetailPage({
       return (
         <SegmentedControl
           aria-label={t("components.preview.segmentedLabel")}
-          data-bf-preview-state={state === "hover" ? "hover" : undefined}
+          data-openbitfun-preview-state={state === "hover" ? "hover" : undefined}
           defaultValue={defaultMode}
           disabled={state === "disabled"}
           key={state}
@@ -1616,7 +1883,7 @@ export function ComponentDetailPage({
       return (
         <TabGroup
           aria-label={t("components.preview.tabGroupLabel")}
-          data-bf-preview-state={state === "hover" ? "hover" : undefined}
+          data-openbitfun-preview-state={state === "hover" ? "hover" : undefined}
           defaultValue={defaultTab}
           items={[
             {
@@ -1632,6 +1899,7 @@ export function ComponentDetailPage({
             },
           ]}
           key={state}
+          size={tabGroupSize}
         />
       );
     }
@@ -1669,6 +1937,7 @@ export function ComponentDetailPage({
               aria-label={t("components.preview.tabGroupLabel")}
               defaultValue="tab-1"
               items={tabItems}
+              size="sm"
             />
           )}
           leadingOverflow={state === "overflow" ? "scroll" : "visible"}
@@ -1904,6 +2173,33 @@ export function ComponentDetailPage({
                         </div>
                       ))}
                     </Fragment>
+                  ))}
+                </div>
+              ) : component.category === "mobile" ? (
+                <div
+                  className="component-preview-matrix"
+                  data-component={component.name.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase()}
+                  data-state-count={states.length}
+                >
+                  <span className="component-preview-matrix__corner" />
+                  {states.map((state, index) => (
+                    <span
+                      className="component-preview-matrix__column-label"
+                      data-last={index === states.length - 1 || undefined}
+                      key={state}
+                    >
+                      {stateLabel(state)}
+                    </span>
+                  ))}
+                  <span className="component-preview-matrix__row-label">{component.name}</span>
+                  {states.map((state) => (
+                    <div
+                      className="component-preview-matrix__cell"
+                      data-active={state === previewState || undefined}
+                      key={state}
+                    >
+                      {renderPreview(state)}
+                    </div>
                   ))}
                 </div>
               ) : component.name === "ActionCard" || component.name === "ActionItem" || component.name === "Combobox" || component.name === "Field" || component.name === "FieldGroup" || component.name === "Input" || component.name === "KeyHint" || component.name === "Listbox" || component.name === "Menu" || component.name === "NavigationPanel" || component.name === "PageHeader" || component.name === "ScrollArea" || component.name === "SearchField" || component.name === "SegmentedControl" || component.name === "Select" || component.name === "StatusPill" || component.name === "Tooltip" ? (
@@ -2226,6 +2522,14 @@ export function ComponentDetailPage({
                       onChange={(value) => setToolbarSize(value as ToolbarSize)}
                       options={["sm", "md"]}
                       value={toolbarSize}
+                    />
+                  )}
+                  {component.name === "TabGroup" && (
+                    <InspectorSelect
+                      label={t("detail.size")}
+                      onChange={(value) => setTabGroupSize(value as TabGroupSize)}
+                      options={["sm", "md"]}
+                      value={tabGroupSize}
                     />
                   )}
                   {component.name === "Composer" && (

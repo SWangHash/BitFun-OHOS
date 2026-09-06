@@ -503,7 +503,7 @@ export const Select: React.FC<SelectProps> = ({
     if (multiple) {
       const selected = selectedOptions as SelectOption[];
       if (selected.length === 0) {
-        return <span className="select__placeholder" data-bf-component="select" data-bf-part="value">{resolvedPlaceholder}</span>;
+        return <span className="select__placeholder" data-openbitfun-component="select" data-openbitfun-part="value">{resolvedPlaceholder}</span>;
       }
       
       const displayTags = selected.slice(0, maxTagCount);
@@ -538,15 +538,15 @@ export const Select: React.FC<SelectProps> = ({
       if (!selected) {
         if (allowCustomValue && selectedValue && selectedValue !== '') {
           return (
-            <span className="select__value" data-bf-component="select" data-bf-part="value">
+            <span className="select__value" data-openbitfun-component="select" data-openbitfun-part="value">
               <span className="select__value-label select__value-label--custom">{String(selectedValue)}</span>
             </span>
           );
         }
-        return <span className="select__placeholder" data-bf-component="select" data-bf-part="value">{resolvedPlaceholder}</span>;
+        return <span className="select__placeholder" data-openbitfun-component="select" data-openbitfun-part="value">{resolvedPlaceholder}</span>;
       }
       return (
-        <span className="select__value" data-bf-component="select" data-bf-part="value">
+        <span className="select__value" data-openbitfun-component="select" data-openbitfun-part="value">
           {selected.icon && <span className="select__value-icon">{selected.icon}</span>}
           <span className="select__value-label">{selected.label}</span>
         </span>
@@ -578,9 +578,9 @@ export const Select: React.FC<SelectProps> = ({
         data-selected={selected ? 'true' : 'false'}
         data-testid={option.testId}
         {...option.testAttributes}
-        data-bf-component="select"
-        data-bf-part="option"
-        data-bf-state={[selected && 'selected', highlighted && 'highlighted', option.disabled && 'disabled'].filter(Boolean).join(' ') || undefined}
+        data-openbitfun-component="select"
+        data-openbitfun-part="option"
+        data-openbitfun-state={[selected && 'selected', highlighted && 'highlighted', option.disabled && 'disabled'].filter(Boolean).join(' ') || undefined}
       >
         {multiple && (
           <span className={`select__checkbox ${selected ? 'select__checkbox--checked' : ''}`}>
@@ -590,11 +590,11 @@ export const Select: React.FC<SelectProps> = ({
         
         {renderOption ? renderOption(option) : (
           <div className="select__option-content">
-            {option.icon && <span className="select__option-icon" data-bf-component="select" data-bf-part="optionIcon">{option.icon}</span>}
+            {option.icon && <span className="select__option-icon" data-openbitfun-component="select" data-openbitfun-part="optionIcon">{option.icon}</span>}
             <div className="select__option-text">
-              <div className="select__option-label" data-bf-component="select" data-bf-part="optionLabel">{option.label}</div>
+              <div className="select__option-label" data-openbitfun-component="select" data-openbitfun-part="optionLabel">{option.label}</div>
               {option.description && (
-                <div className="select__option-description" data-bf-component="select" data-bf-part="optionDescription">{option.description}</div>
+                <div className="select__option-description" data-openbitfun-component="select" data-openbitfun-part="optionDescription">{option.description}</div>
               )}
             </div>
           </div>
@@ -630,14 +630,14 @@ export const Select: React.FC<SelectProps> = ({
       aria-multiselectable={multiple || undefined}
       aria-busy={renderedLoading || undefined}
       data-testid={dropdownTestId}
-      data-bf-component="select"
-      data-bf-part="dropdown"
-      data-bf-placement={renderedPlacement}
+      data-openbitfun-component="select"
+      data-openbitfun-part="dropdown"
+      data-openbitfun-placement={renderedPlacement}
       data-open={isOpen ? 'true' : 'false'}
       data-keyboard-open={keyboardOpen ? 'true' : 'false'}
     >
       {searchable && (
-        <div className="select__search" data-bf-component="select" data-bf-part="search">
+        <div className="select__search" data-openbitfun-component="select" data-openbitfun-part="search">
           <input
             ref={searchInputRef}
             type="text"
@@ -683,8 +683,8 @@ export const Select: React.FC<SelectProps> = ({
                 ));
               }
             }}
-            data-bf-component="select"
-            data-bf-part="searchInput"
+            data-openbitfun-component="select"
+            data-openbitfun-part="searchInput"
           />
           {renderedSearchQuery && (
             <button
@@ -729,10 +729,10 @@ export const Select: React.FC<SelectProps> = ({
         </div>
       )}
 
-      <div className="select__options" data-bf-component="select" data-bf-part="options">
+      <div className="select__options" data-openbitfun-component="select" data-openbitfun-part="options">
         {renderedFilteredOptions.length === 0 ? (
           renderedLoading ? (
-            <div className="select__empty select__empty--loading" data-bf-component="select" data-bf-part="empty">
+            <div className="select__empty select__empty--loading" data-openbitfun-component="select" data-openbitfun-part="empty">
               <span className="select__loading-spinner" aria-hidden="true" />
               <span>{t('select.loading')}</span>
             </div>
@@ -748,7 +748,7 @@ export const Select: React.FC<SelectProps> = ({
               <span className="select__custom-value-action">{resolvedCustomValueHint}</span>
             </div>
           ) : (
-            <div className="select__empty" data-bf-component="select" data-bf-part="empty">{resolvedEmptyText}</div>
+            <div className="select__empty" data-openbitfun-component="select" data-openbitfun-part="empty">{resolvedEmptyText}</div>
           )
         ) : renderedGroupedOptions.hasGroups ? (
           (() => {
@@ -762,10 +762,10 @@ export const Select: React.FC<SelectProps> = ({
                     className="select__group"
                     role="group"
                     aria-label={groupName}
-                    data-bf-component="select"
-                    data-bf-part="group"
+                    data-openbitfun-component="select"
+                    data-openbitfun-part="group"
                   >
-                    <div className="select__group-label" data-bf-component="select" data-bf-part="groupLabel">{groupName}</div>
+                    <div className="select__group-label" data-openbitfun-component="select" data-openbitfun-part="groupLabel">{groupName}</div>
                     {groupOptions.map((option) => renderOptionItem(option, globalIndex++))}
                   </div>
                 ))}
@@ -798,8 +798,8 @@ export const Select: React.FC<SelectProps> = ({
   );
 
   return (
-    <div {...rootProps} className={classNames} ref={selectRef} data-bf-component="select" data-bf-part="root" data-bf-size={size} data-bf-placement={resolvedPlacement} data-bf-multiple={String(multiple)} data-bf-state={[isOpen && 'open', disabled && 'disabled', error && 'error', loading && 'loading'].filter(Boolean).join(' ') || undefined}>
-      {label && <div id={labelId} className="select__label" data-bf-component="select" data-bf-part="label">{label}</div>}
+    <div {...rootProps} className={classNames} ref={selectRef} data-openbitfun-component="select" data-openbitfun-part="root" data-openbitfun-size={size} data-openbitfun-placement={resolvedPlacement} data-openbitfun-multiple={String(multiple)} data-openbitfun-state={[isOpen && 'open', disabled && 'disabled', error && 'error', loading && 'loading'].filter(Boolean).join(' ') || undefined}>
+      {label && <div id={labelId} className="select__label" data-openbitfun-component="select" data-openbitfun-part="label">{label}</div>}
 
       <div
         ref={triggerRef}
@@ -825,21 +825,21 @@ export const Select: React.FC<SelectProps> = ({
         aria-labelledby={triggerAriaLabelledBy ?? (label ? labelId : undefined)}
         aria-describedby={error && errorMessage ? errorId : triggerAriaDescribedBy}
         data-testid={triggerTestId}
-        data-bf-component="select"
-        data-bf-part="trigger"
+        data-openbitfun-component="select"
+        data-openbitfun-part="trigger"
       >
         {renderSelectedValue()}
 
-        <div className="select__suffix" data-bf-component="select" data-bf-part="suffix">
+        <div className="select__suffix" data-openbitfun-component="select" data-openbitfun-part="suffix">
           {loading && (
-            <span className="select__loading" data-bf-component="select" data-bf-part="loading">
+            <span className="select__loading" data-openbitfun-component="select" data-openbitfun-part="loading">
               <span className="select__loading-spinner" />
             </span>
           )}
           {clearable && !loading && (multiple ? (selectedValue as any[]).length > 0 : selectedValue) && (
-            <span className="select__clear" onClick={handleClear} data-bf-component="select" data-bf-part="clear">×</span>
+            <span className="select__clear" onClick={handleClear} data-openbitfun-component="select" data-openbitfun-part="clear">×</span>
           )}
-          <span className={`select__arrow ${isOpen ? 'select__arrow--open' : ''}`} data-bf-component="select" data-bf-part="arrow">
+          <span className={`select__arrow ${isOpen ? 'select__arrow--open' : ''}`} data-openbitfun-component="select" data-openbitfun-part="arrow">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -858,7 +858,7 @@ export const Select: React.FC<SelectProps> = ({
       </PresenceBoundary>
 
       {error && errorMessage && (
-        <div className="select__error-message" data-bf-component="select" data-bf-part="message">{errorMessage}</div>
+        <div className="select__error-message" data-openbitfun-component="select" data-openbitfun-part="message">{errorMessage}</div>
       )}
     </div>
   );

@@ -1,7 +1,7 @@
 # 终端能力（Terminal Capability）需求文档
 
 > 状态：能力规格 / 需求
-> 仓库：BitFun-OHOS
+> 仓库：OpenBitFun-OHOS
 > 相关架构入口：
 > - [`src/crates/services/terminal/AGENTS.md`](../../src/crates/services/terminal/AGENTS.md)
 > - [`docs/architecture/agent-runtime-services-design.md`](../architecture/agent-runtime-services-design.md)
@@ -9,13 +9,13 @@
 
 ## 背景与需求描述
 
-BitFun Agent 要"进入真实环境"完成任务，必须能在用户工作区里驱动 shell：执行命令、读输出、发信号、取消进程。终端能力是 Agent 桌面执行层的基础设施之一，与文件系统、Git、浏览器操作并列。
+OpenBitFun Agent 要"进入真实环境"完成任务，必须能在用户工作区里驱动 shell：执行命令、读输出、发信号、取消进程。终端能力是 Agent 桌面执行层的基础设施之一，与文件系统、Git、浏览器操作并列。
 
 本需求定义**终端能力**（区别于"内置终端面板 UI"——见 `builtin-terminal-panel.md`）：即可被 Agent 工具与产品宿主复用的 PTY / 会话 / shell 集成服务，以及 Agent 直接调用的执行类工具。
 
 当前缺口与诉求：
 
-- 终端能力应以**独立、平台无关的服务 crate** 形式存在，不耦合 `bitfun-core` / Tauri / 产品域 / AI / Git / MCP / transport；
+- 终端能力应以**独立、平台无关的服务 crate** 形式存在，不耦合 `openbitfun-core` / Tauri / 产品域 / AI / Git / MCP / transport；
 - Agent 执行命令需稳定契约：创建会话、写 stdin、读输出、resize、信号、取消、关闭，跨 Windows / macOS / Linux 行为一致；
 - 远程工作区场景下，终端会话应在受控端执行，控制端只发起与展示，不静默失败；
 - 进程生命周期须受控回收（受管子进程清理），不残留孤儿进程；
@@ -77,7 +77,7 @@ BitFun Agent 要"进入真实环境"完成任务，必须能在用户工作区�
 ### 分层与依赖边界要点
 
 - 终端能力平台无关：PTY / 会话 / shell / 转写决策在 `terminal-core`，平台无关；具体宿主命令与 UI 在上层；
-- `terminal-core` 不依赖 `bitfun-core` / app / Tauri；
+- `terminal-core` 不依赖 `openbitfun-core` / app / Tauri；
 - 进程清理是生命周期收容，不是 OS 沙箱或资源限额，须在表面保持显式残余风险；
 - 远程策略显式声明，不引入对远程工作区路径的隐式依赖。
 

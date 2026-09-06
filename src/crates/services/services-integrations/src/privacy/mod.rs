@@ -1,4 +1,4 @@
-use bitfun_product_domains::privacy::{
+use openbitfun_product_domains::privacy::{
     AcceptPrivacyRequest, PrivacyChangeType, PrivacyConsentRecord, PrivacyEffectiveMode,
     PrivacyError, PrivacyLifecycleState, PrivacyPolicyView, PrivacyStatus,
 };
@@ -381,14 +381,14 @@ mod tests {
         normalize_locale, PrivacyCollectionPolicy, PrivacyService, PrivacyStateFile,
         StoredPrivacyMode, CONSENT_VERSION, POLICY_UPDATED_AT, ZH_CN_SHA256,
     };
-    use bitfun_product_domains::privacy::{
+    use openbitfun_product_domains::privacy::{
         AcceptPrivacyRequest, PrivacyChangeType, PrivacyConsentRecord, PrivacyEffectiveMode,
         PrivacyLifecycleState,
     };
 
     fn temporary_directory(name: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!(
-            "bitfun-privacy-{name}-{}-{}",
+            "openbitfun-privacy-{name}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -507,7 +507,7 @@ mod tests {
         assert_eq!(policy.change_type, PrivacyChangeType::Editorial);
         assert_eq!(policy.locale, "zh-CN");
         assert_eq!(policy.document_sha256, ZH_CN_SHA256);
-        assert!(policy.content.starts_with("# 关于HUAWEI BitFun的隐私协议"));
+        assert!(policy.content.starts_with("# 关于HUAWEI OpenBitFun的隐私协议"));
         let _ = tokio::fs::remove_dir_all(directory).await;
     }
 

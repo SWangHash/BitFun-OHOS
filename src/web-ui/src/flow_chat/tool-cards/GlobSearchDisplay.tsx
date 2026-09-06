@@ -5,7 +5,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolCardProps } from '../types/flow-chat';
-import { GlobSearchToolCard } from '@bitfun/ui/flow-chat';
+import { GlobSearchToolCard } from '@openbitfun/ui/flow-chat';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 export const GlobSearchDisplay: React.FC<ToolCardProps> = ({
   toolItem,
@@ -95,15 +95,28 @@ export const GlobSearchDisplay: React.FC<ToolCardProps> = ({
     }
   }, [applyExpandedState, hasDetails, isExpanded, onExpand]);
 
-  const renderContent = () => {
+  const renderAction = () => {
     if (status === 'completed') {
-      return `${t('toolCards.globSearch.searchFile')}: ${pattern}${hasResultData ? ` (${t('toolCards.globSearch.filesCount', { count: stats.files })})` : ''}`;
+      return `${t('toolCards.globSearch.searchFile')}:`;
     }
     if (status === 'running' || status === 'streaming') {
-      return `${t('toolCards.globSearch.searchingFile')} ${pattern}...`;
+      return t('toolCards.globSearch.searchingFile');
     }
     if (status === 'pending') {
-      return `${t('toolCards.globSearch.preparingSearch')} ${pattern}`;
+      return t('toolCards.globSearch.preparingSearch');
+    }
+    return undefined;
+  };
+
+  const renderContent = () => {
+    if (status === 'completed') {
+      return `${pattern}${hasResultData ? ` (${t('toolCards.globSearch.filesCount', { count: stats.files })})` : ''}`;
+    }
+    if (status === 'running' || status === 'streaming') {
+      return `${pattern}...`;
+    }
+    if (status === 'pending') {
+      return pattern;
     }
     return pattern;
   };
@@ -113,15 +126,16 @@ export const GlobSearchDisplay: React.FC<ToolCardProps> = ({
   }
 
   return (
-    <div ref={cardRootRef} data-bf-adapter="glob-search" data-tool-card-id={toolId ?? ''}>
+    <div ref={cardRootRef} data-openbitfun-adapter="glob-search" data-tool-card-id={toolId ?? ''}>
       <GlobSearchToolCard
+        action={renderAction()}
         status={status}
         isExpanded={isExpanded}
         onToggle={hasDetails ? handleClick : undefined}
         summary={renderContent()}
         details={hasDetails ? [
-          { label: `${t('toolCards.globSearch.labelPattern')}:`, value: pattern, monospace: true },
-          { label: `${t('toolCards.globSearch.labelPath')}:`, value: searchPath, monospace: true },
+          { label: `${t('toolCards.globSearch.labelPattern')}:`, value: pattern },
+          { label: `${t('toolCards.globSearch.labelPath')}:`, value: searchPath },
           {
             label: `${t('toolCards.globSearch.labelStats')}:`,
             value: stats.directories > 0

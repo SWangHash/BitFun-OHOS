@@ -16,24 +16,24 @@ use tokio::task::JoinSet;
 use tokio::time::{timeout, Duration};
 
 use crate::api::app_state::AppState;
-use bitfun_core::agentic::tools::implementations::skills::mode_overrides::{
+use openbitfun_core::agentic::tools::implementations::skills::mode_overrides::{
     clear_user_mode_skill_overrides, load_globally_disabled_user_skills,
     load_project_mode_skills_document_local, project_mode_skills_path_for_remote,
     save_project_mode_skills_document_local, set_disabled_mode_skills_in_document,
     set_global_user_skill_disabled, set_mode_skill_disabled_in_document, set_user_mode_skill_state,
 };
-use bitfun_core::agentic::tools::implementations::skills::{
+use openbitfun_core::agentic::tools::implementations::skills::{
     resolver::resolve_skill_default_enabled_for_mode, ModeSkillInfo, SkillData, SkillInfo,
     SkillLocation, SkillRegistry,
 };
-use bitfun_core::agentic::workspace::RemoteWorkspaceFs;
-use bitfun_core::infrastructure::get_path_manager_arc;
-use bitfun_core::service::config::agent_profile_project_store::{
+use openbitfun_core::agentic::workspace::RemoteWorkspaceFs;
+use openbitfun_core::infrastructure::get_path_manager_arc;
+use openbitfun_core::service::config::agent_profile_project_store::{
     deserialize_project_agent_profiles_document, serialize_project_agent_profiles_document,
 };
-use bitfun_core::service::config::types::ProxyConfig;
-use bitfun_core::service::remote_ssh::workspace_state::is_remote_path;
-use bitfun_core::service::remote_ssh::{get_remote_workspace_manager, RemoteWorkspaceEntry};
+use openbitfun_core::service::config::types::ProxyConfig;
+use openbitfun_core::service::remote_ssh::workspace_state::is_remote_path;
+use openbitfun_core::service::remote_ssh::{get_remote_workspace_manager, RemoteWorkspaceEntry};
 
 const SKILLS_SEARCH_API_BASE: &str = "https://skills.sh";
 const DEFAULT_MARKET_QUERY: &str = "skill";
@@ -62,7 +62,7 @@ async fn await_remote_skill_discovery<T>(
 }
 
 /// Build a per-call HTTP client for the skill market listing/description
-/// paths. Uses BitFun's configured `ProxyConfig` when enabled (read live so
+/// paths. Uses OpenBitFun's configured `ProxyConfig` when enabled (read live so
 /// changing the AI proxy takes effect without restart), falling back to the
 /// standard HTTPS_PROXY/HTTP_PROXY/ALL_PROXY env vars (reqwest default), then
 /// direct. No aggressive connect/overall timeout is set here: skills.sh is an
@@ -72,7 +72,7 @@ async fn await_remote_skill_discovery<T>(
 /// in fetch_description_from_skill_page.
 fn build_market_client(proxy: Option<&ProxyConfig>) -> Result<Client, String> {
     let mut builder = Client::builder()
-        .user_agent(concat!("BitFun/", env!("CARGO_PKG_VERSION")));
+        .user_agent(concat!("OpenBitFun/", env!("CARGO_PKG_VERSION")));
     if let Some(proxy_url) = resolve_proxy_url(proxy) {
         match reqwest::Proxy::all(&proxy_url) {
             Ok(p) => builder = builder.proxy(p),
@@ -84,7 +84,7 @@ fn build_market_client(proxy: Option<&ProxyConfig>) -> Result<Client, String> {
         .map_err(|e| format!("Failed to build HTTP client: {}", e))
 }
 
-/// Resolve the proxy URL: BitFun's `ProxyConfig` if enabled, else startup env.
+/// Resolve the proxy URL: OpenBitFun's `ProxyConfig` if enabled, else startup env.
 fn resolve_proxy_url(proxy: Option<&ProxyConfig>) -> Option<String> {
     if let Some(p) = proxy {
         if p.enabled {
@@ -127,18 +127,18 @@ fn can_delete_owned_skill(source_id: &str, source_slot: &str, is_builtin: bool) 
 
     let source_id = source_id.trim().to_ascii_lowercase();
     if !source_id.is_empty() {
-        return matches!(source_id.as_str(), "bitfun" | "bitfun-system");
+        return matches!(source_id.as_str(), "openbitfun" | "openbitfun-system");
     }
 
     let source_slot = source_slot.trim().to_ascii_lowercase();
-    source_slot.starts_with("bitfun")
+    source_slot.starts_with("openbitfun")
 }
 
 fn ensure_skill_can_be_deleted(skill: &SkillInfo) -> Result<(), String> {
     if can_delete_owned_skill(&skill.source_id, &skill.source_slot, skill.is_builtin) {
         Ok(())
     } else {
-        Err("Only BitFun-owned, non-built-in Skills can be deleted from BitFun".to_string())
+        Err("Only OpenBitFun-owned, non-built-in Skills can be deleted from OpenBitFun".to_string())
     }
 }
 
@@ -394,7 +394,7 @@ async fn persist_user_mode_skill_selection(
         }
     }
 
-    bitfun_core::service::config::mode_config_canonicalizer::persist_agent_profile_from_value(
+    openbitfun_core::service::config::mode_config_canonicalizer::persist_agent_profile_from_value(
         mode_id,
         serde_json::json!({
             "disabled_user_skills": normalize_skill_key_list(disabled_user_skills),
@@ -635,7 +635,7 @@ pub async fn set_global_skill_disabled(
         set_global_user_skill_disabled(skill_key, request.disabled)
             .await
             .map_err(|error| format!("Failed to update global Skill settings: {}", error))?;
-    if let Err(error) = bitfun_core::service::config::reload_global_config().await {
+    if let Err(error) = openbitfun_core::service::config::reload_global_config().await {
         log::warn!(
             "Failed to reload global configuration after Skill availability update: skill_key={}, error={}",
             skill_key,
@@ -712,7 +712,7 @@ pub async fn set_mode_skill_disabled(
         set_user_mode_skill_state(&mode_id, &skill_key, !disabled, default_enabled)
             .await
             .map_err(|e| format!("Failed to update user skill override: {}", e))?;
-        if let Err(e) = bitfun_core::service::config::reload_global_config().await {
+        if let Err(e) = openbitfun_core::service::config::reload_global_config().await {
             log::warn!(
                 "Failed to reload global config after user skill override change: mode_id={}, skill_key={}, error={}",
                 mode_id,
@@ -859,7 +859,7 @@ pub async fn replace_mode_skill_selection(
         .await?;
     }
 
-    if let Err(e) = bitfun_core::service::config::reload_global_config().await {
+    if let Err(e) = openbitfun_core::service::config::reload_global_config().await {
         log::warn!(
             "Failed to reload global config after batch skill update: mode_id={}, error={}",
             request.mode_id,
@@ -893,7 +893,7 @@ pub async fn reset_mode_skill_selection(
         clear_project_mode_skill_selection_local(&request.mode_id, &workspace_root).await?;
     }
 
-    if let Err(e) = bitfun_core::service::config::reload_global_config().await {
+    if let Err(e) = openbitfun_core::service::config::reload_global_config().await {
         log::warn!(
             "Failed to reload global config after resetting skill selection: mode_id={}, error={}",
             request.mode_id,
@@ -993,7 +993,7 @@ pub async fn add_skill(
                         .to_string(),
                 );
             }
-            workspace_root.join(".bitfun").join("skills")
+            workspace_root.join(".openbitfun").join("skills")
         } else {
             return Err("No workspace open, cannot add project-level Skill".to_string());
         }
@@ -1171,17 +1171,17 @@ mod tests {
     }
 
     #[test]
-    fn only_bitfun_owned_non_builtin_skills_are_deletable() {
-        assert!(can_delete_owned_skill("bitfun", "bitfun", false));
-        assert!(can_delete_owned_skill("", "bitfun", false));
+    fn only_openbitfun_owned_non_builtin_skills_are_deletable() {
+        assert!(can_delete_owned_skill("openbitfun", "openbitfun", false));
+        assert!(can_delete_owned_skill("", "openbitfun", false));
         assert!(can_delete_owned_skill(
-            "bitfun-system",
-            "bitfun-system",
+            "openbitfun-system",
+            "openbitfun-system",
             false
         ));
         assert!(!can_delete_owned_skill(
-            "bitfun-system",
-            "bitfun-system",
+            "openbitfun-system",
+            "openbitfun-system",
             true
         ));
         assert!(!can_delete_owned_skill("opencode", "home.opencode", false));
@@ -1332,14 +1332,14 @@ pub async fn download_skill_market(
     })
 }
 
-/// Read the BitFun AI proxy config (`global_config.ai.proxy`) for use by the
+/// Read the OpenBitFun AI proxy config (`global_config.ai.proxy`) for use by the
 /// native skill downloader. Mirrors `commands.rs::configured_ai_proxy` inline
 /// to keep the skill market download path self-contained; the duplication is a
 /// known follow-up cleanup (extract to a shared `api::proxy` module).
 async fn configured_proxy_for_skills(
     state: &State<'_, AppState>,
 ) -> Result<Option<ProxyConfig>, String> {
-    let global_config: bitfun_core::service::config::GlobalConfig = state
+    let global_config: openbitfun_core::service::config::GlobalConfig = state
         .config_service
         .get_config(None)
         .await

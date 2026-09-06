@@ -141,7 +141,7 @@ mod tests {
     #[tokio::test]
     async fn round_trips_encrypted_credentials() {
         let directory = std::env::temp_dir().join(format!(
-            "bitfun-feedback-vault-{}-{}",
+            "openbitfun-feedback-vault-{}-{}",
             std::process::id(),
             uuid::Uuid::new_v4()
         ));

@@ -11,8 +11,8 @@ export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextArea
   maxLength?: number;
   variant?: 'default' | 'filled' | 'outlined';
   className?: string;
-  'data-bf-component'?: string;
-  'data-bf-part'?: string;
+  'data-openbitfun-component'?: string;
+  'data-openbitfun-part'?: string;
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
@@ -30,8 +30,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       value,
       onChange,
       style,
-      'data-bf-component': rootAppearanceComponent = 'textarea',
-      'data-bf-part': rootAppearancePart = 'root',
+      'data-openbitfun-component': rootAppearanceComponent = 'textarea',
+      'data-openbitfun-part': rootAppearancePart = 'root',
       ...props
     },
     ref
@@ -68,30 +68,30 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     };
 
     const containerClass = [
-      'bitfun-textarea',
-      `bitfun-textarea--${variant}`,
-      error && 'bitfun-textarea--error',
-      props.disabled && 'bitfun-textarea--disabled',
+      'openbitfun-textarea',
+      `openbitfun-textarea--${variant}`,
+      error && 'openbitfun-textarea--error',
+      props.disabled && 'openbitfun-textarea--disabled',
       className
     ].filter(Boolean).join(' ');
     const rootAppearanceProps: Record<string, string> = {};
-    rootAppearanceProps['data-bf-component'] = rootAppearanceComponent;
-    rootAppearanceProps['data-bf-part'] = rootAppearancePart;
+    rootAppearanceProps['data-openbitfun-component'] = rootAppearanceComponent;
+    rootAppearanceProps['data-openbitfun-part'] = rootAppearancePart;
 
     return (
-      <div className={containerClass} data-bf-component="textarea" data-bf-part="root" data-bf-variant={variant} data-bf-state={[error && 'error', props.disabled && 'disabled', autoResize && 'autoResize'].filter(Boolean).join(' ') || undefined} {...rootAppearanceProps}>
+      <div className={containerClass} data-openbitfun-component="textarea" data-openbitfun-part="root" data-openbitfun-variant={variant} data-openbitfun-state={[error && 'error', props.disabled && 'disabled', autoResize && 'autoResize'].filter(Boolean).join(' ') || undefined} {...rootAppearanceProps}>
         {label && (
-          <label className="bitfun-textarea__label" data-bf-component="textarea" data-bf-part="label">
+          <label className="openbitfun-textarea__label" data-openbitfun-component="textarea" data-openbitfun-part="label">
             {label}
-            {props.required && <span className="bitfun-textarea__required" data-bf-component="textarea" data-bf-part="required">*</span>}
+            {props.required && <span className="openbitfun-textarea__required" data-openbitfun-component="textarea" data-openbitfun-part="required">*</span>}
           </label>
         )}
-        <div className="bitfun-textarea__wrapper" data-bf-component="textarea" data-bf-part="wrapper">
+        <div className="openbitfun-textarea__wrapper" data-openbitfun-component="textarea" data-openbitfun-part="wrapper">
           <textarea
             {...props}
             ref={textareaRef}
             id={textareaId}
-            className="bitfun-textarea__field"
+            className="openbitfun-textarea__field"
             value={value}
             onChange={handleChange}
             maxLength={maxLength}
@@ -100,22 +100,22 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
               ? supportId
               : props['aria-describedby']}
             style={style}
-            data-bf-component="textarea"
-            data-bf-part="field"
+            data-openbitfun-component="textarea"
+            data-openbitfun-part="field"
           />
         </div>
         {(hint || errorMessage || showCount) && (
-          <div className="bitfun-textarea__footer" data-bf-component="textarea" data-bf-part="footer">
-            <div className="bitfun-textarea__hint-wrapper">
+          <div className="openbitfun-textarea__footer" data-openbitfun-component="textarea" data-openbitfun-part="footer">
+            <div className="openbitfun-textarea__hint-wrapper">
               {error && errorMessage && (
-                <span className="bitfun-textarea__error-message" data-bf-component="textarea" data-bf-part="message">{errorMessage}</span>
+                <span className="openbitfun-textarea__error-message" data-openbitfun-component="textarea" data-openbitfun-part="message">{errorMessage}</span>
               )}
               {!error && hint && (
-                <span className="bitfun-textarea__hint" data-bf-component="textarea" data-bf-part="message">{hint}</span>
+                <span className="openbitfun-textarea__hint" data-openbitfun-component="textarea" data-openbitfun-part="message">{hint}</span>
               )}
             </div>
             {showCount && (
-              <span className="bitfun-textarea__count" data-bf-component="textarea" data-bf-part="count">
+              <span className="openbitfun-textarea__count" data-openbitfun-component="textarea" data-openbitfun-part="count">
                 {charCount}{maxLength && ` / ${maxLength}`}
               </span>
             )}

@@ -31,41 +31,41 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
     const isDisabled = disabled || loading;
 
     const containerClass = [
-      'bitfun-switch',
-      `bitfun-switch--${size}`,
-      isDisabled && 'bitfun-switch--disabled',
-      loading && 'bitfun-switch--loading',
+      'openbitfun-switch',
+      `openbitfun-switch--${size}`,
+      isDisabled && 'openbitfun-switch--disabled',
+      loading && 'openbitfun-switch--loading',
       className
     ].filter(Boolean).join(' ');
 
     const switchClass = [
-      'bitfun-switch__track',
-      checked && 'bitfun-switch__track--checked'
+      'openbitfun-switch__track',
+      checked && 'openbitfun-switch__track--checked'
     ].filter(Boolean).join(' ');
 
     return (
-      <label className={containerClass} data-bf-component="switch" data-bf-part="root" data-bf-size={size} data-bf-state={[checked && 'checked', isDisabled && 'disabled', loading && 'loading'].filter(Boolean).join(' ') || undefined}>
-        <div className="bitfun-switch__wrapper" data-bf-component="switch" data-bf-part="wrapper">
+      <label className={containerClass} data-openbitfun-component="switch" data-openbitfun-part="root" data-openbitfun-size={size} data-openbitfun-state={[checked && 'checked', isDisabled && 'disabled', loading && 'loading'].filter(Boolean).join(' ') || undefined}>
+        <div className="openbitfun-switch__wrapper" data-openbitfun-component="switch" data-openbitfun-part="wrapper">
           <input
             {...props}
             ref={ref}
             type="checkbox"
-            className="bitfun-switch__input"
+            className="openbitfun-switch__input"
             disabled={isDisabled}
             checked={checked}
             {...props}
-            data-bf-component="switch"
-            data-bf-part="input"
+            data-openbitfun-component="switch"
+            data-openbitfun-part="input"
           />
-          <span className={switchClass} data-bf-component="switch" data-bf-part="track" data-bf-state={checked ? 'checked' : undefined}>
+          <span className={switchClass} data-openbitfun-component="switch" data-openbitfun-part="track" data-openbitfun-state={checked ? 'checked' : undefined}>
             {(checkedText || uncheckedText) && (
-              <span className="bitfun-switch__text" data-bf-component="switch" data-bf-part="text">
+              <span className="openbitfun-switch__text" data-openbitfun-component="switch" data-openbitfun-part="text">
                 {checked ? checkedText : uncheckedText}
               </span>
             )}
-            <span className="bitfun-switch__thumb" data-bf-component="switch" data-bf-part="thumb">
+            <span className="openbitfun-switch__thumb" data-openbitfun-component="switch" data-openbitfun-part="thumb">
               {loading && (
-                <svg className="bitfun-switch__loading" data-bf-component="switch" data-bf-part="loading" viewBox="0 0 16 16">
+                <svg className="openbitfun-switch__loading" data-openbitfun-component="switch" data-openbitfun-part="loading" viewBox="0 0 16 16">
                   <circle
                     cx="8"
                     cy="8"
@@ -83,9 +83,9 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
           </span>
         </div>
         {(label || description || children) && (
-          <div className="bitfun-switch__content" data-bf-component="switch" data-bf-part="content">
-            {label && <span className="bitfun-switch__label" data-bf-component="switch" data-bf-part="label">{label}</span>}
-            {description && <span className="bitfun-switch__description" data-bf-component="switch" data-bf-part="description">{description}</span>}
+          <div className="openbitfun-switch__content" data-openbitfun-component="switch" data-openbitfun-part="content">
+            {label && <span className="openbitfun-switch__label" data-openbitfun-component="switch" data-openbitfun-part="label">{label}</span>}
+            {description && <span className="openbitfun-switch__description" data-openbitfun-component="switch" data-openbitfun-part="description">{description}</span>}
             {children}
           </div>
         )}

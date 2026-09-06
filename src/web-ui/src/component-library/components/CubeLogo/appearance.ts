@@ -6,5 +6,5 @@ export const cubeLogoAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'root' }, { id: 'particles' }, { id: 'particle' }, { id: 'scene' },
     { id: 'cube' }, { id: 'block' }, { id: 'face' },
   ],
-  facets: [{ id: 'variant', attribute: 'data-bf-variant', values: ['default', 'compact'] }],
+  facets: [{ id: 'variant', attribute: 'data-openbitfun-variant', values: ['default', 'compact'] }],
 };

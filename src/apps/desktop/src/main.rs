@@ -6,5 +6,5 @@ fn main() {
     // Tokio reads this value while creating its worker threads. Setting it in
     // the async body is too late, because the runtime has already been built.
     std::env::set_var("RUST_MIN_STACK", "8388608"); // 8 MiB worker stacks
-    bitfun_desktop_lib::run()
+    openbitfun_desktop_lib::run()
 }

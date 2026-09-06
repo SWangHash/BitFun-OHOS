@@ -4,9 +4,9 @@ Date: 2026-07-21
 
 ## Goal
 
-Align BitFun with OpenCode’s “use another product’s subscription as a model API”
+Align OpenBitFun with OpenCode’s “use another product’s subscription as a model API”
 capability. Users sign in to Codex (ChatGPT), Antigravity (Google), or OpenCode
-Zen inside BitFun; the resulting OAuth tokens authenticate AI requests. No
+Zen inside OpenBitFun; the resulting OAuth tokens authenticate AI requests. No
 upgrade path for the previous Codex/Gemini CLI disk-scan import.
 
 ## Non-goals
@@ -21,7 +21,7 @@ upgrade path for the previous Codex/Gemini CLI disk-scan import.
 ```
 UI (AIModelConfig)
   -> Tauri: list / start_login / cancel_login / logout / status
-  -> bitfun-ai-adapters::subscription_auth
+  -> openbitfun-ai-adapters::subscription_auth
        store: {user_data_dir}/subscription_auth.json (0600)
        providers: codex | antigravity | opencode
   -> apply_subscription_auth(AuthConfig, &mut AIConfig)
@@ -61,7 +61,7 @@ Login/logout/list commands are local-machine only (`LocalOnly`).
 
 ## Verification
 
-- `cargo test -p bitfun-ai-adapters --features subscription-auth subscription_auth`
-- `cargo check -p bitfun-desktop`
+- `cargo test -p openbitfun-ai-adapters --features subscription-auth subscription_auth`
+- `cargo check -p openbitfun-desktop`
 - `pnpm run type-check:web`
 - Manual: login each provider, import model, run a short chat turn

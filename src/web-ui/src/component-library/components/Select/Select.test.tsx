@@ -76,7 +76,7 @@ describe('Select', () => {
       root.unmount();
     });
     container.remove();
-    document.querySelector('[data-bf-overlay-host="true"]')?.remove();
+    document.querySelector('[data-openbitfun-overlay-host="true"]')?.remove();
     getBoundingClientRectSpy.mockRestore();
     offsetHeightSpy.mockRestore();
     vi.useRealTimers();
@@ -109,7 +109,7 @@ describe('Select', () => {
 
     expect(selectRoot?.className).toContain('select--placement-top');
     expect(dropdown?.className).toContain('select__dropdown--top');
-    expect(dropdown?.parentElement?.getAttribute('data-bf-overlay-host')).toBe('true');
+    expect(dropdown?.parentElement?.getAttribute('data-openbitfun-overlay-host')).toBe('true');
     expect(dropdown?.style.position).toBe('fixed');
     expect(dropdown?.style.top).toBe('480px');
     expect(dropdown?.style.width).toBe('240px');

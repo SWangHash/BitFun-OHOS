@@ -12,6 +12,7 @@ import {
 import { GeneralChatPageState } from '../state/GeneralChatPageState';
 import { DeviceDirectoryState } from '../state/DeviceDirectoryState';
 import { RemotePageState } from '../state/RemotePageState';
+import { REMOTE_CAPABILITY_HARNESS_PROFILES_V1 } from '../../model/RemoteModels';
 import { AppSidebar } from './AppSidebar';
 import { ConnectView } from './ConnectView';
 import { RemoteControlSettingsSheet } from './RemoteControlSettingsSheet';
@@ -40,6 +41,7 @@ export struct AppSidebarSurface {
         this.generalPageState.conversation.activeSession.sessionId : '',
       connectionState: this.remotePageState.connectionState,
       accountUserId: this.remotePageState.accountUserId,
+      controlTargetType: this.remotePageState.controlTargetType,
       showViewSettingsButton: false,
       showWorkspaceSection: true,
       showConversationSection: true,
@@ -79,11 +81,13 @@ export struct AppSidebarSurface {
         this.remotePageState.desktopName,
       selectedSessionId: this.remoteSelectedSessionId(),
       runningSessionId: this.remoteRunningSessionId(),
+      supportsHarnessProfiles: this.remotePageState.supportsHostCapability(
+        REMOTE_CAPABILITY_HARNESS_PROFILES_V1),
       workspacePickerPlacement: this.sessionDetailsPlacement,
       onOpenSession: this.actions.onSidebar.openSession,
-      onCreateInWorkspace: (deviceId: string, path: string) => {
+      onCreateInWorkspace: (deviceId: string, path: string, agentType: string) => {
         this.actions.onSidebar.close();
-        this.actions.onRemoteHome.createInWorkspace(path, 'code', deviceId);
+        this.actions.onRemoteHome.createInWorkspace(path, agentType, deviceId);
       },
       onOpenWorkspace: (deviceId: string, path: string) => {
         this.actions.onRemoteHome.selectWorkspace(path, deviceId);
@@ -159,10 +163,16 @@ export struct AppSettingsSurface {
         selectedGeneralChatModelId: this.generalPageState.conversation.selectedModelId,
         accountUsername: this.remotePageState.accountUsername,
         authenticatedUserId: this.remotePageState.accountUserId,
+        fallbackUserId: this.remotePageState.userId,
+        desktopName: this.remotePageState.desktopName,
+        desktopId: this.remotePageState.desktopId,
         deviceId: this.deviceId,
+        controlTargetType: this.remotePageState.controlTargetType,
         controlTargetDeviceId: this.remotePageState.controlTargetDeviceId,
         connectionState: this.remotePageState.connectionState,
         onOpenAccount: this.actions.onSettings.openAccount,
+        onDisconnect: this.actions.onSettings.disconnect,
+        onClearPairing: this.actions.onSettings.clearPairing,
         onReconnect: this.actions.onSettings.reconnect,
         cloudLogout: this.actions.onSettings.cloudLogout,
         cloudListDevices: this.actions.onSettings.cloudListDevices,

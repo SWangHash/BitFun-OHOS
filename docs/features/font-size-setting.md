@@ -1,7 +1,7 @@
 # 字体大小设置（Font Size Setting）需求文档
 
 > 状态：提案 / 未做
-> 仓库：BitFun-OHOS
+> 仓库：OpenBitFun-OHOS
 > 相关架构入口：
 > - [`src/web-ui/src/infrastructure/appearance/appearanceDomainTokens.ts`](../../src/web-ui/src/infrastructure/appearance/appearanceDomainTokens.ts)
 > - [`src/web-ui/src/app/styles/nav-panel-font-scope.scss`](../../src/web-ui/src/app/styles/nav-panel-font-scope.scss)
@@ -10,7 +10,7 @@
 
 ## 背景与需求描述
 
-BitFun 桌面端的字号经 appearance token 体系驱动（`--bf-appearance-token-font-size-*` 分级），导航面板经 `nav-panel-font-scope.scss` 在 flow-chat 字号基础上降一档映射，个别场景（如 relay-deploy 终端）用独立 `DEPLOY_TERMINAL_FONT_SIZE`。但**缺少用户可调的全局字号 / 缩放设置**：用户无法根据视力、屏幕 DPI、个人偏好统一放大或缩小应用字号，只能接受 appearance 包预设。
+OpenBitFun 桌面端的字号经 appearance token 体系驱动（`--bf-appearance-token-font-size-*` 分级），导航面板经 `nav-panel-font-scope.scss` 在 flow-chat 字号基础上降一档映射，个别场景（如 relay-deploy 终端）用独立 `DEPLOY_TERMINAL_FONT_SIZE`。但**缺少用户可调的全局字号 / 缩放设置**：用户无法根据视力、屏幕 DPI、个人偏好统一放大或缩小应用字号，只能接受 appearance 包预设。
 
 当前缺口与诉求：
 

@@ -117,10 +117,10 @@ export const InputDialog: React.FC<InputDialogProps> = ({
       size="small"
       showCloseButton={true}
     >
-      <div className="input-dialog" data-bf-component="input-dialog" data-bf-part="root">
-        <div className="input-dialog__body" data-bf-component="input-dialog" data-bf-part="body">
+      <div className="input-dialog" data-openbitfun-component="input-dialog" data-openbitfun-part="root">
+        <div className="input-dialog__body" data-openbitfun-component="input-dialog" data-openbitfun-part="body">
           {description && (
-            <p className="input-dialog__description" data-bf-component="input-dialog" data-bf-part="description">{description}</p>
+            <p className="input-dialog__description" data-openbitfun-component="input-dialog" data-openbitfun-part="description">{description}</p>
           )}
           <Input
             ref={inputRef}
@@ -136,7 +136,7 @@ export const InputDialog: React.FC<InputDialogProps> = ({
           />
         </div>
 
-        <div className="input-dialog__actions" data-bf-component="input-dialog" data-bf-part="actions">
+        <div className="input-dialog__actions" data-openbitfun-component="input-dialog" data-openbitfun-part="actions">
           <Button
             variant="secondary"
             size="small"

@@ -13,7 +13,7 @@ import {
   Select,
   Switch,
   Textarea,
-} from '@bitfun/ui';
+} from '@openbitfun/ui';
 import { PrivacyStatementDialog } from '@/app/components/Privacy/PrivacyStatementDialog';
 import { usePrivacy } from '@/app/components/Privacy/PrivacyContext';
 import {
@@ -37,7 +37,7 @@ import { useRejectedInsertionCaret } from './useRejectedInsertionCaret';
 import './FeedbackDialog.scss';
 
 const log = createLogger('FeedbackDialog');
-const GITCODE_ISSUES_URL = 'https://gitcode.com/OpenBitFun/bitfun_ade/issues';
+const GITCODE_ISSUES_URL = 'https://gitcode.com/OpenBitFun/openbitfun_ade/issues';
 let submissionRetryUntilMs = 0;
 
 function submissionRetrySecondsRemaining(): number {
@@ -425,7 +425,7 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
           if (reason === 'close-button' || reason === 'escape-key' || reason === 'pointer-outside') requestClose();
         }}
         size="2xl"
-        className="bitfun-feedback__modal-content"
+        className="openbitfun-feedback__modal-content"
         closeOnEscape={!submitting && !replyState.sending}
         closeOnPointerOutside={!submitting && !replyState.sending}
         data-testid="feedback-dialog"
@@ -435,17 +435,17 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
           <DialogClose disabled={submitting || replyState.sending} />
         </DialogHeader>
         <DialogBody inset="none">
-        <div className="bitfun-feedback__root" data-bf-component="feedback-dialog" data-bf-part="root">
+        <div className="openbitfun-feedback__root" data-openbitfun-component="feedback-dialog" data-openbitfun-part="root">
         {completed ? (
-          <div className="bitfun-feedback__complete" role="status">
+          <div className="openbitfun-feedback__complete" role="status">
             <CheckCircle2 size={34} aria-hidden="true" />
             <strong>{t('feedback.complete.title')}</strong>
             <span>{t('feedback.complete.description')}</span>
             <Button onClick={closeImmediately}>{t('shared:statuses.done')}</Button>
           </div>
         ) : (
-          <div ref={containerRef} className="bitfun-feedback__center">
-            <div className="bitfun-feedback__view-switch" role="tablist" data-bf-component="feedback-dialog" data-bf-part="viewSwitch">
+          <div ref={containerRef} className="openbitfun-feedback__center">
+            <div className="openbitfun-feedback__view-switch" role="tablist" data-openbitfun-component="feedback-dialog" data-openbitfun-part="viewSwitch">
               <button
                 type="button"
                 role="tab"
@@ -470,8 +470,8 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
               </button>
             </div>
             {activeView === 'create' ? (
-              <form className="bitfun-feedback__form" onSubmit={handleSubmit} data-bf-component="feedback-dialog" data-bf-part="form">
-            <div className="bitfun-feedback__field">
+              <form className="openbitfun-feedback__form" onSubmit={handleSubmit} data-openbitfun-component="feedback-dialog" data-openbitfun-part="form">
+            <div className="openbitfun-feedback__field">
               <label>{t('feedback.category')}<span aria-hidden="true">*</span></label>
               <Select
                 value={category}
@@ -484,7 +484,7 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
                 options={categoryOptions.map(option => ({ ...option, testId: 'feedback-category' }))}
               />
             </div>
-            <div className="bitfun-feedback__content-field">
+            <div className="openbitfun-feedback__content-field">
               <Textarea
                 label={t('feedback.content')}
                 required
@@ -503,13 +503,13 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
                 errorMessage={t('feedback.errors.contentRequired')}
                 data-testid="feedback-content"
               />
-              <div className="bitfun-feedback__content-meta" aria-live="polite">
+              <div className="openbitfun-feedback__content-meta" aria-live="polite">
                 <span>{wasTruncated ? t('feedback.contentTruncated') : ''}</span>
                 <span>{contentLength}/2000</span>
               </div>
             </div>
-            <div className="bitfun-feedback__correlation">
-              <label className="bitfun-feedback__correlation-control">
+            <div className="openbitfun-feedback__correlation">
+              <label className="openbitfun-feedback__correlation-control">
                 <Switch
                   checked={includeCorrelation}
                   onCheckedChange={setIncludeCorrelation}
@@ -524,7 +524,7 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
                 </span>
               </label>
             </div>
-            <div className="bitfun-feedback__privacy">
+            <div className="openbitfun-feedback__privacy">
               <Checkbox
                 checked={privacyChecked}
                 disabled={submitting}
@@ -544,20 +544,20 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
               </span>
             </div>
             {submitErrorMessage ? (
-              <div className="bitfun-feedback__error" role="alert">
+              <div className="openbitfun-feedback__error" role="alert">
                 {submitErrorMessage}
               </div>
             ) : null}
             {gitCodeError ? (
-              <div className="bitfun-feedback__error" role="alert">
+              <div className="openbitfun-feedback__error" role="alert">
                 {t('feedback.errors.gitcode')}
               </div>
             ) : null}
-            <div className="bitfun-feedback__actions" data-bf-component="feedback-dialog" data-bf-part="actions">
+            <div className="openbitfun-feedback__actions" data-openbitfun-component="feedback-dialog" data-openbitfun-part="actions">
               <Button type="button" variant="text" leadingIcon={<ExternalLink size={15} aria-hidden="true" />} onClick={openGitCode}>
                 {t('feedback.actions.gitcode')}
               </Button>
-              <div className="bitfun-feedback__primary-actions">
+              <div className="openbitfun-feedback__primary-actions">
                 <Button
                   type="button"
                   variant="outline"

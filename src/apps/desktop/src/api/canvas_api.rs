@@ -2,11 +2,11 @@
 
 use crate::api::app_state::AppState;
 use crate::api::session_storage_path::desktop_effective_session_storage_path;
-use bitfun_product_domains::canvas::{
+use openbitfun_product_domains::canvas::{
     parse_canvas_artifact_ref, CanvasDiagnostic, CanvasDiagnosticCategory,
     CanvasDiagnosticSeverity, CanvasRevision, CanvasSnapshot, CanvasState, CanvasStoragePort,
 };
-use bitfun_services_integrations::canvas::CanvasService;
+use openbitfun_services_integrations::canvas::CanvasService;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -32,6 +32,8 @@ pub struct SaveCanvasStateRequest {
     pub source_revision_seen: Option<String>,
     #[serde(default)]
     pub values: BTreeMap<String, Value>,
+    #[serde(default)]
+    pub value_versions: BTreeMap<String, u32>,
     pub updated_at: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_path: Option<String>,
@@ -52,6 +54,29 @@ pub struct ReportCanvasRuntimeErrorRequest {
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stack: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filename: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub column: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub component_stack: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote_connection_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote_ssh_host: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportCanvasRuntimeReadyRequest {
+    pub artifact_reference: String,
+    pub source_revision_seen: String,
+    pub runtime_version: String,
+    pub sdk_version: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -118,8 +143,9 @@ pub async fn save_canvas_state(
         canvas_id: reference.canvas_id,
         source_revision_seen: request.source_revision_seen.map(CanvasRevision::new),
         values: request.values,
+        value_versions: request.value_versions,
         updated_at: request.updated_at,
-        schema_version: bitfun_product_domains::canvas::CANVAS_CURRENT_STATE_SCHEMA_VERSION,
+        schema_version: openbitfun_product_domains::canvas::CANVAS_CURRENT_STATE_SCHEMA_VERSION,
     };
     let saved = service
         .save_state(reference.session_id, canvas_state)
@@ -146,8 +172,8 @@ pub async fn report_canvas_runtime_error(
         category: CanvasDiagnosticCategory::Runtime,
         message,
         code: Some("canvas.runtime.error".to_string()),
-        line: None,
-        column: None,
+        line: request.line,
+        column: request.column,
         suggested_fix: Some(
             "Open the Canvas source and fix the runtime exception, then update the Canvas."
                 .to_string(),
@@ -162,8 +188,59 @@ pub async fn report_canvas_runtime_error(
         diagnostic.message.push('\n');
         diagnostic.message.push_str(stack);
     }
+    if let Some(component_stack) = request
+        .component_stack
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        diagnostic.message.push_str("\nReact component stack:");
+        diagnostic.message.push_str(component_stack);
+    }
+    if let Some(filename) = request
+        .filename
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        diagnostic.message.push_str("\nRuntime source: ");
+        diagnostic.message.push_str(filename);
+    }
     let snapshot = service
-        .report_runtime_diagnostic(reference.session_id, reference.canvas_id, diagnostic)
+        .report_runtime_diagnostic(
+            reference.session_id,
+            reference.canvas_id,
+            request.source_revision_seen.map(CanvasRevision::new),
+            diagnostic,
+        )
+        .await
+        .map_err(|error| error.message)?;
+    Ok(CanvasArtifactResponse {
+        canvas: snapshot,
+        artifact_reference: request.artifact_reference,
+    })
+}
+
+#[tauri::command]
+pub async fn report_canvas_runtime_ready(
+    state: State<'_, AppState>,
+    request: ReportCanvasRuntimeReadyRequest,
+) -> Result<CanvasArtifactResponse, String> {
+    let reference = parse_canvas_artifact_ref(&request.artifact_reference)
+        .map_err(|error| format!("Invalid Canvas artifact reference: {:?}", error))?;
+    let service = canvas_service_for_workspace(
+        &state,
+        request.workspace_path.as_deref(),
+        request.remote_connection_id.as_deref(),
+        request.remote_ssh_host.as_deref(),
+    )
+    .await?;
+    let snapshot = service
+        .mark_runtime_ready(
+            reference.session_id,
+            reference.canvas_id,
+            CanvasRevision::new(request.source_revision_seen),
+            request.runtime_version,
+            request.sdk_version,
+        )
         .await
         .map_err(|error| error.message)?;
     Ok(CanvasArtifactResponse {

@@ -27,23 +27,24 @@ describe('startup performance contract', () => {
   it('keeps the pre-React startup fallback logo-only', () => {
     const source = readSource('../../../index.html');
 
-    expect(source).toContain('<link rel="icon" type="image/png" href="/Logo-ICON-128.png" />');
+    expect(source).toContain('<link rel="icon" type="image/png" href="/brand/openbitfun-app-icon.png" />');
     expect(source).not.toContain('rel="preload" as="image"');
-    expect(source).toContain('class="bitfun-preload__logo"');
-    expect(source).toContain('src="/Logo-ICON-128.png"');
+    expect(source).toContain('class="openbitfun-preload__logo openbitfun-preload__logo--dark"');
+    expect(source).toContain('src="/brand/openbitfun-mark-dark-128.png"');
+    expect(source).toContain('src="/brand/openbitfun-mark-light-128.png"');
     expect(source).toContain('fetchpriority="low"');
     expect(source).not.toContain('Loading workspace...');
-    expect(source).not.toContain('bitfun-preload__spinner');
+    expect(source).not.toContain('openbitfun-preload__spinner');
     expect(source).not.toContain('aria-live="polite"');
 
     expect(source.indexOf('<script type="module" src="/src/main.tsx"></script>')).toBeLessThan(
-      source.indexOf('class="bitfun-preload__logo"'),
+      source.indexOf('class="openbitfun-preload__logo openbitfun-preload__logo--dark"'),
     );
   });
 
   it('keeps the startup logo asset transparent without the desktop icon backing plate', async () => {
     const { default: sharp } = await import('sharp');
-    const assetPath = fileURLToPath(new URL('../../../public/Logo-ICON-128.png', import.meta.url));
+    const assetPath = fileURLToPath(new URL('../../../public/brand/openbitfun-mark-dark-128.png', import.meta.url));
     const { data, info } = await sharp(assetPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const alphaAt = (x: number, y: number): number => data[(y * info.width + x) * info.channels + 3] ?? 0;
 
@@ -52,7 +53,13 @@ describe('startup performance contract', () => {
     expect(alphaAt(8, 8)).toBe(0);
     expect(alphaAt(12, 12)).toBe(0);
     expect(alphaAt(20, 20)).toBe(0);
-    expect(alphaAt(64, 64)).toBeGreaterThan(240);
+    // The fine-line rim crosses this band; a single pixel from the former
+    // filled mark can land between antialiased strokes in the new artwork.
+    const topRimAlpha = Array.from({ length: 15 }, (_, x) =>
+      Array.from({ length: 9 }, (_, y) => alphaAt(57 + x, 12 + y)),
+    ).flat();
+    expect(Math.max(...topRimAlpha)).toBeGreaterThan(240);
+    expect(alphaAt(64, 64)).toBe(0);
   });
 
   it('keeps the startup overlay exit short enough for a fast visual handoff', () => {
@@ -60,7 +67,7 @@ describe('startup performance contract', () => {
     const appSource = readSource('../App.tsx');
 
     expect(appSource).toContain('const MIN_SPLASH_MS = 650;');
-    expect(source).toContain('animation: bitfun-startup-overlay-exit 0.24s ease-in-out both;');
+    expect(source).toContain('animation: openbitfun-startup-overlay-exit 0.24s ease-in-out both;');
   });
 
   it('keeps editor and tool infrastructure out of the first startup module', () => {
@@ -95,22 +102,22 @@ describe('startup performance contract', () => {
     expect(mainSource).not.toContain('before_render_step", "initialize_frontend_log_level_sync"');
     expect(mainSource).toContain('initializeFrontendLogLevelSync');
     expect(mainSource).toContain('installFrontendLogLevelConfigWatcher');
-    expect(loggerSource).toContain('__BITFUN_BOOTSTRAP_LOG_LEVEL__');
-    expect(appearanceSource).toContain('__BITFUN_BOOTSTRAP_LOG_LEVEL__');
+    expect(loggerSource).toContain('__OPENBITFUN_BOOTSTRAP_LOG_LEVEL__');
+    expect(appearanceSource).toContain('__OPENBITFUN_BOOTSTRAP_LOG_LEVEL__');
   });
 
   it('keeps startup keybindings on the bootstrap path instead of a first-window IPC', () => {
     const configManagerSource = readSource('../../infrastructure/config/services/ConfigManager.ts');
     const appearanceSource = readSource('../../../../apps/desktop/src/appearance.rs');
 
-    expect(appearanceSource).toContain('__BITFUN_BOOTSTRAP_KEYBINDINGS__');
+    expect(appearanceSource).toContain('__OPENBITFUN_BOOTSTRAP_KEYBINDINGS__');
     expect(appearanceSource).toContain('keybindings: global_config.app.keybindings');
     expect(appearanceSource).toContain('MAX_BOOTSTRAP_KEYBINDINGS_JSON_BYTES');
     expect(appearanceSource).toContain('.filter(|json| json.len() <= MAX_BOOTSTRAP_KEYBINDINGS_JSON_BYTES)');
     expect(configManagerSource).toContain('consumeBootstrapOptionalConfig');
-    expect(configManagerSource).toContain('__BITFUN_BOOTSTRAP_KEYBINDINGS__');
+    expect(configManagerSource).toContain('__OPENBITFUN_BOOTSTRAP_KEYBINDINGS__');
     expect(configManagerSource).toContain("path !== 'app.keybindings'");
-    expect(configManagerSource).toContain('delete globalThis.__BITFUN_BOOTSTRAP_KEYBINDINGS__');
+    expect(configManagerSource).toContain('delete globalThis.__OPENBITFUN_BOOTSTRAP_KEYBINDINGS__');
   });
 
   it('keeps workspace startup state on the bootstrap path with command fallback', () => {
@@ -119,16 +126,16 @@ describe('startup performance contract', () => {
     const desktopLibSource = readSource('../../../../apps/desktop/src/lib.rs');
     const desktopCommandsSource = readSource('../../../../apps/desktop/src/api/commands.rs');
 
-    expect(desktopAppearanceSource).toContain('__BITFUN_BOOTSTRAP_WORKSPACE_STARTUP_STATE__');
+    expect(desktopAppearanceSource).toContain('__OPENBITFUN_BOOTSTRAP_WORKSPACE_STARTUP_STATE__');
     expect(desktopAppearanceSource).toContain('MAX_BOOTSTRAP_WORKSPACE_STATE_JSON_BYTES');
     expect(desktopLibSource).toContain('prepare_workspace_startup_bootstrap_snapshot');
     expect(desktopLibSource).toContain('tokio::task::block_in_place');
     expect(desktopLibSource).not.toContain('tauri::async_runtime::block_on(prepare_workspace_startup_bootstrap_snapshot');
     expect(desktopCommandsSource).toContain('initialize_workspace_startup_state_impl');
     expect(globalStateSource).toContain('consumeBootstrapWorkspaceStartupStateSnapshot');
-    expect(globalStateSource).toContain('__BITFUN_BOOTSTRAP_WORKSPACE_STARTUP_STATE__');
+    expect(globalStateSource).toContain('__OPENBITFUN_BOOTSTRAP_WORKSPACE_STARTUP_STATE__');
     expect(globalStateSource).toContain(
-      'delete globalThis.__BITFUN_BOOTSTRAP_WORKSPACE_STARTUP_STATE__'
+      'delete globalThis.__OPENBITFUN_BOOTSTRAP_WORKSPACE_STARTUP_STATE__'
     );
   });
 
@@ -249,7 +256,7 @@ describe('startup performance contract', () => {
     expect(abilitySource).toContain("registerArktsFunction('quit_app_ohos'");
     expect(abilitySource).toContain("registerArktsFunction('minimize_to_tray_ohos'");
     expect(nativeBridgeSource).toContain('pub fn notify_main_window_close_requested()');
-    expect(nativeBridgeSource).toContain('bitfun_main_window_close_requested');
+    expect(nativeBridgeSource).toContain('openbitfun_main_window_close_requested');
     expect(systemApiSource).toContain('call_ohos_window_host("quit_app_ohos")');
     expect(systemApiSource).toContain('call_ohos_window_host("minimize_to_tray_ohos")');
     expect(layoutSource).toContain("configManager.getConfig<CloseBehavior>('app.close_button_behavior')");
@@ -259,10 +266,10 @@ describe('startup performance contract', () => {
   it('starts non-critical work after the startup overlay handoff', () => {
     const source = readSource('../../main.tsx');
 
-    expect(STARTUP_OVERLAY_HIDDEN_EVENT).toBe('bitfun:startup-overlay-hidden');
+    expect(STARTUP_OVERLAY_HIDDEN_EVENT).toBe('openbitfun:startup-overlay-hidden');
     expect(source).toContain('STARTUP_OVERLAY_HIDDEN_EVENT');
-    expect(source).not.toContain("signalName: 'bitfun:interactive-shell-ready'");
-    expect(source).not.toContain("signalName: 'bitfun:main-window-shown'");
+    expect(source).not.toContain("signalName: 'openbitfun:interactive-shell-ready'");
+    expect(source).not.toContain("signalName: 'openbitfun:main-window-shown'");
     expect(source).toContain('fallbackTimeoutMs: 10000');
   });
 
@@ -297,7 +304,7 @@ describe('startup performance contract', () => {
     expect(source).not.toMatch(/useAIInitialization/);
     expect(source).not.toMatch(/useCurrentModelConfig/);
     expect(source).not.toMatch(/from\s+['"]@\/infrastructure\/config\/services\/AIExperienceConfigService['"]/);
-    expect(source).toContain('bitfun:interactive-shell-ready');
+    expect(source).toContain('openbitfun:interactive-shell-ready');
     expect(source).toContain('STARTUP_OVERLAY_HIDDEN_EVENT');
   });
 
@@ -435,8 +442,6 @@ describe('startup performance contract', () => {
     const sceneSource = readSource('../scenes/settings/SettingsScene.tsx');
     const registrySource = readSource('../scenes/settings/settingsRegistry.ts');
     const viewPageSources = [
-      readSource('../scenes/settings/pages/InputSettingsPage.tsx'),
-      readSource('../scenes/settings/pages/DevelopmentSettingsPage.tsx'),
       readSource('../scenes/settings/pages/AutomationSettingsPage.tsx'),
     ];
     const lazyPanelSpecifiers = [
@@ -448,19 +453,17 @@ describe('startup performance contract', () => {
       '../../../infrastructure/config/components/WorktreeSettingsPage',
       '../../../infrastructure/config/components/UsageStatisticsConfig',
       '../../../infrastructure/config/components/McpToolsConfig',
-      '../../../infrastructure/config/components/AcpAgentsConfig',
+      '../../../infrastructure/config/components/VoiceInputConfig',
       './components/ArchivedSessionsConfig',
-      './pages/InputSettingsPage',
-      './pages/DevelopmentSettingsPage',
+      './components/KeyboardShortcutsTab',
+      './pages/EditorSettingsPage',
+      './pages/ExecutionSettingsPage',
       './pages/AutomationSettingsPage',
+      './pages/AcpSettingsPage',
     ];
     const sceneImports = staticImportSpecifiers(sceneSource);
     const registryImports = staticImportSpecifiers(registrySource);
     const lazyViewSpecifiers = [
-      '@/infrastructure/config/components/VoiceInputConfig',
-      '../components/KeyboardShortcutsTab',
-      '@/infrastructure/config/components/EditorConfig',
-      '@/infrastructure/config/components/ApplicationSettingsPages',
       '@/infrastructure/config/components/QuickActionsConfig',
       '@/infrastructure/config/components/HooksConfig',
     ];
@@ -548,7 +551,7 @@ describe('startup performance contract', () => {
     const source = readSource('../App.tsx');
 
     expect(source).toContain('userCloseRequestedRef');
-    expect(source).toContain("listen('bitfun_main_window_close_requested'");
+    expect(source).toContain("listen('openbitfun_main_window_close_requested'");
     expect(source).toContain('user-close-requested');
     expect(source).toContain('startup-complete');
     expect(source).toContain('startup-watchdog');

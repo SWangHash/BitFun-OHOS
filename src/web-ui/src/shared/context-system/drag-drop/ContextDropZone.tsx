@@ -7,18 +7,13 @@ import { useContextStore } from '../../stores/contextStore';
 import type { IDropTarget } from '../../types/drag';
 import type { DragPayload } from '../../types/drag';
 import type { ContextItem, ContextType } from '../../types/context';
-import { createLogger } from '../../utils/logger';
 import './ContextDropZone.scss';
-
-const log = createLogger('ContextDropZone');
-
 export interface ContextDropZoneProps {
   acceptedTypes?: ContextType[];
   children?: React.ReactNode;
   className?: string;
-  rootRef?: React.RefObject<HTMLDivElement>;
   onContextAdded?: (context: ContextItem) => void;
-  resolveExternalFiles?: (files: File[]) => Promise<ContextItem[]>;
+  onExternalFilesDrop?: (files: File[]) => void;
   disabled?: boolean;
 }
 
@@ -26,13 +21,13 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
   acceptedTypes,
   children,
   className = '',
-  rootRef,
   onContextAdded,
-  resolveExternalFiles,
+  onExternalFilesDrop,
   disabled = false,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [canAccept, setCanAccept] = useState(false);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
   const dragCounterRef = useRef(0); 
   const addContext = useContextStore(state => state.addContext);
   const updateValidation = useContextStore(state => state.updateValidation);
@@ -89,18 +84,12 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
   
   
   const dropTargetRef = useRef(dropTarget);
-  const resolveExternalFilesRef = useRef(resolveExternalFiles);
-  const onContextAddedRef = useRef(onContextAdded);
-
+  
+  
   useEffect(() => {
     dropTargetRef.current = dropTarget;
   }, [dropTarget]);
-
-  useEffect(() => {
-    resolveExternalFilesRef.current = resolveExternalFiles;
-    onContextAddedRef.current = onContextAdded;
-  }, [resolveExternalFiles, onContextAdded]);
-
+  
   
   React.useEffect(() => {
     const unregister = dragManager.registerTarget(dropTarget);
@@ -114,9 +103,13 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    log.info('dragenter', { types: [...e.dataTransfer.types], hasResolver: !!resolveExternalFilesRef.current });
 
     dragCounterRef.current++;
+    if (Array.from(e.dataTransfer.types).includes('Files')) {
+      setIsDragOver(true);
+      setCanAccept(!disabled && Boolean(onExternalFilesDrop));
+      return;
+    }
     
     if (dragCounterRef.current === 1) {
       
@@ -126,36 +119,32 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
         setIsDragOver(true);
         setCanAccept(accepted);
         dragManager.handleDragEnter(dropTargetRef.current, e.nativeEvent);
-        return;
-      }
-      if (e.dataTransfer.types.includes('Files') && resolveExternalFilesRef.current) {
-        setIsDragOver(true);
-        setCanAccept(true);
       }
     }
-  }, []);
+  }, [disabled, onExternalFilesDrop]);
   
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
+    if (Array.from(e.dataTransfer.types).includes('Files')) {
+      e.dataTransfer.dropEffect = disabled || !onExternalFilesDrop ? 'none' : 'copy';
+      return;
+    }
     
     const payload = dragManager.getCurrentPayload();
     if (payload && dropTargetRef.current.canAccept(payload)) {
       e.dataTransfer.dropEffect = 'copy';
       dragManager.handleDragOver(dropTargetRef.current, e.nativeEvent);
-      return;
+    } else {
+      e.dataTransfer.dropEffect = 'none';
     }
-    if (e.dataTransfer.types.includes('Files') && resolveExternalFilesRef.current) {
-      e.dataTransfer.dropEffect = 'copy';
-      return;
-    }
-    e.dataTransfer.dropEffect = 'none';
-  }, []);
+  }, [disabled, onExternalFilesDrop]);
   
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    const containsExternalFiles = Array.from(e.dataTransfer.types).includes('Files');
     
     dragCounterRef.current--;
     
@@ -163,53 +152,38 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
       
       setIsDragOver(false);
       setCanAccept(false);
-      dragManager.handleDragLeave(dropTargetRef.current, e.nativeEvent);
+      if (!containsExternalFiles) {
+        dragManager.handleDragLeave(dropTargetRef.current, e.nativeEvent);
+      }
     }
   }, []);
   
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    log.info('drop', { fileCount: e.dataTransfer.files?.length ?? 0, types: [...e.dataTransfer.types], hasResolver: !!resolveExternalFilesRef.current, hasPayload: !!dragManager.getCurrentPayload() });
-
+    
     
     dragCounterRef.current = 0;
     setIsDragOver(false);
     setCanAccept(false);
-    
-    const payload = dragManager.getCurrentPayload();
-    if (payload) {
-      dragManager.handleDrop(dropTargetRef.current, e.nativeEvent);
-      return;
-    }
 
-    const files = Array.from(e.dataTransfer.files ?? []);
-    const resolver = resolveExternalFilesRef.current;
-    if (files.length === 0 || !resolver) {
-      dragManager.handleDrop(dropTargetRef.current, e.nativeEvent);
-      return;
-    }
-
-    try {
-      const contexts = await resolver(files);
-      for (const ctx of contexts) {
-        addContext(ctx);
-        updateValidation(ctx.id, { valid: true });
-        onContextAddedRef.current?.(ctx);
+    if (Array.from(e.dataTransfer.types).includes('Files')) {
+      if (!disabled && onExternalFilesDrop) {
+        onExternalFilesDrop(Array.from(e.dataTransfer.files));
       }
-    } catch (error) {
-      log.error('Failed to resolve external dropped files', error);
+      return;
     }
-  }, [addContext, updateValidation]);
+    dragManager.handleDrop(dropTargetRef.current, e.nativeEvent);
+  }, [disabled, onExternalFilesDrop]);
   
   return (
     <div
-      ref={rootRef}
+      ref={dropZoneRef}
       className={`
-        bitfun-context-drop-zone
-        ${isDragOver ? 'bitfun-context-drop-zone--drag-over' : ''}
-        ${canAccept ? 'bitfun-context-drop-zone--can-accept' : ''}
-        ${!canAccept && isDragOver ? 'bitfun-context-drop-zone--cannot-accept' : ''}
+        openbitfun-context-drop-zone
+        ${isDragOver ? 'openbitfun-context-drop-zone--drag-over' : ''}
+        ${canAccept ? 'openbitfun-context-drop-zone--can-accept' : ''}
+        ${!canAccept && isDragOver ? 'openbitfun-context-drop-zone--cannot-accept' : ''}
         ${className}
       `.trim()}
       
@@ -218,9 +192,9 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       data-dropzone="context-drop-zone"
-      data-bf-component="context-list"
-      data-bf-part="dropZone"
-      data-bf-state={`${isDragOver ? 'drag-over ' : ''}${canAccept ? 'can-accept' : ''}`.trim() || undefined}
+      data-openbitfun-component="context-list"
+      data-openbitfun-part="dropZone"
+      data-openbitfun-state={`${isDragOver ? 'drag-over ' : ''}${canAccept ? 'can-accept' : ''}`.trim() || undefined}
     >
       {children}
     </div>

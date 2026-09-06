@@ -19,12 +19,12 @@ export interface QuickAction {
 export interface AIExperienceSettings {
   enable_session_title_generation: boolean;
   enable_visual_mode: boolean;
-  /** Pixel Agent companion in collapsed chat input (session settings). */
+  /** Whether to show the desktop Agent companion. */
   enable_agent_companion: boolean;
-  /** Where to show the Agent companion. */
-  agent_companion_display_mode: AgentCompanionDisplayMode;
   /** Optional Petdex-compatible companion package selected by the user. */
   agent_companion_pet?: AgentCompanionPetSelection | null;
+  /** Legacy/OHOS companion display mode: desktop window vs in-app overlay. */
+  agent_companion_display_mode?: 'input' | 'desktop';
   /** Flashgrep-backed accelerated workspace search for local workspaces. */
   enable_workspace_search: boolean;
   /** Local speech-to-text settings for the chat composer. */
@@ -37,8 +37,6 @@ export type AIExperienceSettingsPatch = Partial<Omit<AIExperienceSettings, 'voic
   voice_input?: Partial<VoiceInputSettings>;
 };
 
-export type AgentCompanionDisplayMode = 'input' | 'desktop';
-
 export interface AgentCompanionPetSelection {
   id: string;
   displayName: string;
@@ -50,6 +48,11 @@ export interface AgentCompanionPetSelection {
 }
 
 const CONFIG_PATH = 'app.ai_experience';
+
+type PersistedAIExperienceSettings = AIExperienceSettings & {
+  /** Retired in favor of the desktop-only companion surface. */
+  agent_companion_display_mode?: unknown;
+};
 
 export const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
   {
@@ -70,7 +73,6 @@ const defaultSettings: AIExperienceSettings = {
   enable_session_title_generation: true,
   enable_visual_mode: false,
   enable_agent_companion: true,
-  agent_companion_display_mode: 'desktop',
   agent_companion_pet: DEFAULT_AGENT_COMPANION_PET,
   enable_workspace_search: false,
   voice_input: {
@@ -84,15 +86,22 @@ const defaultSettings: AIExperienceSettings = {
   quick_actions: DEFAULT_QUICK_ACTIONS,
 };
 
-function normalizeSettings(settings: AIExperienceSettings | null | undefined): AIExperienceSettings {
+function normalizeSettings(settings: PersistedAIExperienceSettings | null | undefined): AIExperienceSettings {
+  // Older builds persisted "input" or "desktop" here. The input surface no
+  // longer exists, so discard the retired field and let the enable flag own
+  // the single desktop companion surface.
+  const {
+    agent_companion_display_mode: _legacyDisplayMode,
+    ...currentSettings
+  } = settings ?? {} as PersistedAIExperienceSettings;
   const merged = {
     ...defaultSettings,
-    ...settings,
+    ...currentSettings,
     voice_input: {
       ...defaultSettings.voice_input,
-      ...settings?.voice_input,
+      ...currentSettings.voice_input,
     },
-    quick_actions: settings?.quick_actions ?? DEFAULT_QUICK_ACTIONS,
+    quick_actions: currentSettings.quick_actions ?? DEFAULT_QUICK_ACTIONS,
   };
   if (merged.voice_input.max_recording_seconds === 60) {
     merged.voice_input.max_recording_seconds = defaultSettings.voice_input.max_recording_seconds;
@@ -135,7 +144,7 @@ export class AIExperienceConfigService {
   private async loadSettings(): Promise<void> {
     this.ensureConfigWatcher();
     try {
-      const settings = await configManager.getConfig<AIExperienceSettings>(CONFIG_PATH);
+      const settings = await configManager.getConfig<PersistedAIExperienceSettings>(CONFIG_PATH);
       const merged = normalizeSettings(settings);
       this.cachedSettings = merged;
     } catch (error) {
@@ -158,8 +167,8 @@ export class AIExperienceConfigService {
     this.ensureConfigWatcher();
     try {
       const settings = options?.forceRefresh
-        ? await configAPI.getConfig(CONFIG_PATH) as AIExperienceSettings
-        : await configManager.getConfig<AIExperienceSettings>(CONFIG_PATH);
+        ? await configAPI.getConfig(CONFIG_PATH) as PersistedAIExperienceSettings
+        : await configManager.getConfig<PersistedAIExperienceSettings>(CONFIG_PATH);
       this.cachedSettings = normalizeSettings(settings);
       return this.cachedSettings;
     } catch (error) {

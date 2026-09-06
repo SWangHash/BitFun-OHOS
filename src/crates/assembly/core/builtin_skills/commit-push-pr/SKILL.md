@@ -1,9 +1,9 @@
 ---
 name: commit-push-pr
-description: Commit selected local changes, push the branch, and create or update a GitHub pull request with BitFun attribution. Use when the user asks to 提交 PR、提代码、commit and push、开 PR、create a pull request, or wants a Claude Code-like one-command PR publishing flow from BitFun.
+description: Commit selected local changes, push the branch, and create or update a GitHub pull request with OpenBitFun attribution. Use when the user asks to 提交 PR、提代码、commit and push、开 PR、create a pull request, or wants a Claude Code-like one-command PR publishing flow from OpenBitFun.
 ---
 
-# Commit, Push, and Open a BitFun PR
+# Commit, Push, and Open a OpenBitFun PR
 
 ## Purpose
 
@@ -11,20 +11,20 @@ Publish an intentional change set from the current checkout: confirm scope, crea
 
 Invoking this skill is authorization for the requested commit/push/PR flow. It is not authorization to include ambiguous files, expose secrets, rewrite history, force-push, merge, or overwrite user work.
 
-## BitFun attribution contract
+## OpenBitFun attribution contract
 
 Unless the user explicitly opts out, always use the PR footer below exactly once. When this flow creates one or more real commits, also use the commit trailer exactly once in each new commit:
 
 - Commit trailer for each new commit, which GitHub uses for contributor/co-author attribution:
 
   ```text
-  Co-authored-by: BitFun <318544290+bitfun-ai@users.noreply.github.com>
+  Co-authored-by: OpenBitFun <318544290+openbitfun-ai@users.noreply.github.com>
   ```
 
 - Final line of the PR body, which provides the visible clickable link:
 
   ```markdown
-  Generated with [BitFun](https://github.com/bitfun-ai)
+  Generated with [OpenBitFun](https://github.com/openbitfun-ai)
   ```
 
 These are different mechanisms. A Markdown link in the PR body does not make an account a Git contributor. Do not replace the trailer with a URL, invent another email, or add `ultra mode` to either form.
@@ -35,12 +35,12 @@ Do not duplicate either attribution. Preserve an equivalent existing trailer/foo
 
 1. Inspect repository rules, status, remotes, base, and the complete branch diff.
 2. Confirm scope; stage only intended paths.
-3. Create `bitfun/<description>` only when currently on the base branch.
+3. Create `openbitfun/<description>` only when currently on the base branch.
 4. Run the repository's focused verification.
-5. Commit real changes with the exact BitFun trailer once.
+5. Commit real changes with the exact OpenBitFun trailer once.
 6. Push normally; never force-push automatically.
 7. Update the exact matching PR or create a draft PR.
-8. End the PR body with the exact BitFun link footer once.
+8. End the PR body with the exact OpenBitFun link footer once.
 9. Report the commit, head/base, validation, status, and PR URL.
 
 ## Workflow
@@ -77,7 +77,7 @@ Before committing, inspect the staged diff in full and run `git diff --cached --
 ### 3. Choose the branch safely
 
 - If already on an appropriate feature branch, keep it.
-- If on the target default/base branch, create `bitfun/<short-kebab-description>` unless repository conventions require another prefix.
+- If on the target default/base branch, create `openbitfun/<short-kebab-description>` unless repository conventions require another prefix.
 - Do not switch branches when that would risk unrelated work; ask instead.
 - Do not rebase, merge, squash, or cherry-pick merely to create a PR.
 - In a fork workflow, distinguish the push remote from the target repository. The PR head may be `<fork-owner>:<branch>` while the base belongs to `upstream`.
@@ -103,8 +103,8 @@ If verification remains failed, blocked, or was explicitly declined by the user:
 ### 5. Create the commit when one is needed
 
 - Derive the subject from the actual diff and repository conventions; do not create a generic `prepare PR` commit.
-- Keep the real human author/committer identity. The BitFun line is a co-author trailer, not a replacement author.
-- Add a blank line before the exact BitFun trailer.
+- Keep the real human author/committer identity. The OpenBitFun line is a co-author trailer, not a replacement author.
+- Add a blank line before the exact OpenBitFun trailer.
 - If the intended changes are already committed, do not create an empty attribution commit.
 - Do not squash multiple existing commits or amend published commits without explicit approval.
 
@@ -113,7 +113,7 @@ Example:
 ```text
 fix: preserve session state during reconnect
 
-Co-authored-by: BitFun <318544290+bitfun-ai@users.noreply.github.com>
+Co-authored-by: OpenBitFun <318544290+openbitfun-ai@users.noreply.github.com>
 ```
 
 After committing, inspect `HEAD`, the committed file list, the exact message/trailer, and remaining worktree state.
@@ -157,7 +157,7 @@ Use the repository template when present. Otherwise use this shape:
 
 - <migration, compatibility, remote-scenario, or follow-up facts when relevant>
 
-Generated with [BitFun](https://github.com/bitfun-ai)
+Generated with [OpenBitFun](https://github.com/openbitfun-ai)
 ```
 
 Rules:
@@ -167,7 +167,7 @@ Rules:
 - Include root cause for bug fixes when known.
 - Follow repository-required compatibility, migration, security, and remote-scenario reporting.
 - Remove empty optional sections rather than adding filler.
-- Keep the BitFun footer as the final non-empty line exactly once.
+- Keep the OpenBitFun footer as the final non-empty line exactly once.
 - Do not use a `Co-authored-by` line as a substitute for PR prose.
 
 ### 9. Report the published result
@@ -201,7 +201,7 @@ Stop and ask or report a blocker when any of these is true:
 | Rationalization | Required response |
 | --- | --- |
 | “The user said everything, so `git add -A` is fine.” | Inspect untracked and unrelated files first; broad staging still requires a known-safe scope. |
-| “Adding a PR link makes BitFun a contributor.” | Use the exact commit trailer for attribution and the Markdown footer for presentation. |
+| “Adding a PR link makes OpenBitFun a contributor.” | Use the exact commit trailer for attribution and the Markdown footer for presentation. |
 | “A harmless empty commit can add the contributor.” | Do not manufacture commits; preserve history and use the PR footer unless rewriting is explicitly approved. |
 | “The branch was rebased, so force-with-lease is routine.” | Never initiate rebase or force-push as part of ordinary PR creation. |
 | “The test probably failed in CI infrastructure.” | Report it as unclassified until evidence proves the cause. |

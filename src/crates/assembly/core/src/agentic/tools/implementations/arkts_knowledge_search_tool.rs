@@ -7,7 +7,7 @@ use super::devecocli_run::{run_devecocli, DevecocliOptions};
 use crate::agentic::tools::framework::{
     Tool, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult,
 };
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -34,7 +34,7 @@ impl Tool for ArktsKnowledgeSearchTool {
         "arkts_knowledge_search"
     }
 
-    async fn description(&self) -> BitFunResult<String> {
+    async fn description(&self) -> OpenBitFunResult<String> {
         Ok(r#"Search local HarmonyOS documentation for ArkTS/ArkUI answers.
 
 Use this when the user asks about ArkTS syntax, ArkUI components, HarmonyOS APIs, or platform conventions and you need authoritative local docs. No login required.
@@ -112,7 +112,7 @@ Example:
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         let question = input.get("question").and_then(|v| v.as_str()).unwrap_or_default();
         let keywords: Vec<String> = question
             .split_whitespace()
@@ -128,7 +128,7 @@ Example:
         let combined = [out.stdout.as_str(), out.stderr.as_str()]
             .iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join("\n");
         if out.exit_code != 0 {
-            return Err(BitFunError::tool(format!(
+            return Err(OpenBitFunError::tool(format!(
                 "arkts_knowledge_search failed (exit {}):\n{}", out.exit_code, combined
             )));
         }
@@ -162,7 +162,7 @@ mod tests {
             custom_data: HashMap::new(),
             computer_use_host: None,
             runtime_tool_restrictions: Default::default(),
-            runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
+            runtime_handles: openbitfun_runtime_ports::ToolRuntimeHandles::default(),
         }
     }
 

@@ -2,7 +2,7 @@
 //!
 //! Replaces the previous `npx -y skills add <package>` shell-out. The `skills`
 //! npm CLI bundles a prebuilt bun binary that aborts (V8 `__errno_location`
-//! assertion) on HarmonyOS PC, so BitFun downloads GitHub-hosted skills itself
+//! assertion) on HarmonyOS PC, so OpenBitFun downloads GitHub-hosted skills itself
 //! with pure-Rust crates (`reqwest` + `flate2` + `tar`). This works identically
 //! on Windows and HarmonyOS without Node/npx/bun.
 //!
@@ -31,9 +31,9 @@ use reqwest::Client;
 use tar::Archive;
 use tokio::fs;
 
-use bitfun_core::agentic::tools::implementations::skills::SkillLocation;
-use bitfun_core::infrastructure::get_path_manager_arc;
-use bitfun_core::service::config::types::ProxyConfig;
+use openbitfun_core::agentic::tools::implementations::skills::SkillLocation;
+use openbitfun_core::infrastructure::get_path_manager_arc;
+use openbitfun_core::service::config::types::ProxyConfig;
 
 /// Hard cap on downloaded tarball size. Skill repos are tiny (< 1 MiB typically);
 /// 50 MiB is a generous ceiling to reject runaway downloads.
@@ -158,7 +158,7 @@ fn resolve_target_parent(
             let workspace_root = workspace_path.ok_or_else(|| {
                 "No workspace open, cannot add project-level Skill".to_string()
             })?;
-            Ok(workspace_root.join(".bitfun").join("skills"))
+            Ok(workspace_root.join(".openbitfun").join("skills"))
         }
         SkillLocation::User => Ok(get_path_manager_arc().user_skills_dir()),
     }
@@ -187,7 +187,7 @@ fn build_download_client(proxy: Option<&ProxyConfig>) -> Result<Client, String> 
     let mut builder = Client::builder()
         .connect_timeout(std::time::Duration::from_secs(10))
         .timeout(std::time::Duration::from_secs(60))
-        .user_agent(concat!("BitFun/", env!("CARGO_PKG_VERSION")));
+        .user_agent(concat!("OpenBitFun/", env!("CARGO_PKG_VERSION")));
     if let Some(proxy) = proxy {
         if proxy.enabled {
             let url = proxy.url.trim();

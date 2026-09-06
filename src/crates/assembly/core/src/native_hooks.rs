@@ -1,11 +1,11 @@
-//! Product wiring for native BitFun agent hooks.
+//! Product wiring for native OpenBitFun agent hooks.
 //!
 //! This module connects the portable hook engine
-//! (`bitfun_agent_runtime::native_hooks`) to BitFun configuration and the
+//! (`openbitfun_agent_runtime::native_hooks`) to OpenBitFun configuration and the
 //! agent runtime dispatch sites:
 //!
-//! - Settings discovery: user scope `~/.config/bitfun/config/hooks.json`
-//!   plus project scope `{project}/.bitfun/config/hooks.json`, both using the
+//! - Settings discovery: user scope `~/.config/openbitfun/config/hooks.json`
+//!   plus project scope `{project}/.openbitfun/config/hooks.json`, both using the
 //!   Codex-compatible `hooks.json` document schema.
 //! - Gating: `hooks.enabled` and `hooks.project_hooks_enabled` in the app
 //!   settings document. Project hooks are disabled by default because they
@@ -21,20 +21,20 @@ use crate::infrastructure::try_get_path_manager_arc;
 use crate::service::config::get_global_config_service;
 pub use crate::service::config::types::AgentHooksConfig;
 use async_trait::async_trait;
+use dashmap::DashMap;
+use log::{debug, info, warn};
 #[cfg(feature = "opencode-plugin-host")]
-use bitfun_agent_runtime::native_hooks::PluginHookDispatchResult;
-use bitfun_agent_runtime::native_hooks::{
+use openbitfun_agent_runtime::native_hooks::PluginHookDispatchResult;
+use openbitfun_agent_runtime::native_hooks::{
     AgentHookEngine, AgentHookEvent, AgentHookEventPayload, AgentHookMatcher, AgentHookOutcome,
     AgentHookPayload, AgentHookPayloadCommon, AgentHookPermissionMode, AgentHookPermissionOutcome,
     AgentHookScope, AgentHookSettings, AgentHookSettingsLayer, BuiltinHookExecutor, HookCall,
     HookCallPayload, HookHandler, HookHandlerResult, RuntimeHookKind, RuntimeHookPlan,
     RuntimeHookRegistration, RuntimeHookRegistry, RuntimeHookSource, MAX_HOOKS_FILE_BYTES,
 };
-use bitfun_agent_runtime::post_call_hooks::{
+use openbitfun_agent_runtime::post_call_hooks::{
     resolve_deep_review_shared_context_tool_use, DeepReviewSharedContextToolUseFacts,
 };
-use dashmap::DashMap;
-use log::{debug, info, warn};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
@@ -69,11 +69,11 @@ pub(crate) fn plugin_hook_registry(_workspace_scope: &str) -> RuntimeHookRegistr
 #[cfg(feature = "opencode-plugin-host")]
 pub(crate) async fn dispatch_plugin_hook(
     workspace_scope: &str,
-    generation: Option<&bitfun_agent_runtime::native_hooks::PluginHookGenerationIdentity>,
+    generation: Option<&openbitfun_agent_runtime::native_hooks::PluginHookGenerationIdentity>,
     hook_name: &str,
     input: Value,
     output: Value,
-) -> bitfun_agent_runtime::native_hooks::PluginHookDispatchResult {
+) -> openbitfun_agent_runtime::native_hooks::PluginHookDispatchResult {
     AgentHookEngine::with_registry(plugin_hook_registry(workspace_scope))
         .dispatch_plugin_hook_for_generation(
             Some(workspace_scope),
@@ -227,7 +227,7 @@ impl PluginToolAfterOutput {
             metadata,
         } = self;
         // The Host carries title and metadata through the complete ordered
-        // OpenCode Hook chain. BitFun's stable ToolResult contract currently
+        // OpenCode Hook chain. OpenBitFun's stable ToolResult contract currently
         // has one mutable presentation field: the model-visible output. Keep
         // the raw result immutable and avoid inventing a second persistence/UI
         // schema until a product consumer for these two presentation facts is
@@ -240,7 +240,7 @@ impl PluginToolAfterOutput {
 #[cfg(all(test, feature = "opencode-plugin-host"))]
 mod plugin_tool_output_tests {
     use super::{plugin_tool_after_output, plugin_tool_before_output};
-    use bitfun_agent_runtime::native_hooks::PluginHookDispatchResult;
+    use openbitfun_agent_runtime::native_hooks::PluginHookDispatchResult;
     use serde_json::{json, Value};
 
     fn dispatch_result(output: Value, executed_handlers: usize) -> PluginHookDispatchResult {
@@ -744,7 +744,7 @@ fn publish_command_registrations(
     workspace_scope: Option<&str>,
     manual_settings: AgentHookSettings,
     imported_settings: AgentHookSettings,
-) -> Result<(), bitfun_agent_runtime::native_hooks::RuntimeHookRegistryError> {
+) -> Result<(), openbitfun_agent_runtime::native_hooks::RuntimeHookRegistryError> {
     let manual = manual_settings.registrations();
     let user_entries = manual
         .iter()
@@ -879,15 +879,12 @@ async fn prepare<'a>(
     facts: NativeHookSessionFacts<'a>,
     event: AgentHookEvent,
 ) -> Option<PreparedDispatch<'a>> {
-    if facts.is_remote_workspace {
-        debug!(
-            "Skipping agent hook dispatch for remote workspace: event={}, session_id={}",
-            event, facts.session_id
-        );
-        return None;
-    }
     let config = hooks_config().await;
     if !config.enabled {
+        return None;
+    }
+    if facts.is_remote_workspace {
+        report_remote_workspace_skip(&facts, event).await;
         return None;
     }
     let engine = engine_for(facts.workspace_root, config.project_hooks_enabled).await?;
@@ -914,6 +911,66 @@ async fn prepare<'a>(
 /// resolve against the serialized `GlobalConfig`, where `AppConfig` lives
 /// under `app`.
 pub(crate) const HOOKS_CONFIG_PATH: &str = "app.hooks";
+
+/// A remote workspace never dispatches hooks: a local hook process and a
+/// remote workspace path do not describe the same filesystem. The skip must
+/// still be visible, so when the host-level hook configuration has rules for
+/// this event the first skip per session is logged as a warning.
+///
+/// Only the host-owned user layer is consulted. The project layer of a remote
+/// workspace lives on the remote host; deriving a controller-local path from
+/// the remote root to look for it would be exactly the local read this skip
+/// exists to prevent.
+async fn report_remote_workspace_skip(facts: &NativeHookSessionFacts<'_>, event: AgentHookEvent) {
+    let configured = match engine_for(None, false).await {
+        Some(engine) => engine.has_rules_for_workspace(event, None),
+        None => false,
+    };
+    if !configured {
+        debug!(
+            "Skipping agent hook dispatch for remote workspace: event={}, session_id={}",
+            event, facts.session_id
+        );
+        return;
+    }
+    if remote_skip_already_reported(facts.session_id) {
+        debug!(
+            "Skipping configured agent hooks for remote workspace: event={}, session_id={}",
+            event, facts.session_id
+        );
+        return;
+    }
+    warn!(
+        "Configured agent hooks are not executed for a remote workspace: event={}, session_id={}, workspace_root={}; hooks run only where the workspace filesystem lives, and this host did not run them locally",
+        event,
+        facts.session_id,
+        facts
+            .workspace_root
+            .map(|root| root.to_string_lossy().to_string())
+            .unwrap_or_default()
+    );
+}
+
+/// One warning per session keeps the skip visible without repeating it for
+/// every tool call of a long remote turn. The set is bounded so a long-lived
+/// host does not accumulate ids forever.
+fn remote_skip_already_reported(session_id: &str) -> bool {
+    const MAX_TRACKED_SESSIONS: usize = 1024;
+    static REPORTED: OnceLock<std::sync::Mutex<std::collections::HashSet<String>>> =
+        OnceLock::new();
+    let reported = REPORTED.get_or_init(Default::default);
+    let Ok(mut reported) = reported.lock() else {
+        return false;
+    };
+    if reported.contains(session_id) {
+        return true;
+    }
+    if reported.len() >= MAX_TRACKED_SESSIONS {
+        reported.clear();
+    }
+    reported.insert(session_id.to_string());
+    false
+}
 
 async fn hooks_config() -> AgentHooksConfig {
     match get_global_config_service().await {
@@ -1161,13 +1218,13 @@ mod cache_tests {
         first.set_source_activation_for_workspace(
             RuntimeHookSource::Plugin,
             Some(&workspace_scope),
-            bitfun_agent_runtime::native_hooks::RuntimeHookActivation::Ready,
+            openbitfun_agent_runtime::native_hooks::RuntimeHookActivation::Ready,
         );
 
         assert_eq!(
             second
                 .source_activation_for_workspace(RuntimeHookSource::Plugin, Some(&workspace_scope)),
-            bitfun_agent_runtime::native_hooks::RuntimeHookActivation::Ready
+            openbitfun_agent_runtime::native_hooks::RuntimeHookActivation::Ready
         );
         second.clear_source_workspace(RuntimeHookSource::Plugin, &workspace_scope);
     }
@@ -1231,6 +1288,9 @@ pub struct NativeHookOverview {
     pub total_handlers: usize,
     /// Configuration problems, in the wording used for the backend log.
     pub issues: Vec<String>,
+    /// `true` when the workspace is remote: the rules above describe what is
+    /// configured on this host, but none of them run for that workspace.
+    pub remote_workspace_unsupported: bool,
 }
 
 /// Read the hook configuration for a workspace without dispatching anything.
@@ -1239,13 +1299,29 @@ pub struct NativeHookOverview {
 /// surface that needs to show what is configured. It re-reads the files rather
 /// than consulting the dispatch cache, so it always reflects what is on disk.
 pub async fn overview(workspace_root: Option<&Path>) -> NativeHookOverview {
+    overview_with_facts(workspace_root, false).await
+}
+
+/// [`overview`] with the session's remote fact. For a remote workspace only
+/// the host-owned user layer is inspected (the project layer lives on the
+/// remote host and no controller-local path is derived from the remote root),
+/// and the result is flagged so surfaces can say the hooks will not run.
+pub async fn overview_with_facts(
+    workspace_root: Option<&Path>,
+    is_remote_workspace: bool,
+) -> NativeHookOverview {
     // Ask for every candidate path, then mark which layers a dispatch would
     // actually load, so the view can show a gated-off project file.
     let config = hooks_config().await;
+    let local_root = if is_remote_workspace {
+        None
+    } else {
+        workspace_root
+    };
     let imported_layers = if config.enabled {
         #[cfg(feature = "external-sources")]
         {
-            crate::external_hook_import::enabled_imported_hook_layers(workspace_root)
+            crate::external_hook_import::enabled_imported_hook_layers(local_root)
                 .await
                 .unwrap_or_default()
         }
@@ -1256,11 +1332,13 @@ pub async fn overview(workspace_root: Option<&Path>) -> NativeHookOverview {
     } else {
         Vec::new()
     };
-    build_overview_with_imports(
+    let mut overview = build_overview_with_imports(
         config,
-        hook_settings_paths(workspace_root, true),
+        hook_settings_paths(local_root, true),
         imported_layers,
-    )
+    );
+    overview.remote_workspace_unsupported = is_remote_workspace;
+    overview
 }
 
 #[cfg(test)]
@@ -1342,6 +1420,7 @@ pub(crate) fn build_overview_with_imports(
             .into_iter()
             .chain(issues.iter().map(ToString::to_string))
             .collect(),
+        remote_workspace_unsupported: false,
     }
 }
 

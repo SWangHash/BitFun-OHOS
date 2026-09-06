@@ -42,8 +42,8 @@ describe('feedback conversation contract', () => {
 
   it('keeps conversation refresh notices outside the scroll container', () => {
     const source = readSource('./FeedbackConversationView.tsx');
-    const noticesPosition = source.indexOf('bitfun-feedback__conversation-notices');
-    const messagesPosition = source.indexOf('className="bitfun-feedback__messages"');
+    const noticesPosition = source.indexOf('openbitfun-feedback__conversation-notices');
+    const messagesPosition = source.indexOf('className="openbitfun-feedback__messages"');
 
     expect(noticesPosition).toBeGreaterThan(0);
     expect(messagesPosition).toBeGreaterThan(noticesPosition);

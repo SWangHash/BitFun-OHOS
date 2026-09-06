@@ -13,7 +13,7 @@ describe('Switch presentation', () => {
   it('keeps the checked thumb inside the track and independent from primary button colors', () => {
     const stylesheet = readStylesheet();
     const checkedStart = stylesheet.indexOf('&__input:checked + &__track &__thumb');
-    const checkedEnd = stylesheet.indexOf("data-bf-appearance-mode='dark'", checkedStart);
+    const checkedEnd = stylesheet.indexOf("data-openbitfun-appearance-mode='dark'", checkedStart);
     const checkedRule = stylesheet.slice(checkedStart, checkedEnd);
 
     expect(checkedRule).toContain('transform: translateX(16px);');

@@ -4,26 +4,18 @@
  *
  * Two window states:
  * - Collapsed: a compact status strip (latest activity + confirm/cancel controls).
- * - Expanded: the main window session surface verbatim — ChatPane renders the
- *   same FlowChat conversation and ChatInput composer the session scene uses, so
- *   this mode never drifts behind the normal chat UI and needs no parallel
- *   conversation/composer implementation of its own.
+ * - Expanded: ConversationModeSurface matches the Hello bubble's text/voice
+ *   capability shell, while ChatPane renders the same FlowChat conversation
+ *   and ChatInput composer the session scene uses. This mode therefore owns no
+ *   parallel conversation, composer, or realtime-voice implementation.
  */
 
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Menu, MenuItem } from '@bitfun/ui';
+import { Menu, MenuItem } from '@openbitfun/ui';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import {
-  Square,
-  Check,
-  X,
-  Maximize2,
-  MoreVertical,
-  PanelTopOpen,
-  PanelTopClose
-} from 'lucide-react';
+import { Square, Maximize2, MoreVertical, PanelTopOpen, PanelTopClose } from 'lucide-react';
 import { useToolbarModeContext } from './ToolbarModeContext';
 import { type FlowToolItem } from '../../types/flow-chat';
 import { projectEffectiveToolItem } from '../../utils/toolInvocationIdentity';
@@ -33,14 +25,20 @@ import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext'
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import { SessionMenu, useFlowChatSessions } from '../session-menu';
+import {
+  ConversationModeSurface,
+  ConversationVoiceModeIcon,
+} from '../voice/ConversationModeSurface';
+import { useRealtimeVoiceCall } from '../voice/RealtimeVoiceCallContext';
 
 const log = createLogger('ToolbarMode');
 import ChatPane from '@/app/scenes/session/ChatPane';
-import { Tooltip } from '@bitfun/ui';
+import { Tooltip, Icon } from '@openbitfun/ui';
 import './ToolbarMode.scss';
 
 export const ToolbarMode: React.FC = () => {
   const { t } = useTranslation('flow-chat');
+  const { t: tVoice } = useTranslation('settings/voice-input');
   const {
     isToolbarMode,
     isExpanded,
@@ -64,6 +62,9 @@ export const ToolbarMode: React.FC = () => {
   const isMacOS = useMemo(() => isMacOSDesktopRuntime(), []);
   const { workspacePath } = useCurrentWorkspace();
   const { activeSession, sessionTitle } = useFlowChatSessions();
+  const { phase: voicePhase, end: endVoiceCall } = useRealtimeVoiceCall();
+  const isVoiceMode = voicePhase !== 'idle';
+  const surfaceTitle = isVoiceMode ? tVoice('voiceCall.call.title') : sessionTitle;
 
   const lastMessageContent = useMemo(() => {
     if (!activeSession || !activeSession.dialogTurns || activeSession.dialogTurns.length === 0) {
@@ -148,7 +149,7 @@ export const ToolbarMode: React.FC = () => {
       if (headerOverflowRef.current?.contains(target)) {
         return;
       }
-      if (target.closest?.('.bitfun-toolbar-mode__overflow-trigger')) {
+      if (target.closest?.('.openbitfun-toolbar-mode__overflow-trigger')) {
         return;
       }
       setShowHeaderOverflowMenu(false);
@@ -169,7 +170,7 @@ export const ToolbarMode: React.FC = () => {
     const target = e.target as HTMLElement;
     // Avoid dragging when interacting with UI controls.
     if (target.closest?.(
-      'button, input, .bitfun-session-menu, .bitfun-toolbar-mode__overflow-menu, .bitfun-toolbar-mode__stream-content, .bitfun-toolbar-mode__session-surface'
+      'button, input, .openbitfun-session-menu, .openbitfun-toolbar-mode__overflow-menu, .openbitfun-toolbar-mode__stream-content, .openbitfun-toolbar-mode__session-surface'
     )) {
       return;
     }
@@ -182,8 +183,14 @@ export const ToolbarMode: React.FC = () => {
   }, []);
 
   const handleExpand = useCallback(async () => {
+    if (isVoiceMode) endVoiceCall();
     await disableToolbarMode();
-  }, [disableToolbarMode]);
+  }, [disableToolbarMode, endVoiceCall, isVoiceMode]);
+
+  const handleToggleExpanded = useCallback(async () => {
+    if (isExpanded && isVoiceMode) endVoiceCall();
+    await toggleExpanded();
+  }, [endVoiceCall, isExpanded, isVoiceMode, toggleExpanded]);
 
   const handleCancel = useCallback(() => {
     window.dispatchEvent(new CustomEvent('toolbar-cancel-task'));
@@ -219,45 +226,49 @@ export const ToolbarMode: React.FC = () => {
   }
 
   const containerClassName = [
-    'bitfun-toolbar-mode',
-    isExpanded && 'bitfun-toolbar-mode--expanded',
-    currentStreamState.isStreaming && 'bitfun-toolbar-mode--processing',
-    toolbarState.hasError && 'bitfun-toolbar-mode--error',
-    toolbarState.hasPendingConfirmation && 'bitfun-toolbar-mode--confirm',
-    isMacOS && 'bitfun-toolbar-mode--macos',
+    'openbitfun-toolbar-mode',
+    isExpanded && 'openbitfun-toolbar-mode--expanded',
+    currentStreamState.isStreaming && 'openbitfun-toolbar-mode--processing',
+    toolbarState.hasError && 'openbitfun-toolbar-mode--error',
+    toolbarState.hasPendingConfirmation && 'openbitfun-toolbar-mode--confirm',
+    isMacOS && 'openbitfun-toolbar-mode--macos',
   ].filter(Boolean).join(' ');
 
   return (
-    <div data-bf-component="toolbar-mode" data-bf-part="root" data-bf-state={[
+    <div data-openbitfun-component="toolbar-mode" data-openbitfun-part="root" data-openbitfun-state={[
       isExpanded && 'expanded',
       currentStreamState.isStreaming && 'processing',
       toolbarState.hasError && 'error',
       toolbarState.hasPendingConfirmation && 'confirm',
     ].filter(Boolean).join(' ') || undefined} className={containerClassName} onMouseDown={handleStartDrag}>
-      <div className="bitfun-toolbar-mode__header" data-bf-component="toolbar-mode" data-bf-part="header">
-        <div className="bitfun-toolbar-mode__header-left" data-bf-component="toolbar-mode" data-bf-part="headerLeft">
-          {isExpanded ? <SessionMenu onOpenChange={handleSessionMenuOpenChange} /> : null}
+      <div className="openbitfun-toolbar-mode__header" data-openbitfun-component="toolbar-mode" data-openbitfun-part="header">
+        <div className="openbitfun-toolbar-mode__header-left" data-openbitfun-component="toolbar-mode" data-openbitfun-part="headerLeft">
+          {isExpanded
+            ? (isVoiceMode
+                ? <ConversationVoiceModeIcon />
+                : <SessionMenu onOpenChange={handleSessionMenuOpenChange} />)
+            : null}
         </div>
 
-        <div className="bitfun-toolbar-mode__title-wrapper" data-bf-component="toolbar-mode" data-bf-part="title">
-          <div className="bitfun-toolbar-mode__title-display" title={sessionTitle}>
-            <span className="bitfun-toolbar-mode__title-text">{sessionTitle}</span>
+        <div className="openbitfun-toolbar-mode__title-wrapper" data-openbitfun-component="toolbar-mode" data-openbitfun-part="title">
+          <div className="openbitfun-toolbar-mode__title-display" title={surfaceTitle}>
+            <span className="openbitfun-toolbar-mode__title-text">{surfaceTitle}</span>
           </div>
         </div>
 
-        <div className="bitfun-toolbar-mode__header-right" data-bf-component="toolbar-mode" data-bf-part="headerActions">
-          <div className="bitfun-toolbar-mode__header-drag-area" aria-hidden="true" />
-          <div className="bitfun-toolbar-mode__header-overflow">
+        <div className="openbitfun-toolbar-mode__header-right" data-openbitfun-component="toolbar-mode" data-openbitfun-part="headerActions">
+          <div className="openbitfun-toolbar-mode__header-drag-area" aria-hidden="true" />
+          <div className="openbitfun-toolbar-mode__header-overflow">
             {isExpanded ? (
               <>
                 <Tooltip content={t('toolCards.toolbar.moreMenu')}>
                   <button
                     ref={headerOverflowTriggerRef}
                     type="button"
-                    className="toolbar-btn toolbar-btn--overflow bitfun-toolbar-mode__overflow-trigger"
-                    data-bf-component="toolbar-mode"
-                    data-bf-part="overflowTrigger"
-                    data-bf-state={showHeaderOverflowMenu ? 'open' : undefined}
+                    className="toolbar-btn toolbar-btn--overflow openbitfun-toolbar-mode__overflow-trigger"
+                    data-openbitfun-component="toolbar-mode"
+                    data-openbitfun-part="overflowTrigger"
+                    data-openbitfun-state={showHeaderOverflowMenu ? 'open' : undefined}
                     onClick={toggleHeaderOverflowMenu}
                     aria-expanded={showHeaderOverflowMenu}
                     aria-haspopup="menu"
@@ -268,11 +279,11 @@ export const ToolbarMode: React.FC = () => {
                 {showHeaderOverflowMenu && createPortal(
                   <Menu
                     ref={headerOverflowRef}
-                    className="bitfun-toolbar-mode__overflow-menu"
-                    data-bf-component="toolbar-mode"
-                    data-bf-part="overflowMenu"
-                    data-bf-state="open"
-                    data-bf-placement={headerOverflowLayout?.placement ?? 'bottom'}
+                    className="openbitfun-toolbar-mode__overflow-menu"
+                    data-openbitfun-component="toolbar-mode"
+                    data-openbitfun-part="overflowMenu"
+                    data-openbitfun-state="open"
+                    data-openbitfun-placement={headerOverflowLayout?.placement ?? 'bottom'}
                     style={{
                       top: `${headerOverflowLayout?.top ?? 0}px`,
                       left: `${headerOverflowLayout?.left ?? 0}px`,
@@ -283,10 +294,10 @@ export const ToolbarMode: React.FC = () => {
                     <MenuItem
                       type="button"
                       leading={<PanelTopClose size={14} />}
-                      data-bf-component="toolbar-mode"
-                      data-bf-part="overflowItem"
+                      data-openbitfun-component="toolbar-mode"
+                      data-openbitfun-part="overflowItem"
                       onClick={() => {
-                        void toggleExpanded();
+                        void handleToggleExpanded();
                         setShowHeaderOverflowMenu(false);
                       }}
                     >
@@ -295,8 +306,8 @@ export const ToolbarMode: React.FC = () => {
                     <MenuItem
                       type="button"
                       leading={<Maximize2 size={14} />}
-                      data-bf-component="toolbar-mode"
-                      data-bf-part="overflowItem"
+                      data-openbitfun-component="toolbar-mode"
+                      data-openbitfun-part="overflowItem"
                       onClick={() => {
                         void handleExpand();
                         setShowHeaderOverflowMenu(false);
@@ -309,12 +320,12 @@ export const ToolbarMode: React.FC = () => {
                 )}
               </>
             ) : (
-              <div className="bitfun-toolbar-mode__header-collapsed-actions" data-bf-component="toolbar-mode" data-bf-part="collapsedActions">
+              <div className="openbitfun-toolbar-mode__header-collapsed-actions" data-openbitfun-component="toolbar-mode" data-openbitfun-part="collapsedActions">
                 <Tooltip content={t('toolCards.toolbar.expandChat')}>
                   <button
                     type="button"
                     className="toolbar-btn toolbar-btn--overflow"
-                    onClick={() => void toggleExpanded()}
+                    onClick={() => void handleToggleExpanded()}
                     aria-label={t('toolCards.toolbar.expandChat')}
                   >
                     <PanelTopOpen size={14} />
@@ -337,52 +348,58 @@ export const ToolbarMode: React.FC = () => {
       </div>
 
       {isExpanded ? (
-        /* Main window session surface, reused as-is: same conversation view and
-           same full composer, so there is nothing extra to maintain here. */
-        <div className="bitfun-toolbar-mode__session-surface" data-bf-component="toolbar-mode" data-bf-part="sessionSurface">
-          <ChatPane
-            width={0}
-            isFullscreen={false}
-            isSceneActive
-            workspacePath={workspacePath}
-            showChatInput
-          />
+        /* ConversationModeSurface is also used by the Hello bubble. It owns
+           text/voice mode while ChatPane remains the one shared chat surface. */
+        <div
+          className="openbitfun-toolbar-mode__session-surface"
+          data-openbitfun-component="toolbar-mode"
+          data-openbitfun-part="sessionSurface"
+        >
+          <ConversationModeSurface switchTestId="toolbar-realtime-voice-mode-switch">
+            <ChatPane
+              width={0}
+              isFullscreen={false}
+              isSceneActive
+              workspacePath={workspacePath}
+              showChatInput
+            />
+          </ConversationModeSurface>
         </div>
       ) : (
-        <div className="bitfun-toolbar-mode__content-row" data-bf-component="toolbar-mode" data-bf-part="content">
-          <div className="bitfun-toolbar-mode__stream-content" onClick={toggleExpanded} data-bf-component="toolbar-mode" data-bf-part="stream" data-bf-content-kind={currentStreamState.toolName ? 'tool' : toolbarState.todoProgress && toolbarState.todoProgress.total > 0 ? 'todo' : 'text'} data-bf-state={currentStreamState.isStreaming ? 'streaming' : undefined}>
+        <div className="openbitfun-toolbar-mode__content-row" data-openbitfun-component="toolbar-mode" data-openbitfun-part="content">
+          <div className="openbitfun-toolbar-mode__stream-content" onClick={() => void handleToggleExpanded()} data-openbitfun-component="toolbar-mode" data-openbitfun-part="stream" data-openbitfun-content-kind={currentStreamState.toolName ? 'tool' : toolbarState.todoProgress && toolbarState.todoProgress.total > 0 ? 'todo' : 'text'} data-openbitfun-state={currentStreamState.isStreaming ? 'streaming' : undefined}>
             {currentStreamState.toolName ? (
-              <div className="bitfun-toolbar-mode__tool" data-bf-component="toolbar-mode" data-bf-part="tool">
-                <span className="bitfun-toolbar-mode__tool-name" data-bf-component="toolbar-mode" data-bf-part="toolName">{currentStreamState.toolName}</span>
-                <span className="bitfun-toolbar-mode__tool-summary" data-bf-component="toolbar-mode" data-bf-part="toolSummary">{currentStreamState.content || t('toolCards.toolbar.executing')}</span>
+              <div className="openbitfun-toolbar-mode__tool" data-openbitfun-component="toolbar-mode" data-openbitfun-part="tool">
+                <span className="openbitfun-toolbar-mode__tool-name" data-openbitfun-component="toolbar-mode" data-openbitfun-part="toolName">{currentStreamState.toolName}</span>
+                <span className="openbitfun-toolbar-mode__tool-summary" data-openbitfun-component="toolbar-mode" data-openbitfun-part="toolSummary">{currentStreamState.content || t('toolCards.toolbar.executing')}</span>
               </div>
             ) : toolbarState.todoProgress && toolbarState.todoProgress.total > 0 ? (
-              <div className="bitfun-toolbar-mode__todo" data-bf-component="toolbar-mode" data-bf-part="todo">
-                <span className="bitfun-toolbar-mode__todo-progress" data-bf-component="toolbar-mode" data-bf-part="todoProgress">
+              <div className="openbitfun-toolbar-mode__todo" data-openbitfun-component="toolbar-mode" data-openbitfun-part="todo">
+                <span className="openbitfun-toolbar-mode__todo-progress" data-openbitfun-component="toolbar-mode" data-openbitfun-part="todoProgress">
                   {toolbarState.todoProgress.completed}/{toolbarState.todoProgress.total}
                 </span>
-                <span className="bitfun-toolbar-mode__todo-current" data-bf-component="toolbar-mode" data-bf-part="todoCurrent">
+                <span className="openbitfun-toolbar-mode__todo-current" data-openbitfun-component="toolbar-mode" data-openbitfun-part="todoCurrent">
                   {toolbarState.todoProgress.current || currentStreamState.content}
                 </span>
               </div>
             ) : (
-              <span className={`bitfun-toolbar-mode__text ${currentStreamState.isStreaming ? 'bitfun-toolbar-mode__text--streaming' : ''}`} data-bf-component="toolbar-mode" data-bf-part="streamText">
+              <span className={`openbitfun-toolbar-mode__text ${currentStreamState.isStreaming ? 'openbitfun-toolbar-mode__text--streaming' : ''}`} data-openbitfun-component="toolbar-mode" data-openbitfun-part="streamText">
                 {currentStreamState.content || (currentStreamState.isStreaming ? t('toolCards.toolbar.processing') : (lastMessageContent || t('toolCards.toolbar.startNewChat')))}
               </span>
             )}
           </div>
 
-          <div className="bitfun-toolbar-mode__controls" data-bf-component="toolbar-mode" data-bf-part="controls">
+          <div className="openbitfun-toolbar-mode__controls" data-openbitfun-component="toolbar-mode" data-openbitfun-part="controls">
             {toolbarState.hasPendingConfirmation && (
               <>
                 <Tooltip content={t('toolCards.common.confirm')}>
                   <button className="toolbar-btn toolbar-btn--confirm" onClick={handleConfirm}>
-                    <Check size={16} />
+                    <Icon name="check-line" size="md" />
                   </button>
                 </Tooltip>
                 <Tooltip content={t('toolCards.common.cancel')}>
                   <button className="toolbar-btn toolbar-btn--reject" onClick={handleReject}>
-                    <X size={16} />
+                    <Icon name="xmark" size="md" />
                   </button>
                 </Tooltip>
               </>

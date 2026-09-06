@@ -31,14 +31,14 @@ use crate::agentic::tools::framework::{
     Tool, ToolExposure, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult,
 };
 use crate::service::config::{get_global_config_service, GlobalConfig};
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use crate::util::types::ToolImageAttachment;
 use crate::infrastructure::events::get_global_event_system;
 use crate::infrastructure::events::BackendEvent;
 use async_trait::async_trait;
-use bitfun_services_core::system::{truncate_with_marker, LocalSystemProvider};
+use openbitfun_services_core::system::{truncate_with_marker, LocalSystemProvider};
 #[cfg(target_env = "ohos")]
-use bitfun_services_integrations::browser_control::{
+use openbitfun_services_integrations::browser_control::{
     close_arkweb_browser_webview, create_arkweb_browser_webview, default_arkweb_automation_target,
     list_arkweb_automation_targets, register_arkweb_automation_target,
     remove_arkweb_automation_target, set_default_arkweb_automation_target, ArkWebAutomationTarget,
@@ -95,7 +95,7 @@ fn builtin_arkweb_reconnect_lock() -> &'static tokio::sync::Mutex<()> {
     BUILTIN_ARKWEB_RECONNECT_LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
 }
 
-/// Disconnect the user-selected external browser from BitFun without closing
+/// Disconnect the user-selected external browser from OpenBitFun without closing
 /// any browser tabs or changing the browser-owned Remote debugging preference.
 /// Page sessions and the retained browser WebSocket share this cleanup so an
 /// in-flight or later tool action cannot continue through a stale binding.
@@ -185,7 +185,7 @@ impl ControlHubTool {
             "Ask the user to reconnect it in Settings > Desktop & browser before using external-browser actions again.",
         )
         .with_hint(
-            "Use target='builtin' for BitFun's built-in browser when that surface is sufficient.",
+            "Use target='builtin' for OpenBitFun's built-in browser when that surface is sufficient.",
         )
     }
 
@@ -216,7 +216,7 @@ impl ControlHubTool {
             .or_else(|| params.get("browser_target"))
             .and_then(Value::as_str);
         match explicit {
-            Some("builtin" | "built_in" | "embedded" | "bitfun") => Ok(BrowserTargetKind::BuiltIn),
+            Some("builtin" | "built_in" | "embedded" | "openbitfun") => Ok(BrowserTargetKind::BuiltIn),
             Some("external" | "cdp" | "headless") | None => {
                 if explicit.is_none()
                     && params
@@ -247,7 +247,7 @@ impl ControlHubTool {
             ControlHubError::new(
                 ErrorCode::NotAvailable,
                 format!(
-                    "browser.{action} is a CDP protocol extension and is not available for BitFun's built-in WebView target."
+                    "browser.{action} is a CDP protocol extension and is not available for OpenBitFun's built-in WebView target."
                 ),
             )
             .with_hint(
@@ -274,7 +274,7 @@ impl ControlHubTool {
         })
     }
 
-    fn builtin_open_error(error: BitFunError) -> ControlHubError {
+    fn builtin_open_error(error: OpenBitFunError) -> ControlHubError {
         let message = error.to_string();
         let code = if message.contains("did not become ready") {
             ErrorCode::Timeout
@@ -282,8 +282,8 @@ impl ControlHubTool {
             ErrorCode::NotAvailable
         };
         ControlHubError::new(code, message).with_hints([
-            "Keep the BitFun Desktop window open and retry browser.open_builtin; CLI/headless runtimes do not provide a built-in browser surface.",
-            "If the user only asked to show BitFun's browser without a URL, use BitFunControl open on capability_id='feature.browser' instead of inventing a placeholder URL.",
+            "Keep the OpenBitFun Desktop window open and retry browser.open_builtin; CLI/headless runtimes do not provide a built-in browser surface.",
+            "If the user only asked to show OpenBitFun's browser without a URL, use OpenBitFunControl open on capability_id='feature.browser' instead of inventing a placeholder URL.",
         ])
     }
 
@@ -365,7 +365,7 @@ impl ControlHubTool {
         params: &Value,
         context: &ToolUseContext,
         reason: impl std::fmt::Display,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         let reason = reason.to_string();
         if let Ok(service) = get_global_config_service().await {
             if let Err(error) = service
@@ -397,14 +397,14 @@ impl ControlHubTool {
                     object.insert("status".to_string(), json!("fallback_builtin"));
                 }
                 *result_for_assistant = Some(format!(
-                    "Haitai Browser was unavailable, so BitFun connected to the built-in ArkWeb instead: {reason}"
+                    "Haitai Browser was unavailable, so OpenBitFun connected to the built-in ArkWeb instead: {reason}"
                 ));
             }
         }
         Ok(results)
     }
 
-    async fn resolve_browser_session(session_id: Option<&str>) -> BitFunResult<BrowserSession> {
+    async fn resolve_browser_session(session_id: Option<&str>) -> OpenBitFunResult<BrowserSession> {
         let registry = browser_sessions();
         match registry.registered(session_id).await {
             Ok(session) if session.client.is_connected() => Ok(session),
@@ -446,7 +446,7 @@ impl ControlHubTool {
     async fn reconnect_builtin_arkweb(
         target: ArkWebAutomationTarget,
         previous_state: Option<Arc<BrowserSessionState>>,
-    ) -> BitFunResult<BrowserSession> {
+    ) -> OpenBitFunResult<BrowserSession> {
         let _reconnect_guard = builtin_arkweb_reconnect_lock().lock().await;
         let registry = browser_sessions();
         if let Ok(session) = registry.registered(Some(&target.target_id)).await {
@@ -465,13 +465,13 @@ impl ControlHubTool {
         let Some(page) = page else {
             registry.remove(&target.target_id).await;
             remove_arkweb_automation_target(&target.target_id);
-            return Err(BitFunError::tool(format!(
+            return Err(OpenBitFunError::tool(format!(
                 "Built-in ArkWeb target '{}' no longer exists. Call browser.connect with backend 'builtin' to create a new page.",
                 target.target_id
             )));
         };
         let ws_url = page.web_socket_debugger_url.as_deref().ok_or_else(|| {
-            BitFunError::tool("ArkWeb target has no WebSocket debugger URL".to_string())
+            OpenBitFunError::tool("ArkWeb target has no WebSocket debugger URL".to_string())
         })?;
         let client = CdpClient::connect_at(&endpoint, ws_url).await?;
         let session = BrowserSession {
@@ -495,7 +495,7 @@ impl ControlHubTool {
         Ok(session)
     }
 
-    async fn registered_builtin_pages() -> BitFunResult<Vec<CdpPageInfo>> {
+    async fn registered_builtin_pages() -> OpenBitFunResult<Vec<CdpPageInfo>> {
         #[cfg(target_env = "ohos")]
         {
             let targets = list_arkweb_automation_targets();
@@ -563,7 +563,7 @@ impl ControlHubTool {
         response_action: &str,
         params: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         if Self::browser_connect_mode_from_params(params) == "headless" {
             return Ok(err_response(
                 "browser",
@@ -610,10 +610,10 @@ impl ControlHubTool {
             .to_string();
 
         let automation_id = uuid::Uuid::new_v4().simple().to_string();
-        let marker_title = format!("BitFun ArkWeb Agent {automation_id}");
+        let marker_title = format!("OpenBitFun ArkWeb Agent {automation_id}");
         let webview_label = format!("embedded-browser-panel-view-agent-{automation_id}");
         let bootstrap_html = format!(
-            "<!doctype html><html><head><meta charset=\"utf-8\"><title>{marker_title}</title></head><body data-bitfun-automation-id=\"{automation_id}\"></body></html>"
+            "<!doctype html><html><head><meta charset=\"utf-8\"><title>{marker_title}</title></head><body data-openbitfun-automation-id=\"{automation_id}\"></body></html>"
         );
         if let Err(error) = create_arkweb_browser_webview(&webview_label, &bootstrap_html).await {
             return Ok(err_response(
@@ -624,7 +624,7 @@ impl ControlHubTool {
                     format!("The OHOS host could not create the built-in ArkWeb: {error}"),
                 )
                 .with_hint(
-                    "The builtin backend requires the BitFun OHOS GUI host; CLI and detached targets must use backend: 'external'.",
+                    "The builtin backend requires the OpenBitFun OHOS GUI host; CLI and detached targets must use backend: 'external'.",
                 ),
             ));
         }
@@ -677,7 +677,7 @@ impl ControlHubTool {
                 "The built-in ArkWeb panel did not publish its CDP target within 10 seconds.",
             )
             .with_hint(
-                "The ArkWeb host was present but did not publish the requested target; retry after the BitFun window is ready.",
+                "The ArkWeb host was present but did not publish the requested target; retry after the OpenBitFun window is ready.",
             );
             if let Some(last_error) = last_error {
                 error = error.with_hint(format!("Last ArkWeb endpoint error: {last_error}"));
@@ -701,7 +701,7 @@ impl ControlHubTool {
         };
         let Some(ws_url) = page.web_socket_debugger_url.as_deref() else {
             Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
-            return Err(BitFunError::tool(
+            return Err(OpenBitFunError::tool(
                 "ArkWeb target has no WebSocket debugger URL".to_string(),
             ));
         };
@@ -740,7 +740,7 @@ impl ControlHubTool {
 
         let mut result = json!({
             "success": true,
-            "browser": "BitFun Built-in ArkWeb",
+            "browser": "OpenBitFun Built-in ArkWeb",
             "browser_mode": "embedded",
             "browser_profile": "embedded",
             "browser_version": version.browser,
@@ -761,7 +761,7 @@ impl ControlHubTool {
         Ok(vec![ToolResult::ok(
             result,
             Some(format!(
-                "Connected to the BitFun built-in ArkWeb via CDP (session {})",
+                "Connected to the OpenBitFun built-in ArkWeb via CDP (session {})",
                 session.session_id
             )),
         )])
@@ -772,8 +772,8 @@ impl ControlHubTool {
         {
             let _ = (kind, port);
             return vec![
-                "OHOS defaults to BitFun's built-in ArkWeb through the app-local abstract CDP socket.".to_string(),
-                "Selecting Haitai in Settings uses its local TCP CDP endpoint; if that connection is unavailable, BitFun falls back to the built-in ArkWeb and updates the preference.".to_string(),
+                "OHOS defaults to OpenBitFun's built-in ArkWeb through the app-local abstract CDP socket.".to_string(),
+                "Selecting Haitai in Settings uses its local TCP CDP endpoint; if that connection is unavailable, OpenBitFun falls back to the built-in ArkWeb and updates the preference.".to_string(),
                 "After connecting, use browser.tab_new or browser.connect { url } with the task URL, then browser.snapshot/click/fill to drive the page through CDP.".to_string(),
             ];
         }
@@ -789,25 +789,25 @@ impl ControlHubTool {
                     };
                     vec![
                         format!(
-                            "{} can connect BitFun to the current real profile, preserving its open tabs, cookies, extensions, and login state.",
+                            "{} can connect OpenBitFun to the current real profile, preserving its open tabs, cookies, extensions, and login state.",
                             kind
                         ),
                         format!(
-                            "For one-time setup, ask the user to click Enable default CDP in BitFun Settings > Browser control. BitFun opens {}; enable Remote debugging there (the browser remembers this for normal future starts), then approve BitFun's connection dialog in {}.",
+                            "For one-time setup, ask the user to click Enable default CDP in OpenBitFun Settings > Browser control. OpenBitFun opens {}; enable Remote debugging there (the browser remembers this for normal future starts), then approve OpenBitFun's connection dialog in {}.",
                             setup_url, kind
                         ),
-                        "After approval, keep using browser.connect / snapshot / click / fill; BitFun retains one guarded browser connection to avoid repeated prompts.".to_string(),
+                        "After approval, keep using browser.connect / snapshot / click / fill; OpenBitFun retains one guarded browser connection to avoid repeated prompts.".to_string(),
                     ]
                 }
                 _ => {
                     let exe = BrowserLauncher::browser_executable(kind);
                     vec![
                         format!(
-                            "If {} already publishes DevToolsActivePort from its normal user-data directory, BitFun reuses that real profile automatically; otherwise it starts a persistent managed profile.",
+                            "If {} already publishes DevToolsActivePort from its normal user-data directory, OpenBitFun reuses that real profile automatically; otherwise it starts a persistent managed profile.",
                             kind
                         ),
                         format!(
-                            "If CDP is not ready on test port {}, retry browser.connect — it starts \"{}\" with BitFun's managed profile.",
+                            "If CDP is not ready on test port {}, retry browser.connect — it starts \"{}\" with OpenBitFun's managed profile.",
                             port, exe
                         ),
                         "After the browser is listening, use browser.connect / snapshot / click / fill to drive the DOM directly.".to_string(),
@@ -817,7 +817,7 @@ impl ControlHubTool {
         }
     }
 
-    async fn browser_version(port: u16) -> BitFunResult<CdpVersionInfo> {
+    async fn browser_version(port: u16) -> OpenBitFunResult<CdpVersionInfo> {
         if let Some(connection) = CdpClient::browser_connection(port).await {
             connection.client.browser_version().await
         } else {
@@ -825,7 +825,7 @@ impl ControlHubTool {
         }
     }
 
-    async fn browser_pages(port: u16) -> BitFunResult<Vec<CdpPageInfo>> {
+    async fn browser_pages(port: u16) -> OpenBitFunResult<Vec<CdpPageInfo>> {
         if let Some(connection) = CdpClient::browser_connection(port).await {
             connection.client.browser_pages().await
         } else {
@@ -833,7 +833,7 @@ impl ControlHubTool {
         }
     }
 
-    async fn create_browser_page(port: u16, url: Option<&str>) -> BitFunResult<CdpPageInfo> {
+    async fn create_browser_page(port: u16, url: Option<&str>) -> OpenBitFunResult<CdpPageInfo> {
         if let Some(connection) = CdpClient::browser_connection(port).await {
             connection.client.create_browser_page(url).await
         } else {
@@ -841,12 +841,12 @@ impl ControlHubTool {
         }
     }
 
-    async fn connect_page(port: u16, page: &CdpPageInfo) -> BitFunResult<CdpClient> {
+    async fn connect_page(port: u16, page: &CdpPageInfo) -> OpenBitFunResult<CdpClient> {
         if let Some(connection) = CdpClient::browser_connection(port).await {
             connection.client.attach_to_page(&page.id).await
         } else {
             let ws_url = page.web_socket_debugger_url.as_ref().ok_or_else(|| {
-                BitFunError::tool("Page has no WebSocket debugger URL".to_string())
+                OpenBitFunError::tool("Page has no WebSocket debugger URL".to_string())
             })?;
             CdpClient::connect(ws_url).await
         }
@@ -925,7 +925,7 @@ impl ControlHubTool {
             )
             .with_hints([
                 "Pass an http(s) URL or domain, e.g. { \"url\": \"https://example.com\" }.",
-                "If the user only wants to show BitFun's browser surface, call BitFunControl open with capability_id='feature.browser' and omit item_id.",
+                "If the user only wants to show OpenBitFun's browser surface, call OpenBitFunControl open with capability_id='feature.browser' and omit item_id.",
             ]));
         }
 
@@ -940,7 +940,7 @@ impl ControlHubTool {
                 "Only complete http and https URLs can be opened in the built-in browser.",
             )
             .with_hint(
-                "Do not invent about:blank or another placeholder. If the user only wants the browser surface, call BitFunControl open with capability_id='feature.browser' and omit item_id.",
+                "Do not invent about:blank or another placeholder. If the user only wants the browser surface, call OpenBitFunControl open with capability_id='feature.browser' and omit item_id.",
             ));
         } else {
             format!("https://{trimmed}")
@@ -993,15 +993,15 @@ Use this tool via `{ domain, action, params }` for browser automation, terminal 
 
 ### domain: "browser"  (shared browser automation)
 - Target selection:
-  * `params.target: "builtin" | "external"` selects BitFun's native built-in WebView or an external CDP browser. Existing calls default to `external`; a built-in `session_id` also selects `builtin` automatically.
+  * `params.target: "builtin" | "external"` selects OpenBitFun's native built-in WebView or an external CDP browser. Existing calls default to `external`; a built-in `session_id` also selects `builtin` automatically.
   * Portable actions use one `BrowserActions` implementation on both targets, with the same parameters, @eN refs, results, and errors. The browser engine is the adapter, not a second action stack.
 - Default URL-opening policy:
-  * If the user only asks to open/show BitFun's browser surface and provides no URL, use `BitFunControl` with `{ action: "open", capability_id: "feature.browser" }`. Do not invent `about:blank` or another URL.
-  * For requests that only open, show, preview, or view a URL, use `open_builtin`. This is the default browser-opening action and keeps the page inside BitFun.
+  * If the user only asks to open/show OpenBitFun's browser surface and provides no URL, use `OpenBitFunControl` with `{ action: "open", capability_id: "feature.browser" }`. Do not invent `about:blank` or another URL.
+  * For requests that only open, show, preview, or view a URL, use `open_builtin`. This is the default browser-opening action and keeps the page inside OpenBitFun.
   * `open_builtin { url, title?, replace_existing? }` requires a real http(s) URL/domain, waits for the exact native WebView to become controllable, and returns its built-in `session_id`; the Agent can immediately snapshot/read/interact with it using `target: "builtin"`.
 - Shared workflow: `connect { target, target_url?, target_title? }` -> navigate -> snapshot (returns @e1, @e2 ... refs) -> click/fill with `{ target, selector: "@e1" }`. URL/title matching and exact `session_id` selection work on both targets; take a fresh snapshot after DOM mutations.
 - Automation modes (external browser):
-  * `connect { mode: "default" }` (default) — on Chrome 144+ and current Edge, request a user-approved connection to the currently running real profile so existing tabs and login state are preserved. Other supported Chromium browsers also reuse the real profile when it publishes DevToolsActivePort; otherwise BitFun starts or attaches its persistent managed profile on port 9222.
+  * `connect { mode: "default" }` (default) — on Chrome 144+ and current Edge, request a user-approved connection to the currently running real profile so existing tabs and login state are preserved. Other supported Chromium browsers also reuse the real profile when it publishes DevToolsActivePort; otherwise OpenBitFun starts or attaches its persistent managed profile on port 9222.
   * `connect { mode: "headless" }` — attach to an already-running headless browser on the headless test port 9223. This mode never starts a browser; when nothing is listening it returns `NOT_AVAILABLE` together with the exact launch command.
   * `params.port` overrides the CDP port for `connect` and for every other CDP action; after `connect`, actions reuse the connected session's port automatically.
 - Target-specific extensions:
@@ -1042,7 +1042,7 @@ Branch on `ok` and `error.code`, not on English messages.
         action: &str,
         params: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         match domain {
             "desktop" => {
                 let hint = if context.is_remote() {
@@ -1121,14 +1121,14 @@ Branch on `ok` and `error.code`, not on English messages.
         action: &str,
         params: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         match action {
             "capabilities" => {
                 // `terminal` (TerminalApi) is delivered through a global
                 // registry rather than a field on the context, so we can't be
                 // 100% sure here without round-tripping. We report "likely
                 // available iff a desktop host is present" because that bridge
-                // only exists in BitFun's desktop runtime; the actual call will
+                // only exists in OpenBitFun's desktop runtime; the actual call will
                 // surface a clean error if the bridge is offline.
                 let likely_terminal_available = context.computer_use_host.is_some();
                 let browser_default = browser_sessions().default_id().await;
@@ -1247,7 +1247,7 @@ Branch on `ok` and `error.code`, not on English messages.
                     .get("intent")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| {
-                        BitFunError::tool("route_hint requires 'intent' (string)".to_string())
+                        OpenBitFunError::tool("route_hint requires 'intent' (string)".to_string())
                     })?;
                 let lower = intent.to_lowercase();
 
@@ -1312,9 +1312,9 @@ Branch on `ok` and `error.code`, not on English messages.
                     push(
                         &mut suggestions,
                         "unavailable",
-                        Some("BitFunControl"),
+                        Some("OpenBitFunControl"),
                         95,
-                        "The request is to show BitFun's browser surface without a URL. Call BitFunControl open with capability_id='feature.browser' and omit item_id; do not invent about:blank.",
+                        "The request is to show OpenBitFun's browser surface without a URL. Call OpenBitFunControl open with capability_id='feature.browser' and omit item_id; do not invent about:blank.",
                     );
                 }
                 let desktop_kw = [
@@ -1450,7 +1450,7 @@ Branch on `ok` and `error.code`, not on English messages.
                     }),
                 )])
             }
-            other => Err(BitFunError::tool(format!(
+            other => Err(OpenBitFunError::tool(format!(
                 "Unknown meta action: '{}'. Valid actions: capabilities, route_hint",
                 other
             ))),
@@ -1487,13 +1487,13 @@ Branch on `ok` and `error.code`, not on English messages.
     ///
     /// The sleep races the turn's cancellation token: a 30-minute pace wait
     /// that ignored it would leave the user unable to stop the agent for half
-    /// an hour. Cancellation surfaces as `BitFunError::Cancelled`, which the
+    /// an hour. Cancellation surfaces as `OpenBitFunError::Cancelled`, which the
     /// pipeline already records as a terminal cancelled state rather than a
     /// tool failure.
     async fn wait_for_duration(
         requested_ms: u64,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         let waited_ms = requested_ms.min(MAX_WAIT_MS);
         let sleep = tokio::time::sleep(std::time::Duration::from_millis(waited_ms));
 
@@ -1501,7 +1501,7 @@ Branch on `ok` and `error.code`, not on English messages.
             tokio::select! {
                 _ = sleep => {}
                 _ = token.cancelled() => {
-                    return Err(BitFunError::Cancelled(format!(
+                    return Err(OpenBitFunError::Cancelled(format!(
                         "browser.wait cancelled before the {} pause elapsed",
                         format_duration_ms(waited_ms)
                     )));
@@ -1551,7 +1551,7 @@ Branch on `ok` and `error.code`, not on English messages.
         action: &str,
         params: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         // A duration wait is a pure pause: it touches no page, so it must not
         // require (or even resolve) a CDP session — agents pace themselves with
         // this long before they open a browser. Condition waits fall through to
@@ -1699,7 +1699,7 @@ Branch on `ok` and `error.code`, not on English messages.
                     })
                     .await
                     .map_err(|error| {
-                        BitFunError::tool(format!("failed to open built-in browser: {error}"))
+                        OpenBitFunError::tool(format!("failed to open built-in browser: {error}"))
                     })?;
 
                 if !builtin_browser_host_available() {
@@ -1708,10 +1708,10 @@ Branch on `ok` and `error.code`, not on English messages.
                         "open_builtin",
                         ControlHubError::new(
                             ErrorCode::NotAvailable,
-                            "BitFun's built-in browser requires an active Desktop product surface; it is unavailable in this runtime.",
+                            "OpenBitFun's built-in browser requires an active Desktop product surface; it is unavailable in this runtime.",
                         )
                         .with_hint(
-                            "Use target='external' for a CDP browser in CLI/headless runtimes, or open this task in BitFun Desktop.",
+                            "Use target='external' for a CDP browser in CLI/headless runtimes, or open this task in OpenBitFun Desktop.",
                         ),
                     ));
                 }
@@ -1793,7 +1793,7 @@ Branch on `ok` and `error.code`, not on English messages.
                         json!({
                             "success": true,
                             "target": "builtin",
-                            "browser": "BitFun built-in browser",
+                            "browser": "OpenBitFun built-in browser",
                             "browser_mode": "embedded_webview",
                             "session_id": target.id,
                             "page_url": target.url,
@@ -1804,7 +1804,7 @@ Branch on `ok` and `error.code`, not on English messages.
                             "shared_action_contract": true,
                         }),
                         Some(format!(
-                            "Connected to BitFun's built-in browser (session {}, page '{}')",
+                            "Connected to OpenBitFun's built-in browser (session {}, page '{}')",
                             target.id, target.title
                         )),
                     )]);
@@ -1990,7 +1990,7 @@ Branch on `ok` and `error.code`, not on English messages.
                             ControlHubError::new(
                                 ErrorCode::NotAvailable,
                                 format!(
-                                    "{} needs one-time setup before BitFun can use the current logged-in profile.",
+                                    "{} needs one-time setup before OpenBitFun can use the current logged-in profile.",
                                     kind
                                 ),
                             )
@@ -2082,7 +2082,7 @@ Branch on `ok` and `error.code`, not on English messages.
                                         .await;
 
                                         #[cfg(not(target_env = "ohos"))]
-                                        return Err(BitFunError::tool(format!(
+                                        return Err(OpenBitFunError::tool(format!(
                                             "failed to open connect.url through browser CDP: {error}"
                                         )));
                                     }
@@ -2101,7 +2101,7 @@ Branch on `ok` and `error.code`, not on English messages.
                                     .await;
 
                                     #[cfg(not(target_env = "ohos"))]
-                                    return Err(BitFunError::tool(format!(
+                                    return Err(OpenBitFunError::tool(format!(
                                         "Browser CDP has no page target and could not create about:blank: {error}"
                                     )));
                                 }
@@ -2173,7 +2173,7 @@ Branch on `ok` and `error.code`, not on English messages.
                             })
                             .or_else(|| pages.first())
                             .ok_or_else(|| {
-                                BitFunError::tool("No browser pages found via CDP".to_string())
+                                OpenBitFunError::tool("No browser pages found via CDP".to_string())
                             })?;
                         let client = match Self::connect_page(port, page).await {
                             Ok(client) => client,
@@ -2313,7 +2313,7 @@ Branch on `ok` and `error.code`, not on English messages.
                         ControlHubError::new(
                             ErrorCode::NotAvailable,
                             format!(
-                                "{} needs one-time setup before BitFun can use the current logged-in profile.",
+                                "{} needs one-time setup before OpenBitFun can use the current logged-in profile.",
                                 kind
                             ),
                         )
@@ -2568,7 +2568,7 @@ Branch on `ok` and `error.code`, not on English messages.
                             "tab_new",
                             ControlHubError::new(
                                 ErrorCode::NotAvailable,
-                                "BitFun's built-in browser requires an active Desktop product surface.",
+                                "OpenBitFun's built-in browser requires an active Desktop product surface.",
                             ),
                         ));
                     }
@@ -2662,7 +2662,7 @@ Branch on `ok` and `error.code`, not on English messages.
                     .get("page_id")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| {
-                        BitFunError::tool("switch_page requires 'page_id'".to_string())
+                        OpenBitFunError::tool("switch_page requires 'page_id'".to_string())
                     })?;
                 if browser_target_kind == BrowserTargetKind::BuiltIn {
                     let client = match connect_builtin_browser(Some(page_id)).await {
@@ -2737,7 +2737,7 @@ Branch on `ok` and `error.code`, not on English messages.
                 } else {
                     let pages = Self::browser_pages(port).await?;
                     let page = pages.iter().find(|p| p.id == page_id).ok_or_else(|| {
-                        BitFunError::tool(format!("Page '{}' not found", page_id))
+                        OpenBitFunError::tool(format!("Page '{}' not found", page_id))
                     })?;
                     let client = Self::connect_page(port, page).await?;
                     let session = BrowserSession {
@@ -3066,7 +3066,7 @@ Branch on `ok` and `error.code`, not on English messages.
                             .get("url")
                             .and_then(|v| v.as_str())
                             .ok_or_else(|| {
-                                BitFunError::tool("navigate requires 'url'".to_string())
+                                OpenBitFunError::tool("navigate requires 'url'".to_string())
                             })?;
                         let result = actions.navigate(url).await?;
                         Ok(vec![ToolResult::ok(result, Some(format!("Navigated to {}", url)))])
@@ -3119,7 +3119,7 @@ Branch on `ok` and `error.code`, not on English messages.
                             .get("value")
                             .and_then(|v| v.as_str())
                             .ok_or_else(|| {
-                                BitFunError::tool("fill requires 'value'".to_string())
+                                OpenBitFunError::tool("fill requires 'value'".to_string())
                             })?;
                         let result = actions.fill(selector, value).await?;
                         Ok(vec![ToolResult::ok(
@@ -3132,7 +3132,7 @@ Branch on `ok` and `error.code`, not on English messages.
                             .get("text")
                             .and_then(|v| v.as_str())
                             .ok_or_else(|| {
-                                BitFunError::tool("type requires 'text'".to_string())
+                                OpenBitFunError::tool("type requires 'text'".to_string())
                             })?;
                         let result = actions.type_text(text).await?;
                         Ok(vec![ToolResult::ok(result, Some("Typed text".to_string()))])
@@ -3148,7 +3148,7 @@ Branch on `ok` and `error.code`, not on English messages.
                             .get("option_text")
                             .and_then(|v| v.as_str())
                             .ok_or_else(|| {
-                                BitFunError::tool("select requires 'option_text'".to_string())
+                                OpenBitFunError::tool("select requires 'option_text'".to_string())
                             })?;
                         let result = actions.select(selector, option_text).await?;
                         // Phase 3: the underlying JS returns `{ error, available }`
@@ -3195,7 +3195,7 @@ Branch on `ok` and `error.code`, not on English messages.
                             .get("key")
                             .and_then(|v| v.as_str())
                             .ok_or_else(|| {
-                                BitFunError::tool("press_key requires 'key'".to_string())
+                                OpenBitFunError::tool("press_key requires 'key'".to_string())
                             })?;
                         let result = actions.press_key(key).await?;
                         Ok(vec![ToolResult::ok(
@@ -3330,7 +3330,7 @@ Branch on `ok` and `error.code`, not on English messages.
                         // `data`, flood the context window.
                         let (mime_type, data_base64) = {
                             let obj = result.as_object_mut().ok_or_else(|| {
-                                BitFunError::tool(
+                                OpenBitFunError::tool(
                                     "screenshot returned a non-object result".to_string(),
                                 )
                             })?;
@@ -3369,7 +3369,7 @@ Branch on `ok` and `error.code`, not on English messages.
                             .get("expression")
                             .and_then(|v| v.as_str())
                             .ok_or_else(|| {
-                                BitFunError::tool("evaluate requires 'expression'".to_string())
+                                OpenBitFunError::tool("evaluate requires 'expression'".to_string())
                             })?;
                         let await_promise = params
                             .get("await_promise")
@@ -3533,7 +3533,7 @@ Branch on `ok` and `error.code`, not on English messages.
                             .get("url")
                             .and_then(|v| v.as_str())
                             .ok_or_else(|| {
-                                BitFunError::tool("fetch requires 'url'".to_string())
+                                OpenBitFunError::tool("fetch requires 'url'".to_string())
                             })?;
                         let method = params
                             .get("method")
@@ -3603,7 +3603,7 @@ Branch on `ok` and `error.code`, not on English messages.
                             .get("cookies")
                             .and_then(|v| v.as_array())
                             .ok_or_else(|| {
-                                BitFunError::tool("set_cookies requires 'cookies' array".to_string())
+                                OpenBitFunError::tool("set_cookies requires 'cookies' array".to_string())
                             })?;
                         let result = actions.set_cookies(cookies).await?;
                         let set = result.get("set").and_then(|v| v.as_u64()).unwrap_or(0);
@@ -3621,7 +3621,7 @@ Branch on `ok` and `error.code`, not on English messages.
                             .get("files")
                             .and_then(|v| v.as_array())
                             .ok_or_else(|| {
-                                BitFunError::tool("set_file_input_files requires 'files' array".to_string())
+                                OpenBitFunError::tool("set_file_input_files requires 'files' array".to_string())
                             })?
                             .iter()
                             .filter_map(|v| v.as_str().map(str::to_string))
@@ -3637,7 +3637,7 @@ Branch on `ok` and `error.code`, not on English messages.
                             .get("method")
                             .and_then(|v| v.as_str())
                             .ok_or_else(|| {
-                                BitFunError::tool("cdp requires 'method'".to_string())
+                                OpenBitFunError::tool("cdp requires 'method'".to_string())
                             })?;
                         if !Self::is_allowed_browser_cdp_method(method) {
                             return Ok(err_response(
@@ -3739,7 +3739,7 @@ Branch on `ok` and `error.code`, not on English messages.
                         }
                         Ok(vec![ToolResult::ok(result, Some("Page closed".to_string()))])
                     }
-                    other => Err(BitFunError::tool(format!(
+                    other => Err(OpenBitFunError::tool(format!(
                         "Unknown browser action: '{}'. Valid: connect, tab_new, navigate, back, forward, reload, snapshot, click, hover, fill, type, check, uncheck, select, press_key, scroll, auto_scroll, wait, get, get_text, get_url, get_title, get_html, screenshot, evaluate, fetch, cookies, set_cookies, set_file_input_files, cdp, network, console, errors, trace, dialog, read_article, close, list_pages, tab_query, switch_page, list_sessions",
                         other
                     ))),
@@ -3755,17 +3755,17 @@ Branch on `ok` and `error.code`, not on English messages.
         action: &str,
         params: &Value,
         _context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         // Phase 4: enumerate live terminal sessions so the model can resolve
         // a `terminal_session_id` *before* attempting `kill` / `interrupt`.
         // Previously this required digging through earlier command results.
         if action == "list_sessions" {
             let api = crate::service::terminal::api::TerminalApi::from_singleton()
-                .map_err(|e| BitFunError::tool(format!("TerminalApi unavailable: {}", e)))?;
+                .map_err(|e| OpenBitFunError::tool(format!("TerminalApi unavailable: {}", e)))?;
             let sessions = api
                 .list_sessions()
                 .await
-                .map_err(|e| BitFunError::tool(format!("list_sessions failed: {}", e)))?;
+                .map_err(|e| OpenBitFunError::tool(format!("list_sessions failed: {}", e)))?;
             let summary: Vec<Value> = sessions
                 .iter()
                 .map(|s| {
@@ -3794,11 +3794,11 @@ Branch on `ok` and `error.code`, not on English messages.
             Some(s) => s.to_string(),
             None => {
                 let api = crate::service::terminal::api::TerminalApi::from_singleton()
-                    .map_err(|e| BitFunError::tool(format!("TerminalApi unavailable: {}", e)))?;
+                    .map_err(|e| OpenBitFunError::tool(format!("TerminalApi unavailable: {}", e)))?;
                 let sessions = api
                     .list_sessions()
                     .await
-                    .map_err(|e| BitFunError::tool(format!("list_sessions failed: {}", e)))?;
+                    .map_err(|e| OpenBitFunError::tool(format!("list_sessions failed: {}", e)))?;
                 let live: Vec<_> = sessions
                     .iter()
                     .filter(|s| {
@@ -3841,7 +3841,7 @@ Branch on `ok` and `error.code`, not on English messages.
         };
 
         let terminal_api = crate::service::terminal::TerminalApi::from_singleton()
-            .map_err(|error| BitFunError::tool(format!("Terminal not initialized: {error}")))?;
+            .map_err(|error| OpenBitFunError::tool(format!("Terminal not initialized: {error}")))?;
 
         match action {
             "interrupt" => {
@@ -3852,7 +3852,7 @@ Branch on `ok` and `error.code`, not on English messages.
                     })
                     .await
                     .map_err(|error| {
-                        BitFunError::tool(format!("Failed to interrupt terminal session: {error}"))
+                        OpenBitFunError::tool(format!("Failed to interrupt terminal session: {error}"))
                     })?;
 
                 Ok(vec![ToolResult::ok(
@@ -3873,7 +3873,7 @@ Branch on `ok` and `error.code`, not on English messages.
 
                 if is_primary {
                     binding.remove(&resolved_id).await.map_err(|error| {
-                        BitFunError::tool(format!("Failed to close terminal session: {error}"))
+                        OpenBitFunError::tool(format!("Failed to close terminal session: {error}"))
                     })?;
                 } else {
                     terminal_api
@@ -3883,7 +3883,7 @@ Branch on `ok` and `error.code`, not on English messages.
                         })
                         .await
                         .map_err(|error| {
-                            BitFunError::tool(format!("Failed to close terminal session: {error}"))
+                            OpenBitFunError::tool(format!("Failed to close terminal session: {error}"))
                         })?;
                 }
 
@@ -3896,7 +3896,7 @@ Branch on `ok` and `error.code`, not on English messages.
                     Some("Closed the terminal session.".to_string()),
                 )])
             }
-            _ => Err(BitFunError::tool(format!(
+            _ => Err(OpenBitFunError::tool(format!(
                 "Unknown terminal action: '{action}'. Must be 'kill' or 'interrupt'."
             ))),
         }
@@ -3904,7 +3904,7 @@ Branch on `ok` and `error.code`, not on English messages.
 }
 
 #[cfg(not(target_env = "ohos"))]
-fn parse_browser_kind(browser: &str) -> BitFunResult<BrowserKind> {
+fn parse_browser_kind(browser: &str) -> OpenBitFunResult<BrowserKind> {
     #[cfg(target_env = "ohos")]
     {
         let _ = browser;
@@ -3970,7 +3970,7 @@ impl Tool for ControlHubTool {
         "ControlHub"
     }
 
-    async fn description(&self) -> BitFunResult<String> {
+    async fn description(&self) -> OpenBitFunResult<String> {
         Ok(Self::description_text())
     }
 
@@ -3986,7 +3986,7 @@ impl Tool for ControlHubTool {
     async fn description_with_context(
         &self,
         context: Option<&ToolUseContext>,
-    ) -> BitFunResult<String> {
+    ) -> OpenBitFunResult<String> {
         let mut base = Self::description_text();
         if context.map(|c| c.is_remote()).unwrap_or(false) {
             base.push_str("\n\n**Remote workspace:** Only `browser` and `meta` domains are available. `desktop` and `system` domains (screenshots, OCR, mouse/keyboard, app launching, clipboard, OS info, local scripts) are **not available** in remote sessions — the `ComputerUse` tool is disabled. Use `ExecCommand` for shell-based alternatives on the remote SSH host.");
@@ -4005,7 +4005,7 @@ impl Tool for ControlHubTool {
                 },
                 "action": {
                     "type": "string",
-                    "description": "The atomic action to perform within the domain. For a concrete browser URL, default to open_builtin. To show BitFun's browser surface without a URL, use BitFunControl open on feature.browser instead of inventing a URL. Browser params.target selects builtin or external; both use the same portable action contract."
+                    "description": "The atomic action to perform within the domain. For a concrete browser URL, default to open_builtin. To show OpenBitFun's browser surface without a URL, use OpenBitFunControl open on feature.browser instead of inventing a URL. Browser params.target selects builtin or external; both use the same portable action contract."
                 },
                 "params": {
                     "type": "object",
@@ -4083,7 +4083,7 @@ impl Tool for ControlHubTool {
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         let domain = input.get("domain").and_then(|v| v.as_str()).unwrap_or("");
         let action = input.get("action").and_then(|v| v.as_str()).unwrap_or("");
 
@@ -4114,7 +4114,7 @@ impl Tool for ControlHubTool {
             // failure. Folding it into an `ok: false` envelope would both hide
             // the user's stop from the pipeline and invite the model to
             // "recover" from a turn that is already being torn down.
-            Err(err @ BitFunError::Cancelled(_)) => Err(err),
+            Err(err @ OpenBitFunError::Cancelled(_)) => Err(err),
             Err(err) => Ok(err_response(
                 domain,
                 action,
@@ -4345,16 +4345,16 @@ fn envelope_wrap_results(domain: &str, action: &str, results: Vec<ToolResult>) -
         .collect()
 }
 
-/// Best-effort classification of a legacy `BitFunError` into a structured
+/// Best-effort classification of a legacy `OpenBitFunError` into a structured
 /// ControlHub error. Domain handlers should be migrated to return structured
 /// envelopes directly; this is the safety net for the transition.
-fn map_dispatch_error(domain: &str, _action: &str, err: BitFunError) -> ControlHubError {
+fn map_dispatch_error(domain: &str, _action: &str, err: OpenBitFunError) -> ControlHubError {
     let msg = err.to_string();
 
     // Frontend bridges may send back `[CODE] message\nHints: a | b` strings —
     // parse that prefix back into a structured ControlHubError so the model
     // sees the *actual* error code and hints instead of an INTERNAL fallback.
-    // `BitFunError::Tool` wraps the message with `"Tool error: "`, so we try
+    // `OpenBitFunError::Tool` wraps the message with `"Tool error: "`, so we try
     // both the raw form and the form after stripping that wrapper.
     let strip_candidate = msg
         .strip_prefix("Tool error: ")
@@ -4461,7 +4461,7 @@ mod control_hub_tests {
             custom_data: std::collections::HashMap::new(),
             computer_use_host: None,
             runtime_tool_restrictions: Default::default(),
-            runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
+            runtime_handles: openbitfun_runtime_ports::ToolRuntimeHandles::default(),
         }
     }
 
@@ -4661,7 +4661,7 @@ mod control_hub_tests {
         let token = tokio_util::sync::CancellationToken::new();
         let mut ctx = empty_context();
         ctx.runtime_handles =
-            bitfun_runtime_ports::ToolRuntimeHandles::new(None, Some(token.clone()));
+            openbitfun_runtime_ports::ToolRuntimeHandles::new(None, Some(token.clone()));
 
         let started = std::time::Instant::now();
         // Driven through `call_impl` so this also covers the envelope layer,
@@ -4686,7 +4686,7 @@ mod control_hub_tests {
         // Without this, stopping the agent could not take effect until the
         // pause elapsed — ten minutes of an unstoppable turn.
         assert!(
-            matches!(outcome, Err(BitFunError::Cancelled(_))),
+            matches!(outcome, Err(OpenBitFunError::Cancelled(_))),
             "a long pace wait must stay interruptible"
         );
         assert!(started.elapsed() < std::time::Duration::from_secs(30));
@@ -4787,7 +4787,7 @@ mod control_hub_tests {
     }
 
     #[tokio::test]
-    async fn route_hint_uses_bitfun_control_for_surface_only_browser_intent() {
+    async fn route_hint_uses_openbitfun_control_for_surface_only_browser_intent() {
         let tool = ControlHubTool::new();
         let results = tool
             .dispatch(
@@ -4800,7 +4800,7 @@ mod control_hub_tests {
             .expect("route_hint succeeds");
         let payload = results.first().expect("one result").content();
         assert_eq!(payload["suggested_domain"], "unavailable");
-        assert_eq!(payload["suggested_tool"], "BitFunControl");
+        assert_eq!(payload["suggested_tool"], "OpenBitFunControl");
         assert!(payload.to_string().contains("feature.browser"));
         assert!(payload.to_string().contains("about:blank"));
     }
@@ -4814,7 +4814,7 @@ mod control_hub_tests {
             .block_on(tool.dispatch(
                 "meta",
                 "route_hint",
-                &json!({ "intent": "切换 BitFun 默认模型" }),
+                &json!({ "intent": "切换 OpenBitFun 默认模型" }),
                 &ctx,
             ))
             .unwrap();
@@ -4870,7 +4870,7 @@ mod control_hub_tests {
         let err = map_dispatch_error(
             "desktop",
             "click",
-            BitFunError::tool(
+            OpenBitFunError::tool(
                 "[AMBIGUOUS] 3 matches for text 'Save'\nHints: pass index | use selector"
                     .to_string(),
             ),
@@ -4884,7 +4884,7 @@ mod control_hub_tests {
         let err = map_dispatch_error(
             "desktop",
             "x",
-            BitFunError::tool("[WAT_IS_THIS] ouch".to_string()),
+            OpenBitFunError::tool("[WAT_IS_THIS] ouch".to_string()),
         );
         assert!(matches!(err.code, ErrorCode::FrontendError));
     }
@@ -4894,7 +4894,7 @@ mod control_hub_tests {
         let err = map_dispatch_error(
             "browser",
             "click",
-            BitFunError::tool(
+            OpenBitFunError::tool(
                 "Browser session 'AB' is no longer connected (the tab was likely closed)."
                     .to_string(),
             ),
@@ -4904,7 +4904,7 @@ mod control_hub_tests {
 
     #[test]
     fn map_dispatch_error_classifies_known_phrases() {
-        let mk = |s: &str| BitFunError::tool(s.to_string());
+        let mk = |s: &str| OpenBitFunError::tool(s.to_string());
         assert!(matches!(
             map_dispatch_error("browser", "select", mk("element not found")).code,
             ErrorCode::NotFound
@@ -4967,7 +4967,7 @@ mod control_hub_tests {
         let err = map_dispatch_error(
             "browser",
             "snapshot",
-            actions::classify_transport_error(BitFunError::tool(
+            actions::classify_transport_error(OpenBitFunError::tool(
                 "CDP send failed: broken pipe".to_string(),
             )),
         );
@@ -5384,7 +5384,7 @@ mod control_hub_tests {
         let payload = results.first().expect("one result").content();
         assert_eq!(payload["ok"], false);
         assert_eq!(payload["error"]["code"], "INVALID_PARAMS");
-        assert!(payload.to_string().contains("BitFunControl"));
+        assert!(payload.to_string().contains("OpenBitFunControl"));
         assert!(payload.to_string().contains("feature.browser"));
     }
 
@@ -5417,7 +5417,7 @@ mod control_hub_tests {
         let results = tool
             .handle_system(
                 "open_file",
-                &json!({ "path": "/definitely/does/not/exist/bitfun-test.xyz" }),
+                &json!({ "path": "/definitely/does/not/exist/openbitfun-test.xyz" }),
                 &ctx,
             )
             .await
@@ -5552,9 +5552,9 @@ mod control_hub_tests {
         let ctx = empty_context();
         let probe = if cfg!(target_os = "windows") {
             // PowerShell prints with the Unicode code page configured above.
-            "Write-Output 'hello-bitfun'"
+            "Write-Output 'hello-openbitfun'"
         } else {
-            "echo hello-bitfun"
+            "echo hello-openbitfun"
         };
         let results = tool
             .handle_system(
@@ -5572,15 +5572,15 @@ mod control_hub_tests {
         );
         let out = payload.get("output").and_then(|v| v.as_str()).unwrap_or("");
         assert!(
-            out.contains("hello-bitfun"),
-            "expected stdout to contain 'hello-bitfun', got '{out}'"
+            out.contains("hello-openbitfun"),
+            "expected stdout to contain 'hello-openbitfun', got '{out}'"
         );
     }
 
     #[tokio::test]
     async fn terminal_list_sessions_without_singleton_returns_clean_error() {
         // The TerminalApi singleton is initialized only inside the desktop /
-        // server runtimes, so in `cargo test -p bitfun-core` it must surface
+        // server runtimes, so in `cargo test -p openbitfun-core` it must surface
         // a structured error rather than panicking.
         let tool = ControlHubTool::new();
         let ctx = empty_context();

@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { ToolCardProps } from '../types/flow-chat';
 import { CodePreview } from '../components/CodePreview';
-import { RunCodeToolCard as RunCodeToolCardView } from '@bitfun/ui/flow-chat';
+import { RunCodeToolCard as RunCodeToolCardView } from '@openbitfun/ui/flow-chat';
 import { ToolCardCopyAction } from './ToolCardCopyAction';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 import { formatSessionViewPreviewText } from '../utils/sessionViewPreview';
@@ -101,7 +101,7 @@ export const RunCodeToolCard: React.FC<ToolCardProps> = ({
 
   return (
     <div
-      data-bf-adapter="run-code-tool-card"
+      data-openbitfun-adapter="run-code-tool-card"
       ref={cardRootRef}
       data-tool-card-id={toolId ?? ''}
     >
@@ -111,7 +111,7 @@ export const RunCodeToolCard: React.FC<ToolCardProps> = ({
         onToggle={canExpand ? handleToggleExpand : undefined}
         action={t('toolCards.runCode.title')}
         summary={summary}
-        headerActions={code ? (
+        actions={code ? (
           <ToolCardCopyAction
             getText={getCopyCodeText}
             tooltip={t('toolCards.runCode.copyCode')}

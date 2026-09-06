@@ -2,6 +2,7 @@
 
 import { api } from './ApiClient';
 import { createTauriCommandError } from '../errors/TauriCommandError';
+import { copyTextToClipboard } from '@/shared/utils/textSelection';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { createLogger } from '@/shared/utils/logger';
 import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
@@ -17,6 +18,10 @@ export interface CheckForUpdatesResponse {
   latestVersion: string | null;
   releaseNotes: string | null;
   releaseDate: string | null;
+}
+
+export interface PendingUpdateResponse {
+  version: string;
 }
 
 /** Matches `toggle_main_window_fullscreen` / desktop `ToggleMainWindowFullscreenResponse`. */
@@ -89,6 +94,37 @@ export class SystemAPI {
       });
     } catch (error) {
       throw createTauriCommandError('install_update', error);
+    }
+  }
+
+  /** Download and verify without starting the installer. */
+  async downloadUpdate(): Promise<PendingUpdateResponse> {
+    try {
+      return await api.invoke('download_update', { request: {} }, {
+        timeout: 60 * 60 * 1000,
+        retries: 0,
+      });
+    } catch (error) {
+      throw createTauriCommandError('download_update', error);
+    }
+  }
+
+  async getPendingUpdate(): Promise<PendingUpdateResponse | null> {
+    try {
+      return await api.invoke('get_pending_update', { request: {} });
+    } catch (error) {
+      throw createTauriCommandError('get_pending_update', error);
+    }
+  }
+
+  async installPendingUpdate(version: string): Promise<void> {
+    try {
+      await api.invoke('install_pending_update', { request: { version } }, {
+        timeout: 120000,
+        retries: 0,
+      });
+    } catch (error) {
+      throw createTauriCommandError('install_pending_update', error);
     }
   }
 
@@ -166,11 +202,12 @@ export class SystemAPI {
    
   async setClipboard(text: string): Promise<void> {
     try {
-      await api.invoke('set_clipboard', { 
-        request: { text } 
-      });
+      const copied = await copyTextToClipboard(text);
+      if (!copied) {
+        throw new Error('Clipboard write failed');
+      }
     } catch (error) {
-      throw createTauriCommandError('set_clipboard', error, { text });
+      throw createTauriCommandError('set_clipboard', error);
     }
   }
 
@@ -253,7 +290,7 @@ export class SystemAPI {
     }
   }
 
-  /** Desktop only: whether BitFun should keep the local computer awake. */
+  /** Desktop only: whether OpenBitFun should keep the local computer awake. */
   async getPreventSleepEnabled(): Promise<boolean> {
     const result = await productControlAPI.get('setting.application.general');
     const enabled = result.currentOptionValues['prevent-sleep'];

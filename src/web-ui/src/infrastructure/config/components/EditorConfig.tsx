@@ -1,9 +1,14 @@
  
 
-import { Button, NumberInput, Select, Switch } from '@bitfun/ui';
+import { NumberInput, Select, Switch } from '@openbitfun/ui';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
-import { ConfigLoadingState, ConfigMessage } from '@/infrastructure/config/components/common';
+import { useI18n } from '@/infrastructure/i18n';
+import {
+  ConfigFieldStatus,
+  ConfigLoadingState,
+  ConfigMessage,
+  ConfigRetryState,
+} from '@/infrastructure/config/components/common';
 import { configManager } from '../services/ConfigManager';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { DEFAULT_EDITOR_CONFIG, type EditorConfig as EditorConfigType, type EditorConfigPartial } from '@/tools/editor/config';
@@ -19,8 +24,6 @@ import './EditorConfig.scss';
 
 const log = createLogger('EditorConfig');
 
-
-const AUTO_SAVE_DELAY = 500;
 
 export type EditorConfigProps = Record<string, never>;
 
@@ -126,6 +129,7 @@ function convertToSnakeCase(config: EditorConfigPartial): Record<string, any> {
   if (config.lineHeight !== undefined) result.line_height = config.lineHeight;
   if (config.tabSize !== undefined) result.tab_size = config.tabSize;
   if (config.insertSpaces !== undefined) result.insert_spaces = config.insertSpaces;
+  if (config.detectIndentation !== undefined) result.detect_indentation = config.detectIndentation;
   if (config.wordWrap !== undefined) result.word_wrap = config.wordWrap;
   if (config.lineNumbers !== undefined) result.line_numbers = config.lineNumbers;
   if (config.autoSave !== undefined) result.auto_save = config.autoSave;
@@ -163,6 +167,7 @@ function convertToCamelCase(config: Record<string, any>): EditorConfigPartial {
   if (config.line_height !== undefined) result.lineHeight = config.line_height;
   if (config.tab_size !== undefined) result.tabSize = config.tab_size;
   if (config.insert_spaces !== undefined) result.insertSpaces = config.insert_spaces;
+  if (config.detect_indentation !== undefined) result.detectIndentation = config.detect_indentation;
   if (config.word_wrap !== undefined) result.wordWrap = config.word_wrap;
   if (config.line_numbers !== undefined) result.lineNumbers = config.line_numbers;
   if (config.auto_save !== undefined) result.autoSave = config.auto_save;
@@ -190,8 +195,45 @@ function convertToCamelCase(config: Record<string, any>): EditorConfigPartial {
   return result;
 }
 
+function reconcileEditorPatch(
+  current: EditorConfigType,
+  persisted: EditorConfigType,
+  attempted: EditorConfigPartial,
+): EditorConfigType {
+  const next = { ...current } as Record<string, unknown>;
+  const currentRecord = current as unknown as Record<string, unknown>;
+  const persistedRecord = persisted as unknown as Record<string, unknown>;
+  const attemptedRecord = attempted as unknown as Record<string, unknown>;
+
+  for (const key of Object.keys(attemptedRecord)) {
+    const attemptedValue = attemptedRecord[key];
+    const currentValue = currentRecord[key];
+    if (
+      attemptedValue !== null
+      && typeof attemptedValue === 'object'
+      && currentValue !== null
+      && typeof currentValue === 'object'
+    ) {
+      const currentNested = currentValue as Record<string, unknown>;
+      const persistedNested = persistedRecord[key] as Record<string, unknown> | undefined;
+      const attemptedNested = attemptedValue as Record<string, unknown>;
+      const nextNested = { ...currentNested };
+      for (const nestedKey of Object.keys(attemptedNested)) {
+        if (Object.is(currentNested[nestedKey], attemptedNested[nestedKey])) {
+          nextNested[nestedKey] = persistedNested?.[nestedKey];
+        }
+      }
+      next[key] = nextNested;
+    } else if (Object.is(currentValue, attemptedValue)) {
+      next[key] = persistedRecord[key];
+    }
+  }
+
+  return next as unknown as EditorConfigType;
+}
+
 const EditorConfig: React.FC<EditorConfigProps> = () => {
-  const { t } = useTranslation('settings/editor');
+  const { t } = useI18n('settings/editor');
   
   
   const fontWeightOptionsTranslated = [
@@ -212,13 +254,18 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
   
   const [config, setConfig] = useState<EditorConfigType>({ ...DEFAULT_EDITOR_CONFIG });
   const [isLoading, setIsLoading] = useState(true);
+  const [supportsIndentDetection, setSupportsIndentDetection] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
   
   
-  const isInitialLoadRef = useRef(true);
-  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const configRef = useRef<EditorConfigType>(config);
+  const persistedConfigRef = useRef<EditorConfigType>(config);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingSaveCountRef = useRef(0);
+  const latestSaveRevisionRef = useRef(0);
+  const saveBurstFailedRef = useRef(false);
   
   
   useEffect(() => {
@@ -229,139 +276,178 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
   const loadConfig = useCallback(async () => {
     try {
       setIsLoading(true);
-      isInitialLoadRef.current = true;
+      setLoadFailed(false);
       const backendConfig = await configManager.getConfig<Record<string, any>>('editor');
       if (backendConfig) {
+        setSupportsIndentDetection(typeof backendConfig.detect_indentation === 'boolean');
         const camelCaseConfig = convertToCamelCase(backendConfig);
-        setConfig({ ...DEFAULT_EDITOR_CONFIG, ...camelCaseConfig });
+        const nextConfig = { ...DEFAULT_EDITOR_CONFIG, ...camelCaseConfig };
+        configRef.current = nextConfig;
+        persistedConfigRef.current = nextConfig;
+        setConfig(nextConfig);
       }
-      
-      setTimeout(() => {
-        isInitialLoadRef.current = false;
-      }, 100);
     } catch (error) {
       log.error('Failed to load config', error);
-      setStatusMessage({ 
-        type: 'error', 
-        text: t('messages.loadFailed') 
-      });
+      setLoadFailed(true);
     } finally {
       setIsLoading(false);
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
 
   
-  const doSave = useCallback(async (configToSave: EditorConfigType) => {
-    try {
-      setIsSaving(true);
+  const doSave = useCallback((
+    patch: EditorConfigPartial,
+    successMessage = t('messages.saveSuccess'),
+  ): Promise<boolean> => {
+    const revision = ++latestSaveRevisionRef.current;
+    if (pendingSaveCountRef.current === 0) {
+      saveBurstFailedRef.current = false;
       setStatusMessage(null);
-
-      
-      const snakeCaseConfig = convertToSnakeCase(configToSave);
-      await configManager.setConfig('editor', snakeCaseConfig);
-
-      
-      globalEventBus.emit('editor:config:changed', snakeCaseConfig);
-
-      setStatusMessage({ 
-        type: 'success', 
-        text: t('messages.saveSuccess') 
-      });
-
-      
-      setTimeout(() => setStatusMessage(null), 3000);
-    } catch (error) {
-      log.error('Failed to save config', error);
-      setStatusMessage({ 
-        type: 'error', 
-        text: `${t('messages.saveFailed')}: ` + (error instanceof Error ? error.message : String(error))
-      });
-    } finally {
-      setIsSaving(false);
     }
-  }, [t]);
+    pendingSaveCountRef.current += 1;
+    setIsSaving(true);
+    setStatusMessage(null);
 
-  
-  useEffect(() => {
-    
-    if (isInitialLoadRef.current || isLoading) {
-      return;
-    }
-
-    
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
-    
-    autoSaveTimerRef.current = setTimeout(() => {
-      doSave(configRef.current);
-    }, AUTO_SAVE_DELAY);
-
-    
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
+    const operation = saveQueueRef.current.then(async () => {
+      try {
+        const snakeCasePatch = convertToSnakeCase(patch);
+        const persisted = await configManager.updateConfig<Record<string, any>>(
+          'editor',
+          current => ({
+            ...current,
+            ...snakeCasePatch,
+            ...(snakeCasePatch.minimap ? {
+              minimap: {
+                ...(current.minimap && typeof current.minimap === 'object' ? current.minimap : {}),
+                ...snakeCasePatch.minimap,
+              },
+            } : {}),
+          }),
+        );
+        const persistedPatch = convertToCamelCase(persisted);
+        const nextPersistedConfig = {
+          ...persistedConfigRef.current,
+          ...patch,
+          ...persistedPatch,
+          ...(patch.minimap ? {
+            minimap: {
+              ...persistedConfigRef.current.minimap,
+              ...patch.minimap,
+              ...persistedPatch.minimap,
+            },
+          } : {}),
+        };
+        persistedConfigRef.current = nextPersistedConfig;
+        const reconciled = reconcileEditorPatch(
+          configRef.current,
+          nextPersistedConfig,
+          patch,
+        );
+        configRef.current = reconciled;
+        setConfig(reconciled);
+        globalEventBus.emit('editor:config:changed', persisted);
+        if (revision === latestSaveRevisionRef.current && !saveBurstFailedRef.current) {
+          setStatusMessage({ type: 'success', text: successMessage });
+          setTimeout(() => setStatusMessage(current => (
+            current?.type === 'success' ? null : current
+          )), 3000);
+        }
+        return true;
+      } catch (error) {
+        log.error('Failed to save config', error);
+        saveBurstFailedRef.current = true;
+        const reconciled = reconcileEditorPatch(
+          configRef.current,
+          persistedConfigRef.current,
+          patch,
+        );
+        configRef.current = reconciled;
+        setConfig(reconciled);
+        setStatusMessage({
+          type: 'error',
+          text: `${t('messages.saveFailed')}: ` + (error instanceof Error ? error.message : String(error)),
+        });
+        return false;
+      } finally {
+        pendingSaveCountRef.current -= 1;
+        if (pendingSaveCountRef.current === 0) setIsSaving(false);
       }
-    };
-  }, [config, isLoading, doSave]);
-
-  const resetConfig = useCallback(async () => {
-    if (await window.confirm(t('messages.confirmReset'))) {
-      setConfig({ ...DEFAULT_EDITOR_CONFIG });
-      setStatusMessage({ 
-        type: 'warning', 
-        text: t('messages.resetDone') 
-      });
-    }
+    });
+    saveQueueRef.current = operation.then(() => undefined, () => undefined);
+    return operation;
   }, [t]);
 
   const updateConfig = useCallback(<K extends keyof EditorConfigType>(
     key: K,
     value: EditorConfigType[K]
   ) => {
-    setConfig(prev => ({ ...prev, [key]: value }));
+    if (Object.is(configRef.current[key], value)) return;
+    const next = { ...configRef.current, [key]: value };
+    configRef.current = next;
+    setConfig(next);
+    void doSave({ [key]: value } as EditorConfigPartial);
     if (statusMessage?.type === 'success') {
       setStatusMessage(null);
     }
-  }, [statusMessage]);
+  }, [doSave, statusMessage]);
 
   const updateMinimapConfig = useCallback((key: keyof EditorConfigType['minimap'], value: any) => {
-    setConfig(prev => ({
-      ...prev,
+    const next = {
+      ...configRef.current,
       minimap: {
-        ...prev.minimap,
+        ...configRef.current.minimap,
         [key]: value
       }
-    }));
-  }, []);
+    };
+    configRef.current = next;
+    setConfig(next);
+    void doSave({ minimap: next.minimap });
+  }, [doSave]);
 
-  if (isLoading) {
+  if (isLoading || loadFailed) {
     return (
-      <ConfigPageLayout className="bitfun-editor-config" data-bf-component="editor-config" data-bf-part="root" data-bf-state="loading">
+      <ConfigPageLayout className="openbitfun-editor-config" data-openbitfun-component="editor-config" data-openbitfun-part="root" data-openbitfun-state="loading">
         <ConfigPageHeader
           title={t('title')}
           subtitle={t('subtitle')}
         />
         <ConfigPageContent>
-          <ConfigLoadingState label={t('messages.loading')} />
+          {isLoading ? (
+            <ConfigLoadingState label={t('messages.loading')} />
+          ) : (
+            <ConfigRetryState
+              message={t('messages.loadFailedLocked')}
+              retryLabel={t('messages.retry')}
+              onRetry={() => void loadConfig()}
+            />
+          )}
         </ConfigPageContent>
       </ConfigPageLayout>
     );
   }
 
   return (
-    <ConfigPageLayout className="bitfun-editor-config" data-bf-component="editor-config" data-bf-part="root">
+    <ConfigPageLayout className="openbitfun-editor-config" data-openbitfun-component="editor-config" data-openbitfun-part="root">
       <ConfigPageHeader
         title={t('title')}
         subtitle={t('subtitle')}
+        extra={isSaving || statusMessage ? (
+          <ConfigFieldStatus
+            status={isSaving
+              ? 'saving'
+              : statusMessage?.type === 'error'
+                ? 'error'
+                : 'saved'}
+            message={statusMessage?.text}
+          />
+        ) : undefined}
       />
 
-      <ConfigPageContent className="bitfun-editor-config__content" data-bf-component="editor-config" data-bf-part="content">
+      <ConfigPageContent className="openbitfun-editor-config__content" data-openbitfun-component="editor-config" data-openbitfun-part="content">
         <ConfigPageSection
           title={t('sections.appearance.title')}
           description={t('sections.appearance.description')}
@@ -387,22 +473,27 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
           <ConfigPageRow label={t('appearance.fontSize')} align="center">
             <NumberInput
               value={config.fontSize}
-              onValueChange={(v) => updateConfig('fontSize', v)}
+              onValueChange={(v) => updateConfig('fontSize', Math.round(v))}
               min={10}
               max={32}
               step={1}
               unit="px"
+              aria-label={t('appearance.fontSize')}
+              disableWheel
               size="sm"
             />
           </ConfigPageRow>
-          <ConfigPageRow label={t('appearance.lineHeight')} align="center">
+          <ConfigPageRow label={t('appearance.lineHeight')} description={t('appearance.lineHeightDesc')} align="center">
             <NumberInput
               value={config.lineHeight}
-              onValueChange={(v) => updateConfig('lineHeight', v)}
+              onValueChange={(v) => updateConfig('lineHeight', Math.round(v * 10) / 10)}
               min={1.0}
               max={3.0}
               step={0.1}
               precision={1}
+              unit="em"
+              aria-label={t('appearance.lineHeight')}
+              disableWheel
               size="sm"
             />
           </ConfigPageRow>
@@ -428,19 +519,36 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
           title={t('sections.behavior.title')}
           description={t('sections.behavior.description')}
         >
-          <ConfigPageRow label={t('behavior.tabSize')} align="center">
+          <ConfigPageRow label={t('behavior.tabSize')} description={t('behavior.tabSizeDesc')} align="center">
             <NumberInput
               value={config.tabSize}
-              onValueChange={(v) => updateConfig('tabSize', v)}
+              onValueChange={(v) => updateConfig('tabSize', Math.round(v))}
               min={1}
               max={8}
+              step={1}
+              unit="ch"
+              aria-label={t('behavior.tabSize')}
+              disableWheel
               size="sm"
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('behavior.insertSpaces')} description={t('behavior.insertSpacesDesc')} align="center">
             <Switch
+              aria-label={t('behavior.insertSpaces')}
               checked={config.insertSpaces}
               onChange={(e) => updateConfig('insertSpaces', e.target.checked)}
+            />
+          </ConfigPageRow>
+          <ConfigPageRow
+            label={t('behavior.detectIndentation')}
+            description={t(supportsIndentDetection ? 'behavior.detectIndentationDesc' : 'behavior.detectIndentationUnsupported')}
+            align="center"
+          >
+            <Switch
+              aria-label={t('behavior.detectIndentation')}
+              checked={supportsIndentDetection && config.detectIndentation}
+              disabled={!supportsIndentDetection}
+              onChange={(e) => updateConfig('detectIndentation', e.target.checked)}
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('behavior.wordWrap')} align="center">
@@ -554,27 +662,6 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               checked={config.trimAutoWhitespace}
               onChange={(e) => updateConfig('trimAutoWhitespace', e.target.checked)}
             />
-          </ConfigPageRow>
-        </ConfigPageSection>
-
-        <ConfigPageSection
-          title={t('actions.save')}
-          description={t('actions.saveDesc')}
-        >
-          <ConfigPageRow label={t('actions.reset')} description={t('messages.confirmReset')} align="center">
-            <div className="bitfun-editor-config__actions" data-bf-component="editor-config" data-bf-part="actions">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={resetConfig}
-                disabled={isSaving}
-              >
-                {t('actions.reset')}
-              </Button>
-              {isSaving && (
-                <span className="bitfun-editor-config__saving" data-bf-component="editor-config" data-bf-part="saving" data-bf-state="saving">{t('messages.saving')}</span>
-              )}
-            </div>
           </ConfigPageRow>
         </ConfigPageSection>
 

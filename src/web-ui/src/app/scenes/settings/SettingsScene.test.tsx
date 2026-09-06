@@ -9,7 +9,13 @@ vi.mock('./settingsRegistry', () => {
     'application.general': {
       id: 'application.general',
       categoryId: 'application',
-      component: ({ viewId }: { viewId?: string }) => <div data-testid="general-page" data-view={viewId} />,
+      component: ({ viewId, isActive }: { viewId?: string; isActive?: boolean }) => (
+        <div
+          data-testid="general-page"
+          data-view={viewId}
+          data-settings-scene-active={isActive ? 'true' : 'false'}
+        />
+      ),
     },
     'application.appearance': {
       id: 'application.appearance',
@@ -25,6 +31,7 @@ vi.mock('./settingsRegistry', () => {
   return {
     DEFAULT_SETTINGS_PAGE_ID: 'application.general',
     getSettingsPageManifest: (pageId: keyof typeof pages) => pages[pageId] ?? pages['application.general'],
+    isSettingsPageId: (value: string) => value in pages,
     isSettingsPageReady: () => true,
     preloadSettingsPage: vi.fn(async () => undefined),
   };
@@ -32,12 +39,17 @@ vi.mock('./settingsRegistry', () => {
 
 import SettingsScene from './SettingsScene';
 import { useSettingsStore } from './settingsStore';
+import {
+  registerSettingsDraft,
+  resetSettingsDraftRegistryForTests,
+} from '@/infrastructure/config/settingsDraftRegistry';
 
 describe('SettingsScene canonical page routing', () => {
   let container: HTMLDivElement;
   let root: Root;
 
   beforeEach(() => {
+    resetSettingsDraftRegistryForTests();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -55,6 +67,7 @@ describe('SettingsScene canonical page routing', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    resetSettingsDraftRegistryForTests();
   });
 
   it('renders the active canonical page', async () => {
@@ -77,5 +90,47 @@ describe('SettingsScene canonical page routing', () => {
     await act(async () => useSettingsStore.getState().openPage('application.appearance'));
     expect(container.querySelector('[data-testid="appearance-page"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="general-page"]')).toBeNull();
+  });
+
+  it('passes scene activation changes to the active settings page', async () => {
+    await act(async () => root.render(<SettingsScene isActive={false} />));
+    expect(container.querySelector('[data-testid="general-page"]')?.getAttribute(
+      'data-settings-scene-active',
+    )).toBe('false');
+
+    await act(async () => root.render(<SettingsScene isActive />));
+    expect(container.querySelector('[data-testid="general-page"]')?.getAttribute(
+      'data-settings-scene-active',
+    )).toBe('true');
+  });
+
+  it('saves registered drafts before committing a page change', async () => {
+    const save = vi.fn(async () => true);
+    registerSettingsDraft({
+      id: 'general-form',
+      pageId: 'application.general',
+      label: 'General form',
+      dirty: true,
+      save,
+      discard: vi.fn(),
+    });
+    await act(async () => root.render(<SettingsScene />));
+
+    await act(async () => useSettingsStore.getState().openPage('application.appearance'));
+    expect(useSettingsStore.getState().activePageId).toBe('application.general');
+    const dialog = document.querySelector<HTMLElement>(
+      '[data-testid="settings-unsaved-navigation-dialog"]',
+    );
+    expect(dialog?.textContent).toContain('General form');
+
+    const confirmButton = dialog?.querySelectorAll<HTMLButtonElement>('button').item(2);
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(save).toHaveBeenCalledOnce();
+    expect(useSettingsStore.getState().activePageId).toBe('application.appearance');
   });
 });

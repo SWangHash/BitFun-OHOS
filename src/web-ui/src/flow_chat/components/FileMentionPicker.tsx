@@ -5,24 +5,9 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  IconButton,
-  KeyHint,
-  Listbox,
-  ListboxEmpty,
-  ListboxOption,
-  Tooltip,
-} from '@bitfun/ui';
+import { IconButton, KeyHint, Listbox, ListboxEmpty, ListboxOption, Tooltip, Icon } from '@openbitfun/ui';
 import { useTranslation } from 'react-i18next';
-import {
-  File,
-  Folder,
-  Loader2,
-  MessageCircle,
-  Search,
-  ChevronRight,
-  ChevronLeft,
-} from 'lucide-react';
+import { File, Loader2, MessageCircle } from 'lucide-react';
 import { sessionAPI, workspaceAPI } from '@/infrastructure/api';
 import {
   externalSourcesAPI,
@@ -573,43 +558,43 @@ export const FileMentionPicker: React.FC<FileMentionPickerProps> = ({
 
   const picker = (
     <div
-      data-bf-component="file-mention-picker"
-      data-bf-part="root"
-      data-bf-state={[
+      data-openbitfun-component="file-mention-picker"
+      data-openbitfun-part="root"
+      data-openbitfun-state={[
         isLoading && 'loading',
         fileLoadError && 'error',
       ].filter(Boolean).join(' ') || undefined}
-      data-bf-placement={isOverlay ? overlayLayout?.placement ?? 'top' : undefined}
+      data-openbitfun-placement={isOverlay ? overlayLayout?.placement ?? 'top' : undefined}
       ref={containerRef}
       className={`file-mention-picker${isOverlay ? ' file-mention-picker--overlay' : ''}`}
       style={style}
       onMouseDown={event => event.preventDefault()}
     >
-      <div data-bf-component="file-mention-picker" data-bf-part="header" className="file-mention-picker__header">
+      <div data-openbitfun-component="file-mention-picker" data-openbitfun-part="header" className="file-mention-picker__header">
         {!isSearchMode && pathHistory.length > 0 && (
           <Tooltip content={t('fileMention.goBack')}>
             <IconButton
               aria-label={t('fileMention.goBack')}
-              icon={<ChevronLeft aria-hidden="true" />}
+              icon={<Icon name="chevron-left" size="lg" aria-hidden="true" />}
               onClick={goBack}
               size="xs"
               variant="quiet"
             />
           </Tooltip>
         )}
-        {isSearchMode ? <><Search size={11} /><span>{t('fileMention.searchResults')}</span></> : (
+        {isSearchMode ? <><Icon name="search" size="lg" style={{ width: 11, height: 11 }} /><span>{t('fileMention.searchResults')}</span></> : (
           <div className="file-mention-picker__directory-label" title={currentDirectoryDisplay.fullPath}>
             <span
-              data-bf-component="file-mention-picker"
-              data-bf-part="currentDirectoryName"
+              data-openbitfun-component="file-mention-picker"
+              data-openbitfun-part="currentDirectoryName"
               className="file-mention-picker__dir-name"
             >
               {currentDirectoryDisplay.name}
             </span>
             {currentDirectoryDisplay.parentPath && (
               <span
-                data-bf-component="file-mention-picker"
-                data-bf-part="parentDirectoryPath"
+                data-openbitfun-component="file-mention-picker"
+                data-openbitfun-part="parentDirectoryPath"
                 className="file-mention-picker__parent-path"
               >
                 {currentDirectoryDisplay.parentPath}
@@ -618,7 +603,7 @@ export const FileMentionPicker: React.FC<FileMentionPickerProps> = ({
           </div>
         )}
       </div>
-      <div data-bf-component="file-mention-picker" data-bf-part="content" className="file-mention-picker__content">
+      <div data-openbitfun-component="file-mention-picker" data-openbitfun-part="content" className="file-mention-picker__content">
         <Listbox
           aria-label={isSearchMode
             ? t('fileMention.searchResults')
@@ -627,7 +612,7 @@ export const FileMentionPicker: React.FC<FileMentionPickerProps> = ({
           focusMode="virtual"
         >
           {displayItems.length === 0 && fileLoadError ? (
-          <ListboxEmpty data-bf-state="error" className="file-mention-picker__empty">
+          <ListboxEmpty data-openbitfun-state="error" className="file-mention-picker__empty">
             <span>{t(fileLoadError === 'search'
               ? 'fileMention.searchUnavailable'
               : 'fileMention.browseUnavailable')}</span>
@@ -651,12 +636,12 @@ export const FileMentionPicker: React.FC<FileMentionPickerProps> = ({
                   key={key}
                   data-index={index}
                   indicator={file?.isDirectory && !isSearchMode
-                    ? <ChevronRight aria-hidden="true" />
+                    ? <Icon name="chevron-right" size="lg" aria-hidden="true" />
                     : undefined}
                   leading={isSession
                     ? <MessageCircle aria-hidden="true" />
                     : file?.isDirectory
-                      ? <Folder aria-hidden="true" />
+                      ? <Icon name="folder" size="lg" aria-hidden="true" />
                       : <File aria-hidden="true" />}
                   metadata={session?.workspaceLabel
                     ?? (file?.referenceStableKey
@@ -680,7 +665,7 @@ export const FileMentionPicker: React.FC<FileMentionPickerProps> = ({
               </ListboxEmpty>
             )}
             {fileLoadError && (
-              <ListboxEmpty data-bf-state="error" className="file-mention-picker__empty">
+              <ListboxEmpty data-openbitfun-state="error" className="file-mention-picker__empty">
                 <span>{t(fileLoadError === 'search'
                   ? 'fileMention.searchUnavailable'
                   : 'fileMention.browseUnavailable')}</span>
@@ -690,7 +675,7 @@ export const FileMentionPicker: React.FC<FileMentionPickerProps> = ({
         )}
         </Listbox>
       </div>
-      <div data-bf-component="file-mention-picker" data-bf-part="footer" className="file-mention-picker__footer">
+      <div data-openbitfun-component="file-mention-picker" data-openbitfun-part="footer" className="file-mention-picker__footer">
         <span><KeyHint>↑</KeyHint><KeyHint>↓</KeyHint> {t('fileMention.navHint')}</span>
         <span><KeyHint>→</KeyHint> {t('fileMention.enterHint')}</span>
         <span><KeyHint>←</KeyHint> {t('fileMention.backHint')}</span>

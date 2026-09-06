@@ -2,6 +2,7 @@ import { i18nService } from '@/infrastructure/i18n';
 
 const t = (key: string, options?: Record<string, unknown>) => i18nService.t(key, options);
 export interface GlobalConfig {
+  product_id: 'openbitfun';
   app: AppConfig;
   editor: EditorConfig;
   terminal: TerminalConfig;
@@ -9,6 +10,7 @@ export interface GlobalConfig {
   ai: AIConfig;
   tool_permissions: ToolPermissionConfig;
   memories: MemoriesConfig;
+  schema_version: 1;
   version: string;
   last_modified: number;
 }
@@ -147,11 +149,8 @@ export interface AIExperienceConfig {
   /** Whether to enable visual mode (use Mermaid diagrams to illustrate complex logic and flows). */
   enable_visual_mode: boolean;
 
-  /** Whether to show the pixel Agent companion in the collapsed chat input. */
+  /** Whether to show the desktop Agent companion. */
   enable_agent_companion: boolean;
-
-  /** Where to show the Agent companion. */
-  agent_companion_display_mode: 'input' | 'desktop';
 
   /** Optional Petdex-compatible companion package selected by the user. */
   agent_companion_pet?: {
@@ -163,6 +162,9 @@ export interface AIExperienceConfig {
     spritesheetPath: string;
     spritesheetMimeType: string;
   } | null;
+
+  /** Legacy/OHOS companion display mode: desktop window vs in-app overlay. */
+  agent_companion_display_mode?: 'input' | 'desktop';
 
   /** Whether to enable flashgrep-backed accelerated workspace search for local workspaces. */
   enable_workspace_search: boolean;
@@ -484,7 +486,7 @@ export interface LanguageDebugTemplate {
 }
 
 export const DEFAULT_DEBUG_MODE_CONFIG: DebugModeConfig = {
-  log_path: '.bitfun/debug.log',
+  log_path: '.openbitfun/debug.log',
   ingest_port: 7242,
   enabled_languages: [],
   language_templates: {},
@@ -526,6 +528,8 @@ export interface EditorConfig {
   line_height: number;
   tab_size: number;
   insert_spaces: boolean;
+  /** Absent on older hosts that cannot persist this setting. */
+  detect_indentation?: boolean;
   word_wrap: string;
   line_numbers: string;
   minimap: MinimapConfig;
@@ -623,12 +627,11 @@ export interface ConfigValidationWarning {
 }
 
 export interface ConfigExport {
+  product_id: 'openbitfun';
+  format_version: 1;
   config: GlobalConfig;
-  metadata: {
-    version: string;
-    exported_at: number;
-    exported_by: string;
-  };
+  export_timestamp: string;
+  version: string;
 }
 
 export interface ConfigChangeEvent {

@@ -110,6 +110,20 @@
       "exitFullscreen": "Exit fullscreen",
       "imageUrlEmpty": "Image URL is empty"
     },
+    "pdfViewer": {
+      "loading": "Loading PDF...",
+      "filePathEmpty": "File path is empty",
+      "loadFailedWithMessage": "Failed to load PDF: {{message}}",
+      "renderFailedWithMessage": "Failed to render PDF page: {{message}}",
+      "pageCount": "Page {{current}} of {{total}}",
+      "currentPage": "Current page",
+      "previousPage": "Previous page",
+      "nextPage": "Next page",
+      "zoomOut": "Zoom out",
+      "zoomLevel": "Zoom level",
+      "zoomIn": "Zoom in",
+      "rotate90": "Rotate 90°"
+    },
     "meditor": {
       "placeholder": "Enter Markdown...",
       "toolbarPlaceholder": "Toolbar",
@@ -190,7 +204,7 @@
       "indentTab": "Tab: {{n}}",
       "goToLineHint": "Line or Line:Col (Enter to go, Esc to close)",
       "goToLinePlaceholder": "e.g. 10 or 10:5",
-      "selectIndent": "Select Indent",
+      "selectIndent": "Current file · indentation",
       "selectEncoding": "Select Encoding",
       "selectLanguageModeHint": "Select Language Mode (click to switch)",
       "indentOptionSpaces": "Spaces: {{n}}",

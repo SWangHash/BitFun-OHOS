@@ -14,7 +14,7 @@ export interface LspPlugin {
   capabilities: CapabilitiesConfig;
   settings: Record<string, any>;
   checksum: string;
-  min_bitfun_version: string;
+  min_openbitfun_version: string;
 }
 
 export interface ServerConfig {

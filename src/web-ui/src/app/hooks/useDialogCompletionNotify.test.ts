@@ -118,19 +118,15 @@ describe('shouldSendDialogCompletionNotification', () => {
 
 describe('buildDialogCompletionNotificationCopy', () => {
   const t = (key: string, options?: Record<string, unknown>) => {
-    if (key === 'notify.dialogCompletedTitle') return 'BitFun finished a task';
+    if (key === 'notify.dialogCompletedTitle') return 'OpenBitFun finished a task';
     if (key === 'notify.dialogCompletedWithSession') {
       return `${options?.sessionTitle} is ready.`;
     }
-    if (key === 'notify.dialogFailedTitle') return 'BitFun task stopped';
+    if (key === 'notify.dialogFailedTitle') return 'OpenBitFun task stopped';
     if (key === 'notify.dialogFailedWithSession') {
       return `${options?.sessionTitle} stopped unexpectedly.`;
     }
-    if (key === 'notify.dialogCancelledTitle') return 'BitFun task cancelled';
-    if (key === 'notify.dialogCancelledWithSession') {
-      return `${options?.sessionTitle} was cancelled.`;
-    }
-    return 'A BitFun session is ready.';
+    return 'A OpenBitFun session is ready.';
   };
 
   it('uses a product title and a session-aware body', () => {
@@ -140,7 +136,7 @@ describe('buildDialogCompletionNotificationCopy', () => {
         t,
       }),
     ).toEqual({
-      title: 'BitFun finished a task',
+      title: 'OpenBitFun finished a task',
       body: 'Deep Review is ready.',
     });
   });
@@ -152,8 +148,8 @@ describe('buildDialogCompletionNotificationCopy', () => {
         t,
       }),
     ).toEqual({
-      title: 'BitFun finished a task',
-      body: 'A BitFun session is ready.',
+      title: 'OpenBitFun finished a task',
+      body: 'A OpenBitFun session is ready.',
     });
   });
 
@@ -166,21 +162,8 @@ describe('buildDialogCompletionNotificationCopy', () => {
         t,
       }),
     ).toEqual({
-      title: 'BitFun task stopped',
+      title: 'OpenBitFun task stopped',
       body: 'Browser control fix stopped unexpectedly.',
-    });
-  });
-
-  it('uses cancelled copy when the turn was cancelled', () => {
-    expect(
-      buildDialogCompletionNotificationCopy({
-        sessionTitle: 'Refactor plan',
-        cancelled: true,
-        t,
-      }),
-    ).toEqual({
-      title: 'BitFun task cancelled',
-      body: 'Refactor plan was cancelled.',
     });
   });
 });

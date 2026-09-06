@@ -4,17 +4,17 @@ import {
   useRef,
   useState,
 } from "react";
-import type { SystemTokenMode } from "@bitfun/design-tokens";
-import type { ThemeDataName } from "@bitfun/theme-bitfun";
-import { AppWindow, Blocks, BookOpen, Braces, CircleDashed, FileText, House, Languages, Menu, Moon, MousePointerClick, PanelTop, PanelsTopLeft, SquareTerminal, Sun, ToggleLeft, type LucideIcon } from "lucide-react";
+import type { SystemTokenMode } from "@openbitfun/design-tokens";
+import type { ThemeDataName } from "@openbitfun/theme-openbitfun";
+import { AppWindow, Blocks, BookOpen, Braces, CircleDashed, FileText, House, Languages, Menu, Moon, MousePointerClick, PanelTop, PanelsTopLeft, Smartphone, SquareTerminal, Sun, ToggleLeft, type LucideIcon } from "lucide-react";
 import { Icon as CatalogIcon,
   ThemeRoot,
   type ColorScheme,
   type ContrastMode,
   type DensityMode,
   type IconName,
-} from "@bitfun/ui";
-import { componentRegistry } from "@bitfun/ui/registry";
+} from "@openbitfun/ui";
+import { componentRegistry } from "@openbitfun/ui/registry";
 import {
   useI18n,
   type DesignLabLocale,
@@ -53,12 +53,16 @@ type LabRoute =
   | { page: "overview" }
   | { page: "getting-started" }
   | { page: "components" }
+  | { page: "mobile" }
   | { page: "patterns" }
   | { page: "flow-chat" }
   | { page: "colors" }
   | { page: "resources" }
   | { page: "tokens" }
   | { componentName: string; page: "component" };
+
+type ComponentNavGroup = "components" | "flow-chat";
+type ComponentNavGroupState = Record<ComponentNavGroup, boolean>;
 
 interface SearchDestination {
   detail: string;
@@ -81,9 +85,37 @@ const componentIcons: Record<string, LucideIcon> = {
 const flowChatComponents = componentRegistry.filter(
   (component) => component.category === "flow-chat",
 );
-const standardComponents = componentRegistry.filter(
-  (component) => component.category !== "flow-chat",
+const mobileComponents = componentRegistry.filter(
+  (component) => component.category === "mobile",
 );
+const standardComponents = componentRegistry.filter(
+  (component) => component.category !== "flow-chat"
+    && component.category !== "mobile"
+    && component.name !== "Icon",
+);
+
+function getComponentNavGroup(route: LabRoute): ComponentNavGroup | undefined {
+  if (route.page === "components" || route.page === "flow-chat") {
+    return route.page;
+  }
+  if (route.page !== "component" || route.componentName === "Icon") {
+    return undefined;
+  }
+  const component = componentRegistry.find(
+    (candidate) => candidate.name === route.componentName,
+  );
+  return component?.category === "flow-chat" ? "flow-chat" : "components";
+}
+
+function revealComponentNavGroup(
+  current: ComponentNavGroupState,
+  route: LabRoute,
+): ComponentNavGroupState {
+  const group = getComponentNavGroup(route);
+  return group && !current[group]
+    ? { ...current, [group]: true }
+    : current;
+}
 
 function getThemeDataName(
   colorScheme: ColorScheme,
@@ -111,6 +143,9 @@ function parseRoute(hash: string): LabRoute {
   }
   if (route === "components") {
     return { page: "components" };
+  }
+  if (route === "mobile") {
+    return { page: "mobile" };
   }
   if (route === "patterns") {
     return { page: "patterns" };
@@ -145,6 +180,13 @@ export function App() {
   const [contrast, setContrast] = useState<ContrastMode>("standard");
   const [density, setDensity] = useState<DensityMode>("comfortable");
   const [route, setRoute] = useState<LabRoute>(() => parseRoute(window.location.hash));
+  const [expandedComponentGroups, setExpandedComponentGroups] = useState<ComponentNavGroupState>(() => {
+    const initialGroup = getComponentNavGroup(route);
+    return {
+      components: initialGroup === "components",
+      "flow-chat": initialGroup === "flow-chat",
+    };
+  });
   const [componentScope, setComponentScope] = useState("all");
   const [drafts, setDrafts] = useState<TokenDrafts>(loadTokenDrafts);
   const [searchQuery, setSearchQuery] = useState("");
@@ -202,6 +244,13 @@ export function App() {
       route: { page: "components" },
     },
     {
+      detail: t("search.mobileDetail", { count: mobileComponents.length }),
+      icon: Smartphone,
+      keywords: `mobile touch phone foldable ${t("nav.mobile")}`,
+      label: t("nav.mobile"),
+      route: { page: "mobile" },
+    },
+    {
       detail: t("search.patternsDetail"),
       icon: PanelsTopLeft,
       keywords: `patterns recipes settings navigation search device ${t("nav.patterns")}`,
@@ -253,7 +302,9 @@ export function App() {
 
   useEffect(() => {
     function syncRoute() {
-      setRoute(parseRoute(window.location.hash));
+      const nextRoute = parseRoute(window.location.hash);
+      setRoute(nextRoute);
+      setExpandedComponentGroups((current) => revealComponentNavGroup(current, nextRoute));
       setSidebarOpen(false);
       window.scrollTo({ top: 0 });
     }
@@ -292,8 +343,11 @@ export function App() {
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [settingsOpen]);
 
-  function navigate(nextRoute: LabRoute) {
+  function navigate(nextRoute: LabRoute, { revealGroup = true } = {}) {
     const nextHash = routeHash(nextRoute);
+    if (revealGroup) {
+      setExpandedComponentGroups((current) => revealComponentNavGroup(current, nextRoute));
+    }
     setSearchOpen(false);
     setSearchQuery("");
     setSidebarOpen(false);
@@ -359,8 +413,14 @@ export function App() {
     : undefined;
   const isFlowChatRoute = route.page === "flow-chat"
     || activeComponent?.category === "flow-chat";
+  const isIconRoute = activeComponent?.name === "Icon";
+  const isMobileRoute = route.page === "mobile"
+    || activeComponent?.category === "mobile";
   const isStandardComponentRoute = route.page === "components"
-    || Boolean(activeComponent && activeComponent.category !== "flow-chat");
+    || Boolean(activeComponent
+      && activeComponent.category !== "flow-chat"
+      && activeComponent.category !== "mobile"
+      && !isIconRoute);
 
   return (
     <ThemeRoot
@@ -381,7 +441,7 @@ export function App() {
         <div className="lab-brand">
           <span className="lab-brand__mark"><CircleDashed aria-hidden="true" size={25} strokeWidth={2.35} /></span>
           <span>
-            <strong>BitFun Design</strong>
+            <strong>OpenBitFun Design</strong>
           </span>
           <button aria-label={t("app.closeNavigation")} onClick={() => setSidebarOpen(false)} type="button">
             <CatalogIcon name="xmark" size="lg" aria-hidden="true" style={{ width: 18, height: 18 }} />
@@ -440,29 +500,44 @@ export function App() {
 
           <span className="lab-nav-label">{t("nav.library")}</span>
           <a
+            aria-controls="lab-standard-component-links"
             aria-current={isStandardComponentRoute ? "page" : undefined}
-            data-expanded={isStandardComponentRoute || undefined}
+            aria-expanded={expandedComponentGroups.components}
+            data-expanded={expandedComponentGroups.components || undefined}
             href="#components"
+            id="lab-standard-components-trigger"
             onClick={(event) => {
               event.preventDefault();
-              navigate({ page: "components" });
+              const nextExpanded = !expandedComponentGroups.components;
+              setExpandedComponentGroups((current) => ({
+                ...current,
+                components: nextExpanded,
+              }));
+              if (nextExpanded && !isStandardComponentRoute) {
+                navigate({ page: "components" }, { revealGroup: false });
+              }
             }}
           >
             <Blocks aria-hidden="true" size={17} />
             <span>{t("nav.components")}</span>
+            <span className="lab-nav-group-meta">
+              <small>{standardComponents.length}</small>
+              <CatalogIcon
+                aria-hidden="true"
+                className="lab-nav-group-chevron"
+                data-expanded={expandedComponentGroups.components || undefined}
+                name="chevron-right"
+                size="sm"
+              />
+            </span>
           </a>
-          <a
-            aria-current={route.page === "patterns" ? "page" : undefined}
-            href="#patterns"
-            onClick={(event) => {
-              event.preventDefault();
-              navigate({ page: "patterns" });
-            }}
+          <div
+            aria-labelledby="lab-standard-components-trigger"
+            className="lab-component-links"
+            hidden={!expandedComponentGroups.components}
+            id="lab-standard-component-links"
+            role="group"
           >
-            <PanelsTopLeft aria-hidden="true" size={17} />
-            <span>{t("nav.patterns")}</span>
-          </a>
-          <div className="lab-component-links">
             {standardComponents.map((component) => {
               const Icon = componentIcons[component.name] ?? Blocks;
               const active = route.page === "component" && route.componentName === component.name;
@@ -483,19 +558,78 @@ export function App() {
             })}
           </div>
           <a
-            aria-current={isFlowChatRoute ? "page" : undefined}
-            data-expanded={isFlowChatRoute || undefined}
-            href="#flow-chat"
+            aria-current={isMobileRoute ? "page" : undefined}
+            href="#mobile"
             onClick={(event) => {
               event.preventDefault();
-              navigate({ page: "flow-chat" });
+              navigate({ page: "mobile" });
+            }}
+          >
+            <Smartphone aria-hidden="true" size={17} />
+            <span>{t("nav.mobile")}</span>
+            <small>{mobileComponents.length}</small>
+          </a>
+          <a
+            aria-current={isIconRoute ? "page" : undefined}
+            href="#component/icon"
+            onClick={(event) => {
+              event.preventDefault();
+              navigate({ componentName: "Icon", page: "component" });
+            }}
+          >
+            <CatalogIcon aria-hidden="true" name="spark" size="md" style={{ width: 17, height: 17 }} />
+            <span>Icon</span>
+          </a>
+          <a
+            aria-current={route.page === "patterns" ? "page" : undefined}
+            href="#patterns"
+            onClick={(event) => {
+              event.preventDefault();
+              navigate({ page: "patterns" });
+            }}
+          >
+            <PanelsTopLeft aria-hidden="true" size={17} />
+            <span>{t("nav.patterns")}</span>
+          </a>
+          <a
+            aria-controls="lab-flow-chat-component-links"
+            aria-current={isFlowChatRoute ? "page" : undefined}
+            aria-expanded={expandedComponentGroups["flow-chat"]}
+            data-expanded={expandedComponentGroups["flow-chat"] || undefined}
+            href="#flow-chat"
+            id="lab-flow-chat-trigger"
+            onClick={(event) => {
+              event.preventDefault();
+              const nextExpanded = !expandedComponentGroups["flow-chat"];
+              setExpandedComponentGroups((current) => ({
+                ...current,
+                "flow-chat": nextExpanded,
+              }));
+              if (nextExpanded && !isFlowChatRoute) {
+                navigate({ page: "flow-chat" }, { revealGroup: false });
+              }
             }}
           >
             <SquareTerminal aria-hidden="true" size={17} />
             <span>{t("nav.flowChat")}</span>
-            <small>{flowChatComponents.length}</small>
+            <span className="lab-nav-group-meta">
+              <small>{flowChatComponents.length}</small>
+              <CatalogIcon
+                aria-hidden="true"
+                className="lab-nav-group-chevron"
+                data-expanded={expandedComponentGroups["flow-chat"] || undefined}
+                name="chevron-right"
+                size="sm"
+              />
+            </span>
           </a>
-          <div className="lab-component-links">
+          <div
+            aria-labelledby="lab-flow-chat-trigger"
+            className="lab-component-links"
+            hidden={!expandedComponentGroups["flow-chat"]}
+            id="lab-flow-chat-component-links"
+            role="group"
+          >
             {flowChatComponents.map((component) => {
               const Icon = componentIcons[component.name] ?? SquareTerminal;
               const active = route.page === "component" && route.componentName === component.name;
@@ -590,7 +724,7 @@ export function App() {
           </div>
 
           <nav className="topbar-links" aria-label={t("nav.resources")}>
-            <a href="https://github.com/GCWing/BitFun/tree/main/design-system" rel="noreferrer" target="_blank">{t("nav.docs")}</a>
+            <a href="https://github.com/GCWing/OpenBitFun/tree/main/design-system" rel="noreferrer" target="_blank">{t("nav.docs")}</a>
             <a
               href="#resources"
               onClick={(event) => {
@@ -707,6 +841,18 @@ export function App() {
             />
           )}
 
+          {route.page === "mobile" && (
+            <ComponentsPage
+              category="mobile"
+              colorScheme={colorScheme}
+              contrast={contrast}
+              density={density}
+              onInspectTokens={() => openTokenPage()}
+              onOpenComponent={(name) => navigate({ componentName: name, page: "component" })}
+              tokenOverrides={tokenOverrides}
+            />
+          )}
+
           {route.page === "patterns" && (
             <PatternsPage
               colorScheme={colorScheme}
@@ -738,6 +884,8 @@ export function App() {
               onBack={() => navigate({
                 page: activeComponent.category === "flow-chat"
                   ? "flow-chat"
+                  : activeComponent.category === "mobile"
+                    ? "mobile"
                   : "components",
               })}
               onInspectTokens={openTokenPage}

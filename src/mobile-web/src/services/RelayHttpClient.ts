@@ -22,6 +22,7 @@ interface DelegatedIdentitySnapshot {
   userId: string | null;
   homeDeviceId: string | null;
   generation: number;
+  source: 'paired' | 'direct';
 }
 
 interface DelegatedAccountIdentity {
@@ -70,6 +71,7 @@ const TRANSIENT_RELAY_STATUSES = new Set([408, 425, 500, 502, 503, 504]);
 
 type RelayRequestOptions = {
   retryable?: boolean;
+  timeoutMs?: number;
 };
 
 function equalBytesConstantTime(left: Uint8Array, right: Uint8Array): boolean {
@@ -112,6 +114,8 @@ export class RelayHttpClient {
   ) => void>();
   /** The current control-target device_id (for sendDeviceRpc). */
   private pairedDeviceIdValue: string | null = null;
+  /** This browser's relay device id. Never offer it as a remote control target. */
+  private controllerDeviceIdValue: string | null = null;
   private controlTargetEpochValue = 0;
   private controlTargetListeners = new Set<(snapshot: ControlTargetSnapshot) => void>();
   /** The QR-paired desktop's device_id (the "home" device of this session). */
@@ -195,7 +199,7 @@ export class RelayHttpClient {
    * 1. POST /pair with our public key → receive encrypted challenge
    * 2. POST /command with encrypted challenge_echo → receive initial_sync
    *
-   * When the desktop is logged into a BitFun account, pass `password` so the
+   * When the desktop is logged into a OpenBitFun account, pass `password` so the
    * desktop can verify credentials (same challenge+unwrap path as desktop login).
    */
   async pair(
@@ -211,6 +215,7 @@ export class RelayHttpClient {
     this.sharedKey = await deriveSharedKey(this.keyPair, desktopPub);
 
     const deviceId = identity.mobileInstallId;
+    this.controllerDeviceIdValue = deviceId;
     const deviceName = this.getMobileDeviceName();
     const userId = identity.userId.trim();
     const mobileInstallId = identity.mobileInstallId.trim();
@@ -300,6 +305,9 @@ export class RelayHttpClient {
    * not-logged-in case.
    */
   async requestDelegatedIdentity(options?: { force?: boolean }): Promise<boolean> {
+    // Direct account login already owns a first-party device credential. It
+    // must never fall back to a QR-room command, especially on forced refresh.
+    if (this.delegatedIdentity?.source === 'direct') return true;
     if (!options?.force && this.hasDelegatedIdentity) return true;
     const requestGeneration = ++this.delegatedIdentityRequestEpoch;
     if (options?.force) {
@@ -326,6 +334,7 @@ export class RelayHttpClient {
           userId: resp.user_id ?? null,
           homeDeviceId,
           generation: ++this.delegatedIdentityGenerationValue,
+          source: 'paired',
         };
         this.delegatedIdentity = nextIdentity;
 
@@ -388,6 +397,7 @@ export class RelayHttpClient {
     const targetEpoch = this.controlTargetEpochValue;
     this.clearDelegatedIdentity();
     this.commitDelegatedAccountUnavailable();
+    this.controllerDeviceIdValue = null;
     if (this.controlTargetEpochValue === targetEpoch) {
       // Disconnect is an explicit ownership boundary even when this session
       // never received delegated credentials and was using only the QR room.
@@ -467,6 +477,7 @@ export class RelayHttpClient {
 
     const body = JSON.stringify({ encrypted_data: encData, nonce: encNonce });
 
+    const timeoutMs = options.timeoutMs ?? (options.retryable ? 20_000 : 65_000);
     const resp = await (options.retryable ? this.fetchWithRetry : this.fetchWithTimeout).call(
       this,
       `${this.relayUrl}/api/rooms/${encodeURIComponent(this.roomId)}/command`,
@@ -475,7 +486,7 @@ export class RelayHttpClient {
         headers: { 'Content-Type': 'application/json' },
         body,
       },
-      options.retryable ? 20_000 : 65_000,
+      timeoutMs,
     );
 
     if (!resp.ok) {
@@ -499,8 +510,66 @@ export class RelayHttpClient {
     return this.delegatedIdentity !== null;
   }
 
+  /**
+   * Install an account session obtained by this browser itself. The existing
+   * account data plane can then list devices and issue encrypted device RPCs
+   * without requiring a QR-room connection first.
+   */
+  installDirectAccountIdentity(identity: {
+    token: string;
+    masterKey: Uint8Array;
+    userId: string;
+    deviceId: string;
+  }): void {
+    const token = identity.token.trim();
+    const userId = identity.userId.trim();
+    const deviceId = identity.deviceId.trim();
+    if (!token || !userId || !deviceId || identity.masterKey.length !== 32) {
+      throw new Error('Relay returned an invalid account identity.');
+    }
+    this.controllerDeviceIdValue = deviceId;
+
+    const hadAccountIdentity = this.delegatedAccountIdentity !== null;
+    const nextAccountIdentity: DelegatedAccountIdentity = {
+      userId,
+      masterKey: identity.masterKey.slice(),
+      homeDeviceId: null,
+    };
+    const accountChanged = delegatedAccountChanged(
+      this.delegatedAccountIdentity,
+      nextAccountIdentity,
+    );
+
+    this.delegatedIdentityRequestEpoch += 1;
+    this.delegatedIdentityRefreshOwner = null;
+    this.delegatedIdentity = {
+      token,
+      masterKey: identity.masterKey.slice(),
+      userId,
+      homeDeviceId: null,
+      generation: ++this.delegatedIdentityGenerationValue,
+      source: 'direct',
+    };
+    if (accountChanged) this.delegatedAccountEpochValue += 1;
+    this.delegatedAccountIdentity = nextAccountIdentity;
+    this.homeDeviceId = null;
+    this.setPairedDeviceId(null);
+    if (accountChanged) {
+      this.emitDelegatedAccountOwnerChange({
+        kind: hadAccountIdentity ? 'replacement' : 'initial',
+        epoch: this.delegatedAccountEpochValue,
+        userId,
+        homeDeviceId: null,
+      });
+    }
+  }
+
   get pairedDeviceId(): string | null {
     return this.pairedDeviceIdValue;
+  }
+
+  get controllerDeviceId(): string | null {
+    return this.controllerDeviceIdValue;
   }
 
   /**
@@ -596,6 +665,7 @@ export class RelayHttpClient {
     if (!this.isDelegatedIdentityCurrent(failedIdentity)) {
       return this.hasDelegatedIdentity;
     }
+    if (failedIdentity.source === 'direct') return false;
     try {
       return await this.requestDelegatedIdentity({ force: true });
     } catch {
@@ -642,6 +712,7 @@ export class RelayHttpClient {
         plaintext,
       );
 
+      const timeoutMs = options.timeoutMs ?? (options.retryable ? 20_000 : 130_000);
       const resp = await (options.retryable ? this.fetchWithRetry : this.fetchWithTimeout).call(
         this,
         `${this.relayUrl}/api/devices/${encodeURIComponent(targetDeviceId)}/rpc`,
@@ -653,7 +724,7 @@ export class RelayHttpClient {
           },
           body: JSON.stringify({ encrypted_data: encData, nonce: encNonce }),
         },
-        options.retryable ? 20_000 : 130_000,
+        timeoutMs,
       );
 
       if (!resp.ok) {
@@ -706,6 +777,11 @@ export class RelayHttpClient {
 
       const refreshed = await this.refreshDelegatedIdentityAfterUnauthorized(identity);
       if (!refreshed) {
+        // A browser-restored direct account session has no QR room from which
+        // it can refresh. Preserve the relay's 401 so the pairing surface can
+        // explicitly fall back to password login instead of reporting the
+        // unrelated "No delegated identity" state.
+        if (identity.source === 'direct') throw e;
         throw new Error('No delegated identity');
       }
       if (

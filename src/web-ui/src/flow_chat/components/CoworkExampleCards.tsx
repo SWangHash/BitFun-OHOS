@@ -4,44 +4,40 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  type LucideIcon,
-  Plane,
-  Presentation,
-  ListTodo,
-  CalendarDays,
-  ClipboardList,
-  HandCoins,
-  TrendingUp,
-  X,
-  RotateCcw,
-  Plus,
-} from 'lucide-react';
-import { ActionCard, IconButton, Tooltip } from '@bitfun/ui';
+import { Plane, Presentation, ListTodo, CalendarDays, ClipboardList, Mail, FileSpreadsheet, HandCoins, TrendingUp, FileText, RotateCcw } from 'lucide-react';
+import { ActionCard, IconButton, Tooltip, Icon } from '@openbitfun/ui';
 import './CoworkExampleCards.scss';
 
 type ExampleId =
+  | 'desktop_cleanup'
   | 'vacation_plan'
   | 'make_ppt'
   | 'todo_breakdown'
   | 'optimize_week'
   | 'weekly_plan'
   | 'meeting_minutes'
+  | 'reply_email'
+  | 'make_docx'
+  | 'make_spreadsheet'
   | 'budget_plan';
 
 interface ExampleItem {
   id: ExampleId;
-  icon: LucideIcon;
+  icon: React.ReactNode;
 }
 
 const EXAMPLES: ExampleItem[] = [
-  { id: 'vacation_plan', icon: Plane },
-  { id: 'make_ppt', icon: Presentation },
-  { id: 'todo_breakdown', icon: ListTodo },
-  { id: 'optimize_week', icon: TrendingUp },
-  { id: 'weekly_plan', icon: CalendarDays },
-  { id: 'meeting_minutes', icon: ClipboardList },
-  { id: 'budget_plan', icon: HandCoins },
+  { id: 'desktop_cleanup', icon: <Icon name="image" size="lg" style={{ width: 18, height: 18 }} /> },
+  { id: 'vacation_plan', icon: <Plane size={18} /> },
+  { id: 'make_ppt', icon: <Presentation size={18} /> },
+  { id: 'todo_breakdown', icon: <ListTodo size={18} /> },
+  { id: 'optimize_week', icon: <TrendingUp size={18} /> },
+  { id: 'weekly_plan', icon: <CalendarDays size={18} /> },
+  { id: 'meeting_minutes', icon: <ClipboardList size={18} /> },
+  { id: 'reply_email', icon: <Mail size={18} /> },
+  { id: 'make_docx', icon: <FileText size={18} /> },
+  { id: 'make_spreadsheet', icon: <FileSpreadsheet size={18} /> },
+  { id: 'budget_plan', icon: <HandCoins size={18} /> },
 ];
 
 function pickRandomUnique<T>(items: readonly T[], count: number): T[] {
@@ -82,7 +78,6 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
 
   const cards = useMemo(() => {
     return selected.map((example) => {
-      const Icon = example.icon;
       const title = t(`coworkExamples.items.${example.id}.title`);
       const description = t(`coworkExamples.items.${example.id}.description`);
       const prompt = t(`coworkExamples.items.${example.id}.prompt`);
@@ -91,9 +86,9 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
       return (
         <ActionCard
           key={example.id}
-          className="bitfun-cowork-example-cards__card"
+          className="openbitfun-cowork-example-cards__card"
           description={description}
-          leading={<Icon size={18} />}
+          leading={example.icon}
           size="md"
           onClick={handleSelect}
         >
@@ -104,17 +99,17 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
   }, [onSelectPrompt, selected, t]);
 
   return (
-    <div data-bf-component="cowork-example-cards" data-bf-part="root" className="bitfun-cowork-example-cards">
-      <div data-bf-component="cowork-example-cards" data-bf-part="header" className="bitfun-cowork-example-cards__header">
-        <div data-bf-component="cowork-example-cards" data-bf-part="title" className="bitfun-cowork-example-cards__title">{t('coworkExamples.title')}</div>
-        <div data-bf-component="cowork-example-cards" data-bf-part="actions" className="bitfun-cowork-example-cards__header-actions">
+    <div data-openbitfun-component="cowork-example-cards" data-openbitfun-part="root" className="openbitfun-cowork-example-cards">
+      <div data-openbitfun-component="cowork-example-cards" data-openbitfun-part="header" className="openbitfun-cowork-example-cards__header">
+        <div data-openbitfun-component="cowork-example-cards" data-openbitfun-part="title" className="openbitfun-cowork-example-cards__title">{t('coworkExamples.title')}</div>
+        <div data-openbitfun-component="cowork-example-cards" data-openbitfun-part="actions" className="openbitfun-cowork-example-cards__header-actions">
           {onAddPlugin && (
             <Tooltip content={t('coworkExamples.addPlugin')}>
               <IconButton
                 size="sm"
                 onClick={onAddPlugin}
                 aria-label={t('coworkExamples.addPlugin')}
-                icon={<Plus size={14} />}
+                icon={<Icon name="plus" size="sm" />}
               />
             </Tooltip>
           )}
@@ -132,13 +127,13 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
                 size="sm"
                 onClick={onClose}
                 aria-label={t('coworkExamples.close')}
-                icon={<X size={14} />}
+                icon={<Icon name="xmark" size="sm" />}
               />
             </Tooltip>
           )}
         </div>
       </div>
-      <div data-bf-component="cowork-example-cards" data-bf-part="grid" className="bitfun-cowork-example-cards__grid">
+      <div data-openbitfun-component="cowork-example-cards" data-openbitfun-part="grid" className="openbitfun-cowork-example-cards__grid">
         {cards}
       </div>
     </div>

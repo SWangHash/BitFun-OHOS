@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Settings } from 'lucide-react';
 import { IconButton } from '@/component-library';
-import { Combobox } from '@bitfun/ui';
+import { Combobox } from '@openbitfun/ui';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { useNotification } from '@/shared/notification-system';
 import { configManager } from '../services/ConfigManager';
@@ -103,7 +103,7 @@ export const SubagentModelConfig: React.FC = () => {
     <ConfigPageRow
       className="subagent-model-config__row"
       label={(
-        <span className="subagent-model-config__label" data-bf-component="config" data-bf-part="rowLabel">
+        <span className="subagent-model-config__label" data-openbitfun-component="config" data-openbitfun-part="rowLabel">
           <span>{t('subagentModels.default.label')}</span>
           <IconButton
             type="button"

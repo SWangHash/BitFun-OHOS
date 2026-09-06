@@ -30,7 +30,8 @@ vi.mock('react-i18next', async () => {
   };
 });
 
-vi.mock('@bitfun/ui', () => ({
+vi.mock('@openbitfun/ui', () => ({
+  Icon: ({ name }: { name: string }) => <span data-openbitfun-component="icon" data-openbitfun-name={name} />,
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
@@ -219,7 +220,7 @@ describe('CodeReviewToolCard', () => {
       );
     });
     act(() => {
-      container.querySelector('[data-bf-part="affordanceButton"]')?.dispatchEvent(
+      container.querySelector('[data-openbitfun-part="affordanceButton"]')?.dispatchEvent(
         new window.Event('click', { bubbles: true }),
       );
     });
@@ -293,7 +294,7 @@ describe('CodeReviewToolCard', () => {
       );
     });
     act(() => {
-      container.querySelector('[data-bf-part="affordanceButton"]')?.dispatchEvent(
+      container.querySelector('[data-openbitfun-part="affordanceButton"]')?.dispatchEvent(
         new window.Event('click', { bubbles: true }),
       );
     });
@@ -366,7 +367,7 @@ describe('CodeReviewToolCard', () => {
       );
     });
     act(() => {
-      container.querySelector('[data-bf-part="affordanceButton"]')?.dispatchEvent(
+      container.querySelector('[data-openbitfun-part="affordanceButton"]')?.dispatchEvent(
         new window.Event('click', { bubbles: true }),
       );
     });
@@ -429,7 +430,7 @@ describe('CodeReviewToolCard', () => {
     });
 
     act(() => {
-      container.querySelector('[data-bf-part="affordanceButton"]')?.dispatchEvent(
+      container.querySelector('[data-openbitfun-part="affordanceButton"]')?.dispatchEvent(
         new window.Event('click', { bubbles: true }),
       );
     });
@@ -491,7 +492,7 @@ describe('CodeReviewToolCard', () => {
     });
 
     act(() => {
-      container.querySelector('[data-bf-part="affordanceButton"]')?.dispatchEvent(
+      container.querySelector('[data-openbitfun-part="affordanceButton"]')?.dispatchEvent(
         new window.Event('click', { bubbles: true }),
       );
     });
@@ -545,7 +546,7 @@ describe('CodeReviewToolCard', () => {
       );
     });
     act(() => {
-      container.querySelector('[data-bf-part="affordanceButton"]')?.dispatchEvent(
+      container.querySelector('[data-openbitfun-part="affordanceButton"]')?.dispatchEvent(
         new window.Event('click', { bubbles: true }),
       );
     });

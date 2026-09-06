@@ -7,7 +7,7 @@
 use crate::agentic::tools::framework::{
     Tool, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult,
 };
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::Path;
@@ -33,7 +33,7 @@ impl Tool for CheckArktsFilesTool {
         "check_arkts_files"
     }
 
-    async fn description(&self) -> BitFunResult<String> {
+    async fn description(&self) -> OpenBitFunResult<String> {
         Ok(r#"Run static ArkTS syntax check (ArkTS-Check) on .ets files via devecocli MCP.
 
 Use before a full build for fast feedback on syntax and type errors.
@@ -103,7 +103,7 @@ Provide absolute or workspace-relative paths to .ets files."#.to_string())
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         let all_files: Vec<String> = input
             .get("files")
             .and_then(|v| v.as_array())
@@ -126,7 +126,7 @@ Provide absolute or workspace-relative paths to .ets files."#.to_string())
             .collect();
 
         if ets_files.is_empty() {
-            return Err(BitFunError::tool(
+            return Err(OpenBitFunError::tool(
                 "No .ets files provided. All files were filtered out.".to_string(),
             ));
         }

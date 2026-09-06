@@ -15,7 +15,7 @@ describe('navigation icon integration', () => {
     expect(entryStart).toBeGreaterThanOrEqual(0);
     expect(entryEnd).toBeGreaterThan(entryStart);
     expect(entryMarkup).toContain(
-      'className="bitfun-nav-panel__top-action-icon-slot bitfun-nav-panel__top-action-expand-icons"',
+      'className="openbitfun-nav-panel__top-action-icon-slot openbitfun-nav-panel__top-action-expand-icons"',
     );
     expect(entryMarkup).toContain('name="extension"');
     expect(entryMarkup).toContain('size="sm"');
@@ -69,10 +69,10 @@ describe('navigation icon integration', () => {
       fileURLToPath(new URL('./sections/workspaces/WorkspaceItem.tsx', import.meta.url)),
       'utf8',
     );
-    const assistantStart = source.indexOf('bitfun-nav-panel__assistant-item-group-icon');
+    const assistantStart = source.indexOf('openbitfun-nav-panel__assistant-item-group-icon');
     const assistantEnd = source.indexOf('</span>', assistantStart);
     const assistantMarkup = source.slice(assistantStart, assistantEnd);
-    const workspaceStart = source.indexOf('bitfun-nav-panel__workspace-item-icon-default');
+    const workspaceStart = source.indexOf('openbitfun-nav-panel__workspace-item-icon-default');
     const workspaceEnd = source.indexOf('</span>', workspaceStart);
     const workspaceMarkup = source.slice(workspaceStart, workspaceEnd);
 
@@ -80,7 +80,7 @@ describe('navigation icon integration', () => {
     expect(assistantMarkup).not.toContain('SessionGroupAssistant');
 
     expect(workspaceMarkup).toContain('workspaceIsRemote');
-    expect(workspaceMarkup).toContain('<Network size={16} />');
+    expect(workspaceMarkup).toContain('<Server size={14} strokeWidth={1.6} />');
     expect(workspaceMarkup).toContain('<Icon name="folder" size="sm" />');
     expect(workspaceMarkup).not.toContain('SessionGroup');
   });

@@ -80,10 +80,10 @@ export const SnapshotCard: React.FC<SnapshotCardProps> = ({
     return (
       <div 
         className={`snapshot-card snapshot-card--compact snapshot-card--${snapshotStatus} status-${status}`}
-        data-bf-component="flow-chat-card"
-        data-bf-part="compact"
-        data-bf-display="compact"
-        data-bf-status={status}
+        data-openbitfun-component="flow-chat-card"
+        data-openbitfun-part="compact"
+        data-openbitfun-display="compact"
+        data-openbitfun-status={status}
         style={{ '--snapshot-card-operation-color': operationInfo.color } as React.CSSProperties}
         onClick={onViewDetails}
       >
@@ -108,7 +108,7 @@ export const SnapshotCard: React.FC<SnapshotCardProps> = ({
 
         <span className="snapshot-card__status">{getStatusIcon()}</span>
         
-        <div className="snapshot-card__actions" onClick={(e) => e.stopPropagation()} data-bf-component="flow-chat-card" data-bf-part="actions">
+        <div className="snapshot-card__actions" onClick={(e) => e.stopPropagation()} data-openbitfun-component="flow-chat-card" data-openbitfun-part="actions">
           <button
             className="snapshot-card__action-btn snapshot-card__action-btn--accept"
             onClick={onAccept}
@@ -208,14 +208,14 @@ export const SnapshotCard: React.FC<SnapshotCardProps> = ({
       )}
 
       {(status === 'running' || status === 'streaming') && (
-        <div className="snapshot-card__processing" data-bf-component="flow-chat-card" data-bf-part="processing">
+        <div className="snapshot-card__processing" data-openbitfun-component="flow-chat-card" data-openbitfun-part="processing">
           <Loader2 className="snapshot-card__processing-icon" size={14} />
           <span>{t('flowChatCards.snapshotCard.processing')}</span>
         </div>
       )}
 
       {status === 'error' && result?.error && (
-        <div className="snapshot-card__error" data-bf-component="flow-chat-card" data-bf-part="error">
+        <div className="snapshot-card__error" data-openbitfun-component="flow-chat-card" data-openbitfun-part="error">
           <XCircle size={14} />
           <span>{result.error}</span>
         </div>

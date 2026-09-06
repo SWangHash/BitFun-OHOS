@@ -3,17 +3,9 @@
  * Displays analysis progress and results.
  */
 
-import { Button } from '@bitfun/ui';
+import { Button, Icon } from '@openbitfun/ui';
 import React, { useState } from 'react';
-import {
-  Loader, 
-  CheckCircle, 
-  AlertCircle, 
-  ChevronDown, 
-  ChevronUp,
-  Eye,
-  Sparkles
-} from 'lucide-react';
+import { Loader, AlertCircle } from 'lucide-react';
 import type { FlowImageAnalysisItem } from '../types/flow-chat';
 import './ImageAnalysisCard.scss';
 
@@ -35,36 +27,36 @@ export const ImageAnalysisCard: React.FC<ImageAnalysisCardProps> = ({
     : '';
   
   return (
-    <div data-bf-component="image-analysis-card" data-bf-part="root" data-bf-status={status} data-bf-state={expanded ? 'expanded' : ''} className="image-analysis-card" data-status={status}>
-      <div data-bf-component="image-analysis-card" data-bf-part="header" className="image-analysis-card__header">
-        <div data-bf-component="image-analysis-card" data-bf-part="thumbnail" className="image-analysis-card__thumbnail">
+    <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="root" data-openbitfun-status={status} data-openbitfun-state={expanded ? 'expanded' : ''} className="image-analysis-card" data-status={status}>
+      <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="header" className="image-analysis-card__header">
+        <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="thumbnail" className="image-analysis-card__thumbnail">
           {imageContext.thumbnailUrl || imageContext.dataUrl ? (
             <img 
               src={imageContext.thumbnailUrl || imageContext.dataUrl} 
               alt={imageContext.imageName}
             />
           ) : (
-            <div data-bf-component="image-analysis-card" data-bf-part="placeholder" className="image-analysis-card__thumbnail-placeholder">
-              <Eye size={24} />
+            <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="placeholder" className="image-analysis-card__thumbnail-placeholder">
+              <Icon name="eye" size="lg" />
             </div>
           )}
         </div>
         
-        <div data-bf-component="image-analysis-card" data-bf-part="info" className="image-analysis-card__info">
-          <div data-bf-component="image-analysis-card" data-bf-part="filename" className="image-analysis-card__filename">
+        <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="info" className="image-analysis-card__info">
+          <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="filename" className="image-analysis-card__filename">
             {imageContext.imageName}
           </div>
           
           {status === 'analyzing' && (
-            <div data-bf-component="image-analysis-card" data-bf-part="status" className="image-analysis-card__status analyzing">
+            <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="status" className="image-analysis-card__status analyzing">
               <Loader className="spinner" size={14} />
               <span>AI is analyzing the image...</span>
             </div>
           )}
           
           {status === 'completed' && result && (
-            <div data-bf-component="image-analysis-card" data-bf-part="status" className="image-analysis-card__status completed">
-              <CheckCircle className="icon" size={14} />
+            <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="status" className="image-analysis-card__status completed">
+              <Icon name="check-circle" size="sm" className="icon" />
               <span>Analysis complete</span>
               {duration && (
                 <span className="time">{duration}</span>
@@ -73,7 +65,7 @@ export const ImageAnalysisCard: React.FC<ImageAnalysisCardProps> = ({
           )}
           
           {status === 'error' && (
-            <div data-bf-component="image-analysis-card" data-bf-part="status" className="image-analysis-card__status error">
+            <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="status" className="image-analysis-card__status error">
               <AlertCircle className="icon" size={14} />
               <span>Analysis failed</span>
               {onRetry && (
@@ -92,9 +84,9 @@ export const ImageAnalysisCard: React.FC<ImageAnalysisCardProps> = ({
       </div>
       
       {status === 'completed' && result && (
-        <div data-bf-component="image-analysis-card" data-bf-part="content" className="image-analysis-card__content">
-          <div data-bf-component="image-analysis-card" data-bf-part="summary" className="image-analysis-card__summary">
-            <Sparkles size={14} className="summary-icon" />
+        <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="content" className="image-analysis-card__content">
+          <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="summary" className="image-analysis-card__summary">
+            <Icon name="spark" size="sm" className="summary-icon" />
             <span>{result.summary}</span>
           </div>
           
@@ -102,23 +94,23 @@ export const ImageAnalysisCard: React.FC<ImageAnalysisCardProps> = ({
             className="image-analysis-card__toggle"
             variant="outline"
             size="sm"
-            leadingIcon={expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            leadingIcon={expanded ? <Icon name="chevron-up" size="sm" /> : <Icon name="chevron-down" size="sm" />}
             onClick={() => setExpanded(!expanded)}
           >
             {expanded ? 'Collapse details' : 'View detailed analysis'}
           </Button>
           
           {expanded && (
-            <div data-bf-component="image-analysis-card" data-bf-part="details" className="image-analysis-card__detailed">
-              <div data-bf-component="image-analysis-card" data-bf-part="section" className="detail-section">
+            <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="details" className="image-analysis-card__detailed">
+              <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="section" className="detail-section">
                 <h4>Detailed description</h4>
                 <p>{result.detailed_description}</p>
               </div>
               
               {result.detected_elements.length > 0 && (
-                <div data-bf-component="image-analysis-card" data-bf-part="section" className="detail-section">
+                <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="section" className="detail-section">
                   <h4>Key elements detected</h4>
-                  <div data-bf-component="image-analysis-card" data-bf-part="tags" className="tags">
+                  <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="tags" className="tags">
                     {result.detected_elements.map((elem, idx) => (
                       <span key={idx} className="tag">{elem}</span>
                     ))}
@@ -126,7 +118,7 @@ export const ImageAnalysisCard: React.FC<ImageAnalysisCardProps> = ({
                 </div>
               )}
               
-              <div data-bf-component="image-analysis-card" data-bf-part="metadata" className="detail-section metadata">
+              <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="metadata" className="detail-section metadata">
                 <span className="meta-item">
                   Confidence: {(result.confidence * 100).toFixed(1)}%
                 </span>
@@ -141,7 +133,7 @@ export const ImageAnalysisCard: React.FC<ImageAnalysisCardProps> = ({
       )}
       
       {status === 'error' && error && (
-        <div data-bf-component="image-analysis-card" data-bf-part="error" className="image-analysis-card__error">
+        <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="error" className="image-analysis-card__error">
           <AlertCircle size={16} />
           <span>{error}</span>
         </div>

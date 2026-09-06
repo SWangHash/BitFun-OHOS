@@ -7,13 +7,15 @@ import {
   SETTINGS_CATEGORIES,
   SETTINGS_PAGE_MANIFESTS,
 } from './settingsRegistry';
+import { useSettingsStore } from './settingsStore';
+import type { SettingsDestination } from './settingsTypes';
 
 vi.mock('@/infrastructure/i18n/core/I18nService', () => ({
   i18nService: { loadNamespace: vi.fn(async () => undefined) },
 }));
 
 describe('settings information architecture', () => {
-  it('uses five ownership categories and sixteen canonical pages', () => {
+  it('uses five ownership categories and twenty canonical pages', () => {
     expect(SETTINGS_CATEGORIES.map((category) => category.id)).toEqual([
       'application',
       'ai',
@@ -21,8 +23,8 @@ describe('settings information architecture', () => {
       'tools',
       'data',
     ]);
-    expect(SETTINGS_PAGE_MANIFESTS).toHaveLength(16);
-    expect(new Set(SETTINGS_PAGE_MANIFESTS.map((page) => page.id)).size).toBe(16);
+    expect(SETTINGS_PAGE_MANIFESTS).toHaveLength(20);
+    expect(new Set(SETTINGS_PAGE_MANIFESTS.map((page) => page.id)).size).toBe(20);
   });
 
   it('keeps memory with AI, pet with application, and review inside execution', () => {
@@ -33,17 +35,34 @@ describe('settings information architecture', () => {
       .toContainEqual({ namespace: 'settings/review-capacity', key: 'capacity.title' });
   });
 
-  it('keeps execution, permissions, desktop control, and browser control on one page', () => {
+  it('keeps execution and permissions on one page, with browser and desktop control in one page', () => {
     const execution = SETTINGS_PAGE_MANIFESTS.find((page) => page.id === 'tools.execution');
+    const control = SETTINGS_PAGE_MANIFESTS.find((page) => page.id === 'tools.desktop-control');
 
     expect(SETTINGS_PAGE_MANIFESTS.some((page) => page.id === 'tools.device-control')).toBe(false);
+    expect(SETTINGS_PAGE_MANIFESTS.some((page) => page.id === 'tools.browser-control')).toBe(false);
     expect(execution?.views).toBeUndefined();
-    expect(execution?.searchPhrases).toEqual(expect.arrayContaining([
-      { namespace: 'settings/runtime', key: 'permissionPolicy.sectionTitle' },
-      { namespace: 'settings/runtime', key: 'computerUse.sectionTitle' },
-      { namespace: 'settings/runtime', key: 'browserControl.sectionTitle' },
-    ]));
-    expect(resolveSettingsDestination('tools.device-control')).toEqual({ pageId: 'tools.execution' });
+    expect(execution?.searchPhrases)
+      .toContainEqual({ namespace: 'settings/runtime', key: 'permissionPolicy.sectionTitle' });
+    expect(execution?.searchPhrases)
+      .toContainEqual({ namespace: 'settings/runtime', key: 'toolExecution.sectionTitle' });
+    expect(control?.labelKey).toBe('navigation.pages.browserDesktopControl.label');
+    expect(control?.searchPhrases)
+      .toContainEqual({ namespace: 'settings/runtime', key: 'computerUse.sectionTitle' });
+    expect(control?.searchPhrases)
+      .toContainEqual({ namespace: 'settings/runtime', key: 'browserControl.sectionTitle' });
+    expect(resolveSettingsDestination('tools.device-control')).toEqual({ pageId: 'tools.desktop-control' });
+    expect(resolveSettingsDestination('tools.browser-control')).toEqual({ pageId: 'tools.desktop-control' });
+    expect(resolveSettingsDestination('review')).toEqual({ pageId: 'tools.execution' });
+  });
+
+  it('normalizes the retired browser-control page at the store boundary', () => {
+    useSettingsStore.getState().openDestination({
+      pageId: 'tools.browser-control',
+    } as unknown as SettingsDestination);
+
+    expect(useSettingsStore.getState().activePageId).toBe('tools.desktop-control');
+    expect(useSettingsStore.getState().pageTransitionTarget).toBe('tools.desktop-control');
   });
 
   it('keeps Assistant ownership outside Settings and model preferences with network proxy', () => {
@@ -55,17 +74,20 @@ describe('settings information architecture', () => {
       ]));
   });
 
-  it('keeps external-source governance outside Settings while retaining MCP and ACP owners', () => {
+  it('keeps external-source governance outside Settings while retaining WebSearch, MCP, and ACP owners', () => {
     expect(SETTINGS_CATEGORIES.find((category) => category.id === 'tools')?.pages.map((page) => page.id))
       .toEqual([
         'tools.execution',
+        'tools.desktop-control',
         'tools.automation',
+        'tools.webSearch',
         'tools.mcp',
         'tools.acp',
       ]);
     expect(SETTINGS_PAGE_MANIFESTS.some((page) => page.id === 'tools.integrations')).toBe(false);
     expect(SETTINGS_PAGE_MANIFESTS.find((page) => page.id === 'tools.mcp')?.views).toBeUndefined();
-    expect(SETTINGS_PAGE_MANIFESTS.find((page) => page.id === 'tools.acp')?.views).toBeUndefined();
+    expect(SETTINGS_PAGE_MANIFESTS.find((page) => page.id === 'tools.acp')?.views?.map((view) => view.id))
+      .toEqual(['local', 'ssh', 'json']);
   });
 
   it('keeps automation as a page with deep-linkable views', () => {
@@ -73,22 +95,36 @@ describe('settings information architecture', () => {
       .toEqual(['quick-actions', 'hooks']);
   });
 
-  it('keeps voice input and shortcuts as anchors in one input settings page', () => {
-    expect(SETTINGS_PAGE_MANIFESTS.find((page) => page.id === 'application.input')?.views?.map((view) => view.id))
-      .toEqual(['voice', 'shortcuts']);
+  it('exposes voice and shortcuts as independent application pages', () => {
+    const applicationPages = SETTINGS_CATEGORIES.find((category) => category.id === 'application')?.pages;
+
+    expect(applicationPages?.map((page) => page.id)).toEqual([
+      'application.general',
+      'application.appearance',
+      'application.pet',
+      'application.voice',
+      'application.shortcuts',
+      'application.terminal',
+      'application.editor',
+    ]);
+    expect(SETTINGS_PAGE_MANIFESTS.find((page) => page.id === 'application.voice')?.views)
+      .toBeUndefined();
+    expect(SETTINGS_PAGE_MANIFESTS.find((page) => page.id === 'application.shortcuts')?.views)
+      .toBeUndefined();
+    expect(resolveSettingsDestination('application.input')).toEqual({ pageId: 'application.voice' });
+    expect(resolveSettingsDestination('shortcuts')).toEqual({ pageId: 'application.shortcuts' });
   });
 
-  it('keeps terminal and editor as anchors in one development page, terminal first', () => {
-    expect(SETTINGS_PAGE_MANIFESTS.find((page) => page.id === 'application.development')?.views?.map((view) => view.id))
-      .toEqual(['terminal', 'editor']);
-    expect(resolveSettingsDestination('terminal')).toEqual({
-      pageId: 'application.development',
-      viewId: 'terminal',
+  it('exposes terminal and editor as independent application pages', () => {
+    expect(SETTINGS_PAGE_MANIFESTS.find((page) => page.id === 'application.terminal')?.views)
+      .toBeUndefined();
+    expect(SETTINGS_PAGE_MANIFESTS.find((page) => page.id === 'application.editor')?.views)
+      .toBeUndefined();
+    expect(resolveSettingsDestination('application.development')).toEqual({
+      pageId: 'application.terminal',
     });
-    expect(resolveSettingsDestination('editor')).toEqual({
-      pageId: 'application.development',
-      viewId: 'editor',
-    });
+    expect(resolveSettingsDestination('terminal')).toEqual({ pageId: 'application.terminal' });
+    expect(resolveSettingsDestination('editor')).toEqual({ pageId: 'application.editor' });
   });
 
   it('keeps appearance packages discoverable inside Appearance', () => {

@@ -2,19 +2,19 @@
  * ChatPane styles — AI Agent scene left pane (FlowChat).
  * Renamed from panels/CenterPanel.scss.
  */
-.bitfun-chat-pane__content {
+.openbitfun-chat-pane__content {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--bf-color-surface-scene);
+  background: var(--openbitfun-color-surface-scene);
   position: relative;
-  font-family:var(--bf-font-family-sans);
-  font-size: var(--bf-type-flow-body-font-size);
+  font-family:var(--openbitfun-type-body-sm-font-family);
+  font-size: var(--openbitfun-type-flow-body-font-size);
 }
 
-.bitfun-chat-pane__chat-container {
+.openbitfun-chat-pane__chat-container {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -23,7 +23,7 @@
   height: 100%;
 }
 
-.bitfun-chat-pane__model-notice {
+.openbitfun-chat-pane__model-notice {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -39,7 +39,7 @@
   border-radius: var(--bf-radius-base);
 }
 
-.bitfun-chat-pane__model-notice-copy {
+.openbitfun-chat-pane__model-notice-copy {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -56,7 +56,7 @@
   }
 }
 
-.bitfun-chat-pane__model-notice-action {
+.openbitfun-chat-pane__model-notice-action {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -80,6 +80,6 @@
 }
 
 @media (max-width: 560px) {
-  .bitfun-chat-pane__model-notice { flex-wrap: wrap; }
-  .bitfun-chat-pane__model-notice-action { margin-left: calc(18px + var(--bf-space-3)); }
+  .openbitfun-chat-pane__model-notice { flex-wrap: wrap; }
+  .openbitfun-chat-pane__model-notice-action { margin-left: calc(18px + var(--bf-space-3)); }
 }

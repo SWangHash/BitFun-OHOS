@@ -52,7 +52,7 @@ export const TodoCard: React.FC<TodoCardProps> = ({
 
   if (displayMode === 'compact') {
     return (
-      <div className={`todo-card todo-card--compact todo-card--${status}`} data-bf-component="flow-chat-card" data-bf-part="compact" data-bf-display="compact" data-bf-status={status}>
+      <div className={`todo-card todo-card--compact todo-card--${status}`} data-openbitfun-component="flow-chat-card" data-openbitfun-part="compact" data-openbitfun-display="compact" data-openbitfun-status={status}>
         <CheckSquare className="todo-card__icon" size={14} />
         <span className="todo-card__action">{t('flowChatCards.todoCard.title')}:</span>
         <span className="todo-card__stats">
@@ -94,9 +94,9 @@ export const TodoCard: React.FC<TodoCardProps> = ({
       )}
 
       {resolvedTodos.length > 0 && (
-        <div className="todo-card__list" data-bf-component="flow-chat-card" data-bf-part="list">
+        <div className="todo-card__list" data-openbitfun-component="flow-chat-card" data-openbitfun-part="list">
           {resolvedTodos.map((todo: TodoItem) => (
-            <div key={todo.id} className={`todo-card__item todo-card__item--${todo.status}`} data-bf-component="flow-chat-card" data-bf-part="item">
+            <div key={todo.id} className={`todo-card__item todo-card__item--${todo.status}`} data-openbitfun-component="flow-chat-card" data-openbitfun-part="item">
               {getStatusIcon(todo.status)}
               <span className="todo-card__item-content">{todo.content}</span>
             </div>
@@ -105,7 +105,7 @@ export const TodoCard: React.FC<TodoCardProps> = ({
       )}
 
       {resolvedTodos.length === 0 && status === 'completed' && (
-        <div className="todo-card__empty" data-bf-component="flow-chat-card" data-bf-part="empty">
+        <div className="todo-card__empty" data-openbitfun-component="flow-chat-card" data-openbitfun-part="empty">
           {t('flowChatCards.todoCard.noTasks')}
         </div>
       )}

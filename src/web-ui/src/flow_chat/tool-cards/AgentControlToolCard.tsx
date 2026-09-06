@@ -18,7 +18,7 @@ import {
   type SessionLineageLifecycle,
 } from '../utils/sessionLineage';
 import { openBtwSessionInAuxPane } from '../services/btwSessionPane';
-import { AgentControlToolCard as AgentControlToolCardView } from '@bitfun/ui/flow-chat';
+import { AgentControlToolCard as AgentControlToolCardView } from '@openbitfun/ui/flow-chat';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 
 const PARAMETER_STREAMING_STATUSES = new Set<FlowToolItem['status']>([
@@ -58,6 +58,27 @@ function fallbackLifecycle(status: FlowToolItem['status']): SessionLineageLifecy
       return 'idle';
     default:
       return 'running';
+  }
+}
+
+function statusForLifecycle(
+  lifecycle: SessionLineageLifecycle,
+  fallback: FlowToolItem['status'],
+): FlowToolItem['status'] {
+  switch (lifecycle) {
+    case 'running':
+    case 'finishing':
+      return 'running';
+    case 'waiting':
+      return 'waiting';
+    case 'completed':
+      return 'completed';
+    case 'error':
+      return 'error';
+    case 'cancelled':
+      return 'cancelled';
+    default:
+      return fallback;
   }
 }
 
@@ -129,6 +150,9 @@ export const AgentControlToolCard: React.FC<ToolCardProps> = ({
   const stableSubagentType = linkedSession?.subagentType?.trim() || inputAgentType;
   const isParameterStreaming = Boolean(toolItem.isParamsStreaming)
     || PARAMETER_STREAMING_STATUSES.has(status);
+  const displayStatus = isParameterStreaming
+    ? status
+    : statusForLifecycle(lifecycle, status);
   const canExpand = Boolean(prompt) && !isParameterStreaming;
   const canOpenSession = Boolean(linkedSubagentSessionId && sessionId);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -195,11 +219,11 @@ export const AgentControlToolCard: React.FC<ToolCardProps> = ({
   return (
     <div
       ref={cardRootRef}
-      data-bf-adapter="agent-control-tool-card"
+      data-openbitfun-adapter="agent-control-tool-card"
       data-tool-card-id={toolId ?? ''}
     >
       <AgentControlToolCardView
-        status={status}
+        status={displayStatus}
         isExpanded={isExpanded}
         onToggle={canExpand ? handleToggle : undefined}
         agentName={agentDisplayName}
@@ -207,7 +231,7 @@ export const AgentControlToolCard: React.FC<ToolCardProps> = ({
           <SubagentAvatar
             sessionId={linkedSubagentSessionId}
             name={agentName}
-            size={22}
+            size={16}
             status={lifecycle}
           />
         ) : undefined}

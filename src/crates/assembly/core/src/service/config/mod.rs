@@ -23,8 +23,8 @@ pub use app_language::{
 pub use factory::ConfigFactory;
 pub use global::{
     get_global_config_service, initialize_global_config, load_terminal_default_shell,
-    load_terminal_env_vars, reload_global_config, subscribe_config_updates,
-    ConfigUpdateEvent, GlobalConfigManager,
+    load_terminal_env_vars, reload_global_config, subscribe_config_updates, ConfigUpdateEvent,
+    GlobalConfigManager,
 };
 pub use manager::{ConfigManager, ConfigManagerSettings, ConfigStatistics};
 #[cfg(feature = "agent-runtime")]
@@ -33,10 +33,11 @@ pub use mode_config_canonicalizer::{
     AgentProfileConfigUpdateInfo,
 };
 pub use normalization::{
-    isolate_invalid_ai_models, normalize_config_value, normalize_typed_config,
-    reconcile_model_references, reject_unsupported_schema, ConfigNormalizationResult,
-    ModelReferenceReconcileResult,
+    normalize_typed_config, reconcile_model_references, ModelReferenceReconcileResult,
 };
 pub use providers::ConfigProviderRegistry;
-pub use service::{ConfigExport, ConfigHealthStatus, ConfigImportResult, ConfigService};
+pub use service::{
+    ConfigExport, ConfigHealthStatus, ConfigImportResult, ConfigService,
+    CURRENT_CONFIG_EXPORT_FORMAT_VERSION,
+};
 pub use types::*;

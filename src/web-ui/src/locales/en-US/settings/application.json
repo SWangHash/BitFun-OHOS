@@ -1,9 +1,24 @@
 {
   "title": "Basics",
   "subtitle": "Power, logging, terminal, notifications, and launch at login",
+  "common": {
+    "retry": "Retry"
+  },
+  "applicationGroups": {
+    "startupAndUpdates": {
+      "title": "Startup & updates",
+      "description": "Manage launch at login, wake behavior while running, and update checks."
+    },
+    "windowAndNotifications": {
+      "title": "Window & notifications",
+      "description": "Manage what closing the window does and which events should notify you."
+    }
+  },
   "appearance": {
     "title": "Appearance",
-    "hint": "Interface language, current appearance, effects, and appearance package management",
+    "hint": "Interface language and appearance",
+    "interfaceTitle": "Interface",
+    "interfaceHint": "Choose the language used across OpenBitFun.",
     "language": "Language",
     "appearances": "Appearances",
     "builtIn": "Built-in",
@@ -16,48 +31,48 @@
     "systemAppearance": "Match system",
     "systemAppearanceDescription": "Use a light or dark appearance based on your OS setting. Updates when the system switches.",
     "presets": {
-      "bitfun-dark": {
+      "openbitfun-dark": {
         "name": "Dark",
         "description": "Default dark appearance"
       },
-      "bitfun-light": {
+      "openbitfun-light": {
         "name": "Light",
         "description": "Light appearance - Crisp white surfaces, soft neutral grays, and deep navy actions"
       },
-      "bitfun-monochrome": {
+      "openbitfun-monochrome": {
         "name": "Black & White",
         "description": "Black-and-white contrast appearance - Deep black chrome, bright white workspace, and soft neutral blocks"
       },
-      "bitfun-midnight": {
+      "openbitfun-midnight": {
         "name": "Midnight",
         "description": "Midnight gray dark appearance - Professional and elegant, inspired by JetBrains IDE"
       },
-      "bitfun-china-style": {
+      "openbitfun-china-style": {
         "name": "Ink Charm",
         "description": "Chinese style appearance - Rice paper and ink, blue and vermilion, warm and elegant"
       },
-      "bitfun-china-night": {
+      "openbitfun-china-night": {
         "name": "Ink Night",
         "description": "Chinese dark appearance - Starlit ink night, moonlight like water, serene and elegant"
       },
-      "bitfun-cyber": {
+      "openbitfun-cyber": {
         "name": "Cyber",
         "description": "Tech-style appearance - Deep black hole, neon future, ultimate tech aesthetics"
       },
-      "bitfun-slate": {
+      "openbitfun-slate": {
         "name": "Slate",
         "description": "Slate gray geometric appearance - Deep immersion, high contrast grayscale aesthetics"
       },
-      "bitfun-tokyo-night": {
+      "openbitfun-tokyo-night": {
         "name": "Tokyo Night",
         "description": "Popular Tokyo Night palette - Indigo night, blue and violet highlights"
       }
     },
     "fontSize": {
       "title": "Font Size",
-      "hint": "Adjust font size for the UI and chat area (editor font is configured in the editor settings).",
-      "uiSizeLabel": "UI Font",
-      "uiSizeHint": "Controls font size across navigation, panels, settings, and all other UI elements.",
+      "hint": "Adjust text size across the interface and conversations. Editor text size is configured separately in Editor settings.",
+      "uiSizeLabel": "Interface and chat",
+      "uiSizeHint": "Choose a comfortable scale for navigation, panels, settings, and conversation content.",
       "levels": {
         "compact": "Compact",
         "small": "Small",
@@ -67,10 +82,8 @@
         "custom": "Custom"
       },
       "customPxLabel": "Custom size (12–20 px)",
-      "customPxPlaceholder": "14",
-      "customPxOutOfRange": "Please enter an integer between 12 and 20",
-      "resetButton": "Reset to Default",
-      "previewText": "BitFun is an AI-driven programming environment. The quick brown fox jumps over the lazy dog."
+      "previewLabel": "Font size preview",
+      "previewPlaceholder": "Type to preview the selected size"
     }
   },
   "autoUpdate": {
@@ -79,7 +92,7 @@
       "hint": "Check for new versions after startup"
     },
     "toggleLabel": "Automatic update check",
-    "toggleDescription": "When enabled, BitFun may prompt you shortly after launch if a newer version is available. Manual check from About is always available.",
+    "toggleDescription": "When enabled, OpenBitFun may prompt you shortly after launch if a newer version is available. Manual check from About is always available.",
     "messages": {
       "loading": "Loading...",
       "loadFailed": "Failed to read update settings",
@@ -90,10 +103,10 @@
   "launchAtLogin": {
     "sections": {
       "title": "Login",
-      "hint": "Start BitFun when you sign in to this account"
+      "hint": "Start OpenBitFun when you sign in to this account"
     },
     "toggleLabel": "Launch at login",
-    "toggleDescription": "Automatically start BitFun after you log in. Exact behavior depends on your operating system.",
+    "toggleDescription": "Automatically start OpenBitFun after you log in. Exact behavior depends on your operating system.",
     "messages": {
       "loading": "Loading...",
       "loadFailed": "Failed to read launch-at-login setting",
@@ -103,10 +116,10 @@
   "preventSleep": {
     "sections": {
       "title": "Power",
-      "hint": "Computer sleep behavior while BitFun is running"
+      "hint": "Computer sleep behavior while OpenBitFun is running"
     },
     "toggleLabel": "Prevent sleep",
-    "toggleDescription": "Keep the computer awake whenever BitFun is running, whether or not a task is active. The display may still turn off, and explicit sleep or closing a laptop lid follows system policy.",
+    "toggleDescription": "Keep the computer awake whenever OpenBitFun is running, whether or not a task is active. The display may still turn off, and explicit sleep or closing a laptop lid follows system policy.",
     "messages": {
       "loading": "Loading…",
       "loadFailed": "Failed to read the prevent-sleep setting",
@@ -126,14 +139,18 @@
     },
     "sensitiveDiagnostics": {
       "label": "Include sensitive diagnostic data",
-      "description": "When enabled, local logs may include prompts, model request and response payloads, tool arguments, file paths, and webview event payloads for troubleshooting. BitFun does not upload these log files automatically."
+      "description": "Off by default. When enabled, local logs may include prompts, model request and response payloads, tool arguments, file paths, and webview event payloads for troubleshooting. OpenBitFun does not upload these log files automatically."
     },
     "path": {
       "description": "Directory where log files for this run are written."
     },
     "diagnostics": {
       "label": "Diagnostics Bundle",
-      "description": "Export recent local logs, crash reports, and runtime metadata as a zip file. BitFun does not upload it automatically."
+      "description": "Export recent local logs, crash reports, and runtime metadata as a zip file. OpenBitFun does not upload it automatically.",
+      "confirmTitle": "Export diagnostics bundle?",
+      "confirmSensitive": "The bundle will include sensitive diagnostic data and may contain prompts, model requests and responses, tool arguments, and file paths. Save it only to a trusted location and review it before sharing.",
+      "confirmStandard": "The bundle may contain local paths, runtime details, and error information. Save it only to a trusted location and review it before sharing.",
+      "confirmAction": "Export"
     },
     "previousCrash": {
       "title": "Previous session ended unexpectedly",
@@ -145,11 +162,11 @@
     },
     "startupRecovery": {
       "title": "Previous session ended unexpectedly",
-      "message": "BitFun found a crash report from the previous session. You can export diagnostics if you want to report the issue."
+      "message": "OpenBitFun found a crash report from the previous session. You can export diagnostics if you want to report the issue."
     },
     "configRecovery": {
       "title": "Configuration recovered",
-      "message": "BitFun repaired or isolated {{count}} configuration issue(s) so the app could start. Review your model settings before continuing."
+      "message": "OpenBitFun repaired or isolated {{count}} configuration issue(s) so the app could start. Review your model settings before continuing."
     },
     "levels": {
       "trace": "Trace",
@@ -276,6 +293,8 @@
       "description": "Display a usage tip card each time the app starts to help you discover features"
     },
     "messages": {
+      "loading": "Loading…",
+      "loadFailed": "Failed to read notification settings",
       "saveSuccess": "Notification settings saved",
       "saveFailed": "Failed to save notification settings"
     }

@@ -73,7 +73,7 @@ describe('PrivacyAPI', () => {
     expect(status.enabled).toBe(false);
     expect(status.lifecycleState).toBe('full');
     expect(status.policy?.locale).toBe('zh-CN');
-    expect(status.policy?.content).toContain('关于HUAWEI BitFun的隐私协议');
+    expect(status.policy?.content).toContain('关于HUAWEI OpenBitFun的隐私协议');
     expect(status.policy?.content).not.toContain('开发测试占位版');
     expect(status.policy).not.toHaveProperty('policyVersion');
     expect(status.policy?.updatedAt).toBe('2026-08-21T00:00:00Z');

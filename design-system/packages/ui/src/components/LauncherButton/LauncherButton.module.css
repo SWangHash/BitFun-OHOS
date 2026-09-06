@@ -1,0 +1,101 @@
+@layer openbitfun.components {
+  .root,
+  .icon,
+  .label {
+    box-sizing: border-box;
+  }
+
+  .root {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: var(--openbitfun-control-launcher-button-min-inline-size);
+    block-size: var(--openbitfun-control-launcher-button-block-size);
+    gap: var(--openbitfun-control-launcher-button-gap);
+    margin: 0;
+    padding-block: 0;
+    padding-inline: var(--openbitfun-control-launcher-button-padding-inline);
+    border: 0;
+    border-radius: var(--openbitfun-control-launcher-button-radius) 0 0 0;
+    color: var(--openbitfun-color-control-launcher-content);
+    background: var(--openbitfun-color-control-launcher-background);
+    font-family: var(--openbitfun-type-code-md-font-family);
+    font-size: var(--openbitfun-type-code-md-font-size);
+    font-weight: var(--openbitfun-type-code-md-font-weight);
+    font-synthesis: none;
+    letter-spacing: var(--openbitfun-type-code-md-letter-spacing);
+    line-height: var(--openbitfun-type-code-md-line-height);
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
+      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+  }
+
+  .root:is(:hover, [data-openbitfun-preview-state="hover"]):not(:disabled) {
+    color: var(--openbitfun-color-control-launcher-content-hover);
+    background: var(--openbitfun-color-control-launcher-background-hover);
+  }
+
+  .root:is(:active, [data-openbitfun-preview-state="active"]):not(:disabled) {
+    color: var(--openbitfun-color-control-launcher-content-pressed);
+    background: var(--openbitfun-color-control-launcher-background-pressed);
+  }
+
+  .root:is(:focus-visible, [data-openbitfun-preview-state="focus-visible"]) {
+    outline: var(--openbitfun-focus-width) solid var(--openbitfun-color-focus-ring);
+    outline-offset: calc(var(--openbitfun-focus-offset) * -1);
+  }
+
+  .root:disabled {
+    color: var(--openbitfun-color-control-launcher-content-disabled);
+    cursor: not-allowed;
+    opacity: var(--openbitfun-opacity-disabled);
+  }
+
+  .icon {
+    display: inline-flex;
+    flex: 0 0 var(--openbitfun-control-launcher-button-icon-size);
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--openbitfun-control-launcher-button-icon-size);
+    block-size: var(--openbitfun-control-launcher-button-icon-size);
+    color: currentColor;
+  }
+
+  .icon > :where(svg, img),
+  .icon > [data-openbitfun-component="icon"] {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .label {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .root {
+      transition: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .root {
+      border: var(--openbitfun-border-width-default) solid ButtonText;
+      color: ButtonText;
+      background: ButtonFace;
+    }
+
+    .root:is(:hover, :active):not(:disabled) {
+      color: HighlightText;
+      background: Highlight;
+    }
+
+    .root:focus-visible {
+      outline-color: Highlight;
+    }
+  }
+}

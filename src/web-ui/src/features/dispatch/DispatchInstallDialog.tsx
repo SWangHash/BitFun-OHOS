@@ -9,7 +9,7 @@ import {
   DialogBody,
   DialogClose,
   DialogHeader,
-} from '@bitfun/ui';
+} from '@openbitfun/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
@@ -33,17 +33,6 @@ const log = createLogger('DispatchInstallDialog');
 const DIALOG_TITLE_ID = 'dispatch-install-dialog-title';
 type TargetPreparationPhase = 'installing' | 'provisioning' | 'cancelling';
 
-/**
- * The approval policy is chosen in the composer, per turn, so a target is only
- * usable when it can serve every policy the user may later switch to. This
- * mirrors the capability-probe branch on the controller, which requires the
- * complete approval surface whenever no single policy is named yet.
- */
-const APPROVAL_DISPATCH_CAPABILITIES = [
-  'approval_auto',
-  'approval_reject_and_report',
-  'approval_remote',
-];
 
 interface DispatchInstallDialogProps {
   open: boolean;
@@ -306,10 +295,7 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
   }, [closeDialog, preparationPhase]);
 
   const protocol = probe?.protocol;
-  const requiredCapabilities = [
-    ...BASE_DISPATCH_CAPABILITIES,
-    ...APPROVAL_DISPATCH_CAPABILITIES,
-  ];
+  const requiredCapabilities = [...BASE_DISPATCH_CAPABILITIES];
   const missingCapabilities = protocol
     ? requiredCapabilities.filter(capability => !protocol.capabilities.includes(capability))
     : requiredCapabilities;
@@ -415,13 +401,13 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
       <DialogBody inset="none">
       <div
         className="dispatch-install-dialog"
-        data-bf-component="dispatch-install-dialog"
-        data-bf-part="root"
+        data-openbitfun-component="dispatch-install-dialog"
+        data-openbitfun-part="root"
       >
         <div
           className="dispatch-install-dialog__header"
-          data-bf-component="dispatch-install-dialog"
-          data-bf-part="header"
+          data-openbitfun-component="dispatch-install-dialog"
+          data-openbitfun-part="header"
         >
           <h2 id={DIALOG_TITLE_ID} className="dispatch-install-dialog__title">
             {t('dispatch.configureTitle', { target: target?.displayName ?? '' })}
@@ -433,8 +419,8 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
 
         <ScrollArea
           className="dispatch-install-dialog__body"
-          data-bf-component="dispatch-install-dialog"
-          data-bf-part="body"
+          data-openbitfun-component="dispatch-install-dialog"
+          data-openbitfun-part="body"
         >
           {error ? (
             <Alert tone="error" message={error} closable onClose={() => setError(null)} />
@@ -526,7 +512,7 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
                     {preparationPhase ? (
                       <Loader2 size={14} className="dispatch-install-dialog__spin" />
                     ) : (
-                      <Icon name="download" size="sm" aria-hidden />
+                      <Icon name="arrow-down" size="sm" aria-hidden />
                     )}
                     {preparationPhase === 'installing'
                       ? t('dispatch.installingCli')
@@ -635,8 +621,8 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
 
         <div
           className="dispatch-install-dialog__actions"
-          data-bf-component="dispatch-install-dialog"
-          data-bf-part="actions"
+          data-openbitfun-component="dispatch-install-dialog"
+          data-openbitfun-part="actions"
         >
           <Button
             variant="outline"

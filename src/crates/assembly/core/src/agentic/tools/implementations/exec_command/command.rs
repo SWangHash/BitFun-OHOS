@@ -14,10 +14,10 @@ use crate::infrastructure::events::event_system::{
     get_global_event_system, BackendEvent::BackgroundCommandLifecycle,
 };
 use crate::service::config::load_terminal_env_vars;
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use crate::util::types::event::BackgroundCommandLifecycleInfo;
 use async_trait::async_trait;
-use bitfun_runtime_ports::{
+use openbitfun_runtime_ports::{
     RemoteExecCommandRequest, RemoteExecOneShotCommandRequest, RemoteExecPort,
     RemoteExecProcessLifecycleEvent, RemoteExecProcessLifecycleStatus, TerminalExecCommandRequest,
     TerminalExecProcessLifecycleEvent, TerminalExecProcessLifecycleStatus,
@@ -125,7 +125,7 @@ impl ExecCommandTool {
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<PreparedShell> {
+    ) -> OpenBitFunResult<PreparedShell> {
         let key = Self::plan_key(input, context);
         let mut plans = self.prepared_shells.lock().await;
         if let Some(shell) = plans.get(&key) {
@@ -137,10 +137,10 @@ impl ExecCommandTool {
                 .as_ref()
                 .and_then(|w| w.connection_id())
                 .ok_or_else(|| {
-                    BitFunError::tool("remote connection id is required for ExecCommand")
+                    OpenBitFunError::tool("remote connection id is required for ExecCommand")
                 })?;
             let port = context.remote_exec_port().ok_or_else(|| {
-                BitFunError::tool("remote exec runtime service is required for ExecCommand")
+                OpenBitFunError::tool("remote exec runtime service is required for ExecCommand")
             })?;
             PreparedShell::Remote(Self::resolve_remote_shell(port, connection).await)
         } else {
@@ -196,7 +196,7 @@ impl ExecCommandTool {
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<PreparedShell> {
+    ) -> OpenBitFunResult<PreparedShell> {
         let shell = self.prepare_shell(input, context).await?;
         self.prepared_shells
             .lock()
@@ -205,7 +205,7 @@ impl ExecCommandTool {
         // Recheck with the exact selection about to be used, including changes
         // in constraints while a permission dialog was open.
         if let Some(rejection) = self.guard_prepared(input, context, &shell).await {
-            return Err(BitFunError::Validation(
+            return Err(OpenBitFunError::Validation(
                 rejection.message.unwrap_or_default(),
             ));
         }
@@ -222,7 +222,7 @@ impl ExecCommandTool {
         }
     }
 
-    async fn description_for_context(context: Option<&ToolUseContext>) -> BitFunResult<String> {
+    async fn description_for_context(context: Option<&ToolUseContext>) -> OpenBitFunResult<String> {
         let mut description = Self::new().description().await?;
         if context.map(ToolUseContext::is_remote).unwrap_or(false) {
             description = format!(
@@ -238,7 +238,7 @@ impl ExecCommandTool {
         exec_command_noninteractive_env()
     }
 
-    fn requested_workdir(input: &Value, context: &ToolUseContext) -> BitFunResult<String> {
+    fn requested_workdir(input: &Value, context: &ToolUseContext) -> OpenBitFunResult<String> {
         input
             .get("workdir")
             .and_then(Value::as_str)
@@ -251,11 +251,11 @@ impl ExecCommandTool {
                     .map(|path| path.to_string_lossy().to_string())
             })
             .ok_or_else(|| {
-                BitFunError::tool("workspace root is required for ExecCommand".to_string())
+                OpenBitFunError::tool("workspace root is required for ExecCommand".to_string())
             })
     }
 
-    fn resolve_workdir(input: &Value, context: &ToolUseContext) -> BitFunResult<PathBuf> {
+    fn resolve_workdir(input: &Value, context: &ToolUseContext) -> OpenBitFunResult<PathBuf> {
         let raw = Self::requested_workdir(input, context)?;
         let workspace_root = context
             .workspace_root()
@@ -272,7 +272,7 @@ impl ExecCommandTool {
         Ok(PathBuf::from(resolved))
     }
 
-    fn resolve_remote_workdir(input: &Value, context: &ToolUseContext) -> BitFunResult<String> {
+    fn resolve_remote_workdir(input: &Value, context: &ToolUseContext) -> OpenBitFunResult<String> {
         let raw = Self::requested_workdir(input, context)?;
         let resolved = context.resolve_workspace_tool_path(&raw)?;
 
@@ -515,9 +515,9 @@ impl ExecCommandTool {
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         let parsed_input = exec_command_run_input_from_input(input)
-            .ok_or_else(|| BitFunError::tool("cmd is required for ExecCommand".to_string()))?;
+            .ok_or_else(|| OpenBitFunError::tool("cmd is required for ExecCommand".to_string()))?;
         let cmd = parsed_input.cmd;
         let tty = parsed_input.tty;
 
@@ -527,15 +527,15 @@ impl ExecCommandTool {
             .as_ref()
             .and_then(|workspace| workspace.connection_id())
             .ok_or_else(|| {
-                BitFunError::tool("remote connection id is required for ExecCommand".to_string())
+                OpenBitFunError::tool("remote connection id is required for ExecCommand".to_string())
             })?
             .to_string();
         let remote_exec_port = context.remote_exec_port().ok_or_else(|| {
-            BitFunError::tool("remote exec runtime service is required for ExecCommand".to_string())
+            OpenBitFunError::tool("remote exec runtime service is required for ExecCommand".to_string())
         })?;
         let yield_time_ms = parsed_input.yield_time_ms;
         let PreparedShell::Remote(shell) = self.take_prepared_shell(input, context).await? else {
-            return Err(BitFunError::tool(
+            return Err(OpenBitFunError::tool(
                 "ExecCommand shell plan does not match remote execution",
             ));
         };
@@ -602,7 +602,7 @@ impl ExecCommandTool {
                         .finish(capture_id, BackgroundCommandOutputStatus::Failed, None)
                         .await;
                 }
-                return Err(BitFunError::tool(format!(
+                return Err(OpenBitFunError::tool(format!(
                     "ExecCommand failed: {}",
                     error.message
                 )));
@@ -664,7 +664,7 @@ impl Tool for ExecCommandTool {
         "ExecCommand"
     }
 
-    async fn description(&self) -> BitFunResult<String> {
+    async fn description(&self) -> OpenBitFunResult<String> {
         Ok(r#"Runs the supplied shell command in a separate process in the Session's workspace environment.
 
 Command availability:
@@ -694,7 +694,7 @@ Output:
     async fn description_with_context(
         &self,
         context: Option<&ToolUseContext>,
-    ) -> BitFunResult<String> {
+    ) -> OpenBitFunResult<String> {
         Self::description_for_context(context).await
     }
 
@@ -740,11 +740,11 @@ Output:
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<PermissionIntent>> {
+    ) -> OpenBitFunResult<Vec<PermissionIntent>> {
         let command = exec_command_run_input_from_input(input)
             .map(|parsed| parsed.cmd.trim().to_string())
             .filter(|command| !command.is_empty())
-            .ok_or_else(|| BitFunError::validation("cmd is required".to_string()))?;
+            .ok_or_else(|| OpenBitFunError::validation("cmd is required".to_string()))?;
         let working_directory = Self::guard_workdir(input, context);
         Ok(vec![PermissionIntent::new(
             "bash",
@@ -833,24 +833,24 @@ Output:
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         if context.is_remote() {
             return self.call_remote_pipe(input, context).await;
         }
 
         let parsed_input = exec_command_run_input_from_input(input)
-            .ok_or_else(|| BitFunError::tool("cmd is required for ExecCommand".to_string()))?;
+            .ok_or_else(|| OpenBitFunError::tool("cmd is required for ExecCommand".to_string()))?;
         let cmd = parsed_input.cmd;
         let workdir = Self::resolve_workdir(input, context)?;
         let tty = parsed_input.tty;
         let PreparedShell::Local(shell) = self.take_prepared_shell(input, context).await? else {
-            return Err(BitFunError::tool(
+            return Err(OpenBitFunError::tool(
                 "ExecCommand shell plan does not match local execution",
             ));
         };
         let yield_time_ms = parsed_input.yield_time_ms;
         let terminal_port = context.terminal_port().ok_or_else(|| {
-            BitFunError::tool("terminal runtime service is required for ExecCommand".to_string())
+            OpenBitFunError::tool("terminal runtime service is required for ExecCommand".to_string())
         })?;
         let output_capture_tx = if let Some(capture_id) = context.tool_call_id.as_ref() {
             Some(
@@ -900,7 +900,7 @@ Output:
                         .finish(capture_id, BackgroundCommandOutputStatus::Failed, None)
                         .await;
                 }
-                return Err(BitFunError::tool(format!(
+                return Err(OpenBitFunError::tool(format!(
                     "ExecCommand failed: {}",
                     error.message
                 )));
@@ -984,7 +984,7 @@ mod tests {
             custom_data: HashMap::new(),
             computer_use_host: None,
             runtime_tool_restrictions: ToolRuntimeRestrictions::default(),
-            runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
+            runtime_handles: openbitfun_runtime_ports::ToolRuntimeHandles::default(),
         }
     }
 
@@ -1072,21 +1072,21 @@ mod tests {
     #[derive(Debug)]
     struct ShellProbeRemoteExecPort {
         probes: std::sync::atomic::AtomicUsize,
-        response: bitfun_runtime_ports::RemoteExecOneShotCommandResponse,
+        response: openbitfun_runtime_ports::RemoteExecOneShotCommandResponse,
     }
 
-    impl bitfun_runtime_ports::RuntimeServicePort for ShellProbeRemoteExecPort {
-        fn capability(&self) -> bitfun_runtime_ports::RuntimeServiceCapability {
-            bitfun_runtime_ports::RuntimeServiceCapability::RemoteExec
+    impl openbitfun_runtime_ports::RuntimeServicePort for ShellProbeRemoteExecPort {
+        fn capability(&self) -> openbitfun_runtime_ports::RuntimeServiceCapability {
+            openbitfun_runtime_ports::RuntimeServiceCapability::RemoteExec
         }
     }
 
     #[async_trait::async_trait]
-    impl bitfun_runtime_ports::RemoteExecPort for ShellProbeRemoteExecPort {
+    impl openbitfun_runtime_ports::RemoteExecPort for ShellProbeRemoteExecPort {
         async fn exec_command_once(
             &self,
-            _request: bitfun_runtime_ports::RemoteExecOneShotCommandRequest,
-        ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::RemoteExecOneShotCommandResponse>
+            _request: openbitfun_runtime_ports::RemoteExecOneShotCommandRequest,
+        ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::RemoteExecOneShotCommandResponse>
         {
             self.probes
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -1095,49 +1095,49 @@ mod tests {
 
         async fn exec_command(
             &self,
-            _request: bitfun_runtime_ports::RemoteExecCommandRequest,
-        ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::RemoteExecCommandResponse>
+            _request: openbitfun_runtime_ports::RemoteExecCommandRequest,
+        ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::RemoteExecCommandResponse>
         {
             panic!("shell probe must not use managed remote exec sessions");
         }
 
         async fn exec_command_streaming(
             &self,
-            _request: bitfun_runtime_ports::RemoteExecCommandRequest,
-            _output_sink: bitfun_runtime_ports::RemoteExecStreamingOutputSink,
-        ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::RemoteExecCommandResponse>
+            _request: openbitfun_runtime_ports::RemoteExecCommandRequest,
+            _output_sink: openbitfun_runtime_ports::RemoteExecStreamingOutputSink,
+        ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::RemoteExecCommandResponse>
         {
             panic!("shell probe must not use managed remote exec sessions");
         }
 
         async fn write_stdin(
             &self,
-            _request: bitfun_runtime_ports::RemoteWriteStdinRequest,
-        ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::RemoteExecCommandResponse>
+            _request: openbitfun_runtime_ports::RemoteWriteStdinRequest,
+        ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::RemoteExecCommandResponse>
         {
             panic!("shell probe must not write stdin");
         }
 
         async fn write_stdin_streaming(
             &self,
-            _request: bitfun_runtime_ports::RemoteWriteStdinRequest,
-            _output_sink: bitfun_runtime_ports::RemoteExecStreamingOutputSink,
-        ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::RemoteExecCommandResponse>
+            _request: openbitfun_runtime_ports::RemoteWriteStdinRequest,
+            _output_sink: openbitfun_runtime_ports::RemoteExecStreamingOutputSink,
+        ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::RemoteExecCommandResponse>
         {
             panic!("shell probe must not write stdin");
         }
 
         async fn send_stdin(
             &self,
-            _request: bitfun_runtime_ports::RemoteSendStdinRequest,
-        ) -> bitfun_runtime_ports::PortResult<()> {
+            _request: openbitfun_runtime_ports::RemoteSendStdinRequest,
+        ) -> openbitfun_runtime_ports::PortResult<()> {
             panic!("shell probe must not send stdin");
         }
 
         async fn control_session(
             &self,
-            _request: bitfun_runtime_ports::RemoteExecControlRequest,
-        ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::RemoteExecCommandResponse>
+            _request: openbitfun_runtime_ports::RemoteExecControlRequest,
+        ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::RemoteExecCommandResponse>
         {
             panic!("shell probe must not control managed sessions");
         }
@@ -1147,7 +1147,7 @@ mod tests {
     async fn complete_shell_remote_selection_is_reused_until_dispatch() {
         let port = Arc::new(ShellProbeRemoteExecPort {
             probes: Default::default(),
-            response: bitfun_runtime_ports::RemoteExecOneShotCommandResponse {
+            response: openbitfun_runtime_ports::RemoteExecOneShotCommandResponse {
                 stdout: "/bin/zsh\n".into(),
                 stderr: String::new(),
                 exit_code: 0,
@@ -1186,7 +1186,7 @@ mod tests {
             custom_data: HashMap::new(),
             computer_use_host: None,
             runtime_tool_restrictions: ToolRuntimeRestrictions::default(),
-            runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
+            runtime_handles: openbitfun_runtime_ports::ToolRuntimeHandles::default(),
         }
     }
 
@@ -1211,7 +1211,7 @@ mod tests {
             custom_data: HashMap::new(),
             computer_use_host: None,
             runtime_tool_restrictions: ToolRuntimeRestrictions::default(),
-            runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
+            runtime_handles: openbitfun_runtime_ports::ToolRuntimeHandles::default(),
         }
     }
 
@@ -1341,7 +1341,7 @@ mod tests {
         );
 
         assert!(command.starts_with("cd '/home/me/project' && env "));
-        assert!(command.contains("'BITFUN_NONINTERACTIVE=1'"));
+        assert!(command.contains("'OPENBITFUN_NONINTERACTIVE=1'"));
         assert!(command.ends_with(" '/bin/bash' -o pipefail -lc 'printf '\\''hi'\\'''"));
     }
 
@@ -1398,13 +1398,13 @@ mod tests {
             &ShellType::Bash,
         );
 
-        assert!(wrapper.contains("setsid \"$__bitfun_shell\" -o pipefail -lc \"$__bitfun_cmd\" &"));
-        assert!(wrapper.contains("trap '__bitfun_stop INT 130 2' INT"));
-        assert!(wrapper.contains("trap '__bitfun_stop KILL 137 0' TERM"));
-        assert!(wrapper.contains("__bitfun_grace=${3:-2}"));
-        assert!(wrapper.contains("sleep \"$__bitfun_grace\""));
-        assert!(wrapper.contains("kill -KILL \"-$__bitfun_pgid\""));
-        assert!(wrapper.contains("__bitfun_cmd='python3 -c '\\''print(1)'\\'''"));
+        assert!(wrapper.contains("setsid \"$__openbitfun_shell\" -o pipefail -lc \"$__openbitfun_cmd\" &"));
+        assert!(wrapper.contains("trap '__openbitfun_stop INT 130 2' INT"));
+        assert!(wrapper.contains("trap '__openbitfun_stop KILL 137 0' TERM"));
+        assert!(wrapper.contains("__openbitfun_grace=${3:-2}"));
+        assert!(wrapper.contains("sleep \"$__openbitfun_grace\""));
+        assert!(wrapper.contains("kill -KILL \"-$__openbitfun_pgid\""));
+        assert!(wrapper.contains("__openbitfun_cmd='python3 -c '\\''print(1)'\\'''"));
     }
 
     #[test]
@@ -1431,10 +1431,10 @@ mod tests {
 
     #[tokio::test]
     async fn remote_shell_probe_uses_stdout_only() {
-        let remote_exec_port: Arc<dyn bitfun_runtime_ports::RemoteExecPort> =
+        let remote_exec_port: Arc<dyn openbitfun_runtime_ports::RemoteExecPort> =
             Arc::new(ShellProbeRemoteExecPort {
                 probes: Default::default(),
-                response: bitfun_runtime_ports::RemoteExecOneShotCommandResponse {
+                response: openbitfun_runtime_ports::RemoteExecOneShotCommandResponse {
                     stdout: "/bin/bash\n".to_string(),
                     stderr: "/tmp/not-a-shell-from-stderr\n".to_string(),
                     exit_code: 0,
@@ -1492,7 +1492,7 @@ mod tests {
             custom_data: HashMap::new(),
             computer_use_host: None,
             runtime_tool_restrictions: ToolRuntimeRestrictions::default(),
-            runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
+            runtime_handles: openbitfun_runtime_ports::ToolRuntimeHandles::default(),
         };
         let workdir = std::env::current_dir().expect("test workdir should exist");
 

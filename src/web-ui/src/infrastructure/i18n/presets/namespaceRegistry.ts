@@ -43,6 +43,7 @@ export const ALL_NAMESPACES = [
   'settings/skills',
   'settings/usage',
   'settings/voice-input',
+  'settings/web-search',
   'shared',
   'tools',
   'worktrees',

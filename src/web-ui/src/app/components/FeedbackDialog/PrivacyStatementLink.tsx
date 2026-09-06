@@ -15,7 +15,7 @@ export const PrivacyStatementLink: React.FC<PrivacyStatementLinkProps> = ({
   return (
     <button
       type="button"
-      className="bitfun-feedback__privacy-link"
+      className="openbitfun-feedback__privacy-link"
       aria-haspopup="dialog"
       disabled={disabled}
       onClick={onClick}

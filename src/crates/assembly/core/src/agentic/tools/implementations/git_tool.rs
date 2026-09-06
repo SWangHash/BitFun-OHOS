@@ -11,7 +11,7 @@ use crate::service::git::{
     GitPullParams, GitPushParams, GitService,
 };
 use crate::util::elapsed_ms_u64;
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use async_trait::async_trait;
 use log::debug;
 use serde_json::{json, Map, Value};
@@ -330,7 +330,7 @@ impl GitTool {
 
     /// True when a token exactly matches a flag. Long flags also match their
     /// `--flag=value` form. Substrings inside other words never count, so
-    /// `-b` no longer fires on branch names like `feat/my-bitfun-x`.
+    /// `-b` no longer fires on branch names like `feat/my-openbitfun-x`.
     fn token_matches_flag(token: &str, short: Option<&str>, long: Option<&str>) -> bool {
         if let Some(long_flag) = long {
             if token == long_flag || token.starts_with(&format!("{}=", long_flag)) {
@@ -469,7 +469,7 @@ impl GitTool {
     fn get_repo_path(
         working_directory: Option<&str>,
         context: &ToolUseContext,
-    ) -> BitFunResult<String> {
+    ) -> OpenBitFunResult<String> {
         if let Some(dir) = working_directory {
             let trimmed = dir.trim();
             if trimmed.is_empty() {
@@ -477,7 +477,7 @@ impl GitTool {
                     .workspace
                     .as_ref()
                     .map(|w| w.root_path_string())
-                    .ok_or_else(|| BitFunError::tool("No workspace path available".to_string()));
+                    .ok_or_else(|| OpenBitFunError::tool("No workspace path available".to_string()));
             }
             context.resolve_workspace_tool_path(trimmed)
         } else {
@@ -485,7 +485,7 @@ impl GitTool {
                 .workspace
                 .as_ref()
                 .map(|w| w.root_path_string())
-                .ok_or_else(|| BitFunError::tool("No workspace path available".to_string()))
+                .ok_or_else(|| OpenBitFunError::tool("No workspace path available".to_string()))
         }
     }
 
@@ -495,9 +495,9 @@ impl GitTool {
         operation: &str,
         args: Option<&str>,
         context: &ToolUseContext,
-    ) -> BitFunResult<Value> {
+    ) -> OpenBitFunResult<Value> {
         let shell = context.ws_shell().ok_or_else(|| {
-            BitFunError::tool("Remote Git requires workspace shell (SSH)".to_string())
+            OpenBitFunError::tool("Remote Git requires workspace shell (SSH)".to_string())
         })?;
 
         let arg_tokens = if operation == "log" {
@@ -524,7 +524,7 @@ impl GitTool {
         let (stdout, stderr, exit_code) = shell
             .exec(&cmd, Some(180_000))
             .await
-            .map_err(|e| BitFunError::tool(format!("Remote git failed: {}", e)))?;
+            .map_err(|e| OpenBitFunError::tool(format!("Remote git failed: {}", e)))?;
 
         Ok(json!({
             "success": exit_code == 0,
@@ -537,10 +537,10 @@ impl GitTool {
     }
 
     /// Execute status operation using GitService
-    async fn execute_status(repo_path: &str) -> BitFunResult<Value> {
+    async fn execute_status(repo_path: &str) -> OpenBitFunResult<Value> {
         let status = GitService::get_status(repo_path)
             .await
-            .map_err(|e| BitFunError::tool(format!("Git status failed: {}", e)))?;
+            .map_err(|e| OpenBitFunError::tool(format!("Git status failed: {}", e)))?;
 
         // Build output text
         let mut output_lines = vec![];
@@ -674,7 +674,7 @@ impl GitTool {
     }
 
     /// Execute diff operation using GitService
-    async fn execute_diff(repo_path: &str, args: Option<&str>) -> BitFunResult<Value> {
+    async fn execute_diff(repo_path: &str, args: Option<&str>) -> OpenBitFunResult<Value> {
         let parsed = Self::parse_diff_args(args.unwrap_or(""));
 
         let params = GitDiffParams {
@@ -688,7 +688,7 @@ impl GitTool {
 
         let diff_output = GitService::get_diff(repo_path, &params)
             .await
-            .map_err(|e| BitFunError::tool(format!("Git diff failed: {}", e)))?;
+            .map_err(|e| OpenBitFunError::tool(format!("Git diff failed: {}", e)))?;
 
         // When there are no differences, git diff returns exit code 0 with an
         // empty stdout. Return a friendly message so the model (and user) see
@@ -711,7 +711,7 @@ impl GitTool {
     /// documented Git meaning. In particular, `--since`/`--until` are
     /// approxidate filters rather than commit refs, and flags such as `--all`,
     /// `--author-date-order`, `--format`, and `--date` are not discarded.
-    async fn execute_log(repo_path: &str, args: Option<&str>) -> BitFunResult<Value> {
+    async fn execute_log(repo_path: &str, args: Option<&str>) -> OpenBitFunResult<Value> {
         let log_args = Self::build_log_cli_args(args.unwrap_or(""));
         let mut command_args = Vec::with_capacity(log_args.len() + 1);
         command_args.push("log".to_string());
@@ -719,7 +719,7 @@ impl GitTool {
         let command_arg_refs = command_args.iter().map(String::as_str).collect::<Vec<_>>();
         let raw = execute_git_command_raw(repo_path, &command_arg_refs)
             .await
-            .map_err(|e| BitFunError::tool(format!("Git log failed: {e}")))?;
+            .map_err(|e| OpenBitFunError::tool(format!("Git log failed: {e}")))?;
         let rendered_args = command_args[1..]
             .iter()
             .map(|arg| Self::sh_quote(arg))
@@ -736,7 +736,7 @@ impl GitTool {
     }
 
     /// Execute add operation using GitService
-    async fn execute_add(repo_path: &str, args: Option<&str>) -> BitFunResult<Value> {
+    async fn execute_add(repo_path: &str, args: Option<&str>) -> OpenBitFunResult<Value> {
         let args_str = args.unwrap_or(".");
         let tokens = Self::tokenize_args(args_str);
         let all = Self::tokens_contain_flag(&tokens, Some("-A"), Some("--all"));
@@ -759,7 +759,7 @@ impl GitTool {
 
         let result = GitService::add_files(repo_path, params)
             .await
-            .map_err(|e| BitFunError::tool(format!("Git add failed: {}", e)))?;
+            .map_err(|e| OpenBitFunError::tool(format!("Git add failed: {}", e)))?;
 
         Ok(json!({
             "success": result.success,
@@ -771,11 +771,11 @@ impl GitTool {
     }
 
     /// Execute commit operation using GitService
-    async fn execute_commit(repo_path: &str, args: Option<&str>) -> BitFunResult<Value> {
+    async fn execute_commit(repo_path: &str, args: Option<&str>) -> OpenBitFunResult<Value> {
         let parsed = Self::parse_commit_args(args.unwrap_or(""));
 
         if parsed.message_parts.is_empty() {
-            return Err(BitFunError::tool(
+            return Err(OpenBitFunError::tool(
                 "Commit message is required (-m \"message\")".to_string(),
             ));
         }
@@ -790,7 +790,7 @@ impl GitTool {
 
         let result = GitService::commit(repo_path, params)
             .await
-            .map_err(|e| BitFunError::tool(format!("Git commit failed: {}", e)))?;
+            .map_err(|e| OpenBitFunError::tool(format!("Git commit failed: {}", e)))?;
 
         Ok(json!({
             "success": result.success,
@@ -802,7 +802,7 @@ impl GitTool {
     }
 
     /// Execute push operation using GitService
-    async fn execute_push(repo_path: &str, args: Option<&str>) -> BitFunResult<Value> {
+    async fn execute_push(repo_path: &str, args: Option<&str>) -> OpenBitFunResult<Value> {
         let tokens = Self::tokenize_args(args.unwrap_or(""));
         let parts = Self::positional_tokens(&tokens);
 
@@ -823,7 +823,7 @@ impl GitTool {
 
         let result = GitService::push(repo_path, params)
             .await
-            .map_err(|e| BitFunError::tool(format!("Git push failed: {}", e)))?;
+            .map_err(|e| OpenBitFunError::tool(format!("Git push failed: {}", e)))?;
 
         Ok(json!({
             "success": result.success,
@@ -835,7 +835,7 @@ impl GitTool {
     }
 
     /// Execute pull operation using GitService
-    async fn execute_pull(repo_path: &str, args: Option<&str>) -> BitFunResult<Value> {
+    async fn execute_pull(repo_path: &str, args: Option<&str>) -> OpenBitFunResult<Value> {
         let tokens = Self::tokenize_args(args.unwrap_or(""));
         let parts = Self::positional_tokens(&tokens);
 
@@ -847,7 +847,7 @@ impl GitTool {
 
         let result = GitService::pull(repo_path, params)
             .await
-            .map_err(|e| BitFunError::tool(format!("Git pull failed: {}", e)))?;
+            .map_err(|e| OpenBitFunError::tool(format!("Git pull failed: {}", e)))?;
 
         Ok(json!({
             "success": result.success,
@@ -863,7 +863,7 @@ impl GitTool {
         repo_path: &str,
         operation: &str,
         args: Option<&str>,
-    ) -> BitFunResult<Value> {
+    ) -> OpenBitFunResult<Value> {
         let args_str = args.unwrap_or("").trim();
 
         let plan = Self::plan_checkout(operation, args_str);
@@ -881,7 +881,7 @@ impl GitTool {
             } => GitService::create_branch(repo_path, branch, start_point.as_deref()).await,
             CheckoutPlan::Passthrough => unreachable!("passthrough returned above"),
         }
-        .map_err(|e| BitFunError::tool(format!("Git checkout failed: {}", e)))?;
+        .map_err(|e| OpenBitFunError::tool(format!("Git checkout failed: {}", e)))?;
 
         Ok(json!({
             "success": result.success,
@@ -893,7 +893,7 @@ impl GitTool {
     }
 
     /// Execute branch operation using GitService
-    async fn execute_branch(repo_path: &str, args: Option<&str>) -> BitFunResult<Value> {
+    async fn execute_branch(repo_path: &str, args: Option<&str>) -> OpenBitFunResult<Value> {
         let args_str = args.unwrap_or("");
         let tokens = Self::tokenize_args(args_str);
 
@@ -908,7 +908,7 @@ impl GitTool {
                 || Self::tokens_contain_flag(&tokens, Some("-r"), Some("--remotes"));
             let branches = GitService::get_branches(repo_path, include_remote)
                 .await
-                .map_err(|e| BitFunError::tool(format!("Git branch failed: {}", e)))?;
+                .map_err(|e| OpenBitFunError::tool(format!("Git branch failed: {}", e)))?;
 
             let output: Vec<String> = branches
                 .iter()
@@ -938,12 +938,12 @@ impl GitTool {
                 .first()
                 .copied()
                 .ok_or_else(|| {
-                    BitFunError::tool("Branch name is required for deletion".to_string())
+                    OpenBitFunError::tool("Branch name is required for deletion".to_string())
                 })?;
 
             let result = GitService::delete_branch(repo_path, branch_name, force)
                 .await
-                .map_err(|e| BitFunError::tool(format!("Git branch delete failed: {}", e)))?;
+                .map_err(|e| OpenBitFunError::tool(format!("Git branch delete failed: {}", e)))?;
 
             Ok(json!({
                 "success": result.success,
@@ -960,7 +960,7 @@ impl GitTool {
 
             let output = execute_git_command(repo_path, &cmd_args)
                 .await
-                .map_err(|e| BitFunError::tool(format!("Git branch failed: {}", e)))?;
+                .map_err(|e| OpenBitFunError::tool(format!("Git branch failed: {}", e)))?;
 
             Ok(json!({
                 "success": true,
@@ -976,7 +976,7 @@ impl GitTool {
         repo_path: &str,
         operation: &str,
         args: Option<&str>,
-    ) -> BitFunResult<Value> {
+    ) -> OpenBitFunResult<Value> {
         let tokens = Self::tokenize_args(args.unwrap_or(""));
         let mut cmd_args: Vec<&str> = vec![operation];
         for token in &tokens {
@@ -1027,7 +1027,7 @@ impl Tool for GitTool {
         "Git"
     }
 
-    async fn description(&self) -> BitFunResult<String> {
+    async fn description(&self) -> OpenBitFunResult<String> {
         Ok(r#"Executes Git commands for version control operations.
 
 This tool provides a safe and convenient way to execute Git commands. It supports common Git operations like status, diff, log, add, commit, branch, checkout, pull, push, and more.
@@ -1147,7 +1147,7 @@ When creating commits, use this format for the commit message:
     async fn description_with_context(
         &self,
         context: Option<&ToolUseContext>,
-    ) -> BitFunResult<String> {
+    ) -> OpenBitFunResult<String> {
         let mut base = self.description().await?;
         if context.map(|c| c.is_remote()).unwrap_or(false) {
             base.push_str(
@@ -1200,12 +1200,12 @@ When creating commits, use this format for the commit message:
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<PermissionIntent>> {
+    ) -> OpenBitFunResult<Vec<PermissionIntent>> {
         let normalized = Self::normalize_git_input(input.clone());
         let operation = normalized
             .get("operation")
             .and_then(Value::as_str)
-            .ok_or_else(|| BitFunError::validation("operation is required".to_string()))?;
+            .ok_or_else(|| OpenBitFunError::validation("operation is required".to_string()))?;
         let args = normalized
             .get("args")
             .and_then(Value::as_str)
@@ -1391,13 +1391,13 @@ When creating commits, use this format for the commit message:
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         let input = &Self::normalize_git_input(input.clone());
 
         let operation = input
             .get("operation")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| BitFunError::tool("operation is required".to_string()))?;
+            .ok_or_else(|| OpenBitFunError::tool("operation is required".to_string()))?;
 
         let args = input.get("args").and_then(|v| v.as_str());
 
@@ -1534,7 +1534,7 @@ mod tests {
             custom_data: HashMap::new(),
             computer_use_host: None,
             runtime_tool_restrictions: ToolRuntimeRestrictions::default(),
-            runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
+            runtime_handles: openbitfun_runtime_ports::ToolRuntimeHandles::default(),
         }
     }
 
@@ -1644,9 +1644,9 @@ mod tests {
             root,
             &[
                 "-c",
-                "user.name=BitFun Tests",
+                "user.name=OpenBitFun Tests",
                 "-c",
-                "user.email=bitfun@example.com",
+                "user.email=openbitfun@example.com",
                 "commit",
                 "-m",
                 message,
@@ -1670,7 +1670,7 @@ mod tests {
 
     #[test]
     fn flag_matching_ignores_substrings_inside_words() {
-        let tokens = GitTool::tokenize_args("-c feat/my-bitfun-pages-manager upstream/main");
+        let tokens = GitTool::tokenize_args("-c feat/my-openbitfun-pages-manager upstream/main");
         assert!(!GitTool::tokens_contain_flag(&tokens, Some("-b"), None));
         assert!(GitTool::tokens_contain_flag(&tokens, Some("-c"), None));
 
@@ -1685,9 +1685,9 @@ mod tests {
     #[test]
     fn plan_checkout_switch_create_with_start_point() {
         assert_eq!(
-            GitTool::plan_checkout("switch", "-c feat/my-bitfun-pages-manager upstream/main"),
+            GitTool::plan_checkout("switch", "-c feat/my-openbitfun-pages-manager upstream/main"),
             CheckoutPlan::Create {
-                branch: "feat/my-bitfun-pages-manager".to_string(),
+                branch: "feat/my-openbitfun-pages-manager".to_string(),
                 start_point: Some("upstream/main".to_string()),
             }
         );

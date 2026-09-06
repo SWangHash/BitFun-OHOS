@@ -20,10 +20,37 @@ function readSource(relativePath: string): string {
 }
 
 describe('floating MiniApp chat activity', () => {
-  it('uses a compact glyph for the standalone chat trigger', () => {
+  it('uses text-only Hi and Hello states in the design-system launcher', () => {
     const component = readSource('./FloatingMiniChat.tsx');
-    expect(component).toContain('<Icon name="side-chat" size="md" />');
-    expect(component).not.toContain('<Icon name="side-chat" size="lg" />');
+    expect(component).toContain('IconButton, LauncherButton, Tooltip');
+    expect(component).toContain('<LauncherButton');
+    expect(component).toContain(
+      'className="openbitfun-fmc__button openbitfun-fmc__button--hello"',
+    );
+    expect(component).not.toContain("from 'lucide-react'");
+    expect(component).not.toContain('leadingIcon=');
+    expect(component).toContain("tVoice('voiceCall.call.launcherCompactLabel')");
+    expect(component).toContain("tVoice('voiceCall.call.launcherLabel')");
+    expect(component).toContain('openbitfun-fmc__button-label--compact');
+    expect(component).toContain('openbitfun-fmc__button-label--expanded');
+  });
+
+  it('keeps Hi compact until fine-pointer hover or keyboard focus reveals Hello', () => {
+    const stylesheet = readSource('./FloatingMiniChat.scss');
+
+    expect(stylesheet).not.toContain('--openbitfun-color-control-launcher');
+    expect(stylesheet).not.toContain('--openbitfun-color-control-highlight');
+    expect(stylesheet).toContain('.openbitfun-fmc__button--hello');
+    expect(stylesheet).toContain(
+      'inline-size: var(--openbitfun-control-launcher-button-block-size);',
+    );
+    expect(stylesheet).toContain('@media (hover: hover) and (pointer: fine)');
+    expect(stylesheet).toContain(
+      'inline-size: var(--openbitfun-control-launcher-button-min-inline-size);',
+    );
+    expect(stylesheet).toContain('.openbitfun-fmc__button-label--compact');
+    expect(stylesheet).toContain('.openbitfun-fmc__button-label--expanded');
+    expect(stylesheet).toContain('&:focus-visible');
   });
 
   it.each([
@@ -69,7 +96,7 @@ describe('floating MiniApp chat activity', () => {
 
     expect(component).toContain('trackedSession: activeMiniAppSession');
     expect(component).toContain('isMiniAppSessionExecuting && (');
-    expect(component).toContain('className="bitfun-fmc__button-activity"');
+    expect(component).toContain('className="openbitfun-fmc__button-activity"');
     expect(component).toContain('aria-busy={isMiniAppSessionExecuting || undefined}');
     expect(stylesheet).toContain('@keyframes fmc-button-activity-spin');
     expect(stylesheet).toContain('@keyframes fmc-button-activity-glow');

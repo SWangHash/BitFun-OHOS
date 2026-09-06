@@ -13,6 +13,7 @@ import {
 import { LoaderCircle } from "lucide-react";
 import { Icon } from "../Icon";
 import { classNames } from "../../internal/classNames";
+import { useFieldSurface } from "../../internal/fieldSurface";
 import { useAnchoredLayer, type LayerPlacement } from "../../internal/useAnchoredLayer";
 import { Portal } from "../../overlay/Portal";
 import { useDesignSystem } from "../../overlay/useDesignSystem";
@@ -116,6 +117,7 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
   forwardedRef,
 ) {
   const { mode } = pickerProps;
+  const fieldSurface = useFieldSurface();
   const props = pickerProps as ComboboxProps | MultiSelectProps;
   const {
     "aria-describedby": ariaDescribedBy,
@@ -162,7 +164,7 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
   const placeholder = placeholderProp ?? designSystem.messages.selectPlaceholder;
   const options = optionsProp;
   const generatedId = useId();
-  const id = providedId ?? `bf-${multiple ? "multi-select" : "combobox"}-${generatedId}`;
+  const id = providedId ?? `openbitfun-${multiple ? "multi-select" : "combobox"}-${generatedId}`;
   const labelId = `${id}-label`;
   const listboxId = `${id}-listbox`;
   const errorId = `${id}-error`;
@@ -451,7 +453,7 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
       <ListboxOption
         active={activeIndex === navigationIndex}
         aria-label={typeof option.description === "string"
-          ? `${option.label} — ${option.description}`
+          ? `${option.label}: ${option.description}`
           : option.label}
         description={option.description}
         disabled={option.disabled || loading}
@@ -487,14 +489,14 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
   const popover = resolvedOpen ? (
     <div
       className={styles.popover}
-      data-bf-component={multiple ? "multi-select-popup" : "combobox-popup"}
-      data-bf-part="popover"
+      data-openbitfun-component={multiple ? "multi-select-popup" : "combobox-popup"}
+      data-openbitfun-part="popover"
       data-keyboard-open={keyboardOpen ? "true" : "false"}
       data-placement={layout?.placement ?? placement}
       ref={popoverRef}
       style={layout?.style ?? { position: "fixed", visibility: "hidden" }}
     >
-      <div className={styles.search} data-bf-part="search">
+      <div className={styles.search} data-openbitfun-part="search">
         <SearchField
           aria-activedescendant={activeDescendant}
           aria-autocomplete="list"
@@ -503,11 +505,14 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
           aria-label={designSystem.messages.searchOptions}
           autoComplete="off"
           className={styles.searchField}
-          clearLabel={designSystem.messages.clearSelection}
-          onClear={() => {
-            setQuery("");
-            setActiveIndex(firstEnabledIndex(navigationItems, 1));
-          }}
+          clearLabel={query ? designSystem.messages.clearSelection : undefined}
+          leadingIcon={<Icon name="search" />}
+          onClear={query
+            ? () => {
+                setQuery("");
+                setActiveIndex(firstEnabledIndex(navigationItems, 1));
+              }
+            : undefined}
           onKeyDown={handleSearchKeyDown}
           onValueChange={(nextQuery) => {
             setQuery(nextQuery);
@@ -584,27 +589,28 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
     <div
       {...divProps}
       className={classNames(styles.root, className)}
-      data-bf-component={multiple ? "multi-select" : "combobox"}
+      data-openbitfun-component={multiple ? "multi-select" : "combobox"}
       data-disabled={disabled ? "true" : "false"}
+      data-field-surface={fieldSurface}
       data-invalid={invalid ? "true" : "false"}
       data-open={resolvedOpen ? "true" : "false"}
       data-size={size}
       ref={setRootRef}
     >
       {label !== undefined && label !== null && (
-        <label className={styles.visibleLabel} data-bf-part="label" htmlFor={id} id={labelId}>
+        <label className={styles.visibleLabel} data-openbitfun-part="label" htmlFor={id} id={labelId}>
           {label}
         </label>
       )}
       <div
         className={styles.control}
-        data-bf-part="control"
+        data-openbitfun-part="control"
         data-tags={multiple && hasValue ? "true" : "false"}
       >
         {multiple && hasValue && (
-          <span className={styles.tags} data-bf-part="tags">
+          <span className={styles.tags} data-openbitfun-part="tags">
             {selectedOptions.slice(0, Math.max(1, maxVisibleTags)).map((option) => (
-              <span className={styles.tag} data-bf-part="tag" key={`${typeof option.value}:${option.value}`}>
+              <span className={styles.tag} data-openbitfun-part="tag" key={`${typeof option.value}:${option.value}`}>
                 <span>{option.label}</span>
                 <IconButton
                   aria-label={`${designSystem.messages.clearSelection}: ${option.label}`}
@@ -615,6 +621,7 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
                     commitValues(selectedValues.filter((value) => value !== option.value));
                   }}
                   onMouseDown={(event) => event.preventDefault()}
+                  shape="circle"
                   size="xs"
                   variant="quiet"
                 />
@@ -636,7 +643,7 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
           aria-required={required || undefined}
           aria-busy={loading || undefined}
           className={styles.trigger}
-          data-bf-part="trigger"
+          data-openbitfun-part="trigger"
           disabled={disabled}
           id={id}
           onClick={() => {
@@ -648,7 +655,7 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
           role="combobox"
           type="button"
         >
-          <span className={styles.value} data-bf-part="value">
+          <span className={styles.value} data-openbitfun-part="value">
             {!hasValue ? (
               <span className={styles.placeholder}>{placeholder}</span>
             ) : multiple ? (
@@ -677,12 +684,12 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
             variant="quiet"
           />
         )}
-        <span aria-hidden="true" className={styles.indicator} data-bf-part="indicator">
+        <span aria-hidden="true" className={styles.indicator} data-openbitfun-part="indicator">
           <Icon name="chevron-down" />
         </span>
       </div>
       {errorMessage ? (
-        <span className={styles.error} data-bf-part="message" id={errorId}>
+        <span className={styles.error} data-openbitfun-part="message" id={errorId}>
           {errorMessage}
         </span>
       ) : null}

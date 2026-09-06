@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Circle,
   Code2,
-  Copy,
   FileEdit,
   FileText,
   FolderOpen,
@@ -41,7 +40,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { IconButton } from "@bitfun/ui";
+import { IconButton } from "@openbitfun/ui";
 import {
   AgentControlToolCard,
   AgentWaitToolCard,
@@ -71,7 +70,7 @@ import {
   PageDeployToolCard,
   PagePublishToolCard,
   ProminentToolCard,
-  ProminentToolCardHeader,
+  ProminentToolCardSummary,
   ReadFileToolCard,
   ReviewSummaryToolCard,
   RunCodeToolCard,
@@ -81,7 +80,8 @@ import {
   TerminalControlToolCard,
   TodoToolCard,
   ToolCardChangeSummary,
-  ToolCardHeaderActions,
+  ToolCardActions,
+  ToolCardCopyButton,
   ViewImageToolCard,
   WebFetchToolCard,
   WebSearchToolCard,
@@ -89,8 +89,8 @@ import {
   type FlowChatToolStatus,
   type AskUserAnswers,
   type AskUserState,
-} from "@bitfun/ui/flow-chat";
-import { componentRegistry } from "@bitfun/ui/registry";
+} from "@openbitfun/ui/flow-chat";
+import { componentRegistry } from "@openbitfun/ui/registry";
 import { useI18n } from "../i18n";
 import "./FlowChatPreviewRegistry.css";
 
@@ -144,7 +144,7 @@ function ChatComposerPreview({ interactive, state }: PreviewProps) {
         contextBar={(
           <div className="flow-chat-composer-preview__context">
             <span><Monitor aria-hidden="true" />This computer</span>
-            <span>BitFun</span>
+            <span>OpenBitFun</span>
             <span><GitBranch aria-hidden="true" />1.0.0-explore</span>
             <span><Circle aria-hidden="true" />worktree</span>
             <span className="flow-chat-composer-preview__permission">
@@ -267,7 +267,7 @@ function FrameworkPreview({
     return (
       <div className="flow-chat-tool-card-preview" data-preview-kind="ambient">
         <AmbientToolCard
-          data-bf-preview-state={previewState}
+          data-openbitfun-preview-state={previewState}
           expandedContent={expandedContent}
           header={(
             <AmbientToolCardHeader
@@ -288,32 +288,28 @@ function FrameworkPreview({
   }
 
   const actions = interactive ? (
-    <ToolCardHeaderActions>
-      <button
+    <ToolCardActions>
+      <IconButton
         aria-label={t("components.preview.flowChat.download")}
-        className="flow-chat-tool-card-preview__action"
-        type="button"
-      >
-        <ArrowDownToLine aria-hidden="true" />
-      </button>
-      <button
-        aria-label={t("components.preview.flowChat.copy")}
-        className="flow-chat-tool-card-preview__action"
-        type="button"
-      >
-        <Copy aria-hidden="true" />
-      </button>
-    </ToolCardHeaderActions>
+        icon={<ArrowDownToLine aria-hidden="true" />}
+        size="sm"
+        variant="quiet"
+      />
+      <ToolCardCopyButton
+        label={t("components.preview.flowChat.copy")}
+        onPress={() => undefined}
+      />
+    </ToolCardActions>
   ) : undefined;
 
   return (
     <div className="flow-chat-tool-card-preview" data-preview-kind="prominent">
       <ProminentToolCard
-        data-bf-preview-state={previewState}
+        data-openbitfun-preview-state={previewState}
         errorContent={t("components.preview.flowChat.commandFailed")}
         expandedContent={expandedContent}
-        header={(
-          <ProminentToolCardHeader
+        summary={(
+          <ProminentToolCardSummary
             action={t("components.preview.flowChat.runCommand")}
             actions={actions}
             content={(
@@ -332,7 +328,7 @@ function FrameworkPreview({
           />
         )}
         isExpanded={isExpanded}
-        onClick={toggleExpanded}
+        onToggle={toggleExpanded}
         requiresConfirmation={state === "confirmation"}
         status={status}
       />
@@ -343,21 +339,23 @@ function FrameworkPreview({
 function ReadFilePreview({ interactive, state }: PreviewProps) {
   const { t } = useI18n();
   const status = resolveStatus(state);
-  const summary = state === "loading"
+  const action = state === "loading"
     ? t("components.preview.flowChat.readingFile")
-    : state === "error"
-      ? t("components.preview.flowChat.readFailed")
-      : "src/flow_chat/tool-cards/index.ts · 128 lines";
+    : t("components.preview.flowChat.readFile");
+  const content = state === "error"
+    ? t("components.preview.flowChat.readFailed")
+    : "src/flow_chat/tool-cards/index.ts · 128 lines";
 
   return (
     <div className="flow-chat-tool-card-preview">
       <ReadFileToolCard
         accessibleLabel={t("components.preview.flowChat.readFile")}
-        data-bf-preview-state={state === "hover" ? "hover" : undefined}
+        action={action}
+        content={content}
+        data-openbitfun-preview-state={state === "hover" ? "hover" : undefined}
         interactive={interactive}
         onOpen={interactive ? () => undefined : undefined}
         status={status}
-        summary={summary}
       />
     </div>
   );
@@ -370,7 +368,7 @@ function ContextCompressionPreview({ state }: PreviewProps) {
   return (
     <div className="flow-chat-tool-card-preview">
       <ContextCompressionToolCard
-        data-bf-preview-state={state === "hover" ? "hover" : undefined}
+        data-openbitfun-preview-state={state === "hover" ? "hover" : undefined}
         error={state === "error"
           ? t("components.preview.flowChat.contextError")
           : undefined}
@@ -395,7 +393,7 @@ const COMMAND_SAMPLES = {
   },
   ExecCommand: {
     actionKey: "components.preview.flowChat.runCommand",
-    command: "pnpm --dir design-system --filter @bitfun/ui test",
+    command: "pnpm --dir design-system --filter @openbitfun/ui test",
     output: "57 tests passed",
   },
   ExecControl: {
@@ -426,7 +424,6 @@ function CommandPreview({ interactive, specimen, state }: PreviewProps) {
   const footerItems = completed ? [
     {
       label: t("components.preview.flowChat.exitCode"),
-      monospace: true,
       tone: "success" as const,
       value: "0",
     },
@@ -456,7 +453,7 @@ function CommandPreview({ interactive, specimen, state }: PreviewProps) {
           label: t("components.preview.flowChat.copy"),
           onPress: () => undefined,
         } : undefined}
-        data-bf-preview-state={state === "hover" ? "hover" : undefined}
+        data-openbitfun-preview-state={state === "hover" ? "hover" : undefined}
         emptyCommand={t("components.preview.flowChat.emptyCommand")}
         error={state === "error"
           ? t("components.preview.flowChat.commandFailed")
@@ -520,7 +517,7 @@ function FileOperationPreview({ interactive, specimen, state }: PreviewProps) {
           deletions: operation === "write" ? 0 : 4,
           label: t("components.preview.flowChat.fileChangeSummary"),
         }}
-        data-bf-preview-state={state === "hover" ? "hover" : undefined}
+        data-openbitfun-preview-state={state === "hover" ? "hover" : undefined}
         error={state === "error" ? {
           message: t("components.preview.flowChat.fileErrorMessage"),
           title: t("components.preview.flowChat.fileErrorTitle"),
@@ -554,7 +551,7 @@ function ActivityPreview({
   const { t } = useI18n();
   const status = resolveStatus(state);
   const shared = {
-    "data-bf-preview-state": state === "hover" ? "hover" : undefined,
+    "data-openbitfun-preview-state": state === "hover" ? "hover" : undefined,
     status,
     summary: state === "error"
       ? t("components.preview.flowChat.failed")
@@ -606,9 +603,10 @@ function SearchPreview({
   return (
     <div className="flow-chat-tool-card-preview">
       <Component
-        data-bf-preview-state={state === "hover" ? "hover" : undefined}
+        action={kind === "grep" ? "Search text:" : kind === "glob" ? "Search files:" : "Search:"}
+        data-openbitfun-preview-state={state === "hover" ? "hover" : undefined}
         details={[
-          { label: "Scope", monospace: true, value: "src/flow_chat" },
+          { label: "Scope", value: "src/flow_chat" },
           { label: "Results", value: "3" },
         ]}
         isExpanded={isExpanded}
@@ -645,12 +643,12 @@ function SessionPreview({
   const [isExpanded, setIsExpanded] = useState(state === "expanded");
   const status = resolveStatus(state);
   const common = {
-    "data-bf-preview-state": state === "hover" ? "hover" : undefined,
+    "data-openbitfun-preview-state": state === "hover" ? "hover" : undefined,
     action: kind === "control" ? "SessionControl" : "SessionMessage",
     error: state === "error" ? t("components.preview.flowChat.failed") : undefined,
     fields: [
-      { label: "Session", monospace: true, value: "review-42" },
-      { label: "Workspace", monospace: true, value: "BitFun" },
+      { label: "Session", value: "review-42" },
+      { label: "Workspace", value: "OpenBitFun" },
     ],
     isExpanded,
     onToggle: interactive ? () => setIsExpanded((value) => !value) : undefined,
@@ -692,7 +690,7 @@ function StandardAmbientPreview({
   const [isExpanded, setIsExpanded] = useState(state === "expanded");
   const status = resolveStatus(state);
   const common = {
-    "data-bf-preview-state": state === "hover" ? "hover" : undefined,
+    "data-openbitfun-preview-state": state === "hover" ? "hover" : undefined,
     isExpanded,
     onToggle: interactive ? () => setIsExpanded((value) => !value) : undefined,
     status,
@@ -789,7 +787,7 @@ function ConcreteProminentPreview({
   const [isExpanded, setIsExpanded] = useState(state === "expanded");
   const status = resolveStatus(state);
   const common = {
-    "data-bf-preview-state": state === "hover" ? "hover" : undefined,
+    "data-openbitfun-preview-state": state === "hover" ? "hover" : undefined,
     isExpanded,
     onToggle: interactive ? () => setIsExpanded((value) => !value) : undefined,
     status,
@@ -801,10 +799,18 @@ function ConcreteProminentPreview({
       <AgentControlToolCard
         {...common}
         agentName="reviewer"
+        agentModel="gpt-5.6"
+        interruptAction={state === "loading" ? {
+          label: "Stop agent",
+          onPress: () => undefined,
+        } : undefined}
+        onOpenAgent={interactive ? () => undefined : undefined}
         openAgentLabel="Open agent"
         prompt={<p>Review the FlowChat migration boundary and public contracts.</p>}
-        statusLabel={state === "loading" ? t("components.preview.flowChat.running") : t("components.preview.flowChat.completed")}
-        statusTone={state === "error" ? "danger" : state === "loading" ? "success" : "neutral"}
+        statusLabel={state === "error" ? t("components.preview.flowChat.failed") : undefined}
+        statusMeta={<span><Timer aria-hidden="true" />{state === "loading" ? "4s" : "12s"}</span>}
+        statusTone={state === "error" ? "danger" : "neutral"}
+        summary="Review the shared FlowChat card boundary"
       />
     );
   } else if (kind === "diff") {
@@ -832,7 +838,7 @@ function ConcreteProminentPreview({
         action="Git:"
         command="git diff --stat"
         error={state === "error" ? t("components.preview.flowChat.commandFailed") : undefined}
-        footerItems={[{ label: "Exit", monospace: true, tone: "success", value: "0" }]}
+        footerItems={[{ label: "Exit", tone: "success", value: "0" }]}
         loading={state === "loading"}
         statusSummary="21 files changed"
         stdout="21 files changed, 842 insertions(+), 517 deletions(-)"
@@ -859,8 +865,8 @@ function ConcreteProminentPreview({
         action={kind === "page-deploy" ? "PageDeploy:" : "PagePublish:"}
         error={state === "error" ? t("components.preview.flowChat.failed") : undefined}
         fields={[
-          { label: "Slug", monospace: true, value: "flow-chat-cards" },
-          { label: "Version", monospace: true, value: "v42" },
+          { label: "Slug", value: "flow-chat-cards" },
+          { label: "Version", value: "v42" },
         ]}
         loading={state === "loading"}
         subject="flow-chat-cards"
@@ -873,7 +879,7 @@ function ConcreteProminentPreview({
 }
 
 function concreteCodeSample(name: string) {
-  return () => `import { ${name} } from "@bitfun/ui/flow-chat";\n\n<${name} status="completed" />`;
+  return () => `import { ${name} } from "@openbitfun/ui/flow-chat";\n\n<${name} status="completed" />`;
 }
 
 function AskUserPreview({ interactive, state }: PreviewProps) {
@@ -987,6 +993,8 @@ export const flowChatPreviewDefinitions = {
     specimens: [
       { tool: "AgentSpawn" },
       { tool: "AgentSendInput" },
+      { tool: "Task" },
+      { tool: "LaunchReviewAgent" },
     ],
   },
   AgentWaitToolCard: {
@@ -999,7 +1007,7 @@ export const flowChatPreviewDefinitions = {
   },
   AmbientToolCard: {
     attention: "ambient",
-    codeSample: (t) => `import { AmbientToolCard, AmbientToolCardHeader } from "@bitfun/ui/flow-chat";\nimport { FileText } from "lucide-react";\n\n<AmbientToolCard\n  status="completed"\n  header={(\n    <AmbientToolCardHeader\n      icon={<FileText />}\n      action="${t("components.preview.flowChat.readFile")}"\n      content="src/flow_chat/tool-cards/index.ts"\n    />\n  )}\n/>`,
+    codeSample: (t) => `import { AmbientToolCard, AmbientToolCardHeader } from "@openbitfun/ui/flow-chat";\nimport { FileText } from "lucide-react";\n\n<AmbientToolCard\n  status="completed"\n  header={(\n    <AmbientToolCardHeader\n      icon={<FileText />}\n      action="${t("components.preview.flowChat.readFile")}"\n      content="src/flow_chat/tool-cards/index.ts"\n    />\n  )}\n/>`,
     icon: FileText,
     render: (options) => <FrameworkPreview {...options} kind="ambient" />,
     section: "framework",
@@ -1007,7 +1015,7 @@ export const flowChatPreviewDefinitions = {
   },
   AskUser: {
     attention: "prominent",
-    codeSample: (t) => `import { AskUser } from "@bitfun/ui/flow-chat";\n\n<AskUser\n  answers={answers}\n  expanded\n  onAnswersChange={setAnswer}\n  questions={questions}\n  state="completed"\n  summaryLabel="${t("components.preview.flowChat.askUserAnswered")}"\n  summaryDetail="${t("components.preview.flowChat.askUserSummaryPrefix")}: v0.2.19-beta.1 (Recommended)"\n/>`,
+    codeSample: (t) => `import { AskUser } from "@openbitfun/ui/flow-chat";\n\n<AskUser\n  answers={answers}\n  expanded\n  onAnswersChange={setAnswer}\n  questions={questions}\n  state="completed"\n  summaryLabel="${t("components.preview.flowChat.askUserAnswered")}"\n  summaryDetail="${t("components.preview.flowChat.askUserSummaryPrefix")}: v0.2.19-beta.1 (Recommended)"\n/>`,
     icon: MessageSquare,
     render: (options) => <AskUserPreview {...options} />,
     section: "tool-card",
@@ -1015,7 +1023,7 @@ export const flowChatPreviewDefinitions = {
   },
   ChatComposer: {
     attention: "adaptive",
-    codeSample: () => `import { ChatComposer } from "@bitfun/ui/flow-chat";\n\n<ChatComposer\n  contextBar={<WorkspaceContext />}\n  queue={pendingMessages.length ? <PendingMessageQueue items={pendingMessages} /> : undefined}\n  layout={multiline ? "expanded" : "compact"}\n  startActions={<AddMenu />}\n  endActions={<ComposerActions />}\n>\n  <RichTextEditor />\n</ChatComposer>`,
+    codeSample: () => `import { ChatComposer } from "@openbitfun/ui/flow-chat";\n\n<ChatComposer\n  contextBar={<WorkspaceContext />}\n  queue={pendingMessages.length ? <PendingMessageQueue items={pendingMessages} /> : undefined}\n  layout={multiline ? "expanded" : "compact"}\n  startActions={<AddMenu />}\n  endActions={<ComposerActions />}\n>\n  <RichTextEditor />\n</ChatComposer>`,
     icon: MessageSquare,
     render: (options) => <ChatComposerPreview {...options} />,
     section: "framework",
@@ -1023,7 +1031,7 @@ export const flowChatPreviewDefinitions = {
   },
   CommandToolCard: {
     attention: "prominent",
-    codeSample: (t) => `import { CommandToolCard } from "@bitfun/ui/flow-chat";\n\n<CommandToolCard\n  action="${t("components.preview.flowChat.runCommand")}"\n  command="pnpm run design-system:check"\n  emptyCommand="${t("components.preview.flowChat.emptyCommand")}"\n  isExpanded={isExpanded}\n  onToggle={() => setIsExpanded((value) => !value)}\n  output={<TerminalOutput />}\n  status="completed"\n/>`,
+    codeSample: (t) => `import { CommandToolCard } from "@openbitfun/ui/flow-chat";\n\n<CommandToolCard\n  action="${t("components.preview.flowChat.runCommand")}"\n  command="pnpm run design-system:check"\n  emptyCommand="${t("components.preview.flowChat.emptyCommand")}"\n  isExpanded={isExpanded}\n  onToggle={() => setIsExpanded((value) => !value)}\n  output={<TerminalOutput />}\n  status="completed"\n/>`,
     icon: Terminal,
     render: (options) => <CommandPreview {...options} />,
     section: "tool-card",
@@ -1036,7 +1044,7 @@ export const flowChatPreviewDefinitions = {
   },
   ContextCompressionToolCard: {
     attention: "prominent",
-    codeSample: (t) => `import { ContextCompressionToolCard } from "@bitfun/ui/flow-chat";\n\n<ContextCompressionToolCard\n  status="completed"\n  summary="${t("components.preview.flowChat.contextSummary")}"\n  title="${t("components.preview.flowChat.contextCompression")}"\n/>`,
+    codeSample: (t) => `import { ContextCompressionToolCard } from "@openbitfun/ui/flow-chat";\n\n<ContextCompressionToolCard\n  status="completed"\n  summary="${t("components.preview.flowChat.contextSummary")}"\n  title="${t("components.preview.flowChat.contextCompression")}"\n/>`,
     icon: Archive,
     render: (options) => <ContextCompressionPreview {...options} />,
     section: "tool-card",
@@ -1066,7 +1074,7 @@ export const flowChatPreviewDefinitions = {
   },
   FileDiffToolCard: {
     attention: "prominent",
-    codeSample: (t) => `import { FileDiffToolCard } from "@bitfun/ui/flow-chat";\n\n<FileDiffToolCard\n  action="GetFileDiff:"\n  changeSummary={{\n    additions: 12,\n    deletions: 4,\n    label: "${t("components.preview.flowChat.fileChangeSummary")}",\n  }}\n  path="src/flow_chat/components/FlowToolCard.tsx"\n  pathLabel="FlowToolCard.tsx"\n  status="completed"\n/>`,
+    codeSample: (t) => `import { FileDiffToolCard } from "@openbitfun/ui/flow-chat";\n\n<FileDiffToolCard\n  action="GetFileDiff:"\n  changeSummary={{\n    additions: 12,\n    deletions: 4,\n    label: "${t("components.preview.flowChat.fileChangeSummary")}",\n  }}\n  path="src/flow_chat/components/FlowToolCard.tsx"\n  pathLabel="FlowToolCard.tsx"\n  status="completed"\n/>`,
     icon: GitCompare,
     render: (options) => <ConcreteProminentPreview {...options} kind="diff" />,
     section: "tool-card",
@@ -1074,7 +1082,7 @@ export const flowChatPreviewDefinitions = {
   },
   FileOperationToolCard: {
     attention: "adaptive",
-    codeSample: (t) => `import { FileOperationToolCard } from "@bitfun/ui/flow-chat";\n\n<FileOperationToolCard\n  actionLabel="${t("components.preview.flowChat.editFile")}"\n  isExpanded={isExpanded}\n  onToggle={() => setIsExpanded((value) => !value)}\n  operation="edit"\n  path="src/flow_chat/components/FlowToolCard.tsx"\n  pathLabel="FlowToolCard.tsx"\n  preview={<DiffPreview />}\n  status="completed"\n/>`,
+    codeSample: (t) => `import { FileOperationToolCard } from "@openbitfun/ui/flow-chat";\n\n<FileOperationToolCard\n  actionLabel="${t("components.preview.flowChat.editFile")}"\n  isExpanded={isExpanded}\n  onToggle={() => setIsExpanded((value) => !value)}\n  operation="edit"\n  path="src/flow_chat/components/FlowToolCard.tsx"\n  pathLabel="FlowToolCard.tsx"\n  preview={<DiffPreview />}\n  status="completed"\n/>`,
     icon: FileEdit,
     render: (options) => <FileOperationPreview {...options} />,
     section: "tool-card",
@@ -1134,7 +1142,7 @@ export const flowChatPreviewDefinitions = {
   },
   ProminentToolCard: {
     attention: "prominent",
-    codeSample: (t) => `import { ProminentToolCard, ProminentToolCardHeader } from "@bitfun/ui/flow-chat";\nimport { SquareTerminal } from "lucide-react";\n\n<ProminentToolCard\n  status="completed"\n  isExpanded={isExpanded}\n  onClick={() => setIsExpanded((value) => !value)}\n  header={(\n    <ProminentToolCardHeader\n      icon={<SquareTerminal />}\n      action="${t("components.preview.flowChat.runCommand")}"\n      content={<code>curl https://openbitfun.com</code>}\n    />\n  )}\n  expandedContent={<CommandOutput />}\n/>`,
+    codeSample: (t) => `import { ProminentToolCard, ProminentToolCardSummary } from "@openbitfun/ui/flow-chat";\nimport { SquareTerminal } from "lucide-react";\n\n<ProminentToolCard\n  status="completed"\n  isExpanded={isExpanded}\n  onToggle={() => setIsExpanded((value) => !value)}\n  summary={(\n    <ProminentToolCardSummary\n      icon={<SquareTerminal />}\n      action="${t("components.preview.flowChat.runCommand")}"\n      content={<code>curl https://openbitfun.com</code>}\n    />\n  )}\n  expandedContent={<CommandOutput />}\n/>`,
     icon: SquareTerminal,
     render: (options) => <FrameworkPreview {...options} kind="prominent" />,
     section: "framework",
@@ -1142,7 +1150,7 @@ export const flowChatPreviewDefinitions = {
   },
   ReadFileToolCard: {
     attention: "ambient",
-    codeSample: (t) => `import { ReadFileToolCard } from "@bitfun/ui/flow-chat";\n\n<ReadFileToolCard\n  accessibleLabel="${t("components.preview.flowChat.readFile")}"\n  interactive\n  onOpen={openFile}\n  status="completed"\n  summary="src/flow_chat/tool-cards/index.ts · 128 lines"\n/>`,
+    codeSample: (t) => `import { ReadFileToolCard } from "@openbitfun/ui/flow-chat";\n\n<ReadFileToolCard\n  accessibleLabel="${t("components.preview.flowChat.readFile")}"\n  action="${t("components.preview.flowChat.readFile")}"\n  content="src/flow_chat/tool-cards/index.ts · 128 lines"\n  interactive\n  onOpen={openFile}\n  status="completed"\n/>`,
     icon: FileText,
     render: (options) => <ReadFilePreview {...options} />,
     section: "tool-card",

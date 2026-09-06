@@ -115,7 +115,6 @@ import {
   resolveDialogTurnIdentity,
   resolveStorageTurnIndex,
 } from '../utils/flowChatTurnIdentity';
-import { storage } from '@/shared/utils/storageAdapter';
 
 const log = createLogger('FlowChatStore');
 
@@ -321,7 +320,6 @@ function sameDispatchTargetIdentity(
 // hosts; new-session selection filters them from the current Agent catalog.
 const VALID_AGENT_TYPES = new Set([
   'agentic',
-  'minimal',
   'Multitask',
   'debug',
   'Plan',
@@ -954,7 +952,10 @@ function reconcilePendingUserQuestionSnapshot(
       : undefined;
     const alreadyProjected =
       existing?._runtimeInteractionProjection?.revision === snapshot.revision &&
-      existing.status === 'waiting';
+      existing.status === 'waiting' &&
+      existing.toolName === 'AskUserQuestion' &&
+      existing.isParamsStreaming === false &&
+      existing.toolResult === undefined;
     if (!alreadyProjected) {
       const projected: FlowToolItem = {
         ...(existing || {
@@ -1982,27 +1983,22 @@ export class FlowChatStore {
   private clearOldStorage(): void {
     try {
       const keysToRemove = [
-        'bitfun-flow-chat-state',
-        'bitfun-flow-chat-global',
-        'bitfun-session-ids'
+        'openbitfun-flow-chat-state',
+        'openbitfun-flow-chat-global',
+        'openbitfun-session-ids'
       ];
       
       keysToRemove.forEach(key => {
-        if (storage.getItem(key)) {
-          storage.removeItem(key);
+        if (localStorage.getItem(key)) {
+          localStorage.removeItem(key);
         }
       });
-      try {
-        const keys = storage.getKeys();
-        keys.forEach(key => {
-          if (key.startsWith('bitfun-session-')) {
-            storage.removeItem(key);
-          }
-        })
-      } catch (e) {
-        log.warn("Failed to clear session key");
-      }
 
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('openbitfun-session-')) {
+          localStorage.removeItem(key);
+        }
+      });
     } catch (error) {
       log.warn('Failed to clear old storage data', error);
     }
@@ -4247,7 +4243,7 @@ export class FlowChatStore {
       };
     });
     
-    window.dispatchEvent(new CustomEvent('bitfun:session-switched', {
+    window.dispatchEvent(new CustomEvent('openbitfun:session-switched', {
       detail: { sessionId, mode: sessionMode || 'agentic' }
     }));
 
@@ -6520,7 +6516,7 @@ export class FlowChatStore {
       const newSessions = new Map(prev.sessions);
       newSessions.set(sessionId, updatedSession);
 
-      window.dispatchEvent(new CustomEvent('bitfun:dialog-cancelled', {
+      window.dispatchEvent(new CustomEvent('openbitfun:dialog-cancelled', {
         detail: { sessionId }
       }));
 
@@ -7727,11 +7723,13 @@ export class FlowChatStore {
       backendState: restored.session.state,
       latestTurnId: latestTurn?.id,
       latestTurnStatus: latestTurn?.status,
+      ...(pendingUserQuestions && scope.isCurrent()
+        ? { pendingUserQuestions }
+        : {}),
       ...(runtimeEventSnapshot && scope.isCurrent()
         ? {
             runtimeEventSnapshot,
             runtimeEventReplayRequired,
-            pendingUserQuestions,
           }
         : {}),
     };

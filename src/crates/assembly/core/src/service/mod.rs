@@ -48,6 +48,8 @@ pub mod session_usage; // Session runtime usage reports
 pub mod snapshot; // Snapshot-based change tracking
 #[cfg(feature = "agent-runtime")]
 pub mod token_usage; // Token usage tracking
+#[cfg(feature = "web-tools")]
+pub mod web_search; // Provider-neutral WebSearch runtime and local credentials
 #[cfg(feature = "workspace-runtime")]
 pub mod workspace; // Workspace management // Diff calculation and merge service
 #[cfg(feature = "workspace-runtime")]
@@ -56,21 +58,13 @@ pub mod workspace_runtime; // Workspace runtime layout / migration / initializat
 pub mod worktree; // Managed Git worktree lifecycle and session bindings
 
 // Terminal is implemented in the workspace-level `terminal-core` crate.
-// This re-export preserves the legacy `bitfun_core::service::terminal` path.
+// This re-export preserves the legacy `openbitfun_core::service::terminal` path.
 #[cfg(feature = "terminal")]
 pub use terminal_core as terminal;
 
 // Re-export main components.
 #[cfg(feature = "announcement")]
 pub use announcement::{AnnouncementCard, AnnouncementScheduler, AnnouncementSchedulerRef};
-#[cfg(feature = "diagnostics")]
-pub use bitfun_services_core::diagnostics;
-#[cfg(feature = "diff")]
-pub use bitfun_services_core::diff;
-#[cfg(feature = "process-runtime")]
-pub use bitfun_services_core::system;
-#[cfg(feature = "file-watch")]
-pub use bitfun_services_integrations::file_watch;
 #[cfg(feature = "workspace-runtime")]
 pub use bootstrap::reset_workspace_persona_files_to_default;
 #[cfg(feature = "canvas-runtime")]
@@ -99,6 +93,14 @@ pub use i18n::{get_global_i18n_service, I18nService};
 pub use i18n::{I18nConfig, LocaleId, LocaleMetadata};
 #[cfg(feature = "mcp-runtime")]
 pub use mcp::MCPService;
+#[cfg(feature = "diagnostics")]
+pub use openbitfun_services_core::diagnostics;
+#[cfg(feature = "diff")]
+pub use openbitfun_services_core::diff;
+#[cfg(feature = "process-runtime")]
+pub use openbitfun_services_core::system;
+#[cfg(feature = "file-watch")]
+pub use openbitfun_services_integrations::file_watch;
 #[cfg(feature = "review-platform")]
 pub use review_platform::{
     ReviewAuthSource, ReviewAuthState, ReviewChecks, ReviewDecision, ReviewEvidenceCompleteness,
@@ -141,8 +143,8 @@ pub use workspace::{WorkspaceManager, WorkspaceProvider, WorkspaceService};
 #[cfg(feature = "workspace-runtime")]
 pub use workspace_runtime::{
     get_workspace_runtime_service_arc, try_get_workspace_runtime_service_arc,
-    RuntimeMigrationRecord, WorkspaceRuntimeContext, WorkspaceRuntimeEnsureResult,
-    WorkspaceRuntimeService, WorkspaceRuntimeTarget,
+    WorkspaceRuntimeContext, WorkspaceRuntimeEnsureResult, WorkspaceRuntimeService,
+    WorkspaceRuntimeTarget,
 };
 #[cfg(all(feature = "agent-runtime", feature = "git"))]
 pub use worktree::WorktreeService;

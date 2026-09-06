@@ -22,8 +22,8 @@ test("copyable examples and color-page controls use the same catalog as previews
   const source = await readFile(detailSource, "utf8");
   const styles = await readFile(stylesSource, "utf8");
   assert.doesNotMatch(source, /<(MessageCircle|MoreHorizontal|SearchIcon|Check|Copy|Download|Terminal|Settings|ChevronDown)(?:\s|\/>)/);
-  assert.match(styles, /\.colors-select-field > :is\(svg, \[data-bf-component="icon"\]\)/);
-  assert.match(styles, /\.colors-expand-button :is\(svg, \[data-bf-component="icon"\]\)\[data-expanded\]/);
+  assert.match(styles, /\.colors-select-field > :is\(svg, \[data-openbitfun-component="icon"\]\)/);
+  assert.match(styles, /\.colors-expand-button :is\(svg, \[data-openbitfun-component="icon"\]\)\[data-expanded\]/);
 });
 
 test("every preview matrix declares its state-column count", async () => {
@@ -81,7 +81,7 @@ test("FlowChat component details are registry-driven and stack every state verti
   assert.match(preview, /ContextCompressionToolCard/);
   assert.match(preview, /FileOperationToolCard/);
   assert.match(preview, /ReadFileToolCard/);
-  assert.match(preview, /ToolCardHeaderActions/);
+  assert.match(preview, /ToolCardActions/);
   assert.match(styles, /\.flow-chat-state-list\s*\{[^}]*display:\s*grid/s);
   assert.match(styles, /\.flow-chat-state-list__item\s*\{[^}]*border-bottom:/s);
   assert.match(
@@ -107,6 +107,8 @@ test("FlowChat gallery renders only the real migrated tool-card components", asy
   const migratedToolNames = [
     "AgentSpawn",
     "AgentSendInput",
+    "Task",
+    "LaunchReviewAgent",
     "AgentWait",
     "AskUserQuestion",
     "Bash",
@@ -144,8 +146,6 @@ test("FlowChat gallery renders only the real migrated tool-card components", asy
   ];
   const productOwnedToolNames = [
     "CreatePlan",
-    "Task",
-    "LaunchReviewAgent",
     "submit_code_review",
     "MCP",
     "InitMiniApp",
@@ -206,7 +206,7 @@ test("Button preview exposes the public presentation variants", async () => {
   assert.ok(declaration);
   assert.deepEqual(
     [...declaration[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]),
-    ["outline", "fill", "primary", "text"],
+    ["outline", "fill", "secondary", "primary", "text"],
   );
 });
 
@@ -352,7 +352,7 @@ test("ActivityItem preview exposes inline and surfaced anatomy without product b
   assert.match(detail, /actions=\{surface \? \[/);
   assert.match(detail, /setActivityItemAppearance/);
   assert.match(styles, /\.component-activity-item-example\s*\{[^}]*max-inline-size:\s*680px/s);
-  assert.match(styles, /\[data-bf-component="activity-item"\]\.lab-force-focus/);
+  assert.match(styles, /\[data-openbitfun-component="activity-item"\]\.lab-force-focus/);
 });
 
 test("ActionItem preview reserves a full-width column for its complete anatomy", async () => {
@@ -364,7 +364,7 @@ test("ActionItem preview reserves a full-width column for its complete anatomy",
   );
   assert.match(
     source,
-    /\.component-preview-matrix\[data-component="action-item"\]\s+\[data-bf-component="action-item"\]\s*\{[^}]*inline-size:\s*100%/s,
+    /\.component-preview-matrix\[data-component="action-item"\]\s+\[data-openbitfun-component="action-item"\]\s*\{[^}]*inline-size:\s*100%/s,
   );
 });
 
@@ -383,7 +383,8 @@ test("Dialog and Sheet previews exercise provider-owned overlays and compound an
   assert.match(detail, /<DialogHeader>/);
   assert.match(detail, /<DialogBody>/);
   assert.match(detail, /<DialogFooter>/);
-  assert.match(detail, /size="2xl"/);
+  assert.match(detail, /size="xl"/);
+  assert.match(detail, /<DialogFooter appearance="floating">/);
   assert.match(detail, /placement=\{placement\}/);
   assert.doesNotMatch(detail, /portalled=|portalContainer=|contentPadding=|overlayClassName=|dialogClassName=/);
   assert.match(styles, /\.component-dialog-preview-stage\s*\{/);
@@ -448,7 +449,7 @@ test("Menu preview exposes grouped anatomy, item states, and scrollbar control",
   assert.match(detail, /"scrolling", "focus-within", "disabled-item", "checked-item"/);
   assert.match(detail, /scrollbarVisibility=\{menuShowScrollbar \? "auto" : "hidden"\}/);
   assert.match(detail, /role=\{state === "checked-item"/);
-  assert.match(styles, /\[data-bf-component="action-item"\]\.lab-force-focus/);
+  assert.match(styles, /\[data-openbitfun-component="action-item"\]\.lab-force-focus/);
 });
 
 test("NavigationPanel preview exposes header, grouped navigation, selected items, scrolling, and footer", async () => {
@@ -487,7 +488,7 @@ test("Composer preview exposes context, editor, and action regions independently
   assert.match(detail, /setComposerShowContext/);
   assert.match(detail, /setComposerShowToolbar/);
   assert.match(styles, /\.component-composer-example\s*\{[^}]*max-inline-size:\s*680px/s);
-  assert.match(styles, /\[data-bf-component="composer"\]\.lab-force-focus/);
+  assert.match(styles, /\[data-openbitfun-component="composer"\]\.lab-force-focus/);
 });
 
 test("Field preview exposes label and control composition independently from layout orientation", async () => {
@@ -506,7 +507,7 @@ test("Field preview exposes label and control composition independently from lay
   assert.match(source, /setFieldShowLabelAction/);
   assert.match(source, /setFieldShowControlLeading/);
   assert.match(source, /setFieldShowControlTrailing/);
-  assert.match(styles, /\.component-field-example\[data-orientation="horizontal"\] \[data-bf-part="control"\]\s*\{[^}]*inline-size:\s*150px/s);
+  assert.match(styles, /\.component-field-example\[data-orientation="horizontal"\] \[data-openbitfun-part="control"\]\s*\{[^}]*inline-size:\s*150px/s);
 });
 
 test("FieldGroup preview exposes section, surface, row, and field composition contracts", async () => {
@@ -552,6 +553,8 @@ test("TabGroup preview carries the selected and outline reference composition", 
   assert.match(source, /components\.preview\.settings/);
   assert.match(source, /data-component="tab-group"/);
   assert.match(source, /<TabGroup/);
+  assert.match(source, /setTabGroupSize/);
+  assert.match(source, /size=\{tabGroupSize\}/);
 });
 
 test("Toolbar preview keeps leading, centered, trailing, and overflow compositions independent", async () => {
@@ -568,6 +571,7 @@ test("Toolbar preview keeps leading, centered, trailing, and overflow compositio
   assert.match(detail, /case "Toolbar":\s*return \["default", "with-center", "overflow"\] as const/);
   assert.match(detail, /leadingOverflow=\{state === "overflow" \? "scroll" : "visible"\}/);
   assert.match(detail, /center=\{state === "with-center"/);
+  assert.match(detail, /items=\{tabItems\}\s+size="sm"/);
   assert.match(detail, /setToolbarSize/);
   assert.match(styles, /\.component-toolbar-example\s*\{[^}]*max-inline-size:\s*760px/s);
 });
@@ -597,7 +601,7 @@ test("form previews preserve specimen width and their simulated field states", a
   const styles = await readFile(stylesSource, "utf8");
   assert.match(styles, /\.component-field-group-example\s*\{[^}]*min-inline-size:\s*440px/);
   assert.match(styles, /\.component-textarea-example\s*\{[^}]*inline-size:\s*280px/);
-  assert.match(styles, /\.component-textarea-example\.lab-state-hover textarea[^{}]*\{[^}]*--bf-color-field-border-hover/);
-  assert.match(styles, /\.component-textarea-example\.lab-state-focus-visible textarea[^{}]*\{[^}]*--bf-color-focus-ring/);
+  assert.match(styles, /\.component-textarea-example\.lab-state-hover textarea[^{}]*\{[^}]*--openbitfun-color-field-border-hover/);
+  assert.match(styles, /\.component-textarea-example\.lab-state-focus-visible textarea[^{}]*\{[^}]*--openbitfun-color-focus-ring/);
   assert.match(styles, /\.component-preview-matrix\[data-state-count="7"\]\s*\{[^}]*repeat\(7,/);
 });

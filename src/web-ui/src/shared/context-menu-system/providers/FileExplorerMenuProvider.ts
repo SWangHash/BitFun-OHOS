@@ -11,21 +11,9 @@ import { isRemoteWorkspace } from '../../../shared/types';
 import { addFileMentionToChat } from '@/shared/utils/chatContext';
 import { dirnameAbsolutePath } from '@/shared/utils/pathUtils';
 import { isHtmlFilePath } from '@/shared/utils/htmlFilePreview';
-import { shortcutManager } from '@/infrastructure/services/ShortcutManager';
-import { FILETREE_SHORTCUTS } from '@/shared/constants/shortcuts';
+import { openFileInBestTarget } from '@/shared/utils/tabUtils';
 
-function fileTreeShortcut(id: string): string {
-  const defaultConfig = FILETREE_SHORTCUTS.find((shortcut) => shortcut.id === id)?.config;
-  if (!defaultConfig) {
-    return '';
-  }
-  return shortcutManager.formatShortcut(shortcutManager.getEffectiveConfig(id, defaultConfig));
-}
-
-const PASTE_SHORTCUT = fileTreeShortcut('filetree.paste');
-const NEW_FILE_SHORTCUT = fileTreeShortcut('filetree.newFile');
-const NEW_FOLDER_SHORTCUT = fileTreeShortcut('filetree.newFolder');
-const DELETE_SHORTCUT = fileTreeShortcut('filetree.delete');
+const PASTE_SHORTCUT = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent) ? 'Cmd+V' : 'Ctrl+V';
 
 const ARCHIVE_EXTENSIONS = [
   '.zip', '.tar.gz', '.tgz', '.tar',
@@ -75,7 +63,6 @@ export class FileExplorerMenuProvider implements IMenuProvider {
           id: 'file-new-file',
           label: i18nService.t('common:file.newFile'),
           icon: 'FilePlus',
-          shortcut: NEW_FILE_SHORTCUT,
           onClick: () => {
             globalEventBus.emit('file:new-file', { parentPath });
           }
@@ -85,7 +72,6 @@ export class FileExplorerMenuProvider implements IMenuProvider {
           id: 'file-new-folder',
           label: i18nService.t('common:file.newFolder'),
           icon: 'FolderPlus',
-          shortcut: NEW_FOLDER_SHORTCUT,
           onClick: () => {
             globalEventBus.emit('file:new-folder', { parentPath });
           }
@@ -119,19 +105,44 @@ export class FileExplorerMenuProvider implements IMenuProvider {
 
     
     if (!isDirectory) {
+      const isHtmlFile = isHtmlFilePath(fileContext.filePath);
+
       items.push({
         id: 'file-open',
         label: i18nService.t('common:actions.open'),
         icon: 'FileText',
         onClick: () => {
+          if (isHtmlFile) {
+            openFileInBestTarget({
+              filePath: fileContext.filePath,
+              fileName: fileContext.fileName,
+              workspacePath: fileContext.workspacePath,
+              editorType: 'code-editor',
+            });
+            return;
+          }
+
           globalEventBus.emit('file:open', { path: fileContext.filePath });
         }
       });
 
-      if (isHtmlFilePath(fileContext.filePath)) {
+      if (isHtmlFile) {
+        items.push({
+          id: 'file-open-html-in-integrated-browser',
+          label: i18nService.t('common:file.openInIntegratedBrowser'),
+          icon: 'PanelRightOpen',
+          onClick: () => {
+            openFileInBestTarget({
+              filePath: fileContext.filePath,
+              fileName: fileContext.fileName,
+              workspacePath: fileContext.workspacePath,
+              editorType: 'html-preview',
+            });
+          }
+        });
         items.push({
           id: 'file-open-html-in-browser',
-          label: i18nService.t('common:file.openInBrowser'),
+          label: i18nService.t('common:file.openInSystemBrowser'),
           icon: 'ExternalLink',
           command: 'file.open-html-in-browser',
           disabled: localFileActionsDisabled,
@@ -142,6 +153,16 @@ export class FileExplorerMenuProvider implements IMenuProvider {
       }
 
     }
+
+    // Download (available for both files and directories)
+    items.push({
+      id: 'file-download',
+      label: i18nService.t('common:file.download'),
+      icon: 'Download',
+      onClick: () => {
+        globalEventBus.emit('file:download', { path: fileContext.filePath, isDirectory });
+      }
+    });
 
     items.push({
       id: 'file-separator-1',
@@ -190,7 +211,6 @@ export class FileExplorerMenuProvider implements IMenuProvider {
               id: 'file-new-file',
               label: i18nService.t('common:file.file'),
               icon: 'FilePlus',
-              shortcut: NEW_FILE_SHORTCUT,
               command: 'file.new-file',
               onClick: async (ctx) => {
                 await commandExecutor.execute('file.new-file', ctx);
@@ -200,7 +220,6 @@ export class FileExplorerMenuProvider implements IMenuProvider {
               id: 'file-new-folder',
               label: i18nService.t('common:file.folder'),
               icon: 'FolderPlus',
-              shortcut: NEW_FOLDER_SHORTCUT,
               command: 'file.new-folder',
               onClick: async (ctx) => {
                 await commandExecutor.execute('file.new-folder', ctx);
@@ -227,7 +246,6 @@ export class FileExplorerMenuProvider implements IMenuProvider {
         id: 'file-delete',
         label: i18nService.t('common:file.delete'),
         icon: 'Trash2',
-        shortcut: DELETE_SHORTCUT,
         command: 'file.delete',
         onClick: async (ctx) => {
           await commandExecutor.execute('file.delete', ctx);

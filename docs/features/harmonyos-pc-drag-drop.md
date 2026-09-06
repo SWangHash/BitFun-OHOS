@@ -1,7 +1,7 @@
 # 功能建议：鸿蒙 PC 支持拖拽（HarmonyOS PC Drag & Drop）
 
 > 状态：提案 / 未做
-> 仓库：BitFun-OHOS
+> 仓库：OpenBitFun-OHOS
 > 相关架构入口：
 > - [`docs/architecture/platform-portability-design.md`](../architecture/platform-portability-design.md)
 > - [`src/web-ui/src/shared/types/drag.ts`](../../src/web-ui/src/shared/types/drag.ts)
@@ -11,9 +11,9 @@
 
 ## 背景与需求描述
 
-桌面端（Tauri / Web UI）已具备完整的拖拽交互：窗口拖动（`window_start_dragging` + `data-tauri-drag-region`）与内容拖放（`DragManager` + `DragPayload` / `IDropTarget` 协议，覆盖聊天输入文件拖入、工作区切换拖拽、文件面板拖入、Canvas 标签页拖拽、上下文项拖放等目标，自定义 MIME `application/x-bitfun-context`）。
+桌面端（Tauri / Web UI）已具备完整的拖拽交互：窗口拖动（`window_start_dragging` + `data-tauri-drag-region`）与内容拖放（`DragManager` + `DragPayload` / `IDropTarget` 协议，覆盖聊天输入文件拖入、工作区切换拖拽、文件面板拖入、Canvas 标签页拖拽、上下文项拖放等目标，自定义 MIME `application/x-openbitfun-context`）。
 
-鸿蒙 PC 是 BitFun 的目标平台之一。按 `platform-portability-design.md`，完整的鸿蒙 PC 支持同时包含本地 CLI/TUI 与 GUI，**GUI 是独立产品专题**，其 ArkUI/ArkWeb/HAP 技术选型只能在专题获批后设计。当前鸿蒙侧仅有：
+鸿蒙 PC 是 OpenBitFun 的目标平台之一。按 `platform-portability-design.md`，完整的鸿蒙 PC 支持同时包含本地 CLI/TUI 与 GUI，**GUI 是独立产品专题**，其 ArkUI/ArkWeb/HAP 技术选型只能在专题获批后设计。当前鸿蒙侧仅有：
 
 - `WebViewInitData.onDragAndDrop?: (event: string) => void` —— 一个未实现的拖放回调占位（`DefaultWebview.ets` / `ability/type.ets`）；
 - `window_start_dragging` —— 已注册为 ArkTS 函数（窗口拖动）。
@@ -36,7 +36,7 @@
 
 ### 2. 系统到应用拖入
 
-- 从鸿蒙 PC 文件管理器拖入文件 / 文件夹到聊天输入区，作为附件或引用注入会话（对齐桌面 `.bitfun-chat-input-drop-zone`）；
+- 从鸿蒙 PC 文件管理器拖入文件 / 文件夹到聊天输入区，作为附件或引用注入会话（对齐桌面 `.openbitfun-chat-input-drop-zone`）；
 - 拖入文件面板，落盘到当前工作区并刷新文件树（对齐桌面 `FilesPanel` drop + 传输进度）；
 - 拖入工作区导航项以切换 / 新建工作区（对齐桌面 `nav-workspace-drop-target`）；
 - 拖入只接受受支持类型，不接受时给出拒绝态视觉反馈，不静默吞掉。
@@ -56,7 +56,7 @@
 
 - 鸿蒙侧拖拽经 UDMF 读写统一数据，在**适配层**翻译为与桌面同形状的 `DragPayload`（`id` / `sourceType` / `dataType` / `timestamp` / `data` / `metadata`）；
 - 源类型（`DragSourceType`）与数据类型（`ContextType`）保持跨平台一致；鸿蒙私有 UDMF 记录不进入共享逻辑；
-- 自定义上下文负载走 `application/x-bitfun-context` MIME 等价物，在鸿蒙侧用 UDMF 自定义记录承载。
+- 自定义上下文负载走 `application/x-openbitfun-context` MIME 等价物，在鸿蒙侧用 UDMF 自定义记录承载。
 
 ### 6. 视觉反馈
 
@@ -109,7 +109,7 @@
 ## 设计草案 / 参考示例
 
 - **协议参考**：桌面 `DragPayload<T>` / `IDragSource` / `IDropTarget` / `DragEventPayload`（`src/web-ui/src/shared/types/drag.ts`）与 `DragManager`（`src/web-ui/src/shared/services/DragManager.ts`）是跨平台契约基准；鸿蒙侧只做 UDMF 翻译，不改协议形状。
-- **拖放目标覆盖矩阵**：聊天输入（`.bitfun-chat-input-drop-zone`）、工作区导航（`nav-workspace-drop-target`）、文件面板（`FilesPanel` drop + 传输进度）、Canvas 标签页（`DropPosition` 左/右/中）、上下文拖放区（`ContextDropZone`）——鸿蒙 PC GUI 首版至少覆盖前三项。
+- **拖放目标覆盖矩阵**：聊天输入（`.openbitfun-chat-input-drop-zone`）、工作区导航（`nav-workspace-drop-target`）、文件面板（`FilesPanel` drop + 传输进度）、Canvas 标签页（`DropPosition` 左/右/中）、上下文拖放区（`ContextDropZone`）——鸿蒙 PC GUI 首版至少覆盖前三项。
 - **窗口拖拽参考**：既有 `window_start_dragging` ArkTS 函数与桌面 `data-tauri-drag-region`。
 - **占位接续参考**：`WebViewInitData.onDragAndDrop?: (event: string) => void` 是已有钩子，在其上接 UDMF → `DragPayload` 翻译后回调，不新造第二套钩子。
 - **平台能力参考**：鸿蒙 UDMF（统一数据管理框架）与 ArkUI 组件 drag 事件是原生拖拽标准，授权与 API 以华为官方文档为准，本提案不臆测其字段。

@@ -1,10 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // PPT Live — UI entry point
 //
-// This is the entry point for build-bitfun.mjs. All src/*.js modules and npm
+// This is the entry point for build-openbitfun.mjs. All src/*.js modules and npm
 // dependencies are bundled into dist/ui.bundle.js at build time.
 //
-// After editing this file or any src/*.js file, run:  node build-bitfun.mjs
+// After editing this file or any src/*.js file, run:  node build-openbitfun.mjs
 // ─────────────────────────────────────────────────────────────────────────────
 import { translate as t, getLocale } from './src/i18n.js';
 import {
@@ -48,9 +48,9 @@ import {
 import { downloadBase64File, downloadHtmlDeck, fileSafe } from './src/export-html.js';
 import { exportFormatIcon, exportFormatTone } from './src/export-format-icons.js';
 import {
-  installBitFunBackendAdapter,
+  installOpenBitFunBackendAdapter,
   PPT_DESIGN_SKILL_KEY,
-} from './src/bitfun-backend-adapter.js';
+} from './src/openbitfun-backend-adapter.js';
 import {
   DeckProjectContractError,
   buildDeckRunRequestInput,
@@ -76,7 +76,7 @@ let historyItems = [];
 let lastHistoryWriteAt = 0;
 const $ = (id) => document.getElementById(id);
 const runtime = () => window.app || {};
-installBitFunBackendAdapter(runtime());
+installOpenBitFunBackendAdapter(runtime());
 const STORAGE_TIMEOUT_MS = 2500;
 const memoryStorage = new Map();
 
@@ -470,7 +470,7 @@ function hasUsableDeckForRevision() {
 async function submitInstruction(rawInstruction, rawDisplayText = rawInstruction) {
   if (promptSubmitGuard || backendRunInFlight) {
     setStatus(t('bubbleBusy'));
-    return;
+    throw new Error(t('bubbleBusy'));
   }
   const instruction = String(rawInstruction || '').trim();
   if (!instruction) {
@@ -497,6 +497,7 @@ async function submitInstruction(rawInstruction, rawDisplayText = rawInstruction
     failGenerationFromError(error);
     rerender();
     await persist(true);
+    throw error;
   } finally {
     promptSubmitGuard = false;
   }
@@ -1643,7 +1644,10 @@ async function runCoworkDeckGeneration(operation, instruction, options = {}) {
         const requestInput = buildDeckRunRequestInput(
           buildBackendRequestBase(operation, instruction),
           {
-            sessionId: retrySession?.id,
+            // A topic session exists before the first user request. Session
+            // reuse alone is therefore not evidence of an interrupted run;
+            // only recovery attempts should receive continuation semantics.
+            continueAfterInterruption: attempt > 1,
             projectContractDiagnostic,
           },
         );
@@ -1715,7 +1719,9 @@ async function runCoworkDeckGeneration(operation, instruction, options = {}) {
           sessionId: retrySession?.id || undefined,
           appDataWorkspace: retrySession?.project?.workspaceSubdir,
           resultKind: project ? 'text' : undefined,
-          displayText: options.displayText || instruction,
+          displayText: attempt === 1
+            ? (options.displayText || instruction)
+            : t('generationRetryDisplayText', { attempt, max: maxAttempts }),
         });
         retrySession.id = sessionId || retrySession.id;
         state.agentSession = {
@@ -3662,7 +3668,7 @@ function bindExportModal() {
 }
 
 /* ============================================
-   HOST APPEARANCE — follow BitFun light/dark mode
+   HOST APPEARANCE — follow OpenBitFun light/dark mode
    ============================================ */
 function resolveAppearanceMode(mode) {
   if (mode === 'dark' || mode === 'light') return mode;
@@ -3671,7 +3677,7 @@ function resolveAppearanceMode(mode) {
 }
 
 function getHostAppearanceMode() {
-  const attributeMode = document.documentElement.getAttribute('data-bf-appearance-mode');
+  const attributeMode = document.documentElement.getAttribute('data-openbitfun-appearance-mode');
   if (attributeMode === 'dark' || attributeMode === 'light') return attributeMode;
   const runtimeMode = runtime().appearanceMode;
   if (runtimeMode === 'dark' || runtimeMode === 'light') return runtimeMode;
@@ -3681,7 +3687,7 @@ function getHostAppearanceMode() {
 function applyAppearanceMode(mode) {
   const resolved = resolveAppearanceMode(mode);
   const root = document.documentElement;
-  root.setAttribute('data-bf-appearance-mode', resolved);
+  root.setAttribute('data-openbitfun-appearance-mode', resolved);
   root.style.colorScheme = resolved;
   ensureCanvasFitted();
   rerender();
@@ -3791,6 +3797,8 @@ runtime().chat?.onUserMessage?.((payload) => {
   const text = String(payload?.text || '').trim();
   if (!text) return;
   const displayText = String(payload?.displayText || '').trim() || text;
-  void submitInstruction(text, displayText);
+  // The returned Promise is part of the host completion contract used by
+  // realtime voice. It spans Agent retries, file verification, and persistence.
+  return submitInstruction(text, displayText);
 });
 init();

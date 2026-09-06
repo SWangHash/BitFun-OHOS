@@ -2,12 +2,21 @@ import React from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
 import { createInstance, type i18n as I18nInstance } from 'i18next';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToolTimeoutIndicator } from './ToolTimeoutIndicator';
 
 const setSubagentTimeoutMock = vi.hoisted(() => vi.fn());
+const timeoutIndicatorStyles = readFileSync(
+  new URL('./ToolTimeoutIndicator.scss', import.meta.url),
+  'utf8',
+);
+const taskToolStyles = readFileSync(
+  new URL('./TaskToolDisplay.scss', import.meta.url),
+  'utf8',
+);
 
 vi.mock('@/infrastructure/api/service-api/AgentAPI', () => ({
   agentAPI: {
@@ -87,13 +96,25 @@ describe('ToolTimeoutIndicator', () => {
     setSubagentTimeoutMock.mockResolvedValue(undefined);
   });
 
+  it('inherits regular card typography and uses proportional figures for durations', () => {
+    const rootRule = timeoutIndicatorStyles.match(/\.tool-timeout-indicator\s*\{([^}]*)\}/s)?.[1];
+    const durationRule = timeoutIndicatorStyles.match(/\.duration-text\s*\{([^}]*)\}/s)?.[1];
+
+    expect(rootRule).toContain('font: inherit;');
+    expect(rootRule).toContain('font-variant-numeric: proportional-nums;');
+    expect(durationRule).toContain('font: inherit;');
+    expect(durationRule).toContain('font-variant-numeric: proportional-nums;');
+    expect(timeoutIndicatorStyles).not.toContain('tabular-nums');
+    expect(taskToolStyles).not.toMatch(/\.duration-text(?:--[\w-]+)?\s*\{/);
+  });
+
   afterEach(() => {
     if (root) {
       act(() => {
         root!.unmount();
       });
     }
-    document.querySelector('[data-bf-overlay-host="true"]')?.remove();
+    document.querySelector('[data-openbitfun-overlay-host="true"]')?.remove();
     container?.remove();
     dom?.window.close();
     vi.unstubAllGlobals();
@@ -191,7 +212,7 @@ describe('ToolTimeoutIndicator', () => {
     });
 
     const popover = document.querySelector<HTMLElement>('.timeout-extend-popover');
-    expect(popover?.parentElement?.getAttribute('data-bf-overlay-host')).toBe('true');
+    expect(popover?.parentElement?.getAttribute('data-openbitfun-overlay-host')).toBe('true');
     expect(popover?.style.visibility).toBe('visible');
   });
 });

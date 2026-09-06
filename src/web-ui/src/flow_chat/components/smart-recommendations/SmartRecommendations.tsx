@@ -3,22 +3,9 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Button, IconButton, Tooltip } from '@bitfun/ui';
+import { Button, IconButton, Tooltip, Icon, type IconName } from '@openbitfun/ui';
 import { useTranslation } from 'react-i18next';
-import {
-  AlertCircle,
-  CheckCircle,
-  ClipboardList,
-  Code,
-  FileText,
-  Lightbulb,
-  MessageSquarePlus,
-  Search,
-  TestTube,
-  Wrench,
-  X,
-  type LucideIcon,
-} from 'lucide-react';
+import { AlertCircle, ClipboardList, Code, FileText, Lightbulb, TestTube, Wrench, type LucideIcon } from 'lucide-react';
 import { recommendationRegistry } from './RecommendationRegistry';
 import { RecommendationAction, RecommendationContext } from './types';
 import { createLogger } from '@/shared/utils/logger';
@@ -28,16 +15,19 @@ const log = createLogger('SmartRecommendations');
 
 const RECOMMENDATION_ICONS = {
   AlertCircle,
-  CheckCircle,
   ClipboardList,
   Code,
   FileText,
   Lightbulb,
-  MessageSquarePlus,
-  Search,
   TestTube,
   Wrench,
 } satisfies Record<string, LucideIcon>;
+
+const RECOMMENDATION_CATALOG: Record<string, IconName> = {
+  CheckCircle: 'check-circle',
+  MessageSquarePlus: 'side-chat',
+  Search: 'search',
+};
 
 export interface SmartRecommendationsProps {
   /** Recommendation context */
@@ -122,20 +112,20 @@ export const SmartRecommendations: React.FC<SmartRecommendationsProps> = ({
 
   return (
     <div
-      data-bf-component="smart-recommendations"
-      data-bf-part="root"
-      data-bf-state={hasLoadingAction ? 'loading' : undefined}
-      className={`bitfun-smart-recommendations ${className}`}
+      data-openbitfun-component="smart-recommendations"
+      data-openbitfun-part="root"
+      data-openbitfun-state={hasLoadingAction ? 'loading' : undefined}
+      className={`openbitfun-smart-recommendations ${className}`}
     >
-      <div data-bf-component="smart-recommendations" data-bf-part="header" className="bitfun-smart-recommendations__header">
-        <span data-bf-component="smart-recommendations" data-bf-part="title" className="bitfun-smart-recommendations__title">{t('smartRecommendations.title')}</span>
+      <div data-openbitfun-component="smart-recommendations" data-openbitfun-part="header" className="openbitfun-smart-recommendations__header">
+        <span data-openbitfun-component="smart-recommendations" data-openbitfun-part="title" className="openbitfun-smart-recommendations__title">{t('smartRecommendations.title')}</span>
         <Tooltip content={t('smartRecommendations.close')}>
           <IconButton
-            data-bf-component="smart-recommendations"
-            data-bf-part="close"
-            className="bitfun-smart-recommendations__close"
+            data-openbitfun-component="smart-recommendations"
+            data-openbitfun-part="close"
+            className="openbitfun-smart-recommendations__close"
             onClick={handleClose}
-            icon={<X size={16} />}
+            icon={<Icon name="xmark" size="md" />}
             size="sm"
             variant="quiet"
             aria-label={t('smartRecommendations.close')}
@@ -143,8 +133,9 @@ export const SmartRecommendations: React.FC<SmartRecommendationsProps> = ({
         </Tooltip>
       </div>
 
-      <div data-bf-component="smart-recommendations" data-bf-part="actions" className="bitfun-smart-recommendations__actions">
+      <div data-openbitfun-component="smart-recommendations" data-openbitfun-part="actions" className="openbitfun-smart-recommendations__actions">
         {actions.map(action => {
+          const CatalogIconName = action.icon ? RECOMMENDATION_CATALOG[action.icon] : undefined;
           const IconComponent = action.icon
             ? RECOMMENDATION_ICONS[action.icon as keyof typeof RECOMMENDATION_ICONS]
             : null;
@@ -156,7 +147,9 @@ export const SmartRecommendations: React.FC<SmartRecommendationsProps> = ({
               key={action.id}
               variant={action.type === 'primary' ? 'fill' : 'outline'}
               size="sm"
-              leadingIcon={IconComponent ? <IconComponent size={16} /> : undefined}
+              leadingIcon={CatalogIconName
+                ? <Icon name={CatalogIconName} size="md" />
+                : IconComponent ? <IconComponent size={16} /> : undefined}
               onClick={() => handleActionClick(action)}
               disabled={action.disabled || isLoading}
               loading={isLoading}

@@ -8,7 +8,7 @@ import {
 import {
   CommandToolCard,
   type CommandToolCardFooterItem,
-} from '@bitfun/ui/flow-chat';
+} from '@openbitfun/ui/flow-chat';
 import { ToolCardCopyAction } from './ToolCardCopyAction';
 import { ToolTimeoutIndicator } from './ToolTimeoutIndicator';
 import { useCopyTextAction } from '../hooks/useCopyTextAction';
@@ -276,7 +276,6 @@ export const ExecProcessToolCardView: React.FC<ExecProcessToolCardViewProps> = (
   if (model.sessionId != null) {
     footerMetadataItems.push({
       label: t('toolCards.execProcess.session'),
-      monospace: true,
       value: `#${model.sessionId}`,
     });
   }
@@ -288,14 +287,12 @@ export const ExecProcessToolCardView: React.FC<ExecProcessToolCardViewProps> = (
   }
   const exitCodeFooterItem: CommandToolCardFooterItem | undefined = model.exitCode != null
     ? {
-        monospace: true,
         tone: model.exitCode === 0 ? 'success' : 'danger',
         value: t('toolCards.terminal.exitCode', { code: model.exitCode }),
       }
     : undefined;
   const wallTimeFooterItem: CommandToolCardFooterItem | undefined = model.wallTimeSeconds != null
     ? {
-        monospace: true,
         value: t('toolCards.execProcess.wallTime', { seconds: model.wallTimeSeconds.toFixed(3) }),
       }
     : undefined;
@@ -321,7 +318,7 @@ export const ExecProcessToolCardView: React.FC<ExecProcessToolCardViewProps> = (
   )));
 
   return (
-    <div ref={cardRootRef} data-bf-adapter="exec-process-tool-card" data-tool-card-id={toolId ?? ''}>
+    <div ref={cardRootRef} data-openbitfun-adapter="exec-process-tool-card" data-tool-card-id={toolId ?? ''}>
       <CommandToolCard
         action={model.actionLabel}
         command={model.primaryText}
@@ -332,7 +329,7 @@ export const ExecProcessToolCardView: React.FC<ExecProcessToolCardViewProps> = (
           label: t('toolCards.execProcess.copyPrimary'),
           onPress: copyPrimary,
         }}
-        data-bf-state={rejectedOrCancelled ? 'cancelled' : status === 'completed' ? 'completed' : 'active'}
+        data-openbitfun-state={rejectedOrCancelled ? 'cancelled' : status === 'completed' ? 'completed' : 'active'}
         emptyCommand={model.emptyText}
         error={status === 'error'
           ? toolItem.toolResult?.error || t('toolCards.terminal.executionFailed')

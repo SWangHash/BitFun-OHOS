@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from '@bitfun/ui';
+} from '@openbitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
 import { PrivacyDocument } from './PrivacyDocument';
@@ -162,7 +162,7 @@ export const PrivacyStatementDialog: React.FC<PrivacyStatementDialogProps> = ({
         open={isOpen}
         onOpenChange={() => close()}
         size="2xl"
-        className="bitfun-privacy-dialog"
+        className="openbitfun-privacy-dialog"
         closeOnEscape={!busy}
         closeOnPointerOutside={!busy}
       >
@@ -172,11 +172,11 @@ export const PrivacyStatementDialog: React.FC<PrivacyStatementDialogProps> = ({
         </DialogHeader>
         <DialogBody inset="none">
         <div
-          className="bitfun-privacy-dialog__body"
-          data-bf-component="privacy-dialog"
-          data-bf-part="root"
+          className="openbitfun-privacy-dialog__body"
+          data-openbitfun-component="privacy-dialog"
+          data-openbitfun-part="root"
         >
-        <div className="bitfun-privacy-dialog__metadata" data-bf-component="privacy-dialog" data-bf-part="metadata">
+        <div className="openbitfun-privacy-dialog__metadata" data-openbitfun-component="privacy-dialog" data-openbitfun-part="metadata">
           <span>
             {t('privacy.effectiveAt', {
               date: formatDate(new Date(policy.effectiveAt), { dateStyle: 'long' }),
@@ -192,7 +192,7 @@ export const PrivacyStatementDialog: React.FC<PrivacyStatementDialogProps> = ({
           ) : null}
         </div>
         {variant === 'about' ? (
-          <div className="bitfun-privacy-dialog__mode" role="status" data-bf-component="privacy-dialog" data-bf-part="mode">
+          <div className="openbitfun-privacy-dialog__mode" role="status" data-openbitfun-component="privacy-dialog" data-openbitfun-part="mode">
             <strong>{t(fullMode ? 'privacy.fullMode' : 'privacy.notAcceptedMode')}</strong>
             <span>
               {t(
@@ -203,16 +203,16 @@ export const PrivacyStatementDialog: React.FC<PrivacyStatementDialogProps> = ({
             </span>
           </div>
         ) : null}
-        <div className="bitfun-privacy-dialog__document" data-bf-component="privacy-dialog" data-bf-part="document">
+        <div className="openbitfun-privacy-dialog__document" data-openbitfun-component="privacy-dialog" data-openbitfun-part="document">
           <PrivacyDocument content={policy.content} />
         </div>
         {errorMessage ? (
-          <div className="bitfun-privacy-dialog__error" data-bf-component="privacy-dialog" data-bf-part="error">
+          <div className="openbitfun-privacy-dialog__error" data-openbitfun-component="privacy-dialog" data-openbitfun-part="error">
             <Alert tone="error" message={errorMessage} showIcon />
           </div>
         ) : null}
         {variant === 'about' ? (
-          <div className="bitfun-privacy-dialog__actions" data-bf-component="privacy-dialog" data-bf-part="actions">
+          <div className="openbitfun-privacy-dialog__actions" data-openbitfun-component="privacy-dialog" data-openbitfun-part="actions">
             {fullMode ? (
               <Button
                 variant="primary"
@@ -227,7 +227,7 @@ export const PrivacyStatementDialog: React.FC<PrivacyStatementDialogProps> = ({
                 {t('privacy.retryFullMode')}
               </Button>
             ) : (
-              <div className="bitfun-privacy-dialog__consent" data-bf-component="privacy-dialog" data-bf-part="consent">
+              <div className="openbitfun-privacy-dialog__consent" data-openbitfun-component="privacy-dialog" data-openbitfun-part="consent">
                 <Checkbox
                   checked={checked}
                   disabled={busy}

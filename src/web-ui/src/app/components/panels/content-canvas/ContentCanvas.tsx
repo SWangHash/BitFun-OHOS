@@ -41,6 +41,8 @@ export interface ContentCanvasProps {
   onCollapsePanel?: () => void;
   /** Suspend terminal fit/PTY resize while the hosting panel is animating. */
   terminalResizeSuspended?: boolean;
+  /** Whether this host exposes Mission Control. */
+  missionControlEnabled?: boolean;
   /** Host-provided content for the no-tabs state. */
   emptyState?: React.ReactNode;
 }
@@ -57,6 +59,7 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
   onExpandPanel,
   onCollapsePanel,
   terminalResizeSuspended = false,
+  missionControlEnabled = true,
   emptyState,
 }) => {
   // Store state — fine-grained selectors so unrelated store changes
@@ -81,7 +84,11 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
     createTabEventName,
     expandPanelEventName,
   });
-  useKeyboardShortcuts({ enabled: true, handleCloseWithDirtyCheck });
+  useKeyboardShortcuts({
+    enabled: true,
+    missionControlEnabled,
+    handleCloseWithDirtyCheck,
+  });
   // Panel/tab state coordinator (auto manage expand/collapse)
   const { collapsePanel } = usePanelTabCoordinator({
     autoCollapseOnEmpty: true,
@@ -162,13 +169,13 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
     }
 
     return (
-      <div data-bf-component="content-canvas" data-bf-part="main" className="canvas-content-canvas__main">
+      <div data-openbitfun-component="content-canvas" data-openbitfun-part="main" className="canvas-content-canvas__main">
         {/* Editor area */}
-        <div className="canvas-content-canvas__editor" data-bf-component="content-canvas" data-bf-part="editor">
+        <div className="canvas-content-canvas__editor" data-openbitfun-component="content-canvas" data-openbitfun-part="editor">
           <EditorArea
             workspacePath={workspacePath}
             isSceneActive={isSceneActive}
-            onOpenMissionControl={handleOpenMissionControl}
+            onOpenMissionControl={missionControlEnabled ? handleOpenMissionControl : undefined}
             onInteraction={onInteraction}
             onTabCloseWithDirtyCheck={handleCloseWithDirtyCheck}
             onTabCloseAllWithDirtyCheck={handleCloseAllWithDirtyCheck}
@@ -187,7 +194,7 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
             onClose={handleAnchorClose}
           >
             {/* Anchor content (e.g., terminal) renders here */}
-            <div className="canvas-content-canvas__anchor-content" data-bf-component="content-canvas" data-bf-part="anchorContent">
+            <div className="canvas-content-canvas__anchor-content" data-openbitfun-component="content-canvas" data-openbitfun-part="anchorContent">
             </div>
           </AnchorZone>
         )}
@@ -196,22 +203,24 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
   };
 
   return (
-    <div data-bf-component="content-canvas" data-bf-part="root"
+    <div data-openbitfun-component="content-canvas" data-openbitfun-part="root"
       className={`canvas-content-canvas ${layout.isMaximized ? 'is-maximized' : ''}`}
       data-canvas-mode={mode}
-      data-bf-mode={mode}
-      data-bf-state={layout.isMaximized ? 'maximized' : ''}
+      data-openbitfun-mode={mode}
+      data-openbitfun-state={layout.isMaximized ? 'maximized' : ''}
       data-shortcut-scope="canvas"
     >
       {/* Main content */}
       {renderContent()}
 
       {/* Mission control overlay */}
-      <MissionControl
-        isOpen={isMissionControlOpen}
-        onClose={handleCloseMissionControl}
-        handleCloseWithDirtyCheck={handleCloseWithDirtyCheck}
-      />
+      {missionControlEnabled && (
+        <MissionControl
+          isOpen={isMissionControlOpen}
+          onClose={handleCloseMissionControl}
+          handleCloseWithDirtyCheck={handleCloseWithDirtyCheck}
+        />
+      )}
     </div>
   );
 };

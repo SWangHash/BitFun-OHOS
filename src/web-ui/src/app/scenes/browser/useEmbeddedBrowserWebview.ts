@@ -7,9 +7,37 @@ import { api } from '@/infrastructure/api/service-api/ApiClient';
 const WEBVIEW_RESIZE_DEBOUNCE_MS = 160;
 const WEBVIEW_BOUNDS_EPSILON = 1;
 const WEBVIEW_BOUNDS_WAIT_TIMEOUT_MS = 2000;
-const OVERLAY_SELECTOR = "[data-bf-component='dialog'][data-bf-part='overlay'], [data-bf-component='sheet'][data-bf-part='overlay'], .canvas-mission-control";
+// Native child WebViews sit above the main document's CSS stacking contexts.
+// Full-window DOM surfaces use this contract so the browser can be hidden while
+// they are open and restored without tearing down its page state.
+export const NATIVE_WEBVIEW_OCCLUSION_SELECTOR = [
+  '[data-openbitfun-native-webview-occlusion]',
+  "[data-openbitfun-component='dialog'][data-openbitfun-part='overlay']",
+  "[data-openbitfun-component='sheet'][data-openbitfun-part='overlay']",
+  '.canvas-mission-control',
+  "[data-openbitfun-product-component='context-menu'][data-openbitfun-product-part='root']",
+].join(', ');
 const BROWSER_WEBVIEW_PAGE_LOAD_EVENT = 'browser-webview-page-load';
 const WEBVIEW_CREATE_RETRY_DELAYS_MS = [0, 250, 750];
+
+// Webview labels are window-global in Tauri, while this hook can be mounted
+// once per cached editor tab. Keep allocation outside the hook so independent
+// panels cannot both start at `<prefix>-0`.
+let nextBrowserWebviewSequence = 0;
+
+export function allocateBrowserWebviewLabel(labelPrefix: string): string {
+  return `${labelPrefix}-${nextBrowserWebviewSequence++}`;
+}
+
+export function rectanglesIntersect(
+  first: Pick<DOMRectReadOnly, 'left' | 'top' | 'right' | 'bottom'>,
+  second: Pick<DOMRectReadOnly, 'left' | 'top' | 'right' | 'bottom'>,
+): boolean {
+  return second.right > first.left
+    && second.left < first.right
+    && second.bottom > first.top
+    && second.top < first.bottom;
+}
 
 // #region agent log
 function writeBrowserWebviewDiagnostic(
@@ -182,7 +210,6 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const webviewRef = useRef<BrowserWebviewHandle | null>(null);
-  const webviewSequenceRef = useRef(0);
   const currentUrlRef = useRef<string>(startUrl);
   const resizeTimerRef = useRef<number | null>(null);
   const lastBoundsRef = useRef<WebviewBounds | null>(null);
@@ -353,7 +380,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         await new Promise((resolve) => window.setTimeout(resolve, delay));
       }
 
-      const label = `${labelPrefix}-${webviewSequenceRef.current++}`;
+      const label = allocateBrowserWebviewLabel(labelPrefix);
       webviewLabelRef.current = label;
       setWebviewLabel(label);
       try {
@@ -537,8 +564,21 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
 
     let hiddenByOverlay = false;
     const checkOverlays = () => {
-      const overlay = document.querySelector<HTMLElement>(OVERLAY_SELECTOR);
-      const hasOverlay = overlay !== null;
+      const viewport = viewportRef.current;
+      const viewportRect = viewport?.getBoundingClientRect();
+      const hasUsableViewport = Boolean(viewportRect && viewportRect.width > 0 && viewportRect.height > 0);
+      // Do not change the current visibility decision while the browser panel
+      // itself is temporarily unmeasurable (for example during a layout swap).
+      if (!hasUsableViewport || !viewportRect) return;
+      const hasIntersection = (overlay: HTMLElement): boolean => {
+        const overlayRect = overlay.getBoundingClientRect();
+        return overlayRect.width > 0
+          && overlayRect.height > 0
+          && rectanglesIntersect(viewportRect, overlayRect);
+      };
+      const overlay = Array.from(document.querySelectorAll<HTMLElement>(NATIVE_WEBVIEW_OCCLUSION_SELECTOR))
+        .find(candidate => hasIntersection(candidate));
+      const hasOverlay = overlay !== undefined;
       // #region agent log
       if (overlay) {
         const style = window.getComputedStyle(overlay);
@@ -581,6 +621,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
 
     const observer = new MutationObserver(checkOverlays);
     observer.observe(document.body, { childList: true, subtree: true });
+    checkOverlays();
 
     const handleToolbarActivating = () => {
       void webviewRef.current?.hide().catch(() => {});

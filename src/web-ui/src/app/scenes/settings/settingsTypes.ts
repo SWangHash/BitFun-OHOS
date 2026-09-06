@@ -9,14 +9,18 @@ export type SettingsPageId =
   | 'application.general'
   | 'application.appearance'
   | 'application.pet'
-  | 'application.input'
-  | 'application.development'
+  | 'application.voice'
+  | 'application.shortcuts'
+  | 'application.terminal'
+  | 'application.editor'
   | 'ai.models'
   | 'ai.memory'
   | 'workspace.session'
   | 'workspace.worktrees'
   | 'tools.execution'
+  | 'tools.desktop-control'
   | 'tools.automation'
+  | 'tools.webSearch'
   | 'tools.mcp'
   | 'tools.acp'
   | 'data.usage'
@@ -24,10 +28,11 @@ export type SettingsPageId =
   | 'data.diagnostics';
 
 export type SettingsViewId =
-  | 'voice'
-  | 'shortcuts'
-  | 'editor'
-  | 'terminal'
+  | 'common'
+  | 'advanced'
+  | 'local'
+  | 'ssh'
+  | 'json'
   | 'quick-actions'
   | 'hooks';
 
@@ -37,6 +42,7 @@ export interface SettingsDestination {
 }
 
 export interface SettingsPageProps {
+  isActive?: boolean;
   viewId?: SettingsViewId;
   navigationRequestId: number;
 }

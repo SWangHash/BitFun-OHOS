@@ -1,11 +1,9 @@
-@layer bf.components {
+@layer openbitfun.components {
   .command {
     display: block;
     min-inline-size: 0;
     overflow: hidden;
-    color: var(--bf-color-content-secondary);
-    font-family:var(--bf-font-family-mono);
-    font-size: var(--bf-font-size-sm);
+    color: var(--openbitfun-color-content-secondary);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -15,9 +13,9 @@
     display: inline-flex;
     min-inline-size: 0;
     align-items: center;
-    gap: var(--bf-space-1);
-    color: var(--bf-color-content-muted);
-    font-size: var(--bf-font-size-sm);
+    gap: var(--openbitfun-space-1);
+    color: var(--openbitfun-color-content-muted);
+    font-size: var(--openbitfun-type-body-sm-font-size);
   }
 
   .summary {
@@ -27,11 +25,11 @@
   }
 
   .summary[data-tone="warning"] {
-    color: var(--bf-color-status-warning-content);
+    color: var(--openbitfun-color-status-warning-content);
   }
 
   .summary[data-tone="danger"] {
-    color: var(--bf-color-status-danger-content);
+    color: var(--openbitfun-color-status-danger-content);
   }
 
   .output {
@@ -39,47 +37,54 @@
     max-block-size: 20rem;
     min-inline-size: 0;
     flex-direction: column;
-    gap: var(--bf-space-3);
+    gap: var(--openbitfun-space-3);
     overflow: auto;
   }
 
   .outputBlock,
   .textPreview {
     margin: 0;
-    padding: var(--bf-space-3);
-    border-radius: var(--bf-radius-sm);
-    background: var(--bf-color-surface-canvas);
-    color: var(--bf-color-content-secondary);
-    font-family:var(--bf-font-family-mono);
-    font-size: var(--bf-font-size-sm);
-    line-height: var(--bf-line-height-base);
+    padding: var(--openbitfun-space-3);
+    border-radius: var(--openbitfun-radius-sm);
+    background: var(--openbitfun-color-surface-canvas);
+    color: var(--openbitfun-color-content-secondary);
+    font-size: var(--openbitfun-type-body-sm-font-size);
+    line-height: var(--openbitfun-type-body-md-line-height);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+
+  .outputBlock {
+    font-family: inherit;
+  }
+
+  .textPreview {
+    font-family: var(--openbitfun-type-code-md-font-family);
   }
 
   .outputGroup {
     display: flex;
     flex-direction: column;
-    gap: var(--bf-space-2);
+    gap: var(--openbitfun-space-2);
   }
 
   .outputLabel,
   .sectionLabel {
-    color: var(--bf-color-content-muted);
-    font-size: var(--bf-font-size-sm);
-    font-weight: var(--bf-font-weight-semibold);
+    color: var(--openbitfun-color-content-muted);
+    font-size: var(--openbitfun-type-body-sm-font-size);
+    font-weight: var(--openbitfun-type-label-selected-font-weight);
     text-transform: uppercase;
-    letter-spacing: var(--bf-letter-spacing-wider);
+    letter-spacing: var(--openbitfun-type-modifier-tracking-wider-letter-spacing);
   }
 
   .outputGroup[data-tone="warning"] .outputBlock {
-    color: var(--bf-color-status-warning-content);
-    background: color-mix(in srgb, var(--bf-color-status-warning-content) 7%, transparent);
+    color: var(--openbitfun-color-status-warning-content);
+    background: color-mix(in srgb, var(--openbitfun-color-status-warning-content) 7%, transparent);
   }
 
   .outputGroup[data-tone="danger"] .outputBlock {
-    color: var(--bf-color-status-danger-content);
-    background: color-mix(in srgb, var(--bf-color-status-danger-content) 7%, transparent);
+    color: var(--openbitfun-color-status-danger-content);
+    background: color-mix(in srgb, var(--openbitfun-color-status-danger-content) 7%, transparent);
   }
 
   .footer {
@@ -87,19 +92,19 @@
     min-inline-size: 0;
     flex-wrap: wrap;
     align-items: center;
-    gap: var(--bf-space-2);
-    padding: var(--bf-space-2) var(--bf-space-3);
-    border-radius: var(--bf-radius-sm);
-    background: var(--bf-color-surface-raised);
-    color: var(--bf-color-content-muted);
-    font-size: var(--bf-font-size-sm);
+    gap: var(--openbitfun-space-2);
+    padding: var(--openbitfun-space-2) var(--openbitfun-space-3);
+    border-radius: var(--openbitfun-radius-sm);
+    background: var(--openbitfun-color-surface-raised);
+    color: var(--openbitfun-color-content-muted);
+    font-size: var(--openbitfun-type-body-sm-font-size);
   }
 
   .footerItem {
     display: inline-flex;
     min-inline-size: 0;
     align-items: baseline;
-    gap: var(--bf-space-1);
+    gap: var(--openbitfun-space-1);
   }
 
   .footerItem[data-grow="true"] {
@@ -107,51 +112,44 @@
   }
 
   .footerLabel {
-    font-weight: var(--bf-font-weight-semibold);
+    font-weight: var(--openbitfun-type-label-selected-font-weight);
   }
 
   .footerValue {
     min-inline-size: 0;
     overflow: hidden;
-    color: var(--bf-color-content-secondary);
+    color: var(--openbitfun-color-content-secondary);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .footerItem[data-monospace="true"] .footerValue {
-    font-family:var(--bf-font-family-mono);
-  }
-
   .footerItem[data-tone="success"] .footerValue {
-    color: var(--bf-color-status-success-content);
+    color: var(--openbitfun-color-status-success-content);
   }
 
   .footerItem[data-tone="danger"] .footerValue {
-    color: var(--bf-color-status-danger-content);
+    color: var(--openbitfun-color-status-danger-content);
   }
 
   .error {
-    color: var(--bf-color-status-danger-content);
-    font-size: var(--bf-font-size-sm);
-    line-height: var(--bf-line-height-base);
+    color: var(--openbitfun-color-status-danger-content);
+    font-size: var(--openbitfun-type-body-sm-font-size);
+    line-height: var(--openbitfun-type-body-md-line-height);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
 
   .errorMeta {
-    margin-block-start: var(--bf-space-2);
-    color: var(--bf-color-content-muted);
-    font-family:var(--bf-font-family-mono);
-    font-size: var(--bf-font-size-sm);
+    margin-block-start: var(--openbitfun-space-2);
+    color: var(--openbitfun-color-content-muted);
+    font-size: var(--openbitfun-type-body-sm-font-size);
   }
 
   .diffPath {
     display: block;
     overflow: hidden;
     min-inline-size: 0;
-    color: var(--bf-color-content-secondary);
-    font-family:var(--bf-font-family-mono);
-    font-size: var(--bf-font-size-sm);
+    color: var(--openbitfun-color-content-secondary);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -160,14 +158,14 @@
     display: flex;
     min-inline-size: 0;
     flex-direction: column;
-    gap: var(--bf-space-3);
+    gap: var(--openbitfun-space-3);
   }
 
   .message {
-    padding-block-end: var(--bf-space-2);
-    border-block-end: 1px solid var(--bf-color-border-subtle);
-    color: var(--bf-color-content-muted);
-    font-size: var(--bf-font-size-sm);
+    padding-block-end: var(--openbitfun-space-2);
+    border-block-end: 1px solid var(--openbitfun-color-border-subtle);
+    color: var(--openbitfun-color-content-muted);
+    font-size: var(--openbitfun-type-body-sm-font-size);
   }
 
   .reviewDetails,
@@ -175,46 +173,45 @@
     display: flex;
     min-inline-size: 0;
     flex-direction: column;
-    gap: var(--bf-space-3);
+    gap: var(--openbitfun-space-3);
   }
 
   .reviewSummary {
     margin: 0;
-    color: var(--bf-color-content-secondary);
-    font-size: var(--bf-font-size-sm);
-    line-height: var(--bf-line-height-base);
+    color: var(--openbitfun-color-content-secondary);
+    font-size: var(--openbitfun-type-body-sm-font-size);
+    line-height: var(--openbitfun-type-body-md-line-height);
   }
 
   .fileList {
     display: grid;
-    gap: var(--bf-space-1);
+    gap: var(--openbitfun-space-1);
     margin: 0;
-    padding-inline-start: var(--bf-space-4);
-    color: var(--bf-color-content-secondary);
-    font-family:var(--bf-font-family-mono);
-    font-size: var(--bf-font-size-sm);
-    line-height: var(--bf-line-height-base);
+    padding-inline-start: var(--openbitfun-space-4);
+    color: var(--openbitfun-color-content-secondary);
+    font-size: var(--openbitfun-type-body-sm-font-size);
+    line-height: var(--openbitfun-type-body-md-line-height);
   }
 
   .actions {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: var(--bf-space-2);
+    gap: var(--openbitfun-space-2);
   }
 
   .field {
     display: grid;
     min-inline-size: 0;
     grid-template-columns: minmax(6rem, auto) minmax(0, 1fr);
-    gap: var(--bf-space-2);
-    color: var(--bf-color-content-secondary);
-    font-size: var(--bf-font-size-sm);
+    gap: var(--openbitfun-space-2);
+    color: var(--openbitfun-color-content-secondary);
+    font-size: var(--openbitfun-type-body-sm-font-size);
   }
 
   .fieldLabel {
-    color: var(--bf-color-content-muted);
-    font-weight: var(--bf-font-weight-semibold);
+    color: var(--openbitfun-color-content-muted);
+    font-weight: var(--openbitfun-type-label-selected-font-weight);
   }
 
   .fieldValue {
@@ -222,52 +219,40 @@
     overflow-wrap: anywhere;
   }
 
-  .field[data-monospace="true"] .fieldValue {
-    font-family:var(--bf-font-family-mono);
-  }
-
-  .agentHeader {
-    display: flex;
-    inline-size: 100%;
-    min-inline-size: 0;
-    align-items: center;
-    gap: var(--bf-space-2);
-  }
-
-  .agentPill {
+  .agentIdentity,
+  .agentExtra,
+  .agentMeta {
     display: inline-flex;
     min-inline-size: 0;
-    max-inline-size: min(52%, 15rem);
     align-items: center;
-    gap: var(--bf-space-2);
-    padding: var(--bf-space-1) var(--bf-space-2) var(--bf-space-1) var(--bf-space-1);
-    border: 1px solid var(--bf-color-border-default);
-    border-radius: var(--bf-radius-pill);
-    background: var(--bf-color-surface-raised);
-    color: var(--bf-color-content-primary);
-    font: inherit;
+    gap: var(--openbitfun-space-1);
   }
 
-  button.agentPill {
-    cursor: pointer;
+  .agentIdentity {
+    max-inline-size: min(18rem, 38vw);
   }
 
-  button.agentPill:is(:hover, :focus-visible) {
-    border-color: var(--bf-color-border-strong);
-    outline: none;
-    box-shadow: 0 0 0 2px var(--bf-color-focus-ring);
+  .agentExtra {
+    max-inline-size: min(20rem, 42vw);
   }
 
   .agentAvatar {
     display: inline-flex;
-    inline-size: 1.375rem;
-    block-size: 1.375rem;
-    flex: 0 0 1.375rem;
+    inline-size: 100%;
+    block-size: 100%;
     align-items: center;
     justify-content: center;
   }
 
+  .agentAvatar > :where(svg, img, span) {
+    max-inline-size: 100%;
+    max-block-size: 100%;
+  }
+
   .agentName,
+  .agentModel,
+  .agentSummary,
+  .agentMeta,
   .agentStatus {
     min-inline-size: 0;
     overflow: hidden;
@@ -276,60 +261,46 @@
   }
 
   .agentName {
-    font-size: var(--bf-font-size-sm);
-    font-weight: var(--bf-font-weight-medium);
+    font-weight: var(--openbitfun-type-label-lg-font-weight);
+  }
+
+  .agentModel,
+  .agentSummary,
+  .agentMeta {
+    color: var(--openbitfun-color-content-muted);
+    font-weight: var(--openbitfun-type-body-sm-font-weight);
+  }
+
+  .agentSummary {
+    display: block;
   }
 
   .agentStatus {
-    color: var(--bf-color-content-muted);
-    font-size: var(--bf-font-size-sm);
+    color: var(--openbitfun-color-content-muted);
   }
 
   .agentStatus[data-tone="success"] {
-    color: var(--bf-color-status-success-content);
+    color: var(--openbitfun-color-status-success-content);
   }
 
   .agentStatus[data-tone="warning"] {
-    color: var(--bf-color-status-warning-content);
+    color: var(--openbitfun-color-status-warning-content);
   }
 
   .agentStatus[data-tone="danger"] {
-    color: var(--bf-color-status-danger-content);
-  }
-
-  .agentIndicator {
-    display: inline-flex;
-    inline-size: 1.125rem;
-    block-size: 1.125rem;
-    margin-inline-start: auto;
-    flex: 0 0 1.125rem;
-    align-items: center;
-    justify-content: center;
-    color: var(--bf-color-content-muted);
-    opacity: 0;
-    transition: opacity var(--bf-motion-duration-fast) var(--bf-motion-easing-standard);
-  }
-
-  .agentRoot:is(:hover, :focus-within) .agentIndicator,
-  .agentRoot[data-bf-preview-state="hover"] .agentIndicator {
-    opacity: 1;
+    color: var(--openbitfun-color-status-danger-content);
   }
 
   .agentPrompt {
     max-block-size: 15rem;
     overflow: auto;
-    padding: var(--bf-space-3);
-    border: 1px solid var(--bf-color-border-default);
-    border-radius: var(--bf-radius-sm);
-    background: var(--bf-color-surface-canvas);
-    color: var(--bf-color-content-secondary);
-    font-size: var(--bf-font-size-sm);
-    line-height: var(--bf-line-height-base);
+    padding: var(--openbitfun-space-3);
+    border: 1px solid var(--openbitfun-color-border-default);
+    border-radius: var(--openbitfun-radius-sm);
+    background: var(--openbitfun-color-surface-canvas);
+    color: var(--openbitfun-color-content-secondary);
+    font-size: var(--openbitfun-type-body-sm-font-size);
+    line-height: var(--openbitfun-type-body-md-line-height);
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .agentIndicator {
-      transition: none;
-    }
-  }
 }

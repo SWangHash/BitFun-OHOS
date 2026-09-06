@@ -13,10 +13,10 @@
 
 use crate::agentic::tools::framework::ToolUseContext;
 use crate::service::mcp::get_global_mcp_service;
-use crate::util::errors::{BitFunError, BitFunResult};
-use bitfun_services_integrations::mcp::config::ConfigLocation;
-use bitfun_services_integrations::mcp::protocol::{MCPToolResult, MCPToolResultContent};
-use bitfun_services_integrations::mcp::{MCPConnection, MCPServerConfig, MCPServerType};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use openbitfun_services_integrations::mcp::config::ConfigLocation;
+use openbitfun_services_integrations::mcp::protocol::{MCPToolResult, MCPToolResultContent};
+use openbitfun_services_integrations::mcp::{MCPConnection, MCPServerConfig, MCPServerType};
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -28,9 +28,9 @@ pub(crate) const MCP_SERVER_ID: &str = "deveco-mcp";
 pub(crate) async fn call_deveco_mcp_check(
     files: &[String],
     context: &ToolUseContext,
-) -> BitFunResult<String> {
+) -> OpenBitFunResult<String> {
     let mcp_service = get_global_mcp_service()
-        .ok_or_else(|| BitFunError::tool("MCP service is not initialized".to_string()))?;
+        .ok_or_else(|| OpenBitFunError::tool("MCP service is not initialized".to_string()))?;
     let server_manager = mcp_service.server_manager();
 
     // Fast path: already connected.
@@ -40,7 +40,7 @@ pub(crate) async fn call_deveco_mcp_check(
 
     // Auto-provision / start the server, then retry.
     if let Err(e) = ensure_deveco_mcp_connected(context).await {
-        return Err(BitFunError::tool(format!(
+        return Err(OpenBitFunError::tool(format!(
             "MCP server '{}' is not connected and could not be started automatically: {}. \
              Ensure devecocli is installed (`npm install -g devecocli`) and `devecocli serve mcp` can start.",
             MCP_SERVER_ID, e
@@ -51,7 +51,7 @@ pub(crate) async fn call_deveco_mcp_check(
         .get_connection(MCP_SERVER_ID)
         .await
         .ok_or_else(|| {
-            BitFunError::tool(format!(
+            OpenBitFunError::tool(format!(
                 "MCP server '{}' was started but no connection is available.",
                 MCP_SERVER_ID
             ))
@@ -63,13 +63,13 @@ pub(crate) async fn call_deveco_mcp_check(
 async fn call_check_tool(
     connection: &Arc<MCPConnection>,
     files: &[String],
-) -> BitFunResult<String> {
+) -> OpenBitFunResult<String> {
     let result = connection
         .call_tool("check", Some(json!({ "files": files })))
         .await
-        .map_err(|e| BitFunError::tool(format!("MCP check call failed: {}", e)))?;
+        .map_err(|e| OpenBitFunError::tool(format!("MCP check call failed: {}", e)))?;
     if result.is_error {
-        return Err(BitFunError::tool(extract_text(&result)));
+        return Err(OpenBitFunError::tool(extract_text(&result)));
     }
     Ok(extract_text(&result))
 }
@@ -77,9 +77,9 @@ async fn call_check_tool(
 /// Ensure the `deveco-mcp` server is connected. If a persisted/builtin config
 /// exists, (re)start it; otherwise provision a runtime-only (ephemeral) server
 /// from `devecocli serve mcp` with `PROJECT_PATH` set to the harmony cwd.
-async fn ensure_deveco_mcp_connected(context: &ToolUseContext) -> BitFunResult<()> {
+async fn ensure_deveco_mcp_connected(context: &ToolUseContext) -> OpenBitFunResult<()> {
     let mcp_service = get_global_mcp_service()
-        .ok_or_else(|| BitFunError::tool("MCP service is not initialized".to_string()))?;
+        .ok_or_else(|| OpenBitFunError::tool("MCP service is not initialized".to_string()))?;
     let sm = mcp_service.server_manager();
 
     if sm.get_connection(MCP_SERVER_ID).await.is_some() {
@@ -105,7 +105,7 @@ async fn ensure_deveco_mcp_connected(context: &ToolUseContext) -> BitFunResult<(
     if sm.get_connection(MCP_SERVER_ID).await.is_some() {
         return Ok(());
     }
-    Err(BitFunError::tool(format!(
+    Err(OpenBitFunError::tool(format!(
         "'{}' started but no MCP connection was established",
         MCP_SERVER_ID
     )))
@@ -113,11 +113,11 @@ async fn ensure_deveco_mcp_connected(context: &ToolUseContext) -> BitFunResult<(
 
 /// Build a runtime-only `deveco-mcp` config, resolving the user's shell so the
 /// `devecocli` command is spawnable on every platform.
-async fn build_deveco_mcp_config(context: &ToolUseContext) -> BitFunResult<MCPServerConfig> {
+async fn build_deveco_mcp_config(context: &ToolUseContext) -> OpenBitFunResult<MCPServerConfig> {
     let command_str = "devecocli serve mcp";
     let shell_argv = super::exec_command::resolve_shell_argv_for_command(command_str).await;
     if shell_argv.is_empty() {
-        return Err(BitFunError::tool(
+        return Err(OpenBitFunError::tool(
             super::devecocli_run::DEVECOCLI_MISSING.to_string(),
         ));
     }
@@ -181,7 +181,7 @@ fn extract_text(result: &MCPToolResult) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitfun_services_integrations::mcp::MCPServerType;
+    use openbitfun_services_integrations::mcp::MCPServerType;
 
     #[test]
     fn config_uses_shell_argv_and_project_path() {

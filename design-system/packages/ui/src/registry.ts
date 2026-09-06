@@ -17,6 +17,7 @@ import { iconMeta } from "./components/Icon/Icon.meta";
 import { iconButtonMeta } from "./components/IconButton/IconButton.meta";
 import { inputMeta } from "./components/Input/Input.meta";
 import { keyHintMeta } from "./components/KeyHint/KeyHint.meta";
+import { launcherButtonMeta } from "./components/LauncherButton/LauncherButton.meta";
 import { listboxMeta } from "./components/Listbox/Listbox.meta";
 import { menuMeta } from "./components/Menu/Menu.meta";
 import { dialogMeta, sheetMeta } from "./components/Dialog/Dialog.meta";
@@ -37,6 +38,29 @@ import { textareaMeta } from "./components/Textarea/Textarea.meta";
 import { tabGroupMeta } from "./components/TabGroup/TabGroup.meta";
 import { toolbarMeta } from "./components/Toolbar/Toolbar.meta";
 import { tooltipMeta } from "./components/Tooltip/Tooltip.meta";
+import { mobileIconButtonMeta } from "./mobile/MobileIconButton/MobileIconButton.meta";
+import { mobileActionSheetMeta } from "./mobile/MobileActionSheet/MobileActionSheet.meta";
+import { mobileBadgeMeta } from "./mobile/MobileBadge/MobileBadge.meta";
+import { mobileBannerMeta } from "./mobile/MobileBanner/MobileBanner.meta";
+import { mobileButtonMeta } from "./mobile/MobileButton/MobileButton.meta";
+import { mobileCardMeta } from "./mobile/MobileCard/MobileCard.meta";
+import { mobileChoiceSheetMeta } from "./mobile/MobileChoiceSheet/MobileChoiceSheet.meta";
+import { mobileConfirmSheetMeta } from "./mobile/MobileConfirmSheet/MobileConfirmSheet.meta";
+import { mobileComposerMeta } from "./mobile/MobileComposer/MobileComposer.meta";
+import { mobileDisclosureMeta } from "./mobile/MobileDisclosure/MobileDisclosure.meta";
+import { mobileFloatingActionsMeta } from "./mobile/MobileFloatingActions/MobileFloatingActions.meta";
+import { mobileFileButtonMeta } from "./mobile/MobileFileButton/MobileFileButton.meta";
+import { mobileListRowMeta } from "./mobile/MobileListRow/MobileListRow.meta";
+import { mobileLinkMeta } from "./mobile/MobileLink/MobileLink.meta";
+import { mobileMessageMeta } from "./mobile/MobileMessage/MobileMessage.meta";
+import { mobilePageHeaderMeta } from "./mobile/MobilePageHeader/MobilePageHeader.meta";
+import { mobileSectionMeta } from "./mobile/MobileSection/MobileSection.meta";
+import { mobileScrimMeta } from "./mobile/MobileScrim/MobileScrim.meta";
+import { mobileSegmentedControlMeta } from "./mobile/MobileSegmentedControl/MobileSegmentedControl.meta";
+import { mobileSheetMeta } from "./mobile/MobileSheet/MobileSheet.meta";
+import { mobileStatusMeta } from "./mobile/MobileStatus/MobileStatus.meta";
+import { mobileTextFieldMeta } from "./mobile/MobileTextField/MobileTextField.meta";
+import { mobileTextareaMeta } from "./mobile/MobileTextarea/MobileTextarea.meta";
 import { askUserMeta } from "./flow-chat/ask-user/AskUser.meta";
 import { chatComposerMeta } from "./flow-chat/composer/ChatComposer.meta";
 import { ambientToolCardMeta } from "./flow-chat/tool-cards/AmbientToolCard.meta";
@@ -113,9 +137,33 @@ export const componentRegistry = [
   iconButtonMeta,
   inputMeta,
   keyHintMeta,
+  launcherButtonMeta,
   listboxMeta,
   loadingStateMeta,
   menuMeta,
+  mobileActionSheetMeta,
+  mobileBadgeMeta,
+  mobileBannerMeta,
+  mobileButtonMeta,
+  mobileCardMeta,
+  mobileChoiceSheetMeta,
+  mobileConfirmSheetMeta,
+  mobileComposerMeta,
+  mobileDisclosureMeta,
+  mobileFileButtonMeta,
+  mobileFloatingActionsMeta,
+  mobileIconButtonMeta,
+  mobileLinkMeta,
+  mobileListRowMeta,
+  mobileMessageMeta,
+  mobilePageHeaderMeta,
+  mobileScrimMeta,
+  mobileSectionMeta,
+  mobileSegmentedControlMeta,
+  mobileSheetMeta,
+  mobileStatusMeta,
+  mobileTextFieldMeta,
+  mobileTextareaMeta,
   dialogMeta,
   multiSelectMeta,
   navigationPanelMeta,

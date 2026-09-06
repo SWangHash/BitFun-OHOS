@@ -12,11 +12,12 @@ import {
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from '@bitfun/ui';
+  ConfirmDialog,
+} from '@openbitfun/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Zap, GitCommitHorizontal, GitPullRequest } from 'lucide-react';
-import { ConfigLoadingState } from '@/infrastructure/config/components/common';
+import { Zap, GitPullRequest } from 'lucide-react';
+import { ConfigLoadingState, ConfigRetryState } from '@/infrastructure/config/components/common';
 import {
   ConfigPageHeader,
   ConfigPageLayout,
@@ -34,6 +35,10 @@ import {
 } from '../services/quickActionLocalization';
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
+import {
+  requestSettingsDraftExit,
+  useSettingsDraft,
+} from '@/infrastructure/config/settingsDraftRegistry';
 import './QuickActionsConfig.scss';
 
 const log = createLogger('QuickActionsConfig');
@@ -43,7 +48,7 @@ const BUILTIN_IDS = new Set(['commit', 'create_pr']);
 type TranslationFn = (key: string, options?: Record<string, unknown>) => string;
 
 function getActionIcon(id: string, size = 15) {
-  if (id === 'commit') return <GitCommitHorizontal size={size} />;
+  if (id === 'commit') return <Icon name="commit" size="lg" style={{ width: size, height: size }} />;
   if (id === 'create_pr') return <GitPullRequest size={size} />;
   return <Zap size={size} />;
 }
@@ -55,60 +60,90 @@ interface ActionFormModalProps {
   /** undefined = create mode, QuickAction = edit mode */
   target: QuickAction | undefined;
   onClose: () => void;
-  onSubmit: (label: string, prompt: string) => void;
+  onSubmit: (label: string, prompt: string) => Promise<boolean>;
+  saving: boolean;
   t: TranslationFn;
 }
 
-const ActionFormModal: React.FC<ActionFormModalProps> = ({ isOpen, target, onClose, onSubmit, t }) => {
+const ActionFormModal: React.FC<ActionFormModalProps> = ({ isOpen, target, onClose, onSubmit, saving, t }) => {
   const [label, setLabel] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [initialValues, setInitialValues] = useState({ label: '', prompt: '' });
   const labelInputRef = useRef<HTMLInputElement>(null);
 
   // Sync form when target changes or modal opens.
   useEffect(() => {
-    if (isOpen) {
-      const targetText = target ? resolveQuickActionText(target, t) : undefined;
-      setLabel(targetText?.label ?? '');
-      setPrompt(targetText?.prompt ?? '');
-      // Delay focus so the modal animation completes first.
-      setTimeout(() => labelInputRef.current?.focus(), 80);
-    }
+    if (!isOpen) return undefined;
+    const targetText = target ? resolveQuickActionText(target, t) : undefined;
+    const nextValues = {
+      label: targetText?.label ?? '',
+      prompt: targetText?.prompt ?? '',
+    };
+    setLabel(nextValues.label);
+    setPrompt(nextValues.prompt);
+    setInitialValues(nextValues);
+    // Delay focus so the modal animation completes first.
+    const focusTimer = window.setTimeout(() => labelInputRef.current?.focus(), 80);
+    return () => window.clearTimeout(focusTimer);
   }, [isOpen, t, target]);
 
   const canSubmit = label.trim().length > 0 && prompt.trim().length > 0;
+  const dirty = label !== initialValues.label || prompt !== initialValues.prompt;
+  const isEdit = !!target;
+
+  const discardDraft = useCallback(() => {
+    setLabel(initialValues.label);
+    setPrompt(initialValues.prompt);
+  }, [initialValues]);
+
+  useSettingsDraft({
+    id: 'quick-action-editor',
+    pageId: 'tools.automation',
+    viewId: 'quick-actions',
+    label: isEdit ? t('modal.editTitle') : t('modal.addTitle'),
+    dirty,
+    saving,
+    save: () => canSubmit && onSubmit(label.trim(), prompt.trim()),
+    discard: discardDraft,
+    enabled: isOpen,
+  });
+
+  const requestClose = () => {
+    if (saving) return;
+    requestSettingsDraftExit(['quick-action-editor'], onClose);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') { onClose(); return; }
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canSubmit) {
-      onSubmit(label.trim(), prompt.trim());
+    if (e.key === 'Escape' && !saving) { requestClose(); return; }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canSubmit && !saving) {
+      e.preventDefault();
+      void onSubmit(label.trim(), prompt.trim());
     }
   };
 
-  const isEdit = !!target;
-
   return (
     <Dialog
-      open={isOpen}
-      onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}
-      size="md"
-    >
+        open={isOpen}
+        onOpenChange={(nextOpen) => { if (!nextOpen) requestClose(); }}
+        size="md"
+      >
       <DialogHeader>
         <DialogHeading>
           <DialogTitle>{isEdit ? t('modal.editTitle') : t('modal.addTitle')}</DialogTitle>
         </DialogHeading>
-        <DialogClose />
+        <DialogClose disabled={saving} />
       </DialogHeader>
       <DialogBody>
-      <div className="quick-actions-config__modal-body" onKeyDown={handleKeyDown} data-bf-component="quick-actions-config" data-bf-part="dialog">
+      <div className="quick-actions-config__modal-body" onKeyDown={handleKeyDown} data-openbitfun-component="quick-actions-config" data-openbitfun-part="dialog">
         {target && (
-          <div data-bf-component="quick-actions-config" data-bf-part="dialogIcon" className="quick-actions-config__modal-icon-preview">
+          <div data-openbitfun-component="quick-actions-config" data-openbitfun-part="dialogIcon" className="quick-actions-config__modal-icon-preview">
             <div className="quick-actions-config__modal-action-icon">
               {getActionIcon(target.id, 18)}
             </div>
           </div>
         )}
 
-        <div data-bf-component="quick-actions-config" data-bf-part="field" className="quick-actions-config__modal-field">
+        <div data-openbitfun-component="quick-actions-config" data-openbitfun-part="field" className="quick-actions-config__modal-field">
           <label className="quick-actions-config__modal-label" htmlFor="qa-label">
             {t('modal.labelField')}
           </label>
@@ -118,10 +153,11 @@ const ActionFormModal: React.FC<ActionFormModalProps> = ({ isOpen, target, onClo
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder={t('modal.labelPlaceholder')}
+            disabled={saving}
           />
         </div>
 
-        <div data-bf-component="quick-actions-config" data-bf-part="field" className="quick-actions-config__modal-field">
+        <div data-openbitfun-component="quick-actions-config" data-openbitfun-part="field" className="quick-actions-config__modal-field">
           <label className="quick-actions-config__modal-label" htmlFor="qa-prompt">
             {t('modal.promptField')}
           </label>
@@ -132,20 +168,22 @@ const ActionFormModal: React.FC<ActionFormModalProps> = ({ isOpen, target, onClo
             placeholder={t('modal.promptPlaceholder')}
             rows={4}
             autoResize
+            disabled={saving}
             className="quick-actions-config__modal-textarea"
           />
           <p className="quick-actions-config__modal-hint">{t('modal.promptHint')}</p>
         </div>
 
-        <div data-bf-component="quick-actions-config" data-bf-part="dialogFooter" className="quick-actions-config__modal-footer">
-          <Button variant="outline" size="sm" onClick={onClose}>
+        <div data-openbitfun-component="quick-actions-config" data-openbitfun-part="dialogFooter" className="quick-actions-config__modal-footer">
+          <Button variant="outline" size="sm" onClick={requestClose} disabled={saving}>
             {t('modal.cancel')}
           </Button>
           <Button
             variant="fill"
             size="sm"
-            onClick={() => onSubmit(label.trim(), prompt.trim())}
-            disabled={!canSubmit}
+            onClick={() => void onSubmit(label.trim(), prompt.trim())}
+            disabled={!canSubmit || saving}
+            loading={saving}
             leadingIcon={<Icon name="check-line" size="sm" />}
           >
 
@@ -166,27 +204,29 @@ interface ActionRowProps {
   onEdit: (action: QuickAction) => void;
   onDelete: (id: string) => void;
   canDelete: boolean;
+  disabled: boolean;
   t: TranslationFn;
 }
 
-const ActionRow: React.FC<ActionRowProps> = ({ action, onToggle, onEdit, onDelete, canDelete, t }) => {
+const ActionRow: React.FC<ActionRowProps> = ({ action, onToggle, onEdit, onDelete, canDelete, disabled, t }) => {
   const actionText = resolveQuickActionText(action, t);
 
   return (
-    <div className="quick-actions-config__row" data-bf-component="quick-actions-config" data-bf-part="row">
-      <div data-bf-component="quick-actions-config" data-bf-part="rowIcon" className="quick-actions-config__row-icon">
+    <div className="quick-actions-config__row" data-openbitfun-component="quick-actions-config" data-openbitfun-part="row">
+      <div data-openbitfun-component="quick-actions-config" data-openbitfun-part="rowIcon" className="quick-actions-config__row-icon">
         {getActionIcon(action.id)}
       </div>
 
-      <div data-bf-component="quick-actions-config" data-bf-part="rowBody" className="quick-actions-config__row-body">
+      <div data-openbitfun-component="quick-actions-config" data-openbitfun-part="rowBody" className="quick-actions-config__row-body">
         <div className="quick-actions-config__row-label">{actionText.label}</div>
         <div className="quick-actions-config__row-prompt">{actionText.prompt}</div>
       </div>
 
-      <div data-bf-component="quick-actions-config" data-bf-part="rowControls" className="quick-actions-config__row-controls">
+      <div data-openbitfun-component="quick-actions-config" data-openbitfun-part="rowControls" className="quick-actions-config__row-controls">
         <Switch
           checked={action.enabled}
           onChange={() => onToggle(action.id)}
+          disabled={disabled}
         />
         <Tooltip content={t('edit.button')}>
           <IconButton
@@ -194,6 +234,7 @@ const ActionRow: React.FC<ActionRowProps> = ({ action, onToggle, onEdit, onDelet
             size="sm"
             aria-label={t('edit.button')}
             onClick={() => onEdit(action)}
+            disabled={disabled}
             icon={<Icon name="edit" size="xs" />}
           />
         </Tooltip>
@@ -204,6 +245,7 @@ const ActionRow: React.FC<ActionRowProps> = ({ action, onToggle, onEdit, onDelet
               size="sm"
               aria-label={t('delete.button')}
               onClick={() => onDelete(action.id)}
+              disabled={disabled}
               className="quick-actions-config__delete-btn"
               icon={<Icon name="delete" size="lg" style={{ width: 13, height: 13 }} />}
             />
@@ -221,20 +263,27 @@ const QuickActionsConfig: React.FC = () => {
   const notification = useNotification();
 
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [actions, setActions] = useState<QuickAction[]>([]);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingSaveCountRef = useRef(0);
 
   // Modal state: undefined = closed, null = create, QuickAction = edit
   const [modalTarget, setModalTarget] = useState<QuickAction | null | undefined>(undefined);
+  const [deleteTarget, setDeleteTarget] = useState<QuickAction | null>(null);
   const isModalOpen = modalTarget !== undefined;
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const settings = await aiExperienceConfigService.getSettingsAsync();
       const stored = settings.quick_actions;
       setActions(stored ?? DEFAULT_QUICK_ACTIONS);
     } catch (error) {
       log.error('Failed to load quick actions', error);
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -242,26 +291,49 @@ const QuickActionsConfig: React.FC = () => {
 
   useEffect(() => { void load(); }, [load]);
 
-  const persist = useCallback(async (next: QuickAction[]) => {
-    try {
-      await aiExperienceConfigService.saveSettings({ quick_actions: next });
-      setActions(next);
-      notification.success(t('messages.saved'));
-    } catch (error) {
-      log.error('Failed to save quick actions', error);
-      notification.error(t('messages.saveFailed'));
+  const persist = useCallback((next: QuickAction[]): Promise<boolean> => {
+    if (pendingSaveCountRef.current > 0) {
+      return Promise.resolve(false);
     }
+    pendingSaveCountRef.current += 1;
+    setSaving(true);
+    const operation = saveQueueRef.current.then(async () => {
+      try {
+        await aiExperienceConfigService.saveSettings({ quick_actions: next });
+        setActions(next);
+        notification.success(t('messages.saved'));
+        return true;
+      } catch (error) {
+        log.error('Failed to save quick actions', error);
+        notification.error(t('messages.saveFailed'));
+        return false;
+      } finally {
+        pendingSaveCountRef.current -= 1;
+        if (pendingSaveCountRef.current === 0) setSaving(false);
+      }
+    });
+    saveQueueRef.current = operation.then(() => undefined, () => undefined);
+    return operation;
   }, [notification, t]);
 
   const handleToggle = useCallback((id: string) => {
+    if (saving) return;
     void persist(actions.map(a => a.id === id ? { ...a, enabled: !a.enabled } : a));
-  }, [actions, persist]);
+  }, [actions, persist, saving]);
 
   const handleDelete = useCallback((id: string) => {
-    void persist(actions.filter(a => a.id !== id));
-  }, [actions, persist]);
+    const target = actions.find(action => action.id === id);
+    if (target) setDeleteTarget(target);
+  }, [actions]);
 
-  const handleModalSubmit = useCallback((label: string, prompt: string) => {
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    const saved = await persist(actions.filter(action => action.id !== deleteTarget.id));
+    if (saved) setDeleteTarget(null);
+  }, [actions, deleteTarget, persist]);
+
+  const handleModalSubmit = useCallback(async (label: string, prompt: string): Promise<boolean> => {
+    let saved = false;
     if (modalTarget === null) {
       // Create mode
       const newAction: QuickAction = {
@@ -270,21 +342,30 @@ const QuickActionsConfig: React.FC = () => {
         prompt,
         enabled: true,
       };
-      void persist([...actions, newAction]);
+      saved = await persist([...actions, newAction]);
     } else if (modalTarget) {
       // Edit mode
       const normalizedText = normalizeQuickActionTextForStorage(modalTarget, label, prompt, t);
-      void persist(actions.map(a => a.id === modalTarget.id ? { ...a, ...normalizedText } : a));
+      saved = await persist(actions.map(a => a.id === modalTarget.id ? { ...a, ...normalizedText } : a));
     }
-    setModalTarget(undefined);
+    if (saved) setModalTarget(undefined);
+    return saved;
   }, [actions, modalTarget, persist, t]);
 
-  if (loading) {
+  if (loading || loadFailed) {
     return (
-      <ConfigPageLayout className="quick-actions-config" data-bf-component="quick-actions-config" data-bf-part="root">
+      <ConfigPageLayout className="quick-actions-config" data-openbitfun-component="quick-actions-config" data-openbitfun-part="root">
         <ConfigPageHeader title={t('page.title')} subtitle={t('page.subtitle')} />
         <ConfigPageContent>
-          <ConfigLoadingState label={t('loading')} />
+          {loading ? (
+            <ConfigLoadingState label={t('loading')} />
+          ) : (
+            <ConfigRetryState
+              message={t('messages.loadFailedLocked')}
+              retryLabel={t('messages.retry')}
+              onRetry={() => void load()}
+            />
+          )}
         </ConfigPageContent>
       </ConfigPageLayout>
     );
@@ -294,14 +375,14 @@ const QuickActionsConfig: React.FC = () => {
   const customActions = actions.filter(a => !BUILTIN_IDS.has(a.id));
 
   return (
-    <ConfigPageLayout className="quick-actions-config" data-bf-component="quick-actions-config" data-bf-part="root">
+    <ConfigPageLayout className="quick-actions-config" data-openbitfun-component="quick-actions-config" data-openbitfun-part="root">
       <ConfigPageHeader title={t('page.title')} subtitle={t('page.subtitle')} />
 
-      <ConfigPageContent data-bf-component="quick-actions-config" data-bf-part="content" className="quick-actions-config__content">
+      <ConfigPageContent data-openbitfun-component="quick-actions-config" data-openbitfun-part="content" className="quick-actions-config__content">
 
         {/* ── Built-in actions ──────────────────────────────────────────── */}
         <ConfigPageSection title={t('sections.builtin.title')}>
-          <div data-bf-component="quick-actions-config" data-bf-part="list" className="quick-actions-config__list">
+          <div data-openbitfun-component="quick-actions-config" data-openbitfun-part="list" className="quick-actions-config__list">
             {builtinActions.map(action => (
               <ActionRow
                 key={action.id}
@@ -310,6 +391,7 @@ const QuickActionsConfig: React.FC = () => {
                 onEdit={(a) => setModalTarget(a)}
                 onDelete={handleDelete}
                 canDelete={false}
+                disabled={saving}
                 t={t}
               />
             ))}
@@ -324,6 +406,7 @@ const QuickActionsConfig: React.FC = () => {
               size="sm"
               variant="outline"
               onClick={() => setModalTarget(null)}
+              disabled={saving}
               leadingIcon={<Icon name="plus" size="sm" />}
             >
 
@@ -331,15 +414,16 @@ const QuickActionsConfig: React.FC = () => {
             </Button>
           }
         >
-          <div data-bf-component="quick-actions-config" data-bf-part="list" className="quick-actions-config__list">
+          <div data-openbitfun-component="quick-actions-config" data-openbitfun-part="list" className="quick-actions-config__list">
             {customActions.length === 0 ? (
-              <div data-bf-component="quick-actions-config" data-bf-part="empty" data-bf-state="empty" className="quick-actions-config__empty">
+              <div data-openbitfun-component="quick-actions-config" data-openbitfun-part="empty" data-openbitfun-state="empty" className="quick-actions-config__empty">
                 <Zap size={20} className="quick-actions-config__empty-icon" />
                 <p>{t('sections.custom.empty')}</p>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => setModalTarget(null)}
+                  disabled={saving}
                   leadingIcon={<Icon name="plus" size="sm" />}
                 >
 
@@ -355,6 +439,7 @@ const QuickActionsConfig: React.FC = () => {
                   onEdit={(a) => setModalTarget(a)}
                   onDelete={handleDelete}
                   canDelete
+                  disabled={saving}
                   t={t}
                 />
               ))
@@ -369,7 +454,20 @@ const QuickActionsConfig: React.FC = () => {
         target={modalTarget ?? undefined}
         onClose={() => setModalTarget(undefined)}
         onSubmit={handleModalSubmit}
+        saving={saving}
         t={t}
+      />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open && !saving) setDeleteTarget(null); }}
+        onConfirm={confirmDelete}
+        title={t('delete.confirmTitle')}
+        message={t('delete.confirmMessage', {
+          name: deleteTarget ? resolveQuickActionText(deleteTarget, t).label : '',
+        })}
+        confirmText={t('delete.confirmAction')}
+        type="warning"
+        confirmDanger
       />
     </ConfigPageLayout>
   );

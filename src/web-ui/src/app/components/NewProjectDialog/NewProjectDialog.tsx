@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from '@bitfun/ui';
+} from '@openbitfun/ui';
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   FolderPlus,
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@/shared/utils/logger';
+import { basenamePath } from '@/shared/utils/pathUtils';
 import './NewProjectDialog.scss';
 
 const log = createLogger('NewProjectDialog');
@@ -45,6 +46,12 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
   const [projectName, setProjectName] = useState<string>('');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string>('');
+
+  const parentFolderName = useMemo(() => {
+    if (!parentPath) return '';
+    const pathWithoutTrailingSeparators = parentPath.replace(/[\\/]+$/, '') || parentPath;
+    return basenamePath(pathWithoutTrailingSeparators) || pathWithoutTrailingSeparators;
+  }, [parentPath]);
 
   // Combine parent path and project name
   const fullPath = useMemo(() => {
@@ -128,33 +135,32 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
         <DialogClose />
       </DialogHeader>
       <DialogBody inset="none">
-      <div data-bf-component="new-project-dialog" data-bf-part="root" className="new-project-dialog">
+      <div data-openbitfun-component="new-project-dialog" data-openbitfun-part="root" className="new-project-dialog">
         {/* Hero section */}
-        <div data-bf-component="new-project-dialog" data-bf-part="hero" className="new-project-dialog__hero">
+        <div data-openbitfun-component="new-project-dialog" data-openbitfun-part="hero" className="new-project-dialog__hero">
           <div className="new-project-dialog__icon-wrapper">
             <FolderPlus size={24} />
           </div>
-          <h2 data-bf-component="new-project-dialog" data-bf-part="title" className="new-project-dialog__title">{t('newProject.title')}</h2>
+          <h2 data-openbitfun-component="new-project-dialog" data-openbitfun-part="title" className="new-project-dialog__title">{t('newProject.title')}</h2>
           <p className="new-project-dialog__subtitle">{t('newProject.subtitle')}</p>
         </div>
 
         {/* Form content */}
-        <div data-bf-component="new-project-dialog" data-bf-part="content" className="new-project-dialog__content">
+        <div data-openbitfun-component="new-project-dialog" data-openbitfun-part="content" className="new-project-dialog__content">
           {/* Parent directory */}
-          <div data-bf-component="new-project-dialog" data-bf-part="field" className="new-project-dialog__field">
+          <div data-openbitfun-component="new-project-dialog" data-openbitfun-part="field" className="new-project-dialog__field">
             <label className="new-project-dialog__label">
               <FolderOpen size={14} />
               {t('newProject.parentDirectory')}
             </label>
-            <div data-bf-component="new-project-dialog" data-bf-part="pathSelector" className="new-project-dialog__path-selector">
-              <div className="new-project-dialog__path-input">
-                <Input
-                  type="text"
-                  value={parentPath}
-                  readOnly
-                  placeholder={t('newProject.parentDirectoryPlaceholder')}
-                />
-              </div>
+            <div data-openbitfun-component="new-project-dialog" data-openbitfun-part="pathSelector" className="new-project-dialog__path-selector">
+              <Input
+                className="new-project-dialog__path-input"
+                type="text"
+                value={parentFolderName}
+                readOnly
+                placeholder={t('newProject.parentDirectoryPlaceholder')}
+              />
               <Button
                 type="button"
                 className="new-project-dialog__select-btn"
@@ -169,39 +175,38 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
           </div>
 
           {/* Project name */}
-          <div data-bf-component="new-project-dialog" data-bf-part="field" className="new-project-dialog__field">
+          <div data-openbitfun-component="new-project-dialog" data-openbitfun-part="field" className="new-project-dialog__field">
             <label className="new-project-dialog__label">
               <FileText size={14} />
               {t('newProject.projectName')}
             </label>
-            <div className="new-project-dialog__name-input">
-              <Input
-                type="text"
-                value={projectName}
-                onChange={handleProjectNameChange}
-                placeholder={t('newProject.projectNamePlaceholder')}
-                disabled={isCreating}
-                autoFocus
-              />
-            </div>
+            <Input
+              className="new-project-dialog__name-input"
+              type="text"
+              value={projectName}
+              onChange={handleProjectNameChange}
+              placeholder={t('newProject.projectNamePlaceholder')}
+              disabled={isCreating}
+              autoFocus
+            />
           </div>
 
           {/* Full path display */}
           {fullPath && (
-            <div data-bf-component="new-project-dialog" data-bf-part="preview" className="new-project-dialog__preview">
+            <div data-openbitfun-component="new-project-dialog" data-openbitfun-part="preview" className="new-project-dialog__preview">
               <div className="new-project-dialog__preview-icon">
                 <FolderTree size={14} />
               </div>
               <div className="new-project-dialog__preview-content">
                 <span className="new-project-dialog__preview-label">{t('newProject.fullPath')}</span>
-                <span className="new-project-dialog__preview-path">{fullPath}</span>
+                <span className="new-project-dialog__preview-path" title={fullPath}>{fullPath}</span>
               </div>
             </div>
           )}
 
           {/* Error message */}
           {error && (
-            <div data-bf-component="new-project-dialog" data-bf-part="error" className="new-project-dialog__error">
+            <div data-openbitfun-component="new-project-dialog" data-openbitfun-part="error" className="new-project-dialog__error">
               <AlertCircle size={14} />
               <span>{error}</span>
             </div>
@@ -209,7 +214,7 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
         </div>
 
         {/* Footer buttons */}
-        <div data-bf-component="new-project-dialog" data-bf-part="footer" className="new-project-dialog__footer">
+        <div data-openbitfun-component="new-project-dialog" data-openbitfun-part="footer" className="new-project-dialog__footer">
           <Button
             type="button"
             variant="outline"

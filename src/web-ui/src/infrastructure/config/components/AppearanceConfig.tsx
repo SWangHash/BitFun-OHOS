@@ -80,13 +80,13 @@ function AppearanceSelectionSection() {
     <div
       className="appearance-settings"
       data-testid="appearance-settings-section"
-      data-bf-component="appearance-config"
-      data-bf-part="settings"
+      data-openbitfun-component="appearance-config"
+      data-openbitfun-part="settings"
     >
       <div
         className="appearance-settings__content"
-        data-bf-component="appearance-config"
-        data-bf-part="settingsContent"
+        data-openbitfun-component="appearance-config"
+        data-openbitfun-part="settingsContent"
       >
         <ConfigPageSection title={t('appearance.title')} description={t('appearance.hint')}>
           <ConfigPageRow
@@ -96,8 +96,8 @@ function AppearanceSelectionSection() {
           >
             <div
               className="appearance-settings__language-select"
-              data-bf-component="appearance-config"
-              data-bf-part="language"
+              data-openbitfun-component="appearance-config"
+              data-openbitfun-part="language"
             >
               <Select
                 value={currentLanguage}
@@ -125,13 +125,13 @@ function AppearanceSelectionSection() {
           >
             <div
               className="appearance-settings__palette-picker"
-              data-bf-component="appearance-config"
-              data-bf-part="palettePicker"
+              data-openbitfun-component="appearance-config"
+              data-openbitfun-part="palettePicker"
             >
               <div
                 className="appearance-settings__palette-select"
-                data-bf-component="appearance-config"
-                data-bf-part="paletteSelect"
+                data-openbitfun-component="appearance-config"
+                data-openbitfun-part="paletteSelect"
               >
                 <Select
                   value={selectedAppearanceId}
@@ -142,8 +142,8 @@ function AppearanceSelectionSection() {
                   renderOption={(option) => (
                     <div
                       className="appearance-settings__palette-option"
-                      data-bf-component="appearance-config"
-                      data-bf-part="paletteOption"
+                      data-openbitfun-component="appearance-config"
+                      data-openbitfun-part="paletteOption"
                     >
                       <span className="appearance-settings__palette-option-name">{option.label}</span>
                       {option.description && (
@@ -189,15 +189,15 @@ const AppearanceConfig: React.FC = () => {
 
   return (
     <ConfigPageLayout
-      className="bitfun-appearance-config"
-      data-bf-component="appearance-config"
-      data-bf-part="root"
+      className="openbitfun-appearance-config"
+      data-openbitfun-component="appearance-config"
+      data-openbitfun-part="root"
     >
       <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
       <ConfigPageContent
-        className="bitfun-appearance-config__content"
-        data-bf-component="appearance-config"
-        data-bf-part="content"
+        className="openbitfun-appearance-config__content"
+        data-openbitfun-component="appearance-config"
+        data-openbitfun-part="content"
       >
         <ConfigPageSectionStack data-testid="appearance-config">
           <AppearanceSelectionSection />

@@ -8,7 +8,7 @@ export const compactToolCardAppearanceDescriptor: AppearanceSurfaceDescriptor = 
   ],
   facets: [{
     id: 'status',
-    attribute: 'data-bf-status',
+    attribute: 'data-openbitfun-status',
     values: [
       'pending', 'queued', 'waiting', 'preparing', 'streaming', 'receiving',
       'running', 'completed', 'error', 'cancelled', 'rejected', 'analyzing',
@@ -16,8 +16,8 @@ export const compactToolCardAppearanceDescriptor: AppearanceSurfaceDescriptor = 
     ],
   }],
   states: [
-    { id: 'loading', selector: { kind: 'self', suffix: '[data-bf-state~="loading"]' } },
-    { id: 'clickable', selector: { kind: 'self', suffix: '[data-bf-state~="clickable"]' } },
-    { id: 'expanded', selector: { kind: 'self', suffix: '[data-bf-state~="expanded"]' } },
+    { id: 'loading', selector: { kind: 'self', suffix: '[data-openbitfun-state~="loading"]' } },
+    { id: 'clickable', selector: { kind: 'self', suffix: '[data-openbitfun-state~="clickable"]' } },
+    { id: 'expanded', selector: { kind: 'self', suffix: '[data-openbitfun-state~="expanded"]' } },
   ],
 };

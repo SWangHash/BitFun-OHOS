@@ -17,14 +17,14 @@
 // without weakening real warnings elsewhere.
 #![allow(dead_code)]
 
-use bitfun_core::agentic::tools::computer_use_host::{AppStateSnapshot, AxNode};
-use bitfun_core::util::errors::{BitFunError, BitFunResult};
+use super::ax_snapshot_digest::compute_digest;
 use core_foundation::array::{CFArray, CFArrayRef};
 use core_foundation::base::{CFGetTypeID, CFTypeRef, TCFType};
 use core_foundation::boolean::{CFBoolean, CFBooleanGetTypeID, CFBooleanRef};
 use core_foundation::string::{CFString, CFStringRef};
 use core_graphics::geometry::{CGPoint, CGSize};
-use sha1::{Digest, Sha1};
+use openbitfun_core::agentic::tools::computer_use_host::{AppStateSnapshot, AxNode};
+use openbitfun_core::util::errors::{OpenBitFunError, OpenBitFunResult};
 use std::collections::{HashMap, VecDeque};
 use std::ffi::c_void;
 use std::sync::{Mutex, OnceLock};
@@ -470,10 +470,10 @@ fn is_closed_menu_container(role: &str, frame: Option<(f64, f64, f64, f64)>) -> 
     }
 }
 
-pub(super) fn dump_app_ax(pid: i32, opts: DumpOpts) -> BitFunResult<AppStateSnapshot> {
+pub(super) fn dump_app_ax(pid: i32, opts: DumpOpts) -> OpenBitFunResult<AppStateSnapshot> {
     let app = unsafe { AXUIElementCreateApplication(pid) };
     if app.is_null() {
-        return Err(BitFunError::tool(format!(
+        return Err(OpenBitFunError::tool(format!(
             "AXUIElementCreateApplication returned null for pid={}",
             pid
         )));
@@ -661,7 +661,7 @@ equivalents, or AXPress the menu first.\n",
     {
         let mut cache = snapshot_cache()
             .lock()
-            .map_err(|_| BitFunError::tool("AX snapshot cache poisoned".to_string()))?;
+            .map_err(|_| OpenBitFunError::tool("AX snapshot cache poisoned".to_string()))?;
         cache.insert(
             pid,
             CachedSnapshot {
@@ -672,7 +672,7 @@ equivalents, or AXPress the menu first.\n",
     }
 
     Ok(AppStateSnapshot {
-        app: bitfun_core::agentic::tools::computer_use_host::AppInfo {
+        app: openbitfun_core::agentic::tools::computer_use_host::AppInfo {
             name: window_title.clone().unwrap_or_default(),
             bundle_id: None,
             pid: Some(pid),
@@ -835,51 +835,61 @@ fn quote_clip(s: &str, max: usize) -> String {
     }
 }
 
-fn compute_digest(nodes: &[AxNode]) -> String {
-    let mut h = Sha1::new();
-    for n in nodes {
-        h.update(n.idx.to_le_bytes());
-        h.update(n.parent_idx.unwrap_or(u32::MAX).to_le_bytes());
-        h.update(n.role.as_bytes());
-        h.update(b"\x1f");
-        h.update(n.subrole.as_deref().unwrap_or("").as_bytes());
-        h.update(b"\x1f");
-        h.update(n.title.as_deref().unwrap_or("").as_bytes());
-        h.update(b"\x1f");
-        h.update(n.identifier.as_deref().unwrap_or("").as_bytes());
-        h.update(b"\x1f");
-        h.update(n.description.as_deref().unwrap_or("").as_bytes());
-        h.update(b"\x1f");
-        h.update(n.help.as_deref().unwrap_or("").as_bytes());
-        h.update(b"\x1f");
-        h.update(n.value.as_deref().unwrap_or("").as_bytes());
-        h.update(b"\x1f");
-        h.update(n.url.as_deref().unwrap_or("").as_bytes());
-        h.update(b"\x1f");
-        h.update(match n.expanded {
-            Some(true) => b"E"[..].to_vec(),
-            Some(false) => b"C"[..].to_vec(),
-            None => Vec::new(),
-        });
-        h.update(b"\x1f");
-        for a in &n.actions {
-            h.update(a.as_bytes());
-            h.update(b",");
-        }
-        h.update(b"\x1e");
-    }
-    let bytes = h.finalize();
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for b in bytes {
-        s.push_str(&format!("{:02x}", b));
-    }
-    s
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitfun_core::agentic::tools::computer_use_host::AxNode;
+
+    #[test]
+    #[ignore = "run scripts/test-native-ax-context.mjs with macOS Accessibility permission"]
+    fn native_ax_fixture_round_trips_tree_and_cached_targets() {
+        let pid: i32 = std::env::var("OPENBITFUN_AX_FIXTURE_PID")
+            .expect("isolated fixture PID")
+            .parse()
+            .unwrap();
+        let snapshot = dump_app_ax(pid, DumpOpts::default()).expect("native AX dump");
+        assert_eq!(snapshot.app.pid, Some(pid));
+        for title in ["Save report", "Delete draft", "Unavailable action"] {
+            assert!(
+                snapshot.tree_text.contains(title),
+                "fixture control {title} missing; verify Accessibility permission: {}",
+                snapshot.tree_text
+            );
+        }
+        assert!(snapshot
+            .nodes
+            .iter()
+            .any(|n| n.value.as_deref() == Some("context-value")));
+        assert!(snapshot
+            .nodes
+            .iter()
+            .any(|n| n.title.as_deref() == Some("Unavailable action") && !n.enabled));
+        for (i, n) in snapshot.nodes.iter().enumerate() {
+            assert_eq!(n.idx as usize, i);
+            if let Some(parent) = n.parent_idx {
+                assert!((parent as usize) < i);
+            }
+            assert!(
+                cached_ref_loose(pid, n.idx).is_some(),
+                "missing cached target {}",
+                n.idx
+            );
+        }
+        let elements = crate::computer_use::interactive_filter::build_interactive_elements(
+            &snapshot.nodes,
+            None,
+            &crate::computer_use::interactive_filter::FilterOpts::default(),
+        );
+        for title in ["Save report", "Delete draft"] {
+            assert!(
+                elements.iter().any(|e| e.label.as_deref() == Some(title)),
+                "lost native target {title}"
+            );
+        }
+        let restored: AppStateSnapshot =
+            serde_json::from_value(serde_json::to_value(&snapshot).unwrap()).unwrap();
+        assert_eq!(restored, snapshot);
+    }
+    use openbitfun_core::agentic::tools::computer_use_host::AxNode;
 
     fn n(idx: u32, parent: Option<u32>, role: &str, title: Option<&str>) -> AxNode {
         AxNode {

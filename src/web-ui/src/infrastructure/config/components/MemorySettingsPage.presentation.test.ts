@@ -24,4 +24,29 @@ describe('Memory settings presentation', () => {
     expect(advancedSection).toContain('aria-expanded={advancedOpen}');
     expect(advancedSection).toContain('{advancedOpen && (');
   });
+
+  it('places memory actions in Basics instead of the page header', () => {
+    const source = readSource();
+    const contentStart = source.indexOf('<ConfigPageContent>', source.indexOf('const memoryEnabled'));
+    const headerStart = source.lastIndexOf('<ConfigPageHeader', contentStart);
+    const header = source.slice(headerStart, contentStart);
+    const basicStart = source.indexOf("title={t('sections.basic.title')}", contentStart);
+    const basicEnd = source.indexOf('</ConfigPageSection>', basicStart);
+    const basicSection = source.slice(basicStart, basicEnd);
+
+    expect(contentStart).toBeGreaterThan(-1);
+    expect(headerStart).toBeGreaterThan(-1);
+    expect(basicStart).toBeGreaterThan(contentStart);
+    expect(basicEnd).toBeGreaterThan(basicStart);
+    expect(header).not.toContain('extra=');
+    expect(header).not.toContain('<MenuPopover');
+    expect(basicSection).toContain("label={t('fields.memoryActions.label')}");
+    expect(basicSection).toContain("description={t('fields.memoryActions.description')}");
+    expect(basicSection).toContain('<MenuPopover');
+    expect(basicSection).toContain("{t('actions.manage')}");
+    expect(source).toContain("id: 'open-directory'");
+    expect(source).toContain("id: 'reset-settings'");
+    expect(source).toContain("id: 'clear-memory'");
+    expect(source).toContain("tone: 'danger'");
+  });
 });

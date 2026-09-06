@@ -17,7 +17,7 @@ interface LspSettings {
 }
 
 const DEFAULT_LSP_SETTINGS: LspSettings = { autoStartEnabled: true };
-const LSP_SETTINGS_KEY = 'bitfun_lsp_settings';
+const LSP_SETTINGS_KEY = 'openbitfun_lsp_settings';
 
 const LspConfig: React.FC = () => {
   const { t } = useTranslation('settings/lsp');
@@ -99,12 +99,12 @@ const LspConfig: React.FC = () => {
   ) : null;
 
   return (
-    <ConfigPageLayout className="bitfun-lsp-config" data-bf-component="lsp-config" data-bf-part="root">
+    <ConfigPageLayout className="openbitfun-lsp-config" data-openbitfun-component="lsp-config" data-openbitfun-part="root">
       <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
 
       <ConfigPageContent>
         {installMessage && (
-          <div className="bitfun-lsp-config__message-container" data-bf-component="lsp-config" data-bf-part="message">
+          <div className="openbitfun-lsp-config__message-container" data-openbitfun-component="lsp-config" data-openbitfun-part="message">
             <Alert type={installMessage.type === 'success' ? 'success' : 'error'} message={installMessage.text} />
           </div>
         )}
@@ -138,7 +138,7 @@ const LspConfig: React.FC = () => {
                 disabled={isInitializing}
                 tooltip={t('pluginList.initTooltip')}
               >
-                <RefreshCw size={16} className={isInitializing ? 'bitfun-lsp-config__spinning' : ''} />
+                <RefreshCw size={16} className={isInitializing ? 'openbitfun-lsp-config__spinning' : ''} />
               </IconButton>
               <IconButton
                 variant="ghost"
@@ -160,7 +160,7 @@ const LspConfig: React.FC = () => {
             </>
           }
         >
-          <div className="bitfun-lsp-config__plugins" data-bf-component="lsp-config" data-bf-part="plugins">
+          <div className="openbitfun-lsp-config__plugins" data-openbitfun-component="lsp-config" data-openbitfun-part="plugins">
             <LspPluginList
               onInitialize={handleInitialize}
               onInstallPlugin={handleInstallPlugin}

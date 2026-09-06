@@ -189,6 +189,23 @@ export default function deviceDirectoryUnitTest() {
   });
 
   describe('DeviceDirectoryViewModel', () => {
+    it('selects a live QR device projected outside the account directory', 0, async () => {
+      const state = new DeviceDirectoryState();
+      const viewModel = new DeviceDirectoryViewModel(state, {
+        credentials: () => undefined,
+        activeDeviceId: () => 'qr-desktop',
+        activeDeviceConnected: () => true
+      });
+
+      await viewModel.selectDevice('qr-desktop');
+      expect(state.selectedDeviceId).assertEqual('qr-desktop');
+
+      // An account-directory refresh has no row for a scan-only target, but it
+      // must not collapse the disclosure while that target is still connected.
+      viewModel.syncDevices([]);
+      expect(state.selectedDeviceId).assertEqual('qr-desktop');
+    });
+
     it('does not issue RPC for an offline device', 0, async () => {
       let credentialCalls = 0;
       const state = new DeviceDirectoryState();
@@ -505,6 +522,40 @@ export default function deviceDirectoryUnitTest() {
       expect(state.find('desk-b')?.status).assertEqual('loading');
     });
 
+    it('invalidates workspace load state when the same device gets a fresh connection', 0, () => {
+      const state = new DeviceDirectoryState();
+      const viewModel = new DeviceDirectoryViewModel(state, {
+        credentials: () => undefined,
+        activeDeviceId: () => 'desk-a',
+        activeDeviceConnected: () => true
+      });
+      viewModel.syncDevices([
+        { deviceId: 'desk-a', deviceName: 'Alpha', online: true },
+        { deviceId: 'desk-b', deviceName: 'Beta', online: true }
+      ]);
+      state.setWorkspaceExpanded('desk-a', '/stale', true);
+      state.setWorkspaceStatus('desk-a', '/stale', 'ready');
+      state.setWorkspaceExpanded('desk-b', '/independent', true);
+      state.setWorkspaceStatus('desk-b', '/independent', 'ready');
+      viewModel.captureLive('desk-a', [workspace('/stale', 'Stale')], [
+        sessionIn('desk-a', '/stale', 'stale', 'Stale')
+      ]);
+
+      // Models the scan-room -> account-device transition: the physical
+      // desktop id is unchanged, while the new handshake only carries the
+      // current workspace snapshot.
+      viewModel.activateLive('desk-a', [workspace('/current', 'Current')], [
+        sessionIn('desk-a', '/current', 'fresh', 'Fresh')
+      ]);
+
+      expect(state.workspaceExpanded('desk-a', '/stale')).assertFalse();
+      expect(state.workspaceStatus('desk-a', '/stale')).assertEqual('idle');
+      expect(state.workspaceExpanded('desk-b', '/independent')).assertTrue();
+      expect(state.workspaceStatus('desk-b', '/independent')).assertEqual('ready');
+      expect(state.find('desk-a')?.sessions.length).assertEqual(1);
+      expect(state.find('desk-a')?.sessions[0].id).assertEqual('fresh');
+    });
+
     it('keeps an empty incoming catalog loading until the live request completes', 0, async () => {
       const source = new FakeAccountDeviceDirectory();
       const state = new DeviceDirectoryState();
@@ -530,9 +581,9 @@ export default function deviceDirectoryUnitTest() {
       viewModel.activateLive('desk-b', [], [sessionOn('desk-b', 'fresh', 'Fresh')]);
       expect(state.find('desk-b')?.status).assertEqual('loading');
 
-      viewModel.completeLiveCatalog('desk-b', [workspace('/mac/BitFun', 'BitFun')]);
+      viewModel.completeLiveCatalog('desk-b', [workspace('/mac/OpenBitFun', 'OpenBitFun')]);
       expect(state.find('desk-b')?.status).assertEqual('ready');
-      expect(state.find('desk-b')?.workspaces[0].path).assertEqual('/mac/BitFun');
+      expect(state.find('desk-b')?.workspaces[0].path).assertEqual('/mac/OpenBitFun');
     });
 
     it('releases the abandoned loading owner during rapid target switches', 0, () => {

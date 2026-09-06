@@ -1,7 +1,7 @@
 # 编辑器基本设置（Editor Basic Settings）需求文档
 
 > 状态：能力规格 / 需求
-> 仓库：BitFun-OHOS
+> 仓库：OpenBitFun-OHOS
 > 相关架构入口：
 > - [`src/web-ui/src/tools/editor/config/types.ts`](../../src/web-ui/src/tools/editor/config/types.ts)
 > - [`src/web-ui/src/tools/editor/config/defaults.ts`](../../src/web-ui/src/tools/editor/config/defaults.ts)
@@ -11,7 +11,7 @@
 
 ## 背景与需求描述
 
-BitFun 桌面端内置 Monaco 代码编辑器，提供文件查看 / 编辑、跨文件跳转（`EditorJumpService`）、diff（`MonacoDiffCore`）。编辑器选项经 `EditorOptionsBuilder` 由 `config/types` + `config/defaults` 构造，已支持 tabSize、wordWrap、lineNumbers、minimap 等基本项。
+OpenBitFun 桌面端内置 Monaco 代码编辑器，提供文件查看 / 编辑、跨文件跳转（`EditorJumpService`）、diff（`MonacoDiffCore`）。编辑器选项经 `EditorOptionsBuilder` 由 `config/types` + `config/defaults` 构造，已支持 tabSize、wordWrap、lineNumbers、minimap 等基本项。
 
 本需求定义编辑器**基本设置**的目标范围与行为契约，让用户按习惯配置编辑器，并保证 Agent 编辑工具（`Edit` / `Write`）与用户编辑器选项不互相干扰。
 

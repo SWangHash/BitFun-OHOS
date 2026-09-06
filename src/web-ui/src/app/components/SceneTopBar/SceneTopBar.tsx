@@ -1,5 +1,5 @@
 import React, { useCallback, useRef } from 'react';
-import { Toolbar } from '@bitfun/ui';
+import { Toolbar } from '@openbitfun/ui';
 import { WindowControls } from '@/app/components/WindowControls';
 import { supportsNativeWindowDragging } from '@/infrastructure/runtime';
 import { createLogger } from '@/shared/utils/logger';
@@ -33,7 +33,9 @@ const SceneTopBar: React.FC<SceneTopBarProps> = ({
   onClose,
   isMaximized = false,
 }) => {
-  const isSingleTab = useSceneStore(state => state.openTabs.length <= 1);
+  const openTabCount = useSceneStore(state => state.openTabs.length);
+  const hasTabs = openTabCount > 0;
+  const isSingleTab = openTabCount <= 1;
   const canDragWindow = supportsNativeWindowDragging();
   const lastMouseDownTimeRef = useRef(0);
   const hasWindowControls = Boolean(onMinimize && onMaximize && onClose);
@@ -67,24 +69,25 @@ const SceneTopBar: React.FC<SceneTopBarProps> = ({
 
   return (
     <Toolbar
-      bordered={false}
-      className={`bitfun-scene-top-bar ${className}`.trim()}
+      bordered={hasTabs}
+      className={`openbitfun-scene-top-bar ${className}`.trim()}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
-      data-bf-scene="workbench"
-      data-bf-part="topBar"
+      data-openbitfun-scene="workbench"
+      data-openbitfun-part="topBar"
       leading={<SceneBar />}
+      size="md"
       trailing={<>
       <SceneChromeHost
-        className="bitfun-scene-top-bar__actions"
-        data-bf-scene="workbench"
-        data-bf-part="sceneActions"
+        className="openbitfun-scene-top-bar__actions"
+        data-openbitfun-scene="workbench"
+        data-openbitfun-part="sceneActions"
       />
       {hasWindowControls ? (
         <div
-          className="bitfun-scene-top-bar__window-controls"
-          data-bf-component="scene-bar"
-          data-bf-part="controls"
+          className="openbitfun-scene-top-bar__window-controls"
+          data-openbitfun-component="scene-bar"
+          data-openbitfun-part="controls"
         >
           <WindowControls
             onMinimize={onMinimize!}

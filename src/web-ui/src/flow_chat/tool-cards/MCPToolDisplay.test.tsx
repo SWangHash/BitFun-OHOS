@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { JSDOM } from 'jsdom';
 
 import { MCPToolDisplay } from './MCPToolDisplay';
+import { copyTextToClipboard } from '@/shared/utils/textSelection';
 import type { FlowToolItem, ToolCardConfig } from '../types/flow-chat';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -44,6 +45,21 @@ vi.mock('@/shared/utils/logger', () => ({
   }),
 }));
 
+vi.mock('@/shared/utils/textSelection', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/shared/utils/textSelection')>();
+  return {
+    ...actual,
+    copyTextToClipboard: vi.fn(async () => true),
+  };
+});
+
+vi.mock('@/shared/notification-system', () => ({
+  notificationService: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 const config: ToolCardConfig = {
   toolName: 'mcp__example__search',
   displayName: 'Search',
@@ -64,7 +80,7 @@ function toolItem(overrides: Partial<FlowToolItem> = {}): FlowToolItem {
     toolCall: {
       id: 'call-mcp-1',
       input: {
-        query: 'BitFun',
+        query: 'OpenBitFun',
         limit: 5,
         _early_detection: false,
       },
@@ -89,6 +105,7 @@ describe('MCPToolDisplay', () => {
     mcpMocks.getMCPToolUiUri.mockReset().mockImplementation(() => new Promise(() => {}));
     mcpMocks.fetchMCPAppResource.mockReset();
     mcpMocks.sendMCPAppMessage.mockReset();
+    vi.mocked(copyTextToClipboard).mockClear();
 
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
       pretendToBeVisual: true,
@@ -143,10 +160,10 @@ describe('MCPToolDisplay', () => {
       );
     });
 
-    expect(input?.textContent).toContain('"query": "BitFun"');
+    expect(input?.textContent).toContain('"query": "OpenBitFun"');
     expect(input?.textContent).toContain('"limit": 5');
     expect(input?.textContent).not.toContain('_early_detection');
-    expect(container.querySelector('[data-bf-component="mcp-tool-display"]')?.getAttribute('data-bf-state')).toContain('expanded');
+    expect(container.querySelector('[data-openbitfun-component="mcp-tool-display"]')?.getAttribute('data-openbitfun-state')).toContain('expanded');
   });
 
   it('can expand a completed call that has parameters but no result content', () => {
@@ -165,7 +182,7 @@ describe('MCPToolDisplay', () => {
       root.render(<MCPToolDisplay toolItem={item} config={config} />);
     });
 
-    const toggle = container.querySelector<HTMLButtonElement>('[data-bf-component="flow-chat-tool-card"][data-bf-part="affordanceButton"]');
+    const toggle = container.querySelector<HTMLButtonElement>('[data-openbitfun-component="flow-chat-tool-card"][data-openbitfun-part="affordanceButton"]');
     expect(toggle).not.toBeNull();
 
     act(() => {
@@ -181,6 +198,49 @@ describe('MCPToolDisplay', () => {
     });
 
     expect(container.querySelector('.mcp-input-code')?.textContent).toContain('"query": "input only"');
+  });
+
+  it('copies the displayed input parameters and each text result', async () => {
+    act(() => {
+      root.render(<MCPToolDisplay toolItem={toolItem()} config={config} />);
+    });
+
+    act(() => {
+      container.querySelector('[data-testid="mcp-tool-card-toggle"]')?.dispatchEvent(
+        new dom.window.MouseEvent('click', { bubbles: true })
+      );
+    });
+
+    const resultCopyButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Copy text result"]',
+    );
+    expect(resultCopyButton).not.toBeNull();
+    expect(container.querySelector('button[aria-label="Copy input parameters"]')).toBeNull();
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('.mcp-input-disclosure button[aria-expanded]')?.dispatchEvent(
+        new dom.window.MouseEvent('click', { bubbles: true })
+      );
+    });
+
+    const inputCopyButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Copy input parameters"]',
+    );
+    expect(inputCopyButton).not.toBeNull();
+
+    await act(async () => {
+      inputCopyButton?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(copyTextToClipboard).toHaveBeenLastCalledWith(
+      '{\n  "query": "OpenBitFun",\n  "limit": 5\n}',
+    );
+
+    await act(async () => {
+      resultCopyButton?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(copyTextToClipboard).toHaveBeenLastCalledWith('Search result');
   });
 
   it('keeps failed calls collapsed until the user expands their parameters', () => {
@@ -199,15 +259,15 @@ describe('MCPToolDisplay', () => {
 
     expect(container.querySelector('.mcp-input-code')).toBeNull();
     expect(container.textContent).toContain('MCP server rejected the request');
-    expect(container.querySelector('[data-bf-component="mcp-tool-display"]')?.getAttribute('data-bf-state')).toBe('error');
+    expect(container.querySelector('[data-openbitfun-component="mcp-tool-display"]')?.getAttribute('data-openbitfun-state')).toBe('error');
 
     act(() => {
-      container.querySelector<HTMLButtonElement>('[data-bf-component="flow-chat-tool-card"][data-bf-part="affordanceButton"]')?.dispatchEvent(
+      container.querySelector<HTMLButtonElement>('[data-openbitfun-component="flow-chat-tool-card"][data-openbitfun-part="affordanceButton"]')?.dispatchEvent(
         new dom.window.MouseEvent('click', { bubbles: true })
       );
     });
 
-    expect(container.querySelector('[data-bf-component="mcp-tool-display"]')?.getAttribute('data-bf-state')).toContain('expanded');
+    expect(container.querySelector('[data-openbitfun-component="mcp-tool-display"]')?.getAttribute('data-openbitfun-state')).toContain('expanded');
     expect(container.querySelector('.mcp-input-code')).toBeNull();
 
     act(() => {
@@ -216,7 +276,7 @@ describe('MCPToolDisplay', () => {
       );
     });
 
-    expect(container.querySelector('.mcp-input-code')?.textContent).toContain('"query": "BitFun"');
+    expect(container.querySelector('.mcp-input-code')?.textContent).toContain('"query": "OpenBitFun"');
   });
 
   it('does not expose incomplete streaming parameters as expandable details', () => {
@@ -230,7 +290,7 @@ describe('MCPToolDisplay', () => {
       root.render(<MCPToolDisplay toolItem={item} config={config} />);
     });
 
-    expect(container.querySelector('[data-bf-component="flow-chat-tool-card"][data-bf-part="affordanceButton"]')).toBeNull();
+    expect(container.querySelector('[data-openbitfun-component="flow-chat-tool-card"][data-openbitfun-part="affordanceButton"]')).toBeNull();
     expect(container.querySelector('.mcp-input-code')).toBeNull();
   });
 
@@ -268,9 +328,9 @@ describe('MCPToolDisplay', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const cardRoot = container.querySelector('[data-bf-component="mcp-tool-display"]');
+    const cardRoot = container.querySelector('[data-openbitfun-component="mcp-tool-display"]');
     expect(container.querySelector('.mcp-app-iframe')).not.toBeNull();
-    expect(cardRoot?.getAttribute('data-bf-state')).toContain('expanded');
+    expect(cardRoot?.getAttribute('data-openbitfun-state')).toContain('expanded');
     expect(container.querySelector<HTMLButtonElement>('.mcp-input-disclosure button[aria-expanded]')?.getAttribute('aria-expanded')).toBe('false');
     expect(container.querySelector('.mcp-input-code')).toBeNull();
 
@@ -280,25 +340,25 @@ describe('MCPToolDisplay', () => {
       );
     });
 
-    expect(cardRoot?.getAttribute('data-bf-state')).toContain('expanded');
+    expect(cardRoot?.getAttribute('data-openbitfun-state')).toContain('expanded');
     expect(container.querySelector<HTMLButtonElement>('.mcp-input-disclosure button[aria-expanded]')?.getAttribute('aria-expanded')).toBe('true');
     expect(container.querySelector('.mcp-input-code')).not.toBeNull();
 
     act(() => {
-      container.querySelector<HTMLButtonElement>('[data-bf-component="flow-chat-tool-card"][data-bf-part="affordanceButton"]')?.dispatchEvent(
+      container.querySelector<HTMLButtonElement>('[data-openbitfun-component="flow-chat-tool-card"][data-openbitfun-part="affordanceButton"]')?.dispatchEvent(
         new dom.window.MouseEvent('click', { bubbles: true })
       );
     });
 
-    expect(cardRoot?.getAttribute('data-bf-state') ?? '').not.toContain('expanded');
+    expect(cardRoot?.getAttribute('data-openbitfun-state') ?? '').not.toContain('expanded');
 
     act(() => {
-      container.querySelector<HTMLButtonElement>('[data-bf-component="flow-chat-tool-card"][data-bf-part="affordanceButton"]')?.dispatchEvent(
+      container.querySelector<HTMLButtonElement>('[data-openbitfun-component="flow-chat-tool-card"][data-openbitfun-part="affordanceButton"]')?.dispatchEvent(
         new dom.window.MouseEvent('click', { bubbles: true })
       );
     });
 
-    expect(cardRoot?.getAttribute('data-bf-state')).toContain('expanded');
+    expect(cardRoot?.getAttribute('data-openbitfun-state')).toContain('expanded');
     expect(container.querySelector<HTMLButtonElement>('.mcp-input-disclosure button[aria-expanded]')?.getAttribute('aria-expanded')).toBe('false');
     expect(container.querySelector('.mcp-input-code')).toBeNull();
   });

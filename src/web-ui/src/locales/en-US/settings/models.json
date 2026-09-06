@@ -11,7 +11,10 @@
   "sessionTitle": {
     "title": "Auto Session Title",
     "subtitle": "AI automatically generates concise titles for new conversations",
+    "enable": "Enable",
     "loadFailed": "Failed to load session title settings",
+    "loadFailedLocked": "Session title settings could not be read. The switch and model selector are locked.",
+    "retry": "Reload",
     "model": {
       "label": "Session Title Generation Model",
       "inherit": "Current session model",
@@ -20,6 +23,7 @@
     },
     "models": {
       "empty": "No available models. Please add models in \"Models\" first.",
+      "unavailable": "{{id}} (disabled or missing)",
       "updateSuccess": "{{agentName}} will use {{modelName}}"
     },
     "messages": {
@@ -44,7 +48,7 @@
     "refreshFailed": "Refresh failed: {{error}}",
     "loginSuccess": "Signed in",
     "loginFailed": "Sign-in failed: {{error}}",
-    "peerLoginRequiresLocalDevice": "Antigravity sign-in must be completed on the device running BitFun. Switch to that device and sign in there.",
+    "peerLoginRequiresLocalDevice": "Antigravity sign-in must be completed on the device running OpenBitFun. Switch to that device and sign in there.",
     "logoutSuccess": "Signed out",
     "logoutCleanupPending": "Signed out. Credential cleanup is pending and will retry automatically.",
     "logoutFailed": "Sign-out failed: {{error}}",
@@ -83,13 +87,11 @@
     "detected": "Will use {{label}} ({{account}})",
     "notConnected": "{{kind}} is not signed in; sign in above first",
     "unknownAccount": "current account",
-    "secureStoreMigrationNotice": "Subscription credentials are now protected by BitFun credential storage. Credentials previously imported from third-party CLIs are not read; if you used that flow, sign in here once.",
-    "dismissMigrationNotice": "Got it",
     "reauthenticationRequired": "No usable credential was found in credential storage. Sign in again once.",
     "vaultUnavailable": "Credential storage is temporarily unavailable. Try again; your sign-in has not been removed.",
     "retryVault": "Try vault again",
     "loginPending": "Sign-in authorization is in progress",
-    "browserInstructions": "Finish signing in in the browser BitFun opened. Keep this page open; BitFun will finish automatically.",
+    "browserInstructions": "Finish signing in in the browser OpenBitFun opened. Keep this page open; OpenBitFun will finish automatically.",
     "deviceInstructions": "Open the authorization page on any device, enter the verification code, then return here.",
     "loginCancelling": "Cancelling sign-in and closing the authorization session",
     "loginCompletedBeforeCancel": "Authorization had already completed, so this account remains signed in.",
@@ -149,7 +151,7 @@
   },
   "providers": {
     "openbitfun": {
-      "name": "OpenBitFun",
+      "name": "OpenBitFun Service",
       "description": "OpenBitFun Model Platform",
       "urlOptions": {
         "default": "Anthropic Format - Default",
@@ -330,7 +332,7 @@
     "catalogAuto": "Auto-detect",
     "catalogModelsDev": "Use explicit models.dev model",
     "catalogDisabled": "Custom presets only",
-    "catalogAutoTooltip": "Automatically detects reasoning presets for supported models on official provider endpoints. Custom presets are also included.",
+    "catalogAutoTooltip": "Uses precise presets for recognized models, then offers manual generic on, off, and low/medium/high controls when no projection matches. Custom presets are also included.",
     "catalogModelsDevTooltip": "Uses the reasoning presets of a specific models.dev provider and model. Choose this when the configured model name is an alias or a compatible gateway requires an explicit binding.",
     "catalogDisabledTooltip": "Disables generated presets from models.dev and adapter fallbacks. Only your custom presets remain available.",
     "catalogSummary": {
@@ -358,9 +360,8 @@
     "unavailableDescription": "The current API format, {{format}}, cannot reliably apply these presets: {{presets}}. Refer to your provider's official documentation and configure the required fields with Request body patch (JSON Merge Patch) in a custom preset.",
     "unknownRequestFormat": "Unknown",
     "customTitle": "Custom presets",
-    "customTooltip": "Custom presets save a set of reasoning parameters as a selectable option in the chat input. Give each preset a name, then add the control supported by the model API: reasoning effort, a reasoning toggle, or a token budget. Add a request body patch (JSON Merge Patch) only when provider-specific parameters are needed.",
+    "customTooltip": "Custom presets save one request body patch as a selectable option in the chat input. Give each preset a name and enter a JSON Merge Patch that matches the current model API request body.",
     "add": "Add preset",
-    "addAction": "Add action",
     "empty": "No custom presets",
     "label": "Label",
     "labelPlaceholder": "Display label",
@@ -370,12 +371,13 @@
     "moveDown": "Move preset down",
     "remove": "Remove preset",
     "settingEffort": "Reasoning effort",
-    "effortSearchPlaceholder": "Select or enter an effort value",
-    "effortCustomValueHint": "Use custom effort value",
-    "effortCustomWarning": "Custom value; confirm that the model API supports it.",
     "settingToggle": "On / off toggle",
     "settingBudget": "Token budget",
     "settingPatch": "Request body patch (JSON Merge Patch)",
+    "patchPlaceholder": "Reasoning fields vary by provider and API format. Refer to your provider's official documentation for the {{format}} format.\nExample:\n{\n  \"thinking\": {\n    \"type\": \"enabled\"\n  },\n  \"output_config\": {\n    \"effort\": \"high\"\n  }\n}",
+    "legacyTitle": "Legacy action configuration",
+    "legacyDescription": "This preset contains legacy typed actions or multiple patches. They remain in their original order unless you explicitly replace them with one request body patch.",
+    "convertToSinglePatch": "Use one request body patch",
     "actionSummaryEffort": "Effort: {{value}}",
     "actionSummaryEnabled": "Reasoning on",
     "actionSummaryDisabled": "Reasoning off",
@@ -401,7 +403,7 @@
   },
   "proxy": {
     "enable": "Enable Proxy",
-    "enableHint": "When enabled, all AI requests will be sent through proxy (requires IDE restart)",
+    "enableHint": "When enabled, all AI requests are sent through the proxy (requires a OpenBitFun restart)",
     "url": "Proxy URL",
     "urlPlaceholder": "http://127.0.0.1:7890 or socks5://127.0.0.1:1080",
     "urlHint": "Supports HTTP/HTTPS/SOCKS5 proxy, format: protocol://address:port",
@@ -410,7 +412,7 @@
     "password": "Password (optional)",
     "passwordPlaceholder": "Proxy authentication password",
     "save": "Save Proxy Configuration",
-    "saveSuccess": "Proxy configuration saved, restart IDE to take effect"
+    "saveSuccess": "Proxy configuration saved. Restart OpenBitFun to apply it"
   },
   "streamIdleTimeout": {
     "title": "Streaming Timeout",
@@ -456,11 +458,39 @@
     "cancel": "Cancel",
     "edit": "Edit",
     "delete": "Delete",
+    "deleteProvider": "Delete provider",
     "test": "Test Connection",
     "newConfig": "New Configuration",
     "addModel": "Add Model",
     "addProvider": "Add Provider",
     "createFirst": "Create First Configuration"
+  },
+  "deleteConfirm": {
+    "title": "Delete model configuration?",
+    "message": "This deletes the model “{{name}}”. It is explicitly referenced by {{count}} setting(s). Those references will not automatically switch to another model, so related features may fall back or become unavailable.",
+    "confirm": "Delete model"
+  },
+  "providerDeleteConfirm": {
+    "title": "Delete provider?",
+    "message": "This deletes provider “{{name}}” and its {{modelCount}} model configuration(s). Those models are explicitly referenced by {{referenceCount}} setting(s). The references will not automatically switch to another model, so related features may fall back or become unavailable. Any linked subscription account will remain signed in.",
+    "messageWithDraft": "This deletes provider “{{name}}”, its {{modelCount}} model configuration(s), and the provider's unsaved editing draft. Those models are explicitly referenced by {{referenceCount}} setting(s). The references will not automatically switch to another model, so related features may fall back or become unavailable. Any linked subscription account will remain signed in.",
+    "confirm": "Delete provider"
+  },
+  "draftClose": {
+    "title": "Keep this editing draft?",
+    "message": "These changes have not been written to the model configuration. Keeping the draft will not run a connection test, and you can resume it when you reopen this editor.",
+    "keepAndClose": "Keep draft and close",
+    "discard": "Discard changes",
+    "continueEditing": "Continue editing",
+    "discardDraft": "Discard draft",
+    "retainedHint": "The model editing draft is retained and has not been written to the active configuration."
+  },
+  "draftConflict": {
+    "title": "Resolve the unfinished model draft",
+    "message": "Before opening another model or provider, continue the current draft or discard it and open the selected configuration.",
+    "continueDraft": "Continue current draft",
+    "discardAndContinue": "Discard and continue",
+    "cancel": "Cancel"
   },
   "empty": {
     "noModels": "No model configurations",
@@ -470,6 +500,10 @@
     "placeholder": "Search model name, provider..."
   },
   "messages": {
+    "loading": "Loading model settings…",
+    "loadFailedLocked": "Model settings could not be read. This page is locked to avoid overwriting the current configuration.",
+    "retry": "Reload",
+    "unsaved": "Unsaved",
     "fillRequired": "Please fill in required fields",
     "fillModelName": "Please fill in model name",
     "duplicateModelNameUnderProvider": "This provider already has a model with this name. Use a different name or edit the existing entry.",
@@ -478,9 +512,15 @@
     "invalidReasoningPresets": "Fix the reasoning preset IDs, settings, default selection, or JSON before saving.",
     "saveFailed": "Save failed",
     "deleteFailed": "Failed to delete configuration",
+    "deleteSuccess": "Model configuration deleted",
+    "providerDeleteFailed": "Failed to delete provider",
+    "providerDeleteSuccess": "Provider and its model configurations deleted",
+    "referenceCheckFailed": "OpenBitFun could not verify whether other settings still reference this model, so deletion was cancelled",
+    "providerReferenceCheckFailed": "OpenBitFun could not verify whether other settings still reference this provider's models, so deletion was cancelled",
     "loadFailed": "Failed to load AI configuration",
     "testSuccess": "Test successful",
     "testFailed": "Test failed",
+    "testUnsupportedOnHost": "Configuration saved; the current CLI device does not support model connection tests",
     "errorDetails": "Error details",
     "connectionTestMessages": {
       "toolCallsNotDetected": "This test did not detect any tool calls, so tool calling could not be verified this time.",
@@ -518,7 +558,7 @@
     "reveal": "Show in folder",
     "revealFailed": "Unable to open the cache folder",
     "offlineTitle": "Updating without network access",
-    "offlineDescription": "On a device with internet access, download the original models.dev file, name it catalog.json, and place it in the cache directory above. Restart BitFun to apply it; Update now may overwrite this file.",
+    "offlineDescription": "On a device with internet access, download the original models.dev file, name it catalog.json, and place it in the cache directory above. Restart OpenBitFun to apply it; Update now may overwrite this file.",
     "downloadOriginal": "Download original catalog",
     "openCacheDirectory": "Open cache directory"
   },

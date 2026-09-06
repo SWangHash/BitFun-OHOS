@@ -1,13 +1,13 @@
 ---
 name: miniapp-dev
-description: 'Generate and refine BitFun MiniApps. Use when the user wants a new MiniApp, wants an existing MiniApp redesigned or extended, or asks for a BitFun in-app tool. Typical triggers: "做一个小应用", "生成 MiniApp", "写个 BitFun 小工具", "创建 mini app".'
+description: 'Generate and refine OpenBitFun MiniApps. Use when the user wants a new MiniApp, wants an existing MiniApp redesigned or extended, or asks for a OpenBitFun in-app tool. Typical triggers: "做一个小应用", "生成 MiniApp", "写个 OpenBitFun 小工具", "创建 mini app".'
 ---
 
-# BitFun MiniApp 生成指南
+# OpenBitFun MiniApp 生成指南
 
 本技能用于**为用户生成、改造、完善一个 MiniApp**：
 
-- 做一个新的 BitFun 小应用
+- 做一个新的 OpenBitFun 小应用
 - 修改某个 MiniApp 的交互、界面、能力、数据流
 - 把一个想法变成可运行的 MiniApp
 
@@ -15,7 +15,7 @@ description: 'Generate and refine BitFun MiniApps. Use when the user wants a new
 
 ## 目标
 
-**交付一个能在 BitFun 里运行、风格合适、权限最小、结构清晰的 MiniApp**。
+**交付一个能在 OpenBitFun 里运行、风格合适、权限最小、结构清晰的 MiniApp**。
 
 成功标准：
 
@@ -62,7 +62,7 @@ description: 'Generate and refine BitFun MiniApps. Use when the user wants a new
 
 ### 2. 优先复用现有 MiniApp 语言
 
-不要从零发明一套 BitFun 风格。先从已有 MiniApp 中借鉴：
+不要从零发明一套 OpenBitFun 风格。先从已有 MiniApp 中借鉴：
 
 - 布局密度
 - 圆角和间距
@@ -101,6 +101,19 @@ description: 'Generate and refine BitFun MiniApps. Use when the user wants a new
 ### 4. 选择正确的编辑流程
 
 先判断当前任务属于哪一种，不要混用：
+
+#### 已打包客户端的直接管理（优先）
+
+用 `OpenBitFunControl` 的 `get` 查询 `feature.miniapps`，按返回的 schema
+调用 `list-apps`、`inspect-app`、`create-app`、`update-app`、`delete-app`。
+这些操作直接在持有应用的产品宿主编译、保存和通知界面，不需要源码仓库、
+Node.js 或本地目录。更新前先读取应用，使用它的 `appId` 和 `expectedVersion`；
+只传要修改的字段，省略的源码、权限和用户存储保持原样。
+删除只用于用户明确要求删除，不能用删除重建来实现修改。
+远程工作区或控制端不要用本地文件工具编辑宿主路径，使用以上结构化操作；
+目标不支持时报告具体限制。
+
+文件较多且当前是本地工作区时，可使用下面的文件编辑流程。
 
 #### 新建 MiniApp
 
@@ -179,7 +192,7 @@ MiniApp 里可用的是 `window.app`。
 
 默认**不要**写这些不存在的接口：
 
-- `app.bitfun.*`
+- `app.openbitfun.*`
 - `app.workspace.*`
 - `app.git.*`
 - `app.session.*`
@@ -207,7 +220,7 @@ await app.fs.readFile(...)
 - `meta.json` 带 `i18n.locales`
 - 静态文案可重渲染
 - 动态文案走 `app.t(...)` 或自有 `I18N` 表
-- 样式优先使用 `--bitfun-*`
+- 样式优先使用 `--openbitfun-*`
 - 测试 light/dark + zh/en
 
 ### 9. 先做核心体验，不补假内容
@@ -294,7 +307,7 @@ await app.fs.readFile(...)
 
 - 传 `app_id` 和 1–5 张截图路径（PNG/JPEG/WebP，单张 ≤ 5 MiB）。
   没有截图时先向用户要，或请用户在「市场 → 我的投稿」用「截取当前画面」生成。
-- **截图比例用 16:9，推荐 1920×1080**。市场网页和 BitFun 桌面端都按 16:9
+- **截图比例用 16:9，推荐 1920×1080**。市场网页和 OpenBitFun 桌面端都按 16:9
   居中裁剪显示，非 16:9 的图会被切掉边缘。第一张是列表卡片封面，选最能说明
   用途的那张，关键信息放画面中部不要贴边。超过 2560px 的边会被服务端缩到
   2560，所以 2560×1440 是有效上限。

@@ -7,7 +7,7 @@ import {
   diffResolvedTokens,
   mergeTokenDocuments,
   resolveTokens,
-} from "@bitfun/token-engine";
+} from "@openbitfun/token-engine";
 import {
   tokenCatalog,
   tokenModes,
@@ -54,25 +54,33 @@ test("TabGroup geometry preserves the capsule selected and outline contract", as
   assert.equal(tokens["control.tabGroup.gap"], "8px");
   assert.equal(tokens["control.tabGroup.itemGap"], "6px");
   assert.equal(tokens["control.tabGroup.itemHeight"], "40px");
+  assert.equal(tokens["control.tabGroup.itemHeightSm"], "30px");
   assert.equal(tokens["control.tabGroup.itemIconSize"], "16px");
   assert.equal(tokens["control.tabGroup.itemPaddingInline"], "16px");
+  assert.equal(tokens["control.tabGroup.itemPaddingBlockSm"], "7px");
+  assert.equal(tokens["control.tabGroup.itemPaddingInlineSm"], "12px");
   assert.equal(tokens["control.tabGroup.itemActionSize"], "20px");
   assert.equal(tokens["control.tabGroup.itemActionInset"], "8px");
   assert.equal(systemDocument.control.tabGroup.itemRadius.$value, "{radius.pill}");
   assert.equal(tokens["control.tabGroup.itemRadius"], "9999px");
 });
 
-test("SegmentedControl geometry preserves the compact mode-switch pill contract", async () => {
+test("SegmentedControl geometry preserves compact, filled, and filter compositions", async () => {
   const systemDocument = await readSource("system.tokens.json");
 
   assert.equal(tokens["control.segmentedControl.gap"], "2px");
   assert.equal(tokens["control.segmentedControl.padding"], "2px");
+  assert.equal(tokens["control.segmentedControl.paddingMd"], "3px");
   assert.equal(tokens["control.segmentedControl.segmentHeight"], "22px");
+  assert.equal(tokens["control.segmentedControl.segmentHeightMd"], "28px");
+  assert.equal(tokens["control.segmentedControl.pillSegmentHeight"], "24px");
   assert.equal(tokens["control.segmentedControl.segmentPaddingInline"], "8px");
   assert.equal(tokens["control.segmentedControl.segmentGap"], "4px");
   assert.equal(tokens["control.segmentedControl.iconSize"], "12px");
+  assert.equal(tokens["control.segmentedControl.iconSizeMd"], "14px");
   assert.equal(systemDocument.control.segmentedControl.radius.$value, "{radius.pill}");
   assert.equal(systemDocument.control.segmentedControl.segmentRadius.$value, "{radius.pill}");
+  assert.equal(systemDocument.control.segmentedControl.pillSegmentRadius.$value, "{radius.sm}");
 });
 
 test("Composer geometry preserves independent context, editor, and action regions", async () => {
@@ -134,6 +142,20 @@ test("ActionCard geometry preserves compact and descriptive entry compositions",
   assert.equal(systemDocument.control.actionCard.radius.$value, "{radius.base}");
 });
 
+test("LauncherButton geometry preserves the shell-edge action contract", async () => {
+  const systemDocument = await readSource("system.tokens.json");
+
+  assert.equal(tokens["control.launcherButton.minInlineSize"], "104px");
+  assert.equal(tokens["control.launcherButton.blockSize"], "40px");
+  assert.equal(tokens["control.launcherButton.paddingInline"], "14px");
+  assert.equal(tokens["control.launcherButton.gap"], "8px");
+  assert.equal(tokens["control.launcherButton.iconSize"], "16px");
+  assert.equal(
+    systemDocument.control.launcherButton.radius.$value,
+    "{radius.lg}",
+  );
+});
+
 test("AskUser geometry preserves the answered question reference contract", () => {
   assert.equal(tokens["control.askUser.bodyGap"], "12px");
   assert.equal(tokens["control.askUser.bodyPadding"], "16px");
@@ -159,6 +181,14 @@ test("ChatComposer geometry preserves the scaled compact capsule contract", () =
   assert.equal(tokens["control.chatComposer.compactPaddingInline"], "9px");
   assert.equal(tokens["control.chatComposer.compactTrackHeight"], "25px");
   assert.equal(tokens["control.chatComposer.controlHeight"], "25px");
+});
+
+test("FlowChat rhythm keeps compact rows line-like and Turn boundaries distinct", async () => {
+  const systemDocument = await readSource("system.tokens.json");
+
+  assert.equal(tokens["control.toolCard.ambientRowMinBlockSize"], "22px");
+  assert.equal(systemDocument.control.flowChat.turnGap.$value, "{space.4}");
+  assert.equal(tokens["control.flowChat.turnGap"], "16px");
 });
 
 test("split-view content panels preserve the elevated shell curvature contract", async () => {
@@ -386,6 +416,7 @@ test("shared system scales preserve the migrated Web UI foundation contract", ()
   assert.equal(tokens["font.size.meta"], "11px");
   assert.equal(tokens["font.size.xs"], "12px");
   assert.equal(tokens["font.size.sm"], "13px");
+  assert.equal(tokens["font.size.3xl-plus"], "24px");
   assert.equal(tokens["font.size.4xl"], "26px");
   assert.equal(tokens["font.size.8xl"], "56px");
   assert.equal(tokens["font.weight.regular"], 400);
@@ -413,7 +444,37 @@ test("semantic typography roles resolve to the canonical foundation", async () =
   assert.equal(systemDocument.type.flow.body.lineHeight.$value, "{lineHeight.reading}");
   assert.equal(tokens["type.body.md.fontSize"], "14px");
   assert.equal(tokens["type.label.selected.fontWeight"], 600);
-  assert.equal(tokens["type.heading.page.fontSize"], "18px");
+  assert.equal(systemDocument.type.heading.page.fontFamily.$value, "{font.family.control}");
+  assert.equal(systemDocument.type.heading.page.fontWeight.$value, "{font.weight.bold}");
+  assert.equal(systemDocument.type.heading.navigation.fontSize.$value, "{font.size.xl-plus}");
+  assert.equal(systemDocument.type.heading.compactPage.fontSize.$value, "{font.size.2xl-plus}");
+  assert.equal(systemDocument.type.heading.section.fontSize.$value, "{font.size.lg}");
+  assert.equal(systemDocument.type.heading.card.fontSize.$value, "{font.size.sm}");
+  assert.equal(systemDocument.type.body.lg.fontSize.$value, "{font.size.lg}");
+  assert.equal(systemDocument.type.support.fontSize.$value, "{font.size.meta}");
+  assert.equal(systemDocument.type.label.md.fontWeight.$value, "{font.weight.regular}");
+  assert.equal(systemDocument.type.overline.xs.fontSize.$value, "{font.size.3xs}");
+  assert.equal(systemDocument.type.overline.sm.fontSize.$value, "{font.size.2xs}");
+  assert.equal(systemDocument.type.modifier.leading.ui.lineHeight.$value, "{lineHeight.ui}");
+  assert.equal(systemDocument.type.modifier.leading.support.lineHeight.$value, "{lineHeight.support}");
+  assert.equal(systemDocument.type.modifier.leading.balanced.lineHeight.$value, "{lineHeight.balanced}");
+  assert.equal(systemDocument.type.modifier.tracking.wider.letterSpacing.$value, "{letterSpacing.wider}");
+  assert.equal(systemDocument.type.display.xxl.fontSize.$value, "{font.size.9xl}");
+  assert.equal(tokens["type.heading.page.fontSize"], "24px");
+  assert.equal(tokens["type.heading.page.fontWeight"], 700);
+  assert.equal(tokens["type.heading.navigation.fontSize"], "17px");
+  assert.equal(tokens["type.heading.compactPage.fontSize"], "20px");
+  assert.equal(tokens["type.heading.section.fontSize"], "15px");
+  assert.equal(tokens["type.heading.card.fontSize"], "13px");
+  assert.equal(tokens["type.body.lg.fontSize"], "15px");
+  assert.equal(tokens["type.support.fontSize"], "11px");
+  assert.equal(tokens["type.label.md.fontWeight"], 400);
+  assert.equal(tokens["type.overline.xs.fontSize"], "8px");
+  assert.equal(tokens["type.modifier.leading.ui.lineHeight"], 1.4);
+  assert.equal(tokens["type.modifier.leading.support.lineHeight"], 1.45);
+  assert.equal(tokens["type.modifier.leading.balanced.lineHeight"], 1.35);
+  assert.equal(tokens["type.modifier.tracking.wider.letterSpacing"], "0.04em");
+  assert.equal(tokens["type.display.xxl.fontSize"], "64px");
   assert.equal(tokens["type.code.md.fontSize"], "13px");
   assert.equal(tokens["type.flow.body.lineHeight"], 1.58);
 });
@@ -421,9 +482,14 @@ test("semantic typography roles resolve to the canonical foundation", async () =
 test("generated CSS preserves semantic typography references", async () => {
   const css = await readFile(path.join(packageDirectory, "dist", "tokens.css"), "utf8");
 
-  assert.match(css, /--bf-type-body-md-font-size: var\(--bf-font-size-base\);/);
-  assert.match(css, /--bf-type-flow-body-line-height: var\(--bf-line-height-reading\);/);
-  assert.match(css, /--bf-type-label-selected-font-weight: var\(--bf-font-weight-semibold\);/);
+  assert.match(css, /--openbitfun-type-body-md-font-size: var\(--openbitfun-font-size-base\);/);
+  assert.match(css, /--openbitfun-type-flow-body-line-height: var\(--openbitfun-line-height-reading\);/);
+  assert.match(css, /--openbitfun-type-label-selected-font-weight: var\(--openbitfun-font-weight-semibold\);/);
+  assert.match(css, /--openbitfun-type-heading-compact-page-font-size: var\(--openbitfun-font-size-2xl-plus\);/);
+  assert.match(css, /--openbitfun-type-modifier-leading-ui-line-height: var\(--openbitfun-line-height-ui\);/);
+  assert.match(css, /--openbitfun-type-modifier-leading-support-line-height: var\(--openbitfun-line-height-support\);/);
+  assert.match(css, /--openbitfun-type-modifier-leading-balanced-line-height: var\(--openbitfun-line-height-balanced\);/);
+  assert.match(css, /--openbitfun-type-modifier-tracking-wider-letter-spacing: var\(--openbitfun-letter-spacing-wider\);/);
 });
 
 test("runtime typography scaling uses the canonical complete size ladder", () => {
@@ -438,8 +504,11 @@ test("runtime typography scaling uses the canonical complete size ladder", () =>
     base: "14px",
     lg: "15px",
     xl: "16px",
+    "xl-plus": "17px",
     "2xl": "18px",
+    "2xl-plus": "20px",
     "3xl": "22px",
+    "3xl-plus": "24px",
     "4xl": "26px",
     "5xl": "32px",
     "6xl": "40px",
@@ -491,7 +560,7 @@ test("public token catalog exposes every system token in every density mode", ()
   assert.equal(tokenCatalog.length, Object.keys(tokens).length);
   assert.deepEqual(tokenModes, ["comfortable", "compact", "touch"]);
   for (const token of tokenCatalog) {
-    assert.equal(token.cssVariable.startsWith("--bf-"), true);
+    assert.equal(token.cssVariable.startsWith("--openbitfun-"), true);
     assert.deepEqual(Object.keys(token.values), tokenModes);
   }
 });

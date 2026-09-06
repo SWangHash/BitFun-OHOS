@@ -1,5 +1,5 @@
-import { Check, Copy } from 'lucide-react';
-import { IconButton } from '@bitfun/ui';
+
+import { ToolCardCopyButton } from '@openbitfun/ui/flow-chat';
 import { useCopyTextAction } from '../hooks/useCopyTextAction';
 
 export interface ToolCardCopyActionProps {
@@ -32,19 +32,14 @@ export function ToolCardCopyAction({
     showSuccessNotification,
   });
 
-  const label = copied ? (copiedTooltip ?? successMessage) : tooltip;
-
   return (
-    <IconButton
-      aria-label={ariaLabel ?? label}
+    <ToolCardCopyButton
       className={className}
-      data-bf-state={copied ? 'copied' : undefined}
+      copied={copied}
+      copiedLabel={copiedTooltip ?? successMessage}
       disabled={disabled}
-      icon={copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-      onClick={copy}
-      size="sm"
-      title={label}
-      variant="quiet"
+      label={ariaLabel ?? tooltip}
+      onPress={copy}
     />
   );
 }

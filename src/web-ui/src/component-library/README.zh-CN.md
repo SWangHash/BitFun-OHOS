@@ -1,10 +1,10 @@
 **中文** | [English](README.md)
 
-# BitFun 组件库
+# OpenBitFun 组件库
 
 ## 简介
 
-这是 BitFun 的组件预览系统，用于快速查看和测试 UI 组件。
+这是 OpenBitFun 的组件预览系统，用于快速查看和测试 UI 组件。
 
 ## 快速开始
 

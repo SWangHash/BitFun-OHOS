@@ -176,35 +176,35 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
     );
 
     const containerClassName = [
-      'bitfun-number-input',
-      `bitfun-number-input--${size}`,
-      `bitfun-number-input--${variant}`,
-      disabled && 'bitfun-number-input--disabled',
-      isDragging && 'bitfun-number-input--dragging',
-      isEditing && 'bitfun-number-input--editing',
+      'openbitfun-number-input',
+      `openbitfun-number-input--${size}`,
+      `openbitfun-number-input--${variant}`,
+      disabled && 'openbitfun-number-input--disabled',
+      isDragging && 'openbitfun-number-input--dragging',
+      isEditing && 'openbitfun-number-input--editing',
       className,
     ]
       .filter(Boolean)
       .join(' ');
 
     return (
-      <div className={containerClassName} data-bf-component="number-input" data-bf-part="root" data-bf-variant={variant} data-bf-size={size} data-bf-state={[disabled && 'disabled', isEditing && 'editing', isDragging && 'dragging'].filter(Boolean).join(' ') || undefined}>
-        {label && <label className="bitfun-number-input__label" data-bf-component="number-input" data-bf-part="label">{label}</label>}
+      <div className={containerClassName} data-openbitfun-component="number-input" data-openbitfun-part="root" data-openbitfun-variant={variant} data-openbitfun-size={size} data-openbitfun-state={[disabled && 'disabled', isEditing && 'editing', isDragging && 'dragging'].filter(Boolean).join(' ') || undefined}>
+        {label && <label className="openbitfun-number-input__label" data-openbitfun-component="number-input" data-openbitfun-part="label">{label}</label>}
         <div
           ref={containerRef}
-          className="bitfun-number-input__container"
-          data-bf-component="number-input"
-          data-bf-part="container"
+          className="openbitfun-number-input__container"
+          data-openbitfun-component="number-input"
+          data-openbitfun-part="container"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
           onWheel={handleWheel}
         >
-          <div className="bitfun-number-input__glow" data-bf-component="number-input" data-bf-part="glow" />
+          <div className="openbitfun-number-input__glow" data-openbitfun-component="number-input" data-openbitfun-part="glow" />
 
           <div
-            className="bitfun-number-input__value-area"
-            data-bf-component="number-input"
-            data-bf-part="valueArea"
+            className="openbitfun-number-input__value-area"
+            data-openbitfun-component="number-input"
+            data-openbitfun-part="valueArea"
             onMouseDown={draggable ? handleDragStart : undefined}
             style={{ cursor: draggable && !disabled ? 'ns-resize' : 'text' }}
           >
@@ -219,44 +219,44 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
               }}
               type="text"
               inputMode="decimal"
-              className="bitfun-number-input__input"
+              className="openbitfun-number-input__input"
               value={inputValue}
               onChange={handleInputChange}
               onFocus={() => setIsEditing(true)}
               onBlur={handleInputBlur}
               onKeyDown={handleKeyDown}
               disabled={disabled}
-              data-bf-component="number-input"
-              data-bf-part="input"
+              data-openbitfun-component="number-input"
+              data-openbitfun-part="input"
             />
-            {unit && <span className="bitfun-number-input__unit" data-bf-component="number-input" data-bf-part="unit">{unit}</span>}
+            {unit && <span className="openbitfun-number-input__unit" data-openbitfun-component="number-input" data-openbitfun-part="unit">{unit}</span>}
           </div>
 
           {showButtons && variant !== 'compact' && (
-            <div className="bitfun-number-input__buttons" data-bf-component="number-input" data-bf-part="buttons">
+            <div className="openbitfun-number-input__buttons" data-openbitfun-component="number-input" data-openbitfun-part="buttons">
               {variant === 'stepper' ? (
                 <>
                   <button
                     type="button"
-                    className="bitfun-number-input__btn bitfun-number-input__btn--minus"
+                    className="openbitfun-number-input__btn openbitfun-number-input__btn--minus"
                     onClick={decrement}
                     disabled={disabled || value <= min}
                     tabIndex={-1}
                     aria-label={t('numberInput.decrease')}
-                    data-bf-component="number-input"
-                    data-bf-part="decrement"
+                    data-openbitfun-component="number-input"
+                    data-openbitfun-part="decrement"
                   >
                     <Minus size={12} strokeWidth={2.5} />
                   </button>
                   <button
                     type="button"
-                    className="bitfun-number-input__btn bitfun-number-input__btn--plus"
+                    className="openbitfun-number-input__btn openbitfun-number-input__btn--plus"
                     onClick={increment}
                     disabled={disabled || value >= max}
                     tabIndex={-1}
                     aria-label={t('numberInput.increase')}
-                    data-bf-component="number-input"
-                    data-bf-part="increment"
+                    data-openbitfun-component="number-input"
+                    data-openbitfun-part="increment"
                   >
                     <Plus size={12} strokeWidth={2.5} />
                   </button>
@@ -265,25 +265,25 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
                 <>
                   <button
                     type="button"
-                    className="bitfun-number-input__btn bitfun-number-input__btn--up"
+                    className="openbitfun-number-input__btn openbitfun-number-input__btn--up"
                     onClick={increment}
                     disabled={disabled || value >= max}
                     tabIndex={-1}
                     aria-label={t('numberInput.increase')}
-                    data-bf-component="number-input"
-                    data-bf-part="increment"
+                    data-openbitfun-component="number-input"
+                    data-openbitfun-part="increment"
                   >
                     <ChevronUp size={14} strokeWidth={2.5} />
                   </button>
                   <button
                     type="button"
-                    className="bitfun-number-input__btn bitfun-number-input__btn--down"
+                    className="openbitfun-number-input__btn openbitfun-number-input__btn--down"
                     onClick={decrement}
                     disabled={disabled || value <= min}
                     tabIndex={-1}
                     aria-label={t('numberInput.decrease')}
-                    data-bf-component="number-input"
-                    data-bf-part="decrement"
+                    data-openbitfun-component="number-input"
+                    data-openbitfun-part="decrement"
                   >
                     <ChevronDown size={14} strokeWidth={2.5} />
                   </button>
@@ -293,11 +293,11 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
           )}
 
           {min !== -Infinity && max !== Infinity && (
-            <div className="bitfun-number-input__progress" data-bf-component="number-input" data-bf-part="progress">
+            <div className="openbitfun-number-input__progress" data-openbitfun-component="number-input" data-openbitfun-part="progress">
               <div
-                className="bitfun-number-input__progress-bar"
-                data-bf-component="number-input"
-                data-bf-part="progressBar"
+                className="openbitfun-number-input__progress-bar"
+                data-openbitfun-component="number-input"
+                data-openbitfun-part="progressBar"
                 style={{ width: `${((value - min) / (max - min)) * 100}%` }}
               />
             </div>

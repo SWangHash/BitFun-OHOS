@@ -7,11 +7,12 @@ import React, { useRef, useCallback, useEffect, useReducer, useState, useMemo, u
 import { createPortal } from 'react-dom';
 import path from 'path-browserify';
 import { useTranslation } from 'react-i18next';
-import { ArrowUp, Image, RotateCcw, Plus, X, Sparkles, Loader2, Files, MessageSquarePlus, Play } from 'lucide-react';
+import { RotateCcw, Loader2, Play } from 'lucide-react';
 import { ContextDropZone, useContextStore } from '../../shared/context-system';
 import { useActiveSessionState } from '@/flow_chat/hooks';
 import {
   RichTextInput,
+  type ClipboardFilePaste,
   type InlineTriggerState,
   type MentionState,
   type RichTextInputElement,
@@ -24,7 +25,7 @@ import {
   useSessionStateMachineActions,
 } from '../hooks/useSessionStateMachine';
 import { SessionExecutionEvent, SessionExecutionState } from '../state-machine/types';
-import { ModelSelector } from './ModelSelector';
+import { ModelSelector, type ModelSelectorAvailability } from './ModelSelector';
 import { FlowChatStore } from '../store/FlowChatStore';
 import { useAcpPlan } from '../hooks/useAcpPlan';
 import { filterSlashCommands, useAcpSlashCommands } from '../hooks/useAcpSlashCommands';
@@ -69,6 +70,7 @@ import {
 } from '../store/sessionComposerStore';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import {
+  clearComposerForSubmission,
   failedSubmissionRecoveryTarget,
   shouldRecordContextMutation,
   successfulRetryCleanupTarget,
@@ -110,8 +112,9 @@ import {
 import { chatInputSessionSubscriptionKey } from '../utils/chatInputSessionSubscription';
 import { isRemoteWorkspaceSession, sessionProjectWorkspacePath } from '../utils/sessionWorkspace';
 import { findWorkspaceForSession } from '../utils/workspaceScope';
-import { isTauriRuntime } from '@/infrastructure/runtime';
-import { Tooltip } from '@bitfun/ui';
+import { isTauriRuntime, isWindowsDesktopRuntime } from '@/infrastructure/runtime';
+import { Tooltip } from '@openbitfun/ui';
+import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { confirmDanger, confirmWarning } from '@/infrastructure/confirm-dialog';
 import { PendingQueuePanel } from './PendingQueuePanel';
 import { useAgentCanvasStore } from '@/app/components/panels/content-canvas/stores';
@@ -120,7 +123,6 @@ import { resolveSessionRelationship } from '../utils/sessionMetadata';
 import { isProjectedSessionEmpty } from '../utils/flowChatTurnIdentity';
 import {
   DEFAULT_CHAT_INPUT_MODE_CONFIG_PATH,
-  agentExecutionTier,
   canSwitchSessionMainAgent,
   isChatInputActionVisibleForTarget,
   normalizeUserDefaultChatInputModeId,
@@ -181,9 +183,7 @@ import { useRealtimeVoiceCallActive } from './voice/RealtimeVoiceCallContext';
 import { useComposerVoiceInput } from './voice/useComposerVoiceInput';
 import { expandWidgetPromptReferenceTokens } from '@/tools/generative-widget/widgetPromptReference';
 import {
-  createAdditionalModePromptReferenceToken,
   expandAdditionalModePromptReferenceTokens,
-  type AdditionalModePromptReferenceId,
 } from '../utils/additionalModePromptReference';
 import {
   composerPresentationContexts,
@@ -212,6 +212,15 @@ import {
 import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import type { SessionPermissionMode } from '@/infrastructure/api/service-api/AgentAPI';
 import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFlag';
+import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
+import { useLocalFileDrop } from '@/infrastructure/files/useLocalFileDrop';
+import { resolveBrowserDroppedFilePaths } from '@/infrastructure/files/resolveBrowserDroppedFilePaths';
+import {
+  buildExternalFileContexts,
+  partitionExternalDropFiles,
+  resolveExternalFileIntakeAvailability,
+  type ExternalFileSource,
+} from '../utils/externalFileIntake';
 import { selectInterruptedTurnRecovery } from '../utils/interruptedTurnRecovery';
 import {
   chatInputPermissionMode,
@@ -240,15 +249,23 @@ import {
 } from './chatInputRegistration';
 import './ChatInput.scss';
 
-import { setChatPopupActive } from './chatPopupState';
-import { Menu, MenuItem, MenuSeparator } from '@bitfun/ui';
+import {
+  isChatPopupActive,
+  setChatPopupActive,
+  subscribeChatPopupChange,
+} from './chatPopupState';
+import {
+  resolveChatInputTargetSessionId,
+  type ChatInputTarget,
+} from '../utils/chatInputTarget';
+import { Menu, MenuItem, MenuSeparator, Icon } from '@openbitfun/ui';
 import {
   ChatComposer,
   ChatComposerActionButton,
   ChatComposerContent,
   ChatComposerEndActions,
   ChatComposerStartActions,
-} from '@bitfun/ui/flow-chat';
+} from '@openbitfun/ui/flow-chat';
 
 const log = createLogger('ChatInput');
 
@@ -262,15 +279,11 @@ export interface ChatInputProps {
   registration?: ChatInputRegistration;
 }
 
-type ChatInputAdditionalModeSelection =
-  | { kind: 'skill'; skillName: string }
-  | { kind: 'additional-mode'; modeId: AdditionalModePromptReferenceId };
-
 interface ChatInputAdditionalModeItem {
   id: string;
   label: string;
   title: string;
-  selection: ChatInputAdditionalModeSelection;
+  skillName: string;
 }
 
 type SlashActionItem = {
@@ -330,13 +343,11 @@ type SlashPickerItem =
   | SlashAcpCommandItem
   | SlashSkillItem
   | SlashExternalPromptCommandItem;
-type ChatInputTarget = 'main' | 'btw';
-
 function nativePromptCommandCandidateId(
   kind: Exclude<SlashPickerItem['kind'], 'externalCommand'>,
   id: string,
 ): string {
-  return `bitfun.desktop:${kind}:${id}`;
+  return `openbitfun.desktop:${kind}:${id}`;
 }
 
 function toNativePromptCommandDescriptor(
@@ -458,6 +469,13 @@ function renderMcpPromptMessages(messages: MCPPromptMessage[]): string {
 
 type BoostSubmenuId = 'harness' | 'additional-modes' | 'skills';
 
+interface ExternalFileIntakeRequest {
+  availability: ReturnType<typeof resolveExternalFileIntakeAvailability>;
+  sessionId: string | null;
+  surfaceEpoch: number;
+  targetKey: string;
+}
+
 export const ChatInput: React.FC<ChatInputProps> = ({
   className = '',
   isSceneActive = true,
@@ -482,6 +500,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   
   const richTextInputRef = useRef<RichTextInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const externalFileDropTargetRef = useRef<HTMLDivElement>(null);
   const mentionAnchorRef = useRef<HTMLDivElement>(null);
   const agentBoostRef = useRef<HTMLDivElement>(null);
   const boostTriggerRef = useRef<HTMLSpanElement>(null);
@@ -491,12 +510,23 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // Ref so the queuedInput sync effect can read the latest value without it being a dep
   const inputValueRef = useRef('');
   const pendingLargePastesRef = useRef<PendingLargePasteMap>({});
+  const [pendingLargePastes, setPendingLargePastes] = useState<PendingLargePasteMap>({});
+  const externalFileIntakeQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const externalFileIntakeTargetKeyRef = useRef('');
+  const chatInputMountedRef = useRef(false);
   const composerMutationRevisionsRef = useRef(new Map<string, number>());
   const isRestoringSessionDraftRef = useRef(false);
   const sessionConflictRetryBaselinesRef = useRef(new Map<string, number>());
   const reviewLaunchPendingRef = useRef(false);
   const largePasteCountersRef = useRef<Record<number, number>>({});
   const undoImageStackRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    chatInputMountedRef.current = true;
+    return () => {
+      chatInputMountedRef.current = false;
+    };
+  }, []);
   
   // History navigation state
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -553,8 +583,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const activeBtwSessionId = activeBtwSessionData?.parentSessionId === currentSessionId
     ? activeBtwSessionData.childSessionId
     : undefined;
-  const effectiveTargetSessionId =
-    inputTarget === 'btw' && activeBtwSessionId ? activeBtwSessionId : currentSessionId;
+  const effectiveTargetSessionId = resolveChatInputTargetSessionId({
+    currentSessionId,
+    inputTarget,
+    activeBtwSessionId,
+  });
   const effectiveTargetSessionIdRef = useRef<string | null>(effectiveTargetSessionId);
   effectiveTargetSessionIdRef.current = effectiveTargetSessionId;
 
@@ -728,7 +761,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const measureCapsuleInputWidth = useCallback((): number | null => {
     const containerEl = containerRef.current;
     const editorEl = richTextInputRef.current;
-    const boxEl = editorEl?.closest('.bitfun-chat-input__box') as HTMLElement | null;
+    const boxEl = editorEl?.closest('.openbitfun-chat-input__box') as HTMLElement | null;
 
     if (!containerEl || !boxEl) {
       return null;
@@ -741,19 +774,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     clone.style.visibility = 'hidden';
     clone.style.pointerEvents = 'none';
     clone.style.width = `${containerEl.getBoundingClientRect().width}px`;
-    clone.classList.add('bitfun-chat-input--capsule');
-    clone.classList.remove('bitfun-chat-input--multi-line');
+    clone.classList.add('openbitfun-chat-input--capsule');
+    clone.classList.remove('openbitfun-chat-input--multi-line');
 
     const cloneComposerSurfaceEl = clone.querySelector(
-      '[data-bf-component="chat-composer"] [data-bf-part="surface"]',
+      '[data-openbitfun-component="chat-composer"] [data-openbitfun-part="surface"]',
     ) as HTMLElement | null;
-    const cloneInputAreaEl = clone.querySelector('.bitfun-chat-input__input-area') as HTMLElement | null;
+    const cloneInputAreaEl = clone.querySelector('.openbitfun-chat-input__input-area') as HTMLElement | null;
 
     if (cloneComposerSurfaceEl) {
       // ChatComposer owns the compact/expanded grid. Force its public layout
       // contract on the off-screen clone so collapse checks never measure the
       // wider expanded content track by accident.
-      cloneComposerSurfaceEl.dataset.bfLayout = 'compact';
+      cloneComposerSurfaceEl.dataset.openbitfunLayout = 'compact';
     }
 
     document.body.appendChild(clone);
@@ -810,9 +843,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     // A fixed boxWidth-minus-constant estimate drifts when the right-side
     // controls grow (for example with longer model labels), causing false
     // "single-line" results for text that already wraps in the real editor.
-    const boxEl = el.closest('.bitfun-chat-input__box') as HTMLElement | null;
-    const actionsLeftEl = boxEl?.querySelector('.bitfun-chat-input__actions-left') as HTMLElement | null;
-    const actionsRightEl = boxEl?.querySelector('.bitfun-chat-input__actions-right') as HTMLElement | null;
+    const boxEl = el.closest('.openbitfun-chat-input__box') as HTMLElement | null;
+    const actionsLeftEl = boxEl?.querySelector('.openbitfun-chat-input__actions-left') as HTMLElement | null;
+    const actionsRightEl = boxEl?.querySelector('.openbitfun-chat-input__actions-right') as HTMLElement | null;
     const boxWidth = boxEl?.offsetWidth ?? containerRef.current?.offsetWidth ?? 400;
     const boxComputedStyle = boxEl ? window.getComputedStyle(boxEl) : null;
     const boxPaddingLeft = boxComputedStyle ? parseFloat(boxComputedStyle.paddingLeft || '0') : 0;
@@ -933,9 +966,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   useEffect(() => {
     const containerEl = containerRef.current;
-    const boxEl = containerEl?.querySelector('.bitfun-chat-input__box') as HTMLElement | null;
-    const actionsLeftEl = containerEl?.querySelector('.bitfun-chat-input__actions-left') as HTMLElement | null;
-    const actionsRightEl = containerEl?.querySelector('.bitfun-chat-input__actions-right') as HTMLElement | null;
+    const boxEl = containerEl?.querySelector('.openbitfun-chat-input__box') as HTMLElement | null;
+    const actionsLeftEl = containerEl?.querySelector('.openbitfun-chat-input__actions-left') as HTMLElement | null;
+    const actionsRightEl = containerEl?.querySelector('.openbitfun-chat-input__actions-right') as HTMLElement | null;
     const observedElements = [containerEl, boxEl, actionsLeftEl, actionsRightEl].filter(
       (element): element is HTMLElement => !!element,
     );
@@ -1094,6 +1127,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     getSessionContextUsageDisplay()
   );
   const [isModelSwitching, setIsModelSwitching] = useState(false);
+  const [modelAvailability, setModelAvailability] = useState<ModelSelectorAvailability>({
+    status: 'loading',
+    canSend: false,
+  });
   const isAssistantWorkspace = useMemo(
     () => resolveSessionAssistantWorkspace({
       currentWorkspace: workspace,
@@ -1152,9 +1189,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     [activeSessionMode, currentMode, isAcpTargetSession, isAssistantWorkspace],
   );
   const canSwitchModes = chatInputModePolicy.canSwitchModes && !isSubagentInputTarget;
-  // Other Agents sit on the Standard execution surface. Minimal and Ultimate
-  // keep their deliberately fixed capability sets.
-  const showStandardExecutionOptions = agentExecutionTier(currentMode) === 'balanced';
   const selectedHarnessProfile = resolveSelectedComposerExecutionLevel({
     currentMode,
   });
@@ -1440,12 +1474,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       : [],
     [canUseSkillsForTarget, resolvedModeSkills],
   );
-  const showReviewAdditionalMode = canLaunchReview && canSwitchModes && showStandardExecutionOptions;
-  const showAdditionalModes = quickSkillShortcuts.length > 0 || showReviewAdditionalMode;
-  const boostMenuLayoutRevision = [
-    ...quickSkillShortcuts.map(shortcut => shortcut.id),
-    showReviewAdditionalMode ? 'review' : '',
-  ].filter(Boolean).join('|');
+  const showAdditionalModes = quickSkillShortcuts.length > 0;
+  const boostMenuLayoutRevision = quickSkillShortcuts
+    .map(shortcut => shortcut.id)
+    .join('|');
   const boostMenuLayout = useAnchoredPopoverPosition({
     open: modeState.dropdownOpen,
     anchorRef: boostTriggerRef,
@@ -1679,8 +1711,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   }, [externalPromptCommandsLoading, externalPromptCommandsPending, refreshExternalPromptCommands, slashCommandState.isActive]);
 
-  // Keep the module-level popup-active flag in sync so ModernFlowChatContainer
-  // can disable the global Escape shortcut while popups are open.
+  const reportedChatPopupActive = useSyncExternalStore(
+    subscribeChatPopupChange,
+    isChatPopupActive,
+    isChatPopupActive,
+  );
+  const chatPopupActive =
+    slashCommandState.isActive || mentionState.isActive || reportedChatPopupActive;
+
+  // Keep the module-level flag in sync for other Escape owners such as modal
+  // surfaces. The local state is included above so this composer does not wait
+  // for the effect before giving the key to its popup.
   useEffect(() => {
     setChatPopupActive(slashCommandState.isActive || mentionState.isActive);
   }, [slashCommandState.isActive, mentionState.isActive]);
@@ -1692,7 +1733,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     const frameId = requestAnimationFrame(() => {
       const selectedItem = containerRef.current?.querySelector(
-        '.bitfun-chat-input__slash-command-list .bitfun-chat-input__slash-command-item--selected'
+        '.openbitfun-chat-input__slash-command-list .openbitfun-chat-input__slash-command-item--selected'
       ) as HTMLElement | null;
       selectedItem?.scrollIntoView({ block: 'nearest' });
     });
@@ -1759,7 +1800,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     dispatchLocalInput({ type: 'SET_VALUE', payload: nextValue });
     inputValueRef.current = nextValue;
-    pendingLargePastesRef.current = { ...nextPendingLargePastes };
+    const restoredPendingLargePastes = { ...nextPendingLargePastes };
+    pendingLargePastesRef.current = restoredPendingLargePastes;
+    setPendingLargePastes(restoredPendingLargePastes);
     isRestoringSessionDraftRef.current = true;
     try {
       replaceContexts(nextContexts);
@@ -1823,6 +1866,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       markComposerMutation();
     }
     pendingLargePastesRef.current = nextPendingLargePastes;
+    setPendingLargePastes(nextPendingLargePastes);
 
     const sessionId = effectiveTargetSessionIdRef.current;
     if (sessionId) {
@@ -1962,28 +2006,55 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     replaceContexts,
   ]);
 
+  const allocateLargePastePlaceholder = useCallback((charCount: number, excluded?: string): string => {
+    const base = t('input.largePastePlaceholder', { count: charCount });
+    let suffix = largePasteCountersRef.current[charCount] ?? 0;
+    let placeholder: string;
+    do {
+      suffix += 1;
+      placeholder = suffix === 1 ? base : `${base} #${suffix}`;
+    } while (
+      placeholder !== excluded
+      && Object.prototype.hasOwnProperty.call(pendingLargePastesRef.current, placeholder)
+    );
+    largePasteCountersRef.current[charCount] = suffix;
+    return placeholder;
+  }, [t]);
+
   const createLargePastePlaceholder = useCallback((text: string): string | null => {
     const charCount = getCharacterCount(text);
     if (charCount <= CHAT_INPUT_CONFIG.largePaste.thresholdChars) {
       return null;
     }
 
-    const nextCounters = largePasteCountersRef.current;
-    const nextSuffix = (nextCounters[charCount] ?? 0) + 1;
-    nextCounters[charCount] = nextSuffix;
-
-    const base = t('input.largePastePlaceholder', {
-      count: charCount,
-    });
-    const placeholder = nextSuffix === 1 ? base : `${base} #${nextSuffix}`;
-
+    const placeholder = allocateLargePastePlaceholder(charCount);
     replacePendingLargePastes({
       ...pendingLargePastesRef.current,
       [placeholder]: text,
     });
 
     return placeholder;
-  }, [replacePendingLargePastes, t]);
+  }, [allocateLargePastePlaceholder, replacePendingLargePastes]);
+
+  const updateLargePaste = useCallback((placeholder: string, text: string): string => {
+    const currentText = pendingLargePastesRef.current[placeholder];
+    const charCount = getCharacterCount(text);
+    const nextPlaceholder = currentText !== undefined && getCharacterCount(currentText) === charCount
+      ? placeholder
+      : allocateLargePastePlaceholder(charCount, placeholder);
+    const nextPendingLargePastes = { ...pendingLargePastesRef.current };
+    delete nextPendingLargePastes[placeholder];
+    nextPendingLargePastes[nextPlaceholder] = text;
+    replacePendingLargePastes(nextPendingLargePastes);
+    return nextPlaceholder;
+  }, [allocateLargePastePlaceholder, replacePendingLargePastes]);
+
+  const removeLargePaste = useCallback((placeholder: string) => {
+    if (!Object.prototype.hasOwnProperty.call(pendingLargePastesRef.current, placeholder)) return;
+    const nextPendingLargePastes = { ...pendingLargePastesRef.current };
+    delete nextPendingLargePastes[placeholder];
+    replacePendingLargePastes(nextPendingLargePastes);
+  }, [replacePendingLargePastes]);
 
   const prunePendingLargePastes = useCallback((text: string) => {
     const entries = Object.entries(pendingLargePastesRef.current);
@@ -2044,6 +2115,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const handleFillChatInput = (data: {
       content?: string;
       context?: ContextItem;
+      /** Complete composer context replacement, including image attachments. */
+      contexts?: ContextItem[];
       composerPresentation?: ComposerPresentation;
       onlyIfEmpty?: boolean;
       mode?: 'replace' | 'append';
@@ -2068,7 +2141,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       const composerPresentation = parseComposerPresentation(data.composerPresentation);
       if (composerPresentation && data.mode !== 'append') {
         const restoredValue = composerPresentationToEditorText(composerPresentation);
-        replaceContexts(composerPresentationContexts(composerPresentation));
+        replaceContexts(data.contexts ?? composerPresentationContexts(composerPresentation));
         clearPendingLargePastes();
         dispatchInput({ type: 'SET_VALUE', payload: restoredValue });
         inputValueRef.current = restoredValue;
@@ -2094,6 +2167,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
       if (data.mode !== 'append') {
         clearPendingLargePastes();
+        if (data.contexts) {
+          replaceContexts(data.contexts);
+        }
       }
       dispatchInput({ type: 'SET_VALUE', payload: nextValue });
       inputValueRef.current = nextValue;
@@ -2653,15 +2729,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     };
   }, [caps.submissionOptionsLocked, caps.targetModelSelection, effectiveTargetSession, t]);
 
-  const handleHidePermissionModeControl = useCallback(async () => {
-    try {
-      await configManager.setConfig('app.flow_chat.show_permission_mode_control', false);
-    } catch (error) {
-      log.error('Failed to hide permission mode control', error);
-      notificationService.error(t('chatInput.permissionMode.hideControlFailed'));
-    }
-  }, [t]);
-
   React.useEffect(() => {
     if (!slashCommandState.isActive || slashCommandState.kind !== 'all' || derivedState?.isProcessing) {
       return;
@@ -2831,17 +2898,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         log.debug('Session switched, syncing mode', { sessionId, mode });
         dispatchMode({ type: 'SET_CURRENT_MODE', payload: mode });
         try {
-          sessionStorage.setItem('bitfun:flowchat:lastMode', mode);
+          sessionStorage.setItem('openbitfun:flowchat:lastMode', mode);
         } catch {
           // ignore
         }
       }
     };
 
-    window.addEventListener('bitfun:session-switched', handleSessionSwitched);
+    window.addEventListener('openbitfun:session-switched', handleSessionSwitched);
     
     return () => {
-      window.removeEventListener('bitfun:session-switched', handleSessionSwitched);
+      window.removeEventListener('openbitfun:session-switched', handleSessionSwitched);
     };
   }, []);
 
@@ -2873,7 +2940,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       } else {
         dispatchMode({ type: 'SET_CURRENT_MODE', payload: nextMode });
         try {
-          sessionStorage.setItem('bitfun:flowchat:lastMode', nextMode);
+          sessionStorage.setItem('openbitfun:flowchat:lastMode', nextMode);
         } catch {
           // ignore
         }
@@ -2904,7 +2971,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       // (EventHandlerModule sets queuedInput on failed turns), NOT for live typing.
       // Restoring while the user is actively typing would overwrite their draft.
       log.debug('Detected queuedInput, restoring message to input', { queuedInput });
-      clearPendingLargePastes();
+      // Keep the session-scoped paste map restored with this draft. Remote and
+      // detached submissions must still expand placeholders before transport.
       dispatchInput({ type: 'SET_VALUE', payload: queuedInput });
       inputValueRef.current = queuedInput;
       if (richTextInputRef.current) {
@@ -2914,7 +2982,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }, [
     derivedState?.queuedInput,
     effectiveTargetSessionId,
-    clearPendingLargePastes,
     dispatchInput,
   ]);
 
@@ -2988,45 +3055,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const retryResolvedModeSkills = useCallback(() => {
     setResolvedModeSkillsRequestVersion(version => version + 1);
   }, []);
-
-  useEffect(() => {
-    const handleImagePaste = async (event: Event) => {
-      const customEvent = event as CustomEvent<{ file: File }>;
-      const file = customEvent.detail?.file;
-      
-      if (!file) return;
-
-      if (currentImageCount >= CHAT_INPUT_CONFIG.image.maxCount) {
-        notificationService.warning(t('input.maxImagesWarning', { count: CHAT_INPUT_CONFIG.image.maxCount }), { duration: 3000 });
-        return;
-      }
-      
-      try {
-        const imageContext = await createImageContextFromClipboard(file);
-
-        addContext(imageContext);
-        undoImageStackRef.current.push(imageContext.id);
-
-      } catch (error) {
-        log.error('Failed to process clipboard image', { fileName: file.name, error });
-        notificationService.error(
-          `${t('input.imagePasteFailed')}: ${error instanceof Error ? error.message : t('error.unknown')}`,
-          { duration: 3000 }
-        );
-      }
-    };
-    
-    const inputElement = richTextInputRef.current;
-    if (inputElement) {
-      inputElement.addEventListener('imagePaste', handleImagePaste);
-    }
-    
-    return () => {
-      if (inputElement) {
-        inputElement.removeEventListener('imagePaste', handleImagePaste);
-      }
-    };
-  }, [addContext, currentImageCount, t]);
 
   React.useEffect(() => {
     if (!effectiveTargetSessionId || !sessionBoundWorkspacePath) {
@@ -4286,6 +4314,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     await FlowChatManager.getInstance().cancelCurrentTask();
   }, [effectiveTargetSessionId]);
 
+  useShortcut(
+    'chat.stopGeneration',
+    { key: 'Escape', scope: 'chat', allowInInput: true },
+    () => {
+      void handleCancelCurrentTask();
+    },
+    {
+      priority: 20,
+      enabled: isSceneActive && !chatPopupActive && Boolean(derivedState?.canCancel),
+      description: 'keyboard.shortcuts.chat.stopGeneration',
+    },
+  );
+
   const handleModelLoadingChange = useCallback((loading: boolean) => {
     setIsModelSwitching(loading);
   }, []);
@@ -4303,7 +4344,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     });
 
     try {
-      sessionStorage.setItem('bitfun:flowchat:lastMode', modeId);
+      sessionStorage.setItem('openbitfun:flowchat:lastMode', modeId);
     } catch {
       // ignore
     }
@@ -4429,7 +4470,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         effectiveTargetSessionIdRef.current = newSessionId;
         dispatchLocalInput({ type: 'SET_VALUE', payload: transferredDraft.value });
         inputValueRef.current = transferredDraft.value;
-        pendingLargePastesRef.current = transferredDraft.pendingLargePastes;
+        const transferredPendingLargePastes = { ...transferredDraft.pendingLargePastes };
+        pendingLargePastesRef.current = transferredPendingLargePastes;
+        setPendingLargePastes(transferredPendingLargePastes);
         isRestoringSessionDraftRef.current = true;
         try {
           replaceContexts(transferredDraft.contexts);
@@ -4479,6 +4522,298 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   );
   const isInterruptedTurnRecoveryInFlight =
     interruptedTurnRecoveryGate.isSessionInFlight(effectiveTargetSessionId);
+
+  const externalFileAvailability = resolveExternalFileIntakeAvailability({
+    desktopRuntime: isTauriRuntime(),
+    remoteWorkspace: Boolean(sessionBoundRemoteConnectionId)
+      || isRemoteWorkspaceSession(effectiveTargetSession, mentionWorkspace),
+    peerDevice: isPeerDeviceModeActive(),
+    detachedDispatch: Boolean(effectiveTargetSession?.config.dispatchJobId)
+      || isNonLocalDispatchTarget(effectiveTargetSession?.config.dispatchTarget),
+  });
+  const externalFileIntakeTargetKey = JSON.stringify([
+    deviceSurfaceScope.epoch,
+    effectiveTargetSessionId ?? '',
+    registration?.registrationId ?? '',
+    sessionBoundWorkspacePath,
+    sessionBoundRemoteConnectionId ?? '',
+    externalFileAvailability.supported ? 'supported' : externalFileAvailability.reason,
+    effectiveTargetSession?.config.dispatchJobId ?? '',
+    effectiveTargetSession?.config.dispatchTarget ?? null,
+  ]);
+  externalFileIntakeTargetKeyRef.current = externalFileIntakeTargetKey;
+
+  const captureExternalFileIntakeRequest = useCallback((): ExternalFileIntakeRequest => ({
+    availability: externalFileAvailability,
+    sessionId: effectiveTargetSessionId,
+    surfaceEpoch: deviceSurfaceScope.epoch,
+    targetKey: externalFileIntakeTargetKey,
+  }), [
+    deviceSurfaceScope.epoch,
+    effectiveTargetSessionId,
+    externalFileAvailability,
+    externalFileIntakeTargetKey,
+  ]);
+
+  const isExternalFileIntakeRequestCurrent = useCallback((request: ExternalFileIntakeRequest) => (
+    chatInputMountedRef.current
+    && effectiveTargetSessionIdRef.current === request.sessionId
+    && getActiveSurfaceScope().epoch === request.surfaceEpoch
+    && externalFileIntakeTargetKeyRef.current === request.targetKey
+  ), []);
+
+  const enqueueExternalFileIntake = useCallback((
+    request: ExternalFileIntakeRequest,
+    operation: () => Promise<void>,
+  ): Promise<void> => {
+    const queued = externalFileIntakeQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        if (!isExternalFileIntakeRequestCurrent(request)) return;
+        await operation();
+      })
+      .catch((error) => {
+        log.error('External file intake failed', error);
+      });
+    externalFileIntakeQueueRef.current = queued;
+    return queued;
+  }, [isExternalFileIntakeRequestCurrent]);
+
+  const addClipboardImageFiles = useCallback(async (
+    request: ExternalFileIntakeRequest,
+    files: File[],
+  ) => {
+    let limitReached = false;
+    for (const file of files) {
+      if (!isExternalFileIntakeRequestCurrent(request)) return;
+      const imageCount = useContextStore.getState().contexts
+        .filter(context => context.type === 'image')
+        .length;
+      if (imageCount >= CHAT_INPUT_CONFIG.image.maxCount) {
+        limitReached = true;
+        continue;
+      }
+
+      try {
+        const imageContext = await createImageContextFromClipboard(file);
+        if (!isExternalFileIntakeRequestCurrent(request)) return;
+        const latestImageCount = useContextStore.getState().contexts
+          .filter(context => context.type === 'image')
+          .length;
+        if (latestImageCount >= CHAT_INPUT_CONFIG.image.maxCount) {
+          limitReached = true;
+          continue;
+        }
+        addContext(imageContext);
+        undoImageStackRef.current.push(imageContext.id);
+      } catch (error) {
+        log.error('Failed to process clipboard image', { fileName: file.name, error });
+        notificationService.error(
+          `${t('input.imagePasteFailed')}: ${error instanceof Error ? error.message : t('error.unknown')}`,
+          { duration: 3000 },
+        );
+      }
+    }
+
+    if (limitReached && isExternalFileIntakeRequestCurrent(request)) {
+      notificationService.warning(
+        t('input.maxImagesWarning', { count: CHAT_INPUT_CONFIG.image.maxCount }),
+        { duration: 3000 },
+      );
+    }
+  }, [addContext, isExternalFileIntakeRequestCurrent, t]);
+
+  const addExternalPaths = useCallback(async (
+    request: ExternalFileIntakeRequest,
+    source: ExternalFileSource,
+    paths: string[],
+  ) => {
+    if (!request.availability.supported) {
+      notificationService.warning(
+        t(`input.externalFiles.unsupported.${request.availability.reason}`),
+        { duration: 4000 },
+      );
+      return;
+    }
+    if (paths.length === 0) {
+      notificationService.error(
+        t(source === 'clipboard'
+          ? 'input.externalFiles.clipboardPathsUnavailable'
+          : 'input.externalFiles.dropPathsUnavailable'),
+        { duration: 4000 },
+      );
+      return;
+    }
+
+    const result = await buildExternalFileContexts({
+      source,
+      paths,
+      existingContexts: useContextStore.getState().contexts,
+      workspacePath: sessionBoundWorkspacePath || undefined,
+      maxImageCount: CHAT_INPUT_CONFIG.image.maxCount,
+      loadMetadata: pathToInspect => workspaceAPI.getFileMetadata(pathToInspect),
+    });
+    if (!isExternalFileIntakeRequestCurrent(request)) return;
+
+    for (const context of result.contexts) {
+      addContext(context);
+      if (context.type !== 'image') {
+        richTextInputRef.current?.insertTag?.(context);
+      }
+    }
+
+    if (result.failures.length > 0) {
+      const imageLimitCount = result.failures.filter(failure => failure.reason === 'image-limit').length;
+      notificationService.warning(
+        imageLimitCount === result.failures.length
+          ? t('input.maxImagesWarning', { count: CHAT_INPUT_CONFIG.image.maxCount })
+          : t('input.externalFiles.partialFailure', {
+              failed: result.failures.length,
+              added: result.contexts.length,
+            }),
+        { duration: 4000 },
+      );
+    }
+  }, [
+    addContext,
+    isExternalFileIntakeRequestCurrent,
+    sessionBoundWorkspacePath,
+    t,
+  ]);
+
+  const intakeExternalPaths = useCallback((
+    source: ExternalFileSource,
+    paths: string[],
+  ) => {
+    const request = captureExternalFileIntakeRequest();
+    return enqueueExternalFileIntake(
+      request,
+      () => addExternalPaths(request, source, paths),
+    );
+  }, [addExternalPaths, captureExternalFileIntakeRequest, enqueueExternalFileIntake]);
+
+  const handleClipboardFiles = useCallback((paste: ClipboardFilePaste) => {
+    const request = captureExternalFileIntakeRequest();
+    return enqueueExternalFileIntake(request, async () => {
+      if (!request.availability.supported) {
+        await addClipboardImageFiles(request, paste.fallbackImages);
+        if (paste.hasNonImageFiles || paste.fallbackImages.length === 0) {
+          notificationService.warning(
+            t(`input.externalFiles.unsupported.${request.availability.reason}`),
+            { duration: 4000 },
+          );
+        }
+        return;
+      }
+
+      try {
+        const { files } = await workspaceAPI.getClipboardFiles();
+        if (!isExternalFileIntakeRequestCurrent(request)) return;
+        if (files.length > 0) {
+          await addExternalPaths(request, 'clipboard', files);
+          return;
+        }
+      } catch (error) {
+        log.error('Failed to read clipboard file paths', error);
+      }
+
+      await addClipboardImageFiles(request, paste.fallbackImages);
+      if (paste.hasNonImageFiles || paste.fallbackImages.length === 0) {
+        notificationService.error(
+          t('input.externalFiles.clipboardPathsUnavailable'),
+          { duration: 4000 },
+        );
+      }
+    });
+  }, [
+    addClipboardImageFiles,
+    addExternalPaths,
+    captureExternalFileIntakeRequest,
+    enqueueExternalFileIntake,
+    isExternalFileIntakeRequestCurrent,
+    t,
+  ]);
+
+  const handleHtmlExternalFilesDrop = useCallback((files: File[]) => {
+    const request = captureExternalFileIntakeRequest();
+    return enqueueExternalFileIntake(request, async () => {
+      const dropPayload = partitionExternalDropFiles(
+        files,
+        request.availability.supported,
+      );
+      let paths = dropPayload.paths;
+      let fallbackImages = dropPayload.fallbackImages;
+      let hasUnavailableFiles = dropPayload.hasUnavailableFiles;
+
+      if (request.availability.supported && paths.length !== files.length && files.length > 0) {
+        try {
+          const resolvedPaths = await resolveBrowserDroppedFilePaths(files);
+          if (resolvedPaths.length === files.length && resolvedPaths.every(Boolean)) {
+            paths = resolvedPaths;
+            fallbackImages = [];
+            hasUnavailableFiles = false;
+          } else {
+            log.warn('Browser drop path resolution returned an incomplete result', {
+              expectedCount: files.length,
+              resolvedCount: resolvedPaths.length,
+            });
+          }
+        } catch (error) {
+          log.warn('Failed to resolve browser-dropped file paths', error);
+        }
+      }
+
+      if (request.availability.supported && paths.length > 0) {
+        await addExternalPaths(request, 'drop', paths);
+      }
+
+      await addClipboardImageFiles(request, fallbackImages);
+
+      if (!isExternalFileIntakeRequestCurrent(request)) return;
+      if (!request.availability.supported && (hasUnavailableFiles || paths.length > 0)) {
+        notificationService.warning(
+          t(`input.externalFiles.unsupported.${request.availability.reason}`),
+          { duration: 4000 },
+        );
+      } else if (request.availability.supported && hasUnavailableFiles) {
+        notificationService.warning(
+          t('input.externalFiles.dropPathsUnavailable'),
+          { duration: 4000 },
+        );
+      }
+    });
+  }, [
+    addClipboardImageFiles,
+    addExternalPaths,
+    captureExternalFileIntakeRequest,
+    enqueueExternalFileIntake,
+    isExternalFileIntakeRequestCurrent,
+    t,
+  ]);
+
+  useEffect(() => {
+    const inputElement = richTextInputRef.current;
+    if (!inputElement) return;
+    const handleImagePaste = (event: Event) => {
+      const file = (event as CustomEvent<{ file?: File }>).detail?.file;
+      if (!file) return;
+      const request = captureExternalFileIntakeRequest();
+      void enqueueExternalFileIntake(
+        request,
+        () => addClipboardImageFiles(request, [file]),
+      );
+    };
+    inputElement.addEventListener('imagePaste', handleImagePaste);
+    return () => inputElement.removeEventListener('imagePaste', handleImagePaste);
+  }, [addClipboardImageFiles, captureExternalFileIntakeRequest, enqueueExternalFileIntake]);
+
+  useLocalFileDrop({
+    targetRef: externalFileDropTargetRef,
+    enabled: !isWindowsDesktopRuntime()
+      && !caps.transferInFlight
+      && !isInterruptedTurnRecoveryInFlight,
+    onDropPaths: paths => intakeExternalPaths('drop', paths),
+  });
 
   const handleRecoverInterruptedTurn = useCallback(async () => {
     const candidate = interruptedTurnRecovery;
@@ -4536,6 +4871,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     
     const originalMessage = draftTrimmed;
     const submissionSessionId = effectiveTargetSessionId;
+    const submittedContexts = [...contexts];
     const composerPresentation = messageOverride === undefined
       ? richTextInputRef.current?.getComposerPresentation?.() ?? null
       : null;
@@ -4655,6 +4991,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       return;
     }
 
+    // The selector owns the target-specific availability contract. Keep this
+    // after cancel and local slash-command handling so an unavailable model
+    // cannot block cancellation or other controls that do not start a turn.
+    if (!modelAvailability.canSend) return;
+
     const confirmed = await confirmPromptCacheGuardIfNeeded();
     if (!confirmed) {
       return;
@@ -4667,21 +5008,25 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     setHistoryIndex(-1);
     setSavedDraft('');
 
-    dispatchInput({ type: 'CLEAR_VALUE' });
-    clearPendingLargePastes();
-    // Clear machine queue too; otherwise the queuedInput→input sync effect puts the text back after send.
-    setQueuedInput(null);
+    clearComposerForSubmission({
+      clearValue: () => dispatchInput({ type: 'CLEAR_VALUE' }),
+      clearContexts,
+      clearPendingLargePastes,
+      // Clear the machine queue too; otherwise queuedInput→input sync puts
+      // the submitted text back into the composer.
+      clearQueuedInput: () => setQueuedInput(null),
+    });
     const clearedComposerRevision = submissionSessionId
       ? composerMutationRevision(submissionSessionId)
       : 0;
 
     try {
-      const transport = await submitThroughChatInputRegistration(
+      await submitThroughChatInputRegistration(
         registration,
         {
           text: message,
           displayText: originalMessage,
-          contexts: [...contexts],
+          contexts: submittedContexts,
           composerPresentation: persistedComposerPresentation,
           sessionId: effectiveTargetSessionId || undefined,
           workspacePath: workspacePath || undefined,
@@ -4693,13 +5038,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             value: originalMessage,
             pendingLargePastes: originalPendingLargePastes,
           },
+          clearContextsOnSuccess: false,
         }),
       );
-      if (transport === 'registered') {
-        clearContexts();
-      }
-      clearPendingLargePastes();
-      dispatchInput({ type: 'CLEAR_VALUE' });
     } catch (error) {
       log.error('Failed to send message', { error });
       const recoveryTarget = failedSubmissionRecoveryTarget(
@@ -4709,19 +5050,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         submissionSessionId ? composerMutationRevision(submissionSessionId) : 0,
       );
       if (recoveryTarget === 'current') {
-        replacePendingLargePastes(originalPendingLargePastes);
         dispatchInput({ type: 'SET_VALUE', payload: originalMessage });
+        replaceContexts(submittedContexts);
+        replacePendingLargePastes(originalPendingLargePastes);
         if (derivedState?.isProcessing) {
           setQueuedInput(originalMessage);
         }
       } else if (recoveryTarget === 'stored' && submissionSessionId) {
         const composer = sessionComposerStore.getState();
         composer.setValue(submissionSessionId, originalMessage);
+        composer.setContexts(submissionSessionId, submittedContexts);
         composer.setPendingLargePastes(submissionSessionId, originalPendingLargePastes);
       }
     }
   }, [
     isModelSwitching,
+    modelAvailability.canSend,
     isModeChangePending,
     caps.transferInFlight,
     isInterruptedTurnRecoveryInFlight,
@@ -4741,6 +5085,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     expandComposerSpecialTokens,
     isAcpInputSession,
     richTextInputRef,
+    replaceContexts,
     replacePendingLargePastes,
     setQueuedInput,
     submitBtwFromInput,
@@ -4972,7 +5317,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const nativeEvt = e.nativeEvent as KeyboardEvent;
     // IME-owned keys must stay with the input method. In particular, Escape
     // closes the Chinese/Japanese/Korean candidate window and must not cancel
-    // the running BitFun session.
+    // the running OpenBitFun session.
     const isComposing =
       isImeComposingRef.current
       || nativeEvt.isComposing
@@ -5176,11 +5521,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       handleSendOrCancel();
     }
     
-    if (e.key === 'Escape' && derivedState?.canCancel) {
-      e.preventDefault();
-      void handleCancelCurrentTask();
-    }
-  }, [canUseThreadGoal, handleSendOrCancel, submitBtwFromInput, submitGoalFromInput, derivedState, dispatchInput, handleCancelCurrentTask, slashCommandState, getActiveSlashPickerItems, selectSlashCommandAction, selectSlashExternalPromptCommand, selectSlashPromptCommand, selectSlashAcpCommand, selectSlashSkill, getRichTextInlineTriggerController, historyIndex, inputHistory, savedDraft, inputState.value, currentSessionId, isBtwSession, showTargetSwitcher, setInputTarget, removeContext, t]);
+  }, [canUseThreadGoal, handleSendOrCancel, submitBtwFromInput, submitGoalFromInput, derivedState, dispatchInput, slashCommandState, getActiveSlashPickerItems, selectSlashCommandAction, selectSlashExternalPromptCommand, selectSlashPromptCommand, selectSlashAcpCommand, selectSlashSkill, getRichTextInlineTriggerController, historyIndex, inputHistory, savedDraft, inputState.value, currentSessionId, isBtwSession, showTargetSwitcher, setInputTarget, removeContext, t]);
 
   const handleImeCompositionStart = useCallback(() => {
     isImeComposingRef.current = true;
@@ -5256,38 +5597,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     insertInlineReferenceIntoInput(createSkillPromptReferenceToken(skillName));
   }, [insertInlineReferenceIntoInput]);
 
-  const insertAdditionalModeIntoInput = useCallback((modeId: AdditionalModePromptReferenceId) => {
-    insertInlineReferenceIntoInput(createAdditionalModePromptReferenceToken(modeId));
-  }, [insertInlineReferenceIntoInput]);
-
   const additionalModeItems = useMemo<ChatInputAdditionalModeItem[]>(() => [
     ...quickSkillShortcuts.map(shortcut => ({
       id: shortcut.id,
       label: shortcut.label,
       title: shortcut.skill.description || shortcut.label,
-      selection: {
-        kind: 'skill' as const,
-        skillName: shortcut.skill.name,
-      },
+      skillName: shortcut.skill.name,
     })),
-    ...(showReviewAdditionalMode
-      ? [{
-          id: 'review',
-          label: t('chatInput.agents.review.name'),
-          title: t('chatInput.agents.review.name'),
-          selection: { kind: 'additional-mode' as const, modeId: 'review' as const },
-        }]
-      : []),
-  ], [quickSkillShortcuts, showReviewAdditionalMode, t]);
+  ], [quickSkillShortcuts]);
 
-  const selectAdditionalMode = useCallback((selection: ChatInputAdditionalModeSelection) => {
-    if (selection.kind === 'skill') {
-      insertSkillIntoInput(selection.skillName);
-      return;
-    }
-
-    insertAdditionalModeIntoInput(selection.modeId);
-  }, [insertAdditionalModeIntoInput, insertSkillIntoInput]);
+  const selectAdditionalMode = useCallback((skillName: string) => {
+    insertSkillIntoInput(skillName);
+  }, [insertSkillIntoInput]);
 
   const handleBoostPickImage = useCallback(
     (e: React.MouseEvent) => {
@@ -5320,7 +5641,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     [openScene]
   );
   useEffect(() => {
-    const dropZone = containerRef.current?.closest('.bitfun-chat-input-drop-zone') as HTMLElement | null;
+    const dropZone = containerRef.current?.closest('.openbitfun-chat-input-drop-zone') as HTMLElement | null;
     const el = dropZone ?? containerRef.current;
     if (!el) return;
     const observer = new ResizeObserver(() => {
@@ -5352,11 +5673,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   });
 
   const renderActionButton = () => {
-    if (!derivedState) return <span className="bitfun-chat-input__send-action" data-bf-component="chat-input" data-bf-part="sendButton" data-bf-action="send" data-bf-state="disabled"><ChatComposerActionButton
+    if (!derivedState) return <span className="openbitfun-chat-input__send-action" data-openbitfun-component="chat-input" data-openbitfun-part="sendButton" data-openbitfun-action="send" data-openbitfun-state="disabled"><ChatComposerActionButton
       aria-label={t('input.sendShortcut')}
-      className="bitfun-chat-input__send-button"
+      className="openbitfun-chat-input__send-button"
       disabled
-      icon={<ArrowUp />}
+      icon={<Icon name="arrow-up" size="lg" />}
       variant="primary"
     /></span>;
 
@@ -5365,21 +5686,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (interruptedTurnRecovery) {
       return (
         <span
-          className="bitfun-chat-input__send-action"
-          data-bf-component="chat-input"
-          data-bf-part="sendButton"
-          data-bf-action="continue-interrupted"
-          data-bf-state={isInterruptedTurnRecoveryInFlight ? 'disabled' : undefined}
+          className="openbitfun-chat-input__send-action"
+          data-openbitfun-component="chat-input"
+          data-openbitfun-part="sendButton"
+          data-openbitfun-action="continue-interrupted"
+          data-openbitfun-state={isInterruptedTurnRecoveryInFlight ? 'disabled' : undefined}
         >
           <Tooltip content={t('input.continueInterrupted')}>
             <ChatComposerActionButton
               aria-label={t('input.continueInterrupted')}
-              className="bitfun-chat-input__send-button"
+              className="openbitfun-chat-input__send-button"
               onClick={() => void handleRecoverInterruptedTurn()}
               disabled={isInterruptedTurnRecoveryInFlight}
               data-testid="chat-input-continue-interrupted-btn"
               icon={isInterruptedTurnRecoveryInFlight
-                ? <Loader2 className="bitfun-spin" />
+                ? <Loader2 className="openbitfun-spin" />
                 : <Play fill="currentColor" />}
               variant="primary"
             />
@@ -5390,15 +5711,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     
     if (sendButtonMode === 'cancel') {
       return (
-        <span className="bitfun-chat-input__send-action" data-bf-component="chat-input" data-bf-part="sendButton" data-bf-action="cancel">
+        <span className="openbitfun-chat-input__send-action" data-openbitfun-component="chat-input" data-openbitfun-part="sendButton" data-openbitfun-action="cancel">
           <Tooltip content={t('input.stopGeneration')}>
             <div
-              className="bitfun-chat-input__send-button bitfun-chat-input__send-button--breathing"
+              className="openbitfun-chat-input__send-button openbitfun-chat-input__send-button--breathing"
               onClick={() => void handleSendOrCancel()}
               data-testid="chat-input-cancel-btn"
             >
-              <div className="bitfun-chat-input__breathing-circle" />
-              {hasQueuedInput && <span className="bitfun-chat-input__queued-badge" data-bf-component="chat-input" data-bf-part="queuedBadge">1</span>}
+              <div className="openbitfun-chat-input__breathing-circle" />
+              {hasQueuedInput && <span className="openbitfun-chat-input__queued-badge" data-openbitfun-component="chat-input" data-openbitfun-part="queuedBadge">1</span>}
             </div>
           </Tooltip>
         </span>
@@ -5407,13 +5728,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     if (sendButtonMode === 'retry') {
       return (
-        <span className="bitfun-chat-input__send-action" data-bf-component="chat-input" data-bf-part="sendButton" data-bf-action="retry" data-bf-state={isModelSwitching || isModeChangePending || caps.transferInFlight ? 'disabled' : undefined}>
+        <span className="openbitfun-chat-input__send-action" data-openbitfun-component="chat-input" data-openbitfun-part="sendButton" data-openbitfun-action="retry" data-openbitfun-state={isModelSwitching || isModeChangePending || caps.transferInFlight || !modelAvailability.canSend ? 'disabled' : undefined}>
           <Tooltip content={t('input.retry')}>
             <ChatComposerActionButton
               aria-label={t('input.retry')}
-              className="bitfun-chat-input__send-button bitfun-chat-input__send-button--retry"
+              className="openbitfun-chat-input__send-button openbitfun-chat-input__send-button--retry"
               onClick={() => void handleSendOrCancel()}
-              disabled={isModelSwitching || isModeChangePending || caps.transferInFlight}
+              disabled={isModelSwitching || isModeChangePending || caps.transferInFlight || !modelAvailability.canSend}
               icon={<RotateCcw />}
               variant="primary"
             />
@@ -5424,29 +5745,29 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     if (sendButtonMode === 'split') {
       return (
-        <div data-bf-component="chat-input" data-bf-part="sendActions" data-bf-action="split" className="bitfun-chat-input__split-actions">
-          <span className="bitfun-chat-input__send-action" data-bf-component="chat-input" data-bf-part="sendButton" data-bf-action="cancel">
+        <div data-openbitfun-component="chat-input" data-openbitfun-part="sendActions" data-openbitfun-action="split" className="openbitfun-chat-input__split-actions">
+          <span className="openbitfun-chat-input__send-action" data-openbitfun-component="chat-input" data-openbitfun-part="sendButton" data-openbitfun-action="cancel">
             <Tooltip content={t('input.stopGeneration')}>
               <div
-                className="bitfun-chat-input__send-button bitfun-chat-input__send-button--breathing"
+                className="openbitfun-chat-input__send-button openbitfun-chat-input__send-button--breathing"
                 onClick={() => {
                   void handleCancelCurrentTask();
                 }}
                 data-testid="chat-input-cancel-btn"
               >
-                <div className="bitfun-chat-input__breathing-circle" />
+                <div className="openbitfun-chat-input__breathing-circle" />
               </div>
             </Tooltip>
           </span>
-          <span className="bitfun-chat-input__send-action" data-bf-component="chat-input" data-bf-part="sendButton" data-bf-action="send" data-bf-state={!inputState.value.trim() || isModelSwitching || isModeChangePending || caps.transferInFlight ? 'disabled' : undefined}>
+          <span className="openbitfun-chat-input__send-action" data-openbitfun-component="chat-input" data-openbitfun-part="sendButton" data-openbitfun-action="send" data-openbitfun-state={!inputState.value.trim() || isModelSwitching || isModeChangePending || caps.transferInFlight || !modelAvailability.canSend ? 'disabled' : undefined}>
             <Tooltip content={t('input.sendShortcut')}>
               <ChatComposerActionButton
                 aria-label={t('input.sendShortcut')}
-                className="bitfun-chat-input__send-button"
+                className="openbitfun-chat-input__send-button"
                 onClick={() => void handleSendOrCancel()}
-                disabled={!inputState.value.trim() || isModelSwitching || isModeChangePending || caps.transferInFlight}
+                disabled={!inputState.value.trim() || isModelSwitching || isModeChangePending || caps.transferInFlight || !modelAvailability.canSend}
                 data-testid="chat-input-send-btn"
-                icon={<ArrowUp />}
+                icon={<Icon name="arrow-up" size="lg" />}
                 variant="primary"
               />
             </Tooltip>
@@ -5456,15 +5777,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
     
     return (
-      <span className="bitfun-chat-input__send-action" data-bf-component="chat-input" data-bf-part="sendButton" data-bf-action="send" data-bf-state={!inputState.value.trim() || isModelSwitching || isModeChangePending || caps.transferInFlight ? 'disabled' : undefined}>
+      <span className="openbitfun-chat-input__send-action" data-openbitfun-component="chat-input" data-openbitfun-part="sendButton" data-openbitfun-action="send" data-openbitfun-state={!inputState.value.trim() || isModelSwitching || isModeChangePending || caps.transferInFlight || !modelAvailability.canSend ? 'disabled' : undefined}>
         <Tooltip content={t('input.sendShortcut')}>
           <ChatComposerActionButton
             aria-label={t('input.sendShortcut')}
-            className="bitfun-chat-input__send-button"
+            className="openbitfun-chat-input__send-button"
             onClick={() => void handleSendOrCancel()}
-            disabled={!inputState.value.trim() || isModelSwitching || isModeChangePending || caps.transferInFlight}
+            disabled={!inputState.value.trim() || isModelSwitching || isModeChangePending || caps.transferInFlight || !modelAvailability.canSend}
             data-testid="chat-input-send-btn"
-            icon={<ArrowUp />}
+            icon={<Icon name="arrow-up" size="lg" />}
             variant="primary"
           />
         </Tooltip>
@@ -5498,7 +5819,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               options: DISPATCH_PERMISSION_MODES,
               scopeLabel: t('chatInput.dispatch.sessionScope'),
               onChange: handleDispatchPermissionModeChange,
-              onHide: handleHidePermissionModeControl,
             }
           : {
               mode: permissionMode,
@@ -5519,7 +5839,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               onOpenDefaultSettings: isAcpTargetSession
                 ? undefined
                 : handleOpenPermissionDefaultSettings,
-              onHide: isAcpTargetSession ? undefined : handleHidePermissionModeControl,
             }
         : undefined}
       usageReport={
@@ -5552,8 +5871,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       {deepReviewConsentDialog}
       <ContextDropZone
         acceptedTypes={['file', 'directory', 'image', 'code-snippet', 'mermaid-diagram']}
-        className="bitfun-chat-input-drop-zone"
+        className="openbitfun-chat-input-drop-zone"
         disabled={isInterruptedTurnRecoveryInFlight}
+        onExternalFilesDrop={
+          isWindowsDesktopRuntime() && !caps.transferInFlight
+            ? files => { void handleHtmlExternalFilesDrop(files); }
+            : undefined
+        }
         onContextAdded={(context) => {
           if (context.type === 'image' && currentImageCount >= CHAT_INPUT_CONFIG.image.maxCount) {
             notificationService.warning(t('input.maxImagesWarning', { count: CHAT_INPUT_CONFIG.image.maxCount }), { duration: 3000 });
@@ -5572,10 +5896,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       >
         <div 
           ref={containerRef}
-          className={`bitfun-chat-input ${isMultiLine ? 'bitfun-chat-input--multi-line' : 'bitfun-chat-input--capsule'} ${derivedState?.isProcessing || caps.transferInFlight ? 'bitfun-chat-input--processing' : ''} ${className}`}
-          data-bf-component="chat-input"
-          data-bf-part="root"
-          data-bf-state={[
+          className={`openbitfun-chat-input ${isMultiLine ? 'openbitfun-chat-input--multi-line' : 'openbitfun-chat-input--capsule'} ${derivedState?.isProcessing || caps.transferInFlight ? 'openbitfun-chat-input--processing' : ''} ${className}`}
+          data-openbitfun-component="chat-input"
+          data-openbitfun-part="root"
+          data-openbitfun-state={[
             isMultiLine && 'multiline',
             (derivedState?.isProcessing || caps.transferInFlight) && 'processing',
           ].filter(Boolean).join(' ')}
@@ -5585,11 +5909,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         {recommendationContext && (
           <SmartRecommendations
             context={recommendationContext}
-            className="bitfun-chat-input__recommendations"
+            className="openbitfun-chat-input__recommendations"
           />
         )}
 
-        <div className="bitfun-chat-input__container" data-bf-component="chat-input" data-bf-part="container">
+        <div className="openbitfun-chat-input__container" data-openbitfun-component="chat-input" data-openbitfun-part="container">
           <AcpPlanPanel entries={acpPlanEntries} />
           {/* The request sits directly above the field that answers it, so the
               transcript it is about stays readable while deciding. */}
@@ -5604,9 +5928,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               onRespondBatch={respondPermissionBatch}
             />
           ) : null}
-          <div className="bitfun-chat-input__box" data-bf-component="chat-input" data-bf-part="box">
+          <div ref={externalFileDropTargetRef} className="openbitfun-chat-input__box" data-openbitfun-component="chat-input" data-openbitfun-part="box">
             <ChatComposer
-              className="bitfun-chat-input__composer"
+              className="openbitfun-chat-input__composer"
               contextBar={workspaceStrip}
               layout={isMultiLine ? 'expanded' : 'compact'}
               queue={(
@@ -5619,83 +5943,83 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               disabled={caps.transferInFlight || isInterruptedTurnRecoveryInFlight}
             >
               <ChatComposerContent>
-                <div className="bitfun-chat-input__content">
+                <div className="openbitfun-chat-input__content">
             {showTargetSwitcher && (
-              <div className="bitfun-chat-input__target-switcher" data-bf-component="chat-input" data-bf-part="targetSwitcher" data-testid="chat-input-target-switcher">
-                <span className="bitfun-chat-input__target-switcher-label" data-bf-component="chat-input" data-bf-part="targetLabel">{t('chatInput.conversationTarget')}</span>
+              <div className="openbitfun-chat-input__target-switcher" data-openbitfun-component="chat-input" data-openbitfun-part="targetSwitcher" data-testid="chat-input-target-switcher">
+                <span className="openbitfun-chat-input__target-switcher-label" data-openbitfun-component="chat-input" data-openbitfun-part="targetLabel">{t('chatInput.conversationTarget')}</span>
                 <button
                   type="button"
                   tabIndex={-1}
-                  className={`bitfun-chat-input__target-tab ${inputTarget === 'main' ? 'bitfun-chat-input__target-tab--active' : ''}`}
-                  data-bf-component="chat-input"
-                  data-bf-part="target"
-                  data-bf-target="main"
-                  data-bf-state={inputTarget === 'main' ? 'selected' : ''}
+                  className={`openbitfun-chat-input__target-tab ${inputTarget === 'main' ? 'openbitfun-chat-input__target-tab--active' : ''}`}
+                  data-openbitfun-component="chat-input"
+                  data-openbitfun-part="target"
+                  data-openbitfun-target="main"
+                  data-openbitfun-state={inputTarget === 'main' ? 'selected' : ''}
                   onClick={() => setInputTarget('main')}
                 >
                   {t('chatInput.targetMain')}
                   {inputTarget === 'main' && currentSessionTitle && (
-                    <span className="bitfun-chat-input__target-tab-name" data-bf-component="chat-input" data-bf-part="targetName">{currentSessionTitle}</span>
+                    <span className="openbitfun-chat-input__target-tab-name" data-openbitfun-component="chat-input" data-openbitfun-part="targetName">{currentSessionTitle}</span>
                   )}
                 </button>
                 <button
                   type="button"
                   tabIndex={-1}
-                  className={`bitfun-chat-input__target-tab ${inputTarget === 'btw' ? 'bitfun-chat-input__target-tab--active' : ''}`}
-                  data-bf-component="chat-input"
-                  data-bf-part="target"
-                  data-bf-target="btw"
-                  data-bf-state={inputTarget === 'btw' ? 'selected' : ''}
+                  className={`openbitfun-chat-input__target-tab ${inputTarget === 'btw' ? 'openbitfun-chat-input__target-tab--active' : ''}`}
+                  data-openbitfun-component="chat-input"
+                  data-openbitfun-part="target"
+                  data-openbitfun-target="btw"
+                  data-openbitfun-state={inputTarget === 'btw' ? 'selected' : ''}
                   onClick={() => setInputTarget('btw')}
                 >
                   {activeBtwTargetLabel}
                   {inputTarget === 'btw' && activeBtwSessionTitle && (
-                    <span className="bitfun-chat-input__target-tab-name" data-bf-component="chat-input" data-bf-part="targetName">{activeBtwSessionTitle}</span>
+                    <span className="openbitfun-chat-input__target-tab-name" data-openbitfun-component="chat-input" data-openbitfun-part="targetName">{activeBtwSessionTitle}</span>
                   )}
                 </button>
               </div>
             )}
-            <div ref={mentionAnchorRef} className="bitfun-chat-input__input-area" data-bf-component="chat-input" data-bf-part="area">
+            <div ref={mentionAnchorRef} className="openbitfun-chat-input__input-area" data-openbitfun-component="chat-input" data-openbitfun-part="area">
               {imageContexts.length > 0 && (
                 <div
-                  className="bitfun-chat-input__image-strip"
-                  data-bf-component="chat-input"
-                  data-bf-part="imageStrip"
+                  className="openbitfun-chat-input__image-strip"
+                  data-openbitfun-component="chat-input"
+                  data-openbitfun-part="imageStrip"
                   data-testid="chat-input-image-strip"
                 >
                   {imageContexts.map(image => {
                     const previewUrl = image.thumbnailUrl || image.dataUrl;
                     return (
-                      <div data-bf-component="chat-input" data-bf-part="image"
+                      <div data-openbitfun-component="chat-input" data-openbitfun-part="image"
                         key={image.id}
-                        className="bitfun-chat-input__image-chip"
+                        className="openbitfun-chat-input__image-chip"
                         title={image.imageName}
                       >
                         {previewUrl ? (
                           <img
-                            className="bitfun-chat-input__image-chip-thumb"
-                            data-bf-component="chat-input"
-                            data-bf-part="imagePreview"
+                            className="openbitfun-chat-input__image-chip-thumb"
+                            data-openbitfun-component="chat-input"
+                            data-openbitfun-part="imagePreview"
                             src={previewUrl}
                             alt={image.imageName}
                           />
                         ) : (
-                          <div className="bitfun-chat-input__image-chip-thumb bitfun-chat-input__image-chip-thumb--placeholder" data-bf-component="chat-input" data-bf-part="imagePreview">
-                            <Image size={14} />
+                          <div className="openbitfun-chat-input__image-chip-thumb openbitfun-chat-input__image-chip-thumb--placeholder" data-openbitfun-component="chat-input" data-openbitfun-part="imagePreview">
+                            <Icon name="image" size="sm" />
                           </div>
                         )}
                         <button
                           type="button"
-                          className="bitfun-chat-input__image-chip-remove"
-                          data-bf-component="chat-input"
-                          data-bf-part="imageRemove"
+                          className="openbitfun-chat-input__image-chip-remove"
+                          data-openbitfun-component="chat-input"
+                          data-openbitfun-part="imageRemove"
                           aria-label={t('input.removeImage')}
                           onClick={(e) => {
                             e.stopPropagation();
                             removeContext(image.id);
                           }}
                         >
-                          <X size={12} />
+                          <Icon name="xmark" size="xs" />
                         </button>
                       </div>
                     );
@@ -5703,7 +6027,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </div>
               )}
               {showPlaceholder && (
-                <span className="bitfun-chat-input__placeholder" data-bf-component="chat-input" data-bf-part="placeholder" aria-hidden>
+                <span className="openbitfun-chat-input__placeholder" data-openbitfun-component="chat-input" data-openbitfun-part="placeholder" aria-hidden>
                   {t('input.placeholder')}
                 </span>
               )}
@@ -5712,6 +6036,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 value={inputState.value}
                 onChange={handleInputChange}
                 onLargePaste={createLargePastePlaceholder}
+                onPasteFiles={handleClipboardFiles}
+                pendingLargePastes={pendingLargePastes}
+                onUpdateLargePaste={updateLargePaste}
+                onRemoveLargePaste={removeLargePaste}
                 onKeyDown={handleKeyDown}
                 onCompositionStart={handleImeCompositionStart}
                 onCompositionEnd={handleImeCompositionEnd}
@@ -5756,41 +6084,41 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   return (
                     <div
                       ref={slashCommandPickerRef}
-                      data-bf-component="chat-input"
-                      data-bf-part="commandPicker"
-                      data-bf-command="actions"
-                      data-bf-state="open"
-                      data-bf-placement={slashCommandPickerLayout?.placement ?? 'top'}
-                      className="bitfun-chat-input__slash-command-picker"
+                      data-openbitfun-component="chat-input"
+                      data-openbitfun-part="commandPicker"
+                      data-openbitfun-command="actions"
+                      data-openbitfun-state="open"
+                      data-openbitfun-placement={slashCommandPickerLayout?.placement ?? 'top'}
+                      className="openbitfun-chat-input__slash-command-picker"
                       style={{
                         top: `${slashCommandPickerLayout?.top ?? 0}px`,
                         left: `${slashCommandPickerLayout?.left ?? 0}px`,
                         visibility: slashCommandPickerLayout ? 'visible' : 'hidden',
                       }}
                     >
-                      <div className="bitfun-chat-input__slash-command-header" data-bf-component="chat-input" data-bf-part="commandHeader">
+                      <div className="openbitfun-chat-input__slash-command-header" data-openbitfun-component="chat-input" data-openbitfun-part="commandHeader">
                         <span>{t('chatInput.quickAction')}</span>
-                        <span className="bitfun-chat-input__slash-command-hint">{t('chatInput.selectHint')}</span>
+                        <span className="openbitfun-chat-input__slash-command-hint">{t('chatInput.selectHint')}</span>
                       </div>
-                      <div className="bitfun-chat-input__slash-command-list" data-bf-component="chat-input" data-bf-part="commandList">
+                      <div className="openbitfun-chat-input__slash-command-list" data-openbitfun-component="chat-input" data-openbitfun-part="commandList">
                         {actions.length > 0 ? (
                           actions.map((action, index) => (
                             <div
-                              data-bf-component="chat-input"
-                              data-bf-part="commandItem"
-                              data-bf-command-item-kind="action"
-                              data-bf-state={index === slashCommandState.selectedIndex ? 'selected' : ''}
+                              data-openbitfun-component="chat-input"
+                              data-openbitfun-part="commandItem"
+                              data-openbitfun-command-item-kind="action"
+                              data-openbitfun-state={index === slashCommandState.selectedIndex ? 'selected' : ''}
                               key={action.id}
-                              className={`bitfun-chat-input__slash-command-item ${index === slashCommandState.selectedIndex ? 'bitfun-chat-input__slash-command-item--selected' : ''}`}
+                              className={`openbitfun-chat-input__slash-command-item ${index === slashCommandState.selectedIndex ? 'openbitfun-chat-input__slash-command-item--selected' : ''}`}
                               onClick={() => selectSlashCommandAction(action.id)}
                               onMouseEnter={() => setSlashCommandState(prev => ({ ...prev, selectedIndex: index }))}
                             >
-                              <span className="bitfun-chat-input__slash-command-name" data-bf-component="chat-input" data-bf-part="commandName">{action.command}</span>
-                              <span className="bitfun-chat-input__slash-command-label" data-bf-component="chat-input" data-bf-part="commandLabel">{action.label}</span>
+                              <span className="openbitfun-chat-input__slash-command-name" data-openbitfun-component="chat-input" data-openbitfun-part="commandName">{action.command}</span>
+                              <span className="openbitfun-chat-input__slash-command-label" data-openbitfun-component="chat-input" data-openbitfun-part="commandLabel">{action.label}</span>
                             </div>
                           ))
                         ) : (
-                          <div className="bitfun-chat-input__slash-command-empty" data-bf-component="chat-input" data-bf-part="commandEmpty">
+                          <div className="openbitfun-chat-input__slash-command-empty" data-openbitfun-component="chat-input" data-openbitfun-part="commandEmpty">
                             {t('chatInput.noMatchingCommand')}
                           </div>
                         )}
@@ -5805,25 +6133,25 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   return (
                     <div
                       ref={slashCommandPickerRef}
-                      data-bf-component="chat-input"
-                      data-bf-part="commandPicker"
-                      data-bf-command="all"
-                      data-bf-state="open"
-                      data-bf-placement={slashCommandPickerLayout?.placement ?? 'top'}
-                      className="bitfun-chat-input__slash-command-picker"
+                      data-openbitfun-component="chat-input"
+                      data-openbitfun-part="commandPicker"
+                      data-openbitfun-command="all"
+                      data-openbitfun-state="open"
+                      data-openbitfun-placement={slashCommandPickerLayout?.placement ?? 'top'}
+                      className="openbitfun-chat-input__slash-command-picker"
                       style={{
                         top: `${slashCommandPickerLayout?.top ?? 0}px`,
                         left: `${slashCommandPickerLayout?.left ?? 0}px`,
                         visibility: slashCommandPickerLayout ? 'visible' : 'hidden',
                       }}
                     >
-                      <div className="bitfun-chat-input__slash-command-header" data-bf-component="chat-input" data-bf-part="commandHeader">
+                      <div className="openbitfun-chat-input__slash-command-header" data-openbitfun-component="chat-input" data-openbitfun-part="commandHeader">
                         <span>{t('chatInput.commands')}</span>
-                        <span className="bitfun-chat-input__slash-command-hint">{t('chatInput.selectHint')}</span>
+                        <span className="openbitfun-chat-input__slash-command-hint">{t('chatInput.selectHint')}</span>
                       </div>
-                      <div className="bitfun-chat-input__slash-command-list" data-bf-component="chat-input" data-bf-part="commandList">
+                      <div className="openbitfun-chat-input__slash-command-list" data-openbitfun-component="chat-input" data-openbitfun-part="commandList">
                         {items.length === 0 && (mcpPromptCommandsLoading || resolvedModeSkillsLoading) ? (
-                          <div className="bitfun-chat-input__slash-command-empty" data-bf-component="chat-input" data-bf-part="commandEmpty">
+                          <div className="openbitfun-chat-input__slash-command-empty" data-openbitfun-component="chat-input" data-openbitfun-part="commandEmpty">
                             {resolvedModeSkillsLoading && !mcpPromptCommandsLoading
                               ? t('chatInput.boostSkillsLoading')
                               : t('chatInput.loadingMcpPrompts')}
@@ -5831,9 +6159,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         ) : items.length === 0 && resolvedModeSkillsLoadFailed ? (
                           <button
                             type="button"
-                            className="bitfun-chat-input__slash-command-empty bitfun-chat-input__slash-command-empty--retry"
-                            data-bf-component="chat-input"
-                            data-bf-part="commandEmpty"
+                            className="openbitfun-chat-input__slash-command-empty openbitfun-chat-input__slash-command-empty--retry"
+                            data-openbitfun-component="chat-input"
+                            data-openbitfun-part="commandEmpty"
                             onClick={retryResolvedModeSkills}
                           >
                             {t('chatInput.boostSkillsLoadFailed')}
@@ -5850,20 +6178,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             return (
                               <React.Fragment key={`${item.kind}-${item.id}`}>
                                 {index === firstSkillIndex && (
-                                  <div className="bitfun-chat-input__slash-command-section" data-bf-component="chat-input" data-bf-part="commandSection">
-                                    <span className="bitfun-chat-input__slash-command-section-line" aria-hidden />
-                                    <span className="bitfun-chat-input__slash-command-section-title">
+                                  <div className="openbitfun-chat-input__slash-command-section" data-openbitfun-component="chat-input" data-openbitfun-part="commandSection">
+                                    <span className="openbitfun-chat-input__slash-command-section-line" aria-hidden />
+                                    <span className="openbitfun-chat-input__slash-command-section-title">
                                       {t('chatInput.boostSkills')}
                                     </span>
-                                    <span className="bitfun-chat-input__slash-command-section-line" aria-hidden />
+                                    <span className="openbitfun-chat-input__slash-command-section-line" aria-hidden />
                                   </div>
                                 )}
                                 <div
-                                  data-bf-component="chat-input"
-                                  data-bf-part="commandItem"
-                                  data-bf-command-item-kind={item.kind === 'mcpPrompt' ? 'mcp' : item.kind === 'externalCommand' || item.kind === 'acpCommand' ? 'action' : item.kind}
-                                  data-bf-state={index === slashCommandState.selectedIndex ? 'selected' : undefined}
-                                  className={`bitfun-chat-input__slash-command-item ${index === slashCommandState.selectedIndex ? 'bitfun-chat-input__slash-command-item--selected' : ''}`}
+                                  data-openbitfun-component="chat-input"
+                                  data-openbitfun-part="commandItem"
+                                  data-openbitfun-command-item-kind={item.kind === 'mcpPrompt' ? 'mcp' : item.kind === 'externalCommand' || item.kind === 'acpCommand' ? 'action' : item.kind}
+                                  data-openbitfun-state={index === slashCommandState.selectedIndex ? 'selected' : undefined}
+                                  className={`openbitfun-chat-input__slash-command-item ${index === slashCommandState.selectedIndex ? 'openbitfun-chat-input__slash-command-item--selected' : ''}`}
                                   title={`${commandText}\n${labelText}`}
                                   onClick={() => {
                                     if (item.kind === 'skill') {
@@ -5880,22 +6208,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                   }}
                                   onMouseEnter={() => setSlashCommandState(prev => ({ ...prev, selectedIndex: index }))}
                                 >
-                                  <span className="bitfun-chat-input__slash-command-name" data-bf-component="chat-input" data-bf-part="commandName">
+                                  <span className="openbitfun-chat-input__slash-command-name" data-openbitfun-component="chat-input" data-openbitfun-part="commandName">
                                     {commandText}
                                   </span>
                                   <span
-                                    className={`bitfun-chat-input__slash-command-label ${item.kind === 'skill' ? 'bitfun-chat-input__slash-command-label--single-line' : ''}`}
-                                    data-bf-component="chat-input"
-                                    data-bf-part="commandLabel"
+                                    className={`openbitfun-chat-input__slash-command-label ${item.kind === 'skill' ? 'openbitfun-chat-input__slash-command-label--single-line' : ''}`}
+                                    data-openbitfun-component="chat-input"
+                                    data-openbitfun-part="commandLabel"
                                   >
                                     {labelText}
                                   </span>
                                   {item.kind === 'externalCommand' && item.status !== 'available' ? (
                                     <span
-                                      className={`bitfun-chat-input__slash-command-status bitfun-chat-input__slash-command-status--${item.status === 'restricted' ? 'restricted' : 'choose'}`}
-                                      data-bf-component="chat-input"
-                                      data-bf-part="commandStatus"
-                                      data-bf-state={item.status}
+                                      className={`openbitfun-chat-input__slash-command-status openbitfun-chat-input__slash-command-status--${item.status === 'restricted' ? 'restricted' : 'choose'}`}
+                                      data-openbitfun-component="chat-input"
+                                      data-openbitfun-part="commandStatus"
+                                      data-openbitfun-state={item.status}
                                     >
                                       {t(item.status === 'restricted'
                                         ? 'chatInput.commandStatus.restricted'
@@ -5907,7 +6235,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             );
                           })
                         ) : (
-                          <div className="bitfun-chat-input__slash-command-empty" data-bf-component="chat-input" data-bf-part="commandEmpty">
+                          <div className="openbitfun-chat-input__slash-command-empty" data-openbitfun-component="chat-input" data-openbitfun-part="commandEmpty">
                             {/* A catalog issue must not leave the list blank: say why nothing is listed. */}
                             {externalPromptCommandsIssue === 'host_unavailable'
                               ? t('chatInput.externalCommandsHostUnavailable')
@@ -5926,33 +6254,33 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   return (
                     <div
                       ref={slashCommandPickerRef}
-                      data-bf-component="chat-input"
-                      data-bf-part="commandPicker"
-                      data-bf-command="skills"
-                      data-bf-state="open"
-                      data-bf-placement={slashCommandPickerLayout?.placement ?? 'top'}
-                      className="bitfun-chat-input__slash-command-picker"
+                      data-openbitfun-component="chat-input"
+                      data-openbitfun-part="commandPicker"
+                      data-openbitfun-command="skills"
+                      data-openbitfun-state="open"
+                      data-openbitfun-placement={slashCommandPickerLayout?.placement ?? 'top'}
+                      className="openbitfun-chat-input__slash-command-picker"
                       style={{
                         top: `${slashCommandPickerLayout?.top ?? 0}px`,
                         left: `${slashCommandPickerLayout?.left ?? 0}px`,
                         visibility: slashCommandPickerLayout ? 'visible' : 'hidden',
                       }}
                     >
-                      <div className="bitfun-chat-input__slash-command-header" data-bf-component="chat-input" data-bf-part="commandHeader">
+                      <div className="openbitfun-chat-input__slash-command-header" data-openbitfun-component="chat-input" data-openbitfun-part="commandHeader">
                         <span>{t('chatInput.boostSkills')}</span>
-                        <span className="bitfun-chat-input__slash-command-hint">{t('chatInput.selectHint')}</span>
+                        <span className="openbitfun-chat-input__slash-command-hint">{t('chatInput.selectHint')}</span>
                       </div>
-                      <div className="bitfun-chat-input__slash-command-list" data-bf-component="chat-input" data-bf-part="commandList">
+                      <div className="openbitfun-chat-input__slash-command-list" data-openbitfun-component="chat-input" data-openbitfun-part="commandList">
                         {items.length === 0 && resolvedModeSkillsLoading ? (
-                          <div className="bitfun-chat-input__slash-command-empty" data-bf-component="chat-input" data-bf-part="commandEmpty">
+                          <div className="openbitfun-chat-input__slash-command-empty" data-openbitfun-component="chat-input" data-openbitfun-part="commandEmpty">
                             {t('chatInput.boostSkillsLoading')}
                           </div>
                         ) : items.length === 0 && resolvedModeSkillsLoadFailed ? (
                           <button
                             type="button"
-                            className="bitfun-chat-input__slash-command-empty bitfun-chat-input__slash-command-empty--retry"
-                            data-bf-component="chat-input"
-                            data-bf-part="commandEmpty"
+                            className="openbitfun-chat-input__slash-command-empty openbitfun-chat-input__slash-command-empty--retry"
+                            data-openbitfun-component="chat-input"
+                            data-openbitfun-part="commandEmpty"
                             onClick={retryResolvedModeSkills}
                           >
                             {t('chatInput.boostSkillsLoadFailed')}
@@ -5967,11 +6295,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                   : item.label;
 
                             return (
-                              <div data-bf-component="chat-input" data-bf-part="commandItem"
-                                data-bf-command-item-kind={item.kind === 'mcpPrompt' ? 'mcp' : item.kind === 'externalCommand' || item.kind === 'acpCommand' ? 'action' : item.kind}
-                                data-bf-state={index === slashCommandState.selectedIndex ? 'selected' : undefined}
+                              <div data-openbitfun-component="chat-input" data-openbitfun-part="commandItem"
+                                data-openbitfun-command-item-kind={item.kind === 'mcpPrompt' ? 'mcp' : item.kind === 'externalCommand' || item.kind === 'acpCommand' ? 'action' : item.kind}
+                                data-openbitfun-state={index === slashCommandState.selectedIndex ? 'selected' : undefined}
                                 key={`${item.kind}-${item.id}`}
-                                className={`bitfun-chat-input__slash-command-item ${index === slashCommandState.selectedIndex ? 'bitfun-chat-input__slash-command-item--selected' : ''}`}
+                                className={`openbitfun-chat-input__slash-command-item ${index === slashCommandState.selectedIndex ? 'openbitfun-chat-input__slash-command-item--selected' : ''}`}
                                 title={`${commandText}\n${labelText}`}
                                 onClick={() => {
                                   if (item.kind === 'skill') {
@@ -5988,13 +6316,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 }}
                                 onMouseEnter={() => setSlashCommandState(prev => ({ ...prev, selectedIndex: index }))}
                               >
-                                <span className="bitfun-chat-input__slash-command-name" data-bf-component="chat-input" data-bf-part="commandName">
+                                <span className="openbitfun-chat-input__slash-command-name" data-openbitfun-component="chat-input" data-openbitfun-part="commandName">
                                   {commandText}
                                 </span>
                                 <span
-                                  className={`bitfun-chat-input__slash-command-label ${item.kind === 'skill' ? 'bitfun-chat-input__slash-command-label--single-line' : ''}`}
-                                  data-bf-component="chat-input"
-                                  data-bf-part="commandLabel"
+                                  className={`openbitfun-chat-input__slash-command-label ${item.kind === 'skill' ? 'openbitfun-chat-input__slash-command-label--single-line' : ''}`}
+                                  data-openbitfun-component="chat-input"
+                                  data-openbitfun-part="commandLabel"
                                 >
                                   {labelText}
                                 </span>
@@ -6002,7 +6330,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             );
                           })
                         ) : (
-                          <div className="bitfun-chat-input__slash-command-empty" data-bf-component="chat-input" data-bf-part="commandEmpty">
+                          <div className="openbitfun-chat-input__slash-command-empty" data-openbitfun-component="chat-input" data-openbitfun-part="commandEmpty">
                             {t('chatInput.noMatchingCommand')}
                           </div>
                         )}
@@ -6018,20 +6346,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               </ChatComposerContent>
 
               <ChatComposerStartActions>
-              <div className="bitfun-chat-input__actions-left" data-bf-component="chat-input" data-bf-part="actionsLeft">
+              <div className="openbitfun-chat-input__actions-left" data-openbitfun-component="chat-input" data-openbitfun-part="actionsLeft">
                 <div
-                  className="bitfun-chat-input__agent-boost"
-                  data-bf-component="chat-input"
-                  data-bf-part="boost"
+                  className="openbitfun-chat-input__agent-boost"
+                  data-openbitfun-component="chat-input"
+                  data-openbitfun-part="boost"
                   data-testid="chat-input-agent-boost"
                   ref={agentBoostRef}
                 >
                   {!isAcpTargetSession && (
-                    <span className="bitfun-chat-input__agent-boost-trigger" ref={boostTriggerRef} data-bf-component="chat-input" data-bf-part="boostTrigger" data-bf-state={modeState.dropdownOpen ? 'open' : undefined}>
+                    <span className="openbitfun-chat-input__agent-boost-trigger" ref={boostTriggerRef} data-openbitfun-component="chat-input" data-openbitfun-part="boostTrigger" data-openbitfun-state={modeState.dropdownOpen ? 'open' : undefined}>
                       <Tooltip content={t('chatInput.addBoostTooltip')}>
                         <ChatComposerActionButton
                           aria-label={t('chatInput.addBoostTooltip')}
-                          className="bitfun-chat-input__agent-boost-add"
+                          className="openbitfun-chat-input__agent-boost-add"
                           data-testid="chat-input-agent-boost-trigger"
                           aria-haspopup="menu"
                           aria-expanded={modeState.dropdownOpen}
@@ -6042,7 +6370,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             }
                             dispatchMode({ type: 'TOGGLE_DROPDOWN' });
                           }}
-                          icon={<Plus strokeWidth={2.25} />}
+                          icon={<Icon name="plus" size="lg" />}
                           variant="fill"
                         />
                       </Tooltip>
@@ -6052,11 +6380,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   {modeState.dropdownOpen && createPortal(
                     <Menu
                       ref={boostMenuRef}
-                      className="bitfun-chat-input__mode-dropdown bitfun-chat-input__mode-dropdown--agent-boost"
-                      data-bf-component="chat-input"
-                      data-bf-part="boostMenu"
-                      data-bf-state="open"
-                      data-bf-placement={boostMenuLayout?.placement ?? 'top'}
+                      className="openbitfun-chat-input__mode-dropdown openbitfun-chat-input__mode-dropdown--agent-boost"
+                      data-openbitfun-component="chat-input"
+                      data-openbitfun-part="boostMenu"
+                      data-openbitfun-state="open"
+                      data-openbitfun-placement={boostMenuLayout?.placement ?? 'top'}
                       style={{
                         top: `${boostMenuLayout?.top ?? 0}px`,
                         left: `${boostMenuLayout?.left ?? 0}px`,
@@ -6074,7 +6402,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             onOpenChange={open => setBoostSubmenuOpen('harness', open)}
                             onSelectionComplete={() => dispatchMode({ type: 'CLOSE_DROPDOWN' })}
                           />
-                          <MenuSeparator data-bf-component="chat-input" data-bf-part="boostDivider" />
+                          <MenuSeparator data-openbitfun-component="chat-input" data-openbitfun-part="boostDivider" />
                         </>
                       ) : null}
 
@@ -6082,7 +6410,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         <>
                           <ChatInputBoostSubmenu
                             label={t('chatInput.boostAdditionalModes')}
-                            icon={<Sparkles size={14} aria-hidden />}
+                            icon={<Icon name="spark" size="sm" aria-hidden />}
                             testId="chat-input-additional-modes"
                             open={activeBoostSubmenu === 'additional-modes'}
                             onOpenChange={open => setBoostSubmenuOpen('additional-modes', open)}
@@ -6090,42 +6418,42 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             {additionalModeItems.map(item => (
                               <MenuItem
                                 key={item.id}
-                                data-bf-component="chat-input"
-                                data-bf-part="boostSubmenuItem"
-                                data-bf-boost-item-kind="additional-mode"
-                                data-bf-additional-mode-id={item.id}
+                                data-openbitfun-component="chat-input"
+                                data-openbitfun-part="boostSubmenuItem"
+                                data-openbitfun-boost-item-kind="additional-mode"
+                                data-openbitfun-additional-mode-id={item.id}
                                 data-testid={`chat-input-additional-mode-${item.id}`}
                                 title={item.title}
-                                leading={<Sparkles size={12} aria-hidden />}
+                                leading={<Icon name="spark" size="xs" aria-hidden />}
                                 onClick={event => {
                                   event.stopPropagation();
-                                  selectAdditionalMode(item.selection);
+                                  selectAdditionalMode(item.skillName);
                                 }}
                               >
                                 {item.label}
                               </MenuItem>
                             ))}
                           </ChatInputBoostSubmenu>
-                          <MenuSeparator data-bf-component="chat-input" data-bf-part="boostDivider" />
+                          <MenuSeparator data-openbitfun-component="chat-input" data-openbitfun-part="boostDivider" />
                         </>
                       )}
 
                       <>
                         <MenuItem
-                          data-bf-component="chat-input"
-                          data-bf-part="boostItem"
-                          data-bf-boost-item-kind="context"
-                          leading={<Files size={14} aria-hidden />}
+                          data-openbitfun-component="chat-input"
+                          data-openbitfun-part="boostItem"
+                          data-openbitfun-boost-item-kind="context"
+                          leading={<Icon name="files" size="sm" aria-hidden />}
                           onClick={handleBoostOpenAtContext}
                         >
                           {t('chatInput.boostAddContext')}
                         </MenuItem>
 
                         <MenuItem
-                          data-bf-component="chat-input"
-                          data-bf-part="boostItem"
-                          data-bf-boost-item-kind="context"
-                          leading={<Image size={14} aria-hidden />}
+                          data-openbitfun-component="chat-input"
+                          data-openbitfun-part="boostItem"
+                          data-openbitfun-boost-item-kind="context"
+                          leading={<Icon name="image" size="sm" aria-hidden />}
                           onClick={handleBoostPickImage}
                         >
                           {t('input.addImage')}
@@ -6134,20 +6462,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         {canUseSkillsForTarget && (
                           <ChatInputBoostSubmenu
                             label={t('chatInput.boostSkills')}
-                            icon={<Sparkles size={14} aria-hidden />}
+                            icon={<Icon name="spark" size="sm" aria-hidden />}
                             testId="chat-input-skills"
                             open={activeBoostSubmenu === 'skills'}
                             onOpenChange={open => setBoostSubmenuOpen('skills', open)}
                           >
                             {resolvedModeSkillsLoading ? (
-                              <div className="bitfun-chat-input__boost-submenu-loading" data-bf-component="chat-input" data-bf-part="boostSubmenuState" data-bf-state="loading">
-                                <Loader2 size={14} className="bitfun-chat-input__boost-submenu-spinner" aria-hidden />
+                              <div className="openbitfun-chat-input__boost-submenu-loading" data-openbitfun-component="chat-input" data-openbitfun-part="boostSubmenuState" data-openbitfun-state="loading">
+                                <Loader2 size={14} className="openbitfun-chat-input__boost-submenu-spinner" aria-hidden />
                                 <span>{t('chatInput.boostSkillsLoading')}</span>
                               </div>
                             ) : resolvedModeSkillsLoadFailed ? (
                               <MenuItem
-                                data-bf-component="chat-input"
-                                data-bf-part="boostSubmenuState"
+                                data-openbitfun-component="chat-input"
+                                data-openbitfun-part="boostSubmenuState"
                                 leading={<RotateCcw size={13} aria-hidden />}
                                 onClick={event => {
                                   event.stopPropagation();
@@ -6157,16 +6485,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 {t('chatInput.boostSkillsLoadFailed')}
                               </MenuItem>
                             ) : userInvocableSkills.length === 0 ? (
-                              <div className="bitfun-chat-input__boost-submenu-empty" data-bf-component="chat-input" data-bf-part="boostSubmenuState" data-bf-state="empty">{t('chatInput.boostSkillsEmpty')}</div>
+                              <div className="openbitfun-chat-input__boost-submenu-empty" data-openbitfun-component="chat-input" data-openbitfun-part="boostSubmenuState" data-openbitfun-state="empty">{t('chatInput.boostSkillsEmpty')}</div>
                             ) : (
                               userInvocableSkills.map(skill => (
                                 <MenuItem
                                   key={skill.key}
-                                  data-bf-component="chat-input"
-                                  data-bf-part="boostSubmenuItem"
-                                  data-bf-boost-item-kind="skill"
+                                  data-openbitfun-component="chat-input"
+                                  data-openbitfun-part="boostSubmenuItem"
+                                  data-openbitfun-boost-item-kind="skill"
                                   title={skill.description || skill.name}
-                                  leading={<Sparkles size={12} aria-hidden />}
+                                  leading={<Icon name="spark" size="xs" aria-hidden />}
                                   onClick={event => {
                                     event.stopPropagation();
                                     insertSkillIntoInput(skill.name);
@@ -6178,9 +6506,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             )}
                             <MenuSeparator />
                             <MenuItem
-                              data-bf-component="chat-input"
-                              data-bf-part="boostSubmenuManage"
-                              data-bf-boost-item-kind="manage"
+                              data-openbitfun-component="chat-input"
+                              data-openbitfun-part="boostSubmenuManage"
+                              data-openbitfun-boost-item-kind="manage"
                               onClick={handleOpenSkillsLibrary}
                             >
                               {t('chatInput.openSkillsLibrary')}
@@ -6190,13 +6518,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
                         {!!currentSessionId && !isBtwSession && (
                           <>
-                            <MenuSeparator data-bf-component="chat-input" data-bf-part="boostDivider" />
+                            <MenuSeparator data-openbitfun-component="chat-input" data-openbitfun-part="boostDivider" />
                             <MenuItem
-                              data-bf-component="chat-input"
-                              data-bf-part="boostItem"
-                              data-bf-boost-item-kind="context"
+                              data-openbitfun-component="chat-input"
+                              data-openbitfun-part="boostItem"
+                              data-openbitfun-boost-item-kind="context"
                               data-testid="chat-input-boost-start-btw"
-                              leading={<MessageSquarePlus size={14} aria-hidden />}
+                              leading={<Icon name="side-chat" size="sm" aria-hidden />}
                               onClick={handleBoostStartBtw}
                             >
                               {t('chatInput.boostStartBtw')}
@@ -6205,14 +6533,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         )}
 
                         {(!currentSessionId || isBtwSession) && (
-                          <MenuSeparator data-bf-component="chat-input" data-bf-part="boostDivider" />
+                          <MenuSeparator data-openbitfun-component="chat-input" data-openbitfun-part="boostDivider" />
                         )}
                         <MenuItem
-                          data-bf-component="chat-input"
-                          data-bf-part="boostItem"
-                          data-bf-boost-item-kind="context"
+                          data-openbitfun-component="chat-input"
+                          data-openbitfun-part="boostItem"
+                          data-openbitfun-boost-item-kind="context"
                           data-testid="chat-input-boost-new-session"
-                          leading={<Plus size={14} aria-hidden />}
+                          leading={<Icon name="plus" size="sm" aria-hidden />}
                           onClick={handleBoostNewSession}
                         >
                           {t('chatInput.boostNewSession')}
@@ -6233,9 +6561,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               </ChatComposerStartActions>
 
               <ChatComposerEndActions>
-              <div className="bitfun-chat-input__actions-right" data-bf-component="chat-input" data-bf-part="actionsRight">
+              <div className="openbitfun-chat-input__actions-right" data-openbitfun-component="chat-input" data-openbitfun-part="actionsRight">
                 {voiceInput.phase === 'idle' ? (
-                  <div className="bitfun-chat-input__model-usage-group" data-bf-component="chat-input" data-bf-part="model">
+                  <div className="openbitfun-chat-input__model-usage-group" data-openbitfun-component="chat-input" data-openbitfun-part="model">
                   <ModelSelector
                     currentMode={effectiveSendAgentType}
                     sessionId={effectiveTargetSessionId || undefined}
@@ -6244,6 +6572,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     maxTokens={tokenUsage.max}
                     contextUsageSource={tokenUsage.source}
                     onLoadingChange={handleModelLoadingChange}
+                    onAvailabilityChange={setModelAvailability}
                     externalSelection={dispatchModelSelection}
                     modeDefaultModelId={targetModeInfo?.model}
                     persistSharedModeDefault={Boolean(targetModeInfo && targetModeInfo.source !== 'external')}

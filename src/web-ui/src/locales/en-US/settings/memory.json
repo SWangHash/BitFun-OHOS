@@ -1,6 +1,7 @@
 {
   "title": "Memory",
   "subtitle": "Control automatic memory generation, usage, and consolidation scope.",
+  "scopeNotice": "These settings, session candidates, and memory files belong to the host currently running OpenBitFun. Another device or peer host may have different memory data and settings.",
   "sections": {
     "basic": {
       "title": "Basics",
@@ -27,6 +28,10 @@
     "memoryEnabled": {
       "label": "Memory",
       "description": "When enabled, memories are generated automatically and used in sessions."
+    },
+    "memoryActions": {
+      "label": "Memory actions",
+      "description": "Open the memory folder, restore default settings, or permanently clear memory data on the current execution host."
     },
     "generateMemories": {
       "label": "Generate memories automatically",
@@ -85,7 +90,8 @@
     "primary": "Primary model",
     "fast": "Fast model",
     "followPrimary": "Follow primary model",
-    "followExtraction": "Follow extraction model"
+    "followExtraction": "Follow extraction model",
+    "unavailable": "{{id}} (disabled or missing)"
   },
   "externalContextPolicy": {
     "clearToolResults": "Clear external tool results",
@@ -93,13 +99,17 @@
     "skipSession": "Skip the session"
   },
   "actions": {
+    "manage": "Manage",
     "expandAdvanced": "Expand advanced settings",
     "collapseAdvanced": "Collapse advanced settings",
     "resetSettings": "Reset Memory Settings",
+    "resetSettingsConfirmTitle": "Reset memory settings?",
+    "resetSettingsConfirm": "This restores the memory switches, models, and advanced parameters on the current execution host to their defaults. Existing memory data is not deleted.",
+    "resetSettingsConfirmAction": "Restore defaults",
     "openDirectory": "Open Memory Folder",
-    "resetMemory": "Reset Memory",
-    "resetMemoryConfirm": "Clear all memory data and memory workspace files? This cannot be undone.",
-    "resetMemoryConfirmAction": "Reset"
+    "resetMemory": "Permanently clear memory",
+    "resetMemoryConfirm": "This permanently deletes all memory data and memory workspace files on the current execution host. This cannot be undone.",
+    "resetMemoryConfirmAction": "Permanently clear"
   },
   "units": {
     "hours": "h",
@@ -108,13 +118,15 @@
   "messages": {
     "loading": "Loading memory settings…",
     "loadFailed": "Failed to load memory settings",
+    "loadFailedLocked": "Memory settings could not be read. This page is locked to avoid overwriting the configuration on the current execution host.",
+    "retry": "Reload",
     "saved": "Memory settings saved",
     "saveFailed": "Failed to save memory settings",
     "rolloutAgeExceedsRetention": "Maximum session age cannot exceed candidate retention",
     "settingsReset": "Memory settings reset",
     "settingsResetFailed": "Failed to reset memory settings",
     "openDirectoryFailed": "Failed to open memory folder",
-    "memoryReset": "Memory reset",
-    "memoryResetFailed": "Failed to reset memory"
+    "memoryReset": "Memory permanently cleared",
+    "memoryResetFailed": "Failed to permanently clear memory"
   }
 }

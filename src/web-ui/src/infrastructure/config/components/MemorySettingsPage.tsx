@@ -1,8 +1,20 @@
-import { ConfirmDialog, Icon, IconButton, NumberInput, Select, type SelectOption, Switch, Tooltip } from '@bitfun/ui';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Button,
+  ConfirmDialog,
+  Icon,
+  IconButton,
+  MenuPopover,
+  NumberInput,
+  Select,
+  type MenuEntry,
+  type SelectOption,
+  Switch,
+  Tooltip,
+} from '@openbitfun/ui';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderOpen, RotateCcw } from 'lucide-react';
-import { ConfigLoadingState } from '@/infrastructure/config/components/common';
+import { ConfigLoadingState, ConfigMessage, ConfigRetryState } from '@/infrastructure/config/components/common';
 
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
@@ -82,15 +94,20 @@ const MemorySettingsPage: React.FC = () => {
   const { t } = useTranslation('settings/memory');
   const { error: notifyError, success: notifySuccess } = useNotification();
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [config, setConfig] = useState<MemoriesConfigShape>(DEFAULT_MEMORIES_CONFIG);
   const [models, setModels] = useState<AIModelConfig[]>([]);
   const [savingKey, setSavingKey] = useState<keyof MemoriesConfigShape | null>(null);
   const [actionBusy, setActionBusy] = useState<'reset-settings' | 'open-directory' | 'reset-memory' | null>(null);
   const [resetMemoryConfirmOpen, setResetMemoryConfirmOpen] = useState(false);
+  const [resetSettingsConfirmOpen, setResetSettingsConfirmOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [actionMenuOpen, setActionMenuOpen] = useState(false);
+  const actionMenuAnchorRef = useRef<HTMLButtonElement>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const [loadedConfig, loadedModels] = await Promise.all([
         configManager.getConfig<Partial<MemoriesConfigShape>>('memories'),
@@ -100,11 +117,11 @@ const MemorySettingsPage: React.FC = () => {
       setModels(Array.isArray(loadedModels) ? loadedModels : []);
     } catch (error) {
       log.error('Failed to load memories config', error);
-      notifyError(error instanceof Error ? error.message : t('messages.loadFailed'));
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
-  }, [notifyError, t]);
+  }, []);
 
   useEffect(() => {
     void loadData();
@@ -112,15 +129,24 @@ const MemorySettingsPage: React.FC = () => {
 
   const enabledModels = useMemo(() => models.filter((model) => model.enabled && model.id), [models]);
 
-  const buildModelOptions = useCallback((followLabel: string): SelectOption[] => [
-    { value: '', label: followLabel },
-    { value: 'primary', label: t('models.primary') },
-    { value: 'fast', label: t('models.fast') },
-    ...enabledModels.map((model) => ({
-      value: model.id as string,
-      label: getModelDisplayName(model),
-    })),
-  ], [enabledModels, t]);
+  const buildModelOptions = useCallback((followLabel: string, selectedValue: string | null): SelectOption[] => {
+    const options: SelectOption[] = [
+      { value: '', label: followLabel },
+      { value: 'primary', label: t('models.primary') },
+      { value: 'fast', label: t('models.fast') },
+      ...enabledModels.map((model) => ({
+        value: model.id as string,
+        label: getModelDisplayName(model),
+      })),
+    ];
+    if (selectedValue
+      && selectedValue !== 'primary'
+      && selectedValue !== 'fast'
+      && !options.some(option => option.value === selectedValue)) {
+      options.push({ value: selectedValue, label: t('models.unavailable', { id: selectedValue }), disabled: true });
+    }
+    return options;
+  }, [enabledModels, t]);
 
   const externalContextPolicyOptions = useMemo<SelectOption[]>(() => [
     { value: 'clear_tool_results', label: t('externalContextPolicy.clearToolResults') },
@@ -144,7 +170,20 @@ const MemorySettingsPage: React.FC = () => {
     setSavingKey(key);
     setConfig(next);
     try {
-      await configManager.setConfig('memories', next);
+      const persisted = await configManager.updateConfig<Partial<MemoriesConfigShape>>(
+        'memories',
+        current => {
+          const latest = {
+            ...normalizeMemoriesConfig(current),
+            [key]: value,
+          };
+          if (!isValidMemoryWindowConfig(latest)) {
+            throw new Error(t('messages.rolloutAgeExceedsRetention'));
+          }
+          return latest;
+        },
+      );
+      setConfig(normalizeMemoriesConfig(persisted));
       notifySuccess(t('messages.saved'));
     } catch (error) {
       log.error('Failed to save memories config', { key, error });
@@ -165,7 +204,15 @@ const MemorySettingsPage: React.FC = () => {
     setSavingKey('generate_memories');
     setConfig(next);
     try {
-      await configManager.setConfig('memories', next);
+      const persisted = await configManager.updateConfig<Partial<MemoriesConfigShape>>(
+        'memories',
+        current => ({
+          ...normalizeMemoriesConfig(current),
+          generate_memories: enabled,
+          use_memories: enabled,
+        }),
+      );
+      setConfig(normalizeMemoriesConfig(persisted));
       notifySuccess(t('messages.saved'));
     } catch (error) {
       log.error('Failed to save memory enabled state', error);
@@ -185,6 +232,7 @@ const MemorySettingsPage: React.FC = () => {
   }, [updateConfig]);
 
   const handleResetSettings = useCallback(async () => {
+    setResetSettingsConfirmOpen(false);
     setActionBusy('reset-settings');
     try {
       await configManager.resetConfig('memories');
@@ -225,16 +273,54 @@ const MemorySettingsPage: React.FC = () => {
     }
   }, [notifyError, notifySuccess, t]);
 
-  if (loading) {
+  const actionMenuItems = useMemo<MenuEntry[]>(() => [
+    {
+      id: 'open-directory',
+      label: t('actions.openDirectory'),
+      icon: <FolderOpen size={16} />,
+      disabled: actionBusy !== null,
+      onSelect: () => { void handleOpenMemoryDirectory(); },
+    },
+    {
+      id: 'reset-settings',
+      label: t('actions.resetSettings'),
+      icon: <RotateCcw size={16} />,
+      disabled: actionBusy !== null,
+      onSelect: () => setResetSettingsConfirmOpen(true),
+    },
+    {
+      id: 'separator-danger',
+      label: '',
+      separator: true,
+    },
+    {
+      id: 'clear-memory',
+      label: t('actions.resetMemory'),
+      icon: <Icon name="delete" size="sm" />,
+      tone: 'danger',
+      disabled: actionBusy !== null,
+      onSelect: () => setResetMemoryConfirmOpen(true),
+    },
+  ], [actionBusy, handleOpenMemoryDirectory, t]);
+
+  if (loading || loadFailed) {
     return (
       <ConfigPageLayout
-        className="bitfun-memories-config"
-        data-bf-component="config"
-        data-bf-part="root"
+        className="openbitfun-memories-config"
+        data-openbitfun-component="config"
+        data-openbitfun-part="root"
       >
         <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
         <ConfigPageContent>
-          <ConfigLoadingState label={t('messages.loading')} />
+          {loading ? (
+            <ConfigLoadingState label={t('messages.loading')} />
+          ) : (
+            <ConfigRetryState
+              message={t('messages.loadFailedLocked')}
+              retryLabel={t('messages.retry')}
+              onRetry={() => void loadData()}
+            />
+          )}
         </ConfigPageContent>
       </ConfigPageLayout>
     );
@@ -245,53 +331,13 @@ const MemorySettingsPage: React.FC = () => {
 
   return (
     <ConfigPageLayout
-      className="bitfun-memories-config"
-      data-bf-component="config"
-      data-bf-part="root"
+      className="openbitfun-memories-config"
+      data-openbitfun-component="config"
+      data-openbitfun-part="root"
     >
-      <ConfigPageHeader
-        title={t('title')}
-        subtitle={t('subtitle')}
-        extra={(
-          <>
-            <Tooltip content={t('actions.resetSettings')} placement="bottom">
-              <IconButton
-                type="button"
-                size="sm"
-                onClick={() => void handleResetSettings()}
-                loading={actionBusy === 'reset-settings'}
-                disabled={actionBusy !== null}
-                aria-label={t('actions.resetSettings')}
-                icon={<RotateCcw />}
-              />
-            </Tooltip>
-            <Tooltip content={t('actions.openDirectory')} placement="bottom">
-              <IconButton
-                type="button"
-                size="sm"
-                onClick={() => void handleOpenMemoryDirectory()}
-                loading={actionBusy === 'open-directory'}
-                disabled={actionBusy !== null}
-                aria-label={t('actions.openDirectory')}
-                icon={<FolderOpen />}
-              />
-            </Tooltip>
-            <Tooltip content={t('actions.resetMemory')} placement="bottom">
-              <IconButton
-                type="button"
-                tone="danger"
-                size="sm"
-                onClick={() => setResetMemoryConfirmOpen(true)}
-                loading={actionBusy === 'reset-memory'}
-                disabled={actionBusy !== null}
-                aria-label={t('actions.resetMemory')}
-                icon={<Icon name="delete" size="lg" />}
-              />
-            </Tooltip>
-          </>
-        )}
-      />
+      <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
       <ConfigPageContent>
+        <ConfigMessage message={{ type: 'info', text: t('scopeNotice') }} />
         <ConfigPageSection title={t('sections.basic.title')} description={t('sections.basic.description')}>
           <ConfigPageRow
             label={t('fields.memoryEnabled.label')}
@@ -335,6 +381,38 @@ const MemorySettingsPage: React.FC = () => {
               disabled={savingKey === 'external_context_policy' || memoryWorkDisabled}
             />
           </ConfigPageRow>
+
+          <ConfigPageRow
+            label={t('fields.memoryActions.label')}
+            description={t('fields.memoryActions.description')}
+            align="center"
+          >
+            <>
+              <Button
+                ref={actionMenuAnchorRef}
+                type="button"
+                variant="outline"
+                size="sm"
+                trailingIcon={<Icon name="chevron-down" size="sm" />}
+                onClick={() => setActionMenuOpen((open) => !open)}
+                loading={actionBusy !== null}
+                disabled={actionBusy !== null}
+                aria-label={t('fields.memoryActions.label')}
+                aria-haspopup="menu"
+                aria-expanded={actionMenuOpen}
+              >
+                {t('actions.manage')}
+              </Button>
+              <MenuPopover
+                items={actionMenuItems}
+                open={actionMenuOpen}
+                onClose={() => setActionMenuOpen(false)}
+                anchorRef={actionMenuAnchorRef}
+                placement="bottom"
+                aria-label={t('fields.memoryActions.label')}
+              />
+            </>
+          </ConfigPageRow>
         </ConfigPageSection>
 
         <ConfigPageSection title={t('sections.models.title')} description={t('sections.models.description')}>
@@ -346,7 +424,7 @@ const MemorySettingsPage: React.FC = () => {
             <Select
               value={config.extract_model ?? ''}
               onValueChange={(value) => updateModelSelector('extract_model', value)}
-              options={buildModelOptions(t('models.followPrimary'))}
+              options={buildModelOptions(t('models.followPrimary'), config.extract_model ?? null)}
               size="sm"
               disabled={savingKey === 'extract_model' || memoryWorkDisabled}
             />
@@ -359,7 +437,7 @@ const MemorySettingsPage: React.FC = () => {
             <Select
               value={config.consolidation_model ?? ''}
               onValueChange={(value) => updateModelSelector('consolidation_model', value)}
-              options={buildModelOptions(t('models.followExtraction'))}
+              options={buildModelOptions(t('models.followExtraction'), config.consolidation_model ?? null)}
               size="sm"
               disabled={savingKey === 'consolidation_model' || memoryWorkDisabled}
             />
@@ -505,6 +583,15 @@ const MemorySettingsPage: React.FC = () => {
           )}
         </ConfigPageSection>
       </ConfigPageContent>
+      <ConfirmDialog
+        open={resetSettingsConfirmOpen}
+        onOpenChange={() => setResetSettingsConfirmOpen(false)}
+        onConfirm={() => void handleResetSettings()}
+        title={t('actions.resetSettingsConfirmTitle')}
+        message={t('actions.resetSettingsConfirm')}
+        type="warning"
+        confirmText={t('actions.resetSettingsConfirmAction')}
+      />
       <ConfirmDialog
         open={resetMemoryConfirmOpen}
         onOpenChange={() => setResetMemoryConfirmOpen(false)}

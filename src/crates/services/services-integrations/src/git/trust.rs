@@ -868,7 +868,7 @@ mod tests {
             GitError::CommandFailed(_)
         ));
 
-        let missing = existing.join("bitfun-trust-test-absent-directory");
+        let missing = existing.join("openbitfun-trust-test-absent-directory");
         assert!(matches!(
             classify_repository_open_error(&missing, &corrupt),
             GitError::RepositoryNotFound(_)
@@ -1157,7 +1157,7 @@ mod tests {
     async fn reports_a_plain_directory_as_not_a_repository() {
         let temp = tempfile::tempdir().expect("tempdir");
         let path = temp.path().to_string_lossy().to_string();
-        // The test temp root may itself live under the BitFun worktree. Stop
+        // The test temp root may itself live under the OpenBitFun worktree. Stop
         // Git at this directory so the fixture stays a plain directory rather
         // than discovering the repository that contains the test process.
         let ceiling = temp

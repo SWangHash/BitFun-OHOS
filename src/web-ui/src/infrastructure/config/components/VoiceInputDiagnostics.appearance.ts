@@ -4,19 +4,17 @@ export const voiceInputDiagnosticsAppearanceDescriptor: AppearanceSurfaceDescrip
   id: 'voice-input-diagnostics',
   parts: [
     { id: 'root' }, { id: 'deviceControl' }, { id: 'deviceSelect' },
-    { id: 'diagnosticAction' }, { id: 'level' }, { id: 'levelValue' },
-    { id: 'recognitionTest' }, { id: 'note' }, { id: 'result' }, { id: 'error' },
+    { id: 'diagnosticAction' }, { id: 'feedback' }, { id: 'result' }, { id: 'error' },
   ],
   facets: [
     {
       id: 'phase',
-      attribute: 'data-bf-phase',
+      attribute: 'data-openbitfun-phase',
       values: ['idle', 'preparing', 'recording', 'transcribing'],
     },
-    { id: 'volume', attribute: 'data-bf-volume', values: ['silent', 'low', 'normal'] },
   ],
   states: [
-    { id: 'testingRecognition', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-bf-state~="testing-recognition"]' } },
-    { id: 'error', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-bf-state~="error"]' } },
+    { id: 'testingRecognition', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-openbitfun-state~="testing-recognition"]' } },
+    { id: 'error', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-openbitfun-state~="error"]' } },
   ],
 };

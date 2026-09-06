@@ -47,7 +47,7 @@ describe('WorkspaceAPI', () => {
   it('writes text through the registered command with remote routing context', async () => {
     await workspaceAPI.writeFileContent(
       '/workspace',
-      '/workspace/.bitfun/plans/refactor.plan.md',
+      '/workspace/.openbitfun/plans/refactor.plan.md',
       '# Plan',
       'remote-connection-1',
     );
@@ -55,7 +55,7 @@ describe('WorkspaceAPI', () => {
     expect(invokeMock).toHaveBeenCalledWith('write_file_content', {
       request: {
         workspacePath: '/workspace',
-        filePath: '/workspace/.bitfun/plans/refactor.plan.md',
+        filePath: '/workspace/.openbitfun/plans/refactor.plan.md',
         content: '# Plan',
         remoteConnectionId: 'remote-connection-1',
       },
@@ -225,5 +225,19 @@ describe('WorkspaceAPI', () => {
     expect(invokeMock.mock.calls.some(([command]) => (
       command === 'start_search_filenames_stream'
     ))).toBe(false);
+  });
+
+  it('resolves browser-dropped file paths through a structured host request', async () => {
+    invokeMock.mockResolvedValueOnce(['C:\\drop\\report.pdf']);
+
+    await expect(workspaceAPI.resolveBrowserDroppedFilePaths('drop-token', 1)).resolves.toEqual([
+      'C:\\drop\\report.pdf',
+    ]);
+    expect(invokeMock).toHaveBeenCalledWith('resolve_browser_dropped_file_paths', {
+      request: {
+        token: 'drop-token',
+        fileCount: 1,
+      },
+    });
   });
 });

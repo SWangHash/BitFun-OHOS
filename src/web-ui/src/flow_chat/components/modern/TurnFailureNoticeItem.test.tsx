@@ -27,7 +27,8 @@ vi.mock('@/infrastructure/i18n', () => ({
   }),
 }));
 
-vi.mock('@bitfun/ui', () => ({
+vi.mock('@openbitfun/ui', () => ({
+  Icon: ({ name }: { name: string }) => <span data-openbitfun-component="icon" data-openbitfun-name={name} />,
   Tooltip: ({ content, children }: { content: string; children: React.ReactElement }) => (
     <span data-tooltip={content}>{children}</span>
   ),

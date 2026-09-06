@@ -1,6 +1,6 @@
-import { Button, Icon, Input, Select, type SelectOption } from '@bitfun/ui';
+import { Button, Icon, Input, Select, type SelectOption } from '@openbitfun/ui';
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CircleStop, FileClock, Globe, HardDrive, Lock, PanelsTopLeft, Rocket, Save, Users, type LucideIcon } from 'lucide-react';
+import { CircleStop, FileClock, HardDrive, Lock, PanelsTopLeft, Rocket, Save, Users, type LucideIcon } from 'lucide-react';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { confirmDanger, confirmWarning } from '@/infrastructure/confirm-dialog';
 import { GalleryEmpty, GalleryLayout, GalleryPageHeader } from '@/app/components';
@@ -46,11 +46,18 @@ function replacePage(pages: PageInfo[], updated: PageInfo): PageInfo[] {
   return pages.map((page) => (page.slug === updated.slug ? updated : page));
 }
 
-const VISIBILITY_ICONS: Record<PageVisibility, LucideIcon> = {
+const VISIBILITY_ICONS: Record<Exclude<PageVisibility, 'public'>, LucideIcon> = {
   private: Lock,
   relay: Users,
-  public: Globe,
 };
+
+function renderVisibilityIcon(visibility: PageVisibility): React.ReactNode {
+  if (visibility === 'public') {
+    return <Icon name="browser" size="xs" aria-hidden />;
+  }
+  const VisibilityIcon = VISIBILITY_ICONS[visibility];
+  return <VisibilityIcon size={12} aria-hidden="true" />;
+}
 
 const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
   const { t, formatDate, formatNumber } = useI18n('scenes/pages');
@@ -681,10 +688,10 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
   );
 
   return (
-    <GalleryLayout className="pages-scene" data-testid="pages-scene" data-bf-scene="pages" data-bf-part="root">
+    <GalleryLayout className="pages-scene" data-testid="pages-scene" data-openbitfun-scene="pages" data-openbitfun-part="root">
       <GalleryPageHeader
-        data-bf-scene="pages"
-        data-bf-part="header"
+        data-openbitfun-scene="pages"
+        data-openbitfun-part="header"
         title={t('title')}
         subtitle={t('subtitle')}
         actions={refreshButton}
@@ -704,9 +711,9 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
         ) : null}
       />
 
-      <div className="pages-scene__content" data-bf-scene="pages" data-bf-part="content">
+      <div className="pages-scene__content" data-openbitfun-scene="pages" data-openbitfun-part="content">
         {loadError && pages.length > 0 && (
-          <div className="pages-scene__refresh-error" role="alert" data-testid="pages-refresh-error" data-bf-scene="pages" data-bf-part="error">
+          <div className="pages-scene__refresh-error" role="alert" data-testid="pages-refresh-error" data-openbitfun-scene="pages" data-openbitfun-part="error">
             <span>{t('loadFailed')}</span>
             <small>{loadError}</small>
             <Button variant="outline" size="sm" onClick={() => void loadPages()}>
@@ -718,8 +725,8 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
         {loading && pages.length === 0 ? (
           <div
             className="pages-scene__grid"
-            data-bf-scene="pages"
-            data-bf-part="loading"
+            data-openbitfun-scene="pages"
+            data-openbitfun-part="loading"
             data-testid="pages-loading"
             role="status"
             aria-busy="true"
@@ -742,8 +749,8 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
           </div>
         ) : loginRequired ? (
           <GalleryEmpty
-            data-bf-scene="pages"
-            data-bf-part="empty"
+            data-openbitfun-scene="pages"
+            data-openbitfun-part="empty"
             icon={<PanelsTopLeft size={36} />}
             message={<>{t('signInRequired')}<small>{t('signInHint')}</small></>}
             action={(
@@ -755,8 +762,8 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
           />
         ) : loadError && pages.length === 0 ? (
           <GalleryEmpty
-            data-bf-scene="pages"
-            data-bf-part="error"
+            data-openbitfun-scene="pages"
+            data-openbitfun-part="error"
             icon={<PanelsTopLeft size={36} />}
             message={<>{t('loadFailed')}<small>{loadError}</small></>}
             isError
@@ -765,14 +772,14 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
           />
         ) : pages.length === 0 ? (
           <GalleryEmpty
-            data-bf-scene="pages"
-            data-bf-part="empty"
+            data-openbitfun-scene="pages"
+            data-openbitfun-part="empty"
             icon={<PanelsTopLeft size={36} />}
             message={<>{t('empty')}<small>{t('emptyHint')}</small></>}
             testId="pages-empty"
           />
         ) : (
-          <div className="pages-scene__grid" role="list" data-bf-scene="pages" data-bf-part="list">
+          <div className="pages-scene__grid" role="list" data-openbitfun-scene="pages" data-openbitfun-part="list">
             {pages.map((page) => {
               const versions = versionsBySlug[page.slug] ?? [];
               const expanded = expandedSlugs.has(page.slug);
@@ -783,7 +790,6 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
               const titleDraft = titleDrafts[page.slug] ?? page.title;
               const titleDirty = titleDraft.trim().length > 0 && titleDraft.trim() !== page.title;
               const titleSaving = pendingAction === `title:${page.slug}`;
-              const VisibilityIcon = VISIBILITY_ICONS[page.visibility];
               const managementId = `page-management-${page.slug}`;
               const versionsId = `page-versions-${page.slug}`;
               return (
@@ -819,7 +825,7 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
                     className="pages-scene__meta-item pages-scene__meta-item--visibility"
                     title={visibilityHint(page.visibility)}
                   >
-                    <VisibilityIcon size={12} aria-hidden="true" />
+                    {renderVisibilityIcon(page.visibility)}
                     {visibilityLabel(page.visibility)}
                   </span>
                 </div>
@@ -944,7 +950,7 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
                           aria-label={t('visibility.changeAria', { title: page.title || page.slug })}
                         />
                         <span className="pages-scene__visibility-hint">
-                          <VisibilityIcon size={12} aria-hidden="true" />
+                          {renderVisibilityIcon(page.visibility)}
                           {visibilityHint(page.visibility)}
                         </span>
                       </div>

@@ -10,17 +10,17 @@ export const buttonAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   facets: [
     {
       id: 'variant',
-      attribute: 'data-bf-variant',
+      attribute: 'data-openbitfun-variant',
       values: ['primary', 'secondary', 'ghost', 'dashed', 'danger', 'success', 'accent', 'ai'],
     },
     {
       id: 'size',
-      attribute: 'data-bf-size',
+      attribute: 'data-openbitfun-size',
       values: ['small', 'medium', 'large'],
     },
     {
       id: 'iconOnly',
-      attribute: 'data-bf-icon-only',
+      attribute: 'data-openbitfun-icon-only',
       values: ['true'],
     },
   ],
@@ -29,6 +29,6 @@ export const buttonAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'active', selector: { kind: 'self', suffix: ':active:not(:disabled)' } },
     { id: 'focusVisible', selector: { kind: 'self', suffix: ':focus-visible' } },
     { id: 'disabled', selector: { kind: 'self', suffix: ':disabled' } },
-    { id: 'loading', selector: { kind: 'self', suffix: '[data-bf-state~="loading"]' } },
+    { id: 'loading', selector: { kind: 'self', suffix: '[data-openbitfun-state~="loading"]' } },
   ],
 };

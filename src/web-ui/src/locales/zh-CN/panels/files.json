@@ -100,9 +100,9 @@
     "selectWorkspace": "选择工作区后将显示文件树"
   },
   "errors": {
-    "fileTreePermissionDenied": "BitFun 没有访问此文件夹的权限。",
+    "fileTreePermissionDenied": "OpenBitFun 没有访问此文件夹的权限。",
     "fileTreeLoadFailed": "加载文件树失败：{{message}}",
-    "directoryPermissionDenied": "BitFun 没有访问此文件夹的权限。",
+    "directoryPermissionDenied": "OpenBitFun 没有访问此文件夹的权限。",
     "directoryLoadFailed": "加载文件夹失败：{{message}}"
   },
   "dialog": {

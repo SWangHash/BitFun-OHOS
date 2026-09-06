@@ -1,7 +1,7 @@
 # 桌面端 PC 语音输入（voice-input）功能提案
 
 > 状态：提案 / 未集成
-> 仓库：BitFun-OHOS
+> 仓库：OpenBitFun-OHOS
 > 相关架构入口：
 > - [`docs/architecture/product-architecture.md`](../architecture/product-architecture.md)
 > - [`src/crates/assembly/product-capabilities/AGENTS.md`](../../src/crates/assembly/product-capabilities/AGENTS.md)
@@ -9,7 +9,7 @@
 
 ## 背景与需求描述
 
-BitFun 目前是一个跨平台桌面 AI Agent（Windows / macOS / Linux，并正在进行 HarmonyOS 端口移植），用户与 Agent 的交互仅限文本输入。在编码、办公、长任务审查等场景下，纯文本输入存在以下痛点：
+OpenBitFun 目前是一个跨平台桌面 AI Agent（Windows / macOS / Linux，并正在进行 HarmonyOS 端口移植），用户与 Agent 的交互仅限文本输入。在编码、办公、长任务审查等场景下，纯文本输入存在以下痛点：
 
 - 长段需求 / 会议纪要 / 口述文档时，手打效率低、打断思考流；
 - 在 Computer Use、浏览器操作、桌面执行等"手已被占用"场景下，无法边操作边输入；
@@ -57,7 +57,7 @@ BitFun 目前是一个跨平台桌面 AI Agent（Windows / macOS / Linux，并�
 - **候选模型**（均为 int8 量化，体积 / 精度折中）：
   - SenseVoice Small int8 —— 多语种（普通话 / 粤语 / 英 / 日 / 韩），体量小、首版默认；
   - Qwen3-ASR-0.6B int8 —— 更高质量，作为可选升级档。
-- **模型分发**：首次使用时按 manifest 下载并安装到 `~/.bitfun/speech-models/`（与现有 MiniApp / 远端部署脚本的同构目录约定一致），支持取消与断点续传，附进度事件。
+- **模型分发**：首次使用时按 manifest 下载并安装到 `~/.openbitfun/speech-models/`（与现有 MiniApp / 远端部署脚本的同构目录约定一致），支持取消与断点续传，附进度事件。
 - **交互参考**：OpenAI Whisper 桌面端、微软 Dictate、macOS 系统听写 —— 按住说话 + 点击录音双模式，转写完成后文本落入输入框并由用户决定是否发送（不自动提交）。
 - **隐私边界**：默认本地推理；如用户在 Settings 显式选择云端模型，则在 wire 上复用 `cloud_speech` 配置形态，但前端必须明确提示"音频将上传至第三方"。
 

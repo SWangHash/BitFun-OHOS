@@ -5,8 +5,8 @@ import {
   NumberInput,
   Select,
   Switch,
+  StatusPill,
   Tooltip,
-  ScrollArea,
   type ComboboxOption,
   type SelectOption,
   Dialog,
@@ -15,12 +15,24 @@ import {
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from '@bitfun/ui';
-import React, { useState, useEffect, useCallback } from 'react';
+} from '@openbitfun/ui';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfigLoadingState } from '@/infrastructure/config/components/common';
+import {
+  ConfigLoadingState,
+  ConfigMessage,
+  ConfigRefreshButton,
+  ConfigRetryState,
+} from '@/infrastructure/config/components/common';
 import { confirmDanger } from '@/infrastructure/confirm-dialog';
-import { ConfigPageHeader, ConfigPageLayout, ConfigPageContent, ConfigPageSection, ConfigPageRow } from './common';
+import {
+  ConfigPageContent,
+  ConfigPageHeader,
+  ConfigPageLayout,
+  ConfigPageRow,
+  ConfigPageSection,
+  formatStandaloneUiText,
+} from './common';
 import { aiExperienceConfigService, type AIExperienceSettings } from '../services/AIExperienceConfigService';
 import {
   DEFAULT_AGENT_COMPANION_PET,
@@ -37,6 +49,7 @@ import {
   normalizeToolPermissionConfig,
   permissionConfigService,
 } from '../services/PermissionConfigService';
+import { i18nService } from '@/infrastructure/i18n';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
 import { useNotification, notificationService } from '@/shared/notification-system';
@@ -45,11 +58,10 @@ import type {
   ToolPermissionConfig,
 } from '../types';
 import { GlobalPermissionRulesDialog } from './GlobalPermissionRulesDialog';
-import { ChatInputPixelPet } from '@/flow_chat/components/ChatInputPixelPet';
 import SessionTitleConfig from './SessionTitleConfig';
 import ReviewCapacitySection from './ReviewCapacitySection';
 import ToolJsonRepairSection from './ToolJsonRepairSection';
-import { ask, open } from '@tauri-apps/plugin-dialog';
+import { open } from '@tauri-apps/plugin-dialog';
 import { createLogger } from '@/shared/utils/logger';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
 import './RuntimeSettingsPages.scss';
@@ -131,14 +143,17 @@ export type RuntimeSettingsPageKind =
   | 'pet'
   | 'session-workspace'
   | 'execution'
-  | 'execution-control'
-  | 'device-control';
+  | 'browser-desktop-control';
 
 interface RuntimeSettingsPageProps {
   page: RuntimeSettingsPageKind;
+  isActive?: boolean;
 }
 
-const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
+const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
+  page,
+  isActive = true,
+}) => {
   const { t } = useTranslation('settings/runtime');
   const { t: tNavigation } = useTranslation('settings');
   const { t: tTools } = useTranslation('settings/agentic-tools');
@@ -146,12 +161,13 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
 
   // ── Session config state ─────────────────────────────────────────────────
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const hasLoadedPageDataRef = useRef(false);
+  const toolPermissionSaveInFlightRef = useRef(false);
   const [settings, setSettings] = useState<AIExperienceSettings | null>(null);
   const [companionPets, setCompanionPets] = useState<AgentCompanionPetPackage[]>([]);
-  const [companionPetsLoading, setCompanionPetsLoading] = useState(false);
   const [companionPetImporting, setCompanionPetImporting] = useState(false);
   const [companionPetDeletingPath, setCompanionPetDeletingPath] = useState<string | null>(null);
-  const [companionPetListExpanded, setCompanionPetListExpanded] = useState(false);
   const [enableDeferredToolLoading, setEnableDeferredToolLoading] = useState(true);
   const [subagentMaxConcurrency, setSubagentMaxConcurrency] = useState(DEFAULT_SUBAGENT_MAX_CONCURRENCY);
   const [swarmMaxConcurrency, setSwarmMaxConcurrency] = useState(DEFAULT_SWARM_MAX_CONCURRENCY);
@@ -180,6 +196,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
   const [computerUseScreen, setComputerUseScreen] = useState(false);
   const [computerUseBusy, setComputerUseBusy] = useState(false);
   const [computerUseStatusLoading, setComputerUseStatusLoading] = useState(false);
+  const [computerUseStatusError, setComputerUseStatusError] = useState(false);
   const [computerUsePlatformNote, setComputerUsePlatformNote] = useState<string | null>(null);
 
   // ── Browser control state ───────────────────────────────────────────────
@@ -196,12 +213,14 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
   const [preferredBrowser, setPreferredBrowser] = useState(DEFAULT_BROWSER_CONTROL_BROWSER);
   const [browserControlBusy, setBrowserControlBusy] = useState(false);
   const [browserStatusLoading, setBrowserStatusLoading] = useState(false);
+  const [browserStatusError, setBrowserStatusError] = useState(false);
   const [platform, setPlatform] = useState<string>('');
   const [browserRestartPrompt, setBrowserRestartPrompt] = useState<BrowserControlLaunchResponse | null>(null);
 
   const refreshComputerUseStatus = useCallback(async (): Promise<boolean> => {
     if (!IS_TAURI_DESKTOP) return false;
     setComputerUseStatusLoading(true);
+    setComputerUseStatusError(false);
     try {
       const s = await api.invoke<ComputerUseStatusPayload>('computer_use_get_status');
       setPeerBrowserControlUnsupported(false);
@@ -213,9 +232,11 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
     } catch (error) {
       if (isPeerUnsupportedBrowserControlError(error)) {
         setPeerBrowserControlUnsupported(true);
+        setComputerUseStatusError(false);
         return false;
       }
       log.error('computer_use_get_status failed', error);
+      setComputerUseStatusError(true);
       return false;
     } finally {
       setComputerUseStatusLoading(false);
@@ -225,6 +246,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
   const refreshBrowserControlStatus = useCallback(async () => {
     if (!IS_TAURI_DESKTOP) return;
     setBrowserStatusLoading(true);
+    setBrowserStatusError(false);
     try {
       const [s, browsers] = await Promise.all([
         api.invoke<{
@@ -253,31 +275,15 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
     } catch (error) {
       if (isPeerUnsupportedBrowserControlError(error)) {
         setPeerBrowserControlUnsupported(true);
+        setBrowserStatusError(false);
       } else {
+        setBrowserStatusError(true);
         log.error('browser_control_get_status failed', error);
       }
-      log.error('browser_control_get_status failed', error);
     } finally {
       setBrowserStatusLoading(false);
     }
   }, []);
-
-  const refreshDesktopStatus = useCallback((computerUseCfg: boolean | null | undefined) => {
-    if (!IS_TAURI_DESKTOP) {
-      setComputerUseEnabled(computerUseCfg ?? false);
-      return;
-    }
-
-    void refreshComputerUseStatus().then((ok) => {
-      if (!ok) setComputerUseEnabled(computerUseCfg ?? false);
-    });
-
-    void refreshBrowserControlStatus();
-
-    void systemAPI.getSystemInfo()
-      .then((info) => setPlatform(info.platform || ''))
-      .catch((error) => log.warn('getSystemInfo failed', error));
-  }, [refreshComputerUseStatus, refreshBrowserControlStatus, setComputerUseEnabled]);
 
   // Browser Control / Computer Use route to the rendered host. Re-probe on every
   // surface switch (local ↔ peer A ↔ peer B): a CLI Peer returns unsupported,
@@ -290,29 +296,41 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
   useEffect(() => {
     if (!IS_TAURI_DESKTOP) return;
     setPeerBrowserControlUnsupported(false);
-    void refreshComputerUseStatus();
-    void refreshBrowserControlStatus();
-  }, [peerModeActive, renderedPeerDeviceId, refreshComputerUseStatus, refreshBrowserControlStatus]);
+    if (page === 'browser-desktop-control') {
+      void refreshComputerUseStatus();
+      void refreshBrowserControlStatus();
+      void systemAPI.getSystemInfo()
+        .then((info) => setPlatform(info.platform || ''))
+        .catch((error) => log.warn('getSystemInfo failed', error));
+    }
+  }, [
+    page,
+    peerModeActive,
+    renderedPeerDeviceId,
+    refreshComputerUseStatus,
+    refreshBrowserControlStatus,
+  ]);
+
+  const reloadCompanionPets = useCallback(async () => {
+    setCompanionPets(await listAgentCompanionPets());
+  }, []);
 
   const loadPageData = useCallback(async () => {
-    setIsLoading(true);
+    const isInitialLoad = !hasLoadedPageDataRef.current;
+    if (isInitialLoad) {
+      setIsLoading(true);
+      setLoadError(false);
+    }
     try {
       if (page === 'pet') {
-        const [loadedSettings, loadedCompanionPets] = await Promise.all([
+        const [loadedSettings] = await Promise.all([
           aiExperienceConfigService.getSettingsAsync(),
-          listAgentCompanionPets(),
+          reloadCompanionPets(),
         ]);
         setSettings(loadedSettings);
-        setCompanionPets(loadedCompanionPets);
-        return;
-      }
-
-      if (page === 'session-workspace') {
+      } else if (page === 'session-workspace') {
         setSettings(await aiExperienceConfigService.getSettingsAsync());
-        return;
-      }
-
-      if (page === 'execution' || page === 'execution-control') {
+      } else if (page === 'execution') {
         const [
           deferredToolLoadingEnabled,
           loadedSubagentMaxConcurrency,
@@ -341,31 +359,37 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
         setSubagentBatchExecutionPolicy(normalizeSubagentBatchExecutionPolicy(loadedSubagentBatchExecutionPolicy));
         setToolPermissionConfig(normalizeToolPermissionConfig(loadedToolPermissionConfig));
         setShowPermissionModeControl(loadedPermissionModeControlVisibility !== false);
-        if (page === 'execution') return;
+      } else if (page === 'browser-desktop-control') {
+        const [
+          computerUseCfg,
+          browserControlPreferredBrowser,
+          browserControlAutoConnect,
+        ] = await Promise.all([
+          configManager.getConfig<boolean>('ai.computer_use_enabled'),
+          configManager.getConfig<string>('ai.browser_control_preferred_browser'),
+          configManager.getConfig<boolean>('ai.browser_control_auto_connect_on_startup'),
+        ]);
+        if (!IS_TAURI_DESKTOP) {
+          setComputerUseEnabled(computerUseCfg ?? false);
+        }
+        setPreferredBrowser(browserControlPreferredBrowser || DEFAULT_BROWSER_CONTROL_BROWSER);
+        setBrowserAutoConnectOnStartup(browserControlAutoConnect === true);
       }
-
-      const [computerUseCfg, browserControlPreferredBrowser, browserControlAutoConnect] = await Promise.all([
-        configManager.getConfig<boolean>('ai.computer_use_enabled'),
-        configManager.getConfig<string>('ai.browser_control_preferred_browser'),
-        configManager.getConfig<boolean>('ai.browser_control_auto_connect_on_startup'),
-      ]);
-      setPreferredBrowser(browserControlPreferredBrowser || DEFAULT_BROWSER_CONTROL_BROWSER);
-      setBrowserAutoConnectOnStartup(browserControlAutoConnect === true);
-      refreshDesktopStatus(computerUseCfg);
+      hasLoadedPageDataRef.current = true;
     } catch (error) {
       log.error('Failed to load settings page data', { page, error });
-      if (page === 'pet' || page === 'session-workspace') {
-        setSettings(await aiExperienceConfigService.getSettingsAsync());
-      }
+      if (isInitialLoad) setLoadError(true);
     } finally {
-      setIsLoading(false);
+      if (isInitialLoad) setIsLoading(false);
     }
-  }, [page, refreshDesktopStatus]);
+  }, [page, reloadCompanionPets, setComputerUseEnabled]);
 
   const saveToolPermissionConfig = async (
     nextConfig: ToolPermissionConfig,
     previousConfig: ToolPermissionConfig,
   ): Promise<boolean> => {
+    if (toolPermissionSaveInFlightRef.current) return false;
+    toolPermissionSaveInFlightRef.current = true;
     setToolPermissionConfig(nextConfig);
     setPermissionConfigSaving(true);
     try {
@@ -378,6 +402,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
       notificationService.error(t('messages.saveFailed'));
       return false;
     } finally {
+      toolPermissionSaveInFlightRef.current = false;
       setPermissionConfigSaving(false);
     }
   };
@@ -445,8 +470,9 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
   };
 
   useEffect(() => {
+    if (page === 'pet' && !isActive) return;
     void loadPageData();
-  }, [loadPageData]);
+  }, [isActive, loadPageData, page]);
 
   // ── Session config handlers ──────────────────────────────────────────────
 
@@ -467,15 +493,6 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
     }
   };
 
-  const handleRefreshCompanionPets = async () => {
-    setCompanionPetsLoading(true);
-    try {
-      setCompanionPets(await listAgentCompanionPets());
-    } finally {
-      setCompanionPetsLoading(false);
-    }
-  };
-
   const handleImportCompanionPet = async () => {
     if (!IS_TAURI_DESKTOP) return;
     setCompanionPetImporting(true);
@@ -488,8 +505,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
       });
       if (!selected || Array.isArray(selected)) return;
       const imported = await importAgentCompanionPetPackage(selected);
-      const refreshed = await listAgentCompanionPets();
-      setCompanionPets(refreshed);
+      await reloadCompanionPets();
       await updateSetting('agent_companion_pet', {
         id: imported.id,
         displayName: imported.displayName,
@@ -511,17 +527,17 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
     event.preventDefault();
     event.stopPropagation();
     if (!IS_TAURI_DESKTOP || pet.source !== 'user' || !settings) return;
-    const confirmed = await ask(t('features.pet.deleteConfirmBody'), {
-      title: t('features.pet.deleteConfirmTitle'),
-      kind: 'warning',
-    });
+    const confirmed = await confirmDanger(
+      t('features.pet.deleteConfirmTitle'),
+      t('features.pet.deleteConfirmBody'),
+      { confirmText: t('features.pet.delete') },
+    );
     if (!confirmed) return;
     setCompanionPetDeletingPath(pet.packagePath);
     try {
       await deleteAgentCompanionPetPackage(pet.packagePath);
       releaseAgentCompanionPetPreviewBlobs(pet.packagePath, pet.spritesheetPath);
-      const refreshed = await listAgentCompanionPets();
-      setCompanionPets(refreshed);
+      await reloadCompanionPets();
       if (settings.agent_companion_pet?.packagePath === pet.packagePath) {
         const next = { ...settings, agent_companion_pet: DEFAULT_AGENT_COMPANION_PET };
         setSettings(next);
@@ -536,32 +552,6 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
     }
   };
 
-  const companionPetOptions: ComboboxOption[] = companionPets.map(pet => {
-    const displayName = pet.source === 'preset' && pet.id === 'blue-golden'
-      ? t('features.pet.presets.blueGolden.name')
-      : pet.displayName;
-    return {
-      value: pet.packagePath,
-      label: displayName,
-      group: pet.source === 'preset'
-        ? t('features.pet.groupPreset')
-        : t('features.pet.groupImported'),
-    };
-  });
-
-  const companionDisplayModeOptions: DescribedSelectOption[] = [
-    {
-      value: 'desktop',
-      label: t('features.pet.displayDesktop'),
-      description: t('features.pet.displayDesktopDesc'),
-    },
-    {
-      value: 'input',
-      label: t('features.pet.displayInput'),
-      description: t('features.pet.displayInputDesc'),
-    },
-  ];
-
   const subagentBatchExecutionPolicyOptions: DescribedSelectOption[] = [
     {
       value: 'safe_only',
@@ -575,13 +565,8 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
     },
   ];
 
-  const selectedCompanionPetPackage = settings?.agent_companion_pet
-    ? companionPets.find(pet => pet.packagePath === settings.agent_companion_pet?.packagePath) ?? null
-    : null;
-  const selectedCompanionPet = selectedCompanionPetPackage ?? settings?.agent_companion_pet ?? DEFAULT_AGENT_COMPANION_PET;
-  const selectedCompanionPetValue = selectedCompanionPet.packagePath;
-  const selectedCompanionPetOption = companionPetOptions.find(option => option.value === selectedCompanionPetValue)
-    ?? companionPetOptions[0];
+  const selectedCompanionPetValue = settings?.agent_companion_pet?.packagePath
+    ?? DEFAULT_AGENT_COMPANION_PET.packagePath;
 
   const handleCompanionPetChange = async (value: string | number | (string | number)[]) => {
     const selectedValue = String(Array.isArray(value) ? value[0] : value);
@@ -596,7 +581,6 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
       spritesheetPath: pet.spritesheetPath,
       spritesheetMimeType: pet.spritesheetMimeType,
     });
-    setCompanionPetListExpanded(false);
   };
 
   const handleDeferredToolLoadingChange = async (checked: boolean) => {
@@ -640,23 +624,35 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
 
   const handleSwarmMaxConcurrencyChange = async (value: number) => {
     if (Number.isNaN(value) || value < 1) return;
+    const previous = swarmMaxConcurrency;
     setSwarmMaxConcurrency(value);
+    setToolExecConfigLoading(true);
     try {
       await configManager.setConfig('ai.swarm_max_concurrency', value);
+      notificationService.success(tTools('messages.saveSuccess'), { duration: 2000 });
     } catch (error) {
       log.error('Failed to save swarm_max_concurrency', error);
+      setSwarmMaxConcurrency(previous);
       notificationService.error(tTools('messages.saveFailed'));
+    } finally {
+      setToolExecConfigLoading(false);
     }
   };
 
   const handleSubagentMaxConcurrencyChange = async (value: number) => {
     if (Number.isNaN(value) || value < 1) return;
+    const previous = subagentMaxConcurrency;
     setSubagentMaxConcurrency(value);
+    setToolExecConfigLoading(true);
     try {
       await configManager.setConfig('ai.subagent_max_concurrency', value);
+      notificationService.success(tTools('messages.saveSuccess'), { duration: 2000 });
     } catch (error) {
       log.error('Failed to save subagent_max_concurrency', error);
+      setSubagentMaxConcurrency(previous);
       notificationService.error(tTools('messages.saveFailed'));
+    } finally {
+      setToolExecConfigLoading(false);
     }
   };
 
@@ -870,13 +866,18 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
       const numValue = parseInt(trimmedValue, 10);
       if (Number.isNaN(numValue) || numValue < 0) return;
     }
+    const previous = executionTimeout;
     setExecutionTimeout(trimmedValue);
+    setToolExecConfigLoading(true);
     const numValue = trimmedValue === '' ? null : parseInt(trimmedValue, 10);
     try {
       await configManager.setConfig(configKey, numValue);
     } catch (error) {
       log.error('Failed to save tool timeout config', { error });
+      setExecutionTimeout(previous);
       notificationService.error(tTools('messages.saveFailed'));
+    } finally {
+      setToolExecConfigLoading(false);
     }
   };
 
@@ -884,9 +885,11 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
 
   const computerUseAccessLabel = computerUseStatusLoading
     ? t('loading.text')
+    : computerUseStatusError ? t('computerUse.statusUnavailable')
     : computerUseAccess ? t('computerUse.granted') : t('computerUse.notGranted');
   const computerUseScreenLabel = computerUseStatusLoading
     ? t('loading.text')
+    : computerUseStatusError ? t('computerUse.statusUnavailable')
     : computerUseScreen ? t('computerUse.granted') : t('computerUse.notGranted');
   const computerUsePlatformMessage = computerUsePlatformNote
     ? platform === 'macos'
@@ -897,37 +900,61 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
           ? t('computerUse.platformNotes.linux')
           : t('computerUse.platformNotes.generic')
     : null;
-  // A ready browser is not a failure state: BitFun attaches to it the moment
-  // something needs it, so say that rather than the bare "not connected".
-  const browserStatusLabel = browserCdpAvailable
-    ? `${browserKind} · ${browserPageCount} ${t('browserControl.tabs')}`
-    : browserStatusLoading
-      ? t('loading.text')
-      : browserReady
-        ? t('browserControl.readyNotConnected')
-        : t('browserControl.notConnected');
-  const browserSelectOptions: ComboboxOption[] = browserOptions.map((option) => ({
-    value: option.value,
-    label: option.installed ? option.label : `${option.label} (${t('browserControl.notInstalled')})`,
-    disabled: !option.installed,
-  }));
+  const browserStatusLabel = browserStatusLoading
+    ? t('loading.text')
+    : browserStatusError
+      ? t('browserControl.statusUnavailable')
+      : browserCdpAvailable
+        ? t('browserControl.connected')
+        : browserReady
+          ? t('browserControl.ready')
+          : t('browserControl.notConnected');
+  const browserStatusDescription = !browserStatusLoading && !browserStatusError
+    ? browserCdpAvailable
+      ? `${browserKind} · ${i18nService.formatNumber(browserPageCount)} ${t('browserControl.tabs')}`
+      : browserReady ? t('browserControl.readyNotConnected') : undefined
+    : undefined;
+  const browserSelectOptions: ComboboxOption[] = browserOptions.map((option) => {
+    const label = option.value === DEFAULT_BROWSER_CONTROL_BROWSER
+      ? t('browserControl.defaultBrowser')
+      : option.label;
+    return {
+      value: option.value,
+      label: option.installed ? label : `${label} (${t('browserControl.notInstalled')})`,
+      disabled: !option.installed,
+    };
+  });
 
   const pageCopyKey = page === 'session-workspace'
     ? 'sessionWorkspace'
-    : page === 'execution-control'
-      ? 'executionControl'
-      : page === 'device-control'
-        ? 'deviceControl'
-        : page;
+    : page === 'browser-desktop-control'
+      ? 'browserDesktopControl'
+      : page;
   const pageTitle = tNavigation(`navigation.pages.${pageCopyKey}.label`);
   const pageSubtitle = tNavigation(`navigation.pages.${pageCopyKey}.description`);
+  const appearanceView = page;
+  const showsExecutionSettings = page === 'execution';
 
   const requiresExperienceSettings = page === 'pet' || page === 'session-workspace';
+  if (loadError) {
+    return (
+      <ConfigPageLayout className="openbitfun-runtime-settings" data-openbitfun-component="runtime-settings" data-openbitfun-part="root" data-openbitfun-view={appearanceView}>
+        <ConfigPageHeader title={pageTitle} subtitle={pageSubtitle} />
+        <ConfigPageContent className="openbitfun-runtime-settings__content" data-openbitfun-component="runtime-settings" data-openbitfun-part="content">
+          <ConfigRetryState
+            message={t('loading.failed')}
+            retryLabel={t('loading.retry')}
+            onRetry={() => void loadPageData()}
+          />
+        </ConfigPageContent>
+      </ConfigPageLayout>
+    );
+  }
   if (isLoading || (requiresExperienceSettings && !settings)) {
     return (
-      <ConfigPageLayout className="bitfun-runtime-settings" data-bf-component="runtime-settings" data-bf-part="root" data-bf-view={page}>
+      <ConfigPageLayout className="openbitfun-runtime-settings" data-openbitfun-component="runtime-settings" data-openbitfun-part="root" data-openbitfun-view={appearanceView}>
         <ConfigPageHeader title={pageTitle} subtitle={pageSubtitle} />
-        <ConfigPageContent className="bitfun-runtime-settings__content" data-bf-component="runtime-settings" data-bf-part="content">
+        <ConfigPageContent className="openbitfun-runtime-settings__content" data-openbitfun-component="runtime-settings" data-openbitfun-part="content">
           <ConfigLoadingState label={t('loading.text')} />
         </ConfigPageContent>
       </ConfigPageLayout>
@@ -935,204 +962,144 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
   }
 
   return (
-    <ConfigPageLayout className="bitfun-runtime-settings" data-bf-component="runtime-settings" data-bf-part="root" data-bf-view={page}>
+    <ConfigPageLayout className="openbitfun-runtime-settings" data-openbitfun-component="runtime-settings" data-openbitfun-part="root" data-openbitfun-view={appearanceView}>
       <ConfigPageHeader title={pageTitle} subtitle={pageSubtitle} />
 
-      <ConfigPageContent className="bitfun-runtime-settings__content" data-bf-component="runtime-settings" data-bf-part="content">
+      <ConfigPageContent className="openbitfun-runtime-settings__content" data-openbitfun-component="runtime-settings" data-openbitfun-part="content">
 
         {page === 'pet' && settings ? (
           <>
 
-        {/* ── Agent companion (collapsed input) ─────────────────── */}
+        {/* ── Desktop Agent companion ───────────────────────────── */}
         <ConfigPageSection
           title={t('features.pet.title')}
           description={t('features.pet.subtitle')}
         >
           <ConfigPageRow label={t('features.pet.enable')} align="center">
-            <div className="bitfun-runtime-settings__row-control" data-bf-component="runtime-settings" data-bf-part="control">
+            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
               <Switch
                 checked={settings.enable_agent_companion}
                 onChange={(e) => updateSetting('enable_agent_companion', e.target.checked)}
               />
             </div>
           </ConfigPageRow>
-          <ConfigPageRow
-            label={t('features.pet.displayModeLabel')}
-            description={t('features.pet.displayModeDescription')}
-            align="center"
-          >
-            <Select
-              className="bitfun-runtime-settings__pet-select"
-              size="sm"
-              options={companionDisplayModeOptions.map(option => ({
-                disabled: option.disabled,
-                label: option.description ? `${option.label} — ${option.description}` : option.label,
-                value: option.value,
-              }))}
-              value={settings.agent_companion_display_mode}
-              onValueChange={(value) => {
-                const selectedValue = String(value);
-                void updateSetting(
-                  'agent_companion_display_mode',
-                  selectedValue === 'desktop' ? 'desktop' : 'input',
-                );
-              }}
-            />
-          </ConfigPageRow>
-          <ConfigPageRow
-            label={(
-              <span className="bitfun-runtime-settings__pet-row-heading">
-                <span className="bitfun-runtime-settings__pet-row-copy">
-                  <span className="bitfun-runtime-settings__pet-row-title">
-                    {t('features.pet.petLabel')}
-                  </span>
-                  <span className="bitfun-runtime-settings__pet-row-description">
-                    {t('features.pet.petDescription')}
-                  </span>
-                </span>
-                <span className="bitfun-runtime-settings__pet-actions" data-bf-component="runtime-settings" data-bf-part="petActions">
-                  <Tooltip content={t('features.pet.refresh')}>
-                    <IconButton
-                      type="button"
-                      size="sm"
-                      onClick={() => void handleRefreshCompanionPets()}
-                      disabled={companionPetsLoading}
-                      aria-label={t('features.pet.refresh')}
-                      icon={<Icon name="refresh" size="sm" />}
-                    />
-                  </Tooltip>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void handleImportCompanionPet()}
-                    disabled={!IS_TAURI_DESKTOP || companionPetImporting}
-                    title={t('features.pet.importHint')}
-                    leadingIcon={<Icon name="plus" size="sm" />}
-                  >
+        </ConfigPageSection>
 
-                    {companionPetImporting ? t('features.pet.importing') : t('features.pet.import')}
-                  </Button>
-                </span>
-              </span>
-            )}
-            align="start"
-            multiline
-            className="bitfun-runtime-settings__pet-row"
-          >
-            <div className="bitfun-runtime-settings__pet-picker" data-bf-component="runtime-settings" data-bf-part="petPicker">
-              <div className="bitfun-runtime-settings__pet-chooser" data-bf-component="runtime-settings" data-bf-part="petChooser">
-                <button
-                  type="button"
-                  className="bitfun-runtime-settings__pet-expand-button"
-                  data-bf-component="runtime-settings"
-                  data-bf-part="petTrigger"
-                  data-bf-state={companionPetListExpanded ? 'expanded' : ''}
-                  aria-expanded={companionPetListExpanded}
-                  aria-controls="bitfun-companion-pet-list"
-                  onClick={() => setCompanionPetListExpanded((expanded) => !expanded)}
-                >
-                  <span className="bitfun-runtime-settings__pet-expand-current">
-                    <span className="bitfun-runtime-settings__pet-select-thumb" aria-hidden>
-                      {selectedCompanionPetPackage ? (
-                        <span
-                          className="bitfun-runtime-settings__pet-preview-sprite"
-                          style={{ '--bitfun-pet-preview-src': `url("${selectedCompanionPetPackage.previewSrc}")` } as React.CSSProperties}
-                        />
-                      ) : (
-                        <ChatInputPixelPet mood="rest" pet={selectedCompanionPet} className="bitfun-runtime-settings__pet-select-panda" />
-                      )}
-                    </span>
-                    <span className="bitfun-runtime-settings__pet-select-value">
-                      {selectedCompanionPetOption?.label ?? t('features.pet.petPlaceholder')}
-                    </span>
-                  </span>
-                  <Icon name="chevron-down" size="sm" className={companionPetListExpanded ? 'bitfun-runtime-settings__pet-expand-chevron--open' : undefined} />
-                </button>
-                {companionPetListExpanded && (
-                  <ScrollArea
-                    id="bitfun-companion-pet-list"
-                    className="bitfun-runtime-settings__pet-list"
-                    data-bf-component="runtime-settings"
-                    data-bf-part="petList"
-                    role="radiogroup"
-                    aria-label={t('features.pet.petLabel')}
-                  >
-                    {companionPetOptions.map((option, index) => {
-                      const pet = companionPets.find(item => item.packagePath === option.value);
-                      const isUserPet = pet?.source === 'user';
-                      const isDeleting = !!pet && companionPetDeletingPath === pet.packagePath;
-                      const isSelected = option.value === selectedCompanionPetValue;
-                      const showGroup = option.group && option.group !== companionPetOptions[index - 1]?.group;
-                      return (
-                        <React.Fragment key={String(option.value)}>
-                          {showGroup && (
-                            <div className="bitfun-runtime-settings__pet-list-group" data-bf-component="runtime-settings" data-bf-part="petGroup">
-                              {option.group}
-                            </div>
-                          )}
-                          <div
-                            className={`bitfun-runtime-settings__pet-select-option${isSelected ? ' bitfun-runtime-settings__pet-select-option--selected' : ''}`}
-                            data-bf-component="runtime-settings"
-                            data-bf-part="petOption"
-                            data-bf-state={isSelected ? 'selected' : ''}
-                            role="radio"
-                            tabIndex={0}
-                            aria-checked={isSelected}
-                            onClick={() => void handleCompanionPetChange(option.value)}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                void handleCompanionPetChange(option.value);
-                              }
-                            }}
-                          >
-                            <div className="bitfun-runtime-settings__pet-select-option-main" data-bf-component="runtime-settings" data-bf-part="petOptionMain">
-                              <span className="bitfun-runtime-settings__pet-select-thumb" aria-hidden>
-                                {pet ? (
-                                  <span
-                                    className="bitfun-runtime-settings__pet-preview-sprite"
-                                    style={{ '--bitfun-pet-preview-src': `url("${pet.previewSrc}")` } as React.CSSProperties}
-                                  />
-                                ) : (
-                                  <ChatInputPixelPet
-                                    mood="rest"
-                                    pet={DEFAULT_AGENT_COMPANION_PET}
-                                    className="bitfun-runtime-settings__pet-select-panda"
-                                  />
-                                )}
-                              </span>
-                              <span className="bitfun-runtime-settings__pet-select-text">
-                                <span className="bitfun-runtime-settings__pet-select-label">{option.label}</span>
-                              </span>
-                            </div>
-                            <div className={`bitfun-runtime-settings__pet-select-actions${isUserPet && IS_TAURI_DESKTOP && pet ? ' bitfun-runtime-settings__pet-select-actions--deletable' : ''}`} data-bf-component="runtime-settings" data-bf-part="petActions">
-                              {isSelected && (
-                                <Icon name="check-line" size="sm" className="bitfun-runtime-settings__pet-select-check" aria-hidden />
-                              )}
-                              {isUserPet && IS_TAURI_DESKTOP && pet && (
-                                <Tooltip content={t('features.pet.delete')}>
-                                  <IconButton
-                                    type="button"
-                                    size="sm"
-                                    tone="danger"
-                                    className="bitfun-runtime-settings__pet-select-delete"
-                                    disabled={isDeleting}
-                                    aria-label={t('features.pet.delete')}
-                                    onClick={(e) => void handleDeleteCompanionPet(e, pet)}
-                                    icon={<Icon name="delete" size="sm" />}
-                                  />
-                                </Tooltip>
-                              )}
-                            </div>
-                          </div>
-                        </React.Fragment>
-                      );
-                    })}
-                  </ScrollArea>
-                )}
-              </div>
+        <ConfigPageSection
+          className="openbitfun-runtime-settings__pet-picker"
+          title={t('features.pet.petLabel')}
+          description={t('features.pet.petDescription')}
+          bodySurface={false}
+          extra={(
+            <div
+              className="openbitfun-runtime-settings__pet-actions"
+              data-openbitfun-component="runtime-settings"
+              data-openbitfun-part="petActions"
+            >
+              <Button
+                size="md"
+                variant="fill"
+                onClick={() => void handleImportCompanionPet()}
+                disabled={!IS_TAURI_DESKTOP || companionPetImporting}
+                title={t('features.pet.importHint')}
+              >
+                {companionPetImporting ? t('features.pet.importing') : t('features.pet.import')}
+              </Button>
             </div>
-          </ConfigPageRow>
+          )}
+          data-openbitfun-component="runtime-settings"
+          data-openbitfun-part="petPicker"
+        >
+          <div
+            className="openbitfun-runtime-settings__pet-chooser"
+            data-openbitfun-component="runtime-settings"
+            data-openbitfun-part="petChooser"
+          >
+            <div
+              className="openbitfun-runtime-settings__pet-gallery"
+              data-openbitfun-component="runtime-settings"
+              data-openbitfun-part="petList"
+              role="radiogroup"
+              aria-label={t('features.pet.petLabel')}
+            >
+              {companionPets.map((pet) => {
+                const label = pet.source === 'preset' && pet.id === 'blue-golden'
+                  ? t('features.pet.presets.blueGolden.name')
+                  : pet.displayName;
+                const sourceLabel = pet.source === 'preset'
+                  ? t('features.pet.groupPreset')
+                  : t('features.pet.groupImported');
+                const isUserPet = pet.source === 'user';
+                const isDeleting = companionPetDeletingPath === pet.packagePath;
+                const isSelected = pet.packagePath === selectedCompanionPetValue;
+                const isDisabled = isDeleting;
+                const previewStyle = {
+                  '--openbitfun-pet-preview-src': `url("${pet.previewSrc}")`,
+                } as React.CSSProperties;
+
+                return (
+                  <article
+                    key={pet.packagePath}
+                    className="openbitfun-runtime-settings__pet-card"
+                    data-testid="companion-pet-card"
+                    data-pet-id={pet.id}
+                    data-openbitfun-component="runtime-settings"
+                    data-openbitfun-part="petOption"
+                    data-openbitfun-state={isSelected ? 'selected' : undefined}
+                  >
+                    <button
+                      type="button"
+                      className="openbitfun-runtime-settings__pet-card-select"
+                      data-openbitfun-component="runtime-settings"
+                      data-openbitfun-part="petTrigger"
+                      data-openbitfun-state={isSelected ? 'selected' : undefined}
+                      role="radio"
+                      aria-checked={isSelected}
+                      aria-label={label}
+                      disabled={isDisabled}
+                      onClick={() => void handleCompanionPetChange(pet.packagePath)}
+                    >
+                      <span className="openbitfun-runtime-settings__pet-card-preview" aria-hidden>
+                        <span
+                          className="openbitfun-runtime-settings__pet-preview-sprite"
+                          style={previewStyle}
+                        />
+                        {isSelected && (
+                          <span className="openbitfun-runtime-settings__pet-selected-mark">
+                            <Icon name="check-line" size="xs" />
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        className="openbitfun-runtime-settings__pet-card-body"
+                        data-openbitfun-component="runtime-settings"
+                        data-openbitfun-part="petOptionMain"
+                      >
+                        <strong>{label}</strong>
+                        <span data-openbitfun-component="runtime-settings" data-openbitfun-part="petGroup">
+                          {sourceLabel}
+                        </span>
+                      </span>
+                    </button>
+                    {isUserPet && IS_TAURI_DESKTOP && (
+                      <Tooltip content={t('features.pet.delete')}>
+                        <IconButton
+                          type="button"
+                          size="sm"
+                          tone="danger"
+                          className="openbitfun-runtime-settings__pet-card-delete"
+                          disabled={isDeleting}
+                          aria-label={`${t('features.pet.delete')}: ${label}`}
+                          onClick={(event) => void handleDeleteCompanionPet(event, pet)}
+                          icon={<Icon name="delete" size="sm" />}
+                        />
+                      </Tooltip>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          </div>
         </ConfigPageSection>
 
           </>
@@ -1147,7 +1114,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
           description={t('features.workspaceSearch.subtitle')}
         >
           <ConfigPageRow label={t('features.workspaceSearch.enable')} align="center">
-            <div className="bitfun-runtime-settings__row-control" data-bf-component="runtime-settings" data-bf-part="control">
+            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
               <Switch
                 checked={settings.enable_workspace_search}
                 onChange={(e) => updateSetting('enable_workspace_search', e.target.checked)}
@@ -1161,7 +1128,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
           </>
         ) : null}
 
-        {page === 'execution' || page === 'execution-control' ? (
+        {showsExecutionSettings ? (
           <>
 
         <ConfigPageSection
@@ -1177,7 +1144,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
                 : t('permissionPolicy.askDescription')} ${t('permissionPolicy.modeDescription')}`}
             align="center"
           >
-            <div className="bitfun-runtime-settings__row-control" data-bf-component="runtime-settings" data-bf-part="control">
+            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
               <Select
                 size="sm"
                 value={resolveToolPermissionMode(toolPermissionConfig)}
@@ -1196,7 +1163,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
             description={t('permissionPolicy.showInChatInputDescription')}
             align="center"
           >
-            <div className="bitfun-runtime-settings__row-control">
+            <div className="openbitfun-runtime-settings__row-control">
               <Switch
                 checked={showPermissionModeControl}
                 disabled={permissionModeControlVisibilitySaving}
@@ -1209,7 +1176,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
             description={t('permissionPolicy.globalRulesDescription')}
             align="center"
           >
-            <div className="bitfun-runtime-settings__row-control" data-bf-component="runtime-settings" data-bf-part="control">
+            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
               <Button
                 type="button"
                 size="sm"
@@ -1241,7 +1208,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
             description={tTools('config.executionTimeoutDesc')}
             align="center"
           >
-            <div className="bitfun-runtime-settings__row-control" data-bf-component="runtime-settings" data-bf-part="control">
+            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
               <NumberInput
                 value={executionTimeout === '' ? 0 : parseInt(executionTimeout, 10)}
                 onValueChange={(val) => handleToolTimeoutChange(val === 0 ? '' : String(val))}
@@ -1251,6 +1218,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
                 unit={tTools('config.seconds')}
                 size="sm"
                 variant="compact"
+                disabled={toolExecConfigLoading}
               />
             </div>
           </ConfigPageRow>
@@ -1259,12 +1227,14 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
             description={tTools('config.subagentBatchPolicy.desc')}
             align="center"
           >
-            <div className="bitfun-runtime-settings__row-control" data-bf-component="runtime-settings" data-bf-part="control">
+            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
               <Select
                 value={subagentBatchExecutionPolicy}
                 options={subagentBatchExecutionPolicyOptions.map(option => ({
                   disabled: option.disabled,
-                  label: option.description ? `${option.label} — ${option.description}` : option.label,
+                  label: option.description
+                    ? `${option.label} — ${formatStandaloneUiText(option.description)}`
+                    : option.label,
                   value: option.value,
                 }))}
                 size="sm"
@@ -1278,7 +1248,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
             description={tTools('config.subagentMaxConcurrencyDesc')}
             align="center"
           >
-            <div className="bitfun-runtime-settings__row-control" data-bf-component="runtime-settings" data-bf-part="control">
+            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
               <NumberInput
                 value={subagentMaxConcurrency}
                 onValueChange={(val) => void handleSubagentMaxConcurrencyChange(val)}
@@ -1287,6 +1257,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
                 step={1}
                 size="sm"
                 variant="compact"
+                disabled={toolExecConfigLoading}
               />
             </div>
           </ConfigPageRow>
@@ -1295,7 +1266,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
             description={tTools('config.swarmMaxConcurrencyDesc')}
             align="center"
           >
-            <div className="bitfun-runtime-settings__row-control" data-bf-component="runtime-settings" data-bf-part="control">
+            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
               <NumberInput
                 value={swarmMaxConcurrency}
                 onValueChange={(val) => void handleSwarmMaxConcurrencyChange(val)}
@@ -1304,6 +1275,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
                 step={1}
                 size="sm"
                 variant="compact"
+                disabled={toolExecConfigLoading}
               />
             </div>
           </ConfigPageRow>
@@ -1318,7 +1290,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
             description={!enableDeferredToolLoading ? t('deferredToolLoading.warning') : undefined}
             align="center"
           >
-            <div className="bitfun-runtime-settings__row-control" data-bf-component="runtime-settings" data-bf-part="control">
+            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
               <Switch
                 checked={enableDeferredToolLoading}
                 onChange={(event) => handleDeferredToolLoadingChange(event.target.checked)}
@@ -1334,7 +1306,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
           </>
         ) : null}
 
-        {page === 'device-control' || page === 'execution-control' ? (
+        {page === 'browser-desktop-control' ? (
           <>
 
         {/* ── Computer use (desktop) ─────────────────────────────── */}
@@ -1343,15 +1315,28 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
           description={
             IS_TAURI_DESKTOP ? t('computerUse.sectionDescription') : t('computerUse.desktopOnly')
           }
+          extra={IS_TAURI_DESKTOP && !peerBrowserControlUnsupported ? (
+            <ConfigRefreshButton
+              tooltip={t('computerUse.refreshStatus')}
+              loading={computerUseStatusLoading}
+              disabled={computerUseBusy}
+              onClick={() => void refreshComputerUseStatus()}
+            />
+          ) : undefined}
         >
           {IS_TAURI_DESKTOP && !peerBrowserControlUnsupported ? (
             <>
+              <ConfigMessage
+                message={computerUseStatusError
+                  ? { type: 'error', text: t('computerUse.statusLoadFailed') }
+                  : null}
+              />
               <ConfigPageRow label={t('computerUse.enable')} description={t('computerUse.enableDesc')} align="center">
-                <div className="bitfun-runtime-settings__row-control" data-bf-component="runtime-settings" data-bf-part="control">
+                <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
                   <Switch
                     checked={computerUseEnabled}
                     onChange={(e) => handleComputerUseEnabledChange(e.target.checked)}
-                    disabled={computerUseBusy || computerUseStatusLoading}
+                    disabled={computerUseBusy || computerUseStatusLoading || computerUseStatusError}
                   />
                 </div>
               </ConfigPageRow>
@@ -1359,39 +1344,22 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
                 label={t('computerUse.accessibility')}
                 description={t('computerUse.accessibilityDesc')}
                 align="center"
-                balanced
+                className="openbitfun-runtime-settings__status-row"
               >
                 <div
-                  className="bitfun-runtime-settings__row-control"
-                  data-bf-component="runtime-settings"
-                  data-bf-part="control"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    flexWrap: 'nowrap',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    gap: 8,
-                  }}
+                  className="openbitfun-runtime-settings__status-actions"
+                  data-openbitfun-component="runtime-settings"
+                  data-openbitfun-part="control"
                 >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <span className={!computerUseStatusLoading && computerUseAccess ? 'bitfun-runtime-settings__perm-status--granted' : undefined}>
-                      {computerUseAccessLabel}
-                    </span>
-                    <Tooltip content={t('computerUse.refreshStatus')}>
-                      <IconButton
-                        type="button"
-                        size="sm"
-                        aria-label={t('computerUse.refreshStatus')}
-                        disabled={computerUseBusy || computerUseStatusLoading}
-                        onClick={() => void refreshComputerUseStatus()}
-                        icon={<Icon name="refresh" size="sm" />}
-                      />
-                    </Tooltip>
-                  </span>
+                  <StatusPill
+                    tone={computerUseStatusLoading ? 'neutral' : computerUseStatusError ? 'warning' : computerUseAccess ? 'success' : 'warning'}
+                    role="status"
+                  >
+                    {computerUseAccessLabel}
+                  </StatusPill>
                   {platform === 'macos' && (
                     <Button
-                      className="bitfun-runtime-settings__row-action-btn"
+                      className="openbitfun-runtime-settings__row-action-btn"
                       size="sm"
                       variant="outline"
                       disabled={computerUseBusy || computerUseStatusLoading}
@@ -1406,39 +1374,22 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
                 label={t('computerUse.screenCapture')}
                 description={t('computerUse.screenCaptureDesc')}
                 align="center"
-                balanced
+                className="openbitfun-runtime-settings__status-row"
               >
                 <div
-                  className="bitfun-runtime-settings__row-control"
-                  data-bf-component="runtime-settings"
-                  data-bf-part="control"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    flexWrap: 'nowrap',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    gap: 8,
-                  }}
+                  className="openbitfun-runtime-settings__status-actions"
+                  data-openbitfun-component="runtime-settings"
+                  data-openbitfun-part="control"
                 >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <span className={!computerUseStatusLoading && computerUseScreen ? 'bitfun-runtime-settings__perm-status--granted' : undefined}>
-                      {computerUseScreenLabel}
-                    </span>
-                    <Tooltip content={t('computerUse.refreshStatus')}>
-                      <IconButton
-                        type="button"
-                        size="sm"
-                        aria-label={t('computerUse.refreshStatus')}
-                        disabled={computerUseBusy || computerUseStatusLoading}
-                        onClick={() => void refreshComputerUseStatus()}
-                        icon={<Icon name="refresh" size="sm" />}
-                      />
-                    </Tooltip>
-                  </span>
+                  <StatusPill
+                    tone={computerUseStatusLoading ? 'neutral' : computerUseStatusError ? 'warning' : computerUseScreen ? 'success' : 'warning'}
+                    role="status"
+                  >
+                    {computerUseScreenLabel}
+                  </StatusPill>
                   {platform === 'macos' && (
                     <Button
-                      className="bitfun-runtime-settings__row-action-btn"
+                      className="openbitfun-runtime-settings__row-action-btn"
                       size="sm"
                       variant="outline"
                       disabled={computerUseBusy || computerUseStatusLoading}
@@ -1451,18 +1402,18 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
               </ConfigPageRow>
               {computerUsePlatformMessage && (
                 <div
-                  className="bitfun-runtime-settings__platform-note"
-                  data-bf-component="runtime-settings"
-                  data-bf-part="platformNote"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 6,
-                    padding: '8px 0 4px',
-                  }}
+                  className="openbitfun-runtime-settings__platform-note"
+                  data-openbitfun-component="runtime-settings"
+                  data-openbitfun-part="platformNote"
+                  role="note"
                 >
-                  <Icon name="info" size="sm" style={{ flexShrink: 0, marginTop: 2, opacity: 0.7 }} />
-                  <p className="bitfun-config-page-row__description" style={{ margin: 0 }}>
+                  <Icon
+                    aria-hidden="true"
+                    className="openbitfun-runtime-settings__platform-note-icon"
+                    name="info"
+                    size="sm"
+                  />
+                  <p className="openbitfun-runtime-settings__platform-note-copy">
                     <strong>{t('computerUse.platformNote')}: </strong>
                     {computerUsePlatformMessage}
                   </p>
@@ -1483,69 +1434,60 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
         {/* ── Browser control (CDP) ──────────────────────────────── */}
         <ConfigPageSection
           title={t('browserControl.sectionTitle')}
+          extra={IS_TAURI_DESKTOP && !peerBrowserControlUnsupported ? (
+            <ConfigRefreshButton
+              tooltip={t('browserControl.refreshStatus')}
+              loading={browserStatusLoading}
+              disabled={browserControlBusy}
+              onClick={() => void refreshBrowserControlStatus()}
+            />
+          ) : undefined}
           description={
             IS_TAURI_DESKTOP ? t('browserControl.sectionDescription') : t('browserControl.desktopOnly')
           }
         >
           {IS_TAURI_DESKTOP && !peerBrowserControlUnsupported ? (
             <>
-              {/* Only show browser selector when CDP is not connected */}
-              {!browserCdpAvailable && (
+              <ConfigMessage
+                message={browserStatusError
+                  ? { type: 'error', text: t('browserControl.statusLoadFailed') }
+                  : null}
+              />
               <ConfigPageRow
                 label={t('browserControl.preferredBrowser')}
-                description={t('browserControl.preferredBrowserDesc')}
+                description={t(browserCdpAvailable ? 'browserControl.preferredBrowserConnectedDesc' : 'browserControl.preferredBrowserDesc')}
                 align="center"
-                balanced
               >
-                <div className="bitfun-runtime-settings__row-control" data-bf-component="runtime-settings" data-bf-part="control">
+                <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
                   <Select
                     value={preferredBrowser}
                     options={browserSelectOptions}
                     size="sm"
-                    disabled={browserControlBusy || browserStatusLoading || browserSelectOptions.length === 0}
+                    disabled={browserCdpAvailable || browserControlBusy || browserStatusLoading || browserStatusError || browserSelectOptions.length === 0}
                     onValueChange={(value) => void handleBrowserControlBrowserChange(value)}
                   />
                 </div>
               </ConfigPageRow>
-              )}
               {browserDefaultCdpSupported && (
                 <ConfigPageRow
                   label={t('browserControl.defaultCdp')}
                   description={t('browserControl.defaultCdpDesc')}
                   align="center"
-                  balanced
+                  className="openbitfun-runtime-settings__status-row"
                 >
                   <div
-                    className="bitfun-runtime-settings__row-control"
-                    data-bf-component="runtime-settings"
-                    data-bf-part="control"
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'row',
-                      flexWrap: 'nowrap',
-                      alignItems: 'center',
-                      justifyContent: 'flex-end',
-                      gap: 8,
-                    }}
+                    className="openbitfun-runtime-settings__status-actions"
+                    data-openbitfun-component="runtime-settings"
+                    data-openbitfun-part="control"
                   >
-                    <span className={browserDefaultCdpEnabled ? 'bitfun-runtime-settings__perm-status--granted' : undefined}>
-                      {t(browserDefaultCdpEnabled
+                    <StatusPill
+                      tone={browserStatusLoading ? 'neutral' : browserStatusError ? 'warning' : browserDefaultCdpEnabled ? 'success' : 'neutral'}
+                      role="status"
+                    >
+                      {t(browserStatusLoading ? 'loading.text' : browserStatusError ? 'browserControl.statusUnavailable' : browserDefaultCdpEnabled
                         ? 'browserControl.defaultCdpEnabled'
                         : 'browserControl.defaultCdpDisabled')}
-                    </span>
-                    {!browserCdpAvailable && (
-                      <Button
-                        className="bitfun-runtime-settings__row-action-btn"
-                        size="sm"
-                        variant="outline"
-                        disabled={browserControlBusy || browserStatusLoading}
-                        onClick={() => void handleBrowserControlEnableDefaultCdp()}
-                      >
-                        {t(browserDefaultCdpEnabled
-                          ? 'browserControl.connect'
-                          : 'browserControl.enableDefaultCdp')}
-                      </Button>
-                    )}
+                    </StatusPill>
                   </div>
                 </ConfigPageRow>
               )}
@@ -1554,84 +1496,59 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
                   label={t('browserControl.autoConnectOnStartup')}
                   description={t('browserControl.autoConnectOnStartupDesc')}
                   align="center"
-                  balanced
                 >
-                  <div className="bitfun-runtime-settings__row-control" data-bf-component="runtime-settings" data-bf-part="control">
+                  <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
                     <Switch
                       checked={browserAutoConnectOnStartup}
                       onChange={(e) => void handleBrowserAutoConnectChange(e.target.checked)}
+                      disabled={browserControlBusy || browserStatusLoading || browserStatusError}
                     />
                   </div>
                 </ConfigPageRow>
               )}
               <ConfigPageRow
                 label={t('browserControl.status')}
-                description={t('browserControl.statusDesc') || undefined}
+                description={browserStatusDescription}
                 align="center"
-                balanced
+                className="openbitfun-runtime-settings__status-row"
               >
                 <div
-                  className="bitfun-runtime-settings__row-control"
-                  data-bf-component="runtime-settings"
-                  data-bf-part="control"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    flexWrap: 'wrap',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    gap: 8,
-                    minWidth: 0,
-                  }}
+                  className="openbitfun-runtime-settings__status-actions"
+                  data-openbitfun-component="runtime-settings"
+                  data-openbitfun-part="control"
                 >
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      minWidth: 0,
-                      maxWidth: '100%',
-                    }}
+                  <StatusPill
+                    tone={browserStatusLoading ? 'neutral' : browserStatusError ? 'warning' : browserCdpAvailable ? 'success' : 'neutral'}
+                    role="status"
                     title={browserCdpAvailable && browserVersion ? `${browserKind} ${browserVersion}` : undefined}
                   >
-                    <span
-                      className={!browserStatusLoading && browserCdpAvailable ? 'bitfun-runtime-settings__perm-status--granted' : undefined}
-                      style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
-                    >
-                      {browserStatusLabel}
-                    </span>
-                    <Tooltip content={t('browserControl.refreshStatus')}>
-                      <IconButton
-                        type="button"
-                        size="sm"
-                        aria-label={t('browserControl.refreshStatus')}
-                        disabled={browserControlBusy || browserStatusLoading}
-                        onClick={() => void refreshBrowserControlStatus()}
-                        icon={<Icon name="refresh" size="sm" />}
-                      />
-                    </Tooltip>
-                  </span>
+                    {browserStatusLabel}
+                  </StatusPill>
                   {browserCdpAvailable ? (
                     <Button
-                      className="bitfun-runtime-settings__row-action-btn"
+                      className="openbitfun-runtime-settings__row-action-btn"
                       size="sm"
                       variant="outline"
-                      disabled={browserControlBusy || browserStatusLoading}
+                      disabled={browserControlBusy || browserStatusLoading || browserStatusError}
                       onClick={() => void handleBrowserControlDisconnect()}
                     >
                       {t('browserControl.disconnect')}
                     </Button>
-                  ) : !browserDefaultCdpSupported ? (
+                  ) : (
                     <Button
-                      className="bitfun-runtime-settings__row-action-btn"
+                      className="openbitfun-runtime-settings__row-action-btn"
                       size="sm"
                       variant="outline"
-                      disabled={browserControlBusy || browserStatusLoading}
-                      onClick={() => void handleBrowserControlLaunch()}
+                      disabled={browserControlBusy || browserStatusLoading || browserStatusError}
+                      onClick={() => void (browserDefaultCdpSupported
+                        ? handleBrowserControlEnableDefaultCdp()
+                        : handleBrowserControlLaunch())}
                     >
-                      {t('browserControl.connect')}
+                      {t(browserDefaultCdpSupported && !browserDefaultCdpEnabled
+                        ? 'browserControl.enableDefaultCdp'
+                        : 'browserControl.connect')}
                     </Button>
-                  ) : null}
+                  )}
                 </div>
               </ConfigPageRow>
             </>
@@ -1661,14 +1578,14 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
             <DialogClose />
           </DialogHeader>
           <DialogBody inset="none">
-          <div className="bitfun-debug-config__modal-body" data-bf-component="runtime-settings" data-bf-part="restartModal">
+          <div className="openbitfun-debug-config__modal-body" data-openbitfun-component="runtime-settings" data-openbitfun-part="restartModal">
             <p>{t('browserControl.restartModal.description', { browser: browserRestartPrompt?.browserKind || browserKind })}</p>
             <p>{t('browserControl.restartModal.warning')}</p>
             {browserRestartPrompt?.message ? (
-              <p className="bitfun-runtime-settings__hint">{browserRestartPrompt.message}</p>
+              <p className="openbitfun-runtime-settings__hint">{browserRestartPrompt.message}</p>
             ) : null}
           </div>
-          <div className="bitfun-debug-config__modal-footer" data-bf-component="runtime-settings" data-bf-part="modalFooter">
+          <div className="openbitfun-debug-config__modal-footer" data-openbitfun-component="runtime-settings" data-openbitfun-part="modalFooter">
             <Button
               variant="outline"
               size="sm"
@@ -1699,8 +1616,8 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({ page }) => {
   );
 };
 
-export function PetSettingsPage(): React.ReactElement {
-  return <RuntimeSettingsPage page="pet" />;
+export function PetSettingsPage({ isActive }: { isActive?: boolean }): React.ReactElement {
+  return <RuntimeSettingsPage page="pet" isActive={isActive} />;
 }
 
 export function SessionWorkspaceSettingsPage(): React.ReactElement {
@@ -1711,10 +1628,6 @@ export function ExecutionSettingsPage(): React.ReactElement {
   return <RuntimeSettingsPage page="execution" />;
 }
 
-export function ExecutionControlSettingsPage(): React.ReactElement {
-  return <RuntimeSettingsPage page="execution-control" />;
-}
-
-export function DeviceControlSettingsPage(): React.ReactElement {
-  return <RuntimeSettingsPage page="device-control" />;
+export function BrowserDesktopControlSettingsPage(): React.ReactElement {
+  return <RuntimeSettingsPage page="browser-desktop-control" />;
 }

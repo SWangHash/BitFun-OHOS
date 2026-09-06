@@ -5,7 +5,7 @@
 //! enforces a timeout, and optionally writes combined output to a log file.
 
 use crate::agentic::tools::framework::ToolUseContext;
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
@@ -80,14 +80,14 @@ async fn run_shell_command(
     context: &ToolUseContext,
     options: DevecocliOptions,
     missing_msg: &str,
-) -> BitFunResult<DevecocliOutput> {
+) -> OpenBitFunResult<DevecocliOutput> {
     let cwd = resolve_harmony_cwd(context);
     let full_command = format!("{} {}", binary, args.join(" "));
     log::info!("{} {} (cwd: {})", binary, args.join(" "), cwd);
 
     let shell_argv = super::exec_command::resolve_shell_argv_for_command(&full_command).await;
     if shell_argv.is_empty() {
-        return Err(BitFunError::tool(missing_msg.to_string()));
+        return Err(OpenBitFunError::tool(missing_msg.to_string()));
     }
 
     let mut command = Command::new(&shell_argv[0]);
@@ -101,10 +101,10 @@ async fn run_shell_command(
     let child = match command.spawn() {
         Ok(child) => child,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return Err(BitFunError::tool(missing_msg.to_string()));
+            return Err(OpenBitFunError::tool(missing_msg.to_string()));
         }
         Err(e) => {
-            return Err(BitFunError::tool(format!(
+            return Err(OpenBitFunError::tool(format!(
                 "Failed to spawn shell for {}: {}",
                 binary, e
             )));
@@ -115,7 +115,7 @@ async fn run_shell_command(
     let output = match tokio::time::timeout(options.timeout, wait_future).await {
         Ok(Ok(output)) => output,
         Ok(Err(e)) => {
-            return Err(BitFunError::tool(format!(
+            return Err(OpenBitFunError::tool(format!(
                 "{} {} failed to collect output: {}",
                 binary,
                 args.join(" "),
@@ -123,7 +123,7 @@ async fn run_shell_command(
             )));
         }
         Err(_) => {
-            return Err(BitFunError::tool(format!(
+            return Err(OpenBitFunError::tool(format!(
                 "{} {} timed out after {:?}",
                 binary,
                 args.join(" "),
@@ -143,7 +143,7 @@ async fn run_shell_command(
             || lower.contains("not recognized")
             || lower.contains("command not found")
         {
-            return Err(BitFunError::tool(missing_msg.to_string()));
+            return Err(OpenBitFunError::tool(missing_msg.to_string()));
         }
     }
 
@@ -180,7 +180,7 @@ pub(crate) async fn run_devecocli(
     args: &[&str],
     context: &ToolUseContext,
     options: DevecocliOptions,
-) -> BitFunResult<DevecocliOutput> {
+) -> OpenBitFunResult<DevecocliOutput> {
     run_shell_command("devecocli", args, context, options, DEVECOCLI_MISSING).await
 }
 
@@ -190,7 +190,7 @@ pub(crate) async fn run_hdc(
     args: &[&str],
     context: &ToolUseContext,
     options: DevecocliOptions,
-) -> BitFunResult<DevecocliOutput> {
+) -> OpenBitFunResult<DevecocliOutput> {
     run_shell_command("hdc", args, context, options, HDC_MISSING).await
 }
 

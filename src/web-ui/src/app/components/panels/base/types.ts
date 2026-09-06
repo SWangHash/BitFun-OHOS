@@ -13,6 +13,7 @@ export type PanelContentType =
   | 'text-viewer'
   | 'file-viewer'
   | 'image-viewer'
+  | 'pdf-viewer'
   | 'diff-code-editor'
   | 'git-diff'
   | 'git-settings'
@@ -32,8 +33,9 @@ export type PanelContentType =
   | 'review-platform-pr-detail'
   | 'terminal'
   | 'generative-widget'
-  | 'bitfun-canvas'
-  | 'browser';
+  | 'openbitfun-canvas'
+  | 'browser'
+  | 'html-preview';
 
 export interface PanelContent {
   type: PanelContentType;

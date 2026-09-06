@@ -2,10 +2,11 @@ import { relationalStore } from '@kit.ArkData';
 import { ChatMessage } from '../model/RemoteModels';
 import { Encoding } from './Encoding';
 import { OhosError } from './OhosError';
+import { HarmonyUpgradeIdentityContract } from './HarmonyUpgradeIdentityContract';
 import { RemoteChatCacheSlice, RemoteChatCacheStore } from './RemoteChatCache';
 
 const STORE_CONFIG: relationalStore.StoreConfig = {
-  name: 'bitfun_remote_chat.db',
+  name: HarmonyUpgradeIdentityContract.REMOTE_CHAT_DATABASE,
   // A step above the S1 the general-chat store uses: these transcripts carry
   // the user's source, file paths and terminal output from a machine they own.
   securityLevel: relationalStore.SecurityLevel.S2
@@ -17,7 +18,10 @@ const STORE_CONFIG: relationalStore.StoreConfig = {
  * A cache is reconstructible by definition, so a mismatch drops the tables and
  * refills them from the desktop instead of paying for a migration.
  */
-const SCHEMA_VERSION: number = 1;
+// Version 1 could retain an assistant row whose id was stable while its final
+// body became durable. The cache is reconstructible, so invalidate those rows
+// once instead of carrying potentially hollow completed replies forward.
+const SCHEMA_VERSION: number = 2;
 const SCHEMA_VERSION_KEY: string = 'schema_version';
 
 const CREATE_META_SQL =

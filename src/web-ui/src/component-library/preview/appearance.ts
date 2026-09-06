@@ -18,11 +18,11 @@ export const componentPreviewAppearanceDescriptor: AppearanceSurfaceDescriptor =
     { id: 'largeCardHeader' }, { id: 'largeCardPreview' }, { id: 'expandButton' },
   ],
   facets: [
-    { id: 'columns', attribute: 'data-bf-columns', values: ['2', '3', '4'] },
+    { id: 'columns', attribute: 'data-openbitfun-columns', values: ['2', '3', '4'] },
   ],
   states: [
-    { id: 'active', selector: { kind: 'self', suffix: '[data-bf-state~="active"]' } },
-    { id: 'collapsed', selector: { kind: 'self', suffix: '[data-bf-state~="collapsed"]' } },
-    { id: 'expanded', selector: { kind: 'self', suffix: '[data-bf-state~="expanded"]' } },
+    { id: 'active', selector: { kind: 'self', suffix: '[data-openbitfun-state~="active"]' } },
+    { id: 'collapsed', selector: { kind: 'self', suffix: '[data-openbitfun-state~="collapsed"]' } },
+    { id: 'expanded', selector: { kind: 'self', suffix: '[data-openbitfun-state~="expanded"]' } },
   ],
 };

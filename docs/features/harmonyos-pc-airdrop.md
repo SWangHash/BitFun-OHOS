@@ -1,7 +1,7 @@
 # 鸿蒙 PC 隔空传送（HarmonyOS PC AirDrop）需求文档
 
 > 状态：提案 / 未做
-> 仓库：BitFun-OHOS
+> 仓库：OpenBitFun-OHOS
 > 相关架构入口：
 > - [`docs/architecture/platform-portability-design.md`](../architecture/platform-portability-design.md)
 > - [`docs/architecture/peer-device-mode.md`](../architecture/peer-device-mode.md)
@@ -10,7 +10,7 @@
 
 ## 背景与需求描述
 
-"隔空传送"指无需配对、发现附近设备后无线传输文件的能力（类 AirDrop）。BitFun 现有跨设备通道是自托管 relay（零知识、AES-GCM）与 Remote Connect / Peer Device Mode，需账号配对或联网到自部署服务器；缺少**免配对、近场发现、无线直传**的轻量传输。
+"隔空传送"指无需配对、发现附近设备后无线传输文件的能力（类 AirDrop）。OpenBitFun 现有跨设备通道是自托管 relay（零知识、AES-GCM）与 Remote Connect / Peer Device Mode，需账号配对或联网到自部署服务器；缺少**免配对、近场发现、无线直传**的轻量传输。
 
 当前缺口与诉求：
 

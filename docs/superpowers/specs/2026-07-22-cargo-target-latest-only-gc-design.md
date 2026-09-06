@@ -31,7 +31,7 @@ After a desktop dev session exits or a desktop build finishes, keep only the lat
 | `pnpm run desktop:build*` (`scripts/desktop-tauri-build.mjs`) | After `tauri build` returns (success or fail; GC is best-effort) |
 | `pnpm run target:gc` | Manual |
 
-Skip GC when `BITFUN_TARGET_GC=0`. Dry-run when `BITFUN_TARGET_GC_DRY_RUN=1`.
+Skip GC when `OPENBITFUN_TARGET_GC=0`. Dry-run when `OPENBITFUN_TARGET_GC_DRY_RUN=1`.
 
 Skip when another `cargo` / `rustc` process still appears active (avoid deleting in-use artifacts).
 
@@ -45,7 +45,7 @@ For `target/<triple?>/<profile>/` (default host triple omitted; profile `debug` 
 
 ### Safety
 
-- Never delete the profile root or final binaries by name (`bitfun-desktop`, `.app`, etc.) except via normal cargo replacement.
+- Never delete the profile root or final binaries by name (`openbitfun-desktop`, `.app`, etc.) except via normal cargo replacement.
 - GC failures must not fail the user command (log and continue).
 - No dependency on `cargo-sweep` (macOS atime is unreliable).
 

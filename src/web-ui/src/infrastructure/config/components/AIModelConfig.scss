@@ -2,7 +2,7 @@
 
 @use '../../../component-library/styles/tokens' as *;
 
-.bitfun-ai-model-config {
+.openbitfun-ai-model-config {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -193,7 +193,7 @@
     display: flex;
     flex-direction: column;
 
-    > .bitfun-collection-item {
+    > .openbitfun-collection-item {
       border-radius: 0;
 
       &:not(:last-child) {
@@ -201,12 +201,12 @@
       }
     }
 
-    .bitfun-collection-item__row {
+    .openbitfun-collection-item__row {
       border: none;
       border-radius: 0;
     }
 
-    .bitfun-collection-item__details {
+    .openbitfun-collection-item__details {
       border-top: 1px solid var(--bf-appearance-token-border-subtle);
     }
   }
@@ -944,22 +944,22 @@
       gap: $size-gap-6;
 
       /* Modal: same fr ratio on every two-column row (uniform). Controls a bit wider than native wide 2/8. */
-      .bitfun-ai-model-config__edit-section {
-        .bitfun-config-page-row--multiline:not(.bitfun-config-page-row--wide) {
+      .openbitfun-ai-model-config__edit-section {
+        .openbitfun-config-page-row--multiline:not(.openbitfun-config-page-row--wide) {
           grid-template-columns: 1fr !important;
         }
 
-        .bitfun-config-page-row.bitfun-ai-model-config__toggle-row {
+        .openbitfun-config-page-row.openbitfun-ai-model-config__toggle-row {
           grid-template-columns: minmax(0, 1fr) auto !important;
           gap: $size-gap-3;
         }
 
-        .bitfun-config-page-row:not(.bitfun-config-page-row--multiline):not(.bitfun-ai-model-config__toggle-row),
-        .bitfun-config-page-row--multiline.bitfun-config-page-row--wide {
+        .openbitfun-config-page-row:not(.openbitfun-config-page-row--multiline):not(.openbitfun-ai-model-config__toggle-row),
+        .openbitfun-config-page-row--multiline.openbitfun-config-page-row--wide {
           grid-template-columns: minmax(0, 2fr) minmax(0, 11fr) !important;
         }
 
-        .bitfun-config-page-row--multiline.bitfun-config-page-row--wide {
+        .openbitfun-config-page-row--multiline.openbitfun-config-page-row--wide {
           gap: $size-gap-4;
         }
       }
@@ -967,25 +967,25 @@
   }
 
   &__edit-section {
-    .bitfun-config-page-row {
+    .openbitfun-config-page-row {
       padding: $size-gap-3 $size-gap-4;
     }
 
-    .bitfun-config-page-row.bitfun-ai-model-config__toggle-row {
+    .openbitfun-config-page-row.openbitfun-ai-model-config__toggle-row {
       grid-template-columns: minmax(0, 1fr) auto !important;
       gap: $size-gap-3;
     }
 
-    .bitfun-config-page-row--multiline.bitfun-config-page-row--wide {
+    .openbitfun-config-page-row--multiline.openbitfun-config-page-row--wide {
       grid-template-columns: minmax(0, 2fr) minmax(0, 8fr) !important;
       gap: $size-gap-4;
     }
 
-    .bitfun-config-page-row--multiline.bitfun-config-page-row--wide .bitfun-config-page-row__control {
+    .openbitfun-config-page-row--multiline.openbitfun-config-page-row--wide .openbitfun-config-page-row__control {
       grid-column: 2;
     }
 
-    .bitfun-config-page-row__control {
+    .openbitfun-config-page-row__control {
       justify-content: stretch;
       justify-self: stretch;
       min-width: 0;
@@ -998,8 +998,8 @@
         flex: 1 1 100%;
       }
 
-      > .bitfun-switch,
-      > .bitfun-checkbox {
+      > .openbitfun-switch,
+      > .openbitfun-checkbox {
         width: auto;
         max-width: none;
         flex: 0 0 auto;
@@ -1007,13 +1007,13 @@
       }
     }
 
-    .bitfun-ai-model-config__toggle-row .bitfun-config-page-row__control {
+    .openbitfun-ai-model-config__toggle-row .openbitfun-config-page-row__control {
       width: auto;
       min-width: auto;
       justify-self: end;
     }
 
-    .bitfun-config-page-row--multiline .bitfun-config-page-row__control {
+    .openbitfun-config-page-row--multiline .openbitfun-config-page-row__control {
       flex-direction: column;
       align-items: stretch;
       overflow: visible;
@@ -1024,7 +1024,7 @@
     margin-bottom: $size-gap-4;
 
     
-    > label:not(.bitfun-checkbox):not(.bitfun-radio-label) {
+    > label:not(.openbitfun-checkbox):not(.openbitfun-radio-label) {
       display: block;
       margin-bottom: $size-gap-2;
       font-size: var(--bf-appearance-token-font-size-sm);
@@ -1033,7 +1033,7 @@
     }
 
     
-    > .bitfun-checkbox {
+    > .openbitfun-checkbox {
       margin-bottom: 0;
     }
 
@@ -1087,7 +1087,7 @@
     }
 
     
-    .bitfun-number-input {
+    .openbitfun-number-input {
       width: 100%;
     }
   }
@@ -1140,36 +1140,36 @@
 
   &__form,
   &__form--modal {
-    .bitfun-input-container,
+    .openbitfun-input-container,
     .select__trigger,
-    .bitfun-number-input__container,
+    .openbitfun-number-input__container,
     .resolved-url__value {
       min-height: 35px;
       border-radius: var(--bf-appearance-token-size-radius-sm);
       box-sizing: border-box;
     }
 
-    .bitfun-input-container,
+    .openbitfun-input-container,
     .select__trigger,
     .resolved-url__value {
       padding-inline: 12px;
     }
 
-    .bitfun-input-wrapper,
+    .openbitfun-input-wrapper,
     .select,
-    .bitfun-number-input,
-    .bitfun-ai-model-config__resolved-url {
+    .openbitfun-number-input,
+    .openbitfun-ai-model-config__resolved-url {
       width: 100%;
       min-width: 0;
     }
 
-    .bitfun-input-container,
-    .bitfun-input,
+    .openbitfun-input-container,
+    .openbitfun-input,
     .select__value,
     .select__placeholder,
     .select__value-label,
     .resolved-url__value,
-    .bitfun-ai-model-config__selected-models-empty {
+    .openbitfun-ai-model-config__selected-models-empty {
       font-size: 13px;
       font-family: $font-family-sans;
       line-height: 1.5;
@@ -1184,7 +1184,7 @@
     align-items: stretch;
 
     > .select,
-    > .bitfun-input-wrapper {
+    > .openbitfun-input-wrapper {
       width: 100%;
       min-width: 0;
     }
@@ -1292,7 +1292,7 @@
     width: 100%;
     align-items: start;
 
-    > .bitfun-input-wrapper {
+    > .openbitfun-input-wrapper {
       width: 100%;
       min-width: 0;
     }
@@ -1354,7 +1354,7 @@
       }
     }
 
-    .bitfun-icon-button--small {
+    .openbitfun-icon-button--small {
       width: 24px;
       height: 24px;
       margin-top: -1px;
@@ -1452,7 +1452,7 @@
     border-top: 1px dashed var(--bf-appearance-token-border-subtle);
 
     .select__trigger,
-    .bitfun-number-input__container {
+    .openbitfun-number-input__container {
       min-height: 32px;
       border-color: color-mix(
         in srgb,
@@ -1464,7 +1464,7 @@
     .select__value,
     .select__placeholder,
     .select__value-label,
-    .bitfun-number-input__input {
+    .openbitfun-number-input__input {
       font-size: 12px;
       line-height: 1.4;
     }
@@ -1487,16 +1487,16 @@
     }
 
     > .select,
-    .bitfun-number-input {
+    .openbitfun-number-input {
       width: 100%;
       min-width: 0;
     }
 
-    .bitfun-number-input__value-area {
+    .openbitfun-number-input__value-area {
       justify-content: flex-start;
     }
 
-    .bitfun-number-input__input {
+    .openbitfun-number-input__input {
       text-align: left;
       font-size: 12px;
     }
@@ -1504,7 +1504,7 @@
     &--switch {
       align-items: flex-start;
 
-      .bitfun-switch {
+      .openbitfun-switch {
         align-self: flex-start;
         flex-shrink: 0;
       }
@@ -1596,18 +1596,18 @@
   }
 
   &__resolved-url-input {
-    .bitfun-input-container {
+    .openbitfun-input-container {
       background: var(--bf-appearance-token-element-bg-subtle);
       border: none;
       box-shadow: none;
     }
 
-    .bitfun-input-container:hover,
-    .bitfun-input-container:focus-within {
+    .openbitfun-input-container:hover,
+    .openbitfun-input-container:focus-within {
       border: none;
     }
 
-    .bitfun-input {
+    .openbitfun-input {
       white-space: nowrap;
       overflow-x: auto;
       overflow-y: hidden;
@@ -1787,7 +1787,7 @@
     flex-wrap: wrap;
     
     
-    > .bitfun-icon-button {
+    > .openbitfun-icon-button {
       flex-shrink: 0;
     }
   }
@@ -1804,10 +1804,10 @@
 
   
   .spinning {
-    animation: bitfun-ai-model-config-spin 1s linear infinite;
+    animation: openbitfun-ai-model-config-spin 1s linear infinite;
   }
 
-  @keyframes bitfun-ai-model-config-spin {
+  @keyframes openbitfun-ai-model-config-spin {
     to {
       transform: rotate(360deg);
     }
@@ -1876,7 +1876,7 @@
     color: var(--bf-appearance-token-color-text-primary);
     white-space: nowrap;
 
-    .bitfun-ai-model-config__provider-row:hover & {
+    .openbitfun-ai-model-config__provider-row:hover & {
       color: var(--bf-appearance-token-color-accent-500);
     }
   }
@@ -1939,7 +1939,7 @@
     text-decoration: none;
     transition: color $motion-fast $easing-standard;
 
-    .bitfun-ai-model-config__provider-row:hover & {
+    .openbitfun-ai-model-config__provider-row:hover & {
       color: var(--bf-appearance-token-color-accent-500);
     }
 
@@ -1994,7 +1994,7 @@
       transition: color $motion-base $easing-standard;
     }
 
-    .bitfun-ai-model-config__custom-option:hover & svg {
+    .openbitfun-ai-model-config__custom-option:hover & svg {
       color: var(--bf-appearance-token-color-accent-500);
     }
 
@@ -2062,7 +2062,7 @@
   }
 }
 
-.bitfun-ai-model-config__selected-model-category-dropdown {
+.openbitfun-ai-model-config__selected-model-category-dropdown {
   width: max-content;
   min-width: min(176px, calc(100vw - 16px));
   max-width: min(240px, calc(100vw - 16px));
@@ -2081,7 +2081,7 @@
 
 
 @container config-panel (max-width: 520px) {
-  .bitfun-ai-model-config {
+  .openbitfun-ai-model-config {
     &__details-grid {
       grid-template-columns: 1fr;
       gap: $size-gap-2;
@@ -2234,7 +2234,7 @@
     &__form-field {
       margin-bottom: $size-gap-3;
       
-      > label:not(.bitfun-checkbox):not(.bitfun-radio-label) {
+      > label:not(.openbitfun-checkbox):not(.openbitfun-radio-label) {
         font-size: var(--bf-appearance-token-font-size-xs);
         margin-bottom: $size-gap-1;
       }
@@ -2284,7 +2284,7 @@
   }
 }
 
-.bitfun-ai-model-config {
+.openbitfun-ai-model-config {
   &__cli-discovery {
     display: flex;
     flex-direction: column;
@@ -2432,7 +2432,7 @@
       grid-template-columns: minmax(0, 1fr);
       align-items: flex-start;
 
-      .bitfun-config-page-row__control {
+      .openbitfun-config-page-row__control {
         justify-content: flex-start;
       }
     }
@@ -2462,7 +2462,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bitfun-ai-model-config .spinning {
+  .openbitfun-ai-model-config .spinning {
     animation: none;
     transform: none;
   }

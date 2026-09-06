@@ -126,16 +126,16 @@ export const ReferencesPanel: React.FC<ReferencesPanelProps> = ({
 
   if (references.length === 0) {
     return (
-      <div className="references-panel" style={panelStyle} data-bf-component="references-panel" data-bf-part="root" data-bf-state="empty">
-        <div data-bf-component="references-panel" data-bf-part="header" className="references-panel__header">
-          <div data-bf-component="references-panel" data-bf-part="title" className="references-panel__title">
+      <div className="references-panel" style={panelStyle} data-openbitfun-component="references-panel" data-openbitfun-part="root" data-openbitfun-state="empty">
+        <div data-openbitfun-component="references-panel" data-openbitfun-part="header" className="references-panel__header">
+          <div data-openbitfun-component="references-panel" data-openbitfun-part="title" className="references-panel__title">
             <FileText size={16} />
             <span>{t('lsp.referencesPanel.emptyTitle')}</span>
           </div>
           <IconButton 
             className="references-panel__close" 
-            data-bf-component="references-panel"
-            data-bf-part="close"
+            data-openbitfun-component="references-panel"
+            data-openbitfun-part="close"
             onClick={onClose}
             size="small"
             variant="ghost"
@@ -143,7 +143,7 @@ export const ReferencesPanel: React.FC<ReferencesPanelProps> = ({
             <X size={16} />
           </IconButton>
         </div>
-        <div data-bf-component="references-panel" data-bf-part="empty" className="references-panel__empty">
+        <div data-openbitfun-component="references-panel" data-openbitfun-part="empty" className="references-panel__empty">
           {symbolName
             ? t('lsp.referencesPanel.emptyWithSymbol', { symbol: symbolName })
             : t('lsp.referencesPanel.emptyDescription')}
@@ -153,9 +153,9 @@ export const ReferencesPanel: React.FC<ReferencesPanelProps> = ({
   }
 
   return (
-    <div className="references-panel" style={panelStyle} data-bf-component="references-panel" data-bf-part="root">
-      <div data-bf-component="references-panel" data-bf-part="header" className="references-panel__header">
-        <div data-bf-component="references-panel" data-bf-part="title" className="references-panel__title">
+    <div className="references-panel" style={panelStyle} data-openbitfun-component="references-panel" data-openbitfun-part="root">
+      <div data-openbitfun-component="references-panel" data-openbitfun-part="header" className="references-panel__header">
+        <div data-openbitfun-component="references-panel" data-openbitfun-part="title" className="references-panel__title">
           <FileText size={16} />
           <span>
             {symbolName
@@ -166,8 +166,8 @@ export const ReferencesPanel: React.FC<ReferencesPanelProps> = ({
         </div>
         <IconButton 
           className="references-panel__close" 
-          data-bf-component="references-panel"
-          data-bf-part="close"
+          data-openbitfun-component="references-panel"
+          data-openbitfun-part="close"
           onClick={onClose}
           size="small"
           variant="ghost"
@@ -176,33 +176,33 @@ export const ReferencesPanel: React.FC<ReferencesPanelProps> = ({
         </IconButton>
       </div>
 
-      <div data-bf-component="references-panel" data-bf-part="content" className="references-panel__content">
+      <div data-openbitfun-component="references-panel" data-openbitfun-part="content" className="references-panel__content">
         {groupedReferences.map((group) => (
-          <div data-bf-component="references-panel" data-bf-part="fileGroup" key={group.filePath} className="references-panel__file-group">
-            <div data-bf-component="references-panel" data-bf-part="fileHeader" className="references-panel__file-header" title={group.filePath}>
+          <div data-openbitfun-component="references-panel" data-openbitfun-part="fileGroup" key={group.filePath} className="references-panel__file-group">
+            <div data-openbitfun-component="references-panel" data-openbitfun-part="fileHeader" className="references-panel__file-header" title={group.filePath}>
               <FileText size={14} />
-              <div data-bf-component="references-panel" data-bf-part="filePath" className="references-panel__file-path">
+              <div data-openbitfun-component="references-panel" data-openbitfun-part="filePath" className="references-panel__file-path">
                 {group.filePath.replace(/^file:\/\/\//, '')}
               </div>
-              <div data-bf-component="references-panel" data-bf-part="fileCount" className="references-panel__file-count">
+              <div data-openbitfun-component="references-panel" data-openbitfun-part="fileCount" className="references-panel__file-count">
                 {group.references.length}
               </div>
             </div>
 
-            <div data-bf-component="references-panel" data-bf-part="list" className="references-panel__reference-list">
+            <div data-openbitfun-component="references-panel" data-openbitfun-part="list" className="references-panel__reference-list">
               {group.references.map((ref, index) => (
                 <div
-                  data-bf-component="references-panel"
-                  data-bf-part="item"
+                  data-openbitfun-component="references-panel"
+                  data-openbitfun-part="item"
                   key={`${group.filePath}-${index}`}
                   className="references-panel__reference-item"
                   onClick={() => handleReferenceClick(ref.location)}
                 >
                   <ChevronRight size={14} className="references-panel__reference-icon" />
-                  <div data-bf-component="references-panel" data-bf-part="line" className="references-panel__reference-line">
+                  <div data-openbitfun-component="references-panel" data-openbitfun-part="line" className="references-panel__reference-line">
                     {ref.lineNumber}
                   </div>
-                  <div data-bf-component="references-panel" data-bf-part="preview" className="references-panel__reference-preview">
+                  <div data-openbitfun-component="references-panel" data-openbitfun-part="preview" className="references-panel__reference-preview">
                     {ref.preview.trim() || t('lsp.referencesPanel.emptyLine')}
                   </div>
                 </div>

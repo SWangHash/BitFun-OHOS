@@ -38,12 +38,12 @@ describe('initializeLsp', () => {
   it('initializes a workspace only when LSP is needed', async () => {
     const { ensureWorkspaceLspInitialized } = await import('./initializeLsp');
 
-    await ensureWorkspaceLspInitialized('D:/workspace/BitFun');
+    await ensureWorkspaceLspInitialized('D:/workspace/OpenBitFun');
 
     expect(registryMock.initialize).toHaveBeenCalledTimes(1);
     expect(workspaceInitializerMock.start).not.toHaveBeenCalled();
     expect(workspaceInitializerMock.initializeWorkspace).toHaveBeenCalledWith(
-      'D:/workspace/BitFun',
+      'D:/workspace/OpenBitFun',
       { prestartServers: false }
     );
   });

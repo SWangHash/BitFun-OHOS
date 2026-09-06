@@ -110,6 +110,20 @@
       "exitFullscreen": "退出全屏",
       "imageUrlEmpty": "图片URL为空"
     },
+    "pdfViewer": {
+      "loading": "正在加载 PDF...",
+      "filePathEmpty": "文件路径为空",
+      "loadFailedWithMessage": "加载 PDF 失败：{{message}}",
+      "renderFailedWithMessage": "渲染 PDF 页面失败：{{message}}",
+      "pageCount": "第 {{current}} / {{total}} 页",
+      "currentPage": "当前页码",
+      "previousPage": "上一页",
+      "nextPage": "下一页",
+      "zoomOut": "缩小",
+      "zoomLevel": "缩放比例",
+      "zoomIn": "放大",
+      "rotate90": "旋转 90°"
+    },
     "meditor": {
       "placeholder": "请输入 Markdown 内容...",
       "toolbarPlaceholder": "工具栏",
@@ -190,7 +204,7 @@
       "indentTab": "Tab: {{n}}",
       "goToLineHint": "行 或 行:列（Enter 跳转，Esc 关闭）",
       "goToLinePlaceholder": "例如 10 或 10:5",
-      "selectIndent": "选择缩进",
+      "selectIndent": "当前文件 · 缩进",
       "selectEncoding": "选择编码",
       "selectLanguageModeHint": "选择语言模式（点击即切换）",
       "indentOptionSpaces": "空格: {{n}}",

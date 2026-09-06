@@ -30,7 +30,7 @@ function extractBlock(source: string, selector: string): string {
 
 function expectRole(source: string, selector: string, role: string): void {
   const block = extractBlock(source, selector);
-  const declaration = `font-size: var(--bf-type-flow-${role}-font-size);`;
+  const declaration = `font-size: var(--openbitfun-type-flow-${role}-font-size);`;
   if (block.includes(declaration)) return;
 
   // A surface may take its role from a shared mixin instead of restating the
@@ -55,11 +55,50 @@ describe('FlowChat semantic typography roles', () => {
 
     // typography-audit: negative-test-start -- verifies retired FlowChat typography aliases stay absent
     expect(stylesheets).not.toContain('flow-type.$');
-    expect(stylesheets).not.toContain('--bf-appearance-token-flowchat-font');
+    expect(stylesheets).not.toContain('--openbitfun-appearance-token-flowchat-font');
     // typography-audit: negative-test-end
     for (const role of ['body', 'control', 'support', 'meta', 'micro']) {
-      expect(stylesheets).toContain(`--bf-type-flow-${role}-font-size`);
+      expect(stylesheets).toContain(`--openbitfun-type-flow-${role}-font-size`);
     }
+  });
+
+  it('keeps every FlowChat Markdown surface on one compact weight hierarchy', () => {
+    const policy = readSource('../_markdown-typography.scss');
+    const renderer = extractBlock(policy, '.markdown-renderer {');
+    const headings = extractBlock(policy, 'h1,');
+    const emphasis = extractBlock(policy, 'strong,');
+
+    expect(renderer).toContain('font-size: var(--openbitfun-type-flow-control-font-size);');
+    expect(renderer).toContain('font-weight: var(--openbitfun-type-flow-control-font-weight);');
+    expect(headings).toContain('font-size: var(--openbitfun-type-flow-control-font-size);');
+    expect(headings).toContain('font-weight: var(--openbitfun-type-label-selected-font-weight);');
+    expect(emphasis).toContain('font-weight: var(--openbitfun-type-label-lg-font-weight);');
+
+    for (const consumer of [
+      './FlowTextBlock.scss',
+      './modern/VirtualItemRenderer.scss',
+      './usage/SessionUsagePanel.scss',
+      './usage/SessionUsageReportCard.scss',
+      '../tool-cards/ModelThinkingDisplay.scss',
+    ]) {
+      expect(readSource(consumer)).toContain('@include markdownTypography.apply;');
+    }
+
+    const flowTextBlock = extractBlock(
+      readSource('./FlowTextBlock.scss'),
+      '.markdown-renderer {',
+    );
+    const thinkingMarkdown = extractBlock(
+      readSource('../tool-cards/ModelThinkingDisplay.scss'),
+      '.thinking-content .markdown-renderer.thinking-markdown {',
+    );
+
+    expect(flowTextBlock).not.toContain(
+      'font-size: var(--openbitfun-type-flow-body-font-size);',
+    );
+    expect(thinkingMarkdown).not.toContain(
+      'font-size: var(--openbitfun-type-flow-body-font-size);',
+    );
   });
 
   it('keeps frequent composer and menu actions on the control role', () => {
@@ -70,7 +109,7 @@ describe('FlowChat semantic typography roles', () => {
 
     expectRole(chatInput, '&__target-tab {', 'control');
     expectRole(chatInput, '&__slash-command-name {', 'control');
-    expectRole(harness, '.bitfun-harness-selector__trigger {', 'control');
+    expectRole(harness, '.openbitfun-harness-selector__trigger {', 'control');
     expectRole(model, '&__trigger {', 'control');
     expectRole(model, '&__option-name {', 'control');
     expectRole(reasoning, '&__title {', 'control');
@@ -93,12 +132,12 @@ describe('FlowChat semantic typography roles', () => {
     expectRole(modelRound, '.model-round-item__retry-toggle {', 'control');
     expectRole(modelRound, '.model-round-item__attempt-diagnostic-section pre {', 'support');
     expect(extractBlock(modelRound, '.model-round-item__meta {')).toContain(
-      'font-size: var(--bf-type-flow-meta-font-size);',
+      'font-size: var(--openbitfun-type-flow-meta-font-size);',
     );
     expectRole(userMessage, '.user-message-item__content {', 'body');
     expectRole(userMessage, '.user-message-item__steering-tag {', 'micro');
     expect(extractBlock(userMessage, '.user-message-item--failed {')).toContain(
-      '--_failed-font-size: var(--bf-type-flow-control-font-size);',
+      '--_failed-font-size: var(--openbitfun-type-flow-control-font-size);',
     );
     expectRole(flowTextBlock, '.markdown-renderer .inline-code {', 'control');
   });
@@ -111,11 +150,11 @@ describe('FlowChat semantic typography roles', () => {
     expect(component).not.toContain('model-round-item__meta-label');
     expect(component).not.toContain('model-round-item__meta-value');
     expect(component).toContain('aria-label={`${item.label}: ${item.value}`}');
-    expect(meta).toContain('gap: var(--bf-space-2);');
-    expect(meta).toContain('color: var(--bf-color-content-muted);');
-    expect(meta).toContain('font-family: var(--bf-type-flow-meta-font-family);');
-    expect(meta).toContain('font-size: var(--bf-type-flow-meta-font-size);');
-    expect(meta).toContain('font-weight: var(--bf-type-flow-meta-font-weight);');
-    expect(meta).toContain('line-height: var(--bf-type-flow-meta-line-height);');
+    expect(meta).toContain('gap: var(--openbitfun-space-2);');
+    expect(meta).toContain('color: var(--openbitfun-color-content-muted);');
+    expect(meta).toContain('font-family: var(--openbitfun-type-flow-meta-font-family);');
+    expect(meta).toContain('font-size: var(--openbitfun-type-flow-meta-font-size);');
+    expect(meta).toContain('font-weight: var(--openbitfun-type-flow-meta-font-weight);');
+    expect(meta).toContain('line-height: var(--openbitfun-type-flow-meta-line-height);');
   });
 });

@@ -1,6 +1,6 @@
 
 import type { ShortcutConfig, ShortcutScope } from '@/shared/types/shortcut';
-import { compareShortcutScope, NON_USER_CUSTOMIZABLE_SHORTCUT_IDS } from '@/shared/constants/shortcuts';
+import { compareShortcutScope } from '@/shared/constants/shortcuts';
 import { createLogger } from '@/shared/utils/logger';
 import { isImeOwnedKeyboardEvent } from '@/shared/utils/ime';
 
@@ -60,7 +60,6 @@ export function buildStoredKeybindings(overrides: KeybindingOverrides): StoredKe
 function sanitizeOverrides(raw: Record<string, unknown>): KeybindingOverrides {
   const result: KeybindingOverrides = {};
   for (const [id, val] of Object.entries(raw)) {
-    if (NON_USER_CUSTOMIZABLE_SHORTCUT_IDS.has(id)) continue;
     if (id.startsWith('__') || !val || typeof val !== 'object') continue;
     const v = val as Record<string, unknown>;
     if (typeof v.key !== 'string' || !v.key) continue;
@@ -381,9 +380,9 @@ export class ShortcutManager {
     }
 
     if (
-      target.classList.contains('bitfun-chat-input') ||
+      target.classList.contains('openbitfun-chat-input') ||
       target.classList.contains('rich-text-input') ||
-      target.closest('.bitfun-chat-input') !== null ||
+      target.closest('.openbitfun-chat-input') !== null ||
       target.closest('.rich-text-input') !== null
     ) {
       return true;
@@ -425,7 +424,6 @@ export class ShortcutManager {
   }
 
   private applyOverride(id: string, config: ShortcutConfig): ShortcutConfig {
-    if (NON_USER_CUSTOMIZABLE_SHORTCUT_IDS.has(id)) return config;
     const override = this.userOverrides[id];
     if (!override) return config;
     // Stored overrides only persist truthy modifiers. Shallow merge would keep
@@ -476,7 +474,7 @@ export class ShortcutManager {
 
   /**
    * Check whether a given config conflicts with registered shortcuts in the same scope
-   * or with app-scope shortcuts. App-scope shortcuts are active globally inside BitFun,
+   * or with app-scope shortcuts. App-scope shortcuts are active globally inside OpenBitFun,
    * so they can shadow or be shadowed by scoped shortcuts.
    * Used by the settings UI for real-time conflict detection.
    */

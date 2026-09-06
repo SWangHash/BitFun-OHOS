@@ -1,7 +1,7 @@
 # 对话归档能力增强（Desktop / Web UI）功能提案
 
 > 状态：提案 / 待评审
-> 仓库：BitFun-OHOS
+> 仓库：OpenBitFun-OHOS
 > 相关架构入口：
 > - [`docs/architecture/agent-runtime-lifecycle-sequence.md`](../architecture/agent-runtime-lifecycle-sequence.md)
 > - [`docs/architecture/agent-runtime-services-design.md`](../architecture/agent-runtime-services-design.md)
@@ -26,7 +26,7 @@
 
 ### 背景与动机
 <!-- 请描述你为什么需要这个功能，解决了什么痛点 -->
-- BitFun 已具备单会话归档基线：`AgentSessionManagementPort` 的 `archive_session` / `set_session_archived`、Web UI `archived-sessions` 设置 tab、`SessionStatus = 'active' | 'archived' | 'completed'`、`archive_session`/`unarchive_session` 经 websocket 映射到 `session/setArchived`、会话驱动（local/dispatch）实现 `archiveSession`、FlowChatStore 跳过已归档会话。但归档体验仍停留在「单条手动归档 → 设置页查看」的最小闭环，缺少批量、检索、留存策略与跨 surface 一致性。
+- OpenBitFun 已具备单会话归档基线：`AgentSessionManagementPort` 的 `archive_session` / `set_session_archived`、Web UI `archived-sessions` 设置 tab、`SessionStatus = 'active' | 'archived' | 'completed'`、`archive_session`/`unarchive_session` 经 websocket 映射到 `session/setArchived`、会话驱动（local/dispatch）实现 `archiveSession`、FlowChatStore 跳过已归档会话。但归档体验仍停留在「单条手动归档 → 设置页查看」的最小闭环，缺少批量、检索、留存策略与跨 surface 一致性。
 - 痛点：① 会话数量增长后只能逐条归档/取消归档，无批量操作；② 归档列表缺少按名称/内容/时间/工作区检索与筛选，找历史对话困难；③ 无自动归档与留存策略（如按闲置时长自动归档、超期自动清理），归档目录本身会膨胀；④ 归档对话不能导出/分享（markdown/transcript），跨设备或留档困难；⑤ 远程/Peer/ACP 等 surface 的归档可见性与一致性行为未对齐；⑥ 归档存储用量与归档数量对用户不透明。
 
 ### 功能描述

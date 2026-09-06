@@ -13,24 +13,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Circle,
-  Clock3,
-  EyeOff,
-  GitBranch,
-  RefreshCw,
-  Settings,
-  Shield,
-  ShieldAlert,
-  ShieldCheck,
-  Square,
-  SquareCheck,
-} from 'lucide-react';
-import { Menu, MenuItem, MenuSection, MenuSeparator } from '@bitfun/ui';
-import { Tooltip } from '@bitfun/ui';
+import { Circle, Shield, ShieldAlert, ShieldCheck, Square, SquareCheck } from 'lucide-react';
+import { Menu, MenuItem, MenuSection, MenuSeparator } from '@openbitfun/ui';
+import { Tooltip, Icon } from '@openbitfun/ui';
 import { BranchQuickSwitch } from '@/tools/git/components/BranchQuickSwitch';
 import { useGitState } from '@/tools/git/hooks/useGitState';
 import type { SessionExecutionTarget } from '@/infrastructure/api/service-api/WorktreeAPI';
@@ -40,6 +25,7 @@ import {
   useOptionalWorkspaceContext,
 } from '@/infrastructure/contexts/WorkspaceContext';
 import { useI18n } from '@/infrastructure/i18n';
+import { WorkspaceKind } from '@/shared/types';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import { DispatchResultDialog } from '@/features/dispatch/DispatchResultDialog';
 import { DispatchTargetPicker } from '@/features/dispatch/DispatchTargetPicker';
@@ -94,7 +80,6 @@ export interface ChatInputWorkspaceStripProps {
     onChangeForNextTurn?: (
       mode: Exclude<ChatInputPermissionMode, 'acp'>,
     ) => void | Promise<void>;
-    onHide?: () => void | Promise<void>;
   };
   /** Keep the strip on cached Git state while historical content is still restoring. */
   deferPassiveGitRefresh?: boolean;
@@ -181,7 +166,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
     preferredPlacement: 'top',
     alignment: 'end',
     gap: 7,
-    layoutRevision: `${permissionMenuView}:${permissionControl?.options?.length ?? 0}:${Boolean(permissionControl?.onHide)}`,
+    layoutRevision: `${permissionMenuView}:${permissionControl?.options?.length ?? 0}`,
   });
   const workspaceMenuLayout = useAnchoredPopoverPosition({
     open: workspaceMenuOpen,
@@ -506,16 +491,11 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
   const renderBranchChip = () => {
     const contents = (
       <>
-        <GitBranch
-          className="bitfun-chat-input-workspace-strip__branch-icon"
-          size={12}
-          strokeWidth={1.8}
-          aria-hidden
-        />
+        <Icon name="git" size="xs" className="openbitfun-chat-input-workspace-strip__branch-icon" aria-hidden />
         <span
-          data-bf-component="chat-input-workspace-strip"
-          data-bf-part="branch"
-          className="bitfun-chat-input-workspace-strip__branch"
+          data-openbitfun-component="chat-input-workspace-strip"
+          data-openbitfun-part="branch"
+          className="openbitfun-chat-input-workspace-strip__branch"
         >
           {branchLabel}
         </span>
@@ -525,7 +505,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
     if (!branchSwitchable || !currentBranch?.trim()) {
       return (
         <Tooltip content={branchTooltipContent} placement="top">
-          <span className="bitfun-chat-input-workspace-strip__chip bitfun-chat-input-workspace-strip__chip--branch">
+          <span className="openbitfun-chat-input-workspace-strip__chip openbitfun-chat-input-workspace-strip__chip--branch">
             {contents}
           </span>
         </Tooltip>
@@ -538,7 +518,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
           <button
             ref={branchTriggerRef}
             type="button"
-            className="bitfun-chat-input-workspace-strip__chip bitfun-chat-input-workspace-strip__chip--branch bitfun-chat-input-workspace-strip__chip--branch-switchable"
+            className="openbitfun-chat-input-workspace-strip__chip openbitfun-chat-input-workspace-strip__chip--branch openbitfun-chat-input-workspace-strip__chip--branch-switchable"
             aria-label={t('workspaceStrip.branchSwitchLabel', { branch: branchLabel })}
             aria-haspopup="listbox"
             aria-expanded={branchMenuOpen}
@@ -572,8 +552,8 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
     if (!workspaceSwitchable || !workspaceContext) {
       return (
         <Tooltip content={workspaceTooltipContent} placement="top">
-          <span data-bf-component="chat-input-workspace-strip" data-bf-part="workspace" className="bitfun-chat-input-workspace-strip__workspace">
-            <span className="bitfun-chat-input-workspace-strip__workspace-name">{label}</span>
+          <span data-openbitfun-component="chat-input-workspace-strip" data-openbitfun-part="workspace" className="openbitfun-chat-input-workspace-strip__workspace">
+            <span className="openbitfun-chat-input-workspace-strip__workspace-name">{label}</span>
           </span>
         </Tooltip>
       );
@@ -585,9 +565,9 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
           <button
             ref={workspaceTriggerRef}
             type="button"
-            data-bf-component="chat-input-workspace-strip"
-            data-bf-part="workspace"
-            className="bitfun-chat-input-workspace-strip__workspace bitfun-chat-input-workspace-strip__workspace--switchable"
+            data-openbitfun-component="chat-input-workspace-strip"
+            data-openbitfun-part="workspace"
+            className="openbitfun-chat-input-workspace-strip__workspace openbitfun-chat-input-workspace-strip__workspace--switchable"
             aria-haspopup="menu"
             aria-expanded={workspaceMenuOpen}
             data-testid="chat-input-workspace-trigger"
@@ -596,17 +576,17 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
               setWorkspaceMenuOpen(open => !open);
             }}
           >
-            <span className="bitfun-chat-input-workspace-strip__workspace-name">{label}</span>
+            <span className="openbitfun-chat-input-workspace-strip__workspace-name">{label}</span>
           </button>
         </Tooltip>
         {workspaceMenuOpen ? createPortal(
           <Menu
             ref={workspaceMenuRef}
-            data-bf-component="chat-input-workspace-strip"
-            data-bf-part="workspaceMenu"
-            data-bf-state="open"
-            data-bf-placement={workspaceMenuLayout?.placement ?? 'top'}
-            className="bitfun-chat-input-workspace-strip__workspace-menu"
+            data-openbitfun-component="chat-input-workspace-strip"
+            data-openbitfun-part="workspaceMenu"
+            data-openbitfun-state="open"
+            data-openbitfun-placement={workspaceMenuLayout?.placement ?? 'top'}
+            className="openbitfun-chat-input-workspace-strip__workspace-menu"
             style={{
               top: `${workspaceMenuLayout?.top ?? 0}px`,
               left: `${workspaceMenuLayout?.left ?? 0}px`,
@@ -618,16 +598,35 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
           >
             {switchableWorkspaces.map(workspace => {
               const isActive = workspace.id === workspaceContext.activeWorkspace?.id;
+              const workspaceName = getWorkspaceDisplayName(workspace);
+              const workspacePath = workspace.rootPath?.trim();
+              const isAssistantWorkspace = workspace.workspaceKind === WorkspaceKind.Assistant;
+              const isPrimaryAssistantWorkspace = (
+                isAssistantWorkspace
+                && (
+                  workspace.id === workspaceContext.primaryAssistantWorkspaceId
+                  || (!workspaceContext.primaryAssistantWorkspaceId && !workspace.assistantId)
+                )
+              );
+              const workspaceDetail = isAssistantWorkspace
+                ? t(isPrimaryAssistantWorkspace
+                    ? 'workspaceStrip.primaryAssistant'
+                    : 'workspaceStrip.personalAssistant')
+                : workspacePath;
               return (
                 <MenuItem
                   key={workspace.id}
                   role="menuitemradio"
                   checked={isActive}
-                  data-bf-component="chat-input-workspace-strip"
-                  data-bf-part="workspaceOption"
-                  data-bf-state={isActive ? 'active' : undefined}
+                  data-openbitfun-component="chat-input-workspace-strip"
+                  data-openbitfun-part="workspaceOption"
+                  data-openbitfun-state={isActive ? 'active' : undefined}
                   data-testid={`chat-input-workspace-option-${workspace.id}`}
-                  metadata={isActive ? <Check size={13} strokeWidth={2.2} aria-hidden /> : null}
+                  aria-label={workspaceDetail
+                    ? `${workspaceName}, ${workspaceDetail}`
+                    : workspaceName}
+                  title={workspaceDetail || workspaceName}
+                  metadata={isActive ? <Icon name="check-line" size="lg" style={{ width: 13, height: 13 }} aria-hidden /> : null}
                   onClick={event => {
                     event.stopPropagation();
                     setWorkspaceMenuOpen(false);
@@ -636,7 +635,16 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                     }
                   }}
                 >
-                  {getWorkspaceDisplayName(workspace)}
+                  <span className="openbitfun-chat-input-workspace-strip__workspace-option-copy">
+                    <span className="openbitfun-chat-input-workspace-strip__workspace-option-name">
+                      {workspaceName}
+                    </span>
+                    {workspaceDetail ? (
+                      <span className="openbitfun-chat-input-workspace-strip__workspace-option-detail">
+                        {workspaceDetail}
+                      </span>
+                    ) : null}
+                  </span>
                 </MenuItem>
               );
             })}
@@ -655,8 +663,8 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
         aria-checked={worktreeEnabled}
         aria-label={tWorktrees('strip.toggleLabel')}
         className={[
-          'bitfun-chat-input-workspace-strip__worktree-toggle',
-          worktreeEnabled && 'bitfun-chat-input-workspace-strip__worktree-toggle--on',
+          'openbitfun-chat-input-workspace-strip__worktree-toggle',
+          worktreeEnabled && 'openbitfun-chat-input-workspace-strip__worktree-toggle--on',
         ]
           .filter(Boolean)
           .join(' ')}
@@ -671,7 +679,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
         ) : (
           <Square size={12} strokeWidth={1.8} aria-hidden />
         )}
-        <span className="bitfun-chat-input-workspace-strip__worktree-label">
+        <span className="openbitfun-chat-input-workspace-strip__worktree-label">
           {tWorktrees('strip.toggleLabel')}
         </span>
       </button>
@@ -684,9 +692,9 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
   const renderDivider = (key: string) => (
     <span
       key={key}
-      data-bf-component="chat-input-workspace-strip"
-      data-bf-part="divider"
-      className="bitfun-chat-input-workspace-strip__divider"
+      data-openbitfun-component="chat-input-workspace-strip"
+      data-openbitfun-part="divider"
+      className="openbitfun-chat-input-workspace-strip__divider"
       aria-hidden
     />
   );
@@ -729,17 +737,12 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
             <OptionIcon
               size={13}
               strokeWidth={2}
-              className={`bitfun-chat-input-workspace-strip__permission-option-icon bitfun-chat-input-workspace-strip__permission-option-icon--${mode}`}
+              className={`openbitfun-chat-input-workspace-strip__permission-option-icon openbitfun-chat-input-workspace-strip__permission-option-icon--${mode}`}
               aria-hidden
             />
           )}
           metadata={selected ? (
-            <Check
-              size={14}
-              strokeWidth={2.2}
-              data-testid={selectedTestId}
-              aria-hidden
-            />
+            <Icon name="check-line" size="sm" data-testid={selectedTestId} aria-hidden />
           ) : null}
           disabled={permissionControl?.saving}
           data-testid={optionTestId}
@@ -760,17 +763,17 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
   };
 
   return (
-    <div data-bf-component="chat-input-workspace-strip" data-bf-part="root"
-      className="bitfun-chat-input-workspace-strip"
+    <div data-openbitfun-component="chat-input-workspace-strip" data-openbitfun-part="root"
+      className="openbitfun-chat-input-workspace-strip"
       data-testid="chat-input-workspace-strip"
     >
       <div
-        data-bf-component="chat-input-workspace-strip"
-        data-bf-part="context"
-        className="bitfun-chat-input-workspace-strip__context"
+        data-openbitfun-component="chat-input-workspace-strip"
+        data-openbitfun-part="context"
+        className="openbitfun-chat-input-workspace-strip__context"
       >
         {label ? (
-          <span className="bitfun-chat-input-workspace-strip__location">
+          <span className="openbitfun-chat-input-workspace-strip__location">
             {renderWorkspaceControl()}
             {renderBranchChip()}
           </span>
@@ -799,20 +802,20 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
       </div>
 
       <div
-        data-bf-component="chat-input-workspace-strip"
-        data-bf-part="next"
-        className="bitfun-chat-input-workspace-strip__next"
+        data-openbitfun-component="chat-input-workspace-strip"
+        data-openbitfun-part="next"
+        className="openbitfun-chat-input-workspace-strip__next"
       >
         {dispatchControl?.syncableJobId ? (
           <>
             <Tooltip content={tCommon('dispatch.syncTitle')} placement="top">
               <button
                 type="button"
-                className="bitfun-chat-input-workspace-strip__dispatch-result"
+                className="openbitfun-chat-input-workspace-strip__dispatch-result"
                 onClick={() => setResultDialogOpen(true)}
                 data-testid="dispatch-sync-trigger"
               >
-                <RefreshCw size={12} strokeWidth={1.8} aria-hidden />
+                <Icon name="refresh" size="xs" aria-hidden />
                 <span>{tCommon('dispatch.syncAction')}</span>
               </button>
             </Tooltip>
@@ -832,18 +835,18 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
         {showPermission && permissionControl ? (
           <div
             ref={permissionRootRef}
-            data-bf-component="chat-input-workspace-strip"
-            data-bf-part="permission"
-            className="bitfun-chat-input-workspace-strip__permission"
+            data-openbitfun-component="chat-input-workspace-strip"
+            data-openbitfun-part="permission"
+            className="openbitfun-chat-input-workspace-strip__permission"
           >
             <Tooltip content={permissionTooltip} placement="top">
               <button
                 ref={permissionTriggerRef}
                 type="button"
                 className={[
-                  'bitfun-chat-input-workspace-strip__permission-trigger',
-                  `bitfun-chat-input-workspace-strip__permission-trigger--${permissionDisplayMode}`,
-                  permissionMenuOpen && 'bitfun-chat-input-workspace-strip__permission-trigger--open',
+                  'openbitfun-chat-input-workspace-strip__permission-trigger',
+                  `openbitfun-chat-input-workspace-strip__permission-trigger--${permissionDisplayMode}`,
+                  permissionMenuOpen && 'openbitfun-chat-input-workspace-strip__permission-trigger--open',
                 ]
                   .filter(Boolean)
                   .join(' ')}
@@ -869,12 +872,12 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                 }}
               >
                 <PermissionIcon
-                  className="bitfun-chat-input-workspace-strip__permission-overview-icon"
+                  className="openbitfun-chat-input-workspace-strip__permission-overview-icon"
                   size={12}
                   strokeWidth={1.8}
                   aria-hidden
                 />
-                <span className="bitfun-chat-input-workspace-strip__permission-label">
+                <span className="openbitfun-chat-input-workspace-strip__permission-label">
                   {permissionModeLabel}
                 </span>
                 {/* Only a one-off override gets a dot: a session-level choice
@@ -882,7 +885,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                     marking both made every customized session look pending. */}
                 {permissionNextTurnArmed ? (
                   <span
-                    className="bitfun-chat-input-workspace-strip__permission-next-turn-dot"
+                    className="openbitfun-chat-input-workspace-strip__permission-next-turn-dot"
                     data-testid="chat-input-permission-next-turn-dot"
                     aria-hidden
                   />
@@ -893,11 +896,11 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
             {permissionMenuOpen && permissionMode !== 'acp' ? createPortal(
               <Menu
                 ref={permissionMenuRef}
-                data-bf-component="chat-input-workspace-strip"
-                data-bf-part="permissionMenu"
-                data-bf-state="open"
-                data-bf-placement={permissionMenuLayout?.placement ?? 'top'}
-                className="bitfun-chat-input-workspace-strip__permission-menu"
+                data-openbitfun-component="chat-input-workspace-strip"
+                data-openbitfun-part="permissionMenu"
+                data-openbitfun-state="open"
+                data-openbitfun-placement={permissionMenuLayout?.placement ?? 'top'}
+                className="openbitfun-chat-input-workspace-strip__permission-menu"
                 style={{
                   top: `${permissionMenuLayout?.top ?? 0}px`,
                   left: `${permissionMenuLayout?.left ?? 0}px`,
@@ -921,8 +924,8 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                   <>
                     <MenuSection
                       title={`${t('chatInput.permissionMode.menuLabel')} · ${permissionSessionScopeLabel}`}
-                      data-bf-component="chat-input-workspace-strip"
-                      data-bf-part="permissionOptions"
+                      data-openbitfun-component="chat-input-workspace-strip"
+                      data-openbitfun-part="permissionOptions"
                     >
                       {permissionModes.map(mode => renderPermissionModeOption(mode, 'session'))}
                     </MenuSection>
@@ -930,9 +933,9 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                       <>
                         <MenuSeparator />
                         <MenuItem
-                          leading={<Clock3 size={14} strokeWidth={2} aria-hidden />}
+                          leading={<Icon name="clock" size="sm" aria-hidden />}
                           metadata={permissionNextTurnArmed ? permissionModeLabel : undefined}
-                          shortcut={<ChevronRight size={14} strokeWidth={2} aria-hidden />}
+                          shortcut={<Icon name="chevron-right" size="sm" aria-hidden />}
                           aria-haspopup="menu"
                           data-testid="chat-input-permission-turn-scope"
                           onClick={event => {
@@ -959,7 +962,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                           actions={permissionControl.onOpenDefaultSettings ? [{
                             id: 'open-default-settings',
                             label: t('chatInput.permissionMode.openDefaultSettings'),
-                            icon: <Settings size={13} strokeWidth={2} aria-hidden />,
+                            icon: <Icon name="gear" size="lg" style={{ width: 13, height: 13 }} aria-hidden />,
                             testId: 'chat-input-permission-open-default-settings',
                             onClick: event => {
                               event.stopPropagation();
@@ -977,31 +980,15 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                         </MenuItem>
                       </>
                     ) : null}
-                    {permissionControl.onHide ? (
-                      <>
-                        <MenuSeparator />
-                        <MenuItem
-                          leading={<EyeOff size={14} strokeWidth={2} aria-hidden />}
-                          data-testid="chat-input-permission-hide-control"
-                          onClick={event => {
-                            event.stopPropagation();
-                            closePermissionMenu();
-                            void permissionControl.onHide?.();
-                          }}
-                        >
-                          {t('chatInput.permissionMode.hideControl')}
-                        </MenuItem>
-                      </>
-                    ) : null}
                   </>
                 ) : (
                   <MenuSection
                     title={`${t('chatInput.permissionMode.menuLabel')} · ${permissionTurnScopeLabel}`}
-                    data-bf-component="chat-input-workspace-strip"
-                    data-bf-part="permissionOptions"
+                    data-openbitfun-component="chat-input-workspace-strip"
+                    data-openbitfun-part="permissionOptions"
                   >
                     <MenuItem
-                      leading={<ChevronLeft size={14} strokeWidth={2} aria-hidden />}
+                      leading={<Icon name="chevron-left" size="sm" aria-hidden />}
                       metadata={permissionCopy[permissionMode].label}
                       aria-label={t('chatInput.permissionMode.backToSessionSettings')}
                       data-testid="chat-input-permission-turn-back"
@@ -1021,17 +1008,12 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                         <PermissionSessionIcon
                           size={13}
                           strokeWidth={2}
-                          className={`bitfun-chat-input-workspace-strip__permission-option-icon bitfun-chat-input-workspace-strip__permission-option-icon--${permissionMode}`}
+                          className={`openbitfun-chat-input-workspace-strip__permission-option-icon openbitfun-chat-input-workspace-strip__permission-option-icon--${permissionMode}`}
                           aria-hidden
                         />
                       )}
                       metadata={!permissionNextTurnArmed ? (
-                        <Check
-                          size={14}
-                          strokeWidth={2.2}
-                          data-testid="chat-input-permission-follow-session-selected"
-                          aria-hidden
-                        />
+                        <Icon name="check-line" size="sm" data-testid="chat-input-permission-follow-session-selected" aria-hidden />
                       ) : null}
                       disabled={permissionControl.saving}
                       data-testid="chat-input-permission-follow-session"
@@ -1056,9 +1038,9 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
         {showUsage ? (
           <Tooltip content={usageTooltip}>
             <button
-              data-bf-component="chat-input-workspace-strip"
-              data-bf-part="usageAction"
-              className="bitfun-chat-input-workspace-strip__usage-btn"
+              data-openbitfun-component="chat-input-workspace-strip"
+              data-openbitfun-part="usageAction"
+              className="openbitfun-chat-input-workspace-strip__usage-btn"
               type="button"
               aria-label={t('usage.runtime.open')}
               onClick={e => {
@@ -1066,7 +1048,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                 usageReport.onOpen();
               }}
             >
-              <span className="bitfun-chat-input-workspace-strip__usage-ring" aria-hidden>
+              <span className="openbitfun-chat-input-workspace-strip__usage-ring" aria-hidden>
                 <Circle className="is-track" size={12} strokeWidth={3.2} />
                 {usagePercentage > 0 ? (
                   <Circle

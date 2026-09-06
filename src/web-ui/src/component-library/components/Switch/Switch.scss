@@ -3,7 +3,7 @@
  */
 @use '../../styles/tokens.scss' as tokens;
 
-.bitfun-switch {
+.openbitfun-switch {
   display: inline-flex;
   align-items: flex-start;
   gap: tokens.$size-gap-3;
@@ -103,7 +103,7 @@
     width: 10px;
     height: 10px;
     color: var(--bf-appearance-token-color-accent-500);
-    animation: bitfun-switch-spin 1s linear infinite;
+    animation: openbitfun-switch-spin 1s linear infinite;
   }
 
   &__input:checked + &__track &__thumb {
@@ -112,7 +112,7 @@
     border-color: var(--bf-appearance-token-color-accent-600);
   }
 
-  :root[data-bf-appearance-mode='dark'] &__input:checked + &__track &__thumb {
+  :root[data-openbitfun-appearance-mode='dark'] &__input:checked + &__track &__thumb {
     background: var(--bf-appearance-token-color-accent-500);
     border-color: var(--bf-appearance-token-color-accent-600);
   }
@@ -145,7 +145,7 @@
     border-color: var(--bf-appearance-token-color-accent-600);
   }
 
-  :root[data-bf-appearance-mode='dark'] &:hover:not(&--disabled):not(&--loading) &__input:checked + &__track &__thumb {
+  :root[data-openbitfun-appearance-mode='dark'] &:hover:not(&--disabled):not(&--loading) &__input:checked + &__track &__thumb {
     background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 88%, white);
     border-color: var(--bf-appearance-token-color-accent-500);
   }
@@ -180,33 +180,33 @@
   &--small {
     gap: tokens.$size-gap-2;
 
-    .bitfun-switch__track {
+    .openbitfun-switch__track {
       width: 32px;
       height: 18px;
       border-radius: 9px;
       padding: 2px;
     }
 
-    .bitfun-switch__thumb {
+    .openbitfun-switch__thumb {
       width: 14px;
       height: 14px;
       left: 2px;
     }
 
-    .bitfun-switch__input:checked + .bitfun-switch__track .bitfun-switch__thumb {
+    .openbitfun-switch__input:checked + .openbitfun-switch__track .openbitfun-switch__thumb {
       transform: translateX(14px);
     }
 
-    .bitfun-switch__loading {
+    .openbitfun-switch__loading {
       width: 8px;
       height: 8px;
     }
 
-    .bitfun-switch__label {
+    .openbitfun-switch__label {
       font-size: var(--bf-appearance-token-font-size-xs);
     }
 
-    .bitfun-switch__description {
+    .openbitfun-switch__description {
       font-size: 11px;
     }
   }
@@ -214,85 +214,85 @@
   &--large {
     gap: tokens.$size-gap-4;
 
-    .bitfun-switch__wrapper {
+    .openbitfun-switch__wrapper {
       margin-top: 2px;
     }
 
-    .bitfun-switch__track {
+    .openbitfun-switch__track {
       width: 44px;
       height: 24px;
       border-radius: 12px;
       padding: 2px;
     }
 
-    .bitfun-switch__thumb {
+    .openbitfun-switch__thumb {
       width: 20px;
       height: 20px;
     }
 
-    .bitfun-switch__input:checked + .bitfun-switch__track .bitfun-switch__thumb {
+    .openbitfun-switch__input:checked + .openbitfun-switch__track .openbitfun-switch__thumb {
       transform: translateX(20px);
     }
 
-    .bitfun-switch__loading {
+    .openbitfun-switch__loading {
       width: 12px;
       height: 12px;
     }
 
-    .bitfun-switch__label {
+    .openbitfun-switch__label {
       font-size: var(--bf-appearance-token-font-size-base);
     }
 
-    .bitfun-switch__description {
+    .openbitfun-switch__description {
       font-size: var(--bf-appearance-token-font-size-xs);
     }
   }
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .bitfun-switch:not(.bitfun-switch--disabled):not(.bitfun-switch--loading) {
-    &:hover .bitfun-switch__track {
+  .openbitfun-switch:not(.openbitfun-switch--disabled):not(.openbitfun-switch--loading) {
+    &:hover .openbitfun-switch__track {
       border-color: var(--bf-appearance-token-border-base);
     }
 
-    &:hover .bitfun-switch__thumb {
+    &:hover .openbitfun-switch__thumb {
       background: var(--bf-appearance-token-element-bg-base);
       border-color: var(--bf-appearance-token-border-base);
     }
 
-    &:hover .bitfun-switch__input:checked + .bitfun-switch__track {
+    &:hover .openbitfun-switch__input:checked + .openbitfun-switch__track {
       background: var(--bf-appearance-token-color-accent-300);
       border-color: var(--bf-appearance-token-color-accent-500);
     }
 
-    &:hover .bitfun-switch__input:checked + .bitfun-switch__track .bitfun-switch__thumb {
+    &:hover .openbitfun-switch__input:checked + .openbitfun-switch__track .openbitfun-switch__thumb {
       background: var(--bf-appearance-token-color-accent-600);
       border-color: var(--bf-appearance-token-color-accent-600);
     }
   }
 
-  :root[data-bf-appearance-mode='dark']
-    .bitfun-switch:not(.bitfun-switch--disabled):not(.bitfun-switch--loading):hover
-    .bitfun-switch__input:checked + .bitfun-switch__track
-    .bitfun-switch__thumb {
+  :root[data-openbitfun-appearance-mode='dark']
+    .openbitfun-switch:not(.openbitfun-switch--disabled):not(.openbitfun-switch--loading):hover
+    .openbitfun-switch__input:checked + .openbitfun-switch__track
+    .openbitfun-switch__thumb {
     background: color-mix(in srgb, var(--bf-appearance-token-color-accent-500) 88%, white);
     border-color: var(--bf-appearance-token-color-accent-500);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bitfun-switch__track {
+  .openbitfun-switch__track {
     transition:
       background-color var(--bf-appearance-token-motion-fast) ease,
       border-color var(--bf-appearance-token-motion-fast) ease;
   }
 
-  .bitfun-switch__input:active:not(:disabled) + .bitfun-switch__track {
+  .openbitfun-switch__input:active:not(:disabled) + .openbitfun-switch__track {
     transform: none;
   }
 }
 
-@keyframes bitfun-switch-spin {
+@keyframes openbitfun-switch-spin {
   from {
     transform: rotate(0deg);
   }

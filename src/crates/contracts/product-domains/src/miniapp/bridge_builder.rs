@@ -1,4 +1,4 @@
-//! Bridge script builder — generate window.app Runtime Adapter (BitFun Hosted) for iframe.
+//! Bridge script builder — generate window.app Runtime Adapter (OpenBitFun Hosted) for iframe.
 
 use crate::miniapp::types::{EsmDep, MiniAppPermissions};
 use serde_json;
@@ -38,6 +38,44 @@ pub fn build_bridge_script(
 
   const _call = (method, params) => _rpc('worker.call', {{ method, params: params || {{}} }});
 
+  // Host submissions are request-scoped. Coalesce a replay while it is in
+  // flight and retain a bounded result cache so a late duplicate can receive
+  // the same acknowledgement without invoking MiniApp business logic twice.
+  const _chatUserMessagePending = new Map();
+  const _chatUserMessageOutcomes = new Map();
+  const _CHAT_USER_MESSAGE_OUTCOME_LIMIT = 128;
+  const _runChatUserMessage = (requestId, payload, handlers) => {{
+    const completed = _chatUserMessageOutcomes.get(requestId);
+    if (completed) return Promise.resolve(completed);
+    const pending = _chatUserMessagePending.get(requestId);
+    if (pending) return pending;
+
+    const execution = (handlers.length
+      ? Promise.all(handlers.map((handler) => {{
+          try {{
+            return Promise.resolve(handler(payload));
+          }} catch (error) {{
+            return Promise.reject(error);
+          }}
+        }})).then(
+          () => ({{}}),
+          (error) => ({{ error: error instanceof Error ? error.message : String(error) }}),
+        )
+      : Promise.resolve({{ error: 'MiniApp has no chat:userMessage handler.' }}))
+      .then((outcome) => {{
+        _chatUserMessagePending.delete(requestId);
+        _chatUserMessageOutcomes.set(requestId, outcome);
+        while (_chatUserMessageOutcomes.size > _CHAT_USER_MESSAGE_OUTCOME_LIMIT) {{
+          const oldestRequestId = _chatUserMessageOutcomes.keys().next().value;
+          if (oldestRequestId === undefined) break;
+          _chatUserMessageOutcomes.delete(oldestRequestId);
+        }}
+        return outcome;
+      }});
+    _chatUserMessagePending.set(requestId, execution);
+    return execution;
+  }};
+
   function _applyAppearanceVars(vars) {{
     if (!vars || typeof vars !== 'object') return;
     const root = document.documentElement.style;
@@ -45,7 +83,7 @@ pub fn build_bridge_script(
   }}
 
   let _appearanceMode = {appearance_mode_esc};
-  // Default to en-US until the host pushes the real locale via 'bitfun:event'.
+  // Default to en-US until the host pushes the real locale via 'openbitfun:event'.
   // The script below proactively requests it on startup.
   let _locale = 'en-US';
 
@@ -159,6 +197,8 @@ pub fn build_bridge_script(
       // Opens the bubble and prefills its composer without sending, so the
       // MiniApp can offer example prompts the user still edits and submits.
       setComposerDraft: (text) => _rpc('chat.setComposerDraft', {{ text }}),
+      // Returning a Promise from the callback keeps realtime voice attached
+      // until MiniApp post-processing and any Agent retries have completed.
       onUserMessage:   (fn) => app.on('chat:userMessage', fn),
       offUserMessage:  (fn) => app.off('chat:userMessage', fn),
     }},
@@ -204,15 +244,15 @@ pub fn build_bridge_script(
   }};
 
   window.addEventListener('message', (e) => {{
-    if (e.data?.type === 'bitfun:event') {{
+    if (e.data?.type === 'openbitfun:event') {{
       const {{ event, payload }} = e.data;
       if (event === 'activate')    app._lifecycleHandlers.activate.forEach(f => f());
       if (event === 'deactivate')  app._lifecycleHandlers.deactivate.forEach(f => f());
       if (event === 'appearanceChange') {{
         if (payload && typeof payload === 'object') {{
           if (payload.vars) _applyAppearanceVars(payload.vars);
-          if (payload.id) document.documentElement.setAttribute('data-bf-appearance', payload.id);
-          if (payload.mode) {{ _appearanceMode = payload.mode; document.documentElement.setAttribute('data-bf-appearance-mode', _appearanceMode); }}
+          if (payload.id) document.documentElement.setAttribute('data-openbitfun-appearance', payload.id);
+          if (payload.mode) {{ _appearanceMode = payload.mode; document.documentElement.setAttribute('data-openbitfun-appearance-mode', _appearanceMode); }}
         }}
         app._lifecycleHandlers.appearanceChange.forEach(f => f(payload));
         (app._eventHandlers[event] || []).forEach(f => f(payload));
@@ -246,6 +286,18 @@ pub fn build_bridge_script(
           (app._eventHandlers[evtKey] || []).forEach(f => f(payload.data));
           (app._eventHandlers['worker:*'] || []).forEach(f => f(payload.event, payload.data));
         }}
+      }} else if (event === 'chat:userMessage') {{
+        const handlers = app._eventHandlers[event] || [];
+        const requestId = payload && typeof payload.requestId === 'string'
+          ? payload.requestId
+          : '';
+        if (!requestId) {{
+          handlers.forEach(f => f(payload));
+        }} else {{
+          void _runChatUserMessage(requestId, payload, handlers)
+            .then((outcome) => _rpc('chat.completeUserMessage', {{ requestId, ...outcome }}))
+            .catch(() => undefined);
+        }}
       }} else {{
         (app._eventHandlers[event] || []).forEach(f => f(payload));
       }}
@@ -253,9 +305,9 @@ pub fn build_bridge_script(
   }});
 
   window.app = app;
-  document.documentElement.setAttribute('data-bf-appearance-mode', _appearanceMode);
-  window.parent.postMessage({{ method: 'bitfun/request-appearance' }}, '*');
-  window.parent.postMessage({{ method: 'bitfun/request-locale' }}, '*');
+  document.documentElement.setAttribute('data-openbitfun-appearance-mode', _appearanceMode);
+  window.parent.postMessage({{ method: 'openbitfun/request-appearance' }}, '*');
+  window.parent.postMessage({{ method: 'openbitfun/request-locale' }}, '*');
 }})();
 "#,
         app_id_esc = app_id_esc,
@@ -342,7 +394,7 @@ pub fn build_market_csp_content() -> &'static str {
 
 /// Scroll boundary script (reuse same logic as MCP App).
 pub fn scroll_boundary_script() -> &'static str {
-    r#"<script>(()=>{const s=(e)=>{for(let n=e.target;n;n=n.parentNode){if(!(n instanceof Element))continue;if(n===document.documentElement||n===document.body)continue;const o=window.getComputedStyle(n).overflowY;if(o==='hidden'||o==='visible')continue;if(e.deltaY<0&&n.scrollTop>0)return false;if(e.deltaY>0&&n.scrollTop+n.clientHeight<n.scrollHeight)return false;}return true};window.addEventListener('wheel',e=>{if(!e.defaultPrevented&&s(e))window.parent.postMessage({jsonrpc:'2.0',method:'bitfun/sandbox-wheel',params:{deltaX:e.deltaX,deltaY:e.deltaY,deltaZ:e.deltaZ,deltaMode:e.deltaMode}},'*')},{passive:true});})();</script>"#
+    r#"<script>(()=>{const s=(e)=>{for(let n=e.target;n;n=n.parentNode){if(!(n instanceof Element))continue;if(n===document.documentElement||n===document.body)continue;const o=window.getComputedStyle(n).overflowY;if(o==='hidden'||o==='visible')continue;if(e.deltaY<0&&n.scrollTop>0)return false;if(e.deltaY>0&&n.scrollTop+n.clientHeight<n.scrollHeight)return false;}return true};window.addEventListener('wheel',e=>{if(!e.defaultPrevented&&s(e))window.parent.postMessage({jsonrpc:'2.0',method:'openbitfun/sandbox-wheel',params:{deltaX:e.deltaX,deltaY:e.deltaY,deltaZ:e.deltaZ,deltaMode:e.deltaMode}},'*')},{passive:true});})();</script>"#
 }
 
 /// Minimal MiniApp iframe first-paint contract before the host sends Appearance variables.

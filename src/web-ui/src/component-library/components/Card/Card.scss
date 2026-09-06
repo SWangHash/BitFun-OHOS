@@ -109,8 +109,8 @@
   }
 }
 
-:root[data-bf-appearance-mode="light"] .v-card,
-[data-bf-appearance-mode="light"] .v-card {
+:root[data-openbitfun-appearance-mode="light"] .v-card,
+[data-openbitfun-appearance-mode="light"] .v-card {
   --v-card-bg-default: var(--bf-appearance-token-color-overlay-black-08);
   --v-card-bg-hover: var(--bf-appearance-token-color-overlay-black-12);
   --v-card-bg-active: var(--bf-appearance-token-color-overlay-black-15);

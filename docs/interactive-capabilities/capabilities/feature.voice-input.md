@@ -38,20 +38,20 @@ Transcribe recordings or hold a client-wide realtime voice call that can enter p
 
 ## 怎么用 / How to use it
 
-1. 打开输入设置的“语音”页
-   Open the Voice input settings view
+1. 打开独立的语音设置页
+   Open the standalone Voice settings page
 2. 启用语音并准备模型
    Enable voice and prepare a model
 3. 在聊天输入框点击麦克风开始录音
    Use the microphone button in the chat composer
 
-入口 / Entry: BitFun 设置
+入口 / Entry: OpenBitFun 设置
 
 ## Agent 可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
-| 打开对应界面 / Open the UI | 进入 BitFun 中对应的功能界面。 | Open the matching feature in BitFun. |
+| 打开对应界面 / Open the UI | 进入 OpenBitFun 中对应的功能界面。 | Open the matching feature in OpenBitFun. |
 
 ## 可配置选项 / Configurable options
 

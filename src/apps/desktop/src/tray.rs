@@ -1,4 +1,4 @@
-//! System tray integration for BitFun Desktop.
+//! System tray integration for OpenBitFun Desktop.
 //!
 //! Creates a system tray icon with a context menu. On Windows and Linux the tray
 //! icon is always visible while the process is running; on macOS the icon appears
@@ -7,8 +7,8 @@
 //! Left-click  – toggles the main window (show / hide).
 //! Right-click – opens a context menu with:
 //!   • toggle desktop Agent companion pet (persisted via `app.ai_experience`)
-//!   • "Show BitFun"
-//!   • "Quit BitFun"
+//!   • "Show OpenBitFun"
+//!   • "Quit OpenBitFun"
 //!
 //! The context menu is rebuilt every time the user left-clicks (for freshness),
 //! periodically, and after locale changes.
@@ -20,9 +20,9 @@ use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager};
 
-use bitfun_core::service::config::app_language::get_app_language;
-use bitfun_core::service::config::types::AIExperienceConfig;
-use bitfun_core::service::i18n::LocaleId;
+use openbitfun_core::service::config::app_language::get_app_language;
+use openbitfun_core::service::config::types::AIExperienceConfig;
+use openbitfun_core::service::i18n::LocaleId;
 
 use crate::api::app_state::AppState;
 use crate::startup_trace::DesktopStartupTrace;
@@ -38,20 +38,20 @@ struct TrayStrings {
 }
 
 const STRINGS_ZH_CN: TrayStrings = TrayStrings {
-    show_app: "显示 BitFun",
-    quit_app: "退出 BitFun",
+    show_app: "显示 OpenBitFun",
+    quit_app: "退出 OpenBitFun",
     desktop_pet: "显示桌面宠物",
 };
 
 const STRINGS_ZH_TW: TrayStrings = TrayStrings {
-    show_app: "顯示 BitFun",
-    quit_app: "退出 BitFun",
+    show_app: "顯示 OpenBitFun",
+    quit_app: "退出 OpenBitFun",
     desktop_pet: "顯示桌面寵物",
 };
 
 const STRINGS_EN_US: TrayStrings = TrayStrings {
-    show_app: "Show BitFun",
-    quit_app: "Quit BitFun",
+    show_app: "Show OpenBitFun",
+    quit_app: "Quit OpenBitFun",
     desktop_pet: "Show desktop pet",
 };
 
@@ -64,7 +64,7 @@ fn tray_strings(locale: &LocaleId) -> &'static TrayStrings {
 }
 
 fn desktop_pet_should_show(exp: &AIExperienceConfig) -> bool {
-    exp.enable_agent_companion && exp.agent_companion_display_mode == "desktop"
+    exp.enable_agent_companion
 }
 
 async fn load_ai_experience(app: &AppHandle) -> Option<AIExperienceConfig> {
@@ -144,7 +144,6 @@ async fn tray_toggle_desktop_pet(app: &AppHandle) -> Result<(), String> {
                 exp.enable_agent_companion = false;
             } else {
                 exp.enable_agent_companion = true;
-                exp.agent_companion_display_mode = "desktop".to_string();
             }
             Ok(desktop_pet_should_show(exp))
         })
@@ -196,17 +195,18 @@ pub fn setup_tray(
     startup_trace.record_elapsed_step(TRAY_TRACE_CATEGORY, "setup_tray.menu", step_started);
 
     let step_started = Instant::now();
-    let icon = app
-        .default_window_icon()
-        .ok_or("No default window icon")?
-        .clone();
+    #[cfg(target_os = "macos")]
+    let icon = tauri::include_image!("icons/openbitfun-tray-template.png");
+    #[cfg(not(target_os = "macos"))]
+    let icon = tauri::include_image!("icons/hicolor/32x32/apps/openbitfun-desktop.png");
     startup_trace.record_elapsed_step(TRAY_TRACE_CATEGORY, "setup_tray.icon", step_started);
 
     let step_started = Instant::now();
     let tray = TrayIconBuilder::new()
         .icon(icon)
+        .icon_as_template(cfg!(target_os = "macos"))
         .menu(&initial_menu)
-        .tooltip("BitFun")
+        .tooltip("OpenBitFun")
         .on_menu_event(|app, event| {
             let id = event.id.as_ref();
             if id == "show_window" {

@@ -4,9 +4,9 @@
 
 use crate::util::errors::*;
 use async_trait::async_trait;
-use bitfun_core_types::WorktreeSettings;
-pub use bitfun_core_types::{ReasoningConfig, ReasoningPreset, ReasoningPresetAction};
-use bitfun_runtime_ports::{PermissionRule, ToolPermissionConfig};
+use openbitfun_core_types::{product_identity, WorktreeSettings};
+pub use openbitfun_core_types::{ReasoningConfig, ReasoningPreset, ReasoningPresetAction};
+use openbitfun_runtime_ports::{PermissionRule, ToolPermissionConfig};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -42,8 +42,9 @@ pub struct UiFontSizeSnapshot {
 
 /// Global configuration structure - matches the frontend `GlobalConfig` exactly.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
 pub struct GlobalConfig {
+    /// Immutable product identity for this persisted document.
+    pub product_id: String,
     pub app: AppConfig,
     pub editor: EditorConfig,
     pub terminal: TerminalConfig,
@@ -72,8 +73,7 @@ pub struct GlobalConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font: Option<FontPreferenceSnapshot>,
     /// Version of the persisted configuration schema. This is intentionally
-    /// independent from the BitFun application version stored in `version`.
-    #[serde(default = "default_config_schema_version")]
+    /// independent from the OpenBitFun application version stored in `version`.
     pub schema_version: u32,
     pub version: String,
     #[serde(with = "chrono::serde::ts_milliseconds")]
@@ -135,7 +135,7 @@ impl ProjectConfig {
 
 /// App configuration.
 fn default_close_button_behavior() -> String {
-    "ask".to_string()
+    "minimize_to_tray".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -192,7 +192,7 @@ pub struct AppConfig {
 ///
 /// Hook declarations themselves live in `hooks.json` documents (user scope:
 /// `config/hooks.json` next to this file; project scope:
-/// `{project}/.bitfun/config/hooks.json`), not in this settings document.
+/// `{project}/.openbitfun/config/hooks.json`), not in this settings document.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct AgentHooksConfig {
@@ -381,6 +381,7 @@ impl Default for VoiceInputConfig {
 
 /// Controller-local full-duplex voice-call preferences.
 ///
+/// The assistant stays off until the current controller explicitly enables it.
 /// The API key crosses only the controller-local settings IPC; starting a
 /// session resolves it in the Desktop adapter, so it is never forwarded to a
 /// remote workspace or peer HostInvoke request. Session execution selected by
@@ -401,7 +402,7 @@ pub struct VoiceCallConfig {
 impl Default for VoiceCallConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled: false,
             provider: "volcengine".to_string(),
             api_key: String::new(),
             voice: "zh_female_vv_jupiter_bigtts".to_string(),
@@ -448,10 +449,8 @@ pub struct AIExperienceConfig {
     pub enable_welcome_panel_ai_analysis: bool,
     /// Whether to enable visual mode.
     pub enable_visual_mode: bool,
-    /// Whether to show the pixel Agent companion in the collapsed chat input.
+    /// Whether to show the desktop Agent companion.
     pub enable_agent_companion: bool,
-    /// Where to show the Agent companion: "input" or "desktop".
-    pub agent_companion_display_mode: String,
     /// Optional Petdex-compatible companion package selected by the user.
     #[serde(
         default = "default_agent_companion_pet",
@@ -575,6 +574,7 @@ pub struct EditorConfig {
     pub render_line_highlight: String,
     pub tab_size: u32,
     pub insert_spaces: bool,
+    pub detect_indentation: bool,
     pub word_wrap: String,
     pub scroll_beyond_last_line: bool,
     pub smooth_scrolling: bool,
@@ -650,10 +650,6 @@ pub enum ModelCapability {
 }
 
 pub const CURRENT_CONFIG_SCHEMA_VERSION: u32 = 1;
-
-fn default_config_schema_version() -> u32 {
-    CURRENT_CONFIG_SCHEMA_VERSION
-}
 
 /// Model category (for UI display and filtering).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -996,7 +992,12 @@ pub struct AIConfig {
     #[serde(default)]
     pub browser_control_preferred_browser: String,
 
-    /// Reattach to an already-running browser when BitFun starts. Off by
+    /// Provider-neutral WebSearch runtime configuration. Credentials are
+    /// referenced by logical id and remain in the device-local encrypted vault.
+    #[serde(default)]
+    pub web_search: WebSearchConfig,
+
+    /// Reattach to an already-running browser when OpenBitFun starts. Off by
     /// default: the browser forgets its approval when it restarts, so this can
     /// put an approval dialog in front of the user before they asked for the
     /// browser at all.
@@ -1007,6 +1008,132 @@ pub struct AIConfig {
     /// Zero disables the fixed round limit.
     #[serde(default = "default_max_rounds")]
     pub max_rounds: usize,
+}
+
+fn default_web_search_provider() -> String {
+    "exa_mcp_free".to_string()
+}
+
+fn default_exa_search_credential_id() -> String {
+    "exa-search-api".to_string()
+}
+
+fn default_tavily_credential_id() -> String {
+    "tavily-search-api".to_string()
+}
+
+fn default_openbitfun_search_http_credential_id() -> String {
+    "openbitfun-search-http".to_string()
+}
+
+/// Non-secret WebSearch settings that are safe to persist and synchronize.
+/// Unknown fields are retained so a newer provider configuration survives an
+/// older OpenBitFun build reading and writing the document.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct WebSearchConfig {
+    #[serde(default = "default_web_search_provider")]
+    pub provider: String,
+    #[serde(default)]
+    pub providers: WebSearchProviderConfigs,
+    #[serde(flatten)]
+    pub unknown: serde_json::Map<String, serde_json::Value>,
+}
+
+impl Default for WebSearchConfig {
+    fn default() -> Self {
+        Self {
+            provider: default_web_search_provider(),
+            providers: WebSearchProviderConfigs::default(),
+            unknown: serde_json::Map::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default, rename_all = "snake_case")]
+pub struct WebSearchProviderConfigs {
+    pub exa_search_api: WebSearchCredentialProviderConfig,
+    pub tavily: WebSearchCredentialProviderConfig,
+    pub openbitfun_search_http: OpenBitFunSearchHttpConfig,
+    #[serde(flatten)]
+    pub unknown: serde_json::Map<String, serde_json::Value>,
+}
+
+impl Default for WebSearchProviderConfigs {
+    fn default() -> Self {
+        Self {
+            exa_search_api: WebSearchCredentialProviderConfig {
+                credential_id: default_exa_search_credential_id(),
+                unknown: serde_json::Map::new(),
+            },
+            tavily: WebSearchCredentialProviderConfig {
+                credential_id: default_tavily_credential_id(),
+                unknown: serde_json::Map::new(),
+            },
+            openbitfun_search_http: OpenBitFunSearchHttpConfig::default(),
+            unknown: serde_json::Map::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct WebSearchCredentialProviderConfig {
+    pub credential_id: String,
+    #[serde(flatten)]
+    pub unknown: serde_json::Map<String, serde_json::Value>,
+}
+
+impl Default for WebSearchCredentialProviderConfig {
+    fn default() -> Self {
+        Self {
+            credential_id: String::new(),
+            unknown: serde_json::Map::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct OpenBitFunSearchHttpConfig {
+    pub endpoint: String,
+    pub auth: OpenBitFunSearchHttpAuthConfig,
+    #[serde(flatten)]
+    pub unknown: serde_json::Map<String, serde_json::Value>,
+}
+
+impl Default for OpenBitFunSearchHttpConfig {
+    fn default() -> Self {
+        Self {
+            endpoint: String::new(),
+            auth: OpenBitFunSearchHttpAuthConfig::default(),
+            unknown: serde_json::Map::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct OpenBitFunSearchHttpAuthConfig {
+    /// `none`, `bearer`, or `header`. Kept as a string so unknown future modes
+    /// round-trip and fail explicitly only when selected at runtime.
+    pub mode: String,
+    pub credential_id: String,
+    pub header_name: String,
+    #[serde(flatten)]
+    pub unknown: serde_json::Map<String, serde_json::Value>,
+}
+
+impl Default for OpenBitFunSearchHttpAuthConfig {
+    fn default() -> Self {
+        Self {
+            mode: "none".to_string(),
+            credential_id: default_openbitfun_search_http_credential_id(),
+            header_name: String::new(),
+            unknown: serde_json::Map::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -1321,8 +1448,87 @@ pub fn is_valid_configured_max_output_tokens(context_window: u32, max_tokens: u3
             <= u64::from(context_window) * u64::from(MAX_CONFIGURED_OUTPUT_TOKENS_RATIO_PERCENT)
 }
 
+/// Status of a local model (downloaded, undownloaded, downloading, paused, or failed).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum LocalModelStatus {
+    Downloaded,
+    #[default]
+    Undownloaded,
+    Downloading,
+    Paused,
+    Failed,
+}
+
+/// Details of a local model (format, family, parameter size, quantization level).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelDetails {
+    #[serde(default)]
+    pub format: String,
+    #[serde(default)]
+    pub family: String,
+    #[serde(default)]
+    pub families: Vec<String>,
+    #[serde(default)]
+    pub parameter_size: String,
+    #[serde(default)]
+    pub quantization_level: String,
+}
+
+/// A local model entry returned by the local model service.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModel {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default, rename = "type")]
+    pub model_type: String,
+    #[serde(default)]
+    pub status: LocalModelStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modified_at: Option<String>,
+    #[serde(default)]
+    pub size: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completed: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub digest: Option<String>,
+    #[serde(default)]
+    pub details: LocalModelDetails,
+}
+
+/// Status of the local model service (availability, port, model list).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalServiceStatus {
+    pub available: bool,
+    pub port: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(default)]
+    pub models: Vec<LocalModel>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelPullProgress {
+    #[serde(default)]
+    pub model_name: String,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub digest: Option<String>,
+    #[serde(default)]
+    pub total: u64,
+    #[serde(default)]
+    pub completed: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default, from = "AIModelConfigCompat")]
+#[serde(default)]
 pub struct AIModelConfig {
     pub id: String,
     pub name: String,
@@ -1339,7 +1545,7 @@ pub struct AIModelConfig {
     /// Context window size (total token limit for input + output).
     pub context_window: Option<u32>,
     /// Optional advanced override for the request output limit. When absent,
-    /// BitFun derives a tiered limit from the context window at runtime.
+    /// OpenBitFun derives a tiered limit from the context window at runtime.
     pub max_tokens: Option<u32>,
     pub temperature: Option<f64>,
     pub top_p: Option<f64>,
@@ -1385,8 +1591,8 @@ pub struct AIModelConfig {
     #[serde(default)]
     pub custom_request_body_mode: Option<String>,
 
-    /// Authentication source for this model. Defaults to a static API key for
-    /// backward compatibility; selecting a CLI source causes the AI client
+    /// Authentication source for this model. Defaults to a static API key;
+    /// selecting a CLI source causes the AI client
     /// factory to look up `~/.codex/auth.json` or `~/.gemini/...` at request
     /// time and inject the resolved Bearer token / extra headers.
     #[serde(default)]
@@ -1456,7 +1662,7 @@ pub enum OpenCodePlan {
 /// Stored on disk as `{"type":"api_key"}` or
 /// `{"type":"subscription","provider":"codex"|"antigravity"|"opencode"|"grok"|"hermes"}`.
 /// OpenCode models may additionally persist `"plan":"zen"|"go"`; an absent
-/// plan preserves the legacy Zen Chat Completions behavior.
+/// plan selects the default Zen Chat Completions behavior.
 /// Tokens live in the subscription auth store and are resolved at request time.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -1464,7 +1670,7 @@ pub enum AuthConfig {
     /// Use the inline `api_key` string (default).
     #[default]
     ApiKey,
-    /// Use BitFun in-app subscription OAuth for the named provider.
+    /// Use OpenBitFun in-app subscription OAuth for the named provider.
     Subscription {
         provider: SubscriptionProvider,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1472,77 +1678,7 @@ pub enum AuthConfig {
     },
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
-#[serde(default)]
-struct AIModelConfigCompat {
-    id: String,
-    name: String,
-    provider: String,
-    model_name: String,
-    base_url: String,
-    request_url: Option<String>,
-    api_key: String,
-    context_window: Option<u32>,
-    max_tokens: Option<u32>,
-    temperature: Option<f64>,
-    top_p: Option<f64>,
-    enabled: bool,
-    category: ModelCategory,
-    capabilities: Vec<ModelCapability>,
-    recommended_for: Vec<String>,
-    metadata: Option<serde_json::Value>,
-    reasoning: Option<ReasoningConfig>,
-    #[serde(default = "default_true")]
-    inline_think_in_text: bool,
-    custom_headers: Option<std::collections::HashMap<String, String>>,
-    custom_headers_mode: Option<String>,
-    skip_ssl_verify: bool,
-    custom_request_body: Option<String>,
-    custom_request_body_mode: Option<String>,
-    /// Parsed flexibly so unknown legacy auth tags fall back to ApiKey.
-    #[serde(default)]
-    auth: Option<serde_json::Value>,
-}
-
-fn parse_auth_config(value: Option<serde_json::Value>) -> AuthConfig {
-    match value {
-        None => AuthConfig::ApiKey,
-        Some(raw) => serde_json::from_value(raw).unwrap_or(AuthConfig::ApiKey),
-    }
-}
-
-impl From<AIModelConfigCompat> for AIModelConfig {
-    fn from(value: AIModelConfigCompat) -> Self {
-        Self {
-            id: value.id,
-            name: value.name,
-            provider: value.provider,
-            model_name: value.model_name,
-            base_url: value.base_url,
-            request_url: value.request_url,
-            api_key: value.api_key,
-            context_window: value.context_window,
-            max_tokens: value.max_tokens,
-            temperature: value.temperature,
-            top_p: value.top_p,
-            enabled: value.enabled,
-            category: value.category,
-            capabilities: value.capabilities,
-            recommended_for: value.recommended_for,
-            metadata: value.metadata,
-            reasoning: value.reasoning,
-            inline_think_in_text: value.inline_think_in_text,
-            custom_headers: value.custom_headers,
-            custom_headers_mode: value.custom_headers_mode,
-            skip_ssl_verify: value.skip_ssl_verify,
-            custom_request_body: value.custom_request_body,
-            custom_request_body_mode: value.custom_request_body_mode,
-            auth: parse_auth_config(value.auth),
-        }
-    }
-}
-
-pub use bitfun_core_types::ProxyConfig;
+pub use openbitfun_core_types::ProxyConfig;
 
 /// Configuration provider interface.
 #[async_trait]
@@ -1554,21 +1690,14 @@ pub trait ConfigProvider: Send + Sync {
     fn get_default_config(&self) -> serde_json::Value;
 
     /// Validates configuration.
-    async fn validate_config(&self, config: &serde_json::Value) -> BitFunResult<Vec<String>>;
+    async fn validate_config(&self, config: &serde_json::Value) -> OpenBitFunResult<Vec<String>>;
 
     /// Called when configuration changes.
     async fn on_config_changed(
         &self,
         old_config: &serde_json::Value,
         new_config: &serde_json::Value,
-    ) -> BitFunResult<()>;
-
-    /// Migrates configuration (used for version upgrades).
-    async fn migrate_config(
-        &self,
-        version: &str,
-        config: serde_json::Value,
-    ) -> BitFunResult<serde_json::Value>;
+    ) -> OpenBitFunResult<()>;
 }
 
 /// Configuration change event.
@@ -1636,6 +1765,7 @@ pub struct ConfigValidationWarning {
 impl Default for GlobalConfig {
     fn default() -> Self {
         Self {
+            product_id: product_identity::product_id().to_string(),
             app: AppConfig::default(),
             editor: EditorConfig::default(),
             terminal: TerminalConfig::default(),
@@ -1650,7 +1780,7 @@ impl Default for GlobalConfig {
             appearance: AppearanceConfig::default(),
             font: None,
             schema_version: CURRENT_CONFIG_SCHEMA_VERSION,
-            version: "1.0.0".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
             last_modified: chrono::Utc::now(),
         }
     }
@@ -1700,11 +1830,9 @@ impl Default for AppConfig {
 impl Default for AppLoggingConfig {
     fn default() -> Self {
         Self {
-            #[cfg(debug_assertions)]
+            // Set to Debug in early development for easier diagnostics
             level: "debug".to_string(),
-            #[cfg(not(debug_assertions))]
-            level: "info".to_string(),
-            include_sensitive_diagnostics: false,
+            include_sensitive_diagnostics: true,
             flow_chat_diagnostics: false,
             model_exchange_tracing: ModelExchangeTracingConfig::default(),
         }
@@ -1725,8 +1853,7 @@ impl Default for AIExperienceConfig {
             enable_session_title_generation: true,
             enable_welcome_panel_ai_analysis: false,
             enable_visual_mode: false,
-            enable_agent_companion: false,
-            agent_companion_display_mode: "desktop".to_string(),
+            enable_agent_companion: true,
             agent_companion_pet: default_agent_companion_pet(),
             enable_workspace_search: false,
             voice_input: VoiceInputConfig::default(),
@@ -1746,8 +1873,9 @@ impl Default for EditorConfig {
             cursor_blinking: "smooth".to_string(),
             render_whitespace: "selection".to_string(),
             render_line_highlight: "line".to_string(),
-            tab_size: 2,
+            tab_size: 4,
             insert_spaces: true,
+            detect_indentation: true,
             word_wrap: "off".to_string(),
             scroll_beyond_last_line: false,
             smooth_scrolling: true,
@@ -1829,6 +1957,7 @@ impl Default for AIConfig {
             allow_tool_json_repair: true,
             computer_use_enabled: false,
             browser_control_preferred_browser: String::new(),
+            web_search: WebSearchConfig::default(),
             browser_control_auto_connect_on_startup: false,
             max_rounds: default_max_rounds(),
         }
@@ -1858,85 +1987,6 @@ impl Default for MemoriesConfig {
             consolidation_model: None,
         }
     }
-}
-
-/// Status of a local model (downloaded, undownloaded, downloading, paused, or failed).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum LocalModelStatus {
-    Downloaded,
-    #[default]
-    Undownloaded,
-    Downloading,
-    Paused,
-    Failed,
-}
-
-/// Details of a local model (format, family, parameter size, quantization level).
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalModelDetails {
-    #[serde(default)]
-    pub format: String,
-    #[serde(default)]
-    pub family: String,
-    #[serde(default)]
-    pub families: Vec<String>,
-    #[serde(default)]
-    pub parameter_size: String,
-    #[serde(default)]
-    pub quantization_level: String,
-}
-
-/// A local model entry returned by the local model service.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalModel {
-    #[serde(default)]
-    pub name: String,
-    #[serde(default, rename = "type")]
-    pub model_type: String,
-    #[serde(default)]
-    pub status: LocalModelStatus,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub modified_at: Option<String>,
-    #[serde(default)]
-    pub size: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub completed: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub digest: Option<String>,
-    #[serde(default)]
-    pub details: LocalModelDetails,
-}
-
-/// Status of the local model service (availability, port, model list)
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalServiceStatus {
-    pub available: bool,
-    pub port: u16,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub service_name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub version: Option<String>,
-    #[serde(default)]
-    pub models: Vec<LocalModel>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalModelPullProgress {
-    #[serde(default)]
-    pub model_name: String,
-    #[serde(default)]
-    pub status: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub digest: Option<String>,
-    #[serde(default)]
-    pub total: u64,
-    #[serde(default)]
-    pub completed: u64,
 }
 
 impl Default for AIModelConfig {
@@ -2052,97 +2102,6 @@ impl AIModelConfig {
         self.supports_capability(ModelCapability::ImageUnderstanding)
     }
 
-    /// Legacy helper that infers the model category from the model name and provider.
-    ///
-    /// This is kept for one-off migrations/debugging, but runtime behavior should prefer
-    /// explicitly configured `category`/`capabilities`.
-    pub fn infer_category_from_model_name(&self) -> ModelCategory {
-        let model_name_lower = self.model_name.to_lowercase();
-        let provider_lower = self.provider.to_lowercase();
-
-        if model_name_lower.contains("dall-e")
-            || model_name_lower.contains("dalle")
-            || model_name_lower.contains("stable-diffusion")
-            || model_name_lower.contains("midjourney")
-        {
-            return ModelCategory::ImageGeneration;
-        }
-
-        if model_name_lower.contains("embedding") || model_name_lower.contains("text-embedding") {
-            return ModelCategory::Embedding;
-        }
-
-        if provider_lower.contains("perplexity") || model_name_lower.contains("perplexity") {
-            return ModelCategory::SearchEnhanced;
-        }
-
-        if model_name_lower.contains("vision")
-            || model_name_lower.contains("gpt-4o")
-            || model_name_lower.contains("gpt-4-turbo")
-            || model_name_lower.contains("claude-3")
-            || model_name_lower.contains("gemini-pro-vision")
-            || model_name_lower.contains("gemini-1.5")
-            || model_name_lower.starts_with("kimi")
-        {
-            return ModelCategory::Multimodal;
-        }
-
-        if model_name_lower.contains("deepseek")
-            || model_name_lower.contains("codellama")
-            || model_name_lower.contains("code-")
-        {
-            return ModelCategory::CodeSpecialized;
-        }
-
-        ModelCategory::GeneralChat
-    }
-
-    /// Legacy helper that infers capability tags from the model category and name.
-    ///
-    /// This is kept for one-off migrations/debugging, but runtime behavior should prefer
-    /// explicitly configured `category`/`capabilities`.
-    pub fn infer_capabilities_from_model(&self) -> Vec<ModelCapability> {
-        let mut capabilities = vec![];
-        let model_name_lower = self.model_name.to_lowercase();
-
-        match self.category {
-            ModelCategory::GeneralChat => {
-                capabilities.push(ModelCapability::TextChat);
-                if model_name_lower.contains("gpt-4")
-                    || model_name_lower.contains("claude-3")
-                    || model_name_lower.contains("gemini")
-                {
-                    capabilities.push(ModelCapability::FunctionCalling);
-                }
-            }
-            ModelCategory::Multimodal => {
-                capabilities.push(ModelCapability::TextChat);
-                capabilities.push(ModelCapability::ImageUnderstanding);
-                capabilities.push(ModelCapability::FunctionCalling);
-            }
-            ModelCategory::ImageGeneration => {
-                capabilities.push(ModelCapability::ImageGeneration);
-            }
-            ModelCategory::Embedding => {
-                capabilities.push(ModelCapability::Embedding);
-            }
-            ModelCategory::SearchEnhanced => {
-                capabilities.push(ModelCapability::TextChat);
-                capabilities.push(ModelCapability::Search);
-            }
-            ModelCategory::CodeSpecialized => {
-                capabilities.push(ModelCapability::TextChat);
-                capabilities.push(ModelCapability::CodeSpecialized);
-                capabilities.push(ModelCapability::FunctionCalling);
-            }
-            ModelCategory::SpeechRecognition => {
-                capabilities.push(ModelCapability::SpeechRecognition);
-            }
-        }
-
-        capabilities
-    }
-
     fn default_capabilities_for_category(&self) -> Vec<ModelCapability> {
         match self.category {
             ModelCategory::GeneralChat => vec![ModelCapability::TextChat],
@@ -2179,21 +2138,52 @@ impl AIModelConfig {
 mod tests {
     use super::{
         AIConfig, AIExperienceConfig, AIModelConfig, AgentModelDefaultsConfig, AgentProfileConfig,
-        AgentProfileView, AppConfig, AppLoggingConfig, AuthConfig, GlobalConfig,
+        AgentProfileView, AppConfig, AppLoggingConfig, AuthConfig, EditorConfig, GlobalConfig,
         MemoryExternalContextPolicy, ModelExchangeTracingMode, NotificationConfig, OpenCodePlan,
         SubagentBatchExecutionPolicy, SubagentModelSelection, SubscriptionProvider,
-        UserSkillGroupsConfig, UserToolGroupsConfig,
+        UserSkillGroupsConfig, UserToolGroupsConfig, WebSearchConfig,
     };
-    use bitfun_runtime_ports::ToolPermissionConfig;
+    use openbitfun_runtime_ports::ToolPermissionConfig;
+
+    fn current_global_config_with(overrides: serde_json::Value) -> serde_json::Value {
+        let mut value =
+            serde_json::to_value(GlobalConfig::default()).expect("default config should serialize");
+        let root = value
+            .as_object_mut()
+            .expect("default config should serialize as an object");
+        for (key, value) in overrides
+            .as_object()
+            .expect("config fixture overrides must be an object")
+        {
+            root.insert(key.clone(), value.clone());
+        }
+        value
+    }
 
     #[test]
     fn legacy_app_config_defaults_realtime_voice_call() {
         let config: AppConfig = serde_json::from_value(serde_json::json!({}))
             .expect("legacy app config should deserialize");
 
-        assert!(config.voice_call.enabled);
+        assert!(!config.voice_call.enabled);
         assert_eq!(config.voice_call.provider, "volcengine");
         assert!(config.voice_call.api_key.is_empty());
+        assert_eq!(config.voice_call.voice, "zh_female_vv_jupiter_bigtts");
+    }
+
+    #[test]
+    fn persisted_realtime_voice_call_enabled_survives_default_change() {
+        let config: AppConfig = serde_json::from_value(serde_json::json!({
+            "voice_call": {
+                "enabled": true,
+                "api_key": "legacy-controller-key"
+            }
+        }))
+        .expect("saved realtime voice config should deserialize");
+
+        assert!(config.voice_call.enabled);
+        assert_eq!(config.voice_call.api_key, "legacy-controller-key");
+        assert_eq!(config.voice_call.provider, "volcengine");
         assert_eq!(config.voice_call.voice, "zh_female_vv_jupiter_bigtts");
     }
 
@@ -2207,8 +2197,8 @@ mod tests {
     }
 
     #[test]
-    fn font_preferences_ignore_retired_flow_chat_data_without_reemitting_it() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
+    fn current_config_rejects_retired_flow_chat_font_data() {
+        let value = current_global_config_with(serde_json::json!({
             "font": {
                 "uiSize": {
                     "level": "large"
@@ -2218,17 +2208,13 @@ mod tests {
                     "basePx": 20
                 }
             }
-        }))
-        .expect("config with retired FlowChat font data should remain readable");
-
-        let font = config
-            .font
-            .as_ref()
-            .expect("global font preference should load");
-        assert_eq!(font.ui_size.level, "large");
-
-        let serialized = serde_json::to_value(&config).expect("config should serialize");
-        assert!(serialized["font"].get("flowChat").is_none());
+        }));
+        let error = crate::service::config::manager::validate_current_config_value(
+            &value,
+            "Configuration fixture",
+        )
+        .expect_err("retired FlowChat font data must not enter the current runtime");
+        assert!(error.to_string().contains("font.flowChat"));
     }
 
     #[test]
@@ -2308,8 +2294,9 @@ mod tests {
 
     #[test]
     fn plugin_config_defaults_to_empty_when_missing() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({}))
-            .expect("empty global config should default");
+        let config: GlobalConfig =
+            serde_json::from_value(current_global_config_with(serde_json::json!({})))
+                .expect("current global config should apply optional plugin defaults");
 
         assert!(config.plugin.is_empty());
         assert!(!config.has_configured_plugins());
@@ -2317,17 +2304,18 @@ mod tests {
 
     #[test]
     fn non_empty_plugin_config_requests_runtime_startup() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
-            "plugin": [
-                "file:///C:/plugins/demo.mjs",
-                {
-                    "spec": "@my-org/custom-plugin",
-                    "options": { "mode": "strict" },
-                    "baseDirectory": "C:/workspace"
-                }
-            ]
-        }))
-        .expect("plugin config should deserialize");
+        let config: GlobalConfig =
+            serde_json::from_value(current_global_config_with(serde_json::json!({
+                "plugin": [
+                    "file:///C:/plugins/demo.mjs",
+                    {
+                        "spec": "@my-org/custom-plugin",
+                        "options": { "mode": "strict" },
+                        "baseDirectory": "C:/workspace"
+                    }
+                ]
+            })))
+            .expect("plugin config should deserialize");
 
         assert_eq!(config.plugin.len(), 2);
         assert!(config.has_configured_plugins());
@@ -2335,10 +2323,11 @@ mod tests {
 
     #[test]
     fn empty_plugin_specs_do_not_request_runtime_startup() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
-            "plugin": ["", "   ", { "spec": "" }]
-        }))
-        .expect("empty plugin declarations should deserialize");
+        let config: GlobalConfig =
+            serde_json::from_value(current_global_config_with(serde_json::json!({
+                "plugin": ["", "   ", { "spec": "" }]
+            })))
+            .expect("empty plugin declarations should deserialize");
 
         assert!(!config.has_configured_plugins());
     }
@@ -2385,30 +2374,46 @@ mod tests {
     }
 
     #[test]
-    fn legacy_global_config_defaults_permission_settings() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({}))
-            .expect("legacy config should deserialize with permission defaults");
+    fn current_global_config_defaults_optional_permission_settings() {
+        let mut current = current_global_config_with(serde_json::json!({}));
+        current
+            .as_object_mut()
+            .expect("current config object")
+            .remove("tool_permissions");
+        let config: GlobalConfig = serde_json::from_value(current)
+            .expect("missing optional permission settings should use current defaults");
 
         assert_eq!(config.tool_permissions, ToolPermissionConfig::default());
     }
 
     #[test]
     fn missing_max_rounds_defaults_to_unlimited_and_explicit_limits_survive() {
-        let defaulted: GlobalConfig = serde_json::from_value(serde_json::json!({}))
-            .expect("legacy global config should deserialize");
+        let mut default_value = current_global_config_with(serde_json::json!({}));
+        default_value["ai"]
+            .as_object_mut()
+            .expect("current AI config")
+            .remove("max_rounds");
+        let defaulted: GlobalConfig = serde_json::from_value(default_value)
+            .expect("current AI config should default an omitted optional limit");
         assert_eq!(defaulted.ai.max_rounds, 0);
 
-        let limited: GlobalConfig = serde_json::from_value(serde_json::json!({
-            "ai": { "max_rounds": 37 }
-        }))
-        .expect("explicit max rounds should deserialize");
+        let limited: GlobalConfig =
+            serde_json::from_value(current_global_config_with(serde_json::json!({
+                "ai": { "max_rounds": 37 }
+            })))
+            .expect("explicit max rounds should deserialize");
         assert_eq!(limited.ai.max_rounds, 37);
     }
 
     #[test]
     fn user_tool_groups_default_to_version_one_without_persisted_groups() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({}))
-            .expect("legacy global config should deserialize");
+        let mut value = current_global_config_with(serde_json::json!({}));
+        value["app"]
+            .as_object_mut()
+            .expect("current app config")
+            .remove("user_tool_groups");
+        let config: GlobalConfig = serde_json::from_value(value)
+            .expect("current app config should default omitted tool groups");
         assert_eq!(config.app.user_tool_groups, UserToolGroupsConfig::default());
 
         let serialized = serde_json::to_value(&config).expect("config should serialize");
@@ -2417,19 +2422,20 @@ mod tests {
 
     #[test]
     fn user_tool_groups_preserve_the_versioned_ui_shape() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
-            "app": {
-                "user_tool_groups": {
-                    "version": 1,
-                    "groups": [{
-                        "id": "daily-code",
-                        "name": "Daily code changes",
-                        "toolNames": ["Read", "Edit"]
-                    }]
+        let config: GlobalConfig =
+            serde_json::from_value(current_global_config_with(serde_json::json!({
+                "app": {
+                    "user_tool_groups": {
+                        "version": 1,
+                        "groups": [{
+                            "id": "daily-code",
+                            "name": "Daily code changes",
+                            "toolNames": ["Read", "Edit"]
+                        }]
+                    }
                 }
-            }
-        }))
-        .expect("user tool groups should deserialize");
+            })))
+            .expect("user tool groups should deserialize");
 
         assert_eq!(
             config.app.user_tool_groups.groups[0].tool_names,
@@ -2445,8 +2451,13 @@ mod tests {
 
     #[test]
     fn user_skill_groups_default_to_version_one_without_persisted_groups() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({}))
-            .expect("legacy global config should deserialize");
+        let mut value = current_global_config_with(serde_json::json!({}));
+        value["app"]
+            .as_object_mut()
+            .expect("current app config")
+            .remove("user_skill_groups");
+        let config: GlobalConfig = serde_json::from_value(value)
+            .expect("current app config should default omitted skill groups");
         assert_eq!(
             config.app.user_skill_groups,
             UserSkillGroupsConfig::default()
@@ -2458,19 +2469,20 @@ mod tests {
 
     #[test]
     fn user_skill_groups_preserve_the_versioned_ui_shape() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
-            "app": {
-                "user_skill_groups": {
-                    "version": 1,
-                    "groups": [{
-                        "id": "daily-coding",
-                        "name": "Daily coding",
-                        "skillKeys": ["builtin::find-skills", "user::review"]
-                    }]
+        let config: GlobalConfig =
+            serde_json::from_value(current_global_config_with(serde_json::json!({
+                "app": {
+                    "user_skill_groups": {
+                        "version": 1,
+                        "groups": [{
+                            "id": "daily-coding",
+                            "name": "Daily coding",
+                            "skillKeys": ["builtin::find-skills", "user::review"]
+                        }]
+                    }
                 }
-            }
-        }))
-        .expect("user skill groups should deserialize");
+            })))
+            .expect("user skill groups should deserialize");
 
         assert_eq!(
             config.app.user_skill_groups.groups[0].skill_keys,
@@ -2488,41 +2500,22 @@ mod tests {
     }
 
     #[test]
-    fn removed_reasoning_fields_are_ignored_without_creating_reasoning_config() {
-        let config: AIModelConfig = serde_json::from_value(serde_json::json!({
-            "id": "model_1",
-            "name": "Provider",
-            "provider": "openai",
-            "model_name": "test-model",
-            "base_url": "https://example.com/v1",
-            "api_key": "key",
-            "enabled": true,
-            "enable_thinking_process": true,
-            "reasoning_mode": "adaptive",
-            "reasoning_effort": "high",
-            "thinking_budget_tokens": 12000
-        }))
-        .expect("config with removed fields should deserialize");
-
-        assert!(config.reasoning.is_none());
-    }
-
-    #[test]
     fn global_config_preserves_project_mcp_servers() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
-            "project": {
-                "mcp_servers": [
-                    {
-                        "id": "project-docs",
-                        "name": "Project Docs",
-                        "server_type": "local",
-                        "command": "docs-mcp",
-                        "args": []
-                    }
-                ]
-            }
-        }))
-        .expect("project scoped MCP config should deserialize");
+        let config: GlobalConfig =
+            serde_json::from_value(current_global_config_with(serde_json::json!({
+                "project": {
+                    "mcp_servers": [
+                        {
+                            "id": "project-docs",
+                            "name": "Project Docs",
+                            "server_type": "local",
+                            "command": "docs-mcp",
+                            "args": []
+                        }
+                    ]
+                }
+            })))
+            .expect("project scoped MCP config should deserialize");
 
         assert_eq!(
             config
@@ -2543,12 +2536,13 @@ mod tests {
 
     #[test]
     fn global_config_preserves_terminal_panel_position() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
-            "terminal": {
-                "terminal_panel_position": "bottom"
-            }
-        }))
-        .expect("terminal panel position config should deserialize");
+        let config: GlobalConfig =
+            serde_json::from_value(current_global_config_with(serde_json::json!({
+                "terminal": {
+                    "terminal_panel_position": "bottom"
+                }
+            })))
+            .expect("terminal panel position config should deserialize");
 
         assert_eq!(config.terminal.terminal_panel_position, "bottom");
 
@@ -2595,7 +2589,6 @@ mod tests {
             "enable_welcome_panel_ai_analysis": false,
             "enable_visual_mode": false,
             "enable_agent_companion": true,
-            "agent_companion_display_mode": "desktop",
             "agent_companion_pet": {
                 "id": "boxcat",
                 "displayName": "Boxcat",
@@ -2615,7 +2608,6 @@ mod tests {
         assert_eq!(pet.id, "boxcat");
         assert_eq!(pet.display_name, "Boxcat");
         assert_eq!(pet.package_path, "/agent-companion-pets/boxcat");
-        assert_eq!(config.agent_companion_display_mode, "desktop");
 
         let serialized = serde_json::to_value(&config).expect("config should serialize");
         assert_eq!(serialized["agent_companion_pet"]["displayName"], "Boxcat");
@@ -2641,44 +2633,44 @@ mod tests {
 
     #[test]
     fn ai_experience_quick_actions_round_trip_through_global_config() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
-            "app": {
-                "language": "en-US",
-                "auto_update": true,
-                "telemetry": true,
-                "startup_behavior": "default",
-                "confirm_on_exit": true,
-                "restore_windows": false,
-                "zoom_level": 100,
-                "sidebar": { "width": 260, "collapsed": false },
-                "right_panel": { "width": 400, "collapsed": true },
-                "notifications": {
-                    "enabled": true,
-                    "position": "top-right",
-                    "duration": 4000,
-                    "dialog_completion_notify": true,
-                    "permission_request_notify": false,
-                    "enable_startup_tips": true
-                },
-                "ai_experience": {
-                    "enable_session_title_generation": true,
-                    "enable_welcome_panel_ai_analysis": false,
-                    "enable_visual_mode": false,
-                    "enable_agent_companion": true,
-                    "agent_companion_display_mode": "desktop",
-                    "enable_workspace_search": false,
-                    "quick_actions": [
-                        {
-                            "id": "custom_1",
-                            "label": "Run tests",
-                            "prompt": "Run the test suite",
-                            "enabled": true
-                        }
-                    ]
+        let config: GlobalConfig =
+            serde_json::from_value(current_global_config_with(serde_json::json!({
+                "app": {
+                    "language": "en-US",
+                    "auto_update": true,
+                    "telemetry": true,
+                    "startup_behavior": "default",
+                    "confirm_on_exit": true,
+                    "restore_windows": false,
+                    "zoom_level": 100,
+                    "sidebar": { "width": 260, "collapsed": false },
+                    "right_panel": { "width": 400, "collapsed": true },
+                    "notifications": {
+                        "enabled": true,
+                        "position": "top-right",
+                        "duration": 4000,
+                        "dialog_completion_notify": true,
+                        "permission_request_notify": false,
+                        "enable_startup_tips": true
+                    },
+                    "ai_experience": {
+                        "enable_session_title_generation": true,
+                        "enable_welcome_panel_ai_analysis": false,
+                        "enable_visual_mode": false,
+                        "enable_agent_companion": true,
+                        "enable_workspace_search": false,
+                        "quick_actions": [
+                            {
+                                "id": "custom_1",
+                                "label": "Run tests",
+                                "prompt": "Run the test suite",
+                                "enabled": true
+                            }
+                        ]
+                    }
                 }
-            }
-        }))
-        .expect("minimal app config with quick_actions should deserialize");
+            })))
+            .expect("minimal app config with quick_actions should deserialize");
 
         let actions = &config.app.ai_experience.quick_actions;
         assert!(!config.app.notifications.permission_request_notify);
@@ -2698,30 +2690,33 @@ mod tests {
     }
 
     #[test]
-    fn legacy_app_session_config_is_ignored() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
+    fn current_config_rejects_retired_app_session_config() {
+        let value = current_global_config_with(serde_json::json!({
             "app": {
                 "session_config": {
                     "default_mode": "cowork"
                 }
             }
-        }))
-        .expect("legacy app session config should be ignored");
-
-        let serialized = serde_json::to_value(&config).expect("config should serialize");
-        assert!(serialized["app"].get("session_config").is_none());
+        }));
+        let error = crate::service::config::manager::validate_current_config_value(
+            &value,
+            "Configuration fixture",
+        )
+        .expect_err("retired app session config must not enter the current runtime");
+        assert!(error.to_string().contains("app.session_config"));
     }
 
     #[test]
     fn app_flow_chat_default_mode_id_round_trips() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
-            "app": {
-                "flow_chat": {
-                    "default_mode_id": "PlannerPlus"
+        let config: GlobalConfig =
+            serde_json::from_value(current_global_config_with(serde_json::json!({
+                "app": {
+                    "flow_chat": {
+                        "default_mode_id": "PlannerPlus"
+                    }
                 }
-            }
-        }))
-        .expect("flow chat config should deserialize");
+            })))
+            .expect("flow chat config should deserialize");
 
         assert_eq!(
             config.app.flow_chat.default_mode_id.as_deref(),
@@ -2737,12 +2732,13 @@ mod tests {
 
     #[test]
     fn app_flow_chat_permission_mode_control_defaults_to_visible_without_persisting_default() {
-        let default_config: GlobalConfig = serde_json::from_value(serde_json::json!({
-            "app": {
-                "flow_chat": {}
-            }
-        }))
-        .expect("flow chat config without visibility preference should deserialize");
+        let default_config: GlobalConfig =
+            serde_json::from_value(current_global_config_with(serde_json::json!({
+                "app": {
+                    "flow_chat": {}
+                }
+            })))
+            .expect("flow chat config without visibility preference should deserialize");
 
         assert!(default_config.app.flow_chat.show_permission_mode_control);
         let default_serialized =
@@ -2751,14 +2747,15 @@ mod tests {
             .get("show_permission_mode_control")
             .is_none());
 
-        let hidden_config: GlobalConfig = serde_json::from_value(serde_json::json!({
-            "app": {
-                "flow_chat": {
-                    "show_permission_mode_control": false
+        let hidden_config: GlobalConfig =
+            serde_json::from_value(current_global_config_with(serde_json::json!({
+                "app": {
+                    "flow_chat": {
+                        "show_permission_mode_control": false
+                    }
                 }
-            }
-        }))
-        .expect("flow chat config with hidden permission control should deserialize");
+            })))
+            .expect("flow chat config with hidden permission control should deserialize");
 
         assert!(!hidden_config.app.flow_chat.show_permission_mode_control);
         let hidden_serialized =
@@ -2770,19 +2767,8 @@ mod tests {
     }
 
     #[test]
-    fn serialization_omits_removed_reasoning_fields() {
-        let config: AIModelConfig = serde_json::from_value(serde_json::json!({
-            "id": "model_1",
-            "name": "Provider",
-            "provider": "openai",
-            "model_name": "test-model",
-            "base_url": "https://example.com/v1",
-            "api_key": "key",
-            "enabled": true,
-            "enable_thinking_process": true
-        }))
-        .expect("config with removed fields should deserialize");
-
+    fn default_model_serialization_contains_no_retired_reasoning_fields() {
+        let config = AIModelConfig::default();
         let value = serde_json::to_value(&config).expect("config should serialize");
 
         assert!(value.get("enable_thinking_process").is_none());
@@ -2930,18 +2916,43 @@ mod tests {
     }
 
     #[test]
-    fn legacy_editor_config_defaults_new_persisted_visual_fields() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
-            "editor": {
-                "font_size": 16,
-                "font_family": "Legacy Mono",
-                "line_height": 1.4
-            }
-        }))
-        .expect("legacy editor config should remain readable");
+    fn editor_indentation_defaults_and_legacy_round_trip() {
+        let defaults: EditorConfig = serde_json::from_str("{}").unwrap();
+        assert_eq!(defaults.tab_size, 4);
+        assert!(defaults.insert_spaces);
+        assert!(defaults.detect_indentation);
+
+        // Old explicit preferences must not be reset during an upgrade.
+        let legacy = serde_json::json!({ "tab_size": 2, "insert_spaces": false });
+        let config: EditorConfig = serde_json::from_value(legacy.clone()).unwrap();
+        assert_eq!(config.tab_size, 2);
+        assert!(!config.insert_spaces);
+        assert!(config.detect_indentation);
+        let saved = serde_json::to_value(&config).unwrap();
+        for (key, value) in legacy.as_object().unwrap() {
+            assert_eq!(&saved[key], value);
+        }
+        let mut explicit = saved;
+        explicit["detect_indentation"] = serde_json::json!(false);
+        let config: EditorConfig = serde_json::from_value(explicit.clone()).unwrap();
+        assert!(!config.detect_indentation);
+        assert_eq!(serde_json::to_value(config).unwrap(), explicit);
+    }
+
+    #[test]
+    fn current_editor_config_defaults_new_optional_visual_fields() {
+        let config: GlobalConfig =
+            serde_json::from_value(current_global_config_with(serde_json::json!({
+                "editor": {
+                    "font_size": 16,
+                    "font_family": "Fixture Mono",
+                    "line_height": 1.4
+                }
+            })))
+            .expect("current editor config should default optional visual fields");
 
         assert_eq!(config.editor.font_size, 16);
-        assert_eq!(config.editor.font_family, "Legacy Mono");
+        assert_eq!(config.editor.font_family, "Fixture Mono");
         assert_eq!(config.editor.font_weight, "normal");
         assert_eq!(config.editor.cursor_style, "line");
         assert_eq!(config.editor.cursor_blinking, "smooth");
@@ -3011,29 +3022,30 @@ mod tests {
 
     #[test]
     fn deserializes_explicit_memories_config() {
-        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
-            "memories": {
-                "generate_memories": false,
-                "generate_for_btw_sessions": true,
-                "use_memories": false,
-                "external_context_policy": "skip_session",
-                "max_raw_memories_for_consolidation": 12,
-                "max_unused_days": 7,
-                "max_rollout_age_days": 14,
-                "max_rollouts_per_startup": 8,
-                "max_rollouts_scan_limit": 200,
-                "min_rollout_idle_hours": 12,
-                "phase1_max_concurrency": 3,
-                "phase1_retry_backoff_minutes": 45,
-                "phase1_lease_seconds": 600,
-                "phase2_lease_seconds": 1200,
-                "phase2_success_cooldown_seconds": 7200,
-                "phase2_retry_delay_seconds": 300,
-                "extract_model": "extractor",
-                "consolidation_model": "consolidator"
-            }
-        }))
-        .expect("global config with memories section should deserialize");
+        let config: GlobalConfig =
+            serde_json::from_value(current_global_config_with(serde_json::json!({
+                "memories": {
+                    "generate_memories": false,
+                    "generate_for_btw_sessions": true,
+                    "use_memories": false,
+                    "external_context_policy": "skip_session",
+                    "max_raw_memories_for_consolidation": 12,
+                    "max_unused_days": 7,
+                    "max_rollout_age_days": 14,
+                    "max_rollouts_per_startup": 8,
+                    "max_rollouts_scan_limit": 200,
+                    "min_rollout_idle_hours": 12,
+                    "phase1_max_concurrency": 3,
+                    "phase1_retry_backoff_minutes": 45,
+                    "phase1_lease_seconds": 600,
+                    "phase2_lease_seconds": 1200,
+                    "phase2_success_cooldown_seconds": 7200,
+                    "phase2_retry_delay_seconds": 300,
+                    "extract_model": "extractor",
+                    "consolidation_model": "consolidator"
+                }
+            })))
+            .expect("global config with memories section should deserialize");
 
         assert!(!config.memories.generate_memories);
         assert!(config.memories.generate_for_btw_sessions);
@@ -3087,22 +3099,14 @@ mod tests {
     }
 
     #[test]
-    fn task_models_default_to_fast_and_ignore_removed_mapping() {
-        let removed_key = ["func", "_agent_models"].concat();
-        let mut value = serde_json::json!({});
-        value[&removed_key] = serde_json::json!({ "title": "primary" });
-        let config: AIConfig =
-            serde_json::from_value(value).expect("removed field should be ignored");
+    fn task_models_default_to_fast() {
+        let config = AIConfig::default();
 
         assert_eq!(
             config.task_models.session_title.fixed_model_id(),
             Some("fast")
         );
         assert_eq!(config.task_models.git_commit.fixed_model_id(), Some("fast"));
-        assert!(serde_json::to_value(config)
-            .expect("config should serialize")
-            .get(&removed_key)
-            .is_none());
     }
 
     #[test]
@@ -3393,5 +3397,49 @@ mod tests {
         let serialized =
             serde_json::to_value(&config).expect("review team auxiliary config should serialize");
         assert!(serialized["review_teams"]["rate_limit_status"].is_null());
+    }
+
+    #[test]
+    fn legacy_ai_config_defaults_web_search_to_free_exa() {
+        let config: AIConfig = serde_json::from_value(serde_json::json!({
+            "models": []
+        }))
+        .expect("legacy AI config should deserialize");
+
+        assert_eq!(config.web_search.provider, "exa_mcp_free");
+        assert_eq!(
+            config.web_search.providers.exa_search_api.credential_id,
+            "exa-search-api"
+        );
+    }
+
+    #[test]
+    fn web_search_config_preserves_unknown_provider_and_fields() {
+        let config: WebSearchConfig = serde_json::from_value(serde_json::json!({
+            "provider": "future_search",
+            "providers": {
+                "exa_search_api": {
+                    "credentialId": "exa-device-ref",
+                    "futureOption": true
+                },
+                "future_search": {
+                    "endpoint": "https://future.example/search"
+                }
+            },
+            "selectionRevision": 7
+        }))
+        .expect("future WebSearch config should deserialize");
+
+        let serialized = serde_json::to_value(config).expect("WebSearch config should serialize");
+        assert_eq!(serialized["provider"], "future_search");
+        assert_eq!(serialized["selectionRevision"], 7);
+        assert_eq!(
+            serialized["providers"]["exa_search_api"]["futureOption"],
+            true
+        );
+        assert_eq!(
+            serialized["providers"]["future_search"]["endpoint"],
+            "https://future.example/search"
+        );
     }
 }

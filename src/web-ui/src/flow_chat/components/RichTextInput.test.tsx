@@ -1,6 +1,7 @@
 import React, { act, createRef, forwardRef, useImperativeHandle, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
+import { Simulate } from 'react-dom/test-utils';
 import RichTextInput, { type RichTextInputElement } from './RichTextInput';
 import type { ContextItem } from '../../shared/types/context';
 
@@ -66,9 +67,14 @@ describeWithJsdom('RichTextInput external sync', () => {
     vi.stubGlobal('Selection', window.Selection);
     vi.stubGlobal('NodeFilter', window.NodeFilter);
     vi.stubGlobal('Event', window.Event);
+    vi.stubGlobal('CustomEvent', window.CustomEvent);
     vi.stubGlobal('InputEvent', window.InputEvent);
     vi.stubGlobal('getSelection', window.getSelection.bind(window));
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    Object.assign(window.HTMLElement.prototype, {
+      attachEvent: () => {},
+      detachEvent: () => {},
+    });
 
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       callback(0);
@@ -128,6 +134,21 @@ describeWithJsdom('RichTextInput external sync', () => {
     return editor as HTMLDivElement;
   }
 
+  function paste(
+    editor: HTMLDivElement,
+    options: { items?: Array<{ kind: string; type: string; getAsFile: () => File | null }>; types?: string[]; text?: string },
+  ) {
+    const event = new window.Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clipboardData', {
+      value: {
+        items: options.items ?? [],
+        types: options.types ?? [],
+        getData: (type: string) => type === 'text/plain' ? options.text ?? '' : '',
+      },
+    });
+    editor.dispatchEvent(event);
+  }
+
   function setCaret(editor: HTMLDivElement, offset: number) {
     const selection = window.getSelection();
     const range = document.createRange();
@@ -150,6 +171,95 @@ describeWithJsdom('RichTextInput external sync', () => {
       editor.dispatchEvent(new window.Event('input', { bubbles: true }));
     });
   }
+
+  it('routes images and non-image files through one path-aware clipboard intake', async () => {
+    const onPasteFiles = vi.fn();
+    const imageFile = { name: 'image.png', type: 'image/png' } as File;
+    await act(async () => {
+      root.render(
+        <RichTextInput
+          value=""
+          onChange={() => {}}
+          onPasteFiles={onPasteFiles}
+          contexts={emptyContexts}
+          onRemoveContext={() => {}}
+        />,
+      );
+    });
+    const editor = container.querySelector('.rich-text-input') as HTMLDivElement;
+    const imagePaste = vi.fn();
+    editor.addEventListener('imagePaste', imagePaste);
+
+    paste(editor, {
+      items: [
+        { kind: 'file', type: 'image/png', getAsFile: () => imageFile },
+        { kind: 'file', type: 'application/pdf', getAsFile: () => null },
+      ],
+      types: ['Files'],
+    });
+
+    expect(imagePaste).not.toHaveBeenCalled();
+    expect(onPasteFiles).toHaveBeenCalledWith({
+      fallbackImages: [imageFile],
+      hasNonImageFiles: true,
+    });
+  });
+
+  it('routes one or multiple non-image files without falling back to text', async () => {
+    const onPasteFiles = vi.fn();
+    const onLargePaste = vi.fn();
+    await act(async () => {
+      root.render(
+        <RichTextInput
+          value=""
+          onChange={() => {}}
+          onPasteFiles={onPasteFiles}
+          onLargePaste={onLargePaste}
+          contexts={emptyContexts}
+          onRemoveContext={() => {}}
+        />,
+      );
+    });
+    const editor = container.querySelector('.rich-text-input') as HTMLDivElement;
+    paste(editor, {
+      items: [
+        { kind: 'file', type: 'application/pdf', getAsFile: () => null },
+        { kind: 'file', type: 'text/csv', getAsFile: () => null },
+      ],
+      types: ['Files', 'text/plain'],
+      text: 'file names must not be inserted',
+    });
+
+    expect(onPasteFiles).toHaveBeenCalledWith({
+      fallbackImages: [],
+      hasNonImageFiles: true,
+    });
+    expect(onLargePaste).not.toHaveBeenCalled();
+    expect(editor.textContent).toBe('');
+  });
+
+  it('keeps plain text and large text paste behavior', async () => {
+    const onLargePaste = vi.fn((text: string) => text.length > 10 ? '[Pasted Content]' : null);
+    await act(async () => {
+      root.render(
+        <RichTextInput
+          value=""
+          onChange={() => {}}
+          onLargePaste={onLargePaste}
+          contexts={emptyContexts}
+          onRemoveContext={() => {}}
+        />,
+      );
+    });
+    const editor = container.querySelector('.rich-text-input') as HTMLDivElement;
+    setCaret(editor, 0);
+    paste(editor, { types: ['text/plain'], text: 'short' });
+    expect(editor.textContent).toContain('short');
+
+    setCaret(editor, editor.firstChild?.textContent?.length ?? 0);
+    paste(editor, { types: ['text/plain'], text: 'long text content' });
+    expect(editor.querySelector('[data-large-paste-placeholder]')).toBeTruthy();
+  });
 
   it('keeps the existing DOM node when parent echoes local input', async () => {
     const harnessRef = createRef<HarnessHandle>();
@@ -218,7 +328,7 @@ describeWithJsdom('RichTextInput external sync', () => {
     ) as HTMLElement | null;
     expect(skillPill).toBeTruthy();
     expect(skillPill?.getAttribute('data-tag-format')).toBe('[$pdf]');
-    expect(skillPill?.querySelector('.lucide-puzzle')).toBeTruthy();
+    expect(skillPill?.querySelector('[data-openbitfun-component="icon"][data-openbitfun-name="extension"]')).toBeTruthy();
     expect(editor.textContent).toContain('pdf');
   });
 
@@ -227,7 +337,7 @@ describeWithJsdom('RichTextInput external sync', () => {
     const editor = await renderHarness(harnessRef);
 
     await act(async () => {
-      harnessRef.current?.setValue('[[bitfun-additional-mode:review]]');
+      harnessRef.current?.setValue('[[openbitfun-additional-mode:review]]');
     });
 
     const reviewPill = editor.querySelector(
@@ -235,9 +345,167 @@ describeWithJsdom('RichTextInput external sync', () => {
     ) as HTMLElement | null;
     expect(reviewPill).toBeTruthy();
     expect(reviewPill?.classList.contains('rich-text-tag-pill--skill-ref')).toBe(true);
-    expect(reviewPill?.getAttribute('data-bf-context-type')).toBe('additional-mode-reference');
-    expect(reviewPill?.querySelector('.lucide-puzzle')).toBeTruthy();
+    expect(reviewPill?.getAttribute('data-openbitfun-context-type')).toBe('additional-mode-reference');
+    expect(reviewPill?.querySelector('[data-openbitfun-component="icon"][data-openbitfun-name="extension"]')).toBeTruthy();
     expect(reviewPill?.textContent).toContain('Review');
+  });
+
+  it('removes a context capsule with one Backspace from its trailing separator', async () => {
+    const fileContext: ContextItem = {
+      id: 'external-file-1',
+      type: 'file',
+      filePath: '/tmp/report.pdf',
+      fileName: 'report.pdf',
+      timestamp: 1,
+    };
+    const inputRef = createRef<RichTextInputElement>();
+    const onRemoveContext = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <RichTextInput
+          ref={inputRef}
+          value=""
+          onChange={() => {}}
+          contexts={[fileContext]}
+          onRemoveContext={onRemoveContext}
+        />
+      );
+    });
+    await act(async () => {
+      inputRef.current?.insertTag?.(fileContext);
+    });
+
+    const editor = container.querySelector('.rich-text-input') as HTMLDivElement;
+    const tag = editor.querySelector('[data-context-id="external-file-1"]');
+    const separator = tag?.nextSibling;
+    expect(separator?.textContent).toBe(' ');
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(separator!, 1);
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    await act(async () => {
+      editor.dispatchEvent(new window.KeyboardEvent('keydown', {
+        key: 'Backspace',
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+
+    expect(onRemoveContext).toHaveBeenCalledOnce();
+    expect(onRemoveContext).toHaveBeenCalledWith(fileContext.id);
+  });
+
+  it('treats equivalent text and editor boundaries as one caret on Backspace', async () => {
+    const fileContext: ContextItem = {
+      id: 'external-file-equivalent-caret',
+      type: 'file',
+      filePath: '/tmp/equivalent-caret.pdf',
+      fileName: 'equivalent-caret.pdf',
+      timestamp: 1,
+    };
+    const inputRef = createRef<RichTextInputElement>();
+    const onRemoveContext = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <RichTextInput
+          ref={inputRef}
+          value=""
+          onChange={() => {}}
+          contexts={[fileContext]}
+          onRemoveContext={onRemoveContext}
+        />
+      );
+    });
+    await act(async () => {
+      inputRef.current?.insertTag?.(fileContext);
+    });
+
+    const editor = container.querySelector('.rich-text-input') as HTMLDivElement;
+    const separator = editor.querySelector('[data-context-id="external-file-equivalent-caret"]')?.nextSibling;
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(separator!, 1);
+    range.setEnd(editor, editor.childNodes.length);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    expect(selection?.getRangeAt(0).collapsed).toBe(false);
+
+    await act(async () => {
+      editor.dispatchEvent(new window.KeyboardEvent('keydown', {
+        key: 'Backspace',
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+
+    expect(onRemoveContext).toHaveBeenCalledOnce();
+    expect(onRemoveContext).toHaveBeenCalledWith(fileContext.id);
+  });
+
+  it('keeps the caret at a removed middle context capsule', async () => {
+    const fileContexts: ContextItem[] = [1, 2, 3].map(index => ({
+      id: `external-file-${index}`,
+      type: 'file',
+      filePath: `/tmp/report-${index}.pdf`,
+      fileName: `report-${index}.pdf`,
+      timestamp: index,
+    }));
+    const inputRef = createRef<RichTextInputElement>();
+    const onRemoveContext = vi.fn();
+    const renderContexts = async (contexts: ContextItem[]) => {
+      await act(async () => {
+        root.render(
+          <RichTextInput
+            ref={inputRef}
+            value=""
+            onChange={() => {}}
+            contexts={contexts}
+            onRemoveContext={onRemoveContext}
+          />
+        );
+      });
+    };
+
+    await renderContexts(fileContexts);
+    await act(async () => {
+      fileContexts.forEach(context => inputRef.current?.insertTag?.(context));
+    });
+
+    const editor = container.querySelector('.rich-text-input') as HTMLDivElement;
+    const secondTag = editor.querySelector('[data-context-id="external-file-2"]');
+    const secondSeparator = secondTag?.nextSibling;
+    expect(secondSeparator?.textContent).toBe(' ');
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(editor, Array.prototype.indexOf.call(editor.childNodes, secondSeparator) + 1);
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    await act(async () => {
+      editor.dispatchEvent(new window.KeyboardEvent('keydown', {
+        key: 'Backspace',
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+
+    expect(onRemoveContext).toHaveBeenCalledWith('external-file-2');
+    expect(selection?.getRangeAt(0).startContainer).toBe(editor);
+    expect(selection?.getRangeAt(0).startOffset).toBe(2);
+
+    await renderContexts([fileContexts[0], fileContexts[2]]);
+    expect(editor.querySelector('[data-context-id="external-file-2"]')).toBeNull();
+    const caretRange = selection?.getRangeAt(0);
+    expect(caretRange?.startContainer).toBe(editor);
+    expect(caretRange?.startOffset).toBe(2);
+    expect(editor.childNodes.item(1).textContent).toBe(' ');
+    expect((editor.childNodes.item(2) as HTMLElement).dataset.contextId).toBe('external-file-3');
   });
 
   it('serializes and restores session reference capsules without parsing their labels', async () => {
@@ -429,7 +697,7 @@ describeWithJsdom('RichTextInput external sync', () => {
     expect(onChange).toHaveBeenCalledWith('[$pdf]', emptyContexts);
     const skillPill = editor?.querySelector('.rich-text-tag-pill--skill-ref');
     expect(skillPill).toBeTruthy();
-    expect(skillPill?.querySelector('.lucide-puzzle')).toBeTruthy();
+    expect(skillPill?.querySelector('[data-openbitfun-component="icon"][data-openbitfun-name="extension"]')).toBeTruthy();
     expect(skillPill?.nextSibling?.textContent).toBe(' ');
     const selection = window.getSelection();
     expect(selection?.anchorNode).toBe(editor);
@@ -521,11 +789,11 @@ describeWithJsdom('RichTextInput external sync', () => {
     expect(editor).toBeTruthy();
 
     await act(async () => {
-      editor?.appendInlineTokenAtEnd?.('[[bitfun-additional-mode:review]]');
+      editor?.appendInlineTokenAtEnd?.('[[openbitfun-additional-mode:review]]');
     });
 
     expect(onChange).toHaveBeenCalledWith(
-      'hello [[bitfun-additional-mode:review]]',
+      'hello [[openbitfun-additional-mode:review]]',
       emptyContexts,
     );
     expect(editor?.querySelector('.rich-text-tag-pill--additional-mode-ref')).toBeTruthy();
@@ -591,5 +859,255 @@ describeWithJsdom('RichTextInput external sync', () => {
       query: '',
       startOffset: 6,
     });
+  });
+
+  it('renders a semantic large-paste capsule without leaking its controls into input text', async () => {
+    const placeholder = '[Pasted Content 1001 chars]';
+    const onChange = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <RichTextInput
+          value={`before ${placeholder} after`}
+          onChange={onChange}
+          pendingLargePastes={{ [placeholder]: 'x'.repeat(1001) }}
+          contexts={emptyContexts}
+          onRemoveContext={() => {}}
+        />
+      );
+    });
+
+    const editor = container.querySelector('.rich-text-input') as HTMLDivElement;
+    const capsule = editor.querySelector('[data-large-paste-placeholder]') as HTMLElement | null;
+    expect(capsule).toBeTruthy();
+    expect(capsule?.getAttribute('contenteditable')).toBe('false');
+    expect(capsule?.getAttribute('role')).toBe('button');
+
+    await act(async () => {
+      editor.dispatchEvent(new window.Event('input', { bubbles: true }));
+    });
+
+    expect(onChange).toHaveBeenLastCalledWith(`before ${placeholder} after`, emptyContexts);
+  });
+
+  it('lets users view, copy, cancel, edit, save, and remove a large paste', async () => {
+    const placeholder = '[Pasted Content 1001 chars]';
+    const updatedPlaceholder = '[Pasted Content 1002 chars]';
+    const originalText = 'a'.repeat(1001);
+    const editedText = `${originalText}b`;
+    const onChange = vi.fn();
+    const onUpdateLargePaste = vi.fn(() => updatedPlaceholder);
+    const onRemoveLargePaste = vi.fn();
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    await act(async () => {
+      root.render(
+        <RichTextInput
+          value={placeholder}
+          onChange={onChange}
+          pendingLargePastes={{ [placeholder]: originalText }}
+          onUpdateLargePaste={onUpdateLargePaste}
+          onRemoveLargePaste={onRemoveLargePaste}
+          contexts={emptyContexts}
+          onRemoveContext={() => {}}
+        />
+      );
+    });
+
+    const editor = container.querySelector('.rich-text-input') as HTMLDivElement;
+    const getCapsule = () => editor.querySelector('[data-large-paste-placeholder]') as HTMLElement;
+    await act(async () => {
+      getCapsule().click();
+    });
+
+    let textarea = document.body.querySelector(
+      '.rich-text-large-paste-dialog__textarea textarea',
+    ) as HTMLTextAreaElement;
+    expect(textarea.value).toBe(originalText);
+
+    const dialog = textarea.closest('[role="dialog"]') as HTMLElement;
+    const dialogButtons = Array.from(dialog.querySelectorAll('button'));
+    const [copyButton, cancelButton, saveButton] = dialogButtons.slice(-3);
+    await act(async () => {
+      copyButton?.click();
+    });
+    expect(writeText).toHaveBeenCalledWith(originalText);
+
+    await act(async () => {
+      Simulate.change(textarea, { target: { value: editedText } } as never);
+    });
+    await act(async () => {
+      cancelButton?.click();
+    });
+    await act(async () => {
+      getCapsule().click();
+    });
+    textarea = document.body.querySelector(
+      '.rich-text-large-paste-dialog__textarea textarea',
+    ) as HTMLTextAreaElement;
+    expect(textarea.value).toBe(originalText);
+
+    await act(async () => {
+      Simulate.change(textarea, { target: { value: editedText } } as never);
+    });
+    await act(async () => {
+      saveButton?.click();
+    });
+
+    expect(onUpdateLargePaste).toHaveBeenCalledWith(placeholder, editedText);
+    expect(getCapsule().dataset.largePastePlaceholder).toBe(updatedPlaceholder);
+    expect(onChange).toHaveBeenLastCalledWith(updatedPlaceholder, emptyContexts);
+
+    const removeButton = getCapsule().querySelector('button');
+    await act(async () => {
+      removeButton?.click();
+    });
+    expect(onRemoveLargePaste).toHaveBeenCalledWith(updatedPlaceholder);
+    expect(editor.querySelector('[data-large-paste-placeholder]')).toBeNull();
+  });
+
+  it('inserts Unicode large pastes as capsules at the caret', async () => {
+    const text = '文😀'.repeat(501);
+    const placeholder = '[Pasted Content 1002 chars]';
+    const onChange = vi.fn();
+    const onLargePaste = vi.fn(() => placeholder);
+
+    await act(async () => {
+      root.render(
+        <RichTextInput
+          value=""
+          onChange={onChange}
+          onLargePaste={onLargePaste}
+          pendingLargePastes={{ [placeholder]: text }}
+          contexts={emptyContexts}
+          onRemoveContext={() => {}}
+        />
+      );
+    });
+
+    const editor = container.querySelector('.rich-text-input') as HTMLDivElement;
+    setCaret(editor, 0);
+    const pasteEvent = new window.Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, 'clipboardData', {
+      value: {
+        items: [],
+        getData: (type: string) => type === 'text/plain' ? text : '',
+      },
+    });
+    await act(async () => {
+      editor.dispatchEvent(pasteEvent);
+    });
+
+    expect(onLargePaste).toHaveBeenCalledWith(text);
+    expect(editor.querySelector('[data-large-paste-placeholder]')).toBeTruthy();
+    expect(onChange).toHaveBeenLastCalledWith(placeholder, emptyContexts);
+    const selection = window.getSelection();
+    expect(selection?.anchorNode?.nodeType).toBe(Node.TEXT_NODE);
+    expect(selection?.anchorNode?.textContent).toBe('\u200B');
+    expect(selection?.anchorOffset).toBe(1);
+  });
+
+  it('keeps the caret visually anchored after consecutive large-paste capsules', async () => {
+    const text = 'x'.repeat(1001);
+    const placeholders = [
+      '[Pasted Content 1001 chars]',
+      '[Pasted Content 1001 chars] #2',
+      '[Pasted Content 1001 chars] #3',
+    ];
+    const onChange = vi.fn();
+    let pasteIndex = 0;
+    const onLargePaste = vi.fn(() => placeholders[pasteIndex++] ?? null);
+
+    await act(async () => {
+      root.render(
+        <RichTextInput
+          value=""
+          onChange={onChange}
+          onLargePaste={onLargePaste}
+          contexts={emptyContexts}
+          onRemoveContext={() => {}}
+        />
+      );
+    });
+
+    const editor = container.querySelector('.rich-text-input') as HTMLDivElement;
+    setCaret(editor, 0);
+    const dispatchPaste = async () => {
+      const pasteEvent = new window.Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(pasteEvent, 'clipboardData', {
+        value: {
+          items: [],
+          getData: (type: string) => type === 'text/plain' ? text : '',
+        },
+      });
+      await act(async () => {
+        editor.dispatchEvent(pasteEvent);
+      });
+    };
+
+    await dispatchPaste();
+    await dispatchPaste();
+    await dispatchPaste();
+
+    expect(editor.querySelectorAll('[data-large-paste-placeholder]')).toHaveLength(3);
+    expect(onChange).toHaveBeenLastCalledWith(placeholders.join(''), emptyContexts);
+    const selection = window.getSelection();
+    expect(selection?.anchorNode?.nodeType).toBe(Node.TEXT_NODE);
+    expect(selection?.anchorNode?.textContent).toBe('\u200B');
+    expect(selection?.anchorOffset).toBe(1);
+
+    const pressBackspace = async () => {
+      await act(async () => {
+        editor.dispatchEvent(new window.KeyboardEvent('keydown', {
+          key: 'Backspace',
+          bubbles: true,
+          cancelable: true,
+        }));
+      });
+    };
+    await pressBackspace();
+    expect(editor.querySelectorAll('[data-large-paste-placeholder]')).toHaveLength(2);
+    expect(selection?.anchorNode?.previousSibling).toBe(
+      editor.querySelector('[data-large-paste-placeholder]:nth-of-type(2)'),
+    );
+    expect(selection?.anchorOffset).toBe(1);
+
+    await pressBackspace();
+    expect(editor.querySelectorAll('[data-large-paste-placeholder]')).toHaveLength(1);
+    expect(selection?.anchorNode?.previousSibling).toBe(
+      editor.querySelector('[data-large-paste-placeholder]'),
+    );
+    expect(selection?.anchorOffset).toBe(1);
+  });
+
+  it('closes an open large-paste editor when the surface-scoped source changes', async () => {
+    const placeholder = '[Pasted Content 1001 chars]';
+    const renderInput = (text: string) => (
+      <RichTextInput
+        value={placeholder}
+        onChange={() => {}}
+        pendingLargePastes={{ [placeholder]: text }}
+        contexts={emptyContexts}
+        onRemoveContext={() => {}}
+      />
+    );
+
+    await act(async () => {
+      root.render(renderInput('surface-a'));
+    });
+    const capsule = container.querySelector('[data-large-paste-placeholder]') as HTMLElement;
+    await act(async () => {
+      capsule.click();
+    });
+    expect(document.body.querySelector('textarea')).toBeTruthy();
+
+    await act(async () => {
+      root.render(renderInput('surface-b'));
+    });
+    expect(document.body.querySelector('[role="dialog"][data-state="open"]')).toBeNull();
   });
 });

@@ -100,9 +100,9 @@
     "selectWorkspace": "File tree will be displayed after selecting a workspace"
   },
   "errors": {
-    "fileTreePermissionDenied": "BitFun does not have permission to access this folder.",
+    "fileTreePermissionDenied": "OpenBitFun does not have permission to access this folder.",
     "fileTreeLoadFailed": "Failed to load the file tree: {{message}}",
-    "directoryPermissionDenied": "BitFun does not have permission to access this folder.",
+    "directoryPermissionDenied": "OpenBitFun does not have permission to access this folder.",
     "directoryLoadFailed": "Failed to load the folder: {{message}}"
   },
   "dialog": {

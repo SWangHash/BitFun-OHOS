@@ -1,9 +1,24 @@
 {
   "title": "基础",
   "subtitle": "电源、日志、终端、通知与登录时启动",
+  "common": {
+    "retry": "重试"
+  },
+  "applicationGroups": {
+    "startupAndUpdates": {
+      "title": "启动与更新",
+      "description": "管理登录启动、运行时唤醒和版本检查"
+    },
+    "windowAndNotifications": {
+      "title": "窗口与通知",
+      "description": "管理关闭窗口时的行为，以及需要提醒你的事件"
+    }
+  },
   "appearance": {
     "title": "外观",
-    "hint": "界面语言、当前外观、动态效果与外观包管理",
+    "hint": "界面语言与外观",
+    "interfaceTitle": "界面",
+    "interfaceHint": "选择 OpenBitFun 界面的显示语言",
     "language": "语言",
     "appearances": "外观",
     "builtIn": "内置",
@@ -11,53 +26,53 @@
     "export": "导出",
     "delete": "删除",
     "confirmDelete": "确定删除外观 \"{{name}}\" 吗？",
-    "languageRowHint": "选择一个语言包作为当前界面语言。",
-    "appearanceRowHint": "选择界面外观。",
+    "languageRowHint": "选择一个语言包作为当前界面语言",
+    "appearanceRowHint": "选择界面外观",
     "systemAppearance": "跟随系统",
     "systemAppearanceDescription": "根据系统设置自动使用亮色或暗色外观，并随系统切换而更新。",
     "presets": {
-      "bitfun-dark": {
+      "openbitfun-dark": {
         "name": "暗色",
         "description": "默认暗色外观"
       },
-      "bitfun-light": {
+      "openbitfun-light": {
         "name": "亮色",
         "description": "亮色外观 - 纯白界面、柔和中性灰与深海军蓝操作色"
       },
-      "bitfun-monochrome": {
+      "openbitfun-monochrome": {
         "name": "黑白撞色",
         "description": "黑白撞色外观 - 深黑结构层、明亮白色工作区与柔和中性灰块面"
       },
-      "bitfun-midnight": {
+      "openbitfun-midnight": {
         "name": "午夜",
         "description": "午夜灰暗色外观 - 专业优雅，灵感来自 JetBrains IDE"
       },
-      "bitfun-china-style": {
+      "openbitfun-china-style": {
         "name": "墨韵",
         "description": "中国风外观 - 宣纸墨香，青花朱砂，温润典雅"
       },
-      "bitfun-china-night": {
+      "openbitfun-china-night": {
         "name": "墨夜",
         "description": "中国风暗色外观 - 墨夜星辰，月华如水，沉静典雅"
       },
-      "bitfun-cyber": {
+      "openbitfun-cyber": {
         "name": "赛博",
         "description": "科技感外观 - 深邃黑洞，霓虹未来，极致科技美学"
       },
-      "bitfun-slate": {
+      "openbitfun-slate": {
         "name": "石板灰",
         "description": "石板灰几何外观 - 极深沉浸，高对比度灰度美学"
       },
-      "bitfun-tokyo-night": {
+      "openbitfun-tokyo-night": {
         "name": "东京夜",
         "description": "Tokyo Night 经典配色 - 靛蓝夜色，蓝紫高光"
       }
     },
     "fontSize": {
       "title": "字体大小",
-      "hint": "调整界面与对话区域的字体大小（编辑器字号在编辑器设置中配置）。",
-      "uiSizeLabel": "界面字体",
-      "uiSizeHint": "调整导航、面板、设置等所有界面元素的字体大小。",
+      "hint": "调整界面与对话区域的字号；编辑器字号请在编辑器设置中单独配置",
+      "uiSizeLabel": "界面与对话",
+      "uiSizeHint": "选择舒适的字号档位，应用于导航、面板、设置与对话内容",
       "levels": {
         "compact": "紧凑",
         "small": "小",
@@ -66,11 +81,9 @@
         "large": "大",
         "custom": "自定义"
       },
-      "customPxLabel": "自定义大小（12–20 px）",
-      "customPxPlaceholder": "14",
-      "customPxOutOfRange": "请输入 12–20 之间的整数",
-      "resetButton": "恢复默认",
-      "previewText": "BitFun 是一个由 AI 驱动的编程环境。The quick brown fox jumps over the lazy dog."
+      "customPxLabel": "自定义字号（12–20 px）",
+      "previewLabel": "字号预览",
+      "previewPlaceholder": "输入文字预览当前字号"
     }
   },
   "autoUpdate": {
@@ -90,10 +103,10 @@
   "launchAtLogin": {
     "sections": {
       "title": "登录时启动",
-      "hint": "登录本用户后是否自动运行 BitFun"
+      "hint": "登录本用户后是否自动运行 OpenBitFun"
     },
     "toggleLabel": "开机自动启动",
-    "toggleDescription": "登录系统后自动启动 BitFun；具体表现因操作系统而异。",
+    "toggleDescription": "登录系统后自动启动 OpenBitFun；具体表现因操作系统而异。",
     "messages": {
       "loading": "加载中…",
       "loadFailed": "无法读取开机启动设置",
@@ -103,10 +116,10 @@
   "preventSleep": {
     "sections": {
       "title": "电源",
-      "hint": "BitFun 运行时的电脑睡眠行为"
+      "hint": "OpenBitFun 运行时的电脑睡眠行为"
     },
     "toggleLabel": "阻止电脑睡眠",
-    "toggleDescription": "只要 BitFun 正在运行，就保持电脑唤醒，无论是否有任务在执行。显示器仍可关闭；主动睡眠或合上笔记本电脑由系统策略决定。",
+    "toggleDescription": "只要 OpenBitFun 正在运行，就保持电脑唤醒，无论是否有任务在执行。显示器仍可关闭；主动睡眠或合上笔记本电脑由系统策略决定。",
     "messages": {
       "loading": "加载中…",
       "loadFailed": "无法读取阻止睡眠设置",
@@ -122,18 +135,22 @@
       "path": "本次启动日志路径"
     },
     "level": {
-      "description": "实时控制日志输出级别，修改后立即生效。"
+      "description": "实时控制日志输出级别，修改后立即生效"
     },
     "sensitiveDiagnostics": {
       "label": "包含敏感调试信息",
-      "description": "开启后，本地日志可能包含用户 Prompt、模型请求和响应 payload、工具参数、文件路径以及 Webview 事件 payload，用于问题排查。BitFun 不会自动上传这些日志文件。"
+      "description": "默认关闭。开启后，本地日志可能包含用户 Prompt、模型请求和响应 payload、工具参数、文件路径以及 Webview 事件 payload，用于问题排查。OpenBitFun 不会自动上传这些日志文件"
     },
     "path": {
-      "description": "本次启动写入日志文件所在的目录。"
+      "description": "本次启动写入日志文件所在的目录"
     },
     "diagnostics": {
       "label": "诊断包",
-      "description": "将最近的本地日志、崩溃报告与运行时元数据导出为 zip 文件。BitFun 不会自动上传。"
+      "description": "将最近的本地日志、崩溃报告与运行时元数据导出为 zip 文件。OpenBitFun 不会自动上传",
+      "confirmTitle": "导出诊断包？",
+      "confirmSensitive": "诊断包将包含敏感调试信息，可能涉及 Prompt、模型请求与响应、工具参数和文件路径。请只保存到可信位置，并在分享前检查内容。",
+      "confirmStandard": "诊断包可能包含本机路径、运行环境和错误详情。请只保存到可信位置，并在分享前检查内容。",
+      "confirmAction": "继续导出"
     },
     "previousCrash": {
       "title": "上次会话异常结束",
@@ -145,11 +162,11 @@
     },
     "startupRecovery": {
       "title": "上次会话异常结束",
-      "message": "BitFun 发现上次会话留下了崩溃报告。如需反馈问题，可以导出诊断包。"
+      "message": "OpenBitFun 发现上次会话留下了崩溃报告。如需反馈问题，可以导出诊断包。"
     },
     "configRecovery": {
       "title": "配置已恢复",
-      "message": "BitFun 已修复或隔离 {{count}} 个配置问题，应用得以继续启动。请检查模型设置后再继续使用。"
+      "message": "OpenBitFun 已修复或隔离 {{count}} 个配置问题，应用得以继续启动。请检查模型设置后再继续使用。"
     },
     "levels": {
       "trace": "Trace",
@@ -189,7 +206,7 @@
     "controls": {
       "refreshTooltip": "刷新可用终端列表",
       "autoDetect": "自动检测 (推荐)",
-      "description": "新建终端以及本地工作区中 agent 执行命令时使用的默认 Shell 类型。",
+      "description": "新建终端以及本地工作区中 agent 执行命令时使用的默认 Shell 类型",
       "cmdFallbackMessage": "Agent 执行命令时实际使用 PowerShell。",
       "placeholder": "选择默认终端",
       "noShells": "未检测到可用的终端"
@@ -275,6 +292,8 @@
       "description": "每次启动时随机展示一条使用技巧卡片，帮助发现更多功能"
     },
     "messages": {
+      "loading": "加载中…",
+      "loadFailed": "无法读取通知设置",
       "saveSuccess": "通知设置已保存",
       "saveFailed": "保存通知设置失败"
     }

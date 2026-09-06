@@ -1,4 +1,4 @@
-import { Button, NumberInput } from '@bitfun/ui';
+import { Button, NumberInput } from '@openbitfun/ui';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RotateCcw } from 'lucide-react';
@@ -89,7 +89,6 @@ const ReviewCapacitySection: React.FC = () => {
         label={t('capacity.maxParallelReviewers.label')}
         description={t('capacity.maxParallelReviewers.description')}
         align="center"
-        balanced
       >
         <NumberInput
           value={team.concurrencyPolicy.maxParallelInstances}
@@ -105,7 +104,6 @@ const ReviewCapacitySection: React.FC = () => {
         label={t('capacity.maxQueueWaitSeconds.label')}
         description={t('capacity.maxQueueWaitSeconds.description')}
         align="center"
-        balanced
       >
         <NumberInput
           value={team.concurrencyPolicy.maxQueueWaitSeconds}

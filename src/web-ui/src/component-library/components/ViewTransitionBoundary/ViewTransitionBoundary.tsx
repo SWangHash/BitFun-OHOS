@@ -138,25 +138,25 @@ export const ViewTransitionBoundary: React.FC<ViewTransitionBoundaryProps> = ({
   }, []);
 
   const rootClassName = [
-    'bitfun-view-transition-boundary',
+    'openbitfun-view-transition-boundary',
     className,
   ].filter(Boolean).join(' ');
   const currentClassName = [
-    'bitfun-view-transition-boundary__view',
-    pendingTransition && 'bitfun-view-transition-boundary__view--incoming',
+    'openbitfun-view-transition-boundary__view',
+    pendingTransition && 'openbitfun-view-transition-boundary__view--incoming',
     viewClassName,
   ].filter(Boolean).join(' ');
   const outgoingClassName = [
-    'bitfun-view-transition-boundary__view',
-    'bitfun-view-transition-boundary__view--outgoing',
+    'openbitfun-view-transition-boundary__view',
+    'openbitfun-view-transition-boundary__view--outgoing',
     viewClassName,
   ].filter(Boolean).join(' ');
 
   return (
     <div
       className={rootClassName}
-      data-bf-component="view-transition-boundary"
-      data-bf-part="root"
+      data-openbitfun-component="view-transition-boundary"
+      data-openbitfun-part="root"
       {...rootProps}
       data-motion="presence"
       data-view-transition-phase={pendingTransition?.phase}
@@ -166,8 +166,8 @@ export const ViewTransitionBoundary: React.FC<ViewTransitionBoundaryProps> = ({
           key={pendingTransition.outgoingKey}
           className={outgoingClassName}
           aria-hidden="true"
-          data-bf-component="view-transition-boundary"
-          data-bf-part="view"
+          data-openbitfun-component="view-transition-boundary"
+          data-openbitfun-part="view"
           {...{ inert: '' }}
         >
           {pendingTransition.children}
@@ -176,8 +176,8 @@ export const ViewTransitionBoundary: React.FC<ViewTransitionBoundaryProps> = ({
       <div
         key={viewKey}
         className={currentClassName}
-        data-bf-component="view-transition-boundary"
-        data-bf-part="view"
+        data-openbitfun-component="view-transition-boundary"
+        data-openbitfun-part="view"
       >
         {children}
       </div>

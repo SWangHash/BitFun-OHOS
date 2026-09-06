@@ -33,8 +33,8 @@ export const TextStrokeEffect: React.FC<TextStrokeEffectProps> = ({
   return (
     <svg
       className={`text-stroke-effect ${className}`}
-      data-bf-component="text-stroke-effect"
-      data-bf-part="root"
+      data-openbitfun-component="text-stroke-effect"
+      data-openbitfun-part="root"
       viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
       xmlns="http://www.w3.org/2000/svg"
       style={{ 
@@ -69,8 +69,8 @@ export const TextStrokeEffect: React.FC<TextStrokeEffectProps> = ({
         textAnchor="middle"
         dominantBaseline="middle"
         className="text-stroke-effect__outline"
-        data-bf-component="text-stroke-effect"
-        data-bf-part="outline"
+        data-openbitfun-component="text-stroke-effect"
+        data-openbitfun-part="outline"
       >
         {text}
       </text>
@@ -81,8 +81,8 @@ export const TextStrokeEffect: React.FC<TextStrokeEffectProps> = ({
         textAnchor="middle"
         dominantBaseline="middle"
         className="text-stroke-effect__animated"
-        data-bf-component="text-stroke-effect"
-        data-bf-part="animated"
+        data-openbitfun-component="text-stroke-effect"
+        data-openbitfun-part="animated"
         style={{
           animationDuration: `${duration}s`,
         }}
@@ -96,8 +96,8 @@ export const TextStrokeEffect: React.FC<TextStrokeEffectProps> = ({
         textAnchor="middle"
         dominantBaseline="middle"
         className="text-stroke-effect__gradient"
-        data-bf-component="text-stroke-effect"
-        data-bf-part="gradient"
+        data-openbitfun-component="text-stroke-effect"
+        data-openbitfun-part="gradient"
         stroke="url(#textStrokeGradient)"
       >
         {text}

@@ -20,8 +20,8 @@ const mocks = vi.hoisted(() => ({
   refresh: vi.fn(async () => undefined),
 }));
 
-vi.mock('@bitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@bitfun/ui')>(),
+vi.mock('@openbitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@openbitfun/ui')>(),
   Button: forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & {
     loading?: boolean;
     variant?: string;
@@ -164,14 +164,30 @@ describe('BranchQuickSwitch', () => {
       root.render(<Harness onSwitchSuccess={vi.fn()} />);
     });
 
-    const searchField = document.querySelector('[data-bf-component="search-field"]');
-    const fieldSurface = searchField?.querySelector('[data-bf-component="input"]');
+    const searchField = document.querySelector('[data-openbitfun-component="search-field"]');
+    const fieldSurface = searchField?.querySelector('[data-openbitfun-component="input"]');
     const input = searchField?.querySelector<HTMLInputElement>('input[type="search"]');
 
     expect(searchField).not.toBeNull();
     expect(fieldSurface).not.toBeNull();
     expect(input?.getAttribute('aria-label')).toBe('Search branches');
     expect(input?.classList.contains('branch-quick-switch__input')).toBe(false);
+  });
+
+  it('keeps the selected current branch readable instead of applying disabled colors', async () => {
+    await act(async () => {
+      root.render(<Harness onSwitchSuccess={vi.fn()} />);
+    });
+    await vi.waitFor(() => expect(
+      document.querySelector('[data-testid="branch-quick-switch-option-main"]'),
+    ).not.toBeNull());
+
+    const currentBranch = document.querySelector<HTMLButtonElement>(
+      '[data-testid="branch-quick-switch-option-main"]',
+    );
+    expect(currentBranch?.getAttribute('aria-selected')).toBe('true');
+    expect(currentBranch?.dataset.openbitfunState).toBe('current');
+    expect(currentBranch?.disabled).toBe(false);
   });
 
   it('checks out a selected branch and publishes the shared branch-change event', async () => {

@@ -68,8 +68,8 @@ describe('OpenHarmony privacy policy management contract', () => {
 
     expect(footer).toContain('privacyStatus.hasUnreadUpdate');
     expect(footer).toContain('hasUnreadFeedback || hasPrivacyUpdate');
-    expect(footer).toContain('bitfun-nav-panel__footer-more-unread');
+    expect(footer).toContain('openbitfun-nav-panel__footer-more-unread');
     expect(footer).toContain("t('privacy.aboutEntryUpdated')");
-    expect(styles).toContain('.bitfun-nav-panel__footer-more-unread');
+    expect(styles).toContain('.openbitfun-nav-panel__footer-more-unread');
   });
 });

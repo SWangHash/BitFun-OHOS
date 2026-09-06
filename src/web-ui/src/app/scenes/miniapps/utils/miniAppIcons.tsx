@@ -1,15 +1,23 @@
 import React from 'react';
-import { Icon, type IconName, type IconSize } from '@bitfun/ui';
+import { Icon, type IconName, type IconSize } from '@openbitfun/ui';
+import codingFootprintIcon from '@/assets/miniapps/catalog/coding-footprint.png';
+import dailyDivinationIcon from '@/assets/miniapps/catalog/daily-divination.png';
+import gomokuIcon from '@/assets/miniapps/catalog/gomoku.png';
+import pptLiveIcon from '@/assets/miniapps/catalog/ppt-live.png';
+import regexPlaygroundIcon from '@/assets/miniapps/catalog/regex-playground.png';
+import codingFootprintShowcase from '@/assets/miniapps/showcases/coding-footprint.webp';
+import dailyDivinationShowcase from '@/assets/miniapps/showcases/daily-divination.webp';
+import gomokuShowcase from '@/assets/miniapps/showcases/gomoku.webp';
+import pptLiveShowcase from '@/assets/miniapps/showcases/ppt-live.webp';
+import regexPlaygroundShowcase from '@/assets/miniapps/showcases/regex-playground.webp';
 import {
   Aperture,
-  AppWindow,
   Box,
   Bot,
   Code,
   Database,
   FileText,
   GitPullRequest,
-  Globe,
   Grid3x3,
   LayoutGrid,
   Presentation,
@@ -38,24 +46,22 @@ function catalogSize(size: number): IconSize {
 }
 
 const ICON_GRADIENTS = [
-  'linear-gradient(135deg, color-mix(in srgb, var(--bf-color-accent-hover) 35%, transparent) 0%, color-mix(in srgb, var(--bf-color-accent-secondary) 25%, transparent) 100%)',
-  'linear-gradient(135deg, color-mix(in srgb, var(--bf-color-status-success-content) 30%, transparent) 0%, color-mix(in srgb, var(--bf-color-accent-hover) 25%, transparent) 100%)',
-  'linear-gradient(135deg, color-mix(in srgb, var(--bf-color-status-warning-content) 30%, transparent) 0%, color-mix(in srgb, var(--bf-color-status-danger-content) 20%, transparent) 100%)',
-  'linear-gradient(135deg, color-mix(in srgb, var(--bf-color-accent-secondary) 35%, transparent) 0%, color-mix(in srgb, var(--bf-color-status-danger-content) 20%, transparent) 100%)',
-  'linear-gradient(135deg, color-mix(in srgb, var(--bf-domain-generative-ui) 30%, transparent) 0%, color-mix(in srgb, var(--bf-color-accent-hover) 25%, transparent) 100%)',
-  'linear-gradient(135deg, color-mix(in srgb, var(--bf-color-status-danger-content) 25%, transparent) 0%, color-mix(in srgb, var(--bf-color-status-warning-content) 20%, transparent) 100%)',
+  'linear-gradient(135deg, color-mix(in srgb, var(--openbitfun-color-accent-hover) 35%, transparent) 0%, color-mix(in srgb, var(--openbitfun-color-accent-secondary) 25%, transparent) 100%)',
+  'linear-gradient(135deg, color-mix(in srgb, var(--openbitfun-color-status-success-content) 30%, transparent) 0%, color-mix(in srgb, var(--openbitfun-color-accent-hover) 25%, transparent) 100%)',
+  'linear-gradient(135deg, color-mix(in srgb, var(--openbitfun-color-status-warning-content) 30%, transparent) 0%, color-mix(in srgb, var(--openbitfun-color-status-danger-content) 20%, transparent) 100%)',
+  'linear-gradient(135deg, color-mix(in srgb, var(--openbitfun-color-accent-secondary) 35%, transparent) 0%, color-mix(in srgb, var(--openbitfun-color-status-danger-content) 20%, transparent) 100%)',
+  'linear-gradient(135deg, color-mix(in srgb, var(--openbitfun-domain-generative-ui) 30%, transparent) 0%, color-mix(in srgb, var(--openbitfun-color-accent-hover) 25%, transparent) 100%)',
+  'linear-gradient(135deg, color-mix(in srgb, var(--openbitfun-color-status-danger-content) 25%, transparent) 0%, color-mix(in srgb, var(--openbitfun-color-status-warning-content) 20%, transparent) 100%)',
 ];
 
 const MINI_APP_ICONS = {
   Aperture,
-  AppWindow,
   Box,
   Bot,
   Code,
   Database,
   FileText,
   GitPullRequest,
-  Globe,
   Grid3x3,
   LayoutGrid,
   Presentation,
@@ -65,6 +71,30 @@ const MINI_APP_ICONS = {
   Wrench,
 } satisfies Record<string, LucideIcon>;
 
+const BUILTIN_MINI_APP_ICON_ASSETS: Readonly<Record<string, string>> = {
+  'builtin-coding-selfie': codingFootprintIcon,
+  'builtin-daily-divination': dailyDivinationIcon,
+  'builtin-gomoku': gomokuIcon,
+  'builtin-ppt-live': pptLiveIcon,
+  'builtin-regex-playground': regexPlaygroundIcon,
+};
+
+const BUILTIN_MINI_APP_SHOWCASE_ASSETS: Readonly<Record<string, string>> = {
+  'builtin-coding-selfie': codingFootprintShowcase,
+  'builtin-daily-divination': dailyDivinationShowcase,
+  'builtin-gomoku': gomokuShowcase,
+  'builtin-ppt-live': pptLiveShowcase,
+  'builtin-regex-playground': regexPlaygroundShowcase,
+};
+
+export function getMiniAppIconAsset(id: string): string | undefined {
+  return BUILTIN_MINI_APP_ICON_ASSETS[id];
+}
+
+export function getMiniAppShowcaseAsset(id: string): string | undefined {
+  return BUILTIN_MINI_APP_SHOWCASE_ASSETS[id];
+}
+
 export function renderMiniAppIcon(name: string, size = 28): React.ReactNode {
   const key = name
     .split('-')
@@ -72,7 +102,13 @@ export function renderMiniAppIcon(name: string, size = 28): React.ReactNode {
     .join('') as keyof typeof MINI_APP_ICONS;
   const catalogName = MINI_APP_CATALOG[key];
   if (catalogName) {
-    return <Icon name={catalogName} size={catalogSize(size)} />;
+    return (
+      <Icon
+        name={catalogName}
+        size={catalogSize(size)}
+        style={{ width: size, height: size }}
+      />
+    );
   }
   const LucideGlyph = MINI_APP_ICONS[key];
 

@@ -98,7 +98,7 @@ import { announcementAppearanceDescriptor } from '@/shared/announcement-system/a
 import { contextMenuAppearanceDescriptor } from '@/shared/context-menu-system/appearance';
 import { contextListAppearanceDescriptor } from '@/shared/context-system/appearance';
 import { notificationAppearanceDescriptor } from '@/shared/notification-system/appearance';
-import { canvasToolAppearanceDescriptor } from '@/tools/bitfun-canvas/appearance';
+import { canvasToolAppearanceDescriptor } from '@/tools/openbitfun-canvas/appearance';
 import { generativeWidgetAppearanceDescriptor } from '@/tools/generative-widget/appearance';
 import { editorToolAppearanceDescriptor } from '@/tools/editor/appearance';
 import { fileSystemAppearanceDescriptor } from '@/tools/file-system/appearance';
@@ -173,14 +173,13 @@ import { archivedSessionsConfigAppearanceDescriptor } from '@/app/scenes/setting
 import { settingsViewPageAppearanceDescriptor } from '@/app/scenes/settings/components/SettingsViewPage.appearance';
 import {
   automationSettingsPageAppearanceDescriptor,
-  developmentSettingsPageAppearanceDescriptor,
-  inputSettingsPageAppearanceDescriptor,
 } from '@/app/scenes/settings/pages/appearance';
 import { settingsNavAppearanceDescriptor } from '@/app/scenes/settings/SettingsNav.appearance';
 import { backgroundCommandOutputPanelAppearanceDescriptor } from '@/flow_chat/components/background-command/BackgroundCommandOutputPanel.appearance';
-import { chatInputPixelPetAppearanceDescriptor } from '@/flow_chat/components/ChatInputPixelPet.appearance';
+import { agentCompanionPetAppearanceDescriptor } from '@/flow_chat/components/AgentCompanionPet.appearance';
 import { fileMentionPickerAppearanceDescriptor } from '@/flow_chat/components/FileMentionPicker.appearance';
 import { sessionFileModificationsBarAppearanceDescriptor } from '@/flow_chat/components/modern/SessionFileModificationsBar.appearance';
+import { conversationModeSurfaceAppearanceDescriptor } from '@/flow_chat/components/voice/ConversationModeSurface.appearance';
 import { realtimeVoiceCallAppearanceDescriptor } from '@/flow_chat/components/voice/RealtimeVoiceCall.appearance';
 import { editorBreadcrumbAppearanceDescriptor } from '@/tools/editor/components/EditorBreadcrumb.appearance';
 import { gitBranchHistoryAppearanceDescriptor } from '@/tools/git/components/GitBranchHistoryView/GitBranchHistoryView.appearance';
@@ -216,6 +215,7 @@ import { globalPermissionRulesDialogAppearanceDescriptor } from '@/infrastructur
 import { mcpResourceBrowserAppearanceDescriptor } from '@/infrastructure/config/components/MCPResourceBrowser.appearance';
 import { editorStatusBarAppearanceDescriptor } from '@/tools/editor/components/EditorStatusBar.appearance';
 import { imageViewerAppearanceDescriptor } from '@/tools/editor/components/ImageViewer.appearance';
+import { pdfViewerAppearanceDescriptor } from '@/tools/editor/components/PdfViewer.appearance';
 import { branchQuickSwitchAppearanceDescriptor } from '@/tools/git/components/BranchQuickSwitch.appearance';
 import { workspaceListSectionAppearanceDescriptor } from '@/app/components/NavPanel/sections/workspaces/WorkspaceListSection.appearance';
 import { workspaceItemAppearanceDescriptor } from '@/app/components/NavPanel/sections/workspaces/WorkspaceItem.appearance';
@@ -473,12 +473,11 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(settingsNavAppearanceDescriptor)
     .registerComponent(settingsViewPageAppearanceDescriptor)
     .registerComponent(automationSettingsPageAppearanceDescriptor)
-    .registerComponent(developmentSettingsPageAppearanceDescriptor)
-    .registerComponent(inputSettingsPageAppearanceDescriptor)
     .registerComponent(backgroundCommandOutputPanelAppearanceDescriptor)
-    .registerComponent(chatInputPixelPetAppearanceDescriptor)
+    .registerComponent(agentCompanionPetAppearanceDescriptor)
     .registerComponent(fileMentionPickerAppearanceDescriptor)
     .registerComponent(sessionFileModificationsBarAppearanceDescriptor)
+    .registerComponent(conversationModeSurfaceAppearanceDescriptor)
     .registerComponent(realtimeVoiceCallAppearanceDescriptor)
     .registerComponent(editorBreadcrumbAppearanceDescriptor)
     .registerComponent(gitBranchHistoryAppearanceDescriptor)
@@ -514,6 +513,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(mcpResourceBrowserAppearanceDescriptor)
     .registerComponent(editorStatusBarAppearanceDescriptor)
     .registerComponent(imageViewerAppearanceDescriptor)
+    .registerComponent(pdfViewerAppearanceDescriptor)
     .registerComponent(branchQuickSwitchAppearanceDescriptor)
     .registerComponent(workspaceListSectionAppearanceDescriptor)
     .registerComponent(workspaceItemAppearanceDescriptor)

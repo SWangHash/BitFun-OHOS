@@ -2,9 +2,10 @@
 
 use super::automation_client::{BrowserAutomationClient, BrowserAutomationEvent};
 use crate::agentic::tools::implementations::control_hub::{coded_tool_error, ErrorCode};
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+#[path = "snapshot_context.rs"]
+mod snapshot_context;
 use tokio::sync::broadcast;
 
 /// Upper bound for an explicit `wait` duration. Pacing waits ("check again in
@@ -90,7 +91,7 @@ fn structured_error(
     code: ErrorCode,
     message: impl std::fmt::Display,
     hints: &[&str],
-) -> BitFunError {
+) -> OpenBitFunError {
     if hints.is_empty() {
         coded_tool_error(code, message)
     } else {
@@ -102,7 +103,7 @@ fn structured_error(
 /// error. `Element not found` originates from `resolve_element_js` and is by
 /// far the most common interaction failure, so it gets a dedicated
 /// `NOT_FOUND` code with a snapshot-recovery instruction for the model.
-pub(crate) fn classify_evaluate_exception(message: &str) -> BitFunError {
+pub(crate) fn classify_evaluate_exception(message: &str) -> OpenBitFunError {
     if message.contains("Element not found") {
         // `resolve_element_js` appends the cross-origin iframe count to its
         // throw message: those frames are invisible to both `snapshot` and
@@ -131,7 +132,7 @@ pub(crate) fn classify_evaluate_exception(message: &str) -> BitFunError {
 /// be re-attached; a transport timeout means the page did not answer. Anything
 /// else passes through so the heuristic fallback in `map_dispatch_error` still
 /// applies.
-pub(crate) fn classify_transport_error(err: BitFunError) -> BitFunError {
+pub(crate) fn classify_transport_error(err: OpenBitFunError) -> OpenBitFunError {
     let raw = err.to_string();
     let message = raw.strip_prefix("Tool error: ").unwrap_or(raw.as_str());
     if message.contains("CDP send failed")
@@ -160,7 +161,7 @@ pub(crate) fn classify_transport_error(err: BitFunError) -> BitFunError {
 /// element. Dispatching the mouse event anyway would act on the overlay while
 /// reporting success for the intended element — the worst possible outcome,
 /// so the action is refused instead.
-pub(crate) fn occluded_element_error(selector: &str, blocker: &str) -> BitFunError {
+pub(crate) fn occluded_element_error(selector: &str, blocker: &str) -> OpenBitFunError {
     structured_error(
         ErrorCode::GuardRejected,
         format!(
@@ -174,7 +175,7 @@ pub(crate) fn occluded_element_error(selector: &str, blocker: &str) -> BitFunErr
 /// Error for an element that resolved inside a cross-origin iframe: its
 /// coordinates cannot be translated to the top-level viewport, so
 /// coordinate-based actions (click/hover) cannot reach it.
-pub(crate) fn cross_origin_frame_error(selector: &str) -> BitFunError {
+pub(crate) fn cross_origin_frame_error(selector: &str) -> OpenBitFunError {
     structured_error(
         ErrorCode::NotAvailable,
         format!(
@@ -242,116 +243,7 @@ fn key_event_fields(key: &str) -> Value {
 
 /// Snapshot walker. Kept as a module const so the ordering guarantees it
 /// encodes (stale refs cleared **before** renumbering) are unit-testable.
-const SNAPSHOT_SCRIPT: &str = r#"
-        (function() {
-            const SEL = 'a, button, input, textarea, select, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="combobox"], [role="option"], [tabindex="0"], [contenteditable="true"]';
-            const items = [];
-            let idx = 1;
-            let offscreen = 0;
-            let crossOriginFrames = 0;
-
-            function visible(el, win) {
-                const rect = el.getBoundingClientRect();
-                if (rect.width < 2 || rect.height < 2) return null;
-                if (rect.right < 0 || rect.bottom < 0 || rect.left > win.innerWidth || rect.top > win.innerHeight) {
-                    offscreen++;
-                    return null;
-                }
-                const style = win.getComputedStyle(el);
-                if (style.display === 'none' || style.visibility === 'hidden') return null;
-                return rect;
-            }
-
-            function record(el, rect, scope, framePath) {
-                const text = (el.textContent || '').trim().slice(0, 100);
-                items.push({
-                    ref: '@e' + idx,
-                    tag: el.tagName.toLowerCase(),
-                    type: el.getAttribute('type') || '',
-                    name: el.getAttribute('name') || '',
-                    text,
-                    ariaLabel: el.getAttribute('aria-label') || '',
-                    placeholder: el.placeholder || '',
-                    role: el.getAttribute('role') || '',
-                    href: el.href || '',
-                    id: el.id || '',
-                    scope,
-                    frame_path: framePath,
-                    rect: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) }
-                });
-                try { el.setAttribute('data-cdp-ref', '@e' + idx); } catch (_) {}
-                idx++;
-            }
-
-            // Every snapshot renumbers refs from @e1, so refs left behind by
-            // the previous snapshot MUST be dropped first: an element that
-            // dropped out of this snapshot would otherwise keep an @eN that
-            // the new numbering hands to a different element, and
-            // `click @eN` — which resolves by attribute — would silently hit
-            // the stale one.
-            function clearRefs(root) {
-                try {
-                    root.querySelectorAll('[data-cdp-ref]').forEach(el => el.removeAttribute('data-cdp-ref'));
-                } catch (_) {}
-                try {
-                    root.querySelectorAll('*').forEach(host => {
-                        if (host.shadowRoot) clearRefs(host.shadowRoot);
-                    });
-                } catch (_) {}
-            }
-
-            // Recursive walk: collects from `root` (Document or ShadowRoot)
-            // and recurses into open shadow roots of every descendant. Iframes
-            // are handled by the caller because we need the iframe's own
-            // window for visibility checks.
-            function walk(root, win, scope, framePath) {
-                const els = root.querySelectorAll(SEL);
-                els.forEach(el => {
-                    const rect = visible(el, win);
-                    if (rect) record(el, rect, scope, framePath);
-                });
-                // Open shadow roots
-                const allHosts = root.querySelectorAll('*');
-                allHosts.forEach(h => {
-                    if (h.shadowRoot) {
-                        try { walk(h.shadowRoot, win, 'shadow', framePath); } catch (_) {}
-                    }
-                });
-            }
-
-            // Same-origin iframes only; cross-origin ones are counted so the
-            // report can state what it could not see.
-            const frames = [];
-            document.querySelectorAll('iframe, frame').forEach((frame, fi) => {
-                let doc = null;
-                try { doc = frame.contentDocument; } catch (_) {}
-                if (doc) {
-                    frames.push({ frame, doc, fi });
-                } else {
-                    crossOriginFrames++;
-                }
-            });
-
-            clearRefs(document);
-            frames.forEach(f => clearRefs(f.doc));
-
-            walk(document, window, 'document', '');
-            frames.forEach(({ frame, doc, fi }) => {
-                const subWin = frame.contentWindow;
-                const path = `iframe[${fi}]${frame.src ? `[src="${frame.src.slice(0, 80)}"]` : ''}`;
-                try { walk(doc, subWin, 'iframe', path); } catch (_) {}
-            });
-
-            return JSON.stringify({
-                url: location.href,
-                title: document.title,
-                elements: items,
-                offscreen_count: offscreen,
-                cross_origin_frames: crossOriginFrames,
-                features: { shadow_dom_traversed: true, same_origin_iframes_traversed: true, viewport_only: true },
-            });
-        })()
-        "#;
+const SNAPSHOT_SCRIPT: &str = include_str!("snapshot.js");
 
 /// High-level browser actions backed by a target adapter.
 pub struct BrowserActions<'a> {
@@ -363,7 +255,7 @@ impl<'a> BrowserActions<'a> {
         Self { client }
     }
 
-    pub async fn enable_observers(&self) -> BitFunResult<Value> {
+    pub async fn enable_observers(&self) -> OpenBitFunResult<Value> {
         let _ = self.client.send("Page.enable", None).await;
         let _ = self.client.send("Runtime.enable", None).await;
         let _ = self.client.send("Network.enable", None).await;
@@ -373,7 +265,7 @@ impl<'a> BrowserActions<'a> {
 
     // ── Navigation ─────────────────────────────────────────────────────
 
-    pub async fn navigate(&self, url: &str) -> BitFunResult<Value> {
+    pub async fn navigate(&self, url: &str) -> OpenBitFunResult<Value> {
         // Subscribe **before** issuing the navigate so we can never miss the
         // `Page.lifecycleEvent` ("load") that fires while we are awaiting the
         // command response. Page lifecycle events must be enabled explicitly.
@@ -424,7 +316,7 @@ impl<'a> BrowserActions<'a> {
                 }
             }
             LifecycleOutcome::Closed => {
-                return Err(BitFunError::tool(
+                return Err(OpenBitFunError::tool(
                     "Browser target closed before the page finished loading.".to_string(),
                 ));
             }
@@ -432,24 +324,24 @@ impl<'a> BrowserActions<'a> {
         Ok(body)
     }
 
-    pub async fn back(&self) -> BitFunResult<Value> {
+    pub async fn back(&self) -> OpenBitFunResult<Value> {
         self.evaluate("history.back(); undefined").await?;
         Ok(json!({ "success": true, "action": "back" }))
     }
 
-    pub async fn forward(&self) -> BitFunResult<Value> {
+    pub async fn forward(&self) -> OpenBitFunResult<Value> {
         self.evaluate("history.forward(); undefined").await?;
         Ok(json!({ "success": true, "action": "forward" }))
     }
 
-    pub async fn reload(&self, ignore_cache: bool) -> BitFunResult<Value> {
+    pub async fn reload(&self, ignore_cache: bool) -> OpenBitFunResult<Value> {
         self.client
             .send("Page.reload", Some(json!({ "ignoreCache": ignore_cache })))
             .await?;
         Ok(json!({ "success": true, "action": "reload", "ignore_cache": ignore_cache }))
     }
 
-    pub async fn get_url(&self) -> BitFunResult<String> {
+    pub async fn get_url(&self) -> OpenBitFunResult<String> {
         let result = self.evaluate("window.location.href").await?;
         Ok(result
             .get("result")
@@ -459,7 +351,7 @@ impl<'a> BrowserActions<'a> {
             .to_string())
     }
 
-    pub async fn get_title(&self) -> BitFunResult<String> {
+    pub async fn get_title(&self) -> OpenBitFunResult<String> {
         let result = self.evaluate("document.title").await?;
         Ok(result
             .get("result")
@@ -487,7 +379,7 @@ impl<'a> BrowserActions<'a> {
     /// reported (`offscreen_count`, `cross_origin_frames`, plus trailing
     /// note lines in `snapshot`) so their absence is never read as "the
     /// element does not exist".
-    pub async fn snapshot(&self) -> BitFunResult<Value> {
+    pub async fn snapshot(&self) -> OpenBitFunResult<Value> {
         self.snapshot_with_options(false).await
     }
 
@@ -502,14 +394,18 @@ impl<'a> BrowserActions<'a> {
     /// `with_backend_node_ids` is `true`, every snapshot element gets a
     /// `backend_node_id` field; pages where `DOM.getDocument` errors out
     /// (very rare — e.g. about:blank) silently fall back to no ids.
-    pub async fn snapshot_with_options(&self, with_backend_node_ids: bool) -> BitFunResult<Value> {
+    pub async fn snapshot_with_options(
+        &self,
+        with_backend_node_ids: bool,
+    ) -> OpenBitFunResult<Value> {
         let result = self.evaluate(SNAPSHOT_SCRIPT).await?;
-        let text = result
-            .get("result")
-            .and_then(|r| r.get("value"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("{}");
-        let mut parsed: Value = serde_json::from_str(text).unwrap_or(json!({}));
+        let mut parsed = snapshot_context::parse_snapshot_result(&result).map_err(|message| {
+            structured_error(
+                ErrorCode::Internal,
+                message,
+                &["Take a fresh snapshot; the previous page context was incomplete"],
+            )
+        })?;
 
         if with_backend_node_ids && self.client.capabilities().backend_node_ids {
             if let Err(e) = self.attach_backend_node_ids(&mut parsed).await {
@@ -539,111 +435,21 @@ impl<'a> BrowserActions<'a> {
     }
 
     fn attach_snapshot_text(parsed: &mut Value) {
-        let Some(elements) = parsed.get("elements").and_then(|v| v.as_array()) else {
-            return;
-        };
-        let mut lines = Vec::<String>::new();
-        let mut refs = BTreeMap::<String, Value>::new();
-        for element in elements {
-            let reference = element.get("ref").and_then(|v| v.as_str()).unwrap_or("");
-            let tag = element
-                .get("tag")
-                .and_then(|v| v.as_str())
-                .unwrap_or("element");
-            let role = element.get("role").and_then(|v| v.as_str()).unwrap_or("");
-            let text = element
-                .get("ariaLabel")
-                .or_else(|| element.get("placeholder"))
-                .or_else(|| element.get("text"))
-                .or_else(|| element.get("name"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .trim();
-            let type_text = element.get("type").and_then(|v| v.as_str()).unwrap_or("");
-            let id = element.get("id").and_then(|v| v.as_str()).unwrap_or("");
-            let frame_path = element
-                .get("frame_path")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let scope = element
-                .get("scope")
-                .and_then(|v| v.as_str())
-                .unwrap_or("document");
-            let mut label = if role.is_empty() {
-                tag.to_string()
-            } else {
-                role.to_string()
-            };
-            if !type_text.is_empty() {
-                label.push(':');
-                label.push_str(type_text);
-            }
-            let mut line = if reference.is_empty() {
-                format!("- {}", label)
-            } else {
-                format!("- {} [{}]", label, reference)
-            };
-            if !text.is_empty() {
-                let clipped = if text.chars().count() > 80 {
-                    format!("{}...", text.chars().take(77).collect::<String>())
-                } else {
-                    text.to_string()
-                };
-                line.push(' ');
-                line.push_str(
-                    &serde_json::to_string(&clipped).unwrap_or_else(|_| "\"\"".to_string()),
-                );
-            }
-            if !id.is_empty() {
-                line.push_str(&format!(" id={}", id));
-            }
-            if scope != "document" || !frame_path.is_empty() {
-                line.push_str(&format!(" scope={}", scope));
-                if !frame_path.is_empty() {
-                    line.push_str(&format!(" frame={}", frame_path));
-                }
-            }
-            lines.push(line);
-            if !reference.is_empty() {
-                refs.insert(reference.to_string(), element.clone());
-            }
-        }
-        let offscreen = parsed
-            .get("offscreen_count")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-        if offscreen > 0 {
-            lines.push(format!(
-                "- note: {} more interactive element(s) exist outside the current viewport and are NOT listed above; scroll toward them and snapshot again to get refs for them",
-                offscreen
-            ));
-        }
-        let cross_origin_frames = parsed
-            .get("cross_origin_frames")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-        if cross_origin_frames > 0 {
-            lines.push(format!(
-                "- note: this page contains {} cross-origin iframe(s) whose contents cannot be inspected; elements inside them are absent here and cannot be targeted by @eN refs",
-                cross_origin_frames
-            ));
-        }
-        if let Some(obj) = parsed.as_object_mut() {
-            obj.insert("snapshot".to_string(), json!(lines.join("\n")));
-            obj.insert("refs".to_string(), json!(refs));
-        }
+        snapshot_context::attach_snapshot_text(parsed);
     }
 
     /// Resolve `backend_node_id` for every snapshot element by walking the
     /// DOM through CDP. Mutates `parsed["elements"][i]["backend_node_id"]`
     /// in place. Returns `Err` if the document tree could not be fetched.
-    async fn attach_backend_node_ids(&self, parsed: &mut Value) -> BitFunResult<()> {
+    async fn attach_backend_node_ids(&self, parsed: &mut Value) -> OpenBitFunResult<()> {
         let doc = self.client.send("DOM.getDocument", None).await?;
         let root_id = doc
             .get("root")
             .and_then(|r| r.get("nodeId"))
             .and_then(|v| v.as_i64())
-            .ok_or_else(|| BitFunError::tool("DOM.getDocument: missing root nodeId".to_string()))?;
+            .ok_or_else(|| {
+                OpenBitFunError::tool("DOM.getDocument: missing root nodeId".to_string())
+            })?;
         let qsa = self
             .client
             .send(
@@ -709,7 +515,7 @@ impl<'a> BrowserActions<'a> {
     /// empty string), and `Ok(Some(""))` when the element was found but
     /// genuinely empty. The lookup walks shadow roots / same-origin
     /// iframes, matching the rest of the browser action surface.
-    pub async fn get_text(&self, selector: &str) -> BitFunResult<Option<String>> {
+    pub async fn get_text(&self, selector: &str) -> OpenBitFunResult<Option<String>> {
         self.get_attribute(selector, "text")
             .await
             .map(|v| v.map(|v| v.as_str().unwrap_or("").to_string()))
@@ -719,7 +525,7 @@ impl<'a> BrowserActions<'a> {
         &self,
         selector: &str,
         attribute: &str,
-    ) -> BitFunResult<Option<Value>> {
+    ) -> OpenBitFunResult<Option<Value>> {
         let resolve = Self::resolve_element_js(selector);
         let getter = match attribute {
             "text" => "(el.textContent || '').trim().slice(0, 5000)".to_string(),
@@ -763,7 +569,7 @@ impl<'a> BrowserActions<'a> {
     // ── Interaction ────────────────────────────────────────────────────
 
     /// Click an element by CSS selector or by `@eN` ref.
-    pub async fn click(&self, selector: &str) -> BitFunResult<Value> {
+    pub async fn click(&self, selector: &str) -> OpenBitFunResult<Value> {
         let (x, y) = self.element_center(selector).await?;
 
         self.client
@@ -810,7 +616,7 @@ impl<'a> BrowserActions<'a> {
     /// own document: a mouse event dispatched at coordinates covered by an
     /// overlay lands on the overlay, and reporting that as a successful click
     /// on the intended element is the worst failure mode available.
-    async fn element_center(&self, selector: &str) -> BitFunResult<(f64, f64)> {
+    async fn element_center(&self, selector: &str) -> OpenBitFunResult<(f64, f64)> {
         let center_js = Self::element_center_js(selector);
         let result = self.evaluate(&center_js).await?;
         let coords_str = result
@@ -891,7 +697,7 @@ impl<'a> BrowserActions<'a> {
         )
     }
 
-    pub async fn hover(&self, selector: &str) -> BitFunResult<Value> {
+    pub async fn hover(&self, selector: &str) -> OpenBitFunResult<Value> {
         let (x, y) = self.element_center(selector).await?;
         self.client
             .send(
@@ -912,7 +718,7 @@ impl<'a> BrowserActions<'a> {
     }
 
     /// Fill (clear + type) a text input identified by selector or `@eN` ref.
-    pub async fn fill(&self, selector: &str, value: &str) -> BitFunResult<Value> {
+    pub async fn fill(&self, selector: &str, value: &str) -> OpenBitFunResult<Value> {
         let js = Self::resolve_element_js(selector);
         let focus_js = format!(
             r#"(function(){{ {} el.focus(); el.value = ''; el.dispatchEvent(new Event('input', {{ bubbles: true }})); return true; }})()"#,
@@ -932,14 +738,14 @@ impl<'a> BrowserActions<'a> {
     }
 
     /// Type text at the currently focused element (appends, does not clear).
-    pub async fn type_text(&self, text: &str) -> BitFunResult<Value> {
+    pub async fn type_text(&self, text: &str) -> OpenBitFunResult<Value> {
         self.client
             .send("Input.insertText", Some(json!({ "text": text })))
             .await?;
         Ok(json!({ "success": true, "action": "type", "text": text }))
     }
 
-    pub async fn set_checked(&self, selector: &str, checked: bool) -> BitFunResult<Value> {
+    pub async fn set_checked(&self, selector: &str, checked: bool) -> OpenBitFunResult<Value> {
         let js = Self::resolve_element_js(selector);
         let script = format!(
             r#"(function(){{
@@ -968,7 +774,7 @@ impl<'a> BrowserActions<'a> {
     }
 
     /// Select a dropdown option by visible text.
-    pub async fn select(&self, selector: &str, option_text: &str) -> BitFunResult<Value> {
+    pub async fn select(&self, selector: &str, option_text: &str) -> OpenBitFunResult<Value> {
         let js = Self::select_option_js(selector, option_text);
         let result = self.evaluate(&js).await?;
         let text = result
@@ -981,7 +787,7 @@ impl<'a> BrowserActions<'a> {
     }
 
     /// Press a key (Enter, Escape, Tab, etc.).
-    pub async fn press_key(&self, key: &str) -> BitFunResult<Value> {
+    pub async fn press_key(&self, key: &str) -> OpenBitFunResult<Value> {
         let fields = key_event_fields(key);
         // `keyDown` with `text` is what makes Chrome perform the key's default
         // action; keys that produce no text must go out as `rawKeyDown` or the
@@ -1009,7 +815,7 @@ impl<'a> BrowserActions<'a> {
     }
 
     /// Scroll the page.
-    pub async fn scroll(&self, direction: &str, amount: Option<i64>) -> BitFunResult<Value> {
+    pub async fn scroll(&self, direction: &str, amount: Option<i64>) -> OpenBitFunResult<Value> {
         let px = amount.unwrap_or(500);
         let (delta_x, delta_y) = match direction {
             "up" => (0, -px),
@@ -1045,7 +851,7 @@ impl<'a> BrowserActions<'a> {
         direction: &str,
         max_scrolls: u64,
         delay_ms: u64,
-    ) -> BitFunResult<Value> {
+    ) -> OpenBitFunResult<Value> {
         let max_scrolls = max_scrolls.clamp(1, 200);
         let delay_ms = delay_ms.clamp(0, 5_000);
         let delta = if direction == "up" {
@@ -1093,7 +899,7 @@ impl<'a> BrowserActions<'a> {
         duration_ms: Option<u64>,
         condition: Option<&str>,
         condition_timeout_ms: Option<u64>,
-    ) -> BitFunResult<Value> {
+    ) -> OpenBitFunResult<Value> {
         if let Some(ms) = duration_ms {
             let clamped = ms.min(MAX_WAIT_MS);
             tokio::time::sleep(std::time::Duration::from_millis(clamped)).await;
@@ -1201,7 +1007,7 @@ impl<'a> BrowserActions<'a> {
     // ── Capture ────────────────────────────────────────────────────────
 
     /// Take a screenshot of the current page, returns base64 JPEG data.
-    pub async fn screenshot(&self) -> BitFunResult<Value> {
+    pub async fn screenshot(&self) -> OpenBitFunResult<Value> {
         self.screenshot_with_options("jpeg", Some(80), true).await
     }
 
@@ -1210,7 +1016,7 @@ impl<'a> BrowserActions<'a> {
         format: &str,
         quality: Option<u8>,
         from_surface: bool,
-    ) -> BitFunResult<Value> {
+    ) -> OpenBitFunResult<Value> {
         self.screenshot_with_options_ext(format, quality, from_surface, false)
             .await
     }
@@ -1221,7 +1027,7 @@ impl<'a> BrowserActions<'a> {
         quality: Option<u8>,
         from_surface: bool,
         full_page: bool,
-    ) -> BitFunResult<Value> {
+    ) -> OpenBitFunResult<Value> {
         let normalized = if format.eq_ignore_ascii_case("png") {
             "png"
         } else {
@@ -1304,7 +1110,7 @@ impl<'a> BrowserActions<'a> {
     // ── JavaScript ─────────────────────────────────────────────────────
 
     /// Evaluate a JavaScript expression in the page context.
-    pub async fn evaluate(&self, expression: &str) -> BitFunResult<Value> {
+    pub async fn evaluate(&self, expression: &str) -> OpenBitFunResult<Value> {
         self.evaluate_with_options(expression, true, true).await
     }
 
@@ -1313,8 +1119,8 @@ impl<'a> BrowserActions<'a> {
         expression: &str,
         await_promise: bool,
         return_by_value: bool,
-    ) -> BitFunResult<Value> {
-        let mut last_error: Option<BitFunError> = None;
+    ) -> OpenBitFunResult<Value> {
+        let mut last_error: Option<OpenBitFunError> = None;
         for attempt in 0..2 {
             let result = self
                 .client
@@ -1355,11 +1161,11 @@ impl<'a> BrowserActions<'a> {
             }
         }
         Err(classify_transport_error(last_error.unwrap_or_else(|| {
-            BitFunError::tool("Runtime.evaluate failed".to_string())
+            OpenBitFunError::tool("Runtime.evaluate failed".to_string())
         })))
     }
 
-    pub async fn get_cookies(&self, urls: Option<Vec<String>>) -> BitFunResult<Value> {
+    pub async fn get_cookies(&self, urls: Option<Vec<String>>) -> OpenBitFunResult<Value> {
         let params = urls
             .filter(|items| !items.is_empty())
             .map(|urls| json!({ "urls": urls }))
@@ -1372,7 +1178,7 @@ impl<'a> BrowserActions<'a> {
         }))
     }
 
-    pub async fn set_cookies(&self, cookies: &[Value]) -> BitFunResult<Value> {
+    pub async fn set_cookies(&self, cookies: &[Value]) -> OpenBitFunResult<Value> {
         let mut set = 0usize;
         let mut errors = Vec::<Value>::new();
         for cookie in cookies {
@@ -1405,9 +1211,9 @@ impl<'a> BrowserActions<'a> {
         &self,
         selector: Option<&str>,
         files: &[String],
-    ) -> BitFunResult<Value> {
+    ) -> OpenBitFunResult<Value> {
         if files.is_empty() {
-            return Err(BitFunError::tool(
+            return Err(OpenBitFunError::tool(
                 "set_file_input_files requires non-empty 'files'".to_string(),
             ));
         }
@@ -1422,7 +1228,9 @@ impl<'a> BrowserActions<'a> {
             .get("root")
             .and_then(|r| r.get("nodeId"))
             .and_then(|v| v.as_i64())
-            .ok_or_else(|| BitFunError::tool("DOM.getDocument: missing root nodeId".to_string()))?;
+            .ok_or_else(|| {
+                OpenBitFunError::tool("DOM.getDocument: missing root nodeId".to_string())
+            })?;
         let node = self
             .client
             .send(
@@ -1432,7 +1240,7 @@ impl<'a> BrowserActions<'a> {
             .await?;
         let node_id = node.get("nodeId").and_then(|v| v.as_i64()).unwrap_or(0);
         if node_id == 0 {
-            return Err(BitFunError::tool(format!(
+            return Err(OpenBitFunError::tool(format!(
                 "No file input found for selector: {}",
                 query
             )));
@@ -1457,7 +1265,7 @@ impl<'a> BrowserActions<'a> {
         method: &str,
         headers: Value,
         body: Option<&str>,
-    ) -> BitFunResult<Value> {
+    ) -> OpenBitFunResult<Value> {
         let script = format!(
             r#"(async () => {{
                 try {{
@@ -1506,7 +1314,7 @@ impl<'a> BrowserActions<'a> {
         Ok(json!({ "success": parsed.get("error").is_none(), "action": "fetch", "result": parsed }))
     }
 
-    pub async fn read_article(&self) -> BitFunResult<Value> {
+    pub async fn read_article(&self) -> OpenBitFunResult<Value> {
         let script = r#"
         (function() {
             function textOf(node) {
@@ -1542,7 +1350,7 @@ impl<'a> BrowserActions<'a> {
 
     // ── Close ──────────────────────────────────────────────────────────
 
-    pub async fn close_page(&self) -> BitFunResult<Value> {
+    pub async fn close_page(&self) -> OpenBitFunResult<Value> {
         let _ = self.client.send("Page.close", None).await;
         Ok(json!({ "success": true, "action": "close" }))
     }
@@ -1558,61 +1366,7 @@ impl<'a> BrowserActions<'a> {
     /// inside a shadow root, which made `click @e7` mysteriously fail
     /// whenever the page used a web-component design system.
     fn resolve_element_js(selector: &str) -> String {
-        let attr_selector = if selector.starts_with("@e") {
-            format!(r#"[data-cdp-ref="{}"]"#, selector)
-        } else {
-            selector.to_string()
-        };
-        let escaped = attr_selector.replace('\\', "\\\\").replace('\'', "\\'");
-        format!(
-            r#"
-            const __sel = '{escaped}';
-            function __findIn(root) {{
-                try {{
-                    const direct = root.querySelector(__sel);
-                    if (direct) return direct;
-                }} catch (_) {{}}
-                const all = root.querySelectorAll('*');
-                for (const node of all) {{
-                    if (node.shadowRoot) {{
-                        const hit = __findIn(node.shadowRoot);
-                        if (hit) return hit;
-                    }}
-                }}
-                return null;
-            }}
-            function __findAnywhere() {{
-                const top = __findIn(document);
-                if (top) return top;
-                const frames = document.querySelectorAll('iframe, frame');
-                for (const f of frames) {{
-                    let doc = null;
-                    try {{ doc = f.contentDocument; }} catch (_) {{}}
-                    if (doc) {{
-                        const hit = __findIn(doc);
-                        if (hit) return hit;
-                    }}
-                }}
-                return null;
-            }}
-            function __crossOriginFrames() {{
-                let n = 0;
-                document.querySelectorAll('iframe, frame').forEach(f => {{
-                    let doc = null;
-                    try {{ doc = f.contentDocument; }} catch (_) {{}}
-                    if (!doc) n++;
-                }});
-                return n;
-            }}
-            const el = __findAnywhere();
-            if (!el) {{
-                const __xo = __crossOriginFrames();
-                throw new Error('Element not found: ' + __sel + ' — take a fresh snapshot or check shadow/iframe scope'
-                    + (__xo ? ' (page contains ' + __xo + ' cross-origin iframe(s) whose contents cannot be inspected)' : ''));
-            }}
-            "#,
-            escaped = escaped
-        )
+        snapshot_context::resolve_element_js(selector)
     }
 
     /// JS that reports whether `selector` (CSS **or** `@eN` ref) currently
@@ -1692,7 +1446,7 @@ mod shared_target_tests {
 
     #[async_trait::async_trait]
     impl BrowserAutomationClient for FakeEmbeddedClient {
-        async fn send(&self, method: &str, params: Option<Value>) -> BitFunResult<Value> {
+        async fn send(&self, method: &str, params: Option<Value>) -> OpenBitFunResult<Value> {
             self.methods
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -1727,7 +1481,9 @@ mod shared_target_tests {
                     Ok(json!({ "result": { "type": "string", "value": value } }))
                 }
                 "Input.dispatchMouseEvent" => Ok(json!({})),
-                other => Err(BitFunError::tool(format!("unexpected primitive: {other}"))),
+                other => Err(OpenBitFunError::tool(format!(
+                    "unexpected primitive: {other}"
+                ))),
             }
         }
 
@@ -1805,7 +1561,7 @@ mod structured_error_tests {
 
     #[test]
     fn classify_transport_error_maps_dead_socket_to_wrong_tab() {
-        let msg = classify_transport_error(BitFunError::tool(
+        let msg = classify_transport_error(OpenBitFunError::tool(
             "CDP send failed: broken pipe".to_string(),
         ))
         .to_string();
@@ -1815,7 +1571,7 @@ mod structured_error_tests {
 
     #[test]
     fn classify_transport_error_maps_cdp_timeout_to_timeout() {
-        let msg = classify_transport_error(BitFunError::tool(
+        let msg = classify_transport_error(OpenBitFunError::tool(
             "CDP timeout for method Runtime.evaluate".to_string(),
         ))
         .to_string();
@@ -1824,7 +1580,7 @@ mod structured_error_tests {
 
     #[test]
     fn classify_transport_error_maps_missing_builtin_target_to_wrong_tab() {
-        let msg = classify_transport_error(BitFunError::tool(
+        let msg = classify_transport_error(OpenBitFunError::tool(
             "Built-in browser adapter failed for Runtime.evaluate: Webview not found".to_string(),
         ))
         .to_string();
@@ -1834,8 +1590,9 @@ mod structured_error_tests {
 
     #[test]
     fn classify_transport_error_passes_through_other_errors() {
-        let msg = classify_transport_error(BitFunError::tool("CDP error: some detail".to_string()))
-            .to_string();
+        let msg =
+            classify_transport_error(OpenBitFunError::tool("CDP error: some detail".to_string()))
+                .to_string();
         assert!(msg.contains("CDP error: some detail"), "got: {msg}");
         assert!(
             !msg.contains("[WRONG_TAB]") && !msg.contains("[TIMEOUT]"),
@@ -1904,14 +1661,11 @@ mod script_tests {
         let clear = SNAPSHOT_SCRIPT
             .find("clearRefs(document);")
             .expect("top document refs must be cleared");
-        let clear_frames = SNAPSHOT_SCRIPT
-            .find("frames.forEach(f => clearRefs(f.doc));")
-            .expect("same-origin iframe refs must be cleared");
+        assert!(SNAPSHOT_SCRIPT.contains("if (doc) clearRefs(doc)"));
         let walk = SNAPSHOT_SCRIPT
             .find("walk(document, window, 'document', '');")
             .expect("snapshot must walk the top document");
         assert!(clear < walk, "clearRefs(document) must precede renumbering");
-        assert!(clear_frames < walk, "iframe refs must be cleared too");
         assert!(
             SNAPSHOT_SCRIPT.contains("if (host.shadowRoot) clearRefs(host.shadowRoot)"),
             "clearRefs must descend into open shadow roots"
@@ -2000,7 +1754,7 @@ mod script_tests {
         // sites must go through the ref-aware resolver instead.
         let select_js = BrowserActions::select_option_js("@e3", "Standard shipping");
         assert!(
-            select_js.contains(r#"[data-cdp-ref="@e3"]"#),
+            select_js.contains(r#"[data-cdp-ref=\"@e3\"]"#),
             "select must resolve @eN refs: {select_js}"
         );
         assert!(
@@ -2014,7 +1768,7 @@ mod script_tests {
 
         let wait_js = BrowserActions::element_exists_js("@e3");
         assert!(
-            wait_js.contains(r#"[data-cdp-ref="@e3"]"#),
+            wait_js.contains(r#"[data-cdp-ref=\"@e3\"]"#),
             "wait must resolve @eN refs: {wait_js}"
         );
         assert!(
@@ -2036,7 +1790,7 @@ mod script_tests {
     fn resolve_element_js_reports_cross_origin_frames_when_lookup_fails() {
         let js = BrowserActions::resolve_element_js("@e1");
         assert!(
-            js.contains("__crossOriginFrames()"),
+            js.contains("crossOriginFrames++"),
             "not-found path must count cross-origin frames: {js}"
         );
         assert!(

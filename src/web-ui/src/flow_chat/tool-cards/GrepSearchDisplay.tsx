@@ -5,7 +5,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolCardProps } from '../types/flow-chat';
-import { GrepSearchToolCard } from '@bitfun/ui/flow-chat';
+import { GrepSearchToolCard } from '@openbitfun/ui/flow-chat';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 import { formatSessionViewPreviewText } from '../utils/sessionViewPreview';
 export const GrepSearchDisplay: React.FC<ToolCardProps> = ({
@@ -72,19 +72,32 @@ export const GrepSearchDisplay: React.FC<ToolCardProps> = ({
     }
   }, [applyExpandedState, hasDetails, isExpanded, onExpand]);
 
+  const renderAction = () => {
+    if (status === 'completed') {
+      return `${t('toolCards.grepSearch.searchText')}:`;
+    }
+    if (status === 'running' || status === 'streaming') {
+      return t('toolCards.grepSearch.searchingText');
+    }
+    if (status === 'pending') {
+      return t('toolCards.grepSearch.preparingSearch');
+    }
+    return undefined;
+  };
+
   const renderContent = () => {
     if (status === 'completed') {
-      return `${t('toolCards.grepSearch.searchText')}: ${pattern}${hasResultData ? ` (${t('toolCards.grepSearch.matchesCount', { count: stats.matches })})` : ''}`;
+      return `${pattern}${hasResultData ? ` (${t('toolCards.grepSearch.matchesCount', { count: stats.matches })})` : ''}`;
     }
     if (status === 'running' || status === 'streaming') {
       const progressMessage = (toolItem as any)._progressMessage;
       if (progressMessage) {
         return progressMessage;
       }
-      return `${t('toolCards.grepSearch.searchingText')} ${pattern}...`;
+      return `${pattern}...`;
     }
     if (status === 'pending') {
-      return `${t('toolCards.grepSearch.preparingSearch')} ${pattern}`;
+      return pattern;
     }
     return pattern;
   };
@@ -94,15 +107,16 @@ export const GrepSearchDisplay: React.FC<ToolCardProps> = ({
   }
 
   return (
-    <div ref={cardRootRef} data-bf-adapter="grep-search" data-tool-card-id={toolId ?? ''}>
+    <div ref={cardRootRef} data-openbitfun-adapter="grep-search" data-tool-card-id={toolId ?? ''}>
       <GrepSearchToolCard
+        action={renderAction()}
         status={status}
         isExpanded={isExpanded}
         onToggle={hasDetails ? handleClick : undefined}
         summary={renderContent()}
         details={hasDetails ? [
-          { label: `${t('toolCards.grepSearch.labelPattern')}:`, value: pattern, monospace: true },
-          { label: `${t('toolCards.grepSearch.labelPath')}:`, value: searchPath, monospace: true },
+          { label: `${t('toolCards.grepSearch.labelPattern')}:`, value: pattern },
+          { label: `${t('toolCards.grepSearch.labelPath')}:`, value: searchPath },
           {
             label: `${t('toolCards.grepSearch.labelStats')}:`,
             value: t('toolCards.grepSearch.matchesAndFiles', { matches: stats.matches, files: stats.files }),

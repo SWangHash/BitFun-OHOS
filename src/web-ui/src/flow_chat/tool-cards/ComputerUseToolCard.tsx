@@ -1,29 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Button } from '@bitfun/ui';
+import { Button, Icon } from '@openbitfun/ui';
 import { useTranslation } from 'react-i18next';
-import {
-  AppWindow,
-  AlertTriangle,
-  Camera,
-  ChevronsUpDown,
-  Clipboard,
-  Clock,
-  ExternalLink,
-  Info,
-  Keyboard,
-  Monitor,
-  Move,
-  MousePointer2,
-  MousePointerClick,
-  Settings,
-  Terminal,
-} from 'lucide-react';
+import { AlertTriangle, Camera, ChevronsUpDown, Clipboard, Keyboard, Monitor, Move, MousePointer2, MousePointerClick } from 'lucide-react';
 
 import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
 import type { ToolCardProps } from '../types/flow-chat';
-import { AmbientToolCard, AmbientToolCardHeader, ToolCardStatusSlot } from '@bitfun/ui/flow-chat';
+import { AmbientToolCard, AmbientToolCardHeader, ToolCardStatusSlot } from '@openbitfun/ui/flow-chat';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 import './ComputerUseToolCard.scss';
 
@@ -103,7 +87,7 @@ function actionIcon(action: string): React.ReactNode {
   if (action === 'drag') return <Move size={16} />;
   if (action.includes('move') || action === 'locate') return <MousePointer2 size={16} />;
   if (action === 'key_chord' || action === 'type_text' || action === 'paste') return <Keyboard size={16} />;
-  if (action === 'wait') return <Clock size={16} />;
+  if (action === 'wait') return <Icon name="clock" size="md" />;
   if (
     action === 'list_apps'
     || action === 'get_app_state'
@@ -115,12 +99,12 @@ function actionIcon(action: string): React.ReactNode {
     || action.startsWith('build_')
     || action.startsWith('visual_')
   ) {
-    return <AppWindow size={16} />;
+    return <Icon name="floating-window" size="md" />;
   }
-  if (action.startsWith('open_')) return <ExternalLink size={16} />;
+  if (action.startsWith('open_')) return <Icon name="arrow-up-right" size="md" />;
   if (action.startsWith('clipboard_')) return <Clipboard size={16} />;
-  if (action === 'run_script' || action === 'run_apple_script') return <Terminal size={16} />;
-  if (action === 'get_os_info') return <Info size={16} />;
+  if (action === 'run_script' || action === 'run_apple_script') return <Icon name="terminal" size="md" />;
+  if (action === 'get_os_info') return <Icon name="info" size="md" />;
   return <Monitor size={16} />;
 }
 
@@ -175,15 +159,15 @@ export const ComputerUseToolCard: React.FC<ToolCardProps> = ({ toolItem, onExpan
   const renderExpandedContent = () => {
     if (status === 'error') {
       return (
-        <div data-bf-component="computer-use-tool-card" data-bf-part="content" className="compact-result-content computer-use-tool-card__content">
+        <div data-openbitfun-component="computer-use-tool-card" data-openbitfun-part="content" className="compact-result-content computer-use-tool-card__content">
           {permissionDenied ? (
-            <div data-bf-component="computer-use-tool-card" data-bf-part="permissionDenied" className="computer-use-tool-card__permission-denied">
+            <div data-openbitfun-component="computer-use-tool-card" data-openbitfun-part="permissionDenied" className="computer-use-tool-card__permission-denied">
               <p>{t('toolCards.computerUse.permissionDeniedHint')}</p>
               <Button
                 type="button"
                 variant="fill"
                 size="sm"
-                leadingIcon={<Settings size={12} />}
+                leadingIcon={<Icon name="gear" size="xs" />}
                 className="computer-use-tool-card__settings-button"
                 onClick={(event) => void handleOpenSettings(event)}
               >
@@ -198,25 +182,25 @@ export const ComputerUseToolCard: React.FC<ToolCardProps> = ({ toolItem, onExpan
     }
 
     return (
-      <div data-bf-component="computer-use-tool-card" data-bf-part="expanded" className="computer-use-tool-card__expanded">
-        <div data-bf-component="computer-use-tool-card" data-bf-part="row" className="computer-use-tool-card__row">
+      <div data-openbitfun-component="computer-use-tool-card" data-openbitfun-part="expanded" className="computer-use-tool-card__expanded">
+        <div data-openbitfun-component="computer-use-tool-card" data-openbitfun-part="row" className="computer-use-tool-card__row">
           <span className="computer-use-tool-card__row-label">{t('toolCards.computerUse.actionLabel')}</span>
           <code>{parsed.action}</code>
         </div>
         {parsed.appName && (
-          <div data-bf-component="computer-use-tool-card" data-bf-part="row" className="computer-use-tool-card__row">
+          <div data-openbitfun-component="computer-use-tool-card" data-openbitfun-part="row" className="computer-use-tool-card__row">
             <span className="computer-use-tool-card__row-label">{t('toolCards.computerUse.appLabel')}</span>
             <span>{parsed.appName}</span>
           </div>
         )}
         {parsed.target && (
-          <div data-bf-component="computer-use-tool-card" data-bf-part="row" className="computer-use-tool-card__row">
+          <div data-openbitfun-component="computer-use-tool-card" data-openbitfun-part="row" className="computer-use-tool-card__row">
             <span className="computer-use-tool-card__row-label">{t('toolCards.computerUse.targetLabel')}</span>
             <span>{parsed.target}</span>
           </div>
         )}
         {parsed.loopWarningSuggestion && (
-          <div data-bf-component="computer-use-tool-card" data-bf-part="loopWarning" className="computer-use-tool-card__loop-warning">
+          <div data-openbitfun-component="computer-use-tool-card" data-openbitfun-part="loopWarning" className="computer-use-tool-card__loop-warning">
             <AlertTriangle size={12} />
             <span>{parsed.loopWarningSuggestion}</span>
           </div>
@@ -226,7 +210,7 @@ export const ComputerUseToolCard: React.FC<ToolCardProps> = ({ toolItem, onExpan
   };
 
   return (
-    <div data-bf-component="computer-use-tool-card" data-bf-part="root" data-bf-state={[isExpanded && 'expanded', status === 'error' && 'failed'].filter(Boolean).join(' ')} ref={cardRootRef} data-tool-card-id={toolId ?? ''}>
+    <div data-openbitfun-component="computer-use-tool-card" data-openbitfun-part="root" data-openbitfun-state={[isExpanded && 'expanded', status === 'error' && 'failed'].filter(Boolean).join(' ')} ref={cardRootRef} data-tool-card-id={toolId ?? ''}>
       <AmbientToolCard
         status={status}
         isExpanded={isExpanded}
@@ -241,7 +225,7 @@ export const ComputerUseToolCard: React.FC<ToolCardProps> = ({ toolItem, onExpan
                 defaultIcon={status === 'completed' || status === 'error' ? 'tool' : 'status'}
               />
             )}
-            action={<code data-bf-component="computer-use-tool-card" data-bf-part="actionCode" className="computer-use-tool-card__action-code">{parsed.action}</code>}
+            action={<code data-openbitfun-component="computer-use-tool-card" data-openbitfun-part="actionCode" className="computer-use-tool-card__action-code">{parsed.action}</code>}
             content={renderContent()}
           />
         )}

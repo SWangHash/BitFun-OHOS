@@ -39,7 +39,7 @@ vi.mock('@/infrastructure/i18n/hooks/useI18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@bitfun/ui', () => ({
+vi.mock('@openbitfun/ui', () => ({
   Spinner: () => <div data-testid="scene-loader" />,
 }));
 
@@ -48,7 +48,12 @@ vi.mock('./session/SessionScene', () => ({
 }));
 
 vi.mock('./settings/SettingsScene', () => ({
-  default: () => <div data-testid="settings-scene-content" />,
+  default: ({ isActive }: { isActive?: boolean }) => (
+    <div
+      data-testid="settings-scene-content"
+      data-scene-prop-active={isActive ? 'true' : 'false'}
+    />
+  ),
 }));
 
 vi.mock('./assistant/AssistantScene', () => ({
@@ -106,7 +111,7 @@ describe('SceneViewport transitions', () => {
 
   function visibleScenes(): Element[] {
     return Array.from(container.querySelectorAll('[data-testid="scene-viewport-scene"]'))
-      .filter(scene => scene.classList.contains('bitfun-scene-viewport__scene--visible'));
+      .filter(scene => scene.classList.contains('openbitfun-scene-viewport__scene--visible'));
   }
 
   it('renders the welcome surface when no tab is open', () => {
@@ -155,22 +160,22 @@ describe('SceneViewport transitions', () => {
     expect(container.querySelector('[data-scene-id="session"]')?.getAttribute('aria-hidden')).toBe('true');
     expect(container.querySelector('[data-scene-id="session"]')?.hasAttribute('inert')).toBe(true);
     expect(container.querySelector('[data-scene-id="agents"]')?.classList.contains(
-      'bitfun-scene-viewport__scene--incoming',
+      'openbitfun-scene-viewport__scene--incoming',
     )).toBe(true);
 
     act(() => vi.advanceTimersByTime(32));
     expect(container.querySelector('[data-scene-id="agents"]')?.classList.contains(
-      'bitfun-scene-viewport__scene--incoming',
+      'openbitfun-scene-viewport__scene--incoming',
     )).toBe(true);
 
     act(() => vi.advanceTimersByTime(479));
     expect(container.querySelector('[data-scene-id="agents"]')?.classList.contains(
-      'bitfun-scene-viewport__scene--incoming',
+      'openbitfun-scene-viewport__scene--incoming',
     )).toBe(true);
 
     act(() => vi.advanceTimersByTime(1));
     expect(container.querySelector('[data-scene-id="agents"]')?.classList.contains(
-      'bitfun-scene-viewport__scene--incoming',
+      'openbitfun-scene-viewport__scene--incoming',
     )).toBe(false);
 
     sceneHarness.state = {
@@ -204,9 +209,43 @@ describe('SceneViewport transitions', () => {
 
     const inactive = container.querySelector('[data-scene-id="miniapp:gomoku"]');
     expect(inactive).not.toBeNull();
-    expect(inactive?.classList.contains('bitfun-scene-viewport__scene--visible')).toBe(false);
+    expect(inactive?.classList.contains('openbitfun-scene-viewport__scene--visible')).toBe(false);
     expect(inactive?.getAttribute('aria-hidden')).toBe('true');
     expect(inactive?.hasAttribute('inert')).toBe(true);
     expect(inactive?.hasAttribute('hidden')).toBe(false);
+  });
+
+  it('updates a retained Settings scene when it becomes active again', () => {
+    sceneHarness.state = {
+      openTabs: [
+        { id: 'session', lastUsed: 0 },
+        { id: 'settings', lastUsed: 1 },
+      ],
+      activeTabId: 'settings',
+      navigationMotion: 'instant',
+      navigationSequence: 0,
+    };
+
+    act(() => root.render(<SceneViewport />));
+    const settingsContent = container.querySelector('[data-testid="settings-scene-content"]');
+    expect(settingsContent?.getAttribute('data-scene-prop-active')).toBe('true');
+
+    sceneHarness.state = {
+      ...sceneHarness.state,
+      activeTabId: 'session',
+      navigationSequence: 1,
+    };
+    act(() => root.render(<SceneViewport />));
+    expect(container.querySelector('[data-testid="settings-scene-content"]')).toBe(settingsContent);
+    expect(settingsContent?.getAttribute('data-scene-prop-active')).toBe('false');
+
+    sceneHarness.state = {
+      ...sceneHarness.state,
+      activeTabId: 'settings',
+      navigationSequence: 2,
+    };
+    act(() => root.render(<SceneViewport />));
+    expect(container.querySelector('[data-testid="settings-scene-content"]')).toBe(settingsContent);
+    expect(settingsContent?.getAttribute('data-scene-prop-active')).toBe('true');
   });
 });

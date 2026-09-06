@@ -5,7 +5,7 @@
 
 use super::devecocli_run::{run_devecocli, DevecocliOptions};
 use crate::agentic::tools::framework::{Tool, ToolRenderOptions, ToolResult, ToolUseContext};
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
@@ -29,7 +29,7 @@ impl Tool for BuildProjectTool {
         "build_project"
     }
 
-    async fn description(&self) -> BitFunResult<String> {
+    async fn description(&self) -> OpenBitFunResult<String> {
         Ok(r#"Build a HarmonyOS project.
 
 Drives the hvigor build pipeline with optional clean, build-mode, product, module, and log capture. Use this when the user asks to build, compile, package, or clean a HarmonyOS/OpenHarmony project that contains build-profile.json5 or oh-package.json5.
@@ -88,7 +88,7 @@ Example:
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         let clean = input.get("clean").and_then(|v| v.as_bool()).unwrap_or(false);
         let build_mode = input.get("build_mode").and_then(|v| v.as_str());
         let product = input.get("product").and_then(|v| v.as_str());
@@ -126,7 +126,7 @@ Example:
             .join("\n");
 
         if out.exit_code != 0 {
-            return Err(BitFunError::tool(format!(
+            return Err(OpenBitFunError::tool(format!(
                 "build_project failed (exit {}):\n{}",
                 out.exit_code, combined
             )));

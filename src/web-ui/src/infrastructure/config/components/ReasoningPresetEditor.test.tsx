@@ -12,11 +12,12 @@ import ReasoningPresetEditor from './ReasoningPresetEditor';
 vi.mock('react-i18next', async importOriginal => ({
   ...await importOriginal<typeof import('react-i18next')>(),
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => (
-      typeof options?.presets === 'string'
-        ? `${key}: ${String(options.format)}: ${options.presets}`
-        : key
-    ),
+    t: (key: string, options?: Record<string, unknown>) => {
+      if (typeof options?.format !== 'string') return key;
+      return typeof options.presets === 'string'
+        ? `${key}: ${options.format}: ${options.presets}`
+        : `${key}: ${options.format}`;
+    },
   }),
 }));
 
@@ -32,8 +33,8 @@ interface SelectSpyProps {
 
 const selectProps: Record<string, SelectSpyProps> = {};
 
-vi.mock('@bitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@bitfun/ui')>(),
+vi.mock('@openbitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@openbitfun/ui')>(),
   ScrollArea: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   Icon: ({ name, ...props }: { name: string } & React.HTMLAttributes<HTMLSpanElement>) => <span data-icon={name} {...props} />,
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -50,8 +51,7 @@ vi.mock('@bitfun/ui', async importOriginal => ({
     <button type="button" {...props}>{children}</button>
   ),
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-  NumberInput: () => <input type="number" />,
-  Switch: () => <input type="checkbox" />,
+  Switch: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input type="checkbox" {...props} />,
   Combobox: (props: SelectSpyProps) => {
     const label = props['aria-label'] ?? '';
     selectProps[label] = props;
@@ -84,7 +84,14 @@ vi.mock('@bitfun/ui', async importOriginal => ({
       </select>
     );
   },
-  Textarea: () => <textarea />,
+  Textarea: ({
+    invalid: _invalid,
+    errorMessage: _errorMessage,
+    ...props
+  }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+    invalid?: boolean;
+    errorMessage?: React.ReactNode;
+  }) => <textarea {...props} />,
 }));
 
 const modelsDevReasoningCatalog: ModelsDevReasoningCatalog = {
@@ -138,7 +145,7 @@ function renderEditor(
 let activeRoot: Root | null = null;
 let activeContainer: HTMLDivElement | null = null;
 
-describe('ReasoningPresetEditor models-dev binding', () => {
+describe('ReasoningPresetEditor', () => {
   beforeEach(() => {
     for (const key of Object.keys(selectProps)) delete selectProps[key];
     activeRoot = null;
@@ -190,7 +197,7 @@ describe('ReasoningPresetEditor models-dev binding', () => {
     expect(model?.options ?? []).toHaveLength(0);
   });
 
-  it('lists a provider outside the BitFun built-in overlay', () => {
+  it('lists a provider outside the OpenBitFun built-in overlay', () => {
     render({ catalog: { source: 'models_dev', provider: 'github-copilot', model: '' }, presets: [] });
     const model = selectProps['reasoningPresets.catalogModel'];
     expect(model?.options?.map(o => o.value)).toEqual(['gpt-5.1-codex']);
@@ -216,7 +223,7 @@ describe('ReasoningPresetEditor models-dev binding', () => {
       'OpenAI (chat/completions)',
     );
 
-    const warning = activeContainer?.querySelector('[data-bf-part="unavailableWarning"]');
+    const warning = activeContainer?.querySelector('[data-openbitfun-part="unavailableWarning"]');
     expect(warning?.textContent).toContain('reasoningPresets.unavailableTitle');
     expect(warning?.textContent).toContain('OpenAI (chat/completions)');
     expect(warning?.textContent).toContain('Low, High');
@@ -415,5 +422,133 @@ describe('ReasoningPresetEditor models-dev binding', () => {
     const updated = onChange.mock.calls[0][0] as ReasoningConfig;
     expect(updated.catalog).toEqual({ source: 'auto' });
     expect(updated.default_preset).toBe('my-custom');
+  });
+
+  it('creates new custom presets with exactly one request body patch', () => {
+    const onChange = vi.fn();
+    render({ catalog: { source: 'auto' }, presets: [] }, onChange);
+
+    const addPreset = Array.from(activeContainer?.querySelectorAll('button') ?? [])
+      .find(button => button.textContent === 'reasoningPresets.add');
+    act(() => addPreset?.click());
+
+    const updated = onChange.mock.calls[0][0] as ReasoningConfig;
+    expect(updated.presets).toHaveLength(1);
+    expect(updated.presets[0]?.actions).toEqual([
+      { type: 'request_patch', body: {} },
+    ]);
+    expect(activeContainer?.textContent).not.toContain('reasoningPresets.addAction');
+  });
+
+  it('edits a single request body patch without exposing action controls', () => {
+    const onChange = vi.fn();
+    render({
+      catalog: { source: 'auto' },
+      presets: [{
+        id: 'custom',
+        label: 'Custom',
+        actions: [{ type: 'request_patch', body: { reasoning: { effort: 'low' } } }],
+      }],
+    }, onChange, undefined, 'OpenAI (responses)');
+
+    act(() => activeContainer
+      ?.querySelector<HTMLButtonElement>('button[aria-label="Custom"]')
+      ?.click());
+    const textarea = activeContainer?.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="reasoningPresets.settingPatch"]',
+    );
+    expect(textarea?.value).toContain('"effort": "low"');
+    expect(activeContainer?.querySelector('[data-openbitfun-part="actionControls"]')).toBeNull();
+    expect(textarea?.placeholder).toContain('OpenAI (responses)');
+
+    act(() => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        'value',
+      )?.set;
+      valueSetter?.call(textarea, '{"reasoning":{"effort":"high"}}');
+      textarea?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const updated = onChange.mock.calls.at(-1)?.[0] as ReasoningConfig;
+    expect(updated.presets[0]?.actions).toEqual([{
+      type: 'request_patch',
+      body: { reasoning: { effort: 'high' } },
+    }]);
+  });
+
+  it('shows the common request patch example as a placeholder for an empty patch', () => {
+    render({
+      catalog: { source: 'auto' },
+      presets: [{
+        id: 'custom',
+        label: 'Custom',
+        actions: [{ type: 'request_patch', body: {} }],
+      }],
+    }, vi.fn(), undefined, 'Gemini');
+
+    act(() => activeContainer
+      ?.querySelector<HTMLButtonElement>('button[aria-label="Custom"]')
+      ?.click());
+    const textarea = activeContainer?.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="reasoningPresets.settingPatch"]',
+    );
+
+    expect(textarea?.value).toBe('');
+    expect(textarea?.placeholder).toBe('reasoningPresets.patchPlaceholder: Gemini');
+    expect(activeContainer?.querySelector('.openbitfun-reasoning-preset-editor__row-preview')).toBeNull();
+  });
+
+  it('preserves legacy actions until the user explicitly replaces them', () => {
+    const onChange = vi.fn();
+    render({
+      catalog: { source: 'auto' },
+      presets: [{
+        id: 'legacy',
+        label: 'Legacy',
+        actions: [
+          { type: 'effort', value: 'high' },
+          { type: 'request_patch', body: { reasoning: { summary: 'auto' } } },
+          { type: 'request_patch', body: { include: ['reasoning.encrypted_content'] } },
+        ],
+      }],
+    }, onChange);
+
+    act(() => activeContainer
+      ?.querySelector<HTMLButtonElement>('button[aria-label="Legacy"]')
+      ?.click());
+    const legacyActions = activeContainer?.querySelectorAll('[data-openbitfun-part="action"]');
+    expect(legacyActions).toHaveLength(3);
+    expect(activeContainer?.textContent).toContain('reasoningPresets.legacyTitle');
+    expect(activeContainer?.textContent).toContain('high');
+    expect(activeContainer?.textContent).toContain('reasoning.encrypted_content');
+    expect(onChange).not.toHaveBeenCalled();
+
+    const convert = Array.from(activeContainer?.querySelectorAll('button') ?? [])
+      .find(button => button.textContent === 'reasoningPresets.convertToSinglePatch');
+    act(() => convert?.click());
+
+    const updated = onChange.mock.calls[0][0] as ReasoningConfig;
+    expect(updated.presets[0]?.actions).toEqual([
+      { type: 'request_patch', body: {} },
+    ]);
+  });
+
+  it('adds a request body patch when an actionless preset is enabled', () => {
+    const onChange = vi.fn();
+    render({
+      catalog: { source: 'auto' },
+      presets: [{ id: 'disabled', label: 'Disabled', disabled: true, actions: [] }],
+    }, onChange);
+
+    act(() => activeContainer
+      ?.querySelector<HTMLInputElement>('input[aria-label="reasoningPresets.enabled"]')
+      ?.click());
+
+    const updated = onChange.mock.calls[0][0] as ReasoningConfig;
+    expect(updated.presets[0]?.disabled).toBe(false);
+    expect(updated.presets[0]?.actions).toEqual([
+      { type: 'request_patch', body: {} },
+    ]);
   });
 });

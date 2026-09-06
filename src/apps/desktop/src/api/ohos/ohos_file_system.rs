@@ -1,4 +1,4 @@
-use bitfun_core::util::{open_dialog_file, JS_THREADSAFE_FUNCTION};
+use openbitfun_core::util::{open_dialog_file, JS_THREADSAFE_FUNCTION};
 use napi_ohos::threadsafe_function::ThreadsafeFunctionCallMode;
 
 /// Open the HarmonyOS file/folder picker.

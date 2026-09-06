@@ -5,7 +5,7 @@
  * deck.renderPage → hidden host WebView slide rasterization (export),
  * chat.* → floating session bubble composer claims and session focus,
  * clipboard.* → Host navigator.clipboard.
- * Also handles bitfun/request-appearance and pushes Appearance changes to the iframe.
+ * Also handles openbitfun/request-appearance and pushes Appearance changes to the iframe.
  */
 import { useLayoutEffect, useRef, useEffect, useState, RefObject } from 'react';
 import { miniAppAPI } from '@/infrastructure/api/service-api/MiniAppAPI';
@@ -26,6 +26,10 @@ import {
   normalizeMiniAppBubbleCustomization,
   type MiniAppComposerMessageDetail,
 } from '../miniAppStore';
+import {
+  completeMiniAppComposerMessage,
+  rejectPendingMiniAppComposerMessages,
+} from '../miniAppComposerMessages';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { shouldOpenMiniAppAgentRunInMainScene } from './miniAppAgentVisibility';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
@@ -125,24 +129,24 @@ export function useMiniAppBridge(
           '*',
         );
 
-      if (method === 'bitfun/request-appearance') {
+      if (method === 'openbitfun/request-appearance') {
         const payload = buildMiniAppAppearancePayload(appearanceRef.current);
         if (payload && iframeRef.current?.contentWindow) {
           iframeRef.current.contentWindow.postMessage(
-            { type: 'bitfun:event', event: 'appearanceChange', payload },
+            { type: 'openbitfun:event', event: 'appearanceChange', payload },
             '*',
           );
         }
         return;
       }
 
-      if (method === 'bitfun/request-locale') {
+      if (method === 'openbitfun/request-locale') {
         // Reply with the current locale id (e.g. "zh-CN" / "en-US"). The MiniApp
         // can use this both as the initial value and to look up its own i18n bundle.
         reply({ locale: localeRef.current });
         if (iframeRef.current?.contentWindow) {
           iframeRef.current.contentWindow.postMessage(
-            { type: 'bitfun:event', event: 'localeChange', payload: { locale: localeRef.current } },
+            { type: 'openbitfun:event', event: 'localeChange', payload: { locale: localeRef.current } },
             '*',
           );
         }
@@ -484,6 +488,10 @@ export function useMiniAppBridge(
             return;
           }
           if (method === 'chat.releaseComposer') {
+            rejectPendingMiniAppComposerMessages(
+              composerTokenRef.current,
+              'MiniApp released the floating chat composer before the message completed',
+            );
             useMiniAppStore.getState().releaseComposer(appId, composerTokenRef.current);
             reply(null);
             return;
@@ -535,6 +543,20 @@ export function useMiniAppBridge(
               sessionId,
             );
             reply(null);
+            return;
+          }
+          if (method === 'chat.completeUserMessage') {
+            const requestId = String(params.requestId ?? '').trim();
+            if (!requestId) {
+              replyError('chat.completeUserMessage: requestId is required.');
+              return;
+            }
+            const completed = completeMiniAppComposerMessage(
+              composerTokenRef.current,
+              requestId,
+              typeof params.error === 'string' ? params.error : undefined,
+            );
+            reply({ completed });
             return;
           }
           replyError(`Unknown chat method: ${method}`);
@@ -648,7 +670,7 @@ export function useMiniAppBridge(
     const payload = buildMiniAppAppearancePayload(currentAppearance);
     if (!payload || !iframeRef.current?.contentWindow) return;
     iframeRef.current.contentWindow.postMessage(
-      { type: 'bitfun:event', event: 'appearanceChange', payload },
+      { type: 'openbitfun:event', event: 'appearanceChange', payload },
       '*',
     );
   }, [currentAppearance, iframeRef]);
@@ -659,7 +681,7 @@ export function useMiniAppBridge(
     if (!bridgeReady) return;
     if (!iframeRef.current?.contentWindow) return;
     iframeRef.current.contentWindow.postMessage(
-      { type: 'bitfun:event', event: 'localeChange', payload: { locale: currentLanguage } },
+      { type: 'openbitfun:event', event: 'localeChange', payload: { locale: currentLanguage } },
       '*',
     );
   }, [bridgeReady, currentLanguage, iframeRef]);
@@ -684,9 +706,11 @@ export function useMiniAppBridge(
           : {}),
         ...(detail.sessionId !== undefined ? { sessionId: detail.sessionId } : {}),
         ...(detail.workspacePath !== undefined ? { workspacePath: detail.workspacePath } : {}),
+        ...(detail.requestId !== undefined ? { requestId: detail.requestId } : {}),
+        ...(detail.source !== undefined ? { source: detail.source } : {}),
       };
       iframeRef.current?.contentWindow?.postMessage(
-        { type: 'bitfun:event', event: 'chat:userMessage', payload },
+        { type: 'openbitfun:event', event: 'chat:userMessage', payload },
         '*',
       );
     };
@@ -701,6 +725,10 @@ export function useMiniAppBridge(
     const currentAppId = app.id;
     const token = composerTokenRef.current;
     return () => {
+      rejectPendingMiniAppComposerMessages(
+        token,
+        'MiniApp closed before the floating chat message completed',
+      );
       useMiniAppStore.getState().releaseComposer(currentAppId, token);
     };
   }, [app.id]);
@@ -713,7 +741,7 @@ export function useMiniAppBridge(
       if (payload.appId !== currentAppId) return;
       iframeRef.current.contentWindow.postMessage(
         {
-          type: 'bitfun:event',
+          type: 'openbitfun:event',
           event: 'ai:stream',
           payload: {
             streamId: payload.streamId,
@@ -773,7 +801,7 @@ export function useMiniAppBridge(
           if (!ownsSession) return;
           iframeRef.current.contentWindow.postMessage(
             {
-              type: 'bitfun:event',
+              type: 'openbitfun:event',
               event: 'agent:event',
               payload: { sourceEvent: eventName, ...payload },
             },
@@ -799,7 +827,7 @@ export function useMiniAppBridge(
         if (!iframeRef.current?.contentWindow) return;
         iframeRef.current.contentWindow.postMessage(
           {
-            type: 'bitfun:event',
+            type: 'openbitfun:event',
             event: 'worker:event',
             payload: {
               event: payload.event,

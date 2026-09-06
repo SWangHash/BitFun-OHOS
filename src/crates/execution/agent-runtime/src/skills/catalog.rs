@@ -51,11 +51,11 @@ pub(super) const BUILTIN_SKILL_SPECS: &[BuiltinSkillSpec] = &[
         group: BuiltinSkillGroup::Canvas,
     },
     BuiltinSkillSpec {
-        dir_name: "bitfun-canvas",
+        dir_name: "openbitfun-canvas",
         group: BuiltinSkillGroup::Canvas,
     },
     BuiltinSkillSpec {
-        dir_name: "create-bitfun-skin",
+        dir_name: "create-openbitfun-skin",
         group: BuiltinSkillGroup::Meta,
     },
     BuiltinSkillSpec {
@@ -83,7 +83,7 @@ pub(super) const BUILTIN_SKILL_SPECS: &[BuiltinSkillSpec] = &[
         group: BuiltinSkillGroup::MiniApp,
     },
     BuiltinSkillSpec {
-        dir_name: "bitfun-frontend-dev",
+        dir_name: "openbitfun-frontend-dev",
         group: BuiltinSkillGroup::Creation,
     },
     BuiltinSkillSpec {

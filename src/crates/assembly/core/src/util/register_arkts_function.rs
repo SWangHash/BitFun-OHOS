@@ -23,11 +23,11 @@ pub fn register_arkts_function(
 
 /// The OHOS-side event name the web-ui listens for to follow live system color
 /// mode changes. Defined here so rust and the web-ui reference the same string.
-pub const SYSTEM_COLOR_SCHEME_CHANGED_EVENT: &str = "bitfun:system-color-scheme-changed";
+pub const SYSTEM_COLOR_SCHEME_CHANGED_EVENT: &str = "openbitfun:system-color-scheme-changed";
 
 /// Event emitted by the HarmonyOS native window host when the user clicks the
 /// system title-bar close button. Desktop Tauri emits the same event directly.
-pub const MAIN_WINDOW_CLOSE_REQUESTED_EVENT: &str = "bitfun_main_window_close_requested";
+pub const MAIN_WINDOW_CLOSE_REQUESTED_EVENT: &str = "openbitfun_main_window_close_requested";
 
 /// Event name the embedded browser webview emits to signal page-load lifecycle
 /// (started/finished) so the web-ui's `useEmbeddedBrowserWebview` hook can

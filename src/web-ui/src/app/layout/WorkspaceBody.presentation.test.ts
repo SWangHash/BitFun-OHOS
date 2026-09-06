@@ -12,6 +12,11 @@ const stylesheet = readFileSync(
   'utf8',
 ).replace(/\r\n/g, '\n');
 
+const navBarStylesheet = readFileSync(
+  fileURLToPath(new URL('../components/NavBar/NavBar.scss', import.meta.url)),
+  'utf8',
+).replace(/\r\n/g, '\n');
+
 describe('WorkspaceBody presentation contract', () => {
   it('starts the navigation at 300px while retaining its resize range', () => {
     expect(componentSource).toContain('const NAV_DEFAULT_WIDTH = 300;');
@@ -22,7 +27,7 @@ describe('WorkspaceBody presentation contract', () => {
 
   it('shares the split-view content-panel curvature with its resize feedback edge', () => {
     expect(stylesheet).toContain(
-      '--_scene-surface-radius: var(--bf-layout-split-view-content-panel-radius);',
+      '--_scene-surface-radius: var(--openbitfun-layout-split-view-content-panel-radius);',
     );
     expect(stylesheet.match(
       /border-radius: var\(--_scene-surface-radius\) 0 0 var\(--_scene-surface-radius\);/g,
@@ -31,5 +36,21 @@ describe('WorkspaceBody presentation contract', () => {
     expect(stylesheet).not.toContain(
       'border-radius: $size-radius-xl 0 0 $size-radius-xl;',
     );
+  });
+
+  it('keeps the collapsed navigation control on the scene surface without a sidebar tile', () => {
+    expect(navBarStylesheet).toContain('@include shell-surfaces.sidebar-background;');
+    expect(navBarStylesheet).toMatch(
+      /&--collapsed\s*\{[^}]*background:\s*transparent;/,
+    );
+  });
+
+  it('keeps navigation and scene tabs on the same toolbar row with the viewport attached below', () => {
+    expect(stylesheet).toContain('$_nav-bar-height: var(--openbitfun-layout-toolbar-md-height);');
+    expect(stylesheet).toContain('padding: 0 var(--openbitfun-space-4);');
+    expect(stylesheet).toMatch(
+      /\.openbitfun-workspace-body__scene-surface\s*\{[^}]*gap:\s*0;/s,
+    );
+    expect(navBarStylesheet).toContain('height: var(--openbitfun-layout-toolbar-md-height);');
   });
 });

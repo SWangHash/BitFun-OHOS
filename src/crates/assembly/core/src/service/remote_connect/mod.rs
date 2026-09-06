@@ -4,7 +4,7 @@
 //! Supports multiple connection methods: LAN, ngrok, relay server, and bots.
 //!
 //! Bot connections (Telegram / Feishu / Weixin) run independently of relay connections
-//! (LAN / ngrok / BitFun Server / Custom Server).  Calling `stop()` only
+//! (LAN / ngrok / OpenBitFun Server / Custom Server).  Calling `stop()` only
 //! tears down the relay side; bots keep running.  Use `stop_bot()` or
 //! `stop_all()` to shut everything down.
 
@@ -17,35 +17,35 @@ pub mod remote_server;
 pub mod settings_sync;
 
 pub mod device {
-    pub use bitfun_services_integrations::remote_connect::device::*;
+    pub use openbitfun_services_integrations::remote_connect::device::*;
 }
 
 pub mod encryption {
-    pub use bitfun_services_integrations::remote_connect::encryption::*;
+    pub use openbitfun_services_integrations::remote_connect::encryption::*;
 }
 
 pub mod pairing {
-    pub use bitfun_services_integrations::remote_connect::pairing::*;
+    pub use openbitfun_services_integrations::remote_connect::pairing::*;
 }
 
 pub mod qr_generator {
-    pub use bitfun_services_integrations::remote_connect::qr_generator::*;
+    pub use openbitfun_services_integrations::remote_connect::qr_generator::*;
 }
 
 pub mod relay_client {
-    pub use bitfun_services_integrations::remote_connect::relay_client::*;
+    pub use openbitfun_services_integrations::remote_connect::relay_client::*;
 }
 
 pub mod account {
-    pub use bitfun_services_integrations::remote_connect::account::*;
+    pub use openbitfun_services_integrations::remote_connect::account::*;
 }
 
 pub mod session_store {
-    pub use bitfun_services_integrations::remote_connect::session_store::*;
+    pub use openbitfun_services_integrations::remote_connect::session_store::*;
 }
 
 pub mod sync_state {
-    pub use bitfun_services_integrations::remote_connect::sync_state::*;
+    pub use openbitfun_services_integrations::remote_connect::sync_state::*;
 }
 
 pub use account::{
@@ -62,9 +62,9 @@ pub use remote_server::RemoteServer;
 use crate::util::JS_THREADSAFE_FUNCTION;
 use napi_ohos::threadsafe_function::ThreadsafeFunctionCallMode;
 use anyhow::Result;
-use bitfun_services_integrations::remote_connect::upload_mobile_web_to_relay;
 use embedded_relay_host::EmbeddedRelayHost;
 use log::{debug, error, info, warn};
+use openbitfun_services_integrations::remote_connect::upload_mobile_web_to_relay;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -76,7 +76,7 @@ use tokio::sync::{Mutex, RwLock};
 pub enum ConnectionMethod {
     Lan { ip: Option<String> },
     Ngrok,
-    BitfunServer,
+    OpenBitFunServer,
     CustomServer { url: String },
     BotFeishu,
     BotTelegram,
@@ -87,7 +87,7 @@ pub enum ConnectionMethod {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemoteConnectConfig {
     pub lan_port: u16,
-    pub bitfun_server_url: String,
+    pub openbitfun_server_url: String,
     pub web_app_url: String,
     pub custom_server_url: Option<String>,
     pub bot_feishu: Option<bot::BotConfig>,
@@ -100,7 +100,7 @@ impl Default for RemoteConnectConfig {
     fn default() -> Self {
         Self {
             lan_port: 9700,
-            bitfun_server_url: "https://remote.openbitfun.com/relay".to_string(),
+            openbitfun_server_url: "https://remote.openbitfun.com/relay".to_string(),
             web_app_url: "https://remote.openbitfun.com/relay".to_string(),
             custom_server_url: None,
             bot_feishu: None,
@@ -403,7 +403,7 @@ pub struct RemoteConnectService {
     peer_device_provision_fn: Arc<RwLock<Option<PeerDeviceProvisionFn>>>,
     /// Non-secret username embedded in the QR when the desktop is logged in.
     account_pairing_username: Arc<RwLock<Option<String>>>,
-    /// When set, pairing requires BitFun account username+password and the
+    /// When set, pairing requires OpenBitFun account username+password and the
     /// verifier returns the canonical account `user_id` on success.
     account_pairing_verifier: Arc<RwLock<Option<AccountPairingVerifierFn>>>,
 }
@@ -593,7 +593,8 @@ impl RemoteConnectService {
                 }
             },
         );
-        bitfun_services_integrations::remote_connect::bot::clear_persisted_bot_account_contexts();
+        openbitfun_services_integrations::remote_connect::bot::clear_persisted_bot_account_contexts(
+        );
     }
 
     pub fn device_identity(&self) -> &DeviceIdentity {
@@ -652,7 +653,7 @@ impl RemoteConnectService {
                 .is_some_and(|value| !value.is_empty())
             {
                 return Err(
-                    "Desktop signed out of the BitFun account; sign in again and refresh the QR code"
+                    "Desktop signed out of the OpenBitFun account; sign in again and refresh the QR code"
                         .to_string(),
                 );
             }
@@ -703,12 +704,12 @@ impl RemoteConnectService {
         let provider = delegated_identity_fn.read().await.clone();
         let Some(get_identity) = provider else {
             return AuthorizedCredentialResolution::error(
-                "Desktop is not logged into a BitFun account",
+                "Desktop is not logged into a OpenBitFun account",
             );
         };
         let Some(authorization) = get_identity().await else {
             return AuthorizedCredentialResolution::error(
-                "Desktop is not logged into a BitFun account",
+                "Desktop is not logged into a OpenBitFun account",
             );
         };
         if authorization.user_id != trusted_identity.user_id {
@@ -760,7 +761,7 @@ impl RemoteConnectService {
         let provider = peer_device_provision_fn.read().await.clone();
         let Some(provision) = provider else {
             return AuthorizedCredentialResolution::error(
-                "Desktop is not logged into a BitFun account",
+                "Desktop is not logged into a OpenBitFun account",
             );
         };
         let authorization = match provision(
@@ -834,7 +835,7 @@ impl RemoteConnectService {
         vec![
             ConnectionMethod::Lan { ip: None },
             ConnectionMethod::Ngrok,
-            ConnectionMethod::BitfunServer,
+            ConnectionMethod::OpenBitFunServer,
             ConnectionMethod::CustomServer {
                 url: self.config.custom_server_url.clone().unwrap_or_default(),
             },
@@ -846,7 +847,7 @@ impl RemoteConnectService {
 
     /// Start a remote connection with the given method.
     ///
-    /// For relay methods (LAN / ngrok / BitFun Server / Custom Server) this
+    /// For relay methods (LAN / ngrok / OpenBitFun Server / Custom Server) this
     /// tears down any existing relay and starts a new one.
     /// For bot methods, this starts the bot pairing flow without affecting
     /// any running relay connection.
@@ -901,7 +902,7 @@ impl RemoteConnectService {
                 *self.ngrok_tunnel.write().await = Some(tunnel);
                 url
             }
-            ConnectionMethod::BitfunServer => validate_relay_base_url(&self.config.bitfun_server_url)?
+            ConnectionMethod::OpenBitFunServer => validate_relay_base_url(&self.config.openbitfun_server_url)?
                 .as_str()
                 .trim_end_matches('/')
                 .to_string(),
@@ -934,7 +935,7 @@ impl RemoteConnectService {
             .await?;
 
         // Wait for RoomCreated before HTTP upload / QR generation so the relay
-        // has registered the room (avoids upload 404 races on BitFun/Custom).
+        // has registered the room (avoids upload 404 races on OpenBitFun/Custom).
         // Mirror start_device_connection's AuthOk wait pattern.
         {
             let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
@@ -969,7 +970,7 @@ impl RemoteConnectService {
 
         let web_app_url: String = match &method {
             ConnectionMethod::Lan { .. } | ConnectionMethod::Ngrok => relay_url.clone(),
-            ConnectionMethod::BitfunServer => {
+            ConnectionMethod::OpenBitFunServer => {
                 if let Some(web_dir) = static_dir {
                     match upload_mobile_web_to_relay(&relay_url, &qr_payload.room_id, web_dir).await
                     {
@@ -1782,7 +1783,7 @@ impl RemoteConnectService {
         self.pairing.read().await.state().await
     }
 
-    /// Stop relay connections (LAN / ngrok / BitFun Server / Custom Server).
+    /// Stop relay connections (LAN / ngrok / OpenBitFun Server / Custom Server).
     /// Bot connections are left running.
     pub async fn stop_relay(&self) {
         let _lifecycle = self.relay_lifecycle.lock().await;

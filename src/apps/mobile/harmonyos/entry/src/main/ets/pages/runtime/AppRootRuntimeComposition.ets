@@ -509,7 +509,8 @@ export abstract class AppRootRuntimeComposition {
         onTimelineReady: () => {
           this.remotePageState.setConversationLoading(false);
         },
-        onSendSucceeded: (turnId: string, pendingActiveId: string) => {
+        onSendSucceeded: (turnId: string, pendingActiveId: string, localMessageId: string) => {
+          this.chatTimelineStore.acknowledgeOptimisticTurn(localMessageId, turnId);
           if (turnId.length > 0) {
             this.chatTimelineStore.setLocalActiveTurn(turnId);
             this.conversationController.syncRemoteTimeline();
@@ -522,6 +523,16 @@ export abstract class AppRootRuntimeComposition {
             sessionId: this.remotePageState.activeSession.sessionId || '',
             turnId
           });
+          this.remoteChatPollingLifecycleController.nudge();
+        },
+        onSteerSucceeded: (
+          steeringId: string,
+          turnId: string,
+          displayText: string,
+          images: SelectedImageAttachment[]
+        ) => {
+          this.chatTimelineStore.appendSteeringItem(turnId, steeringId, displayText, images);
+          this.conversationController.syncRemoteTimeline();
           this.remoteChatPollingLifecycleController.nudge();
         },
         onSendFailed: (
@@ -789,6 +800,9 @@ export abstract class AppRootRuntimeComposition {
           loadRecentWorkspaces: async (): Promise<void> => {
             await this.remoteWorkspaceViewModel.loadRecentWorkspacesInBackground();
           },
+          saveControlTargetType: async (controlTargetType: string): Promise<void> => {
+            await this.remoteConnectionController.rememberControlTargetType(controlTargetType);
+          },
           onAccountDevices: (devices: CloudAccountDevice[]): void => {
             this.deviceDirectoryViewModel.syncDevices(devices);
           },
@@ -896,6 +910,9 @@ export abstract class AppRootRuntimeComposition {
       openFilePreview: (route: AppRoute, request: FilePreviewRequest): void =>
         this.filePreviewController.open(route, request),
       downloadFile: (path: string): void => this.conversationController.downloadVisibleFile(path),
+      buildPlan: async (path: string, name: string): Promise<void> => {
+        await this.conversationController.buildRemotePlan(path, name);
+      },
       send: async (): Promise<void> => { await this.conversationController.sendVisibleMessage(); },
       voiceInput: async (): Promise<void> => { await this.toggleVoiceInput(); },
       inputChanged: (route: AppRoute, value: string): void =>
@@ -985,6 +1002,10 @@ export abstract class AppRootRuntimeComposition {
       close: (): void => this.appShellState.leaveSettings(),
       addConnection: (): void => this.openAddConnectionFromSettings(),
       disconnect: (): void => { this.disconnect(false); },
+      clearPairing: (): void => {
+        this.appShellState.setSettingsVisible(false);
+        this.disconnect(true);
+      },
       reconnect: (): void => { this.reconnect(); },
       openAccount: (): void => { this.appShellState.openSettings('account'); },
       cloudLogin: (relayUrl: string, username: string, password: string): Promise<string> =>
@@ -1124,7 +1145,8 @@ export abstract class AppRootRuntimeComposition {
     const result = this.remoteConnectionController.handleDetectedUrl(
       url,
       this.settingsController.hasCloudAccountSession(),
-      this.remotePageState.accountUsername
+      this.remotePageState.accountUsername,
+      this.settingsController.cloudRelayEndpoint()
     );
     if (result.action === DetectedUrlAction.USE_CLOUD_DEVICE) {
       void this.settingsController.restoreCloudTarget(

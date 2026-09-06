@@ -1,6 +1,6 @@
 # ADE-Spec：需求开发文档与指导流程
 
-> 范围：BitFun 仓库中用于「需求开发」的文档工作夹（spec / design / plan / 收尾记录）。
+> 范围：OpenBitFun 仓库中用于「需求开发」的文档工作夹（spec / design / plan / 收尾记录）。
 > 用途：作为 `docs/ade-spec/` 的入口文档。说明这里存放什么文档、如何命名、以及一条
 > 从需求到交付的可执行开发流程。具体文档只回答局部问题，本文件只回答流程与边界。
 
@@ -143,10 +143,10 @@ build 与宽测试套。常用项：
 | 仅 locale 资源 | `pnpm run i18n:audit` |
 | locale 契约或共享 term | `pnpm run i18n:generate && pnpm run i18n:contract:test && pnpm run i18n:audit` |
 | 共享 Rust（core/transport/adapters/services） | `cargo check --workspace` + 最近聚焦 `cargo test` |
-| 桌面集成/Tauri/浏览器-计算机使用 | `cargo check -p bitfun-desktop` + 聚焦桌面测试 |
-| `ai-adapters` 流契约改动 | 加 `cargo test -p bitfun-agent-stream` |
-| 安装包前端/i18n（无打包改动） | `pnpm --dir BitFun-Installer run type-check` |
-| 安装包 Tauri/Rust | `cargo check --manifest-path BitFun-Installer/src-tauri/Cargo.toml` |
+| 桌面集成/Tauri/浏览器-计算机使用 | `cargo check -p openbitfun-desktop` + 聚焦桌面测试 |
+| `ai-adapters` 流契约改动 | 加 `cargo test -p openbitfun-agent-stream` |
+| 安装包前端/i18n（无打包改动） | `pnpm --dir OpenBitFun-Installer run type-check` |
+| 安装包 Tauri/Rust | `cargo check --manifest-path OpenBitFun-Installer/src-tauri/Cargo.toml` |
 
 格式与仓库卫生：改 Rust 后优先 `pnpm run fmt:rs`；UI 改动跑 `pnpm run lint:web`。
 

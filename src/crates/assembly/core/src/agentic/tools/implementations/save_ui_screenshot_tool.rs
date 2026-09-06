@@ -5,7 +5,7 @@
 
 use super::ui_verification_mcp::call_ui_verification_mcp;
 use crate::agentic::tools::framework::{Tool, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult};
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::Path;
@@ -24,7 +24,7 @@ impl SaveUiScreenshotTool {
 impl Tool for SaveUiScreenshotTool {
     fn name(&self) -> &str { "save_ui_screenshot" }
 
-    async fn description(&self) -> BitFunResult<String> {
+    async fn description(&self) -> OpenBitFunResult<String> {
         Ok(r#"Save screenshots from a UI verification run.
 
 Saves every step's screenshot for the given verification `id` to the specified directory. Returns a list of saved screenshot file names.
@@ -79,11 +79,11 @@ Example:
         if options.verbose { format!("HarmonyOS save screenshots: {}", id) } else { format!("Save screenshots: {}", id) }
     }
 
-    async fn call_impl(&self, input: &Value, _ctx: &ToolUseContext) -> BitFunResult<Vec<ToolResult>> {
+    async fn call_impl(&self, input: &Value, _ctx: &ToolUseContext) -> OpenBitFunResult<Vec<ToolResult>> {
         let id = input.get("id").and_then(|v| v.as_str())
-            .ok_or_else(|| BitFunError::tool("id is required".to_string()))?;
+            .ok_or_else(|| OpenBitFunError::tool("id is required".to_string()))?;
         let dirname = input.get("dirname").and_then(|v| v.as_str())
-            .ok_or_else(|| BitFunError::tool("dirname is required".to_string()))?;
+            .ok_or_else(|| OpenBitFunError::tool("dirname is required".to_string()))?;
 
         let payload = json!({ "id": id, "dirname": dirname });
         let result = call_ui_verification_mcp("saveScreenshot", payload).await?;

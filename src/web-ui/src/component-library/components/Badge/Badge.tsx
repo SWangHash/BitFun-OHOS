@@ -22,5 +22,5 @@ export const Badge: React.FC<BadgeProps> = ({
     .filter(Boolean)
     .join(' ');
 
-  return <span className={classNames} data-bf-component="badge" data-bf-part="root" data-bf-variant={variant}>{children}</span>;
+  return <span className={classNames} data-openbitfun-component="badge" data-openbitfun-part="root" data-openbitfun-variant={variant}>{children}</span>;
 };

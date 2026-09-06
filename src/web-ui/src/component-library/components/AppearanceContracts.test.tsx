@@ -26,17 +26,17 @@ describe('component appearance contracts', () => {
 
   afterEach(() => {
     act(() => root.unmount());
-    document.getElementById('bitfun-appearance-overlay-host')?.remove();
+    document.getElementById('openbitfun-appearance-overlay-host')?.remove();
     container.remove();
   });
 
   it('exposes stable part, facet, and state attributes for base components', () => {
     const button = renderToStaticMarkup(<Button variant="danger" size="small" isLoading>Run</Button>);
-    expect(button).toContain('data-bf-component="button"');
-    expect(button).toContain('data-bf-part="root"');
-    expect(button).toContain('data-bf-variant="danger"');
-    expect(button).toContain('data-bf-state="loading"');
-    expect(button).toContain('data-bf-part="loadingIcon"');
+    expect(button).toContain('data-openbitfun-component="button"');
+    expect(button).toContain('data-openbitfun-part="root"');
+    expect(button).toContain('data-openbitfun-variant="danger"');
+    expect(button).toContain('data-openbitfun-state="loading"');
+    expect(button).toContain('data-openbitfun-part="loadingIcon"');
 
     const card = renderToStaticMarkup(
       <Card variant="accent" padding="large" interactive>
@@ -45,16 +45,16 @@ describe('component appearance contracts', () => {
         <CardFooter align="between">Footer</CardFooter>
       </Card>,
     );
-    expect(card).toContain('data-bf-component="card"');
-    expect(card).toContain('data-bf-part="title"');
-    expect(card).toContain('data-bf-align="between"');
-    expect(card).toContain('data-bf-state="interactive"');
+    expect(card).toContain('data-openbitfun-component="card"');
+    expect(card).toContain('data-openbitfun-part="title"');
+    expect(card).toContain('data-openbitfun-align="between"');
+    expect(card).toContain('data-openbitfun-state="interactive"');
 
     const input = renderToStaticMarkup(<Input variant="filled" size="large" error errorMessage="Invalid" />);
-    expect(input).toContain('data-bf-component="input"');
-    expect(input).toContain('data-bf-part="container"');
-    expect(input).toContain('data-bf-size="large"');
-    expect(input).toContain('data-bf-state="error"');
+    expect(input).toContain('data-openbitfun-component="input"');
+    expect(input).toContain('data-openbitfun-part="container"');
+    expect(input).toContain('data-openbitfun-size="large"');
+    expect(input).toContain('data-openbitfun-state="error"');
   });
 
   it('renders Modal through the shared overlay host with stable parts', async () => {
@@ -65,11 +65,11 @@ describe('component appearance contracts', () => {
         </Modal>,
       );
     });
-    const host = document.getElementById('bitfun-appearance-overlay-host');
+    const host = document.getElementById('openbitfun-appearance-overlay-host');
     expect(host).not.toBeNull();
-    expect(host?.querySelector('[data-bf-component="modal"][data-bf-part="overlay"]')).not.toBeNull();
-    expect(host?.querySelector('[data-bf-part="dialog"][data-bf-size="large"]')).not.toBeNull();
-    expect(host?.querySelector('[data-bf-part="content"][data-bf-state="contentInset"]')).not.toBeNull();
-    expect(host?.querySelectorAll('[data-bf-part="resizeHandle"]')).toHaveLength(8);
+    expect(host?.querySelector('[data-openbitfun-component="modal"][data-openbitfun-part="overlay"]')).not.toBeNull();
+    expect(host?.querySelector('[data-openbitfun-part="dialog"][data-openbitfun-size="large"]')).not.toBeNull();
+    expect(host?.querySelector('[data-openbitfun-part="content"][data-openbitfun-state="contentInset"]')).not.toBeNull();
+    expect(host?.querySelectorAll('[data-openbitfun-part="resizeHandle"]')).toHaveLength(8);
   });
 });

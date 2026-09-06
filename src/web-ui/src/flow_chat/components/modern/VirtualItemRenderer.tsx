@@ -9,7 +9,7 @@ import type { VirtualItem } from '../../store/modernFlowChatStore';
 import { UserMessageItem } from './UserMessageItem';
 import { ModelRoundItem } from './ModelRoundItem';
 import { ExploreGroupRenderer } from './ExploreGroupRenderer';
-import { AmbientToolCard, AmbientToolCardHeader } from '@bitfun/ui/flow-chat';
+import { AmbientToolCard, AmbientToolCardHeader } from '@openbitfun/ui/flow-chat';
 import { useFlowChatVolatileContext } from './FlowChatContext';
 import { TurnCompletionNoticeItem } from './TurnCompletionNoticeItem';
 import { TurnFailureNoticeItem } from './TurnFailureNoticeItem';
@@ -19,6 +19,9 @@ import { getVirtualItemStableKey } from './virtualItemIdentity';
 interface VirtualItemRendererProps {
   item: VirtualItem;
   index: number;
+  /** Stable projection facts used for spacing across virtual-row boundaries. */
+  endsBeforeUserTurn?: boolean;
+  continuesAmbientToolRunAfter?: boolean;
   /**
    * Ref callback the virtualizer measures this item through.
    *
@@ -29,7 +32,7 @@ interface VirtualItemRendererProps {
 }
 
 export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
-  ({ item, index, measureRef }) => {
+  ({ item, index, endsBeforeUserTurn = false, continuesAmbientToolRunAfter = false, measureRef }) => {
     const { searchMatchIndices, searchCurrentMatchVirtualIndex } = useFlowChatVolatileContext();
     const isSearchMatch = searchMatchIndices != null && searchMatchIndices.size > 0
       ? searchMatchIndices.has(index)
@@ -70,6 +73,7 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
               turnEndedAt={item.turnEndedAt}
               turnDurationMs={item.turnDurationMs}
               turnTokenUsage={item.turnTokenUsage}
+              canvasArtifactItems={item.canvasArtifactItems}
               expandedThinkingItemIds={item.layoutHints?.expandedThinkingItemIds ?? []}
             />
           );
@@ -90,7 +94,7 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
 
         case 'image-analyzing':
           return (
-            <div data-bf-component="virtual-item" data-bf-part="imageAnalyzing" className="model-round-item model-round-item--streaming">
+            <div data-openbitfun-component="virtual-item" data-openbitfun-part="imageAnalyzing" className="model-round-item model-round-item--streaming">
               <AmbientToolCard
                 status="running"
                 header={
@@ -104,7 +108,7 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
           );
 
         default:
-          return <div data-bf-component="virtual-item" data-bf-part="placeholder" style={{ minHeight: '1px' }} />;
+          return <div data-openbitfun-component="virtual-item" data-openbitfun-part="placeholder" style={{ minHeight: '1px' }} />;
       }
     })();
     
@@ -119,13 +123,15 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
     return (
       <div
         ref={measureRef}
-        data-bf-component="virtual-item"
-        data-bf-part="root"
-        data-bf-state={[isSearchMatch && 'searchMatch', isSearchCurrent && 'searchCurrent'].filter(Boolean).join(' ')}
+        data-openbitfun-component="virtual-item"
+        data-openbitfun-part="root"
+        data-openbitfun-state={[isSearchMatch && 'searchMatch', isSearchCurrent && 'searchCurrent'].filter(Boolean).join(' ')}
         className={wrapperClassName}
         data-testid="flowchat-message-item"
         data-turn-id={item.turnId}
         data-item-type={item.type}
+        data-turn-boundary-after={endsBeforeUserTurn ? 'true' : undefined}
+        data-ambient-tool-run-continuation-after={continuesAmbientToolRunAfter ? 'true' : undefined}
         data-virtual-item-key={getVirtualItemStableKey(item)}
         data-virtual-index={index}
         data-item-index={index}
@@ -137,6 +143,8 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
   (prev, next) => (
     prev.item === next.item &&
     prev.index === next.index &&
+    prev.endsBeforeUserTurn === next.endsBeforeUserTurn &&
+    prev.continuesAmbientToolRunAfter === next.continuesAmbientToolRunAfter &&
     prev.measureRef === next.measureRef
   )
 );

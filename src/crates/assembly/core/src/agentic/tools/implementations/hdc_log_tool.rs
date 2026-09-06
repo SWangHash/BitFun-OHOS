@@ -9,7 +9,7 @@ use super::harmony_device::format_connected_device_list;
 use crate::agentic::tools::framework::{
     Tool, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult,
 };
-use crate::util::errors::{BitFunError, BitFunResult};
+use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -36,7 +36,7 @@ impl Tool for HdcLogTool {
         "hdc_log"
     }
 
-    async fn description(&self) -> BitFunResult<String> {
+    async fn description(&self) -> OpenBitFunResult<String> {
         Ok(r#"Collect HarmonyOS device logs or list connected devices.
 
 Use action "list_devices" to enumerate connected devices and emulators; use action "collect" to tail filtered hilog output. This tool is read-only.
@@ -129,7 +129,7 @@ Example:
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    ) -> OpenBitFunResult<Vec<ToolResult>> {
         let action = input.get("action").and_then(|v| v.as_str()).unwrap_or("collect");
 
         if action == "list_devices" {
@@ -137,7 +137,7 @@ Example:
             let combined = [out.stdout.as_str(), out.stderr.as_str()]
                 .iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join("\n");
             if out.exit_code != 0 {
-                return Err(BitFunError::tool(format!(
+                return Err(OpenBitFunError::tool(format!(
                     "hdc_log list_devices failed (exit {}):\n{}", out.exit_code, combined
                 )));
             }
@@ -169,7 +169,7 @@ Example:
         let combined = [out.stdout.as_str(), out.stderr.as_str()]
             .iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join("\n");
         if out.exit_code != 0 {
-            return Err(BitFunError::tool(format!(
+            return Err(OpenBitFunError::tool(format!(
                 "hdc_log collect failed (exit {}):\n{}", out.exit_code, combined
             )));
         }
@@ -204,7 +204,7 @@ mod tests {
             custom_data: HashMap::new(),
             computer_use_host: None,
             runtime_tool_restrictions: Default::default(),
-            runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
+            runtime_handles: openbitfun_runtime_ports::ToolRuntimeHandles::default(),
         }
     }
 

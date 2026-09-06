@@ -27,14 +27,14 @@ describe('UserMessageItem action visibility', () => {
       fileURLToPath(new URL('./UserMessageItem.scss', import.meta.url)),
       'utf8',
     ).replace(/\r\n?/g, '\n');
-    const item = extractBlock(stylesheet, '.user-message-item {');
     const actions = extractBlock(stylesheet, '\n.user-message-item__actions {');
-    const hover = extractBlock(item, '&:hover {');
-    const focusWithin = extractBlock(item, '&:focus-within {');
+    const shell = extractBlock(stylesheet, '.user-message-item-shell {');
+    const shellHover = extractBlock(shell, '&:hover,');
+    const shellFocusWithin = extractBlock(shell, '&:focus-within {');
 
     expect(actions).toContain('opacity: 0;');
-    expect(extractBlock(hover, '.user-message-item__actions {')).toContain('opacity: 1;');
-    expect(extractBlock(focusWithin, '.user-message-item__actions {')).toContain('opacity: 1;');
+    expect(extractBlock(shellHover, '.user-message-item__actions {')).toContain('opacity: 1;');
+    expect(extractBlock(shellFocusWithin, '.user-message-item__actions {')).toContain('opacity: 1;');
 
     expect(stylesheet).toContain([
       '.user-message-item__copy-btn,',
@@ -42,5 +42,31 @@ describe('UserMessageItem action visibility', () => {
       '.user-message-item__rollback-btn {',
     ].join('\n'));
     expect(stylesheet).not.toContain('.user-message-item__edit-btn {\n  opacity: 1;');
+  });
+
+  it('reveals the out-of-bubble timestamp without changing row geometry', () => {
+    const stylesheet = readFileSync(
+      fileURLToPath(new URL('./UserMessageItem.scss', import.meta.url)),
+      'utf8',
+    ).replace(/\r\n?/g, '\n');
+    const shell = extractBlock(stylesheet, '.user-message-item-shell {');
+    const timestamp = extractBlock(stylesheet, '\n.user-message-item__timestamp {');
+    const hover = extractBlock(shell, '&:hover,');
+
+    expect(timestamp).toContain('opacity: 0;');
+    expect(timestamp).toContain('pointer-events: none;');
+    const meta = extractBlock(stylesheet, '\n.user-message-item__meta {');
+    expect(meta).toContain('position: absolute;');
+    expect(meta).toContain('top: 100%;');
+    expect(meta).toContain('left: 0;');
+    expect(meta).toContain('right: 0;');
+    expect(meta).toContain('justify-content: flex-end;');
+    expect(meta).toContain('padding: 0.12rem 0 0;');
+    expect(meta).toContain('pointer-events: auto;');
+    expect(stylesheet).toContain('margin: 0;');
+    expect(extractBlock(hover, '.user-message-item__timestamp {')).toContain('opacity: 1;');
+    expect(extractBlock(hover, '.user-message-item__actions {')).toContain('opacity: 1;');
+    expect(extractBlock(hover, '.user-message-item__actions {')).toContain('pointer-events: auto;');
+    expect(shell).toContain('margin-bottom: calc(var(--openbitfun-control-flow-chat-flow-item-gap) + 1rem);');
   });
 });

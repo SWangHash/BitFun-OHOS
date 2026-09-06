@@ -1,6 +1,6 @@
 {
   "title": "模型",
-  "subtitle": "管理預設模型、模型服務、訂閱帳戶、模型目錄與網路連線。",
+  "subtitle": "管理預設模型、模型服務、訂閱帳戶、模型目錄與網路連線",
   "editProvider": "編輯服務商設定",
   "newProvider": "新增服務商設定",
   "editModel": "編輯模型設定",
@@ -11,7 +11,10 @@
   "sessionTitle": {
     "title": "會話標題自動生成",
     "subtitle": "新對話時 AI 自動生成簡潔標題",
+    "enable": "啟用",
     "loadFailed": "載入會話標題設定失敗",
+    "loadFailedLocked": "無法讀取會話標題設定。目前開關和模型選擇已鎖定。",
+    "retry": "重新載入",
     "model": {
       "label": "會話標題生成模型",
       "inherit": "目前會話模型",
@@ -19,7 +22,8 @@
       "fast": "快速模型"
     },
     "models": {
-      "empty": "暫無可用模型，請先在「模型」中新增模型。",
+      "empty": "暫無可用模型，請先在「模型」中新增模型",
+      "unavailable": "{{id}}（已停用或不存在）",
       "updateSuccess": "{{agentName}} 將使用 {{modelName}}"
     },
     "messages": {
@@ -44,7 +48,7 @@
     "refreshFailed": "重新整理失敗：{{error}}",
     "loginSuccess": "登入成功",
     "loginFailed": "登入失敗：{{error}}",
-    "peerLoginRequiresLocalDevice": "Antigravity 登入必須在執行 BitFun 的裝置上完成，請切換到該裝置後再登入。",
+    "peerLoginRequiresLocalDevice": "Antigravity 登入必須在執行 OpenBitFun 的裝置上完成，請切換到該裝置後再登入。",
     "logoutSuccess": "已登出",
     "logoutCleanupPending": "已登出，憑據清理仍在等待中，稍後會自動重試。",
     "logoutFailed": "登出失敗：{{error}}",
@@ -83,13 +87,11 @@
     "detected": "將使用 {{label}}（賬號 {{account}}）",
     "notConnected": "尚未登入 {{kind}}，請先在上方完成登入",
     "unknownAccount": "目前登入賬號",
-    "secureStoreMigrationNotice": "訂閱憑據現已由 BitFun 憑據儲存保護。舊版從第三方 CLI 自動匯入的憑據不會被讀取；如果你曾使用該方式，請在此重新登入一次。",
-    "dismissMigrationNotice": "知道了",
     "reauthenticationRequired": "憑據儲存中未找到可用憑據，請重新登入一次",
     "vaultUnavailable": "憑據儲存暫時無法使用，請重試；你的登入資訊並未被移除",
     "retryVault": "重試憑據庫",
     "loginPending": "正在進行登入授權",
-    "browserInstructions": "請在 BitFun 開啟的瀏覽器頁面中完成登入，並保持此頁面開啟；授權後會自動完成。",
+    "browserInstructions": "請在 OpenBitFun 開啟的瀏覽器頁面中完成登入，並保持此頁面開啟；授權後會自動完成。",
     "deviceInstructions": "請在任意裝置開啟授權頁面，輸入下方驗證碼，然後返回此處。",
     "loginCancelling": "正在取消登入並關閉授權工作階段",
     "loginCompletedBeforeCancel": "授權已在取消前完成，因此該帳號仍保持登入狀態",
@@ -143,13 +145,13 @@
     "expandModelSettings": "展開「{{name}}」的詳細設置",
     "collapseModelSettings": "收起「{{name}}」的詳細設置",
     "unsavedModel": "待儲存",
-    "unsavedModelHint": "此模型包含尚未儲存的修改，請點擊模型編輯視窗底部的「儲存」完成持久化。",
+    "unsavedModelHint": "此模型包含尚未儲存的修改，請點擊模型編輯視窗底部的「儲存」完成持久化",
     "urlHint": "已預填官方 API 地址，如使用代理或私有部署可修改",
     "formatHint": "已根據提供商自動選擇，通常無需修改"
   },
   "providers": {
     "openbitfun": {
-      "name": "OpenBitFun",
+      "name": "OpenBitFun 服務",
       "description": "OpenBitFun 大模型平臺",
       "urlOptions": {
         "default": "Anthropic格式-默認",
@@ -295,7 +297,7 @@
     "provider": "請求格式",
     "providerPlaceholder": "選擇請求格式",
     "contextWindow": "上下文視窗大小",
-    "contextWindowHint": "此值主要用於判斷何時觸發上下文壓縮，可以小於供應商標稱的模型最大上下文視窗。",
+    "contextWindowHint": "此值主要用於判斷何時觸發上下文壓縮，可以小於供應商標稱的模型最大上下文視窗",
     "contextWindowLongWarning": "目前模型設定的上下文視窗超過 400K。超長上下文可能降低模型效果，建議將其調整到 300K 左右。",
     "maxTokens": "最大輸出Tokens",
     "maxTokensHint": "單次請求時限制模型輸出的最大token數量（影響響應長度）",
@@ -330,7 +332,7 @@
     "catalogAuto": "自動偵測",
     "catalogModelsDev": "指定 models.dev 模型",
     "catalogDisabled": "僅使用自定義預設",
-    "catalogAutoTooltip": "自動偵測官方供應商位址下受支援模型的思考預設，同時保留自定義預設。",
+    "catalogAutoTooltip": "優先使用已識別模型的精確思考預設；未命中時提供可手動選擇的通用開啟、關閉和低／中／高強度，同時保留自定義預設。",
     "catalogModelsDevTooltip": "使用指定 models.dev 供應商和模型的思考預設。模型名稱是別名，或相容閘道需要明確綁定時使用。",
     "catalogDisabledTooltip": "不生成 models.dev 和適配器預設，僅保留你設定的自定義預設。",
     "catalogSummary": {
@@ -342,7 +344,7 @@
     "catalogModel": "模型",
     "catalogSearch": "快速查找",
     "catalogSearchPlaceholder": "輸入供應商或模型關鍵詞",
-    "catalogSearchHint": "選擇結果後會自動填入下方供應商和模型。",
+    "catalogSearchHint": "選擇結果後會自動填入下方供應商和模型",
     "catalogSearchResults": "models.dev 模型搜尋結果",
     "catalogSearchEmpty": "沒有符合的 models.dev 思考模型",
     "catalogSearchLimit": "結果較多，請繼續輸入以縮小範圍",
@@ -358,9 +360,8 @@
     "unavailableDescription": "目前的 API 格式「{{format}}」無法可靠套用以下預設：{{presets}}。請參考服務供應商的官方文件，並在自訂預設中使用「請求內容補丁」設定所需欄位。",
     "unknownRequestFormat": "未知",
     "customTitle": "自定義預設",
-    "customTooltip": "自定義預設會把一組思考參數儲存為聊天輸入框中的可選項。請為每個預設填寫名稱，再按模型 API 支援情況新增推理強度、思考開關或思考預算；僅在需要補充供應商專用參數時新增請求內容補丁。",
+    "customTooltip": "自定義預設會把一個請求內容補丁儲存為聊天輸入框中的可選項。請按目前模型 API 的請求內容結構填寫 JSON Merge Patch。",
     "add": "新增預設",
-    "addAction": "新增操作",
     "empty": "暫無自定義預設",
     "label": "名稱",
     "labelPlaceholder": "顯示名稱",
@@ -370,12 +371,13 @@
     "moveDown": "下移預設",
     "remove": "刪除預設",
     "settingEffort": "推理強度",
-    "effortSearchPlaceholder": "選擇或輸入思考強度",
-    "effortCustomValueHint": "使用自定義強度",
-    "effortCustomWarning": "這是自定義值，請確認模型 API 支援此值。",
     "settingToggle": "開啟 / 關閉",
     "settingBudget": "Token 預算",
     "settingPatch": "請求內容補丁",
+    "patchPlaceholder": "不同服務供應商和 API 格式使用的思考設定欄位並不相同，請參考目前服務供應商針對 {{format}} 格式的官方文件。\n範例：\n{\n  \"thinking\": {\n    \"type\": \"enabled\"\n  },\n  \"output_config\": {\n    \"effort\": \"high\"\n  }\n}",
+    "legacyTitle": "舊版操作設定",
+    "legacyDescription": "此預設包含舊版類型化操作或多個補丁。它們會按原順序保留；只有明確改為單一請求內容補丁時才會被取代。",
+    "convertToSinglePatch": "改為單一請求內容補丁",
     "actionSummaryEffort": "推理強度：{{value}}",
     "actionSummaryEnabled": "開啟思考",
     "actionSummaryDisabled": "關閉思考",
@@ -401,7 +403,7 @@
   },
   "proxy": {
     "enable": "啟用代理",
-    "enableHint": "啟用後所有AI請求將通過代理發送（需重啟IDE生效）",
+    "enableHint": "啟用後所有 AI 請求將透過代理傳送（需重新啟動 OpenBitFun 生效）",
     "url": "代理地址",
     "urlPlaceholder": "http://127.0.0.1:7890 或 socks5://127.0.0.1:1080",
     "urlHint": "支持 HTTP/HTTPS/SOCKS5 代理，格式：協議://地址:端口",
@@ -410,13 +412,13 @@
     "password": "密碼（可選）",
     "passwordPlaceholder": "代理認證密碼",
     "save": "儲存代理設定",
-    "saveSuccess": "代理設定已儲存，重啟IDE後生效"
+    "saveSuccess": "代理設定已儲存，重新啟動 OpenBitFun 後生效"
   },
   "streamIdleTimeout": {
     "title": "流式超時",
     "effectiveNextRound": "修改後下一次對話生效",
     "label": "Chunk 空閒超時（秒）",
-    "hint": "流式響應開始後，兩次 chunk 之間的最大等待時間。留空表示無限等待。",
+    "hint": "流式響應開始後，兩次 chunk 之間的最大等待時間。留空表示無限等待",
     "placeholder": "留空表示不設超時",
     "invalid": "請輸入正整數秒數，或留空。",
     "save": "儲存流式超時",
@@ -425,7 +427,7 @@
   "streamTtftTimeout": {
     "title": "首 Token 超時",
     "label": "TTFT 超時（秒）",
-    "hint": "請求發出後，等待首個有效流式輸出的最長時間。留空表示無限等待。",
+    "hint": "請求發出後，等待首個有效流式輸出的最長時間。留空表示無限等待",
     "placeholder": "留空表示不設超時",
     "invalid": "請輸入正整數秒數，或留空。",
     "save": "儲存首 Token 超時",
@@ -433,9 +435,9 @@
   },
   "toolArgumentJsonRepair": {
     "title": "工具參數 JSON 修復",
-    "description": "修改將在下一輪模型呼叫生效。",
+    "description": "修改將在下一輪模型呼叫生效",
     "label": "修復非法 JSON 工具參數",
-    "hint": "僅在供應商確認工具呼叫正常完成後嘗試。修復可能在常規工具驗證前改寫非法 JSON。",
+    "hint": "僅在供應商確認工具呼叫正常完成後嘗試。修復可能在常規工具驗證前改寫非法 JSON",
     "saveSuccess": "工具參數 JSON 修復設定已儲存"
   },
   "capabilities": {
@@ -456,11 +458,39 @@
     "cancel": "取消",
     "edit": "編輯",
     "delete": "刪除",
+    "deleteProvider": "刪除服務商",
     "test": "測試連接",
     "newConfig": "新增設定",
     "addModel": "新增模型",
     "addProvider": "新增服務商",
     "createFirst": "建立第一個設定"
+  },
+  "deleteConfirm": {
+    "title": "刪除模型設定？",
+    "message": "將刪除模型「{{name}}」。目前有 {{count}} 處設定明確引用此模型；這些引用不會自動改用其他模型，相關功能可能回退或無法使用。",
+    "confirm": "刪除模型"
+  },
+  "providerDeleteConfirm": {
+    "title": "刪除服務商？",
+    "message": "將刪除服務商「{{name}}」及其 {{modelCount}} 個模型設定。目前有 {{referenceCount}} 處設定明確引用這些模型；這些引用不會自動改用其他模型，相關功能可能回退或無法使用。關聯的訂閱帳號不會登出。",
+    "messageWithDraft": "將刪除服務商「{{name}}」及其 {{modelCount}} 個模型設定，同時捨棄該服務商尚未儲存的編輯草稿。目前有 {{referenceCount}} 處設定明確引用這些模型；這些引用不會自動改用其他模型，相關功能可能回退或無法使用。關聯的訂閱帳號不會登出。",
+    "confirm": "刪除服務商"
+  },
+  "draftClose": {
+    "title": "保留這次編輯草稿？",
+    "message": "這些修改尚未寫入模型設定。保留草稿不會觸發連接測試，再次開啟此編輯器時可以繼續。",
+    "keepAndClose": "保留草稿並關閉",
+    "discard": "放棄修改",
+    "continueEditing": "繼續編輯",
+    "discardDraft": "放棄草稿",
+    "retainedHint": "模型編輯草稿已保留，尚未寫入正式設定"
+  },
+  "draftConflict": {
+    "title": "先處理未完成的模型草稿",
+    "message": "開啟另一個模型或服務商前，請繼續處理目前草稿，或放棄草稿後開啟所選設定。",
+    "continueDraft": "繼續目前草稿",
+    "discardAndContinue": "放棄草稿並繼續",
+    "cancel": "取消"
   },
   "empty": {
     "noModels": "暫無模型設定",
@@ -470,6 +500,10 @@
     "placeholder": "搜尋模型名稱、提供商..."
   },
   "messages": {
+    "loading": "正在載入模型設定…",
+    "loadFailedLocked": "無法讀取模型設定。為避免覆蓋現有設定，目前頁面已鎖定。",
+    "retry": "重新載入",
+    "unsaved": "未儲存",
     "fillRequired": "請填寫必要字段",
     "fillModelName": "請填寫模型名稱",
     "duplicateModelNameUnderProvider": "該服務商下已有同名模型，請改用其他名稱或編輯已有條目",
@@ -478,9 +512,15 @@
     "invalidReasoningPresets": "請先修正思考預設的 ID、設置、預設項或 JSON。",
     "saveFailed": "儲存失敗",
     "deleteFailed": "刪除設定失敗",
+    "deleteSuccess": "模型設定已刪除",
+    "providerDeleteFailed": "刪除服務商失敗",
+    "providerDeleteSuccess": "服務商及其模型設定已刪除",
+    "referenceCheckFailed": "無法確認此模型是否仍被其他設定引用，已取消刪除",
+    "providerReferenceCheckFailed": "無法確認該服務商的模型是否仍被其他設定引用，已取消刪除",
     "loadFailed": "載入AI設定失敗",
     "testSuccess": "測試成功",
     "testFailed": "測試失敗",
+    "testUnsupportedOnHost": "設定已儲存，目前 CLI 裝置不支援模型連接測試",
     "errorDetails": "詳細錯誤",
     "connectionTestMessages": {
       "toolCallsNotDetected": "本次測試未檢測到工具調用，因此暫時無法驗證工具調用能力。",
@@ -499,7 +539,7 @@
     "title": "models.dev 模型目錄",
     "detailsTitle": "models.dev 目錄詳情",
     "viewDetails": "查看 models.dev 目錄詳情",
-    "description": "用於推理預設供應商和模型綁定的目錄狀態。開啟模型設定時會自動檢查更新。",
+    "description": "用於推理預設供應商和模型綁定的目錄狀態。開啟模型設定時會自動檢查更新",
     "activeSource": "目前來源",
     "source": { "cache": "快取", "bundle": "內建快照", "empty": "無法使用" },
     "catalogSize": "目錄規模",
@@ -518,7 +558,7 @@
     "reveal": "在資料夾中顯示",
     "revealFailed": "無法開啟快取所在資料夾",
     "offlineTitle": "無法連線時如何更新",
-    "offlineDescription": "在可連線的裝置上下載 models.dev 原始檔案，將其命名為 catalog.json 並放入上方快取目錄。替換後重新啟動 BitFun 即可生效；點擊立即更新可能會覆蓋該檔案。",
+    "offlineDescription": "在可連線的裝置上下載 models.dev 原始檔案，將其命名為 catalog.json 並放入上方快取目錄。替換後重新啟動 OpenBitFun 即可生效；點擊立即更新可能會覆蓋該檔案。",
     "downloadOriginal": "下載原始目錄",
     "openCacheDirectory": "開啟快取目錄"
   },
@@ -549,7 +589,7 @@
       "hint": "輸入JSON格式的請求體字段，用於覆蓋默認請求參數",
       "modeMerge": "合併",
       "modeTrim": "精簡",
-      "modeMergeHint": "在默認請求體基礎上合併自定義字段，可覆蓋已有字段。",
+      "modeMergeHint": "在默認請求體基礎上合併自定義字段，可覆蓋已有字段",
       "trimHintOpenAI": "發送前僅保留 model、messages、max_tokens，以及 stream / tools 等運行必需字段，再應用自定義請求體。",
       "trimHintResponses": "發送前僅保留 model、input、instructions、max_output_tokens，以及 stream / tools 等運行必需字段，再應用自定義請求體。",
       "trimHintAnthropic": "發送前僅保留 model、messages、system、max_tokens，以及 stream / tools 等運行必需字段，再應用自定義請求體。",

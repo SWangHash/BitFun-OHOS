@@ -1,15 +1,17 @@
-import React, { useCallback, useMemo } from 'react';
-import { AlertTriangle, Paintbrush } from 'lucide-react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Icon } from '@openbitfun/ui';
+import { AlertTriangle } from 'lucide-react';
 import type { ToolCardProps } from '../types/flow-chat';
-import { ProminentToolCard, ProminentToolCardHeader } from '@bitfun/ui/flow-chat';
+import { ProminentToolCard, ProminentToolCardSummary } from '@openbitfun/ui/flow-chat';
 import { getToolCardConfig } from './toolCardMetadata';
 import { flowChatStore } from '../store/FlowChatStore';
 import { CodePreview } from '../components/CodePreview';
 import { useTypewriter } from '../hooks/useTypewriter';
 import { useReportTypewriterReveal } from '../hooks/typewriterRevealGateContext';
 import { i18nService } from '@/infrastructure/i18n';
-import { createTab } from '@/shared/utils/tabUtils';
+import { openCanvasArtifactTab } from '@/shared/utils/tabUtils';
 import { createLogger } from '@/shared/utils/logger';
+import { CanvasPreflight, type CanvasPreflightStatus } from '@/tools/openbitfun-canvas/CanvasPreflight';
 import './CanvasToolCard.scss';
 
 const log = createLogger('CanvasToolCard');
@@ -18,16 +20,20 @@ interface CanvasToolResult {
   action?: string;
   artifactReference?: string;
   compiled?: boolean;
+  renderValidated?: boolean;
   diagnosticCount?: number;
   compiledPayload?: {
     contentHash?: string;
     sourceRevision?: string;
+    sdkVersion?: string;
+    runtimeVersion?: string;
   } | null;
   canvas?: {
     artifact?: {
       title?: string;
       status?: string;
       sourceRevision?: string;
+      latestRenderedRevision?: string;
       lastKnownGoodRevision?: string;
     };
     status?: string;
@@ -66,7 +72,7 @@ function canvasTitle(result: CanvasToolResult | null, fallback: unknown): string
       return fromInput.trim();
     }
   }
-  return 'BitFun Canvas';
+  return 'OpenBitFun Canvas';
 }
 
 const TERMINAL_STATUSES = new Set(['completed', 'error', 'cancelled', 'rejected']);
@@ -86,6 +92,14 @@ export const CanvasToolCard: React.FC<ToolCardProps> = ({ toolItem, sessionId })
   const session = sessionId ? flowChatStore.getState().sessions.get(sessionId) : null;
   const source = resultData?.canvas?.source?.source;
   const canvasStatus = resultData?.canvas?.status || resultData?.canvas?.artifact?.status;
+  const [preflightStatus, setPreflightStatus] = useState<CanvasPreflightStatus>('idle');
+  const sourceRevision = resultData?.canvas?.artifact?.sourceRevision;
+  const hasRuntimeFailure = canvasStatus === 'runtime_failed' || canvasStatus === 'runtimeFailed';
+  const renderValidated = !hasRuntimeFailure && (
+    resultData?.renderValidated
+      || Boolean(sourceRevision && resultData?.canvas?.artifact?.lastKnownGoodRevision === sourceRevision)
+      || preflightStatus === 'ready'
+  );
   const isLoading =
     status === 'preparing' || status === 'streaming' || status === 'running' || status === 'pending';
   const isFailed = status === 'error' || toolResult?.success === false;
@@ -104,15 +118,13 @@ export const CanvasToolCard: React.FC<ToolCardProps> = ({ toolItem, sessionId })
   const showSourcePreview =
     liveSource.length > 0 && !isFailed && (status !== 'completed' || sourceTypewriter.isRevealing);
   const sourceDisplayContent = isSourceVisuallyStreaming ? sourceTypewriter.displayText : liveSource;
-  const metaText = artifactReference
-    || (liveSource.length > 0
-      ? `Source · ${i18nService.formatNumber(liveSource.length)} chars`
-      : 'Waiting for artifact reference');
+  const metaText = liveSource.length > 0
+    ? `Source · ${i18nService.formatNumber(liveSource.length)} chars`
+    : isOpenable ? 'Canvas artifact' : 'Waiting for Canvas';
 
   const handleOpenPanel = useCallback(() => {
     if (!isOpenable) return;
 
-    const duplicateCheckKey = `bitfun-canvas-${artifactReference}`;
     log.info('Opening Canvas panel', {
       artifactReference,
       title,
@@ -129,35 +141,26 @@ export const CanvasToolCard: React.FC<ToolCardProps> = ({ toolItem, sessionId })
       remoteSshHost: session?.remoteSshHost,
     });
 
-    createTab({
-      type: 'bitfun-canvas',
+    openCanvasArtifactTab({
+      artifactReference: artifactReference!,
       title,
-      data: {
-        artifactReference,
-        source,
-        status: canvasStatus,
-        diagnostics,
-        workspacePath: session?.workspacePath,
-        remoteConnectionId: session?.remoteConnectionId,
-        remoteSshHost: session?.remoteSshHost,
-        _source: {
-          type: 'tool-call',
-          toolName: toolItem.toolName,
-          sessionId,
-          toolCallId: toolCall?.id,
-          toolItemId: toolItem.id,
-        },
+      source,
+      status: canvasStatus,
+      diagnostics,
+      workspacePath: session?.workspacePath,
+      remoteConnectionId: session?.remoteConnectionId,
+      remoteSshHost: session?.remoteSshHost,
+      sourceMetadata: {
+        type: 'tool-call',
+        toolName: toolItem.toolName,
+        sessionId,
+        toolCallId: toolCall?.id,
+        toolItemId: toolItem.id,
       },
       metadata: {
-        duplicateCheckKey,
         fromTool: true,
         toolName: toolItem.toolName,
-        artifactReference,
       },
-      checkDuplicate: true,
-      duplicateCheckKey,
-      replaceExisting: true,
-      mode: 'agent',
     });
   }, [
     artifactReference,
@@ -180,23 +183,31 @@ export const CanvasToolCard: React.FC<ToolCardProps> = ({ toolItem, sessionId })
     toolItem.toolName,
   ]);
 
-  const header = (
-    <ProminentToolCardHeader
-      icon={<span className="canvas-tool-card__icon"><Paintbrush size={16} /></span>}
+  const summary = (
+    <ProminentToolCardSummary
+      icon={<span className="canvas-tool-card__icon"><Icon name="creative" size="md" /></span>}
       action={toolDisplayName}
-      content={<span data-bf-component="canvas-tool-card" data-bf-part="title" className="canvas-tool-card__title">{title}</span>}
+      content={<span data-openbitfun-component="canvas-tool-card" data-openbitfun-part="title" className="canvas-tool-card__title">{title}</span>}
       extra={(
-        <div data-bf-component="canvas-tool-card" data-bf-part="extra" className="canvas-tool-card__extra">
+        <div data-openbitfun-component="canvas-tool-card" data-openbitfun-part="extra" className="canvas-tool-card__extra">
           {diagnostics.length > 0 && (
-            <span data-bf-component="canvas-tool-card" data-bf-part="diagnostics" className="canvas-tool-card__diagnostics">
+            <span data-openbitfun-component="canvas-tool-card" data-openbitfun-part="diagnostics" className="canvas-tool-card__diagnostics">
               <AlertTriangle size={13} />
               {diagnostics.length}
             </span>
           )}
-          <span data-bf-component="canvas-tool-card" data-bf-part="status" className="canvas-tool-card__status">
+          <span data-openbitfun-component="canvas-tool-card" data-openbitfun-part="status" className="canvas-tool-card__status">
             {isLoading
               ? (isSourceVisuallyStreaming ? 'Writing source' : 'Rendering')
-              : resultData?.compiled ? 'Preview ready' : canvasStatus || 'Saved'}
+              : renderValidated
+                ? 'Preview ready'
+                : preflightStatus === 'failed'
+                  ? 'Runtime failed'
+                  : preflightStatus === 'timeout'
+                    ? 'Validation timed out'
+                    : resultData?.compiled
+                      ? 'Validating preview'
+                      : canvasStatus || 'Saved'}
           </span>
         </div>
       )}
@@ -205,9 +216,9 @@ export const CanvasToolCard: React.FC<ToolCardProps> = ({ toolItem, sessionId })
   );
 
   const body = (
-    <div data-bf-component="canvas-tool-card" data-bf-part="body" className="canvas-tool-card__body">
+    <div data-openbitfun-component="canvas-tool-card" data-openbitfun-part="body" className="canvas-tool-card__body">
       {showSourcePreview && (
-        <div data-bf-component="canvas-tool-card" data-bf-part="sourcePreview" className="canvas-tool-card__source-preview">
+        <div data-openbitfun-component="canvas-tool-card" data-openbitfun-part="sourcePreview" className="canvas-tool-card__source-preview">
           <CodePreview
             content={sourceDisplayContent}
             language="tsx"
@@ -218,11 +229,11 @@ export const CanvasToolCard: React.FC<ToolCardProps> = ({ toolItem, sessionId })
           />
         </div>
       )}
-      <div data-bf-component="canvas-tool-card" data-bf-part="meta" className="canvas-tool-card__meta">
+      <div data-openbitfun-component="canvas-tool-card" data-openbitfun-part="meta" className="canvas-tool-card__meta">
         <span>{metaText}</span>
       </div>
       {diagnostics.length > 0 && (
-        <ul data-bf-component="canvas-tool-card" data-bf-part="diagnosticList" className="canvas-tool-card__diagnostic-list">
+        <ul data-openbitfun-component="canvas-tool-card" data-openbitfun-part="diagnosticList" className="canvas-tool-card__diagnostic-list">
           {diagnostics.slice(0, 3).map((diagnostic, index) => (
             <li key={`${diagnostic.code || diagnostic.message || 'diagnostic'}-${index}`}>
               {diagnostic.message || diagnostic.code || 'Canvas diagnostic'}
@@ -235,21 +246,31 @@ export const CanvasToolCard: React.FC<ToolCardProps> = ({ toolItem, sessionId })
 
   return (
     <div
-      data-bf-component="canvas-tool-card"
-      data-bf-part="root"
-      data-bf-state={[isOpenable && 'clickable', isFailed && 'failed', isLoading && 'loading'].filter(Boolean).join(' ')}
+      data-openbitfun-component="canvas-tool-card"
+      data-openbitfun-part="root"
+      data-openbitfun-state={[isOpenable && 'clickable', isFailed && 'failed', isLoading && 'loading'].filter(Boolean).join(' ')}
     >
+      {status === 'completed' && resultData?.compiled && !renderValidated && artifactReference ? (
+        <CanvasPreflight
+          artifactReference={artifactReference}
+          title={title}
+          workspacePath={session?.workspacePath}
+          remoteConnectionId={session?.remoteConnectionId}
+          remoteSshHost={session?.remoteSshHost}
+          onStatusChange={setPreflightStatus}
+        />
+      ) : null}
       <ProminentToolCard
         status={status}
         isExpanded={!isOpenable || diagnostics.length > 0 || isFailed}
-        onClick={isOpenable ? handleOpenPanel : undefined}
+        onToggle={isOpenable ? handleOpenPanel : undefined}
         className={`canvas-tool-card ${isOpenable ? 'clickable' : ''}`.trim()}
-        header={header}
+        summary={summary}
         expandedContent={body}
         errorContent={isFailed ? body : undefined}
         isFailed={isFailed}
-        headerExpandAffordance={isOpenable}
-        headerAffordanceKind="open-panel-right"
+        summaryExpandAffordance={isOpenable}
+        summaryAffordanceKind="open-panel-right"
       />
     </div>
   );

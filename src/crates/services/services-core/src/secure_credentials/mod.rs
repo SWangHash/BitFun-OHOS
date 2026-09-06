@@ -1,6 +1,6 @@
 //! Unified abstraction over a platform's secure credential vault.
 //!
-//! This is the shared seam that BitFun surfaces use to persist secret
+//! This is the shared seam that OpenBitFun surfaces use to persist secret
 //! material outside the workspace. Today the consumers are subscription auth
 //! (Codex/Antigravity/OpenCode OAuth tokens), the MiniApp and appearance
 //! markets (GitHub OAuth), and feedback service credentials. Each consumer
@@ -16,7 +16,7 @@
 //! backend such as the OHOS AssetStoreKit, the desktop host injects one
 //! shared vault and the alias formats already in use (`provider/v2/...`
 //! for subscription chunks, `github-oauth` for the MiniApp/appearance
-//! market, `bitfun.feedback.*` for feedback) do not collide. New consumers
+//! market, `openbitfun.feedback.*` for feedback) do not collide. New consumers
 //! must choose an alias format that does not overlap with existing ones.
 //!
 //! # Failure semantics

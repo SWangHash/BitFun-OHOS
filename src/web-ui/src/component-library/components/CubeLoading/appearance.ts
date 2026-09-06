@@ -3,5 +3,5 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance/ty
 export const cubeLoadingAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'cube-loading',
   parts: [{ id: 'root' }, { id: 'text' }],
-  facets: [{ id: 'size', attribute: 'data-bf-size', values: ['small', 'medium', 'large'] }],
+  facets: [{ id: 'size', attribute: 'data-openbitfun-size', values: ['small', 'medium', 'large'] }],
 };

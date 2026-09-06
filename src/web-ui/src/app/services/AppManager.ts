@@ -19,7 +19,6 @@ import { globalEventBus } from '../../infrastructure/event-bus';
 import { createLogger } from '@/shared/utils/logger';
 import { i18nService } from '@/infrastructure/i18n';
 import { loadPanelWidth, savePanelWidth, STORAGE_KEYS } from '../layout/panelConfig';
-import { storage } from '@/shared/utils/storageAdapter';
 
 const log = createLogger('AppManager');
 
@@ -384,14 +383,14 @@ export class AppManager implements IAppManager {
   private clearPersistedPanelState(): void {
     try {
       // Clear AppManager persisted state
-      storage.removeItem('bitfun-app-state');
+      localStorage.removeItem('openbitfun-app-state');
       
       // Clear other potential panel state keys
-      storage.removeItem('BitFun-left-panel-width');
-      storage.removeItem('BitFun-left-panel-collapsed');
-      storage.removeItem('BitFun-right-panel-collapsed');
-      storage.removeItem('right-panel-collapsed');
-      storage.removeItem(STORAGE_KEYS.RIGHT_PANEL_WIDTH);
+      localStorage.removeItem('OpenBitFun-left-panel-width');
+      localStorage.removeItem('OpenBitFun-left-panel-collapsed');
+      localStorage.removeItem('OpenBitFun-right-panel-collapsed');
+      localStorage.removeItem('right-panel-collapsed');
+      localStorage.removeItem(STORAGE_KEYS.RIGHT_PANEL_WIDTH);
     } catch (error) {
       log.warn('Failed to clear persisted panel state', error);
     }

@@ -46,10 +46,10 @@ export const WebSearchCard: React.FC<WebSearchCardProps> = ({
     return (
       <div
         className={`web-search-card web-search-card--compact web-search-card--${status} web-search-card--${searchType}`}
-        data-bf-component="flow-chat-card"
-        data-bf-part="compact"
-        data-bf-display="compact"
-        data-bf-status={status}
+        data-openbitfun-component="flow-chat-card"
+        data-openbitfun-part="compact"
+        data-openbitfun-display="compact"
+        data-openbitfun-status={status}
         style={{ '--private-web-search-card-identity-color': cardColor } as React.CSSProperties}
       >
         <Globe className="web-search-card__icon" size={14} />
@@ -95,7 +95,7 @@ export const WebSearchCard: React.FC<WebSearchCardProps> = ({
         </div>
 
         {status === 'completed' && resolvedResults.length > 0 && (
-          <div className="web-search-card__results-section" data-bf-component="flow-chat-card" data-bf-part="result">
+          <div className="web-search-card__results-section" data-openbitfun-component="flow-chat-card" data-openbitfun-part="result">
             <button
               className="web-search-card__results-header"
               onClick={() => setIsExpanded(!isExpanded)}
@@ -106,9 +106,9 @@ export const WebSearchCard: React.FC<WebSearchCardProps> = ({
             </button>
 
             {isExpanded && (
-              <div className="web-search-card__results-list" data-bf-component="flow-chat-card" data-bf-part="list">
+              <div className="web-search-card__results-list" data-openbitfun-component="flow-chat-card" data-openbitfun-part="list">
                 {resolvedResults.map((item: WebSearchResult, index: number) => (
-                  <div key={index} className="web-search-card__result-item" data-bf-component="flow-chat-card" data-bf-part="item">
+                  <div key={index} className="web-search-card__result-item" data-openbitfun-component="flow-chat-card" data-openbitfun-part="item">
                     <div className="web-search-card__result-header">
                       <span className="web-search-card__result-title">{item.title}</span>
                       {item.url && (
@@ -137,13 +137,13 @@ export const WebSearchCard: React.FC<WebSearchCardProps> = ({
         )}
 
         {status === 'completed' && resolvedResults.length === 0 && (
-          <div className="web-search-card__no-results" data-bf-component="flow-chat-card" data-bf-part="empty">
+          <div className="web-search-card__no-results" data-openbitfun-component="flow-chat-card" data-openbitfun-part="empty">
             {t('flowChatCards.webSearchCard.noResults')}
           </div>
         )}
 
         {(status === 'running' || status === 'streaming') && (
-          <div className="web-search-card__searching" data-bf-component="flow-chat-card" data-bf-part="processing">
+          <div className="web-search-card__searching" data-openbitfun-component="flow-chat-card" data-openbitfun-part="processing">
             <Globe className="web-search-card__searching-icon" size={14} />
             <span>{t('flowChatCards.webSearchCard.searching')}</span>
           </div>

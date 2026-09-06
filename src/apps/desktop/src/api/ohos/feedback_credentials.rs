@@ -2,7 +2,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
-use bitfun_services_integrations::feedback::FeedbackCredentialStore;
+use openbitfun_services_integrations::feedback::FeedbackCredentialStore;
 use serde::{Deserialize, Serialize};
 
 const ARKTS_FUNCTION: &str = "feedback_secure_credentials";
@@ -37,7 +37,7 @@ impl OhosFeedbackCredentialStore {
 
     async fn call(&self, request: CredentialRequest<'_>) -> Result<CredentialResponse> {
         let input = serde_json::to_string(&request).context("encode secure credential request")?;
-        let output = bitfun_core::util::call_arkts_string_function(ARKTS_FUNCTION, input)
+        let output = openbitfun_core::util::call_arkts_string_function(ARKTS_FUNCTION, input)
             .await
             .map_err(|error| anyhow!("call OpenHarmony secure credential store: {error}"))?;
         serde_json::from_str(&output).context("decode secure credential response")

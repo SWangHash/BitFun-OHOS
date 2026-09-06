@@ -1,7 +1,7 @@
 # 鸿蒙 PC 应用更新（HarmonyOS PC App Update）能力需求文档
 
 > 状态：需求 / 提案
-> 仓库：BitFun-OHOS
+> 仓库：OpenBitFun-OHOS
 > 相关架构入口：
 > - [`docs/architecture/platform-portability-design.md`](../architecture/platform-portability-design.md)（鸿蒙 PC 平台移植目标）
 > - [`docs/architecture/product-architecture.md`](../architecture/product-architecture.md)（分层与平台适配边界）
@@ -29,7 +29,7 @@
 
 ### 背景与动机
 <!-- 请描述你为什么需要这个功能，解决了什么痛点 -->
-- BitFun 已有跨平台桌面（Tauri）、CLI（Linux self_update）、移动 / 平板鸿蒙 HAP（`src/apps/ohos`）等形态；鸿蒙 PC（HarmonyOS NEXT PC）是仓库明确的平台移植目标，但应用更新闭环尚未建立。
+- OpenBitFun 已有跨平台桌面（Tauri）、CLI（Linux self_update）、移动 / 平板鸿蒙 HAP（`src/apps/ohos`）等形态；鸿蒙 PC（HarmonyOS NEXT PC）是仓库明确的平台移植目标，但应用更新闭环尚未建立。
 - 鸿蒙 PC 上应用更新缺少完整流程：桌面侧已有 `check_app_update_ohos` 桥接，但仅把检查委托给 ArkTS 层，缺少统一的"检查 → 下载 → 校验 → 安装 → 重启 → 恢复"闭环。
 - 现有 CLI `self_update.rs` 已是成熟模式（发布清单、GitHub + OpenBitFun 镜像源、基于吞吐量的源选择、SHA256 + 签名 URL、分块下载进度、stall 检测与 fail-over、重启），鸿蒙 PC 自托管通道应复用其策略与常量，而非在鸿蒙侧重造一遍。
 - 缺少分发渠道策略：华为应用市场（AppGallery）系统更新 vs 自托管发布通道（GitHub release + OpenBitFun 镜像），二者适用条件与体验不同，需明确何时用哪个。
