@@ -44,6 +44,9 @@ import { findLatestCodeReviewResultState, summarizeCodeReviewResult } from '@/fl
 import { parsePullRequestUrl, remoteMatchesPullRequestLink } from '@/shared/utils/pullRequestLinks';
 import { useContextStore } from '@/shared/stores/contextStore';
 import { quickActions } from '@/shared/services/ide-control';
+import {
+  withGitRepositoryTrustRecovery,
+} from '@/shared/services/gitTrustService';
 import type { PullRequestContext } from '@/shared/types/context';
 import {
   currentPullRequestReviewStatusText,
@@ -777,7 +780,10 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     [account, snapshot.remotes],
   );
 
-  const loadSnapshot = useCallback(async (nextRemoteId?: string | null, options?: { force?: boolean; page?: number }) => {
+  const loadSnapshot = useCallback(async (
+    nextRemoteId?: string | null,
+    options?: { force?: boolean; page?: number; userInitiated?: boolean },
+  ) => {
     const requestSeq = ++snapshotRequestSeq.current;
     if (!workspacePath) {
       setSnapshot(emptySnapshot());
@@ -829,9 +835,17 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     setLoading(true);
     setSnapshotError(null);
     try {
-      const next = detailOnly
-        ? await reviewPlatformAPI.getWorkspaceContext(workspacePath, requestedRemoteId ?? null)
-        : await reviewPlatformAPI.getWorkspaceSnapshot(workspacePath, requestedRemoteId ?? null, requestedPage, PR_PAGE_SIZE);
+      const next = await withGitRepositoryTrustRecovery(
+        () => detailOnly
+          ? reviewPlatformAPI.getWorkspaceContext(workspacePath, requestedRemoteId ?? null)
+          : reviewPlatformAPI.getWorkspaceSnapshot(
+              workspacePath,
+              requestedRemoteId ?? null,
+              requestedPage,
+              PR_PAGE_SIZE,
+            ),
+        { userInitiated: options?.userInitiated },
+      );
       if (snapshotRequestSeq.current !== requestSeq) return;
       setSnapshot(next);
       const remoteId = next.selectedRemoteId ?? next.remotes[0]?.id ?? null;
@@ -1653,7 +1667,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     snapshotCache.clear();
     detailCache.clear();
     detailPageCache.clear();
-    void loadSnapshot(detailOnly ? remoteId : listRemoteId, { force: true, page: currentPageIndex + 1 });
+    void loadSnapshot(detailOnly ? remoteId : listRemoteId, { force: true, page: currentPageIndex + 1, userInitiated: true });
   }, [currentPageIndex, detailOnly, listRemoteId, loadSnapshot]);
 
   const handleOpenAuthModal = useCallback(() => {
@@ -1928,7 +1942,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
               size="xs"
               variant="ghost"
               tooltip="Refresh"
-              onClick={() => void loadSnapshot(listRemoteId, { force: true, page: currentPageIndex + 1 })}
+              onClick={() => void loadSnapshot(listRemoteId, { force: true, page: currentPageIndex + 1, userInitiated: true })}
               isLoading={loading}
             >
               <RefreshCw size={14} />
@@ -1992,7 +2006,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
               <div className="review-platform__error-state" data-bf-component="review-platform" data-bf-part="errorState">
                 <XCircle size={16} />
                 <span>{error}</span>
-                <Button className="review-platform__panel-button" size="small" variant="secondary" onClick={() => void loadSnapshot(listRemoteId, { force: true, page: currentPageIndex + 1 })}>
+                <Button className="review-platform__panel-button" size="small" variant="secondary" onClick={() => void loadSnapshot(listRemoteId, { force: true, page: currentPageIndex + 1, userInitiated: true })}>
                   Retry
                 </Button>
               </div>
@@ -2121,7 +2135,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                   className="review-platform__panel-button"
                   size="small"
                   variant="secondary"
-                  onClick={() => void loadSnapshot(undefined, { force: true })}
+                  onClick={() => void loadSnapshot(undefined, { force: true, userInitiated: true })}
                 >
                   Retry
                 </Button>

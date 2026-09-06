@@ -73,4 +73,3 @@ export function reviewAuthErrorMessage(challenge: ReviewPlatformAuthChallenge, t
     default: return t('common:reviewPlatform.auth.invalid', options);
   }
 }
-
