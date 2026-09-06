@@ -1022,6 +1022,7 @@ const CODE_AGENT_TOOL_GROUPS: &[&str] = &[
     "core.mcp",
     "core.computer-use",
     "core.openharmony",
+    "core.qt-migration",
 ];
 const DEEP_REVIEW_TOOL_GROUPS: &[&str] = &["core.review"];
 const DEEP_RESEARCH_TOOL_GROUPS: &[&str] = &["core.web", "core.mcp"];

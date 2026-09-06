@@ -253,6 +253,7 @@
       "imageUnderstanding": "图像理解",
       "interactionCanvas": "交互与画布",
       "computerAutomation": "计算机与自动化",
+      "qtMigration": "QT 迁移",
       "extension": "扩展 · {{provider}}",
       "other": "其他",
       "selectedCount": "已选择 {{count}} 个工具",

@@ -24,6 +24,30 @@ use crate::agentic::tools::user_input_manager::get_user_input_manager;
 use crate::infrastructure::events::event_system::{get_global_event_system, BackendEvent};
 use crate::util::errors::BitFunResult;
 
+/// Merge prompt-resolved Qt migration paths into the model-provided candidate
+/// map. These paths come from the turn gate's semantic analyzer (stashed in
+/// `custom_data["qt_migration_resolved_paths"]`) and must reach the option list
+/// even when the model calls the template without echoing them.
+fn merge_prompt_resolved_paths(
+    candidates: &mut std::collections::HashMap<String, Vec<String>>,
+    resolved: &Value,
+) {
+    for field in ["source_project", "output_project", "toolchain", "template"] {
+        let Some(path) = resolved
+            .get(field)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|path| !path.is_empty())
+        else {
+            continue;
+        };
+        let entry = candidates.entry(field.to_string()).or_default();
+        if !entry.iter().any(|existing| existing == path) {
+            entry.push(path.to_string());
+        }
+    }
+}
+
 /// AskUserQuestion tool
 pub struct AskUserQuestionTool;
 
@@ -312,6 +336,12 @@ Usage notes:
                         "qt-migration-paths is available only for a classified Qt to HarmonyOS migration request".to_string(),
                     ));
                 }
+                // Backend-owned seeding: prompt-resolved paths reach the
+                // option list even when the model calls the template without
+                // echoing them in `candidates`.
+                if let Some(resolved) = context.custom_data.get("qt_migration_resolved_paths") {
+                    merge_prompt_resolved_paths(&mut candidates, resolved);
+                }
                 // The session toolchain (env-configured qmake) is resolved by the
                 // MODEL running `command -v qmake` via ExecCommand — the one shell
                 // command the migration gate allows before the inputs are bound. It
@@ -325,6 +355,10 @@ Usage notes:
                     .unwrap_or_else(|| std::env::var("PATH").unwrap_or_default());
                 if let Some(workspace) = context.workspace_root() {
                     if !context.is_remote() {
+                        // Pre-probe prompt-named candidate map (model echo +
+                        // seeded paths); the probe replaces `candidates` and
+                        // the output merge below re-ranks from this snapshot.
+                        let prompt_named = candidates.clone();
                         let path_manager = crate::infrastructure::get_path_manager_arc();
                         let probe = crate::agentic::tools::qt_migration_candidates::probe_qt_migration_candidates(
                             workspace,
@@ -354,10 +388,9 @@ Usage notes:
                                     .get("source_project")
                                     .cloned()
                                     .unwrap_or_default();
-                                let model_outputs: Vec<String> = input
-                                    .get("candidates")
-                                    .and_then(|value| value.get("output_project"))
-                                    .and_then(|value| serde_json::from_value(value.clone()).ok())
+                                let model_outputs = prompt_named
+                                    .get("output_project")
+                                    .cloned()
                                     .unwrap_or_default();
                                 let output_candidates = crate::agentic::tools::qt_migration_candidates::merge_workspace_output_candidates(
                                     workspace,

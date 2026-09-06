@@ -253,6 +253,7 @@
       "imageUnderstanding": "Image understanding",
       "interactionCanvas": "Interaction and canvas",
       "computerAutomation": "Computer use and automation",
+      "qtMigration": "QT migration",
       "extension": "Extension · {{provider}}",
       "other": "Other",
       "selectedCount": "{{count}} tools selected",

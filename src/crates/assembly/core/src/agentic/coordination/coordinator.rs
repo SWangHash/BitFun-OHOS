@@ -6287,7 +6287,24 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         );
 
         let turn_index = self.session_manager.get_turn_count(&session_id);
+        let migration_enabled = if effective_agent_type == "QtMigration" {
+            // LLM-backed semantic analysis with a deterministic fallback; the
+            // result is cached per (session, prompt) and shared with the
+            // execution engine's turn gate.
+            let decision = crate::agentic::tools::implementations::qt_migration_semantic_analyzer::analyze_qt_migration_intent(
+                &session_id,
+                &original_user_input,
+            )
+            .await;
+            decision["taskType"].as_str() == Some("app_migration")
+        } else {
+            false
+        };
         let mut skill_agent_context_vars = HashMap::new();
+        skill_agent_context_vars.insert(
+            "qt_migration_enabled".to_string(),
+            migration_enabled.to_string(),
+        );
         if user_message_metadata
             .as_ref()
             .and_then(|metadata| metadata.get("acp_transport"))
@@ -6603,6 +6620,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         context_vars.insert(
             "original_user_input".to_string(),
             original_user_input.clone(),
+        );
+        context_vars.insert(
+            "qt_migration_enabled".to_string(),
+            migration_enabled.to_string(),
         );
         // Constraint revocation changes a user-authored safety boundary. Only
         // submissions from an external user surface can authorize that change;
@@ -12373,6 +12394,24 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         timeout_seconds: Option<u64>,
     ) -> BitFunResult<SubagentResult> {
         let request = self.prepare_subagent_execution_request(request).await?;
+        // Subagents inherit the parent's migration admission context so the
+        // intake gate constrains delegated side effects even when the
+        // subagent's own agent_type is not QtMigration. Only fork/fresh spawns
+        // carry a parent; agent_id re-dispatch (send_input) already targets an
+        // existing child session.
+        if let Some(child_session_id) = request.target_session_id() {
+            if let Some(parent_info) = request.subagent_parent_info.as_ref() {
+                self.get_session_manager()
+                    .seed_forked_qt_migration_intake_state(
+                        &parent_info.session_id,
+                        child_session_id,
+                    )
+                    .await;
+                self.get_session_manager()
+                    .seed_forked_qt_migration_active(&parent_info.session_id, child_session_id)
+                    .await;
+            }
+        }
         let Some(scheduler) = get_global_scheduler() else {
             return self
                 .execute_prepared_hidden_subagent(request, cancel_token, timeout_seconds)
@@ -12505,6 +12544,22 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             return Err(BitFunError::Cancelled(
                 "Background subagent start was cancelled".to_string(),
             ));
+        }
+        // Background subagents inherit the parent migration admission context too,
+        // so delegated side effects stay gated even when the background
+        // subagent's agent_type is not QtMigration.
+        if let Some(child_session_id) = request.target_session_id() {
+            if let Some(parent_info) = request.subagent_parent_info.as_ref() {
+                self.get_session_manager()
+                    .seed_forked_qt_migration_intake_state(
+                        &parent_info.session_id,
+                        child_session_id,
+                    )
+                    .await;
+                self.get_session_manager()
+                    .seed_forked_qt_migration_active(&parent_info.session_id, child_session_id)
+                    .await;
+            }
         }
         let subagent_dialog_turn_id = request.ensure_dialog_turn_id();
         let subagent_session_id = request
@@ -14658,13 +14713,157 @@ impl bitfun_runtime_ports::AgentUserShellCommandPort for ConversationCoordinator
     }
 }
 
+impl ConversationCoordinator {
+    /// Validate Qt migration intake answers against the exact waiting template
+    /// and persist the normalized bindings into the Session intake snapshot
+    /// before the waiting tool call resumes.
+    ///
+    /// Fails closed: an unknown template, a version mismatch, a missing path, or
+    /// an output directory that is already a migration artifact all surface to
+    /// the frontend as an error instead of delivering answers.
+    async fn validate_and_apply_answers(
+        &self,
+        meta: &bitfun_agent_runtime::user_questions::PendingQuestionRequestMeta,
+        request: &bitfun_agent_runtime::sdk::AgentUserAnswersRequest,
+    ) -> bitfun_runtime_ports::PortResult<()> {
+        use bitfun_agent_runtime::qt_migration_intake_state::{
+            qt_migration_apply_validated_answers, qt_migration_validate_answers,
+            QtMigrationIntakeStateSnapshot, QT_MIGRATION_INTAKE_REQUIRED_FIELDS,
+            QT_MIGRATION_OFFICIAL_VALUE,
+        };
+
+        let template_id = match meta.template_id.as_deref() {
+            Some(id) => id,
+            None => {
+                return Err(bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                    "Waiting question request carries no template id",
+                ));
+            }
+        };
+        let template_version = match meta.template_version.as_deref() {
+            Some(version) => version,
+            None => {
+                return Err(bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                    "Waiting question request carries no template version",
+                ));
+            }
+        };
+
+        // Backend-owned template existence/version check (fail closed).
+        let known_template = |template_id: &str, template_version: &str| {
+            bitfun_agent_runtime::qt_migration_question_templates::resolve_question_template_full(
+                template_id,
+                &std::collections::HashMap::new(),
+            )
+            .is_some_and(|resolved| resolved.template_version == template_version)
+        };
+
+        // Required fields come from the waiting template's presentation policy;
+        // fall back to the canonical minimum-input set defensively.
+        let required_fields: Vec<&str> = meta
+            .required_fields
+            .as_ref()
+            .map(|fields| fields.iter().map(String::as_str).collect())
+            .unwrap_or_else(|| QT_MIGRATION_INTAKE_REQUIRED_FIELDS.to_vec());
+
+        let normalized = qt_migration_validate_answers(
+            template_id,
+            template_version,
+            known_template,
+            &required_fields,
+            &request.answers,
+        )
+        .map_err(|error| {
+            bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                format!("Migration answers rejected: {error}"),
+            )
+        })?;
+
+        // Path existence check (local workspaces only; remote skips this).
+        let session_manager = self.get_session_manager();
+        let is_remote = session_manager
+            .get_session(&meta.session_id)
+            .map(|session| {
+                session.config.remote_connection_id.is_some()
+                    || session.config.remote_ssh_host.is_some()
+            })
+            .unwrap_or(false);
+        if !is_remote {
+            for (field, value) in &normalized {
+                if value == QT_MIGRATION_OFFICIAL_VALUE {
+                    continue;
+                }
+                if !std::path::Path::new(value).exists() {
+                    // Stable machine-parseable code so the web card can render
+                    // a localized message (code + field id + path).
+                    return Err(bitfun_runtime_ports::PortError::new(
+                        bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                        format!("qt_migration_path_not_found: field={field}; path={value}"),
+                    ));
+                }
+                // A migrated product directory must never be bound as the
+                // output target: re-migration would overwrite the previous
+                // result. Same artifact criteria the output-candidate probe
+                // excludes, so typed-in paths cannot bypass candidate
+                // filtering. The card renders the stable code with recovery
+                // copy (choose another output directory).
+                if field == "output_project"
+                    && crate::agentic::tools::qt_migration_candidates::is_migration_output_artifact(
+                        std::path::Path::new(value),
+                    )
+                {
+                    return Err(bitfun_runtime_ports::PortError::new(
+                        bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                        format!("qt_migration_output_is_artifact: field={field}; path={value}"),
+                    ));
+                }
+            }
+        }
+
+        // Persist the normalized bindings into the Session intake snapshot
+        // before waking the tool, so downstream gates and restore see them.
+        let current = session_manager
+            .qt_migration_intake_state(&meta.session_id)
+            .unwrap_or_else(QtMigrationIntakeStateSnapshot::empty);
+        let updated = qt_migration_apply_validated_answers(&current, &normalized);
+        session_manager
+            .remember_qt_migration_intake_state(&meta.session_id, updated)
+            .await;
+
+        crate::agentic::tools::user_input_manager::get_user_input_manager()
+            .send_answer(&request.tool_id, request.answers.clone())
+            .map_err(user_input_port_error)
+    }
+}
+
 #[async_trait::async_trait]
 impl bitfun_agent_runtime::sdk::AgentInteractionResponsePort for ConversationCoordinator {
     async fn submit_user_answers(
         &self,
         request: bitfun_agent_runtime::sdk::AgentUserAnswersRequest,
     ) -> bitfun_runtime_ports::PortResult<()> {
-        crate::agentic::tools::user_input_manager::get_user_input_manager()
+        let user_input_manager =
+            crate::agentic::tools::user_input_manager::get_user_input_manager();
+
+        // QtMigration intake wiring: template-backed waiting requests carry the
+        // request meta so answers are re-validated against the exact template
+        // and persisted into the Session intake snapshot before the waiting
+        // tool call resumes. Validation failures surface to the frontend as an
+        // error instead of delivering answers.
+        if let Some(meta) = user_input_manager.pending_meta(&request.tool_id) {
+            if let Some(template_id) = meta.template_id.as_deref() {
+                if template_id
+                    == bitfun_agent_runtime::qt_migration_question_templates::QT_MIGRATION_PATHS_TEMPLATE_ID
+                {
+                    return self.validate_and_apply_answers(&meta, &request).await;
+                }
+            }
+        }
+
+        user_input_manager
             .send_answer(&request.tool_id, request.answers)
             .map_err(user_input_port_error)
     }
