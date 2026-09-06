@@ -8,8 +8,10 @@
 # 归档名称: templates-0625.zip
 #
 # 用法:
-#   bash download-template.sh [--dest=<目录>] [--url=<自定义下载URL>]
+#   bash download-template.sh [--platform=<macos|windows|linux|harmonyos>] [--dest=<目录>] [--url=<自定义下载URL>]
 # 默认安装到 BitFun 用户级 Qt 迁移资源目录，--dest 仅用于兼容手动指定位置。
+# 资源根判定优先级: BITFUN_QT_MIGRATION_ROOT > --platform > 自动探测
+# （自动探测与 download-qt-sdk.sh 的 --platform 语义保持一致，避免工具链与模板安装到不同根目录）。
 #
 # 退出码: 0=成功, 1=参数错误, 2=下载失败
 
@@ -18,11 +20,13 @@ set -uo pipefail
 # GitCode 要求浏览器 User-Agent，否则返回 401
 UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
+PLATFORM=""
 DEST=""
 CUSTOM_URL=""
 
 for arg in "$@"; do
   case "$arg" in
+    --platform=*) PLATFORM="${arg#*=}" ;;
     --dest=*) DEST="${arg#*=}" ;;
     --url=*)  CUSTOM_URL="${arg#*=}" ;;
     *) echo "未知参数: $arg"; exit 1 ;;
@@ -30,20 +34,29 @@ for arg in "$@"; do
 done
 
 if [ -z "$DEST" ]; then
+  RESOURCE_ROOT=""
   if [ -n "${BITFUN_QT_MIGRATION_ROOT:-}" ]; then
     RESOURCE_ROOT="$BITFUN_QT_MIGRATION_ROOT"
-  elif [ "$(uname -s)" = "Darwin" ]; then
-    CONFIG_ROOT="${BITFUN_USER_ROOT:-${HOME}/Library/Application Support/BitFun}"
-    RESOURCE_ROOT="$CONFIG_ROOT/data/qt-migration"
-  elif [ "${OSTYPE:-}" = "msys" ] || [ "${OSTYPE:-}" = "cygwin" ] || [ "${OS:-}" = "Windows_NT" ]; then
-    CONFIG_ROOT="${BITFUN_USER_ROOT:-${APPDATA:-${HOME:-}/AppData/Roaming}/BitFun}"
-    RESOURCE_ROOT="$CONFIG_ROOT/data/qt-migration"
-  elif [ -f "/etc/ohos-release" ] || [ -f "/etc/openharmony-release" ]; then
-    RESOURCE_ROOT="${BITFUN_USER_ROOT:-/data/storage/el2/base/files/bitfun}/data/qt-migration"
-  else
-    DATA_ROOT="${XDG_DATA_HOME:-${HOME}/.local/share}"
-    CONFIG_ROOT="${BITFUN_USER_ROOT:-$DATA_ROOT/BitFun}"
-    RESOURCE_ROOT="$CONFIG_ROOT/data/qt-migration"
+  elif [ -n "$PLATFORM" ]; then
+    case "$PLATFORM" in
+      macos)     RESOURCE_ROOT="${BITFUN_USER_ROOT:-${HOME}/Library/Application Support/BitFun}/data/qt-migration" ;;
+      windows)   RESOURCE_ROOT="${BITFUN_USER_ROOT:-${APPDATA:-${HOME:-}/AppData/Roaming}/BitFun}/data/qt-migration" ;;
+      harmonyos) RESOURCE_ROOT="${BITFUN_USER_ROOT:-/data/storage/el2/base/files/bitfun}/data/qt-migration" ;;
+      *) ;;
+    esac
+  fi
+  if [ -z "$RESOURCE_ROOT" ]; then
+    if [ "$(uname -s)" = "Darwin" ]; then
+      RESOURCE_ROOT="${BITFUN_USER_ROOT:-${HOME}/Library/Application Support/BitFun}/data/qt-migration"
+    elif [ "${OSTYPE:-}" = "msys" ] || [ "${OSTYPE:-}" = "cygwin" ] || [ "${OS:-}" = "Windows_NT" ]; then
+      RESOURCE_ROOT="${BITFUN_USER_ROOT:-${APPDATA:-${HOME:-}/AppData/Roaming}/BitFun}/data/qt-migration"
+    elif [ -f "/etc/ohos-release" ] || [ -f "/etc/openharmony-release" ] \
+      || grep -qiE 'openharmony|harmonyos' /etc/os-release 2>/dev/null; then
+      RESOURCE_ROOT="${BITFUN_USER_ROOT:-/data/storage/el2/base/files/bitfun}/data/qt-migration"
+    else
+      DATA_ROOT="${XDG_DATA_HOME:-${HOME}/.local/share}"
+      RESOURCE_ROOT="${BITFUN_USER_ROOT:-$DATA_ROOT/BitFun}/data/qt-migration"
+    fi
   fi
   DEST="$RESOURCE_ROOT/templates/qt5.12.12/templates-0625"
 fi
