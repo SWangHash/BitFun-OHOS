@@ -248,11 +248,6 @@ Usage notes:
                             workspace,
                             &std::env::var("PATH").unwrap_or_default(),
                             &path_manager.qt_migration_root_dir(),
-                            Some(
-                                &path_manager
-                                    .builtin_skills_dir()
-                                    .join(bitfun_agent_runtime::qt_migration_intake_state::QT_MIGRATION_SKILL_DIR),
-                            ),
                             &candidates,
                         );
                         question_context = QtMigrationQuestionContext {
