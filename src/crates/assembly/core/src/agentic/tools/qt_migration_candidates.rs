@@ -16,7 +16,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-
 pub(crate) struct QtMigrationCandidateProbe {
     pub candidates: HashMap<String, Vec<String>>,
     pub managed_toolchain_available: bool,
@@ -56,6 +55,57 @@ const TEMPLATE_QT_DECLARATIONS: &str = "entry/src/main/qt/libqohos.d.ts";
 /// qmake executable names probed per PATH entry. Qt migration currently
 /// accepts Qt5 qmake only.
 const QMAKE_EXECUTABLES: &[&str] = &["qmake", "qmake.exe"];
+
+/// Login shells tried (in order) to capture the session PATH. The BitFun app
+/// process on sandboxed platforms inherits a fixed minimal PATH, while
+/// user-installed toolchains are exposed through shell profiles.
+const LOGIN_SHELLS: &[&str] = &["bash", "zsh", "sh"];
+const LOGIN_SHELL_CAPTURE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// The PATH a login shell would see.
+///
+/// On desktop platforms the BitFun process inherits the user environment, so
+/// the process PATH is already equivalent and is returned directly. On
+/// sandboxed platforms (HarmonyOS) the app process gets a fixed minimal PATH,
+/// so the session PATH is captured from a login shell instead; this keeps
+/// "the qmake in the environment variables" consistent with what `which
+/// qmake` reports inside BitFun shell sessions.
+pub(crate) fn shell_session_path_env() -> String {
+    if cfg!(target_env = "ohos") {
+        for shell in LOGIN_SHELLS {
+            if let Some(captured) = capture_login_shell_path(shell) {
+                return captured;
+            }
+        }
+    }
+    std::env::var("PATH").unwrap_or_default()
+}
+
+/// Spawn a login shell that prints its PATH. Returns `None` when the shell is
+/// unavailable, the login phase fails, or the answer does not arrive in time.
+fn capture_login_shell_path(shell: &str) -> Option<String> {
+    let mut child = std::process::Command::new(shell)
+        .arg("-l")
+        .arg("-c")
+        .arg("echo $PATH")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        if let Ok(output) = child.wait_with_output() {
+            let _ = sender.send(output);
+        }
+    });
+    let output = receiver.recv_timeout(LOGIN_SHELL_CAPTURE_TIMEOUT).ok()?;
+    let captured = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if captured.is_empty() || !captured.contains(':') {
+        return None;
+    }
+    Some(captured)
+}
 
 /// Returns candidates from the current workspace and BitFun-managed shared
 /// resources. Local paths are never searched for remote sessions.
@@ -187,7 +237,10 @@ pub(crate) fn filter_output_candidates(
 fn probe_output_project(workspace: &Path) -> Vec<String> {
     let mut found: Vec<(usize, PathBuf)> = Vec::new();
     scan_output_projects(workspace, 0, &mut found);
-    found.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| path_key(&a.1).cmp(&path_key(&b.1))));
+    found.sort_by(|a, b| {
+        a.0.cmp(&b.0)
+            .then_with(|| path_key(&a.1).cmp(&path_key(&b.1)))
+    });
     let mut candidates = found
         .into_iter()
         .map(|(_, p)| p.to_string_lossy().into_owned())
@@ -373,8 +426,14 @@ pub(crate) fn is_output_container_name(name: &str) -> bool {
         .collect();
     matches!(
         normalized.as_str(),
-        "output" | "outputs" | "outputproject" | "migrationproject" | "migrationoutput"
-            | "迁移工程" | "迁移输出" | "输出工程"
+        "output"
+            | "outputs"
+            | "outputproject"
+            | "migrationproject"
+            | "migrationoutput"
+            | "迁移工程"
+            | "迁移输出"
+            | "输出工程"
     )
 }
 
@@ -885,8 +944,7 @@ mod tests {
             vec![model_dir.to_string_lossy().into_owned()],
         );
 
-        let probe =
-            probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
 
         assert_eq!(
             probe.candidates["output_project"],
@@ -901,9 +959,7 @@ mod tests {
     fn workspace_service_output_candidate_is_merged_first() {
         let (_t, root) = tree();
         let workspace_output = root.join("迁移工程").to_string_lossy().into_owned();
-        let model_output = mkdir(&root, "model-output")
-            .to_string_lossy()
-            .into_owned();
+        let model_output = mkdir(&root, "model-output").to_string_lossy().into_owned();
 
         let candidates = merge_workspace_output_candidates(
             &root,

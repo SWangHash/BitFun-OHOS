@@ -246,7 +246,7 @@ Usage notes:
                         let path_manager = crate::infrastructure::get_path_manager_arc();
                         let probe = crate::agentic::tools::qt_migration_candidates::probe_qt_migration_candidates(
                             workspace,
-                            &std::env::var("PATH").unwrap_or_default(),
+                            &crate::agentic::tools::qt_migration_candidates::shell_session_path_env(),
                             &path_manager.qt_migration_root_dir(),
                             &candidates,
                         );
