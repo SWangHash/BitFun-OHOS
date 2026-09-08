@@ -225,6 +225,9 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   }, [applyExpandedState, isLastItem, showCompletedSummary, status]);
 
   useLayoutEffect(() => {
+    // Completed cards are rehydrated from the persisted result instead of
+    // pre-selecting the first option.
+    if (status === 'completed') return;
     setAnswers(prev => {
       let changed = false;
       const next = { ...prev };
@@ -237,7 +240,58 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       });
       return changed ? next : prev;
     });
-  }, [questions]);
+  }, [questions, status, optionValue]);
+
+  // Rehydrate submitted answers when the card is re-mounted after completion
+  // (history view / session restore). Template answers persist under field-id
+  // keys, plain ones under positional keys; typed custom values come back as
+  // plain strings and are restored into the custom inputs.
+  const rehydratedRef = useRef(false);
+  useEffect(() => {
+    if (rehydratedRef.current) return;
+    if (status !== 'completed' || !toolResult?.result) return;
+    let persisted: Record<string, string | string[]> | undefined;
+    try {
+      const result = typeof toolResult.result === 'string'
+        ? JSON.parse(toolResult.result)
+        : toolResult.result;
+      persisted = result?.answers;
+    } catch {
+      return;
+    }
+    if (!persisted || typeof persisted !== 'object') return;
+    rehydratedRef.current = true;
+
+    const nextAnswers: Record<number, string | string[]> = {};
+    const nextOtherInputs: Record<number, string> = {};
+    questions.forEach((question, index) => {
+      const keys = [question.field, String(index)].filter(Boolean) as string[];
+      let value: string | string[] | undefined;
+      for (const key of keys) {
+        if (persisted[key] !== undefined) {
+          value = persisted[key];
+          break;
+        }
+      }
+      if (value === undefined || value === null || value === '') return;
+      if (Array.isArray(value)) {
+        nextAnswers[index] = value;
+        return;
+      }
+      const text = String(value);
+      if (question.options.some(option => optionValue(option) === text)) {
+        nextAnswers[index] = text;
+        return;
+      }
+      // Typed custom value: not one of the option values.
+      nextOtherInputs[index] = text;
+      if (question.options.some(option => (option.label ?? '') === 'Other')) {
+        nextAnswers[index] = 'Other';
+      }
+    });
+    setAnswers(prev => ({ ...prev, ...nextAnswers }));
+    setOtherInputs(prev => ({ ...prev, ...nextOtherInputs }));
+  }, [status, toolResult, questions, optionValue]);
 
   const isAllAnswered = useCallback(() => {
     if (questions.length === 0) return false;
@@ -421,10 +475,15 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       const result = typeof toolResult.result === 'string'
         ? JSON.parse(toolResult.result)
         : toolResult.result;
-      return result?.answers?.[String(questionIndex)];
+      const persisted = result?.answers;
+      if (!persisted) return undefined;
+      // Template answers are keyed by field id; plain ones by position.
+      const fieldKey = questions[questionIndex]?.field;
+      if (fieldKey && persisted[fieldKey] !== undefined) return persisted[fieldKey];
+      return persisted[String(questionIndex)];
     }
     return undefined;
-  }, [answers, status, toolResult]);
+  }, [answers, status, toolResult, questions]);
 
   const renderQuestion = (q: QuestionData, questionIndex: number) => {
     const answer = getEffectiveAnswer(questionIndex);
