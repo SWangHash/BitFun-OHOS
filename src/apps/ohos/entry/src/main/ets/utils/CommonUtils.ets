@@ -202,19 +202,35 @@ export class CommonUtils {
             hilog.warn(0x0000, 'vnext', 'read_clipboard_files: failed to read mime entry ' + type + ': ' + e);
           }
         }
+        hilog.info(0x0000, 'vnext',
+          'read_clipboard_files: record ' + index + '/' + recordCount
+          + ' types=' + JSON.stringify(supportedTypes)
+          + ' uri=' + (record.uri ? String(record.uri) : '')
+          + ' candidates=' + JSON.stringify(candidates));
 
         for (const candidate of candidates) {
           if (seen.has(candidate)) {
             continue;
           }
-          // Only accept things that look like a file/docs URI; plain text
-          // snippets (e.g. a copied URL) must not become a "file path".
-          if (!candidate.startsWith('file://') && !candidate.startsWith('docs://')) {
+          // Accept URIs (file:// / docs://) and bare absolute paths. Some
+          // file managers put plain /storage/... paths into the pasteboard
+          // without a URI scheme; a copied plain-text snippet that merely
+          // looks like a path degrades loudly later as a
+          // "source file does not exist" paste failure instead of a silent
+          // empty clipboard.
+          const looksLikePath = candidate.startsWith('file://')
+            || candidate.startsWith('docs://')
+            || candidate.startsWith('/');
+          if (!looksLikePath) {
             continue;
           }
           seen.add(candidate);
           try {
-            paths.push(CommonUtils.normalizeFileUri(candidate));
+            if (candidate.startsWith('/')) {
+              paths.push(candidate);
+            } else {
+              paths.push(CommonUtils.normalizeFileUri(candidate));
+            }
           } catch (e) {
             hilog.warn(0x0000, 'vnext', 'read_clipboard_files: skip un-normalizable uri: ' + candidate + ' ' + e);
           }
