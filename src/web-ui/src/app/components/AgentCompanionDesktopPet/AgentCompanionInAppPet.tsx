@@ -25,7 +25,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { aiExperienceConfigService, type AgentCompanionPetSelection, type AIExperienceSettings } from '@/infrastructure/config/services/AIExperienceConfigService';
-import { ChatInputPixelPet, type ChatInputPixelPetMood } from '@/flow_chat/components/ChatInputPixelPet';
+import { AgentCompanionPet, type AgentCompanionPetMood } from '@/flow_chat/components/AgentCompanionPet';
 import { useAgentCompanionActivity } from '@/flow_chat/hooks/useAgentCompanionActivity';
 import type { AgentCompanionTaskStatus } from '@/flow_chat/utils/agentCompanionActivity';
 import { handleAgentCompanionPetCommand } from '@/app/services/agentCompanionPetCommands';
@@ -540,7 +540,7 @@ export const AgentCompanionInAppPet: React.FC = () => {
     return null;
   }
 
-  const displayMood: ChatInputPixelPetMood = isDraggingPet
+  const displayMood: AgentCompanionPetMood = isDraggingPet
     ? 'dragging'
     : isHoveringPet
       ? 'hover'
@@ -581,9 +581,9 @@ export const AgentCompanionInAppPet: React.FC = () => {
     <main
       className={`bitfun-agent-companion-window bitfun-agent-companion-inapp${isMenuOverlay ? ' bitfun-agent-companion-window--menu-open' : ''}${isPetOnlyMode ? ' bitfun-agent-companion-inapp--pet-only' : ''}`}
       onContextMenu={event => event.preventDefault()}
-      data-bf-component="agent-companion-desktop-pet"
-      data-bf-part="root"
-      data-bf-host="inapp"
+      data-openbitfun-component="agent-companion-desktop-pet"
+      data-openbitfun-part="root"
+      data-openbitfun-host="inapp"
     >
       {isMenuOverlay && (
         <div
@@ -620,9 +620,9 @@ export const AgentCompanionInAppPet: React.FC = () => {
         <div
           ref={dockRef}
           className="bitfun-agent-companion-window__dock"
-          data-bf-component="agent-companion-desktop-pet"
-          data-bf-part="dock"
-          data-bf-host="inapp"
+          data-openbitfun-component="agent-companion-desktop-pet"
+          data-openbitfun-part="dock"
+          data-openbitfun-host="inapp"
         >
           {visibleTasks.length > 0 && (
             <div
@@ -630,9 +630,9 @@ export const AgentCompanionInAppPet: React.FC = () => {
               className={`bitfun-agent-companion-window__bubbles${isSingleTask ? ' bitfun-agent-companion-window__bubbles--single' : ''}`}
               aria-live="polite"
               onDoubleClick={event => event.stopPropagation()}
-              data-bf-component="agent-companion-desktop-pet"
-              data-bf-part="bubbles"
-              data-bf-host="inapp"
+              data-openbitfun-component="agent-companion-desktop-pet"
+              data-openbitfun-part="bubbles"
+              data-openbitfun-host="inapp"
             >
               {displayTasks.map(task => {
                 const isComposingTask = overlay?.kind === 'composer'
@@ -643,17 +643,17 @@ export const AgentCompanionInAppPet: React.FC = () => {
                   <>
                     <span
                       className="bitfun-agent-companion-window__bubble-title"
-                      data-bf-component="agent-companion-desktop-pet"
-                      data-bf-part="bubbleTitle"
-                      data-bf-host="inapp"
+                      data-openbitfun-component="agent-companion-desktop-pet"
+                      data-openbitfun-part="bubbleTitle"
+                      data-openbitfun-host="inapp"
                     >
                       {task.title}
                     </span>
                     <span
                       className="bitfun-agent-companion-window__bubble-status"
-                      data-bf-component="agent-companion-desktop-pet"
-                      data-bf-part="bubbleStatus"
-                      data-bf-host="inapp"
+                      data-openbitfun-component="agent-companion-desktop-pet"
+                      data-openbitfun-part="bubbleStatus"
+                      data-openbitfun-host="inapp"
                     >
                       {t(task.labelKey, { defaultValue: task.defaultLabel })}
                     </span>
@@ -674,10 +674,10 @@ export const AgentCompanionInAppPet: React.FC = () => {
                             }
                           }}
                           className={`bitfun-agent-companion-window__bubble-output${isTyping ? ' bitfun-agent-companion-window__bubble-output--typing' : ''}`}
-                          data-bf-component="agent-companion-desktop-pet"
-                          data-bf-part="bubbleOutput"
-                          data-bf-state={isTyping ? 'typing' : undefined}
-                          data-bf-host="inapp"
+                          data-openbitfun-component="agent-companion-desktop-pet"
+                          data-openbitfun-part="bubbleOutput"
+                          data-openbitfun-state={isTyping ? 'typing' : undefined}
+                          data-openbitfun-host="inapp"
                         >
                           {visibleOutput}
                         </span>
@@ -696,9 +696,9 @@ export const AgentCompanionInAppPet: React.FC = () => {
                     {isComposingTask ? (
                       <div
                         className={bubbleClassName}
-                        data-bf-component="agent-companion-desktop-pet"
-                        data-bf-part="bubble"
-                        data-bf-host="inapp"
+                        data-openbitfun-component="agent-companion-desktop-pet"
+                        data-openbitfun-part="bubble"
+                        data-openbitfun-host="inapp"
                       >
                         {bubbleBody}
                         <div className="bitfun-agent-companion-window__bubble-composer">
@@ -756,9 +756,9 @@ export const AgentCompanionInAppPet: React.FC = () => {
                         type="button"
                         className={bubbleClassName}
                         onClick={() => void openTaskSession(task)}
-                        data-bf-component="agent-companion-desktop-pet"
-                        data-bf-part="bubble"
-                        data-bf-host="inapp"
+                        data-openbitfun-component="agent-companion-desktop-pet"
+                        data-openbitfun-part="bubble"
+                        data-openbitfun-host="inapp"
                       >
                         {bubbleBody}
                       </button>
@@ -800,21 +800,18 @@ export const AgentCompanionInAppPet: React.FC = () => {
             onPointerUp={onPetPointerUp}
             onPointerCancel={onPetPointerCancel}
             onContextMenu={onPetContextMenu}
-            data-bf-component="agent-companion-desktop-pet"
-            data-bf-part="hitbox"
-            data-bf-state={hasAttentionTask ? 'attention' : undefined}
-            data-bf-host="inapp"
+            data-openbitfun-component="agent-companion-desktop-pet"
+            data-openbitfun-part="hitbox"
+            data-openbitfun-state={hasAttentionTask ? 'attention' : undefined}
+            data-openbitfun-host="inapp"
           >
-            <ChatInputPixelPet
+            <AgentCompanionPet
               mood={displayMood}
               pet={pet}
               nativePetdexSize
               petdexScale={PETDEX_DESKTOP_SCALE}
               onPetFrameSizeChange={handlePetFrameSizeChange}
               className="bitfun-agent-companion-window__pet"
-              data-bf-component="agent-companion-desktop-pet"
-              data-bf-part="pet"
-              data-bf-host="inapp"
             />
           </div>
         </div>

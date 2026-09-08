@@ -51,8 +51,8 @@ vi.mock('@/infrastructure/config/services/AIExperienceConfigService', () => ({
   },
 }));
 
-vi.mock('@/flow_chat/components/ChatInputPixelPet', () => ({
-  ChatInputPixelPet: () => <div data-testid="pixel-pet" />,
+vi.mock('@/flow_chat/components/AgentCompanionPet', () => ({
+  AgentCompanionPet: () => <div data-testid="pixel-pet" />,
 }));
 
 function task(overrides: Partial<AgentCompanionTaskStatus> = {}): AgentCompanionTaskStatus {
