@@ -362,4 +362,150 @@ describe('AskUserQuestionCard', () => {
     });
     expect(container.querySelector('.completed-summary')).not.toBeNull();
   });
+
+  it('rehydrates a typed custom answer into the input when re-viewing a completed template card', () => {
+    const item = questionTool('completed');
+    item.toolCall.input = { templateId: 'qt-migration-paths', questions: [] };
+    item.questionRequest = {
+      params: { templateId: 'qt-migration-paths', questions: [] },
+      resolvedQuestions: [{
+        field: 'toolchain',
+        header: '迁移工具链',
+        question: '使用哪个迁移工具链？',
+        options: [
+          { label: '默认路径', description: 'D:/sdk/default' },
+          { label: '备选路径', description: 'D:/sdk/alt' },
+        ],
+        multiSelect: false,
+        inputPlaceholder: '请填写迁移工具链路径',
+        required: true,
+      }],
+      templateId: 'qt-migration-paths',
+      templateVersion: '1',
+    };
+    item.toolResult = {
+      success: true,
+      result: {
+        questions: [{ question: '使用哪个迁移工具链？', header: '迁移工具链' }],
+        answers: { toolchain: 'D:/custom/typed-path' },
+        status: 'answered',
+      },
+    } as FlowToolItem['toolResult'];
+
+    act(() => {
+      root.render(
+        <AskUserQuestionCard
+          toolItem={item}
+          config={config}
+          isLastItem={false}
+        />,
+      );
+    });
+
+    // 折叠摘要直接回显提交的自定义路径
+    const summary = container.querySelector('.summary-answer');
+    expect(summary?.textContent).toContain('D:/custom/typed-path');
+
+    // 展开后：键入值回填输入框，选项保持未选（不得预选第一个推荐项）
+    act(() => {
+      container.querySelector<HTMLElement>('.completed-summary')?.click();
+    });
+    const input = container.querySelector<HTMLInputElement>('input.custom-input-inline');
+    expect(input).not.toBeNull();
+    expect(input?.value).toBe('D:/custom/typed-path');
+    expect(container.querySelector('input[type="radio"]:checked')).toBeNull();
+  });
+
+  it('rehydrates a selected option answer when re-viewing a completed template card', () => {
+    const item = questionTool('completed');
+    item.toolCall.input = { templateId: 'qt-migration-paths', questions: [] };
+    item.questionRequest = {
+      params: { templateId: 'qt-migration-paths', questions: [] },
+      resolvedQuestions: [{
+        field: 'toolchain',
+        header: '迁移工具链',
+        question: '使用哪个迁移工具链？',
+        options: [
+          { label: '默认路径', description: 'D:/sdk/default' },
+          { label: '备选路径', description: 'D:/sdk/alt' },
+        ],
+        multiSelect: false,
+        inputPlaceholder: '请填写迁移工具链路径',
+        required: true,
+      }],
+      templateId: 'qt-migration-paths',
+      templateVersion: '1',
+    };
+    item.toolResult = {
+      success: true,
+      result: {
+        questions: [{ question: '使用哪个迁移工具链？', header: '迁移工具链' }],
+        answers: { toolchain: 'D:/sdk/alt' },
+        status: 'answered',
+      },
+    } as FlowToolItem['toolResult'];
+
+    act(() => {
+      root.render(
+        <AskUserQuestionCard
+          toolItem={item}
+          config={config}
+          isLastItem={false}
+        />,
+      );
+    });
+
+    const summary = container.querySelector('.summary-answer');
+    expect(summary?.textContent).toContain('D:/sdk/alt');
+
+    act(() => {
+      container.querySelector<HTMLElement>('.completed-summary')?.click();
+    });
+    const checked = container.querySelector<HTMLInputElement>('input[type="radio"]:checked');
+    expect(checked?.value).toBe('D:/sdk/alt');
+    const input = container.querySelector<HTMLInputElement>('input.custom-input-inline');
+    expect(input?.value).toBe('');
+  });
+
+  it('rehydrates a non-first option on a plain completed card (summary and expanded view)', () => {
+    // 普通问题卡片：用户提交的是第二个选项，回看时摘要与展开视图都必须
+    // 显示第二个选项，而不是被预选 effect 覆盖成第一个选项。
+    const item = questionTool('completed');
+    item.toolCall.input.questions = [{
+      header: 'Database',
+      question: 'Which database?',
+      multiSelect: false,
+      options: [
+        { label: 'PostgreSQL' },
+        { label: 'MySQL' },
+      ],
+    }];
+    item.toolResult = {
+      success: true,
+      result: {
+        questions: [{ question: 'Which database?', header: 'Database' }],
+        answers: { 0: 'MySQL' },
+        status: 'answered',
+      },
+    } as FlowToolItem['toolResult'];
+
+    act(() => {
+      root.render(
+        <AskUserQuestionCard
+          toolItem={item}
+          config={config}
+          isLastItem={false}
+        />,
+      );
+    });
+
+    const summary = container.querySelector('.summary-answer');
+    expect(summary?.textContent).toContain('MySQL');
+
+    act(() => {
+      container.querySelector<HTMLElement>('.completed-summary')?.click();
+    });
+    const checked = container.querySelector<HTMLInputElement>('input[type="radio"]:checked');
+    expect(checked?.value).toBe('MySQL');
+  });
 });
