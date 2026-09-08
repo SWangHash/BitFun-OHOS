@@ -1,16 +1,68 @@
-import React, { useEffect, useLayoutEffect, useRef, useCallback, useState } from 'react';
+import { subscribeHostCatalog } from '../services/HostCatalogSubscription';
+import {
+  AppWindow as LucideAppWindow,
+  Check as LucideCheck,
+  ChevronRight as LucideChevronRight,
+  ChevronsUpDown as LucideChevronsUpDown,
+  Ellipsis as LucideEllipsis,
+  Folder as LucideFolder,
+  FolderOpen as LucideFolderOpen,
+  Laptop as LucideLaptop,
+  LoaderCircle as LucideLoaderCircle,
+  LogOut as LucideLogOut,
+  MessageSquare as LucideMessageSquare,
+  MessageCircle as LucideMessageCircle,
+  Monitor as LucideMonitor,
+  Moon as LucideMoon,
+  Plus as LucidePlus,
+  RefreshCw as LucideRefreshCw,
+  Search as LucideSearch,
+  Server as LucideServer,
+  Settings as LucideSettings,
+  Sun as LucideSun,
+  Terminal as LucideTerminal,
+  User as LucideUser,
+  Users as LucideUsers,
+  Wrench as LucideWrench,
+  X as LucideX,
+} from 'lucide-react';
+import { useGitHubAccountProfile } from '../hooks/useGitHubAccountProfile';
+import AccountAvatar from '../components/AccountAvatar';
+import React, { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from 'react';
+import {
+  MobileButton,
+  MobileBanner,
+  MobileChoiceSheet,
+  MobileFloatingActions,
+  MobileIconButton,
+  MobileSection,
+  MobileSegmentedControl,
+  MobileStatus,
+  MobileTextField,
+} from '@bitfun/ui/mobile';
 import LanguageToggleButton from '../components/LanguageToggleButton';
+import SessionOverlays from '../components/SessionOverlays';
+import CompactSettingsSheet from '../components/CompactSettingsSheet';
+import { SessionHistoryPanel, SessionLaunchPanel } from '../components/SessionDashboardSections';
 import { useControlTargetEpoch } from '../hooks/useControlTargetEpoch';
 import { useI18n } from '../i18n';
 import {
   isRemoteControlTargetChangedError,
+  REMOTE_CAPABILITY_HARNESS_PROFILES_V1,
   RemoteSessionManager,
   type RecentWorkspaceEntry,
   type SessionInfo,
 } from '../services/RemoteSessionManager';
 import { useMobileStore } from '../services/store';
+import { createRemoteCacheScope, remoteCache } from '../services/RemoteCache';
+import { sessionMatchesWorkspace, workspaceIdentityKey } from '../services/workspaceIdentity';
 import { useTheme } from '../theme';
-import logoIcon from '../assets/Logo-ICON.png';
+import logoMarkDark from '../assets/bitfun-mark-dark.png';
+import logoMarkLight from '../assets/bitfun-mark-light.png';
+import {
+  isAccountIdentityChangedError,
+  type RelayHttpClient,
+} from '../services/RelayHttpClient';
 
 const PAGE_SIZE = 30;
 
@@ -18,10 +70,39 @@ type DisplayMode = 'pro' | 'assistant';
 
 interface SessionListPageProps {
   sessionMgr: RemoteSessionManager;
-  onSelectSession: (sessionId: string, sessionName?: string, isNew?: boolean) => void;
+  client?: RelayHttpClient;
+  compact?: boolean;
+  activeSessionId?: string | null;
+  onSelectSession: (
+    sessionId: string,
+    sessionName?: string,
+    isNew?: boolean,
+    agentType?: string,
+  ) => void;
   onOpenWorkspace: () => void;
+  onOpenDeviceTools: () => void;
   onDisconnect: () => void;
   onOpenDevices?: () => void;
+  onControlTargetChanged?: () => void;
+}
+
+type CompactDevice = {
+  device_id: string;
+  device_name: string;
+  online: boolean;
+};
+
+
+function compactSelectedDeviceIdForClient(client?: RelayHttpClient): string | null {
+  if (!client) return null;
+  return client.targetDeviceId
+    ?? null;
+}
+
+type CompactWorkspaceLoadStatus = 'idle' | 'loading' | 'ready' | 'failed';
+
+function compactWorkspaceKey(workspace: RecentWorkspaceEntry): string {
+  return workspaceIdentityKey(workspace);
 }
 
 type SessionListTargetOwner = {
@@ -71,15 +152,20 @@ function formatTime(
 
 function agentLabel(agentType: string, t: (key: string) => string): string {
   switch (agentType) {
+    case 'Minimal':
+      return t('sessions.harnessMinimal');
+    case 'Ultimate':
+      return t('sessions.harnessUltimate');
     case 'code':
-    case 'agentic':
       return t('sessions.agentCode');
+    case 'Standard':
+      return t('sessions.harnessStandard');
     case 'cowork':
     case 'Cowork':
       return t('sessions.agentCowork');
     case 'claw':
     case 'Claw':
-      return t('shared.agents.claw');
+      return t('shared.agents.Claw');
     default:
       return agentType || t('sessions.agentDefault');
   }
@@ -114,67 +200,67 @@ function truncateMiddle(str: string, maxLen: number): string {
 function SessionTypeIcon({ agentType }: { agentType: string }) {
   if (isCoworkAgent(agentType)) {
     return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
+      <LucideUsers width="18" height="18" stroke="currentColor" aria-hidden="true" />
     );
   }
 
   if (isClawAgent(agentType)) {
     return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-        <rect width="20" height="14" x="2" y="5" rx="2" />
-        <path d="M2 10h20" />
-      </svg>
+      <LucideAppWindow width="18" height="18" stroke="currentColor" aria-hidden="true" />
     );
   }
 
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
+    <LucideMessageSquare width="18" height="18" stroke="currentColor" aria-hidden="true" />
+  );
+}
+
+function CompactDeviceIcon({ name }: { name: string }) {
+  const normalized = name.toLocaleLowerCase();
+  if (/(macbook|laptop|notebook)/.test(normalized)) {
+    return (
+      <LucideLaptop width="22" height="22" stroke="currentColor" aria-hidden="true" />
+    );
+  }
+  if (/(server|ecs|cloud|host)/.test(normalized)) {
+    return (
+      <LucideServer width="22" height="22" stroke="currentColor" aria-hidden="true" />
+    );
+  }
+  return (
+    <LucideMonitor width="22" height="22" stroke="currentColor" aria-hidden="true" />
   );
 }
 
 /* Mode Selection Icons */
 const ProModeIcon = () => (
-  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="4 17 10 11 4 5" />
-    <line x1="12" y1="19" x2="20" y2="19" />
-  </svg>
+  <LucideTerminal width="32" height="32" stroke="currentColor" aria-hidden="true" />
 );
 
 const AssistantModeIcon = () => (
-  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 8V4H8" />
-    <rect width="16" height="12" x="4" y="8" rx="2" />
-    <path d="M2 14h2" />
-    <path d="M20 14h2" />
-    <path d="M15 13v2" />
-    <path d="M9 13v2" />
-  </svg>
+  <LucideUser width="32" height="32" stroke="currentColor" aria-hidden="true" />
 );
 
 const WorkspaceIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-    <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/>
-  </svg>
+  <LucideFolderOpen width="18" height="18" stroke="currentColor" aria-hidden="true" />
 );
 
 const ThemeToggleIcon: React.FC<{ isDark: boolean }> = ({ isDark }) => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    {isDark ? (
-      <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM3 8a5 5 0 0 1 5-5v10a5 5 0 0 1-5-5Z" fill="currentColor"/>
-    ) : (
-      <path d="M8 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 8 1Zm0 11a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 8 12Zm7-4a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1 0-1h1A.5.5 0 0 1 15 8ZM3 8a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1 0-1h1A.5.5 0 0 1 3 8Zm9.95-3.54a.5.5 0 0 1 0 .71l-.71.7a.5.5 0 1 1-.7-.7l.7-.71a.5.5 0 0 1 .71 0ZM5.46 11.24a.5.5 0 0 1 0 .71l-.7.71a.5.5 0 0 1-.71-.71l.7-.71a.5.5 0 0 1 .71 0Zm7.08 1.42a.5.5 0 0 1-.7 0l-.71-.71a.5.5 0 0 1 .7-.7l.71.7a.5.5 0 0 1 0 .71ZM5.46 4.76a.5.5 0 0 1-.71 0l-.71-.7a.5.5 0 0 1 .71-.71l.7.7a.5.5 0 0 1 0 .71ZM8 5a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" fill="currentColor"/>
-    )}
-  </svg>
+  <>{isDark ? <LucideMoon width="16" height="16" aria-hidden="true" /> : <LucideSun width="16" height="16" aria-hidden="true" />}</>
 );
 
-const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectSession, onOpenWorkspace, onDisconnect, onOpenDevices }) => {
+const SessionListPage: React.FC<SessionListPageProps> = ({
+  sessionMgr,
+  client,
+  compact = false,
+  activeSessionId,
+  onSelectSession,
+  onOpenWorkspace,
+  onOpenDeviceTools,
+  onDisconnect,
+  onOpenDevices,
+  onControlTargetChanged,
+}) => {
   const { t, formatDate } = useI18n();
   const {
     sessions,
@@ -186,11 +272,17 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
     currentAssistant,
     setCurrentAssistant,
     setPairedDisplayMode,
-    authenticatedUserLabel,
+    authenticatedUserId,
     connectionHealth,
     controlTarget,
+    setControlTarget,
+    resetForDeviceSwitch,
   } = useMobileStore();
+  const githubProfile = useGitHubAccountProfile(authenticatedUserId);
+  const authenticatedUserLabel = authenticatedUserId
+    ? githubProfile ? `@${githubProfile.login}` : t('settings.githubAccount') : null;
   const { isDark, toggleTheme } = useTheme();
+  const logoMark = isDark ? logoMarkLight : logoMarkDark;
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -214,6 +306,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
     remote_ssh_host?: string;
   }>>([]);
   const [showWorkspacePicker, setShowWorkspacePicker] = useState(false);
+  const [workspaceCatalogSource, setWorkspaceCatalogSource] = useState<'opened' | 'recent' | null>(null);
 
   // Search, rename & delete state
   const [searchQuery, setSearchQuery] = useState('');
@@ -226,12 +319,36 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
   const [actionToast, setActionToast] = useState<string | null>(null);
 
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+  const [compactSearchOpen, setCompactSearchOpen] = useState(false);
+  const [compactDevices, setCompactDevices] = useState<CompactDevice[]>([]);
+  const [compactDirectoryLoading, setCompactDirectoryLoading] = useState(false);
+  const [compactSelectedDeviceId, setCompactSelectedDeviceId] = useState<string | null>(
+    () => compactSelectedDeviceIdForClient(client),
+  );
+  const [compactSwitchingDeviceId, setCompactSwitchingDeviceId] = useState<string | null>(null);
+  const [compactExpandedWorkspaces, setCompactExpandedWorkspaces] = useState<Set<string>>(() => new Set());
+  const [compactWorkspaceSessions, setCompactWorkspaceSessions] = useState<Record<string, SessionInfo[]>>({});
+  const [compactWorkspaceStatuses, setCompactWorkspaceStatuses] = useState<Record<string, CompactWorkspaceLoadStatus>>({});
+  const [compactWorkspaceHasMore, setCompactWorkspaceHasMore] = useState<Record<string, boolean>>({});
+  const [compactWorkspaceLoadingMore, setCompactWorkspaceLoadingMore] = useState<Set<string>>(() => new Set());
+  const [compactVisibleSessionCounts, setCompactVisibleSessionCounts] = useState<Record<string, number>>({});
+  const [compactVisibleDeviceCount, setCompactVisibleDeviceCount] = useState(3);
+  const [compactVisibleWorkspaceCount, setCompactVisibleWorkspaceCount] = useState(3);
+  const [compactSettingsOpen, setCompactSettingsOpen] = useState(false);
+  const [harnessCreateRequest, setHarnessCreateRequest] = useState<{
+    workspace?: RecentWorkspaceEntry;
+  } | null>(null);
 
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const longPressPosRef = useRef({ x: 0, y: 0 });
   const longPressTriggeredRef = useRef(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const controlTargetEpoch = useControlTargetEpoch(sessionMgr);
+  const cacheScope = useMemo(() => createRemoteCacheScope(
+    authenticatedUserId,
+    controlTarget?.deviceId ?? client?.targetDeviceId,
+  ), [authenticatedUserId, client?.targetDeviceId, controlTarget?.deviceId]);
+  const liveDataSeqRef = useRef(0);
   const sessionListOwnerRef = useRef({
     sessionMgr,
     epoch: controlTargetEpoch,
@@ -310,7 +427,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
       longPressTriggeredRef.current = false;
       return;
     }
-    onSelectSession(s.session_id, s.name);
+    onSelectSession(s.session_id, s.name, false, s.agent_type);
   }, [onSelectSession]);
 
   // ── Session actions ─────────────────────────────────────────────
@@ -336,7 +453,19 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
     try {
       await sessionMgr.renameSession(renameTarget.session_id, renameValue.trim());
       if (!isSessionListCurrent(targetEpoch)) return;
-      useMobileStore.getState().updateSessionName(renameTarget.session_id, renameValue.trim());
+      const nextName = renameValue.trim();
+      useMobileStore.getState().updateSessionName(renameTarget.session_id, nextName);
+      setCompactWorkspaceSessions((current) => Object.fromEntries(
+        Object.entries(current).map(([key, workspaceSessions]) => [
+          key,
+          workspaceSessions.map((session) => (
+            session.session_id === renameTarget.session_id
+              ? { ...session, name: nextName }
+              : session
+          )),
+        ]),
+      ));
+      remoteCache.renameSession(cacheScope, renameTarget.session_id, nextName);
       setRenameTarget(null);
       setMenuSession(null);
     } catch (e: any) {
@@ -346,7 +475,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
     } finally {
       if (isSessionListCurrent(targetEpoch)) setRenaming(false);
     }
-  }, [captureSessionListEpoch, isSessionListCurrent, renameTarget, renameValue, sessionMgr, showToast, t]);
+  }, [cacheScope, captureSessionListEpoch, isSessionListCurrent, renameTarget, renameValue, sessionMgr, showToast, t]);
 
   const handleDelete = useCallback(async () => {
     if (!deleteConfirmTarget) return;
@@ -357,6 +486,15 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
       await sessionMgr.deleteSession(deleteConfirmTarget.session_id);
       if (!isSessionListCurrent(targetEpoch)) return;
       useMobileStore.getState().removeSession(deleteConfirmTarget.session_id);
+      setCompactWorkspaceSessions((current) => Object.fromEntries(
+        Object.entries(current).map(([key, workspaceSessions]) => [
+          key,
+          workspaceSessions.filter((session) => (
+            session.session_id !== deleteConfirmTarget.session_id
+          )),
+        ]),
+      ));
+      remoteCache.deleteSession(cacheScope, deleteConfirmTarget.session_id);
       setDeleteConfirmTarget(null);
       setMenuSession(null);
       showToast(t('sessions.deleted'));
@@ -367,13 +505,14 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
     } finally {
       if (isSessionListCurrent(targetEpoch)) setDeleting(false);
     }
-  }, [captureSessionListEpoch, deleteConfirmTarget, isSessionListCurrent, sessionMgr, showToast, t]);
+  }, [cacheScope, captureSessionListEpoch, deleteConfirmTarget, isSessionListCurrent, sessionMgr, showToast, t]);
 
   const [pullDistance, setPullDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const offsetRef = useRef(0);
   const listRef = useRef<HTMLDivElement>(null);
   const listRequestSeqRef = useRef(0);
+  const workspaceCatalogRequestSeqRef = useRef(0);
   const initLoadedPathRef = useRef<string | undefined>(undefined);
   const touchStartY = useRef(0);
   const isPulling = useRef(false);
@@ -407,6 +546,8 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
       setDeleting(false);
       setAssistantList([]);
       setWorkspaceList([]);
+      setWorkspaceCatalogSource(null);
+      workspaceCatalogRequestSeqRef.current += 1;
       setShowAssistantPicker(false);
       setShowWorkspacePicker(false);
       setMenuSession(null);
@@ -416,6 +557,17 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
       setActionToast(null);
       setShowDisconnectConfirm(false);
       setSearchQuery('');
+      setCompactSelectedDeviceId(compactSelectedDeviceIdForClient(client));
+      setCompactSwitchingDeviceId(null);
+      setCompactExpandedWorkspaces(new Set());
+      setCompactWorkspaceSessions({});
+      setCompactWorkspaceStatuses({});
+      setCompactWorkspaceHasMore({});
+      setCompactWorkspaceLoadingMore(new Set());
+      setCompactVisibleSessionCounts({});
+      setCompactVisibleDeviceCount(3);
+      setCompactVisibleWorkspaceCount(3);
+      setCompactSettingsOpen(false);
       setDisplayMode('pro');
       setHasMore(false);
       setSessions([]);
@@ -433,6 +585,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
     };
   }, [
     controlTargetEpoch,
+    client,
     sessionMgr,
     setCurrentAssistant,
     setCurrentWorkspace,
@@ -440,6 +593,44 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
     setPairedDisplayMode,
     setSessions,
   ]);
+
+  useEffect(() => {
+    if (!compact || !cacheScope) return;
+    const targetEpoch = captureSessionListEpoch();
+    if (targetEpoch === null) return;
+    const liveDataSeq = liveDataSeqRef.current;
+    let cancelled = false;
+    void remoteCache.loadSessionState(cacheScope).then((cached) => {
+      if (
+        cancelled
+        || !cached
+        || liveDataSeqRef.current !== liveDataSeq
+        || !isSessionListCurrent(targetEpoch)
+      ) return;
+      if (useMobileStore.getState().sessions.length === 0) {
+        setSessions(cached.sessions);
+        offsetRef.current = cached.sessions.length;
+      }
+      setWorkspaceList(cached.workspaces);
+      setWorkspaceCatalogSource(cached.workspaceCatalogSource ?? 'recent');
+
+      const cachedByWorkspace: Record<string, SessionInfo[]> = {};
+      const cachedStatuses: Record<string, CompactWorkspaceLoadStatus> = {};
+      cached.workspaces.forEach((workspace) => {
+        const key = compactWorkspaceKey(workspace);
+        const workspaceSessions = cached.sessions.filter((session) => (
+          sessionMatchesWorkspace(session, workspace, cached.workspaces)
+        ));
+        if (workspaceSessions.length > 0) {
+          cachedByWorkspace[key] = workspaceSessions;
+          cachedStatuses[key] = 'idle';
+        }
+      });
+      setCompactWorkspaceSessions(cachedByWorkspace);
+      setCompactWorkspaceStatuses(cachedStatuses);
+    });
+    return () => { cancelled = true; };
+  }, [cacheScope, captureSessionListEpoch, compact, controlTargetEpoch, isSessionListCurrent, setSessions]);
 
   // Load assistant list when entering assistant mode
   const loadAssistantList = useCallback(async () => {
@@ -488,9 +679,15 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
         requestSeq !== listRequestSeqRef.current
         || !isSessionListCurrent(targetEpoch)
       ) return;
+      liveDataSeqRef.current += 1;
       setSessions(resp.sessions);
       setHasMore(resp.has_more);
       offsetRef.current = resp.sessions.length;
+      remoteCache.saveSessionPage(cacheScope, resp.sessions, {
+        workspacePath,
+        workspaceIdentity: identity,
+        replaceWorkspace: query.trim().length === 0,
+      });
     } catch (e: any) {
       if (
         requestSeq !== listRequestSeqRef.current
@@ -505,22 +702,338 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
         setLoading(false);
       }
     }
-  }, [captureSessionListEpoch, isSessionListCurrent, sessionMgr, setError, setSessions]);
+  }, [cacheScope, captureSessionListEpoch, isSessionListCurrent, sessionMgr, setError, setSessions]);
 
   // Load workspace list for Pro mode picker
   const loadWorkspaceList = useCallback(async () => {
     const targetEpoch = captureSessionListEpoch();
     if (targetEpoch === null) return;
+    const requestSeq = ++workspaceCatalogRequestSeqRef.current;
     try {
-      const workspaces = await sessionMgr.listRecentWorkspaces();
-      if (!isSessionListCurrent(targetEpoch)) return;
-      setWorkspaceList(workspaces);
+      const catalog = compact
+        ? await sessionMgr.listWorkspaceCatalog()
+        : { workspaces: await sessionMgr.listRecentWorkspaces(), source: 'recent' as const };
+      if (!isSessionListCurrent(targetEpoch) || requestSeq !== workspaceCatalogRequestSeqRef.current) return;
+      liveDataSeqRef.current += 1;
+      setWorkspaceList(catalog.workspaces);
+      setWorkspaceCatalogSource(catalog.source);
+      remoteCache.saveWorkspaceCatalog(cacheScope, catalog.workspaces, catalog.source);
     } catch (e: any) {
-      if (isSessionListCurrent(targetEpoch) && !isRemoteControlTargetChangedError(e)) {
+      if (requestSeq === workspaceCatalogRequestSeqRef.current
+        && isSessionListCurrent(targetEpoch) && !isRemoteControlTargetChangedError(e)) {
         setError(e.message);
       }
     }
-  }, [captureSessionListEpoch, isSessionListCurrent, sessionMgr, setError]);
+  }, [cacheScope, captureSessionListEpoch, compact, isSessionListCurrent, sessionMgr, setError]);
+
+  const loadCompactDirectory = useCallback(async () => {
+    if (!compact) return;
+    setCompactDirectoryLoading(true);
+    try {
+      const tasks: Promise<unknown>[] = [loadWorkspaceList()];
+      if (client?.hasAccountIdentity) {
+        tasks.push(client.listDevices().then((list) => {
+          setCompactDevices(list.filter((device) => (
+            device.device_id !== client.controllerDeviceId
+          )));
+        }));
+      }
+      await Promise.all(tasks);
+    } catch (e: any) {
+      setError(e?.message || t('devices.loadFailed'));
+    } finally {
+      setCompactDirectoryLoading(false);
+    }
+  }, [client, compact, loadWorkspaceList, setError, t]);
+
+  const loadCompactWorkspaceCatalog = useCallback(async (expectedTargetEpoch: number) => {
+    if (!compact || !client) return;
+    setCompactDirectoryLoading(true);
+    const requestSeq = ++workspaceCatalogRequestSeqRef.current;
+    try {
+      const catalog = await sessionMgr.listWorkspaceCatalog();
+      if (client.controlTargetEpoch !== expectedTargetEpoch || requestSeq !== workspaceCatalogRequestSeqRef.current) return;
+      liveDataSeqRef.current += 1;
+      setWorkspaceList(catalog.workspaces);
+      setWorkspaceCatalogSource(catalog.source);
+      remoteCache.saveWorkspaceCatalog(cacheScope, catalog.workspaces, catalog.source);
+    } catch (error: unknown) {
+      if (
+        client.controlTargetEpoch === expectedTargetEpoch
+        && requestSeq === workspaceCatalogRequestSeqRef.current
+        && !isRemoteControlTargetChangedError(error)
+      ) {
+        setError(String((error as { message?: string })?.message || error));
+      }
+    } finally {
+      if (client.controlTargetEpoch === expectedTargetEpoch) {
+        setCompactDirectoryLoading(false);
+      }
+    }
+  }, [cacheScope, client, compact, sessionMgr, setError]);
+
+  useEffect(() => {
+    if (!compact) return;
+    void loadCompactDirectory();
+  }, [compact, loadCompactDirectory]);
+
+  const handleSelectCompactDevice = useCallback(async (device: CompactDevice) => {
+    if (!client || !device.online || compactSwitchingDeviceId) return;
+    setCompactSelectedDeviceId(device.device_id);
+
+    if (client.targetDeviceId === device.device_id) {
+      await loadCompactWorkspaceCatalog(client.controlTargetEpoch);
+      return;
+    }
+    const accountEpoch = client.accountEpoch;
+    const targetEpoch = client.controlTargetEpoch;
+    setCompactSwitchingDeviceId(device.device_id);
+    setError(null);
+    try {
+      const ping = await client.sendDeviceRpc<{ resp?: string; ok?: boolean; error?: string }>(
+        device.device_id,
+        {
+          cmd: 'host_invoke',
+          command: 'peer_mode_ping',
+          args: {},
+        },
+        { retryable: true },
+      );
+      if (
+        client.accountEpoch !== accountEpoch
+        || client.controlTargetEpoch !== targetEpoch
+      ) return;
+      if (ping.resp === 'host_invoke_result' && ping.ok === false) {
+        throw new Error(ping.error || t('devices.switchFailed'));
+      }
+      client.setTargetDeviceId(device.device_id);
+      const switchedTargetEpoch = client.controlTargetEpoch;
+      resetForDeviceSwitch();
+      setControlTarget({
+        deviceId: device.device_id,
+        deviceName: device.device_name || null,
+      });
+      onControlTargetChanged?.();
+      await loadCompactWorkspaceCatalog(switchedTargetEpoch);
+    } catch (error: unknown) {
+      if (isAccountIdentityChangedError(error)) return;
+      const message = String((error as { message?: string })?.message || error);
+      setError(message || t('devices.switchFailed'));
+    } finally {
+      setCompactSwitchingDeviceId((current) => (
+        current === device.device_id ? null : current
+      ));
+    }
+  }, [
+    client,
+    compactSwitchingDeviceId,
+    loadCompactWorkspaceCatalog,
+    onControlTargetChanged,
+    resetForDeviceSwitch,
+    setControlTarget,
+    setError,
+    t,
+  ]);
+
+  const handleToggleCompactWorkspace = useCallback(async (workspace: RecentWorkspaceEntry) => {
+    const key = compactWorkspaceKey(workspace);
+    if (compactExpandedWorkspaces.has(key)) {
+      setCompactExpandedWorkspaces((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
+      return;
+    }
+
+    setCompactExpandedWorkspaces((current) => new Set(current).add(key));
+    if (compactWorkspaceStatuses[key] === 'ready' || compactWorkspaceStatuses[key] === 'loading') {
+      return;
+    }
+
+    const targetEpoch = captureSessionListEpoch();
+    if (targetEpoch === null) return;
+    setCompactWorkspaceStatuses((current) => ({ ...current, [key]: 'loading' }));
+    try {
+      const response = await sessionMgr.listSessions(workspace.path, PAGE_SIZE, 0, '', {
+        remoteConnectionId: workspace.remote_connection_id,
+        remoteSshHost: workspace.remote_ssh_host,
+      });
+      if (!isSessionListCurrent(targetEpoch)) return;
+      liveDataSeqRef.current += 1;
+      setCompactWorkspaceSessions((current) => ({ ...current, [key]: response.sessions }));
+      setCompactWorkspaceStatuses((current) => ({ ...current, [key]: 'ready' }));
+      setCompactWorkspaceHasMore((current) => ({ ...current, [key]: response.has_more }));
+      setCompactVisibleSessionCounts((current) => ({ ...current, [key]: 3 }));
+      remoteCache.saveSessionPage(cacheScope, response.sessions, {
+        workspacePath: workspace.path,
+        workspaceIdentity: {
+          remoteConnectionId: workspace.remote_connection_id,
+          remoteSshHost: workspace.remote_ssh_host,
+        },
+        replaceWorkspace: true,
+      });
+    } catch (error: unknown) {
+      if (!isSessionListCurrent(targetEpoch) || isRemoteControlTargetChangedError(error)) return;
+      setCompactWorkspaceStatuses((current) => ({ ...current, [key]: 'failed' }));
+    }
+  }, [
+    captureSessionListEpoch,
+    compactExpandedWorkspaces,
+    compactWorkspaceStatuses,
+    cacheScope,
+    isSessionListCurrent,
+    sessionMgr,
+  ]);
+
+  const handleRetryCompactWorkspace = useCallback(async (workspace: RecentWorkspaceEntry) => {
+    const targetEpoch = captureSessionListEpoch();
+    if (targetEpoch === null) return;
+    const key = compactWorkspaceKey(workspace);
+    setCompactWorkspaceStatuses((current) => ({ ...current, [key]: 'loading' }));
+    try {
+      const response = await sessionMgr.listSessions(workspace.path, PAGE_SIZE, 0, '', {
+        remoteConnectionId: workspace.remote_connection_id,
+        remoteSshHost: workspace.remote_ssh_host,
+      });
+      if (!isSessionListCurrent(targetEpoch)) return;
+      liveDataSeqRef.current += 1;
+      setCompactWorkspaceSessions((current) => ({ ...current, [key]: response.sessions }));
+      setCompactWorkspaceStatuses((current) => ({ ...current, [key]: 'ready' }));
+      setCompactWorkspaceHasMore((current) => ({ ...current, [key]: response.has_more }));
+      setCompactVisibleSessionCounts((current) => ({ ...current, [key]: 3 }));
+      remoteCache.saveSessionPage(cacheScope, response.sessions, {
+        workspacePath: workspace.path,
+        workspaceIdentity: {
+          remoteConnectionId: workspace.remote_connection_id,
+          remoteSshHost: workspace.remote_ssh_host,
+        },
+        replaceWorkspace: true,
+      });
+    } catch (error: unknown) {
+      if (!isSessionListCurrent(targetEpoch) || isRemoteControlTargetChangedError(error)) return;
+      setCompactWorkspaceStatuses((current) => ({ ...current, [key]: 'failed' }));
+    }
+  }, [cacheScope, captureSessionListEpoch, isSessionListCurrent, sessionMgr]);
+
+  const handleLoadMoreCompactWorkspace = useCallback(async (workspace: RecentWorkspaceEntry) => {
+    const key = compactWorkspaceKey(workspace);
+    const visibleCount = compactVisibleSessionCounts[key] ?? 3;
+    const loadedSessions = compactWorkspaceSessions[key] ?? [];
+    if (visibleCount < loadedSessions.length) {
+      setCompactVisibleSessionCounts((current) => ({
+        ...current,
+        [key]: Math.min(visibleCount + 3, loadedSessions.length),
+      }));
+      return;
+    }
+    if (!compactWorkspaceHasMore[key] || compactWorkspaceLoadingMore.has(key)) return;
+
+    const targetEpoch = captureSessionListEpoch();
+    if (targetEpoch === null) return;
+    setCompactWorkspaceLoadingMore((current) => new Set(current).add(key));
+    try {
+      const response = await sessionMgr.listSessions(
+        workspace.path,
+        PAGE_SIZE,
+        loadedSessions.length,
+        '',
+        {
+          remoteConnectionId: workspace.remote_connection_id,
+          remoteSshHost: workspace.remote_ssh_host,
+        },
+      );
+      if (!isSessionListCurrent(targetEpoch)) return;
+      liveDataSeqRef.current += 1;
+      const merged = [...loadedSessions];
+      const existingIds = new Set(merged.map((session) => session.session_id));
+      response.sessions.forEach((session) => {
+        if (!existingIds.has(session.session_id)) merged.push(session);
+      });
+      setCompactWorkspaceSessions((current) => ({ ...current, [key]: merged }));
+      setCompactWorkspaceHasMore((current) => ({ ...current, [key]: response.has_more }));
+      setCompactVisibleSessionCounts((current) => ({
+        ...current,
+        [key]: Math.min(visibleCount + 3, merged.length),
+      }));
+      remoteCache.saveSessionPage(cacheScope, response.sessions, {
+        workspacePath: workspace.path,
+        workspaceIdentity: {
+          remoteConnectionId: workspace.remote_connection_id,
+          remoteSshHost: workspace.remote_ssh_host,
+        },
+      });
+    } catch (error: unknown) {
+      if (!isSessionListCurrent(targetEpoch) || isRemoteControlTargetChangedError(error)) return;
+      setError(String((error as { message?: string })?.message || error));
+    } finally {
+      if (isSessionListCurrent(targetEpoch)) {
+        setCompactWorkspaceLoadingMore((current) => {
+          const next = new Set(current);
+          next.delete(key);
+          return next;
+        });
+      }
+    }
+  }, [
+    cacheScope,
+    captureSessionListEpoch,
+    compactVisibleSessionCounts,
+    compactWorkspaceHasMore,
+    compactWorkspaceLoadingMore,
+    compactWorkspaceSessions,
+    isSessionListCurrent,
+    sessionMgr,
+    setError,
+  ]);
+
+  const handleCreateInCompactWorkspace = useCallback(async (
+    workspace: RecentWorkspaceEntry,
+    agentType = 'code',
+  ) => {
+    if (creating || targetInitializingRef.current) return;
+    const targetEpoch = captureSessionListEpoch();
+    if (targetEpoch === null) return;
+    setCreating(true);
+    try {
+      const identity = {
+        remoteConnectionId: workspace.remote_connection_id,
+        remoteSshHost: workspace.remote_ssh_host,
+      };
+      const sessionId = await sessionMgr.createSession(agentType, undefined, workspace.path, identity);
+      if (!isSessionListCurrent(targetEpoch)) return;
+      const response = await sessionMgr.listSessions(workspace.path, PAGE_SIZE, 0, '', identity);
+      if (!isSessionListCurrent(targetEpoch)) return;
+      const key = compactWorkspaceKey(workspace);
+      liveDataSeqRef.current += 1;
+      setCompactExpandedWorkspaces((current) => new Set(current).add(key));
+      setCompactWorkspaceSessions((current) => ({ ...current, [key]: response.sessions }));
+      setCompactWorkspaceStatuses((current) => ({ ...current, [key]: 'ready' }));
+      setCompactWorkspaceHasMore((current) => ({ ...current, [key]: response.has_more }));
+      setCompactVisibleSessionCounts((current) => ({ ...current, [key]: 3 }));
+      remoteCache.saveSessionPage(cacheScope, response.sessions, {
+        workspacePath: workspace.path,
+        workspaceIdentity: identity,
+        replaceWorkspace: true,
+      });
+      onSelectSession(sessionId, t(isClawAgent(agentType) ? 'sessions.remoteClawSession' : isCoworkAgent(agentType) ? 'sessions.remoteCoworkSession' : 'sessions.remoteCodeSession'), true, agentType);
+    } catch (error: unknown) {
+      if (isSessionListCurrent(targetEpoch) && !isRemoteControlTargetChangedError(error)) {
+        setError(String((error as { message?: string })?.message || error));
+      }
+    } finally {
+      if (isSessionListCurrent(targetEpoch)) setCreating(false);
+    }
+  }, [
+    captureSessionListEpoch,
+    cacheScope,
+    creating,
+    isSessionListCurrent,
+    onSelectSession,
+    sessionMgr,
+    setError,
+    t,
+  ]);
 
   const handleSelectWorkspace = useCallback(async (workspace: {
     path: string;
@@ -632,6 +1145,8 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
       appendSessions(resp.sessions);
       setHasMore(resp.has_more);
       offsetRef.current += resp.sessions.length;
+      liveDataSeqRef.current += 1;
+      remoteCache.saveSessionPage(cacheScope, resp.sessions, { workspacePath, workspaceIdentity: identity });
     } catch (e: any) {
       if (
         requestSeq !== listRequestSeqRef.current
@@ -644,10 +1159,11 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
         && isSessionListCurrent(targetEpoch)
       ) setLoadingMore(false);
     }
-  }, [appendSessions, captureSessionListEpoch, hasMore, isSessionListCurrent, loading, loadingMore, sessionMgr, setError]);
+  }, [appendSessions, cacheScope, captureSessionListEpoch, hasMore, isSessionListCurrent, loading, loadingMore, sessionMgr, setError]);
 
   useEffect(() => {
     let cancelled = false;
+    setHarnessCreateRequest(null);
     const targetEpoch = captureSessionListEpoch();
     if (targetEpoch === null) return;
     const isInitCurrent = () => (
@@ -729,9 +1245,18 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
           requestSeq !== listRequestSeqRef.current
           || !isSessionListCurrent(targetEpoch)
         ) return;
+        liveDataSeqRef.current += 1;
         setSessions(resp.sessions);
         setHasMore(resp.has_more);
         offsetRef.current = resp.sessions.length;
+        remoteCache.saveSessionPage(cacheScope, resp.sessions, {
+          workspacePath: ws?.path,
+          workspaceIdentity: {
+            remoteConnectionId: ws?.remote_connection_id,
+            remoteSshHost: ws?.remote_ssh_host,
+          },
+          replaceWorkspace: searchQuery.trim().length === 0,
+        });
       } else {
         // Assistant mode: use currentAssistant path
         const resp = await sessionMgr.listSessions(currentAssistant?.path, PAGE_SIZE, 0, searchQuery);
@@ -739,11 +1264,21 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
           requestSeq !== listRequestSeqRef.current
           || !isSessionListCurrent(targetEpoch)
         ) return;
+        liveDataSeqRef.current += 1;
         setSessions(resp.sessions);
         setHasMore(resp.has_more);
         offsetRef.current = resp.sessions.length;
+        remoteCache.saveSessionPage(cacheScope, resp.sessions, {
+          workspacePath: currentAssistant?.path,
+          replaceWorkspace: searchQuery.trim().length === 0,
+        });
       }
-    } catch { /* ignore */ }
+    } catch (error) {
+      if (requestSeq === listRequestSeqRef.current && isSessionListCurrent(targetEpoch)
+        && !isRemoteControlTargetChangedError(error)) {
+        setError(error instanceof Error ? error.message : String(error));
+      }
+    }
     finally {
       if (
         requestSeq === listRequestSeqRef.current
@@ -753,12 +1288,35 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
         setLoadingMore(false);
       }
     }
-  }, [captureSessionListEpoch, currentAssistant?.path, displayMode, isSessionListCurrent, searchQuery, sessionMgr, setCurrentWorkspace, setSessions]);
+  }, [cacheScope, captureSessionListEpoch, currentAssistant?.path, displayMode, isSessionListCurrent, searchQuery, sessionMgr, setCurrentWorkspace, setError, setSessions]);
 
+  const catalogReadRef = useRef<() => Promise<void>>(async () => {});
+  catalogReadRef.current = async () => {
+    await Promise.all([refreshData(), loadWorkspaceList()]);
+  };
+  const catalogSubscriptionRef = useRef<ReturnType<typeof subscribeHostCatalog> | null>(null);
   useEffect(() => {
-    const poll = setInterval(refreshData, 10000);
-    return () => clearInterval(poll);
-  }, [refreshData]);
+    if (targetInitializing) return;
+    const targetEpoch = captureSessionListEpoch();
+    if (targetEpoch === null) return;
+    const subscription = subscribeHostCatalog(sessionMgr, async () => {
+      if (isSessionListCurrent(targetEpoch)) await catalogReadRef.current();
+    }, (error) => {
+      if (isSessionListCurrent(targetEpoch) && !isRemoteControlTargetChangedError(error)) {
+        setError(error instanceof Error ? error.message : String(error));
+      }
+    });
+    catalogSubscriptionRef.current = subscription;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void subscription.refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      subscription.close();
+      if (catalogSubscriptionRef.current === subscription) catalogSubscriptionRef.current = null;
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [captureSessionListEpoch, controlTargetEpoch, isSessionListCurrent, sessionMgr, setError, targetInitializing]);
 
   useEffect(() => {
     const workspacePath = displayMode === 'assistant' ? currentAssistant?.path : currentWorkspace?.path;
@@ -818,7 +1376,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
     if (pullDistance >= PULL_THRESHOLD) {
       setRefreshing(true);
       setPullDistance(PULL_THRESHOLD);
-      await refreshData();
+      await (catalogSubscriptionRef.current?.refresh() ?? refreshData());
       if (isSessionListCurrent(targetEpoch)) setRefreshing(false);
     }
     if (isSessionListCurrent(targetEpoch)) setPullDistance(0);
@@ -861,6 +1419,10 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
             remoteConnectionId: currentWorkspace?.remote_connection_id,
             remoteSshHost: currentWorkspace?.remote_ssh_host,
       };
+      if (!workspacePath?.trim()) {
+        onOpenWorkspace();
+        return;
+      }
       const id = await sessionMgr.createSession(agentType, undefined, workspacePath, identity);
       if (!isSessionListCurrent(targetEpoch)) return;
       await loadFirstPage(workspacePath, searchQuery, identity);
@@ -870,7 +1432,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
         : isCoworkAgent(agentType)
           ? t('sessions.remoteCoworkSession')
           : t('sessions.remoteCodeSession');
-      onSelectSession(id, label, true);
+      onSelectSession(id, label, true, agentType);
     } catch (e: any) {
       if (isSessionListCurrent(targetEpoch) && !isRemoteControlTargetChangedError(e)) {
         setError(e.message);
@@ -892,8 +1454,33 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
     searchQuery,
     sessionMgr,
     setError,
+    onOpenWorkspace,
     t,
   ]);
+
+  const requestHarnessCreate = useCallback((workspace?: RecentWorkspaceEntry) => {
+    if (creating || targetInitializingRef.current) return;
+    if (sessionMgr.supportsHostCapability(REMOTE_CAPABILITY_HARNESS_PROFILES_V1)) {
+      setHarnessCreateRequest({ workspace });
+      return;
+    }
+    if (workspace) {
+      void handleCreateInCompactWorkspace(workspace, 'code');
+    } else {
+      void handleCreate('code');
+    }
+  }, [creating, handleCreate, handleCreateInCompactWorkspace, sessionMgr]);
+
+  const handleHarnessSelect = useCallback((agentType: string) => {
+    const request = harnessCreateRequest;
+    setHarnessCreateRequest(null);
+    if (!request) return;
+    if (request.workspace) {
+      void handleCreateInCompactWorkspace(request.workspace, agentType);
+    } else {
+      void handleCreate(agentType);
+    }
+  }, [handleCreate, handleCreateInCompactWorkspace, harnessCreateRequest]);
 
   const handleSelectMode = useCallback(async (mode: DisplayMode) => {
     if (targetInitializingRef.current) return;
@@ -938,18 +1525,266 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
   const assistantDisplayName = currentAssistant?.name || t('shared.agents.default');
   const isProMode = displayMode === 'pro';
 
+  if (compact) {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    const compactWorkspaces = workspaceList;
+    const activeDeviceId = client?.targetDeviceId
+      ?? null;
+    const projectedCompactDevices = !activeDeviceId || compactDevices.some((device) => (
+      device.device_id === activeDeviceId
+    ))
+      ? compactDevices
+      : [{
+          device_id: activeDeviceId,
+          device_name: client?.targetDeviceId
+            ? controlTarget?.deviceName || client.targetDeviceId
+            : t('devices.pairedDesktopName'),
+          online: connectionHealth !== 'unreachable',
+        }, ...compactDevices];
+
+    return (
+      <div className="harmony-sidebar">
+        <header className="harmony-sidebar__header">
+          <h1>BitFun</h1>
+          <MobileIconButton
+            appearance="floating"
+            className="harmony-sidebar__round-action"
+            aria-label={t('shared.tools.search')}
+            icon={(
+              <LucideSearch stroke="currentColor" aria-hidden="true" />
+            )}
+            onClick={() => {
+              setCompactSearchOpen((open) => !open);
+              if (compactSearchOpen) setSearchQuery('');
+            }}
+            selected={compactSearchOpen}
+          />
+        </header>
+
+        {compactSearchOpen && (
+          <MobileTextField
+            className="harmony-sidebar__search"
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder={t('sessions.searchSessions')}
+            autoFocus
+          />
+        )}
+
+        <div className="harmony-sidebar__scroll">
+          <MobileSection className="harmony-sidebar__section">
+            <div className="harmony-sidebar__section-heading">
+              <h2>{t('devices.title')}</h2>
+              <span className="harmony-sidebar__heading-actions">
+                <MobileIconButton appearance="plain" size="sm" aria-label={t('devices.refresh')} loading={compactDirectoryLoading} onClick={() => void loadCompactDirectory()} icon={<LucideRefreshCw className={compactDirectoryLoading ? 'is-spinning' : ''} width="20" height="20" stroke="currentColor" aria-hidden="true" />} />
+              </span>
+            </div>
+            <div className="harmony-sidebar__rows">
+              {projectedCompactDevices.slice(0, compactVisibleDeviceCount).map((device) => {
+                const isCurrent = device.device_id === compactSelectedDeviceId;
+                const isSwitching = device.device_id === compactSwitchingDeviceId;
+                return (
+                  <MobileButton
+                    appearance="plain"
+                    block
+                    className={`harmony-sidebar__device-row${isCurrent ? ' is-current' : ''}`}
+                    key={device.device_id}
+                    disabled={!device.online || (!!compactSwitchingDeviceId && !isSwitching)}
+                    onClick={() => void handleSelectCompactDevice(device)}
+                  >
+                    <span className="harmony-sidebar__device-icon" aria-hidden="true">
+                      <CompactDeviceIcon name={device.device_name || device.device_id}/>
+                    </span>
+                    <span className="harmony-sidebar__row-label">{device.device_name || device.device_id}</span>
+                    {isSwitching
+                      ? <span className="spinner harmony-sidebar__row-spinner"/>
+                      : <span className={`harmony-sidebar__status${device.online ? ' is-online' : ''}`}/>}
+                  </MobileButton>
+                );
+              })}
+              {projectedCompactDevices.length > compactVisibleDeviceCount && (
+                <MobileButton appearance="plain" block className="harmony-sidebar__more-row" onClick={() => setCompactVisibleDeviceCount((count) => count + 3)}>
+                  <span>···</span>{t('shell.moreDevices', { count: projectedCompactDevices.length - compactVisibleDeviceCount })}
+                </MobileButton>
+              )}
+            </div>
+          </MobileSection>
+
+          {compactSelectedDeviceId && (
+            <MobileSection className="harmony-sidebar__section harmony-sidebar__section--workspaces">
+              <div className="harmony-sidebar__section-heading">
+                <h2>{t('shared.features.workspace')}</h2>
+                <MobileIconButton appearance="plain" size="sm" aria-label={t('workspace.selectWorkspace')} onClick={onOpenWorkspace} icon={<LucidePlus width="20" height="20" stroke="currentColor" aria-hidden="true" />} />
+              </div>
+              <div className="harmony-sidebar__rows">
+                {workspaceCatalogSource === 'recent' && (
+                  <MobileBanner tone="info">{t('sessions.legacyWorkspaceCatalog')}</MobileBanner>
+                )}
+                {compactDirectoryLoading && compactWorkspaces.length === 0 && (
+                  <MobileStatus className="harmony-sidebar__empty" loading title={t('common.loading')} />
+                )}
+                {!compactDirectoryLoading && compactWorkspaces.length === 0 && (
+                  <MobileStatus className="harmony-sidebar__empty" description={t('sessions.noWorkspaces')} />
+                )}
+                {compactWorkspaces.slice(0, compactVisibleWorkspaceCount).map((workspace) => {
+                  const key = compactWorkspaceKey(workspace);
+                  const expanded = query.length > 0 || compactExpandedWorkspaces.has(key);
+                  const projectedSessions = sessions.filter((session) => (
+                    sessionMatchesWorkspace(session, workspace, compactWorkspaces)
+                  ));
+                  const workspaceSessions = (compactWorkspaceSessions[key] ?? projectedSessions).filter(session => !query || (session.name || '').toLocaleLowerCase().includes(query));
+                  const status = compactWorkspaceStatuses[key]
+                    ?? (projectedSessions.length > 0 ? 'ready' : 'idle');
+                  const visibleCount = compactVisibleSessionCounts[key] ?? 3;
+                  const current = currentWorkspace?.path === workspace.path
+                    && currentWorkspace?.remote_connection_id === workspace.remote_connection_id;
+                  return (
+                    <div className="harmony-sidebar__workspace-group" key={key}>
+                      <div className={`harmony-sidebar__workspace-row${current ? ' is-current' : ''}`}>
+                        <MobileButton appearance="plain" block className="harmony-sidebar__workspace-main" onClick={() => void handleToggleCompactWorkspace(workspace)}>
+                          <span className="harmony-sidebar__folder-icon" aria-hidden="true">
+                            <LucideFolder width="21" height="21" stroke="currentColor" aria-hidden="true" />
+                          </span>
+                          <span className="harmony-sidebar__workspace-copy">
+                            <span className="harmony-sidebar__row-label">{workspace.name || workspace.path}</span>
+                            {workspace.remote_ssh_host && (
+                              <span className="harmony-sidebar__workspace-host" title={workspace.remote_ssh_host}>
+                                {workspace.remote_ssh_host}
+                              </span>
+                            )}
+                          </span>
+                        </MobileButton>
+                        <MobileIconButton appearance="plain" size="sm" className={`harmony-sidebar__workspace-disclosure${expanded ? ' is-expanded' : ''}`} onClick={() => void handleToggleCompactWorkspace(workspace)} aria-label={expanded ? t('common.close') : t('sessions.sessionHistory')} icon={<LucideChevronRight width="14" height="14" stroke="currentColor" aria-hidden="true" />} />
+                        <MobileIconButton appearance="plain" size="sm" className="harmony-sidebar__row-plus" onClick={() => requestHarnessCreate(workspace)} aria-label={`${workspace.name} · ${t('common.more')}`} disabled={creating} icon={<LucidePlus width="20" height="20" stroke="currentColor" aria-hidden="true" />} />
+                      </div>
+                      {expanded && (
+                        <div className="harmony-sidebar__workspace-sessions">
+                          {status === 'loading' && <MobileStatus className="harmony-sidebar__workspace-message" loading title={t('sessions.loadingSessions')} />}
+                          {status === 'failed' && <MobileButton appearance="plain" block className="harmony-sidebar__workspace-message" onClick={() => void handleRetryCompactWorkspace(workspace)}>{t('devices.retry')}</MobileButton>}
+                          {status === 'ready' && workspaceSessions.length === 0 && <MobileStatus className="harmony-sidebar__workspace-message" description={t('sessions.noSessions')} />}
+                          {workspaceSessions.slice(0, visibleCount).map((session) => (
+                            <div
+                              className={`harmony-sidebar__workspace-session${activeSessionId === session.session_id ? ' is-current' : ''}`}
+                              key={session.session_id}
+                              onContextMenu={(event) => { event.preventDefault(); setMenuSession(session); }}
+                            >
+                              <MobileButton appearance="plain" block className="harmony-sidebar__session-main" onClick={(event) => handleSessionClick(session, event)}>
+                                <span className="harmony-sidebar__session-icon" aria-hidden="true"><LucideMessageCircle width="18" height="18" stroke="currentColor" /></span>
+                                <span className="harmony-sidebar__row-label">{session.name || t('sessions.untitledSession')}</span>
+                              </MobileButton>
+                              <MobileIconButton
+                                appearance="plain"
+                                size="sm"
+                                className="harmony-sidebar__session-more"
+                                aria-label={t('sessions.sessionActions')}
+                                onClick={(event) => { event.stopPropagation(); setMenuSession(session); }}
+                                icon={<LucideEllipsis width="18" height="18" aria-hidden="true" />}
+                              />
+                            </div>
+                          ))}
+                          {(workspaceSessions.length > visibleCount || compactWorkspaceHasMore[key]) && (
+                            <MobileButton
+                              appearance="plain"
+                              block
+                              className="harmony-sidebar__session-main harmony-sidebar__load-more"
+                              onClick={() => void handleLoadMoreCompactWorkspace(workspace)}
+                              disabled={compactWorkspaceLoadingMore.has(key)}
+                            >
+                              {compactWorkspaceLoadingMore.has(key)
+                                ? <><span className="spinner"/>{t('sessions.loadingMore')}</>
+                                : <><span className="harmony-sidebar__session-icon" aria-hidden="true"><LucideChevronRight className="harmony-sidebar__more-chevron" width="14" height="14" /></span><span className="harmony-sidebar__row-label">{t('shell.expandMore')}</span></>}
+                            </MobileButton>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {compactWorkspaces.length > compactVisibleWorkspaceCount && (
+                  <MobileButton appearance="plain" block className="harmony-sidebar__more-row" onClick={() => setCompactVisibleWorkspaceCount((count) => count + 3)}>
+                    <span>···</span>{t('shell.moreWorkspaces', { count: compactWorkspaces.length - compactVisibleWorkspaceCount })}
+                  </MobileButton>
+                )}
+              </div>
+            </MobileSection>
+          )}
+        </div>
+
+        <MobileFloatingActions
+          className="harmony-sidebar__footer"
+          leading={(
+            <MobileButton appearance="secondary" className="harmony-sidebar__workspace-tools" onClick={onOpenDeviceTools} disabled={creating || targetInitializing} leading={<LucideWrench width="20" height="20" stroke="currentColor" aria-hidden="true" />}>
+              <span>{t('workspace.tools')}</span>
+            </MobileButton>
+          )}
+          trailing={(
+            <MobileIconButton
+              appearance="floating"
+              className="harmony-sidebar__settings"
+              onClick={() => setCompactSettingsOpen(true)}
+              aria-label={t('shared.features.settings')}
+              icon={<LucideSettings stroke="currentColor" aria-hidden="true" />}
+            />
+          )}
+        />
+
+        <CompactSettingsSheet
+          accountLabel={authenticatedUserLabel}
+          accountUserId={authenticatedUserId}
+          accountAvatarUrl={githubProfile?.avatarUrl}
+          devices={projectedCompactDevices}
+          isDark={isDark}
+          onClose={() => setCompactSettingsOpen(false)}
+          onDisconnectRequest={() => { setCompactSettingsOpen(false); setShowDisconnectConfirm(true); }}
+          onOpenDevices={onOpenDevices ? () => { setCompactSettingsOpen(false); onOpenDevices(); } : undefined}
+          onSelectDevice={(device) => void handleSelectCompactDevice(device)}
+          onToggleTheme={toggleTheme}
+          open={compactSettingsOpen}
+          renderDeviceIcon={(name) => <CompactDeviceIcon name={name} />}
+          selectedDeviceId={compactSelectedDeviceId}
+        />
+
+        <SessionOverlays
+          compact
+          deleteTarget={deleteConfirmTarget}
+          deleting={deleting}
+          harnessOpen={harnessCreateRequest !== null}
+          menuSession={menuSession}
+          onCloseDelete={() => !deleting && setDeleteConfirmTarget(null)}
+          onCloseDisconnect={() => setShowDisconnectConfirm(false)}
+          onCloseHarness={() => setHarnessCreateRequest(null)}
+          onCloseMenu={() => setMenuSession(null)}
+          onCloseRename={() => !renaming && setRenameTarget(null)}
+          onConfirmDelete={() => void handleDelete()}
+          onConfirmDisconnect={() => { setShowDisconnectConfirm(false); onDisconnect(); }}
+          onConfirmRename={() => void handleRename()}
+          onDeleteRequest={setDeleteConfirmTarget}
+          onHarnessSelect={handleHarnessSelect}
+          onRenameRequest={(session) => { setRenameTarget(session); setRenameValue(session.name || ''); }}
+          onRenameValueChange={setRenameValue}
+          renameTarget={renameTarget}
+          renameValue={renameValue}
+          renaming={renaming}
+          showDisconnectConfirm={showDisconnectConfirm}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="session-list">
       <div className="session-list__header">
         <div className="session-list__header-brand">
-          <img src={logoIcon} alt="BitFun" className="session-list__logo" />
+          <img src={logoMark} alt="BitFun" className="session-list__logo" />
           <div className="session-list__header-copy">
-            <h1>{t('shared.product.remote')}</h1>
+            <h1>BitFun</h1>
             {authenticatedUserLabel && (
               <span className="session-list__header-account-name">
                 <span className={`session-list__health-dot session-list__health-dot--${connectionHealth}`} title={(() => { switch (connectionHealth) { case 'connected': return t('sessions.connectionConnected'); case 'checking': return t('sessions.connectionChecking'); case 'unreachable': return t('sessions.connectionUnreachable'); default: return t('sessions.connectionUnpaired'); } })()} />
-                {authenticatedUserLabel}
-                {controlTarget && !controlTarget.isHome && controlTarget.deviceName && (
+                <AccountAvatar url={githubProfile?.avatarUrl} />
+                <span title={t('settings.githubId', { id: authenticatedUserId || '' })}>{authenticatedUserLabel}</span>
+                {controlTarget && controlTarget.deviceName && (
                   <span className="session-list__header-target" title={t('devices.controllingDevice', { name: controlTarget.deviceName })}>
                     {controlTarget.deviceName}
                   </span>
@@ -960,28 +1795,15 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
         </div>
         <div className="session-list__header-actions">
           {onOpenDevices && (
-            <button
-              className={`session-list__devices-btn ${controlTarget && !controlTarget.isHome ? 'is-remote' : ''}`}
+            <MobileIconButton
+              appearance="plain"
+              className={`session-list__devices-btn ${controlTarget ? 'is-remote' : ''}`}
               onClick={onOpenDevices}
-              title={t('devices.title')} aria-label={t('devices.title')}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                <line x1="8" y1="21" x2="16" y2="21" />
-                <line x1="12" y1="17" x2="12" y2="21" />
-              </svg>
-            </button>
+              title={t('devices.title')} aria-label={t('devices.title')} icon={<LucideMonitor width="16" height="16" stroke="currentColor" aria-hidden="true" />} />
           )}
           <LanguageToggleButton className="session-list__language-btn" />
-          <button className="session-list__theme-btn" onClick={toggleTheme} aria-label={t('common.toggleTheme')}>
-            <ThemeToggleIcon isDark={isDark} />
-          </button>
-          <button className="session-list__disconnect-btn" onClick={() => setShowDisconnectConfirm(true)} aria-label={t('sessions.disconnect')} title={t('sessions.disconnect')}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-          </button>
+          <MobileIconButton appearance="plain" className="session-list__theme-btn" onClick={toggleTheme} aria-label={t('common.toggleTheme')} icon={<ThemeToggleIcon isDark={isDark} />} />
+          <MobileIconButton appearance="plain" className="session-list__disconnect-btn" onClick={() => setShowDisconnectConfirm(true)} aria-label={t('sessions.disconnect')} title={t('sessions.disconnect')} icon={<LucideLogOut width="16" height="16" stroke="currentColor" aria-hidden="true" />} />
         </div>
       </div>
 
@@ -999,20 +1821,17 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
             style={{ height: refreshing ? PULL_THRESHOLD : pullDistance }}
           >
             <div className={`session-list__pull-spinner${refreshing || pullDistance >= PULL_THRESHOLD ? ' is-active' : ''}`}>
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none"
-                style={{ transform: `rotate(${pullDistance * 4}deg)`, transition: refreshing ? 'transform 0s' : undefined }}>
-                <path d="M9 2V5M9 13V16M2 9H5M13 9H16M4.22 4.22L6.34 6.34M11.66 11.66L13.78 13.78M13.78 4.22L11.66 6.34M6.34 11.66L4.22 13.78"
-                  stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
+              <LucideLoaderCircle width="18" height="18" style={{ transform: `rotate(${pullDistance * 4}deg)`, transition: refreshing ? 'transform 0s' : undefined }} aria-hidden="true" />
             </div>
           </div>
         )}
 
         {/* Resume Card — quick continue for the most recent session */}
         {showResumeCard && (
-          <button
-            type="button"
-            className="session-list__resume-card"
+          <MobileButton
+            appearance="secondary"
+            block
+            className={`session-list__resume-card${activeSessionId === sessions[0].session_id ? ' is-selected' : ''}`}
             onClick={(e) => handleSessionClick(sessions[0], e)}
             onTouchStart={(e) => handleSessionTouchStart(sessions[0], e)}
             onTouchMove={handleSessionTouchMove}
@@ -1022,7 +1841,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                onSelectSession(sessions[0].session_id, sessions[0].name);
+                onSelectSession(sessions[0].session_id, sessions[0].name, false, sessions[0].agent_type);
               }
             }}
           >
@@ -1040,35 +1859,29 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
               </div>
             </div>
             <span className="session-list__resume-arrow">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              <LucideChevronRight width="18" height="18" stroke="currentColor" aria-hidden="true" />
             </span>
-          </button>
+          </MobileButton>
         )}
 
         {/* Mode Toggle - Inline */}
-        <div className="session-list__mode-toggle">
-          <button
-            className={`session-list__mode-toggle-btn ${isProMode ? 'is-active' : ''}`}
-            onClick={() => handleSelectMode('pro')}
-            disabled={targetInitializing}
-          >
-            <ProModeIcon />
-            <span>{t('shared.modes.expert')}</span>
-          </button>
-          <button
-            className={`session-list__mode-toggle-btn ${!isProMode ? 'is-active' : ''}`}
-            onClick={() => handleSelectMode('assistant')}
-            disabled={targetInitializing}
-          >
-            <AssistantModeIcon />
-            <span>{t('shared.modes.assistant')}</span>
-          </button>
-        </div>
+        <MobileSegmentedControl
+          aria-label={t('shared.modes.expert')}
+          className="session-list__mode-toggle"
+          onChange={handleSelectMode}
+          options={[
+            { disabled: targetInitializing, label: <><ProModeIcon /><span>{t('shared.modes.expert')}</span></>, value: 'pro' },
+            { disabled: targetInitializing, label: <><AssistantModeIcon /><span>{t('shared.modes.assistant')}</span></>, value: 'assistant' },
+          ]}
+          value={displayMode}
+        />
 
         {/* Pro Mode: Workspace Selection Required */}
         {isProMode && (
           <>
-            <div
+            <MobileButton
+              appearance="plain"
+              block
               className="session-list__workspace-bar"
               onClick={() => {
                 if (targetInitializingRef.current) return;
@@ -1090,64 +1903,52 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
                 </span>
               )}
               <span className="session-list__workspace-switch" aria-label={t('sessions.switchWorkspace')}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+                <LucideChevronsUpDown width="16" height="16" stroke="currentColor" aria-hidden="true" />
               </span>
-            </div>
+            </MobileButton>
 
-            {/* Workspace Picker Modal */}
-            {showWorkspacePicker && (
-              <div className="session-list__picker-overlay" onClick={() => setShowWorkspacePicker(false)}>
-                <div className="session-list__picker-modal session-list__picker-modal--workspace" onClick={e => e.stopPropagation()}>
-                  <div className="session-list__picker-header">
-                    <h3>{t('sessions.selectWorkspace')}</h3>
-                    <button className="session-list__picker-close" onClick={() => setShowWorkspacePicker(false)}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    </button>
-                  </div>
-                  <div className="session-list__picker-list">
-                    {workspaceList.length === 0 ? (
-                      <div className="session-list__picker-empty">{t('sessions.noWorkspaces')}</div>
-                    ) : (
-                      workspaceList.map((workspace, index) => {
-                        const isSelected =
-                          currentWorkspace?.path === workspace.path
-                          && (currentWorkspace?.remote_connection_id ?? undefined)
-                            === (workspace.remote_connection_id ?? undefined)
-                          && (currentWorkspace?.remote_ssh_host ?? undefined)
-                            === (workspace.remote_ssh_host ?? undefined);
-                        const itemKey = [
-                          workspace.remote_connection_id ?? 'local',
-                          workspace.remote_ssh_host ?? '',
-                          workspace.path || String(index),
-                        ].join(':');
-                        return (
-                        <button
-                          key={itemKey}
-                          className={`session-list__picker-item session-list__picker-item--workspace ${isSelected ? 'is-selected' : ''}`}
-                          onClick={() => handleSelectWorkspace(workspace)}
-                        >
-                          <span className="session-list__picker-item-icon">
-                            <WorkspaceIcon />
-                          </span>
-                          <span className="session-list__picker-item-name">{workspace.name}</span>
-                          {isSelected && (
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                          )}
-                        </button>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
+            <MobileChoiceSheet
+              className="session-list__picker-modal session-list__picker-modal--workspace"
+              emptyContent={<MobileStatus title={t('sessions.noWorkspaces')} />}
+              headerAction={<MobileIconButton appearance="plain" className="session-list__picker-close" onClick={() => setShowWorkspacePicker(false)} aria-label={t('common.close')} icon={<LucideX width="20" height="20" stroke="currentColor" aria-hidden="true" />} />}
+              onOpenChange={() => setShowWorkspacePicker(false)}
+              onSelect={(value) => {
+                const workspace = workspaceList.find((candidate, index) => [
+                  candidate.remote_connection_id ?? 'local',
+                  candidate.remote_ssh_host ?? '',
+                  candidate.path || String(index),
+                ].join(':') === value);
+                if (workspace) void handleSelectWorkspace(workspace);
+              }}
+              open={showWorkspacePicker}
+              optionAppearance="plain"
+              options={workspaceList.map((workspace, index) => {
+                const selected = currentWorkspace?.path === workspace.path
+                  && (currentWorkspace?.remote_connection_id ?? undefined) === (workspace.remote_connection_id ?? undefined)
+                  && (currentWorkspace?.remote_ssh_host ?? undefined) === (workspace.remote_ssh_host ?? undefined);
+                return {
+                  className: `session-list__picker-item session-list__picker-item--workspace ${selected ? 'is-selected' : ''}`,
+                  label: workspace.remote_ssh_host
+                    ? `${workspace.name} · ${workspace.remote_ssh_host}`
+                    : workspace.name,
+                  leading: <span className="session-list__picker-item-icon"><WorkspaceIcon /></span>,
+                  trailing: selected ? <LucideCheck width="16" height="16" stroke="currentColor" aria-hidden="true" /> : undefined,
+                  value: [workspace.remote_connection_id ?? 'local', workspace.remote_ssh_host ?? '', workspace.path || String(index)].join(':'),
+                };
+              })}
+              selectedValue={currentWorkspace?.path ? [currentWorkspace.remote_connection_id ?? 'local', currentWorkspace.remote_ssh_host ?? '', currentWorkspace.path].join(':') : undefined}
+              showHandle={false}
+              title={t('sessions.selectWorkspace')}
+            />
           </>
         )}
 
         {/* Assistant Mode: Assistant Selection */}
         {!isProMode && (
           <>
-            <div
+            <MobileButton
+              appearance="plain"
+              block
               className="session-list__assistant-bar"
               onClick={() => {
                 if (targetInitializingRef.current) return;
@@ -1163,353 +1964,94 @@ const SessionListPage: React.FC<SessionListPageProps> = ({ sessionMgr, onSelectS
                 <span className="session-list__assistant-name">{assistantDisplayName}</span>
               </div>
               <span className="session-list__assistant-switch" aria-label={t('sessions.switchAssistant')}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+                <LucideChevronsUpDown width="16" height="16" stroke="currentColor" aria-hidden="true" />
               </span>
-            </div>
+            </MobileButton>
 
-            {/* Assistant Picker Modal */}
-            {showAssistantPicker && (
-              <div className="session-list__picker-overlay" onClick={() => setShowAssistantPicker(false)}>
-                <div className="session-list__picker-modal" onClick={e => e.stopPropagation()}>
-                  <div className="session-list__picker-header">
-                    <h3>{t('sessions.selectAssistant')}</h3>
-                    <button className="session-list__picker-close" onClick={() => setShowAssistantPicker(false)}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    </button>
-                  </div>
-                  <div className="session-list__picker-list">
-                    {assistantList.map((assistant, index) => (
-                      <button
-                        key={assistant.path || index}
-                        className={`session-list__picker-item ${currentAssistant?.path === assistant.path ? 'is-selected' : ''}`}
-                        onClick={() => handleSelectAssistant(assistant)}
-                      >
-                        <span className="session-list__picker-item-icon">
-                          <AssistantModeIcon />
-                        </span>
-                        <span className="session-list__picker-item-name">{assistant.name}</span>
-                        {currentAssistant?.path === assistant.path && (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
+            <MobileChoiceSheet
+              className="session-list__picker-modal"
+              headerAction={<MobileIconButton appearance="plain" className="session-list__picker-close" onClick={() => setShowAssistantPicker(false)} aria-label={t('common.close')} icon={<LucideX width="20" height="20" stroke="currentColor" aria-hidden="true" />} />}
+              onOpenChange={() => setShowAssistantPicker(false)}
+              onSelect={(path) => {
+                const assistant = assistantList.find((candidate, index) => (candidate.path || String(index)) === path);
+                if (assistant) void handleSelectAssistant(assistant);
+              }}
+              open={showAssistantPicker}
+              optionAppearance="plain"
+              options={assistantList.map((assistant, index) => ({
+                className: `session-list__picker-item ${currentAssistant?.path === assistant.path ? 'is-selected' : ''}`,
+                label: assistant.name,
+                leading: <span className="session-list__picker-item-icon"><AssistantModeIcon /></span>,
+                trailing: currentAssistant?.path === assistant.path ? <LucideCheck width="16" height="16" stroke="currentColor" aria-hidden="true" /> : undefined,
+                value: assistant.path || String(index),
+              }))}
+              selectedValue={currentAssistant?.path}
+              showHandle={false}
+              title={t('sessions.selectAssistant')}
+            />
           </>
         )}
 
-            {/* Session Creation Options */}
-            <section className={`session-list__panel ${!isProMode ? 'session-list__panel--assistant' : ''}`}>
-              <div className="session-list__section-head">
-                <div>
-                  <div className="session-list__section-kicker">{t('sessions.launch')}</div>
-                  <div className="session-list__section-title">{t('sessions.startRemoteFlow')}</div>
-                </div>
-              </div>
+        <SessionLaunchPanel
+          creating={creating}
+          hasWorkspace={!!currentWorkspace}
+          isProMode={isProMode}
+          targetInitializing={targetInitializing}
+          onCreateClaw={() => void handleCreate('claw')}
+          onCreateCowork={() => void handleCreate('cowork')}
+          onRequestCodeHarness={() => requestHarnessCreate()}
+          renderSessionIcon={(agentType) => <SessionTypeIcon agentType={agentType} />}
+        />
 
-              {isProMode ? (
-                /* Pro Mode: Code / Cowork - only show if workspace selected */
-                currentWorkspace ? (
-                  <div className="session-list__create-row">
-                    <button
-                      className="session-list__create-btn session-list__create-btn--code"
-                      onClick={() => handleCreate('code')}
-                      disabled={creating || targetInitializing}
-                    >
-                      <div className="session-list__create-icon">
-                        <SessionTypeIcon agentType="code" />
-                      </div>
-                      <div className="session-list__create-copy">
-                        <span className="session-list__create-title">{t('shared.agents.code')}</span>
-                        <span className="session-list__create-desc">{t('sessions.codeSessionDesc')}</span>
-                      </div>
-                      <span className="session-list__create-arrow">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-                      </span>
-                    </button>
-                    <button
-                      className="session-list__create-btn session-list__create-btn--cowork"
-                      onClick={() => handleCreate('cowork')}
-                      disabled={creating || targetInitializing}
-                    >
-                      <div className="session-list__create-icon">
-                        <SessionTypeIcon agentType="cowork" />
-                      </div>
-                      <div className="session-list__create-copy">
-                        <span className="session-list__create-title">{t('shared.agents.cowork')}</span>
-                        <span className="session-list__create-desc">{t('sessions.coworkSessionDesc')}</span>
-                      </div>
-                      <span className="session-list__create-arrow">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-                      </span>
-                    </button>
-                  </div>
-                ) : null
-              ) : (
-                /* Assistant Mode: Claw */
-                <div className="session-list__create-row">
-                  <button
-                    className="session-list__create-btn session-list__create-btn--claw"
-                    onClick={() => handleCreate('claw')}
-                    disabled={creating || targetInitializing}
-                  >
-                    <div className="session-list__create-icon">
-                      <SessionTypeIcon agentType="claw" />
-                    </div>
-                    <div className="session-list__create-copy">
-                      <span className="session-list__create-title">{t('sessions.clawSession')}</span>
-                      <span className="session-list__create-desc">{t('sessions.clawSessionDesc')}</span>
-                    </div>
-                    <span className="session-list__create-arrow">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-                    </span>
-                  </button>
-                </div>
-              )}
-            </section>
-
-            {/* Session History */}
-            <section className={`session-list__panel session-list__panel--sessions ${!isProMode ? 'session-list__panel--assistant' : ''}`}>
-              <div className="session-list__section-head">
-                <div>
-                  <div className="session-list__section-kicker">{t('sessions.recent')}</div>
-                  <div className="session-list__section-title">{t('sessions.sessionHistory')}</div>
-                </div>
-                <div className="session-list__section-meta">{t('common.itemCount', { count: sessions.length })}</div>
-              </div>
-
-              {/* Search */}
-              <div className="session-list__search">
-                <svg className="session-list__search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                <input
-                  className="session-list__search-input"
-                  type="search"
-                  placeholder={t('sessions.searchSessions')}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  disabled={targetInitializing}
-                  enterKeyHint="search"
-                />
-                {searchQuery && (
-                  <button className="session-list__search-clear" onClick={() => setSearchQuery('')} aria-label="Clear" disabled={targetInitializing}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </button>
-                )}
-              </div>
-
-              {(loading || targetInitializing) && sessions.length === 0 && (
-                <div className="session-list__empty">{t('sessions.loadingSessions')}</div>
-              )}
-              {!loading && !targetInitializing && sessions.length === 0 && !hasSearchQuery && (
-                <div className="session-list__empty">{t('sessions.noSessions')}</div>
-              )}
-              {!loading && !targetInitializing && sessions.length === 0 && hasSearchQuery && (
-                <div className="session-list__empty">{t('sessions.emptySearch')}</div>
-              )}
-
-              <div className="session-list__cards">
-                {sessions.slice(showResumeCard ? 1 : 0).map((s) => (
-                  <div
-                    key={s.session_id}
-                    className={`session-list__item${menuSession?.session_id === s.session_id ? ' session-list__item--active' : ''}`}
-                    onClick={(e) => handleSessionClick(s, e)}
-                    onTouchStart={(e) => handleSessionTouchStart(s, e)}
-                    onTouchMove={handleSessionTouchMove}
-                    onTouchEnd={handleSessionTouchEnd}
-                    onTouchCancel={handleSessionTouchEnd}
-                    onContextMenu={(e) => { e.preventDefault(); setMenuSession(s); }}
-                  >
-                    <div className={`session-list__item-icon session-list__item-icon--${s.agent_type}`}>
-                      <SessionTypeIcon agentType={s.agent_type} />
-                    </div>
-                    <div className="session-list__item-body">
-                      <div className="session-list__item-top">
-                        <div className="session-list__item-name">{s.name || t('sessions.untitledSession')}</div>
-                        <span className={`session-list__agent-badge session-list__agent-badge--${s.agent_type}`}>
-                          {agentLabel(s.agent_type, t)}
-                        </span>
-                      </div>
-                      <div className="session-list__item-time">{formatTime(s.updated_at, formatDate, t)}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {loadingMore && (
-                <div className="session-list__load-more">{t('sessions.loadingMore')}</div>
-              )}
-            </section>
+        <SessionHistoryPanel
+          activeSessionId={activeSessionId}
+          hasSearchQuery={hasSearchQuery}
+          isProMode={isProMode}
+          loading={loading}
+          loadingMore={loadingMore}
+          menuSessionId={menuSession?.session_id}
+          searchQuery={searchQuery}
+          sessions={sessions.slice(showResumeCard ? 1 : 0)}
+          totalSessionCount={sessions.length}
+          targetInitializing={targetInitializing}
+          onOpenMenu={setMenuSession}
+          onSearchQueryChange={setSearchQuery}
+          onSessionClick={handleSessionClick}
+          onSessionTouchEnd={handleSessionTouchEnd}
+          onSessionTouchMove={handleSessionTouchMove}
+          onSessionTouchStart={handleSessionTouchStart}
+          renderAgentLabel={(agentType) => agentLabel(agentType, t)}
+          renderSessionIcon={(agentType) => <SessionTypeIcon agentType={agentType} />}
+          renderSessionTime={(updatedAt) => formatTime(updatedAt, formatDate, t)}
+        />
       </div>
 
-      {/* Context Menu Bottom Sheet */}
-      {menuSession && !renameTarget && !deleteConfirmTarget && (
-        <div className="session-list__menu-overlay" onClick={() => setMenuSession(null)}>
-          <div className="session-list__menu-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="session-list__menu-handle" />
-            <div className="session-list__menu-title">
-              {menuSession.name || t('sessions.untitledSession')}
-            </div>
-            <div className="session-list__menu-actions">
-              <button
-                className="session-list__menu-btn"
-                onClick={() => {
-                  setRenameTarget(menuSession);
-                  setRenameValue(menuSession.name || '');
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-                <span>{t('sessions.renameSession')}</span>
-              </button>
-              <button
-                className="session-list__menu-btn session-list__menu-btn--danger"
-                onClick={() => setDeleteConfirmTarget(menuSession)}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-                <span>{t('sessions.deleteSession')}</span>
-              </button>
-            </div>
-            <button className="session-list__menu-cancel" onClick={() => setMenuSession(null)}>
-              {t('sessions.cancel')}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Rename Modal */}
-      {renameTarget && (
-        <div className="session-list__picker-overlay" onClick={() => !renaming && setRenameTarget(null)}>
-          <div className="session-list__rename-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="session-list__rename-title">{t('sessions.renameTitle')}</h3>
-            <input
-              className="session-list__rename-input"
-              type="text"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              placeholder={t('sessions.sessionNamePlaceholder')}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleRename();
-                if (e.key === 'Escape') setRenameTarget(null);
-              }}
-            />
-            <div className="session-list__rename-actions">
-              <button
-                className="session-list__rename-btn session-list__rename-btn--cancel"
-                onClick={() => setRenameTarget(null)}
-                disabled={renaming}
-              >
-                {t('sessions.cancel')}
-              </button>
-              <button
-                className="session-list__rename-btn session-list__rename-btn--save"
-                onClick={handleRename}
-                disabled={renaming || !renameValue.trim()}
-              >
-                {renaming ? '...' : t('sessions.save')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation */}
-      {deleteConfirmTarget && (
-        <div className="session-list__picker-overlay" onClick={() => !deleting && setDeleteConfirmTarget(null)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') setDeleteConfirmTarget(null);
-            if (e.key === 'Enter' && !deleting) handleDelete();
-          }}>
-          <div className="session-list__confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="session-list__confirm-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-            </div>
-            <h3 className="session-list__confirm-title">{t('sessions.confirmDelete')}</h3>
-            <p className="session-list__confirm-desc">
-              "{deleteConfirmTarget.name || t('sessions.untitledSession')}"
-              <br />
-              {t('sessions.confirmDeleteDesc')}
-            </p>
-            <div className="session-list__confirm-actions">
-              <button
-                className="session-list__confirm-btn session-list__confirm-btn--cancel"
-                onClick={() => setDeleteConfirmTarget(null)}
-                disabled={deleting}
-              >
-                {t('sessions.cancel')}
-              </button>
-              <button
-                className="session-list__confirm-btn session-list__confirm-btn--danger"
-                onClick={handleDelete}
-                disabled={deleting}
-              >
-                {deleting ? '...' : t('sessions.deleteSession')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Disconnect Confirmation */}
-      {showDisconnectConfirm && (
-        <div
-          className="session-list__picker-overlay"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="disconnect-confirm-title"
-          aria-describedby="disconnect-confirm-desc"
-          onClick={() => setShowDisconnectConfirm(false)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') setShowDisconnectConfirm(false);
-          }}
-        >
-          <div className="session-list__confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="session-list__confirm-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-            </div>
-            <h3 id="disconnect-confirm-title" className="session-list__confirm-title">{t('sessions.disconnect')}</h3>
-            <p id="disconnect-confirm-desc" className="session-list__confirm-desc">{t('sessions.disconnectConfirm')}</p>
-            <div className="session-list__confirm-actions">
-              <button
-                className="session-list__confirm-btn session-list__confirm-btn--cancel"
-                onClick={() => setShowDisconnectConfirm(false)}
-                autoFocus
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                className="session-list__confirm-btn session-list__confirm-btn--danger"
-                onClick={() => { setShowDisconnectConfirm(false); onDisconnect(); }}
-              >
-                {t('sessions.disconnect')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SessionOverlays
+        compact={false}
+        deleteTarget={deleteConfirmTarget}
+        deleting={deleting}
+        harnessOpen={harnessCreateRequest !== null}
+        menuSession={menuSession}
+        onCloseDelete={() => !deleting && setDeleteConfirmTarget(null)}
+        onCloseDisconnect={() => setShowDisconnectConfirm(false)}
+        onCloseHarness={() => setHarnessCreateRequest(null)}
+        onCloseMenu={() => setMenuSession(null)}
+        onCloseRename={() => !renaming && setRenameTarget(null)}
+        onConfirmDelete={() => void handleDelete()}
+        onConfirmDisconnect={() => { setShowDisconnectConfirm(false); onDisconnect(); }}
+        onConfirmRename={() => void handleRename()}
+        onDeleteRequest={setDeleteConfirmTarget}
+        onHarnessSelect={handleHarnessSelect}
+        onRenameRequest={(session) => { setRenameTarget(session); setRenameValue(session.name || ''); }}
+        onRenameValueChange={setRenameValue}
+        renameTarget={renameTarget}
+        renameValue={renameValue}
+        renaming={renaming}
+        showDisconnectConfirm={showDisconnectConfirm}
+      />
 
       {/* Action Toast */}
-      {actionToast && (
-        <div className="session-list__toast" role="alert" aria-live="assertive">{actionToast}</div>
-      )}
+      {actionToast && <MobileBanner className="session-list__toast" role="alert" aria-live="assertive">{actionToast}</MobileBanner>}
     </div>
   );
 };

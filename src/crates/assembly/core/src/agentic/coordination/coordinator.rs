@@ -1497,7 +1497,7 @@ impl ConversationCoordinator {
     /// Build `WorkspaceServices` from a resolved `WorkspaceBinding`.
     /// For remote bindings, wires up SSH-backed FS/shell; for local ones,
     /// returns local implementations.
-    async fn build_workspace_services(
+    pub(crate) async fn build_workspace_services(
         binding: &Option<WorkspaceBinding>,
     ) -> Option<crate::agentic::workspace::WorkspaceServices> {
         let binding = binding.as_ref()?;
@@ -8598,6 +8598,63 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .persistence_manager()
             .load_visible_session_turns(session_storage_path, session_id)
             .await
+    }
+
+    /// Read persisted Turn history for the relay session log. When `turn_id`
+    /// addresses one Turn, only that Turn is loaded; in-progress Turns are
+    /// completed from live generation rounds so the relay record matches what
+    /// the owning host can currently reproduce.
+    pub async fn load_relay_session_turns(
+        &self,
+        storage: &Path,
+        session_id: &str,
+        turn_id: Option<&str>,
+    ) -> BitFunResult<Vec<DialogTurnData>> {
+        let _mutation = self
+            .session_manager
+            .acquire_session_mutation(session_id)
+            .await?;
+        self.prepare_persisted_session_read_locked(storage, session_id)
+            .await?;
+        let mut turns = if let Some(turn_id) = turn_id {
+            let index = self
+                .session_manager
+                .get_session(session_id)
+                .and_then(|session| session.dialog_turn_ids.iter().position(|id| id == turn_id))
+                .ok_or_else(|| {
+                    BitFunError::NotFound(format!("Session turn unavailable: {turn_id}"))
+                })?;
+            self.session_manager
+                .persistence_manager()
+                .load_dialog_turn(storage, session_id, index)
+                .await?
+                .into_iter()
+                .collect::<Vec<_>>()
+        } else {
+            self.session_manager
+                .persistence_manager()
+                .load_visible_session_turns(storage, session_id)
+                .await?
+        };
+        let context = self
+            .session_manager
+            .get_context_messages(session_id)
+            .await?;
+        for turn in &mut turns {
+            if turn.status == TurnStatus::InProgress {
+                let messages: Vec<_> = context
+                    .iter()
+                    .filter(|message| {
+                        message.metadata.turn_id.as_deref() == Some(turn.turn_id.as_str())
+                    })
+                    .cloned()
+                    .collect();
+                let id = turn.turn_id.clone();
+                let timestamp = turn.start_time;
+                SessionManager::append_generation_rounds(turn, &id, &messages, timestamp);
+            }
+        }
+        Ok(turns)
     }
 
     /// Export a transcript while retaining the same Session history boundary
@@ -16130,6 +16187,7 @@ pub(crate) mod tests {
             AgentSessionModeUpdateRequest {
                 session_id: "missing-session".to_string(),
                 mode_id: "agentic".to_string(),
+                agent_route_key: None,
             },
         )
         .await
@@ -16172,6 +16230,7 @@ pub(crate) mod tests {
             AgentSessionModeUpdateRequest {
                 session_id: session.session_id,
                 mode_id: "   ".to_string(),
+                agent_route_key: None,
             },
         )
         .await
@@ -16217,6 +16276,7 @@ pub(crate) mod tests {
             AgentSessionModeUpdateRequest {
                 session_id: session.session_id,
                 mode_id: "__missing_runtime_mode__".to_string(),
+                agent_route_key: None,
             },
         )
         .await
@@ -16267,6 +16327,7 @@ pub(crate) mod tests {
             .update_session_mode(AgentSessionModeUpdateRequest {
                 session_id: session.session_id.clone(),
                 mode_id: " Plan ".to_string(),
+                agent_route_key: None,
             })
             .await
             .expect("runtime mode port should update the Core owner");
@@ -18381,6 +18442,7 @@ pub(crate) mod tests {
             &coordinator,
             AgentSessionCreateRequest {
                 session_name: "Worker".to_string(),
+                agent_route_key: None,
                 agent_type: "agentic".to_string(),
                 workspace_path: Some(workspace_path.to_string_lossy().into_owned()),
                 project_workspace_path: None,
@@ -18420,6 +18482,7 @@ pub(crate) mod tests {
             &coordinator,
             AgentSessionCreateRequest {
                 session_name: "Original".to_string(),
+                agent_route_key: None,
                 agent_type: "agentic".to_string(),
                 workspace_path: Some(workspace.clone()),
                 project_workspace_path: None,
@@ -18517,6 +18580,7 @@ pub(crate) mod tests {
             &coordinator,
             AgentSessionCreateRequest {
                 session_name: "Over capacity".to_string(),
+                agent_route_key: None,
                 agent_type: "agentic".to_string(),
                 workspace_path: Some(std::env::temp_dir().to_string_lossy().into_owned()),
                 project_workspace_path: None,
@@ -18548,6 +18612,7 @@ pub(crate) mod tests {
             "fixed-session-id".to_string(),
             AgentSessionCreateRequest {
                 session_name: "Fixed worker".to_string(),
+                agent_route_key: None,
                 agent_type: "agentic".to_string(),
                 workspace_path: Some(workspace_path.to_string_lossy().into_owned()),
                 project_workspace_path: None,
@@ -18582,6 +18647,7 @@ pub(crate) mod tests {
             "fixed-session-id".to_string(),
             AgentSessionCreateRequest {
                 session_name: "Duplicate worker".to_string(),
+                agent_route_key: None,
                 agent_type: "agentic".to_string(),
                 workspace_path: Some(workspace_path.to_string_lossy().into_owned()),
                 project_workspace_path: None,
@@ -18996,6 +19062,7 @@ pub(crate) mod tests {
         let workspace = workspace_path.to_string_lossy().into_owned();
         let request = |name: &str| AgentSessionCreateRequest {
             session_name: name.to_string(),
+            agent_route_key: None,
             agent_type: "agentic".to_string(),
             workspace_path: Some(workspace.clone()),
             project_workspace_path: None,
@@ -19129,6 +19196,7 @@ pub(crate) mod tests {
             "../other-session".to_string(),
             AgentSessionCreateRequest {
                 session_name: "Invalid worker".to_string(),
+                agent_route_key: None,
                 agent_type: "agentic".to_string(),
                 workspace_path: Some(std::env::temp_dir().to_string_lossy().into_owned()),
                 project_workspace_path: None,

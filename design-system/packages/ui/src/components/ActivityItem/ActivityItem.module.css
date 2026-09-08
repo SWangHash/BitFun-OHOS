@@ -1,0 +1,253 @@
+@layer bitfun.components {
+  .root,
+  .trigger,
+  .body,
+  .leading,
+  .content,
+  .label,
+  .description,
+  .metadata,
+  .actions,
+  .divider,
+  .detail,
+  .changeCount,
+  .additions,
+  .deletions {
+    box-sizing: border-box;
+  }
+
+  .root {
+    display: inline-flex;
+    align-items: center;
+    min-inline-size: 0;
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
+  }
+
+  .root[data-has-detail="true"] {
+    flex-wrap: wrap;
+  }
+
+  .trigger,
+  .body {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    text-align: start;
+  }
+
+  .trigger {
+    cursor: pointer;
+  }
+
+  .trigger:disabled {
+    cursor: not-allowed;
+  }
+
+  .leading,
+  .metadata,
+  .actions,
+  .divider,
+  .changeCount,
+  .additions,
+  .deletions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+  }
+
+  .leading {
+    justify-content: center;
+  }
+
+  .leading > :where(svg, img),
+  .leading > [data-bitfun-component="icon"] {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .content {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    min-inline-size: 0;
+    gap: var(--bitfun-control-activity-item-content-gap);
+    white-space: nowrap;
+  }
+
+  .label,
+  .description,
+  .additions,
+  .deletions {
+    overflow: hidden;
+    min-inline-size: 0;
+    white-space: nowrap;
+  }
+
+  .label {
+    flex: 0 1 auto;
+    color: var(--bitfun-color-content-primary);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+  }
+
+  .description {
+    flex: 1 1 auto;
+  }
+
+  .root[data-appearance="inline"] {
+    gap: var(--bitfun-control-activity-item-inline-gap);
+    font-size: var(--bitfun-type-meta-font-size);
+    line-height: var(--bitfun-type-meta-line-height);
+  }
+
+  .root[data-appearance="inline"] .trigger,
+  .root[data-appearance="inline"] .body {
+    gap: var(--bitfun-control-activity-item-inline-gap);
+  }
+
+  .root[data-appearance="inline"] .leading {
+    inline-size: var(--bitfun-control-activity-item-inline-icon-size);
+    block-size: var(--bitfun-control-activity-item-inline-icon-size);
+  }
+
+  .root[data-appearance="surface"] {
+    inline-size: 100%;
+    min-block-size: var(--bitfun-control-activity-item-surface-height);
+    gap: var(--bitfun-control-activity-item-surface-gap);
+    padding-block: var(--bitfun-control-activity-item-surface-padding-block);
+    padding-inline-start: var(--bitfun-control-activity-item-surface-padding-inline-start);
+    padding-inline-end: var(--bitfun-control-activity-item-surface-padding-inline-end);
+    /* A centered stroke preserves the 9 + 22 + 9 row geometry. */
+    outline: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    outline-offset: calc(-0.5 * var(--bitfun-border-width-default));
+    border-radius: var(--bitfun-control-activity-item-surface-radius);
+    background: var(--bitfun-color-surface-raised);
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
+    transition:
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      outline-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .root[data-appearance="surface"] .trigger,
+  .root[data-appearance="surface"] .body {
+    gap: var(--bitfun-control-activity-item-surface-gap);
+  }
+
+  .root[data-appearance="surface"] .leading {
+    inline-size: var(--bitfun-control-activity-item-surface-icon-size);
+    block-size: var(--bitfun-control-activity-item-surface-icon-size);
+  }
+
+  .root[data-appearance="surface"]:not([data-disabled="true"]):is(:hover, [data-bitfun-preview-state="hover"]) {
+    outline-color: var(--bitfun-color-border-default);
+    background: var(--bitfun-color-action-neutral-surface-hover);
+  }
+
+  .root[data-appearance="surface"]:not([data-disabled="true"]):is(:active, [data-bitfun-preview-state="active"]) {
+    background: var(--bitfun-color-action-neutral-surface-pressed);
+  }
+
+  .root:has(.trigger:focus-visible) {
+    box-shadow: 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
+  }
+
+  .root[data-disabled="true"] {
+    color: var(--bitfun-color-content-disabled);
+    cursor: not-allowed;
+    opacity: var(--bitfun-opacity-disabled);
+  }
+
+  .root[data-disabled="true"] .label {
+    color: var(--bitfun-color-content-disabled);
+  }
+
+  .metadata {
+    padding-inline: var(--bitfun-space-1);
+  }
+
+  .divider {
+    inline-size: var(--bitfun-border-width-default);
+    block-size: var(--bitfun-control-activity-item-divider-block-size);
+    background: var(--bitfun-color-border-subtle);
+  }
+
+  .actions {
+    gap: 0;
+  }
+
+  .detail {
+    display: block;
+    flex: 1 1 100%;
+    min-inline-size: 0;
+    overflow: hidden;
+  }
+
+  .root[data-appearance="surface"] .detail {
+    padding-block-start: var(--bitfun-space-1);
+    border-block-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  }
+
+  .changeCount {
+    gap: var(--bitfun-control-change-count-gap);
+    padding-block: var(--bitfun-control-change-count-padding-block);
+    padding-inline: var(--bitfun-control-change-count-padding-inline);
+    border-radius: var(--bitfun-control-change-count-radius);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
+  }
+
+  .additions {
+    color: var(--bitfun-color-code-change-added);
+  }
+
+  .deletions {
+    color: var(--bitfun-color-code-change-removed);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .root[data-appearance="surface"] {
+      transition: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .root[data-appearance="surface"] {
+      outline-color: ButtonText;
+    }
+
+    .root:has(.trigger:focus-visible) {
+      box-shadow: 0 0 0 var(--bitfun-focus-width) Highlight;
+    }
+
+    .divider {
+      background: CanvasText;
+    }
+
+    .root[data-appearance="surface"] .detail {
+      border-block-start-color: CanvasText;
+    }
+
+    .additions,
+    .deletions {
+      color: CanvasText;
+    }
+  }
+}

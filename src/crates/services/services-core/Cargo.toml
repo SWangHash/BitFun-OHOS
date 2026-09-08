@@ -1,4 +1,4 @@
-[package]
+﻿[package]
 name = "bitfun-services-core"
 version.workspace = true
 authors.workspace = true
@@ -11,6 +11,7 @@ name = "bitfun_services_core"
 crate-type = ["rlib"]
 
 [dependencies]
+aes-gcm = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 bitfun-core-types = { path = "../../contracts/core-types", optional = true }
@@ -37,7 +38,9 @@ which = { workspace = true, optional = true }
 similar = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 keyring-core = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
 rusqlite = { version = "0.32", features = ["bundled"], optional = true }
+rustls = { workspace = true, optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { workspace = true, optional = true }
@@ -55,6 +58,18 @@ zbus-secret-service-keyring-store = { workspace = true, optional = true }
 
 [features]
 default = []
+credential-vault = [
+    "dep:aes-gcm",
+    "dep:anyhow",
+    "dep:base64",
+    "dep:fs2",
+    "dep:libc",
+    "dep:rand",
+    "dep:tokio",
+    "tokio/fs",
+    "tokio/io-util",
+    "tokio/rt",
+]
 diagnostics = ["dep:regex"]
 diff = ["dep:similar", "dep:tokio", "tokio/rt", "tokio/time"]
 filesystem = [
@@ -162,6 +177,19 @@ workspace-text-runtime = ["dep:tokio", "tokio/rt"]
 # Credential Manager, Linux Secret Service via D-Bus). OHOS does not enable
 # `system-vault`; the desktop host injects an ArkTS-backed vault at startup.
 secure-credentials = ["dep:async-trait", "dep:tokio", "tokio/rt"]
+tls-provider = ["dep:rustls"]
+workspace-transfer = [
+    "dep:anyhow",
+    "dep:bitfun-runtime-ports",
+    "bitfun-runtime-ports/workspace-ports",
+    "dep:sha2",
+    "dep:tokio",
+    "tokio/fs",
+    "tokio/io-util",
+    "tokio/rt",
+    "tokio/sync",
+]
+product-identity = ["dep:bitfun-core-types"]
 system-vault = [
     "secure-credentials",
     "dep:keyring-core",
@@ -169,7 +197,7 @@ system-vault = [
     "dep:windows-native-keyring-store",
     "dep:zbus-secret-service-keyring-store",
 ]
-# Unified screen-capture abstraction shared by the MiniApp "截取当前画面"
+# Unified screen-capture abstraction shared by the MiniApp "鎴彇褰撳墠鐢婚潰"
 # feature and (eventually) the Computer Use screenshot subsystem. The
 # concrete backend is injected by the desktop host: the `screenshots`-crate
 # backend on macOS/Windows/Linux, and an ArkTS-bridged backend on HarmonyOS

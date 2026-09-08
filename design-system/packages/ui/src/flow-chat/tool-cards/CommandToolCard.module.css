@@ -1,0 +1,202 @@
+@layer bitfun.components {
+  .root {
+    min-inline-size: 0;
+  }
+
+  .command {
+    display: block;
+    overflow: hidden;
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    color: var(--bitfun-color-content-secondary);
+    background: transparent;
+    white-space: nowrap;
+  }
+
+  .command[data-empty="true"] {
+    color: var(--bitfun-color-content-muted);
+    font-style: italic;
+  }
+
+  .statusSummary {
+    display: inline-flex;
+    min-inline-size: 0;
+    align-items: center;
+    gap: var(--bitfun-space-1);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-body-sm-font-size);
+  }
+
+  .statusLabel {
+    display: inline-flex;
+    align-items: center;
+    padding-block: var(--bitfun-space-1);
+    padding-inline: var(--bitfun-space-2);
+    border-radius: var(--bitfun-radius-sm);
+    background: var(--bitfun-color-action-neutral-surface);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    white-space: nowrap;
+  }
+
+  .statusLabel[data-tone="warning"] {
+    color: var(--bitfun-color-status-warning-content);
+    background: var(--bitfun-color-status-warning-surface);
+  }
+
+  .statusLabel[data-tone="danger"] {
+    color: var(--bitfun-color-status-danger-content);
+    background: var(--bitfun-color-status-danger-surface);
+  }
+
+  .criticalAction {
+    color: var(--bitfun-color-status-warning-content);
+  }
+
+  .details {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+    gap: var(--bitfun-space-2);
+  }
+
+  .outputFrame {
+    position: relative;
+    overflow: hidden;
+    min-block-size: 0;
+    border-radius: var(--bitfun-radius-sm);
+    background: var(--bitfun-color-surface-canvas);
+  }
+
+  .outputFrame[data-density="compact"] {
+    block-size: 5.375rem;
+  }
+
+  .outputFrame[data-density="expanded"] {
+    block-size: 20rem;
+  }
+
+  .outputFrame[data-sizing="content"] {
+    block-size: auto;
+  }
+
+  .outputFrame[data-density="compact"][data-sizing="content"] {
+    max-block-size: 5.375rem;
+  }
+
+  .outputFrame[data-density="expanded"][data-sizing="content"] {
+    max-block-size: 20rem;
+  }
+
+  .output,
+  .waiting {
+    box-sizing: border-box;
+    inline-size: 100%;
+    block-size: 100%;
+    min-block-size: 0;
+  }
+
+  .output > * {
+    inline-size: 100%;
+    block-size: 100%;
+    max-block-size: 100%;
+  }
+
+  .waiting {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--bitfun-space-3);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-style: italic;
+    text-align: center;
+  }
+
+  .outputActions {
+    position: absolute;
+    z-index: 1;
+    inset-block-start: var(--bitfun-space-1);
+    inset-inline-end: var(--bitfun-space-1);
+    display: inline-flex;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .outputFrame:is(:hover, :focus-within) .outputActions,
+  .outputFrame[data-bitfun-preview-state="hover"] .outputActions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .footer {
+    display: flex;
+    min-inline-size: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    padding-block: var(--bitfun-space-2);
+    padding-inline: var(--bitfun-space-3);
+    border-radius: var(--bitfun-radius-sm);
+    color: var(--bitfun-color-content-muted);
+    background: transparent;
+    font-size: var(--bitfun-type-body-sm-font-size);
+  }
+
+  .footerItem {
+    display: inline-flex;
+    min-inline-size: 0;
+    align-items: center;
+    gap: var(--bitfun-space-1);
+    white-space: nowrap;
+  }
+
+  .footerItem[data-grow="true"] {
+    flex: 1 1 12rem;
+  }
+
+  .footerItem[data-push-to-end="true"] {
+    margin-inline-start: auto;
+  }
+
+  .footerLabel {
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+  }
+
+  .footerValue {
+    overflow: hidden;
+    color: var(--bitfun-color-content-secondary);
+  }
+
+  .footerItem[data-tone="success"] .footerValue {
+    color: var(--bitfun-color-status-success-content);
+  }
+
+  .footerItem[data-tone="warning"] .footerValue {
+    color: var(--bitfun-color-status-warning-content);
+  }
+
+  .footerItem[data-tone="danger"] .footerValue {
+    color: var(--bitfun-color-status-danger-content);
+  }
+
+  .error {
+    color: var(--bitfun-color-status-danger-content);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-md-line-height);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .outputActions {
+      transition: none;
+    }
+  }
+}

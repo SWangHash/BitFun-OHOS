@@ -1,0 +1,202 @@
+@layer bitfun.components {
+  .root,
+  .context,
+  .surface,
+  .editor,
+  .toolbar,
+  .bar,
+  .barLeading,
+  .barContent,
+  .barTrailing,
+  .divider {
+    box-sizing: border-box;
+  }
+
+  .root {
+    position: relative;
+    display: flex;
+    inline-size: 100%;
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    flex-direction: column;
+    color: var(--bitfun-color-content-primary);
+  }
+
+  .root[data-has-context="true"] {
+    padding-block-start: var(--bitfun-control-composer-context-offset);
+    border-radius: var(--bitfun-control-composer-surface-radius);
+    background: var(--bitfun-color-composer-context-background);
+    backdrop-filter: blur(var(--bitfun-control-composer-context-blur));
+    -webkit-backdrop-filter: blur(var(--bitfun-control-composer-context-blur));
+  }
+
+  .context {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline: 0;
+    display: flex;
+    align-items: center;
+    min-inline-size: 0;
+    min-block-size: var(--bitfun-control-composer-context-offset);
+    padding-block: var(--bitfun-control-composer-context-padding-block);
+    padding-inline: var(--bitfun-control-composer-context-padding-inline);
+  }
+
+  .surface {
+    position: relative;
+    z-index: var(--bitfun-layer-content);
+    display: flex;
+    inline-size: 100%;
+    min-inline-size: 0;
+    min-block-size: var(--bitfun-control-composer-min-block-size);
+    flex-direction: column;
+    gap: var(--bitfun-control-composer-surface-gap);
+    padding: var(--bitfun-control-composer-surface-padding);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-composer-border);
+    border-radius: var(--bitfun-control-composer-surface-radius);
+    background: var(--bitfun-color-surface-raised);
+    box-shadow: var(--bitfun-shadow-composer);
+    transition:
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .surface:focus-within {
+    border-color: var(--bitfun-color-field-border-focus);
+    box-shadow:
+      var(--bitfun-shadow-composer),
+      0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
+  }
+
+  .root[data-invalid="true"] > .surface {
+    border-color: var(--bitfun-color-status-danger-border);
+  }
+
+  .root[data-invalid="true"] > .surface:focus-within {
+    box-shadow:
+      var(--bitfun-shadow-composer),
+      0 0 0 var(--bitfun-focus-width) var(--bitfun-color-status-danger-surface);
+  }
+
+  .root[data-disabled="true"] {
+    color: var(--bitfun-color-content-disabled);
+    cursor: not-allowed;
+    opacity: var(--bitfun-opacity-disabled);
+  }
+
+  .editor {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: flex-start;
+    min-inline-size: 0;
+    min-block-size: 0;
+    padding: var(--bitfun-control-composer-editor-padding);
+    color: inherit;
+    font-family: var(--bitfun-type-body-sm-font-family);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    line-height: var(--bitfun-type-body-sm-line-height);
+    letter-spacing: var(--bitfun-type-body-sm-letter-spacing);
+  }
+
+  .editor > :where(textarea, input, [contenteditable="true"]) {
+    min-inline-size: 0;
+    inline-size: 100%;
+    min-block-size: 100%;
+    margin: 0;
+    padding: 0;
+    resize: none;
+    border: 0;
+    outline: 0;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+  }
+
+  .editor > :where(textarea, input)::placeholder {
+    color: var(--bitfun-color-content-muted);
+    opacity: 1;
+  }
+
+  .toolbar {
+    flex: 0 0 auto;
+    min-inline-size: 0;
+  }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    inline-size: 100%;
+    min-inline-size: 0;
+    gap: var(--bitfun-control-composer-toolbar-gap);
+  }
+
+  .barLeading,
+  .barContent,
+  .barTrailing {
+    display: flex;
+    align-items: center;
+    min-inline-size: 0;
+    gap: var(--bitfun-control-composer-context-gap);
+  }
+
+  .barLeading {
+    flex: 0 1 auto;
+  }
+
+  .barContent {
+    flex: 1 1 auto;
+  }
+
+  .barTrailing {
+    flex: 0 0 auto;
+    margin-inline-start: auto;
+  }
+
+  .divider {
+    display: block;
+    inline-size: var(--bitfun-border-width-default);
+    block-size: var(--bitfun-control-composer-divider-block-size);
+    flex: 0 0 var(--bitfun-border-width-default);
+    background: var(--bitfun-color-border-subtle);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .surface {
+      transition: none;
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .root[data-has-context="true"] {
+      background: var(--bitfun-color-surface-panel);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .root[data-has-context="true"] {
+      background: Canvas;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+    .root[data-has-context="true"],
+    .surface,
+    .root[data-invalid="true"] > .surface {
+      border-color: ButtonText;
+    }
+
+    .surface:focus-within {
+      border-color: Highlight;
+      box-shadow: 0 0 0 var(--bitfun-focus-width) Highlight;
+    }
+
+    .divider {
+      background: CanvasText;
+    }
+  }
+}

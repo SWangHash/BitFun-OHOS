@@ -1,0 +1,11 @@
+@layer bitfun.components {
+  .root { display: inline-flex; align-items: center; justify-content: center; inline-size: var(--bitfun-control-height-md); block-size: var(--bitfun-control-height-md); overflow: hidden; flex: 0 0 auto; border: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border); border-radius: var(--bitfun-radius-pill); color: var(--bitfun-color-content-secondary); background: var(--bitfun-color-action-neutral-surface); font-family: var(--bitfun-type-label-selected-font-family); font-size: var(--bitfun-type-label-selected-font-size); font-weight: var(--bitfun-type-label-selected-font-weight); line-height: var(--bitfun-type-label-selected-line-height); letter-spacing: var(--bitfun-type-label-selected-letter-spacing); }
+  .root[data-size="sm"] { inline-size: var(--bitfun-control-height-sm); block-size: var(--bitfun-control-height-sm); font-size: var(--bitfun-type-label-sm-font-size); }
+  .root[data-size="lg"] { inline-size: var(--bitfun-control-height-lg); block-size: var(--bitfun-control-height-lg); }
+  .root[data-bitfun-shape="square"] { border-radius: var(--bitfun-radius-base); }
+  .image { inline-size: 100%; block-size: 100%; object-fit: cover; }
+  .content { display: inline-flex; align-items: center; justify-content: center; inline-size: 100%; block-size: 100%; }
+  .content > :where(svg, img), .content > [data-bitfun-component="icon"] { inline-size: 55%; block-size: 55%; }
+  .group { display: inline-flex; align-items: center; }
+  .group > .root + .root { margin-inline-start: calc(var(--bitfun-space-2) * -1); }
+}

@@ -1,0 +1,166 @@
+@layer bitfun.components {
+  .root,
+  .trigger,
+  .leading,
+  .content,
+  .title,
+  .description,
+  .actions {
+    box-sizing: border-box;
+  }
+
+  .root {
+    display: inline-flex;
+    align-items: center;
+    inline-size: 100%;
+    min-inline-size: 0;
+    border: 0;
+    outline: var(--bitfun-border-width-default) solid transparent;
+    outline-offset: calc(-1 * var(--bitfun-border-width-default));
+    border-radius: var(--bitfun-control-action-card-radius);
+    color: var(--bitfun-color-action-neutral-content);
+    background: var(--bitfun-color-action-card-background);
+    transition:
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      outline-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .root[data-size="sm"] {
+    min-block-size: var(--bitfun-control-action-card-sm-min-block-size);
+  }
+
+  .root[data-size="md"] {
+    min-block-size: var(--bitfun-control-action-card-md-min-block-size);
+  }
+
+  .root:not([data-disabled="true"]):is(:hover, :has(.trigger[data-bitfun-preview-state="hover"])) {
+    outline-color: var(--bitfun-color-border-default);
+    background: var(--bitfun-color-action-neutral-surface-hover);
+  }
+
+  .root:not([data-disabled="true"]):is(:active, :has(.trigger[data-bitfun-preview-state="active"])) {
+    background: var(--bitfun-color-action-neutral-surface-pressed);
+  }
+
+  .root[data-selected="true"] {
+    outline-color: var(--bitfun-color-border-default);
+    background: var(--bitfun-color-selection-surface);
+  }
+
+  .root:has(.trigger:focus-visible) {
+    box-shadow: 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
+  }
+
+  .root[data-disabled="true"] {
+    color: var(--bitfun-color-action-neutral-content-disabled);
+    cursor: not-allowed;
+    opacity: var(--bitfun-opacity-disabled);
+  }
+
+  .trigger {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    align-self: stretch;
+    min-inline-size: 0;
+    min-block-size: inherit;
+    gap: var(--bitfun-control-action-card-gap);
+    margin: 0;
+    padding-block: var(--bitfun-control-action-card-padding-block);
+    padding-inline: var(--bitfun-control-action-card-padding-inline);
+    border: 0;
+    outline: 0;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .trigger:disabled {
+    cursor: not-allowed;
+  }
+
+  .leading {
+    display: inline-flex;
+    flex: 0 0 var(--bitfun-control-action-card-leading-size);
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--bitfun-control-action-card-leading-size);
+    block-size: var(--bitfun-control-action-card-leading-size);
+    border-radius: var(--bitfun-radius-pill);
+    color: var(--bitfun-color-content-secondary);
+  }
+
+  .leading > :where(svg, img),
+  .leading > [data-bitfun-component="icon"] {
+    display: block;
+    inline-size: var(--bitfun-control-action-card-icon-size);
+    block-size: var(--bitfun-control-action-card-icon-size);
+  }
+
+  .content {
+    display: flex;
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    flex-direction: column;
+    gap: var(--bitfun-control-action-card-content-gap);
+  }
+
+  .title,
+  .description {
+    overflow: hidden;
+    min-inline-size: 0;
+    white-space: nowrap;
+  }
+
+  .title {
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-heading-section-font-family);
+    font-size: var(--bitfun-type-heading-section-font-size);
+    font-weight: var(--bitfun-type-heading-section-font-weight);
+    line-height: var(--bitfun-type-heading-section-line-height);
+    letter-spacing: var(--bitfun-type-heading-section-letter-spacing);
+  }
+
+  .description {
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-body-sm-font-family);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    line-height: var(--bitfun-type-action-row-line-height);
+    letter-spacing: var(--bitfun-type-body-sm-letter-spacing);
+  }
+
+  .actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    align-self: stretch;
+    gap: var(--bitfun-control-action-card-actions-gap);
+    padding-inline-end: var(--bitfun-control-action-card-actions-padding-inline-end);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .root {
+      transition: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .root {
+      outline-color: ButtonText;
+    }
+
+    .root:not([data-disabled="true"]):is(:hover, :active),
+    .root[data-selected="true"] {
+      color: HighlightText;
+      background: Highlight;
+    }
+
+    .root:has(.trigger:focus-visible) {
+      box-shadow: 0 0 0 var(--bitfun-focus-width) Highlight;
+    }
+  }
+}

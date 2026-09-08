@@ -27,6 +27,9 @@ impl BotLanguage {
 /// platform adapters.  Add new strings here, then translate in both
 /// [`STRINGS_ZH`], [`STRINGS_ZH_TW`], and [`STRINGS_EN`].
 pub struct BotStrings {
+    pub tool_approval_title: &'static str,
+    pub tool_approve: &'static str,
+    pub tool_reject: &'static str,
     // ── Onboarding ───────────────────────────────────────────────
     pub welcome: &'static str,
     pub paired_success: &'static str,
@@ -117,7 +120,7 @@ pub struct BotStrings {
     pub switch_model_title: &'static str,
     pub switch_model_pick: &'static str,
     pub switch_model_no_models: &'static str,
-    pub switch_model_auto: &'static str,
+    pub switch_model_primary: &'static str,
     pub switch_model_applied_prefix: &'static str,
     pub switch_model_failed_prefix: &'static str,
     pub switch_model_no_session: &'static str,
@@ -151,6 +154,7 @@ pub struct BotStrings {
     pub session_system_unavailable: &'static str,
     pub workspace_service_unavailable: &'static str,
     pub workspace_open_failed_prefix: &'static str,
+    pub workspace_list_changed: &'static str,
     pub assistant_create_failed_prefix: &'static str,
 
     pub pending_expired: &'static str,
@@ -189,6 +193,9 @@ pub struct BotStrings {
 }
 
 const STRINGS_ZH: BotStrings = BotStrings {
+    tool_approval_title: "需要授权",
+    tool_approve: "允许本次",
+    tool_reject: "拒绝",
     welcome: "\
 欢迎使用 BitFun。
 
@@ -275,7 +282,7 @@ const STRINGS_ZH: BotStrings = BotStrings {
     switch_model_title: "选择模型",
     switch_model_pick: "请选择要使用的模型：",
     switch_model_no_models: "没有可用的模型，请先在 BitFun 桌面端配置 AI 模型。",
-    switch_model_auto: "自动（默认）",
+    switch_model_primary: "主力模型",
     switch_model_applied_prefix: "已切换模型：",
     switch_model_failed_prefix: "切换模型失败：",
     switch_model_no_session: "当前没有活跃会话，请先新建或恢复会话。",
@@ -309,6 +316,7 @@ const STRINGS_ZH: BotStrings = BotStrings {
     session_system_unavailable: "BitFun 会话系统尚未就绪，请稍后再试。",
     workspace_service_unavailable: "工作区服务暂时不可用。",
     workspace_open_failed_prefix: "打开工作区失败：",
+    workspace_list_changed: "工作区列表已更新，请重新选择。",
     assistant_create_failed_prefix: "创建助理工作区失败：",
 
     pending_expired: "上一步已超时，已为你返回主菜单。",
@@ -330,7 +338,7 @@ const STRINGS_ZH: BotStrings = BotStrings {
     auto_push_failed_fmt: "发送「{name}」失败：{err}",
 
     devices_title: "多设备控制",
-    devices_account_required: "所连接的桌面端尚未登录 BitFun 账号，无法使用多设备控制。请在桌面端的账号登录对话框中登录，机器人会自动继承账号身份。",
+    devices_account_required: "所连接的桌面端尚未使用 GitHub 登录，无法使用多设备控制。请在桌面端的账号登录对话框中登录，机器人会自动继承账号身份。",
     devices_empty: "当前账号下没有其它设备。",
     devices_status_online: "在线",
     devices_status_offline: "离线",
@@ -342,10 +350,13 @@ const STRINGS_ZH: BotStrings = BotStrings {
     devices_switched_to: "已切换到远程设备",
     devices_switched_local: "已切换回本地设备",
     devices_remote_prefix: "远程设备",
-    devices_msg_sent: "消息已发送，远程 agent 正在执行",
+    devices_msg_sent: "消息已发送，回复和附件将发回此聊天。",
 };
 
 const STRINGS_ZH_TW: BotStrings = BotStrings {
+    tool_approval_title: "需要授權",
+    tool_approve: "允許本次",
+    tool_reject: "拒絕",
     welcome: "\
 歡迎使用 BitFun。
 
@@ -432,7 +443,7 @@ const STRINGS_ZH_TW: BotStrings = BotStrings {
     switch_model_title: "選擇模型",
     switch_model_pick: "請選擇要使用的模型：",
     switch_model_no_models: "沒有可用的模型，請先在 BitFun 桌面端配置 AI 模型。",
-    switch_model_auto: "自動（默認）",
+    switch_model_primary: "主力模型",
     switch_model_applied_prefix: "已切換模型：",
     switch_model_failed_prefix: "切換模型失敗：",
     switch_model_no_session: "當前沒有活躍會話，請先新建或恢復會話。",
@@ -466,6 +477,7 @@ const STRINGS_ZH_TW: BotStrings = BotStrings {
     session_system_unavailable: "BitFun 會話系統尚未就緒，請稍後再試。",
     workspace_service_unavailable: "工作區服務暫時不可用。",
     workspace_open_failed_prefix: "打開工作區失敗：",
+    workspace_list_changed: "工作區清單已更新，請重新選擇。",
     assistant_create_failed_prefix: "創建助理工作區失敗：",
 
     pending_expired: "上一步已超時，已為你返回主菜單。",
@@ -487,7 +499,7 @@ const STRINGS_ZH_TW: BotStrings = BotStrings {
     auto_push_failed_fmt: "發送「{name}」失敗：{err}",
 
     devices_title: "多裝置控制",
-    devices_account_required: "所連接的桌面端尚未登入 BitFun 帳號，無法使用多裝置控制。請在桌面端的帳號登入對話框中登入，機器人會自動繼承帳號身份。",
+    devices_account_required: "所連接的桌面端尚未使用 GitHub 登入，無法使用多裝置控制。請在桌面端的帳號登入對話框中登入，機器人會自動繼承帳號身份。",
     devices_empty: "目前帳號下沒有其它裝置。",
     devices_status_online: "線上",
     devices_status_offline: "離線",
@@ -499,10 +511,13 @@ const STRINGS_ZH_TW: BotStrings = BotStrings {
     devices_switched_to: "已切換到遠端裝置",
     devices_switched_local: "已切換回本地裝置",
     devices_remote_prefix: "遠端裝置",
-    devices_msg_sent: "訊息已傳送，遠端 agent 正在執行",
+    devices_msg_sent: "訊息已傳送，回覆和附件將傳回此聊天。",
 };
 
 const STRINGS_EN: BotStrings = BotStrings {
+    tool_approval_title: "Approval required",
+    tool_approve: "Allow once",
+    tool_reject: "Reject",
     welcome: "\
 Welcome to BitFun.
 
@@ -590,7 +605,7 @@ Open Remote Connect in BitFun Desktop and send the 6-digit pairing code here to 
     switch_model_title: "Select Model",
     switch_model_pick: "Pick a model to use:",
     switch_model_no_models: "No models available. Please configure AI models in BitFun Desktop first.",
-    switch_model_auto: "Auto (Default)",
+    switch_model_primary: "Primary model",
     switch_model_applied_prefix: "Switched model: ",
     switch_model_failed_prefix: "Failed to switch model: ",
     switch_model_no_session: "No active session. Create or resume a session first.",
@@ -624,6 +639,7 @@ Open Remote Connect in BitFun Desktop and send the 6-digit pairing code here to 
     session_system_unavailable: "BitFun session system is not ready yet.",
     workspace_service_unavailable: "Workspace service unavailable.",
     workspace_open_failed_prefix: "Failed to open workspace: ",
+    workspace_list_changed: "The workspace list has changed. Please choose again.",
     assistant_create_failed_prefix: "Failed to create assistant workspace: ",
 
     pending_expired: "Previous step expired. Returned to the main menu.",
@@ -645,7 +661,7 @@ Open Remote Connect in BitFun Desktop and send the 6-digit pairing code here to 
     auto_push_failed_fmt: "Failed to send \"{name}\": {err}",
 
     devices_title: "Multi-device Control",
-    devices_account_required: "The paired desktop is not logged into a BitFun account, so multi-device control is unavailable. Log in via the desktop's Account Login dialog and the bot will inherit the account identity.",
+    devices_account_required: "The paired desktop is not logged into a GitHub account, so multi-device control is unavailable. Log in via the desktop's Account Login dialog and the bot will inherit the account identity.",
     devices_empty: "No other devices in this account.",
     devices_status_online: "online",
     devices_status_offline: "offline",
@@ -658,7 +674,7 @@ Open Remote Connect in BitFun Desktop and send the 6-digit pairing code here to 
     devices_switched_to: "Switched to remote device",
     devices_switched_local: "Switched back to local device",
     devices_remote_prefix: "Remote device",
-    devices_msg_sent: "Message sent, remote agent is working",
+    devices_msg_sent: "Message sent. Replies and attachments will return to this chat.",
 };
 
 pub fn strings_for(language: BotLanguage) -> &'static BotStrings {

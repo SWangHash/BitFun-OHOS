@@ -1,0 +1,37 @@
+@layer bitfun.tokens.system, bitfun.tokens.theme, bitfun.reset, bitfun.base, bitfun.components, bitfun.overrides;
+
+@layer bitfun.reset {
+  [data-bitfun-design-system-root],
+  [data-bitfun-design-system-root] *,
+  [data-bitfun-design-system-root] *::before,
+  [data-bitfun-design-system-root] *::after {
+    box-sizing: border-box;
+  }
+
+  [data-bitfun-design-system-root] button,
+  [data-bitfun-design-system-root] input,
+  [data-bitfun-design-system-root] textarea,
+  [data-bitfun-design-system-root] select {
+    font: inherit;
+  }
+}
+
+@layer bitfun.base {
+  [data-bitfun-design-system-root] select option,
+  [data-bitfun-design-system-root] select optgroup {
+    color: var(--bitfun-color-content-primary);
+    background-color: var(--bitfun-color-surface-panel);
+  }
+
+  [data-bitfun-design-system-root] select option:disabled {
+    color: var(--bitfun-color-content-disabled);
+  }
+
+  @media (forced-colors: active) {
+    [data-bitfun-design-system-root] select option,
+    [data-bitfun-design-system-root] select optgroup {
+      color: FieldText;
+      background-color: Field;
+    }
+  }
+}

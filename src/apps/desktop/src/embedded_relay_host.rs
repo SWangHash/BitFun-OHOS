@@ -1,7 +1,7 @@
-//! Desktop-owned embedded relay host for LAN and Ngrok Remote Connect modes.
+//! Desktop-owned embedded relay host for LAN Remote Connect modes.
 
 use bitfun_core::service::remote_connect::embedded_relay_host::EmbeddedRelayHost;
-use bitfun_relay_service::{build_relay_router, MemoryAssetStore, RoomManager};
+use bitfun_relay_service::{build_relay_router, MemoryAssetStore};
 use log::{info, warn};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -18,17 +18,12 @@ pub(crate) struct DesktopEmbeddedRelayHost {
 struct EmbeddedRelayRuntime {
     shutdown: Option<tokio::sync::oneshot::Sender<()>>,
     server_task: Option<tokio::task::JoinHandle<()>>,
-    cleanup_task: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl EmbeddedRelayRuntime {
     fn signal_shutdown(&mut self) {
         if let Some(shutdown) = self.shutdown.take() {
             let _ = shutdown.send(());
-        }
-
-        if let Some(cleanup_task) = self.cleanup_task.take() {
-            cleanup_task.abort();
         }
     }
 
@@ -89,17 +84,34 @@ impl EmbeddedRelayHost for DesktopEmbeddedRelayHost {
                 anyhow::anyhow!("failed to bind embedded relay on port {port}: {error}")
             })?;
 
-        let room_manager = RoomManager::new();
+        // Each locally hosted Relay owns its account directory and credentials,
+        // using exactly the same database schema and router as the official host.
+        #[cfg(not(test))]
+        let database_path = {
+            let root = std::env::var_os("BITFUN_HOME")
+                .or_else(|| std::env::var_os("BITFUN_E2E_HOME"))
+                .map(std::path::PathBuf::from)
+                .filter(|path| !path.as_os_str().is_empty())
+                .or_else(|| {
+                    dirs::home_dir().map(|home| {
+                        home.join(bitfun_core_types::product_identity::hidden_data_directory())
+                    })
+                })
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Cannot determine product home for the local Relay")
+                })?;
+            let directory = root.join("relay-v1.0.0").join("local-server");
+            tokio::fs::create_dir_all(&directory).await?;
+            directory.join("relay.db").to_string_lossy().into_owned()
+        };
+        #[cfg(test)]
+        let database_path = ":memory:".to_string();
+        let database = Arc::new(bitfun_relay_service::db::connect(&database_path).await?);
         let asset_store = Arc::new(MemoryAssetStore::new());
         let start_time = std::time::Instant::now();
 
-        let mut app = build_relay_router(
-            room_manager.clone(),
-            asset_store,
-            start_time,
-            None,
-            env!("CARGO_PKG_VERSION"),
-        );
+        let mut app =
+            build_relay_router(asset_store, start_time, database, env!("CARGO_PKG_VERSION"));
 
         if let Some(dir) = static_dir.as_deref() {
             info!("Embedded relay: serving static files from {dir}");
@@ -116,14 +128,6 @@ impl EmbeddedRelayHost for DesktopEmbeddedRelayHost {
 
         info!("Embedded relay started on 0.0.0.0:{port}");
 
-        let cleanup_room_manager = room_manager.clone();
-        let cleanup_task = tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-                cleanup_room_manager.cleanup_stale_rooms(300);
-            }
-        });
-
         let (shutdown, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
         let server_task = tokio::spawn(async move {
             axum::serve(
@@ -138,12 +142,11 @@ impl EmbeddedRelayHost for DesktopEmbeddedRelayHost {
         });
 
         // Keep the candidate local until readiness completes. If the start
-        // future is cancelled, Drop aborts both tasks and releases the bound
+        // future is cancelled, Drop aborts the server task and releases the bound
         // listener instead of leaving a hidden active runtime in the host.
         let candidate = EmbeddedRelayRuntime {
             shutdown: Some(shutdown),
             server_task: Some(server_task),
-            cleanup_task: Some(cleanup_task),
         };
 
         #[cfg(test)]
@@ -256,6 +259,30 @@ mod tests {
         panic!("could not find a free port for the embedded relay: {last_err}");
     }
 
+    /// Restart on the same port while tolerating a transient claim from another
+    /// socket in the runner's ephemeral range. A leaked relay listener never
+    /// becomes bindable and therefore still fails at the deadline.
+    async fn restart_on_same_port(
+        host: &DesktopEmbeddedRelayHost,
+        port: u16,
+        static_dir: Option<String>,
+    ) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            match host.start(port, static_dir.clone()).await {
+                Ok(()) => return,
+                Err(error) => {
+                    if std::time::Instant::now() >= deadline {
+                        panic!(
+                            "embedded relay could not restart on port {port} after it was stopped: {error}"
+                        );
+                    }
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+    }
+
     #[tokio::test]
     async fn bind_failure_does_not_create_an_active_runtime() {
         let occupied = tokio::net::TcpListener::bind("0.0.0.0:0")
@@ -294,6 +321,7 @@ mod tests {
         let host = DesktopEmbeddedRelayHost::default();
         let port = start_on_free_port(&host, Some(static_dir.to_string_lossy().into_owned())).await;
 
+        crate::ensure_rustls_crypto_provider();
         let client = reqwest::Client::new();
         let index = client
             .get(format!("http://127.0.0.1:{port}/"))
@@ -332,9 +360,7 @@ mod tests {
         drop(client);
         host.stop().await;
 
-        host.start(port, Some(static_dir.to_string_lossy().into_owned()))
-            .await
-            .expect("embedded relay should restart immediately on the same port");
+        restart_on_same_port(&host, port, Some(static_dir.to_string_lossy().into_owned())).await;
         host.stop().await;
 
         assert_port_released(port, "stop must release the listener before returning").await;

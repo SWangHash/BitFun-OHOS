@@ -3,23 +3,29 @@
 //! Shared relay logic used by both the standalone relay-server binary and
 //! the embedded relay running inside the desktop process.
 //!
-//! The relay is a stateless HTTP-to-WebSocket bridge:
+//! The relay bridges authenticated same-account devices:
 //!   - Desktop clients connect via WebSocket
 //!   - Mobile clients interact via HTTP POST
 //!   - The relay forwards encrypted payloads without inspection
-//!   - Per-room mobile-web static files are managed via `WebAssetStore`
+//!   - GitHub identity owns device membership and public-key lookup
+//!   - Published Page assets are managed via `WebAssetStore`
+
+mod identity;
+pub mod realtime;
+
+#[cfg(test)]
+mod account_transport_tests;
 
 pub mod admin;
+mod admission;
 pub mod db;
 pub mod page_data;
 pub mod page_execution;
 pub mod relay;
 pub mod routes;
 
-pub use relay::room::{ResponsePayload, RoomManager};
 pub use routes::api::AppState;
 
-use axum::extract::DefaultBodyLimit;
 use axum::http::{header, HeaderValue, Method};
 use axum::routing::{get, post};
 use axum::Router;
@@ -51,7 +57,11 @@ pub async fn relay_security_headers(
 ) -> axum::response::Response {
     use axum::http::{HeaderName, HeaderValue};
 
-    let no_store = request.uri().path() == "/health" || request.uri().path().starts_with("/api/");
+    let path = request.uri().path();
+    let no_store = path == "/health"
+        || path.starts_with("/api/")
+        || path.starts_with("/v1/")
+        || path.starts_with("/v3/");
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
     for (name, value) in [
@@ -1074,33 +1084,23 @@ fn create_link(original: &std::path::Path, link: &std::path::Path) -> std::io::R
 /// Both the standalone binary and the embedded relay call this function,
 /// passing their own `WebAssetStore` implementation.
 pub fn build_relay_router(
-    room_manager: Arc<RoomManager>,
     asset_store: Arc<dyn WebAssetStore>,
     start_time: std::time::Instant,
-    db: Option<std::sync::Arc<crate::db::DbPool>>,
+    db: std::sync::Arc<crate::db::DbPool>,
     host_version: &'static str,
 ) -> Router {
-    build_relay_router_with_page_data(
-        room_manager,
-        asset_store,
-        start_time,
-        db,
-        host_version,
-        None,
-    )
+    build_relay_router_with_page_data(asset_store, start_time, db, host_version, None)
 }
 
 /// Like [`build_relay_router`], with an explicit page-data directory for Page Functions.
 pub fn build_relay_router_with_page_data(
-    room_manager: Arc<RoomManager>,
     asset_store: Arc<dyn WebAssetStore>,
     start_time: std::time::Instant,
-    db: Option<std::sync::Arc<crate::db::DbPool>>,
+    db: std::sync::Arc<crate::db::DbPool>,
     host_version: &'static str,
     page_data_dir: Option<std::path::PathBuf>,
 ) -> Router {
     build_relay_router_with_page_data_and_origins(
-        room_manager,
         asset_store,
         start_time,
         db,
@@ -1114,16 +1114,14 @@ pub fn build_relay_router_with_page_data(
 /// same-origin only. `*` remains available for intentionally public relays but
 /// should not be combined with account APIs.
 pub fn build_relay_router_with_page_data_and_origins(
-    room_manager: Arc<RoomManager>,
     asset_store: Arc<dyn WebAssetStore>,
     start_time: std::time::Instant,
-    db: Option<std::sync::Arc<crate::db::DbPool>>,
+    db: std::sync::Arc<crate::db::DbPool>,
     host_version: &'static str,
     page_data_dir: Option<std::path::PathBuf>,
     cors_allow_origins: Vec<String>,
 ) -> Router {
     build_relay_router_with_page_data_origins_and_page_auth(
-        room_manager,
         asset_store,
         start_time,
         db,
@@ -1137,10 +1135,9 @@ pub fn build_relay_router_with_page_data_and_origins(
 /// Build a relay with browser CORS policy and an isolated Page login origin.
 #[allow(clippy::too_many_arguments)]
 pub fn build_relay_router_with_page_data_origins_and_page_auth(
-    room_manager: Arc<RoomManager>,
     asset_store: Arc<dyn WebAssetStore>,
     start_time: std::time::Instant,
-    db: Option<std::sync::Arc<crate::db::DbPool>>,
+    db: std::sync::Arc<crate::db::DbPool>,
     host_version: &'static str,
     page_data_dir: Option<std::path::PathBuf>,
     cors_allow_origins: Vec<String>,
@@ -1158,7 +1155,6 @@ pub fn build_relay_router_with_page_data_origins_and_page_auth(
         })
         .collect::<Vec<_>>();
     let state = AppState {
-        room_manager,
         start_time,
         asset_store,
         db,
@@ -1181,10 +1177,8 @@ pub fn build_relay_router_with_page_data_origins_and_page_auth(
             "/api/info",
             get(move || routes::api::server_info_for_host(host_version)),
         )
-        .route(
-            "/api/auth/login/challenge",
-            post(routes::auth::login_challenge),
-        )
+        .route("/api/auth/github/start", post(routes::auth::github_start))
+        .route("/api/auth/github/poll", post(routes::auth::github_poll))
         .route("/api/auth/login", post(routes::auth::login))
         .route("/api/auth/logout", post(routes::auth::logout))
         .route("/api/auth/delegate", post(routes::auth::delegate))
@@ -1192,28 +1186,13 @@ pub fn build_relay_router_with_page_data_origins_and_page_auth(
             "/api/auth/provision-device",
             post(routes::auth::provision_device),
         )
-        .route("/api/rooms/{room_id}/pair", post(routes::api::pair))
-        .route(
-            "/api/rooms/{room_id}/command",
-            post(routes::api::command).layer(DefaultBodyLimit::max(10 * 1024 * 1024)),
-        )
-        .route(
-            "/api/rooms/{room_id}/upload-web",
-            post(routes::api::upload_web).layer(DefaultBodyLimit::max(10 * 1024 * 1024)),
-        )
-        .route(
-            "/api/rooms/{room_id}/check-web-files",
-            post(routes::api::check_web_files),
-        )
-        .route(
-            "/api/rooms/{room_id}/upload-web-files",
-            post(routes::api::upload_web_files).layer(DefaultBodyLimit::max(10 * 1024 * 1024)),
-        )
-        .route("/r/{*rest}", get(routes::api::serve_room_web_catchall))
-        .route("/ws", get(routes::websocket::websocket_handler))
-        .merge(routes::sync::sync_router())
         .merge(routes::devices::device_router())
-        .merge(routes::pages::pages_router())
+        .merge(routes::pages::pages_router());
+    let router = realtime::mount(router, state.clone())
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            admission::admit,
+        ))
         .with_state(state)
         .layer(axum::middleware::from_fn(relay_security_headers));
 
@@ -1273,17 +1252,17 @@ mod tests {
     #[tokio::test]
     async fn router_exposes_health_and_server_info() {
         let app = build_relay_router(
-            RoomManager::new(),
             Arc::new(MemoryAssetStore::new()),
             std::time::Instant::now(),
-            None,
+            Arc::new(db::connect(":memory:").await.unwrap()),
             "test-host-version",
         );
 
         let health = get_json(app.clone(), "/health").await;
         assert_eq!(health["status"], "healthy");
-        assert_eq!(health["rooms"], 0);
-        assert_eq!(health["connections"], 0);
+        assert!(health.get("rooms").is_none());
+        assert_eq!(health["device_connections"], 0);
+        assert_eq!(health["account_features"], true);
         assert_eq!(health["version"], "test-host-version");
         assert_eq!(health["asset_store_bytes"], 0);
         assert_eq!(
@@ -1310,7 +1289,7 @@ mod tests {
         let info = get_json(app, "/api/info").await;
         assert_eq!(info["name"], "BitFun Relay Server");
         assert_eq!(info["version"], "test-host-version");
-        assert_eq!(info["protocol_version"], 2);
+        assert_eq!(info["protocol_version"], 3);
     }
 
     #[test]

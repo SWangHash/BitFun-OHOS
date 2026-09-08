@@ -1,0 +1,212 @@
+@layer bitfun.components {
+  .root,
+  .header,
+  .leading,
+  .headerContent,
+  .title,
+  .description,
+  .actions,
+  .body,
+  .media,
+  .footer {
+    box-sizing: border-box;
+  }
+
+  .root {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+    border: var(--bitfun-border-width-default) solid transparent;
+    color: var(--bitfun-color-content-secondary);
+    background: transparent;
+  }
+
+  .root[data-appearance="raised"] {
+    border-color: var(--bitfun-color-border-subtle);
+    background: var(--bitfun-color-surface-raised);
+    box-shadow: var(--bitfun-shadow-overlay);
+  }
+
+  .root[data-appearance="subtle"] {
+    background: var(--bitfun-color-surface-tertiary);
+  }
+
+  .root[data-appearance="neutral"] {
+    background: var(--bitfun-color-action-neutral-surface);
+  }
+
+  .root[data-clip="true"] {
+    overflow: clip;
+  }
+
+  .root[data-gap="sm"] {
+    gap: var(--bitfun-layout-card-gap-sm);
+  }
+
+  .root[data-gap="md"] {
+    gap: var(--bitfun-layout-card-gap-md);
+  }
+
+  .root[data-gap="lg"] {
+    gap: var(--bitfun-layout-card-gap-lg);
+  }
+
+  .root[data-radius="sm"] {
+    border-radius: var(--bitfun-layout-card-radius-sm);
+  }
+
+  .root[data-radius="md"] {
+    border-radius: var(--bitfun-layout-card-radius-md);
+  }
+
+  .root[data-radius="lg"] {
+    border-radius: var(--bitfun-layout-card-radius-lg);
+  }
+
+  .root[data-padding="sm"],
+  .header[data-padding="sm"],
+  .body[data-padding="sm"],
+  .footer[data-padding="sm"] {
+    padding: var(--bitfun-layout-card-padding-sm);
+  }
+
+  .root[data-padding="md"],
+  .header[data-padding="md"],
+  .body[data-padding="md"],
+  .footer[data-padding="md"] {
+    padding: var(--bitfun-layout-card-padding-md);
+  }
+
+  .header {
+    display: flex;
+    align-items: flex-start;
+    min-inline-size: 0;
+    gap: var(--bitfun-layout-card-header-gap);
+  }
+
+  .header[data-align="center"] {
+    align-items: center;
+  }
+
+  .leading,
+  .actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    min-inline-size: 0;
+  }
+
+  .headerContent {
+    display: flex;
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    flex-direction: column;
+    gap: var(--bitfun-layout-card-title-description-gap);
+  }
+
+  .headerContent[data-align="center"] {
+    align-items: center;
+    text-align: center;
+  }
+
+  .headerContent[data-align="start"] {
+    align-items: flex-start;
+    text-align: start;
+  }
+
+  .headerContent[data-align="end"] {
+    align-items: flex-end;
+    text-align: end;
+  }
+
+  .title {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-heading-card-font-family);
+    font-size: var(--bitfun-type-heading-card-font-size);
+    font-weight: var(--bitfun-type-heading-card-font-weight);
+    line-height: var(--bitfun-type-heading-card-line-height);
+    letter-spacing: var(--bitfun-type-heading-card-letter-spacing);
+  }
+
+  .description,
+  .body {
+    min-inline-size: 0;
+    color: var(--bitfun-color-content-secondary);
+    font-family: var(--bitfun-type-body-sm-font-family);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    line-height: var(--bitfun-type-body-sm-line-height);
+    letter-spacing: var(--bitfun-type-body-sm-letter-spacing);
+  }
+
+  .body[data-align="start"] {
+    align-items: flex-start;
+  }
+
+  .body[data-align="center"] {
+    align-items: center;
+    text-align: center;
+  }
+
+  .body[data-align="end"] {
+    align-items: flex-end;
+    text-align: end;
+  }
+
+  .actions {
+    margin-inline-start: auto;
+  }
+
+  .body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .media {
+    display: grid;
+    min-inline-size: 0;
+    min-block-size: var(--bitfun-layout-card-media-min-block-size);
+    overflow: hidden;
+    place-items: center;
+    background: var(--bitfun-color-surface-canvas);
+  }
+
+  .media > :where(img, video, picture) {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+  }
+
+  .footer {
+    display: flex;
+    align-items: center;
+    min-inline-size: 0;
+    gap: var(--bitfun-layout-card-footer-gap);
+  }
+
+  .footer[data-align="start"] {
+    justify-content: flex-start;
+  }
+
+  .footer[data-align="center"] {
+    justify-content: center;
+  }
+
+  .footer[data-align="end"] {
+    justify-content: flex-end;
+  }
+
+  .footer[data-align="between"] {
+    justify-content: space-between;
+  }
+
+  @media (forced-colors: active) {
+    .root {
+      border-color: CanvasText;
+    }
+  }
+}

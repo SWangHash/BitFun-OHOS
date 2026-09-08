@@ -96,8 +96,8 @@ use api::git_api::*;
 use api::i18n_api::*;
 use api::lsp_api::*;
 use api::lsp_workspace_api::*;
-use api::mcp_api::*;
 use api::matrix_skill_api::*;
+use api::mcp_api::*;
 use api::review_platform_api::*;
 use api::runtime_api::*;
 use api::search_api::*;
@@ -1334,7 +1334,6 @@ pub async fn _run() {
             );
 
             let step_started = Instant::now();
-            api::remote_connect_api::init_auto_sync();
             api::remote_connect_api::init_on_startup();
             startup_trace.record_elapsed_step(
                 "native_setup",
@@ -1996,38 +1995,28 @@ pub async fn _run() {
             api::remote_connect_api::remote_connect_status,
             api::remote_connect_api::remote_connect_get_form_state,
             api::remote_connect_api::remote_connect_set_form_state,
-            api::remote_connect_api::remote_connect_configure_custom_server,
             api::remote_connect_api::remote_connect_configure_bot,
             api::remote_connect_api::remote_connect_weixin_qr_start,
             api::remote_connect_api::remote_connect_weixin_qr_poll,
             api::remote_connect_api::remote_connect_get_bot_verbose_mode,
             api::remote_connect_api::remote_connect_set_bot_verbose_mode,
-            // Account API
+            api::account_identity_api::account_github_start,
+            api::account_identity_api::account_github_poll,
+            api::account_identity_api::account_github_info,
             api::remote_connect_api::account_login,
-            api::remote_connect_api::account_finalize_login,
-            api::remote_connect_api::account_cancel_pending_login,
             api::remote_connect_api::account_status,
             api::remote_connect_api::account_logout,
             api::remote_connect_api::account_connect_devices,
             api::remote_connect_api::account_online_devices,
-            api::remote_connect_api::account_send_session_to_device,
-            api::remote_connect_api::account_sync_session,
-            api::remote_connect_api::account_fetch_synced_sessions,
-            api::remote_connect_api::account_delete_synced_session,
-            api::remote_connect_api::account_sync_settings,
-            api::remote_connect_api::account_fetch_settings,
-            api::remote_connect_api::account_export_local_session,
-            api::remote_connect_api::account_export_all_sessions,
-            api::remote_connect_api::account_import_remote_sessions,
-            api::remote_connect_api::account_fetch_session_turns,
             api::remote_connect_api::account_execute_on_device,
-            api::remote_connect_api::account_auto_sync,
             api::remote_connect_api::account_get_credential_hint,
             api::remote_connect_api::account_token_expired,
             api::remote_connect_api::account_list_devices,
             api::remote_connect_api::account_delete_device,
             api::remote_connect_api::account_device_rpc,
-            api::remote_connect_api::account_delegate_to_paired,
+            api::remote_connect_api::account_subscribe_session,
+            api::remote_connect_api::account_unsubscribe_session,
+            api::remote_connect_api::account_load_older_session,
             // BitFun Page API
             api::pages_api::page_publish,
             api::pages_api::page_save_version,
@@ -2190,14 +2179,6 @@ pub async fn _run() {
             api::dispatch_api::dispatch_query,
             api::dispatch_api::dispatch_load_transcript,
             api::dispatch_api::dispatch_save_transcript,
-            // Relay self-deploy API
-            api::relay_deploy_api::relay_deploy_preflight,
-            api::relay_deploy_api::relay_deploy_install_docker,
-            api::relay_deploy_api::relay_deploy_start,
-            api::relay_deploy_api::relay_deploy_poll,
-            api::relay_deploy_api::relay_deploy_cancel,
-            api::relay_deploy_api::relay_deploy_register,
-            api::relay_deploy_api::relay_deploy_verify,
             // Announcement / feature-demo / tips API
             api::announcement_api::get_pending_announcements,
             api::announcement_api::mark_announcement_seen,

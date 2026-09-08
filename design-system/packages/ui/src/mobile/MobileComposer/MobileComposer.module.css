@@ -1,0 +1,136 @@
+@layer bitfun.components {
+  .root {
+    position: relative;
+    box-sizing: border-box;
+    display: grid;
+    inline-size: 100%;
+    min-inline-size: 0;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--bitfun-space-1);
+    min-block-size: calc(var(--bitfun-space-12) + var(--bitfun-space-2));
+    padding: var(--bitfun-space-1) var(--bitfun-space-2);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-pill);
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-surface-panel);
+    box-shadow: var(--bitfun-shadow-base);
+    transition:
+      min-block-size var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+      border-radius var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+      box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .root[data-interactive="true"] {
+    cursor: text;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .root[data-interactive="true"]:active {
+    box-shadow: var(--bitfun-shadow-sm);
+  }
+
+  .root[data-interactive="true"]:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+  }
+
+  .leading,
+  .editor,
+  .toolbar,
+  .startActions,
+  .endActions {
+    box-sizing: border-box;
+    min-inline-size: 0;
+  }
+
+  .leading,
+  .toolbar,
+  .startActions,
+  .endActions {
+    display: flex;
+    align-items: center;
+  }
+
+  .leading {
+    justify-content: center;
+  }
+
+  .editor {
+    display: flex;
+    min-block-size: 38px;
+    align-items: center;
+  }
+
+  .editor > :where(input, textarea) {
+    box-sizing: border-box;
+    inline-size: 100%;
+    min-inline-size: 0;
+    margin: 0;
+    border: 0;
+    outline: 0;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+  }
+
+  .toolbar {
+    justify-content: flex-end;
+  }
+
+  .startActions {
+    display: none;
+  }
+
+  .endActions {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    gap: var(--bitfun-space-1);
+  }
+
+  .root[data-expanded="true"] {
+    display: flex;
+    min-block-size: calc(2 * var(--bitfun-space-12) + var(--bitfun-space-6));
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: var(--bitfun-space-2);
+    border-radius: var(--bitfun-radius-xl);
+    box-shadow: var(--bitfun-shadow-lg);
+  }
+
+  .root[data-expanded="true"] .leading {
+    display: none;
+  }
+
+  .root[data-expanded="true"] .editor {
+    min-block-size: 58px;
+    flex: 1 1 auto;
+    align-items: flex-start;
+  }
+
+  .root[data-expanded="true"] .toolbar {
+    display: flex;
+    min-block-size: var(--bitfun-space-12);
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--bitfun-space-2);
+  }
+
+  .root[data-expanded="true"] .startActions {
+    display: flex;
+    min-inline-size: 0;
+    flex: 1 1 auto;
+    gap: var(--bitfun-space-2);
+    flex-wrap: wrap;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .root { transition: none; }
+  }
+
+  @media (forced-colors: active) {
+    .root { border-color: CanvasText; }
+  }
+}

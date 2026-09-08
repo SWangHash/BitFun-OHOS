@@ -1,0 +1,97 @@
+@layer bitfun.components {
+  .switch {
+    position: relative;
+    display: inline-flex;
+    flex: 0 0 auto;
+    inline-size: var(--bitfun-control-switch-track-width);
+    block-size: var(--bitfun-control-switch-track-height);
+    vertical-align: middle;
+  }
+
+  .input {
+    position: absolute;
+    z-index: var(--bitfun-layer-content);
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .track {
+    position: relative;
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    overflow: hidden;
+    border-radius: var(--bitfun-radius-pill);
+    background: var(--bitfun-color-control-switch-track);
+    pointer-events: none;
+    transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .thumb {
+    position: absolute;
+    inset-block-start: var(--bitfun-control-switch-thumb-inset);
+    inset-inline-start: var(--bitfun-control-switch-thumb-inset);
+    inline-size: var(--bitfun-control-switch-thumb-size);
+    block-size: var(--bitfun-control-switch-thumb-size);
+    border-radius: var(--bitfun-radius-pill);
+    background: var(--bitfun-color-control-switch-thumb);
+    transform: translateX(0);
+    transition: transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .input:checked + .track {
+    background: var(--bitfun-color-control-switch-track-checked);
+  }
+
+  .input:checked + .track .thumb {
+    transform: translateX(var(--bitfun-control-switch-thumb-travel));
+  }
+
+  .switch:dir(rtl) .input:checked + .track .thumb {
+    transform: translateX(var(--bitfun-control-switch-thumb-travel-reverse));
+  }
+
+  .input:focus-visible + .track {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+  }
+
+  .input:disabled {
+    cursor: not-allowed;
+  }
+
+  .input:disabled + .track {
+    opacity: var(--bitfun-opacity-disabled);
+  }
+
+  @media (forced-colors: active) {
+    .track {
+      border: var(--bitfun-border-width-default) solid ButtonText;
+      background: Canvas;
+    }
+
+    .thumb {
+      background: ButtonText;
+    }
+
+    .input:checked + .track {
+      border-color: Highlight;
+      background: Highlight;
+    }
+
+    .input:checked + .track .thumb {
+      background: Canvas;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .track,
+    .thumb {
+      transition: none;
+    }
+  }
+}

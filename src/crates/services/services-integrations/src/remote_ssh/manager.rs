@@ -3756,6 +3756,12 @@ impl SSHConnectionManager {
     /// Also detects config drift (e.g. the user changed the port after the
     /// connection was established) and forces a reconnect with the updated
     /// parameters so that historical sessions never use a stale port.
+    /// Idempotently make sure the connection with this id is alive, applying
+    /// the latest saved profile when a reconnect is needed.
+    pub async fn ensure_connected(&self, connection_id: &str) -> anyhow::Result<()> {
+        self.ensure_alive_or_reconnect(connection_id).await
+    }
+
     ///
     /// Uses a per-connection mutex to prevent reconnect stampedes when many
     /// concurrent SFTP/exec calls hit a dead session at the same time.

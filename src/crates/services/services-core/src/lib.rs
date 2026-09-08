@@ -4,6 +4,8 @@
 //! tested without compiling the full BitFun product runtime.
 
 pub mod bounded_fs;
+#[cfg(feature = "credential-vault")]
+pub mod credential_vault;
 #[cfg(feature = "diagnostics")]
 pub mod diagnostics;
 #[cfg(feature = "diff")]
@@ -13,6 +15,8 @@ pub mod dispatch_contract;
 pub mod dispatch_workspace;
 #[cfg(any(feature = "local-storage", feature = "runtime-ownership"))]
 mod file_lock;
+#[cfg(feature = "workspace-transfer")]
+pub mod file_write_lock;
 #[cfg(feature = "filesystem")]
 pub mod filesystem;
 #[cfg(any(feature = "markdown", feature = "workspace-instructions"))]
@@ -33,16 +37,16 @@ pub mod markdown;
 pub mod permission_store;
 #[cfg(feature = "local-storage")]
 pub mod persistence;
-#[cfg(feature = "secure-credentials")]
-pub mod secure_credentials;
-#[cfg(feature = "screen-capture")]
-pub mod screen_capture;
 #[cfg(feature = "process-runtime")]
 pub mod process_manager;
 #[cfg(feature = "process-runtime")]
 pub mod process_tree;
 #[cfg(feature = "runtime-ownership")]
 pub mod runtime_ownership;
+#[cfg(feature = "screen-capture")]
+pub mod screen_capture;
+#[cfg(feature = "secure-credentials")]
+pub mod secure_credentials;
 #[cfg(feature = "local-storage")]
 pub mod session;
 #[cfg(feature = "local-storage")]
@@ -51,6 +55,8 @@ pub mod session_usage;
 pub mod storage_cleanup;
 #[cfg(feature = "process-runtime")]
 pub mod system;
+#[cfg(feature = "tls-provider")]
+pub mod tls_provider;
 #[cfg(feature = "local-storage")]
 pub mod token_usage;
 #[cfg(feature = "workspace-runtime")]
@@ -60,3 +66,8 @@ pub mod workspace_identity;
 #[cfg(feature = "workspace-instructions")]
 pub mod workspace_instructions;
 pub mod workspace_text;
+#[cfg(feature = "workspace-transfer")]
+pub mod workspace_transfer;
+
+#[cfg(feature = "product-identity")]
+pub use bitfun_core_types::product_identity;

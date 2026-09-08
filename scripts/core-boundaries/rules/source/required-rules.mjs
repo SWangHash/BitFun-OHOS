@@ -6564,7 +6564,7 @@ export const requiredContentRules = [
         message: 'missing remote-connect encryption compatibility export',
       },
       {
-        regex: /pub use pairing::\{[\s\S]*\bPairingChallenge\b[\s\S]*\bPairingProtocol\b[\s\S]*\bPairingResponse\b[\s\S]*\bPairingState\b[\s\S]*\bQrPayload\b[\s\S]*\}/,
+        regex: /\bpub use pairing::(\{[\s\S]*\bPairingState\b[\s\S]*\}|PairingState);/,
         message: 'missing remote-connect pairing compatibility export',
       },
       {
@@ -6572,7 +6572,7 @@ export const requiredContentRules = [
         message: 'missing remote-connect QR compatibility export',
       },
       {
-        regex: /pub use relay_client::\{[\s\S]*\bConnectionState\b[\s\S]*\bRelayClient\b[\s\S]*\bRelayEvent\b[\s\S]*\bRelayMessage\b[\s\S]*\}/,
+        regex: /pub use relay_client::\{[\s\S]*\bConnectionState\b[\s\S]*\bRelayClient\b[\s\S]*\bRelayEvent\b[\s\S]*\}/,
         message: 'missing remote-connect relay compatibility export',
       },
       {

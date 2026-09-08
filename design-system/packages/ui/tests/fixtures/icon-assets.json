@@ -1,0 +1,32 @@
+[
+  {
+    "name": "creative",
+    "node": "538:19712",
+    "asset": "creative.svg",
+    "sha256": "b153ef7d703c7b2738a897f758b78428d88382f91273967aa89425bf56015933"
+  },
+  {
+    "name": "git",
+    "node": "4:5583",
+    "asset": "git.svg",
+    "sha256": "eea3a6655b3943eb1e75b5d3ecfadd4c804063e7613a08d31186ef68b55b2b52"
+  },
+  {
+    "name": "minimal",
+    "node": "538:22189",
+    "asset": "minimal.svg",
+    "sha256": "207d6a5545d7d7feafa08cb528fa1cb89f622ae7ef50c6d2bdd465066cc3ccc2"
+  },
+  {
+    "name": "standard",
+    "node": "538:22179",
+    "asset": "standard.svg",
+    "sha256": "cb7a5c5c3080b3ad8cfbd1352b4f7bf7bb765cd9c98722d5005fee5f97809098"
+  },
+  {
+    "name": "ultimate",
+    "node": "538:19950",
+    "asset": "ultimate.svg",
+    "sha256": "1b7c9329d2f6a870dc4a6734c012f1f40b8d4491ecf5e1dd9542b87b84da6143"
+  }
+]

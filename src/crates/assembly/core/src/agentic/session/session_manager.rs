@@ -7853,7 +7853,7 @@ impl SessionManager {
         Ok(())
     }
 
-    fn append_generation_rounds(
+    pub(crate) fn append_generation_rounds(
         turn: &mut DialogTurnData,
         turn_id: &str,
         new_messages: &[Message],

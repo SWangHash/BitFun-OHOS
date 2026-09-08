@@ -6,6 +6,7 @@ import { PrivacyGate, PrivacyProvider } from "./app/components/Privacy";
 import { STARTUP_OVERLAY_HIDDEN_EVENT } from "./app/startup/startupSignals";
 import { I18nProvider } from "./infrastructure/i18n/providers/I18nProvider";
 import { mouseGlowService } from "./infrastructure/mouse-glow/core/MouseGlowService";
+import "@bitfun/ui/styles.css";
 import "./app/styles/index.scss";
 
 // Font: Noto Sans SC is loaded via a <link> tag in index.html.
@@ -273,12 +274,6 @@ async function initializeAfterRender(): Promise<void> {
       await installFrontendLogLevelConfigWatcher();
     })(),
     (async () => {
-      const { ensureSettingsAppliedListener } = await import(
-        './infrastructure/account/settingsAppliedListener'
-      );
-      ensureSettingsAppliedListener();
-    })(),
-    (async () => {
       const { registerDefaultContextTypes } = await import('./shared/context-system/core/registerDefaultTypes');
       registerDefaultContextTypes();
     })(),
@@ -307,7 +302,6 @@ async function initializeAfterRender(): Promise<void> {
     const names = [
       'EditorConfigPreload',
       'LogLevelConfigWatcher',
-      'SettingsAppliedListener',
       'DefaultContextTypes',
       'RecommendationProviders',
       'Tools',

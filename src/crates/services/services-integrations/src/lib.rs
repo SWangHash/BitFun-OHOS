@@ -6,6 +6,34 @@
 #[cfg(feature = "anonymous-auth")]
 pub mod anonymous_auth;
 
+#[cfg(any(
+    feature = "account-identity",
+    feature = "mcp",
+    feature = "miniapp-market",
+    feature = "miniapp-runtime",
+    feature = "models-dev",
+    feature = "remote-connect",
+    feature = "remote-ssh-concrete",
+    feature = "review-platform",
+    feature = "speech",
+    feature = "web-tools",
+))]
+pub(crate) fn reqwest_client_builder() -> reqwest::ClientBuilder {
+    bitfun_services_core::tls_provider::ensure_ring_crypto_provider();
+    reqwest::Client::builder()
+}
+
+#[cfg(any(
+    feature = "announcement",
+    feature = "browser-control",
+    feature = "mcp",
+    feature = "remote-connect",
+))]
+pub(crate) fn reqwest_client() -> reqwest::Client {
+    bitfun_services_core::tls_provider::ensure_ring_crypto_provider();
+    reqwest::Client::new()
+}
+
 #[cfg(feature = "announcement")]
 pub mod announcement;
 
@@ -60,6 +88,9 @@ pub mod privacy;
 #[cfg(feature = "remote-connect")]
 pub mod remote_connect;
 
+#[cfg(feature = "remote-persistence")]
+pub mod remote_persistence;
+
 #[cfg(all(test, feature = "remote-connect"))]
 mod feature_contract_tests {
     #[test]
@@ -91,3 +122,6 @@ pub mod web_tools;
 #[cfg(all(windows, feature = "git"))]
 #[link(name = "advapi32")]
 unsafe extern "system" {}
+
+#[cfg(feature = "account-identity")]
+pub mod account_identity;

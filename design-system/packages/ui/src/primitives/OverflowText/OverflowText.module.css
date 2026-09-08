@@ -1,0 +1,181 @@
+@layer bitfun.base {
+  .root {
+    --_overflow-text-marquee-distance: 0px;
+    --_overflow-text-marquee-duration: 2400ms;
+    --_overflow-text-marquee-offset: calc(0px - var(--_overflow-text-marquee-distance));
+
+    display: block;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    overflow: hidden;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
+  .root:has(> .content) {
+    /* Center the natural text box without an anonymous inline baseline strut.
+       Keep the owner's leading as a minimum, and let taller fonts expand it.
+       The zero-minimum track still allows long labels to overflow horizontally. */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    min-block-size: 1lh;
+  }
+
+  .content {
+    display: block;
+    min-inline-size: max-content;
+    /* Keep ascent/descent inside the clipping box, including in tight controls. */
+    line-height: var(--bitfun-type-modifier-leading-intrinsic-line-height);
+    /* Font ink and fractional scaling can extend beyond the natural line box.
+       Include block-axis breathing room in the grid's intrinsic height so the
+       horizontal clipping viewport does not shave off accents or descenders. */
+    padding-block: calc(var(--bitfun-space-1) / 2);
+  }
+
+  .root[data-overflow-style="ellipsis"] > .content {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .root[data-overflow-lines] {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: var(--_overflow-text-lines);
+    line-clamp: var(--_overflow-text-lines);
+    white-space: normal;
+  }
+
+  .root:dir(rtl) {
+    --_overflow-text-marquee-offset: var(--_overflow-text-marquee-distance);
+  }
+
+  .root[data-overflow="true"] {
+    /* Preserve the reading start when the owning control centers its label. */
+    text-align: start;
+  }
+
+  /* Keep resting specificity low so the owning control can reveal the full end. */
+  .root:not([data-overflow-style="ellipsis"])[data-overflow-behavior="fade"][data-overflow="true"]:not([data-overflow-lines]),
+  .root:not([data-overflow-style="ellipsis"])[data-overflow-behavior="marquee"][data-overflow="true"]:where(:not(:hover):not(:focus-visible):not([data-marquee-active="true"])) {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      currentColor 0,
+      currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      currentColor 0,
+      currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
+      transparent 100%
+    );
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+  }
+
+  .root:not([data-overflow-style="ellipsis"]):where(:dir(rtl))[data-overflow-behavior="fade"][data-overflow="true"]:not([data-overflow-lines]),
+  .root:not([data-overflow-style="ellipsis"]):where(:dir(rtl))[data-overflow-behavior="marquee"][data-overflow="true"]:where(:not(:hover):not(:focus-visible):not([data-marquee-active="true"])) {
+    -webkit-mask-image: linear-gradient(
+      to left,
+      currentColor 0,
+      currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to left,
+      currentColor 0,
+      currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
+      transparent 100%
+    );
+  }
+
+  :where([data-overflow-trigger][data-overflow-active="true"]) .root:where(:not([data-marquee-trigger="interaction"])):not([data-overflow-style="ellipsis"])[data-overflow-behavior="marquee"][data-overflow="true"],
+  :where([data-overflow-trigger]:is(:hover, :focus-within)) .root:not([data-overflow-style="ellipsis"])[data-overflow-behavior="marquee"][data-overflow="true"] {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  :where([data-overflow-trigger][data-overflow-active="true"]) .root:where(:not([data-marquee-trigger="interaction"]))[data-overflow-behavior="marquee"][data-overflow="true"] .content,
+  :where([data-overflow-trigger]:is(:hover, :focus-within)) .root[data-overflow-behavior="marquee"][data-overflow="true"] .content,
+  .root[data-overflow-behavior="marquee"][data-overflow="true"]:hover .content,
+  .root[data-overflow-behavior="marquee"][data-overflow="true"]:focus-visible .content,
+  .root[data-overflow-behavior="marquee"][data-overflow="true"][data-marquee-active="true"] .content {
+    min-inline-size: max-content;
+    overflow: visible;
+    text-overflow: clip;
+    animation: bitfun-overflow-text-marquee var(--_overflow-text-marquee-duration) linear infinite alternate;
+    will-change: transform;
+  }
+
+  @keyframes bitfun-overflow-text-marquee {
+    /* Start moving immediately; percentage holds delay long descriptions for seconds. */
+    from {
+      transform: translateX(0);
+    }
+
+    to {
+      transform: translateX(var(--_overflow-text-marquee-offset));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .root:not([data-overflow-style="ellipsis"])[data-overflow-behavior="marquee"][data-overflow="true"] {
+      -webkit-mask-image: linear-gradient(
+        to right,
+        currentColor 0,
+        currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
+        transparent 100%
+      );
+      mask-image: linear-gradient(
+        to right,
+        currentColor 0,
+        currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
+        transparent 100%
+      );
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+    }
+
+    .root:not([data-overflow-style="ellipsis"]):dir(rtl)[data-overflow-behavior="marquee"][data-overflow="true"] {
+      -webkit-mask-image: linear-gradient(
+        to left,
+        currentColor 0,
+        currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
+        transparent 100%
+      );
+      mask-image: linear-gradient(
+        to left,
+        currentColor 0,
+        currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
+        transparent 100%
+      );
+    }
+
+    :where([data-overflow-trigger][data-overflow-active="true"]) .root:where(:not([data-marquee-trigger="interaction"]))[data-overflow-behavior="marquee"][data-overflow="true"] .content,
+    :where([data-overflow-trigger]:is(:hover, :focus-within)) .root[data-overflow-behavior="marquee"][data-overflow="true"] .content,
+    .root[data-overflow-behavior="marquee"][data-overflow="true"]:hover .content,
+    .root[data-overflow-behavior="marquee"][data-overflow="true"]:focus-visible .content,
+    .root[data-overflow-behavior="marquee"][data-overflow="true"][data-marquee-active="true"] .content {
+      animation: none;
+      transform: none;
+      will-change: auto;
+    }
+
+    .root[data-overflow-style="ellipsis"][data-overflow-behavior="marquee"][data-overflow="true"] > .content {
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .root:not([data-overflow-style="ellipsis"]):dir(rtl)[data-overflow-behavior][data-overflow="true"],
+    .root:not([data-overflow-style="ellipsis"])[data-overflow-behavior][data-overflow="true"],
+    .root:not([data-overflow-style="ellipsis"])[data-overflow-behavior][data-overflow="true"]:not(:hover):not(:focus-visible):not([data-marquee-active="true"]) {
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+  }
+}

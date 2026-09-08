@@ -1,0 +1,53 @@
+@layer bitfun.components {
+  .root {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: 0;
+    margin: 0;
+    gap: calc(var(--bitfun-space-1) / 2);
+    padding-block: calc(var(--bitfun-space-1) / 2);
+    padding-inline: var(--bitfun-space-1);
+    border: 0;
+    border-radius: var(--bitfun-radius-xs);
+    color: var(--bitfun-color-key-hint-content);
+    background: var(--bitfun-color-key-hint-background);
+    font-family: var(--bitfun-type-micro-font-family);
+    font-size: var(--bitfun-type-micro-font-size);
+    font-weight: var(--bitfun-type-micro-font-weight);
+    letter-spacing: var(--bitfun-type-micro-letter-spacing);
+    line-height: var(--bitfun-type-modifier-leading-none-line-height);
+    text-decoration: none;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  .icon {
+    --bitfun-opacity-icon-artwork: 1;
+  }
+
+  .icon,
+  .label {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: 0;
+  }
+
+  .icon > :where(svg, img),
+  .icon > [data-bitfun-component="icon"] {
+    display: block;
+    inline-size: 1em;
+    block-size: 1em;
+  }
+
+  @media (forced-colors: active) {
+    .root {
+      border: var(--bitfun-border-width-default) solid ButtonText;
+      color: ButtonText;
+      background: Canvas;
+    }
+  }
+}

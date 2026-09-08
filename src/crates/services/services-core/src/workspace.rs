@@ -127,6 +127,7 @@ impl WorkspaceFileSystem for LocalWorkspaceFs {
                 path: path.to_string_lossy().to_string(),
                 is_dir: metadata.is_dir(),
                 is_symlink: false,
+                modified: metadata.modified().ok(),
             });
         }
         Ok(entries)

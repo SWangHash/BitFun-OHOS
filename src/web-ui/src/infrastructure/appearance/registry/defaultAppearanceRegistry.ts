@@ -93,7 +93,6 @@ import { gitToolAppearanceDescriptor } from '@/tools/git/appearance';
 import { lspAppearanceDescriptor } from '@/tools/lsp/appearance';
 import { terminalToolAppearanceDescriptor } from '@/tools/terminal/appearance';
 import { workspaceToolAppearanceDescriptor } from '@/tools/workspace/appearance';
-import { relayDeployAppearanceDescriptor } from '@/features/relay-deploy/appearance';
 import { marketAccountControlsAppearanceDescriptor } from '@/features/market-account/appearance';
 import { sshRemoteAppearanceDescriptor } from '@/features/ssh-remote/appearance';
 import { workbenchAppearanceDescriptor } from '@/app/appearance';
@@ -407,7 +406,6 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(notificationButtonAppearanceDescriptor)
     .registerComponent(contextCompressionCardAppearanceDescriptor)
     .registerComponent(reviewSessionSummaryCardAppearanceDescriptor)
-    .registerComponent(relayDeployAppearanceDescriptor)
     .registerComponent(marketAccountControlsAppearanceDescriptor)
     .registerComponent(sshRemoteAppearanceDescriptor)
     .registerComponent(aboutDialogAppearanceDescriptor)

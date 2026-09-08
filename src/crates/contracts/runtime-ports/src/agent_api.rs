@@ -6,6 +6,8 @@ use super::*;
 pub struct AgentSessionCreateRequest {
     pub session_name: String,
     pub agent_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_route_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workspace_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -228,6 +230,8 @@ pub struct AgentSessionModelSelectionUpdateRequest {
 pub struct AgentSessionModeUpdateRequest {
     pub session_id: String,
     pub mode_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_route_key: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -243,6 +247,8 @@ pub struct AgentModeCatalogQuery {
 #[serde(rename_all = "camelCase")]
 pub struct AgentModeCatalogEntry {
     pub id: String,
+    #[serde(default)]
+    pub route_key: String,
     pub description: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,

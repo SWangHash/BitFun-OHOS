@@ -6,6 +6,8 @@ pub mod factory;
 pub mod listing;
 pub mod service;
 pub mod types;
+#[cfg(feature = "remote-connect")]
+pub mod upload;
 
 pub use factory::FileSystemServiceFactory;
 pub use listing::{

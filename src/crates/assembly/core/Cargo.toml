@@ -304,6 +304,7 @@ remote-connect = [
     "git",
     "model-catalog",
     "bitfun-services-integrations/remote-connect",
+    "bitfun-services-core/workspace-transfer",
 ]
 workspace-search = [
     "workspace-runtime",

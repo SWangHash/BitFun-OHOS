@@ -12,8 +12,8 @@
   gap: 6px;
   background: none;
   border: none;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  color: var(--bitfun-color-content-muted);
+  font-size: var(--bitfun-type-body-xs-font-size);
   cursor: pointer;
   padding: 3px 0;
   text-align: left;
@@ -32,9 +32,9 @@
 }
 
 .chat-thinking__label {
-  color: var(--color-text-muted);
+  color: var(--bitfun-color-content-muted);
   font-style: italic;
-  font-size: var(--font-size-xs);
+  font-size: var(--bitfun-type-body-xs-font-size);
 }
 
 // Expand/collapse container using grid animation
@@ -74,12 +74,12 @@
 
   &::before {
     top: 0;
-    background: linear-gradient(to bottom, var(--color-bg-flowchat), transparent);
+    background: linear-gradient(to bottom, var(--bitfun-color-surface-scene), transparent);
   }
 
   &::after {
     bottom: 0;
-    background: linear-gradient(to top, var(--color-bg-flowchat), transparent);
+    background: linear-gradient(to top, var(--bitfun-color-surface-scene), transparent);
   }
 
   &.at-top::before { display: none; }
@@ -88,17 +88,17 @@
 
 .chat-thinking__content {
   padding: var(--size-gap-2) 0;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-  line-height: var(--line-height-relaxed);
+  font-size: var(--bitfun-type-body-xs-font-size);
+  color: var(--bitfun-color-content-muted);
+  line-height: var(--bitfun-type-body-lg-line-height);
 
   p { margin-bottom: 6px; &:last-child { margin-bottom: 0; } }
   code {
-    background: var(--element-bg-base);
+    background: var(--bitfun-color-action-neutral-surface-hover);
     padding: 1px 4px;
     border-radius: 3px;
-    font-size: 11px;
-    font-family: var(--font-family-mono);
+    font-size: var(--bitfun-type-support-font-size);
+    font-family: var(--bitfun-type-code-md-font-family);
   }
 }
 
@@ -110,7 +110,7 @@
       display: inline-block;
       width: 4px;
       height: 12px;
-      background: var(--color-text-muted);
+      background: var(--bitfun-color-content-muted);
       margin-left: 4px;
       animation: pulse 1s ease-in-out infinite;
       vertical-align: middle;

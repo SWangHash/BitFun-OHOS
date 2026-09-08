@@ -87,6 +87,7 @@ fn protocol_round_trips_read_only_main_agent_catalog() {
     let result = RuntimeIpcOperationResult::AgentModes {
         modes: vec![RuntimeAgentModeSummary {
             id: "review".to_string(),
+            route_key: String::new(),
             description: "Review the current workspace".to_string(),
             model_id: Some("provider/model".to_string()),
             is_external: true,

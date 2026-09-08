@@ -1,0 +1,42 @@
+@layer bitfun.components {
+  .root {
+    box-sizing: border-box;
+    border-radius: var(--bitfun-radius-sm);
+    color: var(--bitfun-color-accent-default);
+    text-decoration-line: underline;
+    text-decoration-thickness: var(--bitfun-border-width-default);
+    text-underline-offset: 0.16em;
+    touch-action: manipulation;
+  }
+
+  .root:hover {
+    color: var(--bitfun-color-accent-hover);
+  }
+
+  .root:active {
+    color: var(--bitfun-color-accent-hover);
+  }
+
+  .root:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+  }
+
+  .root[data-appearance="surface"] {
+    display: inline-flex;
+    min-block-size: 44px;
+    align-items: center;
+    padding-inline: var(--bitfun-space-3);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-pill);
+    background: var(--bitfun-color-surface-panel);
+    box-shadow: var(--bitfun-shadow-xs);
+    text-decoration: none;
+  }
+
+  @media (forced-colors: active) {
+    .root {
+      color: LinkText;
+    }
+  }
+}

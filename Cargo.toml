@@ -302,7 +302,17 @@ shellexpand = "3"
 ssh_config = "0.1"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 
+# Remote Connect account transport: HKDF device-key derivation and the
+# Socket.IO client (sioc) used by the realtime relay connection.
+hkdf = "0.12"
+sioc = { version = "0.5.0", default-features = false }
+eioc = { path = "third_party/eioc" }
+
 [patch.crates-io]
+# Keep Socket.IO on the product-owned ring provider; the vendored engine-io
+# fork pins the rustls CryptoProvider selection so the realtime client cannot
+# install a second process-level provider.
+eioc = { path = "third_party/eioc" }
 # tao 0.35.3 can re-enter its Windows window callback while holding input locks.
 # Use the upstream fix until it is included in a crates.io release.
 wry = { git = "https://github.com/richerfu/wry"}

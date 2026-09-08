@@ -1,0 +1,41 @@
+@layer bitfun.components {
+  .root {
+    box-sizing: border-box;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: var(--bitfun-space-6);
+    min-block-size: var(--bitfun-space-6);
+    padding: 0;
+    vertical-align: middle;
+    color: var(--bitfun-color-action-neutral-content);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .value {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: var(--bitfun-space-6);
+    min-block-size: var(--bitfun-space-6);
+    padding-inline: calc(var(--bitfun-space-1) / 2);
+    border-radius: var(--bitfun-radius-pill);
+    background: var(--bitfun-color-number-badge-background);
+  }
+
+  @media (forced-colors: active) {
+    .value {
+      outline: var(--bitfun-border-width-default) solid CanvasText;
+      color: CanvasText;
+      background: Canvas;
+    }
+  }
+}

@@ -258,6 +258,7 @@ impl RuntimeIpcRequestHandler for SharedRuntimeHandler {
                     .into_iter()
                     .map(|mode| RuntimeAgentModeSummary {
                         id: mode.id,
+                        route_key: mode.route_key.clone(),
                         description: mode.description,
                         model_id: mode.model_id,
                         is_external: mode.is_external,

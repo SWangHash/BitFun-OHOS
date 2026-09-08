@@ -1,0 +1,42 @@
+@layer bitfun.components {
+  .root { display: inline-flex; min-inline-size: 0; flex-direction: column; gap: var(--bitfun-space-2); color: var(--bitfun-color-content-primary); }
+  .root[data-layout="fill"] { flex: 1 1 auto; min-block-size: 0; }
+  .label { font-family: var(--bitfun-type-label-md-font-family); font-size: var(--bitfun-type-label-md-font-size); font-weight: var(--bitfun-type-label-md-font-weight); line-height: var(--bitfun-type-label-md-line-height); letter-spacing: var(--bitfun-type-label-md-letter-spacing); }
+  .required { color: var(--bitfun-color-content-required-indicator); }
+  .error { color: var(--bitfun-color-status-danger-content); }
+  .textarea {
+    min-block-size: calc(var(--bitfun-control-height-lg) * 2);
+    inline-size: 100%;
+    margin: 0;
+    padding: var(--bitfun-space-3);
+    resize: vertical;
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border);
+    border-radius: var(--bitfun-radius-base);
+    outline: 0;
+    caret-color: var(--bitfun-color-accent-default);
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-field-background);
+    font-family: var(--bitfun-type-body-sm-font-family);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    line-height: var(--bitfun-type-body-sm-line-height);
+    letter-spacing: var(--bitfun-type-body-sm-letter-spacing);
+    transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard), border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+  .root[data-auto-resize="true"] .textarea { overflow: hidden; resize: none; }
+  .root[data-font="mono"] .textarea { font-family: var(--bitfun-type-code-md-font-family); font-size: var(--bitfun-type-code-md-font-size); font-weight: var(--bitfun-type-code-md-font-weight); line-height: var(--bitfun-type-code-md-line-height); letter-spacing: var(--bitfun-type-code-md-letter-spacing); }
+  .root[data-layout="fill"] .textarea { flex: 1 1 auto; min-block-size: 0; }
+  .root[data-resize="none"] .textarea { resize: none; }
+  .root[data-variant="filled"] .textarea { border-color: transparent; }
+  .textarea:hover:where(:not(:disabled)) { border-color: var(--bitfun-color-field-border-hover); background: var(--bitfun-color-field-background-hover); }
+  .root[data-field-surface="ambient"] .textarea,
+  .root[data-field-surface="ambient"] .textarea:hover:not(:disabled) { background: transparent; }
+  .root .textarea:focus { border-color: var(--bitfun-color-field-border-focus); box-shadow: none; }
+  .root[data-invalid="true"] .textarea { border-color: var(--bitfun-color-status-danger-border); }
+  .textarea:disabled { color: var(--bitfun-color-content-disabled); cursor: not-allowed; }
+  .textarea::placeholder, .hint, .count { color: var(--bitfun-color-content-muted); }
+  .support { display: flex; justify-content: space-between; gap: var(--bitfun-space-3); font-family: var(--bitfun-type-support-font-family); font-size: var(--bitfun-type-support-font-size); font-weight: var(--bitfun-type-support-font-weight); line-height: var(--bitfun-type-support-line-height); letter-spacing: var(--bitfun-type-support-letter-spacing); }
+  .count { margin-inline-start: auto; white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) { .textarea { transition: none; } }
+  @media (forced-colors: active) { .textarea { border-color: ButtonText; } .root .textarea:focus { border-color: Highlight; } }
+}

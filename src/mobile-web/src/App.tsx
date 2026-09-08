@@ -1,16 +1,31 @@
 import React, { Suspense, lazy, useState, useCallback, useRef, useEffect } from 'react';
-import PairingPage from './pages/PairingPage';
+import { MobileBanner, MobileButton, MobileScrim, MobileStatus } from '@bitfun/ui/mobile';
+import PairingPage, { type BrowserAccountBinding } from './pages/PairingPage';
 import WorkspacePage from './pages/WorkspacePage';
+import DeviceToolsPage from './pages/DeviceToolsPage';
 import SessionListPage from './pages/SessionListPage';
 import DevicesPage from './pages/DevicesPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { I18nProvider, useI18n } from './i18n';
 import { RelayHttpClient } from './services/RelayHttpClient';
-import { RemoteSessionManager } from './services/RemoteSessionManager';
-import { reconcileDelegatedAccountOwner } from './services/delegatedAccountOwner';
+import {
+  REMOTE_CAPABILITY_HARNESS_PROFILES_V1,
+  RemoteSessionManager,
+} from './services/RemoteSessionManager';
+import { reconcileAccountOwner } from './services/accountOwner';
+import { BrowserAccountStorageError, releaseBrowserAccount } from './services/BrowserAccountStore';
+import { CloudAccountClient } from './services/CloudAccountClient';
+import {
+  clearMobileNavigation,
+  saveMobileNavigation,
+  type PairedNavigation,
+} from './services/MobileNavigationStore';
 import { ThemeProvider } from './theme';
 import { useConnectionHealth } from './hooks/useConnectionHealth';
+import { useWideLayout } from './hooks/useWideLayout';
 import { useMobileStore } from './services/store';
+import RemoteHomePanel from './components/RemoteHomePanel';
+import HarnessProfilePicker from './components/HarnessProfilePicker';
 import './styles/index.scss';
 
 type Page = 'pairing' | 'workspace' | 'sessions' | 'chat' | 'devices';
@@ -38,14 +53,27 @@ const AppContent: React.FC = () => {
   const [page, setPage] = useState<Page>('pairing');
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeSessionName, setActiveSessionName] = useState<string>('Session');
+  const [activeSessionAgentType, setActiveSessionAgentType] = useState('Standard');
   const [chatAutoFocus, setChatAutoFocus] = useState(false);
+  const [homeConversationStarting, setHomeConversationStarting] = useState(false);
+  const [homeHarnessPickerOpen, setHomeHarnessPickerOpen] = useState(false);
+  const [compactSidebarOpen, setCompactSidebarOpen] = useState(false);
+  const isWideLayout = useWideLayout();
   const connectionHealth = useMobileStore((state) => state.connectionHealth);
   const clientRef = useRef<RelayHttpClient | null>(null);
-  const delegatedOwnerUnlistenRef = useRef<(() => void) | null>(null);
+  const accountOwnerUnlistenRef = useRef<(() => void) | null>(null);
   const sessionMgrRef = useRef<RemoteSessionManager | null>(null);
   const [sessionMgr, setSessionMgr] = useState<RemoteSessionManager | null>(null);
+  const [accountDirectoryOpen, setAccountDirectoryOpen] = useState(false);
+  const [preferredDeviceId, setPreferredDeviceId] = useState<string | undefined>();
+  const navigationRef = useRef<PairedNavigation | null>(null);
+  const accountBindingRef = useRef<BrowserAccountBinding | null>(null);
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [automaticDeviceSelection, setAutomaticDeviceSelection] = useState(true);
+  const controlTarget = useMobileStore((state) => state.controlTarget);
 
-  useConnectionHealth(sessionMgr);
+  // An authenticated account without a selected desktop has nothing to ping.
+  useConnectionHealth(accountDirectoryOpen ? null : sessionMgr);
 
   const [navDir, setNavDir] = useState<NavDirection>(null);
   const [prevPage, setPrevPage] = useState<Page | null>(null);
@@ -110,13 +138,27 @@ const AppContent: React.FC = () => {
   }, []);
 
   const handlePaired = useCallback(
-    (client: RelayHttpClient, sessionMgr: RemoteSessionManager) => {
-      delegatedOwnerUnlistenRef.current?.();
+    (
+      client: RelayHttpClient,
+      sessionMgr: RemoteSessionManager,
+      preferredDeviceId?: string,
+      navigation?: PairedNavigation,
+      account?: BrowserAccountBinding,
+    ) => {
+      accountBindingRef.current = account ?? null;
+      setAccountError(null);
+      setAutomaticDeviceSelection(!navigation?.restored?.disconnected);
+      navigationRef.current = navigation ?? null;
+      const needsDevice = client.hasAccountIdentity && !client.targetDeviceId;
+      setAccountDirectoryOpen(needsDevice);
+      setPreferredDeviceId(preferredDeviceId);
+      accountOwnerUnlistenRef.current?.();
       clientRef.current = client;
-      delegatedOwnerUnlistenRef.current = client.onDelegatedAccountOwnerChange((change) => {
+      accountOwnerUnlistenRef.current = client.onAccountOwnerChange((change) => {
         if (clientRef.current !== client) return;
-        const ownerScopedStateWasReset = reconcileDelegatedAccountOwner(change);
+        const ownerScopedStateWasReset = reconcileAccountOwner(change);
         if (!ownerScopedStateWasReset) return;
+        navigationRef.current = null;
 
         // A detail page can retain local IDs in addition to Zustand state.
         // Return to the session root before any stale completion can render
@@ -124,7 +166,9 @@ const AppContent: React.FC = () => {
         clearTimeout(timerRef.current);
         setActiveSessionId(null);
         setActiveSessionName('Session');
+        setActiveSessionAgentType('Standard');
         setChatAutoFocus(false);
+        setHomeHarnessPickerOpen(false);
         setPrevPage(null);
         setNavDir(null);
         pageStackRef.current = ['pairing', 'sessions'];
@@ -133,9 +177,11 @@ const AppContent: React.FC = () => {
       }, { emitCurrent: true });
       sessionMgrRef.current = sessionMgr;
       setSessionMgr(sessionMgr);
-      pageStackRef.current = ['pairing', 'sessions'];
-      history.pushState({ page: 'sessions' }, '');
-      setPage('sessions');
+      const landingPage = needsDevice ? 'devices' : 'sessions';
+      pageStackRef.current = ['pairing', landingPage];
+      history.pushState({ page: landingPage }, '');
+      setPage(landingPage);
+      setCompactSidebarOpen(false);
     },
     [],
   );
@@ -159,7 +205,7 @@ const AppContent: React.FC = () => {
       const stack = pageStackRef.current;
       const currentPage = stack[stack.length - 1];
 
-      if (currentPage === 'pairing' || currentPage === 'sessions') {
+      if (accountDirectoryOpen || currentPage === 'pairing' || currentPage === 'sessions') {
         // At the root-level pages: re-push a history entry so the user
         // can't accidentally close the app with another back gesture.
         history.pushState({ page: currentPage }, '');
@@ -182,9 +228,18 @@ const AppContent: React.FC = () => {
 
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [doPopFromChat, doPopFromWorkspace, doPopFromDevices]);
+  }, [accountDirectoryOpen, doPopFromChat, doPopFromWorkspace, doPopFromDevices]);
+
+  const [deviceToolsOpen, setDeviceToolsOpen] = useState(false);
+  const handleOpenDeviceTools = useCallback(() => {
+    setDeviceToolsOpen(true);
+    setCompactSidebarOpen(false);
+    navigateTo('workspace', 'push');
+  }, [navigateTo]);
 
   const handleOpenWorkspace = useCallback(() => {
+    setDeviceToolsOpen(false);
+    setCompactSidebarOpen(false);
     navigateTo('workspace', 'push');
   }, [navigateTo]);
 
@@ -192,99 +247,427 @@ const AppContent: React.FC = () => {
     navigateTo('sessions', 'pop');
   }, [navigateTo]);
 
-  const handleSelectSession = useCallback((sessionId: string, sessionName?: string, isNew?: boolean) => {
+  const handleSelectSession = useCallback((
+    sessionId: string,
+    sessionName?: string,
+    isNew?: boolean,
+    agentType = 'Standard',
+  ) => {
+    useMobileStore.getState().setError(null);
     setActiveSessionId(sessionId);
     setActiveSessionName(sessionName || 'Session');
+    setActiveSessionAgentType(agentType);
     setChatAutoFocus(!!isNew);
+    setCompactSidebarOpen(false);
+    if (isWideLayout) {
+      clearTimeout(timerRef.current);
+      setPrevPage(null);
+      setNavDir(null);
+      if (page !== 'chat') {
+        pageStackRef.current = [...pageStackRef.current.filter((entry) => entry !== 'chat'), 'chat'];
+        history.pushState({ page: 'chat' }, '');
+      }
+      setPage('chat');
+      return;
+    }
     navigateTo('chat', 'push');
-  }, [navigateTo]);
+  }, [isWideLayout, navigateTo, page]);
+
+  const handleStartConversation = useCallback(async (agentTypeOverride?: string) => {
+    const activeManager = sessionMgrRef.current;
+    if (!activeManager || homeConversationStarting) return;
+    const targetEpoch = activeManager.controlTargetEpoch;
+    const state = useMobileStore.getState();
+    const assistantMode = !!state.currentAssistant && !state.currentWorkspace;
+    const workspacePath = assistantMode
+      ? state.currentAssistant?.path
+      : state.currentWorkspace?.path;
+    const identity = assistantMode
+      ? undefined
+      : {
+          remoteConnectionId: state.currentWorkspace?.remote_connection_id,
+          remoteSshHost: state.currentWorkspace?.remote_ssh_host,
+        };
+    const agentType = agentTypeOverride ?? (assistantMode ? 'claw' : 'code');
+
+    setHomeConversationStarting(true);
+    useMobileStore.getState().setError(null);
+    try {
+      const sessionId = await activeManager.createSession(
+        agentType,
+        undefined,
+        workspacePath,
+        identity,
+      );
+      if (
+        sessionMgrRef.current !== activeManager
+        || activeManager.controlTargetEpoch !== targetEpoch
+      ) return;
+      handleSelectSession(
+        sessionId,
+        assistantMode ? t('sessions.remoteClawSession') : t('sessions.remoteCodeSession'),
+        true,
+        agentType,
+      );
+    } catch (error: unknown) {
+      if (
+        sessionMgrRef.current === activeManager
+        && activeManager.controlTargetEpoch === targetEpoch
+      ) {
+        useMobileStore.getState().setError(
+          String((error as { message?: string })?.message || error),
+        );
+      }
+    } finally {
+      setHomeConversationStarting(false);
+    }
+  }, [handleSelectSession, homeConversationStarting, t]);
+
+  const handleRequestStartConversation = useCallback(() => {
+    const activeManager = sessionMgrRef.current;
+    const state = useMobileStore.getState();
+    const assistantMode = !!state.currentAssistant && !state.currentWorkspace;
+    if (
+      !assistantMode
+      && activeManager?.supportsHostCapability(REMOTE_CAPABILITY_HARNESS_PROFILES_V1)
+    ) {
+      setHomeHarnessPickerOpen(true);
+      return;
+    }
+    void handleStartConversation();
+  }, [handleStartConversation]);
 
   const handleBackToSessions = useCallback(() => {
     navigateTo('sessions', 'pop');
     setTimeout(() => setActiveSessionId(null), NAV_DURATION);
   }, [navigateTo]);
 
-  const handleDisconnect = useCallback(() => {
-    delegatedOwnerUnlistenRef.current?.();
-    delegatedOwnerUnlistenRef.current = null;
+  const handleControlTargetChanged = useCallback(() => {
+    setDeviceToolsOpen(false);
+    setAccountDirectoryOpen(false);
+    clearTimeout(timerRef.current);
+    const restored = navigationRef.current?.restored;
+    if (navigationRef.current) navigationRef.current.restored = null;
+    if (restored && restored.deviceId === clientRef.current?.targetDeviceId && restored.session) {
+      setActiveSessionId(restored.session.id);
+      setActiveSessionName(restored.session.name);
+      setActiveSessionAgentType(restored.session.agentType);
+      setChatAutoFocus(false);
+      setPrevPage(null);
+      setNavDir(null);
+      pageStackRef.current = ['pairing', 'sessions', 'chat'];
+      history.replaceState({ page: 'chat' }, '');
+      setPage('chat');
+      setCompactSidebarOpen(false);
+      return;
+    }
+    setActiveSessionId(null);
+    setActiveSessionName('Session');
+    setActiveSessionAgentType('Standard');
+    setChatAutoFocus(false);
+    setHomeConversationStarting(false);
+    setHomeHarnessPickerOpen(false);
+    setPrevPage(null);
+    setNavDir(null);
+    pageStackRef.current = ['pairing', 'sessions'];
+    history.replaceState({ page: 'sessions' }, '');
+    setPage('sessions');
+    setCompactSidebarOpen(true);
+  }, []);
+
+  const resetAccount = useCallback((clearNavigation = false) => {
+    navigationRef.current = null;
+    accountBindingRef.current = null;
+    if (clearNavigation) clearMobileNavigation();
+    setAccountError(null);
+    setAccountDirectoryOpen(false);
+    setPreferredDeviceId(undefined);
+    accountOwnerUnlistenRef.current?.();
+    accountOwnerUnlistenRef.current = null;
     clientRef.current?.resetConnectionIdentity();
     clientRef.current = null;
     sessionMgrRef.current = null;
     setSessionMgr(null);
     setActiveSessionId(null);
     setActiveSessionName('Session');
+    setActiveSessionAgentType('Standard');
     setChatAutoFocus(false);
+    setHomeConversationStarting(false);
+    setHomeHarnessPickerOpen(false);
+    setCompactSidebarOpen(false);
     setPrevPage(null);
     setNavDir(null);
     clearTimeout(timerRef.current);
-    localStorage.removeItem('bitfun.mobile.user_id');
     useMobileStore.getState().resetConnectionState();
     pageStackRef.current = ['pairing'];
+    history.replaceState({ page: 'pairing' }, '');
     setPage('pairing');
   }, []);
 
-  useEffect(() => () => {
-    delegatedOwnerUnlistenRef.current?.();
-    delegatedOwnerUnlistenRef.current = null;
+  const handleAccountStorageError = useCallback((error: unknown) => {
+    setAccountError(t(error instanceof BrowserAccountStorageError && error.reason === 'invalid'
+      ? 'pairing.browserStorageInvalid' : 'pairing.browserStorageUnavailable'));
+  }, [t]);
+
+  useEffect(() => {
+    const binding = accountBindingRef.current;
+    const client = clientRef.current;
+    if (!sessionMgr || !binding || !client) return;
+    let disposed = false;
+    let generation = 0;
+    const synchronize = async () => {
+      const request = ++generation;
+      try {
+        const saved = await binding.store.read();
+        try {
+          if (disposed || request !== generation || clientRef.current !== client) return;
+          if (saved.session?.token !== binding.token || saved.controllerDeviceId !== client.controllerDeviceId) {
+            const clearNavigation = saved.lastChange !== 'expired' && saved.session?.userId !== client.accountUserId;
+            resetAccount(clearNavigation);
+          } else setAccountError(null);
+        } finally { releaseBrowserAccount(saved); }
+      } catch (error) {
+        if (!disposed && request === generation) handleAccountStorageError(error);
+      }
+    };
+    const unsubscribe = binding.store.subscribe(() => { void synchronize(); });
+    const unlistenExpired = client.onAuthorizationExpired(token => {
+      void binding.store.clearSession(token, 'expired').then(synchronize).catch(error => {
+        if (!disposed) handleAccountStorageError(error);
+      });
+    });
+    // Also close the gap between initial restoration and mounting this observer.
+    void synchronize();
+    return () => { disposed = true; unsubscribe(); unlistenExpired(); };
+  }, [sessionMgr, resetAccount, handleAccountStorageError]);
+
+  const handleSignOut = useCallback(async () => {
+    const binding = accountBindingRef.current;
+    if (!binding) { resetAccount(true); return; }
+    try {
+      await binding.store.clearSession(binding.token, 'signed-out');
+      if (accountBindingRef.current === binding) resetAccount(true);
+      void new CloudAccountClient(binding.store.relayUrl).logout(binding.token).catch(() => {
+        console.warn('Could not revoke the signed-out browser token');
+      });
+    } catch (error) { handleAccountStorageError(error); }
+  }, [resetAccount, handleAccountStorageError]);
+
+  const handleDisconnect = useCallback(() => {
+    // Disconnect this tab's target, retaining the browser account and other
+    // tabs' connections. The directory must wait for explicit selection here.
+    const deviceId = clientRef.current?.targetDeviceId;
+    if (navigationRef.current && deviceId) {
+      saveMobileNavigation(navigationRef.current.scope, { deviceId, disconnected: true });
+    }
+    if (navigationRef.current) navigationRef.current.restored = null;
+    clientRef.current?.setTargetDeviceId(null);
+    useMobileStore.getState().resetForDeviceSwitch();
+    useMobileStore.getState().setControlTarget(null);
+    setAutomaticDeviceSelection(false);
+    setPreferredDeviceId(undefined);
+    setAccountDirectoryOpen(true);
+    setActiveSessionId(null);
+    setActiveSessionName('Session');
+    setActiveSessionAgentType('Standard');
+    setChatAutoFocus(false);
+    setCompactSidebarOpen(false);
+    setPrevPage(null);
+    setNavDir(null);
+    clearTimeout(timerRef.current);
+    pageStackRef.current = ['pairing', 'devices'];
+    history.replaceState({ page: 'devices' }, '');
+    setPage('devices');
   }, []);
+
+  useEffect(() => () => {
+    accountOwnerUnlistenRef.current?.();
+    accountOwnerUnlistenRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    const navigation = navigationRef.current;
+    if (!navigation || accountDirectoryOpen || page === 'pairing' || !controlTarget
+      || controlTarget.deviceId !== clientRef.current?.targetDeviceId) return;
+    saveMobileNavigation(navigation.scope, {
+      deviceId: controlTarget.deviceId,
+      session: page === 'chat' && activeSessionId ? {
+        id: activeSessionId,
+        name: activeSessionName,
+        agentType: activeSessionAgentType,
+      } : undefined,
+    });
+  }, [accountDirectoryOpen, activeSessionAgentType, activeSessionId, activeSessionName, controlTarget, page]);
 
   const isAnimating = navDir !== null;
   const currentPage: Page = page;
 
   const shouldShow = (p: Page) => currentPage === p || (isAnimating && prevPage === p);
 
+  const renderSessionList = () => sessionMgrRef.current && (
+    <SessionListPage
+      sessionMgr={sessionMgrRef.current}
+      client={clientRef.current ?? undefined}
+      compact
+      activeSessionId={activeSessionId}
+      onSelectSession={handleSelectSession}
+      onOpenWorkspace={handleOpenWorkspace}
+      onOpenDeviceTools={handleOpenDeviceTools}
+      onDisconnect={handleDisconnect}
+      onOpenDevices={() => navigateTo('devices', 'push')}
+      onControlTargetChanged={handleControlTargetChanged}
+    />
+  );
+
+  const renderDetailPage = () => {
+    if (currentPage === 'workspace' && sessionMgrRef.current) {
+      if (deviceToolsOpen) return <DeviceToolsPage manager={sessionMgrRef.current} onBack={doPopFromWorkspace}/>;
+      return (
+        <WorkspacePage
+          sessionMgr={sessionMgrRef.current}
+          onReady={handleWorkspaceReady}
+          onBack={doPopFromWorkspace}
+        />
+      );
+    }
+    if (currentPage === 'devices' && clientRef.current) {
+      return <DevicesPage client={clientRef.current} onBack={doPopFromDevices} onSignOut={() => void handleSignOut()} />;
+    }
+    if (currentPage === 'chat' && sessionMgrRef.current && activeSessionId) {
+      return (
+        <Suspense fallback={<div className="spinner" aria-hidden="true" />}>
+          <ChatPage
+            sessionMgr={sessionMgrRef.current}
+            sessionId={activeSessionId}
+            sessionName={activeSessionName}
+            agentType={activeSessionAgentType}
+            onBack={handleBackToSessions}
+            autoFocus={chatAutoFocus}
+            wideLayout
+          />
+        </Suspense>
+      );
+    }
+    return (
+      <RemoteHomePanel
+        onOpenWorkspace={handleOpenWorkspace}
+        onStartConversation={handleRequestStartConversation}
+        conversationStarting={homeConversationStarting}
+      />
+    );
+  };
+
   return (
-    <div className="mobile-app">
+    <div className="mobile-app" data-layout={isWideLayout ? 'wide' : 'compact'}>
+      {accountError && <MobileBanner tone="danger">{accountError}</MobileBanner>}
       {connectionHealth === 'unreachable' && page !== 'pairing' && (
-        <div className="mobile-reconnect-banner" role="alert">
+        <MobileBanner
+          action={<MobileButton appearance="plain" onClick={handleDisconnect} size="sm">{t('sessions.repair')}</MobileButton>}
+          className="mobile-reconnect-banner"
+          tone="danger"
+        >
           <span className="mobile-reconnect-spinner" />
           <span>{t('sessions.reconnecting')}</span>
-          <button type="button" onClick={handleDisconnect}>
-            {t('sessions.repair')}
-          </button>
-        </div>
+        </MobileBanner>
       )}
       {page === 'pairing' && <PairingPage onPaired={handlePaired} />}
-      {shouldShow('workspace') && sessionMgrRef.current && (
-        <div className={`nav-page ${getNavClass('workspace', currentPage, navDir, isAnimating)}`}>
-          <WorkspacePage
-            sessionMgr={sessionMgrRef.current}
-            onReady={handleWorkspaceReady}
-          />
+      {accountDirectoryOpen && clientRef.current && (
+        <DevicesPage
+          client={clientRef.current}
+          accountLanding
+          autoSelect={automaticDeviceSelection}
+          preferredDeviceId={preferredDeviceId}
+          onBack={() => void handleSignOut()}
+          onDeviceSelected={handleControlTargetChanged}
+        />
+      )}
+      {!accountDirectoryOpen && page !== 'pairing' && isWideLayout && sessionMgrRef.current && (
+        <div className="remote-shell remote-shell--wide">
+          <aside className="remote-shell__master" aria-label={t('sessions.sessionHistory')}>
+            {renderSessionList()}
+          </aside>
+          <section className="remote-shell__detail">
+            {renderDetailPage()}
+          </section>
         </div>
       )}
-      {shouldShow('devices') && clientRef.current && (
-        <div className={`nav-page ${getNavClass('devices', currentPage, navDir, isAnimating)}`}>
-          <DevicesPage
-            client={clientRef.current}
-            onBack={doPopFromDevices}
-          />
-        </div>
+      {!accountDirectoryOpen && !isWideLayout && (
+        <>
+          {shouldShow('workspace') && sessionMgrRef.current && (
+            <div className={`nav-page ${getNavClass('workspace', currentPage, navDir, isAnimating)}`}>
+              <WorkspacePage
+                sessionMgr={sessionMgrRef.current}
+                onReady={handleWorkspaceReady}
+                onBack={doPopFromWorkspace}
+              />
+            </div>
+          )}
+          {shouldShow('devices') && clientRef.current && (
+            <div className={`nav-page ${getNavClass('devices', currentPage, navDir, isAnimating)}`}>
+              <DevicesPage
+                client={clientRef.current}
+                onBack={doPopFromDevices}
+              />
+            </div>
+          )}
+          {(shouldShow('sessions') || shouldShow('chat')) && sessionMgrRef.current && (
+            <div className={`nav-page compact-remote-shell${compactSidebarOpen ? ' is-sidebar-open' : ''}`}>
+              <aside
+                className="compact-remote-shell__sidebar"
+                aria-label={t('sessions.sessionHistory')}
+                aria-hidden={!compactSidebarOpen}
+              >
+                <SessionListPage
+                  sessionMgr={sessionMgrRef.current}
+                  client={clientRef.current ?? undefined}
+                  compact
+                  activeSessionId={activeSessionId}
+                  onSelectSession={handleSelectSession}
+                  onOpenWorkspace={handleOpenWorkspace}
+                  onOpenDeviceTools={handleOpenDeviceTools}
+                  onDisconnect={handleDisconnect}
+                  onOpenDevices={() => navigateTo('devices', 'push')}
+                  onControlTargetChanged={handleControlTargetChanged}
+                />
+              </aside>
+              <MobileScrim
+                className="compact-remote-shell__scrim"
+                aria-label={t('common.close')}
+                onClick={() => setCompactSidebarOpen(false)}
+              />
+              <section className="compact-remote-shell__main">
+                {currentPage === 'chat' && activeSessionId ? (
+                  <Suspense fallback={<MobileStatus loading title={t('workspace.loadingInfo')} />}>
+                    <ChatPage
+                      sessionMgr={sessionMgrRef.current}
+                      sessionId={activeSessionId}
+                      sessionName={activeSessionName}
+                      agentType={activeSessionAgentType}
+                      onBack={() => setCompactSidebarOpen(true)}
+                      autoFocus={chatAutoFocus}
+                    />
+                  </Suspense>
+                ) : (
+                  <RemoteHomePanel
+                    onOpenSidebar={() => setCompactSidebarOpen(true)}
+                    onOpenWorkspace={handleOpenWorkspace}
+                    onStartConversation={handleRequestStartConversation}
+                    conversationStarting={homeConversationStarting}
+                  />
+                )}
+              </section>
+            </div>
+          )}
+        </>
       )}
-      {shouldShow('sessions') && sessionMgrRef.current && (
-        <div className={`nav-page ${getNavClass('sessions', currentPage, navDir, isAnimating)}`}>
-          <SessionListPage
-            sessionMgr={sessionMgrRef.current}
-            onSelectSession={handleSelectSession}
-            onOpenWorkspace={handleOpenWorkspace}
-            onDisconnect={handleDisconnect}
-            onOpenDevices={() => navigateTo('devices', 'push')}
-          />
-        </div>
-      )}
-      {shouldShow('chat') && sessionMgrRef.current && activeSessionId && (
-        <div className={`nav-page ${getNavClass('chat', currentPage, navDir, isAnimating)}`}>
-          <Suspense fallback={<div className="spinner" aria-hidden="true" />}>
-            <ChatPage
-              sessionMgr={sessionMgrRef.current}
-              sessionId={activeSessionId}
-              sessionName={activeSessionName}
-              onBack={handleBackToSessions}
-              autoFocus={chatAutoFocus}
-            />
-          </Suspense>
-        </div>
-      )}
+      <HarnessProfilePicker
+        open={homeHarnessPickerOpen}
+        onClose={() => setHomeHarnessPickerOpen(false)}
+        onSelect={(agentType) => {
+          setHomeHarnessPickerOpen(false);
+          void handleStartConversation(agentType);
+        }}
+      />
     </div>
   );
 };

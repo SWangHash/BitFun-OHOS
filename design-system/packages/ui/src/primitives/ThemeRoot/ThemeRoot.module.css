@@ -1,0 +1,18 @@
+@layer bitfun.base {
+  .root {
+    min-inline-size: 0;
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-surface-canvas);
+    font-family:var(--bitfun-type-body-md-font-family);
+    font-size: var(--bitfun-type-body-md-font-size);
+    line-height: var(--bitfun-type-body-md-line-height);
+  }
+
+  .root[data-color-scheme="light"] {
+    color-scheme: light;
+  }
+
+  .root[data-color-scheme="dark"] {
+    color-scheme: dark;
+  }
+}

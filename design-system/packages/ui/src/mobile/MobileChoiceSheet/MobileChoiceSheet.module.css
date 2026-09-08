@@ -1,0 +1,23 @@
+@layer bitfun.components {
+  .sheet {
+    inline-size: min(100%, 520px);
+  }
+
+  .options {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+    gap: var(--bitfun-space-2);
+  }
+
+  .cancel {
+    min-block-size: 52px;
+    color: var(--bitfun-color-content-secondary);
+  }
+
+  @media (max-width: 359px) {
+    .options {
+      gap: var(--bitfun-space-1);
+    }
+  }
+}

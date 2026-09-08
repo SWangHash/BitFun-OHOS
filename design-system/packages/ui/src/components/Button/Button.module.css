@@ -1,0 +1,327 @@
+@layer bitfun.components {
+  .button {
+    --_button-background: transparent;
+    --_button-background-hover: var(--bitfun-component-button-fill-background);
+    --_button-background-active: var(--bitfun-component-button-fill-background);
+    --_button-border: var(--bitfun-component-button-outline-border);
+    --_button-border-hover: var(--bitfun-component-button-outline-border-interactive);
+    --_button-border-active: var(--bitfun-component-button-outline-border-interactive);
+    --_button-content: var(--bitfun-component-button-content);
+    --_button-content-disabled: var(--bitfun-color-action-neutral-content-disabled);
+    --_button-font-size: var(--bitfun-type-label-md-font-size);
+    --_button-height: var(--bitfun-control-height-md);
+    --_button-leading-icon-size: 16px;
+    --_button-padding-block: var(--bitfun-space-component-block);
+    --_button-padding-inline: var(--bitfun-space-5);
+    --_button-trailing-icon-size: 14px;
+
+    position: relative;
+    /* The component owns its surface; suppress native WebKit button highlights. */
+    -webkit-appearance: none;
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: 0;
+    block-size: var(--_button-height);
+    padding-block: var(--_button-padding-block);
+    padding-inline: var(--_button-padding-inline);
+    border: var(--bitfun-border-width-default) solid var(--_button-border);
+    border-radius: var(--bitfun-radius-pill);
+    color: var(--_button-content);
+    background: transparent;
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--_button-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
+    line-height: var(--bitfun-type-label-md-line-height);
+    white-space: nowrap;
+    cursor: pointer;
+    isolation: isolate;
+    transition:
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .button::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--_button-background);
+    content: "";
+    pointer-events: none;
+    transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .button:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled)::before {
+    background: var(--_button-background-hover);
+  }
+
+  .button:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled) {
+    border-color: var(--_button-border-hover);
+  }
+
+  .button:is(:active, [data-bitfun-preview-state="active"]):not(:disabled)::before {
+    background: var(--_button-background-active);
+  }
+
+  .button:is(:active, [data-bitfun-preview-state="active"]):not(:disabled) {
+    border-color: var(--_button-border-active);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+  }
+
+  .button:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+  }
+
+  .button:disabled {
+    color: var(--_button-content-disabled);
+    cursor: not-allowed;
+  }
+
+  .button[data-bitfun-variant="fill"] {
+    --_button-background: var(--bitfun-component-button-fill-background);
+    --_button-background-hover: var(--bitfun-component-button-fill-background-hover);
+    --_button-background-active: var(--bitfun-component-button-fill-background-pressed);
+    --_button-border: transparent;
+    --_button-border-hover: transparent;
+    --_button-border-active: transparent;
+  }
+
+  .button[data-bitfun-variant="primary"] {
+    --_button-background: var(--bitfun-component-button-primary-background);
+    --_button-background-hover: var(--bitfun-component-button-primary-background-hover);
+    --_button-background-active: var(--bitfun-component-button-primary-background-pressed);
+    --_button-border: transparent;
+    --_button-border-hover: transparent;
+    --_button-border-active: transparent;
+    --_button-content: var(--bitfun-color-action-primary-content);
+    --_button-content-disabled: var(--bitfun-component-button-primary-content-disabled);
+  }
+
+  .button[data-bitfun-variant="secondary"] {
+    --_button-background: var(--bitfun-color-surface-tertiary);
+    --_button-background-hover: var(--bitfun-color-surface-tertiary);
+    --_button-background-active: var(--bitfun-color-surface-tertiary);
+    --_button-border: transparent;
+    --_button-border-hover: var(--bitfun-color-border-default);
+    --_button-border-active: var(--bitfun-color-border-strong);
+    --_button-content: var(--bitfun-color-action-neutral-content);
+  }
+
+  .button[data-bitfun-variant="primary"]:disabled {
+    --_button-background: var(--bitfun-component-button-fill-background);
+  }
+
+  .button[data-bitfun-variant="secondary"]:disabled {
+    --_button-background: var(--bitfun-color-surface-tertiary);
+    --_button-content: var(--bitfun-color-action-neutral-content-disabled);
+  }
+
+  .button[data-bitfun-variant="text"] {
+    --_button-background: transparent;
+    --_button-background-hover: transparent;
+    --_button-background-active: transparent;
+    --_button-border: transparent;
+    --_button-border-hover: transparent;
+    --_button-border-active: transparent;
+    --_button-content: var(--bitfun-component-button-text-content);
+    --_button-content-disabled: var(--bitfun-component-button-text-content-disabled);
+
+    border-radius: 0;
+  }
+
+  .button[data-bitfun-variant="text"]:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled) {
+    --_button-content: var(--bitfun-component-button-text-content-hover);
+
+    text-decoration: underline;
+    text-underline-offset: 0.12em;
+  }
+
+  .button[data-bitfun-variant="text"]:is(:active, [data-bitfun-preview-state="active"]):not(:disabled) {
+    --_button-content: var(--bitfun-component-button-text-content);
+
+    text-decoration: underline;
+    text-underline-offset: 0.12em;
+  }
+
+  .button[data-bitfun-variant="fill"]:disabled {
+    --_button-background: var(--bitfun-component-button-fill-background);
+  }
+
+  .button[data-bitfun-tone="danger"] {
+    --_button-background-hover: var(--bitfun-color-status-danger-surface);
+    --_button-background-active: var(--bitfun-color-status-danger-surface);
+    --_button-border: var(--bitfun-color-status-danger-border);
+    --_button-border-hover: var(--_button-border);
+    --_button-border-active: var(--_button-border);
+    --_button-content: var(--bitfun-color-status-danger-content);
+    --_button-content-disabled: var(--bitfun-color-action-neutral-content-disabled);
+  }
+
+  .button[data-bitfun-tone="danger"][data-bitfun-variant="fill"] {
+    --_button-background: var(--bitfun-color-status-danger-surface);
+    --_button-border: var(--bitfun-color-status-danger-border);
+  }
+
+  .button[data-bitfun-tone="danger"][data-bitfun-variant="primary"] {
+    --_button-background: var(--bitfun-color-status-danger-content);
+    --_button-background-hover: var(--bitfun-color-status-danger-content);
+    --_button-background-active: var(--bitfun-color-status-danger-content);
+    --_button-border: transparent;
+    --_button-content: var(--bitfun-color-content-inverse);
+  }
+
+  .button[data-bitfun-tone="danger"][data-bitfun-variant="secondary"] {
+    --_button-background: var(--bitfun-color-status-danger-surface);
+    --_button-background-hover: var(--bitfun-color-status-danger-surface);
+    --_button-background-active: var(--bitfun-color-status-danger-surface);
+    --_button-border: var(--bitfun-color-status-danger-border);
+  }
+
+  .button[data-bitfun-tone="danger"][data-bitfun-variant="text"] {
+    --_button-content: var(--bitfun-color-status-danger-content);
+  }
+
+  .button[data-bitfun-tone="danger"][data-bitfun-variant="fill"]:disabled {
+    --_button-background: var(--bitfun-color-status-danger-surface);
+  }
+
+  .button[data-size="xs"] {
+    --_button-font-size: var(--bitfun-type-meta-font-size);
+    --_button-height: var(--bitfun-control-button-xs-height);
+    --_button-leading-icon-size: var(--bitfun-control-button-xs-leading-icon-size);
+    --_button-padding-block: var(--bitfun-space-1);
+    --_button-padding-inline: var(--bitfun-control-button-xs-padding-inline);
+    --_button-trailing-icon-size: var(--bitfun-control-button-xs-trailing-icon-size);
+  }
+
+  .button[data-size="sm"] {
+    --_button-font-size: var(--bitfun-type-label-sm-font-size);
+    --_button-height: var(--bitfun-control-height-sm);
+    --_button-leading-icon-size: 12px;
+    --_button-padding-block: var(--bitfun-space-1);
+    --_button-padding-inline: var(--bitfun-space-4);
+    --_button-trailing-icon-size: 10px;
+  }
+
+  .button[data-size="lg"] {
+    --_button-font-size: var(--bitfun-type-label-lg-font-size);
+    --_button-height: var(--bitfun-control-height-lg);
+    --_button-leading-icon-size: 20px;
+    --_button-padding-inline: var(--bitfun-space-6);
+    --_button-trailing-icon-size: 16px;
+  }
+
+  .content {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    min-inline-size: 0;
+    gap: var(--bitfun-space-1);
+  }
+
+  .label {
+    display: inline-flex;
+    align-items: center;
+    min-inline-size: 0;
+    gap: var(--bitfun-space-1);
+    line-height: var(--bitfun-type-body-sm-line-height);
+    overflow: hidden;
+  }
+
+  .label > :where(svg, img) {
+    display: block;
+    flex: 0 0 auto;
+  }
+
+  .staticLabel {
+    display: inline;
+    overflow: visible;
+    line-height: inherit;
+    white-space: inherit;
+  }
+
+  .icon {
+    --bitfun-opacity-icon-artwork: 1;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+  }
+
+  .icon > :where(svg, img),
+  .icon > [data-bitfun-component="icon"] {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .leadingIcon {
+    inline-size: var(--_button-leading-icon-size);
+    block-size: var(--_button-leading-icon-size);
+  }
+
+  .trailingIcon {
+    inline-size: var(--_button-trailing-icon-size);
+    block-size: var(--_button-trailing-icon-size);
+    opacity: 0.5;
+  }
+
+  .button:disabled .trailingIcon {
+    opacity: 1;
+  }
+
+  .progress {
+    position: absolute;
+    z-index: 1;
+    inline-size: 16px;
+    block-size: 16px;
+    border: 2px solid currentColor;
+    border-inline-end-color: transparent;
+    border-radius: 50%;
+    opacity: 0;
+  }
+
+  .button[data-loading="true"] .content {
+    opacity: 0;
+  }
+
+  .button[data-loading="true"] .progress {
+    opacity: 1;
+    animation: bitfun-button-progress var(--bitfun-motion-duration-loop) linear infinite;
+  }
+
+  @keyframes bitfun-button-progress {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .button,
+    .button::before {
+      transition: none;
+    }
+
+    .button[data-loading="true"] .progress {
+      animation: none;
+      border-inline-end-color: currentColor;
+      opacity: 0.72;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .button {
+      border-color: ButtonText;
+    }
+
+    .button:focus-visible {
+      outline-color: Highlight;
+    }
+  }
+}

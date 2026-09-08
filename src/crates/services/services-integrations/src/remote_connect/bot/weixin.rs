@@ -6,27 +6,28 @@
 
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
 use aes::Aes128;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use log::{debug, warn};
 use rand::{Rng, RngCore};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 
 const DEFAULT_BASE_URL: &str = "https://ilinkai.weixin.qq.com";
 const DEFAULT_ILINK_BOT_TYPE: &str = "3";
-// Wire compatibility baseline audited against @tencent-weixin/openclaw-weixin 2.4.6.
-const CHANNEL_VERSION: &str = "2.4.6";
+// Wire compatibility baseline audited against @tencent-weixin/openclaw-weixin 2.4.8.
+const CHANNEL_VERSION: &str = "2.4.8";
 const ILINK_APP_ID: &str = "bot";
-const ILINK_APP_CLIENT_VERSION: &str = "132102"; // 0x00020406
+const ILINK_APP_CLIENT_VERSION: &str = "132104"; // 0x00020408
 const BOT_AGENT: &str = concat!("BitFun/", env!("CARGO_PKG_VERSION"));
 const API_TIMEOUT_SECS: u64 = 20;
-const QR_POLL_TIMEOUT_SECS: u64 = 36;
+const QR_POLL_TIMEOUT_SECS: u64 = 35;
+const QR_SESSION_TTL_MS: i64 = 5 * 60_000;
 pub const WEIXIN_SESSION_EXPIRED_ERRCODE: i64 = -14;
 const SESSION_PAUSE_SECS: u64 = 3600;
 const MAX_TEXT_CHUNK: usize = 4000;
@@ -51,7 +52,7 @@ pub struct WeixinQrStartResponse {
     pub message: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum WeixinQrPollStatus {
     Wait,
@@ -62,7 +63,7 @@ pub enum WeixinQrPollStatus {
     Error,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct WeixinQrPollResponse {
     pub status: WeixinQrPollStatus,
     pub message: String,
@@ -104,6 +105,10 @@ struct QrLoginSession {
     existing_ilink_token: Option<String>,
     existing_bot_account_id: Option<String>,
     existing_base_url: Option<String>,
+    // Serialize polls and retain a confirmed result until TTL expiry so a lost
+    // controller response can be retried without losing the one-time login.
+    poll_lock: Arc<tokio::sync::Mutex<()>>,
+    completed: Option<WeixinQrPollResponse>,
 }
 
 enum QrSessionLookup {
@@ -120,6 +125,8 @@ struct QrCodeApiResponse {
 
 #[derive(Debug, Deserialize)]
 struct QrStatusApiResponse {
+    ret: Option<i64>,
+    errcode: Option<i64>,
     status: Option<String>,
     bot_token: Option<String>,
     ilink_bot_id: Option<String>,
@@ -129,6 +136,7 @@ struct QrStatusApiResponse {
 
 pub struct WeixinProviderClient {
     config: WeixinConfig,
+    http_client: reqwest::Client,
     typing_tickets: Arc<RwLock<HashMap<String, String>>>,
     session_pause_until_ms: Arc<RwLock<HashMap<String, i64>>>,
 }
@@ -188,6 +196,7 @@ impl WeixinProviderClient {
     pub fn new(config: WeixinConfig) -> Self {
         Self {
             config,
+            http_client: crate::reqwest_client(),
             typing_tickets: Arc::new(RwLock::new(HashMap::new())),
             session_pause_until_ms: Arc::new(RwLock::new(HashMap::new())),
         }
@@ -254,9 +263,10 @@ impl WeixinProviderClient {
     async fn post_ilink(&self, endpoint: &str, body: Value, timeout: Duration) -> Result<String> {
         let url = format!("{}{}", self.base_url(), endpoint.trim_start_matches('/'));
         let body_str = serde_json::to_string(&body)?;
-        let client = reqwest::Client::builder().timeout(timeout).build()?;
-        let resp = client
+        let resp = self
+            .http_client
             .post(&url)
+            .timeout(timeout)
             .headers(self.build_auth_headers())
             .body(body_str)
             .send()
@@ -266,25 +276,22 @@ impl WeixinProviderClient {
         if !status.is_success() {
             return Err(anyhow!("ilink {endpoint} HTTP {status}: {text}"));
         }
-        if endpoint.contains("sendmessage")
-            || endpoint.contains("sendtyping")
-            || endpoint.contains("getconfig")
-            || endpoint.contains("notifystart")
-            || endpoint.contains("notifystop")
-        {
-            if let Ok(value) = serde_json::from_str::<Value>(&text) {
-                let ret = value["ret"].as_i64().unwrap_or(0);
-                let errcode = value["errcode"].as_i64().unwrap_or(0);
-                if ret != 0 || errcode != 0 {
-                    let errmsg = value["errmsg"]
-                        .as_str()
-                        .or_else(|| value["msg"].as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    return Err(anyhow!(
-                        "ilink {endpoint} application error ret={ret} errcode={errcode} errmsg={errmsg}"
-                    ));
-                }
+        let value: Value = serde_json::from_str(&text)
+            .with_context(|| format!("ilink {endpoint}: invalid JSON response"))?;
+        if !value.is_object() {
+            return Err(anyhow!("ilink {endpoint}: expected a JSON object"));
+        }
+        if endpoint != "ilink/bot/getupdates" {
+            let ret = value["ret"].as_i64().unwrap_or(0);
+            let errcode = value["errcode"].as_i64().unwrap_or(0);
+            if ret != 0 || errcode != 0 {
+                let errmsg = value["errmsg"]
+                    .as_str()
+                    .or_else(|| value["msg"].as_str())
+                    .unwrap_or("");
+                return Err(anyhow!(
+                    "ilink {endpoint} application error ret={ret} errcode={errcode} errmsg={errmsg}"
+                ));
             }
         }
         Ok(text)
@@ -294,9 +301,10 @@ impl WeixinProviderClient {
         if self.is_session_paused().await {
             tokio::time::sleep(Duration::from_secs(2)).await;
             return Ok(json!({
-                "ret": 0,
-                "msgs": [],
-                "get_updates_buf": buf
+                "ret": WEIXIN_SESSION_EXPIRED_ERRCODE,
+                "errcode": WEIXIN_SESSION_EXPIRED_ERRCODE,
+                "errmsg": "WeChat login token is stale; sign in again",
+                "msgs": []
             }));
         }
 
@@ -309,13 +317,29 @@ impl WeixinProviderClient {
                 }),
                 timeout,
             )
-            .await?;
+            .await;
+        let raw = match raw {
+            Ok(raw) => raw,
+            Err(err)
+                if err
+                    .downcast_ref::<reqwest::Error>()
+                    .is_some_and(|err| err.is_timeout()) =>
+            {
+                // An empty long poll is normal, not a reason to delay the next poll.
+                return Ok(json!({ "ret": 0, "msgs": [], "get_updates_buf": buf }));
+            }
+            Err(err) => return Err(err),
+        };
         let value: Value = serde_json::from_str(&raw)?;
         let ret = value["ret"].as_i64().unwrap_or(0);
         let errcode = value["errcode"].as_i64().unwrap_or(0);
         if errcode == WEIXIN_SESSION_EXPIRED_ERRCODE || ret == WEIXIN_SESSION_EXPIRED_ERRCODE {
             self.pause_session().await;
         }
+        debug!(
+            "weixin: getupdates ret={ret} errcode={errcode} messages={}",
+            value["msgs"].as_array().map_or(0, Vec::len)
+        );
         Ok(value)
     }
 
@@ -520,18 +544,21 @@ impl WeixinProviderClient {
         }
     }
 
-    pub async fn send_workspace_file_to_peer(
+    pub async fn send_file_content_to_peer(
         &self,
         peer_id: &str,
         context_token: &str,
-        raw_path: &str,
-        workspace_root: Option<&Path>,
+        content: super::WorkspaceFileContent,
     ) -> Result<()> {
-        let content =
-            super::read_workspace_file(raw_path, MAX_WEIXIN_FILE_BYTES, workspace_root).await?;
-        let mime = super::detect_mime_type(Path::new(&content.name));
+        if content.bytes.len() as u64 > MAX_WEIXIN_FILE_BYTES {
+            return Err(anyhow!("Weixin file exceeds the upload limit"));
+        }
+        let mime = content.mime_type;
 
-        let item = if mime.starts_with("image/") {
+        let item = if matches!(
+            mime,
+            "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/bmp"
+        ) {
             let uploaded = self
                 .upload_bytes_to_weixin_cdn(peer_id, &content.bytes, 1)
                 .await?;
@@ -660,7 +687,7 @@ impl WeixinProviderClient {
             Some(url) => url.to_string(),
             None => build_cdn_download_url(DEFAULT_CDN_BASE_URL, encrypted_query_param),
         };
-        let client = reqwest::Client::builder()
+        let client = crate::reqwest_client_builder()
             .timeout(Duration::from_secs(120))
             .build()?;
         let resp = client.get(&url).send().await?;
@@ -804,7 +831,7 @@ impl WeixinProviderClient {
     }
 
     async fn post_weixin_cdn_upload(&self, cdn_url: &str, ciphertext: &[u8]) -> Result<String> {
-        let client = reqwest::Client::builder()
+        let client = crate::reqwest_client_builder()
             .timeout(Duration::from_secs(120))
             .build()?;
         let mut last_err: Option<anyhow::Error> = None;
@@ -877,6 +904,10 @@ pub async fn weixin_qr_start(
     qr_sessions()
         .lock()
         .map_err(|err| anyhow!("qr session lock: {err}"))?
+        .retain(|_, session| now_ms() - session.started_at_ms <= QR_SESSION_TTL_MS);
+    qr_sessions()
+        .lock()
+        .map_err(|err| anyhow!("qr session lock: {err}"))?
         .insert(
             session_key.clone(),
             QrLoginSession {
@@ -888,6 +919,8 @@ pub async fn weixin_qr_start(
                 existing_ilink_token,
                 existing_bot_account_id,
                 existing_base_url,
+                poll_lock: Arc::new(tokio::sync::Mutex::new(())),
+                completed: None,
             },
         );
 
@@ -912,7 +945,7 @@ pub async fn weixin_qr_poll(
         match sessions.get(session_key) {
             None => QrSessionLookup::Missing,
             Some(session) => {
-                if now_ms() - session.started_at_ms > 5 * 60_000 {
+                if now_ms() - session.started_at_ms > QR_SESSION_TTL_MS {
                     sessions.remove(session_key);
                     QrSessionLookup::TimedOut
                 } else {
@@ -926,6 +959,27 @@ pub async fn weixin_qr_poll(
         QrSessionLookup::Missing => Ok(qr_error("No active QR session. Start login again.")),
         QrSessionLookup::TimedOut => Ok(qr_error("QR session expired. Start again.")),
         QrSessionLookup::Found(session) => {
+            let poll_lock = session.poll_lock.clone();
+            let _poll = poll_lock.lock().await;
+            // Re-read after waiting for any earlier request to finish.
+            let current = qr_sessions()
+                .lock()
+                .map_err(|err| anyhow!("qr session lock: {err}"))?
+                .get(session_key)
+                .cloned();
+            let Some(session) = current else {
+                return Ok(qr_error("No active QR session. Start login again."));
+            };
+            if now_ms() - session.started_at_ms > QR_SESSION_TTL_MS {
+                qr_sessions()
+                    .lock()
+                    .map_err(|err| anyhow!("qr session lock: {err}"))?
+                    .remove(session_key);
+                return Ok(qr_error("QR session expired. Start again."));
+            }
+            if let Some(completed) = session.completed {
+                return Ok(completed);
+            }
             poll_found_qr_session(session_key, session, &base, verify_code.as_deref()).await
         }
     }
@@ -945,12 +999,10 @@ async fn poll_found_qr_session(
         url.push_str(&urlencoding::encode(code));
     }
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(QR_POLL_TIMEOUT_SECS))
-        .build()?;
-
-    let resp = client
+    let started = Instant::now();
+    let resp = qr_http_client()
         .get(&url)
+        .timeout(Duration::from_secs(QR_POLL_TIMEOUT_SECS))
         .headers(build_common_headers())
         .send()
         .await;
@@ -959,22 +1011,43 @@ async fn poll_found_qr_session(
         Ok(resp) => resp,
         Err(err) => {
             if err.is_timeout() {
+                debug!("weixin: QR status long poll timed out; continuing");
                 return Ok(qr_wait("waiting"));
             }
-            warn!("weixin: transient QR status request failed; retrying: {err}");
+            warn!(
+                "weixin: transient QR status request failed; retrying: {}",
+                err.without_url()
+            );
             return Ok(qr_wait("waiting"));
         }
     };
 
     let status = resp.status();
     if !status.is_success() {
-        let body = resp.text().await.unwrap_or_default();
-        warn!("weixin: transient QR status HTTP {status}; retrying: {body}");
+        warn!("weixin: QR status HTTP {status}");
+        if status.is_client_error() {
+            return Ok(qr_error(&format!(
+                "WeChat rejected the login request (HTTP {status}). Start login again."
+            )));
+        }
         return Ok(qr_wait("waiting"));
     }
 
     let status_json: QrStatusApiResponse = resp.json().await?;
-    match status_json.status.as_deref().unwrap_or("wait") {
+    let ret = status_json.ret.unwrap_or(0);
+    let errcode = status_json.errcode.unwrap_or(0);
+    if ret != 0 || errcode != 0 {
+        warn!("weixin: QR status application error ret={ret} errcode={errcode}");
+        return Ok(qr_error(&format!(
+            "WeChat login failed (ret={ret}, errcode={errcode}). Start login again."
+        )));
+    }
+    debug!(
+        "weixin: QR status={} elapsed_ms={}",
+        status_json.status.as_deref().unwrap_or("missing"),
+        started.elapsed().as_millis()
+    );
+    match status_json.status.as_deref().unwrap_or("") {
         "wait" => Ok(qr_wait("waiting")),
         "scaned" => Ok(WeixinQrPollResponse {
             status: WeixinQrPollStatus::Scanned,
@@ -990,7 +1063,9 @@ async fn poll_found_qr_session(
         "binded_redirect" => confirm_existing_qr_session(session_key, session),
         "confirmed" => confirm_qr_session(session_key, status_json, &base),
         "expired" => refresh_qr_session(session_key, original_base).await,
-        other => Ok(qr_wait(other)),
+        _ => Ok(qr_error(
+            "WeChat returned an unsupported login state. Start login again.",
+        )),
     }
 }
 
@@ -1037,24 +1112,23 @@ fn confirm_existing_qr_session(
         .existing_bot_account_id
         .filter(|value| !value.is_empty())
         .ok_or_else(|| anyhow!("binded_redirect received without existing bot account id"))?;
-    qr_sessions()
-        .lock()
-        .map_err(|err| anyhow!("qr session lock: {err}"))?
-        .remove(session_key);
-    Ok(WeixinQrPollResponse {
-        status: WeixinQrPollStatus::Confirmed,
-        message: "WeChat was already linked; reused the existing login.".to_string(),
-        qr_image_url: None,
-        ilink_token: Some(token),
-        bot_account_id: Some(account_id),
-        base_url: Some(
-            session
-                .existing_base_url
-                .unwrap_or(session.current_base_url)
-                .trim_end_matches('/')
-                .to_string(),
-        ),
-    })
+    cache_qr_completion(
+        session_key,
+        WeixinQrPollResponse {
+            status: WeixinQrPollStatus::Confirmed,
+            message: "WeChat was already linked; reused the existing login.".to_string(),
+            qr_image_url: None,
+            ilink_token: Some(token),
+            bot_account_id: Some(account_id),
+            base_url: Some(
+                session
+                    .existing_base_url
+                    .unwrap_or(session.current_base_url)
+                    .trim_end_matches('/')
+                    .to_string(),
+            ),
+        },
+    )
 }
 
 fn confirm_qr_session(
@@ -1076,19 +1150,31 @@ fn confirm_qr_session(
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| base.trim_end_matches('/').to_string());
 
-    qr_sessions()
-        .lock()
-        .map_err(|err| anyhow!("qr session lock: {err}"))?
-        .remove(session_key);
+    cache_qr_completion(
+        session_key,
+        WeixinQrPollResponse {
+            status: WeixinQrPollStatus::Confirmed,
+            message: "WeChat linked.".to_string(),
+            qr_image_url: None,
+            ilink_token: Some(token),
+            bot_account_id: Some(normalized),
+            base_url: Some(baseurl),
+        },
+    )
+}
 
-    Ok(WeixinQrPollResponse {
-        status: WeixinQrPollStatus::Confirmed,
-        message: "WeChat linked.".to_string(),
-        qr_image_url: None,
-        ilink_token: Some(token),
-        bot_account_id: Some(normalized),
-        base_url: Some(baseurl),
-    })
+fn cache_qr_completion(
+    session_key: &str,
+    response: WeixinQrPollResponse,
+) -> Result<WeixinQrPollResponse> {
+    let mut sessions = qr_sessions()
+        .lock()
+        .map_err(|err| anyhow!("qr session lock: {err}"))?;
+    let session = sessions
+        .get_mut(session_key)
+        .ok_or_else(|| anyhow!("QR session lost before confirmation"))?;
+    session.completed = Some(response.clone());
+    Ok(response)
 }
 
 async fn refresh_qr_session(session_key: &str, base: &str) -> Result<WeixinQrPollResponse> {
@@ -1229,6 +1315,10 @@ pub fn context_token(msg: &Value) -> Option<String> {
         .as_str()
         .map(str::to_string)
         .filter(|s| !s.is_empty())
+}
+
+pub fn updates_failed(response: &Value) -> bool {
+    response["ret"].as_i64().unwrap_or(0) != 0 || response["errcode"].as_i64().unwrap_or(0) != 0
 }
 
 pub fn suggested_long_poll_timeout(response: &Value, current: Duration) -> Duration {
@@ -1429,6 +1519,11 @@ fn sniff_image_mime(bytes: &[u8]) -> &'static str {
     "image/jpeg"
 }
 
+fn qr_http_client() -> &'static reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(crate::reqwest_client)
+}
+
 fn qr_sessions() -> &'static Mutex<HashMap<String, QrLoginSession>> {
     static CELL: OnceLock<Mutex<HashMap<String, QrLoginSession>>> = OnceLock::new();
     CELL.get_or_init(|| Mutex::new(HashMap::new()))
@@ -1508,11 +1603,9 @@ async fn fetch_qr_code(base: &str, local_token_list: &[String]) -> Result<QrCode
         HeaderValue::from_str(&random_wechat_uin_header())
             .unwrap_or(HeaderValue::from_static("MA==")),
     );
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(API_TIMEOUT_SECS))
-        .build()?;
-    let response = client
+    let response = qr_http_client()
         .post(&url)
+        .timeout(Duration::from_secs(API_TIMEOUT_SECS))
         .headers(headers)
         .json(&json!({ "local_token_list": local_token_list }))
         .send()
@@ -1526,15 +1619,17 @@ async fn fetch_qr_code(base: &str, local_token_list: &[String]) -> Result<QrCode
 }
 
 fn sync_buf_path(bot_account_id: &str) -> PathBuf {
-    let base =
-        super::super::bitfun_home_dir().unwrap_or_else(|| std::env::temp_dir().join(".bitfun"));
+    let base = super::super::product_home_dir().unwrap_or_else(|| {
+        std::env::temp_dir().join(bitfun_services_core::product_identity::hidden_data_directory())
+    });
     base.join("weixin")
         .join(format!("{bot_account_id}_get_updates_buf.txt"))
 }
 
 fn context_tokens_path(bot_account_id: &str) -> PathBuf {
-    let base =
-        super::super::bitfun_home_dir().unwrap_or_else(|| std::env::temp_dir().join(".bitfun"));
+    let base = super::super::product_home_dir().unwrap_or_else(|| {
+        std::env::temp_dir().join(bitfun_services_core::product_identity::hidden_data_directory())
+    });
     base.join("weixin")
         .join(format!("{bot_account_id}_context_tokens.json"))
 }
@@ -1604,6 +1699,256 @@ fn qr_error(message: &str) -> WeixinQrPollResponse {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    async fn mock_ilink(
+        replies: Vec<(u64, &'static str)>,
+    ) -> (
+        String,
+        tokio::sync::mpsc::UnboundedReceiver<String>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}/", listener.local_addr().unwrap());
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let task = tokio::spawn(async move {
+            for (delay_ms, body) in replies {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = Vec::new();
+                let mut chunk = [0; 4096];
+                loop {
+                    let read = stream.read(&mut chunk).await.unwrap();
+                    if read == 0 {
+                        break;
+                    }
+                    request.extend_from_slice(&chunk[..read]);
+                    if let Some(end) = request.windows(4).position(|w| w == b"\r\n\r\n") {
+                        let headers = String::from_utf8_lossy(&request[..end]);
+                        let length = headers
+                            .lines()
+                            .find_map(|line| {
+                                let (key, value) = line.split_once(':')?;
+                                key.eq_ignore_ascii_case("content-length")
+                                    .then(|| value.trim().parse::<usize>().ok())
+                                    .flatten()
+                            })
+                            .unwrap_or(0);
+                        if request.len() >= end + 4 + length {
+                            break;
+                        }
+                    }
+                }
+                tx.send(String::from_utf8(request).unwrap()).unwrap();
+                tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(), body
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+            }
+        });
+        (base, rx, task)
+    }
+
+    fn test_client(base_url: String) -> WeixinProviderClient {
+        WeixinProviderClient::new(WeixinConfig {
+            ilink_token: "fixture-token".into(),
+            base_url,
+            bot_account_id: "fixture-bot".into(),
+        })
+    }
+
+    fn test_qr_session(base: &str) -> String {
+        let key = uuid::Uuid::new_v4().to_string();
+        qr_sessions().lock().unwrap().insert(
+            key.clone(),
+            QrLoginSession {
+                qrcode: "fixture-qr".into(),
+                started_at_ms: now_ms(),
+                refresh_count: 0,
+                current_base_url: base.into(),
+                local_token_list: vec!["fixture-token".into()],
+                existing_ilink_token: Some("fixture-token".into()),
+                existing_bot_account_id: Some("fixture-bot".into()),
+                existing_base_url: Some(base.into()),
+                poll_lock: Arc::new(tokio::sync::Mutex::new(())),
+                completed: None,
+            },
+        );
+        key
+    }
+
+    #[tokio::test]
+    async fn qr_scan_confirmation_is_replayable_after_response_loss() {
+        let (base, mut requests, task) = mock_ilink(vec![
+            (0, r#"{"status":"scaned"}"#),
+            (0, r#"{"status":"confirmed","bot_token":"new-token","ilink_bot_id":"fixture@bot","baseurl":"https://assigned.example"}"#),
+        ]).await;
+        let key = test_qr_session(&base);
+        let scanned = weixin_qr_poll(&key, None, None).await.unwrap();
+        assert!(matches!(scanned.status, WeixinQrPollStatus::Scanned));
+        let (confirmed, overlapping) = tokio::join!(
+            weixin_qr_poll(&key, None, None),
+            weixin_qr_poll(&key, None, None),
+        );
+        let confirmed = confirmed.unwrap();
+        assert_eq!(
+            serde_json::to_value(&confirmed).unwrap(),
+            serde_json::to_value(overlapping.unwrap()).unwrap()
+        );
+        assert!(matches!(confirmed.status, WeixinQrPollStatus::Confirmed));
+        assert_eq!(
+            confirmed.base_url.as_deref(),
+            Some("https://assigned.example")
+        );
+        let replay = weixin_qr_poll(&key, None, None).await.unwrap();
+        assert_eq!(
+            serde_json::to_value(&confirmed).unwrap(),
+            serde_json::to_value(replay).unwrap()
+        );
+        task.await.unwrap();
+        assert!(requests
+            .recv()
+            .await
+            .unwrap()
+            .starts_with("GET /ilink/bot/get_qrcode_status?qrcode=fixture-qr "));
+        assert!(requests.recv().await.is_some());
+        assert!(requests.recv().await.is_none());
+        qr_sessions().lock().unwrap().remove(&key);
+    }
+
+    #[tokio::test]
+    async fn verification_and_reused_login_follow_reference_states() {
+        let (base, mut requests, task) = mock_ilink(vec![
+            (0, r#"{"status":"need_verifycode"}"#),
+            (0, r#"{"status":"binded_redirect"}"#),
+        ])
+        .await;
+        let key = test_qr_session(&base);
+        assert!(matches!(
+            weixin_qr_poll(&key, None, None).await.unwrap().status,
+            WeixinQrPollStatus::NeedVerifyCode
+        ));
+        let reused = weixin_qr_poll(&key, None, Some("12 34&56".into()))
+            .await
+            .unwrap();
+        assert!(matches!(reused.status, WeixinQrPollStatus::Confirmed));
+        assert_eq!(reused.ilink_token.as_deref(), Some("fixture-token"));
+        task.await.unwrap();
+        requests.recv().await.unwrap();
+        assert!(requests
+            .recv()
+            .await
+            .unwrap()
+            .contains("verify_code=12%2034%2656"));
+        qr_sessions().lock().unwrap().remove(&key);
+    }
+
+    #[tokio::test]
+    async fn expired_qr_refresh_preserves_local_tokens_and_resets_poll_host() {
+        let (base, mut requests, task) = mock_ilink(vec![(
+            0,
+            r#"{"qrcode":"fresh-code","qrcode_img_content":"https://example.test/scan"}"#,
+        )])
+        .await;
+        let key = test_qr_session("https://old.example/");
+        let refreshed = refresh_qr_session(&key, &base).await.unwrap();
+        assert!(matches!(refreshed.status, WeixinQrPollStatus::Expired));
+        assert_eq!(
+            refreshed.qr_image_url.as_deref(),
+            Some("https://example.test/scan")
+        );
+        let session = qr_sessions().lock().unwrap().remove(&key).unwrap();
+        assert_eq!(session.current_base_url, base);
+        assert_eq!(session.qrcode, "fresh-code");
+        task.await.unwrap();
+        let request = requests.recv().await.unwrap();
+        assert!(request.starts_with("POST /ilink/bot/get_bot_qrcode?bot_type=3 "));
+        assert!(request.contains(r#""local_token_list":["fixture-token"]"#));
+    }
+
+    #[tokio::test]
+    async fn missing_or_failed_qr_status_is_not_reported_as_waiting() {
+        for response in [r#"{"ret":-14}"#, r#"{}"#, r#"{"status":"unsupported"}"#] {
+            let (base, _requests, task) = mock_ilink(vec![(0, response)]).await;
+            let key = test_qr_session(&base);
+            assert!(matches!(
+                weixin_qr_poll(&key, None, None).await.unwrap().status,
+                WeixinQrPollStatus::Error
+            ));
+            task.await.unwrap();
+            qr_sessions().lock().unwrap().remove(&key);
+        }
+    }
+
+    #[tokio::test]
+    async fn long_poll_timeout_preserves_cursor_without_backoff_error() {
+        let (base, _requests, task) = mock_ilink(vec![(100, r#"{"ret":0,"msgs":[]}"#)]).await;
+        let response = test_client(base)
+            .get_updates_once("previous-cursor", Duration::from_millis(20))
+            .await
+            .unwrap();
+        assert_eq!(response["get_updates_buf"], "previous-cursor");
+        assert!(!updates_failed(&response));
+        task.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn stale_token_remains_an_error_while_requests_are_paused() {
+        let (base, mut requests, task) = mock_ilink(vec![(0, r#"{"ret":-14}"#)]).await;
+        let client = test_client(base);
+        let response = client
+            .get_updates_once("cursor", Duration::from_secs(1))
+            .await
+            .unwrap();
+        assert!(updates_failed(&response));
+        let paused = client
+            .get_updates_once("cursor", Duration::from_secs(1))
+            .await
+            .unwrap();
+        assert!(updates_failed(&paused));
+        assert!(paused.get("get_updates_buf").is_none());
+        task.await.unwrap();
+        assert!(requests.recv().await.is_some());
+        assert!(requests.recv().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn send_response_must_be_valid_json_and_successful() {
+        for response in [
+            "not-json",
+            "null",
+            r#"{"ret":-1,"errmsg":"denied"}"#,
+            r#"{"errcode":42}"#,
+        ] {
+            let (base, _requests, task) = mock_ilink(vec![(0, response)]).await;
+            assert!(test_client(base)
+                .send_text_chunks("peer", "context", "hello")
+                .await
+                .is_err());
+            task.await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn outbound_text_uses_inbound_context_and_reference_envelope() {
+        let (base, mut requests, task) = mock_ilink(vec![(0, "{}")]).await;
+        test_client(base)
+            .send_text_chunks("peer", "incoming-context", "hello")
+            .await
+            .unwrap();
+        task.await.unwrap();
+        let request = requests.recv().await.unwrap();
+        assert!(request
+            .to_ascii_lowercase()
+            .contains("authorization: bearer fixture-token"));
+        let body: Value = serde_json::from_str(request.split_once("\r\n\r\n").unwrap().1).unwrap();
+        assert_eq!(body["msg"]["context_token"], "incoming-context");
+        assert_eq!(body["msg"]["message_type"], 2);
+        assert_eq!(body["msg"]["message_state"], 2);
+        assert_eq!(body["msg"]["item_list"][0]["text_item"]["text"], "hello");
+        assert_eq!(body["base_info"]["channel_version"], "2.4.8");
+    }
 
     #[test]
     fn context_token_error_heuristic() {

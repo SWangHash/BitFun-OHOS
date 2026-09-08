@@ -1,10 +1,36 @@
 @use './motion' as motion;
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
+:root {
+  // App geometry contract: measured composer and visual viewport in CSS pixels.
+  // These runtime values are separate from theme spacing and layout breakpoints.
+  --chat-composer-height: 56px;
+  --mobile-viewport-height: 100dvh;
+  --mobile-viewport-top: 0px;
+  --mobile-viewport-bottom: 0px;
+  --bitfun-type-support-font-size: var(--bitfun-type-flow-support-font-size);
+  --size-radius-sm: 6px;
+  --size-radius-base: 8px;
+  --size-radius-lg: 12px;
+  --size-radius-xl: 16px;
+  --size-radius-2xl: 20px;
+  --size-radius-full: 9999px;
+
+  --size-gap-1: 4px;
+  --size-gap-2: 8px;
+  --size-gap-3: 12px;
+  --size-gap-4: 16px;
+  --size-gap-5: 20px;
+  --size-gap-6: 24px;
+  --size-gap-8: 32px;
+  --size-gap-10: 40px;
+  --size-gap-12: 48px;
+  --size-gap-16: 64px;
+
+  --motion-fast: 0.15s;
+  --motion-base: 0.3s;
+  --motion-slow: 0.6s;
+  --easing-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
 }
 
 html, body, #root {
@@ -15,11 +41,11 @@ html, body, #root {
 }
 
 body {
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-base);
-  color: var(--color-text-primary);
-  background: var(--color-bg-primary);
+  font-family: var(--bitfun-type-body-md-font-family);
+  font-size: var(--bitfun-type-body-md-font-size);
+  line-height: var(--bitfun-type-body-md-line-height);
+  color: var(--bitfun-color-content-primary);
+  background: var(--bitfun-color-surface-canvas);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -28,8 +54,8 @@ body {
   height: 100%;
   height: 100dvh;
   width: 100%;
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
+  background: var(--bitfun-color-surface-canvas);
+  color: var(--bitfun-color-content-primary);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -47,11 +73,11 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
+  background: var(--bitfun-color-scrollbar-thumb);
   border-radius: var(--size-radius-full);
 
   &:hover {
-    background: var(--scrollbar-thumb-hover);
+    background: var(--bitfun-color-scrollbar-thumb-hover);
   }
 }
 
@@ -100,7 +126,7 @@ body {
 .nav-page {
   position: absolute;
   inset: 0;
-  background: var(--color-bg-primary);
+  background: var(--bitfun-color-surface-canvas);
   z-index: 1;
 }
 
@@ -155,8 +181,8 @@ body {
 .spinner {
   width: 28px;
   height: 28px;
-  border: 2.5px solid var(--border-subtle);
-  border-top-color: var(--color-accent-500);
+  border: 2.5px solid var(--bitfun-color-border-subtle);
+  border-top-color: var(--bitfun-color-accent-default);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -196,10 +222,10 @@ html.theme-switching {
   justify-content: center;
   gap: 8px;
   padding: 8px 16px;
-  background: var(--color-warning);
-  color: var(--btn-primary-color);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
+  background: var(--bitfun-color-status-warning-emphasis);
+  color: var(--bitfun-color-content-on-light);
+  font-size: var(--bitfun-type-body-md-font-size);
+  font-weight: var(--bitfun-type-label-lg-font-weight);
   animation: slideDown var(--motion-fast) var(--easing-standard);
 
   button {
@@ -226,4 +252,10 @@ html.theme-switching {
 
 @keyframes reconnect-spin {
   to { transform: rotate(360deg); }
+}
+
+// Portaled sheets follow the same visible area as the conversation composer.
+[data-bitfun-component='mobile-sheet'][data-bitfun-part='overlay'] {
+  inset-block-start: var(--mobile-viewport-top);
+  inset-block-end: var(--mobile-viewport-bottom);
 }

@@ -1,0 +1,12 @@
+@layer bitfun.components {
+  .root { display: flex; box-sizing: border-box; inline-size: 100%; min-block-size: 44px; align-items: center; gap: var(--bitfun-space-3); padding: var(--bitfun-space-2) var(--bitfun-space-4); border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle); border-radius: var(--bitfun-radius-md); color: var(--bitfun-color-content-secondary); background: var(--bitfun-color-surface-subtle); font-size: var(--bitfun-type-body-sm-font-size); }
+  .root[data-tone="info"] { border-color: var(--bitfun-color-status-info-border); color: var(--bitfun-color-status-info-content); background: var(--bitfun-color-status-info-surface); }
+  .root[data-tone="warning"] { border-color: var(--bitfun-color-status-warning-border); color: var(--bitfun-color-status-warning-content); background: var(--bitfun-color-status-warning-surface); }
+  .root[data-tone="danger"] { border-color: var(--bitfun-color-status-danger-border); color: var(--bitfun-color-status-danger-content); background: var(--bitfun-color-status-danger-surface); }
+  .icon { display: grid; inline-size: 20px; block-size: 20px; flex: 0 0 20px; place-items: center; }
+  .root[data-tone="info"] .icon { color: var(--bitfun-color-status-info-emphasis); }
+  .root[data-tone="warning"] .icon { color: var(--bitfun-color-status-warning-emphasis); }
+  .root[data-tone="danger"] .icon { color: var(--bitfun-color-status-danger-emphasis); }
+  .content { min-inline-size: 0; flex: 1; }
+  .action { flex: 0 0 auto; }
+}

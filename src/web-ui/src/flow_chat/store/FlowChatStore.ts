@@ -34,7 +34,7 @@ import {
 } from '@/shared/utils/startupTrace';
 import { elapsedMs, nowMs } from '@/shared/utils/timing';
 import { normalizeRemoteSessionScope } from '@/shared/utils/remoteSessionScope';
-import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFlag';
+
 import { isSurfaceReconcileEnabled } from '@/infrastructure/peer-device/deviceSurfaceReconcile';
 import { persistedMayWriteTurn } from '@/flow_chat/session-stream/SessionStream';
 import {
@@ -7936,50 +7936,6 @@ export class FlowChatStore {
       let restoredTiming: SessionViewRestoreTiming | undefined;
       let restoredCurrentContextUsage: SessionContextUsage | null | undefined;
       let restoredRuntimeEventSnapshot: SessionRuntimeEventSnapshot | undefined;
-
-      // Finish or resume relay history import before Core restores its model
-      // context. Ordinary local sessions return after one metadata read, while
-      // an incomplete relay import fails closed instead of publishing a
-      // truncated UI/Core history pair.
-      //
-      // Peer Device Mode: cloud turn fetch is paused on the controller; session
-      // history must come from the peer host via restore_session_view.
-      if (!remote && storageWorkspacePath && !isPeerDeviceModeActive()) {
-        const relayImportStartedAt = nowMs();
-        startupTrace.markPhase('historical_session_relay_import_start', {
-          remote,
-          sessionId,
-          sessionTraceId,
-        });
-        try {
-          const { remoteConnectAPI } = await import(
-            '@/infrastructure/api/service-api/RemoteConnectAPI'
-          );
-          const fetched = await remoteConnectAPI.accountFetchSessionTurns(
-            sessionId,
-            storageWorkspacePath
-          );
-          startupTrace.markPhase('historical_session_relay_import_end', {
-            remote,
-            sessionId,
-            sessionTraceId,
-            fetched,
-            durationMs: elapsedMs(relayImportStartedAt),
-          });
-        } catch (fetchErr) {
-          startupTrace.markPhase('historical_session_relay_import_failed', {
-            remote,
-            sessionId,
-            sessionTraceId,
-            durationMs: elapsedMs(relayImportStartedAt),
-          });
-          log.warn('Relay session history is incomplete; retry opening the session', {
-            sessionId,
-            error: fetchErr,
-          });
-          throw fetchErr;
-        }
-      }
 
       const stateMachineManagerPromise = import('../state-machine');
       if (!isAcpSession) {

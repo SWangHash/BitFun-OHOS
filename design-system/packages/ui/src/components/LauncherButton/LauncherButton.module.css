@@ -1,0 +1,100 @@
+@layer bitfun.components {
+  .root,
+  .icon,
+  .label {
+    box-sizing: border-box;
+  }
+
+  .root {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: var(--bitfun-control-launcher-button-min-inline-size);
+    block-size: var(--bitfun-control-launcher-button-block-size);
+    gap: var(--bitfun-control-launcher-button-gap);
+    margin: 0;
+    padding-block: 0;
+    padding-inline: var(--bitfun-control-launcher-button-padding-inline);
+    border: 0;
+    border-radius: var(--bitfun-control-launcher-button-radius) 0 0 0;
+    color: var(--bitfun-color-control-launcher-content);
+    background: var(--bitfun-color-control-launcher-background);
+    font-family: var(--bitfun-type-code-meta-font-family);
+    font-size: var(--bitfun-type-code-meta-font-size);
+    font-weight: var(--bitfun-type-code-meta-font-weight);
+    font-synthesis: none;
+    letter-spacing: var(--bitfun-type-code-meta-letter-spacing);
+    line-height: var(--bitfun-type-code-meta-line-height);
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .root:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled) {
+    color: var(--bitfun-color-control-launcher-content-hover);
+    background: var(--bitfun-color-control-launcher-background-hover);
+  }
+
+  .root:is(:active, [data-bitfun-preview-state="active"]):not(:disabled) {
+    color: var(--bitfun-color-control-launcher-content-pressed);
+    background: var(--bitfun-color-control-launcher-background-pressed);
+  }
+
+  .root:is(:focus-visible, [data-bitfun-preview-state="focus-visible"]) {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: calc(var(--bitfun-focus-offset) * -1);
+  }
+
+  .root:disabled {
+    color: var(--bitfun-color-control-launcher-content-disabled);
+    cursor: not-allowed;
+    opacity: var(--bitfun-opacity-disabled);
+  }
+
+  .icon {
+    display: inline-flex;
+    flex: 0 0 var(--bitfun-control-launcher-button-icon-size);
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--bitfun-control-launcher-button-icon-size);
+    block-size: var(--bitfun-control-launcher-button-icon-size);
+    color: currentColor;
+  }
+
+  .icon > :where(svg, img),
+  .icon > [data-bitfun-component="icon"] {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .label {
+    min-inline-size: 0;
+    overflow: hidden;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .root {
+      transition: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .root {
+      border: var(--bitfun-border-width-default) solid ButtonText;
+      color: ButtonText;
+      background: ButtonFace;
+    }
+
+    .root:is(:hover, :active):not(:disabled) {
+      color: HighlightText;
+      background: Highlight;
+    }
+
+    .root:focus-visible {
+      outline-color: Highlight;
+    }
+  }
+}

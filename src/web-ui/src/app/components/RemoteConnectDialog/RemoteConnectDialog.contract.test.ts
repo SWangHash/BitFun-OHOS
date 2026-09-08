@@ -5,6 +5,22 @@ const dialogSource = readFileSync(
   new URL('./RemoteConnectDialog.tsx', import.meta.url),
   'utf8',
 );
+const dialogStyleSource = readFileSync(
+  new URL('./RemoteConnectDialog.scss', import.meta.url),
+  'utf8',
+);
+const chatAppBrandIconSource = readFileSync(
+  new URL('./ChatAppBrandIcon.tsx', import.meta.url),
+  'utf8',
+);
+const deviceStatusControlSource = readFileSync(
+  new URL('../NavPanel/components/DeviceStatusControl.tsx', import.meta.url),
+  'utf8',
+);
+const navPanelStyleSource = readFileSync(
+  new URL('../NavPanel/NavPanel.scss', import.meta.url),
+  'utf8',
+);
 const accountPanelSource = readFileSync(
   new URL('./AccountPanel.tsx', import.meta.url),
   'utf8',
@@ -20,14 +36,122 @@ const accountLoginStateSource = readFileSync(
 
 describe('Remote Connect safety contracts', () => {
   it('gates the complete dialog surface behind disclaimer agreement', () => {
-    expect(dialogSource).toContain('isOpen={isOpen && hasAgreedDisclaimer}');
-    expect(dialogSource).toContain('isOpen={isOpen && (disclaimerIsGate || showDisclaimer)}');
+    expect(dialogSource).toContain('open={isOpen && hasAgreedDisclaimer}');
+    expect(dialogSource).toContain('open={isOpen && (disclaimerIsGate || showDisclaimer)}');
   });
 
-  it('binds tabs to accessible tab panels', () => {
-    expect(dialogSource).toContain('aria-controls="remote-connect-panel-account"');
+  it('presents one overview with account and connection destinations', () => {
+    const overview = dialogSource.slice(
+      dialogSource.indexOf('const renderOverview ='),
+      dialogSource.indexOf('const renderViewHeader'),
+    );
+
+    expect(overview).toContain('remote-connect-my-devices-title');
+    expect(overview).toContain('remote-connect-access-title');
+    expect(overview.match(/renderOverviewAction\(\{/g)).toHaveLength(3);
+    expect(overview).toContain("view: 'account'");
+    expect(overview).toContain("view: 'network'");
+    expect(overview).toContain("view: 'bot'");
+    expect(dialogSource).not.toContain('data-bitfun-part="groupTab"');
+    expect(dialogSource).not.toContain('remote-connect-group-');
+  });
+
+  it('keeps persistent navigation beside a single task surface', () => {
+    expect(dialogSource).toContain('size="2xl"');
+    expect(dialogSource).toContain('className="bitfun-remote-connect-dialog"');
+    expect(dialogSource).toContain('className="bitfun-remote-connect-dialog__header"');
+    expect(dialogSource).toContain('className="bitfun-remote-connect-dialog__body"');
+    expect(dialogSource).toContain('data-bitfun-part="sidebar"');
+    expect(dialogSource).toContain('data-bitfun-part="sidebarBrand"');
+    expect(dialogSource).toContain('data-bitfun-part="main"');
+    expect(dialogSource).toContain('className="bitfun-remote-connect__navigation"');
+    expect(dialogSource).toContain("aria-current={activeView === view ? 'page' : undefined}");
+  });
+
+  it('keeps the dialog height stable while selected content scrolls inside it', () => {
+    const desktopGeometry = dialogStyleSource.slice(
+      dialogStyleSource.indexOf('.bitfun-remote-connect-dialog {'),
+      dialogStyleSource.indexOf('.bitfun-remote-connect-dialog__header'),
+    );
+
+    expect(desktopGeometry).toContain('block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)))');
+    expect(desktopGeometry).toContain('min-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)))');
+    expect(desktopGeometry).toContain('max-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)))');
+    expect(dialogStyleSource).toContain(".bitfun-remote-connect [data-bitfun-part='panel']");
+    expect(dialogSource).toContain('<ScrollArea');
+  });
+
+  it('delegates accessible method and provider tabs to the design system', () => {
     expect(dialogSource).toContain('id="remote-connect-network-tabpanel"');
     expect(dialogSource).toContain('id="remote-connect-bot-tabpanel"');
+    expect(dialogSource).toContain("panelId: 'remote-connect-network-tabpanel'");
+    expect(dialogSource).toContain("panelId: 'remote-connect-bot-tabpanel'");
+    expect(dialogSource.match(/<TabGroup/g)).toHaveLength(2);
+    expect(dialogSource).not.toContain('handleTabArrowKey');
+    expect(dialogSource).not.toContain('data-bitfun-part="subtab"');
+  });
+
+  it('offers two relay endpoints and the supported chat providers', () => {
+    const methods = dialogSource.slice(
+      dialogSource.indexOf('const NETWORK_TABS'),
+      dialogSource.indexOf('const RemoteConnectDialog'),
+    );
+
+    expect(methods).toContain("id: 'lan'");
+    expect(methods).toContain("id: 'bitfun_server'");
+    expect(methods).not.toContain("id: 'ngrok'");
+    expect(methods).not.toContain("id: 'custom_server'");
+    expect(methods).toContain("id: 'telegram'");
+    expect(methods).toContain("id: 'feishu'");
+    expect(methods).toContain("id: 'weixin'");
+  });
+
+  it('uses the real monochrome app marks for every chat provider', () => {
+    const identityBrandStyle = dialogStyleSource.slice(
+      dialogStyleSource.indexOf('.bitfun-remote-connect__bot-identity-icon'),
+      dialogStyleSource.indexOf('.bitfun-remote-connect__bot-identity-title'),
+    );
+    const connectedBrandStyle = dialogStyleSource.slice(
+      dialogStyleSource.indexOf('.bitfun-remote-connect__connected-app-icon'),
+      dialogStyleSource.indexOf('.bitfun-remote-connect__connected-app-copy'),
+    );
+    const footerMessageBrandStyle = navPanelStyleSource.slice(
+      navPanelStyleSource.indexOf("&[data-bitfun-device-kind='message-app'] {"),
+      navPanelStyleSource.indexOf('.bitfun-nav-panel__footer-device-status-attached-count'),
+    );
+    const overviewMessageBrandStart = navPanelStyleSource.indexOf(
+      "&[data-bitfun-device-kind='message-app'] .bitfun-device-overview__device-icon {",
+    );
+    const overviewMessageBrandStyle = navPanelStyleSource.slice(
+      overviewMessageBrandStart,
+      navPanelStyleSource.indexOf('  strong {', overviewMessageBrandStart),
+    );
+
+    expect(dialogSource).toContain('<ChatAppBrandIcon app={botTab} size={28} />');
+    expect(dialogSource).toContain('icon: <MessageCircle size={18} />');
+    expect(dialogSource).toContain('<ChatAppBrandIcon app={brand} size={15} />');
+    expect(chatAppBrandIconSource).toContain("app === 'telegram'");
+    expect(chatAppBrandIconSource).toContain("app === 'feishu'");
+    expect(chatAppBrandIconSource.match(/viewBox="0 0 24 24"/g)).toHaveLength(3);
+    expect(chatAppBrandIconSource.match(/fill="currentColor"/g)).toHaveLength(5);
+    expect(deviceStatusControlSource).toContain('chatAppBrandFromIdentity(identity)');
+    expect(deviceStatusControlSource).toContain('<ChatAppBrandIcon app={chatApp} size={size} />');
+    expect(identityBrandStyle).not.toContain('background:');
+    expect(connectedBrandStyle).not.toContain('background:');
+    expect(footerMessageBrandStyle).toContain('border: 0');
+    expect(footerMessageBrandStyle).toContain('background: transparent');
+    expect(footerMessageBrandStyle).toContain('--bitfun-color-content-primary');
+    expect(overviewMessageBrandStyle).toContain('background: transparent');
+    expect(overviewMessageBrandStyle).toContain('--bitfun-color-content-primary');
+    expect(dialogSource).not.toContain('<Send size={28} />');
+    expect(dialogSource).not.toContain('<MessageSquareText size={28} />');
+    expect(dialogSource).not.toContain('<MessagesSquare size={28} />');
+  });
+
+  it('keeps BitFun Page out of the account and device lifecycle', () => {
+    expect(accountPanelSource).not.toContain('pagesEntry');
+    expect(accountPanelSource).not.toContain("openScene('pages')");
+    expect(accountPanelSource).not.toContain('PanelsTopLeft');
   });
 
   it('does not issue an unconditional logout for a late 401 response', () => {
@@ -97,68 +221,13 @@ describe('Remote Connect safety contracts', () => {
     expect(recoveryFlow).toContain('startDevicePolling()');
   });
 
-  it('delegates transient retries without replaying the complete account sync workflow', () => {
-    const backgroundSync = accountPanelSource.slice(
-      accountPanelSource.indexOf('const startBackgroundSync'),
-      accountPanelSource.indexOf('const handleRetrySync'),
-    );
-
-    expect(backgroundSync).toContain('AccountClient owns transient Relay retries');
-    expect(backgroundSync).not.toContain('for (let attempt');
-    expect(backgroundSync.match(/accountAutoSync/g)).toHaveLength(1);
-  });
-
-  it('binds overwrite finalize and cleanup to an opaque pending login id', () => {
-    expect(accountPanelSource).toContain('pendingLoginIdRef.current = result.pending_login_id');
-    expect(accountPanelSource).toContain('accountFinalizeLogin(pendingLoginId)');
-    expect(accountPanelSource).toContain('accountCancelPendingLogin(pendingLoginId)');
-
-    const overwriteCleanupStart = accountPanelSource.indexOf(
-      '// Unmounting (dialog close or group switch)',
-    );
-    const overwriteCleanup = accountPanelSource.slice(
-      overwriteCleanupStart,
-      accountPanelSource.indexOf('remoteConnectAPI.getDeviceInfo()', overwriteCleanupStart),
-    );
-    expect(overwriteCleanup).toContain('cancelPendingLoginWithRetry(pendingLoginId)');
-    expect(overwriteCleanup).not.toContain('accountLogout');
-  });
-
   it('does not expose the account bearer token in the login result contract', () => {
     const loginResult = remoteConnectApiSource.slice(
       remoteConnectApiSource.indexOf('export interface AccountLoginResult'),
       remoteConnectApiSource.indexOf('export interface AccountHint'),
     );
-    expect(loginResult).toContain('pending_login_id: string | null');
+    expect(loginResult).toContain('user_id: string');
     expect(loginResult).not.toContain('token:');
-  });
-
-  it('uses verified usernames instead of opaque account ids in user-facing login states', () => {
-    const connectedView = dialogSource.slice(
-      dialogSource.indexOf('const renderConnectedView'),
-      dialogSource.indexOf('const handleCopyPairingUrl'),
-    );
-    const performLogin = accountPanelSource.slice(
-      accountPanelSource.indexOf('const performLogin'),
-      accountPanelSource.indexOf('const handleLogin'),
-    );
-
-    expect(dialogSource).toContain('remoteConnectAPI.accountGetCredentialHint()');
-    expect(dialogSource).toContain('setAccountUsername(hint?.username.trim() || null)');
-    expect(connectedView).toContain("t('accountLogin.username')");
-    expect(connectedView).not.toContain('connectedUserId');
-    expect(dialogSource).toMatch(/handleDisconnectRelay,\s+accountUsername,/);
-    expect(performLogin).toContain("loginSuccess', { user_id: user }");
-    expect(performLogin).not.toContain("loginSuccess', { user_id: result.user_id }");
-  });
-
-  it('keeps transport failures distinct from a stale pending-owner response', () => {
-    const cancelMethod = remoteConnectApiSource.slice(
-      remoteConnectApiSource.indexOf('async accountCancelPendingLogin'),
-      remoteConnectApiSource.indexOf('async accountStatus'),
-    );
-    expect(cancelMethod).toContain('throw e');
-    expect(cancelMethod).not.toContain('return false');
   });
 
   it('does not reinterpret an account-status transport failure as logout', () => {
@@ -167,60 +236,17 @@ describe('Remote Connect safety contracts', () => {
       remoteConnectApiSource.indexOf('async accountGetCredentialHint'),
     );
     const accountPanelInitialization = accountPanelSource.slice(
-      accountPanelSource.indexOf('remoteConnectAPI.accountStatus().then'),
+      accountPanelSource.indexOf('    ensureAccountSession(remoteConnectAPI'),
       accountPanelSource.indexOf(
         'return () => {',
-        accountPanelSource.indexOf('remoteConnectAPI.accountStatus().then'),
+        accountPanelSource.indexOf('    ensureAccountSession(remoteConnectAPI'),
       ),
     );
-    const sharedStateRefresh = accountLoginStateSource.slice(
-      accountLoginStateSource.indexOf('const refresh = async () =>'),
-      accountLoginStateSource.indexOf('void refresh();'),
-    );
-
     expect(statusMethod).toContain('throw e');
     expect(statusMethod).not.toContain('logged_in: false');
     expect(accountPanelInitialization).toContain('}).catch((e) => {');
-    expect(sharedStateRefresh).toContain("log.warn('Failed to refresh account login state', error)");
-    expect(sharedStateRefresh.indexOf('return;')).toBeLessThan(
-      sharedStateRefresh.indexOf('setState({ loggedIn: false'),
-    );
-  });
-
-  it('does not discard a pending owner when conditional cleanup transport fails', () => {
-    const cancelFlow = accountPanelSource.slice(
-      accountPanelSource.indexOf('const handleCancelOverwrite'),
-      accountPanelSource.indexOf('const handleLogout'),
-    );
-    expect(cancelFlow).toContain('await cancelPendingLoginWithRetry(pendingLoginId)');
-    expect(cancelFlow.indexOf('pendingLoginIdRef.current = null')).toBeGreaterThan(
-      cancelFlow.indexOf('await cancelPendingLoginWithRetry(pendingLoginId)'),
-    );
-    expect(cancelFlow).toContain("log.warn('pending login cancel failed', e)");
-    expect(cancelFlow).toContain('return;');
-  });
-
-  it('retries an ambiguous finalize response with the same opaque owner', () => {
-    const retryHelper = accountPanelSource.slice(
-      accountPanelSource.indexOf('async function finalizePendingLoginWithRetry'),
-      accountPanelSource.indexOf('/** Quota / payload-limit failures'),
-    );
-    expect(retryHelper).toContain('ACCOUNT_TRANSITION_MAX_ATTEMPTS');
-    expect(retryHelper).toContain('accountFinalizeLogin(pendingLoginId)');
-    expect(retryHelper).toContain('was ambiguous; retrying');
-  });
-
-  it('invalidates the prior background sync before starting a replacement login', () => {
-    const performLogin = accountPanelSource.slice(
-      accountPanelSource.indexOf('const performLogin'),
-      accountPanelSource.indexOf('const handleLogin'),
-    );
-    expect(performLogin.indexOf('syncInFlightRef.current = false')).toBeLessThan(
-      performLogin.indexOf('remoteConnectAPI.accountLogin'),
-    );
-    expect(performLogin.indexOf('clearSync()')).toBeLessThan(
-      performLogin.indexOf('remoteConnectAPI.accountLogin'),
-    );
+    expect(accountLoginStateSource).toContain("identity.status === 'signed-in'");
+    expect(accountLoginStateSource).not.toContain('accountStatus(');
   });
 
   it('fences Weixin poll rejection cleanup to the operation that owns the UI', () => {
@@ -251,33 +277,24 @@ describe('Remote Connect safety contracts', () => {
     expect(dialogSource).toContain('prepareAndStartWeixinBotFromQr');
   });
 
-  it('restores an existing relay pairing as cancellable in-progress UI', () => {
-    const restoreFlow = dialogSource.slice(
-      dialogSource.indexOf('// On dialog open: check if a connection'),
-      dialogSource.indexOf("activeGroup !== 'network'"),
-    );
-    expect(restoreFlow).toContain("pendingOwnerRef.current = 'network'");
-    expect(restoreFlow).toContain("setConnectionOwner('network')");
-    expect(restoreFlow).toContain('setConnectionResult({');
-    expect(restoreFlow).toContain('qr_url: null');
-    expect(restoreFlow).toContain("startPolling('relay')");
-  });
-
-  it('restores relay and bot subtabs together before the bot-first early return', () => {
+  it('restores connected method status without hijacking the overview', () => {
     const applyStatus = dialogSource.slice(
       dialogSource.indexOf('const applyStatus'),
       dialogSource.indexOf('const startPolling'),
     );
     const restoreFlow = dialogSource.slice(
       dialogSource.indexOf('const checkExisting'),
-      dialogSource.indexOf("activeGroup !== 'network'"),
+      dialogSource.indexOf("activeView !== 'network'"),
+    );
+    const connectedRestore = restoreFlow.slice(
+      restoreFlow.indexOf('applyStatus(s, restoreSelection'),
+      restoreFlow.indexOf("if (!pendingOwnerRef.current"),
     );
 
-    expect(applyStatus).toContain("nextStatus.pairing_state === 'connected'");
+    expect(applyStatus).toContain('selectRemoteNetworkConnection(nextStatus, connectionResultRef.current)');
     expect(applyStatus).toContain('setNetworkTab(connectedTab)');
     expect(applyStatus).toContain('setBotTab(connectedBot)');
-    expect(restoreFlow.indexOf('applyStatus(s)')).toBeLessThan(
-      restoreFlow.indexOf('if (s.bot_connected)'),
-    );
+    expect(dialogSource).toContain("useState<ActiveView>(initialGroup ?? 'overview')");
+    expect(connectedRestore).not.toContain('setActiveView');
   });
 });

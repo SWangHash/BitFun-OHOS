@@ -1,0 +1,120 @@
+@layer bitfun.components {
+  .root {
+    --_mobile-icon-button-size: var(--bitfun-space-12);
+    --_mobile-icon-size: 22px;
+
+    position: relative;
+    box-sizing: border-box;
+    display: inline-grid;
+    inline-size: var(--_mobile-icon-button-size);
+    block-size: var(--_mobile-icon-button-size);
+    place-items: center;
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 0;
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-pill);
+    color: var(--bitfun-color-action-neutral-content);
+    background: var(--bitfun-color-surface-panel);
+    box-shadow: none;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .root[data-size="sm"] {
+    --_mobile-icon-button-size: var(--bitfun-space-12);
+    --_mobile-icon-size: 20px;
+  }
+
+  .root[data-appearance="plain"] {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .root[data-appearance="floating"] {
+    box-shadow: var(--bitfun-shadow-base);
+  }
+
+  .root[data-selected="true"] {
+    border-color: var(--bitfun-color-border-strong);
+    background: var(--bitfun-color-action-neutral-surface);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .root:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled) {
+      color: var(--bitfun-color-content-primary);
+      background: var(--bitfun-color-action-neutral-surface-hover);
+      box-shadow: var(--bitfun-shadow-sm);
+    }
+  }
+
+  .root:is(:active, [data-bitfun-preview-state="active"]):not(:disabled) {
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-action-neutral-surface-pressed);
+  }
+
+  .root:is(:focus-visible, [data-bitfun-preview-state="focus-visible"]) {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+  }
+
+  .root:disabled {
+    color: var(--bitfun-color-action-neutral-content-disabled);
+    cursor: not-allowed;
+  }
+
+  .icon,
+  .spinner {
+    position: absolute;
+    display: grid;
+    inline-size: var(--_mobile-icon-size);
+    block-size: var(--_mobile-icon-size);
+    place-items: center;
+  }
+
+  .icon > :where(svg, img) {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .spinner {
+    border: 2px solid currentColor;
+    border-inline-end-color: transparent;
+    border-radius: var(--bitfun-radius-pill);
+    opacity: 0;
+  }
+
+  .root[data-loading="true"] .icon {
+    opacity: 0;
+  }
+
+  .root[data-loading="true"] .spinner {
+    opacity: 1;
+    animation: bitfun-mobile-icon-button-spin var(--bitfun-motion-duration-loop) linear infinite;
+  }
+
+  @keyframes bitfun-mobile-icon-button-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .root { transition: none; }
+    .root[data-loading="true"] .spinner {
+      animation: none;
+      border-inline-end-color: currentColor;
+      opacity: var(--bitfun-opacity-hover);
+    }
+  }
+
+  @media (forced-colors: active) {
+    .root { border-color: ButtonText; }
+    .root:focus-visible { outline-color: Highlight; }
+  }
+}

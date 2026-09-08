@@ -1013,15 +1013,6 @@ async fn run_interactive(
     }
 
     // 3.6 Continuous account settings sync (30s pull + debounced push).
-    // Safe to start before login: cycles skip while logged out.
-    if !shared {
-        runtime
-            .as_ref()
-            .expect("Embedded settings sync requires the CLI Runtime")
-            .account_runtime()
-            .start_settings_sync_loop();
-    }
-
     // Resolve the agent override against the execution owner's mode catalog.
     // Embedded and Shared both report the catalog through the same client
     // boundary, so a Shared controller never falls back to its local registry.

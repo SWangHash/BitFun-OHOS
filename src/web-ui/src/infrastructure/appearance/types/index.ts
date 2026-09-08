@@ -581,7 +581,7 @@ export interface AppearancePartDescriptor {
 
 export interface AppearanceFacetDescriptor {
   id: string;
-  attribute: `data-bf-${string}`;
+  attribute: `data-bf-${string}` | `data-bitfun-${string}`;
   values: readonly string[];
 }
 
@@ -594,6 +594,7 @@ export interface AppearanceStateDescriptor {
 
 export interface AppearanceSurfaceDescriptor {
   id: string;
+  componentAttribute?: 'data-bitfun-component' | 'data-bitfun-product-component';
   parts: readonly AppearancePartDescriptor[];
   facets?: readonly AppearanceFacetDescriptor[];
   states?: readonly AppearanceStateDescriptor[];

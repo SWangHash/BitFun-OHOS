@@ -1,0 +1,176 @@
+@layer bitfun.components {
+  .root,
+  .segment,
+  .icon,
+  .label {
+    box-sizing: border-box;
+  }
+
+  .root {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--bitfun-control-segmented-control-gap);
+    padding: var(--bitfun-control-segmented-control-padding);
+    border: 0;
+    border-radius: var(--bitfun-control-segmented-control-radius);
+    background: var(--bitfun-color-action-neutral-surface-hover);
+  }
+
+  .root[data-distribution="fill"] {
+    display: flex;
+    inline-size: 100%;
+  }
+
+  .root[data-distribution="fill"] .segment {
+    flex: 1 1 0;
+  }
+
+  .segment {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: 0;
+    gap: var(--bitfun-control-segmented-control-segment-gap);
+    block-size: var(--bitfun-control-segmented-control-segment-height);
+    margin: 0;
+    padding-block: 0;
+    padding-inline: var(--bitfun-control-segmented-control-segment-padding-inline);
+    border: 0;
+    border-radius: var(--bitfun-control-segmented-control-segment-radius);
+    color: var(--bitfun-color-action-neutral-content);
+    background: transparent;
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .segment:is([aria-checked="true"], [aria-pressed="true"]) {
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-surface-raised);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+  }
+
+  .root[data-size="md"] {
+    padding: var(--bitfun-control-segmented-control-padding-md);
+  }
+
+  .root[data-size="md"] .segment {
+    block-size: var(--bitfun-control-segmented-control-segment-height-md);
+    padding-inline: var(--bitfun-control-segmented-control-segment-padding-inline-md);
+  }
+
+  .root[data-size="md"] .icon {
+    inline-size: var(--bitfun-control-segmented-control-icon-size-md);
+    block-size: var(--bitfun-control-segmented-control-icon-size-md);
+  }
+
+  .root[data-variant="pills"] {
+    gap: var(--bitfun-space-2);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .root[data-variant="pills"] .segment {
+    block-size: var(--bitfun-control-segmented-control-pill-segment-height);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-action-neutral-border);
+    border-radius: var(--bitfun-control-segmented-control-pill-segment-radius);
+    background: var(--bitfun-color-surface-raised);
+  }
+
+  .root[data-variant="pills"][data-size="md"] .segment {
+    block-size: var(--bitfun-control-height-md);
+    padding-inline: var(--bitfun-space-4);
+    border-radius: var(--bitfun-radius-pill);
+  }
+
+  .root[data-variant="pills"] .segment:is([aria-checked="true"], [aria-pressed="true"]) {
+    border-color: var(--bitfun-color-action-primary-background);
+    color: var(--bitfun-color-action-primary-content);
+    background: var(--bitfun-color-action-primary-background);
+  }
+
+  .root[data-variant="pills"][data-tone="neutral"] .segment:is([aria-checked="true"], [aria-pressed="true"]) {
+    border-color: var(--bitfun-color-action-neutral-surface-pressed);
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-action-neutral-surface-pressed);
+  }
+
+  .segment:hover:not(:disabled)[aria-checked="false"],
+  .root[data-bitfun-preview-state="hover"] .segment[aria-checked="false"]:not(:disabled) {
+    background: var(--bitfun-color-action-neutral-surface-hover);
+  }
+
+  .segment:active:not(:disabled)[aria-checked="false"],
+  .root[data-bitfun-preview-state="active"] .segment[aria-checked="false"]:not(:disabled) {
+    background: var(--bitfun-color-action-neutral-surface-pressed);
+  }
+
+  .segment:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+  }
+
+  .segment:disabled {
+    color: var(--bitfun-color-action-neutral-content-disabled);
+    cursor: not-allowed;
+  }
+
+  .icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--bitfun-control-segmented-control-icon-size);
+    block-size: var(--bitfun-control-segmented-control-icon-size);
+    color: currentColor;
+  }
+
+  .icon > :where(svg, img),
+  .icon > [data-bitfun-component="icon"] {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .label {
+    min-inline-size: 0;
+    line-height: var(--bitfun-type-body-sm-line-height);
+    overflow: hidden;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .segment {
+      transition: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .root {
+      outline: var(--bitfun-border-width-default) solid ButtonText;
+    }
+
+    .segment:is([aria-checked="true"], [aria-pressed="true"]) {
+      color: HighlightText;
+      background: Highlight;
+    }
+
+    .root[data-variant="pills"][data-tone] .segment:is([aria-checked="true"], [aria-pressed="true"]) {
+      border-color: Highlight;
+      color: HighlightText;
+      background: Highlight;
+    }
+
+    .segment:focus-visible {
+      outline-color: Highlight;
+    }
+  }
+}

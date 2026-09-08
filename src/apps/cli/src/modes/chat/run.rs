@@ -854,12 +854,6 @@ impl ChatMode {
                 external_source_rx = None;
             }
 
-            if chat_view.login_form_visible() {
-                if self.refresh_account_panel_live(&mut chat_view) {
-                    needs_redraw = true;
-                }
-            }
-
             let mut did_render_this_loop = false;
             if needs_redraw && resize_redraw.can_render() {
                 let displayed_chat_state = self.displayed_chat_state(&chat_state);

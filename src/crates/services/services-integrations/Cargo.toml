@@ -16,6 +16,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 ts-rs = { workspace = true, optional = true }
+pulldown-cmark = { workspace = true, optional = true }
 bitfun-agent-runtime = { path = "../../execution/agent-runtime", optional = true }
 bitfun-agent-tools = { path = "../../execution/tool-contracts", optional = true }
 bitfun-events = { path = "../../contracts/events" }
@@ -55,6 +56,8 @@ rmcp = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
 rustls-native-certs = { version = "0.8", optional = true }
 sha2 = { workspace = true, optional = true }
+hkdf = { workspace = true, optional = true }
+sioc = { workspace = true, optional = true }
 sse-stream = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 tar = { workspace = true, optional = true }
@@ -80,11 +83,17 @@ tauri = { workspace = true, optional = true }
 sherpa-onnx = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
+keyring-core = { workspace = true, optional = true }
 schannel = { version = "0.1", optional = true }
+windows-native-keyring-store = { workspace = true, optional = true }
 windows = { workspace = true, optional = true, features = [
     "Win32_Foundation",
     "Win32_Storage_FileSystem",
 ] }
+
+[target.'cfg(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android"))))'.dependencies]
+keyring-core = { workspace = true, optional = true }
+zbus-secret-service-keyring-store = { workspace = true, optional = true }
 
 [features]
 default = []
@@ -283,19 +292,57 @@ hook-import = [
     "tokio/sync",
     "uuid",
 ]
+account-identity = [
+    "dep:bitfun-product-domains",
+    "bitfun-services-core/tls-provider",
+    "bitfun-services-core/credential-vault",
+    "bitfun-services-core/secure-credentials",
+    "bitfun-services-core/product-identity",
+    "chrono",
+    "dirs",
+    "thiserror",
+    "dep:keyring-core",
+    "dep:windows-native-keyring-store",
+    "dep:zbus-secret-service-keyring-store",
+    "reqwest",
+    "reqwest/json",
+    "reqwest/rustls-no-provider",
+    "tokio/rt",
+    "tokio/sync",
+]
+remote-persistence = [
+    "fs2",
+    "aes-gcm",
+    "anyhow",
+    "base64",
+    "hostname",
+    "bitfun-services-core/product-identity",
+    "rand",
+    "sha2",
+    "windows",
+]
 remote-connect = [
+    "dep:sioc",
+    "dep:pulldown-cmark",
+    "fs2",
+    "dep:bitfun-product-domains",
+    "thiserror",
+    "dep:hkdf",
+    "account-identity",
+    "remote-persistence",
     "anyhow",
     "aes",
     "aes-gcm",
-    "argon2",
     "async-trait",
     "base64",
     "dep:bitfun-agent-tools",
     "dep:bitfun-core-types",
     "bitfun-services-core/local-storage",
     "bitfun-services-core/process-runtime",
+    "bitfun-services-core/tls-provider",
     "bitfun-runtime-ports/agent-api",
     "bitfun-runtime-ports/remote-workspace-ports",
+    "bitfun-runtime-ports/workspace-ports",
     "chrono",
     "dirs",
     "futures",
@@ -316,7 +363,7 @@ remote-connect = [
     "reqwest/json",
     "reqwest/multipart",
     "reqwest/query",
-    "reqwest/rustls",
+    "reqwest/rustls-no-provider",
     "rustls",
     "rustls-native-certs",
     "schannel",
@@ -332,6 +379,7 @@ remote-connect = [
     "tokio-tungstenite?/rustls-tls-native-roots",
     "urlencoding",
     "uuid",
+    "windows",
     "which",
     "x25519-dalek",
 ]
@@ -438,7 +486,7 @@ process-tree = ["bitfun-services-core/process-runtime"]
 # Forwarded to `bitfun-services-core/system-vault`, which selects the OS
 # keyring backend. Desktop hosts enable this on macOS/Windows/Linux; the
 # OHOS desktop build does not (it injects an ArkTS-backed vault via
-# `SystemMarketCredentialStore::with_vault` at startup instead).
+# `account_identity::inject_ohos_credential_vault` at startup instead).
 system-vault = ["bitfun-services-core/system-vault"]
 script-tool-runtime = [
     "async-trait",
@@ -542,3 +590,7 @@ required-features = ["workspace-search"]
 
 [lints]
 workspace = true
+
+[[example]]
+name = "relay_realtime_probe"
+required-features = ["remote-connect"]

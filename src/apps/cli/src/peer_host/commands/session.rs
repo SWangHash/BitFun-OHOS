@@ -445,6 +445,7 @@ pub(crate) async fn create_session(state: &PeerHostState, args: &Value) -> Resul
     let create_request = AgentSessionCreateRequest {
         session_name,
         agent_type,
+        agent_route_key: None,
         workspace_path: Some(workspace_path),
         project_workspace_path: None,
         execution_target: None,
@@ -629,6 +630,7 @@ pub(crate) async fn update_session_mode(
         .update_session_mode(AgentSessionModeUpdateRequest {
             session_id,
             mode_id,
+            agent_route_key: None,
         })
         .await
         .map_err(|error| format!("Failed to update session mode: {}", error.into_message()))?;

@@ -1,0 +1,155 @@
+@layer bitfun.components {
+  .root,
+  .arrow,
+  .content,
+  .body {
+    box-sizing: border-box;
+  }
+
+  .root {
+    --_enter-x: 0px;
+    --_enter-y: 0px;
+
+    position: fixed;
+    z-index: var(--bitfun-layer-tooltip);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate3d(var(--_enter-x), var(--_enter-y), 0) scale(0.98);
+    transition:
+      opacity var(--bitfun-motion-duration-fast) ease,
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .root[data-bitfun-state="visible"] {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  .root[data-bitfun-interactive="true"][data-bitfun-state="visible"] {
+    pointer-events: auto;
+  }
+
+  .content {
+    position: relative;
+    z-index: 1;
+    max-inline-size: min(var(--bitfun-overlay-tooltip-max-inline-size), calc(100vw - 16px));
+    max-block-size: min(var(--bitfun-overlay-tooltip-max-block-size), calc(100vh - 24px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--bitfun-overlay-tooltip-padding-block) var(--bitfun-overlay-tooltip-padding-inline);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-overlay-tooltip-surface-radius);
+    background: color-mix(in srgb, var(--bitfun-color-surface-raised) 96%, transparent);
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-support-font-family);
+    font-size: var(--bitfun-type-support-font-size);
+    font-weight: var(--bitfun-type-support-font-weight);
+    line-height: var(--bitfun-type-support-line-height);
+    letter-spacing: var(--bitfun-type-support-letter-spacing);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text;
+    box-shadow: var(--bitfun-shadow-sm);
+    backdrop-filter: var(--bitfun-effect-blur-base);
+    -webkit-backdrop-filter: var(--bitfun-effect-blur-base);
+  }
+
+  .arrow {
+    position: absolute;
+    z-index: 0;
+    inline-size: var(--bitfun-overlay-tooltip-arrow-size);
+    block-size: var(--bitfun-overlay-tooltip-arrow-size);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    background: color-mix(in srgb, var(--bitfun-color-surface-raised) 96%, transparent);
+    transform: rotate(45deg);
+  }
+
+  .root[data-bitfun-placement="top"] .arrow,
+  .root[data-bitfun-placement="bottom"] .arrow {
+    left: calc(50% - var(--bitfun-overlay-tooltip-arrow-size) / 2);
+  }
+
+  .root[data-bitfun-placement="left"] .arrow,
+  .root[data-bitfun-placement="right"] .arrow {
+    top: calc(50% - var(--bitfun-overlay-tooltip-arrow-size) / 2);
+  }
+
+  .root[data-bitfun-placement="top"] .arrow {
+    bottom: -3px;
+    border-top: 0;
+    border-left: 0;
+  }
+
+  .root[data-bitfun-placement="bottom"] .arrow {
+    top: -3px;
+    border-right: 0;
+    border-bottom: 0;
+  }
+
+  .root[data-bitfun-placement="left"] .arrow {
+    right: -3px;
+    border-bottom: 0;
+    border-left: 0;
+  }
+
+  .root[data-bitfun-placement="right"] .arrow {
+    left: -3px;
+    border-top: 0;
+    border-right: 0;
+  }
+
+  .root[data-bitfun-placement="top"] {
+    --_enter-y: 3px;
+    transform-origin: center bottom;
+  }
+
+  .root[data-bitfun-placement="bottom"] {
+    --_enter-y: -3px;
+    transform-origin: center top;
+  }
+
+  .root[data-bitfun-placement="left"] {
+    --_enter-x: 3px;
+    transform-origin: right center;
+  }
+
+  .root[data-bitfun-placement="right"] {
+    --_enter-x: -3px;
+    transform-origin: left center;
+  }
+
+  .root[data-instant="true"] {
+    transition-duration: 0ms;
+  }
+
+  @media (prefers-contrast: more) {
+    .content,
+    .arrow {
+      border-color: var(--bitfun-color-border-strong);
+    }
+  }
+
+  @media (forced-colors: active) {
+    .content,
+    .arrow {
+      border-color: CanvasText;
+      background: Canvas;
+      box-shadow: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .root {
+      transition: opacity 80ms ease;
+      transform: none;
+    }
+
+    .root[data-bitfun-state="visible"] {
+      transform: none;
+    }
+
+    .root[data-instant="true"] {
+      transition-duration: 0ms;
+    }
+  }
+}

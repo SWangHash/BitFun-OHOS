@@ -1,0 +1,6 @@
+@layer bitfun.components {
+  .root { position: fixed; inset: 0; box-sizing: border-box; margin: 0; padding: 0; border: 0; background: var(--bitfun-color-overlay-scrim); cursor: default; touch-action: manipulation; transition: opacity var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard); }
+  .root[data-visible="false"] { pointer-events: none; opacity: 0; }
+  .root:focus-visible { outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring); outline-offset: calc(var(--bitfun-focus-offset) * -1); }
+  @media (prefers-reduced-motion: reduce) { .root { transition: none; } }
+}

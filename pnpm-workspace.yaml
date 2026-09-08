@@ -1,5 +1,8 @@
 packages:
   - "sdk/typescript"
+  - "design-system/tooling/*"
+  - "design-system"
+  - "design-system/packages/*"
   - "src/web-ui"
   - "src/mobile-web"
   - "src/miniapp-market-web"

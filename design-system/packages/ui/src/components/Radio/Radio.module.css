@@ -1,0 +1,127 @@
+@layer bitfun.components {
+  .root {
+    --_radio-size: 16px;
+
+    display: inline-flex;
+    min-inline-size: 0;
+    align-items: flex-start;
+    gap: var(--bitfun-space-2);
+    color: var(--bitfun-color-content-primary);
+    cursor: pointer;
+  }
+
+  .root[data-size="sm"] { --_radio-size: 14px; }
+  .root[data-size="lg"] { --_radio-size: 18px; }
+
+  .control {
+    position: relative;
+    display: inline-grid;
+    flex: 0 0 auto;
+    inline-size: var(--_radio-size);
+    block-size: var(--_radio-size);
+    margin-block-start: 1px;
+    place-items: center;
+  }
+
+  .input {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    inline-size: 100%;
+    block-size: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: inherit;
+  }
+
+  .circle {
+    display: grid;
+    inline-size: 100%;
+    block-size: 100%;
+    place-items: center;
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border);
+    border-radius: 50%;
+    background: var(--bitfun-color-field-background);
+    transition:
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .dot {
+    inline-size: 50%;
+    block-size: 50%;
+    border-radius: 50%;
+    background: var(--bitfun-color-content-inverse);
+    opacity: 0;
+    transform: scale(0.5);
+    transition:
+      opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .input:checked + .circle {
+    border-color: var(--bitfun-color-accent-default);
+    background: var(--bitfun-color-accent-default);
+  }
+
+  .input:checked + .circle .dot {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .input:hover:not(:disabled) + .circle {
+    border-color: var(--bitfun-color-field-border-hover);
+    background-color: var(--bitfun-color-field-background-hover);
+  }
+
+  .input:focus-visible + .circle {
+    border-color: var(--bitfun-color-field-border-focus);
+    box-shadow: 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
+  }
+
+  .root[data-invalid="true"] .circle {
+    border-color: var(--bitfun-color-status-danger-border);
+  }
+
+  .root[data-disabled="true"] {
+    color: var(--bitfun-color-content-disabled);
+    opacity: var(--bitfun-opacity-disabled);
+    cursor: not-allowed;
+  }
+
+  .content {
+    display: inline-flex;
+    min-inline-size: 0;
+    flex-direction: column;
+    gap: var(--bitfun-space-1);
+  }
+
+  .label {
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
+  }
+
+  .description {
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--bitfun-type-support-font-family);
+    font-size: var(--bitfun-type-support-font-size);
+    font-weight: var(--bitfun-type-support-font-weight);
+    line-height: var(--bitfun-type-support-line-height);
+    letter-spacing: var(--bitfun-type-support-letter-spacing);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .circle,
+    .dot { transition: none; }
+  }
+
+  @media (forced-colors: active) {
+    .circle { border-color: ButtonText; }
+    .input:checked + .circle { border-color: Highlight; background: Highlight; }
+    .input:focus-visible + .circle { box-shadow: 0 0 0 var(--bitfun-focus-width) Highlight; }
+  }
+}

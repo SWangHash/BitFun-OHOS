@@ -301,7 +301,6 @@ pub async fn set_prevent_sleep_enabled(
     )
     .await?;
 
-    crate::api::remote_connect_api::notify_settings_changed();
     Ok(())
 }
 

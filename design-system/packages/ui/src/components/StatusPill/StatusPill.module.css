@@ -1,0 +1,118 @@
+@layer bitfun.components {
+  .root,
+  .leading,
+  .label {
+    box-sizing: border-box;
+  }
+
+  .root {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--bitfun-control-status-pill-gap);
+    padding-block: var(--bitfun-control-status-pill-padding-block);
+    padding-inline: var(--bitfun-control-status-pill-padding-inline);
+    border-radius: var(--bitfun-control-status-pill-radius);
+    color: var(--bitfun-color-status-success-content);
+    background: var(--bitfun-color-status-success-surface);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-status-pill-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
+    white-space: nowrap;
+  }
+
+  .leading {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--bitfun-control-status-pill-icon-size);
+    block-size: var(--bitfun-control-status-pill-icon-size);
+  }
+
+  .leading > :where(svg, img),
+  .leading > [data-bitfun-component="icon"] {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .label {
+    min-inline-size: 0;
+    overflow: hidden;
+  }
+
+  .root[data-tone="neutral"] {
+    color: var(--bitfun-color-content-secondary);
+    background: var(--bitfun-color-action-neutral-surface);
+  }
+
+  .root[data-tone="accent"] {
+    color: var(--bitfun-color-accent-default);
+    background: color-mix(in srgb, var(--bitfun-color-accent-default) 12%, transparent);
+  }
+
+  .root[data-tone="info"] {
+    color: var(--bitfun-color-status-info-content);
+    background: var(--bitfun-color-status-info-surface);
+  }
+
+  .root[data-tone="warning"] {
+    color: var(--bitfun-color-status-warning-content);
+    background: var(--bitfun-color-status-warning-surface);
+  }
+
+  .root[data-tone="danger"] {
+    color: var(--bitfun-color-status-danger-content);
+    background: var(--bitfun-color-status-danger-surface);
+  }
+
+  .root[data-tone="info"] .leading {
+    color: var(--bitfun-color-status-info-emphasis);
+  }
+
+  .root[data-tone="success"] .leading {
+    color: var(--bitfun-color-status-success-emphasis);
+  }
+
+  .root[data-tone="warning"] .leading {
+    color: var(--bitfun-color-status-warning-emphasis);
+  }
+
+  .root[data-tone="danger"] .leading {
+    color: var(--bitfun-color-status-danger-emphasis);
+  }
+
+  .root[data-tone="info"][data-emphasis="true"] {
+    color: var(--bitfun-color-status-info-emphasis);
+  }
+
+  .root[data-tone="success"][data-emphasis="true"] {
+    color: var(--bitfun-color-status-success-emphasis);
+  }
+
+  .root[data-tone="warning"][data-emphasis="true"] {
+    color: var(--bitfun-color-status-warning-emphasis);
+  }
+
+  .root[data-tone="danger"][data-emphasis="true"] {
+    color: var(--bitfun-color-status-danger-emphasis);
+  }
+
+  .root[data-emphasis="true"] .leading {
+    --bitfun-opacity-icon-artwork: 1;
+  }
+
+  @media (forced-colors: active) {
+    .root[data-tone][data-emphasis] { color: CanvasText; }
+    .root[data-tone] .leading { color: CanvasText; }
+
+    .root {
+      border: var(--bitfun-border-width-default) solid CanvasText;
+      color: CanvasText;
+      background: Canvas;
+    }
+  }
+}

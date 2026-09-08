@@ -11,17 +11,21 @@ pub mod account;
 pub mod bot;
 mod chat_projection;
 pub mod device;
+pub mod device_crypto;
 pub mod encryption;
+pub mod file_projection;
 mod lan;
-mod mobile_web_upload;
-mod ngrok;
 mod page_upload;
 pub mod pairing;
 pub mod qr_generator;
+pub mod realtime_client;
+mod realtime_payload;
 pub mod relay_client;
 mod relay_http;
+pub mod session_log;
+pub mod session_records;
 pub mod session_store;
-pub mod sync_state;
+pub mod session_subscriber;
 
 use bitfun_core_types::{ModelsDevReasoningCatalog, ProviderCatalog, ReasoningCatalogProjection};
 use bitfun_events::AgenticEvent;
@@ -36,6 +40,7 @@ pub use bitfun_runtime_ports::{
     RemoteWorkspaceFileContent, RemoteWorkspaceFileInfo, RemoteWorkspaceFileRuntimeHost,
     RemoteWorkspaceKind, RemoteWorkspacePort, RemoteWorkspaceRuntimeHost, RemoteWorkspaceUpdate,
 };
+use bitfun_services_core::product_identity::hidden_data_directory;
 pub use chat_projection::{
     agent_input_attachment_from_remote_image_context, project_remote_chat_user,
     RemoteChatUserProjection,
@@ -47,10 +52,6 @@ pub use lan::{
     LocalNetworkInterface,
 };
 use log::info;
-pub use mobile_web_upload::upload_mobile_web_to_relay;
-pub use ngrok::{
-    cleanup_all_ngrok, detect_running_ngrok, is_ngrok_available, start_ngrok_tunnel, NgrokTunnel,
-};
 pub use page_upload::{
     create_page_open_link_on_relay, delete_page_from_relay, delete_page_version_on_relay,
     deploy_page_version_on_relay, join_relay_url, list_page_versions_from_relay,
@@ -59,11 +60,9 @@ pub use page_upload::{
     update_page_on_relay, PageContentPublishResult, PageInfo, PageOpenLink, PagePublishResult,
     PageSaveVersionResult, PageVersionInfo,
 };
-pub use pairing::{PairingChallenge, PairingProtocol, PairingResponse, PairingState, QrPayload};
+pub use pairing::PairingState;
 pub use qr_generator::QrGenerator;
-pub use relay_client::{
-    ensure_rustls_crypto_provider, ConnectionState, RelayClient, RelayEvent, RelayMessage,
-};
+pub use relay_client::{ensure_rustls_crypto_provider, ConnectionState, RelayClient, RelayEvent};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -79,12 +78,12 @@ where
     Option::<T>::deserialize(deserializer).map(Some)
 }
 
-pub(crate) fn bitfun_home_dir() -> Option<PathBuf> {
+pub(crate) fn product_home_dir() -> Option<PathBuf> {
     std::env::var_os("BITFUN_HOME")
         .or_else(|| std::env::var_os("BITFUN_E2E_HOME"))
         .map(PathBuf::from)
         .filter(|path| !path.as_os_str().is_empty())
-        .or_else(|| dirs::home_dir().map(|home| home.join(".bitfun")))
+        .or_else(|| dirs::home_dir().map(|home| home.join(hidden_data_directory())))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,6 +125,7 @@ pub fn build_remote_session_create_request(
     AgentSessionCreateRequest {
         session_name: session_name.into(),
         agent_type: agent_type.into(),
+        agent_route_key: None,
         workspace_path: workspace_path.map(Into::into),
         project_workspace_path: None,
         execution_target: None,
@@ -367,6 +367,7 @@ impl RemoteDialogSubmissionPolicy {
 pub struct RemoteDialogSubmissionRequest<ImageContext> {
     pub session_id: String,
     pub content: String,
+    pub display_content: Option<String>,
     pub agent_type: Option<String>,
     pub image_contexts: Vec<ImageContext>,
     pub policy: RemoteDialogSubmissionPolicy,
@@ -400,11 +401,29 @@ impl RemoteDialogWorkspaceBinding {
 pub struct RemoteDialogResolvedSubmission<ImageContext> {
     pub session_id: String,
     pub content: String,
+    pub display_content: Option<String>,
     pub resolved_agent_type: String,
     pub binding_workspace: Option<RemoteDialogWorkspaceBinding>,
     pub image_contexts: Vec<ImageContext>,
     pub policy: RemoteDialogSubmissionPolicy,
     pub turn_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RemoteDialogSteerRequest<ImageContext> {
+    pub session_id: String,
+    pub turn_id: String,
+    pub content: String,
+    pub display_content: Option<String>,
+    pub image_contexts: Vec<ImageContext>,
+    pub metadata: serde_json::Map<String, serde_json::Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteDialogSteerOutcome {
+    pub session_id: String,
+    pub turn_id: String,
+    pub steering_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -484,6 +503,7 @@ where
     let RemoteDialogSubmissionRequest {
         session_id,
         content,
+        display_content,
         agent_type,
         image_contexts,
         policy,
@@ -498,7 +518,7 @@ where
     if let Some(workspace) =
         remote_session_restore_target(session_exists, binding_workspace.as_ref())
     {
-        let _ = host.restore_remote_session(&session_id, workspace).await;
+        host.restore_remote_session(&session_id, workspace).await?;
     }
 
     host.prewarm_remote_terminal(RemoteTerminalPrewarmRequest {
@@ -514,6 +534,7 @@ where
     host.submit_dialog(RemoteDialogResolvedSubmission {
         session_id,
         content,
+        display_content,
         resolved_agent_type,
         binding_workspace,
         image_contexts,
@@ -525,6 +546,19 @@ where
 
 pub const REMOTE_FILE_MAX_READ_BYTES: u64 = 30 * 1024 * 1024;
 pub const REMOTE_FILE_MAX_CHUNK_BYTES: u64 = 3 * 1024 * 1024;
+pub const REMOTE_CAPABILITY_HARNESS_PROFILES_V1: &str = "harness_profiles_v1";
+pub const REMOTE_CAPABILITY_DIALOG_STEER_V1: &str = "dialog_steer_v1";
+pub const REMOTE_CAPABILITY_USER_QUESTION_INTERACTION_V1: &str = "user_question_interaction_v1";
+pub const REMOTE_CAPABILITY_PLAN_BUILD_V1: &str = "plan_build_v1";
+
+fn remote_host_capabilities() -> Vec<String> {
+    vec![
+        REMOTE_CAPABILITY_HARNESS_PROFILES_V1.to_string(),
+        REMOTE_CAPABILITY_DIALOG_STEER_V1.to_string(),
+        REMOTE_CAPABILITY_PLAN_BUILD_V1.to_string(),
+        REMOTE_CAPABILITY_USER_QUESTION_INTERACTION_V1.to_string(),
+    ]
+}
 
 pub fn resolve_remote_file_chunk_range(
     file_len: usize,
@@ -601,6 +635,9 @@ pub fn detect_remote_mime_type(path: &Path) -> &'static str {
         "gif" => "image/gif",
         "webp" => "image/webp",
         "svg" => "image/svg+xml",
+        "avif" => "image/avif",
+        "bmp" => "image/bmp",
+        "ico" => "image/x-icon",
         "zip" => "application/zip",
         "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -700,6 +737,7 @@ pub async fn read_remote_workspace_file_chunk(
         .unwrap_or(total_size);
 
     Ok(RemoteWorkspaceFileChunk {
+        revision: String::new(),
         name: remote_file_display_name(abs_path.file_name().and_then(|n| n.to_str())),
         bytes: chunk,
         offset,
@@ -762,6 +800,7 @@ pub fn remote_file_chunk_response(
         Ok(chunk) => {
             use base64::Engine as _;
             RemoteResponse::FileChunk {
+                revision: chunk.revision,
                 name: chunk.name,
                 chunk_base64: base64::engine::general_purpose::STANDARD.encode(&chunk.bytes),
                 offset: chunk.offset,
@@ -796,6 +835,14 @@ where
 {
     match command {
         RemoteCommand::ReadFile { path, session_id } => {
+            match host
+                .read_remote_file(path, session_id.as_deref(), REMOTE_FILE_MAX_READ_BYTES)
+                .await
+            {
+                Ok(Some(file)) => return remote_file_content_response(Ok(file)),
+                Err(error) => return remote_file_content_response(Err(error)),
+                Ok(None) => {}
+            }
             let workspace_root = host
                 .resolve_remote_file_workspace_root(session_id.as_deref())
                 .await;
@@ -811,9 +858,31 @@ where
         RemoteCommand::ReadFileChunk {
             path,
             session_id,
+            workspace_path,
+            remote_connection_id,
             offset,
             limit,
         } => {
+            match host
+                .read_remote_file_chunk(
+                    path,
+                    session_id.as_deref(),
+                    workspace_path.as_deref(),
+                    remote_connection_id.as_deref(),
+                    *offset,
+                    *limit,
+                )
+                .await
+            {
+                Ok(Some(file)) => return remote_file_chunk_response(Ok(file)),
+                Err(error) => return remote_file_chunk_response(Err(error)),
+                Ok(None) if workspace_path.is_some() || remote_connection_id.is_some() => {
+                    return RemoteResponse::Error {
+                        message: "This host cannot resolve an explicit file workspace".into(),
+                    }
+                }
+                Ok(None) => {}
+            }
             let workspace_root = host
                 .resolve_remote_file_workspace_root(session_id.as_deref())
                 .await;
@@ -822,7 +891,30 @@ where
                     .await,
             )
         }
-        RemoteCommand::GetFileInfo { path, session_id } => {
+        RemoteCommand::GetFileInfo {
+            path,
+            session_id,
+            workspace_path,
+            remote_connection_id,
+        } => {
+            match host
+                .remote_file_info(
+                    path,
+                    session_id.as_deref(),
+                    workspace_path.as_deref(),
+                    remote_connection_id.as_deref(),
+                )
+                .await
+            {
+                Ok(Some(file)) => return remote_file_info_response(Ok(file)),
+                Err(error) => return remote_file_info_response(Err(error)),
+                Ok(None) if workspace_path.is_some() || remote_connection_id.is_some() => {
+                    return RemoteResponse::Error {
+                        message: "This host cannot resolve an explicit file workspace".into(),
+                    }
+                }
+                Ok(None) => {}
+            }
             let workspace_root = host
                 .resolve_remote_file_workspace_root(session_id.as_deref())
                 .await;
@@ -850,6 +942,19 @@ pub fn remote_dialog_submit_response(
         }) => RemoteResponse::MessageSent {
             session_id,
             turn_id,
+        },
+        Err(message) => RemoteResponse::Error { message },
+    }
+}
+
+pub fn remote_dialog_steer_response(
+    result: Result<RemoteDialogSteerOutcome, String>,
+) -> RemoteResponse {
+    match result {
+        Ok(outcome) => RemoteResponse::SteeringAccepted {
+            session_id: outcome.session_id,
+            turn_id: outcome.turn_id,
+            steering_id: outcome.steering_id,
         },
         Err(message) => RemoteResponse::Error { message },
     }
@@ -899,6 +1004,7 @@ pub fn remote_workspace_info_response(workspace: Option<RemoteWorkspaceFacts>) -
             assistant_id: workspace.assistant_id,
             remote_connection_id: workspace.remote_connection_id,
             remote_ssh_host: workspace.remote_ssh_host,
+            capabilities: remote_host_capabilities(),
         },
         None => RemoteResponse::WorkspaceInfo {
             has_workspace: false,
@@ -909,6 +1015,7 @@ pub fn remote_workspace_info_response(workspace: Option<RemoteWorkspaceFacts>) -
             assistant_id: None,
             remote_connection_id: None,
             remote_ssh_host: None,
+            capabilities: remote_host_capabilities(),
         },
     }
 }
@@ -916,18 +1023,24 @@ pub fn remote_workspace_info_response(workspace: Option<RemoteWorkspaceFacts>) -
 pub fn remote_recent_workspaces_response(
     workspaces: Vec<RemoteRecentWorkspaceFacts>,
 ) -> RemoteResponse {
+    remote_workspace_catalog_response(workspaces, None)
+}
+
+fn remote_workspace_catalog_response(
+    workspaces: Vec<RemoteRecentWorkspaceFacts>,
+    opened_workspaces: Option<Vec<RemoteRecentWorkspaceFacts>>,
+) -> RemoteResponse {
+    let project = |workspace: RemoteRecentWorkspaceFacts| RecentWorkspaceEntry {
+        path: workspace.path,
+        name: workspace.name,
+        last_opened: workspace.last_opened,
+        workspace_kind: Some(workspace.kind.as_wire_str().to_string()),
+        remote_connection_id: workspace.remote_connection_id,
+        remote_ssh_host: workspace.remote_ssh_host,
+    };
     RemoteResponse::RecentWorkspaces {
-        workspaces: workspaces
-            .into_iter()
-            .map(|workspace| RecentWorkspaceEntry {
-                path: workspace.path,
-                name: workspace.name,
-                last_opened: workspace.last_opened,
-                workspace_kind: Some(workspace.kind.as_wire_str().to_string()),
-                remote_connection_id: workspace.remote_connection_id,
-                remote_ssh_host: workspace.remote_ssh_host,
-            })
-            .collect(),
+        workspaces: workspaces.into_iter().map(project).collect(),
+        opened_workspaces: opened_workspaces.map(|rows| rows.into_iter().map(project).collect()),
     }
 }
 
@@ -1072,6 +1185,7 @@ pub fn remote_initial_sync_response(
         sessions,
         has_more_sessions,
         authenticated_user_id,
+        capabilities: remote_host_capabilities(),
     }
 }
 
@@ -1083,9 +1197,10 @@ where
         RemoteCommand::GetWorkspaceInfo => {
             remote_workspace_info_response(host.current_workspace().await)
         }
-        RemoteCommand::ListRecentWorkspaces => {
-            remote_recent_workspaces_response(host.recent_workspaces().await)
-        }
+        RemoteCommand::ListRecentWorkspaces => match host.opened_workspaces().await {
+            Ok(opened) => remote_workspace_catalog_response(host.recent_workspaces().await, opened),
+            Err(message) => RemoteResponse::Error { message },
+        },
         RemoteCommand::SetWorkspace {
             path,
             remote_connection_id,
@@ -1159,6 +1274,8 @@ where
 pub fn remote_session_created_response(session_id: impl Into<String>) -> RemoteResponse {
     RemoteResponse::SessionCreated {
         session_id: session_id.into(),
+        workspace_path: None,
+        remote_connection_id: None,
     }
 }
 
@@ -1310,17 +1427,20 @@ where
                     _ => "Remote Code Session",
                 });
 
-            let binding_workspace = if is_claw {
+            let explicit_workspace = workspace_path
+                .as_deref()
+                .map(str::trim)
+                .filter(|path| !path.is_empty() && *path != "/");
+            let use_default_assistant = is_claw && explicit_workspace.is_none();
+            let binding_workspace = if let Some(path) = explicit_workspace {
+                Some(path.to_owned())
+            } else if use_default_assistant {
                 match host.resolve_default_assistant_workspace_path().await {
                     Ok(path) => Some(path),
                     Err(message) => return RemoteResponse::Error { message },
                 }
             } else {
-                workspace_path
-                    .as_deref()
-                    .map(str::trim)
-                    .filter(|path| !path.is_empty() && *path != "/")
-                    .map(ToOwned::to_owned)
+                None
             };
 
             let Some(binding_workspace) = binding_workspace else {
@@ -1336,15 +1456,31 @@ where
             let request = build_remote_session_create_request(
                 session_name,
                 agent,
-                Some(binding_workspace),
+                Some(binding_workspace.clone()),
                 RemoteSessionWorkspaceIdentity::new(
-                    remote_connection_id.clone(),
-                    remote_ssh_host.clone(),
+                    if use_default_assistant {
+                        None
+                    } else {
+                        remote_connection_id.clone()
+                    },
+                    if use_default_assistant {
+                        None
+                    } else {
+                        remote_ssh_host.clone()
+                    },
                 ),
                 RemoteConnectSubmissionSource::Relay,
             );
             match host.create_session(request).await {
-                Ok(session_id) => remote_session_created_response(session_id),
+                Ok(session_id) => RemoteResponse::SessionCreated {
+                    session_id,
+                    workspace_path: Some(binding_workspace),
+                    remote_connection_id: if use_default_assistant {
+                        None
+                    } else {
+                        remote_connection_id.clone().filter(|id| !id.is_empty())
+                    },
+                },
                 Err(message) => RemoteResponse::Error { message },
             }
         }
@@ -1526,13 +1662,20 @@ where
 #[async_trait::async_trait]
 pub trait RemoteInteractionRuntimeHost: Send + Sync {
     async fn cancel_tool(&self, tool_id: &str, reason: String) -> Result<(), String>;
-    async fn confirm_tool(&self, tool_id: &str) -> Result<(), String>;
+    async fn confirm_tool(
+        &self,
+        tool_id: &str,
+        updated_input: Option<serde_json::Value>,
+    ) -> Result<(), String>;
     async fn reject_tool(&self, tool_id: &str, reason: String) -> Result<(), String>;
     async fn get_permission_mode(&self) -> Result<RemotePermissionMode, String>;
     async fn set_permission_mode(
         &self,
         mode: RemotePermissionMode,
     ) -> Result<RemotePermissionMode, String>;
+    fn start_question_interaction(&self, _session_id: &str, _tool_id: &str) -> Result<(), String> {
+        Err("User question interaction is unsupported by this host".to_string())
+    }
     fn answer_question(&self, tool_id: &str, answers: serde_json::Value) -> Result<(), String>;
 }
 
@@ -1544,10 +1687,13 @@ where
     H: RemoteInteractionRuntimeHost + ?Sized,
 {
     match command {
-        RemoteCommand::ConfirmTool { tool_id } => remote_interaction_accepted_response(
+        RemoteCommand::ConfirmTool {
+            tool_id,
+            updated_input,
+        } => remote_interaction_accepted_response(
             "confirm_tool",
             tool_id.clone(),
-            host.confirm_tool(tool_id).await,
+            host.confirm_tool(tool_id, updated_input.clone()).await,
         ),
         RemoteCommand::RejectTool { tool_id, reason } => remote_interaction_accepted_response(
             "reject_tool",
@@ -1578,6 +1724,14 @@ where
                 host.cancel_tool(tool_id, cancel_reason).await,
             )
         }
+        RemoteCommand::StartQuestionInteraction {
+            session_id,
+            tool_id,
+        } => remote_interaction_accepted_response(
+            "start_question_interaction",
+            tool_id.clone(),
+            host.start_question_interaction(session_id, tool_id),
+        ),
         RemoteCommand::AnswerQuestion { tool_id, answers } => {
             remote_answer_question_response(host.answer_question(tool_id, answers.clone()))
         }
@@ -1768,13 +1922,13 @@ pub fn normalize_remote_session_model_id(model_id: Option<&str>) -> Option<Strin
     match model_id {
         Some(value) => {
             let trimmed = value.trim();
-            if trimmed.is_empty() || trimmed == "default" {
-                Some("auto".to_string())
+            if matches!(trimmed, "" | "auto" | "default") {
+                Some("primary".to_string())
             } else {
                 Some(trimmed.to_string())
             }
         }
-        None => Some("auto".to_string()),
+        None => Some("primary".to_string()),
     }
 }
 
@@ -1793,9 +1947,11 @@ pub fn normalize_remote_model_selection(
         return Err("model_id is required".to_string());
     }
 
+    // `auto` is accepted only as an upgrade alias for older Remote Connect
+    // clients. It is never returned by the current catalog or session state.
     if matches!(requested_model_id, "auto" | "default" | "primary" | "fast") {
-        return Ok(if requested_model_id == "default" {
-            "auto".to_string()
+        return Ok(if matches!(requested_model_id, "auto" | "default") {
+            "primary".to_string()
         } else {
             requested_model_id.to_string()
         });
@@ -1812,14 +1968,27 @@ pub struct RemoteModelCatalogPollDelta {
 }
 
 pub fn resolve_remote_agent_type(mobile_type: Option<&str>) -> &'static str {
+    if let Some(harness) =
+        mobile_type.and_then(bitfun_core_types::agent_identity::HarnessId::from_legacy_id)
+    {
+        return harness.as_str();
+    }
     match mobile_type {
-        Some("code") | Some("agentic") | Some("Agentic") => "agentic",
-        Some("multitask") | Some("Multitask") => "Multitask",
+        Some(value) if value.eq_ignore_ascii_case("minimal") => "Minimal",
+        Some(value)
+            if value.eq_ignore_ascii_case("ultra") || value.eq_ignore_ascii_case("ultimate") =>
+        {
+            "Ultimate"
+        }
+        Some(value)
+            if value.eq_ignore_ascii_case("balanced") || value.eq_ignore_ascii_case("standard") =>
+        {
+            "Standard"
+        }
+        Some("code") => "Standard",
         Some("cowork") | Some("Cowork") => "Cowork",
         Some("claw") | Some("Claw") | Some("assistant") | Some("chat") => "Claw",
-        Some("plan") | Some("Plan") => "Plan",
-        Some("debug") | Some("Debug") => "debug",
-        _ => "agentic",
+        _ => "Standard",
     }
 }
 
@@ -1834,6 +2003,10 @@ pub struct ImageAttachment {
 pub struct SessionInfo {
     pub session_id: String,
     pub name: String,
+    #[serde(
+        serialize_with = "bitfun_core_types::agent_identity_wire::serialize_legacy_agent_id",
+        deserialize_with = "bitfun_core_types::agent_identity::deserialize_agent_id"
+    )]
     pub agent_type: String,
     pub created_at: String,
     pub updated_at: String,
@@ -1857,6 +2030,12 @@ pub struct ChatMessage {
     pub content: String,
     pub timestamp: String,
     pub metadata: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<RemoteToolStatus>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1871,6 +2050,10 @@ pub struct ChatMessage {
 pub struct ChatMessageItem {
     #[serde(rename = "type")]
     pub item_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub steering_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub round_index: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1887,6 +2070,8 @@ pub struct RemoteChatHistoryTurn {
     pub user_timestamp_ms: u64,
     pub user_images: Vec<ChatImageAttachment>,
     pub is_in_progress: bool,
+    pub status: String,
+    pub error: Option<String>,
     pub start_time_ms: u64,
     pub rounds: Vec<RemoteChatHistoryRound>,
 }
@@ -1919,6 +2104,7 @@ pub struct RemoteChatHistoryToolItem {
     pub id: String,
     pub name: String,
     pub call: RemoteChatHistoryToolCall,
+    pub result: Option<serde_json::Value>,
     pub has_result: bool,
     pub status: Option<String>,
     pub duration_ms: Option<u64>,
@@ -1943,6 +2129,9 @@ pub fn build_remote_chat_messages(turns: Vec<RemoteChatHistoryTurn>) -> Vec<Chat
             content: turn.user_display_content,
             timestamp: (turn.user_timestamp_ms / 1000).to_string(),
             metadata: None,
+            turn_id: Some(turn.turn_id.clone()),
+            status: None,
+            error: None,
             tools: None,
             thinking: None,
             items: None,
@@ -1983,6 +2172,8 @@ pub fn build_remote_chat_messages(turns: Vec<RemoteChatHistoryTurn>) -> Vec<Chat
                     round_idx,
                     item: ChatMessageItem {
                         item_type: "thinking".to_string(),
+                        steering_id: None,
+                        round_index: None,
                         content: Some(item.content.clone()),
                         tool: None,
                         is_subagent: None,
@@ -2002,6 +2193,8 @@ pub fn build_remote_chat_messages(turns: Vec<RemoteChatHistoryTurn>) -> Vec<Chat
                     round_idx,
                     item: ChatMessageItem {
                         item_type: "text".to_string(),
+                        steering_id: None,
+                        round_index: None,
                         content: Some(item.content.clone()),
                         tool: None,
                         is_subagent: None,
@@ -2034,6 +2227,11 @@ pub fn build_remote_chat_messages(turns: Vec<RemoteChatHistoryTurn>) -> Vec<Chat
                     } else {
                         None
                     },
+                    plan: project_remote_plan_tool(
+                        &item.name,
+                        Some(&item.call.input),
+                        item.result.as_ref(),
+                    ),
                 };
                 tools_flat.push(tool_status.clone());
                 ordered.push(OrderedEntry {
@@ -2042,6 +2240,8 @@ pub fn build_remote_chat_messages(turns: Vec<RemoteChatHistoryTurn>) -> Vec<Chat
                     round_idx,
                     item: ChatMessageItem {
                         item_type: "tool".to_string(),
+                        steering_id: None,
+                        round_index: None,
                         content: None,
                         tool: Some(tool_status),
                         is_subagent: None,
@@ -2066,12 +2266,34 @@ pub fn build_remote_chat_messages(turns: Vec<RemoteChatHistoryTurn>) -> Vec<Chat
 
         let items: Vec<ChatMessageItem> = ordered.into_iter().map(|entry| entry.item).collect();
 
+        // A turn is persisted as soon as it starts, before the assistant has
+        // produced any content. That durable turn shell is not an assistant
+        // message: while the turn is running, its live state is carried by
+        // `active_turn`. Materializing the empty shell here would expose the
+        // same turn through both history and live state and make clients render
+        // two pending replies.
+        let has_assistant_message = text_parts
+            .iter()
+            .chain(thinking_parts.iter())
+            .any(|content| !content.trim().is_empty())
+            || !tools_flat.is_empty()
+            || turn
+                .error
+                .as_deref()
+                .is_some_and(|error| !error.trim().is_empty());
+        if !has_assistant_message {
+            continue;
+        }
+
         result.push(ChatMessage {
             id: format!("{}_assistant", turn.turn_id),
             role: "assistant".to_string(),
             content: text_parts.join("\n\n"),
             timestamp: (assistant_ts / 1000).to_string(),
             metadata: None,
+            turn_id: Some(turn.turn_id),
+            status: Some(turn.status),
+            error: turn.error,
             tools: if tools_flat.is_empty() {
                 None
             } else {
@@ -2114,6 +2336,8 @@ pub struct AssistantEntry {
 pub struct ActiveTurnSnapshot {
     pub turn_id: String,
     pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
     pub text: String,
     pub thinking: String,
     pub tools: Vec<RemoteToolStatus>,
@@ -2135,6 +2359,16 @@ pub struct RemoteToolStatus {
     pub input_preview: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_input: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<RemotePlanTool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemotePlanTool {
+    pub file_path: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overview: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -2145,10 +2379,21 @@ pub enum RemotePermissionMode {
     FullAccess,
 }
 
+/// Display-only identity for a live browser connection, never an authorization identity.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RemoteControlClient {
+    pub id: String,
+    pub name: String,
+}
+
 /// Commands that remote clients can send to the desktop runtime.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "cmd", rename_all = "snake_case")]
 pub enum RemoteCommand {
+    /// Granted only over authenticated, pairwise-encrypted account routing.
+    GetSessionKey {
+        session_id: String,
+    },
     GetWorkspaceInfo,
     ListRecentWorkspaces,
     SetWorkspace {
@@ -2202,9 +2447,36 @@ pub enum RemoteCommand {
     SendMessage {
         session_id: String,
         content: String,
+        #[serde(default)]
+        display_content: Option<String>,
+        /// Client-generated stable identity for the turn. Older clients omit it;
+        /// older hosts ignore it as an unknown optional field.
+        #[serde(default)]
+        turn_id: Option<String>,
         agent_type: Option<String>,
         images: Option<Vec<ImageAttachment>>,
         image_contexts: Option<Vec<RemoteImageContext>>,
+    },
+    BuildPlan {
+        session_id: String,
+        plan_file_path: String,
+        #[serde(default)]
+        plan_name: Option<String>,
+        #[serde(default)]
+        agent_type: Option<String>,
+    },
+    SteerTurn {
+        session_id: String,
+        turn_id: String,
+        content: String,
+        #[serde(default)]
+        display_content: Option<String>,
+        #[serde(default)]
+        images: Option<Vec<ImageAttachment>>,
+        #[serde(default)]
+        image_contexts: Option<Vec<RemoteImageContext>>,
+        #[serde(default)]
+        metadata: serde_json::Map<String, serde_json::Value>,
     },
     CancelTask {
         session_id: String,
@@ -2219,6 +2491,8 @@ pub enum RemoteCommand {
     },
     ConfirmTool {
         tool_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        updated_input: Option<serde_json::Value>,
     },
     RejectTool {
         tool_id: String,
@@ -2227,6 +2501,10 @@ pub enum RemoteCommand {
     GetPermissionMode,
     SetPermissionMode {
         mode: RemotePermissionMode,
+    },
+    StartQuestionInteraction {
+        session_id: String,
+        tool_id: String,
     },
     AnswerQuestion {
         tool_id: String,
@@ -2245,45 +2523,38 @@ pub enum RemoteCommand {
     ReadFileChunk {
         path: String,
         session_id: Option<String>,
+        #[serde(default)]
+        workspace_path: Option<String>,
+        #[serde(default)]
+        remote_connection_id: Option<String>,
         offset: u64,
         limit: u64,
     },
     GetFileInfo {
         path: String,
         session_id: Option<String>,
+        #[serde(default)]
+        workspace_path: Option<String>,
+        #[serde(default)]
+        remote_connection_id: Option<String>,
     },
-    /// Ask the paired desktop to delegate its logged-in account identity
-    /// (token + master_key) to this room-channel client so it can call the
-    /// relay device APIs directly. Answered by the host runtime; other hosts
-    /// return an error response.
-    GetDelegatedIdentity,
-    /// Ask the paired desktop to mint a *full* account device credential for a
-    /// separate device that cannot type a password (a watch). The desktop calls
-    /// the relay's `/api/auth/provision-device` with its own device token, then
-    /// returns the minted credential together with the account master key over
-    /// this already-encrypted room channel. The relay never sees the master key.
-    ///
-    /// Unlike `GetDelegatedIdentity` this yields a 30-day full credential rather
-    /// than a 24-hour delegated one, because the provisioned device is a primary
-    /// surface and cannot re-authenticate on its own when the token lapses.
-    ///
-    /// `request_id` is minted by the device being provisioned, not by the
-    /// desktop, so that a retry anywhere along the watch → phone → desktop chain
-    /// replays one idempotent relay request instead of registering a second
-    /// device. Answered by the host runtime; other hosts return an error
-    /// response.
+    /// Provision a separate device through this authenticated controller.
+    /// The target host owns token issuance and idempotent request handling.
     ProvisionPeerDevice {
         /// 32 lowercase hex characters; the relay rejects any other shape.
         device_id: String,
         device_name: String,
         request_id: String,
     },
-    Ping,
+    Ping {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        client: Option<RemoteControlClient>,
+    },
 
     // ── Device-to-device distributed control ──────────────────────────────
     //
     // These variants are carried *inside* an encrypted device-to-device
-    // payload (see `RelayMessage::DeviceMessage`). The relay never sees them
+    // payload (see the Socket.IO RPC envelope). The relay never sees them
     // in cleartext; the receiving device decrypts the outer envelope with the
     // account master_key, then deserializes the inner JSON into `RemoteCommand`.
     //
@@ -2329,6 +2600,11 @@ pub enum RemoteCommand {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "resp", rename_all = "snake_case")]
 pub enum RemoteResponse {
+    SessionKey {
+        session_id: String,
+        relay_session_id: String,
+        key: String,
+    },
     WorkspaceInfo {
         has_workspace: bool,
         path: Option<String>,
@@ -2342,9 +2618,15 @@ pub enum RemoteResponse {
         remote_connection_id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         remote_ssh_host: Option<String>,
+        #[serde(default)]
+        capabilities: Vec<String>,
     },
     RecentWorkspaces {
         workspaces: Vec<RecentWorkspaceEntry>,
+        /// Presence negotiates the authoritative opened-workspace catalog.
+        /// Keep `workspaces` as recent history for older clients and pickers.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        opened_workspaces: Option<Vec<RecentWorkspaceEntry>>,
     },
     WorkspaceUpdated {
         success: bool,
@@ -2371,6 +2653,10 @@ pub enum RemoteResponse {
     },
     SessionCreated {
         session_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        workspace_path: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        remote_connection_id: Option<String>,
     },
     ModelCatalog {
         catalog: RemoteModelCatalog,
@@ -2392,6 +2678,11 @@ pub enum RemoteResponse {
     MessageSent {
         session_id: String,
         turn_id: String,
+    },
+    SteeringAccepted {
+        session_id: String,
+        turn_id: String,
+        steering_id: String,
     },
     TaskCancelled {
         session_id: String,
@@ -2419,6 +2710,8 @@ pub enum RemoteResponse {
         has_more_sessions: bool,
         #[serde(skip_serializing_if = "Option::is_none")]
         authenticated_user_id: Option<String>,
+        #[serde(default)]
+        capabilities: Vec<String>,
     },
     SessionPoll {
         version: u64,
@@ -2453,6 +2746,8 @@ pub enum RemoteResponse {
         size: u64,
     },
     FileChunk {
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        revision: String,
         name: String,
         chunk_base64: String,
         offset: u64,
@@ -2496,18 +2791,8 @@ pub enum RemoteResponse {
     },
     /// Event already delivered out-of-band; ack only.
     DeviceEventAccepted,
-    /// Delegated account identity for a paired room-channel client.
-    /// `master_key` is base64-encoded; `device_id` is the delegating host.
-    DelegateIdentity {
-        token: String,
-        user_id: String,
-        master_key: String,
-        device_id: String,
-    },
-    /// A full account device credential minted for a paired client's peer
-    /// device. `master_key` is base64-encoded; `device_id` echoes the *newly
-    /// provisioned* device, not the delegating host — the opposite of
-    /// `DelegateIdentity`, whose `device_id` names the desktop.
+    /// A device credential and its independent private key, delivered only
+    /// over the authenticated encrypted device channel.
     PeerDeviceProvisioned {
         token: String,
         user_id: String,
@@ -2547,6 +2832,11 @@ pub trait RemoteCommandRuntimeHost: Send + Sync {
         request: RemoteDialogSubmissionRequest<Self::ImageContext>,
     ) -> Result<RemoteDialogSubmitOutcome, String>;
 
+    async fn steer_dialog(
+        &self,
+        request: RemoteDialogSteerRequest<Self::ImageContext>,
+    ) -> Result<RemoteDialogSteerOutcome, String>;
+
     async fn cancel_task(&self, request: RemoteCancelTaskRequest) -> Result<(), String>;
 
     fn legacy_image_contexts(&self, images: Option<&[ImageAttachment]>) -> Vec<Self::ImageContext>;
@@ -2564,7 +2854,7 @@ where
     H: RemoteCommandRuntimeHost + ?Sized,
 {
     match command {
-        RemoteCommand::Ping => RemoteResponse::Pong,
+        RemoteCommand::Ping { .. } => RemoteResponse::Pong,
 
         RemoteCommand::GetWorkspaceInfo
         | RemoteCommand::ListRecentWorkspaces
@@ -2591,11 +2881,14 @@ where
         | RemoteCommand::GetPermissionMode
         | RemoteCommand::SetPermissionMode { .. }
         | RemoteCommand::CancelTool { .. }
+        | RemoteCommand::StartQuestionInteraction { .. }
         | RemoteCommand::AnswerQuestion { .. } => host.handle_interaction_command(command).await,
 
         RemoteCommand::SendMessage {
             session_id,
             content,
+            display_content,
+            turn_id,
             agent_type,
             images,
             image_contexts,
@@ -2609,17 +2902,84 @@ where
             );
             info!(
                 "Remote send_message: session={session_id}, agent_type={}, image_contexts={}",
-                agent_type.as_deref().unwrap_or("agentic"),
+                agent_type.as_deref().unwrap_or("Standard"),
                 resolved_contexts.len()
             );
             remote_dialog_submit_response(
                 host.submit_dialog(RemoteDialogSubmissionRequest {
                     session_id: session_id.clone(),
                     content: content.clone(),
+                    display_content: display_content.clone(),
                     agent_type: agent_type.clone(),
                     image_contexts: resolved_contexts,
                     policy: RemoteDialogSubmissionPolicy::for_source(source),
+                    turn_id: turn_id.clone(),
+                })
+                .await,
+            )
+        }
+
+        RemoteCommand::BuildPlan {
+            session_id,
+            plan_file_path,
+            plan_name,
+            agent_type,
+        } => {
+            let plan_file_path = plan_file_path.trim();
+            if session_id.trim().is_empty()
+                || !plan_file_path.to_ascii_lowercase().ends_with(".plan.md")
+                || plan_file_path.contains(['\n', '\r', '`'])
+            {
+                return RemoteResponse::Error {
+                    message: "Invalid plan file path.".to_string(),
+                };
+            }
+            info!("Remote build_plan: session={session_id}");
+            remote_dialog_submit_response(
+                host.submit_dialog(RemoteDialogSubmissionRequest {
+                    session_id: session_id.clone(),
+                    content: remote_plan_build_content(plan_file_path),
+                    display_content: Some(remote_plan_build_display(
+                        plan_name.as_deref(),
+                        plan_file_path,
+                    )),
+                    agent_type: agent_type.clone(),
+                    image_contexts: Vec::new(),
+                    policy: RemoteDialogSubmissionPolicy::for_source(source),
                     turn_id: None,
+                })
+                .await,
+            )
+        }
+
+        RemoteCommand::SteerTurn {
+            session_id,
+            turn_id,
+            content,
+            display_content,
+            images,
+            image_contexts,
+            metadata,
+        } => {
+            let resolved_contexts = resolve_remote_execution_image_contexts(
+                images.as_ref().map(Vec::as_slice),
+                image_contexts
+                    .clone()
+                    .map(|contexts| host.explicit_image_contexts(contexts)),
+                |images| host.legacy_image_contexts(images),
+            );
+            info!(
+                "Remote steer_turn: session={session_id}, turn={turn_id}, image_contexts={}",
+                resolved_contexts.len()
+            );
+            remote_dialog_steer_response(
+                host.steer_dialog(RemoteDialogSteerRequest {
+                    session_id: session_id.clone(),
+                    turn_id: turn_id.clone(),
+                    content: content.clone(),
+                    display_content: display_content.clone(),
+                    image_contexts: resolved_contexts,
+                    metadata: metadata.clone(),
                 })
                 .await,
             )
@@ -2637,18 +2997,12 @@ where
             .await,
         ),
 
-        // Answered by the host runtime (which owns the delegated identity
-        // provider) before dispatch reaches this router; this is the fallback
-        // for hosts that cannot delegate an account identity.
-        RemoteCommand::GetDelegatedIdentity => RemoteResponse::Error {
-            message: "Delegated identity is not available on this host".to_string(),
-        },
-
-        // Same contract as GetDelegatedIdentity above: the host runtime owns the
-        // account credentials and answers before dispatch reaches this router.
-        RemoteCommand::ProvisionPeerDevice { .. } => RemoteResponse::Error {
-            message: "Device provisioning is not available on this host".to_string(),
-        },
+        // The authenticated host owns credential provisioning.
+        RemoteCommand::ProvisionPeerDevice { .. } | RemoteCommand::GetSessionKey { .. } => {
+            RemoteResponse::Error {
+                message: "Device provisioning is not available on this host".to_string(),
+            }
+        }
 
         RemoteCommand::SendSessionToDevice { .. }
         | RemoteCommand::ExecuteOnDevice { .. }
@@ -2684,12 +3038,88 @@ pub fn make_slim_tool_params(params: &serde_json::Value) -> Option<String> {
     }
 }
 
+pub fn project_remote_plan_tool(
+    tool_name: &str,
+    input: Option<&serde_json::Value>,
+    result: Option<&serde_json::Value>,
+) -> Option<RemotePlanTool> {
+    let normalized_name = tool_name
+        .chars()
+        .filter(|character| !matches!(character, '_' | '-' | ' '))
+        .flat_map(char::to_lowercase)
+        .collect::<String>();
+    let create_plan = normalized_name == "createplan";
+    let input_path = input.and_then(remote_plan_path_from_value);
+    let result_path = result.and_then(remote_plan_path_from_value);
+    let file_path = result_path.or(input_path).unwrap_or_default();
+    let write_plan = matches!(
+        normalized_name.as_str(),
+        "write" | "writefile" | "createfile"
+    ) && file_path.to_ascii_lowercase().ends_with(".plan.md");
+    if !create_plan && !write_plan {
+        return None;
+    }
+
+    let name = result
+        .and_then(|value| remote_json_string(value, &["name"]))
+        .or_else(|| input.and_then(|value| remote_json_string(value, &["name", "title"])))
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| remote_plan_name_from_path(&file_path));
+    let overview = result
+        .and_then(|value| remote_json_string(value, &["overview"]))
+        .or_else(|| input.and_then(|value| remote_json_string(value, &["overview"])))
+        .filter(|value| !value.trim().is_empty());
+    Some(RemotePlanTool {
+        file_path,
+        name,
+        overview,
+    })
+}
+
+fn remote_plan_path_from_value(value: &serde_json::Value) -> Option<String> {
+    remote_json_string(value, &["plan_file_path", "file_path", "filePath", "path"])
+        .filter(|value| !value.trim().is_empty())
+}
+
+fn remote_json_string(value: &serde_json::Value, keys: &[&str]) -> Option<String> {
+    let object = value.as_object()?;
+    keys.iter()
+        .find_map(|key| object.get(*key).and_then(serde_json::Value::as_str))
+        .map(ToOwned::to_owned)
+}
+
+fn remote_plan_name_from_path(path: &str) -> String {
+    let normalized = path.replace('\\', "/");
+    let file_name = normalized.rsplit('/').next().unwrap_or_default();
+    file_name
+        .strip_suffix(".plan.md")
+        .or_else(|| file_name.strip_suffix(".md"))
+        .unwrap_or(file_name)
+        .to_string()
+}
+
+pub fn remote_plan_build_content(plan_file_path: &str) -> String {
+    format!(
+        "Implement the plan at `{plan_file_path}`.\n\nRead the plan file before making changes and treat it as the source of truth. Do not edit the plan file directly. Track progress with TodoWrite using the existing todo IDs from the plan frontmatter; do not rename or invent IDs. Start with the first pending todo and continue until all todos are completed."
+    )
+}
+
+pub fn remote_plan_build_display(plan_name: Option<&str>, plan_file_path: &str) -> String {
+    let name = plan_name
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| remote_plan_name_from_path(plan_file_path));
+    format!("Build Plan: {name}")
+}
+
 #[derive(Debug)]
 struct TrackerState {
     session_state: String,
     title: String,
     turn_id: Option<String>,
     turn_status: String,
+    turn_error: Option<String>,
     accumulated_text: String,
     accumulated_thinking: String,
     active_tools: Vec<RemoteToolStatus>,
@@ -2748,6 +3178,7 @@ impl RemoteSessionStateTracker {
                 title: String::new(),
                 turn_id: None,
                 turn_status: String::new(),
+                turn_error: None,
                 accumulated_text: String::new(),
                 accumulated_thinking: String::new(),
                 active_tools: Vec::new(),
@@ -2779,6 +3210,7 @@ impl RemoteSessionStateTracker {
         state.turn_id.as_ref().map(|turn_id| ActiveTurnSnapshot {
             turn_id: turn_id.clone(),
             status: state.turn_status.clone(),
+            error: state.turn_error.clone(),
             text: if has_items {
                 String::new()
             } else {
@@ -2833,6 +3265,7 @@ impl RemoteSessionStateTracker {
         if state.turn_id.is_none() {
             state.turn_id = Some(turn_id);
             state.turn_status = "active".to_string();
+            state.turn_error = None;
             state.session_state = "running".to_string();
         }
         drop(state);
@@ -2857,6 +3290,7 @@ impl RemoteSessionStateTracker {
         if already_pending {
             return;
         }
+        let plan = project_remote_plan_tool(&tool_name, tool_input.as_ref(), None);
         Self::upsert_active_tool(
             &mut state,
             &tool_id,
@@ -2864,6 +3298,7 @@ impl RemoteSessionStateTracker {
             "pending_confirmation",
             input_preview,
             tool_input,
+            plan,
             false,
         );
         state.session_state = "running".to_string();
@@ -2879,6 +3314,7 @@ impl RemoteSessionStateTracker {
             "completed" | "failed" | "cancelled"
         ) {
             state.turn_id = None;
+            state.turn_error = None;
             state.accumulated_text.clear();
             state.accumulated_thinking.clear();
             state.active_tools.clear();
@@ -2914,6 +3350,7 @@ impl RemoteSessionStateTracker {
         let mut state = self.state.write().unwrap();
         state.turn_id = None;
         state.turn_status.clear();
+        state.turn_error = None;
         state.accumulated_text.clear();
         state.accumulated_thinking.clear();
         state.active_tools.clear();
@@ -2935,6 +3372,7 @@ impl RemoteSessionStateTracker {
             // The tracker missed this Turn's terminal event (fences exist
             // because terminal chunks can be lost); settle it from the fence.
             state.turn_status = "completed".to_string();
+            state.turn_error = None;
             state.session_state = "idle".to_string();
         }
         state.persistence_dirty = true;
@@ -2950,7 +3388,7 @@ impl RemoteSessionStateTracker {
     ) -> Option<usize> {
         for index in (0..items.len()).rev() {
             let item = &items[index];
-            if item.item_type == "tool" {
+            if item.item_type == "tool" || item.item_type == "user-steering" {
                 return None;
             }
             if item.item_type == target_type && &item.is_subagent == subagent_marker {
@@ -2967,6 +3405,7 @@ impl RemoteSessionStateTracker {
         status: &str,
         input_preview: Option<String>,
         tool_input: Option<serde_json::Value>,
+        plan: Option<RemotePlanTool>,
         is_subagent: bool,
     ) {
         let resolved_id = if tool_id.is_empty() {
@@ -2989,6 +3428,9 @@ impl RemoteSessionStateTracker {
             if tool_input.is_some() {
                 tool.tool_input = tool_input.clone();
             }
+            if plan.is_some() {
+                tool.plan = Self::merge_plan_tool(tool.plan.as_ref(), plan.clone());
+            }
         } else {
             let tool_status = RemoteToolStatus {
                 id: resolved_id.clone(),
@@ -3003,10 +3445,13 @@ impl RemoteSessionStateTracker {
                 ),
                 input_preview,
                 tool_input,
+                plan,
             };
             state.active_tools.push(tool_status.clone());
             state.active_items.push(ChatMessageItem {
                 item_type: "tool".to_string(),
+                steering_id: None,
+                round_index: None,
                 content: None,
                 tool: Some(tool_status),
                 is_subagent: subagent_marker,
@@ -3028,7 +3473,32 @@ impl RemoteSessionStateTracker {
                 if tool_input.is_some() {
                     tool.tool_input = tool_input;
                 }
+                if plan.is_some() {
+                    tool.plan = Self::merge_plan_tool(tool.plan.as_ref(), plan);
+                }
             }
+        }
+    }
+
+    fn merge_plan_tool(
+        existing: Option<&RemotePlanTool>,
+        incoming: Option<RemotePlanTool>,
+    ) -> Option<RemotePlanTool> {
+        match (existing, incoming) {
+            (Some(existing), Some(mut incoming)) => {
+                if incoming.file_path.is_empty() {
+                    incoming.file_path.clone_from(&existing.file_path);
+                }
+                if !existing.name.is_empty() {
+                    incoming.name.clone_from(&existing.name);
+                }
+                if incoming.overview.is_none() {
+                    incoming.overview.clone_from(&existing.overview);
+                }
+                Some(incoming)
+            }
+            (None, incoming) => incoming,
+            (Some(existing), None) => Some(existing.clone()),
         }
     }
 
@@ -3091,6 +3561,8 @@ impl RemoteSessionStateTracker {
                 } else {
                     state.active_items.push(ChatMessageItem {
                         item_type: "text".to_string(),
+                        steering_id: None,
+                        round_index: None,
                         content: Some(text.clone()),
                         tool: None,
                         is_subagent: subagent_marker,
@@ -3119,6 +3591,8 @@ impl RemoteSessionStateTracker {
                 } else {
                     state.active_items.push(ChatMessageItem {
                         item_type: "thinking".to_string(),
+                        steering_id: None,
+                        round_index: None,
                         content: Some(clean),
                         tool: None,
                         is_subagent: subagent_marker,
@@ -3167,12 +3641,14 @@ impl RemoteSessionStateTracker {
                                 "preparing",
                                 None,
                                 None,
+                                None,
                                 is_subagent,
                             );
                         }
                         "ConfirmationNeeded" => {
                             let params = effective_params.clone();
                             let input_preview = params.as_ref().and_then(make_slim_tool_params);
+                            let plan = project_remote_plan_tool(&tool_name, params.as_ref(), None);
                             Self::upsert_active_tool(
                                 &mut state,
                                 &tool_id,
@@ -3180,6 +3656,7 @@ impl RemoteSessionStateTracker {
                                 "pending_confirmation",
                                 input_preview,
                                 params,
+                                plan,
                                 is_subagent,
                             );
                         }
@@ -3194,6 +3671,7 @@ impl RemoteSessionStateTracker {
                             } else {
                                 None
                             };
+                            let plan = project_remote_plan_tool(&tool_name, params.as_ref(), None);
                             Self::upsert_active_tool(
                                 &mut state,
                                 &tool_id,
@@ -3201,6 +3679,7 @@ impl RemoteSessionStateTracker {
                                 "running",
                                 input_preview,
                                 tool_input,
+                                plan,
                                 is_subagent,
                             );
                             let _ = self.event_tx.send(TrackerEvent::ToolStarted {
@@ -3217,6 +3696,7 @@ impl RemoteSessionStateTracker {
                                 "confirmed",
                                 None,
                                 None,
+                                None,
                                 is_subagent,
                             );
                         }
@@ -3228,12 +3708,15 @@ impl RemoteSessionStateTracker {
                                 "rejected",
                                 None,
                                 None,
+                                None,
                                 is_subagent,
                             );
                         }
                         "Completed" | "Succeeded" => {
                             let duration =
                                 value.get("duration_ms").and_then(|value| value.as_u64());
+                            let plan =
+                                project_remote_plan_tool(&tool_name, None, value.get("result"));
                             if let Some(tool) = state.active_tools.iter_mut().rev().find(|tool| {
                                 (tool.id == tool_id
                                     || (allow_name_fallback && tool.name == tool_name))
@@ -3241,6 +3724,10 @@ impl RemoteSessionStateTracker {
                             }) {
                                 tool.status = "completed".to_string();
                                 tool.duration_ms = duration;
+                                if plan.is_some() {
+                                    tool.plan =
+                                        Self::merge_plan_tool(tool.plan.as_ref(), plan.clone());
+                                }
                             }
                             if let Some(item) = state.active_items.iter_mut().rev().find(|item| {
                                 item.item_type == "tool"
@@ -3253,6 +3740,10 @@ impl RemoteSessionStateTracker {
                                 if let Some(tool) = item.tool.as_mut() {
                                     tool.status = "completed".to_string();
                                     tool.duration_ms = duration;
+                                    if plan.is_some() {
+                                        tool.plan =
+                                            Self::merge_plan_tool(tool.plan.as_ref(), plan.clone());
+                                    }
                                 }
                             }
                             pending_tool_event = Some(TrackerEvent::ToolCompleted {
@@ -3325,10 +3816,34 @@ impl RemoteSessionStateTracker {
                     }
                 }
             }
+            AE::UserSteeringInjected {
+                steering_id,
+                display_content,
+                round_index,
+                ..
+            } if is_direct => {
+                let mut state = self.state.write().unwrap();
+                if !state.active_items.iter().any(|item| {
+                    item.item_type == "user-steering"
+                        && item.steering_id.as_deref() == Some(steering_id.as_str())
+                }) {
+                    state.active_items.push(ChatMessageItem {
+                        item_type: "user-steering".to_string(),
+                        steering_id: Some(steering_id.clone()),
+                        round_index: Some(*round_index),
+                        content: Some(display_content.clone()),
+                        tool: None,
+                        is_subagent: None,
+                    });
+                }
+                drop(state);
+                self.bump_version();
+            }
             AE::DialogTurnStarted { turn_id, .. } if is_direct => {
                 let mut state = self.state.write().unwrap();
                 state.turn_id = Some(turn_id.clone());
                 state.turn_status = "active".to_string();
+                state.turn_error = None;
                 state.accumulated_text.clear();
                 state.accumulated_thinking.clear();
                 state.active_tools.clear();
@@ -3341,6 +3856,7 @@ impl RemoteSessionStateTracker {
             AE::DialogTurnCompleted { turn_id, .. } if is_direct => {
                 let mut state = self.state.write().unwrap();
                 state.turn_status = "completed".to_string();
+                state.turn_error = None;
                 state.session_state = "idle".to_string();
                 state.persistence_dirty = true;
                 self.bump_version();
@@ -3351,6 +3867,7 @@ impl RemoteSessionStateTracker {
             AE::DialogTurnFailed { turn_id, error, .. } if is_direct => {
                 let mut state = self.state.write().unwrap();
                 state.turn_status = "failed".to_string();
+                state.turn_error = Some(error.clone());
                 state.session_state = "idle".to_string();
                 state.persistence_dirty = true;
                 self.bump_version();
@@ -3362,6 +3879,7 @@ impl RemoteSessionStateTracker {
             AE::DialogTurnCancelled { turn_id, .. } if is_direct => {
                 let mut state = self.state.write().unwrap();
                 state.turn_status = "cancelled".to_string();
+                state.turn_error = None;
                 state.session_state = "idle".to_string();
                 state.persistence_dirty = true;
                 self.bump_version();
@@ -3529,33 +4047,50 @@ pub fn remote_persisted_poll_response(
     message_snapshot: Option<Vec<ChatMessage>>,
     model_catalog: Option<RemoteModelCatalog>,
 ) -> RemoteResponse {
-    let turn_finished = tracker.is_turn_finished();
-    let has_assistant_msg = new_messages
-        .iter()
-        .any(|message| message.role == "assistant");
+    let finished_turn = tracker
+        .is_turn_finished()
+        .then(|| tracker.snapshot_active_turn())
+        .flatten();
+    let has_persisted_terminal_assistant = finished_turn.as_ref().is_some_and(|turn| {
+        new_messages
+            .iter()
+            .chain(message_snapshot.iter().flat_map(|messages| messages.iter()))
+            .any(|message| {
+                message.role == "assistant"
+                    && message.turn_id.as_deref() == Some(turn.turn_id.as_str())
+                    && matches!(message.status.as_deref(), Some("done") | Some("completed"))
+            })
+    });
+    let completed_turn_waiting_for_assistant = finished_turn
+        .as_ref()
+        .is_some_and(|turn| turn.status == "completed" && !has_persisted_terminal_assistant);
 
-    let active_turn = if turn_finished && has_assistant_msg {
-        tracker.finalize_completed_turn();
-        None
-    } else if turn_finished {
-        let status = tracker.turn_status();
-        if status == "completed" {
-            tracker.snapshot_active_turn()
-        } else {
+    let active_turn = match finished_turn {
+        Some(turn) if turn.status == "completed" && has_persisted_terminal_assistant => {
+            tracker.finalize_completed_turn();
+            None
+        }
+        Some(turn) if turn.status == "completed" => Some(turn),
+        Some(_) => {
             tracker.finalize_completed_turn();
             tracker.mark_persistence_clean_if_version(version);
             None
         }
-    } else {
-        tracker.snapshot_active_turn()
+        None => tracker.snapshot_active_turn(),
     };
 
     let (send_messages, send_total, send_snapshot) = if let Some(snapshot) = message_snapshot {
-        tracker.mark_persistence_clean_if_version(version);
+        // A history fence may race the final Turn write. Keep polling until
+        // this exact completed Turn has a durable assistant projection instead
+        // of clearing the dirty bit after a snapshot that only contains older
+        // assistant messages.
+        if !completed_turn_waiting_for_assistant {
+            tracker.mark_persistence_clean_if_version(version);
+        }
         // Keep the additive delta for older clients that do not know the
         // optional replacement field yet.
         (Some(new_messages), Some(total_msg_count), Some(snapshot))
-    } else if turn_finished && !has_assistant_msg {
+    } else if completed_turn_waiting_for_assistant {
         (None, None, None)
     } else {
         if !new_messages.is_empty() || active_turn.is_none() {
@@ -3620,6 +4155,19 @@ mod tests {
             }]
         }
 
+        async fn opened_workspaces(
+            &self,
+        ) -> Result<Option<Vec<RemoteRecentWorkspaceFacts>>, String> {
+            Ok(Some(vec![RemoteRecentWorkspaceFacts {
+                path: "/assistant/workspace".into(),
+                name: "Mina".into(),
+                last_opened: "2026-05-29T00:00:00Z".into(),
+                kind: RemoteWorkspaceKind::Assistant,
+                remote_connection_id: None,
+                remote_ssh_host: None,
+            }]))
+        }
+
         async fn open_workspace(
             &self,
             path: &str,
@@ -3656,6 +4204,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn remote_workspace_catalog_advertises_opened_rows_without_repurposing_recent_history() {
+        let response = handle_remote_workspace_command(
+            &FakeWorkspaceHost,
+            &RemoteCommand::ListRecentWorkspaces,
+        )
+        .await;
+        let json = serde_json::to_value(&response).unwrap();
+        assert_eq!(json["workspaces"][0]["path"], "/workspace/project");
+        assert_eq!(json["opened_workspaces"][0]["name"], "Mina");
+        assert_eq!(json["opened_workspaces"][0]["workspace_kind"], "assistant");
+        assert_eq!(
+            serde_json::from_value::<RemoteResponse>(json).unwrap(),
+            response
+        );
+
+        let legacy = serde_json::json!({
+            "resp": "recent_workspaces",
+            "workspaces": [{ "path": "/legacy", "name": "Legacy", "last_opened": "" }]
+        });
+        assert_eq!(
+            serde_json::to_value(serde_json::from_value::<RemoteResponse>(legacy.clone()).unwrap())
+                .unwrap(),
+            legacy
+        );
+        let empty = remote_workspace_catalog_response(Vec::new(), Some(Vec::new()));
+        assert_eq!(
+            serde_json::to_value(empty).unwrap()["opened_workspaces"],
+            serde_json::json!([])
+        );
+        assert!(
+            serde_json::to_value(remote_recent_workspaces_response(Vec::new()))
+                .unwrap()
+                .get("opened_workspaces")
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
     async fn remote_workspace_handler_preserves_response_shapes() {
         let host = FakeWorkspaceHost;
 
@@ -3670,6 +4256,7 @@ mod tests {
                 assistant_id: None,
                 remote_connection_id: None,
                 remote_ssh_host: None,
+                capabilities: remote_host_capabilities(),
             }
         );
 
@@ -3718,7 +4305,7 @@ mod tests {
                 RemoteSessionMetadata {
                     session_id: "session-a".to_string(),
                     name: "keep me".to_string(),
-                    agent_type: "agentic".to_string(),
+                    agent_type: "Standard".to_string(),
                     created_at_ms: 1_000,
                     last_active_at_ms: 2_000,
                     turn_count: 3,
@@ -3726,7 +4313,7 @@ mod tests {
                 RemoteSessionMetadata {
                     session_id: "session-b".to_string(),
                     name: "other".to_string(),
-                    agent_type: "agentic".to_string(),
+                    agent_type: "Standard".to_string(),
                     created_at_ms: 1_000,
                     last_active_at_ms: 2_000,
                     turn_count: 1,
@@ -3810,6 +4397,9 @@ mod tests {
                     content: "hello".to_string(),
                     timestamp: "1".to_string(),
                     metadata: None,
+                    turn_id: None,
+                    status: None,
+                    error: None,
                     images: None,
                     thinking: None,
                     tools: None,
@@ -3888,6 +4478,8 @@ mod tests {
             created,
             RemoteResponse::SessionCreated {
                 session_id: "created-session".to_string(),
+                workspace_path: Some("/workspace/project".to_string()),
+                remote_connection_id: Some("conn-1".to_string()),
             }
         );
         let created_requests = host.created_requests.lock().unwrap();
@@ -3905,6 +4497,55 @@ mod tests {
             created_requests[0].remote_ssh_host.as_deref(),
             Some("host-1")
         );
+    }
+
+    #[tokio::test]
+    async fn claw_creation_preserves_explicit_workspace_and_scopes_default_to_local() {
+        let host = FakeSessionHost::default();
+        for explicit in [Some("/workspace/selected-assistant"), None] {
+            let response = handle_remote_session_command(
+                &host,
+                &RemoteCommand::CreateSession {
+                    agent_type: Some("Claw".into()),
+                    session_name: None,
+                    workspace_path: explicit.map(str::to_string),
+                    remote_connection_id: Some("other-workspace-ssh".into()),
+                    remote_ssh_host: Some("other-host".into()),
+                },
+            )
+            .await;
+            let RemoteResponse::SessionCreated {
+                workspace_path,
+                remote_connection_id,
+                ..
+            } = response
+            else {
+                panic!("creation failed");
+            };
+            assert_eq!(
+                workspace_path.as_deref(),
+                Some(explicit.unwrap_or("/workspace/assistant"))
+            );
+            assert_eq!(
+                remote_connection_id.as_deref(),
+                explicit.map(|_| "other-workspace-ssh")
+            );
+        }
+        let requests = host.created_requests.lock().unwrap();
+        assert_eq!(
+            requests[0].workspace_path.as_deref(),
+            Some("/workspace/selected-assistant")
+        );
+        assert_eq!(
+            requests[0].remote_connection_id.as_deref(),
+            Some("other-workspace-ssh")
+        );
+        assert_eq!(
+            requests[1].workspace_path.as_deref(),
+            Some("/workspace/assistant")
+        );
+        assert!(requests[1].remote_connection_id.is_none());
+        assert!(requests[1].remote_ssh_host.is_none());
     }
 
     #[tokio::test]
@@ -3995,6 +4636,23 @@ mod tests {
         history_read_count: Arc<AtomicUsize>,
     }
 
+    fn poll_test_message(id: &str, role: &str, turn_id: &str, status: Option<&str>) -> ChatMessage {
+        ChatMessage {
+            id: id.to_string(),
+            role: role.to_string(),
+            content: format!("{role} content"),
+            timestamp: "1".to_string(),
+            metadata: None,
+            turn_id: Some(turn_id.to_string()),
+            status: status.map(str::to_string),
+            error: None,
+            tools: None,
+            thinking: None,
+            items: None,
+            images: None,
+        }
+    }
+
     #[async_trait::async_trait]
     impl RemotePollRuntimeHost for FakePollHost {
         fn ensure_tracker(&self, _session_id: &str) -> Arc<RemoteSessionStateTracker> {
@@ -4056,6 +4714,9 @@ mod tests {
             content: "visible".to_string(),
             timestamp: "1".to_string(),
             metadata: None,
+            turn_id: None,
+            status: None,
+            error: None,
             tools: None,
             thinking: None,
             items: None,
@@ -4118,6 +4779,9 @@ mod tests {
                 content: "visible".to_string(),
                 timestamp: "1".to_string(),
                 metadata: None,
+                turn_id: None,
+                status: None,
+                error: None,
                 tools: None,
                 thinking: None,
                 items: None,
@@ -4164,6 +4828,9 @@ mod tests {
                     content: "visible".to_string(),
                     timestamp: "1".to_string(),
                     metadata: None,
+                    turn_id: None,
+                    status: None,
+                    error: None,
                     tools: None,
                     thinking: None,
                     items: None,
@@ -4175,6 +4842,191 @@ mod tests {
         );
         assert!(!tracker.is_persistence_dirty());
         assert!(!tracker.is_history_snapshot_required());
+    }
+
+    #[tokio::test]
+    async fn completed_turn_finalizes_when_its_assistant_only_exists_in_replacement_snapshot() {
+        let tracker = Arc::new(RemoteSessionStateTracker::new("session-a".to_string()));
+        tracker.handle_agentic_event(&AgenticEvent::DialogTurnStarted {
+            session_id: "session-a".to_string(),
+            turn_id: "turn-current".to_string(),
+            turn_index: 1,
+            user_input: "hello".to_string(),
+            original_user_input: None,
+            user_message_metadata: None,
+        });
+        tracker.handle_agentic_event(&AgenticEvent::DialogTurnCompleted {
+            session_id: "session-a".to_string(),
+            turn_id: "turn-current".to_string(),
+            total_rounds: 1,
+            total_tools: 0,
+            duration_ms: 1,
+            partial_recovery_reason: None,
+            success: Some(true),
+            finish_reason: Some("complete".to_string()),
+            has_final_response: Some(true),
+        });
+        tracker.handle_agentic_event(&AgenticEvent::SessionHistoryChanged {
+            session_id: "session-a".to_string(),
+            settled_turn_id: Some("turn-current".to_string()),
+        });
+        let version = tracker.version();
+        let assistant = poll_test_message(
+            "turn-current-assistant",
+            "assistant",
+            "turn-current",
+            Some("done"),
+        );
+        let host = FakePollHost {
+            tracker: tracker.clone(),
+            storage_dir: Some(PathBuf::from("/workspace/project/.bitfun/sessions")),
+            messages: vec![assistant.clone()],
+            history_read_count: Arc::new(AtomicUsize::new(0)),
+        };
+
+        let response = handle_remote_poll_command(
+            &host,
+            &RemoteCommand::PollSession {
+                session_id: "session-a".to_string(),
+                since_version: version,
+                // The controller already counted the streaming assistant, so
+                // completion only changes its persisted content/status.
+                known_msg_count: 1,
+                known_model_catalog_version: None,
+            },
+        )
+        .await;
+
+        let RemoteResponse::SessionPoll {
+            active_turn,
+            message_snapshot,
+            ..
+        } = response
+        else {
+            panic!("expected session poll response");
+        };
+        assert!(active_turn.is_none());
+        assert_eq!(message_snapshot, Some(vec![assistant]));
+        assert!(tracker.snapshot_active_turn().is_none());
+        assert!(!tracker.is_persistence_dirty());
+    }
+
+    #[tokio::test]
+    async fn completed_turn_ignores_older_assistant_and_retries_until_its_result_is_persisted() {
+        let tracker = Arc::new(RemoteSessionStateTracker::new("session-a".to_string()));
+        tracker.handle_agentic_event(&AgenticEvent::DialogTurnStarted {
+            session_id: "session-a".to_string(),
+            turn_id: "turn-current".to_string(),
+            turn_index: 1,
+            user_input: "hello".to_string(),
+            original_user_input: None,
+            user_message_metadata: None,
+        });
+        tracker.handle_agentic_event(&AgenticEvent::DialogTurnCompleted {
+            session_id: "session-a".to_string(),
+            turn_id: "turn-current".to_string(),
+            total_rounds: 1,
+            total_tools: 0,
+            duration_ms: 1,
+            partial_recovery_reason: None,
+            success: Some(true),
+            finish_reason: Some("complete".to_string()),
+            has_final_response: Some(true),
+        });
+        tracker.handle_agentic_event(&AgenticEvent::SessionHistoryChanged {
+            session_id: "session-a".to_string(),
+            settled_turn_id: Some("turn-current".to_string()),
+        });
+        let version = tracker.version();
+        let older_assistant = poll_test_message(
+            "turn-older-assistant",
+            "assistant",
+            "turn-older",
+            Some("done"),
+        );
+        let first_host = FakePollHost {
+            tracker: tracker.clone(),
+            storage_dir: Some(PathBuf::from("/workspace/project/.bitfun/sessions")),
+            messages: vec![older_assistant.clone()],
+            history_read_count: Arc::new(AtomicUsize::new(0)),
+        };
+
+        let first_response = handle_remote_poll_command(
+            &first_host,
+            &RemoteCommand::PollSession {
+                session_id: "session-a".to_string(),
+                since_version: version,
+                known_msg_count: 1,
+                known_model_catalog_version: None,
+            },
+        )
+        .await;
+        let RemoteResponse::SessionPoll { active_turn, .. } = first_response else {
+            panic!("expected session poll response");
+        };
+        assert_eq!(
+            active_turn.as_ref().map(|turn| turn.turn_id.as_str()),
+            Some("turn-current")
+        );
+        assert!(tracker.is_persistence_dirty());
+
+        let current_assistant = poll_test_message(
+            "turn-current-assistant",
+            "assistant",
+            "turn-current",
+            Some("done"),
+        );
+        let retry_host = FakePollHost {
+            tracker: tracker.clone(),
+            storage_dir: Some(PathBuf::from("/workspace/project/.bitfun/sessions")),
+            messages: vec![older_assistant, current_assistant],
+            history_read_count: Arc::new(AtomicUsize::new(0)),
+        };
+        let retry_response = handle_remote_poll_command(
+            &retry_host,
+            &RemoteCommand::PollSession {
+                session_id: "session-a".to_string(),
+                since_version: version,
+                known_msg_count: 1,
+                known_model_catalog_version: None,
+            },
+        )
+        .await;
+        let RemoteResponse::SessionPoll { active_turn, .. } = retry_response else {
+            panic!("expected session poll response");
+        };
+        assert!(active_turn.is_none());
+        assert!(tracker.snapshot_active_turn().is_none());
+        assert!(!tracker.is_persistence_dirty());
+    }
+
+    #[test]
+    fn failed_active_turn_snapshot_preserves_the_runtime_error() {
+        let tracker = RemoteSessionStateTracker::new("session-a".to_string());
+        tracker.handle_agentic_event(&AgenticEvent::DialogTurnStarted {
+            session_id: "session-a".to_string(),
+            turn_id: "turn-failed".to_string(),
+            turn_index: 1,
+            user_input: "hello".to_string(),
+            original_user_input: None,
+            user_message_metadata: None,
+        });
+        tracker.handle_agentic_event(&AgenticEvent::DialogTurnFailed {
+            session_id: "session-a".to_string(),
+            turn_id: "turn-failed".to_string(),
+            error: "AI client could not reach the configured proxy".to_string(),
+            error_category: None,
+            error_detail: None,
+        });
+
+        let active_turn = tracker
+            .snapshot_active_turn()
+            .expect("failed turn must remain visible until persistence catches up");
+        assert_eq!(active_turn.status, "failed");
+        assert_eq!(
+            active_turn.error.as_deref(),
+            Some("AI client could not reach the configured proxy")
+        );
     }
 
     #[tokio::test]
@@ -4224,42 +5076,5 @@ mod tests {
         });
         assert_eq!(tracker.session_state(), "idle");
         assert!(tracker.is_history_snapshot_required());
-    }
-
-    #[derive(Default)]
-    struct FakeInteractionHost;
-
-    #[async_trait::async_trait]
-    impl RemoteInteractionRuntimeHost for FakeInteractionHost {
-        async fn confirm_tool(&self, _tool_id: &str) -> Result<(), String> {
-            Ok(())
-        }
-
-        async fn reject_tool(&self, _tool_id: &str, _reason: String) -> Result<(), String> {
-            Ok(())
-        }
-
-        async fn get_permission_mode(&self) -> Result<RemotePermissionMode, String> {
-            Ok(RemotePermissionMode::Ask)
-        }
-
-        async fn set_permission_mode(
-            &self,
-            mode: RemotePermissionMode,
-        ) -> Result<RemotePermissionMode, String> {
-            Ok(mode)
-        }
-
-        async fn cancel_tool(&self, _tool_id: &str, _reason: String) -> Result<(), String> {
-            Ok(())
-        }
-
-        fn answer_question(
-            &self,
-            _tool_id: &str,
-            _answers: serde_json::Value,
-        ) -> Result<(), String> {
-            Ok(())
-        }
     }
 }

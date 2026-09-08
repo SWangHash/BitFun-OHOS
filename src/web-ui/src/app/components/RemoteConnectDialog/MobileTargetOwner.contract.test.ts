@@ -1,8 +1,18 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import {
+  deserializeCloudAccountSession,
+  loadMatchingCloudAccountSession,
+  saveCloudAccountSession,
+  serializeCloudAccountSession,
+} from '../../../../../mobile-web/src/services/CloudAccountSessionStore';
 
 const sessionListSource = readFileSync(
   new URL('../../../../../mobile-web/src/pages/SessionListPage.tsx', import.meta.url),
+  'utf8',
+);
+const sessionDashboardSource = readFileSync(
+  new URL('../../../../../mobile-web/src/components/SessionDashboardSections.tsx', import.meta.url),
   'utf8',
 );
 const chatSource = readFileSync(
@@ -41,11 +51,11 @@ describe('mobile control-target UI ownership contracts', () => {
       'if (creating || targetInitializingRef.current) return;',
     );
     expect(sessionListSource).toContain('disabled={creating || targetInitializing}');
-    expect(sessionListSource).toMatch(
-      /className="session-list__search-input"[\s\S]*?disabled=\{targetInitializing\}/,
+    expect(sessionDashboardSource).toMatch(
+      /inputClassName="session-list__search-input"[\s\S]*?disabled=\{targetInitializing\}/,
     );
-    expect(sessionListSource).not.toMatch(
-      /className="session-list__search-input"[\s\S]*?disabled=\{loading\}/,
+    expect(sessionDashboardSource).not.toMatch(
+      /inputClassName="session-list__search-input"[\s\S]*?disabled=\{loading\}/,
     );
     expect(sessionListSource).toContain('if (loading || loadingMore || !hasMore) return;');
 
@@ -85,26 +95,85 @@ describe('mobile control-target UI ownership contracts', () => {
     expect(initEffect).toContain('if (!isInitCurrent()) return;');
   });
 
-  it('fences a device probe and pairing name lookup to their original owners', () => {
-    expect(devicesSource).toContain('client.delegatedAccountEpoch === accountEpoch');
+  it('fences device probes and pending sign-ins to their original owners', () => {
+    expect(devicesSource).toContain('client.accountEpoch === accountEpoch');
     expect(devicesSource).toContain('client.controlTargetEpoch === expectedTargetEpoch');
     expect(devicesSource).toContain('expectedTargetEpoch = client.controlTargetEpoch;');
 
-    expect(pairingSource).toContain('const target = client.getControlTargetSnapshot();');
-    expect(pairingSource).toContain('!client.isControlTargetCurrent(target)');
-    expect(pairingSource).toContain('client.pairedDeviceId !== homeDeviceId');
+    expect(pairingSource).toContain('generation.current === attempt && !controller.signal.aborted && !connected.current');
+    expect(pairingSource).toContain('if (!isCurrent()) return;');
+    expect(pairingSource).toContain('accountStore.saveSession(browser, candidate, isCurrent)');
+    expect(pairingSource).toContain('pending.current?.abort()');
   });
 
-  it('bootstraps pairing auto-reconnect once without resetting to a stuck spinner', () => {
-    expect(pairingSource).toContain('attemptPairRef.current');
-    expect(pairingSource).toContain('pairAttemptGenerationRef');
-    expect(pairingSource).toContain('mount-once bootstrap');
-    expect(pairingSource).toContain('eslint-disable-next-line react-hooks/exhaustive-deps -- mount-once bootstrap');
-    // Regression: depending on attemptPair and unconditionally setting pairing
-    // after a failed reconnect left the page spinning with no retry form.
-    expect(pairingSource).not.toContain('autoReconnectAttemptedRef');
-    expect(pairingSource).not.toMatch(
-      /setConnectionStatus\(shouldAutoReconnect \? 'pairing' : 'idle'\)/,
+  it('restores from the browser store while retaining scoped legacy readers for migration', () => {
+    expect(pairingSource).toContain('getBrowserAccountStore(relayUrl)');
+    expect(pairingSource).toContain('await accountStore.read()');
+    // Real tab sharing, migration and late-login cancellation are exercised by
+    // mobile-web's test:account-browser suite; these remain legacy read checks.
+
+    const stored = {
+      relayUrl: 'https://relay.example.com',
+      username: 'alice',
+      controllerDeviceId: 'mobile-a',
+      session: {
+        token: 'token-a',
+        userId: 'account-a',
+        masterKey: new Uint8Array(32).fill(7),
+      },
+    };
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); },
+    };
+
+    saveCloudAccountSession(stored, storage);
+    const restored = loadMatchingCloudAccountSession(
+      'https://relay.example.com/',
+      'alice',
+      'mobile-a',
+      storage,
     );
+    expect(restored?.session.token).toBe('token-a');
+    expect(restored?.session.masterKey).toEqual(stored.session.masterKey);
+    expect(loadMatchingCloudAccountSession(
+      'https://relay.example.com', 'bob', 'mobile-a', storage,
+    )).toBeNull();
+    expect(loadMatchingCloudAccountSession(
+      'https://other.example.com', 'alice', 'mobile-a', storage,
+    )).toBeNull();
+    expect(loadMatchingCloudAccountSession(
+      'https://relay.example.com', 'alice', 'mobile-b', storage,
+    )).toBeNull();
+  });
+
+  it('keeps the account-session record tolerant across persisted shapes', () => {
+    const current = {
+      relayUrl: 'https://relay.example.com',
+      username: 'alice',
+      controllerDeviceId: 'mobile-a',
+      session: {
+        token: 'token-a',
+        userId: 'account-a',
+        masterKey: new Uint8Array(32).fill(9),
+      },
+    };
+    const currentRoundTrip = deserializeCloudAccountSession(
+      serializeCloudAccountSession(current),
+    );
+    expect(currentRoundTrip?.session.masterKey).toEqual(current.session.masterKey);
+
+    const wire = JSON.parse(serializeCloudAccountSession(current));
+    const legacy = JSON.stringify({
+      relayUrl: wire.relay_url,
+      username: wire.username,
+      token: wire.token,
+      userId: wire.user_id,
+      masterKey: wire.master_key,
+      controllerDeviceId: wire.controller_device_id,
+    });
+    expect(deserializeCloudAccountSession(legacy)).toBeNull(); // Old shared-account keys cannot authenticate a device.
+    expect(deserializeCloudAccountSession(JSON.stringify({ ...wire, version: 99 }))).toBeNull();
   });
 });

@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, watch};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct QuestionOption {
@@ -128,6 +128,21 @@ pub struct AskUserQuestionInput {
         skip_serializing_if = "Option::is_none"
     )]
     pub template_id: Option<String>,
+    #[serde(
+        default = "default_user_question_timeout_seconds",
+        skip_serializing_if = "is_default_user_question_timeout"
+    )]
+    pub timeout_seconds: u32,
+}
+
+pub const DEFAULT_USER_QUESTION_TIMEOUT_SECONDS: u32 = 30;
+
+fn default_user_question_timeout_seconds() -> u32 {
+    DEFAULT_USER_QUESTION_TIMEOUT_SECONDS
+}
+
+fn is_default_user_question_timeout(value: &u32) -> bool {
+    *value == DEFAULT_USER_QUESTION_TIMEOUT_SECONDS
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -226,6 +241,8 @@ pub struct PendingUserQuestion {
     /// Required field ids carried by the waiting template.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub required_fields: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub interaction_started: bool,
 }
 
 impl PendingUserQuestion {
@@ -242,6 +259,7 @@ impl PendingUserQuestion {
             dialog_turn_id,
             model_round_id,
             questions,
+            interaction_started: false,
             registered_at_ms: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
@@ -311,17 +329,57 @@ pub enum UserInputSendError {
     ChannelClosed { tool_id: String },
 }
 
+pub const USER_INPUT_PARENT_CONTEXT_KEY: &str = "user_input_parent_controller";
+
+/// Trusted execution lineage, not model-supplied question parameters.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserQuestionController {
+    pub session_id: String,
+    pub dialog_turn_id: Option<String>,
+}
+
 struct PendingUserInput {
     sender: oneshot::Sender<UserInputResponse>,
     question: Option<PendingUserQuestion>,
+    controllers: Vec<UserQuestionController>,
     registration_sequence: u64,
+    interaction_started: watch::Sender<bool>,
 }
 
-#[derive(Default)]
+impl PendingUserInput {
+    fn controlled_by(&self, session_id: &str) -> bool {
+        self.question
+            .as_ref()
+            .is_some_and(|question| question.session_id == session_id)
+            || self
+                .controllers
+                .iter()
+                .any(|controller| controller.session_id == session_id)
+    }
+}
+
 struct UserInputState {
     pending: HashMap<String, PendingUserInput>,
     next_registration_sequence: u64,
     revision: u64,
+    changes: watch::Sender<u64>,
+}
+
+impl Default for UserInputState {
+    fn default() -> Self {
+        Self {
+            pending: HashMap::new(),
+            next_registration_sequence: 0,
+            revision: 0,
+            changes: watch::channel(0).0,
+        }
+    }
+}
+impl UserInputState {
+    fn bump_revision(&mut self) {
+        self.revision = self.revision.saturating_add(1);
+        self.changes.send_replace(self.revision);
+    }
 }
 
 /// Drop guard tying a pending mailbox record to the Tool future that waits on
@@ -332,6 +390,57 @@ pub struct UserInputRegistration {
     state: Weak<Mutex<UserInputState>>,
     tool_id: String,
     registration_sequence: u64,
+    interaction_started: watch::Receiver<bool>,
+}
+
+impl UserInputRegistration {
+    /// Atomically arbitrate timeout against the first interaction or answer.
+    fn expire_if_unstarted(&self) -> bool {
+        let Some(state) = self.state.upgrade() else {
+            return false;
+        };
+        let mut state = lock_user_input_state(&state);
+        let can_expire = state.pending.get(&self.tool_id).is_some_and(|pending| {
+            pending.registration_sequence == self.registration_sequence
+                && !*pending.interaction_started.borrow()
+        });
+        if can_expire {
+            state.pending.remove(&self.tool_id);
+            state.bump_revision();
+        }
+        can_expire
+    }
+}
+
+pub enum UserQuestionWaitOutcome {
+    Answered(UserInputResponse),
+    Cancelled,
+    TimedOut,
+}
+
+/// The deadline only applies while unattended. Interaction permanently removes
+/// the deadline for this question; submitting and cancelling keep their meaning.
+pub async fn wait_for_user_question_response(
+    registration: &UserInputRegistration,
+    mut response: oneshot::Receiver<UserInputResponse>,
+    unattended_timeout: std::time::Duration,
+) -> UserQuestionWaitOutcome {
+    let mut activity = registration.interaction_started.clone();
+    let result = tokio::select! {
+        biased;
+        result = &mut response => result,
+        _ = async { let _ = activity.wait_for(|started| *started).await; } => response.await,
+        _ = tokio::time::sleep(unattended_timeout) => {
+            if registration.expire_if_unstarted() {
+                return UserQuestionWaitOutcome::TimedOut;
+            }
+            response.await
+        }
+    };
+    match result {
+        Ok(answer) => UserQuestionWaitOutcome::Answered(answer),
+        Err(_) => UserQuestionWaitOutcome::Cancelled,
+    }
 }
 
 impl Drop for UserInputRegistration {
@@ -346,7 +455,7 @@ impl Drop for UserInputRegistration {
             .is_some_and(|pending| pending.registration_sequence == self.registration_sequence);
         if belongs_to_registration {
             state.pending.remove(&self.tool_id);
-            state.revision = state.revision.saturating_add(1);
+            state.bump_revision();
             debug!(
                 "Removed dropped user-input registration: tool_id={}",
                 self.tool_id
@@ -373,9 +482,16 @@ impl UserInputManager {
         }
     }
 
+    /// Coalesced invalidation of the live question mailbox. Consumers read
+    /// pending_question_counts plus their previous session set to also publish
+    /// removals; no tool payload or bounded queue sits on the execution path.
+    pub fn subscribe_changes(&self) -> watch::Receiver<u64> {
+        lock_user_input_state(&self.state).changes.subscribe()
+    }
+
     pub fn register_channel(&self, tool_id: String, sender: oneshot::Sender<UserInputResponse>) {
         debug!("Registered waiting channel: tool_id={}", tool_id);
-        self.insert_pending(tool_id, sender, None);
+        self.insert_pending(tool_id, sender, None, Vec::new());
     }
 
     /// Register a replayable user question and return the lifetime guard for
@@ -385,16 +501,27 @@ impl UserInputManager {
         question: PendingUserQuestion,
         sender: oneshot::Sender<UserInputResponse>,
     ) -> UserInputRegistration {
+        self.register_question_with_controllers(question, sender, Vec::new())
+    }
+
+    pub fn register_question_with_controllers(
+        &self,
+        question: PendingUserQuestion,
+        sender: oneshot::Sender<UserInputResponse>,
+        controllers: Vec<UserQuestionController>,
+    ) -> UserInputRegistration {
         let tool_id = question.tool_id.clone();
         debug!(
             "Registered pending user question: tool_id={}, session_id={}, template={:?}",
             tool_id, question.session_id, question.template_id
         );
-        let registration_sequence = self.insert_pending(tool_id.clone(), sender, Some(question));
+        let (registration_sequence, interaction_started) =
+            self.insert_pending(tool_id.clone(), sender, Some(question), controllers);
         UserInputRegistration {
             state: Arc::downgrade(&self.state),
             tool_id,
             registration_sequence,
+            interaction_started,
         }
     }
 
@@ -403,7 +530,9 @@ impl UserInputManager {
         tool_id: String,
         sender: oneshot::Sender<UserInputResponse>,
         question: Option<PendingUserQuestion>,
-    ) -> u64 {
+        controllers: Vec<UserQuestionController>,
+    ) -> (u64, watch::Receiver<bool>) {
+        let (interaction_started, activity) = watch::channel(false);
         let mut state = lock_user_input_state(&self.state);
         let registration_sequence = state.next_registration_sequence;
         state.next_registration_sequence = state.next_registration_sequence.saturating_add(1);
@@ -412,11 +541,37 @@ impl UserInputManager {
             PendingUserInput {
                 sender,
                 question,
+                controllers,
                 registration_sequence,
+                interaction_started,
             },
         );
-        state.revision = state.revision.saturating_add(1);
-        registration_sequence
+        state.bump_revision();
+        (registration_sequence, activity)
+    }
+
+    /// Session-scoped, idempotent acknowledgement; never consumes an answer.
+    pub fn start_interaction(
+        &self,
+        session_id: &str,
+        tool_id: &str,
+    ) -> Result<(), UserInputSendError> {
+        let mut state = lock_user_input_state(&self.state);
+        let pending = state
+            .pending
+            .get_mut(tool_id)
+            .filter(|pending| pending.controlled_by(session_id))
+            .ok_or_else(|| UserInputSendError::MissingChannel {
+                tool_id: tool_id.to_string(),
+            })?;
+        if !*pending.interaction_started.borrow() {
+            pending.interaction_started.send_replace(true);
+            if let Some(question) = pending.question.as_mut() {
+                question.interaction_started = true;
+            }
+            state.bump_revision();
+        }
+        Ok(())
     }
 
     pub fn send_answer(&self, tool_id: &str, answers: Value) -> Result<(), UserInputSendError> {
@@ -426,7 +581,7 @@ impl UserInputManager {
             let mut state = lock_user_input_state(&self.state);
             let pending = state.pending.remove(tool_id);
             if pending.is_some() {
-                state.revision = state.revision.saturating_add(1);
+                state.bump_revision();
             }
             pending
         };
@@ -449,12 +604,32 @@ impl UserInputManager {
         }
     }
 
+    pub fn cancel_for_session(
+        &self,
+        session_id: &str,
+        tool_id: &str,
+    ) -> Result<(), UserInputSendError> {
+        let mut state = lock_user_input_state(&self.state);
+        if !state
+            .pending
+            .get(tool_id)
+            .is_some_and(|pending| pending.controlled_by(session_id))
+        {
+            return Err(UserInputSendError::MissingChannel {
+                tool_id: tool_id.to_string(),
+            });
+        }
+        state.pending.remove(tool_id);
+        state.bump_revision();
+        Ok(())
+    }
+
     pub fn cancel(&self, tool_id: &str) -> bool {
         let removed = {
             let mut state = lock_user_input_state(&self.state);
             let removed = state.pending.remove(tool_id).is_some();
             if removed {
-                state.revision = state.revision.saturating_add(1);
+                state.bump_revision();
             }
             removed
         };
@@ -483,18 +658,50 @@ impl UserInputManager {
         pending.into_iter().map(|(_, tool_id)| tool_id).collect()
     }
 
+    /// Compact batch read for navigation; do not clone question/tool payloads.
+    pub fn pending_question_counts(&self) -> HashMap<String, usize> {
+        let state = lock_user_input_state(&self.state);
+        let mut counts = HashMap::new();
+        for pending in state.pending.values() {
+            if let Some(question) = &pending.question {
+                let mut sessions = std::collections::HashSet::from([question.session_id.clone()]);
+                sessions.extend(
+                    pending
+                        .controllers
+                        .iter()
+                        .map(|controller| controller.session_id.clone()),
+                );
+                for session_id in sessions {
+                    *counts.entry(session_id).or_default() += 1;
+                }
+            }
+        }
+        counts
+    }
+
     pub fn pending_question_snapshot(&self, session_id: &str) -> PendingUserQuestionSnapshot {
         let state = lock_user_input_state(&self.state);
         let mut questions = state
             .pending
             .values()
             .filter_map(|pending| {
-                pending
-                    .question
-                    .as_ref()
-                    .filter(|question| question.session_id == session_id)
-                    .cloned()
-                    .map(|question| (pending.registration_sequence, question))
+                if !pending.controlled_by(session_id) {
+                    return None;
+                }
+                pending.question.clone().map(|mut question| {
+                    if question.session_id != session_id {
+                        if let Some(controller) = pending
+                            .controllers
+                            .iter()
+                            .find(|controller| controller.session_id == session_id)
+                        {
+                            question.session_id = controller.session_id.clone();
+                            question.dialog_turn_id = controller.dialog_turn_id.clone();
+                            question.model_round_id = None;
+                        }
+                    }
+                    (pending.registration_sequence, question)
+                })
             })
             .collect::<Vec<_>>();
         questions.sort_by_key(|(sequence, _)| *sequence);
@@ -571,6 +778,10 @@ pub fn validate_ask_user_question_input(
     }
     if input.questions.len() > 4 {
         return Err("Maximum 4 questions allowed".to_string());
+    }
+
+    if input.timeout_seconds == 0 {
+        return Err("timeout_seconds must be at least 1".to_string());
     }
 
     for (q_idx, question) in input.questions.iter().enumerate() {
@@ -680,6 +891,18 @@ pub fn build_cancelled_user_question_result(
     }
 }
 
+pub fn build_timed_out_user_question_result(
+    input: &AskUserQuestionInput,
+) -> UserQuestionToolResult {
+    UserQuestionToolResult {
+        data: json!({
+            "questions_count": input.questions.len(),
+            "status": "timeout"
+        }),
+        result_for_assistant: "用户无响应，跳过提问，继续执行".to_string(),
+    }
+}
+
 fn format_result_for_assistant(questions: &[Question], answers: &Value) -> String {
     let answers_obj = answers
         .as_object()
@@ -736,6 +959,35 @@ mod tests {
         UserInputSendError,
     };
     use serde_json::json;
+
+    #[tokio::test]
+    async fn mailbox_watch_coalesces_without_losing_sessions_and_notifies_removal() {
+        let manager = UserInputManager::new();
+        let mut changes = manager.subscribe_changes();
+        let (sender_a, receiver_a) = tokio::sync::oneshot::channel();
+        let (sender_b, _receiver_b) = tokio::sync::oneshot::channel();
+        let a = manager.register_question(
+            PendingUserQuestion::new("a", "session-a", None, None, json!({"questions":[]})),
+            sender_a,
+        );
+        let b = manager.register_question(
+            PendingUserQuestion::new("b", "session-b", None, None, json!({"questions":[]})),
+            sender_b,
+        );
+        changes.changed().await.unwrap();
+        let revision = *changes.borrow_and_update();
+        let sessions = manager.pending_question_counts();
+        assert_eq!(sessions.len(), 2);
+        assert_eq!(sessions.get("session-a"), Some(&1));
+        assert_eq!(sessions.get("session-b"), Some(&1));
+        manager.send_answer("a", json!({"0":"yes"})).unwrap();
+        assert_eq!(receiver_a.await.unwrap().answers, json!({"0":"yes"}));
+        drop(b);
+        changes.changed().await.unwrap();
+        assert!(*changes.borrow_and_update() > revision);
+        assert!(manager.pending_question_counts().is_empty());
+        drop(a);
+    }
 
     #[tokio::test]
     async fn user_input_manager_delivers_answer_and_clears_channel() {
@@ -818,6 +1070,7 @@ mod tests {
         let pending = manager.pending_question_snapshot("session-1");
         assert_eq!(pending.questions, vec![question]);
         assert!(pending.revision > 0);
+        assert_eq!(manager.pending_question_counts().get("session-1"), Some(&1));
 
         manager
             .send_answer("tool-1", json!({"0": "yes"}))
@@ -830,6 +1083,7 @@ mod tests {
             .pending_question_snapshot("session-1")
             .questions
             .is_empty());
+        assert!(manager.pending_question_counts().is_empty());
         drop(registration);
     }
 
@@ -900,5 +1154,186 @@ mod tests {
         assert!(manager.pending_meta("tool-meta").is_none());
         assert!(!manager.has_pending("tool-meta"));
         drop(registration);
+    }
+
+    fn unattended_question(
+        manager: &UserInputManager,
+    ) -> (
+        super::UserInputRegistration,
+        tokio::sync::oneshot::Receiver<UserInputResponse>,
+    ) {
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        let registration = manager.register_question(
+            PendingUserQuestion::new("tool", "session", None, None, json!({"questions": []})),
+            sender,
+        );
+        (registration, receiver)
+    }
+
+    #[tokio::test]
+    async fn first_interaction_removes_timeout_and_remains_replayable_until_answered() {
+        let manager = UserInputManager::new();
+        let (registration, receiver) = unattended_question(&manager);
+        let wait = super::wait_for_user_question_response(
+            &registration,
+            receiver,
+            std::time::Duration::from_millis(10),
+        );
+        tokio::pin!(wait);
+        // Poll the wait before activity, so both the timer and activity receiver are live.
+        std::future::poll_fn(|cx| {
+            assert!(std::future::Future::poll(wait.as_mut(), cx).is_pending());
+            std::task::Poll::Ready(())
+        })
+        .await;
+        manager.start_interaction("session", "tool").unwrap();
+        let active = manager.pending_question_snapshot("session");
+        assert!(active.questions[0].interaction_started);
+        manager.start_interaction("session", "tool").unwrap();
+        assert_eq!(
+            manager.pending_question_snapshot("session").revision,
+            active.revision
+        );
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(30), &mut wait)
+                .await
+                .is_err()
+        );
+        assert!(manager.has_pending("tool"));
+        manager.send_answer("tool", json!({"0":"yes"})).unwrap();
+        assert!(matches!(
+            wait.await,
+            super::UserQuestionWaitOutcome::Answered(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn no_interaction_expires_and_late_or_cross_session_activity_cannot_revive_it() {
+        let manager = UserInputManager::new();
+        let (registration, receiver) = unattended_question(&manager);
+        assert!(manager.start_interaction("other-session", "tool").is_err());
+        let outcome = super::wait_for_user_question_response(
+            &registration,
+            receiver,
+            std::time::Duration::from_millis(1),
+        )
+        .await;
+        assert!(matches!(outcome, super::UserQuestionWaitOutcome::TimedOut));
+        assert!(!manager.has_pending("tool"));
+        assert!(manager.start_interaction("session", "tool").is_err());
+    }
+
+    #[tokio::test]
+    async fn delegated_question_controllers_share_activity_and_project_replay_to_their_turn() {
+        let manager = UserInputManager::new();
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        let registration = manager.register_question_with_controllers(
+            PendingUserQuestion::new(
+                "delegated-tool",
+                "child",
+                Some("child-turn".into()),
+                Some("child-round".into()),
+                json!({}),
+            ),
+            sender,
+            vec![super::UserQuestionController {
+                session_id: "root".into(),
+                dialog_turn_id: Some("root-turn".into()),
+            }],
+        );
+        assert!(manager
+            .start_interaction("unrelated", "delegated-tool")
+            .is_err());
+        manager.start_interaction("root", "delegated-tool").unwrap();
+        let root = manager.pending_question_snapshot("root");
+        assert_eq!(root.questions[0].session_id, "root");
+        assert_eq!(
+            root.questions[0].dialog_turn_id.as_deref(),
+            Some("root-turn")
+        );
+        assert!(root.questions[0].model_round_id.is_none());
+        assert!(root.questions[0].interaction_started);
+        let child = manager.pending_question_snapshot("child");
+        assert_eq!(
+            child.questions[0].model_round_id.as_deref(),
+            Some("child-round")
+        );
+        assert!(child.questions[0].interaction_started);
+        assert!(manager
+            .pending_question_snapshot("unrelated")
+            .questions
+            .is_empty());
+        assert_eq!(manager.pending_question_counts().get("root"), Some(&1));
+        assert!(manager
+            .cancel_for_session("unrelated", "delegated-tool")
+            .is_err());
+        manager
+            .cancel_for_session("root", "delegated-tool")
+            .unwrap();
+        assert!(matches!(
+            super::wait_for_user_question_response(
+                &registration,
+                receiver,
+                std::time::Duration::from_secs(30)
+            )
+            .await,
+            super::UserQuestionWaitOutcome::Cancelled
+        ));
+        assert!(manager
+            .pending_question_snapshot("child")
+            .questions
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn scoped_cancellation_rejects_other_sessions_and_settles_after_interaction() {
+        let manager = UserInputManager::new();
+        let (registration, receiver) = unattended_question(&manager);
+        manager.start_interaction("session", "tool").unwrap();
+        assert!(manager.cancel_for_session("other", "tool").is_err());
+        assert!(manager.has_pending("tool"));
+        manager.cancel_for_session("session", "tool").unwrap();
+        assert!(matches!(
+            super::wait_for_user_question_response(
+                &registration,
+                receiver,
+                std::time::Duration::from_secs(30)
+            )
+            .await,
+            super::UserQuestionWaitOutcome::Cancelled
+        ));
+        assert!(!manager.has_pending("tool"));
+    }
+
+    #[tokio::test]
+    async fn cancellation_still_settles_an_interacted_question() {
+        let manager = UserInputManager::new();
+        let (registration, receiver) = unattended_question(&manager);
+        manager.start_interaction("session", "tool").unwrap();
+        manager.cancel("tool");
+        assert!(matches!(
+            super::wait_for_user_question_response(
+                &registration,
+                receiver,
+                std::time::Duration::from_secs(30)
+            )
+            .await,
+            super::UserQuestionWaitOutcome::Cancelled
+        ));
+    }
+
+    #[test]
+    fn timeout_and_activity_are_atomically_arbitrated_and_legacy_snapshots_default_to_unstarted() {
+        let manager = UserInputManager::new();
+        let (registration, _receiver) = unattended_question(&manager);
+        manager.start_interaction("session", "tool").unwrap();
+        assert!(!registration.expire_if_unstarted());
+        let mut value =
+            serde_json::to_value(&manager.pending_question_snapshot("session").questions[0])
+                .unwrap();
+        value.as_object_mut().unwrap().remove("interactionStarted");
+        let legacy: PendingUserQuestion = serde_json::from_value(value.clone()).unwrap();
+        assert!(!legacy.interaction_started);
+        assert_eq!(serde_json::to_value(legacy).unwrap(), value);
     }
 }

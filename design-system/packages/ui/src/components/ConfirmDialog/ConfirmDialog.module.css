@@ -1,0 +1,107 @@
+@layer bitfun.components {
+  .content,
+  .messageRow,
+  .icon,
+  .message,
+  .preview {
+    box-sizing: border-box;
+  }
+
+  .content {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+    gap: var(--bitfun-layout-confirm-dialog-content-gap);
+  }
+
+  .messageRow {
+    display: flex;
+    min-inline-size: 0;
+    align-items: flex-start;
+    gap: var(--bitfun-layout-confirm-dialog-message-gap);
+    font-family: var(--bitfun-type-body-md-font-family);
+    font-size: var(--bitfun-type-body-md-font-size);
+    font-weight: var(--bitfun-type-body-md-font-weight);
+    line-height: var(--bitfun-type-body-md-line-height);
+    letter-spacing: var(--bitfun-type-body-md-letter-spacing);
+  }
+
+  .icon {
+    display: inline-flex;
+    flex: 0 0 var(--bitfun-layout-confirm-dialog-icon-glyph-size);
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--bitfun-layout-confirm-dialog-icon-glyph-size);
+    /* Center the glyph in the first text line without following later wraps. */
+    block-size: 1lh;
+    color: var(--bitfun-color-status-info-emphasis);
+  }
+
+  .icon > svg,
+  .icon > [data-bitfun-component="icon"] {
+    inline-size: var(--bitfun-layout-confirm-dialog-icon-glyph-size);
+    block-size: var(--bitfun-layout-confirm-dialog-icon-glyph-size);
+  }
+
+  .icon[data-bitfun-status="success"] {
+    color: var(--bitfun-color-status-success-emphasis);
+  }
+
+  .icon[data-bitfun-status="warning"] {
+    color: var(--bitfun-color-status-warning-emphasis);
+  }
+
+  .icon[data-bitfun-status="danger"] {
+    color: var(--bitfun-color-status-danger-emphasis);
+  }
+
+  .message {
+    min-inline-size: 0;
+    flex: 1 1 auto;
+    color: var(--bitfun-color-content-secondary);
+  }
+
+  .message > :first-child {
+    margin-block-start: 0;
+  }
+
+  .message > :last-child {
+    margin-block-end: 0;
+  }
+
+  .preview {
+    overflow: auto;
+    min-inline-size: 0;
+    max-block-size: var(--bitfun-layout-confirm-dialog-preview-max-block-size);
+    padding-block: var(--bitfun-layout-confirm-dialog-preview-padding-block);
+    padding-inline: var(--bitfun-layout-confirm-dialog-preview-padding-inline);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-layout-confirm-dialog-preview-radius);
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-surface-tertiary);
+  }
+
+  .preview pre {
+    margin: 0;
+    color: inherit;
+    font-family: var(--bitfun-type-code-sm-font-family);
+    font-size: var(--bitfun-type-code-sm-font-size);
+    font-weight: var(--bitfun-type-code-sm-font-weight);
+    line-height: var(--bitfun-type-code-sm-line-height);
+    letter-spacing: var(--bitfun-type-code-sm-letter-spacing);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  @media (forced-colors: active) {
+    .icon {
+      color: CanvasText;
+    }
+
+    .preview {
+      border: var(--bitfun-border-width-default) solid CanvasText;
+      color: CanvasText;
+      background: Canvas;
+    }
+  }
+}

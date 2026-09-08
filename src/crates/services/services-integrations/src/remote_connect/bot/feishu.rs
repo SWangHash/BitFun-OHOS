@@ -76,7 +76,7 @@ impl FeishuBotApi {
             }
         }
 
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_client();
         let resp = client
             .post("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal")
             .json(&serde_json::json!({
@@ -112,7 +112,7 @@ impl FeishuBotApi {
     pub async fn send_message(&self, chat_id: &str, content: &str) -> Result<()> {
         let token = self.get_access_token().await?;
         let card = build_markdown_card(content);
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_client();
         let resp = client
             .post("https://open.feishu.cn/open-apis/im/v1/messages")
             .query(&[("receive_id_type", "chat_id")])
@@ -156,7 +156,7 @@ impl FeishuBotApi {
         actions: &[BotAction],
     ) -> Result<()> {
         let token = self.get_access_token().await?;
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_client();
         let card = build_action_card(chat_id, language, content, actions);
         let resp = client
             .post("https://open.feishu.cn/open-apis/im/v1/messages")
@@ -185,7 +185,7 @@ impl FeishuBotApi {
         file_key: &str,
     ) -> Result<FeishuDownloadedImage> {
         let token = self.get_access_token().await?;
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_client();
         let url = format!(
             "https://open.feishu.cn/open-apis/im/v1/messages/{}/resources/{}?type=image",
             message_id, file_key
@@ -219,12 +219,19 @@ impl FeishuBotApi {
         })
     }
 
-    /// Upload a local file and send it to a Feishu chat as a file message.
-    pub async fn send_file_to_chat(&self, chat_id: &str, file_path: &str) -> Result<()> {
-        let file_key = self.upload_file(file_path).await?;
+    /// Send bytes already read and authorized by the owning session.
+    pub async fn send_file_content_to_chat(
+        &self,
+        chat_id: &str,
+        content: super::WorkspaceFileContent,
+    ) -> Result<()> {
+        if content.bytes.len() as u64 > MAX_FEISHU_FILE_BYTES {
+            return Err(anyhow!("Feishu file exceeds the upload limit"));
+        }
+        let file_key = self.upload_file_content(content).await?;
         let token = self.get_access_token().await?;
 
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_client();
         let resp = client
             .post("https://open.feishu.cn/open-apis/im/v1/messages")
             .query(&[("receive_id_type", "chat_id")])
@@ -241,13 +248,14 @@ impl FeishuBotApi {
             let body = resp.text().await.unwrap_or_default();
             return Err(anyhow!("Feishu file message failed: {body}"));
         }
-        debug!("Feishu file sent to {chat_id}: {file_path}");
+        let body: serde_json::Value = resp.json().await?;
+        ensure_feishu_success(&body, "file message")?;
+        debug!("Feishu file sent to {chat_id}");
         Ok(())
     }
 
-    async fn upload_file(&self, file_path: &str) -> Result<String> {
+    async fn upload_file_content(&self, content: super::WorkspaceFileContent) -> Result<String> {
         let token = self.get_access_token().await?;
-        let content = super::read_workspace_file(file_path, MAX_FEISHU_FILE_BYTES, None).await?;
 
         let ext = std::path::Path::new(&content.name)
             .extension()
@@ -272,7 +280,7 @@ impl FeishuBotApi {
             .text("file_name", content.name)
             .part("file", part);
 
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_client();
         let resp = client
             .post("https://open.feishu.cn/open-apis/im/v1/files")
             .bearer_auth(&token)
@@ -292,9 +300,74 @@ impl FeishuBotApi {
             .ok_or_else(|| anyhow!("Feishu upload response missing file_key"))
     }
 
+    /// Native previews use the image endpoint. Unknown formats remain files.
+    pub async fn send_artifact_to_chat(
+        &self,
+        chat_id: &str,
+        content: super::WorkspaceFileContent,
+    ) -> Result<()> {
+        if matches!(
+            content.mime_type,
+            "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/bmp"
+        ) && content.bytes.len() <= 10 * 1024 * 1024
+        {
+            // Only fall back if upload failed before any message was submitted.
+            // An uncertain message response must not duplicate an already sent image.
+            match self.upload_image_content(&content).await {
+                Ok(key) => return self.send_image_key(chat_id, &key).await,
+                Err(error) => {
+                    warn!("Feishu image upload failed; sending original as a file: {error}")
+                }
+            }
+        }
+        self.send_file_content_to_chat(chat_id, content).await
+    }
+
+    async fn upload_image_content(&self, content: &super::WorkspaceFileContent) -> Result<String> {
+        let token = self.get_access_token().await?;
+        let form = reqwest::multipart::Form::new()
+            .text("image_type", "message")
+            .part(
+                "image",
+                reqwest::multipart::Part::bytes(content.bytes.clone())
+                    .file_name(content.name.clone())
+                    .mime_str(content.mime_type)?,
+            );
+        let response = crate::reqwest_client()
+            .post("https://open.feishu.cn/open-apis/im/v1/images")
+            .bearer_auth(token)
+            .multipart(form)
+            .send()
+            .await?
+            .error_for_status()?;
+        let body: serde_json::Value = response.json().await?;
+        ensure_feishu_success(&body, "image upload")?;
+        body.pointer("/data/image_key")
+            .and_then(|key| key.as_str())
+            .map(str::to_string)
+            .ok_or_else(|| anyhow!("Feishu image upload response missing image_key"))
+    }
+
+    async fn send_image_key(&self, chat_id: &str, key: &str) -> Result<()> {
+        let token = self.get_access_token().await?;
+        let response = crate::reqwest_client()
+            .post("https://open.feishu.cn/open-apis/im/v1/messages")
+            .query(&[("receive_id_type", "chat_id")])
+            .bearer_auth(token)
+            .json(
+                &serde_json::json!({ "receive_id": chat_id, "msg_type": "image",
+                "content": serde_json::to_string(&serde_json::json!({ "image_key": key }))? }),
+            )
+            .send()
+            .await?
+            .error_for_status()?;
+        let body: serde_json::Value = response.json().await?;
+        ensure_feishu_success(&body, "image message")
+    }
+
     /// Obtain a WebSocket URL from Feishu for long-connection event delivery.
     pub async fn get_ws_endpoint(&self) -> Result<FeishuWsEndpoint> {
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_client();
         let resp = client
             .post("https://open.feishu.cn/callback/ws/endpoint")
             .json(&serde_json::json!({
@@ -1023,6 +1096,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn artifact_delivery_checks_provider_success_even_for_http_success() {
+        assert!(ensure_feishu_success(&serde_json::json!({"code": 0}), "image message").is_ok());
+        for body in [
+            serde_json::json!({"code": 999, "msg": "Permission denied"}),
+            serde_json::json!({}),
+        ] {
+            assert!(ensure_feishu_success(&body, "file message").is_err());
+        }
+    }
+
+    #[test]
     fn parse_text_message_event() {
         let event = serde_json::json!({
             "header": { "event_type": "im.message.receive_v1" },
@@ -1080,4 +1164,16 @@ mod tests {
     fn decode_frame_rejects_malformed_binary_payload() {
         assert!(decode_frame(b"not a feishu protobuf frame").is_none());
     }
+}
+
+fn ensure_feishu_success(body: &serde_json::Value, operation: &str) -> Result<()> {
+    if body.get("code").and_then(|code| code.as_i64()) != Some(0) {
+        return Err(anyhow!(
+            "Feishu {operation} rejected: {}",
+            body.get("msg")
+                .and_then(|message| message.as_str())
+                .unwrap_or("invalid response")
+        ));
+    }
+    Ok(())
 }

@@ -1,0 +1,28 @@
+@layer bitfun.components {
+  .root {
+    min-inline-size: 0;
+  }
+
+  .summary,
+  .processing {
+    display: block;
+    overflow: hidden;
+    min-inline-size: 0;
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    white-space: nowrap;
+  }
+
+  .processing {
+    color: var(--bitfun-color-content-muted);
+    font-style: italic;
+  }
+
+  .error {
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-md-line-height);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--bitfun-color-status-danger-content);
+  }
+}

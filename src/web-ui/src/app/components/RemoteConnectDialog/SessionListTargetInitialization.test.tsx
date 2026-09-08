@@ -10,14 +10,15 @@ import SessionListPage, {
 import type { RemoteSessionManager } from '../../../../../mobile-web/src/services/RemoteSessionManager';
 import { useMobileStore } from '../../../../../mobile-web/src/services/store';
 
-vi.mock('../../../../../mobile-web/src/i18n', () => ({
-  useI18n: () => ({
+vi.mock('../../../../../mobile-web/src/i18n', () => {
+  const t = (key: string) => key;
+  return { useI18n: () => ({
     language: 'en-US',
     toggleLanguage: vi.fn(),
-    t: (key: string) => key,
+    t,
     formatDate: () => '',
-  }),
-}));
+  }) };
+});
 
 vi.mock('../../../../../mobile-web/src/theme', () => ({
   useTheme: () => ({ isDark: false, toggleTheme: vi.fn() }),
@@ -103,6 +104,7 @@ describe('SessionList target initialization ownership', () => {
       listRecentWorkspaces: vi.fn().mockResolvedValue([]),
       listAssistants: vi.fn().mockResolvedValue([]),
       createSession,
+      subscribeSessionStream: vi.fn().mockResolvedValue({ close: vi.fn() }),
     } as unknown as RemoteSessionManager;
     const onSelectSession = vi.fn();
 
@@ -112,6 +114,7 @@ describe('SessionList target initialization ownership', () => {
           sessionMgr={manager}
           onSelectSession={onSelectSession}
           onOpenWorkspace={vi.fn()}
+          onOpenDeviceTools={vi.fn()}
           onDisconnect={vi.fn()}
         />,
       );
@@ -162,6 +165,42 @@ describe('SessionList target initialization ownership', () => {
       'session-b',
       'sessions.remoteClawSession',
       true,
+      'claw',
     );
   });
+  it('workspace creation offers all modes while footer tools preserve workspace identity', async () => {
+    const selected = { path: '/same', name: 'Selected SSH', remote_connection_id: 'ssh-b', last_opened: '' };
+    const createSession = vi.fn().mockResolvedValue('created-in-b');
+    const manager = {
+      controlTargetEpoch: 0,
+      onControlTargetChange: () => () => {},
+      subscribeSessionStream: vi.fn().mockResolvedValue({ close: vi.fn() }),
+      supportsHostCapability: () => true,
+      getWorkspaceInfo: vi.fn().mockResolvedValue({has_workspace: true, path: '/different', workspace_kind: 'normal'}),
+      listWorkspaceCatalog: vi.fn().mockResolvedValue({workspaces: [selected], source: 'opened'}),
+      listSessions: vi.fn().mockResolvedValue({sessions: [], has_more: false}),
+      listAssistants: vi.fn().mockResolvedValue([]),
+      listRecentWorkspaces: vi.fn().mockResolvedValue([selected]),
+      createSession,
+    } as unknown as RemoteSessionManager;
+    const openTool = vi.fn();
+    await act(async () => root.render(<SessionListPage compact sessionMgr={manager} client={{targetDeviceId: 'device-a', hasAccountIdentity: false} as any}
+      onSelectSession={vi.fn()} onOpenWorkspace={vi.fn()} onOpenDeviceTools={openTool} onDisconnect={vi.fn()}/>));
+    await flushPromises();
+    await act(async () => container.querySelector<HTMLButtonElement>('.harmony-sidebar__workspace-tools')!.click());
+    expect(createSession).not.toHaveBeenCalled();
+    expect(openTool).toHaveBeenCalledTimes(1);
+    expect(createSession).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain('shell.recentConversations');
+    expect(container.querySelector('.harmony-sidebar__new-chat')).toBeNull();
+    await act(async () => container.querySelector<HTMLButtonElement>('.harmony-sidebar__row-plus')!.click());
+    const modes = [...document.querySelectorAll<HTMLButtonElement>('.harness-profile-picker [role="radio"]')];
+    expect(modes).toHaveLength(3);
+    await act(async () => modes[1].click());
+    await flushPromises();
+    expect(createSession).toHaveBeenCalledWith('Standard', undefined, '/same', {
+      remoteConnectionId: 'ssh-b', remoteSshHost: undefined,
+    });
+  });
+
 });

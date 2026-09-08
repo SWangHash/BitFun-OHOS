@@ -25,6 +25,8 @@ use tokio::sync::Mutex;
 
 static SESSION_INDEX_LOCKS: OnceLock<Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>> = OnceLock::new();
 
+static SESSION_CATALOG_REVISION: OnceLock<tokio::sync::watch::Sender<u64>> = OnceLock::new();
+
 #[derive(Debug, Error)]
 pub enum SessionMetadataStoreError {
     #[error(transparent)]
@@ -89,6 +91,19 @@ pub struct SessionMetadataStore {
 }
 
 impl SessionMetadataStore {
+    /// Host-local invalidation only. Persisted metadata remains authoritative.
+    pub fn subscribe_catalog_changes() -> tokio::sync::watch::Receiver<u64> {
+        SESSION_CATALOG_REVISION
+            .get_or_init(|| tokio::sync::watch::channel(0).0)
+            .subscribe()
+    }
+
+    pub fn notify_catalog_changed() {
+        SESSION_CATALOG_REVISION
+            .get_or_init(|| tokio::sync::watch::channel(0).0)
+            .send_modify(|revision| *revision = revision.wrapping_add(1));
+    }
+
     pub fn new(sessions_root: impl Into<PathBuf>) -> Self {
         Self {
             layout: SessionStorageLayout::new(sessions_root),
@@ -443,7 +458,9 @@ impl SessionMetadataStore {
                 if metadata_file_created { 1 } else { 0 },
             )
             .await
-        }
+        }?;
+        Self::notify_catalog_changed();
+        Ok(())
     }
 
     pub async fn load_metadata(
@@ -495,7 +512,9 @@ impl SessionMetadataStore {
         }
 
         self.remove_index_entry_locked(session_id, if metadata_file_removed { -1 } else { 0 })
-            .await
+            .await?;
+        Self::notify_catalog_changed();
+        Ok(())
     }
 
     async fn ensure_session_dir(

@@ -1,5 +1,6 @@
 //! API layer module
 
+pub mod account_identity_api;
 pub mod acp_client_api;
 pub mod agentic_api;
 pub mod announcement_api;
@@ -45,14 +46,13 @@ pub mod pages_api;
 pub mod path_target;
 pub mod peer_host_invoke;
 pub mod privacy_api;
-pub mod relay_deploy_api;
 pub mod remote_connect_api;
 pub mod remote_workspace_policy;
 pub mod review_platform_api;
 pub mod runtime_api;
-pub mod search_api;
 #[cfg(not(target_env = "ohos"))]
 pub mod screen_capture;
+pub mod search_api;
 pub mod session_api;
 pub mod session_storage_path;
 pub mod skill_api;

@@ -1,0 +1,26 @@
+// Declare the reset before component CSS is imported. Unlayered resets override
+// every layered component, even when their selectors have lower specificity.
+@layer bitfun.reset, bitfun.components;
+
+@layer bitfun.reset {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button,
+  input,
+  textarea {
+    font-family: var(--bitfun-type-body-md-font-family);
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--bitfun-color-content-primary);
+    outline-offset: 2px;
+  }
+}

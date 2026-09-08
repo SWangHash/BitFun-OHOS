@@ -1,4 +1,5 @@
 import React from 'react';
+import { MobileButton, MobileStatus } from '@bitfun/ui/mobile';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -30,7 +31,11 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   render() {
     if (this.state.hasError) {
       return (
-        <div
+        <MobileStatus
+          action={<MobileButton appearance="primary" onClick={this.handleRetry}>Retry</MobileButton>}
+          description={this.state.error?.message || 'An unexpected error occurred.'}
+          icon={<span>⚠</span>}
+          title="Something went wrong"
           style={{
             display: 'flex',
             flexDirection: 'column',
@@ -39,34 +44,11 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             height: '100%',
             padding: '32px',
             textAlign: 'center',
-            background: 'var(--color-bg-primary)',
-            color: 'var(--color-text-primary)',
-            fontFamily: 'system-ui, sans-serif',
+            background: 'var(--bitfun-color-surface-canvas)',
+            color: 'var(--bitfun-color-content-primary)',
+            fontFamily: 'var(--bitfun-type-body-md-font-family)',
           }}
-        >
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠</div>
-          <h2 style={{ fontSize: '18px', fontWeight: 600, margin: '0 0 8px' }}>
-            Something went wrong
-          </h2>
-          <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '0 0 24px', maxWidth: '280px' }}>
-            {this.state.error?.message || 'An unexpected error occurred.'}
-          </p>
-          <button
-            onClick={this.handleRetry}
-            style={{
-              padding: '12px 32px',
-              border: 'none',
-              borderRadius: '14px',
-              background: 'var(--color-accent-500)',
-              color: 'var(--btn-primary-color)',
-              fontSize: '15px',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Retry
-          </button>
-        </div>
+        />
       );
     }
 

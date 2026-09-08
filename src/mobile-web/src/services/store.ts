@@ -29,7 +29,7 @@ interface MobileStore {
   /** Canonical account identity used for ownership checks. Never render this value. */
   authenticatedUserId: string | null;
   setAuthenticatedUserId: (userId: string | null) => void;
-  /** Username in account mode, or the user-entered pairing id in legacy mode. */
+  /** User-facing username only when this browser completed account authentication. */
   authenticatedUserLabel: string | null;
   setAuthenticatedUserLabel: (label: string | null) => void;
 
@@ -37,9 +37,9 @@ interface MobileStore {
    * Current same-account control target (delegated identity flow).
    * `isHome` marks the QR-paired desktop this mobile session started from.
    */
-  controlTarget: { deviceId: string; deviceName: string | null; isHome: boolean } | null;
+  controlTarget: { deviceId: string; deviceName: string | null } | null;
   setControlTarget: (
-    target: { deviceId: string; deviceName: string | null; isHome: boolean } | null,
+    target: { deviceId: string; deviceName: string | null } | null,
   ) => void;
 
   sessions: SessionInfo[];
@@ -131,16 +131,16 @@ export const useMobileStore = create<MobileStore>((set, get) => ({
     set((s) => {
       if (messages.length === 0) return s;
       const prev = s.messagesBySession[sessionId] || [];
-      const existingIds = new Set(prev.map((m) => m.id));
       const deleted = s.deletedMessageIds[sessionId];
-      const unique = messages.filter((m) => !existingIds.has(m.id) && !deleted?.has(m.id));
-      if (unique.length === 0) return s;
-      return {
-        messagesBySession: {
-          ...s.messagesBySession,
-          [sessionId]: [...prev, ...unique],
-        },
-      };
+      const next = [...prev];
+      for (const message of messages) {
+        if (deleted?.has(message.id)) continue;
+        const index = next.findIndex(existing => existing.id === message.id ||
+          (!!message.turn_id && existing.turn_id === message.turn_id && existing.role === message.role));
+        if (index < 0) next.push(message);
+        else next[index] = { ...next[index], ...message, id: next[index].id };
+      }
+      return { messagesBySession: { ...s.messagesBySession, [sessionId]: next } };
     }),
   deleteMessage: (sessionId, messageId) =>
     set((s) => {

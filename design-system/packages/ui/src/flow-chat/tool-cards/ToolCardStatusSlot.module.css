@@ -1,0 +1,64 @@
+@layer bitfun.components {
+  .root {
+    position: relative;
+    display: inline-flex;
+    inline-size: 100%;
+    block-size: 100%;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .statusLayer,
+  .iconLayer {
+    display: inline-flex;
+    inline-size: 100%;
+    block-size: 100%;
+    align-items: center;
+    justify-content: center;
+    transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .statusLayer > :where(svg, img),
+  .iconLayer > :where(svg, img) {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .iconLayer {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+  }
+
+  .root[data-default-icon="tool"] .statusLayer {
+    opacity: 0;
+  }
+
+  .root[data-default-icon="tool"] .iconLayer {
+    opacity: 1;
+  }
+
+  .success {
+    color: var(--bitfun-color-status-success-emphasis);
+  }
+
+  .danger {
+    color: var(--bitfun-color-status-danger-emphasis);
+  }
+
+  .statusLayer .processing {
+    color: var(--bitfun-color-status-info-emphasis);
+  }
+
+  .muted {
+    color: var(--bitfun-color-content-muted);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .statusLayer,
+    .iconLayer {
+      transition: none;
+    }
+  }
+}

@@ -367,6 +367,7 @@ enum CliAgentRuntimeBackend {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CliAgentMode {
     pub(crate) id: String,
+    pub(crate) route_key: String,
     pub(crate) description: String,
     pub(crate) model_id: Option<String>,
     pub(crate) is_external: bool,
@@ -455,6 +456,7 @@ impl CliAgentRuntimeClient {
                         .into_iter()
                         .map(|mode| CliAgentMode {
                             id: mode.id,
+                            route_key: mode.route_key,
                             description: mode.description,
                             model_id: mode.model_id,
                             is_external: mode.is_external,
@@ -472,6 +474,7 @@ impl CliAgentRuntimeClient {
                         .into_iter()
                         .map(|mode| CliAgentMode {
                             id: mode.id,
+                            route_key: mode.route_key,
                             description: mode.description,
                             model_id: mode.model_id,
                             is_external: mode.is_external,
@@ -1069,6 +1072,7 @@ impl CliAgentRuntimeClient {
         let request = AgentSessionModeUpdateRequest {
             session_id: session_id.to_string(),
             mode_id: mode_id.to_string(),
+            agent_route_key: None,
         };
         match &self.backend {
             CliAgentRuntimeBackend::Embedded(runtime) => runtime
@@ -1351,6 +1355,7 @@ impl CliAgentRuntimeClient {
                 AgentSessionCreateRequest {
                     session_name,
                     agent_type: effective_agent_type,
+                    agent_route_key: None,
                     workspace_path: Some(workspace.to_string_lossy().to_string()),
                     project_workspace_path: Some(project_workspace.to_string_lossy().to_string()),
                     execution_target: self.execution_target(),
@@ -1424,6 +1429,7 @@ impl CliAgentRuntimeClient {
                 AgentSessionCreateRequest {
                     session_name: Self::build_default_session_name(),
                     agent_type: agent_type.to_string(),
+                    agent_route_key: None,
                     workspace_path: Some(workspace_path),
                     project_workspace_path: Some(project_workspace_path),
                     execution_target: self.execution_target(),
@@ -1468,6 +1474,7 @@ impl CliAgentRuntimeClient {
         let request = AgentSessionCreateRequest {
             session_name: Self::build_default_session_name(),
             agent_type: agent_type.to_string(),
+            agent_route_key: None,
             workspace_path: Some(self.workspace_path_string()),
             project_workspace_path: None,
             execution_target: None,
@@ -1914,6 +1921,7 @@ impl CliAgentRuntimeClient {
         let request = AgentSessionCreateRequest {
             session_name: Self::build_default_session_name(),
             agent_type: agent_type.to_string(),
+            agent_route_key: None,
             workspace_path: Some(project_workspace_path.clone()),
             project_workspace_path: Some(project_workspace_path.clone()),
             execution_target: Some(SessionExecutionTarget::local(project_workspace_path)),

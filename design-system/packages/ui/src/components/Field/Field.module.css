@@ -1,0 +1,145 @@
+@layer bitfun.components {
+  .root {
+    display: grid;
+    min-inline-size: 0;
+    gap: var(--bitfun-layout-field-root-gap);
+    color: var(--bitfun-color-content-primary);
+  }
+
+  .root[data-orientation="horizontal"] {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--bitfun-layout-field-horizontal-gap);
+  }
+
+  .root[data-orientation="horizontal"][data-horizontal-gap="lg"] {
+    column-gap: var(--bitfun-layout-field-horizontal-gap-wide);
+  }
+
+  .root[data-orientation="horizontal"][data-label-width="sm"] {
+    grid-template-columns: var(--bitfun-layout-field-label-width-sm) auto;
+  }
+
+  .root[data-orientation="horizontal"][data-label-width="md"] {
+    grid-template-columns: var(--bitfun-layout-field-label-width-md) auto;
+  }
+
+  .root[data-orientation="horizontal"][data-label-width="lg"] {
+    grid-template-columns: minmax(0, var(--bitfun-layout-field-label-width-lg)) auto;
+  }
+
+  .root[data-orientation="horizontal"][data-control-width="fill"][data-label-width="auto"] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  }
+
+  .root[data-orientation="horizontal"][data-control-width="fill"][data-label-width="sm"] {
+    grid-template-columns: var(--bitfun-layout-field-label-width-sm) minmax(0, 1fr);
+  }
+
+  .root[data-orientation="horizontal"][data-control-width="fill"][data-label-width="md"] {
+    grid-template-columns: var(--bitfun-layout-field-label-width-md) minmax(0, 1fr);
+  }
+
+  .root[data-orientation="horizontal"][data-control-width="fill"][data-label-width="lg"] {
+    grid-template-columns: minmax(0, var(--bitfun-layout-field-label-width-lg)) minmax(0, 1fr);
+  }
+
+  .content {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--bitfun-layout-field-content-gap);
+  }
+
+  .labelRow {
+    display: flex;
+    align-items: center;
+    inline-size: 100%;
+    min-inline-size: 0;
+    gap: var(--bitfun-layout-field-label-action-gap);
+  }
+
+  .label {
+    display: inline-flex;
+    min-inline-size: 0;
+    align-items: center;
+    gap: var(--bitfun-layout-field-label-gap);
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
+  }
+
+  .root[data-orientation="horizontal"] .label {
+    font-family: var(--bitfun-type-label-selected-font-family);
+    font-size: var(--bitfun-type-label-selected-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    line-height: var(--bitfun-type-label-selected-line-height);
+    letter-spacing: var(--bitfun-type-label-selected-letter-spacing);
+  }
+
+  .required {
+    color: var(--bitfun-color-content-required-indicator);
+  }
+
+  .labelAction {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    margin-inline-start: auto;
+  }
+
+  .description {
+    color: var(--bitfun-color-content-secondary);
+    font-family: var(--bitfun-type-support-font-family);
+    font-size: var(--bitfun-type-support-font-size);
+    font-weight: var(--bitfun-type-support-font-weight);
+    line-height: var(--bitfun-type-field-helper-line-height);
+    letter-spacing: var(--bitfun-type-support-letter-spacing);
+  }
+
+  .error {
+    grid-column: 1 / -1;
+    color: var(--bitfun-color-status-danger-content);
+    font-family: var(--bitfun-type-support-font-family);
+    font-size: var(--bitfun-type-support-font-size);
+    font-weight: var(--bitfun-type-support-font-weight);
+    line-height: var(--bitfun-type-support-line-height);
+    letter-spacing: var(--bitfun-type-support-letter-spacing);
+  }
+
+  .control {
+    display: inline-flex;
+    min-inline-size: 0;
+    align-items: center;
+    gap: var(--bitfun-layout-field-control-gap);
+  }
+
+  .root[data-control-width="fill"] .control {
+    inline-size: 100%;
+  }
+
+  .root[data-control-width="fill"] .control > :not(.controlAdornment) {
+    flex: 1 1 auto;
+    inline-size: 100%;
+  }
+
+  .control > :not(.controlAdornment) {
+    min-inline-size: 0;
+  }
+
+  .controlAdornment {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+  }
+
+  @media (forced-colors: active) {
+    .required {
+      color: Highlight;
+    }
+  }
+}

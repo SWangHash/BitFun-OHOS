@@ -1,0 +1,202 @@
+@layer bitfun.components {
+  .button {
+    --_icon-button-background: transparent;
+    --_icon-button-background-hover: var(--bitfun-color-action-neutral-surface-hover);
+    --_icon-button-background-active: var(--bitfun-color-action-neutral-surface-hover);
+    --_icon-button-content: var(--bitfun-color-content-primary);
+    --_icon-button-icon-size: 14px;
+    --_icon-button-size: var(--bitfun-control-height-sm);
+
+    position: relative;
+    /* Match Button: the pseudo-element owns hover feedback, not the native control. */
+    -webkit-appearance: none;
+    appearance: none;
+    box-sizing: border-box;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--_icon-button-size);
+    block-size: var(--_icon-button-size);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--bitfun-radius-sm);
+    color: var(--_icon-button-content);
+    background: transparent;
+    cursor: pointer;
+    isolation: isolate;
+    transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .button::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--_icon-button-background);
+    content: "";
+    pointer-events: none;
+    transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .button:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled)::before {
+    background: var(--_icon-button-background-hover);
+  }
+
+  .button:is(:active, [data-bitfun-preview-state="active"]):not(:disabled)::before {
+    background: var(--_icon-button-background-active);
+  }
+
+  .button:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+  }
+
+  .button:disabled {
+    --_icon-button-content: var(--bitfun-color-action-neutral-content-disabled);
+
+    cursor: not-allowed;
+  }
+
+  .button[data-bitfun-variant="fill"],
+  .button[data-bitfun-variant="primary"] {
+    background: var(--bitfun-color-surface-tertiary);
+  }
+
+  .button[data-bitfun-variant="fill"] {
+    --_icon-button-background: var(--bitfun-color-action-neutral-surface);
+    --_icon-button-background-hover: var(--bitfun-color-action-neutral-surface-hover);
+    --_icon-button-background-active: var(--bitfun-color-action-neutral-surface-pressed);
+  }
+
+  .button[data-bitfun-variant="outline"] {
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-action-neutral-surface-hover);
+  }
+
+  .button[data-bitfun-variant="outline"]:is(:hover, :active, [data-bitfun-preview-state="hover"], [data-bitfun-preview-state="active"]):not(:disabled) {
+    border-color: transparent;
+  }
+
+  .button[data-bitfun-variant="primary"] {
+    --_icon-button-background: var(--bitfun-color-action-primary-background);
+    --_icon-button-background-hover: var(--bitfun-color-action-primary-hover);
+    --_icon-button-background-active: var(--bitfun-color-action-primary-pressed);
+    --_icon-button-content: var(--bitfun-color-action-primary-content);
+  }
+
+  .button[data-bitfun-variant="primary"]:disabled {
+    --_icon-button-background: var(--bitfun-color-action-neutral-surface);
+    --_icon-button-content: var(--bitfun-color-action-neutral-content-disabled);
+  }
+
+  .button[data-bitfun-tone="danger"] {
+    --_icon-button-background-hover: var(--bitfun-color-status-danger-surface);
+    --_icon-button-background-active: var(--bitfun-color-status-danger-surface);
+    --_icon-button-content: var(--bitfun-color-status-danger-emphasis);
+  }
+
+  .button[data-bitfun-tone="danger"][data-bitfun-variant="fill"] {
+    --_icon-button-background: var(--bitfun-color-status-danger-surface);
+  }
+
+  .button[data-bitfun-tone="danger"][data-bitfun-variant="primary"] {
+    --_icon-button-background: var(--bitfun-color-status-danger-content);
+    --_icon-button-background-hover: var(--bitfun-color-status-danger-content);
+    --_icon-button-background-active: var(--bitfun-color-status-danger-content);
+    --_icon-button-content: var(--bitfun-color-content-inverse);
+  }
+
+  .button[data-bitfun-shape="circle"] {
+    border-radius: var(--bitfun-radius-pill);
+  }
+
+  .button[data-size="xs"] {
+    --_icon-button-icon-size: var(--bitfun-control-icon-button-xs-icon-size);
+    --_icon-button-size: var(--bitfun-control-icon-button-xs-size);
+  }
+
+  .button[data-size="xs"][data-bitfun-shape="square"] {
+    border-radius: var(--bitfun-radius-xs);
+  }
+
+  .button[data-size="standard"] {
+    --_icon-button-icon-size: var(--bitfun-control-icon-button-standard-icon-size);
+    --_icon-button-size: var(--bitfun-control-icon-button-standard-size);
+  }
+
+  .button[data-size="md"] {
+    --_icon-button-icon-size: 16px;
+    --_icon-button-size: var(--bitfun-control-height-md);
+  }
+
+  .button[data-size="lg"] {
+    --_icon-button-icon-size: 20px;
+    --_icon-button-size: var(--bitfun-control-height-lg);
+  }
+
+  .icon,
+  .progress {
+    --bitfun-opacity-icon-artwork: 1;
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--_icon-button-icon-size);
+    block-size: var(--_icon-button-icon-size);
+    z-index: 1;
+  }
+
+  .icon > :where(svg, img),
+  .icon > [data-bitfun-component="icon"] {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .progress {
+    border: 2px solid currentColor;
+    border-inline-end-color: transparent;
+    border-radius: var(--bitfun-radius-pill);
+    opacity: 0;
+  }
+
+  .button[data-loading="true"] .icon {
+    opacity: 0;
+  }
+
+  .button[data-loading="true"] .progress {
+    opacity: 1;
+    animation: bitfun-icon-button-progress var(--bitfun-motion-duration-loop) linear infinite;
+  }
+
+  @keyframes bitfun-icon-button-progress {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .button,
+    .button::before,
+    .progress {
+      transition: none;
+    }
+
+    .button[data-loading="true"] .progress {
+      animation: none;
+      border-inline-end-color: currentColor;
+      opacity: 0.72;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .button {
+      border: var(--bitfun-border-width-default) solid ButtonText;
+    }
+
+    .button:focus-visible {
+      outline-color: Highlight;
+    }
+  }
+}

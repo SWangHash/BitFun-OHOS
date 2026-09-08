@@ -1,0 +1,232 @@
+@layer bitfun.components {
+  .tabGroup {
+    --_tab-group-item-height: var(--bitfun-control-tab-group-item-height);
+    --_tab-group-item-padding-block: var(--bitfun-space-component-block);
+    --_tab-group-item-padding-inline: var(--bitfun-control-tab-group-item-padding-inline);
+    --_tab-group-item-gap: var(--bitfun-control-tab-group-item-gap);
+    --_tab-group-item-icon-size: var(--bitfun-control-tab-group-item-icon-size);
+    --_tab-group-item-action-reserve: calc(
+      var(--bitfun-control-tab-group-item-action-size)
+      + var(--bitfun-control-tab-group-item-action-inset)
+      + var(--_tab-group-item-gap)
+    );
+
+    display: inline-flex;
+    align-items: center;
+    gap: var(--bitfun-control-tab-group-gap);
+  }
+
+  .tabGroup[data-size="sm"] {
+    --_tab-group-item-height: var(--bitfun-control-tab-group-item-height-sm);
+    --_tab-group-item-padding-block: var(--bitfun-control-tab-group-item-padding-block-sm);
+    --_tab-group-item-padding-inline: var(--bitfun-control-tab-group-item-padding-inline-sm);
+    --_tab-group-item-gap: var(--bitfun-control-tab-group-item-gap-sm);
+    --_tab-group-item-icon-size: var(--bitfun-control-tab-group-item-icon-size-sm);
+  }
+
+  .item {
+    position: relative;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    min-inline-size: 0;
+  }
+
+  .tab {
+    --_tab-background: transparent;
+    --_tab-background-hover: var(--bitfun-component-button-fill-background);
+    --_tab-background-active: var(--bitfun-component-button-fill-background);
+    --_tab-border: var(--bitfun-component-button-outline-border);
+    --_tab-content: var(--bitfun-color-content-primary);
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: 0;
+    block-size: var(--_tab-group-item-height);
+    max-inline-size: 100%;
+    padding-block: var(--_tab-group-item-padding-block);
+    padding-inline: var(--_tab-group-item-padding-inline);
+    border: var(--bitfun-border-width-default) solid var(--_tab-border);
+    border-radius: var(--bitfun-control-tab-group-item-radius);
+    color: var(--_tab-content);
+    background: var(--_tab-background);
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
+    line-height: var(--bitfun-type-label-md-line-height);
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .item[data-has-end-action="true"] .tab {
+    padding-inline-end: var(--_tab-group-item-action-reserve);
+  }
+
+  .item[data-has-end-action="true"][data-has-icon="false"] .tab {
+    /* Mirror the trailing action reserve so a text-only label remains centered
+       within the complete tab while the overlaid action fades in and out. */
+    padding-inline-start: var(--_tab-group-item-action-reserve);
+  }
+
+  .tab[aria-selected="true"] {
+    --_tab-background: var(--bitfun-color-selection-surface);
+    --_tab-background-hover: var(--bitfun-color-action-neutral-surface-hover);
+    --_tab-border: transparent;
+
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+  }
+
+  .tab:hover:not(:disabled),
+  .item:hover .tab:not(:disabled),
+  .tabGroup[data-bitfun-preview-state="hover"] .tab[aria-selected="false"]:not(:disabled) {
+    background: var(--_tab-background-hover);
+    border-color: var(--bitfun-component-button-outline-border-interactive);
+  }
+
+  .tab:active:not(:disabled),
+  .tabGroup[data-bitfun-preview-state="active"] .tab[aria-selected="false"]:not(:disabled) {
+    background: var(--_tab-background-active);
+    border-color: var(--bitfun-component-button-outline-border-interactive);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+  }
+
+  .tab:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+  }
+
+  .tab:disabled {
+    color: var(--bitfun-color-action-neutral-content-disabled);
+    cursor: not-allowed;
+  }
+
+  .icon {
+    --bitfun-opacity-icon-artwork: 1;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--_tab-group-item-icon-size);
+    block-size: var(--_tab-group-item-icon-size);
+    margin-inline-end: var(--_tab-group-item-gap);
+    color: currentColor;
+  }
+
+  .icon > :where(svg, img),
+  .icon > [data-bitfun-component="icon"] {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .label {
+    min-inline-size: 0;
+    line-height: var(--bitfun-type-label-md-line-height);
+    overflow: hidden;
+  }
+
+  .endAction {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-end: var(--bitfun-control-tab-group-item-action-inset);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--bitfun-control-tab-group-item-action-size);
+    block-size: var(--bitfun-control-tab-group-item-action-size);
+    color: var(--bitfun-color-action-neutral-content);
+    transform: translateY(-50%);
+    transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .labelSuffix {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+  }
+
+  .endAction > :where(button, [role="button"]) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 100%;
+    block-size: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--bitfun-radius-pill);
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+    transition:
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .endAction > :where(button, [role="button"]):hover {
+    color: var(--bitfun-color-action-neutral-content);
+    background: var(--bitfun-color-action-neutral-surface-hover);
+  }
+
+  .endAction > :where(button, [role="button"]):active {
+    background: var(--bitfun-color-action-neutral-surface-pressed);
+  }
+
+  .endAction > :where(button, [role="button"]):focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+  }
+
+  .endAction > :where(button, [role="button"]):disabled {
+    color: var(--bitfun-color-action-neutral-content-disabled);
+    cursor: not-allowed;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .endAction {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .item:is(:hover, :focus-within) .endAction {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tab,
+    .endAction,
+    .endAction > :where(button, [role="button"]) {
+      transition: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .tab {
+      border-color: ButtonText;
+    }
+
+    .tab[aria-selected="true"] {
+      border-color: Highlight;
+      color: HighlightText;
+      background: Highlight;
+    }
+
+    .tab:focus-visible {
+      outline-color: Highlight;
+    }
+
+    .endAction > :where(button, [role="button"]):focus-visible {
+      outline-color: Highlight;
+    }
+
+  }
+}

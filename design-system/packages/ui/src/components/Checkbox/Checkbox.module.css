@@ -1,0 +1,103 @@
+@layer bitfun.components {
+  .root {
+    --_checkbox-size: 14px;
+
+    display: inline-flex;
+    align-items: flex-start;
+    min-inline-size: 0;
+    gap: var(--bitfun-space-2);
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
+    cursor: pointer;
+  }
+
+  .root[data-size="sm"] { --_checkbox-size: 12px; }
+  .root[data-size="lg"] { --_checkbox-size: 16px; }
+  .root[data-disabled="true"] { color: var(--bitfun-color-content-disabled); cursor: not-allowed; }
+
+  .control {
+    position: relative;
+    display: inline-flex;
+    flex: 0 0 auto;
+    inline-size: var(--_checkbox-size);
+    block-size: var(--_checkbox-size);
+    margin-block-start: 1px;
+  }
+
+  .input {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: inherit;
+  }
+
+  .root[data-appearance="native"] .control {
+    margin-block-start: 0;
+  }
+
+  .root[data-appearance="native"] .input {
+    position: static;
+    z-index: auto;
+    appearance: auto;
+    opacity: 1;
+  }
+
+  .box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 100%;
+    block-size: 100%;
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border);
+    border-radius: var(--bitfun-radius-sm);
+    color: var(--bitfun-color-content-inverse);
+    background: var(--bitfun-color-field-background);
+    transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard), border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .input:is(:checked, :indeterminate) + .box {
+    border-color: var(--bitfun-color-accent-default);
+    background: var(--bitfun-color-accent-default);
+  }
+
+  .input:focus-visible + .box {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+  }
+
+  .root[data-invalid="true"] .box { border-color: var(--bitfun-color-status-danger-border); }
+  .root[data-disabled="true"] .box {
+    color: var(--bitfun-color-content-disabled);
+    background: var(--bitfun-color-field-background);
+  }
+
+  .icon {
+    inline-size: 100%;
+    block-size: 100%;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+    opacity: 0;
+  }
+
+  .input:is(:checked, :indeterminate) + .box .icon { opacity: 1; }
+  .content { display: inline-flex; min-inline-size: 0; flex-direction: column; gap: var(--bitfun-space-1); }
+  .label { color: inherit; }
+  .description { color: var(--bitfun-color-content-muted); font-family: var(--bitfun-type-support-font-family); font-size: var(--bitfun-type-support-font-size); font-weight: var(--bitfun-type-support-font-weight); line-height: var(--bitfun-type-support-line-height); letter-spacing: var(--bitfun-type-support-letter-spacing); }
+
+  @media (prefers-reduced-motion: reduce) { .box { transition: none; } }
+  @media (forced-colors: active) {
+    .box { border-color: ButtonText; }
+    .input:is(:checked, :indeterminate) + .box { border-color: Highlight; background: Highlight; }
+  }
+}

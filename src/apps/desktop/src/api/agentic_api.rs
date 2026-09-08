@@ -1890,8 +1890,6 @@ pub async fn create_session(
     }
 
     let session_id = session.session_id.clone();
-    // Notify auto-sync: new session created
-    crate::api::remote_connect_api::notify_session_changed(&session_id, &wp);
 
     if let Some(target_evidence) = request.review_target_evidence {
         coordinator
@@ -1927,6 +1925,7 @@ pub async fn update_session_mode(
         .update_session_mode(AgentSessionModeUpdateRequest {
             session_id,
             mode_id: request.mode_id,
+            agent_route_key: None,
         })
         .await
         .map_err(|error| format!("Failed to update session mode: {}", error.into_message()))

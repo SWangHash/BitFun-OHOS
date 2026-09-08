@@ -1,0 +1,154 @@
+@layer bitfun.components {
+  .root {
+    display: inline-flex;
+    align-items: center;
+    min-inline-size: 0;
+    min-block-size: var(--bitfun-control-height-sm);
+    gap: var(--bitfun-space-1);
+    padding-inline: var(--bitfun-space-2);
+    border-radius: var(--bitfun-radius-base);
+    color: var(--bitfun-color-action-neutral-content);
+    background: transparent;
+    transition:
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .root:not([data-disabled="true"]):hover,
+  .root:not([data-disabled="true"]):has(.trigger[data-bitfun-preview-state="hover"]) {
+    background: var(--bitfun-color-action-neutral-surface-hover);
+  }
+
+  .root:not([data-disabled="true"]):has(.trigger:active),
+  .root:not([data-disabled="true"]):has(.trigger[data-bitfun-preview-state="active"]) {
+    background: var(--bitfun-color-action-neutral-surface-hover);
+  }
+
+  .root:not([data-disabled="true"]):has(.trigger:active) .label,
+  .root:not([data-disabled="true"]):has(.trigger[data-bitfun-preview-state="active"]) .label {
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+  }
+
+  .root:has(.trigger:focus-visible) {
+    box-shadow: 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
+  }
+
+  .root[data-disabled="true"] {
+    color: var(--bitfun-color-action-neutral-content-disabled);
+    cursor: not-allowed;
+  }
+
+  .root[data-bitfun-tone="danger"]:not([data-disabled="true"]) {
+    color: var(--bitfun-color-status-danger-content);
+  }
+
+  .root[data-bitfun-tone="danger"]:not([data-disabled="true"]):hover,
+  .root[data-bitfun-tone="danger"]:not([data-disabled="true"]):has(.trigger[data-bitfun-preview-state="hover"]) {
+    background: var(--bitfun-color-status-danger-surface);
+  }
+
+  .root[data-bitfun-tone="danger"]:not([data-disabled="true"]):has(.trigger:active),
+  .root[data-bitfun-tone="danger"]:not([data-disabled="true"]):has(.trigger[data-bitfun-preview-state="active"]) {
+    background: var(--bitfun-color-status-danger-surface);
+  }
+
+  .trigger {
+    display: inline-flex;
+    flex: 1 1 auto;
+    align-items: center;
+    min-inline-size: 0;
+    min-block-size: inherit;
+    gap: var(--bitfun-space-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .trigger:disabled {
+    cursor: not-allowed;
+  }
+
+  .leading {
+    --bitfun-opacity-icon-artwork: 1;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--bitfun-font-size-sm);
+    block-size: var(--bitfun-font-size-sm);
+  }
+
+  .leading > :where(svg, img),
+  .leading > [data-bitfun-component="icon"] {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .label {
+    overflow: hidden;
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-action-row-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
+    white-space: nowrap;
+  }
+
+  .staticLabel {
+    overflow: visible;
+    white-space: inherit;
+  }
+
+  .metadata,
+  .shortcut,
+  .actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+  }
+
+  .metadata {
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
+    white-space: nowrap;
+  }
+
+  .root[data-disabled="true"] .metadata {
+    color: inherit;
+  }
+
+  .actions {
+    gap: var(--bitfun-space-1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .root {
+      transition: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .root:has(.trigger:focus-visible) {
+      box-shadow: 0 0 0 var(--bitfun-focus-width) Highlight;
+    }
+
+    .root:not([data-disabled="true"]):hover,
+    .root:not([data-disabled="true"]):has(.trigger:active) {
+      background: Highlight;
+      color: HighlightText;
+    }
+  }
+}

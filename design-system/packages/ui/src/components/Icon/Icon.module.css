@@ -1,0 +1,90 @@
+@layer bitfun.components {
+  .icon {
+    display: inline-block;
+    flex: 0 0 auto;
+    inline-size: var(--_icon-size);
+    block-size: var(--_icon-size);
+    color: inherit;
+    background-color: currentColor;
+    vertical-align: -0.125em;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+  }
+
+  .icon[data-bitfun-source="line"] {
+    background-color: transparent;
+  }
+
+  /* Reviewed monochrome paths keep authored opacity outside control slots. */
+  .icon[data-bitfun-artwork="monochrome"] {
+    opacity: var(--bitfun-opacity-icon-artwork);
+  }
+
+  .icon[data-bitfun-source="line"] > svg {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .icon[data-size="2xs"] {
+    --_icon-size: var(--bitfun-control-icon-size2xs);
+  }
+
+  .icon[data-size="xs"] {
+    --_icon-size: var(--bitfun-control-icon-size-xs);
+  }
+
+  .icon[data-size="sm"] {
+    --_icon-size: var(--bitfun-control-icon-size-sm);
+  }
+
+  .icon[data-size="md"] {
+    --_icon-size: var(--bitfun-control-icon-size-md);
+  }
+
+  .icon[data-size="lg"] {
+    --_icon-size: var(--bitfun-control-icon-size-lg);
+  }
+
+  .icon[data-bitfun-tone="primary"] {
+    color: var(--bitfun-color-content-primary);
+  }
+
+  .icon[data-bitfun-tone="secondary"] {
+    color: var(--bitfun-color-content-secondary);
+  }
+
+  .icon[data-bitfun-tone="muted"] {
+    color: var(--bitfun-color-content-muted);
+  }
+
+  .icon[data-bitfun-tone="disabled"] {
+    color: var(--bitfun-color-content-disabled);
+  }
+
+  .icon[data-bitfun-tone="info"] {
+    color: var(--bitfun-color-status-info-emphasis);
+  }
+
+  .icon[data-bitfun-tone="success"] {
+    color: var(--bitfun-color-status-success-emphasis);
+  }
+
+  .icon[data-bitfun-tone="warning"] {
+    color: var(--bitfun-color-status-warning-emphasis);
+  }
+
+  .icon[data-bitfun-tone="danger"] {
+    color: var(--bitfun-color-status-danger-emphasis);
+  }
+
+  @media (forced-colors: active) {
+    .icon {
+      color: CanvasText;
+    }
+  }
+}

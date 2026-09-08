@@ -202,6 +202,7 @@ impl WorkspaceFileSystem for RemoteWorkspaceFs {
                 path: entry.path,
                 is_dir: entry.is_dir,
                 is_symlink: entry.is_symlink,
+                modified: None,
             })
             .collect())
     }
@@ -222,6 +223,7 @@ impl WorkspaceFileSystem for RemoteWorkspaceFs {
                 path: entry.path,
                 is_dir: entry.is_dir,
                 is_symlink: entry.is_symlink,
+                modified: None,
             })
             .collect())
     }

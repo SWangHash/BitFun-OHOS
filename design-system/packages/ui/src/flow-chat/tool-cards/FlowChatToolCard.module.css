@@ -1,0 +1,599 @@
+@layer bitfun.components {
+  .prominentRoot,
+  .ambientRoot {
+    --_tool-card-font-family: var(--bitfun-type-body-sm-font-family);
+    --_tool-card-font-size: var(--bitfun-type-body-sm-font-size);
+    --_tool-card-title-font-weight: var(--bitfun-type-label-lg-font-weight);
+    --_tool-card-content-font-weight: var(--bitfun-type-body-sm-font-weight);
+    --_tool-card-action-size: var(--bitfun-space-6);
+    --_flow-chat-tool-card-icon-size: var(--bitfun-font-size-xl);
+    --_tool-card-transition: var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+
+    box-sizing: border-box;
+    display: flex;
+    inline-size: 100%;
+    min-inline-size: 0;
+    flex-direction: column;
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--_tool-card-font-family);
+    font-size: var(--_tool-card-font-size);
+    font-variant-numeric: proportional-nums;
+    font-weight: var(--_tool-card-content-font-weight);
+  }
+
+  .prominentRoot {
+    overflow: hidden;
+    margin-block: var(--bitfun-space-1);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-default);
+    border-radius: var(--bitfun-radius-md);
+    background: var(--bitfun-color-surface-panel);
+    box-shadow: none;
+    transition:
+      border-color var(--_tool-card-transition),
+      background-color var(--_tool-card-transition);
+  }
+
+  .prominentRoot:is(:hover, :focus-within),
+  .prominentRoot[data-bitfun-preview-state="hover"],
+  :global([data-bitfun-preview-state="hover"]) .prominentRoot {
+    border-color: var(--bitfun-color-border-strong);
+  }
+
+  .prominentRoot[data-bitfun-state~="confirmation"] {
+    border-color: var(--bitfun-color-status-warning-border);
+    background: var(--bitfun-color-status-warning-surface);
+  }
+
+  .prominentRoot[data-bitfun-status="cancelled"],
+  .prominentRoot[data-bitfun-status="rejected"] {
+    opacity: var(--bitfun-opacity-muted);
+  }
+
+  .surface {
+    box-sizing: border-box;
+    position: relative;
+    inline-size: 100%;
+    min-inline-size: 0;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .prominentSurface {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: default;
+  }
+
+  .prominentSurface[data-bitfun-interactive="true"] {
+    cursor: pointer;
+  }
+
+  .summaryRow {
+    box-sizing: border-box;
+    display: flex;
+    inline-size: 100%;
+    min-inline-size: 0;
+    align-items: center;
+  }
+
+  .prominentSummary {
+    min-block-size: var(--bitfun-control-height-sm);
+    gap: var(--bitfun-space-2);
+    padding-block: var(--bitfun-space-1);
+    padding-inline: var(--bitfun-space-3) var(--bitfun-space-1);
+    line-height: var(--bitfun-type-heading-page-line-height);
+  }
+
+  .actionLabel,
+  .content,
+  .extra {
+    font-family: var(--_tool-card-font-family);
+    font-size: var(--_tool-card-font-size);
+  }
+
+  .ambientAction,
+  .ambientContent,
+  .ambientExtra {
+    min-inline-size: 0;
+    font-family: var(--_tool-card-font-family);
+    font-size: var(--_tool-card-font-size);
+  }
+
+  .actionLabel > *,
+  .content > *,
+  .extra > *,
+  .ambientAction > *,
+  .ambientContent > *,
+  .ambientExtra > * {
+    font: inherit;
+  }
+
+  .actionLabel {
+    min-inline-size: 0;
+    overflow: hidden;
+    flex: 0 1 auto;
+    color: var(--bitfun-color-content-primary);
+    font-weight: var(--_tool-card-title-font-weight);
+    white-space: nowrap;
+  }
+
+  .content {
+    display: flex;
+    overflow: hidden;
+    /* Zero basis keeps long content out of the shrink budget, so the extra
+       slot (status summaries, change stats) keeps its natural width until the
+       fixed slots alone no longer fit. */
+    flex: 1 1 0;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    color: var(--bitfun-color-content-secondary);
+    font-weight: var(--_tool-card-content-font-weight);
+    white-space: nowrap;
+  }
+
+  .content > * {
+    min-inline-size: 0;
+  }
+
+  .statusIcon,
+  .toolCardActions,
+  .actionRegion {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+  }
+
+  .extra {
+    display: inline-flex;
+    /* May shrink so a long status summary never pushes the trailing status
+       icon (loading dots) out of the card on narrow surfaces. */
+    flex: 0 1 auto;
+    align-items: center;
+    min-inline-size: 0;
+    overflow: hidden;
+    gap: var(--bitfun-space-1);
+    margin-inline-start: auto;
+    color: var(--bitfun-color-content-muted);
+    font-weight: var(--_tool-card-content-font-weight);
+  }
+
+  .changeSummary {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--bitfun-space-1);
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--_tool-card-font-family);
+    font-size: var(--_tool-card-font-size);
+    font-weight: var(--_tool-card-content-font-weight);
+    white-space: nowrap;
+  }
+
+  .changeSummary [data-bitfun-change="added"] {
+    color: var(--bitfun-color-code-change-added);
+  }
+
+  .changeSummary [data-bitfun-change="removed"] {
+    color: var(--bitfun-color-code-change-removed);
+  }
+
+  .actionRegion {
+    overflow: hidden;
+    max-inline-size: 0;
+    gap: var(--bitfun-space-1);
+    margin-inline-start: 0;
+    padding-inline-start: 0;
+    border-inline-start: var(--bitfun-border-width-default) solid transparent;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(var(--bitfun-space-1));
+    transition:
+      max-inline-size var(--_tool-card-transition),
+      margin-inline-start var(--_tool-card-transition),
+      padding-inline-start var(--_tool-card-transition),
+      border-color var(--_tool-card-transition),
+      opacity var(--_tool-card-transition),
+      transform var(--_tool-card-transition);
+  }
+
+  .prominentRoot:is(:hover, :focus-within) .actionRegion,
+  .prominentRoot[data-bitfun-preview-state="hover"] .actionRegion,
+  :global([data-bitfun-preview-state="hover"]) .prominentRoot .actionRegion,
+  .prominentRoot[data-actions-visible="true"] .actionRegion {
+    max-inline-size: 24rem;
+    margin-inline-start: var(--bitfun-space-1);
+    padding-inline-start: var(--bitfun-space-2);
+    border-inline-start-color: var(--bitfun-color-border-subtle);
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+
+  .affordanceButton {
+    display: inline-flex;
+    inline-size: var(--bitfun-space-6);
+    block-size: var(--bitfun-space-6);
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--bitfun-radius-sm);
+    color: var(--bitfun-color-content-muted);
+    background: transparent;
+    cursor: pointer;
+    transition:
+      background-color var(--_tool-card-transition),
+      color var(--_tool-card-transition);
+  }
+
+  .affordanceButton:is(:hover, [data-bitfun-preview-state="hover"]) {
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-action-neutral-surface);
+  }
+
+  .affordanceButton:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+  }
+
+  .affordanceButton > :where(svg, img) {
+    display: block;
+    inline-size: var(--bitfun-font-size-base);
+    block-size: var(--bitfun-font-size-base);
+  }
+
+  .affordanceButton[aria-expanded="true"] :global(svg) {
+    transform: rotate(180deg);
+  }
+
+  .affordanceButton :global(svg) {
+    transition: transform var(--_tool-card-transition);
+  }
+
+  .toolCardActions {
+    gap: var(--bitfun-space-1);
+  }
+
+  .toolCardActions:empty {
+    display: none;
+  }
+
+  .trailingActions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+  }
+
+  .trailingActions[data-divider="true"] {
+    margin-inline-start: var(--bitfun-space-1);
+    padding-inline-start: var(--bitfun-space-2);
+    border-inline-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  }
+
+  .iconSlot {
+    position: relative;
+    display: inline-flex;
+    flex: 0 0 auto;
+    inline-size: var(--_tool-card-action-size);
+    block-size: var(--_tool-card-action-size);
+    align-items: center;
+    justify-content: center;
+    color: var(--bitfun-color-content-secondary);
+  }
+
+  .iconSlot[data-divider="true"] {
+    margin-inline-end: var(--bitfun-space-1);
+    border-inline-end: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  }
+
+  .iconMarks {
+    position: relative;
+    display: inline-flex;
+    inline-size: var(--_flow-chat-tool-card-icon-size);
+    block-size: var(--_flow-chat-tool-card-icon-size);
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mainIcon,
+  .inlineAffordance {
+    position: absolute;
+    inset: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+      opacity var(--_tool-card-transition),
+      color var(--_tool-card-transition),
+      transform var(--_tool-card-transition);
+  }
+
+  .mainIcon :where(svg, img),
+  .inlineAffordance > :where(svg, img),
+  .statusIcon > :where(svg, img) {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .inlineAffordance {
+    color: var(--bitfun-color-content-secondary);
+    opacity: 0;
+  }
+
+  .inlineAffordance[data-expanded="true"] > :where(svg, img) {
+    transform: rotate(180deg);
+  }
+
+  .ambientRoot:is(:hover, :focus-within) .iconSlot[data-bitfun-expandable="true"] .mainIcon,
+  .ambientRoot[data-bitfun-preview-state="hover"] .iconSlot[data-bitfun-expandable="true"] .mainIcon,
+  :global([data-bitfun-preview-state="hover"]) .ambientRoot .iconSlot[data-bitfun-expandable="true"] .mainIcon {
+    opacity: 0;
+  }
+
+  .ambientRoot:is(:hover, :focus-within) .iconSlot[data-bitfun-expandable="true"] .inlineAffordance,
+  .ambientRoot[data-bitfun-preview-state="hover"] .iconSlot[data-bitfun-expandable="true"] .inlineAffordance,
+  :global([data-bitfun-preview-state="hover"]) .ambientRoot .iconSlot[data-bitfun-expandable="true"] .inlineAffordance {
+    opacity: 1;
+  }
+
+  .iconAffordanceHit {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--bitfun-radius-sm);
+    outline: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .iconAffordanceHit:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+  }
+
+  .statusIcon {
+    inline-size: var(--bitfun-font-size-lg);
+    block-size: var(--bitfun-font-size-lg);
+    justify-content: center;
+    color: var(--bitfun-color-content-muted);
+  }
+
+  .statusIcon[data-divider="true"] {
+    box-sizing: content-box;
+    margin-inline-start: var(--bitfun-space-1);
+    padding-inline-start: var(--bitfun-space-2);
+    border-inline-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  }
+
+  .prominentRoot[data-bitfun-status="completed"] .statusIcon {
+    color: var(--bitfun-color-status-success-emphasis);
+  }
+
+  .prominentRoot[data-bitfun-status="error"] .statusIcon {
+    color: var(--bitfun-color-status-danger-emphasis);
+  }
+
+  .collapse {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      grid-template-rows var(--_tool-card-collapse-duration) var(--bitfun-motion-easing-standard),
+      opacity var(--_tool-card-collapse-duration) var(--bitfun-motion-easing-standard),
+      visibility 0s linear var(--_tool-card-collapse-duration);
+  }
+
+  .collapse[data-open="true"] {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  .collapse[data-animate="false"] {
+    transition: none;
+  }
+
+  .collapseInner {
+    overflow: hidden;
+    min-block-size: 0;
+  }
+
+  .expanded,
+  .error {
+    box-sizing: border-box;
+    padding: var(--bitfun-space-3);
+    border-block-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-md-line-height);
+  }
+
+  .error {
+    color: var(--bitfun-color-status-danger-content);
+  }
+
+  .ambientRoot {
+    position: relative;
+    gap: 0;
+    border-radius: var(--bitfun-radius-md);
+    color: var(--bitfun-color-content-muted);
+    background-color: transparent;
+    line-height: var(--bitfun-type-body-md-line-height);
+    transition: background-color var(--_tool-card-transition);
+  }
+
+  .ambientRoot::after {
+    position: absolute;
+    inset: 0;
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-default);
+    border-radius: inherit;
+    content: "";
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--_tool-card-transition);
+  }
+
+  .ambientRoot[data-bitfun-direct-action="true"] {
+    border-radius: var(--bitfun-radius-sm);
+    cursor: pointer;
+  }
+
+  .ambientRoot[data-bitfun-direct-action="true"]:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+  }
+
+  .ambientSurface {
+    display: flex;
+    min-block-size: max(1lh, var(--bitfun-control-tool-card-ambient-row-min-block-size));
+    align-items: center;
+    gap: var(--bitfun-control-flow-chat-row-icon-gap);
+    padding-inline: 0 var(--bitfun-space-2);
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    cursor: default;
+    transition:
+      color var(--_tool-card-transition),
+      opacity var(--_tool-card-transition);
+  }
+
+  .ambientSurface[data-bitfun-interactive="true"] {
+    cursor: pointer;
+  }
+
+  .ambientSurface:is(:hover, :focus-within),
+  .ambientRoot[data-bitfun-preview-state="hover"] .ambientSurface,
+  :global([data-bitfun-preview-state="hover"]) .ambientRoot .ambientSurface {
+    color: var(--bitfun-color-content-primary);
+  }
+
+  .ambientSurface .iconSlot {
+    --_tool-card-action-size: var(--bitfun-control-flow-chat-row-icon-size);
+    --_flow-chat-tool-card-icon-size: var(--bitfun-control-flow-chat-row-icon-size);
+  }
+
+  .ambientAction {
+    overflow: hidden;
+    flex: 0 1 auto;
+    color: inherit;
+    font-weight: var(--_tool-card-title-font-weight);
+    white-space: nowrap;
+  }
+
+  .ambientContent {
+    overflow: hidden;
+    flex: 1 1 0;
+    color: inherit;
+    font-weight: var(--_tool-card-content-font-weight);
+    white-space: nowrap;
+  }
+
+  .ambientExtra {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    color: inherit;
+  }
+
+  .ambientExpandedShell {
+    overflow: hidden;
+    background-color: var(--bitfun-color-surface-panel);
+    box-shadow: none;
+  }
+
+  .ambientExpandedShell::after {
+    opacity: 1;
+  }
+
+  .ambientExpandedShell .ambientSurface {
+    /* Once enclosed, use the same header geometry as prominent cards.
+       Collapsed traces retain their compact, flush transcript alignment. */
+    min-block-size: var(--bitfun-control-height-sm);
+    gap: var(--bitfun-space-2);
+    padding-block: var(--bitfun-space-1);
+    padding-inline: var(--bitfun-space-3) var(--bitfun-space-1);
+    line-height: var(--bitfun-type-heading-page-line-height);
+    color: var(--bitfun-color-content-primary);
+  }
+
+  .ambientExpandedShell .ambientSurface .iconSlot {
+    --_tool-card-action-size: var(--bitfun-space-6);
+    --_flow-chat-tool-card-icon-size: var(--bitfun-font-size-xl);
+  }
+
+  .ambientRoot[data-bitfun-state~="loading"] .ambientAction,
+  .ambientRoot[data-bitfun-state~="loading"] .ambientContent,
+  .prominentRoot[data-bitfun-state~="loading"] .actionLabel,
+  .prominentRoot[data-bitfun-state~="loading"] .content {
+    animation: bitfun-flow-chat-tool-loading var(--bitfun-motion-duration-loop) var(--bitfun-motion-easing-standard) infinite alternate;
+  }
+
+  @keyframes bitfun-flow-chat-tool-loading {
+    from {
+      opacity: 1;
+    }
+
+    to {
+      opacity: var(--bitfun-opacity-hover);
+    }
+  }
+
+  .ambientRoot[data-bitfun-status="error"] .ambientAction,
+  .ambientRoot[data-bitfun-status="error"] .ambientContent,
+  .ambientRoot[data-bitfun-status="error"] .ambientExtra {
+    color: var(--bitfun-color-status-danger-content);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .prominentRoot,
+    .ambientRoot,
+    .ambientRoot::after,
+    .actionRegion,
+    .mainIcon,
+    .inlineAffordance,
+    .collapse,
+    .affordanceButton,
+    .affordanceButton :global(svg) {
+      transition: none;
+    }
+
+    .ambientRoot[data-bitfun-state~="loading"] .ambientAction,
+    .ambientRoot[data-bitfun-state~="loading"] .ambientContent,
+    .prominentRoot[data-bitfun-state~="loading"] .actionLabel,
+    .prominentRoot[data-bitfun-state~="loading"] .content {
+      animation: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .prominentRoot {
+      border-color: CanvasText;
+    }
+
+    .ambientExpandedShell::after {
+      border-color: CanvasText;
+    }
+
+    .iconAffordanceHit:focus-visible {
+      outline-color: Highlight;
+    }
+
+    .ambientRoot[data-bitfun-direct-action="true"]:focus-visible {
+      outline-color: Highlight;
+    }
+
+    .affordanceButton:focus-visible {
+      outline-color: Highlight;
+    }
+  }
+}

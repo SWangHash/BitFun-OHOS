@@ -64,6 +64,7 @@ impl AgentModeCatalogPort for FakeModeCatalog {
         self.queries.lock().unwrap().push(query);
         Ok(vec![AgentModeCatalogEntry {
             id: "Explore".to_string(),
+            route_key: String::new(),
             description: "Inspect the workspace".to_string(),
             model_id: Some("model-a".to_string()),
             is_external: false,

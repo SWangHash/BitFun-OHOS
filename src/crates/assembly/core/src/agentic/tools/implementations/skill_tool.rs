@@ -473,6 +473,7 @@ Use the remote project skill.
                     path: "/remote/project/.bitfun/skills/remote-only".to_string(),
                     is_dir: true,
                     is_symlink: false,
+                    modified: None,
                 }]);
             }
             Ok(vec![])
@@ -542,6 +543,7 @@ Use the remote project skill.
                     path: "/remote/project/.claude/skills/remote-review".to_string(),
                     is_dir: true,
                     is_symlink: false,
+                    modified: None,
                 }]);
             }
             Ok(vec![])
@@ -882,24 +884,28 @@ Use the remote project skill.
                         path: "/remote/project/.bitfun/skills/z-last".to_string(),
                         is_dir: true,
                         is_symlink: false,
+                        modified: None,
                     },
                     WorkspaceDirEntry {
                         name: "a-first".to_string(),
                         path: "/remote/project/.bitfun/skills/a-first".to_string(),
                         is_dir: true,
                         is_symlink: false,
+                        modified: None,
                     },
                     WorkspaceDirEntry {
                         name: "dup-two".to_string(),
                         path: "/remote/project/.bitfun/skills/dup-two".to_string(),
                         is_dir: true,
                         is_symlink: false,
+                        modified: None,
                     },
                     WorkspaceDirEntry {
                         name: "dup-one".to_string(),
                         path: "/remote/project/.bitfun/skills/dup-one".to_string(),
                         is_dir: true,
                         is_symlink: false,
+                        modified: None,
                     },
                 ]),
                 _ => Ok(vec![]),

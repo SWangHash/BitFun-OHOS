@@ -666,7 +666,7 @@ async fn fanout_peer_device_event_once(queued: QueuedPeerDeviceEvent) {
         return;
     }
 
-    let routing_lease = match crate::account::acquire_peer_fanout_lease(&owner).await {
+    let routing_lease = match crate::account::acquire_peer_fanout_lease(&owner) {
         Ok(lease) => lease,
         Err(error) => {
             tracing::debug!("Queued Peer event dropped after owner change: {error}");

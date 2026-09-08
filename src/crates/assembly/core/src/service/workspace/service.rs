@@ -1730,6 +1730,11 @@ impl WorkspaceService {
         }
     }
 
+    /// Subscribe to workspace catalog changes (host-local invalidation only).
+    pub fn subscribe_catalog_changes() -> tokio::sync::watch::Receiver<u64> {
+        workspace_catalog_revision().subscribe()
+    }
+
     /// Saves workspace data locally.
     async fn save_workspace_data(&self) -> BitFunResult<()> {
         let manager = self.manager.read().await;
@@ -1748,6 +1753,7 @@ impl WorkspaceService {
             .save_json("workspace_data", &workspace_data, StorageOptions::default())
             .await
             .map_err(|e| BitFunError::service(format!("Failed to save workspace data: {}", e)))?;
+        workspace_catalog_revision().send_modify(|revision| *revision = revision.wrapping_add(1));
 
         Ok(())
     }
@@ -3057,4 +3063,10 @@ mod tests {
             Some("Legacy TypeScript implementation".to_string())
         );
     }
+}
+
+fn workspace_catalog_revision() -> &'static tokio::sync::watch::Sender<u64> {
+    static REVISION: std::sync::OnceLock<tokio::sync::watch::Sender<u64>> =
+        std::sync::OnceLock::new();
+    REVISION.get_or_init(|| tokio::sync::watch::channel(0).0)
 }

@@ -1,0 +1,99 @@
+@layer bitfun.components {
+  .details {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+    gap: var(--bitfun-space-3);
+  }
+
+  .field {
+    display: grid;
+    min-inline-size: 0;
+    grid-template-columns: minmax(7rem, auto) minmax(0, 1fr);
+    gap: var(--bitfun-space-2);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-body-sm-font-size);
+  }
+
+  .fieldLabel,
+  .sectionLabel {
+    color: var(--bitfun-color-content-muted);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+  }
+
+  .fieldValue {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .sessionList {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bitfun-space-2);
+  }
+
+  .session {
+    display: grid;
+    min-inline-size: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--bitfun-space-1) var(--bitfun-space-3);
+    padding: var(--bitfun-space-3);
+    border-radius: var(--bitfun-radius-sm);
+    background: var(--bitfun-color-surface-raised);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-body-sm-font-size);
+  }
+
+  .sessionId {
+    overflow-wrap: anywhere;
+    color: var(--bitfun-color-content-primary);
+  }
+
+  .sessionName {
+    min-inline-size: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .sessionAgent {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    color: var(--bitfun-color-content-muted);
+    white-space: nowrap;
+  }
+
+  .messageSection {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+    gap: var(--bitfun-space-2);
+  }
+
+  .message {
+    max-block-size: 20rem;
+    margin: 0;
+    padding: var(--bitfun-space-3);
+    overflow: auto;
+    border-radius: var(--bitfun-radius-sm);
+    background: var(--bitfun-color-surface-raised);
+    color: var(--bitfun-color-content-secondary);
+    font-family: inherit;
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-md-line-height);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .empty {
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-body-sm-font-size);
+  }
+
+  .error {
+    color: var(--bitfun-color-status-danger-content);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}

@@ -1,6 +1,12 @@
+import { Folder as LucideFolder, X as LucideX, Monitor, Server, ChevronDown } from 'lucide-react';
 import React, { useEffect, useState, useCallback } from 'react';
-import LanguageToggleButton from '../components/LanguageToggleButton';
+import { MobileBanner, MobileButton, MobileTextField, MobileIconButton, MobileListRow, MobilePageHeader, MobileStatus, MobileChoiceSheet } from '@bitfun/ui/mobile';
+import './WorkspacePage.scss';
+import { WorkspaceTerminal } from '../components/WorkspaceTerminal';
+import { WorkspaceFolderPicker } from '../components/WorkspaceFolderPicker';
+import { WorkspaceFiles } from '../components/WorkspaceFiles';
 import { useI18n } from '../i18n';
+import { useMobileStore } from '../services/store';
 import {
   RemoteSessionManager,
   WorkspaceInfo,
@@ -9,17 +15,25 @@ import {
 
 interface WorkspacePageProps {
   sessionMgr: RemoteSessionManager;
+  tool?: { workspace: RecentWorkspaceEntry; panel: 'files' | 'terminal' };
   onReady: () => void;
+  onBack?: () => void;
 }
 
-const WorkspacePage: React.FC<WorkspacePageProps> = ({ sessionMgr, onReady }) => {
+const WorkspacePage: React.FC<WorkspacePageProps> = ({ sessionMgr, onReady, onBack, tool }) => {
   const { t } = useI18n();
   const [workspaceInfo, setWorkspaceInfo] = useState<WorkspaceInfo | null>(null);
   const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspaceEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [choosingFolder, setChoosingFolder] = useState(false);
+  const [choosingHost, setChoosingHost] = useState(false);
+  const panel = tool?.panel ?? 'workspaces';
+  const [path, setPath] = useState('');
+  const [remoteConnectionId, setRemoteConnectionId] = useState('');
+  const [connections, setConnections] = useState<Array<{ id: string; name: string }>>([]);
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showRecent, setShowRecent] = useState(false);
+  const controlTarget = useMobileStore((state) => state.controlTarget);
 
   const loadWorkspaceInfo = useCallback(async () => {
     try {
@@ -27,8 +41,6 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ sessionMgr, onReady }) =>
       setWorkspaceInfo(info);
     } catch (e: any) {
       setError(e.message);
-    } finally {
-      setLoading(false);
     }
   }, [sessionMgr]);
 
@@ -42,13 +54,15 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ sessionMgr, onReady }) =>
   }, [sessionMgr]);
 
   useEffect(() => {
-    loadWorkspaceInfo();
-  }, [loadWorkspaceInfo]);
-
-  const handleShowRecent = async () => {
-    setShowRecent(true);
-    await loadRecentWorkspaces();
-  };
+    if (tool) {
+      setWorkspaceInfo({ ...tool.workspace, has_workspace: true, project_name: tool.workspace.name });
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    void Promise.all([loadWorkspaceInfo(), loadRecentWorkspaces()]).finally(() => setLoading(false));
+    void sessionMgr.invokeHost<Array<{ id: string; name: string }>>('ssh_list_saved_connections', {}, false).then(setConnections).catch(cause => setError(String(cause)));
+  }, [loadRecentWorkspaces, loadWorkspaceInfo, tool]);
 
   const handleSelectWorkspace = useCallback(async (workspace: RecentWorkspaceEntry) => {
     if (switching) return;
@@ -61,7 +75,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ sessionMgr, onReady }) =>
       });
       if (result.success) {
         await loadWorkspaceInfo();
-        setShowRecent(false);
+        onReady();
       } else {
         setError(result.error || t('workspace.failedToSetWorkspace'));
       }
@@ -70,111 +84,97 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ sessionMgr, onReady }) =>
     } finally {
       setSwitching(false);
     }
-  }, [loadWorkspaceInfo, sessionMgr, switching, t]);
+  }, [loadWorkspaceInfo, onReady, sessionMgr, switching, t]);
 
   if (loading) {
     return (
-      <div className="workspace-page">
-        <div className="workspace-page__loading">
-          <div className="spinner" />
-          <span>{t('workspace.loadingInfo')}</span>
-        </div>
+      <div className="workspace-page workspace-page--tools">
+        <MobileStatus className="workspace-page__loading" loading title={t('workspace.loadingInfo')} />
       </div>
     );
   }
 
   return (
-    <div className="workspace-page">
-      <div className="workspace-page__header">
-        <h1>{t('shared.features.workspace')}</h1>
-        <LanguageToggleButton />
-      </div>
+    <div className="workspace-page workspace-page--tools">
+      <div className="workspace-page__sheet">
+        <MobilePageHeader
+          className="workspace-page__header"
+          title={t(panel === 'files' ? 'workspace.files' : panel === 'terminal' ? 'workspace.terminal' : 'workspace.selectWorkspace')}
+          subtitle={tool ? `${tool.workspace.name} · ${tool.workspace.path}` : undefined}
+          actions={onBack ? (
+            <MobileIconButton
+              appearance="surface"
+              className="workspace-page__close"
+              icon={<LucideX stroke="currentColor" aria-hidden="true" />}
+              onClick={onBack}
+              size="sm"
+              aria-label={t('common.close')}
+            />
+          ) : undefined}
+        />
 
-      <div className="workspace-page__content">
-        {workspaceInfo?.has_workspace ? (
-          <div className="workspace-page__current">
-            <div className="workspace-page__current-label">{t('workspace.currentWorkspace')}</div>
-            <div className="workspace-page__current-card">
-              <div className="workspace-page__project-name">
-                {workspaceInfo.project_name || t('workspace.unknownProject')}
-              </div>
-              <div className="workspace-page__project-path">{workspaceInfo.path}</div>
-              {workspaceInfo.git_branch && (
-                <div className="workspace-page__git-branch">
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="5" cy="4" r="2" stroke="currentColor" strokeWidth="1.3"/><circle cx="11" cy="4" r="2" stroke="currentColor" strokeWidth="1.3"/><circle cx="5" cy="12" r="2" stroke="currentColor" strokeWidth="1.3"/><path d="M5 6V10M11 6V8C11 9.1046 10.1046 10 9 10H5" stroke="currentColor" strokeWidth="1.3"/></svg>
-                  {workspaceInfo.git_branch}
-                </div>
-              )}
+        {choosingFolder && <WorkspaceFolderPicker key={`${sessionMgr.controlTargetEpoch}:${remoteConnectionId}`}
+          manager={sessionMgr} remoteConnectionId={remoteConnectionId || undefined}
+          initialPath={path.trim() || (workspaceInfo?.remote_connection_id === (remoteConnectionId || undefined) ? workspaceInfo?.path : undefined) || '/'}
+          location={connections.find(connection => connection.id === remoteConnectionId)?.name ?? controlTarget?.deviceName ?? undefined}
+          onSelect={value => {setPath(value);setChoosingFolder(false);}} onClose={() => setChoosingFolder(false)}/>}
+        <MobileChoiceSheet open={choosingHost} onOpenChange={() => setChoosingHost(false)} title={t('workspace.location')}
+          selectedValue={remoteConnectionId} cancelLabel={t('common.cancel')}
+          options={[{value: '', label: controlTarget?.deviceName, leading: <Monitor size={18}/>}, ...connections.map(connection => ({value: connection.id, label: connection.name, leading: <Server size={18}/>}))]}
+          onSelect={value => {setRemoteConnectionId(value);setChoosingHost(false);}}/>
+        <div className="workspace-page__divider" />
+        <div className={`workspace-page__content workspace-tools-content${panel === 'terminal' ? ' workspace-tools-content--terminal' : ''}`}>
+          <div className="workspace-picker" hidden={panel !== 'workspaces'}>
+          <form className="workspace-picker__open" onSubmit={(event) => {
+            event.preventDefault();
+            if (path.trim()) void handleSelectWorkspace({ path: path.trim(), name: path.trim(), last_opened: '', remote_connection_id: remoteConnectionId || undefined });
+          }}>
+            <div className="workspace-picker__label">{t('workspace.location')}
+              <MobileListRow className="workspace-picker__location" appearance="plain" disabled={switching} onClick={() => setChoosingHost(true)}
+                leading={remoteConnectionId ? <Server size={18}/> : <Monitor size={18}/>}
+                label={connections.find(connection => connection.id === remoteConnectionId)?.name ?? controlTarget?.deviceName}
+                trailing={<ChevronDown size={16}/>}/>
             </div>
-            <div className="workspace-page__actions">
-              <button className="workspace-page__btn workspace-page__btn--primary" onClick={onReady}>
-                {t('common.continue')}
-              </button>
-              <button className="workspace-page__btn workspace-page__btn--secondary" onClick={handleShowRecent}>
-                {t('common.switch')}
-              </button>
+            <div className="workspace-picker__label">{t('workspace.targetPath')}
+              <MobileTextField className="workspace-picker__path-field" aria-label={t('workspace.targetPath')} placeholder="/" value={path} onChange={event => setPath(event.target.value)} disabled={switching}
+                trailing={<MobileIconButton size="sm" appearance="plain" aria-label={t('workspace.chooseFolder')} icon={<LucideFolder size={20}/>}
+                  disabled={switching} onClick={() => setChoosingFolder(true)}/>}/>
             </div>
-          </div>
-        ) : (
-          <div className="workspace-page__no-workspace">
-            <div className="workspace-page__no-workspace-icon">
-              <svg width="40" height="40" viewBox="0 0 16 16" fill="none"><path d="M2 4V12C2 12.5523 2.44772 13 3 13H13C13.5523 13 14 12.5523 14 12V6C14 5.44772 13.5523 5 13 5H8L6.5 3H3C2.44772 3 2 3.44772 2 4Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/></svg>
-            </div>
-            <div className="workspace-page__no-workspace-text">
-              {t('workspace.noWorkspaceOpen')}
-            </div>
-            <div className="workspace-page__no-workspace-hint">
-              {t('workspace.noWorkspaceHint')}
-            </div>
-            {!showRecent && (
-              <button className="workspace-page__btn workspace-page__btn--primary" onClick={handleShowRecent}>
-                {t('workspace.selectWorkspace')}
-              </button>
-            )}
-          </div>
-        )}
-
-        {showRecent && (
-          <div className="workspace-page__recent">
-            <div className="workspace-page__recent-label">{t('workspace.recentWorkspaces')}</div>
-            {recentWorkspaces.length === 0 ? (
-              <div className="workspace-page__recent-empty">
-                {t('workspace.noRecentWorkspaces')}
-              </div>
-            ) : (
-              <div className="workspace-page__recent-list">
-                {recentWorkspaces.map((ws) => (
-                  <button
+            <p>{t('workspace.targetPathHint')}</p>
+            <MobileButton className="workspace-picker__submit" appearance="primary" type="submit" disabled={switching || !path.trim()}>{t('workspace.openPath')}</MobileButton>
+          </form>
+          <h2 className="workspace-picker__section-title">{t('workspace.recentWorkspaces')}</h2>
+          {recentWorkspaces.length === 0 ? (
+            <MobileStatus className="workspace-page__recent-empty" description={t('workspace.noRecentWorkspaces')} />
+          ) : (
+            <div className="workspace-page__recent-list">
+              {recentWorkspaces.map((ws) => {
+                const selected = workspaceInfo?.path === ws.path && workspaceInfo?.remote_connection_id === ws.remote_connection_id && workspaceInfo?.remote_ssh_host === ws.remote_ssh_host;
+                return (
+                  <MobileListRow
                     key={`${ws.remote_connection_id ?? 'local'}:${ws.path}`}
-                    className="workspace-page__recent-item"
+                    appearance="plain"
+                    className={`workspace-page__recent-item${selected ? ' is-selected' : ''}`}
                     onClick={() => handleSelectWorkspace(ws)}
                     disabled={switching}
-                  >
-                    <div className="workspace-page__recent-item-name">{ws.name}</div>
-                    <div className="workspace-page__recent-item-path">{ws.path}</div>
-                  </button>
-                ))}
-              </div>
-            )}
-            {workspaceInfo?.has_workspace && (
-              <button
-                className="workspace-page__btn workspace-page__btn--secondary"
-                onClick={() => setShowRecent(false)}
-              >
-                {t('common.cancel')}
-              </button>
-            )}
+                    selected={selected}
+                    leading={<span className="workspace-page__recent-item-icon" aria-hidden="true">
+                      <LucideFolder width="22" height="22" stroke="currentColor" aria-hidden="true" />
+                    </span>}
+                    label={<span className="workspace-page__recent-item-name">{ws.name}</span>}
+                    supportingText={<span className="workspace-page__recent-item-path">{ws.path}</span>}
+                    trailing={<span className="workspace-page__recent-item-trailing" aria-hidden="true">{selected ? '✓' : '›'}</span>}
+                  />
+                );
+              })}
+            </div>
+          )}
           </div>
-        )}
-
-        {switching && (
-          <div className="workspace-page__switching">
-            <div className="spinner spinner--sm" />
-            <span>{t('workspace.openingWorkspace')}</span>
-          </div>
-        )}
-
-        {error && <div className="workspace-page__error">{error}</div>}
+          {panel === 'files' && workspaceInfo?.has_workspace && (workspaceInfo.workspace_kind !== 'remote' || !!workspaceInfo.remote_connection_id) && <div hidden={panel !== 'files'}><WorkspaceFiles manager={sessionMgr} workspace={workspaceInfo} /></div>}
+          {panel === 'terminal' && workspaceInfo?.has_workspace && (workspaceInfo.workspace_kind !== 'remote' || !!workspaceInfo.remote_connection_id) && <div className="workspace-terminal-panel" hidden={panel !== 'terminal'}><WorkspaceTerminal key={`${sessionMgr.controlTargetEpoch}:${workspaceInfo.remote_connection_id}:${workspaceInfo.path}`} manager={sessionMgr} workspace={workspaceInfo} /></div>}
+          {switching && <MobileStatus className="workspace-page__switching" loading />}
+          {error && <MobileBanner className="workspace-page__error" tone="danger">{error}</MobileBanner>}
+        </div>
       </div>
     </div>
   );
