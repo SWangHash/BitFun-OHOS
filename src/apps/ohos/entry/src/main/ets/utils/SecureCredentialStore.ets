@@ -3,6 +3,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { asset } from '@kit.AssetStoreKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
+const LEGACY_MARKET_ASSET_ALIAS = 'bitfun.market.credentials.v1';
 const ASSET_NOT_FOUND = 24000002;
 const ASSET_ALREADY_EXISTS = 24000003;
 const LOG_DOMAIN = 0x0000;
@@ -37,7 +38,7 @@ interface CredentialResponse {
  *
  * Shared by subscription auth (per-chunk aliases under
  * `<provider>/v2/<set_id>/<field>/<index>`), the MiniApp and appearance
- * market (`github-oauth`), and feedback service credentials
+ * market (`bitfun.market.credentials.v1`), and feedback service credentials
  * (`bitfun.feedback.*`). Alias formats are consumer-specific and do not
  * collide inside the single AssetStoreKit namespace.
  */
@@ -92,7 +93,16 @@ export class SecureCredentialStore {
       if (secret === undefined) {
         return { status: 'error', code: 'SECRET_MISSING' };
       }
-      return { status: 'ok', value: this.decoder.decodeToString(secret) };
+      const value = this.decoder.decodeToString(secret);
+      // The former MarketCredentialStore persisted JSON bytes under this
+      // same alias. Adapt only its wire response to the unified Base64
+      // contract; reads must not rewrite the asset. JSON cannot be confused
+      // with Base64 because '{' is outside the Base64 alphabet. Payload
+      // validation remains with the Rust market credential store.
+      if (alias === LEGACY_MARKET_ASSET_ALIAS && value.trimStart().startsWith('{')) {
+        return { status: 'ok', value: new util.Base64Helper().encodeToStringSync(secret) };
+      }
+      return { status: 'ok', value };
     } catch (error) {
       const businessError = error as BusinessError;
       if (businessError.code === ASSET_NOT_FOUND) {

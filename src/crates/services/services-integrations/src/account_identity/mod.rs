@@ -12,9 +12,11 @@ pub use flow::{poll_auth_flow, start_auth_flow};
 use reqwest::{RequestBuilder, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 // bitfun.com is not provisioned yet; keep defaulting to the live openbitfun.com
 // deployment until the domain cutover.
 pub const DEFAULT_ACCOUNT_API_URL: &str = "https://auth.openbitfun.com/api/v1";
+const ACCOUNT_AUTH_TIMEOUT: Duration = Duration::from_secs(30);
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopAuthStart {
@@ -37,6 +39,24 @@ pub struct DesktopAuthPollRequest {
 pub struct DesktopAuthPollResponse {
     pub status: String,
     pub tokens: Option<MarketTokenPair>,
+}
+
+impl DesktopAuthPollResponse {
+    fn validate(&self) -> Result<(), MarketClientError> {
+        match (self.status.as_str(), self.tokens.as_ref()) {
+            ("pending" | "expired", None) => Ok(()),
+            ("authorized", Some(tokens))
+                if !tokens.access_token.is_empty() && !tokens.refresh_token.is_empty() => Ok(()),
+            ("consumed", _) => Err(local_error(
+                "market_auth_consumed",
+                "The GitHub authorization has already been consumed. Please sign in again.",
+            )),
+            _ => Err(local_error(
+                "invalid_market_response",
+                "The market returned an invalid GitHub authorization response. Please sign in again.",
+            )),
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -183,7 +203,8 @@ impl AccountIdentityClient {
     pub async fn start_desktop_auth(&self) -> Result<DesktopAuthStart, MarketClientError> {
         self.json(
             self.client
-                .post(self.url("/auth/desktop/start?methods=all")),
+                .post(self.url("/auth/desktop/start?methods=all"))
+                .timeout(ACCOUNT_AUTH_TIMEOUT),
         )
         .await
     }
@@ -196,9 +217,11 @@ impl AccountIdentityClient {
             .json(
                 self.client
                     .post(self.url("/auth/desktop/poll"))
+                    .timeout(ACCOUNT_AUTH_TIMEOUT)
                     .json(request),
             )
             .await?;
+        response.validate()?;
         if let Some(tokens) = response.tokens.clone() {
             let credentials: StoredMarketCredentials = tokens.into();
             save_market_credentials(&credentials)
@@ -220,6 +243,7 @@ impl AccountIdentityClient {
         let response = self
             .client
             .get(self.url("/me"))
+            .timeout(ACCOUNT_AUTH_TIMEOUT)
             .bearer_auth(&credentials.access_token)
             .send()
             .await
@@ -281,6 +305,7 @@ impl AccountIdentityClient {
         let response = self
             .client
             .post(self.url("/auth/refresh"))
+            .timeout(ACCOUNT_AUTH_TIMEOUT)
             .json(&serde_json::json!({ "refreshToken": refresh_token }))
             .send()
             .await
@@ -322,10 +347,13 @@ async fn checked_response(response: Response) -> Result<Response, MarketClientEr
 }
 
 async fn decode_json<T: DeserializeOwned>(response: Response) -> Result<T, MarketClientError> {
-    response
-        .json()
-        .await
-        .map_err(|error| local_error("invalid_market_response", error.to_string()))
+    response.json().await.map_err(|error| {
+        if error.is_timeout() {
+            transport_error(error)
+        } else {
+            local_error("invalid_market_response", error.to_string())
+        }
+    })
 }
 
 async fn response_error(response: Response) -> MarketClientError {
@@ -344,6 +372,12 @@ async fn response_error(response: Response) -> MarketClientError {
 }
 
 fn transport_error(error: reqwest::Error) -> MarketClientError {
+    if error.is_timeout() {
+        return local_error(
+            "account_timeout",
+            "The account request timed out. Please try again.",
+        );
+    }
     local_error(
         "account_unavailable",
         format!(
@@ -382,5 +416,70 @@ mod profile_tests {
         assert_eq!(projected["email"], "alice@example.com");
         assert_eq!(account.user.identity_id().as_deref(), Some("email-7"));
         assert_eq!(account.user.login, "user-internal");
+    }
+}
+
+#[cfg(test)]
+mod auth_poll_tests {
+    use super::*;
+
+    #[test]
+    fn auth_poll_accepts_only_valid_status_and_token_combinations() {
+        for status in ["pending", "expired"] {
+            let response: DesktopAuthPollResponse =
+                serde_json::from_value(serde_json::json!({ "status": status })).unwrap();
+            assert!(response.validate().is_ok());
+        }
+        for status in ["authorized", "unknown", "consumed"] {
+            let response = DesktopAuthPollResponse {
+                status: status.into(),
+                tokens: None,
+            };
+            let error = response.validate().unwrap_err();
+            assert_eq!(
+                error.code,
+                if status == "consumed" {
+                    "market_auth_consumed"
+                } else {
+                    "invalid_market_response"
+                }
+            );
+        }
+        let tokens = MarketTokenPair {
+            access_token: "test-access".into(),
+            access_expires_at: 100,
+            refresh_token: "test-refresh".into(),
+            refresh_expires_at: 200,
+        };
+        let mut response = DesktopAuthPollResponse {
+            status: "authorized".into(),
+            tokens: Some(tokens),
+        };
+        assert!(response.validate().is_ok());
+        response.status = "pending".into();
+        assert!(response.validate().is_err());
+        response.status = "authorized".into();
+        response.tokens.as_mut().unwrap().access_token.clear();
+        assert!(response.validate().is_err());
+    }
+
+    #[tokio::test]
+    async fn stalled_auth_response_times_out() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let mut client = AccountIdentityClient {
+            base_url: format!("http://{address}"),
+            // Leave the socket open without sending response headers.
+            client: crate::reqwest_client_builder()
+                .no_proxy()
+                .read_timeout(Duration::from_millis(50))
+                .build()
+                .unwrap(),
+            credentials: None,
+        };
+        let result = tokio::time::timeout(Duration::from_secs(2), client.start_desktop_auth())
+            .await
+            .expect("the transport must finish before the outer watchdog");
+        assert_eq!(result.unwrap_err().code, "account_timeout");
     }
 }
