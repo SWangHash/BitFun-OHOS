@@ -676,6 +676,12 @@ fn normalize_toolchain_candidate(candidate: &Path) -> Option<PathBuf> {
         .then(|| candidate.to_path_buf())
 }
 
+/// Normalize a model-provided candidate path. Absolute paths are accepted even
+/// outside the workspace: users may point at toolchains/templates anywhere,
+/// and a prompt-named path is user intent, not a workspace scan hit. Relative
+/// paths resolve against the workspace; `..` segments are rejected. Callers
+/// still apply per-field structural checks (qmake / template layout / is_dir),
+/// so hallucinated paths cannot reach the option list.
 fn normalize_workspace_candidate(workspace: &Path, candidate: &str) -> Option<PathBuf> {
     let candidate = candidate.trim();
     if candidate.is_empty() {
@@ -693,26 +699,11 @@ fn normalize_workspace_candidate(workspace: &Path, candidate: &str) -> Option<Pa
     } else {
         workspace.join(candidate)
     };
-    let workspace_compare = workspace
-        .canonicalize()
-        .unwrap_or_else(|_| workspace.to_path_buf());
-    let candidate_compare = if candidate.exists() {
-        candidate.canonicalize().ok()?
+    if candidate.exists() {
+        candidate.canonicalize().ok().or_else(|| Some(candidate))
     } else {
-        candidate.clone()
-    };
-    let workspace_key = path_key(&workspace_compare)
-        .trim_end_matches(['/', '\\'])
-        .to_string();
-    let candidate_key = path_key(&candidate_compare)
-        .trim_end_matches(['/', '\\'])
-        .to_string();
-    let inside_workspace = candidate_key == workspace_key
-        || candidate_key
-            .strip_prefix(&workspace_key)
-            .map(|suffix| suffix.starts_with('/') || suffix.starts_with('\\'))
-            .unwrap_or(false);
-    inside_workspace.then_some(candidate)
+        Some(candidate)
+    }
 }
 
 fn dedup_paths(paths: &mut Vec<String>) {
@@ -833,9 +824,11 @@ mod tests {
 
         let source = &probe.candidates["source_project"];
         assert_eq!(path_key(Path::new(&source[0])), path_key(&model_b));
+        // 用户显式给出的工作区外工程是用户意图，必须保留在候选中
+        // （排在 inside-workspace 模型候选之后：workspace 外无法推断深度）。
         assert!(source
             .iter()
-            .all(|path| path_key(Path::new(path)) != path_key(&outside.path())));
+            .any(|path| path_key(Path::new(path)) == path_key(&outside.path())));
     }
 
     #[test]
@@ -856,9 +849,13 @@ mod tests {
         );
 
         let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+        // 用户显式给出的工作区外输出目录保留（用户意图），workspace 内探测候选优先。
         assert_eq!(
             probe.candidates["output_project"],
-            vec![output.to_string_lossy().into_owned()]
+            vec![
+                output.to_string_lossy().into_owned(),
+                outside.path().to_string_lossy().into_owned(),
+            ]
         );
 
         let invalid_model = candidate_map(

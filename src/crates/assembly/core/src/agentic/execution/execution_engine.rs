@@ -603,7 +603,7 @@ const QT_MIGRATION_CONFIRM_INSTRUCTION: &str = r#"## 迁移前置输入（系统
 
 用户请求已分类为 Qt → HarmonyOS 应用迁移任务。在四项最小输入（source_project、output_project、toolchain、template）全部达到 Validated 之前，禁止执行任何迁移副作用（写文件、构建、部署、删除），禁止加载技能、禁止做任何其它事情。
 
-你的下一步必须且只能是调用 AskUserQuestion 工具，参数传入 {"templateId": "qt-migration-paths", "candidates": {...}}。在调用前可使用只读工具探测当前工作区；一旦发现用户当前指定或明确指代的 Qt 工程，必须把其工程目录或 `.pro` 文件路径放入 `candidates.source_project`，且置于数组第一项。不得只在分析文字中描述候选而省略 `candidates`。其他已探测候选也应按字段传入；不要自行构造 questions，不要在工具调用前后输出说明文字，也不能用纯文本提示代替工具调用。调用后等待用户提交答案。
+你的下一步必须且只能是调用 AskUserQuestion 工具，参数传入 {"templateId": "qt-migration-paths", "candidates": {...}}。在调用前可使用只读工具探测当前工作区；一旦发现用户当前指定或明确指代的 Qt 工程，必须把其工程目录或 `.pro` 文件路径放入 `candidates.source_project`，且置于数组第一项。用户在 prompt 中明确写出的其他路径（输出目录、工具链、模板工程）也必须分别放入对应的 `candidates.output_project` / `candidates.toolchain` / `candidates.template`；这些路径即使位于当前工作区之外，也必须原样放入候选，不得丢弃或替换。不得只在分析文字中描述候选而省略 `candidates`。其他已探测候选也应按字段传入；不要自行构造 questions，不要在工具调用前后输出说明文字，也不能用纯文本提示代替工具调用。调用后等待用户提交答案。
 
 用户提交答案后，AskUserQuestion 工具结果返回的四项绑定值就是本次迁移的唯一输入事实，必须直接采用，不得重新询问或替换为其他路径。"#;
 
@@ -4208,6 +4208,21 @@ impl ExecutionEngine {
                         "\n\n当前缺少或仅有引用而未提供具体路径/ID 的输入项：{}。\n",
                         pending_fields
                     ));
+                    let unclassified = decision["resolvedPaths"]["unclassifiedPaths"]
+                        .as_array()
+                        .map(|paths| {
+                            paths
+                                .iter()
+                                .filter_map(|value| value.as_str())
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default();
+                    if !unclassified.is_empty() {
+                        instruction.push_str(&format!(
+                            "\n\n以下路径出现在用户 prompt 中但未能自动归类，请结合语义分别放入对应的 candidates 字段（通常第一个为源工程路径）：{}。\n",
+                            unclassified.join("、")
+                        ));
+                    }
                     instruction
                         .push_str("\n\n输入收集完成后，迁移工作必须遵守下面的必用技能约束：\n");
                 } else if let Some(bound_inputs) = qt_migration_bound_inputs_instruction(
