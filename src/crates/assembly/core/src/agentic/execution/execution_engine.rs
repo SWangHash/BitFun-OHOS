@@ -40,7 +40,7 @@ use crate::agentic::session::{
     INTERRUPTED_TURN_RESOLVED_MODEL_ID_METADATA_KEY,
 };
 use crate::agentic::skill_agent_snapshot::build_skill_agent_tool_listing_sections_from_snapshot;
-use crate::agentic::tools::implementations::{QtMigrationIntakeTool, SkillTool, TaskTool};
+use crate::agentic::tools::implementations::{SkillTool, TaskTool};
 use crate::agentic::tools::product_runtime::{
     collect_product_loaded_deferred_tool_specs, GetToolSpecTool,
 };
@@ -4064,9 +4064,17 @@ impl ExecutionEngine {
 
         // QtMigration requests are classified before any migration state or
         // instructions are added. Non-migration prompts continue unchanged.
+        // The semantic analyzer is LLM-backed with a deterministic fallback;
+        // results are cached per (session, prompt) so the coordinator and this
+        // engine share one verdict per turn.
         let mut initial_messages = initial_messages;
         if agent_type == "QtMigration" && !original_user_input.trim().is_empty() {
-            let decision = QtMigrationIntakeTool::analyze_request(&original_user_input);
+            let decision =
+                crate::agentic::tools::implementations::qt_migration_semantic_analyzer::analyze_qt_migration_intent(
+                    &context.session_id,
+                    &original_user_input,
+                )
+                .await;
             let is_migration = decision["taskType"].as_str() == Some("app_migration");
             context
                 .context
