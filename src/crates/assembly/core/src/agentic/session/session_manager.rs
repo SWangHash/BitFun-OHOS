@@ -3289,7 +3289,8 @@ impl SessionManager {
     pub fn qt_migration_intake_state(
         &self,
         session_id: &str,
-    ) -> Option<bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot> {
+    ) -> Option<bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot>
+    {
         self.qt_migration_intake_state_store
             .get(session_id)
             .map(|value| value.clone())
@@ -3325,7 +3326,8 @@ impl SessionManager {
 
     fn qt_migration_intake_state_from_metadata(
         metadata: Option<&SessionMetadata>,
-    ) -> Option<bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot> {
+    ) -> Option<bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot>
+    {
         let value = metadata?
             .custom_metadata
             .as_ref()?
@@ -5806,7 +5808,8 @@ impl SessionManager {
             Self::listing_baseline_rebuild_turn_index_from_metadata(session_metadata.as_ref());
         let restored_edit_constraint_state =
             Self::edit_constraint_state_from_metadata(session_metadata.as_ref());
-        let restored_intake_state = Self::qt_migration_intake_state_from_metadata(session_metadata.as_ref());
+        let restored_intake_state =
+            Self::qt_migration_intake_state_from_metadata(session_metadata.as_ref());
         let restored_qt_migration_active =
             Self::qt_migration_active_from_metadata(session_metadata.as_ref());
         debug!(
@@ -9244,6 +9247,123 @@ impl SessionManager {
         Ok(())
     }
 
+    /// Resolve the AI client bound to a session's inherited model identity:
+    /// explicit session model → agent registry default → auto/primary, honoring
+    /// the approved-immutable binding policy. Deliberately does not carry the
+    /// session's reasoning preset.
+    async fn resolve_inherit_session_client(
+        &self,
+        session_id: &str,
+    ) -> BitFunResult<std::sync::Arc<crate::infrastructure::ai::AIClient>> {
+        let ai_client_factory = get_global_ai_client_factory().await.map_err(|e| {
+            BitFunError::AIClient(format!("Failed to get AI client factory: {}", e))
+        })?;
+        let ai_config = Self::load_ai_config_for_model_resolution()
+            .await
+            .ok_or_else(|| BitFunError::AIClient("Failed to load AI configuration".to_string()))?;
+        let session = self
+            .get_session(session_id)
+            .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {session_id}")))?;
+        let explicit_model_id = session
+            .config
+            .model_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|model_id| !model_id.is_empty());
+        let fallback_model_id = if explicit_model_id.is_none() {
+            let workspace = session.config.workspace_path.as_deref().map(Path::new);
+            Some(
+                get_agent_registry()
+                    .get_model_id_for_agent(&session.agent_type, workspace)
+                    .await
+                    .map_err(|error| {
+                        BitFunError::AIClient(format!(
+                            "Failed to resolve session Agent model: {error}"
+                        ))
+                    })?,
+            )
+        } else {
+            None
+        };
+        let configured_model_id = explicit_model_id
+            .or(fallback_model_id.as_deref())
+            .unwrap_or("auto");
+        let selector = if Self::is_auto_model_selector(configured_model_id) {
+            "primary"
+        } else {
+            configured_model_id
+        };
+        let resolved_model_id = ai_config.resolve_model_selection(selector).ok_or_else(|| {
+            BitFunError::AIClient(format!(
+                "Failed to resolve inherited session model: {selector}"
+            ))
+        })?;
+        if matches!(
+            session.config.model_binding_policy,
+            SessionModelBindingPolicy::ApprovedImmutable
+        ) {
+            let fingerprint = session
+                .config
+                .model_binding_fingerprint
+                .as_deref()
+                .ok_or_else(|| {
+                    BitFunError::AIClient(
+                        "Inherited immutable session model has no approved fingerprint".to_string(),
+                    )
+                })?;
+            ai_client_factory
+                .get_client_by_approved_binding(&resolved_model_id, fingerprint)
+                .await
+        } else {
+            ai_client_factory.get_client_by_id(&resolved_model_id).await
+        }
+        .map_err(|e| BitFunError::AIClient(format!("Failed to get AI client: {}", e)))
+    }
+
+    /// Single-shot completion bound to the session's inherited model. Used by
+    /// engine-side semantic helpers (e.g. Qt migration intent analysis); not
+    /// part of the conversation loop.
+    pub async fn session_quick_completion(
+        &self,
+        session_id: &str,
+        system_prompt: &str,
+        user_prompt: &str,
+    ) -> BitFunResult<String> {
+        use crate::util::types::Message;
+        let client = self.resolve_inherit_session_client(session_id).await?;
+        let messages = vec![
+            Message {
+                role: "system".to_string(),
+                content: Some(system_prompt.to_string()),
+                reasoning_content: None,
+                thinking_signature: None,
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+                is_error: None,
+                tool_image_attachments: None,
+                model_response_replay: None,
+            },
+            Message {
+                role: "user".to_string(),
+                content: Some(user_prompt.to_string()),
+                reasoning_content: None,
+                thinking_signature: None,
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+                is_error: None,
+                tool_image_attachments: None,
+                model_response_replay: None,
+            },
+        ];
+        let response = client
+            .send_message(messages, None)
+            .await
+            .map_err(|e| BitFunError::ai(format!("AI call failed: {}", e)))?;
+        Ok(response.text)
+    }
+
     async fn try_generate_session_title_with_ai(
         &self,
         session_id: &str,
@@ -9304,78 +9424,26 @@ impl SessionManager {
 
         // Resolve the task model. Inherit uses the session's resolved model
         // identity but deliberately does not carry its reasoning preset.
-        let ai_client_factory = get_global_ai_client_factory().await.map_err(|e| {
-            BitFunError::AIClient(format!("Failed to get AI client factory: {}", e))
-        })?;
-        let ai_config = Self::load_ai_config_for_model_resolution()
+        let ai_client = match &Self::load_ai_config_for_model_resolution()
             .await
-            .ok_or_else(|| BitFunError::AIClient("Failed to load AI configuration".to_string()))?;
-        let ai_client = match &ai_config.task_models.session_title {
+            .ok_or_else(|| BitFunError::AIClient("Failed to load AI configuration".to_string()))?
+            .task_models
+            .session_title
+        {
             crate::service::config::types::TaskModelSelection::Fixed { model_id } => {
-                ai_client_factory.get_client_resolved(model_id).await
+                get_global_ai_client_factory()
+                    .await
+                    .map_err(|e| {
+                        BitFunError::AIClient(format!("Failed to get AI client factory: {}", e))
+                    })?
+                    .get_client_resolved(model_id)
+                    .await
+                    .map_err(|e| BitFunError::AIClient(format!("Failed to get AI client: {}", e)))?
             }
             crate::service::config::types::TaskModelSelection::Inherit => {
-                let session = self.get_session(session_id).ok_or_else(|| {
-                    BitFunError::NotFound(format!("Session not found: {session_id}"))
-                })?;
-                let explicit_model_id = session
-                    .config
-                    .model_id
-                    .as_deref()
-                    .map(str::trim)
-                    .filter(|model_id| !model_id.is_empty());
-                let fallback_model_id = if explicit_model_id.is_none() {
-                    let workspace = session.config.workspace_path.as_deref().map(Path::new);
-                    Some(
-                        get_agent_registry()
-                            .get_model_id_for_agent(&session.agent_type, workspace)
-                            .await
-                            .map_err(|error| {
-                                BitFunError::AIClient(format!(
-                                    "Failed to resolve session Agent model: {error}"
-                                ))
-                            })?,
-                    )
-                } else {
-                    None
-                };
-                let configured_model_id = explicit_model_id
-                    .or(fallback_model_id.as_deref())
-                    .unwrap_or("auto");
-                let selector = if Self::is_auto_model_selector(configured_model_id) {
-                    "primary"
-                } else {
-                    configured_model_id
-                };
-                let resolved_model_id =
-                    ai_config.resolve_model_selection(selector).ok_or_else(|| {
-                        BitFunError::AIClient(format!(
-                            "Failed to resolve inherited session model: {selector}"
-                        ))
-                    })?;
-                if matches!(
-                    session.config.model_binding_policy,
-                    SessionModelBindingPolicy::ApprovedImmutable
-                ) {
-                    let fingerprint = session
-                        .config
-                        .model_binding_fingerprint
-                        .as_deref()
-                        .ok_or_else(|| {
-                            BitFunError::AIClient(
-                                "Inherited immutable session model has no approved fingerprint"
-                                    .to_string(),
-                            )
-                        })?;
-                    ai_client_factory
-                        .get_client_by_approved_binding(&resolved_model_id, fingerprint)
-                        .await
-                } else {
-                    ai_client_factory.get_client_by_id(&resolved_model_id).await
-                }
+                self.resolve_inherit_session_client(session_id).await?
             }
-        }
-        .map_err(|e| BitFunError::AIClient(format!("Failed to get AI client: {}", e)))?;
+        };
 
         let response = ai_client
             .send_message(messages, None)

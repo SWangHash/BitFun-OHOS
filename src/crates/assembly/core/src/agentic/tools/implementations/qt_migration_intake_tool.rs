@@ -143,7 +143,7 @@ fn has_harmonyos_target(text: &str) -> bool {
             .any(|token| has_word_ci(&text.to_lowercase(), token))
 }
 
-fn has_any_task_signal(text: &str) -> bool {
+pub(crate) fn has_any_task_signal(text: &str) -> bool {
     has_qt_context(text) || has_migration_action(text) || has_harmonyos_target(text)
 }
 
