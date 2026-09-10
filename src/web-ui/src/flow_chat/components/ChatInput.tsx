@@ -1659,7 +1659,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
 
     const frameId = requestAnimationFrame(() => {
-      const selectedItem = containerRef.current?.querySelector(
+      const selectedItem = slashCommandPickerRef.current?.querySelector(
         '.bitfun-chat-input__slash-command-list .bitfun-chat-input__slash-command-item--selected'
       ) as HTMLElement | null;
       selectedItem?.scrollIntoView({ block: 'nearest' });
@@ -1672,6 +1672,30 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     slashCommandState.query,
     slashCommandState.selectedIndex,
   ]);
+
+  useEffect(() => {
+    if (!slashCommandState.isActive) {
+      return;
+    }
+
+    if (!isSceneActive) {
+      setSlashCommandState({ isActive: false, kind: 'modes', query: '', selectedIndex: 0 });
+      return;
+    }
+
+    const handleSlashPickerPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        !slashCommandPickerRef.current?.contains(target) &&
+        !mentionAnchorRef.current?.contains(target)
+      ) {
+        setSlashCommandState({ isActive: false, kind: 'modes', query: '', selectedIndex: 0 });
+      }
+    };
+
+    document.addEventListener('mousedown', handleSlashPickerPointerDown);
+    return () => document.removeEventListener('mousedown', handleSlashPickerPointerDown);
+  }, [isSceneActive, slashCommandState.isActive]);
 
   useEffect(() => {
     const closeInlineSkillPicker = () => {

@@ -1614,8 +1614,6 @@
     border: 1px solid var(--bf-appearance-token-border-subtle);
     border-radius: 6px;
     overflow: hidden;
-    backdrop-filter: blur(20px) saturate(1.2);
-    -webkit-backdrop-filter: blur(20px) saturate(1.2);
     box-shadow:
       0 8px 32px var(--bf-appearance-token-color-overlay-black-50),
       0 0 1px var(--bf-appearance-token-color-overlay-white-12),
