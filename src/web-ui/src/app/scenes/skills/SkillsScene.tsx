@@ -616,6 +616,11 @@ const SkillsScene: React.FC = () => {
                     {market.marketSkills.map((skill) => {
                       const isInstalled = isMarketSkillInstalled(skill);
                       const isDownloading = market.downloadingPackage === skill.installId;
+                      // Mirrors the backend parse_install_id gate: the native
+                      // installer only supports GitHub org/repo@subdir. Non-
+                      // GitHub sources (e.g. modelscope.cn) have no "/" before
+                      // the "@" and cannot be installed.
+                      const installUnsupported = !skill.installId.split('@')[0]?.includes('/');
                       return (
                         <SkillCard
                           key={skill.installId}
@@ -633,14 +638,20 @@ const SkillsScene: React.FC = () => {
                             </span>
                           )}
                           rightAction={{
-                            label: isInstalled ? t('market.item.installed') : t('installSkill'),
+                            label: isInstalled
+                              ? t('market.item.installed')
+                              : installUnsupported
+                                ? t('market.item.unsupported')
+                                : t('installSkill'),
                             icon: isInstalled ? <CheckCircle2 size={13} /> : <Download size={13} />,
                             disabled:
                               isDownloading
                               || !market.hasWorkspace
                               || market.isRemoteWorkspace
                               || market.isAssistantWorkspace
-                              || isInstalled,
+                              || isInstalled
+                              || installUnsupported,
+                            title: installUnsupported ? t('market.item.unsupportedTooltip') : undefined,
                             onClick: () => void market.handleDownload(skill, 'project'),
                           }}
                           onOpenDetails={() => setSelectedDetail({ type: 'market', skill })}
@@ -803,6 +814,10 @@ const SkillsScene: React.FC = () => {
             {selectedMarketSkill && isMarketSkillInstalled(selectedMarketSkill) ? (
               <Button variant="secondary" size="small" disabled>
                 {t('market.item.installed')}
+              </Button>
+            ) : !selectedMarketSkill.installId.split('@')[0]?.includes('/') ? (
+              <Button variant="secondary" size="small" disabled title={t('market.item.unsupportedTooltip')}>
+                {t('market.item.unsupported')}
               </Button>
             ) : (
               <>

@@ -6,6 +6,8 @@ export interface SkillCardAction {
   icon?: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
+  /** Optional native tooltip (title attribute) shown on hover. */
+  title?: string;
 }
 
 interface SkillCardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children'> {
@@ -90,6 +92,7 @@ const SkillCard: React.FC<SkillCardProps> = ({
               rightAction.onClick();
             }}
             disabled={rightAction.disabled}
+            title={rightAction.title}
             aria-label={rightAction.label}
             data-testid="skill-card-action"
             data-bf-component="skill-card"
