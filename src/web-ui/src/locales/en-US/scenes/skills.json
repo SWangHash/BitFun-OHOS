@@ -97,7 +97,9 @@
       "installed": "Installed",
       "installedTooltip": "This skill is already installed",
       "downloading": "Downloading...",
-      "downloadUser": "Download to User"
+      "downloadUser": "Download to User",
+      "unsupported": "Not installable",
+      "unsupportedTooltip": "Only GitHub-hosted skills can be installed. Visit the link to install manually."
     },
     "pagination": {
       "prev": "Previous page",

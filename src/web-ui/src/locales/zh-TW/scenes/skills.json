@@ -97,7 +97,9 @@
       "installed": "已安裝",
       "installedTooltip": "該技能已安裝",
       "downloading": "下載中...",
-      "downloadUser": "下載到使用者"
+      "downloadUser": "下載到使用者",
+      "unsupported": "無法安裝",
+      "unsupportedTooltip": "僅支援安裝 GitHub 託管的技能，可透過連結手動安裝"
     },
     "pagination": {
       "prev": "上一頁",

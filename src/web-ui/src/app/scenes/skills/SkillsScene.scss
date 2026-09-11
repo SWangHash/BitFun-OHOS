@@ -1399,9 +1399,9 @@
     }
 
     &.is-active {
-      background: rgb(var(--bf-appearance-token-color-static-black-rgb));
-      border-color: rgb(var(--bf-appearance-token-color-static-black-rgb));
-      color: var(--bf-appearance-token-color-static-white);
+      color: var(--bf-appearance-token-color-accent-500);
+      background: var(--bf-appearance-token-color-accent-100);
+      border-color: var(--bf-appearance-token-color-accent-300);
     }
 
     &:focus-visible {
@@ -1416,7 +1416,7 @@
       &:hover {
         background: color-mix(in srgb, var(--bf-appearance-token-color-error) 8%, var(--bf-appearance-token-element-bg-subtle));
         border-color: color-mix(in srgb, var(--bf-appearance-token-color-error) 40%, var(--bf-appearance-token-border-subtle));
-        color: color-mix(in srgb, var(--bf-appearance-token-color-error) 72%, var(--bf-appearance-token-color-static-white));
+        color: color-mix(in srgb, var(--bf-appearance-token-color-error) 72%, var(--bf-appearance-token-color-text-primary));
       }
     }
   }

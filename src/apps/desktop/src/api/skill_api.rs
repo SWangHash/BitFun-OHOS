@@ -69,6 +69,23 @@ fn build_market_client(proxy: Option<&ProxyConfig>) -> Result<Client, String> {
         .map_err(|e| format!("Failed to build HTTP client: {}", e))
 }
 
+/// Build the skills.sh website page URL for a skill `id`.
+///
+/// skills.sh serves GitHub-hosted skills (e.g. `anthropics/skills/pdf`) at
+/// `/{id}` (no prefix), and non-GitHub hosted skills (e.g.
+/// `modelscope.cn/minimax-pdf`) at `/site/{id}`. The distinguishing rule is
+/// whether the first path segment contains a dot — GitHub org names don't
+/// (`anthropics`), custom domains do (`modelscope.cn`).
+fn skill_page_url(base_url: &str, id: &str) -> String {
+    let clean_id = id.trim_start_matches('/');
+    let first_segment = clean_id.split('/').next().unwrap_or("");
+    if first_segment.contains('.') {
+        format!("{}/site/{}", base_url, clean_id)
+    } else {
+        format!("{}/{}", base_url, clean_id)
+    }
+}
+
 /// Resolve the proxy URL: BitFun's `ProxyConfig` if enabled, else startup env.
 fn resolve_proxy_url(proxy: Option<&ProxyConfig>) -> Option<String> {
     if let Some(p) = proxy {
@@ -1372,7 +1389,7 @@ async fn fetch_skill_market(
             description: raw.description,
             source,
             installs: raw.installs,
-            url: format!("{}/{}", base_url, raw.id.trim_start_matches('/')),
+            url: skill_page_url(base_url, &raw.id),
             install_id,
         });
     }
@@ -1446,7 +1463,7 @@ async fn fetch_descriptions_for_ids(
 
     for skill_id in missing {
         let client_clone = client.clone();
-        let page_url = format!("{}/{}", base_url, skill_id.trim_start_matches('/'));
+        let page_url = skill_page_url(base_url, &skill_id);
 
         join_set.spawn(async move {
             let description = fetch_description_from_skill_page(&client_clone, &page_url).await;
