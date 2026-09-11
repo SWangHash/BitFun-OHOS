@@ -291,9 +291,7 @@ export function useMatrixSkillMarket({
       log.error('Failed to load Matrix skills', { error: msg, raw: err });
       setSkillsError('matrix.errors.loadFailed');
     } finally {
-      if (requestId === skillsRequestIdRef.current) {
-        setSkillsLoading(false);
-      }
+      setSkillsLoading(false);
     }
   }, [enabled, pageSize, submittedKeyword, activeSection, selectedTagIds, selectedCategoryId, selectedOrgId]);
 
@@ -342,10 +340,8 @@ export function useMatrixSkillMarket({
       log.error('Failed to load more Matrix skills', { error: msg, raw: err });
       setLoadMoreError(true);
     } finally {
-      if (requestId === skillsRequestIdRef.current) {
-        skillsLoadingMoreRef.current = false;
-        setLoadingMore(false);
-      }
+      skillsLoadingMoreRef.current = false;
+      setLoadingMore(false);
     }
   }, [enabled, hasMore, loadMoreError, pageSize, submittedKeyword, activeSection, selectedTagIds, selectedCategoryId, selectedOrgId]);
 
