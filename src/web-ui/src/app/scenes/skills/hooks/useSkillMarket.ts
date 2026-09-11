@@ -104,9 +104,7 @@ export function useSkillMarket({
       log.error('Failed to load skill market', err);
       setMarketError('market.errors.loadFailed');
     } finally {
-      if (requestId === marketRequestIdRef.current && capabilityIsCurrent(capabilityEpoch)) {
-        setMarketLoading(false);
-      }
+      setMarketLoading(false);
     }
   }, [capabilityIsCurrent, currentCapabilityEpoch, fetchSkills, pageSize]);
 
@@ -197,9 +195,7 @@ export function useSkillMarket({
       log.error('Failed to load more skills', err);
       setLoadMoreError(true);
     } finally {
-      if (requestId === marketRequestIdRef.current && capabilityIsCurrent(capabilityEpoch)) {
-        setLoadingMore(false);
-      }
+      setLoadingMore(false);
     }
   }, [capabilityIsCurrent, currentCapabilityEpoch, displayMarketSkills.length, fetchSkills, hasMore, loadingMore, marketLoading, marketSkills, pageSize, searchQuery]);
 
