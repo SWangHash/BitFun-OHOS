@@ -3,6 +3,7 @@ use super::keys::normalize_skill_keys as normalize_skill_key_list;
 use super::resolver::{
     resolve_skill_default_enabled_for_mode, resolve_skill_state_for_mode, UserModeSkillOverrides,
 };
+use super::roots::MATRIX_SKILL_SOURCE_ID;
 use super::types::{ModeSkillInfo, SkillData, SkillInfo, SkillLocation};
 use std::collections::{HashMap, HashSet};
 
@@ -189,7 +190,10 @@ pub fn filter_candidates_for_mode(
 /// Annotate each candidate with shadowing information.
 ///
 /// For every skill with a higher-priority skill of the same name, set the
-/// shadowed fields to point at the winner.
+/// shadowed fields to point at the winner. Exception: candidates involving the
+/// Matrix market root (`source_id == "matrix"`) are never marked — Matrix
+/// installs to its own dedicated directory and coexists with same-name skills
+/// from other roots; the user picks the active one via per-skill toggles.
 pub fn annotate_shadowed_skills(candidates: Vec<SkillCandidate>) -> Vec<SkillInfo> {
     let mut by_name: HashMap<String, SkillCandidate> = HashMap::new();
     for candidate in &candidates {
@@ -207,7 +211,9 @@ pub fn annotate_shadowed_skills(candidates: Vec<SkillCandidate>) -> Vec<SkillInf
         .into_iter()
         .map(|mut candidate| {
             if let Some(winner) = by_name.get(&candidate.info.name) {
-                if winner.info.key != candidate.info.key {
+                let market_coexistence = winner.info.source_id == MATRIX_SKILL_SOURCE_ID
+                    || candidate.info.source_id == MATRIX_SKILL_SOURCE_ID;
+                if !market_coexistence && winner.info.key != candidate.info.key {
                     candidate.info.is_shadowed = true;
                     candidate.info.shadowed_by_key = Some(winner.info.key.clone());
                 }
