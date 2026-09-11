@@ -134,6 +134,12 @@ const SkillsScene: React.FC = () => {
       const user = new Set<string>();
       const project = new Set<string>();
       for (const skill of installed.skills) {
+        // Matrix skills install under .../skills/matrix/, disjoint from the
+        // BitFun skills root shared by skills.sh downloads and manual adds —
+        // same dirName across the two roots is not a real conflict.
+        if (skill.sourceId === 'matrix') {
+          continue;
+        }
         (skill.level === 'user' ? user : project).add(skill.dirName);
       }
       return { user, project };
