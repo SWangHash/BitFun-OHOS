@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ArrowLeft, Circle, Inbox, RefreshCw } from 'lucide-react';
 import { Button } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
@@ -7,6 +7,7 @@ import type {
   FeedbackRecordSummary,
   FeedbackStatus,
 } from '@/infrastructure/api';
+import { FEEDBACK_INBOX_PAGE_SIZE } from '@/infrastructure/api';
 import {
   hasActionableUnreadReply,
   useFeedbackInboxStore,
@@ -17,6 +18,8 @@ interface FeedbackInboxViewProps {
   wide: boolean;
   selectedId: string | null;
   onSelect: (feedbackId: string | null) => void;
+  visibleCount: number;
+  onVisibleCountChange: (count: number) => void;
   replySending: boolean;
   resetDraftVersion: number;
   onReplyStateChange: (state: { hasDraft: boolean; sending: boolean }) => void;
@@ -26,6 +29,8 @@ export const FeedbackInboxView: React.FC<FeedbackInboxViewProps> = ({
   wide,
   selectedId,
   onSelect,
+  visibleCount,
+  onVisibleCountChange,
   replySending,
   resetDraftVersion,
   onReplyStateChange,
@@ -39,9 +44,29 @@ export const FeedbackInboxView: React.FC<FeedbackInboxViewProps> = ({
   const error = useFeedbackInboxStore(state => state.error);
   const refresh = useFeedbackInboxStore(state => state.refresh);
   const loadMore = useFeedbackInboxStore(state => state.loadMore);
+  const mountedRef = useRef(true);
   const selected = records.find(record => record.feedbackId === selectedId) ?? null;
+  const visibleRecords = records.slice(0, visibleCount);
+  const hasHiddenLoadedRecords = visibleRecords.length < records.length;
   const showList = wide || !selected;
   const showDetail = wide || Boolean(selected);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
+
+  const revealMore = async () => {
+    if (hasHiddenLoadedRecords) {
+      onVisibleCountChange(Math.min(
+        visibleCount + FEEDBACK_INBOX_PAGE_SIZE,
+        records.length,
+      ));
+      return;
+    }
+    if (await loadMore() && mountedRef.current) {
+      onVisibleCountChange(visibleCount + FEEDBACK_INBOX_PAGE_SIZE);
+    }
+  };
 
   return (
     <div className={`bitfun-feedback__inbox-layout${wide ? ' is-wide' : ' is-narrow'}`}>
@@ -50,7 +75,7 @@ export const FeedbackInboxView: React.FC<FeedbackInboxViewProps> = ({
           <header className="bitfun-feedback__inbox-header">
             <div>
               <strong>{t('feedback.inbox.title')}</strong>
-              <span>{t('feedback.inbox.count', { count: records.length })}</span>
+              <span>{t('feedback.inbox.count', { count: visibleRecords.length })}</span>
             </div>
             <Button
               type="button"
@@ -82,7 +107,7 @@ export const FeedbackInboxView: React.FC<FeedbackInboxViewProps> = ({
           ) : null}
           {records.length > 0 ? (
             <div className="bitfun-feedback__records" role="list">
-              {records.map(record => (
+              {visibleRecords.map(record => (
                 <button
                   key={record.feedbackId}
                   type="button"
@@ -113,13 +138,13 @@ export const FeedbackInboxView: React.FC<FeedbackInboxViewProps> = ({
                   </span>
                 </button>
               ))}
-              {hasMore ? (
+              {hasHiddenLoadedRecords || hasMore ? (
                 <Button
                   type="button"
                   variant="outline"
                   disabled={loading || loadingMore || replySending}
                   loading={loadingMore}
-                  onClick={() => void loadMore()}
+                  onClick={() => void revealMore()}
                 >
                   {t('feedback.inbox.loadMore')}
                 </Button>

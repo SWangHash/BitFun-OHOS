@@ -20,9 +20,15 @@ import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useSceneStore } from '../../../stores/sceneStore';
 import { activateProductAction } from '@/app/global-search/productActionActivator';
 import { useToolbarModeContext } from '@/flow_chat/components/toolbar-mode/ToolbarModeContext';
+import { systemAPI } from '@/infrastructure/api';
 import { remoteConnectAPI } from '@/infrastructure/api/service-api/RemoteConnectAPI';
 import NotificationButton from '../../TitleBar/NotificationButton';
 import { RemoteConnectDisclaimer } from '../../RemoteConnectDialog/RemoteConnectDisclaimer';
+import { usePrivacy } from '../../Privacy/PrivacyContext';
+import {
+  hasActionableUnreadReply,
+  useFeedbackInboxStore,
+} from '../../FeedbackDialog/feedbackInboxStore';
 import {
   getRemoteConnectDisclaimerAgreed,
   setRemoteConnectDisclaimerAgreed,
@@ -38,11 +44,21 @@ const RemoteConnectDialog = lazy(() => import('../../RemoteConnectDialog'));
 const AboutDialog = lazy(() =>
   import('../../AboutDialog').then(module => ({ default: module.AboutDialog }))
 );
+const FeedbackDialog = lazy(() => import('../../FeedbackDialog'));
 
 const PersistentFooterActions: React.FC = () => {
   const { t } = useI18n('common');
   const activeTabId = useSceneStore((s) => s.activeTabId);
   const { enableToolbarMode } = useToolbarModeContext();
+  const { status: privacyStatus } = usePrivacy();
+  const initializeFeedbackForMode = useFeedbackInboxStore(state => state.initializeForMode);
+  const hasUnreadFeedback = useFeedbackInboxStore(state =>
+    state.records.some(hasActionableUnreadReply),
+  );
+  const hasPrivacyUpdate = Boolean(
+    privacyStatus?.enabled && privacyStatus.hasUnreadUpdate,
+  );
+  const hasMoreMenuAttention = hasUnreadFeedback || hasPrivacyUpdate;
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuClosing, setMenuClosing] = useState(false);
   const [appearanceSubmenuOpen, setAppearanceSubmenuOpen] = useState(false);
@@ -58,9 +74,11 @@ const PersistentFooterActions: React.FC = () => {
     gap: 6,
   });
   const [showAbout, setShowAbout] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [showRemoteConnect, setShowRemoteConnect] = useState(false);
   const [remoteInitialGroup, setRemoteInitialGroup] = useState<'network' | 'bot' | 'account' | undefined>(undefined);
   const [showRemoteDisclaimer, setShowRemoteDisclaimer] = useState(false);
+  const [feedbackPlatformEnabled, setFeedbackPlatformEnabled] = useState<boolean | null>(null);
   const [hasAgreedRemoteDisclaimer, setHasAgreedRemoteDisclaimer] = useState<boolean>(
     () => getRemoteConnectDisclaimerAgreed(),
   );
@@ -79,6 +97,23 @@ const PersistentFooterActions: React.FC = () => {
     }, 60000);
     return () => clearInterval(expiryCheck);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    void systemAPI.getSystemInfo().then(systemInfo => {
+      if (active) setFeedbackPlatformEnabled(systemInfo.platform === 'openharmony');
+    }).catch(() => {
+      if (active) setFeedbackPlatformEnabled(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!feedbackPlatformEnabled || !privacyStatus) return;
+    void initializeFeedbackForMode(privacyStatus.effectiveMode);
+  }, [feedbackPlatformEnabled, initializeFeedbackForMode, privacyStatus]);
 
   const closeMenu = useCallback(() => {
     setAppearanceSubmenuOpen(false);
@@ -121,6 +156,25 @@ const PersistentFooterActions: React.FC = () => {
     closeMenu();
     setShowAbout(true);
   };
+
+  const handleFeedback = useCallback(async () => {
+    closeMenu();
+    if (feedbackPlatformEnabled) {
+      setShowFeedback(true);
+      return;
+    }
+    try {
+      const systemInfo = await systemAPI.getSystemInfo();
+      if (systemInfo.platform === 'openharmony') {
+        setFeedbackPlatformEnabled(true);
+        setShowFeedback(true);
+        return;
+      }
+    } catch {
+      // Web and older desktop hosts retain the external feedback behavior.
+    }
+    await systemAPI.openExternal('https://gitcode.com/BitFun/bitfun_ade/issues');
+  }, [closeMenu, feedbackPlatformEnabled]);
 
   const handleFloatingMode = () => {
     closeMenu();
@@ -185,8 +239,10 @@ const PersistentFooterActions: React.FC = () => {
             >
               <IconButton
                 ref={menuTriggerRef}
-                className={`bitfun-nav-panel__footer-btn bitfun-nav-panel__footer-btn--icon${menuOpen || isSettingsActive ? ' is-active' : ''}`}
-                aria-label={t('shared:features.settings')}
+                className={`bitfun-nav-panel__footer-btn bitfun-nav-panel__footer-btn--icon${menuOpen || isSettingsActive ? ' is-active' : ''}${hasMoreMenuAttention ? ' has-attention' : ''}`}
+                aria-label={hasMoreMenuAttention
+                  ? t('header.moreOptionsAttention')
+                  : t('shared:features.settings')}
                 aria-expanded={menuOpen}
                 aria-haspopup="menu"
                 aria-pressed={isSettingsActive}
@@ -195,7 +251,14 @@ const PersistentFooterActions: React.FC = () => {
                 data-bitfun-component="nav-panel"
                 data-bitfun-part="settingsEntry"
                 data-bitfun-state={menuOpen ? 'open' : isSettingsActive ? 'active' : undefined}
-                icon={<Icon name="gear" size="sm" aria-hidden="true" />}
+                icon={(
+                  <span className="bitfun-nav-panel__footer-settings-icon">
+                    <Icon name="gear" size="sm" aria-hidden="true" />
+                    {hasMoreMenuAttention ? (
+                      <span className="bitfun-nav-panel__footer-more-unread" />
+                    ) : null}
+                  </span>
+                )}
                 size="sm"
                 variant="quiet"
               />
@@ -244,6 +307,19 @@ const PersistentFooterActions: React.FC = () => {
                   />
                   <MenuSeparator />
                   <MenuItem
+                    leading={<Icon name="waitlist-message" size="sm" aria-hidden="true" />}
+                    metadata={hasUnreadFeedback ? (
+                      <span className="bitfun-nav-panel__footer-menu-unread" aria-hidden="true" />
+                    ) : undefined}
+                    onClick={() => void handleFeedback()}
+                    aria-label={hasUnreadFeedback
+                      ? t('feedback.inbox.entryUnread')
+                      : t('header.feedback')}
+                    data-testid="nav-footer-feedback-item"
+                  >
+                    {t('header.feedback')}
+                  </MenuItem>
+                  <MenuItem
                     leading={<Icon name="gear" size="sm" aria-hidden="true" />}
                     onClick={handleOpenSettings}
                     data-testid="nav-settings-open-item"
@@ -253,6 +329,10 @@ const PersistentFooterActions: React.FC = () => {
                   <MenuItem
                     leading={<Icon name="info" size="sm" aria-hidden="true" />}
                     onClick={handleShowAbout}
+                    metadata={hasPrivacyUpdate ? t('privacy.updated') : undefined}
+                    aria-label={hasPrivacyUpdate
+                      ? t('privacy.aboutEntryUpdated')
+                      : t('nav.settingsMenu.about')}
                     data-testid="nav-settings-about-item"
                   >
                     {t('nav.settingsMenu.about')}
@@ -267,6 +347,11 @@ const PersistentFooterActions: React.FC = () => {
       <RetainedMountBoundary present={showAbout}>
         <Suspense fallback={null}>
           <AboutDialog isOpen={showAbout} onClose={() => setShowAbout(false)} />
+        </Suspense>
+      </RetainedMountBoundary>
+      <RetainedMountBoundary present={showFeedback}>
+        <Suspense fallback={null}>
+          <FeedbackDialog isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
         </Suspense>
       </RetainedMountBoundary>
       <RetainedMountBoundary present={showRemoteConnect}>

@@ -2,6 +2,7 @@ import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { api } from './ApiClient';
 
 export const FEEDBACK_CONTENT_MAX_CHARS = 2_000;
+export const FEEDBACK_INBOX_PAGE_SIZE = 20;
 
 export type FeedbackCategory = 'runtime_error' | 'feature_request' | 'usage_question' | 'other';
 export type FeedbackStatus = 'submitted' | 'in_progress' | 'waiting_user' | 'resolved';
@@ -112,7 +113,7 @@ export class FeedbackAPI {
   ): Promise<FeedbackInboxPage> {
     return this.invoke<FeedbackInboxPage>('list_feedback', {
       cursor: input.cursor,
-      pageSize: input.pageSize ?? 20,
+      pageSize: input.pageSize ?? FEEDBACK_INBOX_PAGE_SIZE,
       userInitiated: options.userInitiated,
     });
   }

@@ -26,6 +26,20 @@ describe('OpenHarmony feedback submission contract', () => {
     expect(inbox).toContain('hasActionableUnreadReply(record)');
   });
 
+  it('resets the feedback Inbox display window when the dialog closes', () => {
+    const dialog = readSource('./FeedbackDialog.tsx');
+    const inbox = readSource('./FeedbackInboxView.tsx');
+    const reset = dialog.slice(
+      dialog.indexOf('const reset = useCallback'),
+      dialog.indexOf('const closeImmediately'),
+    );
+
+    expect(dialog).toContain('useState(FEEDBACK_INBOX_PAGE_SIZE)');
+    expect(reset).toContain('setInboxVisibleCount(FEEDBACK_INBOX_PAGE_SIZE)');
+    expect(inbox).toContain('records.slice(0, visibleCount)');
+    expect(inbox).toContain('hasHiddenLoadedRecords || hasMore');
+  });
+
   it('requires total consent before a feedback request in not-accepted mode', () => {
     const dialog = readSource('./FeedbackDialog.tsx');
     const preparePosition = dialog.indexOf('await feedbackAPI.prepareSubmission({');

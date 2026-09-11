@@ -134,7 +134,9 @@ describe('unified project session creation', () => {
     const aboutIndex = footerActions.indexOf('data-testid="nav-settings-about-item"');
 
     expect(footerActions).toContain('data-testid="nav-footer-settings-item"');
-    expect(footerActions).toContain('icon={<Icon name="gear" size="sm" aria-hidden="true" />}');
+    expect(footerActions).toContain('className="bitfun-nav-panel__footer-settings-icon"');
+    expect(footerActions).toContain('<Icon name="gear" size="sm" aria-hidden="true" />');
+    expect(footerActions).toContain('bitfun-nav-panel__footer-more-unread');
     expect(footerActions).toMatch(
       /leading=\{<Icon name="gear" size="sm" aria-hidden="true" \/>\}[\s\S]*?data-testid="nav-settings-open-item"/,
     );
