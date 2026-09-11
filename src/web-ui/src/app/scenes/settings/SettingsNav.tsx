@@ -80,6 +80,7 @@ function buildSettingsSearchIndex(
   for (const cat of SETTINGS_CATEGORIES) {
     const categoryLabel = translateString(t, cat.nameKey, cat.id);
     for (const tabDef of cat.tabs) {
+      if (tabDef.hidden) continue;
       const tabLabel = translateString(t, tabDef.labelKey, tabDef.id);
       const description = tabDef.descriptionKey
         ? translateString(t, tabDef.descriptionKey, '')
@@ -414,7 +415,7 @@ const SettingsNav: React.FC = () => {
               </div>
 
               <div data-bf-component="settings-nav" data-bf-part="items" className="bitfun-settings-nav__items">
-                {category.tabs.map((tabDef) => (
+                {category.tabs.filter((tabDef) => !tabDef.hidden).map((tabDef) => (
                   <button
                     data-bf-component="settings-nav"
                     data-bf-part="item"

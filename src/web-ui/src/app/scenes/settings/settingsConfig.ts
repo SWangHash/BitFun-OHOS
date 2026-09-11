@@ -39,6 +39,8 @@ export interface ConfigTabDef {
   keywords?: string[];
   /** Show a Beta pill next to the tab label in the settings nav. */
   beta?: boolean;
+  /** Hide the tab from the settings nav and settings search. */
+  hidden?: boolean;
 }
 
 export interface ConfigCategoryDef {
@@ -264,6 +266,7 @@ export const SETTINGS_CATEGORIES: ConfigCategoryDef[] = [
         id: 'external-sources',
         labelKey: 'configCenter.tabs.externalSources',
         descriptionKey: 'configCenter.tabDescriptions.externalSources',
+        hidden: true,
         beta: true,
         keywords: [
           'external ai applications',

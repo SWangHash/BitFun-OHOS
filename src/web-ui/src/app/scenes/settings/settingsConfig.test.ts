@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeSettingsTarget, SETTINGS_CATEGORIES } from './settingsConfig';
-import { SETTINGS_TAB_SEARCH_CONTENT } from './settingsTabSearchContent';
 
 function hasVoiceInputTab(): boolean {
   return SETTINGS_CATEGORIES.some(category =>
@@ -33,17 +32,11 @@ describe('settings deep-link targets', () => {
     });
   });
 
-  it('keeps Hook management discoverable through the owning settings entry', () => {
+  it('keeps the external AI applications entry hidden from settings nav and search', () => {
     const externalSources = SETTINGS_CATEGORIES
       .flatMap((category) => category.tabs)
       .find((tab) => tab.id === 'external-sources');
 
-    expect(externalSources?.keywords).toEqual(expect.arrayContaining(['hook', 'hooks']));
-    expect(SETTINGS_TAB_SEARCH_CONTENT['external-sources']).toEqual(
-      expect.arrayContaining([
-        { ns: 'settings/hooks', key: 'title' },
-        { ns: 'settings/hooks', key: 'activation.title' },
-      ]),
-    );
+    expect(externalSources?.hidden).toBe(true);
   });
 });
