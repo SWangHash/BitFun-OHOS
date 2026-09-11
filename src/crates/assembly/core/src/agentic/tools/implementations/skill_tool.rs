@@ -988,7 +988,7 @@ Use the remote project skill.
         );
         let context = crate::agentic::tools::framework::ToolUseContext {
             tool_call_id: None,
-            agent_type: Some("agentic".to_string()),
+            agent_type: Some("Standard".to_string()),
             session_id: None,
             dialog_turn_id: None,
             workspace: Some(workspace),

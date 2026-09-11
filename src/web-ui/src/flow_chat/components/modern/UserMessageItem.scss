@@ -233,10 +233,6 @@
     box-shadow: none;
   }
 
-  &:active:not(:disabled) {
-    transform: scale(0.97);
-  }
-
   &:focus-visible {
     outline: 2px solid color-mix(in srgb, var(--openbitfun-color-accent-hover) 40%, transparent);
     outline-offset: 1px;
@@ -381,10 +377,6 @@
 
   &:hover {
     background: color-mix(in srgb, var(--openbitfun-color-content-on-dark) 30%, transparent);
-  }
-
-  &:active {
-    transform: scale(0.97);
   }
 
   &:focus-visible {

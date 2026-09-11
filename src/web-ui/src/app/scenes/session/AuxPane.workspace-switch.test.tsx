@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
     closeAllTabs: vi.fn(),
     primaryGroup: { tabs: [] },
     secondaryGroup: { tabs: [] },
+    tertiaryGroup: { tabs: [] },
   },
 }));
 
@@ -61,6 +62,11 @@ vi.mock('@/shared/utils/logger', () => ({
 }));
 
 import AuxPane from './AuxPane';
+
+vi.mock('./sessionPanelLayout', () => ({
+  expandSessionAuxPane: vi.fn(),
+  collapseSessionAuxPane: vi.fn(),
+}));
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 

@@ -1,28 +1,28 @@
-//! Creative Mode
+//! Creative Harness
 //!
 //! Owns product-creation capabilities that intentionally do not appear in the
 //! default tool manifests of general coding, office, or assistant modes.
 
 use crate::agentic::agents::{
-    shared_coding_mode_tool_exposure_overrides, shared_coding_mode_tools,
-    shared_coding_mode_user_context_policy, Agent, AgentToolPolicyOverrides, UserContextPolicy,
+    standard_harness_tool_exposure_overrides, standard_harness_tools,
+    standard_harness_user_context_policy, Agent, AgentToolPolicyOverrides, UserContextPolicy,
 };
 use async_trait::async_trait;
 
-pub struct CreativeMode {
+pub struct CreativeHarness {
     default_tools: Vec<String>,
     tool_exposure_overrides: AgentToolPolicyOverrides,
 }
 
-impl Default for CreativeMode {
+impl Default for CreativeHarness {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl CreativeMode {
+impl CreativeHarness {
     pub fn new() -> Self {
-        let mut default_tools = shared_coding_mode_tools();
+        let mut default_tools = standard_harness_tools();
         default_tools.extend(
             [
                 "InitMiniApp",
@@ -35,13 +35,13 @@ impl CreativeMode {
         );
         Self {
             default_tools,
-            tool_exposure_overrides: shared_coding_mode_tool_exposure_overrides(),
+            tool_exposure_overrides: standard_harness_tool_exposure_overrides(),
         }
     }
 }
 
 #[async_trait]
-impl Agent for CreativeMode {
+impl Agent for CreativeHarness {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -55,7 +55,7 @@ impl Agent for CreativeMode {
     }
 
     fn description(&self) -> &str {
-        "Creation mode for building MiniApps and safely customizing the running OpenBitFun frontend"
+        "Creative Harness for building MiniApps and customizing the OpenBitFun interface"
     }
 
     fn prompt_template_name(&self, _model_name: Option<&str>) -> &str {
@@ -71,7 +71,7 @@ impl Agent for CreativeMode {
     }
 
     fn user_context_policy(&self) -> UserContextPolicy {
-        shared_coding_mode_user_context_policy()
+        standard_harness_user_context_policy()
     }
 
     fn is_readonly(&self) -> bool {
@@ -81,12 +81,12 @@ impl Agent for CreativeMode {
 
 #[cfg(test)]
 mod tests {
-    use super::CreativeMode;
+    use super::CreativeHarness;
     use crate::agentic::agents::Agent;
 
     #[test]
     fn creative_mode_owns_product_creation_tools() {
-        let tools = CreativeMode::new().default_tools();
+        let tools = CreativeHarness::new().default_tools();
         for tool in [
             "InitMiniApp",
             "FinalizeMiniApp",
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn creative_prompt_has_its_own_persistent_cache_identity() {
-        let mode = CreativeMode::new();
+        let mode = CreativeHarness::new();
         assert_eq!(mode.prompt_template_name(None), "creative_mode");
         let prompt = crate::agentic::agents::get_embedded_prompt("creative_mode").unwrap();
         assert!(prompt.contains("OpenBitFunControl"));

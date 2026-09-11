@@ -471,7 +471,7 @@
   },
   "message": {
     "user": "User",
-    "assistant": "Assistant",
+    "assistant": "$t(shared:agents.Claw)",
     "system": "System",
     "thinking": "Thinking...",
     "generating": "Generating...",
@@ -534,11 +534,6 @@
     "promptSection": "Section: {{section}}.",
     "promptFile": "Related file: {{file}}{{line}}."
   },
-  "modelConfigurationNotice": {
-    "title": "No AI model available",
-    "description": "Configure and enable a model before starting a conversation.",
-    "action": "Model settings"
-  },
   "input": {
     "placeholder": "How can I help you...",
     "placeholderWithContext": "Type a message, or drag and drop files to add context...",
@@ -552,8 +547,6 @@
     "cancelShortcut": "Cancel",
     "clear": "Clear",
     "attach": "Attach File",
-    "nativeDropRemoteUnsupported": "Local files cannot be attached directly to a remote workspace. Upload them through the Files panel first.",
-    "nativeDropFailed": "The dropped files could not be attached.",
     "collapseInput": "Collapse input",
     "expandInput": "Expand input",
     "retry": "Retry",
@@ -590,7 +583,6 @@
     "voiceInput": {
       "start": "Start voice input",
       "stop": "Stop recording",
-      "recording": "Recording, click the microphone to stop",
       "preparing": "Preparing microphone",
       "transcribing": "Transcribing",
       "disabled": "Voice input is disabled",
@@ -611,8 +603,11 @@
       "failed": "Voice input failed",
       "empty": "No speech was recognized",
       "transcribeOnly": "Insert transcription",
-      "transcribeAndSend": "Transcribe and send"
-    }
+      "transcribeAndSend": "Transcribe and send",
+      "recording": "Recording, click the microphone to stop"
+    },
+    "nativeDropRemoteUnsupported": "Local files cannot be attached directly to a remote workspace. Upload them through the Files panel first.",
+    "nativeDropFailed": "The dropped files could not be attached."
   },
   "workspaceStrip": {
     "branchSwitchLabel": "Switch branch. Current branch: {{branch}}",
@@ -638,7 +633,7 @@
   "agent": {
     "title": "Agent",
     "select": "Select Agent",
-    "default": "Default Assistant",
+    "default": "$t(shared:agents.default)",
     "coding": "Coding Assistant",
     "review": "Review",
     "architect": "Architect",
@@ -734,7 +729,6 @@
     "harness": {
       "selectorTooltip": "Current execution: {{name}}",
       "fixedTooltip": "This session uses {{name}} and is now fixed.",
-      "activateBalanced": "Switch to Standard Harness",
       "compatibilityShort": "Legacy",
       "comingSoon": "In development",
       "comingSoonNotice": "The {{name}} Harness execution framework is in development.",
@@ -757,12 +751,23 @@
       "unavailable": "Unavailable",
       "agentUnavailable": "{{name}} is not available with the current Host or settings.",
       "profiles": {
-        "minimal": { "name": "Minimal" },
-        "balanced": { "name": "Standard" },
-        "ultimate": { "name": "Ultimate" },
-        "creative": { "name": "Creative" },
-        "other": { "name": "Agents" }
-      }
+        "other": {
+          "name": "Agents"
+        },
+        "Minimal": {
+          "name": "$t(shared:agents.Minimal)"
+        },
+        "Standard": {
+          "name": "$t(shared:agents.Standard)"
+        },
+        "Ultimate": {
+          "name": "$t(shared:agents.Ultimate)"
+        },
+        "Creative": {
+          "name": "$t(shared:agents.Creative)"
+        }
+      },
+      "activateStandard": "Switch to Standard Harness"
     },
     "agents": {
       "available": "Available",
@@ -770,9 +775,15 @@
       "comingSoon": "In development",
       "comingSoonNotice": "Direct {{name}} Agent invocation is in development.",
       "reviewUnavailable": "Review Agent needs an active session with reviewable changes.",
-      "review": { "name": "Review" },
-      "cowork": { "name": "Cowork" },
-      "computerUse": { "name": "Computer Use" }
+      "review": {
+        "name": "Review"
+      },
+      "cowork": {
+        "name": "$t(shared:agents.Cowork)"
+      },
+      "computerUse": {
+        "name": "$t(shared:agents.ComputerUse)"
+      }
     },
     "addBoostTooltip": "Directives, context, images, or skills",
     "modeChangeFailed": "Failed to change the agent mode. Try again.",
@@ -847,7 +858,6 @@
     "boostSkillsEmpty": "No enabled skills",
     "openSkillsLibrary": "Manage skills…",
     "insertSkillLine": "Please use the Skill tool with command \"{{name}}\".",
-    "resetToAgentic": "Remove selected Agent",
     "defaultModeSetTooltip": "Use {{mode}} as the default mode for new chats",
     "defaultModeUnsetTooltip": "Default mode override is active. Click to clear it.",
     "defaultModeSet": "{{mode}} is now the default mode for new chats.",
@@ -935,22 +945,24 @@
     "sendingToMain": "Main session: {{title}}",
     "sendingToBtw": "Side session: {{title}}",
     "modeDescriptions": {
-      "agentic": "Full-featured AI assistant with access to all tools for comprehensive software development tasks",
       "Claw": "Personal assistant mode for dedicated assistant workspaces and everyday task support",
       "Cowork": "Collaborative mode: clarify first, track progress lightly, verify outcomes anytime",
       "ComputerUse": "Dedicated desktop automation agent for perceiving and operating apps, browsers, and OS UI",
       "DeepResearch": "Deep research with parallel sub-agents: dispatches multiple agents to investigate concurrently, producing comprehensive sourced reports",
-      "Ultra": "Swarm planning mode for complex work; it can issue many concurrent model requests, increasing API cost and provider rate-limit pressure"
+      "Standard": "Full-featured AI assistant with access to all tools for comprehensive software development tasks",
+      "Ultimate": "Swarm planning mode for complex work; it can issue many concurrent model requests, increasing API cost and provider rate-limit pressure"
     },
     "modeNames": {
-      "agentic": "Agentic",
-      "Claw": "Claw",
-      "Cowork": "Cowork",
-      "ComputerUse": "Computer Use",
-      "DeepResearch": "Deep Research",
+      "Claw": "$t(shared:agents.Claw)",
+      "Cowork": "$t(shared:agents.Cowork)",
+      "ComputerUse": "$t(shared:agents.ComputerUse)",
+      "DeepResearch": "$t(shared:agents.DeepResearch)",
       "Team": "Team",
       "QtMigration": "QT Migration Expert",
-      "Ultra": "Ultra"
+      "Standard": "$t(shared:agents.Standard)",
+      "Ultimate": "$t(shared:agents.Ultimate)",
+      "Minimal": "$t(shared:agents.Minimal)",
+      "Creative": "$t(shared:agents.Creative)"
     },
     "openFolder": "Open folder…",
     "selectWorkspaceTitle": "Select workspace directory",
@@ -1519,25 +1531,11 @@
     "generateFailed": "Failed to generate image",
     "fileNamePrefix": "OpenBitFun-Chat",
     "exportSuccess": "Image exported: {{filePath}}",
-    "exportDownloaded": "Image downloaded",
     "exportSuccessPrefix": "Image exported: ",
     "exportFailed": "Export failed, please try again",
     "exporting": "Exporting...",
-    "exportToImage": "Export as Image"
-  },
-  "fileShare": {
-    "button": "Share to nearby",
-    "discover": "Share via system panel",
-    "knock": "Tap two devices to share",
-    "pendingKnock": "Tap your device against another to share",
-    "dismissed": "Share panel closed",
-    "failed": "Share failed",
-    "unsupported": "Sharing to nearby devices is not supported on this runtime"
-  },
-  "sessionShare": {
-    "button": "Session files",
-    "title": "Files written this session",
-    "footerHint": "Files the agent wrote or edited in this session"
+    "exportToImage": "Export as Image",
+    "exportDownloaded": "Image downloaded"
   },
   "turnFailure": {
     "showDetails": "Show technical details",
@@ -1880,13 +1878,6 @@
       "submitting": "Submitting...",
       "submitFailed": "Could not submit the answer. Check the connection and try again.",
       "unsupportedOnPeer": "This device's OpenBitFun version cannot answer the question. Update OpenBitFun on that device.",
-      "submitPathNotFound": "The {{field}} path does not exist: {{path}}",
-      "fieldName": {
-        "source_project": "Source project",
-        "output_project": "Output project",
-        "toolchain": "Migration toolchain",
-        "template": "Project template"
-      },
       "waitingAnswer": "Waiting for answer",
       "questionsCount": "{{count}} questions",
       "answerAllBeforeSubmit": "Please answer all questions before submitting",
@@ -1899,6 +1890,13 @@
       "other": "Other",
       "customInputHint": "Provide custom text input",
       "pleaseSpecify": "Please specify...",
+      "submitPathNotFound": "The {{field}} path does not exist: {{path}}",
+      "fieldName": {
+        "source_project": "Source project",
+        "output_project": "Output project",
+        "toolchain": "Migration toolchain",
+        "template": "Project template"
+      },
       "browsePath": "Pick a path from the file manager",
       "qtMigration": {
         "pathsIntro": "The prompt does not specify migration paths. Please confirm the four required path settings first.",
@@ -2040,7 +2038,7 @@
       "executing": "Executing...",
       "subAgentFailed": "Sub-agent task execution failed",
       "subAgentTaskFailed": "Sub-agent task failed",
-      "failed": "Failed",
+      "failed": "$t(shared:statuses.failed)",
       "confirmDelegate": "Confirm Delegate",
       "cancel": "Cancel",
       "task": "Task",
@@ -2073,9 +2071,9 @@
       "waitingForModelResponse": "Waiting for model response...",
       "status": {
         "pending": "Pending",
-        "running": "Running",
+        "running": "$t(shared:statuses.running)",
         "completed": "Completed",
-        "failed": "Failed"
+        "failed": "$t(shared:statuses.failed)"
       },
       "loadingMore": "Loading more output...",
       "loading": "Loading task details...",
@@ -2263,10 +2261,10 @@
       "pending": "Pending",
       "paramsReceiving": "Receiving params",
       "preparing": "Preparing",
-      "running": "Running",
+      "running": "$t(shared:statuses.running)",
       "completed": "Completed",
-      "error": "Failed",
-      "cancelled": "Cancelled"
+      "error": "$t(shared:statuses.failed)",
+      "cancelled": "$t(shared:statuses.cancelled)"
     },
     "toolbar": {
       "executing": "Executing...",
@@ -2465,7 +2463,7 @@
         "editorTitle": "Review Report"
       },
       "reviewModes": {
-        "standard": "Standard",
+        "standard": "$t(shared:agents.Standard)",
         "deep": "Strict"
       },
       "remediationActions": {
@@ -2512,14 +2510,9 @@
   },
   "welcome": {
     "greetingMorning": "Good morning",
-    "subtitleMorning": "A new day, new possibilities. Let's create something together",
     "greetingAfternoon": "Good afternoon",
-    "subtitleAfternoon": "A new day, new possibilities. Let's create something together",
     "greetingEvening": "Good evening",
-    "subtitleEvening": "Quiet nights are perfect for immersive coding",
     "greetingNight": "Late night",
-    "subtitleNight": "Inspiration never sleeps. Let's keep going",
-    "aiPartner": "Coding partner",
     "subtitleMorningCowork": "Morning clarity is the best. Let's shape your ideas and tasks for today",
     "subtitleAfternoonCowork": "Afternoon check-in — anything to push forward or organize?",
     "subtitleEveningCowork": "Wrap up, reflect, or set the stage for tomorrow — all good here",
@@ -2567,7 +2560,11 @@
     "commaSeparator": ", ",
     "period": ".",
     "project": "working.",
-    "projectCowork": "working in the project."
+    "projectCowork": "working in the project.",
+    "openingMorning": "Good morning. The day starts with you.",
+    "openingAfternoon": "Good afternoon. Let's make today a little more interesting.",
+    "openingEvening": "Good evening. Set your own pace.",
+    "openingNight": "It's late. Take your time with your thoughts."
   },
   "modelSelector": {
     "model": "Model",
@@ -2605,13 +2602,13 @@
       "compressionTrigger": "Compression trigger",
       "longContextWarning": "This model's configured context window exceeds 400K. Very long context can reduce model quality; consider setting it to around 300K."
     },
-    "openSettings": "Model settings",
     "contextUsage": {
       "agentPrompt": "Last request prompt: {{usage}}",
       "agentPromptLabel": "Last request prompt",
       "acpContext": "ACP reported context: {{usage}}",
       "acpContextLabel": "ACP reported context"
-    }
+    },
+    "openSettings": "Model settings"
   },
   "reasoningEffort": {
     "title": "Reasoning Effort",
@@ -2778,5 +2775,24 @@
     "placeholder": "Send a request to {{app}}…",
     "send": "Send",
     "hint": "Messages are handled by {{app}}"
+  },
+  "modelConfigurationNotice": {
+    "title": "No AI model available",
+    "description": "Configure and enable a model before starting a conversation.",
+    "action": "Model settings"
+  },
+  "fileShare": {
+    "button": "Share to nearby",
+    "discover": "Share via system panel",
+    "knock": "Tap two devices to share",
+    "pendingKnock": "Tap your device against another to share",
+    "dismissed": "Share panel closed",
+    "failed": "Share failed",
+    "unsupported": "Sharing to nearby devices is not supported on this runtime"
+  },
+  "sessionShare": {
+    "button": "Session files",
+    "title": "Files written this session",
+    "footerHint": "Files the agent wrote or edited in this session"
   }
 }

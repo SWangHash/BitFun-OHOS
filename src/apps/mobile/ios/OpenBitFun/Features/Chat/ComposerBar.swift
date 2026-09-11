@@ -40,12 +40,11 @@ struct ComposerBar: View {
 
     private var canSend: Bool {
         hasContent && !model.busy && !model.isSending &&
-            (model.surface == .local || model.connectionPhase != .disconnected)
+            model.connectionPhase != .disconnected
     }
 
     private var primaryActionKind: ComposerPrimaryAction {
         if speech.isListening { return .stopListening }
-        if model.isSending, model.surface == .local { return .stopTurn }
         if hasContent { return canSend ? .send : .sendBlocked }
         if model.isSending { return .stopTurn }
         return model.busy ? .voiceBlocked : .voice
@@ -231,7 +230,6 @@ struct ComposerBar: View {
             .onSubmit {
                 if canSend { model.send() }
             }
-            .onChange(of: model.draft) { _ in model.syncDraftToCore() }
             if showsSupplementalVoice, !expanded {
                 supplementalVoiceAction
             }
@@ -509,22 +507,24 @@ struct ComposerBar: View {
                 model.draft = [existing, transcript]
                     .filter { !$0.isEmpty }
                     .joined(separator: existing.isEmpty ? "" : " ")
-                model.syncDraftToCore()
             },
             onFailure: { message in model.showToast(model.localized(message)) }
         )
     }
 
     private func importPickedImages(_ items: [PhotosPickerItem]) async {
+        let sessionID = model.selectedSessionID
+        let deviceKey = model.remoteExpectedDeviceKey
         for item in items {
-            guard let data = try? await item.loadTransferable(type: Data.self) else {
+            guard let data = try? await item.loadTransferable(type: Data.self),
+                  let prepared = await Task.detached(priority: .userInitiated, operation: {
+                      MobileAppModel.prepareComposerImage(data)
+                  }).value else {
                 model.showToast(model.localized("无法读取所选图片"))
                 continue
             }
-            let mimeType = item.supportedContentTypes
-                .compactMap(\.preferredMIMEType)
-                .first ?? "image/jpeg"
-            model.addComposerImage(data: data, mimeType: mimeType)
+            guard model.selectedSessionID == sessionID, model.remoteExpectedDeviceKey == deviceKey else { break }
+            model.addComposerImage(data: prepared, mimeType: "image/jpeg")
         }
         pickerItems = []
     }

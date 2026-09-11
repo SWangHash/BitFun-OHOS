@@ -4,14 +4,14 @@ use super::types::PrintOptions;
 use crate::server::response::WebDriverErrorResponse;
 
 pub async fn take_screenshot<R: Runtime>(
-    webview: Webview<R>,
+    webview: &Webview<R>,
     timeout_ms: u64,
 ) -> Result<String, WebDriverErrorResponse> {
     imp::take_screenshot(webview, timeout_ms).await
 }
 
 pub async fn print_page<R: Runtime>(
-    webview: Webview<R>,
+    webview: &Webview<R>,
     timeout_ms: u64,
     options: &PrintOptions,
 ) -> Result<String, WebDriverErrorResponse> {
@@ -37,7 +37,7 @@ mod imp {
     use tokio::sync::oneshot;
 
     pub(super) async fn take_screenshot<R: Runtime>(
-        webview: Webview<R>,
+        webview: &Webview<R>,
         timeout_ms: u64,
     ) -> Result<String, WebDriverErrorResponse> {
         let (tx, rx) = oneshot::channel();
@@ -82,7 +82,7 @@ mod imp {
     }
 
     pub(super) async fn print_page<R: Runtime>(
-        webview: Webview<R>,
+        webview: &Webview<R>,
         timeout_ms: u64,
         options: &PrintOptions,
     ) -> Result<String, WebDriverErrorResponse> {
@@ -231,7 +231,7 @@ mod imp {
     type PrintSender = Arc<std::sync::Mutex<Option<oneshot::Sender<Result<(), String>>>>>;
 
     pub(super) async fn take_screenshot<R: Runtime>(
-        webview: Webview<R>,
+        webview: &Webview<R>,
         timeout_ms: u64,
     ) -> Result<String, WebDriverErrorResponse> {
         let (tx, rx) = oneshot::channel();
@@ -284,7 +284,7 @@ mod imp {
     }
 
     pub(super) async fn print_page<R: Runtime>(
-        webview: Webview<R>,
+        webview: &Webview<R>,
         timeout_ms: u64,
         options: &PrintOptions,
     ) -> Result<String, WebDriverErrorResponse> {
@@ -575,7 +575,7 @@ mod imp {
     use super::*;
 
     pub(super) async fn take_screenshot<R: Runtime>(
-        _webview: Webview<R>,
+        _webview: &Webview<R>,
         _timeout_ms: u64,
     ) -> Result<String, WebDriverErrorResponse> {
         Err(WebDriverErrorResponse::unsupported_operation(
@@ -584,7 +584,7 @@ mod imp {
     }
 
     pub(super) async fn print_page<R: Runtime>(
-        _webview: Webview<R>,
+        _webview: &Webview<R>,
         _timeout_ms: u64,
         _options: &PrintOptions,
     ) -> Result<String, WebDriverErrorResponse> {
@@ -599,7 +599,7 @@ mod imp {
     use super::*;
 
     pub(super) async fn take_screenshot<R: Runtime>(
-        _webview: Webview<R>,
+        _webview: &Webview<R>,
         _timeout_ms: u64,
     ) -> Result<String, WebDriverErrorResponse> {
         Err(WebDriverErrorResponse::unsupported_operation(
@@ -608,7 +608,7 @@ mod imp {
     }
 
     pub(super) async fn print_page<R: Runtime>(
-        _webview: Webview<R>,
+        _webview: &Webview<R>,
         _timeout_ms: u64,
         _options: &PrintOptions,
     ) -> Result<String, WebDriverErrorResponse> {
@@ -623,7 +623,7 @@ mod imp {
     use super::*;
 
     pub(super) async fn take_screenshot<R: Runtime>(
-        _webview: Webview<R>,
+        _webview: &Webview<R>,
         _timeout_ms: u64,
     ) -> Result<String, WebDriverErrorResponse> {
         Err(WebDriverErrorResponse::unknown_error(
@@ -632,7 +632,7 @@ mod imp {
     }
 
     pub(super) async fn print_page<R: Runtime>(
-        _webview: Webview<R>,
+        _webview: &Webview<R>,
         _timeout_ms: u64,
         _options: &PrintOptions,
     ) -> Result<String, WebDriverErrorResponse> {

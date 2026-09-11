@@ -6,59 +6,6 @@ import MarkdownEditor, {
   shouldUseLargeMarkdownSourceMode,
 } from './MarkdownEditor';
 
-function Icon({ name }: { name: string }) {
-  return <svg data-icon={name} />;
-}
-
-vi.mock('lucide-react', () => ({
-  AlertCircle: () => <Icon name="alert-circle" />,
-  Check: () => <Icon name="check" />,
-  Copy: () => <Icon name="copy" />,
-}));
-
-vi.mock('@openbitfun/ui', () => ({
-  Icon: ({ name, ...props }: { name: string } & React.HTMLAttributes<HTMLSpanElement>) => <span data-icon={name} {...props} />,
-  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button type="button" {...props}>{children}</button>
-  ),
-  IconButton: ({
-    icon,
-    size: _size,
-    ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-    icon: React.ReactNode;
-    size?: string;
-  }) => (
-    <button type="button" data-component="icon-button" {...props}>{icon}</button>
-  ),
-  LoadingState: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
-  SegmentedControl: ({
-    options,
-    value,
-    onValueChange,
-    'aria-label': ariaLabel,
-  }: {
-    options: Array<{ value: string; label: React.ReactNode }>;
-    value: string;
-    onValueChange?: (value: string) => void;
-    'aria-label'?: string;
-  }) => (
-    <div role="radiogroup" aria-label={ariaLabel}>
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={option.value === value}
-          onClick={() => onValueChange?.(option.value)}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  ),
-}));
-
 vi.mock('../meditor', () => ({
   MEditor: forwardRef((props: { value?: string; mode?: string }, ref) => {
     useImperativeHandle(ref, () => ({
@@ -128,8 +75,8 @@ describe('MarkdownEditor', () => {
     );
 
     expect(html).toContain('aria-label="Copy Markdown"');
-    expect(html).toContain('data-icon="duplicate"');
-    expect(html).toContain('data-component="icon-button"');
+    expect(html).toContain('data-openbitfun-component="toolbar"');
+    expect(html).toContain('data-openbitfun-component="icon-button"');
   });
 
   it('uses preview mode for markdown rendering', () => {

@@ -80,12 +80,15 @@ function themeValuesToCssTokens(
       // Neutral action labels are primary text in the public theme. The generic
       // palette's secondary text projection used to make product menus too faint.
       tokens['--openbitfun-color-action-neutral-content'] = String(themes.light['color.action.neutral.content']);
+      tokens['--openbitfun-color-scrollbar-thumb'] = String(themes.light['color.scrollbar.thumb']);
+      tokens['--openbitfun-color-number-badge-background'] = String(themes.light['color.numberBadge.background']);
+      tokens['--openbitfun-color-key-hint-content'] = String(themes.light['color.keyHint.content']);
       tokens['--openbitfun-color-action-card-background'] = String(themes.light['color.actionCard.background']);
       tokens['--openbitfun-color-content-caption'] = String(themes.light['color.content.caption']);
       // Default light fields use the published neutral states in both root and
       // chrome. Branded palettes and imported overrides retain their own colors.
       for (const name of Object.keys(themes.light) as ThemeTokenName[]) {
-        if (name.startsWith('color.field.')) {
+        if (name.startsWith('color.field.') || name.startsWith('color.composer.')) {
           tokens[themeCssVariables[name] as AppearanceThemeTokenName] = String(themes.light[name]);
         }
       }
@@ -134,6 +137,8 @@ function createThemeTokenValues(palette: AppearancePalette): Record<ThemeTokenNa
     'color.scrollbar.thumbHover': scrollbar.thumbHover,
     'color.content.primary': colors.text.primary,
     'color.content.caption': colors.text.muted,
+    'color.keyHint.content': colors.text.muted,
+    'color.numberBadge.background': colors.element.base,
     'color.content.secondary': colors.text.secondary,
     'color.content.muted': colors.text.muted,
     'color.content.disabled': colors.text.disabled,
@@ -167,6 +172,8 @@ function createThemeTokenValues(palette: AppearancePalette): Record<ThemeTokenNa
     'color.field.groupBackground': colors.background.tertiary,
     'color.field.background': colors.background.secondary,
     'color.field.backgroundHover': colors.element.subtle,
+    'color.composer.border': colors.border.base,
+    'color.composer.contextBackground': colors.element.subtle,
     'color.field.border': colors.border.base,
     'color.field.borderHover': colors.border.medium,
     'color.field.borderFocus': colors.accent[500],
@@ -228,6 +235,8 @@ function createChromeThemeTokens(
     'color.surface.subtle': chrome.element.subtle,
     'color.content.primary': chrome.text.primary,
     'color.content.caption': chrome.text.muted,
+    'color.keyHint.content': chrome.text.muted,
+    'color.numberBadge.background': chrome.element.base,
     'color.content.secondary': chrome.text.secondary,
     'color.content.muted': chrome.text.muted,
     'color.content.disabled': chrome.text.disabled,
@@ -255,6 +264,8 @@ function createChromeThemeTokens(
     'color.field.groupBackground': chrome.background.tertiary,
     'color.field.background': chrome.background.secondary,
     'color.field.backgroundHover': chrome.element.subtle,
+    'color.composer.border': chrome.border.base,
+    'color.composer.contextBackground': chrome.element.subtle,
     'color.field.border': chrome.border.base,
     'color.field.borderHover': chrome.border.medium,
     'color.field.borderFocus': chrome.accent[500],

@@ -56,6 +56,8 @@ pub struct BotPairingInfo {
 /// Persisted bot connection — saved to disk so reconnect survives restarts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SavedBotConnection {
+    #[serde(default)]
+    pub account_user_id: String,
     pub bot_type: String,
     pub chat_id: String,
     pub config: BotConfig,
@@ -66,7 +68,6 @@ pub struct SavedBotConnection {
 /// Persisted remote-connect form values shown in the desktop dialog.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RemoteConnectFormState {
-    pub custom_server_url: String,
     pub telegram_bot_token: String,
     pub feishu_app_id: String,
     pub feishu_app_secret: String,

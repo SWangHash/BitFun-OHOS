@@ -211,20 +211,23 @@
     display: flex;
     min-inline-size: 0;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--openbitfun-control-flow-chat-row-icon-gap);
     color: var(--openbitfun-color-content-muted);
     font-size: var(--openbitfun-type-body-sm-font-size);
   }
 
   .todoCompactIcon {
     display: inline-flex;
-    flex: 0 0 auto;
+    flex: 0 0 var(--openbitfun-control-flow-chat-row-icon-size);
+    inline-size: var(--openbitfun-control-flow-chat-row-icon-size);
+    block-size: var(--openbitfun-control-flow-chat-row-icon-size);
     align-items: center;
+    justify-content: center;
   }
 
   .todoCompactIcon > svg {
-    inline-size: 0.875rem;
-    block-size: 0.875rem;
+    inline-size: 100%;
+    block-size: 100%;
   }
 
   .todoCompactMeta {

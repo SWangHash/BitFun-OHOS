@@ -5,6 +5,6 @@ export const appearanceConfigAppearanceDescriptor: AppearanceSurfaceDescriptor =
   parts: [
     { id: 'root' }, { id: 'content' }, { id: 'settings' },
     { id: 'settingsContent' }, { id: 'language' }, { id: 'palettePicker' },
-    { id: 'paletteSelect' }, { id: 'paletteOption' },
+    { id: 'paletteSelect' },
   ],
 };

@@ -16,23 +16,11 @@ extension MobileAppModel {
         connectionPhase = .disconnected
     }
 
-    private func invalidateRemoteTarget(for operation: (accountGeneration: UInt64, remoteTargetEpoch: UInt64, preservePairing: Bool)) {
+    private func invalidateRemoteTarget(for operation: (accountGeneration: UInt64, remoteTargetEpoch: UInt64)) {
         committedRemoteCreate = nil
         remoteLastAppliedAuthority = nil
         accountGeneration = operation.accountGeneration
-        pendingAccountOperationPreservesPairing = (
-            generation: operation.accountGeneration,
-            preserve: operation.preservePairing
-        )
         remoteTargetEpoch = operation.remoteTargetEpoch
-        if operation.preservePairing && directPairingConnected {
-            remoteExpectedDeviceKey = "pairing"
-            remoteConnected = true
-            pendingDirectorySession = nil
-            pendingDirectoryWorkspace = nil
-            pendingDirectoryRemoteDraft = nil
-            return
-        }
         remoteExpectedDeviceKey = nil
         remoteConnected = false
         pendingDirectorySession = nil
@@ -43,24 +31,21 @@ extension MobileAppModel {
         remoteCreateRequestEpoch = remoteTargetEpoch
         remoteCreateRequestDeviceKey = nil
         pendingRemoteWorkspaceCreate = nil
+        pendingRemoteSessionRefreshWorkspacePath = nil
         pendingRemoteAssistantCreate = false
         remoteSessionSelected = false
     }
 
-    func selectRemoteDevice(_ device: MobileAccountDevice) {
+    func selectRemoteDevice(_ device: MobileAccountDevice, preserveDrawer: Bool = false) {
         guard device.online else {
             showToast(localized("这台桌面设备当前离线"))
             return
         }
         surface = .remote
-        drawerOpen = false
+        if !preserveDrawer { drawerOpen = false }
         let targetKey = "account:\(device.id)"
         guard remoteExpectedDeviceKey != targetKey else { return }
         invalidateTargetScopedFileTransfers()
-        directPairingConnected = false
-        directPairingDeviceName = nil
-        directPairingDirectoryEntry = nil
-        pairingIntentInFlight = false
         remoteTargetEpoch &+= 1
         remoteExpectedDeviceKey = "account:\(device.id)"
         remoteInitialSessionReady = false
@@ -77,11 +62,12 @@ extension MobileAppModel {
         remoteLastAppliedAuthority = nil
         accountBusy = true
         remoteSessionSelected = false
-        remoteConnected = directPairingConnected
+        remoteConnected = false
         remoteSessions = []
         remoteWorkspaces = []
         workspaceCatalog = []
         pendingRemoteWorkspaceCreate = nil
+        pendingRemoteSessionRefreshWorkspacePath = nil
         pendingRemoteAssistantCreate = false
         selectedRemoteWorkspaceKind = ""
         messages = []
@@ -95,12 +81,10 @@ extension MobileAppModel {
     }
 
     func logoutAccount() {
-        var preservePairing = directPairingConnected && remoteExpectedDeviceKey == "pairing"
-        if coreAdapter?.currentRemoteTargetKey != "pairing" {
+
             invalidateTargetScopedFileTransfers()
-        }
+
         if let operation = coreAdapter?.beginAccountOperation() {
-            preservePairing = operation.preservePairing
             invalidateRemoteTarget(for: operation)
         } else {
             accountGeneration &+= 1
@@ -120,7 +104,7 @@ extension MobileAppModel {
             pendingRemoteAssistantCreate = false
             remoteSessionSelected = false
         }
-        if !preservePairing {
+        do {
             remoteExpectedDeviceKey = nil
             remoteConnected = false
             pendingDirectorySession = nil
@@ -128,7 +112,7 @@ extension MobileAppModel {
             pendingDirectoryRemoteDraft = nil
         }
         accountDirectoryGeneration &+= 1
-        coreAdapter?.logoutAccount(preservePairing: preservePairing)
+        coreAdapter?.logoutAccount()
         accountUser = nil
         accountUserID = nil
         accountDeviceName = nil
@@ -136,10 +120,10 @@ extension MobileAppModel {
         accountDevices = []
         accountSelectedDeviceID = nil
         coreAdapter?.syncDeviceDirectory([])
-        if !preservePairing {
+        do {
             remoteConnected = false
         }
-        if !directPairingConnected {
+
             remoteSessionSelected = false
             remoteSessions = []
             remoteWorkspaces = []
@@ -150,13 +134,13 @@ extension MobileAppModel {
             pendingRemoteAssistantCreate = false
             selectedRemoteWorkspaceKind = ""
             surface = .local
-        }
+
     }
 
-    func loginAccount(relayURL: String, username: String, password: String) {
-        if coreAdapter?.currentRemoteTargetKey != "pairing" {
+    func loginAccount() {
+
             invalidateTargetScopedFileTransfers()
-        }
+
         if let operation = coreAdapter?.beginAccountOperation() {
             invalidateRemoteTarget(for: operation)
         } else {
@@ -181,7 +165,7 @@ extension MobileAppModel {
         accountFailureStage = nil
         accountFailureCanRetry = false
         coreErrorMessage = nil
-        coreAdapter?.loginAccount(relayURL: relayURL, username: username, password: password)
+        coreAdapter?.loginAccount()
     }
 
     func retryAccountFailure() {
@@ -193,18 +177,9 @@ extension MobileAppModel {
     func apply(accountState state: AccountUiState, generation: UInt64) {
         guard !accountLoginPreview, !localActionPreview, !remoteCreatePreview,
               generation == accountGeneration else { return }
-        let preserveDirectPairing =
-            (directPairingConnected && remoteExpectedDeviceKey == "pairing") ||
-            (pendingAccountOperationPreservesPairing?.generation == generation &&
-             pendingAccountOperationPreservesPairing?.preserve == true)
-        let preservePendingPairing = preserveDirectPairing &&
-            directPairingConnected &&
-            remoteExpectedDeviceKey == "pairing" &&
-            pendingDirectoryRemoteDraft?.targetKey == "pairing" &&
-            pendingDirectoryRemoteDraft?.epoch == remoteTargetEpoch
-        pendingAccountOperationPreservesPairing = nil
         accountGeneration = generation
-        accountBusy = state is AccountUiStateSigningIn
+        accountBusy = state is AccountUiStateSigningIn || state is AccountUiStateAuthorizing
+        accountAuthorizationURL = (state as? AccountUiStateAuthorizing).flatMap { URL(string: $0.authorizationUrl) }
         if let ready = state as? AccountUiStateReady {
             let readyTargetKey = ready.selectedDeviceId.map { "account:\($0)" }
             if let adapterTargetKey = coreAdapter?.currentRemoteTargetKey,
@@ -225,24 +200,35 @@ extension MobileAppModel {
             remoteCreateDeviceError = ready.refreshFailure != nil
                 ? localized("设备列表加载失败，请稍后重试。") : nil
             accountDevices = ready.devices.map { device in
-                MobileAccountDevice(
+                let targetKey = "account:\(device.id)"
+                return MobileAccountDevice(
                     id: device.id,
                     name: device.name,
-                    online: device.online,
+                    online: device.online ||
+                        (targetKey == remoteExpectedDeviceKey && remoteConnected && remoteInitialSessionReady),
                     selected: device.id == ready.selectedDeviceId
                 )
             }
             accountDirectoryGeneration = coreAdapter?.syncDeviceDirectory(accountDevices) ?? (accountDirectoryGeneration &+ 1)
-            if !directPairingConnected,
-               ready.selectedDeviceId == nil,
+            if let link = pendingDeviceLink {
+                pendingDeviceLink = nil
+                submitPairing(url: link)
+                if pairingError != nil { pairingSheetOpen = true }
+                return
+            }
+            if ready.selectedDeviceId == nil,
                let target = ready.devices.first(where: { $0.online }) {
                 accountBusy = true
                 coreAdapter?.selectAccountDevice(id: target.id)
                 return
             }
-            remoteConnected = directPairingConnected || ready.selectedDeviceId != nil
+            let selectedTargetKey = ready.selectedDeviceId.map { "account:\($0)" }
+            let retainsReachableAccountTarget = selectedTargetKey == remoteExpectedDeviceKey && remoteConnected
+            if !retainsReachableAccountTarget {
+                remoteConnected = false
+                connectionPhase = ready.selectedDeviceId == nil ? .disconnected : .reconnecting
+            }
             surface = .remote
-            connectionPhase = .connected
             if ready.refreshFailure != nil {
                 showToast(localized("设备列表刷新失败，仍显示上次结果"))
             }
@@ -251,14 +237,14 @@ extension MobileAppModel {
             accountFailureStage = failed.stage.name
             accountFailureCanRetry = failed.canRetry
             coreErrorMessage = accountErrorMessage(failed.reason.name, stage: failed.stage.name)
-            if pendingDirectoryRemoteDraft != nil, !preservePendingPairing {
+            if pendingDirectoryRemoteDraft != nil {
                 pendingDirectoryRemoteDraft = nil
                 showToast(localized("远程会话连接已失效，请重新选择设备后重试"))
             }
             if remoteCreateOpen {
                 remoteCreateDeviceError = coreErrorMessage
             }
-            if !preserveDirectPairing { connectionPhase = .disconnected }
+            connectionPhase = .disconnected
             if failed.reason.name == "AUTHENTICATION" {
                 accountUser = nil
                 accountUserID = nil
@@ -269,13 +255,13 @@ extension MobileAppModel {
                 accountRefreshing = false
                 pendingDirectorySession = nil
                 pendingDirectoryWorkspace = nil
-                if !preservePendingPairing {
+
                     pendingDirectoryRemoteDraft = nil
-                }
+
                 accountDirectoryGeneration = coreAdapter?.syncDeviceDirectory([]) ?? (accountDirectoryGeneration &+ 1)
-                if !preserveDirectPairing {
+
                     invalidateTerminalAccountAuthority()
-                }
+
             }
         } else if state is AccountUiStateSignedOut {
             accountBusy = false
@@ -291,14 +277,31 @@ extension MobileAppModel {
             accountRefreshing = false
             pendingDirectorySession = nil
             pendingDirectoryWorkspace = nil
-            if !preservePendingPairing {
+
                 pendingDirectoryRemoteDraft = nil
-            }
+
             accountDirectoryGeneration = coreAdapter?.syncDeviceDirectory([]) ?? (accountDirectoryGeneration &+ 1)
-            if !preserveDirectPairing {
+
                 invalidateTerminalAccountAuthority()
-            }
+
         }
+    }
+
+    func promoteLiveAccountTargetPresence(targetKey: String) {
+        let prefix = "account:"
+        guard targetKey.hasPrefix(prefix), remoteConnected else { return }
+        let deviceID = String(targetKey.dropFirst(prefix.count))
+        guard let index = accountDevices.firstIndex(where: { $0.id == deviceID }),
+              !accountDevices[index].online else { return }
+        let device = accountDevices[index]
+        accountDevices[index] = MobileAccountDevice(
+            id: device.id,
+            name: device.name,
+            online: true,
+            selected: device.selected
+        )
+        accountDirectoryGeneration = coreAdapter?.syncDeviceDirectory(accountDevices) ??
+            (accountDirectoryGeneration &+ 1)
     }
 
     func accountErrorMessage(_ reason: String, stage: String? = nil) -> String {

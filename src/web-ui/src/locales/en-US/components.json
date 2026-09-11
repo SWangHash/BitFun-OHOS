@@ -631,5 +631,15 @@
     "selectProjectDirectory": "Select a project directory to open"
   },
   "hide": "Hide",
-  "show": "Show"
+  "show": "Show",
+  "workbench": {
+    "dragToPopOut": "Drag to pop out",
+    "releaseToPopOut": "Release to pop out",
+    "save": "Save",
+    "discard": "Discard changes",
+    "cancel": "Cancel",
+    "unsavedMessage": "Save changes to “{{title}}” before closing?",
+    "closeOtherContent": "Close other content tabs",
+    "closeAllContent": "Close all content tabs"
+  }
 }

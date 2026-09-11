@@ -431,7 +431,7 @@
     }
   },
   "session": {
-    "new": "新建会话",
+    "new": "新会话",
     "newCode": "新建 Code 会话",
     "newCowork": "新建 Cowork 会话",
     "newClaw": "新建 Claw 会话",
@@ -534,11 +534,6 @@
     "promptSection": "所属区域：{{section}}。",
     "promptFile": "关联文件：{{file}}{{line}}。"
   },
-  "modelConfigurationNotice": {
-    "title": "暂无可用的 AI 模型",
-    "description": "请先配置并启用模型，然后开始对话。",
-    "action": "模型设置"
-  },
   "input": {
     "placeholder": "有什么可以帮您...",
     "placeholderWithContext": "输入消息，或拖放文件添加上下文...",
@@ -552,8 +547,6 @@
     "cancelShortcut": "取消",
     "clear": "清空",
     "attach": "附加文件",
-    "nativeDropRemoteUnsupported": "无法将本地文件直接附加到远程工作区，请先通过文件面板上传。",
-    "nativeDropFailed": "无法附加拖入的文件。",
     "collapseInput": "收起输入框",
     "expandInput": "展开输入框",
     "retry": "重试",
@@ -590,7 +583,6 @@
     "voiceInput": {
       "start": "开始语音输入",
       "stop": "停止录音",
-      "recording": "正在录音，点击麦克风可停止录制",
       "preparing": "正在准备麦克风",
       "transcribing": "正在转写",
       "disabled": "语音输入已关闭",
@@ -611,8 +603,11 @@
       "failed": "语音输入失败",
       "empty": "没有识别到语音",
       "transcribeOnly": "插入转写文本",
-      "transcribeAndSend": "转写并发送"
-    }
+      "transcribeAndSend": "转写并发送",
+      "recording": "正在录音，点击麦克风可停止录制"
+    },
+    "nativeDropRemoteUnsupported": "无法将本地文件直接附加到远程工作区，请先通过文件面板上传。",
+    "nativeDropFailed": "无法附加拖入的文件。"
   },
   "workspaceStrip": {
     "branchSwitchLabel": "切换分支。当前分支：{{branch}}",
@@ -638,7 +633,7 @@
   "agent": {
     "title": "智能体",
     "select": "选择智能体",
-    "default": "默认助手",
+    "default": "$t(shared:agents.default)",
     "coding": "编程助手",
     "review": "审核",
     "architect": "架构师",
@@ -734,7 +729,6 @@
     "harness": {
       "selectorTooltip": "当前执行：{{name}}",
       "fixedTooltip": "本会话使用 {{name}}，开始后已固定。",
-      "activateBalanced": "切换到标准 Harness",
       "compatibilityShort": "兼容模式",
       "comingSoon": "开发中",
       "comingSoonNotice": "「{{name}}」Harness 执行框架正在开发中。",
@@ -757,12 +751,23 @@
       "unavailable": "不可用",
       "agentUnavailable": "当前 Host 或设置不支持 {{name}}。",
       "profiles": {
-        "minimal": { "name": "极简" },
-        "balanced": { "name": "标准" },
-        "ultimate": { "name": "极致" },
-        "creative": { "name": "创造" },
-        "other": { "name": "智能体" }
-      }
+        "other": {
+          "name": "智能体"
+        },
+        "Minimal": {
+          "name": "$t(shared:agents.Minimal)"
+        },
+        "Standard": {
+          "name": "$t(shared:agents.Standard)"
+        },
+        "Ultimate": {
+          "name": "$t(shared:agents.Ultimate)"
+        },
+        "Creative": {
+          "name": "$t(shared:agents.Creative)"
+        }
+      },
+      "activateStandard": "切换到标准 Harness"
     },
     "agents": {
       "available": "可用",
@@ -770,9 +775,15 @@
       "comingSoon": "开发中",
       "comingSoonNotice": "直接调用「{{name}}」Agent 的能力正在开发中。",
       "reviewUnavailable": "Review Agent 需要一个包含可审查变更的活动会话。",
-      "review": { "name": "Review" },
-      "cowork": { "name": "Cowork" },
-      "computerUse": { "name": "Computer Use" }
+      "review": {
+        "name": "Review"
+      },
+      "cowork": {
+        "name": "Cowork"
+      },
+      "computerUse": {
+        "name": "Computer Use"
+      }
     },
     "addBoostTooltip": "指令、上下文、图片或 Skill",
     "modeChangeFailed": "切换智能体模式失败，请重试。",
@@ -847,7 +858,6 @@
     "boostSkillsEmpty": "暂无已启用的 Skill",
     "openSkillsLibrary": "管理 Skills…",
     "insertSkillLine": "Please use the Skill tool with command \"{{name}}\".",
-    "resetToAgentic": "移除当前 Agent",
     "defaultModeSetTooltip": "将 {{mode}} 设为新聊天默认模式",
     "defaultModeUnsetTooltip": "默认模式覆盖已启用，点击清除",
     "defaultModeSet": "已将 {{mode}} 设为新聊天默认模式。",
@@ -929,22 +939,24 @@
     "sendingToMain": "主会话：{{title}}",
     "sendingToBtw": "侧问会话：{{title}}",
     "modeDescriptions": {
-      "agentic": "AI 主导执行，自动规划和完成编码任务，拥有完整的工具访问能力",
       "Claw": "个人助理模式：面向个人工作区和日常事务，使用独立的助理上下文",
       "Cowork": "协作模式：先澄清再推进，轻量跟踪进度，随时验证结果",
       "ComputerUse": "独立电脑操作智能体：感知本机环境，操作应用、浏览器与系统界面",
       "DeepResearch": "深度研究：并行派发多个子 Agent 同时调研不同章节，快速生成高质量研究报告",
-      "Ultra": "群体规划模式：适合复杂任务，可能并发发起较多模型请求，从而增加 API 成本和供应商限流压力"
+      "Standard": "AI 主导执行，自动规划和完成编码任务，拥有完整的工具访问能力",
+      "Ultimate": "群体规划模式：适合复杂任务，可能并发发起较多模型请求，从而增加 API 成本和供应商限流压力"
     },
     "modeNames": {
-      "agentic": "Agentic",
-      "Claw": "Claw",
-      "Cowork": "Cowork",
-      "ComputerUse": "Computer Use",
-      "DeepResearch": "Deep Research",
+      "Claw": "$t(shared:agents.Claw)",
+      "Cowork": "$t(shared:agents.Cowork)",
+      "ComputerUse": "$t(shared:agents.ComputerUse)",
+      "DeepResearch": "$t(shared:agents.DeepResearch)",
       "Team": "Team",
       "QtMigration": "QT 迁移专家",
-      "Ultra": "Ultra"
+      "Standard": "$t(shared:agents.Standard)",
+      "Ultimate": "$t(shared:agents.Ultimate)",
+      "Minimal": "$t(shared:agents.Minimal)",
+      "Creative": "$t(shared:agents.Creative)"
     },
     "openFolder": "打开文件夹…",
     "selectWorkspaceTitle": "选择工作区目录",
@@ -1519,25 +1531,11 @@
     "generateFailed": "生成图片失败",
     "fileNamePrefix": "OpenBitFun对话",
     "exportSuccess": "图片已导出：{{filePath}}",
-    "exportDownloaded": "图片已下载",
     "exportSuccessPrefix": "图片已导出：",
     "exportFailed": "导出图片失败，请重试",
     "exporting": "正在导出...",
-    "exportToImage": "导出为图片"
-  },
-  "fileShare": {
-    "button": "分享到附近设备",
-    "discover": "通过系统面板分享",
-    "knock": "触碰两台设备分享",
-    "pendingKnock": "请将你的设备与另一台设备轻触以分享",
-    "dismissed": "分享面板已关闭",
-    "failed": "分享失败",
-    "unsupported": "当前运行环境不支持分享到附近设备"
-  },
-  "sessionShare": {
-    "button": "会话文件",
-    "title": "本会话写入的文件",
-    "footerHint": "本会话内 agent 写入或编辑的文件"
+    "exportToImage": "导出为图片",
+    "exportDownloaded": "图片已下载"
   },
   "turnFailure": {
     "showDetails": "显示技术详情",
@@ -1880,13 +1878,6 @@
       "submitting": "提交中...",
       "submitFailed": "答案提交失败，请检查连接后重试。",
       "unsupportedOnPeer": "该设备的 OpenBitFun 版本暂不支持回答此问题，请更新该设备上的 OpenBitFun。",
-      "submitPathNotFound": "{{field}}路径不存在：{{path}}",
-      "fieldName": {
-        "source_project": "原始工程",
-        "output_project": "输出工程",
-        "toolchain": "迁移工具链",
-        "template": "模板工程"
-      },
       "waitingAnswer": "等待回答",
       "questionsCount": "{{count}} 个问题",
       "answerAllBeforeSubmit": "请回答所有问题后再提交",
@@ -1899,6 +1890,13 @@
       "other": "其他",
       "customInputHint": "提供自定义文本",
       "pleaseSpecify": "请输入...",
+      "submitPathNotFound": "{{field}}路径不存在：{{path}}",
+      "fieldName": {
+        "source_project": "原始工程",
+        "output_project": "输出工程",
+        "toolchain": "迁移工具链",
+        "template": "模板工程"
+      },
       "browsePath": "从文件管理器中选择路径",
       "qtMigration": {
         "pathsIntro": "检测到提示词中未指定迁移路径，需要先确认4项路径配置。",
@@ -2040,7 +2038,7 @@
       "executing": "执行中...",
       "subAgentFailed": "子代理任务执行失败",
       "subAgentTaskFailed": "子代理任务失败",
-      "failed": "失败",
+      "failed": "$t(shared:statuses.failed)",
       "confirmDelegate": "确认委派",
       "cancel": "取消",
       "task": "任务",
@@ -2074,7 +2072,7 @@
       "status": {
         "pending": "等待中",
         "running": "执行中",
-        "completed": "已完成",
+        "completed": "$t(shared:statuses.done)",
         "failed": "执行失败"
       },
       "loadingMore": "正在加载更多输出...",
@@ -2264,9 +2262,9 @@
       "paramsReceiving": "接收参数中",
       "preparing": "准备中",
       "running": "执行中",
-      "completed": "已完成",
-      "error": "失败",
-      "cancelled": "已取消"
+      "completed": "$t(shared:statuses.done)",
+      "error": "$t(shared:statuses.failed)",
+      "cancelled": "$t(shared:statuses.cancelled)"
     },
     "toolbar": {
       "executing": "执行中...",
@@ -2512,14 +2510,9 @@
   },
   "welcome": {
     "greetingMorning": "早安",
-    "subtitleMorning": "新的一天，新的可能，让我们一起创造些什么",
     "greetingAfternoon": "下午好",
-    "subtitleAfternoon": "新的一天，新的可能，让我们一起创造些什么",
     "greetingEvening": "晚上好",
-    "subtitleEvening": "夜晚安静，最适合沉浸式编码",
     "greetingNight": "夜深了",
-    "subtitleNight": "灵感不眠，让我们继续",
-    "aiPartner": "编程搭档",
     "subtitleMorningCowork": "清晨头脑最清醒，把今天的想法和任务整理一下吧",
     "subtitleAfternoonCowork": "下午好，有什么要推进或整理的，一起来",
     "subtitleEveningCowork": "收尾、复盘、或是为明天做准备——都行",
@@ -2567,7 +2560,11 @@
     "currentlyHas": "目前有",
     "commaSeparator": "，",
     "period": "。",
-    "projectCowork": "项目里工作。"
+    "projectCowork": "项目里工作。",
+    "openingMorning": "早安，今天由你开场。",
+    "openingAfternoon": "下午好，给今天加点意思。",
+    "openingEvening": "晚上好，按你的节奏来。",
+    "openingNight": "夜深了，想法可以慢慢说。"
   },
   "modelSelector": {
     "model": "模型",
@@ -2605,13 +2602,13 @@
       "compressionTrigger": "压缩触发线",
       "longContextWarning": "当前模型配置的上下文窗口超过 400K。超长上下文可能降低模型效果，建议将其调整到 300K 左右。"
     },
-    "openSettings": "模型设置",
     "contextUsage": {
       "agentPrompt": "上次请求输入上下文: {{usage}}",
       "agentPromptLabel": "上次请求输入上下文",
       "acpContext": "ACP 上报上下文: {{usage}}",
       "acpContextLabel": "ACP 上报上下文"
-    }
+    },
+    "openSettings": "模型设置"
   },
   "reasoningEffort": {
     "title": "推理深度",
@@ -2773,5 +2770,24 @@
     "placeholder": "把需求发给 {{app}}…",
     "send": "发送",
     "hint": "消息将由 {{app}} 处理"
+  },
+  "modelConfigurationNotice": {
+    "title": "暂无可用的 AI 模型",
+    "description": "请先配置并启用模型，然后开始对话。",
+    "action": "模型设置"
+  },
+  "fileShare": {
+    "button": "分享到附近设备",
+    "discover": "通过系统面板分享",
+    "knock": "触碰两台设备分享",
+    "pendingKnock": "请将你的设备与另一台设备轻触以分享",
+    "dismissed": "分享面板已关闭",
+    "failed": "分享失败",
+    "unsupported": "当前运行环境不支持分享到附近设备"
+  },
+  "sessionShare": {
+    "button": "会话文件",
+    "title": "本会话写入的文件",
+    "footerHint": "本会话内 agent 写入或编辑的文件"
   }
 }

@@ -1,3 +1,5 @@
+import { useResourceFileAccess, type ResourceFileAccess } from '@/infrastructure/api/ResourceFileContext';
+import { getActiveSurfaceId, getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 /**
  * Markdown component
  * Used to render Markdown-formatted text
@@ -7,6 +9,8 @@ import React, { useState, useMemo, useCallback, useEffect, useLayoutEffect, useR
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import { Tooltip } from '@openbitfun/ui';
 import remarkGfm from 'remark-gfm';
+import { remarkAutolinkBoundaries } from './remarkAutolinkBoundaries';
+import { rehypeSourceRange, type MarkdownSourceRange } from './rehypeSourceRange';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { visit } from 'unist-util-visit';
@@ -469,15 +473,17 @@ function getMimeType(filePath: string): string {
   return mimeTypes[ext || ''] || 'image/jpeg';
 }
 
-function getLocalImageCacheKey(localPath: string, remoteConnectionId?: string): string {
-  return JSON.stringify([remoteConnectionId || null, localPath]);
+function getLocalImageCacheKey(localPath: string, remoteConnectionId?: string, surfaceId = getActiveSurfaceId()): string {
+  return JSON.stringify([surfaceId, remoteConnectionId || null, localPath]);
 }
 
 async function getLocalImageDataUrl(
   localPath: string,
   remoteConnectionId?: string,
+  access?: ResourceFileAccess | null,
 ): Promise<string> {
-  const cacheKey = getLocalImageCacheKey(localPath, remoteConnectionId);
+  const scope = getActiveSurfaceScope();
+  const cacheKey = getLocalImageCacheKey(localPath, remoteConnectionId, access?.scope.surfaceId);
   const cachedDataUrl = localImageDataUrlCache.get(cacheKey);
   if (cachedDataUrl) {
     return cachedDataUrl;
@@ -489,11 +495,9 @@ async function getLocalImageDataUrl(
   }
 
   const request = (async () => {
-    const base64Content = await workspaceAPI.readFileContent(
-      localPath,
-      'base64',
-      remoteConnectionId,
-    );
+    const base64Content = access ? await access.files.readFileContent(localPath, 'base64')
+      : await workspaceAPI.readFileContent(localPath, 'base64', remoteConnectionId);
+    scope.assertCurrent('read markdown image');
     const dataUrl = `data:${getMimeType(localPath)};base64,${base64Content}`;
     localImageDataUrlCache.set(cacheKey, dataUrl);
     localImageRequestCache.delete(cacheKey);
@@ -522,6 +526,8 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({
   onError,
   ...imgProps
 }) => {
+  const fileAccess = useResourceFileAccess();
+  const connectionId = fileAccess ? fileAccess.scope.remoteConnectionId : remoteConnectionId;
   const rawSrc = typeof src === 'string' ? normalizeExternalImageSrc(src) : '';
   const localPath = useMemo(() => {
     if (!rawSrc || !isLocalAssetPath(rawSrc)) {
@@ -531,7 +537,7 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({
     return resolveBaseRelativePath(rawSrc, basePath);
   }, [basePath, rawSrc]);
   const cacheKey = localPath
-    ? getLocalImageCacheKey(localPath, remoteConnectionId)
+    ? getLocalImageCacheKey(localPath, connectionId, fileAccess?.scope.surfaceId)
     : null;
   const [resolvedSrc, setResolvedSrc] = useState(() => {
     if (!rawSrc) {
@@ -572,7 +578,7 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({
     setResolvedSrc(LOCAL_IMAGE_PLACEHOLDER);
     setLoadState('loading');
 
-    void getLocalImageDataUrl(localPath, remoteConnectionId)
+    void getLocalImageDataUrl(localPath, connectionId, fileAccess)
       .then((dataUrl) => {
         if (cancelled) {
           return;
@@ -604,7 +610,7 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [cacheKey, localPath, rawSrc, remoteConnectionId]);
+  }, [cacheKey, localPath, rawSrc, connectionId, fileAccess, remoteConnectionId]);
 
   if (loadState === 'error') {
     return (
@@ -823,6 +829,8 @@ const CopyButton: React.FC<{ code: string }> = ({ code }) => {
 
 export interface MarkdownRendererProps {
   content: string;
+  /** Display a region while resolving Markdown references against all content. */
+  sourceRange?: MarkdownSourceRange;
   basePath?: string;
   remoteConnectionId?: string;
   remoteSshHost?: string;
@@ -845,7 +853,8 @@ function useLiveValueRef<T>(value: T): React.MutableRefObject<T> {
 }
 
 export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
-  content, 
+  content,
+  sourceRange,
   basePath,
   remoteConnectionId,
   remoteSshHost,
@@ -859,6 +868,8 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
   onHttpLinkClick,
   traceContext,
 }) => {
+  const fileAccess = useResourceFileAccess();
+  const fileAccessRef = useLiveValueRef(fileAccess);
   const { current: appearance } = useAppearance();
   const isLight = appearance?.mode === 'light';
   const [currentWorkspacePath, setCurrentWorkspacePath] = useState('');
@@ -868,9 +879,9 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
   const isStreamingRef = useRef(isStreaming);
   isStreamingRef.current = isStreaming;
   const basePathRef = useLiveValueRef(basePath);
-  const remoteConnectionIdRef = useLiveValueRef(remoteConnectionId);
+  const remoteConnectionIdRef = useLiveValueRef(fileAccess ? fileAccess.scope.remoteConnectionId : remoteConnectionId);
   const remoteSshHostRef = useLiveValueRef(remoteSshHost);
-  const currentWorkspacePathRef = useLiveValueRef(currentWorkspacePath);
+  const currentWorkspacePathRef = useLiveValueRef(fileAccess?.scope.workspacePath ?? currentWorkspacePath);
   const expandDetailsByDefaultRef = useLiveValueRef(expandDetailsByDefault);
   const onOpenVisualizationRef = useLiveValueRef(onOpenVisualization);
   const onFileViewRequestRef = useLiveValueRef(onFileViewRequest);
@@ -878,6 +889,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
   const onTabOpenRef = useLiveValueRef(onTabOpen);
   const onHttpLinkClickRef = useLiveValueRef(onHttpLinkClick);
   const traceContextRef = useLiveValueRef(traceContext);
+  const sourceRangeRef = useLiveValueRef(sourceRange);
   
   const syntaxTheme = useMemo(() => buildMarkdownPrismStyle(isLight), [isLight]);
   const syntaxThemeRef = useLiveValueRef(syntaxTheme);
@@ -967,8 +979,9 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
   }, []);
 
   const handleFileViewRequest = useCallback((filePath: string, fileName: string, lineRange?: LineRange) => {
-    onFileViewRequestRef.current?.(filePath, fileName, lineRange);
-  }, [onFileViewRequestRef]);
+    if (onFileViewRequestRef.current) onFileViewRequestRef.current(filePath, fileName, lineRange);
+    else if (fileAccessRef.current) openFileInBestTarget({ filePath, fileName, jumpToRange: lineRange, scope: fileAccessRef.current.scope });
+  }, [onFileViewRequestRef, fileAccessRef]);
 
   const handleOpenVisualization = useCallback((visualization: any) => {
     onOpenVisualizationRef.current?.(visualization);
@@ -1522,11 +1535,16 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
       }
       
       return (
-        <a 
-          href={typeof hrefValue === 'string' ? hrefValue : undefined} 
+        <a
+          href={typeof hrefValue === 'string' ? hrefValue : undefined}
           {...props}
           onClick={(e) => {
             e.preventDefault();
+            if (isHashLink && sourceRangeRef.current) {
+              const target = document.getElementById(hrefValue.slice(1));
+              target?.scrollIntoView({ block: 'nearest' });
+              target?.focus({ preventScroll: true });
+            }
           }}
           style={{ cursor: 'pointer' }}
         >
@@ -1624,13 +1642,14 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
     remoteSshHostRef,
     syntaxThemeRef,
     traceContextRef,
+    sourceRangeRef,
   ]);
   
   const wrapperClassName = `markdown-renderer ${className}`.trim();
   const basicMarkdownRenderer = (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkAutolinkInternalLinks]}
-      rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
+      remarkPlugins={[remarkGfm, remarkAutolinkBoundaries, remarkAutolinkInternalLinks]}
+      rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], [rehypeSourceRange, sourceRange]]}
       urlTransform={markdownUrlTransform}
       components={components}
     >
@@ -1650,7 +1669,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
           traceContext={traceContext}
         />
       )}
-      <MarkdownErrorBoundary fallbackContent={markdownContent}>
+      <MarkdownErrorBoundary fallbackContent={sourceRange ? markdownContent.slice(sourceRange.start, sourceRange.end) : markdownContent}>
         {shouldUseMathRenderer ? (
           <React.Suspense fallback={basicMarkdownRenderer}>
             <MarkdownMathRenderer
@@ -1659,6 +1678,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
               sanitizeSchema={sanitizeSchema}
               remarkAutolinkComputerFileLinks={remarkAutolinkInternalLinks}
               urlTransform={markdownUrlTransform}
+              sourceRange={sourceRange}
             />
           </React.Suspense>
         ) : basicMarkdownRenderer}

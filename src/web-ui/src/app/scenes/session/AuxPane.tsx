@@ -7,6 +7,9 @@
 
 import { forwardRef, useEffect, useRef, useImperativeHandle, useCallback } from 'react';
 import { ContentCanvas, useCanvasStore } from '../../components/panels/content-canvas';
+import { usePanelTabCoordinator } from '../../components/panels/content-canvas/hooks/usePanelTabCoordinator';
+import { TAB_EVENTS } from '../../components/panels/content-canvas/types';
+import { collapseSessionAuxPane, expandSessionAuxPane } from './sessionPanelLayout';
 import {
   switchAgentCanvasWorkspace,
   removeAgentCanvasSnapshot,
@@ -52,6 +55,16 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
     const syncSessionOwnedBrowserTabs = useCanvasStore(state => state.syncSessionOwnedBrowserTabs);
     const primaryGroup = useCanvasStore(state => state.primaryGroup);
     const secondaryGroup = useCanvasStore(state => state.secondaryGroup);
+    const tertiaryGroup = useCanvasStore(state => state.tertiaryGroup);
+    const canvasWorkspaceKey = useCanvasStore(state => state.workspaceKey);
+    const { expandPanel, collapsePanel } = usePanelTabCoordinator({
+      visibleTabCount: [primaryGroup, secondaryGroup, tertiaryGroup]
+        .reduce((count, group) => count + group.tabs.filter(tab => !tab.isHidden).length, 0),
+      scopeKey: canvasWorkspaceKey,
+      expandEventName: TAB_EVENTS.EXPAND_RIGHT_PANEL,
+      onExpand: expandSessionAuxPane,
+      onCollapse: collapseSessionAuxPane,
+    });
 
     const convertContent = useCallback((oldContent: OldPanelContent): PanelContent => {
       return {
@@ -65,15 +78,15 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
     useImperativeHandle(ref, () => ({
       addTab: (content: OldPanelContent) => {
         addTab(convertContent(content), 'active');
-        window.dispatchEvent(new CustomEvent('expand-right-panel'));
+        expandPanel();
       },
       switchToTab: (tabId: string) => {
         if (primaryGroup.tabs.find(t => t.id === tabId)) {
           switchToTab(tabId, 'primary');
-          window.dispatchEvent(new CustomEvent('expand-right-panel'));
+          expandPanel();
         } else if (secondaryGroup.tabs.find(t => t.id === tabId)) {
           switchToTab(tabId, 'secondary');
-          window.dispatchEvent(new CustomEvent('expand-right-panel'));
+          expandPanel();
         }
       },
       findTabByMetadata: (metadata: Record<string, any>) => {
@@ -99,6 +112,7 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
       primaryGroup.tabs,
       secondaryGroup.tabs,
       convertContent,
+      expandPanel,
     ]);
 
     const prevWorkspaceIdRef = useRef<string | undefined>(undefined);
@@ -160,6 +174,8 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
           workspacePath={workspacePath}
           mode="agent"
           isSceneActive={isSceneActive}
+          onReveal={expandPanel}
+          onCollapsePanel={collapsePanel}
           onInteraction={handleInteraction}
           onBeforeClose={handleBeforeClose}
           terminalResizeSuspended={terminalResizeSuspended}

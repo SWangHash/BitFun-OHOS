@@ -7,7 +7,7 @@ import type { EditorInstance, EditorMode } from '../types'
 export function useEditor(
   initialValue: string = '',
   onChange?: (value: string) => void,
-  initialMode: EditorMode = 'ir'
+  initialMode: EditorMode = 'ir',
 ) {
   const [value, setValue] = useState(initialValue)
   const [mode, setMode] = useState<EditorMode>(initialMode)

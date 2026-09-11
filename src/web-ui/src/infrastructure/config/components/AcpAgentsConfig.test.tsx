@@ -624,12 +624,12 @@ describe('AcpAgentsConfig', () => {
     });
 
     const opencodeRow = Array.from(
-      container.querySelectorAll('.bitfun-acp-agents__registry-row'),
-    ).find(row => row.querySelector('.bitfun-acp-agents__registry-name')
+      container.querySelectorAll('.openbitfun-acp-agents__registry-row'),
+    ).find(row => row.querySelector('.openbitfun-acp-agents__registry-name')
       ?.textContent === 'opencode');
     expect(opencodeRow).toBeTruthy();
-    expect(opencodeRow!.querySelector('.bitfun-acp-agents__status.is-disabled')).not.toBeNull();
-    expect(opencodeRow!.querySelector('.bitfun-acp-agents__status.is-invalid')).toBeNull();
+    expect(opencodeRow!.querySelector('[data-openbitfun-state="disabled"]')).not.toBeNull();
+    expect(opencodeRow!.querySelector('[data-openbitfun-state="invalid"]')).toBeNull();
     expect(opencodeRow!.textContent).toContain('registry.disabled');
     expect(opencodeRow!.textContent).not.toContain('actions.viewError');
   });

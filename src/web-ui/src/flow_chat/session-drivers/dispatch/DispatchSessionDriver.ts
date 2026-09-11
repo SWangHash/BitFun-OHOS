@@ -177,7 +177,7 @@ async function continueDispatchJob(
   const followUpSession =
     context.flowChatStore.getState().sessions.get(sessionId) ?? input.readySession;
   const followUpAgentType =
-    (input.currentAgentType?.trim() || followUpSession.mode || 'agentic').trim();
+    (input.currentAgentType?.trim() || followUpSession.mode || 'Standard').trim();
   // The composer edits these between turns; the follow-up carries them as
   // per-turn overrides which the target persists onto the job.
   const turnModel = followUpSession.config.dispatchModel?.trim() || undefined;

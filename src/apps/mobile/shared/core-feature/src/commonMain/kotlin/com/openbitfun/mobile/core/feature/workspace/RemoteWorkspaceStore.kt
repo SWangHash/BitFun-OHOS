@@ -11,6 +11,8 @@ import com.openbitfun.mobile.core.domain.FileTargetResolver
 import com.openbitfun.mobile.core.domain.RecentWorkspace
 import com.openbitfun.mobile.core.domain.SelectedWorkspace
 import com.openbitfun.mobile.core.domain.WorkspaceAssistant
+import com.openbitfun.mobile.core.persistence.PersistedRemoteWorkspace
+import com.openbitfun.mobile.core.persistence.RemoteWorkspaceListStore
 import com.openbitfun.mobile.core.protocol.AssistantListResponse
 import com.openbitfun.mobile.core.protocol.FileInfoResponse
 import com.openbitfun.mobile.core.protocol.ReadFileChunkResponse
@@ -28,6 +30,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.supervisorScope
@@ -42,7 +45,9 @@ public class RemoteWorkspaceStore internal constructor(
     private val transport: RemoteCommandTransport,
     private val backgroundDispatcher: CoroutineDispatcher,
     public val deviceKey: String? = null,
+    private val persistence: RemoteWorkspaceListStore? = null,
 ) {
+    private val persistenceEnabled: Boolean get() = persistence != null && !deviceKey.isNullOrBlank()
     private val _state = MutableStateFlow<RemoteWorkspaceUiState>(RemoteWorkspaceUiState.Idle)
     public val state: StateFlow<RemoteWorkspaceUiState> = _state.asStateFlow()
     private val _stopVersion = MutableStateFlow(0L)
@@ -91,11 +96,66 @@ public class RemoteWorkspaceStore internal constructor(
         work = null
     }
 
+    /** Last device-scoped catalog stored on disk, merged the same way the directory renders it. */
+    internal fun cachedCatalog(): List<RecentWorkspace> {
+        if (!persistenceEnabled) return emptyList()
+        val rows = try {
+            persistence!!.load(deviceKey!!)
+        } catch (_: Throwable) {
+            emptyList()
+        }
+        val cached = cachedReady(rows)
+        return mergedCatalog(cached.workspaces, cached.assistants)
+    }
+
+    /** Device-directory catalog request; it must not depend on the desktop's active workspace. */
+    internal suspend fun directoryCatalog(): List<RecentWorkspace> = coroutineScope {
+        val recentDeferred = async {
+            transport.send<RecentWorkspaceListResponse>(RemoteCommand(cmd = "list_recent_workspaces"))
+        }
+        val assistantsDeferred = async {
+            transport.send<AssistantListResponse>(RemoteCommand(cmd = "list_assistants"))
+        }
+        val recent = recentDeferred.await()
+        val assistants = assistantsDeferred.await()
+        val loadedWorkspaces = recent.workspaces.map { item ->
+            RecentWorkspace(
+                path = item.path.orEmpty(),
+                name = item.name?.takeIf(String::isNotBlank) ?: basename(item.path.orEmpty()),
+                lastOpened = item.lastOpened,
+                kind = item.workspaceKind.orEmpty(),
+            )
+        }.filter { it.path.isNotEmpty() }
+        val loadedAssistants = assistants.assistants.map { item ->
+            WorkspaceAssistant(item.path, item.name, item.assistantId)
+        }
+        if (persistenceEnabled) {
+            try {
+                persistence!!.save(deviceKey!!, persistedCatalog(loadedWorkspaces, loadedAssistants))
+            } catch (_: Throwable) {
+                // The remote catalog remains authoritative when its optional cache is unavailable.
+            }
+        }
+        mergedCatalog(loadedWorkspaces, loadedAssistants)
+    }
+
     private fun load() {
         val generation = ++loadGeneration
         invalidatePreview()
         work?.cancel()
-        _state.value = RemoteWorkspaceUiState.Loading
+        if (_state.value !is RemoteWorkspaceUiState.Ready && persistenceEnabled) {
+            val cached = try {
+                persistence!!.load(deviceKey!!)
+            } catch (_: Throwable) {
+                emptyList()
+            }
+            if (cached.isNotEmpty()) {
+                _state.value = cachedReady(cached)
+            }
+        }
+        _state.value = (_state.value as? RemoteWorkspaceUiState.Ready)
+            ?.copy(busy = true, loadFailure = false)
+            ?: RemoteWorkspaceUiState.Loading
         work = scope.launch {
             try {
                 supervisorScope {
@@ -114,22 +174,35 @@ public class RemoteWorkspaceStore internal constructor(
                         val assistants = results[1] as AssistantListResponse
                         val info = results[2] as WorkspaceInfoResponse
                         if (generation == loadGeneration) {
-                            _state.value = RemoteWorkspaceUiState.Ready(
-                                workspaces = recent.workspaces.map { item ->
-                                    RecentWorkspace(
-                                        path = item.path.orEmpty(),
-                                        name = item.name?.takeIf(String::isNotBlank) ?: basename(item.path.orEmpty()),
-                                        lastOpened = item.lastOpened,
-                                        kind = item.workspaceKind.orEmpty(),
+                            val loadedWorkspaces = recent.workspaces.map { item ->
+                                RecentWorkspace(
+                                    path = item.path.orEmpty(),
+                                    name = item.name?.takeIf(String::isNotBlank) ?: basename(item.path.orEmpty()),
+                                    lastOpened = item.lastOpened,
+                                    kind = item.workspaceKind.orEmpty(),
+                                )
+                            }.filter { it.path.isNotEmpty() }
+                            val loadedAssistants = assistants.assistants.map { item ->
+                                WorkspaceAssistant(item.path, item.name, item.assistantId)
+                            }
+                            if (persistenceEnabled) {
+                                try {
+                                    persistence!!.save(
+                                        deviceKey!!,
+                                        persistedCatalog(loadedWorkspaces, loadedAssistants),
                                     )
-                                }.filter { it.path.isNotEmpty() },
-                                assistants = assistants.assistants.map { item ->
-                                    WorkspaceAssistant(item.path, item.name, item.assistantId)
-                                },
+                                } catch (_: Throwable) {
+                                    // Cache writes must not turn a successful remote load into a failure.
+                                }
+                            }
+                            _state.value = RemoteWorkspaceUiState.Ready(
+                                workspaces = loadedWorkspaces,
+                                assistants = loadedAssistants,
                                 selected = info.asSelectedWorkspace(),
                                 preview = RemoteFilePreviewUiState.None,
                                 busy = false,
                                 download = RemoteFileDownloadUiState.None,
+                                loadFailure = false,
                             )
                         }
                     } catch (cancelled: CancellationException) {
@@ -141,13 +214,13 @@ public class RemoteWorkspaceStore internal constructor(
                         recentDeferred.join()
                         assistantsDeferred.join()
                         infoDeferred.join()
-                        if (generation == loadGeneration) _state.value = RemoteWorkspaceUiState.Failed(true)
+                        if (generation == loadGeneration) failRetainingCache()
                     }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
-                if (generation == loadGeneration) _state.value = RemoteWorkspaceUiState.Failed(true)
+                if (generation == loadGeneration) failRetainingCache()
             }
         }
     }
@@ -179,11 +252,11 @@ public class RemoteWorkspaceStore internal constructor(
                 }
                 val info = transport.send<WorkspaceInfoResponse>(RemoteCommand(cmd = "get_workspace_info"))
                 if (generation != loadGeneration) return@launch
-                updateReady { it.copy(selected = info.asSelectedWorkspace(), busy = false) }
+                updateReady { it.copy(selected = info.asSelectedWorkspace(), busy = false, loadFailure = false) }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
-                if (generation == loadGeneration) _state.value = RemoteWorkspaceUiState.Failed(true)
+                if (generation == loadGeneration) failRetainingCache()
             }
         }
     }
@@ -519,6 +592,58 @@ public class RemoteWorkspaceStore internal constructor(
 
     private fun basename(path: String): String = path.replace('\\', '/').substringAfterLast('/').ifEmpty { "file" }
 
+    private fun failRetainingCache() {
+        _state.value = (_state.value as? RemoteWorkspaceUiState.Ready)
+            ?.copy(busy = false, loadFailure = true)
+            ?: RemoteWorkspaceUiState.Failed(true)
+    }
+
+    private fun cachedReady(rows: List<PersistedRemoteWorkspace>): RemoteWorkspaceUiState.Ready {
+        val assistants = rows.filter { it.workspaceKind == ASSISTANT_KIND }.map { row ->
+            WorkspaceAssistant(row.path, row.name.ifEmpty { basename(row.path) }, null)
+        }
+        val workspaces = rows.filterNot { it.workspaceKind == ASSISTANT_KIND }.map { row ->
+            RecentWorkspace(row.path, row.name.ifEmpty { basename(row.path) }, row.lastOpened, row.workspaceKind)
+        }
+        return RemoteWorkspaceUiState.Ready(
+            workspaces = workspaces,
+            assistants = assistants,
+            selected = null,
+            preview = RemoteFilePreviewUiState.None,
+            busy = true,
+            download = RemoteFileDownloadUiState.None,
+            loadFailure = false,
+        )
+    }
+
+    private fun persistedCatalog(
+        workspaces: List<RecentWorkspace>,
+        assistants: List<WorkspaceAssistant>,
+    ): List<PersistedRemoteWorkspace> {
+        val rows = workspaces.map { workspace ->
+            PersistedRemoteWorkspace(workspace.path, workspace.name, workspace.lastOpened, workspace.kind)
+        }.toMutableList()
+        assistants.forEach { assistant ->
+            if (rows.none { it.path == assistant.path }) {
+                rows += PersistedRemoteWorkspace(assistant.path, assistant.name, "", ASSISTANT_KIND)
+            }
+        }
+        return rows
+    }
+
+    internal fun mergedCatalog(
+        workspaces: List<RecentWorkspace>,
+        assistants: List<WorkspaceAssistant>,
+    ): List<RecentWorkspace> {
+        val merged = workspaces.toMutableList()
+        assistants.forEach { assistant ->
+            if (merged.none { it.path == assistant.path }) {
+                merged += RecentWorkspace(assistant.path, assistant.name, "", ASSISTANT_KIND)
+            }
+        }
+        return merged
+    }
+
     public companion object {
         internal fun create(scope: CoroutineScope, transport: RemoteCommandTransport): RemoteWorkspaceStore =
             RemoteWorkspaceStore(scope, transport, Dispatchers.Default)
@@ -534,8 +659,10 @@ public class RemoteWorkspaceStore internal constructor(
             transport: RemoteCommandTransport,
             backgroundDispatcher: CoroutineDispatcher,
             deviceKey: String,
-        ): RemoteWorkspaceStore = RemoteWorkspaceStore(scope, transport, backgroundDispatcher, deviceKey)
+            persistence: RemoteWorkspaceListStore? = null,
+        ): RemoteWorkspaceStore = RemoteWorkspaceStore(scope, transport, backgroundDispatcher, deviceKey, persistence)
 
         private const val DOWNLOAD_CHUNK_BYTES = 3 * 1024 * 1024
+        private const val ASSISTANT_KIND = "assistant"
     }
 }

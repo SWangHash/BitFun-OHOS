@@ -15,12 +15,22 @@ fn deserialize_agent_profiles<'de, D>(
 where
     D: serde::Deserializer<'de>,
 {
-    let raw = Option::<HashMap<String, Option<AgentProfileConfig>>>::deserialize(deserializer)?;
-    Ok(raw
-        .unwrap_or_default()
+    let raw = Option::<serde_json::Map<String, serde_json::Value>>::deserialize(deserializer)?;
+    let migrated =
+        crate::agent_identity_migration::canonicalize_agent_profile_keys(&raw.unwrap_or_default())
+            .map_err(serde::de::Error::custom)?;
+    migrated
         .into_iter()
-        .filter_map(|(profile_id, config)| config.map(|config| (profile_id, config)))
-        .collect())
+        .filter(|(_, value)| !value.is_null())
+        .map(|(id, value)| {
+            serde_json::from_value(value)
+                .map(|mut profile: AgentProfileConfig| {
+                    profile.profile_id = id.clone();
+                    (id, profile)
+                })
+                .map_err(serde::de::Error::custom)
+        })
+        .collect()
 }
 
 /// Web UI font preferences (settings → basics). Keys match `FontPreference` in the frontend (camelCase).
@@ -322,10 +332,16 @@ pub struct AppFlowChatConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_mode_strategy: Option<ChatInputDefaultModeStrategy>,
     /// Optional fixed ChatInput mode id.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "openbitfun_core_types::agent_identity::deserialize_optional_agent_id"
+    )]
     pub default_mode_id: Option<String>,
     /// Most recent mode explicitly selected from the ChatInput Harness control.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "openbitfun_core_types::agent_identity::deserialize_optional_agent_id"
+    )]
     pub last_mode_id: Option<String>,
     /// Whether the chat input exposes the global permission-mode shortcut.
     ///
@@ -1307,11 +1323,11 @@ impl AIConfig {
 
 /// Shared agent-profile configuration.
 ///
-/// Tool and skill configuration shared by compatible mode profiles.
+/// Tool, skill, and delegation overrides owned by one Agent identity.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct AgentProfileConfig {
-    /// Shared profile ID (e.g. agentic, coding_shared, requirement, ui-design).
+    /// Canonical Agent ID (e.g. Standard, Creative, Claw, or a custom Agent ID).
     pub profile_id: String,
 
     /// Tools explicitly enabled by the user that are not part of the mode defaults.
@@ -1337,6 +1353,10 @@ pub struct AgentProfileConfig {
     /// Agent-level permission rules applied after project rules.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_permission_rules: Vec<PermissionRule>,
+
+    /// Preserve fields written by newer versions during migration and updates.
+    #[serde(flatten)]
+    pub extensions: serde_json::Map<String, serde_json::Value>,
 }
 
 /// User-level Skill configuration shared by every agent profile.
@@ -2298,7 +2318,7 @@ mod tests {
     #[test]
     fn legacy_agent_profile_defaults_permission_rules_and_omits_empty_field() {
         let config: AgentProfileConfig = serde_json::from_value(serde_json::json!({
-            "profile_id": "coding_shared",
+            "profile_id": "Standard",
             "added_tools": ["read"]
         }))
         .expect("legacy agent profile should deserialize");
@@ -2680,7 +2700,7 @@ mod tests {
                 "app": {
                     "flow_chat": {
                         "default_mode_strategy": "follow_last",
-                        "default_mode_id": "Ultra",
+                        "default_mode_id": "Ultimate",
                         "last_mode_id": "Creative"
                     }
                 }
@@ -2692,7 +2712,7 @@ mod tests {
         );
         assert_eq!(
             configured.app.flow_chat.default_mode_id.as_deref(),
-            Some("Ultra")
+            Some("Ultimate")
         );
         assert_eq!(
             configured.app.flow_chat.last_mode_id.as_deref(),
@@ -2872,6 +2892,32 @@ mod tests {
         }))
         .expect("inherit selection should deserialize");
         assert_eq!(inherited, SubagentModelSelection::Inherit);
+    }
+
+    #[test]
+    fn mode_model_selector_preserves_configured_ids_on_round_trip() {
+        for (stored, expected) in [
+            ("custom-selector", "custom-selector"),
+            ("primary", "primary"),
+            ("fast", "fast"),
+            ("custom-model", "custom-model"),
+        ] {
+            let mut value = serde_json::to_value(GlobalConfig::default()).unwrap();
+            value["ai"]["agent_model_defaults"]["mode"] = serde_json::json!(stored);
+            let config: GlobalConfig = serde_json::from_value(value).unwrap();
+            assert_eq!(config.ai.agent_model_defaults.mode, expected);
+            let saved = serde_json::to_value(&config).unwrap();
+            assert_eq!(saved["ai"]["agent_model_defaults"]["mode"], expected);
+            let reloaded: GlobalConfig = serde_json::from_value(saved).unwrap();
+            assert_eq!(reloaded.ai.agent_model_defaults.mode, expected);
+        }
+        let missing: AgentModelDefaultsConfig =
+            serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(missing.mode, "primary");
+        assert!(serde_json::from_value::<AgentModelDefaultsConfig>(
+            serde_json::json!({"mode": 42})
+        )
+        .is_err());
     }
 
     #[test]

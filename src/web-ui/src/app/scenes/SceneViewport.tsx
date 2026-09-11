@@ -28,6 +28,8 @@ import SettingsScene from './settings/SettingsScene';
 import AssistantScene from './assistant/AssistantScene';
 import SessionScene from './session/SessionScene';
 import WelcomeScene from './welcome/WelcomeScene';
+import ContentResourceView from '../workbench/ContentResourceView';
+import { useContentResourceStore } from '../workbench/contentResourceStore';
 import './SceneViewport.scss';
 
 // Session is the primary interaction path. Keep it in the main scene bundle so
@@ -48,7 +50,6 @@ const TodosScene      = lazy(() => import('./todos/TodosScene'));
 const InsightsScene   = lazy(() => import('./my-agent/InsightsScene'));
 const ShellScene      = lazy(() => import('./shell/ShellScene'));
 const MiniAppScene    = lazy(() => import('./miniapps/MiniAppScene'));
-const PanelViewScene  = lazy(() => import('./panel-view/PanelViewScene'));
 
 const SCENE_ENTRY_DURATION_MS = 480;
 const EMPTY_SCENE_ID = '__empty-scene__' as const;
@@ -96,6 +97,7 @@ const SceneViewport: React.FC<SceneViewportProps> = ({ workspacePath, isEntering
     navigationSequence,
   } = useSceneManager();
   const { t } = useI18n('common');
+  const resources = useContentResourceStore(state => state.resources);
   const activeRenderedSceneId: RenderedSceneId = activeTabId ? getSceneViewId(activeTabId) : EMPTY_SCENE_ID;
   const [transition, setTransition] = useState<SceneTransition | null>(null);
   const [readyVersion, setReadyVersion] = useState(0);
@@ -127,6 +129,11 @@ const SceneViewport: React.FC<SceneViewportProps> = ({ workspacePath, isEntering
   // Session tabs are resource bookmarks into a shared projection. Mounting one
   // SessionScene per tab would duplicate global composers, listeners and panes.
   const renderedTabIds: RenderedSceneId[] = [...new Set(openTabs.map(tab => getSceneViewId(tab.id)))];
+  // Open documents retain their view/undo state while another device is selected.
+  for (const resource of Object.values(resources)) {
+    const id: SceneTabId = `content:${resource.id}`;
+    if (resource.target.kind === 'file' && !renderedTabIds.includes(id)) renderedTabIds.push(id);
+  }
   if (activeTabId === null) renderedTabIds.push(EMPTY_SCENE_ID);
   if (outgoingTabId && !renderedTabIds.includes(outgoingTabId)) {
     renderedTabIds.push(outgoingTabId);
@@ -241,10 +248,11 @@ const SceneViewport: React.FC<SceneViewportProps> = ({ workspacePath, isEntering
               {...(!isActive || !isVisible ? { inert: '' } : {})}
               data-testid="scene-viewport-scene"
               data-scene-id={tabId}
+              data-shortcut-scope={String(tabId).startsWith('content:') ? 'canvas' : undefined}
               data-scene-active={isActive ? 'true' : 'false'}
               data-openbitfun-scene="workbench"
               data-openbitfun-part="scene"
-              data-openbitfun-scene-id={isEmpty ? 'welcome' : tabId}
+              data-openbitfun-scene-id={isEmpty ? 'welcome' : tabId.startsWith('content:') ? 'content' : tabId.startsWith('miniapp:') ? 'miniapp' : tabId}
               data-openbitfun-state={[
                 isActive && 'active',
                 isEmpty && 'empty',
@@ -329,9 +337,10 @@ function renderScene(
       return <InsightsScene />;
     case 'shell':
       return <ShellScene isActive={isActive} />;
-    case 'panel-view':
-      return <PanelViewScene workspacePath={workspacePath} />;
     default:
+      if (id.startsWith('content:')) {
+        return <ContentResourceView resourceId={id.slice('content:'.length)} isActive={isActive} />;
+      }
       if (typeof id === 'string' && id.startsWith('miniapp:')) {
         return <MiniAppScene appId={id.slice('miniapp:'.length)} />;
       }

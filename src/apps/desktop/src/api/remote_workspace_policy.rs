@@ -1122,14 +1122,6 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     (
-        "miniapp_market_auth_poll",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "miniapp_market_auth_start",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
         "miniapp_market_browse",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
@@ -1160,14 +1152,6 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ),
     (
         "miniapp_market_list_submissions",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "miniapp_market_logout",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "miniapp_market_me",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
@@ -2152,15 +2136,6 @@ mod tests {
                 "{command} must stay with the immutable controller-side confirmation window"
             );
         }
-    }
-
-    #[test]
-    fn token_usage_statistics_are_scoped_to_the_current_openbitfun_host() {
-        assert_eq!(
-            remote_workspace_policy("get_token_usage_statistics"),
-            Some(RemoteWorkspacePolicy::WorkspaceAgnostic),
-            "token usage is recorded by the current OpenBitFun runtime and does not follow the workspace filesystem to an SSH host"
-        );
     }
 
     #[test]

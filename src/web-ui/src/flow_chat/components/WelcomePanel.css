@@ -102,10 +102,6 @@
   outline-offset: 1px;
 }
 
-.welcome-panel__inline-btn:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
 .welcome-panel__inline-btn--active {
   background: var(--openbitfun-color-surface-subtle);
 }

@@ -1,3 +1,4 @@
+import { HARNESS_IDS, canonicalHarnessId } from '@/shared/agents/identity';
 import { Select, type SelectOption } from '@openbitfun/ui';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,26 +23,6 @@ const log = createLogger('DefaultHarnessConfig');
 
 function selectValue(value: string | number | (string | number)[]): string {
   return String(Array.isArray(value) ? value[0] ?? '' : value);
-}
-
-function knownHarnessProfile(modeId: string | null | undefined):
-  | 'minimal'
-  | 'balanced'
-  | 'ultimate'
-  | 'creative'
-  | null {
-  switch (modeId?.trim().toLowerCase()) {
-    case 'minimal':
-      return 'minimal';
-    case 'agentic':
-      return 'balanced';
-    case 'ultra':
-      return 'ultimate';
-    case 'creative':
-      return 'creative';
-    default:
-      return null;
-  }
 }
 
 export function DefaultHarnessConfig(): React.ReactElement {
@@ -102,19 +83,14 @@ export function DefaultHarnessConfig(): React.ReactElement {
   }, [loadPreference]);
 
   const labelForMode = useCallback((modeId: string | null | undefined): string => {
-    const profile = knownHarnessProfile(modeId);
+    const profile = canonicalHarnessId(modeId);
     return profile
       ? tFlowChat(`chatInput.harness.profiles.${profile}.name`)
-      : modeId?.trim() || tFlowChat('chatInput.harness.profiles.balanced.name');
+      : modeId?.trim() || tFlowChat('chatInput.harness.profiles.Standard.name');
   }, [tFlowChat]);
 
   const fixedModeOptions = useMemo<SelectOption[]>(() => {
-    const options: SelectOption[] = [
-      { value: 'minimal', label: labelForMode('minimal') },
-      { value: 'agentic', label: labelForMode('agentic') },
-      { value: 'Ultra', label: labelForMode('Ultra') },
-      { value: 'Creative', label: labelForMode('Creative') },
-    ];
+    const options: SelectOption[] = HARNESS_IDS.map(id => ({ value: id, label: labelForMode(id) }));
     const configuredModeId = preference?.fixedModeId;
     if (configuredModeId && !options.some(option => option.value === configuredModeId)) {
       options.push({
@@ -183,7 +159,7 @@ export function DefaultHarnessConfig(): React.ReactElement {
           name: labelForMode(preference.lastModeId),
         })
       : t('defaultHarness.followLastEmptyDescription', {
-          name: labelForMode('agentic'),
+          name: labelForMode('Standard'),
         });
     content = (
       <>
@@ -223,7 +199,7 @@ export function DefaultHarnessConfig(): React.ReactElement {
             >
               <Select
                 size="sm"
-                value={preference.fixedModeId ?? 'agentic'}
+                value={preference.fixedModeId ?? 'Standard'}
                 options={fixedModeOptions}
                 disabled={saving}
                 onValueChange={handleFixedModeChange}

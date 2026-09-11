@@ -87,7 +87,7 @@ describe('DefaultHarnessConfig', () => {
         ...mocks.preference,
         strategy,
         fixedModeId: strategy === 'fixed'
-          ? mocks.preference.fixedModeId ?? mocks.preference.lastModeId ?? 'agentic'
+          ? mocks.preference.fixedModeId ?? mocks.preference.lastModeId ?? 'Standard'
           : mocks.preference.fixedModeId,
       };
       return mocks.preference;
@@ -120,7 +120,7 @@ describe('DefaultHarnessConfig', () => {
       '[data-testid="default-harness-strategy"] select',
     );
     expect(strategySelect?.value).toBe('follow_last');
-    expect(container.textContent).toContain('defaultHarness.followLastDescription:chatInput.harness.profiles.creative.name');
+    expect(container.textContent).toContain('defaultHarness.followLastDescription:chatInput.harness.profiles.Creative.name');
     expect(container.querySelector('[data-testid="default-harness-fixed-mode"]')).toBeNull();
 
     await act(async () => {
@@ -135,10 +135,10 @@ describe('DefaultHarnessConfig', () => {
     expect(fixedSelect?.value).toBe('Creative');
 
     await act(async () => {
-      fixedSelect!.value = 'Ultra';
+      fixedSelect!.value = 'Ultimate';
       fixedSelect!.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    expect(mocks.setFixedMode).toHaveBeenCalledWith('Ultra');
+    expect(mocks.setFixedMode).toHaveBeenCalledWith('Ultimate');
   });
 
   it('keeps an existing custom fixed default visible as compatibility config', async () => {
@@ -183,13 +183,13 @@ describe('DefaultHarnessConfig', () => {
     await act(async () => {
       publishPreference?.({
         strategy: 'fixed',
-        fixedModeId: 'Ultra',
+        fixedModeId: 'Ultimate',
         lastModeId: 'Creative',
       });
       resolveInitialRead?.({
         strategy: 'follow_last',
         fixedModeId: null,
-        lastModeId: 'minimal',
+        lastModeId: 'Minimal',
       });
       await Promise.resolve();
     });
@@ -201,7 +201,7 @@ describe('DefaultHarnessConfig', () => {
       '[data-testid="default-harness-fixed-mode"] select',
     );
     expect(strategySelect?.value).toBe('fixed');
-    expect(fixedSelect?.value).toBe('Ultra');
+    expect(fixedSelect?.value).toBe('Ultimate');
   });
 
   it('rolls an optimistic change back when persistence fails', async () => {

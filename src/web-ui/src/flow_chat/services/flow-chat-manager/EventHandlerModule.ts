@@ -481,7 +481,7 @@ function ensureSubagentSession(
   store.addExternalSession(
     subagentSessionId,
     buildSubagentSessionTitleWithType(parentInfo, explicitSubagentType),
-    subagentType || parentSession?.mode || 'agentic',
+    subagentType || parentSession?.mode || 'Standard',
     parentSession?.workspacePath || resolveExternalSessionWorkspacePath(context, event),
     {
       parentSessionId: parentInfo.sessionId,
@@ -997,7 +997,7 @@ function handleSessionCreated(context: FlowChatContext, event: any): void {
   store.addExternalSession(
     sessionId,
     sessionName || 'Remote Session',
-    agentType || 'agentic',
+    agentType || 'Standard',
     workspacePath,
     {
       projectWorkspacePath,
@@ -1591,7 +1591,7 @@ function handleImageAnalysisStarted(context: FlowChatContext, event: ImageAnalys
     store.addExternalSession(
       sessionId,
       'Remote Session',
-      'agentic',
+      'Standard',
       resolveExternalSessionWorkspacePath(context, event as any),
       undefined,
       extractEventRemoteConnectionId(event as any),
@@ -1747,7 +1747,7 @@ function handleDialogTurnStarted(context: FlowChatContext, event: any): void {
     store.addExternalSession(
       sessionId,
       isMiniAppAgentRun ? (miniAppId ? `MiniApp: ${miniAppId}` : 'MiniApp Agent') : 'Remote Session',
-      'agentic',
+      'Standard',
       resolveExternalSessionWorkspacePath(context, event),
       isMiniAppAgentRun
         ? { sessionKind: 'miniapp', isTransient: true, agentBackedTransient: true }

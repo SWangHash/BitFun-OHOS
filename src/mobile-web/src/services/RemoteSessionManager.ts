@@ -1,3 +1,4 @@
+import { translateAgentIdentityFields } from '../../../shared/agent-harness/wire';
 /**
  * Manages remote sessions by sending commands to the desktop via the relay.
  * All communication is request-response via RelayHttpClient (HTTP).
@@ -13,6 +14,7 @@ import {
   type ControlTargetSnapshot,
 } from './RelayHttpClient';
 import { getControlClientIdentity } from './controlClientIdentity';
+import { projectWorkspaceCatalog, type WorkspaceCatalog } from './workspaceIdentity';
 
 export class RemoteControlTargetChangedError extends Error {
   constructor() {
@@ -232,7 +234,7 @@ export class RemoteSessionManager {
   }
 
   get controlTargetDeviceId(): string | null {
-    return this.client.pairedDeviceId;
+    return this.client.targetDeviceId;
   }
 
   supportsHostCapability(capability: string): boolean {
@@ -272,30 +274,20 @@ export class RemoteSessionManager {
     const relayOptions = options.timeoutMs === undefined
       ? { retryable }
       : { retryable, timeoutMs: options.timeoutMs };
-    // The QR-paired desktop keeps the proven room channel. Only a switched
-    // control target (another same-account device) is reached through the
-    // relay device RPC API using the delegated identity.
     const targetDeviceId = target.deviceId;
-    const isRemoteTarget =
-      !!targetDeviceId
-      && targetDeviceId !== target.homeDeviceId;
+    if (!targetDeviceId) throw new Error('Select an account device to continue');
     try {
-      let resp: T;
-      if (isRemoteTarget && targetDeviceId) {
-        resp = await this.client.sendDeviceRpc<T>(
-          targetDeviceId,
-          cmdWithId,
-          relayOptions,
-        );
-      } else {
-        resp = await this.client.sendCommand<T>(cmdWithId, relayOptions);
-      }
+      const resp = await this.client.sendDeviceRpc<T>(
+        targetDeviceId,
+        translateAgentIdentityFields(cmdWithId, 'legacy'),
+        relayOptions,
+      );
       this.ensureControlTargetCurrent(target);
       const respAny = resp as any;
       if (respAny.resp === 'error') {
         throw new Error(respAny.message || 'Unknown error');
       }
-      return resp;
+      return translateAgentIdentityFields(resp, 'canonical');
     } catch (error: unknown) {
       // Suppress both successful and failed completions after a target switch.
       // The epoch check (rather than device id alone) also closes A -> B -> A
@@ -329,6 +321,21 @@ export class RemoteSessionManager {
       workspaces: RecentWorkspaceEntry[];
     }>({ cmd: 'list_recent_workspaces' });
     return resp.workspaces || [];
+  }
+
+  async listWorkspaceCatalog(): Promise<WorkspaceCatalog> {
+    const target = this.client.getControlTargetSnapshot();
+    const resp = await this.request<{
+      workspaces: RecentWorkspaceEntry[];
+      opened_workspaces?: RecentWorkspaceEntry[] | null;
+    }>({ cmd: 'list_recent_workspaces' }, target);
+    if (Array.isArray(resp.opened_workspaces)) return projectWorkspaceCatalog(resp);
+    // Older hosts only offer recent history. Preserve that fallback explicitly,
+    // and resolve assistant names through their existing supported command.
+    const { assistants } = await this.request<{ assistants: AssistantEntry[] }>(
+      { cmd: 'list_assistants' }, target,
+    );
+    return projectWorkspaceCatalog(resp, assistants);
   }
 
   async setWorkspace(

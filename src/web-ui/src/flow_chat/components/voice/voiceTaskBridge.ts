@@ -552,7 +552,7 @@ export async function runOpenBitFunVoiceTask(
       normalizedTask,
       sessionId,
       normalizedTask,
-      'agentic',
+      'Standard',
       undefined,
       { userMessageMetadata: { source: 'realtime_voice' } },
     )

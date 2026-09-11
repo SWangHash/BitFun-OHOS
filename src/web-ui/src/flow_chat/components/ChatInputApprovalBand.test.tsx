@@ -51,7 +51,7 @@ vi.mock('@openbitfun/ui', async importOriginal => ({
 
 vi.mock('@/shared/utils/textSelection', async importOriginal => ({
   ...await importOriginal<typeof import('@/shared/utils/textSelection')>(),
-  copyTextToClipboard: vi.fn(async () => true),
+  copyTextToClipboard: vi.fn(async () => ({ ok: true })),
 }));
 
 function request(overrides: Partial<PermissionRequest> = {}): PermissionRequest {
@@ -63,7 +63,7 @@ function request(overrides: Partial<PermissionRequest> = {}): PermissionRequest 
     toolCallId: 'tool-1',
     projectPath: '/workspace/OpenBitFun',
     projectId: 'project-1',
-    agentId: 'agentic',
+    agentId: 'Standard',
     action: 'edit',
     resources: ['src/main.rs'],
     saveResources: ['src/main.rs'],
