@@ -33,11 +33,14 @@ import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { UpdateAvailableDialog } from '@/infrastructure/update/UpdateAvailableDialog';
 import { useUpdateInstallStore } from '@/infrastructure/update/updateInstallStore';
 import { formatUpdateInstallError } from '@/infrastructure/update/updateErrorMessage';
+import { PrivacyStatementDialog } from '@/app/components/Privacy/PrivacyStatementDialog';
+import { usePrivacy } from '@/app/components/Privacy/PrivacyContext';
 import { AboutBrandMark } from './AboutBrandMark';
 import './AboutDialog.scss';
 
 const log = createLogger('AboutDialog');
 const GITHUB_REPOSITORY_URL = 'https://github.com/GCWing/BitFun';
+const USER_AGREEMENT_URL = 'https://agreement-drcn.hispace.dbankcloud.cn/index.html?lang=zh&agreementId=1959693293117791424';
 
 interface AboutDialogProps {
   /** Whether visible */
@@ -58,6 +61,8 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   const [manualOpen, setManualOpen] = useState(false);
   const [manualData, setManualData] = useState<CheckForUpdatesResponse | null>(null);
   const [nativeVersion, setNativeVersion] = useState<string | null>(null);
+  const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
+  const { status: privacyStatus } = usePrivacy();
   const updateStatus = useUpdateInstallStore(state => state.status);
   const updateProgress = useUpdateInstallStore(state => state.progress);
   const updateError = useUpdateInstallStore(state => state.error);
@@ -165,6 +170,19 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
       log.error('Failed to open the GitHub repository', { url: GITHUB_REPOSITORY_URL, error });
     });
   }, []);
+
+  const openPrivacyStatement = useCallback(() => {
+    if (privacyStatus?.enabled && privacyStatus.policy) {
+      setPrivacyDialogOpen(true);
+      return;
+    }
+    void systemAPI.openExternal(USER_AGREEMENT_URL);
+  }, [privacyStatus]);
+
+  const closeAfterPrivacyModeChange = useCallback(() => {
+    setPrivacyDialogOpen(false);
+    onClose();
+  }, [onClose]);
 
   const onManualLater = useCallback(() => {
     setManualOpen(false);
@@ -463,6 +481,22 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
                     </div>
                   </div>
                 ) : null}
+                <div className="bitfun-about-dialog__update-card-actions">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leadingIcon={<Icon name="eye" size="sm" aria-hidden="true" />}
+                    onClick={openPrivacyStatement}
+                    data-testid="about-privacy-statement"
+                  >
+                    {privacyStatus?.enabled ? t('about.privacyStatement') : t('about.userAgreement')}
+                    {privacyStatus?.enabled && privacyStatus.hasUnreadUpdate ? (
+                      <span className="bitfun-about-dialog__privacy-updated">
+                        {t('privacy.updated')}
+                      </span>
+                    ) : null}
+                  </Button>
+                </div>
               </section>
             </div>
 
@@ -515,6 +549,11 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
         data={manualData}
         onLater={onManualLater}
         onInstall={onManualInstall}
+      />
+      <PrivacyStatementDialog
+        isOpen={privacyDialogOpen}
+        onClose={() => setPrivacyDialogOpen(false)}
+        onModeChangeComplete={closeAfterPrivacyModeChange}
       />
     </>
   );

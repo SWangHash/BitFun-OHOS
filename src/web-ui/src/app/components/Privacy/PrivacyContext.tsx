@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   disabledPrivacyStatus,
   privacyAPI,
@@ -38,13 +38,22 @@ const PrivacyContext = createContext<PrivacyContextValue>({
 
 export const PrivacyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [status, setStatus] = useState<PrivacyStatus | null>(null);
+  const initializePromiseRef = useRef<Promise<PrivacyStatus> | null>(null);
 
   const update = useCallback(async (operation: () => Promise<PrivacyStatus>) => {
     const next = await operation();
     setStatus(next);
     return next;
   }, []);
-  const initialize = useCallback(() => update(() => privacyAPI.initialize()), [update]);
+  const initialize = useCallback(() => {
+    if (!initializePromiseRef.current) {
+      initializePromiseRef.current = update(() => privacyAPI.initialize()).catch(error => {
+        initializePromiseRef.current = null;
+        throw error;
+      });
+    }
+    return initializePromiseRef.current;
+  }, [update]);
   const refresh = useCallback(
     (locale: string) => update(() => privacyAPI.getStatus(locale)),
     [update],

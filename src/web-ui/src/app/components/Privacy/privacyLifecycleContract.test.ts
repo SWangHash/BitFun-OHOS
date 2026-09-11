@@ -6,22 +6,31 @@ const readSource = (relativePath: string): string =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8').replace(/\r\n?/g, '\n');
 
 describe('OpenHarmony privacy lifecycle contract', () => {
-  it('mounts business providers without a first-launch privacy gate', () => {
+  it('mounts the first-launch privacy gate without blocking business providers', () => {
     const main = readSource('../../../main.tsx');
-    const business = readSource('../../BusinessApplication.tsx');
 
-    expect(main).not.toContain('<PrivacyGate>');
     expect(main).toContain('<PrivacyProvider>');
-    expect(main).toContain('<BusinessApplication />');
+    expect(main).toContain('<PrivacyGate>');
     expect(main).not.toContain('onBusinessAuthorized');
-    expect(business).toContain('<WorkspaceProvider>');
-    expect(business).toContain('<App />');
+    expect(main.indexOf('<PrivacyProvider>')).toBeLessThan(main.indexOf('<PrivacyGate>'));
+    expect(main.indexOf('<PrivacyGate>')).toBeLessThan(main.indexOf('<WorkspaceProvider>'));
+    expect(main.indexOf('<WorkspaceProvider>')).toBeLessThan(main.indexOf('<App />'));
+  });
+
+  it('reveals the gate via the startup overlay and explicit command surface', () => {
+    const gate = readSource('./PrivacyGate.tsx');
+
+    expect(gate).toContain('{children}');
+    expect(gate).toContain('hideStartupOverlay()');
+    expect(gate).toContain('privacyAPI.showGateWindow()');
+    expect(gate).toContain("'choice_required'");
+    expect(gate).toContain("'resource_error'");
   });
 
   it('keeps the managed statement available from the about view', () => {
     const dialog = readSource('./PrivacyStatementDialog.tsx');
 
-    expect(dialog).toContain('size="xlarge"');
+    expect(dialog).toContain('size="2xl"');
   });
 
   it('uses the explicit lifecycle and collection-policy command surface', () => {
@@ -55,7 +64,6 @@ describe('OpenHarmony privacy lifecycle contract', () => {
       'editor_ai_api.rs',
       'miniapp_agent_api.rs',
       'remote_connect_api.rs',
-      'startchat_agent_api.rs',
       'system_api.rs',
     ].map(file => readSource(`../../../../../apps/desktop/src/api/${file}`));
 
@@ -71,11 +79,11 @@ describe('OpenHarmony privacy lifecycle contract', () => {
     }
   });
 
-  it('requests calendar permission only when calendar is used and does not auto-update at startup', () => {
+  it('keeps calendar delegation and update checks out of the startup path', () => {
     const entryAbility = readSource('../../../../../apps/ohos/entry/src/main/ets/entryability/EntryAbility.ets');
     const startup = entryAbility.slice(
       entryAbility.indexOf('onWindowStageCreate'),
-      entryAbility.indexOf("registerArktsFunction('call_calendar'"),
+      entryAbility.indexOf("registerArktsFunction('check_app_update_ohos'"),
     );
     const calendar = entryAbility.slice(
       entryAbility.indexOf("registerArktsFunction('call_calendar'"),
@@ -83,8 +91,9 @@ describe('OpenHarmony privacy lifecycle contract', () => {
     );
 
     expect(startup).not.toContain('requestPermissionsFromUser');
-    expect(calendar).toContain('requestPermissionsFromUser');
-    expect(entryAbility).not.toContain('this.appUpdater.check');
+    expect(startup).not.toContain('this.appUpdater.check');
+    expect(calendar).toContain('createMeetingEvent(arg)');
+    expect(entryAbility).not.toContain('requestPermissionsFromUser');
   });
 
   it('initializes privacy state silently for management and collection policy', () => {

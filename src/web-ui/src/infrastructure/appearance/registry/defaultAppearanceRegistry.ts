@@ -125,6 +125,7 @@ import { terminalAppearanceDescriptor } from '@/app/scenes/terminal/appearance';
 import { aboutDialogAppearanceDescriptor } from '@/app/components/AboutDialog/appearance';
 import { feedbackDialogAppearanceDescriptor } from '@/app/components/FeedbackDialog/FeedbackDialog.appearance';
 import { privacyStatementDialogAppearanceDescriptor } from '@/app/components/Privacy/PrivacyStatementDialog.appearance';
+import { privacyGateAppearanceDescriptor } from '@/app/components/Privacy/PrivacyGate.appearance';
 import { navPanelAppearanceDescriptor } from '@/app/components/NavPanel/appearance';
 import { sessionsSectionAppearanceDescriptor } from '@/app/components/NavPanel/sections/sessions/appearance';
 import { deviceOverviewAppearanceDescriptor } from '@/app/components/NavPanel/components/DeviceStatusControl.appearance';
@@ -442,6 +443,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(aboutDialogAppearanceDescriptor)
     .registerComponent(feedbackDialogAppearanceDescriptor)
     .registerComponent(privacyStatementDialogAppearanceDescriptor)
+    .registerComponent(privacyGateAppearanceDescriptor)
     .registerComponent(navPanelAppearanceDescriptor)
     .registerComponent(sessionsSectionAppearanceDescriptor)
     .registerComponent(contentCanvasAppearanceDescriptor)

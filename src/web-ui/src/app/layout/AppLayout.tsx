@@ -27,6 +27,7 @@ import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import type { CloseBehavior } from '@/infrastructure/api/service-api/SystemAPI';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { confirmDialog } from '@/infrastructure/confirm-dialog';
+import { confirmCriticalOperationExit } from '@/shared/services/criticalOperationExitGuard';
 import { createLogger } from '@/shared/utils/logger';
 import { DailyAppUpdateGate } from '@/infrastructure/update';
 import { useI18n } from '@/infrastructure/i18n';
@@ -445,6 +446,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
           }
         };
 
+        const quitIfAllowed = async () => {
+          if (!(await confirmCriticalOperationExit())) return;
+          await persistInterruptedTurnsForExit();
+          await systemAPI.quitApp();
+        };
+
         unlistenFn = await listen('bitfun_main_window_close_requested', async () => {
           if (handlingClose) return;
           handlingClose = true;
@@ -480,21 +487,18 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
                 showCancel: true,
               });
               if (shouldQuit) {
-                await persistInterruptedTurnsForExit();
-                await systemAPI.quitApp();
+                await quitIfAllowed();
               } else {
                 await systemAPI.minimizeToTray();
               }
             } else {
               // quit
-              await persistInterruptedTurnsForExit();
-              await systemAPI.quitApp();
+              await quitIfAllowed();
             }
           } catch (error) {
             log.error('Failed to handle close request', { behavior, error });
             try {
-              await persistInterruptedTurnsForExit();
-              await systemAPI.quitApp();
+              await quitIfAllowed();
             } catch { /* ignore */ }
           } finally {
             handlingClose = false;

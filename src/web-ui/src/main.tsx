@@ -5,6 +5,7 @@ import "@bitfun/ui/styles.css";
 import App from "./app/App";
 import AgentCompanionDesktopPet from "./app/components/AgentCompanionDesktopPet/AgentCompanionDesktopPet";
 import AppErrorBoundary from "./app/components/AppErrorBoundary";
+import { PrivacyProvider, PrivacyGate } from "./app/components/Privacy";
 import { STARTUP_OVERLAY_HIDDEN_EVENT } from "./app/startup/startupSignals";
 import { WorkspaceProvider } from "./infrastructure/contexts/WorkspaceProvider";
 import { PeerDeviceProvider } from "./infrastructure/peer-device/PeerDeviceContext";
@@ -373,13 +374,17 @@ async function startApplication(): Promise<void> {
     <AppErrorBoundary>
       <I18nProvider>
         <BitFunDesignSystemProvider>
-          <WorkspaceProvider>
-            <PeerDeviceProvider>
-              <PeerHostInvokeBridge />
-              <PeerDirectoryPickerHost />
-              <App />
-            </PeerDeviceProvider>
-          </WorkspaceProvider>
+          <PrivacyProvider>
+            <PrivacyGate>
+              <WorkspaceProvider>
+                <PeerDeviceProvider>
+                  <PeerHostInvokeBridge />
+                  <PeerDirectoryPickerHost />
+                  <App />
+                </PeerDeviceProvider>
+              </WorkspaceProvider>
+            </PrivacyGate>
+          </PrivacyProvider>
         </BitFunDesignSystemProvider>
       </I18nProvider>
     </AppErrorBoundary>
