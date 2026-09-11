@@ -717,7 +717,11 @@ impl GlobalPathManagerState {
 }
 
 fn init_global_path_manager() -> BitFunResult<Arc<PathManager>> {
-    PathManager::new().map(Arc::new)
+    let manager = PathManager::new().map(Arc::new)?;
+    // One-time legacy-home migration (HarmonyOS sandbox home -> user home).
+    // Best effort: never blocks initialization.
+    super::migrate_legacy_home_if_needed(&manager);
+    Ok(manager)
 }
 
 /// Get the global PathManager instance (Arc)
