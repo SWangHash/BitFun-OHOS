@@ -82,7 +82,12 @@ export const NotificationCenter: React.FC = () => {
 
     
     if (filter !== 'all') {
-      filtered = filtered.filter(n => n.type === filter);
+      filtered = filtered.filter(n => {
+        if (filter === 'info') {
+          return n.type === 'info' || n.type === 'success';
+        }
+        return n.type === filter;
+      });
     }
 
     
