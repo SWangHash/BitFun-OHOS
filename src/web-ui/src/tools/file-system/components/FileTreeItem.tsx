@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { ChevronRight, ChevronDown, FolderOpen, FileText, Loader2 } from 'lucide-react';
 import { Input } from '../../../component-library/components/Input';
+import { Tooltip } from '../../../component-library/components/Tooltip/Tooltip';
 import { dragManager } from '../../../shared/services/DragManager';
 import { fileTreeDragSource } from '../../../shared/context-system/drag-drop/FileTreeDragSource';
 import { useI18n } from '@/infrastructure/i18n';
@@ -305,60 +306,61 @@ export const FileTreeItem: React.FC<FileTreeItemProps> = ({
   };
 
   return (
-    <div
-      className={`bitfun-file-explorer__node-content ${isSelected ? 'bitfun-file-explorer__node-content--selected' : ''} ${node.isDirectory ? 'bitfun-file-explorer__node-content--directory' : ''} ${isCompressed ? 'bitfun-file-explorer__node-content--compressed' : ''} ${className}`}
-      style={{ paddingLeft: `${indentPx}px` }}
-      onClick={handleClick}
-      title={tooltip}
-      draggable={!isRenaming}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      data-file-path={node.path}
-      data-file={!node.isDirectory}
-      data-is-directory={node.isDirectory}
-      data-is-expanded={node.isDirectory ? isExpanded : undefined}
-      tabIndex={0}
-      role="treeitem"
-      aria-selected={isSelected}
-    >
-      {node.isDirectory ? (
-        <span className={`bitfun-file-explorer__expand-icon ${isExpanded ? 'bitfun-file-explorer__expand-icon--expanded' : ''}`} onClick={handleExpandClick}>
-          {isLoading ? (
-            <Loader2 size={16} className="bitfun-file-explorer__loading-icon" />
-          ) : isExpanded ? (
-            <ChevronDown size={16} />
-          ) : (
-            <ChevronRight size={16} />
-          )}
-        </span>
-      ) : (
-        <span className={getFileIconClass(node, isExpanded)}>
-          {getFileIcon(node, isExpanded)}
-        </span>
-      )}
+    <Tooltip content={tooltip} placement="bottom" followCursor>
+      <div
+        className={`bitfun-file-explorer__node-content ${isSelected ? 'bitfun-file-explorer__node-content--selected' : ''} ${node.isDirectory ? 'bitfun-file-explorer__node-content--directory' : ''} ${isCompressed ? 'bitfun-file-explorer__node-content--compressed' : ''} ${className}`}
+        style={{ paddingLeft: `${indentPx}px` }}
+        onClick={handleClick}
+        draggable={!isRenaming}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        data-file-path={node.path}
+        data-file={!node.isDirectory}
+        data-is-directory={node.isDirectory}
+        data-is-expanded={node.isDirectory ? isExpanded : undefined}
+        tabIndex={0}
+        role="treeitem"
+        aria-selected={isSelected}
+      >
+        {node.isDirectory ? (
+          <span className={`bitfun-file-explorer__expand-icon ${isExpanded ? 'bitfun-file-explorer__expand-icon--expanded' : ''}`} onClick={handleExpandClick}>
+            {isLoading ? (
+              <Loader2 size={16} className="bitfun-file-explorer__loading-icon" />
+            ) : isExpanded ? (
+              <ChevronDown size={16} />
+            ) : (
+              <ChevronRight size={16} />
+            )}
+          </span>
+        ) : (
+          <span className={getFileIconClass(node, isExpanded)}>
+            {getFileIcon(node, isExpanded)}
+          </span>
+        )}
 
-      {isRenaming ? (
-        <RenameInput
-          node={node}
-          siblings={renameSiblings ?? []}
-          isRemote={isRemoteWorkspace}
-          onRename={(newName) => onRename?.(node.path, newName)}
-          onCancel={onCancelRename}
-        />
-      ) : renderContent ? (
-        renderContent(node, level)
-      ) : (
-        <span className={`bitfun-file-explorer__node-name ${isCompressed ? 'bitfun-file-explorer__compressed-path' : ''}`}>
-          {node.name}
-        </span>
-      )}
+        {isRenaming ? (
+          <RenameInput
+            node={node}
+            siblings={renameSiblings ?? []}
+            isRemote={isRemoteWorkspace}
+            onRename={(newName) => onRename?.(node.path, newName)}
+            onCancel={onCancelRename}
+          />
+        ) : renderContent ? (
+          renderContent(node, level)
+        ) : (
+          <span className={`bitfun-file-explorer__node-name ${isCompressed ? 'bitfun-file-explorer__compressed-path' : ''}`}>
+            {node.name}
+          </span>
+        )}
 
-      {renderActions ? (
-        <div className="bitfun-file-explorer__node-actions" onClick={(event) => event.stopPropagation()}>
-          {renderActions(node)}
-        </div>
-      ) : null}
-    </div>
+        {renderActions ? (
+          <div className="bitfun-file-explorer__node-actions" onClick={(event) => event.stopPropagation()}>
+            {renderActions(node)}
+          </div>
+        ) : null}
+      </div>
+    </Tooltip>
   );
 };
 
