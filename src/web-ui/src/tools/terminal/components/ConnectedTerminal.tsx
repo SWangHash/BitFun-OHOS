@@ -8,6 +8,8 @@ import { AlertCircle, RefreshCw, Terminal as TerminalIcon, Trash2 } from 'lucide
 import Terminal, { TerminalRef, type TerminalOptions } from './Terminal';
 import { useTerminal } from '../hooks/useTerminal';
 import { registerTerminalActions, unregisterTerminalActions } from '../services/TerminalActionManager';
+import { Tooltip } from '@/component-library';
+import { useI18n } from '@/infrastructure/i18n';
 import {
   POWERSHELL_READLINE_PASTE_SEQUENCE,
   ResizeRepaintGuard,
@@ -18,7 +20,6 @@ import {
   terminalReplayHasScreenText,
 } from '../utils';
 import { createLogger } from '@/shared/utils/logger';
-import { useI18n } from '@/infrastructure/i18n';
 import type { SessionResponse, TerminalReplayEvent } from '../types';
 import type { TerminalPasteDecision } from '../utils';
 import './Terminal.scss';
@@ -71,8 +72,8 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
   resizeSuspended = false,
   supportsCopyPaste = true,
 }) => {
-  const terminalRef = useRef<TerminalRef>(null);
   const { t } = useI18n('tools');
+  const terminalRef = useRef<TerminalRef>(null);
   const [title, setTitle] = useState<string>(initialSession?.name || t('terminal.defaultTitle'));
   const [exitCode, setExitCode] = useState<number | null>(null);
   const [isExited, setIsExited] = useState(false);
@@ -501,22 +502,24 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
             </span>
           </div>
           <div className="bitfun-terminal__toolbar-right">
-            <button
-              className="bitfun-terminal__toolbar-btn"
-              onClick={handleSendCtrlC}
-              title={t('terminal.sendCtrlC')}
-              data-testid="shell-command-rerun"
-            >
-              <span style={{ fontSize: 10, fontWeight: 'bold' }}>^C</span>
-            </button>
-            <button
-              className="bitfun-terminal__toolbar-btn bitfun-terminal__toolbar-btn--danger"
-              onClick={handleClose}
-              title={t('terminal.closeTerminal')}
-              data-testid="shell-panel-close"
-            >
-              <Trash2 size={14} />
-            </button>
+            <Tooltip content={t('terminal.sendCtrlC')} placement="bottom">
+              <button
+                className="bitfun-terminal__toolbar-btn"
+                onClick={handleSendCtrlC}
+                data-testid="shell-command-rerun"
+              >
+                <span style={{ fontSize: 10, fontWeight: 'bold' }}>^C</span>
+              </button>
+            </Tooltip>
+            <Tooltip content={t('terminal.closeTerminal')} placement="bottom">
+              <button
+                className="bitfun-terminal__toolbar-btn bitfun-terminal__toolbar-btn--danger"
+                onClick={handleClose}
+                data-testid="shell-panel-close"
+              >
+                <Trash2 size={14} />
+              </button>
+            </Tooltip>
           </div>
         </div>
       )}
