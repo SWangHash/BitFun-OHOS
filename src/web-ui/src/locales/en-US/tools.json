@@ -221,7 +221,14 @@
     "shell": "Shell",
     "workingDirectory": "Working Directory",
     "runCommand": "Run Command",
-    "commandHistory": "Command History"
+    "commandHistory": "Command History",
+    "sendCtrlC": "Send Ctrl+C",
+    "closeTerminal": "Close terminal",
+    "connecting": "Connecting to terminal...",
+    "retry": "Retry",
+    "defaultTitle": "Terminal",
+    "pid": "PID: {{pid}}",
+    "exitCode": "Exit code: {{code}}"
   },
   "git": {
     "title": "Git",

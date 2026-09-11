@@ -221,7 +221,14 @@
     "shell": "Shell",
     "workingDirectory": "工作目录",
     "runCommand": "运行命令",
-    "commandHistory": "命令历史"
+    "commandHistory": "命令历史",
+    "sendCtrlC": "发送 Ctrl+C",
+    "closeTerminal": "关闭终端",
+    "connecting": "正在连接终端…",
+    "retry": "重试",
+    "defaultTitle": "终端",
+    "pid": "PID：{{pid}}",
+    "exitCode": "退出码：{{code}}"
   },
   "git": {
     "title": "Git",

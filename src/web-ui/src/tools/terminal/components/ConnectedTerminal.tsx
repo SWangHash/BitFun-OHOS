@@ -18,6 +18,7 @@ import {
   terminalReplayHasScreenText,
 } from '../utils';
 import { createLogger } from '@/shared/utils/logger';
+import { useI18n } from '@/infrastructure/i18n';
 import type { SessionResponse, TerminalReplayEvent } from '../types';
 import type { TerminalPasteDecision } from '../utils';
 import './Terminal.scss';
@@ -71,7 +72,8 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
   supportsCopyPaste = true,
 }) => {
   const terminalRef = useRef<TerminalRef>(null);
-  const [title, setTitle] = useState<string>(initialSession?.name || 'Terminal');
+  const { t } = useI18n('tools');
+  const [title, setTitle] = useState<string>(initialSession?.name || t('terminal.defaultTitle'));
   const [exitCode, setExitCode] = useState<number | null>(null);
   const [isExited, setIsExited] = useState(false);
 
@@ -452,7 +454,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
       <div className={`bitfun-terminal ${className}`} data-testid="shell-command-list" data-bf-component="terminal-tool" data-bf-part="root" data-bf-state="loading">
         <div className="bitfun-terminal__loading" data-testid="shell-command-status" data-command-status="loading" data-bf-component="terminal-tool" data-bf-part="loading">
           <div className="bitfun-terminal__loading-spinner" />
-          <span className="bitfun-terminal__loading-text">Connecting to terminal...</span>
+          <span className="bitfun-terminal__loading-text">{t('terminal.connecting')}</span>
         </div>
       </div>
     );
@@ -470,7 +472,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
             data-testid="shell-command-rerun"
           >
             <RefreshCw size={14} />
-            <span>Retry</span>
+            <span>{t('terminal.retry')}</span>
           </button>
         </div>
       </div>
@@ -502,7 +504,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
             <button
               className="bitfun-terminal__toolbar-btn"
               onClick={handleSendCtrlC}
-              title="Send Ctrl+C"
+              title={t('terminal.sendCtrlC')}
               data-testid="shell-command-rerun"
             >
               <span style={{ fontSize: 10, fontWeight: 'bold' }}>^C</span>
@@ -510,7 +512,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
             <button
               className="bitfun-terminal__toolbar-btn bitfun-terminal__toolbar-btn--danger"
               onClick={handleClose}
-              title="Close terminal"
+              title={t('terminal.closeTerminal')}
               data-testid="shell-panel-close"
             >
               <Trash2 size={14} />
@@ -551,7 +553,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
               {session.shellType}
             </span>
             <span className="bitfun-terminal__statusbar-item">
-              PID: {session.pid || '-'}
+              {t('terminal.pid', { pid: session.pid || '-' })}
             </span>
             <span className="bitfun-terminal__statusbar-item">
               {session.cwd}
@@ -568,7 +570,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
                 data-exit-code={exitCode}
                 data-status={exitCode === 0 ? 'success' : 'failed'}
               >
-                Exit code: {exitCode}
+                {t('terminal.exitCode', { code: exitCode })}
               </span>
             )}
           </div>
