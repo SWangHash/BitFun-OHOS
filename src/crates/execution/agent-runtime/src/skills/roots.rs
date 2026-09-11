@@ -10,12 +10,14 @@ pub const BITFUN_SYSTEM_SKILL_DIR: &str = ".system";
 pub const BITFUN_SKILL_SOURCE_ID: &str = "bitfun";
 pub const BITFUN_SKILL_SOURCE_LABEL: &str = "BitFun";
 /// Source id for skills installed from the OpenHarmony Matrix market
-/// (`~/.bitfun/skills/matrix/<enName>/`). The slot stays `"bitfun"` so
-/// Matrix skills remain compatible with BitFun's `SkillInfo` schema while
-/// being distinguishable via `source_id == "matrix"`.
+/// (`~/.bitfun/skills/matrix/<enName>/`). The slot is `"matrix"` so Matrix
+/// skill keys never collide with same-name skills from the BitFun skills root
+/// (`slot = "bitfun"`); the two ecosystems coexist independently and the user
+/// picks the active one via per-skill toggles. Schema compatibility comes from
+/// the dialect (`AgentSkills`), not the slot string.
 pub const MATRIX_SKILL_SOURCE_ID: &str = "matrix";
 pub const MATRIX_SKILL_SOURCE_LABEL: &str = "Matrix";
-pub const MATRIX_USER_SKILL_SLOT: &str = "bitfun";
+pub const MATRIX_USER_SKILL_SLOT: &str = "matrix";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SkillRootSpec {

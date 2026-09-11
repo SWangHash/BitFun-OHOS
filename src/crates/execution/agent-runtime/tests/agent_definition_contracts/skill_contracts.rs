@@ -359,7 +359,7 @@ fn skill_discovery_root_facts_are_runtime_owned() {
         project_roots,
         [
             (".bitfun", "bitfun", "bitfun", "BitFun"),
-            (".bitfun", "bitfun", "matrix", "Matrix"),
+            (".bitfun", "matrix", "matrix", "Matrix"),
             (".claude", "claude", "claude-code", "Claude Code"),
             (".codex", "codex", "codex", "Codex"),
             (".cursor", "cursor", "cursor", "Cursor"),
@@ -380,7 +380,7 @@ fn skill_discovery_root_facts_are_runtime_owned() {
             (".cursor", "home.cursor", "cursor", "Cursor"),
             (".opencode", "home.opencode", "opencode", "OpenCode"),
             (".agents", "home.agents", "agent-skills", "Agent Skills"),
-            (".bitfun", "bitfun", "matrix", "Matrix"),
+            (".bitfun", "matrix", "matrix", "Matrix"),
         ]
     );
     assert_eq!(
@@ -779,6 +779,57 @@ fn shadow_annotations_use_the_same_level_tiebreaker_as_runtime_resolution() {
     );
     assert!(!project.is_shadowed);
     assert_eq!(project.shadowed_by_key, None);
+}
+
+#[test]
+fn matrix_market_skills_coexist_with_same_name_bitfun_skills() {
+    let mut matrix_pdf_info = custom_user_skill("pdf");
+    matrix_pdf_info.key = "user::matrix::pdf".to_string();
+    matrix_pdf_info.source_slot = "matrix".to_string();
+    matrix_pdf_info.source_id = "matrix".to_string();
+    matrix_pdf_info.source_label = "Matrix".to_string();
+    let matrix_pdf = SkillCandidate {
+        info: matrix_pdf_info,
+        priority: 5,
+    };
+    let mut bitfun_pdf_info = custom_user_skill("pdf");
+    bitfun_pdf_info.key = "user::bitfun::pdf".to_string();
+    bitfun_pdf_info.source_slot = "bitfun".to_string();
+    bitfun_pdf_info.source_id = "bitfun".to_string();
+    bitfun_pdf_info.source_label = "BitFun".to_string();
+    let bitfun_pdf = SkillCandidate {
+        info: bitfun_pdf_info,
+        priority: 6,
+    };
+
+    // The Matrix slot keeps keys unique across the two market roots.
+    assert_ne!(matrix_pdf.info.key, bitfun_pdf.info.key);
+
+    // Cross-market same-name skills are never marked as covering each other:
+    // both stay individually usable and the user picks via per-skill toggles.
+    let annotated = sort_skills(annotate_shadowed_skills(vec![
+        matrix_pdf.clone(),
+        bitfun_pdf.clone(),
+    ]));
+    let matrix = annotated
+        .iter()
+        .find(|skill| skill.key == "user::matrix::pdf")
+        .expect("matrix skill should be present");
+    let bitfun = annotated
+        .iter()
+        .find(|skill| skill.key == "user::bitfun::pdf")
+        .expect("bitfun skill should be present");
+    assert!(!matrix.is_shadowed);
+    assert_eq!(matrix.shadowed_by_key, None);
+    assert!(!bitfun.is_shadowed);
+    assert_eq!(bitfun.shadowed_by_key, None);
+
+    // Runtime resolution still picks the higher-priority Matrix copy while
+    // both are enabled; disabling it filters the candidate before resolution
+    // so the BitFun copy is promoted instead.
+    let visible = resolve_visible_skills(vec![matrix_pdf, bitfun_pdf]);
+    assert_eq!(visible.len(), 1);
+    assert_eq!(visible[0].key, "user::matrix::pdf");
 }
 
 #[test]
