@@ -197,6 +197,10 @@
   gap: var(--bitfun-space-3);
 }
 
+.bitfun-about-dialog__update-card-actions--standalone {
+  margin-top: var(--bitfun-space-5);
+}
+
 .bitfun-about-dialog__update-feedback {
   &:not(:empty) {
     margin-top: 12px;

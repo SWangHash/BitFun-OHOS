@@ -213,6 +213,23 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   const updateState = `${manualCheckBusy ? 'checking' : ''} ${manualCheckStatus} ${updateStatus}`.trim();
   const updateBusy = !updateInitialized || manualCheckBusy || updateStatus === 'downloading' || updateStatus === 'ready' || updateStatus === 'installing';
 
+  const privacyStatementButton = (
+    <Button
+      variant="outline"
+      size="sm"
+      leadingIcon={<Icon name="eye" size="sm" aria-hidden="true" />}
+      onClick={openPrivacyStatement}
+      data-testid="about-privacy-statement"
+    >
+      {privacyStatus?.enabled ? t('about.privacyStatement') : t('about.userAgreement')}
+      {privacyStatus?.enabled && privacyStatus.hasUnreadUpdate ? (
+        <span className="bitfun-about-dialog__privacy-updated">
+          {t('privacy.updated')}
+        </span>
+      ) : null}
+    </Button>
+  );
+
   return (
     <>
       <Dialog
@@ -408,6 +425,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
                           {manualCheckBusy ? t('update.checking') : t('update.checkForUpdates')}
                         </Button>
                       )}
+                      {privacyStatementButton}
                     </div>
 
                     <div
@@ -480,23 +498,15 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
                       ) : null}
                     </div>
                   </div>
-                ) : null}
-                <div className="bitfun-about-dialog__update-card-actions">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    leadingIcon={<Icon name="eye" size="sm" aria-hidden="true" />}
-                    onClick={openPrivacyStatement}
-                    data-testid="about-privacy-statement"
+                ) : (
+                  <div
+                    className="bitfun-about-dialog__update-card-actions bitfun-about-dialog__update-card-actions--standalone"
+                    data-bitfun-component="about-dialog"
+                    data-bitfun-part="updateActions"
                   >
-                    {privacyStatus?.enabled ? t('about.privacyStatement') : t('about.userAgreement')}
-                    {privacyStatus?.enabled && privacyStatus.hasUnreadUpdate ? (
-                      <span className="bitfun-about-dialog__privacy-updated">
-                        {t('privacy.updated')}
-                      </span>
-                    ) : null}
-                  </Button>
-                </div>
+                    {privacyStatementButton}
+                  </div>
+                )}
               </section>
             </div>
 
