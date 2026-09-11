@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckCircle, ChevronDown, ChevronUp, Info, Loader2 } from 'lucide-react';
-import { Checkbox } from '@/component-library';
+import { Checkbox, Tooltip } from '@/component-library';
 import type { ReviewRemediationItem } from '../../utils/codeReviewRemediation';
 import { REMEDIATION_GROUP_ORDER } from '../../utils/codeReviewRemediation';
 import type { RemediationGroupId } from '../../utils/codeReviewReport';
@@ -181,10 +181,12 @@ export const RemediationSelectionPanel: React.FC<RemediationSelectionPanelProps>
                           disabled={isLocked}
                           size="small"
                         />
-                        <span
-                          className="deep-review-action-bar__remediation-text"
-                          title={item.decisionContext ? item.plan : undefined}
+                        <Tooltip
+                          content={item.plan}
+                          disabled={!item.decisionContext || !item.plan}
+                          placement="top"
                         >
+                          <span className="deep-review-action-bar__remediation-text">
                           {isCompleted && (
                             <CheckCircle size={12} className="deep-review-action-bar__completed-icon" />
                           )}
@@ -274,7 +276,8 @@ export const RemediationSelectionPanel: React.FC<RemediationSelectionPanelProps>
                               })}
                             </ul>
                           )}
-                        </span>
+                          </span>
+                        </Tooltip>
                       </label>
                     );
                   })}
