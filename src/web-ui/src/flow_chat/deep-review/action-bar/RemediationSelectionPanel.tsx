@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
-import { Checkbox, Icon } from '@bitfun/ui';
+import { Checkbox, Icon, Tooltip } from '@bitfun/ui';
 import type { ReviewRemediationItem } from '../../utils/codeReviewRemediation';
 import { REMEDIATION_GROUP_ORDER } from '../../utils/codeReviewRemediation';
 import type { RemediationGroupId } from '../../utils/codeReviewReport';
@@ -166,6 +166,9 @@ export const RemediationSelectionPanel: React.FC<RemediationSelectionPanelProps>
                     const isCompleted = completedRemediationIds.has(item.id);
                     const isFixing = !isCompleted && fixingRemediationIds.has(item.id);
                     const isLocked = selectionDisabled || isCompleted;
+                    const decisionHintText = item.decisionContext
+                      ? `${item.decisionContext.question}\n${item.plan}`
+                      : item.plan;
                     return (
                       <label
                         key={item.id}
@@ -181,10 +184,12 @@ export const RemediationSelectionPanel: React.FC<RemediationSelectionPanelProps>
                           disabled={isLocked}
                           size="sm"
                         />
-                        <span
-                          className="deep-review-action-bar__remediation-text"
-                          title={item.decisionContext ? `${item.decisionContext.question}\n${item.plan}` : item.plan}
+                        <Tooltip
+                          content={decisionHintText}
+                          disabled={!decisionHintText}
+                          placement="top"
                         >
+                          <span className="deep-review-action-bar__remediation-text">
                           {isCompleted && (
                             <Icon name="check-circle" size="xs" className="deep-review-action-bar__completed-icon" />
                           )}
@@ -274,7 +279,8 @@ export const RemediationSelectionPanel: React.FC<RemediationSelectionPanelProps>
                               })}
                             </ul>
                           )}
-                        </span>
+                          </span>
+                        </Tooltip>
                       </label>
                     );
                   })}
