@@ -2,6 +2,9 @@
 //!
 //! Executes complete dialog turns, managing loops of multiple model rounds
 
+use super::super::observability::{
+    agent_mode_class, completion_from_error, finish_reason_class, turn_trigger,
+};
 use super::model_exchange_trace::{
     prepare_model_exchange_trace_for_workspace, ModelExchangeTraceOperation,
 };
@@ -73,6 +76,10 @@ use bitfun_agent_runtime::permission::PERMISSION_MODE_CONTEXT_KEY;
 use bitfun_agent_runtime::remote_file_delivery::TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY;
 use bitfun_ai_adapters::ModelExchangeTraceConfig;
 use bitfun_core_types::{ModelRequestContext, SessionModelBindingPolicy};
+use bitfun_observability::domains::{
+    start_turn, CompletionFacts, TurnFinishFacts, TurnStartFacts,
+};
+use bitfun_observability::Telemetry;
 use bitfun_runtime_ports::{resolve_permission_mode, PermissionMode, PermissionModeLayers};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -608,6 +615,7 @@ pub struct ExecutionEngine {
     context_compressor: Arc<ContextCompressor>,
     config: ExecutionEngineConfig,
     generation_messages: DashMap<(String, String), Vec<Message>>,
+    telemetry: Telemetry,
 }
 
 // QtMigration intake gate: only requests classified as `app_migration` by the
@@ -706,7 +714,13 @@ impl ExecutionEngine {
             context_compressor,
             config,
             generation_messages: DashMap::new(),
+            telemetry: Telemetry::noop(),
         }
+    }
+
+    pub fn with_telemetry(mut self, telemetry: Telemetry) -> Self {
+        self.telemetry = telemetry;
+        self
     }
 
     fn remember_generation_message(&self, session_id: &str, turn_id: &str, message: &Message) {
@@ -2913,6 +2927,25 @@ impl ExecutionEngine {
         initial_messages: Vec<Message>,
         context: ExecutionContext,
     ) -> BitFunResult<ExecutionResult> {
+        let turn_observation = start_turn(
+            &self.telemetry,
+            TurnStartFacts {
+                mode_class: agent_mode_class(&agent_type),
+                trigger: turn_trigger(
+                    context.subagent_parent_info.is_some(),
+                    context
+                        .workspace
+                        .as_ref()
+                        .is_some_and(|workspace| workspace.is_remote()),
+                ),
+                remote: context
+                    .workspace
+                    .as_ref()
+                    .is_some_and(|workspace| workspace.is_remote()),
+                subagent: context.subagent_parent_info.is_some(),
+            },
+            None,
+        );
         let start_time = std::time::Instant::now();
         let dialog_turn_id = context.dialog_turn_id.clone();
         self.generation_messages
@@ -2933,6 +2966,31 @@ impl ExecutionEngine {
             "Cleaned up cancel token (final cleanup): dialog_turn_id={}",
             dialog_turn_id
         );
+
+        let turn_completion = match &result {
+            Ok(value) if value.success => CompletionFacts::completed(),
+            Ok(value) => {
+                CompletionFacts::failed(if value.finish_reason == FinishReason::Cancelled {
+                    bitfun_observability::domains::SafeErrorType::Cancelled
+                } else {
+                    bitfun_observability::domains::SafeErrorType::Other
+                })
+            }
+            Err(error) => completion_from_error(error),
+        };
+        turn_observation.finish(TurnFinishFacts {
+            completion: turn_completion,
+            finish_reason: result
+                .as_ref()
+                .ok()
+                .map(|value| finish_reason_class(value.effective_finish_reason.as_str())),
+            round_count: result.as_ref().ok().map(|value| value.total_rounds as u64),
+            tool_count: result.as_ref().ok().map(|value| value.total_tools as u64),
+            first_result_ms: None,
+            modified_file_count: None,
+            added_lines: None,
+            deleted_lines: None,
+        });
 
         result
     }

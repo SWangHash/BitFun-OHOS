@@ -34,6 +34,7 @@ members = [
     "src/crates/services/legacy-migration-adapters",
     "src/crates/services/miniapp-market-service",
     "src/crates/services/skin-market-service",
+    "src/crates/services/observability-otel",
     "src/crates/services/relay-service",
     "src/crates/services/page-function-runtime",
     "src/crates/services/terminal",
@@ -41,6 +42,7 @@ members = [
     "src/crates/contracts/product-domains",
     "src/crates/execution/agent-runtime",
     "src/crates/execution/agent-workflows",
+    "src/crates/execution/observability",
     "src/crates/execution/agent-stream",
     "src/crates/execution/tool-call-jsonrepair",
     "src/crates/execution/tool-contracts",
@@ -113,6 +115,12 @@ thiserror = "2"
 log = "0.4"
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+opentelemetry = { version = "0.32.0", default-features = false }
+opentelemetry_sdk = { version = "0.32.1", default-features = false }
+opentelemetry-otlp = { version = "0.32.0", default-features = false }
+opentelemetry-http = { version = "0.32.0", default-features = false }
+opentelemetry-proto = { version = "0.32.0", default-features = false }
+prost = "0.14"
 
 # Utilities
 uuid = { version = "1.0", features = ["v4", "serde"] }

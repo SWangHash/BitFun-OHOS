@@ -1,3 +1,4 @@
+use crate::api::telemetry_api::OhosTelemetryController;
 use bitfun_product_domains::privacy::{
     AcceptPrivacyRequest, ApplyPrivacyCollectionPolicyRequest, EnterPrivacyNotAcceptedRequest,
     GetPrivacyStatusRequest, InitializePrivacyRequest, MarkPrivacyViewedRequest,
@@ -73,7 +74,8 @@ impl PrivacyServiceState {
         mut status: PrivacyStatus,
     ) -> Result<PrivacyStatus, PrivacyError> {
         status.effective_mode = self.collection_policy.effective_mode();
-        if status.lifecycle_state == bitfun_product_domains::privacy::PrivacyLifecycleState::Full
+        if status.lifecycle_state
+            == bitfun_product_domains::privacy::PrivacyLifecycleState::Full
             && status.effective_mode != PrivacyEffectiveMode::Full
         {
             status.configuration_error = Some("PRIVACY_POLICY_NOT_APPLIED".to_string());
@@ -81,7 +83,10 @@ impl PrivacyServiceState {
         Ok(status)
     }
 
-    async fn initialize(&self, app_version: &str) -> Result<PrivacyStatus, PrivacyError> {
+    pub(crate) async fn initialize(
+        &self,
+        app_version: &str,
+    ) -> Result<PrivacyStatus, PrivacyError> {
         let Some(service) = self.service.as_ref() else {
             return Ok(PrivacyStatus::disabled());
         };
@@ -104,12 +109,17 @@ impl PrivacyServiceState {
 #[tauri::command]
 pub async fn privacy_initialize(
     state: State<'_, PrivacyServiceState>,
+    telemetry: State<'_, Arc<OhosTelemetryController>>,
     app: tauri::AppHandle,
     _request: InitializePrivacyRequest,
 ) -> Result<PrivacyStatus, PrivacyError> {
-    state
+    let status = state
         .initialize(&app.package_info().version.to_string())
-        .await
+        .await?;
+    if let Err(error) = telemetry.reconcile(state.collection_allowed()) {
+        log::warn!("Telemetry remains disabled after privacy initialization: {error}");
+    }
+    Ok(status)
 }
 
 #[tauri::command]
@@ -133,6 +143,7 @@ pub async fn privacy_get_status(
 #[tauri::command]
 pub async fn privacy_accept(
     state: State<'_, PrivacyServiceState>,
+    telemetry: State<'_, Arc<OhosTelemetryController>>,
     app: tauri::AppHandle,
     request: AcceptPrivacyRequest,
 ) -> Result<PrivacyStatus, PrivacyError> {
@@ -146,12 +157,17 @@ pub async fn privacy_accept(
         })
         .await?;
     state.enter_full_mode()?;
-    state.status_with_effective_mode(status).await
+    let status = state.status_with_effective_mode(status).await?;
+    if let Err(error) = telemetry.reconcile(true) {
+        log::warn!("Telemetry remains disabled after privacy acceptance: {error}");
+    }
+    Ok(status)
 }
 
 #[tauri::command]
 pub async fn privacy_enter_not_accepted(
     state: State<'_, PrivacyServiceState>,
+    telemetry: State<'_, Arc<OhosTelemetryController>>,
     app: tauri::AppHandle,
     request: EnterPrivacyNotAcceptedRequest,
 ) -> Result<PrivacyStatus, PrivacyError> {
@@ -159,6 +175,7 @@ pub async fn privacy_enter_not_accepted(
         return Ok(PrivacyStatus::disabled());
     }
     state.enter_not_accepted_mode()?;
+    telemetry.disable();
     let app_version = app.package_info().version.to_string();
     let status = state
         .with_service(|service| {
@@ -197,6 +214,7 @@ pub async fn privacy_mark_viewed(
 #[tauri::command]
 pub async fn privacy_apply_collection_policy(
     state: State<'_, PrivacyServiceState>,
+    telemetry: State<'_, Arc<OhosTelemetryController>>,
     app: tauri::AppHandle,
     request: ApplyPrivacyCollectionPolicyRequest,
 ) -> Result<PrivacyStatus, PrivacyError> {
@@ -218,6 +236,7 @@ pub async fn privacy_apply_collection_policy(
         state.enter_full_mode()?;
     } else {
         state.enter_not_accepted_mode()?;
+        telemetry.disable();
     }
     let app_version = app.package_info().version.to_string();
     let status = state
@@ -225,5 +244,11 @@ pub async fn privacy_apply_collection_policy(
             Box::pin(async move { service.status(&request.locale, &app_version).await })
         })
         .await?;
-    state.status_with_effective_mode(status).await
+    let status = state.status_with_effective_mode(status).await?;
+    if request.mode == PrivacyEffectiveMode::Full {
+        if let Err(error) = telemetry.reconcile(true) {
+            log::warn!("Telemetry remains disabled after privacy policy update: {error}");
+        }
+    }
+    Ok(status)
 }

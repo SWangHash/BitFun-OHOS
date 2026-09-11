@@ -35,6 +35,7 @@ pub mod round_preempt;
 pub mod image_analysis;
 pub(crate) mod keyed_lock;
 pub mod memories;
+pub(crate) mod observability;
 pub(crate) mod permission_policy;
 
 // Ephemeral side-question module (used by desktop /btw overlay)

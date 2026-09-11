@@ -33,6 +33,8 @@ bitfun-events = { path = "../../crates/contracts/events" }
 bitfun-webdriver = { path = "../../crates/adapters/webdriver" }
 bitfun-acp = { path = "../../crates/interfaces/acp", default-features = false, features = ["client"] }
 bitfun-matrix-adapter = { path = "../../crates/adapters/matrix-adapter" }
+bitfun-observability = { path = "../../crates/execution/observability" }
+bitfun-observability-otel = { path = "../../crates/services/observability-otel" }
 
 # Tauri
 tauri = { workspace = true, features = ["unstable", "macos-private-api", "tray-icon"] }

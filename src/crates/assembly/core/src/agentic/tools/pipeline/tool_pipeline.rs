@@ -7,6 +7,7 @@ use super::state_manager::{tool_task_state_kind, ToolStateManager};
 use super::types::*;
 use crate::agentic::core::{ToolCall, ToolExecutionState, ToolResult as ModelToolResult};
 use crate::agentic::events::types::ToolEventData;
+use crate::agentic::observability::{completion_from_error, tool_identity};
 use crate::agentic::tools::computer_use_host::ComputerUseHostRef;
 use crate::agentic::tools::framework::ToolResult as FrameworkToolResult;
 use crate::agentic::tools::registry::ToolRegistry;
@@ -36,6 +37,10 @@ use bitfun_agent_tools::{
     ResolvedToolInvocation, ToolExecutionAdmissionRejection, ToolExecutionAdmissionRequest,
     ToolExecutionErrorPresentation, GET_TOOL_SPEC_TOOL_NAME, USER_STEERING_INTERRUPTED_MESSAGE,
 };
+use bitfun_observability::domains::{
+    start_tool, CompletionFacts, SafeErrorType, ToolArgumentState, ToolFinishFacts, ToolStartFacts,
+};
+use bitfun_observability::Telemetry;
 use bitfun_runtime_ports::{
     PermissionReply, PermissionRequest, PermissionRequestSource, PermissionRequestSourceKind,
     PermissionResourceCaseSensitivity, RoundInjectionToolPreemption,
@@ -664,6 +669,7 @@ pub struct ToolPipeline {
     /// Tool task ids a PreToolUse hook approved. The approval waives the
     /// interactive permission prompt only; policy denials still apply.
     hook_preapprovals: Arc<TokioMutex<HashSet<String>>>,
+    telemetry: Telemetry,
 }
 
 impl ToolPipeline {
@@ -680,7 +686,13 @@ impl ToolPipeline {
             permission_request_manager: None,
             permission_plans: Arc::new(TokioMutex::new(HashMap::new())),
             hook_preapprovals: Arc::new(TokioMutex::new(HashSet::new())),
+            telemetry: Telemetry::noop(),
         }
+    }
+
+    pub fn with_telemetry(mut self, telemetry: Telemetry) -> Self {
+        self.telemetry = telemetry;
+        self
     }
 
     pub fn with_permission_request_manager(
@@ -1834,6 +1846,86 @@ impl ToolPipeline {
 
     /// Execute single tool
     async fn execute_single_tool(&self, tool_id: String) -> BitFunResult<ToolExecutionResult> {
+        let task = self.state_manager.get_task(&tool_id);
+        let (tool_class, source_class, tool_kind, remote, parallel) = task
+            .as_ref()
+            .map(|task| {
+                let (tool_class, source_class, tool_kind) =
+                    tool_identity(task.effective_tool_name());
+                (
+                    tool_class,
+                    source_class,
+                    tool_kind,
+                    task.context
+                        .workspace
+                        .as_ref()
+                        .is_some_and(|workspace| workspace.is_remote()),
+                    task.options.allow_parallel,
+                )
+            })
+            .unwrap_or((
+                bitfun_observability::domains::ToolClass::BuiltIn,
+                bitfun_observability::domains::ToolSourceClass::Custom,
+                bitfun_observability::domains::ToolKind::Other,
+                false,
+                false,
+            ));
+        let observation = start_tool(
+            &self.telemetry,
+            ToolStartFacts {
+                tool_class,
+                source_class,
+                tool_kind,
+                parallel,
+                remote,
+                background: false,
+                argument_state: ToolArgumentState::Unchanged,
+                arguments_truncated: false,
+            },
+            None,
+        );
+        let result = self.execute_single_tool_inner(tool_id).await;
+        let (completion, content_length, execution_ms) = match &result {
+            Ok(value) if value.result.is_error => (
+                CompletionFacts::failed(SafeErrorType::Other),
+                value
+                    .result
+                    .result_for_assistant
+                    .as_ref()
+                    .map(|text| text.len() as u64),
+                Some(value.execution_time_ms),
+            ),
+            Ok(value) => (
+                CompletionFacts::completed(),
+                value
+                    .result
+                    .result_for_assistant
+                    .as_ref()
+                    .map(|text| text.len() as u64),
+                Some(value.execution_time_ms),
+            ),
+            Err(error) => (completion_from_error(error), None, None),
+        };
+        observation.finish(ToolFinishFacts {
+            completion,
+            queue_ms: None,
+            preflight_ms: None,
+            confirmation_ms: None,
+            execution_ms,
+            failure_source: None,
+            exit_status_class: None,
+            content_length,
+            content_truncated: None,
+            retryable: None,
+            programming_language: None,
+        });
+        result
+    }
+
+    async fn execute_single_tool_inner(
+        &self,
+        tool_id: String,
+    ) -> BitFunResult<ToolExecutionResult> {
         let start_time = Instant::now();
 
         debug!("Starting tool execution: tool_id={}", tool_id);

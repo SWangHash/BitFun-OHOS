@@ -2,6 +2,10 @@
 //!
 //! Executes a single model round: calls AI, processes streaming responses, executes tools
 
+use super::super::observability::{
+    completion_from_error, finish_reason_class, inference_classes, inference_context_class,
+    retryable_error, status_class,
+};
 use super::model_exchange_trace::prepare_model_exchange_trace;
 use super::stream_processor::{StreamProcessOptions, StreamProcessor, StreamResult};
 use super::types::{coordinator_owns_cancel_lifecycle, FinishReason, RoundContext, RoundResult};
@@ -45,6 +49,12 @@ use bitfun_ai_adapters::{
 };
 use bitfun_core_types::errors::{AiProviderError, ErrorCategory};
 use bitfun_core_types::ModelResponseReplay;
+use bitfun_observability::domains::{
+    attempt_bucket, index_bucket, start_inference_with_request_facts, start_round, CompletionFacts,
+    InferenceFinishFacts, InferenceRequestFacts, InferenceResponseFacts, InferenceStartFacts,
+    RoundFinishFacts, RoundStartFacts, SafeErrorType, StatusClass,
+};
+use bitfun_observability::Telemetry;
 use bitfun_runtime_ports::PermissionRule;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -56,6 +66,7 @@ pub struct RoundExecutor {
     tool_pipeline: Option<Arc<ToolPipeline>>,
     event_queue: Arc<EventQueue>,
     cancellation_tokens: DialogTurnCancellationTokenStore,
+    telemetry: Telemetry,
 }
 
 fn normalize_deferred_tool_calls_for_replay(tool_calls: &mut [ToolCall]) {
@@ -317,7 +328,13 @@ impl RoundExecutor {
             tool_pipeline: Some(tool_pipeline),
             event_queue,
             cancellation_tokens: DialogTurnCancellationTokenStore::new(),
+            telemetry: Telemetry::noop(),
         }
+    }
+
+    pub fn with_telemetry(mut self, telemetry: Telemetry) -> Self {
+        self.telemetry = telemetry;
+        self
     }
 
     pub fn computer_use_host(&self) -> Option<ComputerUseHostRef> {
@@ -349,6 +366,132 @@ impl RoundExecutor {
     }
 
     pub(super) async fn execute_round_with_lifecycle(
+        &self,
+        ai_client: Arc<AIClient>,
+        context: RoundContext,
+        ai_messages: Vec<AIMessage>,
+        tool_definitions: Option<Vec<ToolDefinition>>,
+        context_window: Option<usize>,
+        lifecycle: &mut ModelRoundLifecycle,
+        session_manager: Option<&SessionManager>,
+    ) -> BitFunResult<RoundResult> {
+        let (provider_class, model_class, protocol_class, auth_class) =
+            inference_classes(&ai_client.config.format, None, None);
+        let round_observation = start_round(
+            &self.telemetry,
+            RoundStartFacts {
+                index_bucket: index_bucket(context.round_number),
+                subagent: context.subagent_parent_info.is_some(),
+            },
+            None,
+        );
+        let inference_observation = start_inference_with_request_facts(
+            &self.telemetry,
+            InferenceStartFacts {
+                provider_class,
+                model_class,
+                protocol_class,
+                context_class: inference_context_class(),
+                auth_class,
+            },
+            InferenceRequestFacts {
+                message_count: Some(ai_messages.len().min(u64::MAX as usize) as u64),
+                tool_count: Some(
+                    tool_definitions
+                        .as_ref()
+                        .map_or(0, Vec::len)
+                        .min(u64::MAX as usize) as u64,
+                ),
+            },
+            None,
+        );
+        let result = self
+            .execute_round_with_lifecycle_inner(
+                ai_client,
+                context,
+                ai_messages,
+                tool_definitions,
+                context_window,
+                lifecycle,
+                session_manager,
+            )
+            .await;
+        let (inference_completion, inference_status, inference_retryable, response) = match &result
+        {
+            Ok(round) => {
+                let completion = if round.partial_recovery_reason.is_some() {
+                    CompletionFacts::degraded(SafeErrorType::Provider)
+                } else {
+                    CompletionFacts::completed()
+                };
+                (
+                    completion,
+                    StatusClass::Success,
+                    false,
+                    InferenceResponseFacts {
+                        finish_reason: Some(finish_reason_class(round.finish_reason.as_str())),
+                        has_tool_calls: Some(!round.tool_calls.is_empty()),
+                        reasoning_present: Some(round.had_thinking_content),
+                        output_length: None,
+                        reasoning_length: None,
+                        output_line_count: None,
+                        reasoning_first_ms: None,
+                        reasoning_duration_ms: None,
+                        stream_outcome: round.partial_recovery_reason.as_ref().map(|_| {
+                            bitfun_observability::domains::InferenceStreamOutcomeClass::PartialRecovered
+                        }),
+                        tool_argument_recovery: None,
+                    },
+                )
+            }
+            Err(error) => (
+                completion_from_error(error),
+                status_class(Some(error)),
+                retryable_error(error),
+                InferenceResponseFacts::default(),
+            ),
+        };
+        let usage = result.as_ref().ok().and_then(|round| round.usage.as_ref());
+        inference_observation.finish_with_response_facts(
+            InferenceFinishFacts {
+                completion: inference_completion,
+                attempt_bucket: attempt_bucket(lifecycle.attempts_started()),
+                status_class: Some(inference_status),
+                retryable: Some(inference_retryable),
+                ttft_ms: None,
+                input_tokens: usage.map(|value| value.prompt_token_count as u64),
+                output_tokens: usage.map(|value| value.candidates_token_count as u64),
+                reasoning_tokens: usage
+                    .and_then(|value| value.reasoning_token_count.map(u64::from)),
+                cache_read_tokens: usage
+                    .and_then(|value| value.cached_content_token_count.map(u64::from)),
+                cache_creation_tokens: usage
+                    .and_then(|value| value.cache_creation_token_count.map(u64::from)),
+                total_tokens: usage.map(|value| value.total_token_count as u64),
+                context_window_tokens: context_window
+                    .map(|value| value.min(u64::MAX as usize) as u64),
+                tool_definition_tokens_estimate: None,
+            },
+            response,
+        );
+        let round_completion = match &result {
+            Ok(round) if round.partial_recovery_reason.is_some() => {
+                CompletionFacts::degraded(SafeErrorType::Provider)
+            }
+            Ok(_) => CompletionFacts::completed(),
+            Err(error) => completion_from_error(error),
+        };
+        round_observation.finish(RoundFinishFacts {
+            completion: round_completion,
+            has_tool_calls: result
+                .as_ref()
+                .is_ok_and(|round| !round.tool_calls.is_empty()),
+            attempt_bucket: attempt_bucket(lifecycle.attempts_started()),
+        });
+        result
+    }
+
+    async fn execute_round_with_lifecycle_inner(
         &self,
         ai_client: Arc<AIClient>,
         context: RoundContext,
@@ -1613,6 +1756,7 @@ pub(super) mod tests {
     };
     use bitfun_agent_runtime::turn_cancellation::DialogTurnCancellationTokenStore;
     use bitfun_core_types::errors::{AiProviderError, ErrorCategory};
+    use bitfun_observability::Telemetry;
     use bitfun_runtime_ports::{
         DelegationPolicy, PermissionEffect, PermissionEvaluator, PermissionPolicyPreset,
         PermissionRule,
@@ -1630,6 +1774,7 @@ pub(super) mod tests {
             tool_pipeline: None,
             event_queue,
             cancellation_tokens: DialogTurnCancellationTokenStore::new(),
+            telemetry: Telemetry::noop(),
         }
     }
 
