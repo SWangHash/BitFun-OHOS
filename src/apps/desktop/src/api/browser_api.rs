@@ -538,6 +538,7 @@ pub enum WebviewPreviewResponse {
 }
 
 // Preview frames are ephemeral UI assets, never files or full-page captures.
+#[cfg(not(target_env = "ohos"))]
 fn encode_browser_preview(png_base64: &str) -> Result<String, String> {
     use base64::Engine as _;
     let bytes = base64::engine::general_purpose::STANDARD
@@ -567,20 +568,31 @@ pub async fn browser_webview_capture_preview(
     request: WebviewLabelRequest,
 ) -> Result<WebviewPreviewResponse, String> {
     validate_browser_label(&request.label)?;
-    let webview = find_browser_webview(&app, &request.label)?;
-    let png = match openbitfun_webdriver::platform::take_screenshot(webview, 1000).await {
-        Ok(png) => png,
-        Err(error) if error.error == "unsupported operation" => {
-            return Ok(WebviewPreviewResponse::Unsupported {
-                reason: error.message,
-            });
-        }
-        Err(error) => return Err(error.message),
-    };
-    let data_url = tokio::task::spawn_blocking(move || encode_browser_preview(&png))
-        .await
-        .map_err(|e| format!("browser preview encoding task failed: {e}"))??;
-    Ok(WebviewPreviewResponse::Ready { data_url })
+    #[cfg(not(target_env = "ohos"))]
+    {
+        let webview = find_browser_webview(&app, &request.label)?;
+        let png = match openbitfun_webdriver::platform::take_screenshot(webview, 1000).await {
+            Ok(png) => png,
+            Err(error) if error.error == "unsupported operation" => {
+                return Ok(WebviewPreviewResponse::Unsupported {
+                    reason: error.message,
+                });
+            }
+            Err(error) => return Err(error.message),
+        };
+        let data_url = tokio::task::spawn_blocking(move || encode_browser_preview(&png))
+            .await
+            .map_err(|e| format!("browser preview encoding task failed: {e}"))??;
+        Ok(WebviewPreviewResponse::Ready { data_url })
+    }
+
+    #[cfg(target_env = "ohos")]
+    {
+        let _ = &app;
+        Ok(WebviewPreviewResponse::Unsupported {
+            reason: "browser_webview_capture_preview is not supported on HarmonyOS".to_string(),
+        })
+    }
 }
 
 #[tauri::command]

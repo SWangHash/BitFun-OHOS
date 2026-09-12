@@ -4754,7 +4754,7 @@ pub(crate) fn reveal_local_path_in_explorer(
         }
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
     {
         if is_directory {
             openbitfun_core::util::process_manager::create_command("xdg-open")

@@ -36,6 +36,7 @@ pub mod startup_trace;
 #[cfg(not(target_env = "ohos"))]
 pub mod tray;
 mod webview_recovery;
+#[cfg(not(target_env = "ohos"))]
 mod window_state_support;
 
 use openbitfun_agent_runtime::sdk::{attach_session_event_cursor, SessionEventJournal};
@@ -300,6 +301,7 @@ fn show_main_window_for_secondary_launch(
         main_window
             .unminimize()
             .map_err(|error| format!("failed to unminimize main window: {}", error))?;
+        #[cfg(not(target_env = "ohos"))]
         if let Err(error) = window_state_support::repair_for_activation(&main_window) {
             log::warn!(
                 "Failed to repair main window geometry from secondary launch: {}",
@@ -851,14 +853,18 @@ pub async fn _run() {
         builder = builder.plugin(tauri_plugin_dialog::init());
     }
 
+    // The desktop owns validated snapshots and atomic writes. Do not install
+    // window-state: its exit hook can overwrite repairs with stale cached data.
+    #[cfg(not(target_env = "ohos"))]
+    {
+        builder = builder.manage(window_state_support::MainWindowState::default());
+    }
+
     let app = builder
         .plugin(logging::build_log_command_plugin())
         .plugin(logging::build_log_handoff_plugin(log_targets))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
-        // The desktop owns validated snapshots and atomic writes. Do not install
-        // window-state: its exit hook can overwrite repairs with stale cached data.
-        .manage(window_state_support::MainWindowState::default())
         .manage(app_state)
         .manage(sleep_prevention::SleepPreventionState::default())
         .manage(desktop_runtime)
@@ -1323,6 +1329,7 @@ pub async fn _run() {
         })
         .on_window_event({
             move |window, event| {
+                #[cfg(not(target_env = "ohos"))]
                 if window.label() == "main"
                     && !MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.load(Ordering::SeqCst)
                     && matches!(event, tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_))
