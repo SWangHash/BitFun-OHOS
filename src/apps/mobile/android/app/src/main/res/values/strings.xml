@@ -26,7 +26,7 @@
     <string name="settings_theme_dark">Dark</string>
     <string name="account_title">Account</string>
     <string name="account_login_title">Sign in with GitHub</string>
-    <string name="account_login_body">Sign in with GitHub to connect to your computers and control their sessions.</string>
+    <string name="account_login_body">Sign in with GitHub to connect to your computers.\nTasks and model settings stay on the controlled computer.</string>
     <string name="account_login_server">Sign-in server</string>
     <string name="account_username_placeholder">OpenBitFun username</string>
     <string name="account_password_placeholder">OpenBitFun password</string>
@@ -140,7 +140,7 @@
     <string name="connect_pair_code_placeholder">Pairing code</string>
     <string name="connect_pair">Pair</string>
     <string name="connect_switch_manual">Pair manually instead</string>
-    <string name="connect_scan_failed">The camera could not be opened. Check the camera permission, or enter the link instead.</string>
+    <string name="connect_scan_failed">Scanning could not be completed. Go back to retry, or enter the connection link.</string>
     <string name="connect_back">Back</string>
 
     <string name="paired_title">Connected</string>
@@ -450,4 +450,18 @@
     <string name="account_device_link_invalid">Use a current OpenBitFun device QR code.</string>
     <string name="account_device_link_unavailable">This device is offline or does not belong to your GitHub account.</string>
     <string name="chat_image_prepare_failed">This image could not be prepared. Choose another image.</string>
+    <string name="harness_minimal">Minimal</string>
+    <string name="harness_standard">Standard</string>
+    <string name="harness_ultimate">Ultimate</string>
+    <string name="task_completed_title">Task completed</string>
+    <string name="task_completed_body">Open OpenBitFun to view the result.</string>
+    <string name="notification_onboarding_title">Task completion notifications</string>
+    <string name="notification_onboarding_later">Later</string>
+    <string name="notification_onboarding_enable">Enable notifications</string>
+    <string name="notification_onboarding_body">Allow OpenBitFun to notify you when tasks finish. You can change this later in system settings.</string>
+    <string name="remote_connect_description">Scan the QR code shown on your desktop to start working remotely.</string>
+    <string name="connect_scan_body">On OpenBitFun Desktop, tap Connect mobile\nthen scan the QR code</string>
+    <string name="connect_camera_permission_denied">Camera access is required to scan. Allow OpenBitFun to use the camera in system settings, or pair manually.</string>
+    <string name="connect_camera_unavailable">The camera could not be opened. Check permissions and retry, or pair manually.</string>
+    <string name="connect_scan_hint">Scanning a QR code or pasting a remote connection link will show the desktop connection status.</string>
 </resources>

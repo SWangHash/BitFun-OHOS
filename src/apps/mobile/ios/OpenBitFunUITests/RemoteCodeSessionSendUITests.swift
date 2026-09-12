@@ -731,3 +731,104 @@ final class RemoteAccountWorkflowPerformanceUITests: XCTestCase {
         case requiredElementMissing
     }
 }
+
+/// Run on a fresh simulator installation so notification authorization is undecided.
+final class NotificationOnboardingUITests: XCTestCase {
+    func testLaterPersistsAcrossRelaunch() {
+        let app = XCUIApplication(bundleIdentifier: "com.openbitfun.mobile.ios")
+        app.launch()
+        let prompt = app.alerts.firstMatch
+        XCTAssertTrue(prompt.waitForExistence(timeout: 15))
+        let later = app.buttons.matching(NSPredicate(format: "label IN %@", ["Later", "稍后"])).firstMatch
+        XCTAssertTrue(later.exists)
+        later.tap()
+        XCTAssertFalse(prompt.exists)
+        app.terminate()
+        app.launch()
+        let sidebar = app.buttons.matching(NSPredicate(format: "label IN %@", ["Open sidebar", "打开侧栏"])).firstMatch
+        XCTAssertTrue(sidebar.waitForExistence(timeout: 15))
+        XCTAssertFalse(prompt.waitForExistence(timeout: 3), "Skipping onboarding must survive process restart.")
+        // Use the existing settings inspection route without signing in a test account.
+        app.terminate()
+        app.launchArguments = ["--settings"]
+        app.launch()
+        let notifications = app.buttons["settings.notifications"]
+        XCTAssertTrue(notifications.waitForExistence(timeout: 5))
+        notifications.tap()
+        let systemPrompt = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch
+        XCTAssertTrue(systemPrompt.waitForExistence(timeout: 10), "Settings must still allow authorization after Later.")
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "NotificationAuthorizationAfterLater"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+}
+
+final class SidebarNavigationUITests: XCTestCase {
+    func testNewChatOffersHarnessProfilesInCompactAndWideSidebar() {
+        let app = XCUIApplication(bundleIdentifier: "com.openbitfun.mobile.ios")
+        app.launchArguments = ["--harness-preview", "--drawer", "--simplified-chinese"]
+        app.launch()
+        let later = app.alerts.buttons["稍后"]
+        if later.waitForExistence(timeout: 3) { later.tap() }
+        let newChat = app.buttons["sidebar.newChat"]
+        XCTAssertTrue(newChat.waitForExistence(timeout: 10))
+        XCTAssertTrue(newChat.isEnabled)
+        XCTAssertTrue(newChat.label.contains("新聊天"))
+        let workspace = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "sidebar.workspace.")).firstMatch
+        XCTAssertTrue(workspace.exists)
+        workspace.tap()
+        let compact = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        compact.name = "SidebarCompact"
+        compact.lifetime = .keepAlways
+        add(compact)
+        newChat.tap()
+        XCTAssertTrue(app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "标准")).firstMatch.waitForExistence(timeout: 5))
+        app.terminate()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        app.launch()
+        XCTAssertTrue(newChat.waitForExistence(timeout: 10))
+        XCTAssertTrue(newChat.isHittable)
+        app.scrollViews.firstMatch.swipeUp()
+        XCTAssertLessThan(workspace.frame.maxY, newChat.frame.minY, "The final workspace must scroll clear of the floating actions.")
+        let wide = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        wide.name = "SidebarWide"
+        wide.lifetime = .keepAlways
+        add(wide)
+    }
+}
+
+final class GitHubLoginPresentationUITests: XCTestCase {
+    func testLoginUsesCompactSheetAndOpensBrowserAutomatically() {
+        let app = XCUIApplication(bundleIdentifier: "com.openbitfun.mobile.ios")
+        app.launchArguments = ["--drawer", "--simplified-chinese"]
+        app.launch()
+        let later = app.alerts.buttons["稍后"]
+        if later.waitForExistence(timeout: 3) { later.tap() }
+        let account = app.buttons["使用 GitHub 登录"]
+        XCTAssertTrue(account.waitForExistence(timeout: 10), "Run on a signed-out simulator.")
+        account.tap()
+        let login = app.buttons["account.login"]
+        XCTAssertTrue(login.waitForExistence(timeout: 5))
+        let title = app.staticTexts["使用 GitHub 登录"]
+        XCTAssertGreaterThan(title.frame.minY, app.frame.height * 0.5)
+        let sheet = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        sheet.name = "CompactGitHubLogin"
+        sheet.lifetime = .keepAlways
+        add(sheet)
+        login.tap()
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+        let opened = XCTNSPredicateExpectation(predicate: NSPredicate(format: "state == %d", XCUIApplication.State.runningForeground.rawValue), object: safari)
+        XCTAssertEqual(XCTWaiter.wait(for: [opened], timeout: 30), .completed, "A single login tap must open the authorization browser.")
+        let browser = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        browser.name = "AutomaticallyOpenedAuthorization"
+        browser.lifetime = .keepAlways
+        add(browser)
+        app.activate()
+        XCTAssertTrue(login.waitForExistence(timeout: 5))
+        XCTAssertTrue(login.isEnabled, "Returning from the browser must allow reopening the same authorization.")
+        XCTAssertTrue(login.label.contains("打开 GitHub 授权"))
+        app.terminate()
+    }
+}

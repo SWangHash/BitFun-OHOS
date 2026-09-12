@@ -1,3 +1,4 @@
+import { ChevronDown as LucideChevronDown } from 'lucide-react';
 /**
  * Scroll-to-bottom button.
  * Shows when the user scrolls up; click to return to latest messages.
@@ -53,21 +54,7 @@ export const ScrollToBottomButton: React.FC<ScrollToBottomButtonProps> = ({
           tabIndex={visible ? buttonProps.tabIndex : -1}
           {...(!visible ? { inert: '' } : {})}
         >
-          <svg
-            data-openbitfun-component="scroll-to-bottom-button"
-            data-openbitfun-part="icon"
-            className="scroll-icon"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
+          <LucideChevronDown data-openbitfun-component="scroll-to-bottom-button" data-openbitfun-part="icon" className="scroll-icon" width="20" height="20" stroke="currentColor" aria-hidden="true" />
           {unreadCount !== undefined && unreadCount > 0 && (
             <span data-openbitfun-component="scroll-to-bottom-button" data-openbitfun-part="badge" className="unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
           )}

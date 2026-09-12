@@ -68,7 +68,7 @@ export struct RemoteControlSettingsSheet {
       }
     }
     .width('100%')
-    .height('100%')
+    .height(this.currentPage() === 'login' ? undefined : '100%')
     .backgroundColor(PAGE_BG)
     .borderRadius({ topLeft: SHEET_TOP_RADIUS, topRight: SHEET_TOP_RADIUS })
   }

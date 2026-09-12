@@ -58,8 +58,6 @@ use std::sync::{
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::Emitter;
 use tauri::Manager;
-#[cfg(not(target_env = "ohos"))]
-use tauri_plugin_window_state::{AppHandleExt, StateFlags, WindowExt};
 
 // Re-export API
 pub use api::*;
@@ -302,6 +300,12 @@ fn show_main_window_for_secondary_launch(
         main_window
             .unminimize()
             .map_err(|error| format!("failed to unminimize main window: {}", error))?;
+        if let Err(error) = window_state_support::repair_for_activation(&main_window) {
+            log::warn!(
+                "Failed to repair main window geometry from secondary launch: {}",
+                error
+            );
+        }
         main_window
             .show()
             .map_err(|error| format!("failed to show main window: {}", error))?;
@@ -350,64 +354,8 @@ pub(crate) fn e2e_storage_guard_enabled() -> bool {
 }
 
 #[cfg(not(target_env = "ohos"))]
-fn main_window_state_flags() -> StateFlags {
-    main_window_geometry_state_flags() | StateFlags::MAXIMIZED
-}
-
-#[cfg(not(target_env = "ohos"))]
-fn main_window_geometry_state_flags() -> StateFlags {
-    StateFlags::SIZE | StateFlags::POSITION | StateFlags::FULLSCREEN
-}
-
-/// Restore deliberately excludes `MAXIMIZED` on Windows: maximizing a hidden
-/// undecorated window does not survive `show()` and leaves Windows tracking a
-/// bogus normal-placement rect. Other platforms use the plugin's complete
-/// restore behavior.
-#[cfg(target_os = "windows")]
-#[cfg(not(target_env = "ohos"))]
-fn main_window_restore_flags() -> StateFlags {
-    main_window_geometry_state_flags()
-}
-
-#[cfg(all(not(target_os = "windows"), not(target_env = "ohos")))]
-fn main_window_restore_flags() -> StateFlags {
-    main_window_state_flags()
-}
-
-#[cfg(not(target_env = "ohos"))]
 fn persist_main_window_state(app: &tauri::AppHandle, reason: &str) -> Result<(), String> {
-    persist_main_window_state_with_flags(app, reason, main_window_state_flags())
-}
-
-#[cfg(not(target_env = "ohos"))]
-fn persist_main_window_geometry_state(app: &tauri::AppHandle, reason: &str) -> Result<(), String> {
-    persist_main_window_state_with_flags(app, reason, main_window_geometry_state_flags())
-}
-
-#[cfg(not(target_env = "ohos"))]
-fn persist_main_window_state_with_flags(
-    app: &tauri::AppHandle,
-    reason: &str,
-    flags: StateFlags,
-) -> Result<(), String> {
-    let result = app
-        .save_window_state(flags)
-        .map_err(|error| error.to_string());
-    if let Err(error) = &result {
-        log::warn!(
-            "Failed to save main window state: reason={}, error={}",
-            reason,
-            error
-        );
-        return result;
-    }
-
-    #[cfg(target_os = "windows")]
-    if flags.contains(StateFlags::MAXIMIZED) {
-        window_state_support::correct_saved_main_window_state(app);
-    }
-
-    Ok(())
+    window_state_support::save(app, reason)
 }
 
 pub(crate) fn save_main_window_state(app: &tauri::AppHandle, reason: &str) {
@@ -466,78 +414,9 @@ pub(crate) fn set_main_window_transient_geometry(
     }
 }
 
-fn has_standard_main_window_size(width: f64, height: f64) -> bool {
-    width >= MAIN_WINDOW_MIN_WIDTH && height >= MAIN_WINDOW_MIN_HEIGHT
-}
-
 #[cfg(not(target_env = "ohos"))]
 pub(crate) fn restore_main_window_state(window: &tauri::WebviewWindow) -> bool {
-    if let Err(error) = window.restore_state(main_window_restore_flags()) {
-        log::warn!("Failed to restore main window state: {}", error);
-    }
-
-    #[cfg(target_os = "windows")]
-    let reapply_maximized =
-        window_state_support::read_persisted_main_maximized(window.app_handle()).unwrap_or(false);
-
-    #[cfg(not(target_os = "windows"))]
-    let reapply_maximized = false;
-
-    let is_maximized = window.is_maximized().unwrap_or(false);
-    let is_fullscreen = window.is_fullscreen().unwrap_or(false);
-    if !is_maximized && !is_fullscreen {
-        match (window.inner_size(), window.scale_factor()) {
-            (Ok(size), Ok(scale_factor)) => {
-                let logical_size = size.to_logical::<f64>(scale_factor);
-                if !has_standard_main_window_size(logical_size.width, logical_size.height) {
-                    log::info!(
-                        "Resetting undersized main window state: width={}, height={}",
-                        logical_size.width,
-                        logical_size.height
-                    );
-
-                    let resize_result = window.set_size(tauri::LogicalSize::new(
-                        MAIN_WINDOW_DEFAULT_WIDTH,
-                        MAIN_WINDOW_DEFAULT_HEIGHT,
-                    ));
-                    let center_result = window.center();
-                    let resize_succeeded = match resize_result {
-                        Ok(()) => true,
-                        Err(error) => {
-                            log::warn!("Failed to reset main window size: {}", error);
-                            false
-                        }
-                    };
-                    if let Err(error) = center_result {
-                        log::warn!("Failed to center reset main window: {}", error);
-                    }
-                    if resize_succeeded {
-                        if let Err(error) = persist_main_window_geometry_state(
-                            window.app_handle(),
-                            "startup_geometry_repair",
-                        ) {
-                            log::warn!("Failed to persist repaired main window state: {}", error);
-                        }
-                    }
-                }
-            }
-            (Err(error), _) => {
-                log::warn!("Failed to read restored main window size: {}", error);
-            }
-            (_, Err(error)) => {
-                log::warn!("Failed to read main window scale factor: {}", error);
-            }
-        }
-    }
-
-    if let Err(error) = window.set_min_size(Some(tauri::LogicalSize::new(
-        MAIN_WINDOW_MIN_WIDTH,
-        MAIN_WINDOW_MIN_HEIGHT,
-    ))) {
-        log::warn!("Failed to set main window minimum size: {}", error);
-    }
-
-    reapply_maximized
+    window_state_support::restore(window)
 }
 
 #[tauri::command]
@@ -977,6 +856,9 @@ pub async fn _run() {
         .plugin(logging::build_log_handoff_plugin(log_targets))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
+        // The desktop owns validated snapshots and atomic writes. Do not install
+        // window-state: its exit hook can overwrite repairs with stale cached data.
+        .manage(window_state_support::MainWindowState::default())
         .manage(app_state)
         .manage(sleep_prevention::SleepPreventionState::default())
         .manage(desktop_runtime)
@@ -1441,6 +1323,13 @@ pub async fn _run() {
         })
         .on_window_event({
             move |window, event| {
+                if window.label() == "main"
+                    && !MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.load(Ordering::SeqCst)
+                    && matches!(event, tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_))
+                {
+                    window_state_support::remember_normal(window);
+                }
+
                 if window.label() == "main"
                     && matches!(event, tauri::WindowEvent::Resized { .. })
                     && window.is_minimized().unwrap_or(false)
@@ -2057,6 +1946,7 @@ pub async fn _run() {
             api::miniapp_api::miniapp_get_customization_metadata,
             api::miniapp_api::miniapp_decline_builtin_update,
             api::miniapp_market_api::miniapp_market_browse,
+            api::market_image_api::market_image_load,
             api::miniapp_market_api::miniapp_market_get_listing,
             api::miniapp_market_api::miniapp_market_capture_window,
             api::miniapp_market_api::miniapp_market_set_rating,
@@ -2094,7 +1984,7 @@ pub async fn _run() {
             api::browser_api::browser_webview_navigate,
             api::browser_api::browser_webview_reload,
             api::browser_api::browser_webview_set_bounds,
-            #[cfg(not(target_env = "ohos"))]
+            api::browser_api::browser_webview_capture_preview,
             api::browser_api::browser_webview_set_agent_target_state,
             api::browser_api::browser_webview_show,
             api::browser_api::browser_webview_hide,

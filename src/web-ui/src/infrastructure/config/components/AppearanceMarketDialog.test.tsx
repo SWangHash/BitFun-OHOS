@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppearanceMarketDialog } from './AppearanceMarketDialog';
 
 const mocks = vi.hoisted(() => ({
+  getCachedPage: vi.fn(),
   browse: vi.fn(),
   getListing: vi.fn(),
   downloadRelease: vi.fn(),
@@ -117,6 +118,7 @@ vi.mock('@/infrastructure/i18n/hooks/useI18n', () => ({
 
 vi.mock('@/infrastructure/api/service-api/AppearanceMarketAPI', () => ({
   appearanceMarketAPI: {
+    getCachedPage: mocks.getCachedPage,
     browse: mocks.browse,
     getListing: mocks.getListing,
     downloadRelease: mocks.downloadRelease,
@@ -187,6 +189,7 @@ describe('AppearanceMarketDialog', () => {
   let root: ReturnType<typeof createRoot>;
 
   beforeEach(() => {
+    mocks.getCachedPage.mockReset();
     mocks.browse.mockReset().mockResolvedValue({ items: [summary] });
     mocks.getListing.mockReset().mockResolvedValue({
       ...summary,
@@ -311,6 +314,43 @@ describe('AppearanceMarketDialog', () => {
 
     await vi.waitFor(() => expect(container.textContent).toContain('Tokyo Night'));
     expect(container.querySelector('.appearance-market__card--skeleton')).toBeNull();
+  });
+
+  it('shows cached cards immediately and preserves the same image through revalidation', async () => {
+    mocks.getCachedPage.mockReturnValue({ items: [summary] });
+    let resolveBrowse!: (page: unknown) => void;
+    mocks.browse.mockImplementation(() => new Promise(resolve => { resolveBrowse = resolve; }));
+    await act(async () => root.render(<AppearanceMarketDialog isOpen onClose={() => undefined} />));
+    const image = container.querySelector('.appearance-market__preview img');
+    expect(image).not.toBeNull();
+    expect(container.querySelector('.appearance-market__card--skeleton')).toBeNull();
+    expect(container.querySelector('.appearance-market__results--dimmed')).toBeNull();
+    await act(async () => resolveBrowse({ items: [summary] }));
+    expect(container.querySelector('.appearance-market__preview img')).toBe(image);
+  });
+
+  it('keeps cached cards available when revalidation fails', async () => {
+    mocks.getCachedPage.mockReturnValue({ items: [summary] });
+    mocks.browse.mockRejectedValue(new Error('offline'));
+    await act(async () => root.render(<AppearanceMarketDialog isOpen onClose={() => undefined} />));
+    expect(container.textContent).toContain('Tokyo Night');
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('offline');
+  });
+
+  it('ignores a stale browse response after the sort changes', async () => {
+    const responses: Array<(page: unknown) => void> = [];
+    mocks.browse.mockImplementation(() => new Promise(resolve => { responses.push(resolve); }));
+    await act(async () => root.render(<AppearanceMarketDialog isOpen onClose={() => undefined} />));
+    await act(async () => {
+      const select = container.querySelector<HTMLSelectElement>('[aria-label="package.market.sortLabel"]')!;
+      select.value = 'downloads';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(responses).toHaveLength(2);
+    await act(async () => responses[1]({ items: [{ ...summary, name: 'Newest result' }] }));
+    await act(async () => responses[0]({ items: [summary] }));
+    expect(container.textContent).toContain('Newest result');
+    expect(container.textContent).not.toContain('Tokyo Night');
   });
 
   it('keeps an empty result set on the empty state once loading settles', async () => {

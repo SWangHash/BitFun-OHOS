@@ -1,3 +1,16 @@
+import {
+  Check as LucideCheck,
+  ChevronDown as LucideChevronDown,
+  ChevronRight as LucideChevronRight,
+  Circle as LucideCircle,
+  CircleCheck as LucideCircleCheck,
+  CirclePlay as LucideCirclePlay,
+  CircleX as LucideCircleX,
+  ListTodo as LucideListTodo,
+  LoaderCircle as LucideLoaderCircle,
+  Square as LucideSquare,
+  X as LucideX,
+} from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MobileButton, MobileCard, MobileDisclosure, MobileMessage } from '@openbitfun/ui/mobile';
 import { useI18n } from '../i18n';
@@ -138,13 +151,13 @@ const TodoCard: React.FC<{ tool: RemoteToolStatus }> = ({ tool }) => {
   const statusIcon = (s: string) => {
     switch (s) {
       case 'completed':
-        return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--openbitfun-color-status-success-content)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>;
+        return <LucideCircleCheck width="12" height="12" stroke="var(--openbitfun-color-status-success-content)" aria-hidden="true" />;
       case 'in_progress':
-        return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--openbitfun-color-accent-default)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="var(--openbitfun-color-accent-default)"/></svg>;
+        return <LucideCirclePlay width="12" height="12" stroke="var(--openbitfun-color-accent-default)" aria-hidden="true" />;
       case 'cancelled':
-        return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--openbitfun-color-status-danger-content)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>;
+        return <LucideCircleX width="12" height="12" stroke="var(--openbitfun-color-status-danger-content)" aria-hidden="true" />;
       default:
-        return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--openbitfun-color-content-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/></svg>;
+        return <LucideCircle width="12" height="12" stroke="var(--openbitfun-color-content-muted)" aria-hidden="true" />;
     }
   };
 
@@ -152,9 +165,7 @@ const TodoCard: React.FC<{ tool: RemoteToolStatus }> = ({ tool }) => {
     <MobileCard padding="none" className="chat-todo-card">
       <MobileButton appearance="plain" block className="chat-todo-card__header" onClick={() => setExpanded(!expanded)}>
         <span className="chat-todo-card__icon">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="5" width="6" height="6" rx="1"/><path d="m3 17 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>
-          </svg>
+          <LucideListTodo width="14" height="14" stroke="currentColor" aria-hidden="true" />
         </span>
         {allDone && !expanded ? (
           <span className="chat-todo-card__current chat-todo-card__current--done">{t('chat.allTasksCompleted')}</span>
@@ -170,7 +181,7 @@ const TodoCard: React.FC<{ tool: RemoteToolStatus }> = ({ tool }) => {
           <span className="chat-todo-card__stats">{completed}/{todos.length}</span>
         </span>
         <span className={`chat-todo-card__chevron ${expanded ? 'is-expanded' : ''}`}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          <LucideChevronDown width="12" height="12" stroke="currentColor" aria-hidden="true" />
         </span>
       </MobileButton>
       {expanded && (
@@ -275,11 +286,11 @@ export const TaskToolCard: React.FC<{
             <span className="chat-tool-card__spinner" />
           ) : isCompleted ? (
             <span className="chat-tool-card__check">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <LucideCheck width="12" height="12" aria-hidden="true" />
             </span>
           ) : isError ? (
             <span className="chat-tool-card__error-icon">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+              <LucideX width="12" height="12" aria-hidden="true" />
             </span>
           ) : (
             <span className="chat-tool-card__spinner" />
@@ -301,9 +312,7 @@ export const TaskToolCard: React.FC<{
             onClick={(e) => { e.stopPropagation(); onCancelTool?.(tool.id); }}
             aria-label={t('common.cancel')}
           >
-            <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-              <rect x="3" y="3" width="10" height="10" rx="2" fill="currentColor"/>
-            </svg>
+            <LucideSquare width="10" height="10" aria-hidden="true" />
           </MobileButton>
         )}
       </div>
@@ -321,7 +330,7 @@ export const TaskToolCard: React.FC<{
               {subToolsRunning > 0 && <span className="chat-task-card__stat--running">{t('chat.running', { count: subToolsRunning })}</span>}
             </span>
             <span className={`chat-task-card__chevron ${stepsExpanded ? 'is-expanded' : ''}`}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              <LucideChevronDown width="10" height="10" stroke="currentColor" aria-hidden="true" />
             </span>
           </MobileButton>
           {stepsExpanded && (
@@ -330,7 +339,7 @@ export const TaskToolCard: React.FC<{
                 if (item.type === 'thinking') {
                   return (
                     <div key={`sub-think-${idx}`} className="chat-task-card__step chat-task-card__step--thinking">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                      <LucideChevronDown width="10" height="10" stroke="currentColor" aria-hidden="true" />
                       <span>{subItemLabel(item, t)}</span>
                     </div>
                   );
@@ -343,9 +352,9 @@ export const TaskToolCard: React.FC<{
                     <div key={`sub-tool-${t.id}-${idx}`} className="chat-task-card__step-wrap">
                       <div className={`chat-task-card__step chat-task-card__step--tool ${isDone ? 'is-done' : isErr ? 'is-error' : 'is-running'}`}>
                       {isDone ? (
-                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="var(--openbitfun-color-status-success-content)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        <LucideCheck width="10" height="10" color="var(--openbitfun-color-status-success-content)" aria-hidden="true" />
                       ) : isErr ? (
-                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="var(--openbitfun-color-status-danger-content)" strokeWidth="2" strokeLinecap="round"/></svg>
+                        <LucideX width="10" height="10" color="var(--openbitfun-color-status-danger-content)" aria-hidden="true" />
                       ) : (
                         <span className="chat-task-card__step-spinner" />
                       )}
@@ -466,11 +475,11 @@ const ToolCard: React.FC<{
             <span className="chat-tool-card__spinner" />
           ) : isCompleted ? (
             <span className="chat-tool-card__check">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <LucideCheck width="12" height="12" aria-hidden="true" />
             </span>
           ) : isError ? (
             <span className="chat-tool-card__error-icon">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+              <LucideX width="12" height="12" aria-hidden="true" />
             </span>
           ) : (
             <span className="chat-tool-card__spinner" />
@@ -491,9 +500,7 @@ const ToolCard: React.FC<{
             onClick={(e) => { e.stopPropagation(); onCancelTool?.(tool.id); }}
             aria-label={t('common.cancel')}
           >
-            <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-              <rect x="3" y="3" width="10" height="10" rx="2" fill="currentColor"/>
-            </svg>
+            <LucideSquare width="10" height="10" aria-hidden="true" />
           </MobileButton>
         )}
       </div>
@@ -616,7 +623,7 @@ export const ToolList: React.FC<{
           {runningCount > 0 && <span className="chat-tool-list__stat chat-tool-list__stat--running">{t('chat.running', { count: runningCount })}</span>}
         </span>
         <span className={`chat-tool-list__chevron ${expanded ? 'is-expanded' : ''}`}>
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          <LucideChevronDown width="10" height="10" stroke="currentColor" aria-hidden="true" />
         </span>
       </MobileButton>
       {expanded && (
@@ -1097,9 +1104,7 @@ const ChatTranscript: React.FC<ChatTranscriptProps> = ({
             onClick={() => onToggleMessage(message.id, !expanded)}
           >
             <span className={`chat-msg__response-chevron${expanded ? ' is-open' : ''}`}>
-              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <LucideChevronRight width="10" height="10" aria-hidden="true" />
             </span>
             <span className="chat-msg__response-label">{t(expanded ? 'chat.hideResponse' : 'chat.showResponse')}</span>
           </MobileButton>
@@ -1249,10 +1254,7 @@ const ChatTranscript: React.FC<ChatTranscriptProps> = ({
           <div className="chat-msg__assistant-card">
             <div className="chat-msg__image-analyzing">
               <div className="chat-msg__image-analyzing-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="3"/>
-                  <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-                </svg>
+                <LucideLoaderCircle width="16" height="16" stroke="currentColor" aria-hidden="true" />
               </div>
               <span>{t('chat.analyzingImage')}</span>
               <TypingDots />

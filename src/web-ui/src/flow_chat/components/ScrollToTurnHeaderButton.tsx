@@ -1,3 +1,4 @@
+import { ArrowUp as LucideArrowUp } from 'lucide-react';
 /**
  * Scroll-to-current-turn-header button.
  * Shows at the top of the message list when the current turn's user message
@@ -40,21 +41,7 @@ export const ScrollToTurnHeaderButton: React.FC<ScrollToTurnHeaderButtonProps> =
             aria-label={turnLabel || t('scroll.toCurrentTurn')}
             tabIndex={visible ? 0 : -1}
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M8 12.5V3.5M8 3.5L4 7.5M8 3.5L12 7.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <LucideArrowUp width="16" height="16" aria-hidden="true" />
           </button>
         </Tooltip>
       </div>

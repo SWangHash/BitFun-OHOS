@@ -61,10 +61,13 @@ pub struct MarketClient {
 }
 
 impl MarketClient {
+    pub fn configured_base_url() -> String {
+        std::env::var("OPENBITFUN_MINIAPP_MARKET_API_URL")
+            .unwrap_or_else(|_| DEFAULT_MARKET_API_URL.to_string())
+    }
+
     pub async fn from_environment() -> Result<Self, MarketClientError> {
-        let base_url = std::env::var("OPENBITFUN_MINIAPP_MARKET_API_URL")
-            .unwrap_or_else(|_| DEFAULT_MARKET_API_URL.to_string());
-        Self::new(base_url).await
+        Self::new(Self::configured_base_url()).await
     }
 
     pub async fn new(base_url: impl Into<String>) -> Result<Self, MarketClientError> {

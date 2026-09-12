@@ -50,6 +50,7 @@ Run the focused mobile-web checks after changes:
 ```bash
 pnpm --dir src/mobile-web run test:ui-components
 pnpm --dir src/mobile-web run test:account-login # account login without an online desktop
+pnpm --dir src/mobile-web run test:account-browser # real Chrome tabs, persistence, migration, races; simulated Relay
 pnpm --dir src/mobile-web run test:images # image preparation and upload limits
 pnpm --dir src/mobile-web run test:workspace-identity # SSH host scope and legacy cache records
 pnpm --dir src/mobile-web run type-check
@@ -61,3 +62,8 @@ The build skips work when `src/mobile-web/dist` is newer than every input. Use
 only when a rebuild is required despite unchanged inputs.
 
 For pairing, reconnect, disconnect, or chat behavior changes, also describe manual verification in the PR, including the browser/device used and the observed state transitions.
+
+The browser suite uses an installed Chrome/Chromium (or
+`PUPPETEER_EXECUTABLE_PATH`) with disposable profiles. It never uses the user's
+browser profile or live GitHub credentials. See [README.md](README.md) for the
+account scope and the live-host verification flow.

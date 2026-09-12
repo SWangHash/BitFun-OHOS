@@ -1,4 +1,4 @@
-import { generateKeyPair, fromB64, toB64 } from './E2EEncryption';
+import { toB64 } from './E2EEncryption';
 import { x25519 } from '@noble/curves/ed25519.js';
 
 import { pairingRelayUrl } from './pairingLink';
@@ -107,23 +107,11 @@ export class CloudAccountClient {
     throw new Error(signal.aborted ? 'Sign-in cancelled.' : 'GitHub sign-in expired. Try again.');
   }
 
-  async login(accessToken: string, deviceId: string): Promise<CloudAccountSession> {
-    const storageKey = `openbitfun.mobile.device_key:${this.relayUrl}:${deviceId}`;
-    const saved = sessionStorage.getItem(storageKey);
-    let privateKey: Uint8Array;
-    if (saved) {
-      privateKey = fromB64(saved);
-      if (privateKey.length !== 32) throw new Error('Stored device identity is invalid.');
-    } else {
-      const generated = await generateKeyPair();
-      // Another login in this tab may have created the key while generation yielded.
-      const existing = sessionStorage.getItem(storageKey);
-      privateKey = existing ? fromB64(existing) : generated.privateKey;
-      if (privateKey.length !== 32) throw new Error('Stored device identity is invalid.');
-      if (!existing) sessionStorage.setItem(storageKey, toB64(privateKey));
-      else generated.privateKey.fill(0);
-    }
-    const keys = { privateKey, publicKey: x25519.getPublicKey(privateKey) };
+  async login(accessToken: string, deviceId: string, browserPrivateKey: Uint8Array): Promise<CloudAccountSession> {
+    if (browserPrivateKey.length !== 32) throw new Error('Stored device identity is invalid.');
+    // The browser store commits one identity before any login request. Never
+    // generate a new key here: concurrent tabs must register the same key.
+    const keys = { privateKey: browserPrivateKey.slice(), publicKey: x25519.getPublicKey(browserPrivateKey) };
     try {
       const auth = await requestJson<{ token: string; user_id: string }>(this.relayUrl, '/api/auth/login', {
         access_token: accessToken, device_id: deviceId, device_name: 'Mobile Browser',
@@ -135,5 +123,17 @@ export class CloudAccountClient {
       keys.privateKey.fill(0);
       throw error;
     }
+  }
+
+  /** Revoke only this browser token; the desktop's account remains connected. */
+  async logout(token: string): Promise<void> {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 10_000);
+    try {
+      const response = await fetch(`${this.relayUrl}/api/auth/logout`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` }, signal: controller.signal,
+      });
+      if (!response.ok && response.status !== 401) throw new Error(`Sign-out failed: HTTP ${response.status}`);
+    } finally { window.clearTimeout(timer); }
   }
 }

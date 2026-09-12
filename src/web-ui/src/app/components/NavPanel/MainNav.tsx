@@ -502,83 +502,87 @@ const MainNav: React.FC<MainNavProps> = ({
             <div
               className={`openbitfun-nav-panel__top-action-sublist${isExtensionsOpen ? ' is-open' : ''}`}
               data-testid="agent-skill-tabs"
+              aria-hidden={!isExtensionsOpen}
+              {...(!isExtensionsOpen ? { inert: '' } : {})}
             >
-              <Tooltip content={agentsTooltip} placement="right" followCursor>
-                <button data-overflow-trigger
-                  type="button"
-                  className={[
-                    'openbitfun-nav-panel__top-action-btn',
-                    'openbitfun-nav-panel__top-action-btn--sub',
-                    isAgentsActive ? 'is-active' : '',
-                  ].filter(Boolean).join(' ')}
-                  data-openbitfun-component="nav-panel"
-                  data-openbitfun-part="topAction"
-                  data-openbitfun-action="agents"
-                  data-openbitfun-state={isAgentsActive ? 'active' : ''}
-                  onClick={handleOpenAgents}
-                  aria-label={agentsTooltip}
-                  data-testid="agent-tab"
-                >
-                  <span className="openbitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
-                    <Users size={15} />
-                  </span>
-                  <OverflowText>{t('nav.items.agents')}</OverflowText>
-                </button>
-              </Tooltip>
+              <div className="openbitfun-nav-panel__top-action-sublist-inner">
+                <Tooltip content={agentsTooltip} placement="right" followCursor>
+                  <button data-overflow-trigger
+                    type="button"
+                    className={[
+                      'openbitfun-nav-panel__top-action-btn',
+                      'openbitfun-nav-panel__top-action-btn--sub',
+                      isAgentsActive ? 'is-active' : '',
+                    ].filter(Boolean).join(' ')}
+                    data-openbitfun-component="nav-panel"
+                    data-openbitfun-part="topAction"
+                    data-openbitfun-action="agents"
+                    data-openbitfun-state={isAgentsActive ? 'active' : ''}
+                    onClick={handleOpenAgents}
+                    aria-label={agentsTooltip}
+                    data-testid="agent-tab"
+                  >
+                    <span className="openbitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
+                      <Icon glyph={Users} size="sm" />
+                    </span>
+                    <OverflowText>{t('nav.items.agents')}</OverflowText>
+                  </button>
+                </Tooltip>
 
-              <Tooltip content={skillsTooltip} placement="right" followCursor>
-                <button data-overflow-trigger
-                  type="button"
-                  className={[
-                    'openbitfun-nav-panel__top-action-btn',
-                    'openbitfun-nav-panel__top-action-btn--sub',
-                    isSkillsActive ? 'is-active' : '',
-                  ].filter(Boolean).join(' ')}
-                  data-openbitfun-component="nav-panel"
-                  data-openbitfun-part="topAction"
-                  data-openbitfun-action="skills"
-                  data-openbitfun-state={isSkillsActive ? 'active' : ''}
-                  onClick={handleOpenSkills}
-                  aria-label={skillsTooltip}
-                  data-testid="skill-tab"
-                >
-                  <span className="openbitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
-                    <Icon name="extension" size="sm" />
-                  </span>
-                  <OverflowText>{t('nav.items.skills')}</OverflowText>
-                </button>
-              </Tooltip>
+                <Tooltip content={skillsTooltip} placement="right" followCursor>
+                  <button data-overflow-trigger
+                    type="button"
+                    className={[
+                      'openbitfun-nav-panel__top-action-btn',
+                      'openbitfun-nav-panel__top-action-btn--sub',
+                      isSkillsActive ? 'is-active' : '',
+                    ].filter(Boolean).join(' ')}
+                    data-openbitfun-component="nav-panel"
+                    data-openbitfun-part="topAction"
+                    data-openbitfun-action="skills"
+                    data-openbitfun-state={isSkillsActive ? 'active' : ''}
+                    onClick={handleOpenSkills}
+                    aria-label={skillsTooltip}
+                    data-testid="skill-tab"
+                  >
+                    <span className="openbitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
+                      <Icon name="extension" size="sm" />
+                    </span>
+                    <OverflowText>{t('nav.items.skills')}</OverflowText>
+                  </button>
+                </Tooltip>
 
-              <Tooltip content={ecosystemCompatibilityTooltip} placement="right" followCursor>
-                <button data-overflow-trigger
-                  type="button"
-                  className={[
-                    'openbitfun-nav-panel__top-action-btn',
-                    'openbitfun-nav-panel__top-action-btn--sub',
-                    isEcosystemCompatibilityActive ? 'is-active' : '',
-                  ].filter(Boolean).join(' ')}
-                  data-openbitfun-component="nav-panel"
-                  data-openbitfun-part="topAction"
-                  data-openbitfun-action="ecosystem-compatibility"
-                  data-openbitfun-state={isEcosystemCompatibilityActive ? 'active' : ''}
-                  onClick={handleOpenEcosystemCompatibility}
-                  aria-label={ecosystemCompatibilityTooltip}
-                  data-testid="ecosystem-compatibility-tab"
-                >
-                  <span className="openbitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
-                    <Network size={15} />
-                  </span>
-                  <OverflowText>{t('nav.items.ecosystemCompatibility')}</OverflowText>
-                  {hasUnseenEcosystemCompatibility ? (
-                    <span
-                      className="openbitfun-nav-panel__top-action-unseen"
-                      data-openbitfun-component="nav-panel"
-                      data-openbitfun-part="topActionUnseen"
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                </button>
-              </Tooltip>
+                <Tooltip content={ecosystemCompatibilityTooltip} placement="right" followCursor>
+                  <button data-overflow-trigger
+                    type="button"
+                    className={[
+                      'openbitfun-nav-panel__top-action-btn',
+                      'openbitfun-nav-panel__top-action-btn--sub',
+                      isEcosystemCompatibilityActive ? 'is-active' : '',
+                    ].filter(Boolean).join(' ')}
+                    data-openbitfun-component="nav-panel"
+                    data-openbitfun-part="topAction"
+                    data-openbitfun-action="ecosystem-compatibility"
+                    data-openbitfun-state={isEcosystemCompatibilityActive ? 'active' : ''}
+                    onClick={handleOpenEcosystemCompatibility}
+                    aria-label={ecosystemCompatibilityTooltip}
+                    data-testid="ecosystem-compatibility-tab"
+                  >
+                    <span className="openbitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
+                      <Icon glyph={Network} size="sm" />
+                    </span>
+                    <OverflowText>{t('nav.items.ecosystemCompatibility')}</OverflowText>
+                    {hasUnseenEcosystemCompatibility ? (
+                      <span
+                        className="openbitfun-nav-panel__top-action-unseen"
+                        data-openbitfun-component="nav-panel"
+                        data-openbitfun-part="topActionUnseen"
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                  </button>
+                </Tooltip>
+              </div>
             </div>
           </div>
         </div>

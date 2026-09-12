@@ -145,6 +145,10 @@ Tool cards reflow naturally and dispatch only `tool-card-toggle` after an
 expanded-state change, so the virtualizer can remeasure. There is no
 pre-collapse intent event and no per-card compensation.
 
+`SmoothHeightCollapse` starts its completion timer in the animation frame that
+applies the target height. A delayed frame must not shorten the transition or
+unmount closing content early. Reversing a toggle cancels both the frame and timer.
+
 User-message text and both message-edit inputs use the same `flow-control`
 font-size role as the composer and rendered replies, following the user's font
 preference. User-message text also uses the reply's regular weight. Its

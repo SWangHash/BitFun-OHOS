@@ -35,6 +35,8 @@ crate；`src/crates/assembly/core` 只保留产品装配与兼容桥接。
 
 - 桌面端专属集成留在这里，不要下沉到共享 core
 - 窗口 lifecycle 行为（包括 close/minimize-to-tray 默认值）属于桌面端 surface；修改时必须保留用户已保存偏好。
+- `window_state_support` 负责主窗口布局校验，并沿用旧 `.window-state.json` 格式原子保存。
+  不要同时注册 window-state 插件，其退出时写入的缓存可能覆盖修复结果。
 
 ## 命令
 
@@ -76,6 +78,13 @@ pnpm run prepare:dsh-profile   # 可选：本地 DeepSeek Harness 会话
 
 ```bash
 cargo check -p openbitfun-desktop && cargo test -p openbitfun-desktop
+```
+
+窗口布局恢复、旧状态兼容和快照保存使用：
+
+```bash
+cargo test -p openbitfun-desktop --lib window_state_support::tests
+pnpm --dir src/web-ui run test:run src/app/startup/startupPerformanceContract.test.ts
 ```
 
 如果改动影响启动、WebDriver、browser/computer-use 或打包行为，还需要运行：

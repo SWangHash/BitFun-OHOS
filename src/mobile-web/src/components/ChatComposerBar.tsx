@@ -1,3 +1,8 @@
+import {
+  ArrowUp as LucideArrowUp,
+  LoaderCircle as LucideLoaderCircle,
+  Plus as LucidePlus,
+} from 'lucide-react';
 import React from 'react';
 import { MobileComposer, MobileIconButton } from '@openbitfun/ui/mobile';
 import { useI18n } from '../i18n';
@@ -69,10 +74,7 @@ export default function ChatComposerBar({
                 className="chat-page__send-btn is-processing"
                 disabled
                 icon={(
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2" />
-                  </svg>
+                  <LucideLoaderCircle width="12" height="12" stroke="currentColor" aria-hidden="true" />
                 )}
                 size="sm"
               />
@@ -95,9 +97,7 @@ export default function ChatComposerBar({
                 className="chat-page__send-btn"
                 disabled={remoteUnavailable || sending || (!input.trim() && pendingImages.length === 0)}
                 icon={(
-                  <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                    <path d="M10 3L10 17M10 3L5 8M10 3L15 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <LucideArrowUp width="12" height="12" aria-hidden="true" />
                 )}
                 onClick={onSend}
                 size="sm"
@@ -112,7 +112,7 @@ export default function ChatComposerBar({
             aria-label={t('common.attachImage')}
             className="chat-page__composer-leading"
             disabled={attachDisabled}
-            icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5V19M5 12H19" /></svg>}
+            icon={<LucidePlus width="24" height="24" stroke="currentColor" aria-hidden="true" />}
             onClick={() => { onActivate(); onAttach(); }}
           />
         )}
@@ -124,7 +124,7 @@ export default function ChatComposerBar({
               aria-label={t('common.attachImage')}
               className="chat-page__action-btn"
               disabled={attachDisabled}
-              icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 4v16M4 12h16" /></svg>}
+              icon={<LucidePlus width="22" height="22" stroke="currentColor" aria-hidden="true" />}
               onClick={onAttach}
             />
             {modelControls}

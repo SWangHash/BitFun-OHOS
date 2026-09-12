@@ -1,3 +1,4 @@
+import { CircleX as LucideCircleX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ProgressBar } from '../components/ProgressBar';
 import { InstallErrorPanel } from '../components/InstallErrorPanel';
@@ -80,19 +81,7 @@ export function ProgressPage({
             </>
           ) : (
             <>
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--openbitfun-color-status-danger-content)"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ marginBottom: 14, animation: 'scaleIn 350ms ease forwards' }}
-              >
-                <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
+              <LucideCircleX width="18" height="18" stroke="var(--openbitfun-color-status-danger-content)" style={{ marginBottom: 14, animation: 'scaleIn 350ms ease forwards' }} aria-hidden="true" />
               <p style={{
                 fontSize: 'var(--openbitfun-type-label-lg-font-size)',
                 fontWeight: 'var(--openbitfun-type-label-lg-font-weight)',

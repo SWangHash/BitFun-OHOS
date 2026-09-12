@@ -36,10 +36,10 @@ test("editing an external UI SVG invalidates its inline module without a restart
     const root = path.join(fixture, "app");
     const source = path.join(fixture, "ui", "src");
     const assets = path.join(source, "components", "Icon", "assets");
-    const asset = path.join(assets, "thinking.svg");
+    const asset = path.join(assets, "standard.svg");
     await mkdir(root, { recursive: true });
     await mkdir(assets, { recursive: true });
-    const before = await readFile(path.join(uiSourceDirectory, "components/Icon/assets/thinking.svg"), "utf8");
+    const before = await readFile(path.join(uiSourceDirectory, "components/Icon/assets/standard.svg"), "utf8");
     const after = await readFile(path.join(uiSourceDirectory, "components/Icon/assets/git.svg"), "utf8");
     await writeFile(asset, before);
     server = await createServer({
@@ -50,11 +50,11 @@ test("editing an external UI SVG invalidates its inline module without a restart
       optimizeDeps: { noDiscovery: true, include: [] },
       server: { middlewareMode: true, hmr: false },
     });
-    const url = `/@fs/${asset.replaceAll("\\", "/")}?import`;
+    const url = `/@fs/${asset.replaceAll("\\", "/")}?inline`;
     assert.deepEqual(geometry(inlineSvg(await server.transformRequest(url))), geometry(before));
 
     await eventually(
-      () => server.watcher.getWatched()[assets]?.includes("thinking.svg"),
+      () => server.watcher.getWatched()[assets]?.includes("standard.svg"),
       "UI asset directory must be watched outside the application root",
     );
     let changed = false;

@@ -421,7 +421,7 @@ struct MarkdownMessageView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .environment(\.openURL, OpenURLAction { url in
-            if url.scheme?.lowercased() == "computer" {
+            if url.scheme == nil || ["computer", "file", "openbitfun"].contains(url.scheme?.lowercased() ?? "") {
                 model.openRemoteFile(reference: url.absoluteString, label: url.lastPathComponent)
                 return .handled
             }

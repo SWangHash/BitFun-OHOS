@@ -95,17 +95,22 @@ describe('mobile control-target UI ownership contracts', () => {
     expect(initEffect).toContain('if (!isInitCurrent()) return;');
   });
 
-  it('fences a device probe and pairing name lookup to their original owners', () => {
+  it('fences device probes and pending sign-ins to their original owners', () => {
     expect(devicesSource).toContain('client.accountEpoch === accountEpoch');
     expect(devicesSource).toContain('client.controlTargetEpoch === expectedTargetEpoch');
     expect(devicesSource).toContain('expectedTargetEpoch = client.controlTargetEpoch;');
 
-    expect(pairingSource).toContain('generation.current !== attempt');
+    expect(pairingSource).toContain('generation.current === attempt && !controller.signal.aborted && !connected.current');
+    expect(pairingSource).toContain('if (!isCurrent()) return;');
+    expect(pairingSource).toContain('accountStore.saveSession(browser, candidate, isCurrent)');
     expect(pairingSource).toContain('pending.current?.abort()');
   });
 
-  it('reuses only a matching same-tab mobile account session', () => {
-    expect(pairingSource).toContain('loadMatchingCloudAccountSession(relayUrl');
+  it('restores from the browser store while retaining scoped legacy readers for migration', () => {
+    expect(pairingSource).toContain('getBrowserAccountStore(relayUrl)');
+    expect(pairingSource).toContain('await accountStore.read()');
+    // Real tab sharing, migration and late-login cancellation are exercised by
+    // mobile-web's test:account-browser suite; these remain legacy read checks.
 
     const stored = {
       relayUrl: 'https://relay.example.com',

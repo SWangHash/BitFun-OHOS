@@ -326,6 +326,16 @@ export default function remoteControllersUnitTest() {
   });
 
   describe('MessageFileReferenceProjector', () => {
+    it('projects image, file URI and runtime artifact references without duplicate cards', 0, () => {
+      const references = MessageFileReferenceProjector.project(
+        '![Preview](preview.png) [Image](computer://preview.png) [Animation](file:///workspace/movie.html) ' +
+        '[Report](openbitfun://current-session/artifacts/report.pdf)'
+      );
+      expect(references.length).assertEqual(3);
+      expect(references[0].remotePath).assertEqual('preview.png');
+      expect(references[1].remotePath).assertEqual('/workspace/movie.html');
+      expect(references[2].remotePath).assertEqual('openbitfun://current-session/artifacts/report.pdf');
+    });
     it('deduplicates explicit desktop file cards by normalized target path', 0, () => {
       const references = MessageFileReferenceProjector.project(
         '[first](computer://src/main.rs#L4) and computer://src/main.rs:9, ' +

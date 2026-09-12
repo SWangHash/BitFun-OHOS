@@ -61,6 +61,21 @@ describe('workbench content navigation', () => {
     vi.mocked(workspaceManager.getState).mockClear();
   });
 
+  it.each([false, true])('refreshes a dispatch snapshot through the production open path, inline=%s', inline => {
+    if (inline) openSession();
+    const open = (dataUrl: string) => createTab({
+      type: 'image-viewer', title: 'output.png', mode: 'agent', replaceExisting: true,
+      duplicateCheckKey: 'job/output.png', data: { filePath: 'dispatch-file://job/output.png', imageSource: { dataUrl, size: 1 } },
+    });
+    open('data:image/png;base64,AQ==');
+    open('data:image/png;base64,Ag==');
+    const contents = inline
+      ? useAgentCanvasStore.getState().primaryGroup.tabs.map(tab => tab.content)
+      : Object.values(useContentResourceStore.getState().resources).map(resource => resource.content);
+    expect(contents).toHaveLength(1);
+    expect(contents[0].data.imageSource.dataUrl).toBe('data:image/png;base64,Ag==');
+  });
+
   it('falls back to one main file tab when a stale scene has no usable session', () => {
     useSceneStore.getState().openSessionScene({ surfaceId: 'local', workspaceKey: 'project', sessionId: 'session-a' });
     fileTabManager.openFile({ filePath: '/project/a.ts', sceneJustOpened: true });

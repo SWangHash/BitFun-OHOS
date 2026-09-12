@@ -269,7 +269,8 @@ struct MobileShellView: View {
         }
         .openBitFunAdaptiveModal(
             isPresented: $model.accountSheetOpen,
-            placement: settingsPlacement
+            placement: settingsPlacement,
+            fitContent: model.accountUser == nil && model.accountFailureStage != "DEVICE_LIST"
         ) {
             AccountSettingsView(model: model)
         }

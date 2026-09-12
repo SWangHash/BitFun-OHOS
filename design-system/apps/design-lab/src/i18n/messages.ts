@@ -1,6 +1,7 @@
 import type { DesignLabLocale } from "./core.mjs";
 
 export const enUSMessages = {
+  "component.Icon.description": "Lucide icons with shared sizing, color and accessibility. The four modes and Git branch retain their original artwork.",
   "component.VoiceCallPanel.description": "A controlled live-call surface with a particle logo, transcripts and call controls.",
   "component.VoiceParticleLogo.description": "A reusable particle logo that reacts separately to microphone and assistant playback audio.",
   "voice.preview.title": "Live Call",
@@ -469,7 +470,7 @@ export const enUSMessages = {
   "detail.allStates": "Preview states",
   "detail.preview": "Preview",
   "detail.iconComposition": "Icons in components",
-  "detail.iconCompositionHint": "Catalog icons (left) and SVG icons (right) share slot sizes. Standalone icons below retain their own size.",
+  "detail.iconCompositionHint": "Lucide icons use shared component slots. The four modes, Git branch, logos, mascots and device overview retain custom artwork. Standalone icons keep their own size.",
   "detail.previewUnavailable": "Preview not implemented",
   "components.preview.inputError": "Please check this value.",
   "detail.code": "Code",
@@ -762,6 +763,7 @@ export type MessageKey = keyof typeof enUSMessages;
 export type MessageCatalog = Readonly<Record<MessageKey, string>>;
 
 export const zhCNMessages = {
+  "component.Icon.description": "统一尺寸、颜色和无障碍行为的 Lucide 图标；四种模式与 Git 分支保留原图形。",
   "component.VoiceCallPanel.description": "受控通话面板，包含粒子标志、转写文本和通话控件。",
   "component.VoiceParticleLogo.description": "可复用的粒子标志，分别响应麦克风与 AI 播放音频。",
   "voice.preview.title": "实时通话",
@@ -1230,7 +1232,7 @@ export const zhCNMessages = {
   "detail.allStates": "状态预览",
   "detail.preview": "预览",
   "detail.iconComposition": "组件中的图标尺寸",
-  "detail.iconCompositionHint": "左侧为图标库图标，右侧为 SVG 图标，均使用组件插槽尺寸；下方独立图标保留自身尺寸。",
+  "detail.iconCompositionHint": "Lucide 图标统一使用组件插槽尺寸；四种模式、Git 分支、Logo、吉祥物和设备概览保留专用图形。独立图标保留自身尺寸。",
   "detail.previewUnavailable": "此组件尚未实现预览",
   "components.preview.inputError": "请检查输入内容。",
   "detail.code": "代码",
@@ -1521,6 +1523,7 @@ export const zhCNMessages = {
 
 export const zhTWMessages = {
   ...zhCNMessages,
+  "component.Icon.description": "統一尺寸、顏色和無障礙行為的 Lucide 圖示；四種模式與 Git 分支保留原圖形。",
   "component.VoiceCallPanel.description": "受控通話面板，包含粒子標誌、轉寫文字與通話控制項。",
   "component.VoiceParticleLogo.description": "可重用的粒子標誌，分別回應麥克風與 AI 播放音訊。",
   "voice.preview.title": "即時通話",
@@ -1936,7 +1939,7 @@ export const zhTWMessages = {
   "detail.allStates": "狀態預覽",
   "detail.preview": "預覽",
   "detail.iconComposition": "元件中的圖示尺寸",
-  "detail.iconCompositionHint": "左側為圖示庫圖示，右側為 SVG 圖示，皆使用元件插槽尺寸；下方獨立圖示保留自身尺寸。",
+  "detail.iconCompositionHint": "Lucide 圖示統一使用元件插槽尺寸；四種模式、Git 分支、Logo、吉祥物和裝置概覽保留專用圖形。獨立圖示保留自身尺寸。",
   "detail.previewUnavailable": "此元件尚未實作預覽",
   "components.preview.inputError": "請檢查輸入內容。",
   "detail.code": "程式碼",

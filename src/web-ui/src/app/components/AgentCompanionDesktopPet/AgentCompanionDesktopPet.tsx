@@ -1,3 +1,4 @@
+import { ArrowUp as LucideArrowUp, PencilLine as LucidePencilLine, X as LucideX } from 'lucide-react';
 import { OverflowText, Menu, MenuItem, ScrollArea } from '@openbitfun/ui';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -992,15 +993,7 @@ export const AgentCompanionDesktopPet: React.FC = () => {
                             aria-label={t('agentCompanion.composer.cancel')}
                             onClick={cancelBubbleComposer}
                           >
-                            <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
-                              <path
-                                d="M4 4l8 8M12 4l-8 8"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                              />
-                            </svg>
+                            <LucideX width="11" height="11" aria-hidden="true" />
                           </button>
                           <button
                             type="button"
@@ -1010,16 +1003,7 @@ export const AgentCompanionDesktopPet: React.FC = () => {
                             disabled={!composerValue.trim() || isSendingComposer}
                             onClick={() => void submitBubbleComposer()}
                           >
-                            <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
-                              <path
-                                d="M8 13V3.6M4 7.6 8 3.4l4 4.2"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.6"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
+                            <LucideArrowUp width="11" height="11" aria-hidden="true" />
                           </button>
                         </div>
                       </div>
@@ -1042,16 +1026,7 @@ export const AgentCompanionDesktopPet: React.FC = () => {
                         aria-label={t('agentCompanion.composer.openTitle')}
                         onClick={() => openBubbleComposer(task.sessionId)}
                       >
-                        <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
-                          <path
-                            d="M10.6 2.6a1.4 1.4 0 0 1 2 2L6 11.2l-3 .8.8-3 6.8-6.4zM3.5 14h9"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.4"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
+                        <LucidePencilLine width="11" height="11" aria-hidden="true" />
                       </button>
                     )}
                   </div>

@@ -195,10 +195,10 @@ describe('startup performance contract', () => {
     expect(desktopLibSource).toContain('MAIN_WINDOW_DEFAULT_WIDTH: f64 = 1200.0');
     expect(desktopLibSource).toContain('MAIN_WINDOW_DEFAULT_HEIGHT: f64 = 800.0');
     expect(desktopAppearanceSource).not.toContain('windows_maximize_show_wait_action');
-    expect(desktopLibSource).toContain('tauri_plugin_window_state::Builder::default()');
-    expect(desktopLibSource).toContain('.with_state_flags(StateFlags::empty())');
-    expect(desktopLibSource).toContain('.with_filter(|label| label == "main")');
-    expect(desktopLibSource).toContain('Resetting undersized main window state');
+    expect(desktopLibSource).toContain('.manage(window_state_support::MainWindowState::default())');
+    expect(desktopLibSource).not.toContain('tauri_plugin_window_state::Builder');
+    expect(desktopLibSource).toContain('window_state_support::restore(window)');
+    expect(desktopLibSource).toContain('window_state_support::save(app, reason)');
     expect(desktopLibSource).toContain('MAIN_WINDOW_USES_TRANSIENT_GEOMETRY');
     expect(toolbarModeProviderSource).not.toContain(
       "import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI'"

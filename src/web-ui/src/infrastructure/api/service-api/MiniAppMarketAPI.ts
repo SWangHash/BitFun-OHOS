@@ -1,6 +1,8 @@
 import { accountIdentityAPI } from './AccountIdentityAPI';
 import { api } from './ApiClient';
 import { createTauriCommandError } from '../errors/TauriCommandError';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import { isMarketSummary, isStringArray, readMarketCatalog, writeMarketCatalog } from './MarketCatalogCache';
 import type {
   MiniApp,
   MiniAppI18n,
@@ -169,9 +171,34 @@ export interface MarketUploadProgress {
 }
 
 export class MiniAppMarketAPI {
+  getCachedPage(request: MarketBrowseRequest): CursorPage<MarketListingSummary> | undefined {
+    if (request.cursor) return undefined;
+    return readMarketCatalog(this.catalogKey(request), (value): value is MarketListingSummary => (
+      isMarketSummary(value)
+      && typeof value.category === 'string' && typeof value.icon === 'string'
+      && isStringArray(value.tags) && isStringArray(value.screenshotUrls)
+      && Boolean(value.permissions && typeof value.permissions === 'object')
+      && ['ratingAverage', 'ratingCount', 'favoriteCount'].every(key => Number.isFinite(value[key]))
+    ));
+  }
+
+  private catalogKey(request: MarketBrowseRequest): string {
+    return getActiveSurfaceScope().key('miniapp-market', JSON.stringify([
+      request.query?.trim() ?? '', request.category ?? 'all', request.sort ?? 'newest', request.limit ?? 20,
+    ]));
+  }
+
   async browse(request: MarketBrowseRequest): Promise<CursorPage<MarketListingSummary>> {
+    const key = this.catalogKey(request);
     try {
-      return await api.invoke('miniapp_market_browse', { request });
+      const page = await api.invoke<CursorPage<MarketListingSummary>>('miniapp_market_browse', { request });
+      if (!request.cursor) {
+        writeMarketCatalog(key, {
+          ...page,
+          items: page.items.map(({ isFavorited: _favorite, myRating: _rating, ...item }) => item),
+        });
+      }
+      return page;
     } catch (error) {
       throw createTauriCommandError('miniapp_market_browse', error);
     }

@@ -1,3 +1,4 @@
+import { Check as LucideCheck, Copy as LucideCopy, FileText as LucideFileText } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -29,6 +30,7 @@ import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml';
 import { MobileButton, MobileIconButton, MobileLink } from '@openbitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import { useTheme } from '../theme';
+import { RemoteArtifactImage } from './RemoteArtifactImage';
 
 const SYNTAX_LANGUAGES = { bash, c, cpp, csharp, css, diff, go, java, javascript, json, jsx, kotlin, markdown, markup, php, python, ruby, rust, sql, swift, tsx, typescript, yaml };
 Object.entries(SYNTAX_LANGUAGES).forEach(([name, grammar]) => SyntaxHighlighter.registerLanguage(name, grammar));
@@ -78,14 +80,9 @@ const CopyButton: React.FC<{ code: string }> = ({ code }) => {
       aria-label={copied ? 'Copied' : 'Copy code'}
       className={`copy-button${copied ? ' copy-success' : ''}`}
       icon={copied ? (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
+        <LucideCheck width="14" height="14" stroke="currentColor" aria-hidden="true" />
       ) : (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-        </svg>
+        <LucideCopy width="14" height="14" stroke="currentColor" aria-hidden="true" />
       )}
       onClick={handleCopy}
       size="sm"
@@ -121,7 +118,7 @@ const DOWNLOADABLE_EXTENSIONS = new Set([
   'mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma',
   'mp4', 'avi', 'mkv', 'mov', 'webm', 'wmv', 'flv',
   'csv', 'tsv', 'sqlite', 'db', 'parquet',
-  'epub', 'mobi',
+  'epub', 'mobi', 'html', 'htm',
   'apk', 'ipa', 'exe', 'msi', 'deb', 'rpm',
   'ttf', 'otf', 'woff', 'woff2',
 ]);
@@ -202,6 +199,7 @@ function isLocalFileLink(href: string): string | null {
 }
 
 function resolveFileReferenceHref(href: string): string | null {
+  if (/^openbitfun:\/\/(?:runtime|current-session)\//.test(href)) return href;
   if (
     href.startsWith(COMPUTER_LINK_PREFIX) ||
     href.startsWith(FILE_LINK_PREFIX) ||
@@ -226,16 +224,19 @@ function projectFileReferences(content: string): ProjectedFileReference[] {
     references.push({ path });
   };
 
+  // Code examples describe references but do not offer attachments.
+  const prose = content.replace(/(^|\n)[ \t]{0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:\n[ \t]{0,3}\2[^\n]*(?=\n|$)|$)/g, '$1')
+    .replace(/(`+)[^`]*?\1/g, '');
   // Markdown attachment links stay readable inline; their richer cards are
   // projected into a separate block below the message, matching HarmonyOS.
-  const markdownLinkPattern = /(?<!!)\[[^\]\n]*\]\(\s*(?:<([^>\n]+)>|([^\s)\n]+))(?:\s+["'][^"'\n]*["'])?\s*\)/g;
-  for (const match of content.matchAll(markdownLinkPattern)) {
+  const markdownLinkPattern = /!?\[[^\]\n]*\]\(\s*(?:<([^>\n]+)>|([^\s)\n]+))(?:\s+["'][^"'\n]*["'])?\s*\)/g;
+  for (const match of prose.matchAll(markdownLinkPattern)) {
     addReference(match[1] || match[2] || '');
   }
 
   // Preserve support for assistant output that emits a bare computer/file URI.
   const bareReferencePattern = /(?:computer|file):\/\/[^\s<>()\]]+/g;
-  for (const match of content.matchAll(bareReferencePattern)) {
+  for (const match of prose.matchAll(bareReferencePattern)) {
     addReference(match[0].replace(/[.,;:!?，。；：！？]+$/, ''));
   }
 
@@ -249,20 +250,7 @@ function formatFileSize(bytes: number): string {
 }
 
 const FileTextIcon: React.FC<{ size?: number; className?: string }> = ({ size = 20, className }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    className={className}
-    aria-hidden="true"
-  >
-    <path d="M15.3929 4.05365L14.8912 4.61112L15.3929 4.05365ZM19.3517 7.61654L18.85 8.17402L19.3517 7.61654ZM21.654 10.1541L20.9689 10.4592V10.4592L21.654 10.1541ZM3.17157 20.8284L3.7019 20.2981H3.7019L3.17157 20.8284ZM20.8284 20.8284L20.2981 20.2981L20.2981 20.2981L20.8284 20.8284ZM14 21.25H10V22.75H14V21.25ZM2.75 14V10H1.25V14H2.75ZM21.25 13.5629V14H22.75V13.5629H21.25ZM14.8912 4.61112L18.85 8.17402L19.8534 7.05907L15.8947 3.49618L14.8912 4.61112ZM22.75 13.5629C22.75 11.8745 22.7651 10.8055 22.3391 9.84897L20.9689 10.4592C21.2349 11.0565 21.25 11.742 21.25 13.5629H22.75ZM18.85 8.17402C20.2034 9.3921 20.7029 9.86199 20.9689 10.4592L22.3391 9.84897C21.9131 8.89241 21.1084 8.18853 19.8534 7.05907L18.85 8.17402ZM10.0298 2.75C11.6116 2.75 12.2085 2.76158 12.7405 2.96573L13.2779 1.5653C12.4261 1.23842 11.498 1.25 10.0298 1.25V2.75ZM15.8947 3.49618C14.8087 2.51878 14.1297 1.89214 13.2779 1.5653L12.7405 2.96573C13.2727 3.16993 13.7215 3.55836 14.8912 4.61112L15.8947 3.49618ZM10 21.25C8.09318 21.25 6.73851 21.2484 5.71085 21.1102C4.70476 20.975 4.12511 20.7213 3.7019 20.2981L2.64124 21.3588C3.38961 22.1071 4.33855 22.4392 5.51098 22.5969C6.66182 22.7516 8.13558 22.75 10 22.75V21.25ZM1.25 14C1.25 15.8644 1.24841 17.3382 1.40313 18.489C1.56076 19.6614 1.89288 20.6104 2.64124 21.3588L3.7019 20.2981C3.27869 19.8749 3.02502 19.2952 2.88976 18.2892C2.75159 17.2615 2.75 15.9068 2.75 14H1.25ZM14 22.75C15.8644 22.75 17.3382 22.7516 18.489 22.5969C19.6614 22.4392 20.6104 22.1071 21.3588 21.3588L20.2981 20.2981C19.8749 20.7213 19.2952 20.975 18.2892 21.1102C17.2615 21.2484 15.9068 21.25 14 21.25V22.75ZM21.25 14C21.25 15.9068 21.2484 17.2615 21.1102 18.2892C20.975 19.2952 20.7213 19.8749 20.2981 20.2981L21.3588 21.3588C22.1071 20.6104 22.4392 19.6614 22.5969 18.489C22.7516 17.3382 22.75 15.8644 22.75 14H21.25ZM2.75 10C2.75 8.09318 2.75159 6.73851 2.88976 5.71085C3.02502 4.70476 3.27869 4.12511 3.7019 3.7019L2.64124 2.64124C1.89288 3.38961 1.56076 4.33855 1.40313 5.51098C1.24841 6.66182 1.25 8.13558 1.25 10H2.75ZM10.0298 1.25C8.15538 1.25 6.67442 1.24842 5.51887 1.40307C4.34232 1.56054 3.39019 1.8923 2.64124 2.64124L3.7019 3.7019C4.12453 3.27928 4.70596 3.02525 5.71785 2.88982C6.75075 2.75158 8.11311 2.75 10.0298 2.75V1.25Z" fill="currentColor"/>
-    <path d="M6 14.5H14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    <path d="M6 18H11.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    <path d="M13 2.5V5C13 7.35702 13 8.53553 13.7322 9.26777C14.4645 10 15.643 10 18 10H22" stroke="currentColor" strokeWidth="1.5"/>
-  </svg>
+  <LucideFileText width={size} height={size} className={className} aria-hidden="true" />
 );
 
 type FileCardState =
@@ -415,6 +403,14 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, onFil
       );
     },
 
+    img({ src, alt, title }: React.ImgHTMLAttributes<HTMLImageElement>) {
+      if (!src) return <span>{alt}</span>;
+      if (/^(https?:|data:image\/|\/\/)/i.test(src)) {
+        return <img className="markdown-output-image" src={src} alt={alt || ''} title={title} loading="lazy" />;
+      }
+      return <RemoteArtifactImage path={normalizeFileLikeHref(src)} alt={alt} title={title} onDownload={onFileDownload} />;
+    },
+
     a({ href, children }: any) {
       const filePath = typeof href === 'string' ? resolveFileReferenceHref(href) : null;
       if (filePath && onFileDownload) {
@@ -422,7 +418,7 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, onFil
           <MobileButton
             appearance="plain"
             className="file-link"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onFileDownload(filePath); }}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); void onFileDownload(filePath).catch(() => {}); }}
             type="button"
           >
             {children}
@@ -469,14 +465,15 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, onFil
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={components}
-        urlTransform={(url) => {
-          if (url.startsWith('computer://')) return url;
+        urlTransform={(url, key) => {
+          if (key === 'src' && /^data:image\/(?:png|jpeg|gif|webp|bmp|svg\+xml|avif);base64,/i.test(url)) return url;
+          if (/^[A-Za-z]:[\\/]/.test(url)) return url;
+          if (url.startsWith('computer://') || /^openbitfun:\/\/(?:runtime|current-session)\//.test(url)) return url;
           if (/^(https?|mailto|tel|file):/i.test(url) || url.startsWith('#') || url.startsWith('/')) {
             return url;
           }
           // Preserve relative paths without a protocol (e.g. "report.pptx",
-          // "./output.pdf").  Content is from our own AI so javascript:/data:
-          // injection is not a concern; those contain ':' and are blocked above.
+          // "./output.pdf"). Unknown schemes remain blocked.
           if (!url.includes(':')) return url;
           return '';
         }}

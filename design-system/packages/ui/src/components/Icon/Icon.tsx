@@ -3,68 +3,67 @@ import {
   type CSSProperties,
   type HTMLAttributes,
 } from "react";
-import type { LucideIcon } from "lucide-react";
+import {
+  AppWindow,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  ArrowUpRight,
+  Bell,
+  Blocks,
+  Brain,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Circle,
+  CircleCheck,
+  Clock,
+  Command,
+  Copy,
+  Ellipsis,
+  Eye,
+  Files,
+  Folder,
+  GitCommitHorizontal,
+  Globe,
+  Image,
+  Info,
+  Link,
+  ListFilter,
+  LoaderCircle,
+  MessageCircle,
+  MessageSquarePlus,
+  MessageSquareText,
+  MessagesSquare,
+  Mic,
+  Monitor,
+  Palette,
+  PanelLeft,
+  PanelRight,
+  Pencil,
+  Pin,
+  Plus,
+  Puzzle,
+  RefreshCw,
+  Search,
+  Settings,
+  SlidersHorizontal,
+  SlidersVertical,
+  Sparkles,
+  Star,
+  Store,
+  Terminal,
+  Trash2,
+  Upload,
+  User,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { classNames } from "../../internal/classNames";
-import arrowLeftUrl from "./assets/arrow-left.svg";
-import arrowRightUrl from "./assets/arrow-right.svg";
-import arrowUpUrl from "./assets/arrow-up.svg";
-import arrowUpRightUrl from "./assets/arrow-upright.svg";
-import bellUrl from "./assets/bell.svg";
-import browserUrl from "./assets/browser.svg";
-import checkCircleUrl from "./assets/check-circle.svg";
-import checkFillUrl from "./assets/check-fill.svg";
-import checkLineUrl from "./assets/check-line.svg";
-import chevronDownUrl from "./assets/chevron-down.svg";
-import chevronRightUrl from "./assets/chevron-right.svg";
-import chevronUpUrl from "./assets/chevron-up.svg";
-import circleUrl from "./assets/circle.svg";
-import clockUrl from "./assets/clock.svg";
-import commandMacUrl from "./assets/command-mac.svg";
-import commitUrl from "./assets/commit.svg";
-import deviceMacUrl from "./assets/device-mac.svg";
-import downloadUrl from "./assets/download.svg";
-import duplicateUrl from "./assets/duplicate.svg";
-import editUrl from "./assets/edit.svg";
-import extensionUrl from "./assets/extension.svg";
-import eyeUrl from "./assets/eye.svg";
-import filesUrl from "./assets/files.svg";
-import filterUrl from "./assets/filter.svg";
-import floatingWindowUrl from "./assets/floating-window.svg";
-import folderUrl from "./assets/folder.svg";
-import gearUrl from "./assets/gear.svg";
 import gitUrl from "./assets/git.svg";
-import imageUrl from "./assets/image.svg";
-import infoUrl from "./assets/info.svg";
-import levelUrl from "./assets/level.svg";
-import linkUrl from "./assets/link.svg";
-import micUrl from "./assets/mic.svg";
-import miniAppUrl from "./assets/mini-app.svg";
-import moreUrl from "./assets/more.svg";
-import paletteUrl from "./assets/palette.svg";
-import pinUrl from "./assets/pin.svg";
-import plusUrl from "./assets/plus.svg";
-import progress25Url from "./assets/progress-25.svg";
-import refreshUrl from "./assets/refresh.svg";
-import searchUrl from "./assets/search.svg";
-import sessionUrl from "./assets/session.svg";
-import settingsUrl from "./assets/settings.svg";
-import showSessionUrl from "./assets/show-session.svg";
-import sideChatUrl from "./assets/side-chat.svg";
-import sidebarLeftUrl from "./assets/sidebar-left.svg";
-import sidebarRightUrl from "./assets/sidebar-right.svg";
-import sparkUrl from "./assets/spark.svg";
-import starUrl from "./assets/star.svg";
-import storeUrl from "./assets/store.svg";
-import terminalUrl from "./assets/terminal.svg";
-import thinkingUrl from "./assets/thinking.svg";
-import turnUrl from "./assets/turn.svg";
-import uploadUrl from "./assets/upload.svg";
-import userUrl from "./assets/user.svg";
-import xmarkUrl from "./assets/xmark.svg";
-import chevronLeftUrl from "./assets/chevron-left.svg";
-import selectedUrl from "./assets/selected.svg";
-import deleteUrl from "./assets/delete.svg";
-import waitlistMessageUrl from "./assets/waitlist-message.svg";
 import creativeUrl from "./assets/creative.svg";
 import ultimateUrl from "./assets/ultimate.svg";
 import standardUrl from "./assets/standard.svg";
@@ -161,74 +160,78 @@ export type IconSource =
   | { glyph: LucideIcon; name?: never }
   | { glyph?: never; name: IconName };
 
-const iconSources = {
-  "arrow-down": downloadUrl,
-  unselected: circleUrl,
-  "chevron-left": chevronLeftUrl,
-  "selected": selectedUrl,
-  "delete": deleteUrl,
-  "waitlist-message": waitlistMessageUrl,
-  "creative": creativeUrl,
-  "ultimate": ultimateUrl,
-  "standard": standardUrl,
-  "minimal": minimalUrl,
-  "arrow-left": arrowLeftUrl,
-  "arrow-right": arrowRightUrl,
-  "arrow-up": arrowUpUrl,
-  "arrow-up-right": arrowUpRightUrl,
-  bell: bellUrl,
-  browser: browserUrl,
-  "check-circle": checkCircleUrl,
-  "check-fill": checkFillUrl,
-  "check-line": checkLineUrl,
-  "chevron-down": chevronDownUrl,
-  "chevron-right": chevronRightUrl,
-  "chevron-up": chevronUpUrl,
-  circle: circleUrl,
-  clock: clockUrl,
-  "command-mac": commandMacUrl,
-  commit: commitUrl,
-  "device-mac": deviceMacUrl,
-  download: downloadUrl,
-  duplicate: duplicateUrl,
-  edit: editUrl,
-  extension: extensionUrl,
-  eye: eyeUrl,
-  files: filesUrl,
-  filter: filterUrl,
-  "floating-window": floatingWindowUrl,
-  folder: folderUrl,
-  gear: gearUrl,
+// Only the four harness modes and Git branch retain their authored artwork.
+const iconSources: Partial<Record<IconName, string>> = {
+  creative: creativeUrl,
+  ultimate: ultimateUrl,
+  standard: standardUrl,
+  minimal: minimalUrl,
   git: gitUrl,
-  image: imageUrl,
-  info: infoUrl,
-  level: levelUrl,
-  link: linkUrl,
-  mic: micUrl,
-  "mini-app": miniAppUrl,
-  more: moreUrl,
-  palette: paletteUrl,
-  pin: pinUrl,
-  plus: plusUrl,
-  "progress-25": progress25Url,
-  refresh: refreshUrl,
-  search: searchUrl,
-  session: sessionUrl,
-  settings: settingsUrl,
-  "show-session": showSessionUrl,
-  "side-chat": sideChatUrl,
-  "sidebar-left": sidebarLeftUrl,
-  "sidebar-right": sidebarRightUrl,
-  spark: sparkUrl,
-  star: starUrl,
-  store: storeUrl,
-  terminal: terminalUrl,
-  thinking: thinkingUrl,
-  turn: turnUrl,
-  upload: uploadUrl,
-  user: userUrl,
-  xmark: xmarkUrl,
-} as const satisfies Record<IconName, string>;
+};
+
+const lineGlyphs = {
+  "arrow-down": ArrowDown,
+  "unselected": Circle,
+  "chevron-left": ChevronLeft,
+  "selected": CircleCheck,
+  "delete": Trash2,
+  "waitlist-message": MessageSquareText,
+  "arrow-left": ArrowLeft,
+  "arrow-right": ArrowRight,
+  "arrow-up": ArrowUp,
+  "arrow-up-right": ArrowUpRight,
+  "bell": Bell,
+  "browser": Globe,
+  "check-circle": CircleCheck,
+  "check-fill": CircleCheck,
+  "check-line": Check,
+  "chevron-down": ChevronDown,
+  "chevron-right": ChevronRight,
+  "chevron-up": ChevronUp,
+  "circle": Circle,
+  "clock": Clock,
+  "command-mac": Command,
+  "commit": GitCommitHorizontal,
+  "device-mac": Monitor,
+  "download": ArrowDown,
+  "duplicate": Copy,
+  "edit": Pencil,
+  "extension": Puzzle,
+  "eye": Eye,
+  "files": Files,
+  "filter": ListFilter,
+  "floating-window": AppWindow,
+  "folder": Folder,
+  "gear": Settings,
+  "image": Image,
+  "info": Info,
+  "level": SlidersVertical,
+  "link": Link,
+  "mic": Mic,
+  "mini-app": Blocks,
+  "more": Ellipsis,
+  "palette": Palette,
+  "pin": Pin,
+  "plus": Plus,
+  "progress-25": LoaderCircle,
+  "refresh": RefreshCw,
+  "search": Search,
+  "session": MessageCircle,
+  "settings": SlidersHorizontal,
+  "show-session": MessagesSquare,
+  "side-chat": MessageSquarePlus,
+  "sidebar-left": PanelLeft,
+  "sidebar-right": PanelRight,
+  "spark": Sparkles,
+  "star": Star,
+  "store": Store,
+  "terminal": Terminal,
+  "thinking": Brain,
+  "turn": Circle,
+  "upload": Upload,
+  "user": User,
+  "xmark": X,
+} satisfies Record<Exclude<IconName, "creative" | "ultimate" | "standard" | "minimal" | "git">, LucideIcon>;
 
 interface IconBaseProps
   extends Omit<HTMLAttributes<HTMLSpanElement>, "aria-label" | "children"> {
@@ -251,7 +254,9 @@ export const Icon = forwardRef<HTMLSpanElement, IconProps>(function Icon({
   tone = "inherit",
   ...props
 }, ref) {
-  const catalogSource = name ? `url("${iconSources[name]}")` : undefined;
+  const asset = name ? iconSources[name] : undefined;
+  const catalogSource = asset ? `url("${asset}")` : undefined;
+  const Glyph = LineGlyph ?? (name && name in lineGlyphs ? lineGlyphs[name as keyof typeof lineGlyphs] : undefined);
   const iconStyle: CSSProperties = catalogSource
     ? {
         ...style,
@@ -268,7 +273,7 @@ export const Icon = forwardRef<HTMLSpanElement, IconProps>(function Icon({
       className={classNames(styles.icon, className)}
       data-openbitfun-component="icon"
       data-openbitfun-name={name}
-      data-openbitfun-source={name ? "catalog" : "line"}
+      data-openbitfun-source={asset ? "catalog" : "line"}
       data-openbitfun-artwork={name && name !== "progress-25" && name !== "turn" ? "monochrome" : undefined}
       data-openbitfun-tone={tone}
       data-size={size}
@@ -276,8 +281,8 @@ export const Icon = forwardRef<HTMLSpanElement, IconProps>(function Icon({
       role={label ? "img" : undefined}
       style={iconStyle}
     >
-      {LineGlyph ? (
-        <LineGlyph
+      {Glyph ? (
+        <Glyph
           aria-hidden="true"
           focusable="false"
           strokeWidth={LINE_ICON_STROKE_WIDTH}

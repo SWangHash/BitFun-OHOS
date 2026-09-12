@@ -1,3 +1,4 @@
+import { Check as LucideCheck, Minus as LucideMinus } from 'lucide-react';
 import {
   forwardRef,
   useEffect,
@@ -71,11 +72,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
           type="checkbox"
         />
         <span aria-hidden="true" className={styles.box} data-openbitfun-part="box">
-          <svg className={styles.icon} viewBox="0 0 16 16">
-            {indeterminate
-              ? <path d="M4 8h8" />
-              : <path d="m3.5 8 3 3 6-6" />}
-          </svg>
+          <>{indeterminate ? <LucideMinus className={styles.icon} aria-hidden="true" /> : <LucideCheck className={styles.icon} aria-hidden="true" />}</>
         </span>
       </span>
       {hasContent && (

@@ -23,6 +23,8 @@ final class MobileAppModel: ObservableObject {
     @Published var remoteConversationLoading = false
     @Published var remotePermissionMode = "ASK"
     @Published var remotePermissionFailure: String?
+    @Published var remoteHostCapabilities: [String] = []
+    @Published var accountAvatarURL: String?
     @Published var remoteAssistants: [MobileAssistantOption] = []
     @Published var remoteCreateOpen = false
     @Published var remoteCreateSubmitting = false
@@ -46,6 +48,7 @@ final class MobileAppModel: ObservableObject {
     @Published var toastMessage: String?
     @Published var remoteConnected = false
     @Published var remoteSessionSelected = false
+    @Published var remoteOpenedSessionID: String? = nil
     @Published var localSessionSelected = false
     @Published var pairingSheetOpen = false
     @Published var pairingScanRequested = false
@@ -114,14 +117,16 @@ final class MobileAppModel: ObservableObject {
     var remoteConversationOpeningSessionID: String?
     var remoteConversationOpenStartedAt: TimeInterval?
 
+    let completionNotifier = TaskCompletionNotifier()
     var coreAdapter: MobileCoreAdapter?
 
-    init(sessions: [ChatSession], selectedSessionID: String, messages: [ChatMessage]) {
+    init(sessions: [ChatSession], selectedSessionID: String, messages: [ChatMessage], connectCore: Bool = true) {
         self.sessions = sessions
         self.selectedSessionID = selectedSessionID
         self.messages = messages
         self.timelineRows = messages.map(Self.simpleTimelineRow)
         self.coreAdapter = nil
+        guard connectCore else { return }
         let adapter = MobileCoreAdapter(
             onAccountState: { [weak self] state, generation in
                 self?.apply(accountState: state, generation: generation)
@@ -230,6 +235,7 @@ final class MobileAppModel: ObservableObject {
     }
 
     func handleScenePhase(_ phase: ScenePhase) {
+        if phase != .inactive { completionNotifier.setBackground(phase == .background) }
         if phase == .active, accountUser != nil { refreshRemoteDevices() }
     }
 
@@ -238,6 +244,7 @@ final class MobileAppModel: ObservableObject {
     }
 
     func disconnectRemote() {
+        completionNotifier.reset()
         resetRemoteConversationOpen()
         invalidateTargetScopedFileTransfers()
         committedRemoteCreate = nil

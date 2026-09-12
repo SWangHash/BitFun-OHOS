@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import OpenBitFunMobileCore
 
 extension MobileAppModel {
@@ -81,6 +82,7 @@ extension MobileAppModel {
     }
 
     func logoutAccount() {
+        completionNotifier.reset()
 
             invalidateTargetScopedFileTransfers()
 
@@ -138,6 +140,11 @@ extension MobileAppModel {
     }
 
     func loginAccount() {
+        if accountAuthorizationURL != nil {
+            openAccountAuthorization()
+            return
+        }
+        guard !accountBusy else { return }
 
             invalidateTargetScopedFileTransfers()
 
@@ -168,6 +175,17 @@ extension MobileAppModel {
         coreAdapter?.loginAccount()
     }
 
+    func openAccountAuthorization() {
+        guard let url = accountAuthorizationURL else { return }
+        UIApplication.shared.open(url) { [weak self] opened in
+            guard !opened else { return }
+            Task { @MainActor [weak self] in
+                guard let self, self.accountAuthorizationURL == url else { return }
+                self.coreErrorMessage = self.localized("无法打开授权页面，请重试。")
+            }
+        }
+    }
+
     func retryAccountFailure() {
         guard accountFailureStage == "DEVICE_LIST", accountFailureCanRetry, !accountBusy else { return }
         accountBusy = true
@@ -179,7 +197,11 @@ extension MobileAppModel {
               generation == accountGeneration else { return }
         accountGeneration = generation
         accountBusy = state is AccountUiStateSigningIn || state is AccountUiStateAuthorizing
+        let previousAuthorizationURL = accountAuthorizationURL
         accountAuthorizationURL = (state as? AccountUiStateAuthorizing).flatMap { URL(string: $0.authorizationUrl) }
+        if accountSheetOpen, let url = accountAuthorizationURL, url != previousAuthorizationURL {
+            openAccountAuthorization()
+        }
         if let ready = state as? AccountUiStateReady {
             let readyTargetKey = ready.selectedDeviceId.map { "account:\($0)" }
             if let adapterTargetKey = coreAdapter?.currentRemoteTargetKey,
@@ -192,6 +214,7 @@ extension MobileAppModel {
             accountFailureCanRetry = false
             coreErrorMessage = nil
             accountUser = ready.username
+            accountAvatarURL = ready.avatarUrl
             accountUserID = ready.userId
             accountDeviceName = ready.selectedDeviceName
             accountDeviceCount = ready.devices.count

@@ -1,3 +1,4 @@
+import { ChevronDown as LucideChevronDown, Sparkles as LucideSparkles } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MobileButton, MobileCard } from '@openbitfun/ui/mobile';
 import { useI18n } from '../i18n';
@@ -6,24 +7,7 @@ import type { RemoteModelCatalog, RemoteModelConfig } from '../services/RemoteSe
 const MOBILE_LAST_SELECTED_MODEL_ID_KEY = 'openbitfun.mobile.last_selected_model_id';
 
 const SparklesIcon: React.FC<{ className?: string; size?: number }> = ({ className, size = 10 }) => (
-  <svg
-    className={className}
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.937A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.582a.5.5 0 0 1 0 .962L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z" />
-    <path d="M20 3v4" />
-    <path d="M22 5h-4" />
-    <path d="M4 17v2" />
-    <path d="M5 18H3" />
-  </svg>
+  <LucideSparkles className={className} width={size} height={size} stroke="currentColor" aria-hidden="true" />
 );
 
 type ModelSelectionValue = 'auto' | 'primary' | 'fast' | string;
@@ -244,9 +228,7 @@ export const ModelSelectorPill: React.FC<{
           )}
         </span>
         <span className="chat-model-selector__chevron" aria-hidden="true">
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-            <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <LucideChevronDown width="10" height="10" aria-hidden="true" />
         </span>
       </MobileButton>
 

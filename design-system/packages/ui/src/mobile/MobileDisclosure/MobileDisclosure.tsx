@@ -1,3 +1,4 @@
+import { ChevronRight as LucideChevronRight } from 'lucide-react';
 import { type HTMLAttributes, type ReactNode } from "react";
 import { classNames } from "../../internal/classNames";
 import styles from "./MobileDisclosure.module.css";
@@ -9,9 +10,7 @@ export function MobileDisclosure({ children, className, disabled, leading, metad
         {leading && <span className={styles.leading} data-openbitfun-part="leading">{leading}</span>}
         <span className={styles.title} data-openbitfun-part="title">{title}</span>
         {metadata && <span className={styles.metadata} data-openbitfun-part="metadata">{metadata}</span>}
-        <svg aria-hidden="true" className={styles.chevron} data-openbitfun-part="chevron" viewBox="0 0 16 16">
-          <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-        </svg>
+        <LucideChevronRight aria-hidden="true" className={styles.chevron} data-openbitfun-part="chevron" />
       </button>
       {open && <div className={styles.body} data-openbitfun-part="body">{children}</div>}
     </div>

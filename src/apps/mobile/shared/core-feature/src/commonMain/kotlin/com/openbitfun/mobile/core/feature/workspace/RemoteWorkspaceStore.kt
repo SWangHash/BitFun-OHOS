@@ -199,6 +199,7 @@ public class RemoteWorkspaceStore internal constructor(
                                 workspaces = loadedWorkspaces,
                                 assistants = loadedAssistants,
                                 selected = info.asSelectedWorkspace(),
+                                hostCapabilities = info.capabilities,
                                 preview = RemoteFilePreviewUiState.None,
                                 busy = false,
                                 download = RemoteFileDownloadUiState.None,
@@ -252,7 +253,7 @@ public class RemoteWorkspaceStore internal constructor(
                 }
                 val info = transport.send<WorkspaceInfoResponse>(RemoteCommand(cmd = "get_workspace_info"))
                 if (generation != loadGeneration) return@launch
-                updateReady { it.copy(selected = info.asSelectedWorkspace(), busy = false, loadFailure = false) }
+                updateReady { it.copy(selected = info.asSelectedWorkspace(), hostCapabilities = info.capabilities, busy = false, loadFailure = false) }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
@@ -385,6 +386,10 @@ public class RemoteWorkspaceStore internal constructor(
         ) return
         work?.cancel()
         _state.value = current.copy(download = RemoteFileDownloadUiState.Loading(target, 0, 0))
+        val downloadEpoch = targetEpoch
+        val downloadGeneration = loadGeneration
+        val downloadStopVersion = _stopVersion.value
+        fun downloadIsCurrent(): Boolean = targetEpoch == downloadEpoch && loadGeneration == downloadGeneration && _stopVersion.value == downloadStopVersion
         work = scope.launch {
             try {
                 val info = transport.send<FileInfoResponse>(
@@ -394,10 +399,13 @@ public class RemoteWorkspaceStore internal constructor(
                         sessionId = target.sessionId.ifEmpty { null },
                     ),
                 )
-                val total = (info.size ?: 0).coerceAtLeast(0)
+                if (!downloadIsCurrent()) throw CancellationException("File target changed")
+                val total = info.size ?: error("remote file size is unavailable")
+                if (total < 0 || total > Int.MAX_VALUE) error("remote file is too large for this client")
                 val chunks = mutableListOf<ByteArray>()
                 var offset = 0
-                var expectedTotal = total
+                var revision: String? = null
+                val expectedTotal = total
                 var name = info.name ?: basename(target.remotePath)
                 var mime = info.mimeType ?: "application/octet-stream"
                 updateReady { it.copy(download = RemoteFileDownloadUiState.Loading(target, 0, total)) }
@@ -411,11 +419,14 @@ public class RemoteWorkspaceStore internal constructor(
                             limit = DOWNLOAD_CHUNK_BYTES,
                         ),
                     )
+                    if (!downloadIsCurrent()) throw CancellationException("File target changed")
                     val bytes = withContext(backgroundDispatcher) { decode(response.chunkBase64.orEmpty()) }
-                    expectedTotal = (response.totalSize ?: expectedTotal).coerceAtLeast(offset.toLong())
-                    if (bytes.isEmpty() && offset.toLong() < expectedTotal) {
-                        error("remote file transfer stopped before completion")
+                    validateFileChunk(response, bytes, offset, expectedTotal, DOWNLOAD_CHUNK_BYTES)
+                    if (response.name != null && response.name != name || response.mimeType != null && response.mimeType != mime) {
+                        error("remote file changed during transfer")
                     }
+                    if (offset > 0 && response.revision != revision) error("remote file changed during transfer")
+                    revision = response.revision
                     chunks += bytes
                     offset += bytes.size
                     name = response.name?.takeIf(String::isNotBlank) ?: name
@@ -429,12 +440,14 @@ public class RemoteWorkspaceStore internal constructor(
                     }
                 } while (offset.toLong() < expectedTotal)
                 val bytes = withContext(backgroundDispatcher) { chunks.joinBytes() }
+                if (!downloadIsCurrent()) throw CancellationException("File target changed")
                 updateReady {
                     it.copy(download = RemoteFileDownloadUiState.AwaitingSave(target, name, mime, bytes))
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Throwable) {
+                if (!downloadIsCurrent()) return@launch
                 failDownload(target, error.message.orEmpty())
             }
         }
@@ -512,19 +525,49 @@ public class RemoteWorkspaceStore internal constructor(
     }
 
     private suspend fun loadImage(target: FilePreviewTarget, identity: PreviewRequestIdentity, generation: Long, name: String, mime: String, size: Long) {
-        val response = readChunk(target, size.coerceAtLeast(1).coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
-        val bytes = withContext(backgroundDispatcher) { decode(response.chunkBase64.orEmpty()) }
+        val chunks = mutableListOf<ByteArray>()
+        var revision: String? = null
+        var offset = 0
+        do {
+            if (previewGeneration != generation) throw CancellationException("File target changed")
+            val response = transport.send<ReadFileChunkResponse>(RemoteCommand(
+                cmd = "read_file_chunk", path = target.remotePath,
+                sessionId = target.sessionId.ifEmpty { null }, offset = offset,
+                limit = minOf(DOWNLOAD_CHUNK_BYTES, (size - offset).coerceAtLeast(1).toInt()),
+            ))
+            if (previewGeneration != generation) throw CancellationException("File target changed")
+            val chunk = withContext(backgroundDispatcher) { decode(response.chunkBase64.orEmpty()) }
+            validateFileChunk(response, chunk, offset, size, DOWNLOAD_CHUNK_BYTES)
+            if (response.name != null && response.name != name || response.mimeType != null && response.mimeType != mime) {
+                error("remote image changed during transfer")
+            }
+            if (offset > 0 && response.revision != revision) error("remote image changed during transfer")
+            revision = response.revision
+            chunks += chunk
+            offset += chunk.size
+        } while (offset.toLong() < size)
+        val bytes = withContext(backgroundDispatcher) { chunks.joinBytes() }
         updatePreview(identity, generation) {
             it.copy(
                 preview = RemoteFilePreviewUiState.Image(
                     target = target,
-                    name = response.name ?: name,
-                    mimeType = response.mimeType ?: mime,
+                    name = name,
+                    mimeType = mime,
                     bytes = bytes,
-                    sizeBytes = response.totalSize ?: size,
+                    sizeBytes = size,
                     identity = identity,
                 ),
             )
+        }
+    }
+
+    private fun validateFileChunk(response: ReadFileChunkResponse, bytes: ByteArray, offset: Int, total: Long, limit: Int) {
+        if (response.offset != null && response.offset != offset.toLong() ||
+            response.chunkSize != null && response.chunkSize != bytes.size.toLong() ||
+            response.totalSize != null && response.totalSize != total ||
+            bytes.size > limit || bytes.size.toLong() > total - offset ||
+            bytes.isEmpty() && offset.toLong() < total) {
+            error("remote file transfer is incomplete or inconsistent")
         }
     }
 

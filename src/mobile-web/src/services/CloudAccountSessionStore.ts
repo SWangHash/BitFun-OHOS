@@ -5,7 +5,7 @@ import { normalizeRelayUrl } from './pairingLink';
 const ACCOUNT_SESSION_STORAGE_KEY = 'openbitfun.mobile.account_session.v2';
 const ACCOUNT_SESSION_VERSION = 2;
 
-interface PersistedAccountSessionV1 {
+interface PersistedAccountSessionV2 {
   version: 2;
   relay_url: string;
   username: string;
@@ -16,7 +16,7 @@ interface PersistedAccountSessionV1 {
 }
 
 /**
- * Account proof retained for the lifetime of the current browser tab.
+ * Legacy per-tab account proof, read when migrating to BrowserAccountStore.
  *
  * Passwords are never stored. The relay token and account master key are kept
  * in sessionStorage so a same-tab QR scan or reload can reuse an authenticated
@@ -29,7 +29,7 @@ export interface StoredCloudAccountSession {
   session: CloudAccountSession;
 }
 
-type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
+type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 function stringField(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -44,7 +44,7 @@ function storageOrNull(): StorageLike | null {
 }
 
 export function serializeCloudAccountSession(value: StoredCloudAccountSession): string {
-  const record: PersistedAccountSessionV1 = {
+  const record: PersistedAccountSessionV2 = {
     version: ACCOUNT_SESSION_VERSION,
     relay_url: value.relayUrl,
     username: value.username,
@@ -57,7 +57,7 @@ export function serializeCloudAccountSession(value: StoredCloudAccountSession): 
 }
 
 /**
- * Read the current shape and the short-lived unversioned camelCase shape used
+ * Read the v2 shape and the short-lived v2 camelCase aliases used
  * by development builds. Unknown or incomplete records are ignored in place;
  * callers must not delete data merely because a newer build cannot read it.
  */
@@ -103,6 +103,12 @@ export function saveCloudAccountSession(
   } catch {
     // Private browsing and constrained webviews may reject browser storage.
   }
+}
+
+/** Explicit disconnect/sign-out only; failed requests must retain the record. */
+export function clearCloudAccountSession(storage: StorageLike | null = storageOrNull()): void {
+  try { storage?.removeItem(ACCOUNT_SESSION_STORAGE_KEY); }
+  catch { /* Browser storage may be unavailable. */ }
 }
 
 export function loadMatchingCloudAccountSession(

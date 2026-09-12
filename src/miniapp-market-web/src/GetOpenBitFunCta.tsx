@@ -1,4 +1,4 @@
-import { ArrowRight, DownloadSimple } from '@phosphor-icons/react';
+import { ArrowRight, Download as DownloadSimple } from 'lucide-react';
 import type { MessageKey } from './i18n';
 import { OPENBITFUN_DOWNLOAD_URL } from './links';
 
@@ -21,7 +21,7 @@ export function GetOpenBitFunCta({
       rel="noreferrer"
     >
       <span className="get-openbitfun-icon">
-        <DownloadSimple weight="bold" aria-hidden="true" />
+        <DownloadSimple size={18} aria-hidden="true" />
       </span>
       <span className="get-openbitfun-copy">
         <strong>{t('getOpenBitFunTitle')}</strong>
@@ -30,7 +30,7 @@ export function GetOpenBitFunCta({
         </span>
         <span className="get-openbitfun-action">
           {t('getOpenBitFunAction')}
-          <ArrowRight weight="bold" aria-hidden="true" />
+          <ArrowRight size={18} aria-hidden="true" />
         </span>
       </span>
     </a>

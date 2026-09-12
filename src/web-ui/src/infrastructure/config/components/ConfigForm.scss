@@ -631,7 +631,7 @@ $config-input-height: 32px;
   opacity: 0;
   transition:
     grid-template-rows 180ms var(--openbitfun-motion-easing-standard),
-    opacity 120ms ease;
+    opacity 180ms var(--openbitfun-motion-easing-standard);
 
   &[data-open='true'] {
     grid-template-rows: 1fr;

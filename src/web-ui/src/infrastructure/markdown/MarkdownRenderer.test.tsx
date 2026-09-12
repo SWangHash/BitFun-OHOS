@@ -164,6 +164,7 @@ describe('Markdown file links', () => {
     act(() => {
       root.unmount();
     });
+    activateSurface('local');
     container.remove();
     flowChatStore.setState(state => ({ ...state, sessions: new Map(), activeSessionId: null }));
     useContentResourceStore.setState({ resources: {} });
@@ -450,15 +451,41 @@ describe('Markdown file links', () => {
     });
     const links = container.querySelectorAll<HTMLButtonElement>('button.file-link');
     act(() => links[1].click());
-    expect(onFileViewRequest).toHaveBeenCalledWith('/target/result.bin', 'result.bin', undefined);
+    expect(onFileViewRequest).toHaveBeenCalledWith('result.bin', 'result.bin', undefined);
     act(() => links[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
     const items = mocks.showContextMenu.mock.calls[0][1] as MenuItem[];
     expect(items.find(item => item.id === 'markdown-open-in-explorer')?.disabled).toBe(true);
     expect(items.some(item => item.id === 'markdown-open-html-in-system-browser')).toBe(false);
     await items.find(item => item.id === 'markdown-open-remote-file')?.onClick?.(mocks.showContextMenu.mock.calls[0][2]);
-    expect(onFileViewRequest).toHaveBeenCalledWith('/target/page.html', 'page.html', undefined);
+    expect(onFileViewRequest).toHaveBeenCalledWith('page.html', 'page.html', undefined);
     expect(mocks.openFileInBestTarget).not.toHaveBeenCalled();
     expect(mocks.revealInExplorer).not.toHaveBeenCalled();
+  });
+
+  it.each(['computer://preview.png', 'openbitfun://current-session/artifacts/preview.png'])(
+    'renders dispatched image %s through the session provider only', async source => {
+      const read = vi.fn().mockResolvedValue('data:image/png;base64,YQ==');
+      await act(async () => root.render(<MarkdownRenderer content={`![Preview](${source})`}
+        basePath="/controller/baseline" fileActionsViaCallbackOnly onImageRead={read} />));
+      expect(read).toHaveBeenCalledWith(source.startsWith('computer:') ? 'preview.png' : source);
+      expect(container.querySelector('img')?.src).toBe('data:image/png;base64,YQ==');
+      expect(mocks.readFileContent).not.toHaveBeenCalled();
+    },
+  );
+
+  it('retries a failed dispatched preview and offers an explicit file download', async () => {
+    const read = vi.fn().mockRejectedValueOnce(new Error('Target offline')).mockResolvedValue('data:image/png;base64,YQ==');
+    const download = vi.fn().mockResolvedValue(undefined);
+    await act(async () => root.render(<MarkdownRenderer content="![Preview](preview.png)" fileActionsViaCallbackOnly onImageRead={read} onFileDownload={download} />));
+    expect(container.querySelector('img')).toBeNull();
+    const retry = [...container.querySelectorAll('button')].find(button => button.textContent === 'common:retry');
+    const save = [...container.querySelectorAll('button')].find(button => button.textContent === 'common:actions.download');
+    await act(async () => save!.click());
+    expect(download).toHaveBeenCalledWith('preview.png');
+    await act(async () => retry!.click());
+    expect(read).toHaveBeenLastCalledWith('preview.png', true);
+    expect(container.querySelector('img')?.src).toBe('data:image/png;base64,YQ==');
+    expect(mocks.readFileContent).not.toHaveBeenCalled();
   });
 
   it('routes same-label relative, absolute, and computer links independently', async () => {
@@ -586,6 +613,38 @@ describe('Markdown file links', () => {
     );
     expect(image?.src).toBe('data:image/png;base64,cmVsdS1wbmc=');
     expect(mocks.getCurrentWorkspacePath).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['computer://output/preview%20%E5%9B%BE.png', '/srv/project/output/preview 图.png'],
+    ['file:///srv/project/preview.png', '/srv/project/preview.png'],
+    ['computer:///srv/project/preview.png', '/srv/project/preview.png'],
+  ])('resolves output image references through the owning filesystem: %s', async (source, expectedPath) => {
+    await act(async () => root.render(<MarkdownRenderer content={`![Preview](${source})`} basePath="/srv/project" remoteConnectionId={source} />));
+    expect(mocks.readFileContent).toHaveBeenCalledWith(expectedPath, 'base64', source);
+    expect(container.querySelector('img')?.src).toBe('data:image/png;base64,cmVsdS1wbmc=');
+  });
+
+  it('keeps inline image data while blocking executable data links', async () => {
+    await act(async () => root.render(<MarkdownRenderer content="![Preview](data:image/png;base64,YQ==) [bad](data:text/html;base64,YQ==)" />));
+    expect(container.querySelector('img')?.src).toBe('data:image/png;base64,YQ==');
+    expect(container.querySelector('a[href^="data:"]')).toBeNull();
+    expect(mocks.readFileContent).not.toHaveBeenCalled();
+  });
+
+  it('isolates same-path images across peer hosts and discards late reads', async () => {
+    let finishOld!: (value: string) => void;
+    mocks.readFileContent.mockImplementationOnce(() => new Promise<string>(resolve => { finishOld = resolve; }));
+    await act(async () => {
+      activateSurface('peer:output-first');
+      root.render(<MarkdownRenderer content="![Preview](same-path.png)" basePath="/srv/project" />);
+    });
+    mocks.readFileContent.mockResolvedValueOnce('bmV3');
+    await act(async () => activateSurface('peer:output-second'));
+    expect(container.querySelector('img')?.src).toBe('data:image/png;base64,bmV3');
+    await act(async () => finishOld('b2xk'));
+    expect(container.querySelector('img')?.src).toBe('data:image/png;base64,bmV3');
+    expect(mocks.readFileContent).toHaveBeenCalledTimes(2);
   });
 
   it.each(['dispatch-private.png', '/srv/private/dispatch-private.png'])(

@@ -50,6 +50,7 @@ import com.openbitfun.mobile.app.ui.common.AdaptiveModalSurface
 import com.openbitfun.mobile.app.ui.remote.AccountRemoteScreen
 import com.openbitfun.mobile.app.ui.remote.ConnectAccountDeviceScreen
 import com.openbitfun.mobile.app.ui.remote.FilePreviewSurface
+import com.openbitfun.mobile.app.ui.remote.DisconnectedRemoteHome
 import com.openbitfun.mobile.app.ui.remote.PairingScreen
 import com.openbitfun.mobile.app.ui.settings.GeneralSettingsScreen
 import com.openbitfun.mobile.app.ui.settings.SettingsScreen
@@ -141,12 +142,12 @@ internal fun MobileScreen() {
             com.openbitfun.mobile.core.feature.account.AccountDeviceLinkStatus.READY -> {
                 pendingDeviceLink = null
                 accountViewModel.selectDevice(result.deviceId!!)
-                shell.closeRemoteScanner()
+                shell.closeRemoteConnect()
             }
             com.openbitfun.mobile.core.feature.account.AccountDeviceLinkStatus.SIGN_IN_REQUIRED -> {
                 pendingDeviceLink = url
                 accountViewModel.dispatch(com.openbitfun.mobile.core.feature.account.AccountIntent.SelectRelay(result.relayUrl!!))
-                shell.closeRemoteScanner()
+                shell.closeRemoteConnect()
                 shell.openAccount()
             }
             else -> {
@@ -237,6 +238,7 @@ internal fun MobileScreen() {
         adaptiveLayoutInput,
         SettingsSheetKind.SETTINGS,
     )
+    val connectPlacement = SettingsPlacementPolicy.resolve(adaptiveLayoutInput, SettingsSheetKind.CONNECT)
     val sessionDetailsPlacement = SettingsPlacementPolicy.resolve(
         adaptiveLayoutInput,
         SettingsSheetKind.SESSION_DETAILS,
@@ -316,10 +318,10 @@ internal fun MobileScreen() {
                 shell.openRemoteSession(sessionId)
                 closeDrawer()
             },
-            onCreateRemoteInWorkspace = { path ->
+            onCreateRemoteInWorkspace = { path, agentType ->
                 dispatchActiveSession(
                     RemoteSessionIntent.CreateSession(
-                        agentType = "code",
+                        agentType = agentType,
                         title = "",
                         instruction = "",
                         modelId = null,
@@ -368,31 +370,7 @@ internal fun MobileScreen() {
         ) { insets ->
             Box(Modifier.padding(insets)) {
                 when (shell.surface) {
-                    MobileSurface.REMOTE -> if (shell.remoteScanRequested) {
-                        PairingScreen(
-                            onDeviceLink = connectDeviceLink,
-                            modifier = Modifier,
-                            settingsPlacement = settingsPlacement,
-                            sessionDetailsPlacement = sessionDetailsPlacement,
-                            viewSettingsPlacement = remoteViewSettingsPlacement,
-                            onOpenRemoteSettings = { shell.openSettings(SettingsMode.REMOTE) },
-                            onOpenSidebar = if (showMenu) {
-                                { compactDrawerOpen = true }
-                            } else {
-                                null
-                            },
-                            onBack = {
-                                shell.closeRemoteScanner()
-                                shell.openRemoteConnect()
-                            },
-                            onOpenAccount = {
-                                shell.closeRemoteScanner()
-                                shell.openAccount()
-                            },
-                            compact = !wide,
-                            startScanning = true,
-                        )
-                    } else when (controlSummary.source) {
+                    MobileSurface.REMOTE -> when (controlSummary.source) {
                         RemoteControlSource.ACCOUNT_DEVICE -> AccountRemoteScreen(
                             remoteState = accountRemoteState,
                             workspaceState = accountWorkspaceState,
@@ -441,27 +419,11 @@ internal fun MobileScreen() {
                                 modifier = Modifier,
                             )
                         } else {
-                            PairingScreen(
-                            onDeviceLink = connectDeviceLink,
-                                modifier = Modifier,
-                                settingsPlacement = settingsPlacement,
-                                sessionDetailsPlacement = sessionDetailsPlacement,
-                                viewSettingsPlacement = remoteViewSettingsPlacement,
-                                onOpenRemoteSettings = { shell.openSettings(SettingsMode.REMOTE) },
-                                onOpenSidebar = if (showMenu) {
-                                    { compactDrawerOpen = true }
-                                } else {
-                                    null
-                                },
-                                onBack = { shell.openRemoteConnect() },
-                                onOpenAccount = { shell.openAccount() },
-                                compact = !wide,
-                                requestedSessionId = shell.remoteSessionId,
-                                creatingSession = shell.remoteCreating,
-                                onOpenSession = shell::openRemoteSession,
-                                onCreateSession = shell::createRemoteSession,
-                                onRemoteHome = shell::closeRemoteSession,
+                            DisconnectedRemoteHome(
+                                onOpenSidebar = if (showMenu) { { compactDrawerOpen = true } } else null,
+                                onConnect = shell::openRemoteConnect,
                             )
+
                         }
                     }
                 }
@@ -610,6 +572,34 @@ internal fun MobileScreen() {
     }
 
     AdaptiveModalSurface(
+        visible = shell.remoteConnectOpen,
+        edgeToEdgeContent = true,
+        placement = connectPlacement,
+        onDismissRequest = shell::closeRemoteConnect,
+    ) { sheetModifier ->
+        if (readyAccount != null && !shell.remoteScanRequested) {
+            ConnectAccountDeviceScreen(
+                state = readyAccount,
+                onBack = shell::closeRemoteConnect,
+                onRefresh = { accountViewModel.dispatch(AccountIntent.RefreshDevices) },
+                onSelect = { shell.closeRemoteConnect(); accountViewModel.selectDevice(it) },
+                onOpenScanner = shell::openRemoteScanner,
+                modifier = sheetModifier,
+            )
+        } else PairingScreen(
+            onDeviceLink = connectDeviceLink,
+            modifier = sheetModifier,
+            settingsPlacement = settingsPlacement,
+            sessionDetailsPlacement = sessionDetailsPlacement,
+            viewSettingsPlacement = remoteViewSettingsPlacement,
+            onOpenRemoteSettings = { shell.openSettings(SettingsMode.REMOTE) },
+            onBack = shell::closeRemoteConnect,
+            onOpenAccount = { shell.closeRemoteConnect(); shell.openAccount() },
+            startScanning = shell.remoteScanRequested,
+
+        )
+    }
+    AdaptiveModalSurface(
         visible = shell.showSettings,
         placement = settingsPlacement,
         onDismissRequest = shell::dismissSettings,
@@ -617,6 +607,8 @@ internal fun MobileScreen() {
     )
     AdaptiveModalSurface(
         visible = shell.showAccount,
+        fitContent = readyAccount == null,
+        edgeToEdgeContent = readyAccount != null,
         placement = settingsPlacement,
         onDismissRequest = shell::dismissAccount,
     ) { modifier ->

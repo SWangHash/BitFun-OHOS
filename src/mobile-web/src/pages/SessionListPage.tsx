@@ -1,3 +1,29 @@
+import {
+  AppWindow as LucideAppWindow,
+  Bot as LucideBot,
+  Check as LucideCheck,
+  ChevronRight as LucideChevronRight,
+  ChevronsUpDown as LucideChevronsUpDown,
+  Ellipsis as LucideEllipsis,
+  Folder as LucideFolder,
+  FolderOpen as LucideFolderOpen,
+  Laptop as LucideLaptop,
+  LoaderCircle as LucideLoaderCircle,
+  LogOut as LucideLogOut,
+  MessageSquare as LucideMessageSquare,
+  Monitor as LucideMonitor,
+  Moon as LucideMoon,
+  Plus as LucidePlus,
+  RefreshCw as LucideRefreshCw,
+  Search as LucideSearch,
+  Server as LucideServer,
+  Settings as LucideSettings,
+  SquarePen as LucideSquarePen,
+  Sun as LucideSun,
+  Terminal as LucideTerminal,
+  Users as LucideUsers,
+  X as LucideX,
+} from 'lucide-react';
 import { useGitHubAccountProfile } from '../hooks/useGitHubAccountProfile';
 import AccountAvatar from '../components/AccountAvatar';
 import React, { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from 'react';
@@ -171,28 +197,18 @@ function truncateMiddle(str: string, maxLen: number): string {
 function SessionTypeIcon({ agentType }: { agentType: string }) {
   if (isCoworkAgent(agentType)) {
     return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
+      <LucideUsers width="18" height="18" stroke="currentColor" aria-hidden="true" />
     );
   }
 
   if (isClawAgent(agentType)) {
     return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-        <rect width="20" height="14" x="2" y="5" rx="2" />
-        <path d="M2 10h20" />
-      </svg>
+      <LucideAppWindow width="18" height="18" stroke="currentColor" aria-hidden="true" />
     );
   }
 
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
+    <LucideMessageSquare width="18" height="18" stroke="currentColor" aria-hidden="true" />
   );
 }
 
@@ -200,58 +216,34 @@ function CompactDeviceIcon({ name }: { name: string }) {
   const normalized = name.toLocaleLowerCase();
   if (/(macbook|laptop|notebook)/.test(normalized)) {
     return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="4" y="4" width="16" height="11" rx="2"/><path d="M2.5 19h19M7 19l1-4h8l1 4"/>
-      </svg>
+      <LucideLaptop width="22" height="22" stroke="currentColor" aria-hidden="true" />
     );
   }
   if (/(server|ecs|cloud|host)/.test(normalized)) {
     return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="4" y="3" width="16" height="6" rx="2"/><rect x="4" y="15" width="16" height="6" rx="2"/><path d="M8 6h.01M8 18h.01M12 9v6"/>
-      </svg>
+      <LucideServer width="22" height="22" stroke="currentColor" aria-hidden="true" />
     );
   }
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="14" rx="2.4"/><path d="M8 21h8M12 18v3"/>
-    </svg>
+    <LucideMonitor width="22" height="22" stroke="currentColor" aria-hidden="true" />
   );
 }
 
 /* Mode Selection Icons */
 const ProModeIcon = () => (
-  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="4 17 10 11 4 5" />
-    <line x1="12" y1="19" x2="20" y2="19" />
-  </svg>
+  <LucideTerminal width="32" height="32" stroke="currentColor" aria-hidden="true" />
 );
 
 const AssistantModeIcon = () => (
-  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 8V4H8" />
-    <rect width="16" height="12" x="4" y="8" rx="2" />
-    <path d="M2 14h2" />
-    <path d="M20 14h2" />
-    <path d="M15 13v2" />
-    <path d="M9 13v2" />
-  </svg>
+  <LucideBot width="32" height="32" stroke="currentColor" aria-hidden="true" />
 );
 
 const WorkspaceIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-    <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/>
-  </svg>
+  <LucideFolderOpen width="18" height="18" stroke="currentColor" aria-hidden="true" />
 );
 
 const ThemeToggleIcon: React.FC<{ isDark: boolean }> = ({ isDark }) => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    {isDark ? (
-      <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM3 8a5 5 0 0 1 5-5v10a5 5 0 0 1-5-5Z" fill="currentColor"/>
-    ) : (
-      <path d="M8 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 8 1Zm0 11a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 8 12Zm7-4a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1 0-1h1A.5.5 0 0 1 15 8ZM3 8a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1 0-1h1A.5.5 0 0 1 3 8Zm9.95-3.54a.5.5 0 0 1 0 .71l-.71.7a.5.5 0 1 1-.7-.7l.7-.71a.5.5 0 0 1 .71 0ZM5.46 11.24a.5.5 0 0 1 0 .71l-.7.71a.5.5 0 0 1-.71-.71l.7-.71a.5.5 0 0 1 .71 0Zm7.08 1.42a.5.5 0 0 1-.7 0l-.71-.71a.5.5 0 0 1 .7-.7l.71.7a.5.5 0 0 1 0 .71ZM5.46 4.76a.5.5 0 0 1-.71 0l-.71-.7a.5.5 0 0 1 .71-.71l.7.7a.5.5 0 0 1 0 .71ZM8 5a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" fill="currentColor"/>
-    )}
-  </svg>
+  <>{isDark ? <LucideMoon width="16" height="16" aria-hidden="true" /> : <LucideSun width="16" height="16" aria-hidden="true" />}</>
 );
 
 const SessionListPage: React.FC<SessionListPageProps> = ({
@@ -1567,10 +1559,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
             className="harmony-sidebar__round-action"
             aria-label={t('shared.tools.search')}
             icon={(
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                <circle cx="11" cy="11" r="7" />
-                <path d="m16.5 16.5 4 4" />
-              </svg>
+              <LucideSearch stroke="currentColor" aria-hidden="true" />
             )}
             onClick={() => {
               setCompactSearchOpen((open) => !open);
@@ -1596,10 +1585,8 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
             <div className="harmony-sidebar__section-heading">
               <h2>{t('devices.title')}</h2>
               <span className="harmony-sidebar__heading-actions">
-                <MobileIconButton appearance="plain" size="sm" aria-label={t('devices.refresh')} loading={compactDirectoryLoading} onClick={() => void loadCompactDirectory()} icon={<svg className={compactDirectoryLoading ? 'is-spinning' : ''} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M20 11a8 8 0 1 0-2.34 5.66"/><path d="M20 4v7h-7"/>
-                  </svg>} />
-                <MobileIconButton appearance="plain" size="sm" aria-label={t('devices.title')} onClick={onOpenDevices} icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg>} />
+                <MobileIconButton appearance="plain" size="sm" aria-label={t('devices.refresh')} loading={compactDirectoryLoading} onClick={() => void loadCompactDirectory()} icon={<LucideRefreshCw className={compactDirectoryLoading ? 'is-spinning' : ''} width="20" height="20" stroke="currentColor" aria-hidden="true" />} />
+                <MobileIconButton appearance="plain" size="sm" aria-label={t('devices.title')} onClick={onOpenDevices} icon={<LucidePlus width="20" height="20" stroke="currentColor" aria-hidden="true" />} />
               </span>
             </div>
             <div className="harmony-sidebar__rows">
@@ -1623,7 +1610,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                       ? <span className="spinner harmony-sidebar__row-spinner"/>
                       : <span className={`harmony-sidebar__status${device.online ? ' is-online' : ''}`}/>}
                     <span className={`harmony-sidebar__chevron${isCurrent ? ' is-expanded' : ''}`} aria-hidden="true">
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m4.5 2.5 4.5 4.5-4.5 4.5"/></svg>
+                      <LucideChevronRight width="14" height="14" stroke="currentColor" aria-hidden="true" />
                     </span>
                   </MobileButton>
                 );
@@ -1640,7 +1627,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
             <MobileSection className="harmony-sidebar__section harmony-sidebar__section--workspaces">
               <div className="harmony-sidebar__section-heading">
                 <h2>{t('shared.features.workspace')}</h2>
-                <MobileIconButton appearance="plain" size="sm" aria-label={t('workspace.selectWorkspace')} onClick={onOpenWorkspace} icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg>} />
+                <MobileIconButton appearance="plain" size="sm" aria-label={t('workspace.selectWorkspace')} onClick={onOpenWorkspace} icon={<LucidePlus width="20" height="20" stroke="currentColor" aria-hidden="true" />} />
               </div>
               <div className="harmony-sidebar__rows">
                 {workspaceCatalogSource === 'recent' && (
@@ -1667,10 +1654,10 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                   return (
                     <div className="harmony-sidebar__workspace-group" key={key}>
                       <div className={`harmony-sidebar__workspace-row${current ? ' is-current' : ''}`}>
-                        <MobileIconButton appearance="plain" size="sm" className={`harmony-sidebar__workspace-disclosure${expanded ? ' is-expanded' : ''}`} onClick={() => void handleToggleCompactWorkspace(workspace)} aria-label={expanded ? t('common.close') : t('sessions.sessionHistory')} icon={<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m4.5 2.5 4.5 4.5-4.5 4.5"/></svg>} />
+                        <MobileIconButton appearance="plain" size="sm" className={`harmony-sidebar__workspace-disclosure${expanded ? ' is-expanded' : ''}`} onClick={() => void handleToggleCompactWorkspace(workspace)} aria-label={expanded ? t('common.close') : t('sessions.sessionHistory')} icon={<LucideChevronRight width="14" height="14" stroke="currentColor" aria-hidden="true" />} />
                         <MobileButton appearance="plain" block className="harmony-sidebar__workspace-main" onClick={() => void handleToggleCompactWorkspace(workspace)}>
                           <span className="harmony-sidebar__folder-icon" aria-hidden="true">
-                            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h4l2 2h7A2.5 2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/></svg>
+                            <LucideFolder width="21" height="21" stroke="currentColor" aria-hidden="true" />
                           </span>
                           <span className="harmony-sidebar__workspace-copy">
                             <span className="harmony-sidebar__row-label">{workspace.name || workspace.path}</span>
@@ -1681,7 +1668,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                             )}
                           </span>
                         </MobileButton>
-                        <MobileIconButton appearance="plain" size="sm" className="harmony-sidebar__row-plus" onClick={() => requestHarnessCreate(workspace)} aria-label={t('shell.newChat')} disabled={creating} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M12 4v16M4 12h16"/></svg>} />
+                        <MobileIconButton appearance="plain" size="sm" className="harmony-sidebar__row-plus" onClick={() => requestHarnessCreate(workspace)} aria-label={t('shell.newChat')} disabled={creating} icon={<LucidePlus width="18" height="18" stroke="currentColor" aria-hidden="true" />} />
                       </div>
                       {expanded && (
                         <div className="harmony-sidebar__workspace-sessions">
@@ -1704,7 +1691,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                                 className="harmony-sidebar__session-more"
                                 aria-label={t('sessions.sessionActions')}
                                 onClick={(event) => { event.stopPropagation(); setMenuSession(session); }}
-                                icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></svg>}
+                                icon={<LucideEllipsis width="18" height="18" aria-hidden="true" />}
                               />
                             </div>
                           ))}
@@ -1759,7 +1746,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                       className="harmony-sidebar__session-more"
                       aria-label={t('sessions.sessionActions')}
                       onClick={(event) => { event.stopPropagation(); setMenuSession(session); }}
-                      icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="12" r="1.25"/><circle cx="12" cy="12" r="1.25"/><circle cx="18" cy="12" r="1.25"/></svg>}
+                      icon={<LucideEllipsis width="20" height="20" aria-hidden="true" />}
                     />
                   </div>
                 ))}
@@ -1784,7 +1771,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
         <MobileFloatingActions
           className="harmony-sidebar__footer"
           leading={(
-            <MobileButton appearance="secondary" className="harmony-sidebar__new-chat" onClick={() => isProMode ? requestHarnessCreate() : void handleCreate('claw')} disabled={creating || targetInitializing} leading={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/></svg>}>
+            <MobileButton appearance="secondary" className="harmony-sidebar__new-chat" onClick={() => isProMode ? requestHarnessCreate() : void handleCreate('claw')} disabled={creating || targetInitializing} leading={<LucideSquarePen width="22" height="22" stroke="currentColor" aria-hidden="true" />}>
               <span>{t('shell.newChat')}</span>
             </MobileButton>
           )}
@@ -1794,7 +1781,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
               className="harmony-sidebar__settings"
               onClick={() => setCompactSettingsOpen(true)}
               aria-label={t('shared.features.settings')}
-              icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.2 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2.4v-4h.09A1.7 1.7 0 0 0 4.2 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.6 4.2a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V2.4h4v.09A1.7 1.7 0 0 0 15 4.2a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.6a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.09v4h-.09a1.7 1.7 0 0 0-1.7 1z"/></svg>}
+              icon={<LucideSettings stroke="currentColor" aria-hidden="true" />}
             />
           )}
         />
@@ -1868,19 +1855,11 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
               appearance="plain"
               className={`session-list__devices-btn ${controlTarget ? 'is-remote' : ''}`}
               onClick={onOpenDevices}
-              title={t('devices.title')} aria-label={t('devices.title')} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                <line x1="8" y1="21" x2="16" y2="21" />
-                <line x1="12" y1="17" x2="12" y2="21" />
-              </svg>} />
+              title={t('devices.title')} aria-label={t('devices.title')} icon={<LucideMonitor width="16" height="16" stroke="currentColor" aria-hidden="true" />} />
           )}
           <LanguageToggleButton className="session-list__language-btn" />
           <MobileIconButton appearance="plain" className="session-list__theme-btn" onClick={toggleTheme} aria-label={t('common.toggleTheme')} icon={<ThemeToggleIcon isDark={isDark} />} />
-          <MobileIconButton appearance="plain" className="session-list__disconnect-btn" onClick={() => setShowDisconnectConfirm(true)} aria-label={t('sessions.disconnect')} title={t('sessions.disconnect')} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>} />
+          <MobileIconButton appearance="plain" className="session-list__disconnect-btn" onClick={() => setShowDisconnectConfirm(true)} aria-label={t('sessions.disconnect')} title={t('sessions.disconnect')} icon={<LucideLogOut width="16" height="16" stroke="currentColor" aria-hidden="true" />} />
         </div>
       </div>
 
@@ -1898,11 +1877,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
             style={{ height: refreshing ? PULL_THRESHOLD : pullDistance }}
           >
             <div className={`session-list__pull-spinner${refreshing || pullDistance >= PULL_THRESHOLD ? ' is-active' : ''}`}>
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none"
-                style={{ transform: `rotate(${pullDistance * 4}deg)`, transition: refreshing ? 'transform 0s' : undefined }}>
-                <path d="M9 2V5M9 13V16M2 9H5M13 9H16M4.22 4.22L6.34 6.34M11.66 11.66L13.78 13.78M13.78 4.22L11.66 6.34M6.34 11.66L4.22 13.78"
-                  stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
+              <LucideLoaderCircle width="18" height="18" style={{ transform: `rotate(${pullDistance * 4}deg)`, transition: refreshing ? 'transform 0s' : undefined }} aria-hidden="true" />
             </div>
           </div>
         )}
@@ -1940,7 +1915,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
               </div>
             </div>
             <span className="session-list__resume-arrow">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              <LucideChevronRight width="18" height="18" stroke="currentColor" aria-hidden="true" />
             </span>
           </MobileButton>
         )}
@@ -1984,14 +1959,14 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                 </span>
               )}
               <span className="session-list__workspace-switch" aria-label={t('sessions.switchWorkspace')}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+                <LucideChevronsUpDown width="16" height="16" stroke="currentColor" aria-hidden="true" />
               </span>
             </MobileButton>
 
             <MobileChoiceSheet
               className="session-list__picker-modal session-list__picker-modal--workspace"
               emptyContent={<MobileStatus title={t('sessions.noWorkspaces')} />}
-              headerAction={<MobileIconButton appearance="plain" className="session-list__picker-close" onClick={() => setShowWorkspacePicker(false)} aria-label={t('common.close')} icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>} />}
+              headerAction={<MobileIconButton appearance="plain" className="session-list__picker-close" onClick={() => setShowWorkspacePicker(false)} aria-label={t('common.close')} icon={<LucideX width="20" height="20" stroke="currentColor" aria-hidden="true" />} />}
               onOpenChange={() => setShowWorkspacePicker(false)}
               onSelect={(value) => {
                 const workspace = workspaceList.find((candidate, index) => [
@@ -2013,7 +1988,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                     ? `${workspace.name} · ${workspace.remote_ssh_host}`
                     : workspace.name,
                   leading: <span className="session-list__picker-item-icon"><WorkspaceIcon /></span>,
-                  trailing: selected ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> : undefined,
+                  trailing: selected ? <LucideCheck width="16" height="16" stroke="currentColor" aria-hidden="true" /> : undefined,
                   value: [workspace.remote_connection_id ?? 'local', workspace.remote_ssh_host ?? '', workspace.path || String(index)].join(':'),
                 };
               })}
@@ -2045,13 +2020,13 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                 <span className="session-list__assistant-name">{assistantDisplayName}</span>
               </div>
               <span className="session-list__assistant-switch" aria-label={t('sessions.switchAssistant')}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+                <LucideChevronsUpDown width="16" height="16" stroke="currentColor" aria-hidden="true" />
               </span>
             </MobileButton>
 
             <MobileChoiceSheet
               className="session-list__picker-modal"
-              headerAction={<MobileIconButton appearance="plain" className="session-list__picker-close" onClick={() => setShowAssistantPicker(false)} aria-label={t('common.close')} icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>} />}
+              headerAction={<MobileIconButton appearance="plain" className="session-list__picker-close" onClick={() => setShowAssistantPicker(false)} aria-label={t('common.close')} icon={<LucideX width="20" height="20" stroke="currentColor" aria-hidden="true" />} />}
               onOpenChange={() => setShowAssistantPicker(false)}
               onSelect={(path) => {
                 const assistant = assistantList.find((candidate, index) => (candidate.path || String(index)) === path);
@@ -2063,7 +2038,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                 className: `session-list__picker-item ${currentAssistant?.path === assistant.path ? 'is-selected' : ''}`,
                 label: assistant.name,
                 leading: <span className="session-list__picker-item-icon"><AssistantModeIcon /></span>,
-                trailing: currentAssistant?.path === assistant.path ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> : undefined,
+                trailing: currentAssistant?.path === assistant.path ? <LucideCheck width="16" height="16" stroke="currentColor" aria-hidden="true" /> : undefined,
                 value: assistant.path || String(index),
               }))}
               selectedValue={currentAssistant?.path}

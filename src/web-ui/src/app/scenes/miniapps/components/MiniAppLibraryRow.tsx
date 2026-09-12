@@ -8,11 +8,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
-import {
-  marketImageSrcSet,
-  marketImageUrl,
-  retryOriginalMarketImage,
-} from '@/infrastructure/api/service-api/MarketImage';
+import { MarketImage } from '@/app/components/GalleryLayout/MarketImage';
 import type { MiniAppLibraryAction } from '../views/miniAppLibraryItems';
 
 interface MiniAppLibraryStatus {
@@ -21,6 +17,7 @@ interface MiniAppLibraryStatus {
 }
 
 interface MiniAppLibraryRowProps {
+  itemKey: string;
   action: MiniAppLibraryAction;
   actionDisabled?: boolean;
   actionLabel: string;
@@ -45,6 +42,7 @@ interface MiniAppLibraryRowProps {
 }
 
 const MiniAppLibraryRow: React.FC<MiniAppLibraryRowProps> = ({
+  itemKey,
   action,
   actionDisabled = false,
   actionLabel,
@@ -77,6 +75,7 @@ const MiniAppLibraryRow: React.FC<MiniAppLibraryRowProps> = ({
     <article
       className="miniapp-library-row"
       role="listitem"
+      data-market-key={itemKey}
       data-action={action}
       data-openbitfun-component="miniapp-gallery-view"
       data-openbitfun-part="item"
@@ -93,20 +92,16 @@ const MiniAppLibraryRow: React.FC<MiniAppLibraryRowProps> = ({
           data-openbitfun-part="showcase"
         >
           {!showcaseUnavailable && showcaseUrl ? (
-            <img
-              src={marketImageUrl(showcaseUrl, 'compact-v1')}
-              srcSet={marketImageSrcSet(showcaseUrl)}
+            <MarketImage
+              source={showcaseUrl}
+              responsive
               sizes="(min-width: 64rem) 224px, 100vw"
               width={640}
               height={360}
               alt={showcaseAlt}
               loading="lazy"
               decoding="async"
-              onError={(event) => {
-                if (!retryOriginalMarketImage(event.currentTarget, showcaseUrl)) {
-                  setShowcaseUnavailable(true);
-                }
-              }}
+              onError={() => setShowcaseUnavailable(true)}
             />
           ) : (
             <span

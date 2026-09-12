@@ -1,3 +1,4 @@
+import { Minus as LucideMinus, X as LucideX } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 /**
@@ -21,9 +22,7 @@ export function WindowControls() {
         aria-label="Minimize"
         title="Minimize"
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <line x1="3" y1="7" x2="11" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
+        <LucideMinus width="14" height="14" aria-hidden="true" />
       </button>
       <button
         className="window-controls__btn window-controls__btn--close"
@@ -31,10 +30,7 @@ export function WindowControls() {
         aria-label="Close"
         title="Close"
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="11" y1="3" x2="3" y2="11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
+        <LucideX width="14" height="14" aria-hidden="true" />
       </button>
     </div>
   );

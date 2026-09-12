@@ -1,35 +1,34 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CubeFocus as MarketLogo, GithubLogo, IconContext } from '@phosphor-icons/react';
 import {
   ArrowLeft,
   ArrowRight,
-  ArrowSquareOut,
-  CaretDown,
+  ExternalLink as ArrowSquareOut,
+  ChevronDown as CaretDown,
   Check,
-  CheckCircle,
-  ClockCounterClockwise,
-  Cube,
-  CubeFocus,
-  DownloadSimple,
+  CircleCheck as CheckCircle,
+  History as ClockCounterClockwise,
+  Box as Cube,
+  Boxes as CubeFocus,
+  Download as DownloadSimple,
   FileCode,
-  FingerprintSimple,
-  GithubLogo,
+  Fingerprint as FingerprintSimple,
   Globe,
   Heart,
-  IconContext,
-  LockKey,
-  MagnifyingGlass,
+  LockKeyhole as LockKey,
+  Search as MagnifyingGlass,
   Moon,
   Package,
   ShieldCheck,
-  SignOut,
+  LogOut as SignOut,
   SlidersHorizontal,
   Star,
   Sun,
-  Tray,
-  UploadSimple,
-  WarningCircle,
+  Inbox as Tray,
+  Upload as UploadSimple,
+  CircleAlert as WarningCircle,
   X,
-} from '@phosphor-icons/react';
+} from 'lucide-react';
 import { downloadUrl, loginUrl, marketApi, MarketApiError } from './api';
 import { formatCompactNumber, formatMarketDate, formatMarketDateTime } from './format';
 import { GetOpenBitFunCta } from './GetOpenBitFunCta';
@@ -213,13 +212,13 @@ function MarketApp() {
         {content}
         <footer>
           <div className="footer-brand">
-            <CubeFocus weight="duotone" aria-hidden="true" />
+            <MarketLogo weight="duotone" aria-hidden="true" />
             <span>OpenBitFun MiniApp Market</span>
           </div>
           <span className="footer-note">{t('footerNote')}</span>
           <a href={OPENBITFUN_HOME_URL} target="_blank" rel="noreferrer">
             {t('openbitfunHome')}
-            <ArrowSquareOut aria-hidden="true" />
+            <ArrowSquareOut size={18} aria-hidden="true" />
           </a>
         </footer>
       </div>
@@ -286,7 +285,7 @@ function Header({
       <div className="topbar-inner">
         <button className="brand" onClick={() => navigate('/')} aria-label={t('market')}>
           <span className="brand-mark">
-            <CubeFocus size={25} weight="duotone" aria-hidden="true" />
+            <MarketLogo size={25} weight="duotone" aria-hidden="true" />
           </span>
           <span className="brand-copy">
             <strong>OpenBitFun</strong>
@@ -341,7 +340,7 @@ function Header({
               title={t('changeLanguage')}
               onClick={() => setLanguageMenuOpen((open) => !open)}
             >
-              <Globe aria-hidden="true" />
+              <Globe size={18} aria-hidden="true" />
               <span className="control-label">{activeLocale.shortLabel}</span>
               <CaretDown
                 className={`language-caret ${languageMenuOpen ? 'open' : ''}`}
@@ -371,7 +370,7 @@ function Header({
                   >
                     <span>{localeOption.label}</span>
                     {localeOption.value === locale && (
-                      <Check size={16} weight="bold" aria-hidden="true" />
+                      <Check size={16} aria-hidden="true" />
                     )}
                   </button>
                 ))}
@@ -386,9 +385,9 @@ function Header({
             onClick={toggleTheme}
           >
             {theme === 'dark' ? (
-              <Sun weight="bold" aria-hidden="true" />
+              <Sun size={18} aria-hidden="true" />
             ) : (
-              <Moon weight="bold" aria-hidden="true" />
+              <Moon size={18} aria-hidden="true" />
             )}
           </button>
           {me ? (
@@ -401,7 +400,7 @@ function Header({
                 aria-label={t('signOut')}
                 title={t('signOut')}
               >
-                <SignOut aria-hidden="true" />
+                <SignOut size={18} aria-hidden="true" />
               </button>
             </div>
           ) : (
@@ -474,7 +473,7 @@ function CatalogPage({
       <section className="hero">
         <div className="hero-copy">
           <div className="eyebrow">
-            <ShieldCheck weight="duotone" aria-hidden="true" />
+            <ShieldCheck size={18} aria-hidden="true" />
             {t('heroEyebrow')}
           </div>
           <h1>{t('headline')}</h1>
@@ -488,15 +487,15 @@ function CatalogPage({
 
       <section className="trust-row" aria-label={t('marketSafety')}>
         <div>
-          <FileCode weight="duotone" aria-hidden="true" />
+          <FileCode size={18} aria-hidden="true" />
           <span>{t('trustSource')}</span>
         </div>
         <div>
-          <FingerprintSimple weight="duotone" aria-hidden="true" />
+          <FingerprintSimple size={18} aria-hidden="true" />
           <span>{t('trustHash')}</span>
         </div>
         <div>
-          <LockKey weight="duotone" aria-hidden="true" />
+          <LockKey size={18} aria-hidden="true" />
           <span>{t('trustPermissions')}</span>
         </div>
       </section>
@@ -515,7 +514,7 @@ function CatalogPage({
         </div>
         <div className="catalog-toolbar">
           <label className="search-field">
-            <MagnifyingGlass aria-hidden="true" />
+            <MagnifyingGlass size={18} aria-hidden="true" />
             <span className="sr-only">{t('search')}</span>
             <input
               value={query}
@@ -525,7 +524,7 @@ function CatalogPage({
             />
           </label>
           <label className="sort-field">
-            <SlidersHorizontal aria-hidden="true" />
+            <SlidersHorizontal size={18} aria-hidden="true" />
             <span className="sr-only">{t('sortLabel')}</span>
             <select value={sort} onChange={(event) => setSort(event.target.value)}>
               <option value="newest">{t('newest')}</option>
@@ -542,7 +541,7 @@ function CatalogPage({
             aria-pressed={category === ''}
             onClick={() => setCategory('')}
           >
-            <Cube aria-hidden="true" />
+            <Cube size={18} aria-hidden="true" />
             {t('allCategories')}
           </button>
           {(config?.categories || MARKET_CATEGORIES).map((item) => (
@@ -566,12 +565,12 @@ function CatalogPage({
           {!loading && error == null && items.length === 0 && (
             <div className="empty-state">
               <span className="empty-state-icon">
-                <Tray weight="duotone" aria-hidden="true" />
+                <Tray size={18} aria-hidden="true" />
               </span>
               <p>{t('empty')}</p>
               {config?.webSubmissionsEnabled ? (
                 <button className="button button-secondary" onClick={() => navigate('/submit')}>
-                  <UploadSimple aria-hidden="true" />
+                  <UploadSimple size={18} aria-hidden="true" />
                   {t('submit')}
                 </button>
               ) : (
@@ -587,7 +586,7 @@ function CatalogPage({
         {cursor && (
           <button className="button button-secondary load-more" onClick={() => void load(cursor, true)}>
             {t('loadMore')}
-            <ArrowRight aria-hidden="true" />
+            <ArrowRight size={18} aria-hidden="true" />
           </button>
         )}
       </section>
@@ -657,22 +656,22 @@ function AppCard({
         <p className="card-description">{localized.description}</p>
         <div className="card-meta">
           <span title={t('ratingLabel')}>
-            <Star weight={app.ratingAverage > 0 ? 'fill' : 'regular'} aria-hidden="true" />
+            <Star size={18} fill={app.ratingAverage > 0 ? 'currentColor' : 'none'} aria-hidden="true" />
             {app.ratingAverage.toFixed(1)}
             <small>{app.ratingCount}</small>
             <span className="sr-only">{t('ratingLabel')}</span>
           </span>
           <span className={`card-favorites ${app.isFavorited ? 'active' : ''}`} title={t('favoritesLabel')}>
-            <Heart weight={app.isFavorited ? 'fill' : 'regular'} aria-hidden="true" />
+            <Heart size={18} fill={app.isFavorited ? 'currentColor' : 'none'} aria-hidden="true" />
             {formatCompactNumber(app.favoriteCount, locale)}
             <span className="sr-only">{t('favoritesLabel')}</span>
           </span>
           <span title={t('downloadsLabel')}>
-            <DownloadSimple aria-hidden="true" />
+            <DownloadSimple size={18} aria-hidden="true" />
             {formatCompactNumber(app.downloadCount, locale)}
             <span className="sr-only">{t('downloadsLabel')}</span>
           </span>
-          <ArrowRight className="card-arrow" aria-hidden="true" />
+          <ArrowRight size={18} className="card-arrow" aria-hidden="true" />
         </div>
       </div>
     </a>
@@ -735,7 +734,7 @@ function DetailPage({
     return (
       <main className="narrow-page">
         <button className="back-link" onClick={() => navigate('/')}>
-          <ArrowLeft aria-hidden="true" />
+          <ArrowLeft size={18} aria-hidden="true" />
           {t('back')}
         </button>
         <Notice tone="error">{errorMessage(error, t)}</Notice>
@@ -749,7 +748,7 @@ function DetailPage({
   return (
     <main className="detail-page">
       <button className="back-link" onClick={() => navigate('/')}>
-        <ArrowLeft aria-hidden="true" />
+        <ArrowLeft size={18} aria-hidden="true" />
         {t('back')}
       </button>
       <section className="detail-hero">
@@ -770,7 +769,7 @@ function DetailPage({
           <p className="detail-description">{localized.description}</p>
           <div className="detail-actions">
             <a className="button" href={downloadUrl(app.slug, app.latestRelease)}>
-              <DownloadSimple weight="bold" aria-hidden="true" />
+              <DownloadSimple size={18} aria-hidden="true" />
               {t('install')}
             </a>
             <button
@@ -784,7 +783,7 @@ function DetailPage({
                 setApp({ ...app, isFavorited: result.isFavorited, favoriteCount: result.count });
               }}
             >
-              <Heart weight={app.isFavorited ? 'fill' : 'regular'} aria-hidden="true" />
+              <Heart size={18} fill={app.isFavorited ? 'currentColor' : 'none'} aria-hidden="true" />
               {app.isFavorited ? t('favorited') : t('favorite')}
               <small>{formatCompactNumber(app.favoriteCount, locale)}</small>
             </button>
@@ -797,7 +796,7 @@ function DetailPage({
                   )
                 }
               >
-                <UploadSimple aria-hidden="true" />
+                <UploadSimple size={18} aria-hidden="true" />
                 {t('submitUpdate')}
               </button>
             )}
@@ -832,7 +831,7 @@ function DetailPage({
                 }}
                 aria-label={`${value} ${t('stars')}`}
               >
-                <Star weight={value <= (app.myRating || 0) ? 'fill' : 'regular'} />
+                <Star size={18} fill={value <= (app.myRating || 0) ? 'currentColor' : 'none'} />
               </button>
             ))}
             <span>{app.ratingAverage.toFixed(1)} ({app.ratingCount})</span>
@@ -884,7 +883,7 @@ function DetailPage({
           {app.repositoryUrl && (
             <a href={app.repositoryUrl} target="_blank" rel="noreferrer">
               {t('viewSourceRepository')}
-              <ArrowSquareOut aria-hidden="true" />
+              <ArrowSquareOut size={18} aria-hidden="true" />
             </a>
           )}
         </aside>
@@ -989,7 +988,7 @@ function SubmitPage({
     <main className="form-page">
       <div className="page-intro">
         <span className="page-kicker">
-          <UploadSimple aria-hidden="true" />
+          <UploadSimple size={18} aria-hidden="true" />
           {t('publisherWorkspace')}
         </span>
         <h1>{t('submitTitle')}</h1>
@@ -1117,7 +1116,7 @@ function SubmitPage({
             </Field>
           </div>
           <div className="safety-note">
-            <ShieldCheck weight="duotone" aria-hidden="true" />
+            <ShieldCheck size={18} aria-hidden="true" />
             <div>
               <strong>{t('beforeUpload')}</strong>
               <span>{t('packageSafety')}</span>
@@ -1126,7 +1125,7 @@ function SubmitPage({
         </fieldset>
 
         <button className="button submit-button" disabled={busy}>
-          <Package weight="duotone" aria-hidden="true" />
+          <Package size={18} aria-hidden="true" />
           {busy ? t('uploading') : t('publishForReview')}
         </button>
       </form>
@@ -1160,7 +1159,7 @@ function SubmissionsPage({
     <main className="narrow-page">
       <div className="page-intro">
         <span className="page-kicker">
-          <ClockCounterClockwise aria-hidden="true" />
+          <ClockCounterClockwise size={18} aria-hidden="true" />
           {t('publisherHistory')}
         </span>
         <h1>{t('mySubmissions')}</h1>
@@ -1202,12 +1201,12 @@ function SubmissionsPage({
         {error == null && items.length === 0 && (
           <div className="empty-state">
             <span className="empty-state-icon">
-              <Tray weight="duotone" aria-hidden="true" />
+              <Tray size={18} aria-hidden="true" />
             </span>
             <p>{t('noSubmissions')}</p>
             {webSubmissionsEnabled && (
               <button className="button button-secondary" onClick={() => navigate('/submit')}>
-                <UploadSimple aria-hidden="true" />
+                <UploadSimple size={18} aria-hidden="true" />
                 {t('submit')}
               </button>
             )}
@@ -1223,7 +1222,7 @@ function WebSubmissionDisabledPage({ t }: { t: (key: MessageKey) => string }) {
     <main className="form-page">
       <div className="page-intro">
         <span className="page-kicker">
-          <CubeFocus aria-hidden="true" />
+          <CubeFocus size={18} aria-hidden="true" />
           {t('publisherWorkspace')}
         </span>
         <h1>{t('webSubmissionDisabledTitle')}</h1>
@@ -1237,7 +1236,7 @@ function WebSubmissionDisabledPage({ t }: { t: (key: MessageKey) => string }) {
 function DesktopSubmissionNotice({ t }: { t: (key: MessageKey) => string }) {
   return (
     <div className="safety-note desktop-submission-notice" role="note">
-      <CubeFocus weight="duotone" aria-hidden="true" />
+      <CubeFocus size={18} aria-hidden="true" />
       <div>
         <strong>{t('submitWithDesktop')}</strong>
         <span>{t('desktopSubmissionHint')}</span>
@@ -1288,7 +1287,7 @@ function AdminPage({
     <main className="admin-page">
       <div className="page-intro">
         <span className="page-kicker">
-          <ShieldCheck aria-hidden="true" />
+          <ShieldCheck size={18} aria-hidden="true" />
           {t('adminEyebrow')}
         </span>
         <h1>{t('reviewQueue')}</h1>
@@ -1337,7 +1336,7 @@ function AdminPage({
         <div className="review-detail">
           {!selected ? (
             <div className="review-placeholder">
-              <FileCode weight="duotone" aria-hidden="true" />
+              <FileCode size={18} aria-hidden="true" />
               <span>{t('reviewPlaceholder')}</span>
             </div>
           ) : (
@@ -1386,7 +1385,7 @@ function AdminPage({
                   rel="noreferrer"
                 >
                   {t('publicRepository')}
-                  <ArrowSquareOut aria-hidden="true" />
+                  <ArrowSquareOut size={18} aria-hidden="true" />
                 </a>
               )}
               <div className="review-screenshots">
@@ -1486,7 +1485,7 @@ function DesktopComplete({ t }: { t: (key: MessageKey) => string }) {
     <main className="form-page">
       <section className="auth-gate">
         <span className="gate-icon success">
-          <CheckCircle weight="duotone" aria-hidden="true" />
+          <CheckCircle size={18} aria-hidden="true" />
         </span>
         <h1>{t('authComplete')}</h1>
         <p>{t('authCompleteBody')}</p>
@@ -1525,12 +1524,12 @@ function PermissionList({
     <ul className="permission-list">
       {rows.map((row) => (
         <li key={row}>
-          <span><Check weight="bold" aria-hidden="true" /></span>
+          <span><Check size={18} aria-hidden="true" /></span>
           {row}
         </li>
       ))}
       <li className="node-denied">
-        <span><X weight="bold" aria-hidden="true" /></span>
+        <span><X size={18} aria-hidden="true" /></span>
         {t('permissionNodeUnavailable')}
       </li>
     </ul>
@@ -1549,9 +1548,9 @@ function Notice({ tone, children }: { tone: 'error' | 'success'; children: React
   return (
     <div className={`notice ${tone}`} role={tone === 'error' ? 'alert' : 'status'}>
       {tone === 'error' ? (
-        <WarningCircle weight="duotone" aria-hidden="true" />
+        <WarningCircle size={18} aria-hidden="true" />
       ) : (
-        <CheckCircle weight="duotone" aria-hidden="true" />
+        <CheckCircle size={18} aria-hidden="true" />
       )}
       <span>{children}</span>
     </div>
@@ -1625,7 +1624,7 @@ function PageLoading({ t }: { t: (key: MessageKey) => string }) {
   return (
     <main className="narrow-page loading-page">
       <span className="loading-mark">
-        <CubeFocus weight="duotone" aria-hidden="true" />
+        <MarketLogo weight="duotone" aria-hidden="true" />
       </span>
       <span>{t('loading')}</span>
     </main>

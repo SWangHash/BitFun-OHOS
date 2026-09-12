@@ -1,401 +1,377 @@
-//! Windows-native correction for the persisted main-window state.
-//!
-//! OpenBitFun drives [tauri_plugin_window_state] explicitly (`with_state_flags`
-//! empty at registration, explicit save/restore around known geometry
-//! boundaries). The plugin captures geometry through generic window queries.
-//! On Windows the main window is undecorated, and when a quit happens while a
-//! maximized frameless window is on screen the persisted entry can degrade to
-//! `maximized: false` together with the stretched maximized frame stored as
-//! normal bounds. Every later launch then faithfully restores that degenerate
-//! near-fullscreen normal window instead of the remembered geometry.
-//!
-//! This module uses [`GetWindowPlacement`] as the authoritative maximized
-//! signal: after each successful save the persisted `main` entry is corrected
-//! in place when the native placement reports a maximized window. Unreadable
-//! or missing files are never recreated or deleted.
+//! Validated desktop window persistence using the legacy window-state JSON shape.
+//! This module owns the sample and writer: the old plugin re-sampled on save and
+//! wrote its cache on exit even when automatic tracking was disabled.
 
-use std::path::Path;
+mod geometry;
+#[cfg(test)]
+mod tests;
 
-#[cfg(target_os = "windows")]
+use geometry::{Desktop, Geometry};
+use serde_json::{json, Value};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use tauri::Manager;
-#[cfg(target_os = "windows")]
-use tauri_plugin_window_state::AppHandleExt;
 
-const MAIN_WINDOW_LABEL: &str = "main";
+const STATE_FILE: &str = ".window-state.json";
 
-// ─── Authoritative maximized placement ────────────────────────────────────────
-
-/// Native window placement facts, mirroring the maximized-signal parts of
-/// Win32 `WINDOWPLACEMENT`.
-///
-/// Kept platform-independent so the correction logic is unit-testable
-/// everywhere; only the query itself is Windows-specific.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct NativePlacementReport {
-    pub show_cmd: i32,
-    pub restore_to_maximized: bool,
+#[derive(Default)]
+pub(crate) struct MainWindowState {
+    ready: AtomicBool,
+    // Drag/resize only updates memory; disk writes stay at lifecycle boundaries.
+    // Never hold either lock across native window calls.
+    normal: Mutex<Option<Geometry>>,
+    writes: Mutex<()>,
 }
 
-impl NativePlacementReport {
-    /// Whether the placement describes a window that is zoomed now or will be
-    /// maximized once it leaves the minimized state.
-    ///
-    /// `show_cmd` comparison targets `SW_SHOWMAXIMIZED`; the constant is
-    /// inlined because this type is shared across platforms.
-    pub(crate) fn reports_maximized(&self) -> bool {
-        const SW_SHOWMAXIMIZED: i32 = 3;
-        self.show_cmd == SW_SHOWMAXIMIZED || self.restore_to_maximized
+#[derive(Debug, Clone, Copy)]
+struct Snapshot {
+    geometry: Geometry,
+    maximized: bool,
+    minimized: bool,
+    fullscreen: bool,
+    visible: bool,
+}
+
+impl Snapshot {
+    fn is_normal(self) -> bool {
+        self.visible && !self.maximized && !self.minimized && !self.fullscreen
     }
 }
 
-#[cfg(target_os = "windows")]
-mod native {
-    use super::NativePlacementReport;
-    use windows::Win32::Foundation::HWND;
-    use windows::Win32::UI::WindowsAndMessaging::{
-        GetWindowPlacement, WINDOWPLACEMENT, WINDOWPLACEMENT_FLAGS, WPF_RESTORETOMAXIMIZED,
+#[derive(Debug)]
+struct RestorePlan {
+    geometry: Geometry,
+    maximized: bool,
+    fullscreen: bool,
+    repair: bool,
+}
+
+fn restore_plan(document: &Value, desktop: &Desktop) -> RestorePlan {
+    let entry = &document["main"];
+    let maximized = entry["maximized"].as_bool().unwrap_or(false);
+    let fullscreen = entry["fullscreen"].as_bool().unwrap_or(false);
+    let saved = Geometry::read(entry, maximized);
+    let valid = saved.filter(|geometry| desktop.valid(*geometry));
+    RestorePlan {
+        geometry: valid.unwrap_or_else(|| desktop.default_geometry(saved)),
+        maximized,
+        fullscreen,
+        repair: entry.is_object() && valid.is_none(),
+    }
+}
+
+fn state_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_config_dir()
+        .map(|directory| directory.join(STATE_FILE))
+        .map_err(|error| error.to_string())
+}
+
+fn read_document(path: &Path) -> Result<(Value, Option<Vec<u8>>), String> {
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok((json!({}), None)),
+        Err(error) => return Err(format!("Failed to read window state: {error}")),
     };
+    let document: Value = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("Invalid window state JSON; keeping original: {error}"))?;
+    if !document.is_object() || document.get("main").is_some_and(|entry| !entry.is_object()) {
+        return Err("Unrecognized window state shape; keeping original".into());
+    }
+    Ok((document, Some(bytes)))
+}
 
-    pub(super) fn query(hwnd_inner: isize) -> Option<NativePlacementReport> {
-        let mut placement = WINDOWPLACEMENT::default();
-        placement.length = std::mem::size_of::<WINDOWPLACEMENT>() as u32;
-        // SAFETY: the handle belongs to the live main window and the output
-        // buffer outlives the single call.
-        unsafe { GetWindowPlacement(HWND(hwnd_inner as *mut _), &mut placement) }.ok()?;
-        Some(NativePlacementReport {
-            show_cmd: placement.showCmd as i32,
-            restore_to_maximized: placement.flags & WPF_RESTORETOMAXIMIZED
-                != WINDOWPLACEMENT_FLAGS(0),
-        })
+fn update_document(document: &mut Value, geometry: Geometry, flags: Option<(bool, bool)>) {
+    let entry = document
+        .as_object_mut()
+        .expect("validated document")
+        .entry("main")
+        .or_insert_with(|| json!({}));
+    geometry.write(entry);
+    let entry = entry.as_object_mut().expect("validated main entry");
+    // Only fill missing legacy fields. Visibility and decorations remain surface
+    // defaults, not startup instructions. Unknown fields/windows survive.
+    for (key, value) in [
+        ("visible", true),
+        ("decorated", true),
+        ("maximized", false),
+        ("fullscreen", false),
+    ] {
+        entry.entry(key).or_insert(json!(value));
+    }
+    if let Some((maximized, fullscreen)) = flags {
+        entry.insert("maximized".into(), json!(maximized));
+        entry.insert("fullscreen".into(), json!(fullscreen));
     }
 }
 
-#[cfg(target_os = "windows")]
-fn query_native_window_placement(window: &tauri::WebviewWindow) -> Option<NativePlacementReport> {
-    let handle = window.hwnd().ok()?;
-    native::query(handle.0 as isize)
-}
-
-// ─── Persisted-state correction ───────────────────────────────────────────────
-
-/// Flags the persisted `main` entry as maximized when the authoritative native
-/// placement disagrees with what the plugin captured.
-///
-/// Geometry fields are deliberately never rewritten: for a maximized
-/// undecorated window `rcNormalPosition` is unreliable (it has been observed
-/// mixing the pre-restore centered origin with monitor-sized dimensions), so
-/// the last persisted normal bounds stay authoritative.
-///
-/// Returns `true` when the flag flipped. Non-maximized placements and entries
-/// already marked maximized never modify the document.
-pub(crate) fn apply_maximized_correction(
-    document: &mut serde_json::Value,
-    report: &NativePlacementReport,
-) -> bool {
-    if !report.reports_maximized() {
-        return false;
+fn write_document(path: &Path, document: &Value, backup: Option<&[u8]>) -> Result<(), String> {
+    let directory = path.parent().ok_or("Window state path has no parent")?;
+    std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
+    if let Some(original) = backup {
+        let backup_path = directory.join(format!(
+            ".window-state.invalid-{}.json",
+            uuid::Uuid::new_v4()
+        ));
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&backup_path)
+            .map_err(|error| format!("Failed to preserve invalid window state: {error}"))?;
+        file.write_all(original)
+            .and_then(|_| file.sync_all())
+            .map_err(|error| error.to_string())?;
+        log::warn!(
+            "Preserved invalid window geometry before repair: backup={}",
+            backup_path.display()
+        );
     }
-
-    let Some(entry) = document
-        .get_mut(MAIN_WINDOW_LABEL)
-        .and_then(|value| value.as_object_mut())
-    else {
-        return false;
-    };
-
-    set_bool_if_changed(entry, "maximized", true)
-}
-
-/// Reads the persisted `maximized` flag of the `main` entry so the restore
-/// path can re-assert the maximized state after the window becomes visible.
-#[cfg(target_os = "windows")]
-pub(crate) fn read_persisted_main_maximized(app: &tauri::AppHandle) -> Option<bool> {
-    let config_dir = app.path().app_config_dir().ok()?;
-    let state_path = config_dir.join(app.filename());
-    let bytes = std::fs::read(state_path).ok()?;
-    let document: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
-    document.get(MAIN_WINDOW_LABEL)?.get("maximized")?.as_bool()
-}
-
-fn set_bool_if_changed(
-    entry: &mut serde_json::Map<String, serde_json::Value>,
-    key: &str,
-    value: bool,
-) -> bool {
-    if entry.get(key).and_then(serde_json::Value::as_bool) == Some(value) {
-        return false;
-    }
-    entry.insert(key.to_string(), serde_json::Value::Bool(value));
-    true
-}
-
-/// Post-corrects the saved state file after a successful plugin save.
-///
-/// Skipped unless the authoritative placement says the window is maximized.
-/// Existing files are never created or deleted; unparsable content is logged
-/// and left untouched.
-#[cfg(target_os = "windows")]
-pub(crate) fn correct_saved_main_window_state(app: &tauri::AppHandle) {
-    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
-        log::debug!("Saved main-window state correction skipped: main window not found");
-        return;
-    };
-    let Some(report) = query_native_window_placement(&window) else {
-        log::debug!("Saved main-window state correction skipped: native placement unavailable");
-        return;
-    };
-    if !report.reports_maximized() {
-        return;
-    }
-
-    let Ok(config_dir) = app.path().app_config_dir() else {
-        log::warn!("Saved main-window state correction skipped: app config dir unavailable");
-        return;
-    };
-    let state_path = config_dir.join(app.filename());
-
-    match correct_saved_state_file(&state_path, &report) {
-        Ok(_) => {}
-        Err(error) => {
-            log::warn!("Failed to correct persisted main-window state: {}", error)
-        }
-    }
-}
-
-fn correct_saved_state_file(
-    state_path: &Path,
-    report: &NativePlacementReport,
-) -> Result<bool, String> {
-    let bytes = std::fs::read(state_path).map_err(|error| format!("read failed: {}", error))?;
-    let mut document: serde_json::Value = serde_json::from_slice(&bytes).map_err(|error| {
-        format!(
-            "state file is not valid JSON, keeping it untouched: {}",
-            error
-        )
-    })?;
-
-    if !apply_maximized_correction(&mut document, report) {
-        return Ok(false);
-    }
-
-    let serialized = serde_json::to_vec_pretty(&document)
-        .map_err(|error| format!("serialize failed: {}", error))?;
-    let temporary_path = state_path.with_extension("json.tmp");
-    std::fs::write(&temporary_path, serialized)
-        .map_err(|error| format!("temporary write failed: {}", error))?;
-    replace_state_file_atomically(state_path, &temporary_path)?;
-    Ok(true)
-}
-
-fn replace_state_file_atomically(state_path: &Path, temporary_path: &Path) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        use std::iter::once;
-        use std::os::windows::ffi::OsStrExt;
-        use windows::core::PCWSTR;
-        use windows::Win32::Storage::FileSystem::{ReplaceFileW, REPLACEFILE_WRITE_THROUGH};
-
-        let state_path_wide: Vec<u16> = state_path
-            .as_os_str()
-            .encode_wide()
-            .chain(once(0))
-            .collect();
-        let temporary_path_wide: Vec<u16> = temporary_path
-            .as_os_str()
-            .encode_wide()
-            .chain(once(0))
-            .collect();
-
-        // SAFETY: both UTF-16 buffers are NUL-terminated and live for the
-        // duration of the call. The backup and reserved parameters are unused.
-        unsafe {
-            ReplaceFileW(
-                PCWSTR::from_raw(state_path_wide.as_ptr()),
-                PCWSTR::from_raw(temporary_path_wide.as_ptr()),
-                None,
-                REPLACEFILE_WRITE_THROUGH,
-                None,
-                None,
-            )
-        }
-        .map_err(|error| format!("atomic replace failed: {}", error))?;
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    std::fs::rename(temporary_path, state_path)
-        .map_err(|error| format!("atomic rename failed: {}", error))?;
-
+    // persist replaces atomically on Windows and Unix; a failure keeps the old file.
+    let mut file = tempfile::NamedTempFile::new_in(directory).map_err(|error| error.to_string())?;
+    serde_json::to_writer_pretty(&mut file, document).map_err(|error| error.to_string())?;
+    file.flush()
+        .and_then(|_| file.as_file().sync_all())
+        .map_err(|error| error.to_string())?;
+    file.persist(path)
+        .map_err(|error| format!("Failed to replace window state: {error}"))?;
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    fn maximized_report() -> NativePlacementReport {
-        NativePlacementReport {
-            show_cmd: 3,
-            restore_to_maximized: false,
+pub(crate) fn restore(window: &tauri::WebviewWindow) -> bool {
+    match restore_inner(&window.as_ref().window()) {
+        Ok(maximized) => maximized,
+        Err(error) => {
+            // The builder already supplied a safe centered default.
+            log::warn!("Failed to restore main window state; using startup defaults: {error}");
+            false
         }
     }
+}
 
-    /// Mirrors the degraded shape observed in the wild: stretched maximized
-    /// frame stored as normal bounds with `maximized: false`.
-    fn degraded_document() -> serde_json::Value {
-        json!({
-            "main": {
-                "width": 2560,
-                "height": 1537,
-                "x": -11,
-                "y": -11,
-                "prev_x": -11,
-                "prev_y": -11,
-                "maximized": false,
-                "visible": true,
-                "decorated": true,
-                "fullscreen": false,
-            }
-        })
-    }
-
-    fn flipped_degraded_document() -> serde_json::Value {
-        let mut document = degraded_document();
-        document["main"]["maximized"] = json!(true);
-        document
-    }
-
-    #[test]
-    fn degraded_maximized_entry_flips_flag_without_touching_geometry() {
-        let mut document = degraded_document();
-
-        let changed = apply_maximized_correction(&mut document, &maximized_report());
-
-        assert!(changed);
-        assert_eq!(document, flipped_degraded_document());
-    }
-
-    #[test]
-    fn correction_is_idempotent() {
-        let mut document = degraded_document();
-        assert!(apply_maximized_correction(
-            &mut document,
-            &maximized_report()
-        ));
-        // Second pass on the already-flipped entry must be a no-op: geometry
-        // fields must never be rewritten from the untrustworthy placement.
-        assert!(!apply_maximized_correction(
-            &mut document,
-            &maximized_report()
-        ));
-    }
-
-    #[test]
-    fn already_maximized_entry_is_never_rewritten() {
-        let mut document = flipped_degraded_document();
-
-        assert!(!apply_maximized_correction(
-            &mut document,
-            &maximized_report()
-        ));
-        assert_eq!(document, flipped_degraded_document());
-    }
-
-    #[test]
-    fn non_maximized_placement_never_modifies_the_document() {
-        let mut document = degraded_document();
-        let mut report = maximized_report();
-        report.show_cmd = 1;
-
-        assert!(!apply_maximized_correction(&mut document, &report));
-        assert_eq!(document, degraded_document());
-    }
-
-    #[test]
-    fn minimized_restore_to_maximized_flag_counts_as_maximized() {
-        let mut report = maximized_report();
-        report.show_cmd = 2;
-        report.restore_to_maximized = true;
-
-        assert!(report.reports_maximized());
-    }
-
-    #[test]
-    fn missing_main_entry_is_ignored() {
-        let mut document = json!({ "other_window": { "width": 5 } });
-
-        assert!(!apply_maximized_correction(
-            &mut document,
-            &maximized_report()
-        ));
-        assert_eq!(
-            document.get("other_window").unwrap().get("width"),
-            Some(&json!(5))
+fn restore_inner(window: &tauri::Window) -> Result<bool, String> {
+    let app = window.app_handle();
+    let state = app.state::<MainWindowState>();
+    let desktop = Desktop::read(window)?;
+    let path = state_path(app)?;
+    let (document, _) = read_document(&path)?;
+    let plan = restore_plan(&document, &desktop);
+    if plan.repair {
+        log::warn!(
+            "Repairing persisted main window geometry: saved_width={} saved_height={} restored={:?}",
+            document["main"]["width"],
+            document["main"]["height"],
+            plan.geometry
         );
     }
-
-    #[test]
-    fn legacy_partial_entry_is_tolerated_and_completed() {
-        let mut document = json!({ "main": { "width": 100 } });
-
-        assert!(apply_maximized_correction(
-            &mut document,
-            &maximized_report()
-        ));
-        let entry = document.get("main").unwrap();
-        assert_eq!(entry.get("maximized"), Some(&json!(true)));
-        assert_eq!(entry.get("width"), Some(&json!(100)));
-        assert!(entry.get("visible").is_none());
+    apply_geometry(window, plan.geometry, &desktop)?;
+    *state.normal.lock().map_err(|error| error.to_string())? = Some(plan.geometry);
+    if plan.repair {
+        let _write = state.writes.lock().map_err(|error| error.to_string())?;
+        let (mut document, original) = read_document(&path)?;
+        update_document(&mut document, plan.geometry, None);
+        if let Err(error) = write_document(&path, &document, original.as_deref()) {
+            log::warn!(
+                "Main window geometry repaired in memory but could not be persisted: {error}"
+            );
+        }
     }
+    window
+        .set_fullscreen(plan.fullscreen)
+        .map_err(|error| error.to_string())?;
+    state.ready.store(true, Ordering::Release);
+    // Windows must not maximize a hidden undecorated window. Fullscreen takes
+    // precedence for this launch; its saved maximize preference is kept on disk.
+    Ok(plan.maximized && !plan.fullscreen)
+}
 
-    #[test]
-    fn saved_state_file_round_trip_flips_only_the_flag() {
-        let directory = tempfile::tempdir().expect("temporary directory");
-        let state_path = directory.path().join(".window-state.json");
-        std::fs::write(&state_path, degraded_document().to_string()).expect("seed state file");
+fn apply_geometry(
+    window: &tauri::Window,
+    geometry: Geometry,
+    desktop: &Desktop,
+) -> Result<(), String> {
+    window
+        .set_size(tauri::PhysicalSize::new(geometry.width, geometry.height))
+        .map_err(|error| error.to_string())?;
+    window
+        .set_position(tauri::PhysicalPosition::new(geometry.x, geometry.y))
+        .map_err(|error| error.to_string())?;
+    let (width, height) = desktop.minimum_size(geometry);
+    window
+        .set_min_size(Some(tauri::PhysicalSize::new(width, height)))
+        .map_err(|error| error.to_string())
+}
 
-        let changed =
-            correct_saved_state_file(&state_path, &maximized_report()).expect("correction");
-
-        assert!(changed);
-        let corrected: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(&state_path).expect("reread"))
-                .expect("corrected state parses");
-        assert_eq!(corrected["main"]["maximized"], json!(true));
-        assert_eq!(corrected["main"], flipped_degraded_document()["main"]);
-        assert!(!state_path.with_extension("json.tmp").exists());
+/// Retain normal bounds before maximize/minimize hides them. The caller excludes
+/// toolbar mode; initialization/repair suppresses partial programmatic rectangles.
+pub(crate) fn remember_normal(window: &tauri::Window) {
+    let state = window.app_handle().state::<MainWindowState>();
+    if !state.ready.load(Ordering::Acquire) {
+        return;
     }
+    let Ok(snapshot) = capture(window) else {
+        return;
+    };
+    if !snapshot.is_normal() {
+        return;
+    }
+    let Ok(desktop) = Desktop::read(window) else {
+        return;
+    };
+    if desktop.valid(snapshot.geometry) {
+        if let Ok(mut normal) = state.normal.lock() {
+            *normal = Some(snapshot.geometry);
+        }
+    }
+}
 
-    #[test]
-    fn saved_state_file_keeps_invalid_content_untouched() {
-        let directory = tempfile::tempdir().expect("temporary directory");
-        let state_path = directory.path().join(".window-state.json");
-        std::fs::write(&state_path, "{not json").expect("seed invalid state file");
+pub(crate) fn save(app: &tauri::AppHandle, reason: &str) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or("Main window not found")?;
+    let window = window.as_ref().window();
+    let snapshot = capture(&window)?;
+    let desktop = Desktop::read(&window)?;
+    let state = app.state::<MainWindowState>();
+    let mut normal = state.normal.lock().map_err(|error| error.to_string())?;
+    if snapshot.is_normal() {
+        if !desktop.valid(snapshot.geometry) {
+            return Err(format!(
+                "Rejected main window snapshot: reason={reason}, snapshot={snapshot:?}"
+            ));
+        }
+        *normal = Some(snapshot.geometry);
+    }
+    let geometry = *normal;
+    drop(normal);
+    // No native calls under the writer lock. Persist exactly the sample validated.
+    let path = state_path(app)?;
+    let _write = state.writes.lock().map_err(|error| error.to_string())?;
+    persist_snapshot(&path, snapshot, geometry, &desktop)
+}
 
-        let error = correct_saved_state_file(&state_path, &maximized_report())
-            .expect_err("invalid content must fail instead of being replaced");
+fn persist_snapshot(
+    path: &Path,
+    snapshot: Snapshot,
+    normal: Option<Geometry>,
+    desktop: &Desktop,
+) -> Result<(), String> {
+    if snapshot.is_normal() && !desktop.valid(snapshot.geometry) {
+        return Err("Rejected invalid normal window geometry".into());
+    }
+    let (mut document, original) = read_document(path)?;
+    let plan = restore_plan(&document, desktop);
+    let geometry = if snapshot.is_normal() {
+        snapshot.geometry
+    } else {
+        normal
+            .filter(|geometry| desktop.valid(*geometry))
+            .unwrap_or(plan.geometry)
+    };
+    update_document(
+        &mut document,
+        geometry,
+        // Hiding to tray may change the native show command. The close boundary
+        // already saved the visible window's preferences; keep those on exit.
+        snapshot
+            .visible
+            .then_some((snapshot.maximized, snapshot.fullscreen)),
+    );
+    write_document(path, &document, original.as_deref().filter(|_| plan.repair))
+}
 
-        assert!(error.contains("not valid JSON"));
-        assert_eq!(
-            std::fs::read_to_string(&state_path).expect("content preserved"),
-            "{not json"
+pub(crate) fn repair_for_activation(window: &tauri::WebviewWindow) -> Result<(), String> {
+    if crate::MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+    let window = window.as_ref().window();
+    let snapshot = capture(&window)?;
+    if snapshot.minimized || snapshot.maximized || snapshot.fullscreen {
+        return Ok(());
+    }
+    let desktop = Desktop::read(&window)?;
+    if desktop.valid(snapshot.geometry) {
+        return Ok(());
+    }
+    log::warn!("Repairing main window geometry during activation: snapshot={snapshot:?}");
+    let state = window.app_handle().state::<MainWindowState>();
+    let normal = *state.normal.lock().map_err(|error| error.to_string())?;
+    let geometry = normal
+        .filter(|geometry| desktop.valid(*geometry))
+        .unwrap_or_else(|| desktop.default_geometry(Some(snapshot.geometry)));
+    state.ready.store(false, Ordering::Release);
+    let result = apply_geometry(&window, geometry, &desktop);
+    state.ready.store(true, Ordering::Release);
+    result?;
+    *state.normal.lock().map_err(|error| error.to_string())? = Some(geometry);
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn capture(window: &tauri::Window) -> Result<Snapshot, String> {
+    use windows::Win32::Foundation::{HWND, RECT};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetClientRect, GetWindowPlacement, GetWindowRect, IsWindowVisible, WINDOWPLACEMENT,
+        WINDOWPLACEMENT_FLAGS, WPF_RESTORETOMAXIMIZED,
+    };
+    let handle = window.hwnd().map_err(|error| error.to_string())?;
+    let hwnd = HWND(handle.0);
+    let mut before = WINDOWPLACEMENT::default();
+    before.length = std::mem::size_of::<WINDOWPLACEMENT>() as u32;
+    let mut after = before;
+    let mut client = RECT::default();
+    let mut outer = RECT::default();
+    // SAFETY: hwnd belongs to the live main window and output buffers outlive
+    // the calls. Avoid Tao's cached maximized flag and unreliable rcNormalPosition
+    // geometry. Refuse a sample spanning a native placement transition.
+    unsafe {
+        GetWindowPlacement(hwnd, &mut before).map_err(|error| error.to_string())?;
+        GetClientRect(hwnd, &mut client).map_err(|error| error.to_string())?;
+        GetWindowRect(hwnd, &mut outer).map_err(|error| error.to_string())?;
+        GetWindowPlacement(hwnd, &mut after).map_err(|error| error.to_string())?;
+    }
+    if before.showCmd != after.showCmd
+        || before.flags != after.flags
+        || before.rcNormalPosition != after.rcNormalPosition
+    {
+        return Err(
+            "Main window placement changed during snapshot; keeping last normal geometry".into(),
         );
     }
+    let minimized = matches!(after.showCmd, 2 | 6 | 7 | 11);
+    let maximized = after.showCmd == 3
+        || (minimized && after.flags & WPF_RESTORETOMAXIMIZED != WINDOWPLACEMENT_FLAGS(0));
+    Ok(Snapshot {
+        geometry: Geometry {
+            width: u32::try_from(i64::from(client.right) - i64::from(client.left))
+                .map_err(|_| "Negative window client width")?,
+            height: u32::try_from(i64::from(client.bottom) - i64::from(client.top))
+                .map_err(|_| "Negative window client height")?,
+            x: outer.left,
+            y: outer.top,
+        },
+        maximized,
+        minimized,
+        fullscreen: window.is_fullscreen().map_err(|error| error.to_string())?,
+        visible: unsafe { IsWindowVisible(hwnd) }.as_bool(),
+    })
+}
 
-    #[test]
-    fn failed_state_file_replacement_keeps_original_content() {
-        let directory = tempfile::tempdir().expect("temporary directory");
-        let state_path = directory.path().join(".window-state.json");
-        let missing_temporary_path = directory.path().join("missing.json.tmp");
-        std::fs::write(&state_path, "original").expect("seed state file");
-
-        let error = replace_state_file_atomically(&state_path, &missing_temporary_path)
-            .expect_err("missing replacement must fail");
-
-        assert!(error.contains("replace") || error.contains("rename"));
-        assert_eq!(
-            std::fs::read_to_string(&state_path).expect("original content preserved"),
-            "original"
-        );
-    }
+#[cfg(not(target_os = "windows"))]
+fn capture(window: &tauri::Window) -> Result<Snapshot, String> {
+    let size = window.inner_size().map_err(|error| error.to_string())?;
+    let position = window.outer_position().map_err(|error| error.to_string())?;
+    Ok(Snapshot {
+        geometry: Geometry {
+            width: size.width,
+            height: size.height,
+            x: position.x,
+            y: position.y,
+        },
+        maximized: window.is_maximized().map_err(|error| error.to_string())?,
+        minimized: window.is_minimized().map_err(|error| error.to_string())?,
+        fullscreen: window.is_fullscreen().map_err(|error| error.to_string())?,
+        visible: window.is_visible().map_err(|error| error.to_string())?,
+    })
 }

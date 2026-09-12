@@ -2196,19 +2196,24 @@ $_section-header-height: 22px;
 }
 
 .openbitfun-nav-panel__top-action-sublist {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 180ms var(--openbitfun-motion-easing-standard),
+              opacity 180ms var(--openbitfun-motion-easing-standard);
+
+  &.is-open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+}
+
+.openbitfun-nav-panel__top-action-sublist-inner {
   display: flex;
   flex-direction: column;
   gap: calc(var(--openbitfun-space-1) / 2);
+  min-height: 0;
   overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  transition: max-height 0.22s var(--openbitfun-motion-easing-standard),
-              opacity 0.15s var(--openbitfun-motion-easing-standard);
-
-  &.is-open {
-    max-height: 104px;
-    opacity: 1;
-  }
 }
 
 .openbitfun-nav-panel__session-view-toggle {
@@ -2447,11 +2452,6 @@ $_section-header-height: 22px;
 
   &__top-action-expand {
     gap: calc(var(--openbitfun-space-1) / 2);
-  }
-
-  &__top-action-sublist {
-    gap: calc(var(--openbitfun-space-1) / 2);
-    transition: none;
   }
 
   &__top-action-btn {
@@ -2747,6 +2747,10 @@ $_section-header-height: 22px;
 
   .openbitfun-device-overview__backup.is-syncing svg {
     animation: none;
+  }
+
+  .openbitfun-nav-panel__top-action-sublist {
+    transition: none;
   }
 }
 

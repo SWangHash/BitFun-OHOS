@@ -132,6 +132,8 @@ export struct AppRootPresentation {
         shellState: this.shellState,
         useWideLayout: this.isWideLayout(),
         settingsPlacement: this.settingsPlacement,
+        compactAccountLogin: this.shellState.settingsMode === 'account' &&
+          this.remotePageState.accountUserId.trim().length === 0,
         connectPlacement: this.connectPlacement,
         content: () => { this.NavigationContent(); },
         sidebar: () => { this.SidebarContent(); },

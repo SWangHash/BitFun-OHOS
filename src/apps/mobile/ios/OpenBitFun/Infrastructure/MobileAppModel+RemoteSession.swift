@@ -55,6 +55,7 @@ extension MobileAppModel {
     private func clearTargetScopedRemoteProjection(boundTargetKey targetKey: String, epoch: UInt64) {
         resetRemoteConversationOpen()
         invalidateTargetScopedFileTransfers()
+        remoteOpenedSessionID = nil
         remoteInitialSessionReady = false
         remoteInitialWorkspaceReady = false
         remoteLastAppliedAuthority = nil
@@ -66,6 +67,8 @@ extension MobileAppModel {
         workspaceLoading = !targetKey.isEmpty
         workspaceLoadFailed = false
         workspaceSelectionBusy = false
+        completionNotifier.reset()
+        remoteHostCapabilities = []
         remoteCreateWorkspacePhase = targetKey.isEmpty ? .unavailable : .loading
         let clearingVisibleRemoteConversation = surface == .remote || remoteSessionSelected
         remoteSessionSelected = false
@@ -330,6 +333,7 @@ extension MobileAppModel {
     /// normally arrive inside the grace period; a relay fetch gets an explicit
     /// skeleton instead of leaving the previous session visible.
     func beginRemoteConversationOpen(sessionID: String) {
+        remoteOpenedSessionID = nil
         remoteConversationLoadTask?.cancel()
         remoteConversationLoadGeneration &+= 1
         let generation = remoteConversationLoadGeneration
@@ -461,13 +465,13 @@ extension MobileAppModel {
 
     /// Compact Remote Home follows HarmonyOS by creating an empty conversation
     /// immediately, then letting the normal composer own the first message.
-    func createRemoteSessionFromHome() {
+    func createRemoteSessionFromHome(agentType: String = "code") {
         guard remoteCreateInteraction.canSubmit else {
             showToast(localized("远程会话当前不可创建，请重试"))
             return
         }
         if let workspace = remoteWorkspaces.first(where: \.selected) ?? remoteWorkspaces.first {
-            createRemoteSession(in: workspace, agentType: "code")
+            createRemoteSession(in: workspace, agentType: agentType)
         } else {
             createRemoteAssistantSession()
         }
@@ -700,13 +704,22 @@ extension MobileAppModel {
         coreAdapter?.loadRemoteWorkspaces()
     }
 
+    var remoteSendSessionID: String? {
+        guard coreAdapter != nil else { return nil }
+        return RemoteAuthorityGate.sendSessionID(
+            selectedSessionID: remoteSessionSelected ? selectedSessionID : nil,
+            openedSessionID: remoteOpenedSessionID,
+            connected: remoteConnected && connectionPhase == .connected,
+            busy: busy,
+            sending: isSending
+        )
+    }
+
     func sendRemote() {
         let value = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty || !composerImages.isEmpty,
-              !isSending, !busy,
-              let coreAdapter,
-              connectionPhase != .disconnected,
-              let sessionID = visibleSessions.first(where: { $0.id == selectedSessionID })?.id else { return }
+              let sessionID = remoteSendSessionID,
+              let coreAdapter else { return }
         let images = composerImages
         isSending = true
         busy = true
@@ -770,6 +783,7 @@ extension MobileAppModel {
             expectedEpoch: remoteTargetEpoch
         ) else { return }
         guard let ready = state as? RemoteSessionUiStateReady else {
+            remoteOpenedSessionID = nil
             remoteInitialSessionReady = false
             if let failed = state as? RemoteSessionUiStateFailed {
                 resetRemoteConversationOpen()
@@ -808,6 +822,8 @@ extension MobileAppModel {
             revision: ready.revision,
             lastApplied: remoteLastAppliedAuthority
         ) else { return }
+        setPublishedIfChanged(\.remoteOpenedSessionID, to: ready.timeline?.sessionId)
+        completionNotifier.observe(state, target: "\(targetKey):\(epoch)")
         remoteLastAppliedAuthority = RemoteAuthorityGate.updatedScope(
             targetKey: targetKey,
             epoch: epoch,
@@ -987,6 +1003,7 @@ extension MobileAppModel {
         }
         guard let ready = state as? RemoteWorkspaceUiStateReady else { return }
 
+        remoteHostCapabilities = ready.hostCapabilities
         workspaceLoading = ready.busy
         workspaceLoadFailed = ready.loadFailure
         workspaceSelectionBusy = ready.busy

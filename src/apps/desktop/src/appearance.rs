@@ -662,9 +662,9 @@ fn show_main_window_for_startup(
             total_started_at.elapsed().as_millis()
         );
 
-    // Maximize only after the window is visible: maximizing a hidden
-    // undecorated window on Windows is dropped on show and leaves a bogus
-    // normal-placement rect behind (see `main_window_restore_flags`).
+        // Maximize only after the window is visible: maximizing a hidden
+        // undecorated window on Windows is dropped on show and leaves a bogus
+        // normal-placement rect behind (see `window_state_support`).
         if reapply_maximized {
         match window.is_maximized() {
             Ok(true) => {}
@@ -1082,6 +1082,15 @@ pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     {
         let total_started_at = Instant::now();
         if let Some(main_window) = app.get_webview_window("main") {
+            main_window
+                .unminimize()
+                .map_err(|error| error.to_string())?;
+            if let Err(error) = crate::window_state_support::repair_for_activation(&main_window) {
+                warn!(
+                    "Failed to repair main window geometry during activation: {}",
+                    error
+                );
+            }
             let step_started_at = Instant::now();
             main_window.show().map_err(|e| {
                 error!("Failed to show main window: {}", e);

@@ -73,6 +73,9 @@ pub mod miniapp;
 #[cfg(feature = "miniapp-market")]
 pub mod miniapp_market;
 
+#[cfg(feature = "miniapp-market")]
+pub mod market_image;
+
 #[cfg(feature = "plugin-source")]
 pub mod plugin_source;
 

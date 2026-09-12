@@ -1,3 +1,4 @@
+import { Copy as LucideCopy, Minus as LucideMinus, Square as LucideSquare, X as LucideX } from 'lucide-react';
 import React from 'react';
 import { Tooltip } from '@openbitfun/ui';
 import { useTranslation } from 'react-i18next';
@@ -15,35 +16,19 @@ export interface WindowControlsProps
 }
 
 const MinimizeGlyph = () => (
-  <svg width="10" height="10" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-    <line x1="3" y1="7" x2="11" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
+  <LucideMinus width="10" height="10" aria-hidden="true" />
 );
 
 const MaximizeGlyph = () => (
-  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-    <rect x="2" y="2" width="8" height="8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
+  <LucideSquare width="10" height="10" aria-hidden="true" />
 );
 
 const RestoreGlyph = () => (
-  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-    <path d="M4 4V1.5Q4 1 4.5 1h6q.5 0 .5.5v6q0 .5-.5.5H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <rect x="1" y="4" width="7" height="7" rx="0.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
+  <LucideCopy width="10" height="10" aria-hidden="true" />
 );
 
 const CloseGlyph = () => (
-  <svg width="10" height="10" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-    <line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <line x1="11" y1="3" x2="3" y2="11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
-const WindowsGlyph = ({ d }: { d: string }) => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-    <path d={d} stroke="currentColor" strokeWidth="1" />
-  </svg>
+  <LucideX width="10" height="10" aria-hidden="true" />
 );
 
 /** Desktop-shell window commands. This is product chrome, not a public UI primitive. */
@@ -82,7 +67,7 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
           disabled={disabled}
           aria-label={t('window.minimize')}
         >
-          {isWindows ? <WindowsGlyph d="M1 6.5h10" /> : <MinimizeGlyph />}
+          <MinimizeGlyph />
         </button>
       </Tooltip>
 
@@ -94,11 +79,7 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
           disabled={disabled}
           aria-label={maximizeLabel}
         >
-          {isWindows ? (
-            <WindowsGlyph d={maximized
-              ? 'M3.5 3.5v-2h7v7h-2 M1.5 3.5h7v7h-7z'
-              : 'M1.5 1.5h9v9h-9z'} />
-          ) : maximized ? <RestoreGlyph /> : <MaximizeGlyph />}
+          {maximized ? <RestoreGlyph /> : <MaximizeGlyph />}
         </button>
       </Tooltip>
 
@@ -110,7 +91,7 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
           disabled={disabled}
           aria-label={t('window.close')}
         >
-          {isWindows ? <WindowsGlyph d="m1.5 1.5 9 9 m0-9-9 9" /> : <CloseGlyph />}
+          <CloseGlyph />
         </button>
       </Tooltip>
     </div>

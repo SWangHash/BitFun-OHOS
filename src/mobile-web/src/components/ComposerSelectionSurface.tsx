@@ -1,3 +1,4 @@
+import { X as LucideX } from 'lucide-react';
 import React from 'react';
 import { MobileIconButton, MobileSheet } from '@openbitfun/ui/mobile';
 import { useWideLayout } from '../hooks/useWideLayout';
@@ -34,7 +35,7 @@ export default function ComposerSelectionSurface(props: Props) {
           className="chat-composer-sheet__close"
           aria-label={t('common.close')}
           onClick={props.onClose}
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>}
+          icon={<LucideX stroke="currentColor" aria-hidden="true" />}
         />
       )}
     >

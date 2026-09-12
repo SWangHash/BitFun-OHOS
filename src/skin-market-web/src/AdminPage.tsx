@@ -1,4 +1,5 @@
-import { ArrowClockwise, GithubLogo, ShieldCheck, WarningCircle } from '@phosphor-icons/react';
+import { GithubLogo } from '@phosphor-icons/react';
+import { RefreshCw as ArrowClockwise, ShieldCheck, CircleAlert as WarningCircle } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { sharedMarketLoginUrl } from './account';
 import { skinMarketApi } from './api';
@@ -112,7 +113,7 @@ export function AdminPage({ account, accountResolved, locale, t }: AdminPageProp
     return (
       <main id="main-content" className="shell workflow-page">
         <section className="workflow-gate">
-          <WarningCircle size={32} weight="regular" aria-hidden="true" />
+          <WarningCircle size={32} aria-hidden="true" />
           <h1>{t('reviewForbiddenTitle')}</h1>
           <p>{t('reviewForbiddenBody')}</p>
         </section>
@@ -129,15 +130,15 @@ export function AdminPage({ account, accountResolved, locale, t }: AdminPageProp
           <p>{t('reviewIntro')}</p>
         </div>
         <button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}>
-          <ArrowClockwise size={18} weight="bold" aria-hidden="true" />
+          <ArrowClockwise size={18} aria-hidden="true" />
           {t('refreshQueue')}
         </button>
       </header>
-      {error && <div className="workflow-error" role="alert"><WarningCircle size={20} weight="fill" /><span>{t('reviewError')}</span><small>{error.message}</small></div>}
+      {error && <div className="workflow-error" role="alert"><WarningCircle size={20} fill="currentColor" /><span>{t('reviewError')}</span><small>{error.message}</small></div>}
       {loading && queue.length === 0 ? <div className="workflow-loading">{t('reviewLoading')}</div>
         : queue.length === 0 ? (
           <div className="workflow-empty">
-            <ShieldCheck size={36} weight="regular" aria-hidden="true" />
+            <ShieldCheck size={36} aria-hidden="true" />
             <h2>{t('reviewEmptyTitle')}</h2>
             <p>{t('reviewEmptyBody')}</p>
           </div>

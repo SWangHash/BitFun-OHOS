@@ -756,13 +756,6 @@
     flex: 1;
     min-height: 0;
     padding: 1px var(--openbitfun-space-1) var(--openbitfun-space-2) 1px;
-    transition: opacity var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
-
-    /* A refresh keeps the current cards in place and dims them — no reflow. */
-    &--dimmed {
-      opacity: 0.55;
-      pointer-events: none;
-    }
   }
 
   &__grid {

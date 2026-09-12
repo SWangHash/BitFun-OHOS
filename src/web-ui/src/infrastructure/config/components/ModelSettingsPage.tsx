@@ -3390,6 +3390,7 @@ const ModelSettingsPage: React.FC = () => {
         onToggle={() => config.id && toggleExpanded(config.id)}
         toggleOnRowClick
         disabled={!config.enabled}
+        detailsDisabled={false}
         data-testid="settings-model-row"
         data-config-id={config.id || ''}
         data-model-id={config.model_name}

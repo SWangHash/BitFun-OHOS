@@ -1,10 +1,12 @@
 {
   "name": "@openbitfun/web-ui",
-  "version": "1.0.0",
+  "version": "1.0.0-beta",
   "private": true,
   "description": "OpenBitFun Web UI - 支持 Desktop 和 Server 两种部署方式",
   "type": "module",
   "scripts": {
+    "icons:generate": "node scripts/generate-lucide-static-icons.mjs",
+    "icons:check": "node scripts/generate-lucide-static-icons.mjs --check",
     "prepare:design-system:dev": "pnpm --dir ../../design-system run prepare:consumer-dev",
     "prepare:design-system:build": "pnpm --dir ../../design-system run build:packages",
     "predev": "pnpm run prepare:design-system:dev",

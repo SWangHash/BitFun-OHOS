@@ -27,7 +27,7 @@ use super::menu::{MenuItem, MenuView};
 pub use openbitfun_services_integrations::remote_connect::bot::{
     parse_command, BotAction, BotActionStyle, BotChatState, BotCommand, BotDisplayMode,
     BotInteractionHandler, BotInteractiveRequest, BotMessageSender, BotQuestion, BotQuestionOption,
-    BotWorkspaceChoice, BotWorkspaceRef, PendingAction, RemoteDeviceTarget,
+    BotWorkspaceChoice, BotWorkspaceRef, PendingAction, RemoteBotTarget, RemoteDeviceTarget,
 };
 
 // ── Constants ──────────────────────────────────────────────────────
@@ -80,6 +80,7 @@ pub struct HandleResult {
 }
 
 pub struct ForwardRequest {
+    pub remote_target: Option<RemoteBotTarget>,
     pub session_id: String,
     pub content: String,
     pub agent_type: String,
@@ -88,6 +89,7 @@ pub struct ForwardRequest {
 }
 
 pub struct ForwardedTurnResult {
+    pub completed_remote_tools: Vec<String>,
     pub display_text: String,
     pub full_text: String,
 }
@@ -573,9 +575,111 @@ pub async fn complete_im_bot_pairing(state: &mut BotChatState) -> HandleResult {
 
 /// Public adapter helper: install an interactive request received from the
 /// session executor onto the chat state and refresh its TTL.
-pub fn apply_interactive_request(state: &mut BotChatState, req: &BotInteractiveRequest) {
+fn interaction_tool(action: &PendingAction) -> Option<&str> {
+    match action {
+        PendingAction::AskUserQuestion { tool_id, .. }
+        | PendingAction::ConfirmRemoteTool { tool_id, .. } => Some(tool_id),
+        _ => None,
+    }
+}
+
+fn same_interaction(
+    a: &PendingAction,
+    a_target: Option<&RemoteBotTarget>,
+    b: &PendingAction,
+    b_target: Option<&RemoteBotTarget>,
+) -> bool {
+    interaction_tool(a) == interaction_tool(b)
+        && a_target.map(|t| (&t.device_id, &t.session_id))
+            == b_target.map(|t| (&t.device_id, &t.session_id))
+}
+
+pub fn apply_interactive_request(state: &mut BotChatState, req: &BotInteractiveRequest) -> bool {
+    if state.pending_expired() {
+        state.clear_pending();
+    }
+    if let Some(current) = state
+        .pending_action
+        .as_ref()
+        .filter(|action| interaction_tool(action).is_some())
+    {
+        if same_interaction(
+            current,
+            state.pending_remote_target.as_ref(),
+            &req.pending_action,
+            req.remote_target.as_ref(),
+        ) {
+            // Keep a remotely blocked interaction answerable while preserving
+            // its partially collected answers and original button token.
+            state.set_pending(current.clone());
+            return false;
+        }
+        if !state.pending_interactions.iter().any(|queued| {
+            same_interaction(
+                &queued.pending_action,
+                queued.remote_target.as_ref(),
+                &req.pending_action,
+                req.remote_target.as_ref(),
+            )
+        }) {
+            state.pending_interactions.push_back(req.clone());
+        }
+        return false;
+    }
     state.set_pending(req.pending_action.clone());
+    state.pending_remote_target = req.remote_target.clone();
     state.last_menu_commands = req.menu.items.iter().map(|i| i.command.clone()).collect();
+    true
+}
+
+/// Return the next still-pending prompt for the adapter to install and display.
+pub(super) fn retire_completed_remote_tools(
+    state: &mut BotChatState,
+    target: &RemoteBotTarget,
+    tool_ids: &[String],
+) -> Option<BotInteractiveRequest> {
+    let completed = |action: &PendingAction, origin: Option<&RemoteBotTarget>| {
+        origin.is_some_and(|origin| {
+            origin.relay_url == target.relay_url
+                && origin.device_id == target.device_id
+                && origin.session_id == target.session_id
+        }) && interaction_tool(action).is_some_and(|id| tool_ids.iter().any(|tool| tool == id))
+    };
+    state
+        .pending_interactions
+        .retain(|request| !completed(&request.pending_action, request.remote_target.as_ref()));
+    if state
+        .pending_action
+        .as_ref()
+        .is_some_and(|action| completed(action, state.pending_remote_target.as_ref()))
+    {
+        let mut queued = std::mem::take(&mut state.pending_interactions);
+        state.clear_pending();
+        state.last_menu_commands.clear();
+        let next = queued.pop_front();
+        state.pending_interactions = queued;
+        next
+    } else {
+        None
+    }
+}
+
+fn finish_bot_interaction(state: &mut BotChatState, s: &'static BotStrings) -> HandleResult {
+    let mut queued = std::mem::take(&mut state.pending_interactions);
+    state.clear_pending();
+    if let Some(next) = queued.pop_front() {
+        apply_interactive_request(state, &next);
+        state.pending_interactions = queued;
+        let mut view = next.menu;
+        view.body = Some(format!(
+            "{}\n\n{}",
+            s.answers_submitted,
+            view.body.unwrap_or_default()
+        ));
+        result_from_menu(state, view)
+    } else {
+        result_from_menu(state, MenuView::plain(s.answers_submitted))
+    }
 }
 
 // ── Dispatch ───────────────────────────────────────────────────────
@@ -2193,6 +2297,29 @@ async fn handle_cancel_task(
             return result_from_menu(state, MenuView::plain(s.task_no_active));
         }
     };
+    if state.active_remote_device.is_some() {
+        let command = serde_json::json!({"cmd":"cancel_task","session_id":session_id,"turn_id":requested_turn_id});
+        return match exec_remote_rpc(state, &command.to_string()).await {
+            Ok(reply)
+                if serde_json::from_str::<Value>(&reply)
+                    .ok()
+                    .is_some_and(|v| v["resp"] == "task_cancelled") =>
+            {
+                state.clear_pending();
+                result_from_menu(state, MenuView::plain(s.task_cancel_requested))
+            }
+            result => result_from_menu(
+                state,
+                MenuView::plain(format!(
+                    "{}{}",
+                    s.task_cancel_failed_prefix,
+                    result
+                        .err()
+                        .unwrap_or_else(|| "Remote cancellation was not accepted".into())
+                )),
+            ),
+        };
+    }
     let dispatcher = get_or_init_global_dispatcher();
     match dispatcher.cancel_task(&session_id, requested_turn_id).await {
         Ok(_) => {
@@ -2231,6 +2358,40 @@ async fn route_pending(
     s: &'static BotStrings,
 ) -> HandleResult {
     match pending {
+        PendingAction::ConfirmRemoteTool {
+            tool_id,
+            action_token,
+            description: _,
+        } => {
+            let command = match raw_input.trim() {
+                input if input == "1" || input == format!("approve-tool:{action_token}") => {
+                    serde_json::json!({"cmd":"confirm_tool","tool_id":tool_id})
+                }
+                input if input == "2" || input == format!("reject-tool:{action_token}") => {
+                    serde_json::json!({"cmd":"reject_tool","tool_id":tool_id,"reason":"Rejected by bot user"})
+                }
+                _ => return Box::pin(pending_invalid(state, s)).await,
+            };
+            let Some(target) = state.pending_remote_target.clone() else {
+                state.clear_pending();
+                return result_from_menu(state, MenuView::plain(s.devices_account_required));
+            };
+            match target.rpc(command).await {
+                Ok(reply) if reply["resp"] == "interaction_accepted" => {
+                    finish_bot_interaction(state, s)
+                }
+                result => result_from_menu(
+                    state,
+                    MenuView::plain(format!(
+                        "{}{}",
+                        s.answers_submit_failed_prefix,
+                        result
+                            .err()
+                            .unwrap_or_else(|| "Invalid remote interaction response".into())
+                    )),
+                ),
+            }
+        }
         PendingAction::SelectWorkspace { options } => {
             let parsed: Option<usize> = raw_input.parse().ok();
             match parsed {
@@ -2426,6 +2587,11 @@ async fn pending_invalid(state: &mut BotChatState, s: &'static BotStrings) -> Ha
         }
     };
     let mut view = match &pending {
+        PendingAction::ConfirmRemoteTool {
+            action_token,
+            description,
+            ..
+        } => remote_tool_view(action_token, description, s),
         PendingAction::SelectWorkspace { options } => workspace_selection_view(state, options, s),
         PendingAction::SelectAssistant { options } => assistant_selection_view(state, options, s),
         PendingAction::SelectSession {
@@ -2667,8 +2833,42 @@ async fn handle_question_reply(
         return result_from_menu(state, view);
     }
 
-    state.clear_pending();
-    submit_question_answers(&tool_id, &answers, s).await
+    if let Some(target) = state.pending_remote_target.clone() {
+        let payload: serde_json::Map<String, Value> = answers
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (i.to_string(), v.clone()))
+            .collect();
+        match target
+            .rpc(serde_json::json!({"cmd":"answer_question","tool_id":tool_id,"answers":payload}))
+            .await
+        {
+            Ok(reply)
+                if reply["resp"] == "answer_accepted"
+                    || reply["resp"] == "interaction_accepted" =>
+            {
+                return finish_bot_interaction(state, s);
+            }
+            result => {
+                return result_from_menu(
+                    state,
+                    MenuView::plain(format!(
+                        "{}{}",
+                        s.answers_submit_failed_prefix,
+                        result
+                            .err()
+                            .unwrap_or_else(|| "Invalid remote answer response".into())
+                    )),
+                )
+            }
+        }
+    }
+    let result = submit_question_answers(&tool_id, &answers, s).await;
+    if result.reply == s.answers_submitted {
+        finish_bot_interaction(state, s)
+    } else {
+        result
+    }
 }
 
 async fn submit_question_answers(
@@ -2725,6 +2925,21 @@ async fn handle_chat(
     image_contexts: Vec<crate::agentic::image_analysis::ImageContextData>,
     s: &'static BotStrings,
 ) -> HandleResult {
+    if message.starts_with("approve-tool:") || message.starts_with("reject-tool:") {
+        let matches_pending = state
+            .pending_action
+            .as_ref()
+            .is_some_and(|pending| match pending {
+                PendingAction::ConfirmRemoteTool { action_token, .. } => {
+                    message == format!("approve-tool:{action_token}")
+                        || message == format!("reject-tool:{action_token}")
+                }
+                _ => false,
+            });
+        if !matches_pending {
+            return result_from_menu(state, MenuView::plain(s.pending_invalid_input));
+        }
+    }
     // If there is a pending action, route the message to it (text answer for
     // questions, "ignore" for menu-style pendings).
     if let Some(pending) = state.pending_action.clone() {
@@ -2738,34 +2953,29 @@ async fn handle_chat(
             Some(id) => id,
             None => return result_from_menu(state, need_session_view(state, s)),
         };
-        let cmd = serde_json::json!({
-            "cmd": "send_message",
-            "session_id": session_id,
-            "content": message,
-            "agent_type": null,
-            "images": null,
-            "image_contexts": null,
-        });
-        let cmd_json = serde_json::to_string(&cmd).unwrap_or_default();
-        match exec_remote_rpc(state, &cmd_json).await {
-            Ok(_resp) => {
-                // The response contains {resp: "message_sent", session_id, turn_id}.
-                // For now, show a brief confirmation. A future improvement could
-                // poll for the agent's reply and stream it back.
-                let dev = state.active_remote_device.as_ref().unwrap();
-                let body = format!(
-                    "{}: {}\n{}",
-                    s.devices_remote_prefix, dev.device_name, s.devices_msg_sent
-                );
-                let view = MenuView::plain("").with_body(body);
-                result_from_menu(state, view)
-            }
-            Err(e) => result_from_menu(
-                state,
-                MenuView::plain(format!("{}{e}", s.devices_send_failed_prefix))
-                    .with_items(vec![MenuItem::default(s.item_back, "/menu")]),
-            ),
-        }
+        let Some(account) = delegated_session(state) else {
+            return result_from_menu(state, devices_unavailable_view(s));
+        };
+        let Some(relay_url) = state.relay_url.clone() else {
+            return result_from_menu(state, devices_unavailable_view(s));
+        };
+        let device = state.active_remote_device.as_ref().unwrap();
+        let remote_target = RemoteBotTarget {
+            relay_url,
+            account,
+            session_id: session_id.clone(),
+            device_id: device.device_id.clone(),
+            device_name: device.device_name.clone(),
+        };
+        let forward = ForwardRequest {
+            remote_target: Some(remote_target),
+            session_id,
+            content: message.to_string(),
+            agent_type: String::new(),
+            turn_id: format!("turn_{}", uuid::Uuid::new_v4()),
+            image_contexts,
+        };
+        result_from_menu_with_forward(state, MenuView::default(), Some(forward))
     } else {
         // ── Local branch (original logic) ──
 
@@ -2811,6 +3021,7 @@ async fn handle_chat(
         let view = MenuView::default();
 
         let forward = ForwardRequest {
+            remote_target: None,
             session_id,
             content: message.to_string(),
             agent_type,
@@ -2824,12 +3035,25 @@ async fn handle_chat(
 
 // ── Forwarded turn execution (largely unchanged) ──────────────────
 
-pub async fn execute_forwarded_turn(
+pub(crate) async fn execute_forwarded_turn(
     forward: ForwardRequest,
     interaction_handler: Option<BotInteractionHandler>,
     message_sender: Option<BotMessageSender>,
     verbose_mode: bool,
+    runtime_fence: &super::BotRuntimeFence,
+    identity_epoch: u64,
 ) -> ForwardedTurnResult {
+    if !runtime_fence.is_lifecycle_current() || runtime_fence.identity_epoch() != identity_epoch {
+        return ForwardedTurnResult {
+            completed_remote_tools: Vec::new(),
+            display_text: String::new(),
+            full_text: String::new(),
+        };
+    }
+    if forward.remote_target.is_some() {
+        return execute_remote_forward(forward, interaction_handler, runtime_fence, identity_epoch)
+            .await;
+    }
     use crate::service::remote_connect::remote_server::{
         get_or_init_global_dispatcher, TrackerEvent,
     };
@@ -2857,6 +3081,7 @@ pub async fn execute_forwarded_turn(
     {
         let msg = format!("{}{e}", s.send_failed_prefix);
         return ForwardedTurnResult {
+            completed_remote_tools: Vec::new(),
             display_text: msg.clone(),
             full_text: msg,
         };
@@ -2924,6 +3149,7 @@ pub async fn execute_forwarded_turn(
                                     let actions: Vec<BotAction> =
                                         view.items.iter().cloned().map(BotAction::from).collect();
                                     let request = BotInteractiveRequest {
+                                        remote_target: None,
                                         reply: view.render_text_block(),
                                         actions,
                                         menu: view,
@@ -2961,6 +3187,7 @@ pub async fn execute_forwarded_turn(
                         if turn_id == target_turn_id {
                             let msg = format!("{}{}", s.error_prefix, error);
                             return ForwardedTurnResult {
+                                completed_remote_tools: Vec::new(),
                                 display_text: msg.clone(),
                                 full_text: msg,
                             };
@@ -2969,6 +3196,7 @@ pub async fn execute_forwarded_turn(
                     TrackerEvent::TurnCancelled { turn_id } => {
                         if turn_id == target_turn_id {
                             return ForwardedTurnResult {
+                                completed_remote_tools: Vec::new(),
                                 display_text: s.task_cancelled.to_string(),
                                 full_text: s.task_cancelled.to_string(),
                             };
@@ -2984,12 +3212,31 @@ pub async fn execute_forwarded_turn(
             }
         }
 
-        let full_text = tracker.accumulated_text();
-        let full_text = if full_text.is_empty() {
-            response
-        } else {
-            full_text
-        };
+        // Read the submitted turn by identity. Another controller may already
+        // have started the next turn and replaced the tracker's text buffer.
+        let poll_host =
+            crate::service_agent_runtime::CoreServiceAgentRuntime::remote_poll_host(&dispatcher);
+        let poll = openbitfun_services_integrations::remote_connect::handle_remote_poll_command(
+            &poll_host,
+            &openbitfun_services_integrations::remote_connect::RemoteCommand::PollSession {
+                session_id: forward.session_id.clone(),
+                since_version: 0,
+                known_msg_count: 0,
+                known_model_catalog_version: None,
+            },
+        )
+        .await;
+        let full_text = serde_json::to_value(poll)
+            .ok()
+            .and_then(|poll| {
+                openbitfun_services_integrations::remote_connect::bot::remote_turn::observe_turn(
+                    &poll,
+                    &target_turn_id,
+                )
+            })
+            .map(|turn| turn.text)
+            .filter(|text| !text.is_empty())
+            .unwrap_or(response);
 
         // Do NOT truncate here. Each IM adapter knows its own per-message
         // size limit and chunks accordingly (e.g. WeChat splits via
@@ -3000,6 +3247,7 @@ pub async fn execute_forwarded_turn(
         let display_text = full_text.clone();
 
         ForwardedTurnResult {
+            completed_remote_tools: Vec::new(),
             display_text: if display_text.is_empty() {
                 s.no_response.to_string()
             } else {
@@ -3011,9 +3259,224 @@ pub async fn execute_forwarded_turn(
     .await;
 
     result.unwrap_or_else(|_| ForwardedTurnResult {
+        completed_remote_tools: Vec::new(),
         display_text: s.timeout_one_hour.to_string(),
         full_text: String::new(),
     })
+}
+
+async fn execute_remote_forward(
+    forward: ForwardRequest,
+    interaction_handler: Option<BotInteractionHandler>,
+    fence: &super::BotRuntimeFence,
+    epoch: u64,
+) -> ForwardedTurnResult {
+    use openbitfun_services_integrations::remote_connect::bot::remote_turn::observe_turn;
+    let s = strings_for(current_bot_language().await);
+    let target = forward.remote_target.as_ref().unwrap();
+    let current = || fence.is_lifecycle_current() && fence.identity_epoch() == epoch;
+    let empty = || ForwardedTurnResult {
+        completed_remote_tools: Vec::new(),
+        display_text: String::new(),
+        full_text: String::new(),
+    };
+    if !current() {
+        return empty();
+    }
+    // Submission is never retried blindly: older peers need not deduplicate.
+    let sent = target
+        .rpc(serde_json::json!({
+            "cmd":"send_message", "session_id":target.session_id,
+            "content":forward.content, "turn_id":forward.turn_id,
+            "image_contexts":forward.image_contexts,
+        }))
+        .await;
+    if !current() {
+        return empty();
+    }
+    let turn_id = match sent {
+        Ok(reply)
+            if reply["resp"] == "message_sent" && reply["session_id"] == target.session_id =>
+        {
+            match reply["turn_id"].as_str().filter(|id| !id.is_empty()) {
+                Some(id) => id.to_string(),
+                None => {
+                    return ForwardedTurnResult {
+                        completed_remote_tools: Vec::new(),
+                        display_text: format!("{}Missing remote turn ID", s.send_failed_prefix),
+                        full_text: String::new(),
+                    }
+                }
+            }
+        }
+        result => {
+            return ForwardedTurnResult {
+                completed_remote_tools: Vec::new(),
+                display_text: format!(
+                    "{}{}",
+                    s.send_failed_prefix,
+                    result
+                        .err()
+                        .unwrap_or_else(|| "Invalid remote submission response".into())
+                ),
+                full_text: String::new(),
+            }
+        }
+    };
+    let result = tokio::time::timeout(std::time::Duration::from_secs(3600), async {
+        let mut version = 0;
+        let mut shown = std::collections::HashMap::<String, std::time::Instant>::new();
+        loop {
+            if !current() {
+                return empty();
+            }
+            if shown.values().any(|at| at.elapsed().as_secs() >= 240) {
+                version = 0;
+            }
+            let poll = target.poll(version).await;
+            if !current() {
+                return empty();
+            }
+            match poll {
+                Ok(poll) if poll["resp"] == "session_poll" => {
+                    version = poll["version"].as_u64().unwrap_or(0);
+                    if let Some(turn) = observe_turn(&poll, &turn_id) {
+                        if turn.terminal() {
+                            let display_text = match turn.status.as_str() {
+                                "failed" | "error" => {
+                                    format!("{}{}", s.error_prefix, turn.error.unwrap_or_default())
+                                }
+                                "cancelled" => s.task_cancelled.to_string(),
+                                _ if turn.text.is_empty() => s.no_response.to_string(),
+                                _ => turn.text.clone(),
+                            };
+                            return ForwardedTurnResult {
+                                completed_remote_tools: shown.into_keys().collect(),
+                                display_text,
+                                full_text: turn.text,
+                            };
+                        }
+                        for tool in turn.tools {
+                            // Pending menus expire after five minutes; re-present a
+                            // still-blocked interaction so it remains answerable.
+                            if shown
+                                .get(&tool.id)
+                                .is_some_and(|at| at.elapsed().as_secs() < 240)
+                            {
+                                continue;
+                            }
+                            let (mut view, pending_action) = if tool.status
+                                == "pending_confirmation"
+                            {
+                                let action_token = uuid::Uuid::new_v4().to_string();
+                                let description = format!(
+                                    "{}\n{}",
+                                    tool.name,
+                                    tool.input_preview.unwrap_or_default()
+                                );
+                                (
+                                    remote_tool_view(&action_token, &description, s),
+                                    PendingAction::ConfirmRemoteTool {
+                                        tool_id: tool.id.clone(),
+                                        action_token,
+                                        description,
+                                    },
+                                )
+                            } else if tool.name == "AskUserQuestion" && tool.status == "running" {
+                                let Some(questions) = tool
+                                    .tool_input
+                                    .as_ref()
+                                    .and_then(|p| p.get("questions"))
+                                    .and_then(|v| {
+                                        serde_json::from_value::<Vec<BotQuestion>>(v.clone()).ok()
+                                    })
+                                else {
+                                    continue;
+                                };
+                                (
+                                    build_question_view(s, &questions, 0, false),
+                                    PendingAction::AskUserQuestion {
+                                        tool_id: tool.id.clone(),
+                                        questions,
+                                        current_index: 0,
+                                        answers: vec![],
+                                        awaiting_custom_text: false,
+                                        pending_answer: None,
+                                    },
+                                )
+                            } else {
+                                continue;
+                            };
+                            view.title = format!(
+                                "{} · {} · {}",
+                                target.device_name, target.session_id, view.title
+                            );
+                            if let Some(handler) = &interaction_handler {
+                                handler(BotInteractiveRequest {
+                                    remote_target: Some(target.clone()),
+                                    reply: view.render_text_block(),
+                                    actions: view
+                                        .items
+                                        .iter()
+                                        .cloned()
+                                        .map(BotAction::from)
+                                        .collect(),
+                                    menu: view,
+                                    pending_action,
+                                })
+                                .await;
+                                shown.insert(tool.id, std::time::Instant::now());
+                            }
+                        }
+                    }
+                }
+                Ok(reply) => {
+                    return ForwardedTurnResult {
+                        completed_remote_tools: Vec::new(),
+                        display_text: format!(
+                            "{}{}",
+                            s.error_prefix,
+                            reply["message"]
+                                .as_str()
+                                .unwrap_or("Invalid remote poll response")
+                        ),
+                        full_text: String::new(),
+                    }
+                }
+                Err(error) => {
+                    if crate::service::remote_connect::account::error_indicates_expired_token(
+                        &error,
+                    ) || error.contains("HTTP 403")
+                    {
+                        return ForwardedTurnResult {
+                            completed_remote_tools: Vec::new(),
+                            display_text: format!("{}{error}", s.error_prefix),
+                            full_text: String::new(),
+                        };
+                    }
+                    log::warn!("Bot remote turn poll interrupted: {error}");
+                    // Read-only replay after a disconnect, without another send.
+                    version = 0;
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
+    })
+    .await;
+    result.unwrap_or_else(|_| ForwardedTurnResult {
+        completed_remote_tools: Vec::new(),
+        display_text: s.timeout_one_hour.to_string(),
+        full_text: String::new(),
+    })
+}
+
+fn remote_tool_view(tool_id: &str, description: &str, s: &'static BotStrings) -> MenuView {
+    MenuView::plain(s.tool_approval_title)
+        .with_body(description)
+        .with_items(vec![
+            MenuItem::primary(s.tool_approve, format!("approve-tool:{tool_id}")),
+            MenuItem::default(s.tool_reject, format!("reject-tool:{tool_id}")),
+        ])
 }
 
 fn truncate_at_char_boundary(s: &str, max_len: usize) -> String {
@@ -3654,6 +4117,386 @@ mod menu_tests {
 #[cfg(test)]
 mod handle_chat_tests {
     use super::*;
+
+    #[tokio::test]
+    async fn stale_approval_buttons_do_not_authorize_or_submit_chat_text() {
+        let mut state = BotChatState::new("chat".into());
+        state.set_pending(PendingAction::ConfirmRemoteTool {
+            tool_id: "tool".into(),
+            action_token: "new-request".into(),
+            description: "render".into(),
+        });
+        let result = handle_chat(
+            &mut state,
+            "approve-tool:old-request",
+            vec![],
+            strings_for(BotLanguage::EnUS),
+        )
+        .await;
+        assert!(result.forward_to_session.is_none());
+        assert_eq!(state.pending_invalid_count, 0);
+        assert!(state.pending_action.is_some());
+    }
+
+    #[tokio::test]
+    async fn retired_identity_cannot_submit_a_captured_remote_turn() {
+        let fence = super::super::BotRuntimeFence::standalone();
+        let target = RemoteBotTarget {
+            relay_url: "https://must-not-be-contacted.invalid".into(),
+            device_id: "old-device".into(),
+            device_name: "Old device".into(),
+            session_id: "session".into(),
+            account: crate::service::remote_connect::AccountSession::new(
+                "old-token".into(),
+                String::new(),
+                [3; 32],
+            ),
+        };
+        let forward = ForwardRequest {
+            remote_target: Some(target),
+            session_id: "session".into(),
+            content: "must not submit".into(),
+            agent_type: String::new(),
+            turn_id: "turn".into(),
+            image_contexts: vec![],
+        };
+        let result = execute_forwarded_turn(
+            forward,
+            None,
+            None,
+            false,
+            &fence,
+            fence.identity_epoch() + 1,
+        )
+        .await;
+        assert!(result.display_text.is_empty());
+        assert!(result.full_text.is_empty());
+    }
+
+    #[test]
+    fn interactions_queue_without_overwriting_answers_or_persisting_authority() {
+        let s = strings_for(BotLanguage::EnUS);
+        let make = |device: &str| {
+            let action = PendingAction::ConfirmRemoteTool {
+                tool_id: "same-tool-id".into(),
+                action_token: device.into(),
+                description: "render".into(),
+            };
+            let view = remote_tool_view(device, "render", s);
+            BotInteractiveRequest {
+                remote_target: Some(RemoteBotTarget {
+                    relay_url: "https://relay.invalid".into(),
+                    device_id: device.into(),
+                    device_name: device.into(),
+                    session_id: "session".into(),
+                    account: crate::service::remote_connect::AccountSession::new(
+                        "test-secret-token".into(),
+                        String::new(),
+                        [5; 32],
+                    ),
+                }),
+                reply: view.render_text_block(),
+                actions: vec![],
+                menu: view,
+                pending_action: action,
+            }
+        };
+        let mut state = BotChatState::new("chat".into());
+        let first = make("device-a");
+        let next = make("device-b");
+        assert!(apply_interactive_request(&mut state, &first));
+        assert!(!apply_interactive_request(&mut state, &next));
+        assert!(!apply_interactive_request(&mut state, &next));
+        assert_eq!(state.pending_interactions.len(), 1);
+        assert_eq!(
+            state.pending_remote_target.as_ref().unwrap().device_id,
+            "device-a"
+        );
+        let persisted = serde_json::to_string(&state).unwrap();
+        assert!(!persisted.contains("test-secret-token"));
+        assert!(!persisted.contains("device-a"));
+        finish_bot_interaction(&mut state, s);
+        assert_eq!(
+            state.pending_remote_target.as_ref().unwrap().device_id,
+            "device-b"
+        );
+        assert!(state.pending_interactions.is_empty());
+        state.clear_delegated_identity();
+        assert!(state.pending_remote_target.is_none());
+        assert!(state.pending_action.is_none());
+    }
+
+    #[test]
+    fn completed_remote_tools_retire_only_their_own_prompts_and_promote_the_queue() {
+        let make = |device: &str| {
+            let menu = remote_tool_view(device, "render", strings_for(BotLanguage::EnUS));
+            BotInteractiveRequest {
+                remote_target: Some(RemoteBotTarget {
+                    relay_url: "https://relay.invalid".into(),
+                    device_id: device.into(),
+                    device_name: device.into(),
+                    session_id: "session".into(),
+                    account: crate::service::remote_connect::AccountSession::new(
+                        "test".into(),
+                        String::new(),
+                        [5; 32],
+                    ),
+                }),
+                reply: menu.render_text_block(),
+                actions: vec![],
+                menu,
+                pending_action: PendingAction::ConfirmRemoteTool {
+                    tool_id: "same-tool-id".into(),
+                    action_token: device.into(),
+                    description: "render".into(),
+                },
+            }
+        };
+        let mut state = BotChatState::new("chat".into());
+        let first = make("device-a");
+        let next = make("device-b");
+        let ids = vec!["same-tool-id".to_string()];
+        assert!(apply_interactive_request(&mut state, &first));
+        assert!(!apply_interactive_request(&mut state, &next));
+        assert!(retire_completed_remote_tools(
+            &mut state,
+            next.remote_target.as_ref().unwrap(),
+            &ids
+        )
+        .is_none());
+        assert!(state.pending_interactions.is_empty());
+        assert_eq!(
+            state.pending_remote_target.as_ref().unwrap().device_id,
+            "device-a"
+        );
+        assert!(!apply_interactive_request(&mut state, &next));
+        let promoted =
+            retire_completed_remote_tools(&mut state, first.remote_target.as_ref().unwrap(), &ids)
+                .unwrap();
+        assert!(state.pending_action.is_none());
+        assert!(state.last_menu_commands.is_empty());
+        assert!(apply_interactive_request(&mut state, &promoted));
+        assert!(retire_completed_remote_tools(
+            &mut state,
+            first.remote_target.as_ref().unwrap(),
+            &ids
+        )
+        .is_none());
+        assert_eq!(
+            state.pending_remote_target.as_ref().unwrap().device_id,
+            "device-b"
+        );
+    }
+
+    #[tokio::test]
+    async fn remote_turn_reconnects_delivers_interactions_and_reads_original_device_bytes() {
+        use openbitfun_services_integrations::remote_connect::{
+            account::AccountSession, device_crypto, encryption,
+        };
+        use std::sync::{Arc, Mutex};
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let relay_url = format!("http://{}", listener.local_addr().unwrap());
+        let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let observed = calls.clone();
+        let peer_secret = [11u8; 32];
+        let local_secret = [7u8; 32];
+        let public = device_crypto::public_key_base64(&peer_secret);
+        let key = device_crypto::derive_message_key(
+            &peer_secret,
+            &device_crypto::public_key(&local_secret),
+        )
+        .unwrap();
+        let server = tokio::spawn(async move {
+            let mut polls = 0;
+            loop {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut bytes = Vec::new();
+                let (header_end, length) = loop {
+                    let mut block = [0u8; 4096];
+                    let count = socket.read(&mut block).await.unwrap();
+                    if count == 0 {
+                        return;
+                    }
+                    bytes.extend_from_slice(&block[..count]);
+                    if let Some(end) = bytes.windows(4).position(|v| v == b"\r\n\r\n") {
+                        let header = std::str::from_utf8(&bytes[..end]).unwrap();
+                        let length = header
+                            .lines()
+                            .find_map(|line| {
+                                line.to_ascii_lowercase()
+                                    .strip_prefix("content-length:")
+                                    .map(|v| v.trim().parse::<usize>().unwrap())
+                            })
+                            .unwrap_or(0);
+                        break (end + 4, length);
+                    }
+                    assert!(bytes.len() < 128 * 1024);
+                };
+                while bytes.len() < header_end + length {
+                    let mut block = [0u8; 4096];
+                    let count = socket.read(&mut block).await.unwrap();
+                    assert!(count > 0);
+                    bytes.extend_from_slice(&block[..count]);
+                }
+                let header = std::str::from_utf8(&bytes[..header_end]).unwrap();
+                let reply = if header.starts_with("GET /api/devices/device-a/key ") {
+                    serde_json::json!({"device_id":"device-a","public_key":public})
+                } else {
+                    assert!(header.starts_with("POST /api/devices/device-a/rpc "));
+                    let envelope: Value=serde_json::from_slice(&bytes[header_end..header_end+length]).unwrap();
+                    let plaintext=encryption::decrypt_from_base64(&key,envelope["encrypted_data"].as_str().unwrap(),envelope["nonce"].as_str().unwrap()).unwrap();
+                    let command: Value=serde_json::from_str(&plaintext).unwrap();
+                    observed.lock().unwrap().push(command.clone());
+                    let response=match command["cmd"].as_str().unwrap() {
+                        "send_message" => {
+                            assert_eq!(command["session_id"],"session-a");
+                            assert_eq!(command["image_contexts"][0]["data_url"],"data:image/png;base64,AP8B");
+                            // Legacy hosts may select their own accepted turn ID.
+                            serde_json::json!({"resp":"message_sent","session_id":"session-a","turn_id":"accepted-turn"})
+                        }
+                        "poll_session" => {
+                            assert_eq!(command["session_id"],"session-a");
+                            polls += 1;
+                            if polls == 1 { continue; } // Lost connection after submission.
+                            let tool = if polls == 2 {
+                                serde_json::json!({"id":"question-a","name":"AskUserQuestion","status":"running",
+                                    "tool_input":{"questions":[{"question":"Format?","options":[{"label":"PNG"}]}]}})
+                            } else {
+                                serde_json::json!({"id":"approval-a","name":"Bash","status":"pending_confirmation","input_preview":"render image"})
+                            };
+                            if polls <= 3 {
+                                serde_json::json!({"resp":"session_poll","version":polls,"active_turn":{"turn_id":"accepted-turn","status":"active","text":"","tools":[tool]}})
+                            } else {
+                                serde_json::json!({"resp":"session_poll","version":polls,
+                                    "active_turn":{"turn_id":"next-turn","status":"active","text":"do not send this"},
+                                    "new_messages":[{"id":"accepted-turn_assistant","role":"assistant","status":"done","content":"![image](result.png)"}]})
+                            }
+                        }
+                        "answer_question" => {
+                            assert_eq!(command["tool_id"],"question-a");
+                            assert_eq!(command["answers"]["0"],"PNG");
+                            serde_json::json!({"resp":"answer_accepted"})
+                        }
+                        "confirm_tool" => {
+                            assert_eq!(command["tool_id"],"approval-a");
+                            serde_json::json!({"resp":"interaction_accepted","action":"confirm_tool","target_id":"approval-a"})
+                        }
+                                                "read_file_chunk" => {
+                            assert_eq!(command["session_id"],"session-a");
+                            assert_eq!(command["path"],"result.png");
+                            let offset = command["offset"].as_u64().unwrap();
+                            assert!(command["limit"].as_u64().unwrap() <= 3 * 1024 * 1024);
+                            let (count, encoded) = match offset {
+                                0 => (1, "AA=="),
+                                1 => (2, "/wE="),
+                                other => panic!("Unexpected file offset: {other}"),
+                            };
+                            serde_json::json!({"resp":"file_chunk","name":"result.png","total_size":3,"offset":offset,"chunk_size":count,"mime_type":"image/png","chunk_base64":encoded,"revision":"3:1"})
+                        }
+                        other=>panic!("Unexpected command: {other}"),
+                    };
+                    let (encrypted_data, nonce)=encryption::encrypt_to_base64(&key,&response.to_string()).unwrap();
+                    serde_json::json!({"encrypted_data":encrypted_data,"nonce":nonce})
+                }.to_string();
+                let http=format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",reply.len(),reply);
+                socket.write_all(http.as_bytes()).await.unwrap();
+            }
+        });
+        let mut state = BotChatState::new("chat".into());
+        state.paired = true;
+        state.relay_url = Some(relay_url);
+        state.set_delegated_identity("test-token".into(), local_secret.to_vec());
+        state.active_remote_device = Some(RemoteDeviceTarget {
+            device_id: "device-a".into(),
+            device_name: "Device A".into(),
+        });
+        state.current_session_id = Some("session-a".into());
+        let image = crate::agentic::image_analysis::ImageContextData {
+            id: "image".into(),
+            image_path: None,
+            data_url: Some("data:image/png;base64,AP8B".into()),
+            mime_type: "image/png".into(),
+            metadata: None,
+        };
+        let forward = handle_chat(
+            &mut state,
+            "render",
+            vec![image],
+            strings_for(BotLanguage::EnUS),
+        )
+        .await
+        .forward_to_session
+        .unwrap();
+        let target = forward.remote_target.clone().unwrap();
+        state.select_local_device();
+        state.current_session_id = Some("unrelated-local-session".into());
+        let handler: BotInteractionHandler = Arc::new(move |request| {
+            Box::pin(async move {
+                assert!(request.reply.contains("Device A"));
+                let mut state = BotChatState::new("chat".into());
+                state.current_session_id = Some("other-session".into());
+                apply_interactive_request(&mut state, &request);
+                let input = match &request.pending_action {
+                    PendingAction::ConfirmRemoteTool { action_token, .. } => {
+                        format!("approve-tool:{action_token}")
+                    }
+                    _ => "1".into(),
+                };
+                let result = route_pending(
+                    &mut state,
+                    request.pending_action,
+                    &input,
+                    strings_for(BotLanguage::EnUS),
+                )
+                .await;
+                assert_eq!(
+                    result.reply,
+                    strings_for(BotLanguage::EnUS).answers_submitted
+                );
+                assert!(state.pending_remote_target.is_none());
+            })
+        });
+        let fence = super::super::BotRuntimeFence::standalone();
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(20),
+            execute_forwarded_turn(
+                forward,
+                Some(handler),
+                None,
+                false,
+                &fence,
+                fence.identity_epoch(),
+            ),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.full_text, "![image](result.png)");
+        assert_eq!(result.completed_remote_tools.len(), 2);
+        assert!(result
+            .completed_remote_tools
+            .contains(&"question-a".to_string()));
+        assert!(result
+            .completed_remote_tools
+            .contains(&"approval-a".to_string()));
+        let file =
+            super::super::read_output_file("session-a", Some(&target), "result.png", 1024, &|| {
+                true
+            })
+            .await
+            .unwrap();
+        assert_eq!(file.bytes, vec![0, 255, 1]);
+        assert_eq!(
+            calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|v| v["cmd"] == "send_message")
+                .count(),
+            1
+        );
+        server.abort();
+    }
 
     /// `handle_chat` must NOT push a "Processing… [Cancel Task]" interstitial
     /// to the user. The session manager queues new messages automatically;

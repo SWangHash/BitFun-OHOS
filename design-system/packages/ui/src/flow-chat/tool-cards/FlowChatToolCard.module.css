@@ -385,7 +385,7 @@
     visibility: hidden;
     transition:
       grid-template-rows var(--_tool-card-collapse-duration) var(--openbitfun-motion-easing-standard),
-      opacity var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
+      opacity var(--_tool-card-collapse-duration) var(--openbitfun-motion-easing-standard),
       visibility 0s linear var(--_tool-card-collapse-duration);
   }
 
