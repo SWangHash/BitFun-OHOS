@@ -28,7 +28,7 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@/component-library', () => ({
+vi.mock('@/component-library', async () => ({
   Button: ({
     children,
     disabled,
@@ -63,7 +63,7 @@ vi.mock('@/component-library', () => ({
       {label}
     </label>
   ),
-  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Tooltip: (await import('@/component-library/components/Tooltip/Tooltip')).Tooltip,
 }));
 
 vi.mock('@/infrastructure/event-bus', () => ({
@@ -163,6 +163,7 @@ describe('RemediationSelectionPanel', () => {
     expect(html).toContain('Fast path is risky; staged path is safer.');
     expect(html).toContain('Staged path (recommended)');
     expect(html).toContain('deep-review-action-bar__remediation-item--completed');
+    expect(html).not.toContain('title="Choose a migration strategy"');
   });
 });
 
@@ -211,6 +212,9 @@ describeWithJsdom('RemediationSelectionPanel interactions', () => {
     vi.stubGlobal('document', window.document);
     vi.stubGlobal('navigator', window.navigator);
     vi.stubGlobal('HTMLElement', window.HTMLElement);
+    vi.stubGlobal('HTMLDivElement', window.HTMLDivElement);
+    vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame.bind(window));
+    vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame.bind(window));
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
 
     container = document.createElement('div');
@@ -224,6 +228,7 @@ describeWithJsdom('RemediationSelectionPanel interactions', () => {
     });
     container.remove();
     dom.window.close();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
@@ -255,6 +260,56 @@ describeWithJsdom('RemediationSelectionPanel interactions', () => {
     expect(onToggleGroup).toHaveBeenCalledTimes(1);
     expect(onToggleGroup).toHaveBeenCalledWith('should_improve');
   });
+
+  it.each([
+    ['ordinary', false], ['ordinary', true],
+    ['completed', false], ['completed', true],
+    ['fixing', false], ['fixing', true],
+    ['empty-plan', true],
+  ] as const)(
+    'preserves the original title eligibility for %s (decisionContext=%s)',
+    (state, hasDecisionContext) => {
+      vi.useFakeTimers();
+      const item = remediationItems()[0];
+      if (hasDecisionContext) {
+        item.decisionContext = { question: 'Which approach?', options: ['A', 'B'] };
+      }
+      if (state === 'empty-plan') item.plan = '';
+      // Before #136, this exact expression supplied the native title attribute.
+      const originalTitle = item.decisionContext ? item.plan : undefined;
+      mount(
+        <RemediationSelectionPanel
+          {...baseProps}
+          remediationItems={[item]}
+          selectedRemediationIds={new Set()}
+          completedRemediationIds={new Set(state === 'completed' ? [item.id] : [])}
+          fixingRemediationIds={new Set(state === 'fixing' ? [item.id] : [])}
+          selectionDisabled={state === 'fixing'}
+          decisionSelections={{}}
+          expandedDecisionIds={new Set()}
+        />,
+      );
+      const trigger = container.querySelector<HTMLElement>('.deep-review-action-bar__remediation-text')!;
+      expect(trigger.hasAttribute('title')).toBe(false);
+      act(() => {
+        trigger.dispatchEvent(new dom.window.MouseEvent('mouseover', { bubbles: true }));
+        vi.advanceTimersByTime(500);
+      });
+      act(() => { vi.advanceTimersByTime(32); });
+      const tooltip = document.querySelector('[role="tooltip"]');
+      if (!originalTitle) {
+        expect(tooltip).toBeNull();
+        return;
+      }
+      expect(tooltip?.textContent).toBe(item.plan);
+      expect(tooltip?.getAttribute('data-bf-state')).toBe('visible');
+      expect(tooltip?.closest('[data-bf-overlay-host="true"]')).not.toBeNull();
+      act(() => {
+        trigger.dispatchEvent(new dom.window.MouseEvent('mouseout', { bubbles: true }));
+      });
+      expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    },
+  );
 
   it('keeps the tree visible but disables selection while fixing', () => {
     const onToggleRemediation = vi.fn();
