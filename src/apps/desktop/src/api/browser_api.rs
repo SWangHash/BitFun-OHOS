@@ -19,7 +19,6 @@ use openbitfun_core::agentic::tools::browser_control::BuiltInBrowserTarget;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
-use serde::Serialize;
 use tauri::Manager;
 
 const VIDEO_DECODER_MODE_ENV: &str = "OPENBITFUN_BROWSER_VIDEO_DECODER_MODE";
