@@ -57,6 +57,17 @@ function origin(listingId: string, releaseNumber: number): InstalledMarketOrigin
 }
 
 describe('buildMiniAppLibraryItems', () => {
+  it('preserves install identity when metadata arrives without colliding with another copy', () => {
+    const apps = [app('first'), app('second')];
+    const origins = { first: origin('shared', 1), second: origin('shared', 1) };
+    const before = buildMiniAppLibraryItems([], apps, origins);
+    const after = buildMiniAppLibraryItems([listing('shared', 2)], apps, origins);
+    for (const items of [before, after]) {
+      expect(items.find(item => item.app?.id === 'first')?.key).toBe('market:shared');
+      expect(items.find(item => item.app?.id === 'second')?.key).toBe('local:second');
+      expect(new Set(items.map(item => item.key)).size).toBe(items.length);
+    }
+  });
   it('joins installed marketplace apps and projects App Store actions', () => {
     const installed = app('local-market-id');
     const result = buildMiniAppLibraryItems(
@@ -154,7 +165,7 @@ describe('buildMiniAppLibraryItems', () => {
 
     expect(result.map((item) => item.key)).toEqual([
       'market:duplicate',
-      'local:off-page-install',
+      'market:off-page-listing',
     ]);
     expect(result[1]).toMatchObject({
       action: 'open',

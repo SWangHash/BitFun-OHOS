@@ -1,6 +1,16 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "无法打开授权页面，请重试。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not open the authorization page. Please try again."
+          }
+        }
+      }
+    },
     "OpenBitFun 桌面版": {
       "localizations": {
         "en": {
@@ -4061,16 +4071,6 @@
         }
       }
     },
-    "这台电脑暂时无法读取": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This computer cannot be read right now"
-          }
-        }
-      }
-    },
     "还有 %lld 台设备": {
       "localizations": {
         "en": {
@@ -7907,6 +7907,132 @@
           "stringUnit": {
             "state": "translated",
             "value": "该设备已离线，或不属于当前 GitHub 账户。"
+          }
+        }
+      }
+    },
+    "极简": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Minimal"
+          }
+        }
+      }
+    },
+    "标准": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard"
+          }
+        }
+      }
+    },
+    "极致": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ultimate"
+          }
+        }
+      }
+    },
+    "任务已完成": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Task completed"
+          }
+        }
+      }
+    },
+    "打开 OpenBitFun 查看结果。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open OpenBitFun to view the result."
+          }
+        }
+      }
+    },
+    "开启任务完成提醒": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Task completion notifications"
+          }
+        }
+      }
+    },
+    "稍后": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Later"
+          }
+        }
+      }
+    },
+    "开启通知": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable notifications"
+          }
+        }
+      }
+    },
+    "允许 OpenBitFun 在任务完成时发送通知。你可以稍后在系统设置中更改。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow OpenBitFun to notify you when tasks finish. You can change this later in system settings."
+          }
+        }
+      }
+    },
+    "通知": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications"
+          }
+        }
+      }
+    },
+    "任务完成通知": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Task completion notifications"
+          }
+        }
+      }
+    },
+    "使用 GitHub 登录并连接自己的电脑。\n任务和模型配置保留在被控电脑上。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in with GitHub to connect to your computers.\nTasks and model settings stay on the controlled computer."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 GitHub 登录并连接自己的电脑。\n任务和模型配置保留在被控电脑上。"
           }
         }
       }

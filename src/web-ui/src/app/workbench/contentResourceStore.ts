@@ -9,7 +9,9 @@ export { resourceFilePath } from '@/shared/utils/resourcePath';
 const FILE_TYPES = new Set(['code-editor', 'code-viewer', 'file-viewer', 'text-viewer',
   'markdown-editor', 'image-viewer', 'pdf-viewer', 'html-preview']);
 export const isFileResourceContent = (content: PanelContent): boolean =>
-  FILE_TYPES.has(content.type) && typeof content.data?.filePath === 'string' && content.data.filePath.length > 0;
+  FILE_TYPES.has(content.type) && typeof content.data?.filePath === 'string' && content.data.filePath.length > 0
+    // Dispatch URLs identify supplied snapshots, not files on this surface.
+    && !content.data.filePath.startsWith('dispatch-file://');
 
 let sequence = 0;
 

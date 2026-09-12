@@ -31,6 +31,7 @@ export function SkillGroupEditor({ draft, skills, catalogReady, saving, onClose,
   const { t: tComponents } = useI18n('components');
   const nameId = useId();
   const errorId = useId();
+  const [open, setOpen] = useState(true);
   const [name, setName] = useState(draft.group.name);
   const [skillKeys, setSkillKeys] = useState(draft.group.skillKeys);
   const [query, setQuery] = useState('');
@@ -69,7 +70,7 @@ export function SkillGroupEditor({ draft, skills, catalogReady, saving, onClose,
         confirmingClose.current = false;
       }
     }
-    onClose();
+    setOpen(false);
   };
 
   const save = async () => {
@@ -79,7 +80,7 @@ export function SkillGroupEditor({ draft, skills, catalogReady, saving, onClose,
     setError(null);
     try {
       await onSave({ ...draft.group, name, skillKeys });
-      onClose();
+      setOpen(false);
     } catch (saveError) {
       if (!isSurfaceChangedError(saveError)) setError(skillGroupErrorMessage(saveError, t, 'save'));
     } finally {
@@ -88,7 +89,7 @@ export function SkillGroupEditor({ draft, skills, catalogReady, saving, onClose,
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) void close(); }} size="lg" data-testid="skill-group-editor">
+    <Dialog open={open} onOpenChange={nextOpen => { if (!nextOpen) void close(); }} onExitComplete={onClose} size="lg" data-testid="skill-group-editor">
       <DialogHeader>
         <DialogHeading>
           <DialogTitle>{draft.readOnly ? draft.group.name : t(draft.original ? 'groups.edit' : 'groups.create')}</DialogTitle>

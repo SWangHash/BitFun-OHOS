@@ -1,3 +1,4 @@
+import { GripHorizontal as LucideGripHorizontal, GripVertical as LucideGripVertical } from 'lucide-react';
 /**
  * SessionScene — Session scene layout.
  *
@@ -540,14 +541,7 @@ const SessionScene: React.FC<SessionSceneProps> = ({
           >
             <div className="openbitfun-pane-resizer__line" />
             <div className="openbitfun-pane-resizer__handle">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="openbitfun-pane-resizer__icon">
-                <circle cx="6" cy="4" r="1" fill="currentColor" />
-                <circle cx="6" cy="8" r="1" fill="currentColor" />
-                <circle cx="6" cy="12" r="1" fill="currentColor" />
-                <circle cx="10" cy="4" r="1" fill="currentColor" />
-                <circle cx="10" cy="8" r="1" fill="currentColor" />
-                <circle cx="10" cy="12" r="1" fill="currentColor" />
-              </svg>
+              <LucideGripVertical width="16" height="16" className="openbitfun-pane-resizer__icon" aria-hidden="true" />
             </div>
           </div>
         )}
@@ -606,14 +600,7 @@ const SessionScene: React.FC<SessionSceneProps> = ({
           >
             <div className="openbitfun-bottom-pane-resizer__line" />
             <div className="openbitfun-bottom-pane-resizer__handle">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="openbitfun-bottom-pane-resizer__icon">
-                <circle cx="4" cy="6" r="1" fill="currentColor" />
-                <circle cx="8" cy="6" r="1" fill="currentColor" />
-                <circle cx="12" cy="6" r="1" fill="currentColor" />
-                <circle cx="4" cy="10" r="1" fill="currentColor" />
-                <circle cx="8" cy="10" r="1" fill="currentColor" />
-                <circle cx="12" cy="10" r="1" fill="currentColor" />
-              </svg>
+              <LucideGripHorizontal width="16" height="16" className="openbitfun-bottom-pane-resizer__icon" aria-hidden="true" />
             </div>
           </div>
 

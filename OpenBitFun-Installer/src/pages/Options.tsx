@@ -1,3 +1,8 @@
+import {
+  ChevronLeft as LucideChevronLeft,
+  ChevronRight as LucideChevronRight,
+  Folder as LucideFolder,
+} from 'lucide-react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
@@ -137,18 +142,7 @@ export function Options({
           ) : null}
           <div style={{ marginBottom: 20 }}>
             <div className="section-label">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>
+              <LucideFolder width="14" height="14" stroke="currentColor" aria-hidden="true" />
               {t('options.pathLabel')}
             </div>
             <div className="input-group">
@@ -218,18 +212,7 @@ export function Options({
 
       <div className="page-footer page-footer--split">
         <button className="btn btn-ghost" type="button" disabled={isInstalling} onClick={onBack}>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
+          <LucideChevronLeft width="14" height="14" stroke="currentColor" aria-hidden="true" />
           {t('options.changeLanguage')}
         </button>
         <button
@@ -243,18 +226,7 @@ export function Options({
           }
         >
           {isInstalling ? t('options.installing') : t('options.install')}
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
+          <LucideChevronRight width="14" height="14" stroke="currentColor" aria-hidden="true" />
         </button>
       </div>
     </div>

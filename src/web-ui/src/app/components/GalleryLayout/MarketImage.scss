@@ -1,0 +1,14 @@
+.market-image {
+  opacity: 0;
+  transition: opacity var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+
+  &[data-loaded] {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .market-image {
+    transition: none;
+  }
+}

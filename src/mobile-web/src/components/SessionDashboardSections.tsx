@@ -1,3 +1,4 @@
+import { ChevronRight as LucideChevronRight, Search as LucideSearch, X as LucideX } from 'lucide-react';
 import React from 'react';
 import {
   MobileButton,
@@ -50,7 +51,7 @@ export const SessionLaunchPanel: React.FC<SessionLaunchPanelProps> = ({
         <span className="session-list__create-desc">{description}</span>
       </div>
       <span className="session-list__create-arrow" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        <LucideChevronRight width="16" height="16" stroke="currentColor" aria-hidden="true" />
       </span>
     </MobileButton>
   );
@@ -134,7 +135,7 @@ export const SessionHistoryPanel: React.FC<SessionHistoryPanelProps> = ({
       </div>
 
       <div className="session-list__search">
-        <svg className="session-list__search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <LucideSearch className="session-list__search-icon" width="16" height="16" stroke="currentColor" aria-hidden="true" />
         <MobileTextField
           appearance="surface"
           className="session-list__search-field"
@@ -154,7 +155,7 @@ export const SessionHistoryPanel: React.FC<SessionHistoryPanelProps> = ({
             onClick={() => onSearchQueryChange('')}
             aria-label="Clear"
             disabled={targetInitializing}
-            icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>}
+            icon={<LucideX width="16" height="16" stroke="currentColor" aria-hidden="true" />}
           />
         )}
       </div>

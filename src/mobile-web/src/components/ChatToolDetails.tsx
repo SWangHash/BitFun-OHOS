@@ -1,3 +1,4 @@
+import { X as LucideX } from 'lucide-react';
 import React, { useState } from 'react';
 import { MobileButton, MobileIconButton, MobileSheet } from '@openbitfun/ui/mobile';
 import { useI18n } from '../i18n';
@@ -19,7 +20,7 @@ export default function ChatToolDetails({ tool, label }: { tool: RemoteToolStatu
         onOpenChange={setOpen}
         title={tool.name}
         className="chat-tool-details"
-        headerAction={<MobileIconButton appearance="plain" aria-label={t('common.close')} onClick={() => setOpen(false)} icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>} />}
+        headerAction={<MobileIconButton appearance="plain" aria-label={t('common.close')} onClick={() => setOpen(false)} icon={<LucideX stroke="currentColor" aria-hidden="true" />} />}
       >
         <h3>{t('chat.toolRequest')}</h3>
         {tool.tool_input == null && <p>{t(text ? 'chat.requestPreview' : 'chat.requestUnavailable')}</p>}

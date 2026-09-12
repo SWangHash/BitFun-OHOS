@@ -2,7 +2,7 @@ import { OverflowText, Icon, IconButton } from '@openbitfun/ui';
 import React from 'react';
 import { Play, Square } from 'lucide-react';
 import type { MiniAppMeta } from '@/infrastructure/api/service-api/MiniAppAPI';
-import { getMiniAppIconAsset, renderMiniAppIcon } from '../utils/miniAppIcons';
+import { renderMiniAppIcon } from '../utils/miniAppIcons';
 import { pickLocalizedString, pickLocalizedTags } from '../utils/pickLocalizedString';
 import { useI18n } from '@/infrastructure/i18n';
 import './MiniAppCard.scss';
@@ -40,7 +40,6 @@ const MiniAppCard: React.FC<MiniAppCardProps> = ({
   const localizedTags = pickLocalizedTags(app, currentLanguage);
   const displayedTags = localizedTags.slice(0, 4);
   const overflowTags = localizedTags.slice(4);
-  const iconAsset = getMiniAppIconAsset(app.id);
 
   const handleStopClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -91,9 +90,7 @@ const MiniAppCard: React.FC<MiniAppCardProps> = ({
         <div className="miniapp-card__header" data-openbitfun-component="mini-app-card" data-openbitfun-part="header">
           <div className="miniapp-card__icon-area" data-openbitfun-component="mini-app-card" data-openbitfun-part="iconArea">
             <div className="miniapp-card__icon" data-openbitfun-component="mini-app-card" data-openbitfun-part="icon">
-              {iconAsset ? (
-                <img className="miniapp-card__icon-image" src={iconAsset} alt="" aria-hidden="true" />
-              ) : renderMiniAppIcon(app.icon || 'box', 40)}
+              {renderMiniAppIcon(app.icon || 'box', 40)}
             </div>
           </div>
           <div className="miniapp-card__header-actions">

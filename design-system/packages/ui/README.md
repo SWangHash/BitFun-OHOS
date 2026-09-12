@@ -18,6 +18,12 @@ export function Example() {
 
 The package owns component anatomy, behavior, accessibility, and stable variants. It does not own theme selection persistence, product state, routes, locale resources, or platform APIs.
 
+Floating dialog/sheet overlays, menu popovers, select/combobox popups and tooltips declare
+`data-openbitfun-native-webview-occlusion` on their rendered floating surface.
+Native hosts use its visible bounds to temporarily hide overlapping child views;
+the components do not call platform APIs. Custom product popovers should declare
+the same marker on the floating element, including while its exit animation runs.
+
 ## Voice calls
 
 `VoiceCallPanel` owns the complete compact call surface: navigation, particle
@@ -274,47 +280,35 @@ circle with a 16px glyph. Quiet and outline controls use the shared neutral
 hover surface for both hover and pressed states; outline keeps its border when
 disabled. Existing sm/md/lg sizes and the default sm size remain available.
 
-The 62 reviewed single-path, single-tone masks have opaque paths.
-`Icon` and `SessionIcon` retain their original 80% artwork opacity standalone;
-Button, IconButton, ActionItem and TabGroup slots own this opacity in controls
-through the public `--openbitfun-opacity-icon-artwork` contract. Button trailing
-slots use half the content opacity and restore full disabled content opacity.
-The progress-25 and legacy turn assets retain their internal transparency.
-Product callers should not add opacity or dimensions inside these owned slots.
+General-purpose icons use **Lucide**. Named icons and explicit `glyph` icons
+share a 1.6 line weight, semantic sizing, theme color and accessibility behavior.
+Only `minimal`, `standard`, `ultimate`, `creative` and `git` retain reviewed
+SVG masks. Product logos and mascots are separate brand artwork. The device
+overview retains its original device/server SVGs and MacBook image in the Web UI.
 
-The catalog uses exported vectors, including their view boxes and per-path
-opacity. Theme colors remain caller-owned through `currentColor`. Asset
-fingerprints are reviewed with intentional resource updates so replacing a
-glyph with a similarly named substitute cannot pass unnoticed.
-
-Prefer a catalog `name` whenever it is an exact semantic match. When the
-catalog has no matching symbol, pass the Lucide component through `glyph` so
-the shared boundary applies the standard 1.6 line weight, semantic sizing,
-tone and accessibility behavior:
+Use a semantic `name` when available, or import the required Lucide glyph:
 
 ```tsx
 import { Icon } from "@openbitfun/ui";
 import { Network } from "lucide-react";
 
+<Icon name="search" size="sm" />
 <Icon glyph={Network} size="sm" />
 ```
 
-Do not set `strokeWidth` at product call sites. Let a button, menu, tab or
-navigation slot own the final glyph geometry; use `size` only for standalone
-icons. Raw Lucide rendering remains appropriate for intentionally filled
-marks, progress indicators, illustrations, or a reviewed optical exception.
+Do not set `strokeWidth` at product call sites. Button, menu, tab and navigation
+slots own final geometry and opacity; standalone named icons retain the public
+`--openbitfun-opacity-icon-artwork` treatment. Brand assets retain their original
+geometry, and fixture fingerprints protect the five preserved masks.
 
-Use `canonicalIconNames` for galleries and pickers. `iconNames` also keeps the
-legacy `download`, `circle` and `turn` entries for compatibility; prefer
-`arrow-down`, `unselected` and `<NumberBadge value={18} />` respectively.
-`turn` is only the old empty background, not a complete numbered marker.
-`NumberBadge` owns a 24px filled surface and 11px regular text; longer
-values grow horizontally. Callers supply formatted values and contextual
-accessible labels. `ToolbarBadge` delegates to the same anatomy.
+Use `canonicalIconNames` for galleries and pickers. Existing names remain
+compatible: `download` aliases `arrow-down`, `circle` aliases `unselected`,
+and legacy `turn` renders a Lucide circle. Use `NumberBadge` for numbered
+markers; it owns a 24px filled surface and 11px regular text, growing horizontally
+for longer values. `ToolbarBadge` delegates to the same anatomy.
 
-Use `Icon name="session"` in new consumers. `SessionIcon` retains its SVG
-interface for existing integrations, with geometry checked against the same
-catalog asset.
+Use `Icon name="session"` in new consumers. `SessionIcon` keeps its SVG props
+and ref interface, using the same Lucide MessageCircle glyph.
 
 ## Advanced selection and menus
 
@@ -468,6 +462,8 @@ Compact tabs use `size="sm"` (30px, 14px icons, 4px icon gap); standard tabs ret
 Dialog titles use 24px bold type with their own 29px line box and normal tracking. `DialogHeader` and `DialogFooter` omit separators by default; pass `separator` for a deliberate divider. A direct `DialogBody` sibling of `DialogFooter appearance="floating"` owns the trailing scroll inset automatically. The floating footer provides the 68px centered action area and a masked blur/gradient using the current theme surface; reduced transparency and forced colors use an opaque fallback. Keep scrollable form content inside `DialogBody` instead of adding a second viewport with independent footer spacing.
 
 Extra-large (`xl`) dialogs have an 800px maximum width and continue shrinking within the viewport gutter. Provider editing uses the floating footer; small workspace creation retains its attached footer and existing button/input sizes. The Lab workspace pattern uses local sample paths and callbacks only.
+
+Keep `Dialog` and `Sheet` mounted and set `open={false}` to close them. They retain the last committed children during the exit animation, with interaction disabled, so clearing an owner selection does not collapse the surface. Reopening uses the latest children and cancels the pending exit. Owners that conditionally mount an editor can remove it in `onExitComplete`, which runs once after the surface unmounts.
 
 PageHeader `md` uses the settings title with a primary 15px description; `display` uses the welcome heading and medium 17px introduction with a 12px gap. ActionCard uses 12px padding, section-heading typography (15px semibold), and a primary 13px single-line action description. Its inset outline does not inflate the 62px medium minimum height; longer content keeps the independent sibling actions and OverflowText behavior.
 

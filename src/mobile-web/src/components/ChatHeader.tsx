@@ -1,3 +1,4 @@
+import { Ellipsis as LucideEllipsis, Menu as LucideMenu } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { MobileButton, MobileIconButton } from '@openbitfun/ui/mobile';
 import { useI18n } from '../i18n';
@@ -68,9 +69,7 @@ export default function ChatHeader({
           aria-label={t('common.back')}
           className="chat-page__back"
           icon={(
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M5 8H19M5 16H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
+            <LucideMenu width="20" height="20" aria-hidden="true" />
           )}
           onClick={onBack}
           tabIndex={wideLayout ? -1 : undefined}
@@ -102,11 +101,7 @@ export default function ChatHeader({
             aria-label={t('common.more')}
             className="chat-page__theme-btn"
             icon={(
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <circle cx="5" cy="12" r="1.8" />
-                <circle cx="12" cy="12" r="1.8" />
-                <circle cx="19" cy="12" r="1.8" />
-              </svg>
+              <LucideEllipsis width="22" height="22" aria-hidden="true" />
             )}
             onClick={() => setMenuOpen((open) => !open)}
           />

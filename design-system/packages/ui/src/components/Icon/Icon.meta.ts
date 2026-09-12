@@ -2,7 +2,7 @@ import type { ComponentMeta } from "../../registry.types";
 
 export const iconMeta = {
   category: "primitive",
-  description: "A semantic icon boundary for the reviewed catalog and normalized line-glyph fallbacks.",
+  description: "Lucide icons with shared size, tone and accessibility; authored artwork is reserved for the four harness modes and Git branch.",
   maturity: "stable",
   name: "Icon",
   props: [

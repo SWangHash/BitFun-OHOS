@@ -6,7 +6,7 @@ import ts from 'typescript';
 async function loadSource(relativePath, imports = {}) {
   const source = await readFile(new URL(relativePath, import.meta.url), 'utf8');
   let code = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 },
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.React },
   }).outputText;
   code = code.replace(/from (['"])([^'"]+)\1/g, (_, quote, specifier) => (
     `from ${JSON.stringify(imports[specifier] ?? import.meta.resolve(specifier))}`
@@ -80,7 +80,7 @@ test('online selection preserves exact QR targeting and supports later device av
   assert.equal(selectAccountDevice([reconnected, online], 'browser', offline.device_id), reconnected);
 });
 
-test('GitHub login registers an independent device public key and reuses the device key across sign-ins', async () => {
+test('GitHub login registers the browser store key without generating another identity', async () => {
   const encryption = await loadSource('../src/services/E2EEncryption.ts');
   const { deriveDeviceMessageKey } = await import(encryption.url);
   const { x25519 } = await import('@noble/curves/ed25519.js');
@@ -90,9 +90,7 @@ test('GitHub login registers an independent device public key and reuses the dev
   const originalWindow = globalThis.window;
   const requests = [];
   globalThis.window = { setTimeout, clearTimeout };
-  const originalStorage = globalThis.sessionStorage;
-  const keys = new Map();
-  globalThis.sessionStorage = { getItem: key => keys.get(key) ?? null, setItem: (key, value) => keys.set(key, value) };
+  const browserPrivateKey = new Uint8Array(32).fill(7);
   globalThis.fetch = async (url, options) => {
     assert.equal(url, 'https://remote.openbitfun.com/v/1.0.0/api/auth/login');
     const body = JSON.parse(options.body);
@@ -104,8 +102,8 @@ test('GitHub login registers an independent device public key and reuses the dev
     return Response.json({ token: 'test-account-token', user_id: '101' });
   };
   try {
-    const first = await new CloudAccountClient('https://remote.openbitfun.com/v/1.0.0').login('verified-github-token', 'browser');
-    const second = await new CloudAccountClient('https://remote.openbitfun.com/v/1.0.0').login('verified-github-token', 'browser');
+    const first = await new CloudAccountClient('https://remote.openbitfun.com/v/1.0.0').login('verified-github-token', 'browser', browserPrivateKey);
+    const second = await new CloudAccountClient('https://remote.openbitfun.com/v/1.0.0').login('verified-github-token', 'browser', browserPrivateKey);
     assert.equal(first.userId, '101');
     assert.deepEqual(first.masterKey, second.masterKey);
     assert.equal(requests[0].public_key, requests[1].public_key);
@@ -115,7 +113,6 @@ test('GitHub login registers an independent device public key and reuses the dev
     assert.throws(() => deriveDeviceMessageKey(first.masterKey, new Uint8Array(32)));
     assert.equal(Buffer.from(deriveDeviceMessageKey(new Uint8Array(32).fill(7), x25519.getPublicKey(new Uint8Array(32).fill(11)))).toString('hex'), '6e8f5da837e91e9ddb09c5aa7dee229e731fc94499d29d10dcf5f1437193f56c');
   } finally {
-    globalThis.sessionStorage = originalStorage;
     globalThis.fetch = originalFetch;
     if (originalWindow === undefined) delete globalThis.window;
     else globalThis.window = originalWindow;
@@ -125,7 +122,8 @@ test('GitHub login registers an independent device public key and reuses the dev
 test('account UI entry precedes discovery and mounts no remote workspace surface', async () => {
   const pairing = await readFile(new URL('../src/pages/PairingPage.tsx', import.meta.url), 'utf8');
   const direct = pairing.slice(pairing.indexOf('const connect ='), pairing.indexOf('  useEffect('));
-  assert.match(direct, /saveCloudAccountSession/);
+  assert.doesNotMatch(direct, /saveSession|saveCloudAccountSession/, 'restoring account state must not republish a new login');
+  assert.match(pairing, /accountStore\.saveSession\(browser, candidate, isCurrent\)/);
   assert.match(direct, /store\.setControlTarget\(null\)/);
   assert.match(direct, /onPairedRef\.current/);
   assert.doesNotMatch(direct, /listDevices\(|sendDeviceRpc\(|\.online|throw new Error/);
@@ -244,4 +242,74 @@ test('GitHub profile ignores corrupt/foreign cache and stale account responses',
         return { ok: true, json: async () => githubUser };
       });
   }
+});
+
+
+function memoryStorage() {
+  const entries = new Map();
+  return {
+    getItem: key => entries.get(key) ?? null,
+    setItem: (key, value) => entries.set(key, value),
+    removeItem: key => entries.delete(key),
+  };
+}
+
+const encryptionModule = await loadSource('../src/services/E2EEncryption.ts');
+const accountStoreModule = await loadSource('../src/services/CloudAccountSessionStore.ts', {
+  './E2EEncryption': encryptionModule.url, './pairingLink': links.url,
+});
+const accountStore = await import(accountStoreModule.url);
+const storedAccount = {
+  relayUrl: 'http://192.168.1.9:9700', username: '123', controllerDeviceId: 'browser-a',
+  session: { token: 'test-token', userId: '123', masterKey: new Uint8Array(32).fill(7) },
+};
+
+test('legacy v2 account proof remains readable and scoped for migration', () => {
+  const storage = memoryStorage();
+  const legacy = JSON.stringify({
+    version: 2, relay_url: storedAccount.relayUrl, username: '123', token: 'test-token',
+    user_id: '123', device_secret: Buffer.alloc(32, 7).toString('base64'), controller_device_id: 'browser-a',
+  });
+  storage.setItem('openbitfun.mobile.account_session.v2', legacy);
+  const restored = accountStore.loadMatchingCloudAccountSession(storedAccount.relayUrl, '', 'browser-a', storage);
+  assert.deepEqual(restored, storedAccount);
+  accountStore.saveCloudAccountSession(restored, storage);
+  assert.deepEqual(JSON.parse(storage.getItem('openbitfun.mobile.account_session.v2')), JSON.parse(legacy));
+  for (const [relay, username, controllerId] of [
+    ['https://remote.openbitfun.com/v/1.0.0', '', 'browser-a'],
+    [storedAccount.relayUrl, '', 'browser-b'], [storedAccount.relayUrl, '456', 'browser-a'],
+  ]) assert.equal(accountStore.loadMatchingCloudAccountSession(relay, username, controllerId, storage), null);
+  assert.equal(storage.getItem('openbitfun.mobile.account_session.v2'), legacy);
+  accountStore.clearCloudAccountSession(storage);
+  assert.equal(accountStore.loadMatchingCloudAccountSession(storedAccount.relayUrl, '', 'browser-a', storage), null);
+  for (const raw of ['{', JSON.stringify({ version: 99 })]) {
+    storage.setItem('openbitfun.mobile.account_session.v2', raw);
+    assert.equal(accountStore.loadMatchingCloudAccountSession(storedAccount.relayUrl, '', 'browser-a', storage), null);
+    assert.equal(storage.getItem('openbitfun.mobile.account_session.v2'), raw);
+  }
+});
+
+
+test('presence uses the authenticated browser ID across managers, tabs and reloads', async () => {
+  const module = await loadSource('../src/services/controlClientIdentity.ts');
+  const { getControlClientIdentity } = await import(module.url);
+  const identity = getControlClientIdentity('browser-device-a');
+  assert.equal(identity.id, 'browser-device-a');
+  assert.ok(identity.name);
+  const { getControlClientIdentity: reloaded } = await import(`${module.url}#reloaded`);
+  assert.deepEqual(reloaded('browser-device-a'), identity);
+  assert.notEqual(reloaded('browser-device-b').id, identity.id);
+});
+
+test('tab navigation preserves explicit disconnect and migrates only a matching legacy controller', async () => {
+  const { migrateMobileNavigationController } = await import(navigationModule.url);
+  const storage = memoryStorage();
+  const scope = { accountId: 'account-a', controllerDeviceId: 'tab-a', relayUrl: storedAccount.relayUrl, routeKey: '/' };
+  saveMobileNavigation(scope, { deviceId: 'desktop-a', disconnected: true }, storage);
+  migrateMobileNavigationController('other-account', scope.relayUrl, 'tab-a', 'browser-a', storage);
+  assert.equal(loadMobileNavigation({ ...scope, controllerDeviceId: 'browser-a' }, storage), null);
+  migrateMobileNavigationController(scope.accountId, scope.relayUrl, 'tab-a', 'browser-a', storage);
+  assert.deepEqual(loadMobileNavigation({ ...scope, controllerDeviceId: 'browser-a' }, storage), {
+    deviceId: 'desktop-a', disconnected: true, session: undefined,
+  });
 });

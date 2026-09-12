@@ -1,4 +1,4 @@
-import { MobileDesignTypography } from '../../generated/MobileDesignTokens';
+import { MobileDesignGeometry, MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { DEFAULT_CLOUD_RELAY_URL } from '../../services/CloudAccountClient';
 import {
@@ -35,7 +35,7 @@ export struct OpenBitFunAccountLoginPage {
 
   build() {
     Column({ space: 0 }) {
-      SheetCloseHeader({ onClose: this.onClose })
+      SheetCloseHeader({ onClose: this.onClose, uniformGlyph: true })
 
       Scroll() {
         Column() {
@@ -46,18 +46,18 @@ export struct OpenBitFunAccountLoginPage {
           left: SHEET_HORIZONTAL_PADDING,
           right: SHEET_HORIZONTAL_PADDING,
           top: 0,
-          bottom: SHEET_CONTENT_BOTTOM_PADDING
+          bottom: 0
         })
         .alignItems(HorizontalAlign.Center)
       }
       .width('100%')
-      .layoutWeight(1)
       .scrollBar(BarState.Off)
 
       SheetActionFooter({
         label: this.isBusy ? RemoteI18n.t('remote.settings.accountSigningIn') :
           RemoteI18n.t('remote.settings.accountSignIn'),
         primary: true,
+        elevated: false,
         isEnabled: this.canSubmit(),
         onAction: (): void => {
           void this.submit();
@@ -65,7 +65,7 @@ export struct OpenBitFunAccountLoginPage {
       })
     }
     .width('100%')
-    .height('100%')
+
   }
 
   @Builder
@@ -85,7 +85,7 @@ export struct OpenBitFunAccountLoginPage {
         .fontColor(MUTED)
         .width('100%')
         .textAlign(TextAlign.Center)
-        .margin({ top: 8, bottom: 24 })
+        .margin({ top: 8 })
 
 
       if (this.errorText.length > 0) {
@@ -98,7 +98,7 @@ export struct OpenBitFunAccountLoginPage {
       }
     }
     .width('100%')
-    .constraintSize({ maxWidth: SHEET_CONTENT_MAX_WIDTH })
+    .constraintSize({ maxWidth: SHEET_CONTENT_MAX_WIDTH, minHeight: MobileDesignGeometry.loginSheetBodyMinHeight })
     .alignItems(HorizontalAlign.Center)
   }
 

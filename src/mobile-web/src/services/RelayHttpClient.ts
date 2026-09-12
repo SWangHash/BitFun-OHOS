@@ -33,6 +33,7 @@ export class RelayHttpClient {
   private identityGeneration = 0;
   private accountEpochValue = 0;
   private ownerListeners = new Set<(change: AccountOwnerChange) => void>();
+  private authorizationExpiredListeners = new Set<(token: string) => void>();
   private targetDeviceIdValue: string | null = null;
   private controlTargetEpochValue = 0;
   private controlTargetListeners = new Set<(snapshot: ControlTargetSnapshot) => void>();
@@ -72,6 +73,10 @@ export class RelayHttpClient {
     this.ownerListeners.add(listener);
     if (options?.emitCurrent && this.identity) listener({ kind: 'initial', epoch: this.accountEpochValue, userId: this.identity.userId });
     return () => this.ownerListeners.delete(listener);
+  }
+  onAuthorizationExpired(listener: (token: string) => void): () => void {
+    this.authorizationExpiredListeners.add(listener);
+    return () => this.authorizationExpiredListeners.delete(listener);
   }
   get hasAccountIdentity(): boolean { return this.identity !== null; }
   get accountEpoch(): number { return this.accountEpochValue; }
@@ -273,6 +278,11 @@ export class RelayHttpClient {
       return result;
     } catch (error) {
       if (this.identity !== identity) throw new AccountIdentityChangedError();
+      // Only a transport-level HTTP 401 invalidates account proof. An encrypted
+      // remote tool error containing "401" must never sign the browser out.
+      if ((error as { status?: number })?.status === 401) {
+        for (const listener of this.authorizationExpiredListeners) listener(identity.token);
+      }
       throw error;
     }
   }

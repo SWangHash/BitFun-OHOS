@@ -2,12 +2,12 @@
   "schemaVersion": 2,
   "generatedFrom": "src/shared/interactive-capabilities/catalog.json",
   "catalogDigest": "896281a3cd5cac2b50ec607988e04624224444911ddb2d58ba59a5d7d06493c5",
-  "commandCount": 643,
+  "commandCount": 645,
   "coverage": {
-    "commandCount": 643,
-    "documentedCommandCount": 607,
-    "implementationCommandCount": 36,
-    "implementationDigest": "c9bbc0f2ca3695d8c18cff285386edeba7bcf3b11120adb57509a80b09ee3297"
+    "commandCount": 645,
+    "documentedCommandCount": 608,
+    "implementationCommandCount": 37,
+    "implementationDigest": "3c5e64b6ff16d55d95c2a6b4f77046be009a554b395b4a52bf8ed7c162ab1093"
   },
   "commands": [
     {
@@ -710,6 +710,22 @@
       "rustPath": "api::browser_api::browser_get_url",
       "sourceFile": "src/apps/desktop/src/api/browser_api.rs",
       "signature": "fn browser_get_url( app: tauri::AppHandle, request: WebviewLabelRequest, ) -> Result<String, String>",
+      "remoteWorkspacePolicy": "LocalOnly"
+    },
+    {
+      "id": "browser_webview_capture_preview",
+      "moduleId": "browser",
+      "capabilityId": "feature.browser",
+      "capabilityIds": [
+        "feature.browser"
+      ],
+      "documentedItemIds": [
+        "feature.browser:embedded-webview"
+      ],
+      "visibility": "documented",
+      "rustPath": "api::browser_api::browser_webview_capture_preview",
+      "sourceFile": "src/apps/desktop/src/api/browser_api.rs",
+      "signature": "fn browser_webview_capture_preview( app: tauri::AppHandle, request: WebviewLabelRequest, ) -> Result<WebviewPreviewResponse, String>",
       "remoteWorkspacePolicy": "LocalOnly"
     },
     {
@@ -5238,6 +5254,18 @@
       "rustPath": "openbitfun_control_host::mark_openbitfun_control_surface_unready",
       "sourceFile": "src/apps/desktop/src/openbitfun_control_host.rs",
       "signature": "fn mark_openbitfun_control_surface_unready()",
+      "remoteWorkspacePolicy": "WorkspaceAgnostic"
+    },
+    {
+      "id": "market_image_load",
+      "moduleId": "market_image",
+      "capabilityId": null,
+      "capabilityIds": [],
+      "documentedItemIds": [],
+      "visibility": "internal",
+      "rustPath": "api::market_image_api::market_image_load",
+      "sourceFile": "src/apps/desktop/src/api/market_image_api.rs",
+      "signature": "fn market_image_load( app: tauri::AppHandle, request: MarketImageRequest, ) -> Result<tauri::ipc::Response, String>",
       "remoteWorkspacePolicy": "WorkspaceAgnostic"
     },
     {

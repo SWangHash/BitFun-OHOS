@@ -138,9 +138,11 @@ export abstract class AppRootRuntimeComposition {
   abstract toggleVoiceInput(): Promise<void>;
 
   readonly sessionManager: RemoteSessionManager = new RemoteSessionManager();
+  readonly taskCompletionNotificationPort: HarmonyTaskCompletionNotificationPort =
+    new HarmonyTaskCompletionNotificationPort((): Context => this.host.context());
   readonly taskCompletionNotificationController: TaskCompletionNotificationController =
     new TaskCompletionNotificationController(
-      new HarmonyTaskCompletionNotificationPort((): Context => this.host.context()),
+      this.taskCompletionNotificationPort,
       (observation: TaskCompletionObservation): void => {
         if (observation.source === 'remote') {
           this.remoteChatPollingLifecycleController.stop();

@@ -1555,7 +1555,7 @@ impl ConversationCoordinator {
     /// bound": a remote binding whose provider cannot be built is an error,
     /// because a context without workspace services would otherwise fall back
     /// to the controller filesystem for a remote session.
-    async fn build_workspace_services(
+    pub(crate) async fn build_workspace_services(
         binding: &Option<WorkspaceBinding>,
     ) -> OpenBitFunResult<Option<crate::agentic::workspace::WorkspaceServices>> {
         let Some(binding) = binding.as_ref() else {

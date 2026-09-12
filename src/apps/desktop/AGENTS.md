@@ -44,6 +44,9 @@ product wiring and compatibility bridges in `src/crates/assembly/core`.
 - Keep desktop-only integrations here; do not move them into shared core
 - Window lifecycle behavior, including close/minimize-to-tray defaults, is a
   desktop surface concern. Preserve saved user preferences when changing it.
+- `window_state_support` owns main-window geometry validation and atomic
+  persistence in the legacy `.window-state.json` format. Do not reinstall the
+  window-state plugin alongside it: the plugin's exit cache can overwrite repairs.
 
 ## Commands
 
@@ -105,6 +108,14 @@ For staged application-update cache and signature behavior, use
 `cargo test -p openbitfun-desktop --lib api::update_api::tests`.
 For peer system-info response compatibility, run
 `cargo test -p openbitfun-desktop --lib system_info_home_contract`.
+For window geometry recovery, legacy state compatibility, and snapshot persistence,
+run `cargo test -p openbitfun-desktop --lib window_state_support::tests`.
+For the matching startup wiring contract, run
+`pnpm --dir src/web-ui run test:run src/app/startup/startupPerformanceContract.test.ts`.
+For embedded browser preview encoding and target correlation, run
+`cargo test -p openbitfun-desktop --lib api::browser_api::tests`.
+After browser command registration changes, also run
+`cargo test -p openbitfun-desktop --lib remote_workspace_policy`.
 After changing updater command registration, also run
 `cargo test -p openbitfun-desktop --lib remote_workspace_policy`.
 

@@ -1,6 +1,7 @@
 import { createTauriCommandError } from '../errors/TauriCommandError';
 import { api } from './ApiClient';
 import { workspaceAPI } from './WorkspaceAPI';
+import { isMarketSummary, isStringArray, readMarketCatalog, writeMarketCatalog } from './MarketCatalogCache';
 
 export type AppearanceMarketSort = 'newest' | 'downloads';
 export type AppearanceMarketMode = 'light' | 'dark';
@@ -137,11 +138,28 @@ function isolatedArrayBuffer(value: ArrayBuffer | Uint8Array): ArrayBuffer {
 }
 
 export class AppearanceMarketAPI {
+  private catalogKey(request: AppearanceMarketBrowseRequest): string {
+    // Appearance browsing belongs to the controller even in Peer Device Mode.
+    return JSON.stringify(['local', 'appearance-market', request.query?.trim() ?? '',
+      request.mode ?? 'all', request.sort ?? 'newest', request.limit ?? 20]);
+  }
+
+  getCachedPage(request: AppearanceMarketBrowseRequest): AppearanceMarketCursorPage<AppearanceMarketListingSummary> | undefined {
+    if (request.cursor) return undefined;
+    return readMarketCatalog(this.catalogKey(request), (value): value is AppearanceMarketListingSummary => (
+      isMarketSummary(value)
+      && ['packageId', 'packageVersion', 'previewUrl'].every(key => typeof value[key] === 'string')
+      && (value.mode === 'dark' || value.mode === 'light') && isStringArray(value.requiredCapabilities)
+    ));
+  }
+
   async browse(
     request: AppearanceMarketBrowseRequest,
   ): Promise<AppearanceMarketCursorPage<AppearanceMarketListingSummary>> {
     try {
-      return await api.invoke('appearance_market_browse', { request });
+      const page = await api.invoke<AppearanceMarketCursorPage<AppearanceMarketListingSummary>>('appearance_market_browse', { request });
+      if (!request.cursor) writeMarketCatalog(this.catalogKey(request), page);
+      return page;
     } catch (error) {
       throw createTauriCommandError('appearance_market_browse', error, request);
     }

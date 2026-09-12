@@ -10,6 +10,7 @@ export interface MobileNavigationScope {
 
 export interface MobileNavigation {
   deviceId: string;
+  disconnected?: boolean;
   session?: { id: string; name: string; agentType: string };
 }
 
@@ -43,6 +44,7 @@ export function loadMobileNavigation(
     const session = record.session;
     return {
       deviceId: record.deviceId,
+      ...(record.disconnected === true ? { disconnected: true } : {}),
       session: session && typeof session.id === 'string' && session.id.trim()
         && typeof session.name === 'string' && typeof session.agentType === 'string'
         ? { id: session.id, name: session.name, agentType: canonicalAgentId(session.agentType) }
@@ -66,4 +68,21 @@ export function saveMobileNavigation(
 export function clearMobileNavigation(storage: StorageLike | null = browserStorage()): void {
   try { storage?.removeItem(STORAGE_KEY); }
   catch { /* Browser storage is optional. */ }
+}
+
+/** Preserve this tab's target when its old per-tab account joins a shared browser identity. */
+export function migrateMobileNavigationController(
+  accountId: string, relayUrl: string, previousId: string, controllerDeviceId: string,
+  storage: StorageLike | null = browserStorage(),
+): void {
+  if (previousId === controllerDeviceId) return;
+  try {
+    const raw = storage?.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const record = JSON.parse(raw);
+    if (record.version === 1 && record.accountId === accountId && record.relayUrl === relayUrl
+      && record.controllerDeviceId === previousId) {
+      storage?.setItem(STORAGE_KEY, JSON.stringify({ ...record, controllerDeviceId }));
+    }
+  } catch { /* Retain unreadable navigation without replacing it. */ }
 }

@@ -88,17 +88,16 @@ describe('startup preload shell', () => {
 
     const minimizeButton = dom.window.document.querySelector<HTMLButtonElement>('[data-startup-window-action="minimize"]');
     expect(minimizeButton?.className).toBe('window-controls__btn window-controls__btn--minimize');
-    expect(minimizeButton?.querySelector('path')?.getAttribute('d')).toBe('M1 6.5h10');
+    expect(minimizeButton?.querySelector('.lucide-minus')).not.toBeNull();
     expect(minimizeButton?.querySelectorAll('svg')).toHaveLength(1);
 
     const maximizeButton = dom.window.document.querySelector<HTMLButtonElement>('[data-startup-window-action="toggle_maximize"]');
-    const visibleMaximizePath = () => Array.from(maximizeButton?.querySelectorAll('svg') ?? [])
+    const visibleMaximizeGlyph = () => Array.from(maximizeButton?.querySelectorAll('svg') ?? [])
       .find(glyph => glyph.style.display !== 'none')
-      ?.querySelector('path')
-      ?.getAttribute('d');
+      ?.getAttribute('class');
     expect(controls?.getAttribute('data-openbitfun-state')).toBe('maximized');
     expect(maximizeButton?.getAttribute('aria-label')).toBe('还原');
-    expect(visibleMaximizePath()).toBe('M3.5 3.5v-2h7v7h-2 M1.5 3.5h7v7h-7z');
+    expect(visibleMaximizeGlyph()).toContain('lucide-copy');
 
     dom.window.document.documentElement.lang = 'zh-TW';
     await Promise.resolve();
@@ -111,7 +110,7 @@ describe('startup preload shell', () => {
     await Promise.resolve();
     expect(controls?.hasAttribute('data-openbitfun-state')).toBe(false);
     expect(maximizeButton?.getAttribute('aria-label')).toBe('最大化');
-    expect(visibleMaximizePath()).toBe('M1.5 1.5h9v9h-9z');
+    expect(visibleMaximizeGlyph()).toContain('lucide-square');
 
     const closeButton = dom.window.document.querySelector<HTMLButtonElement>('[data-startup-window-action="close"]');
     expect(closeButton?.getAttribute('aria-label')).toBe('关闭');

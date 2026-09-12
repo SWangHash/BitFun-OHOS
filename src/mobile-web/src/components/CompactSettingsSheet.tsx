@@ -1,3 +1,10 @@
+import {
+  Globe as LucideGlobe,
+  LayoutGrid as LucideLayoutGrid,
+  Moon as LucideMoon,
+  Sun as LucideSun,
+  X as LucideX,
+} from 'lucide-react';
 import AccountAvatar from './AccountAvatar';
 import React from 'react';
 import {
@@ -34,9 +41,9 @@ interface CompactSettingsSheetProps {
 
 function ThemeToggleIcon({ isDark }: { isDark: boolean }) {
   return isDark ? (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
+    <LucideMoon width="20" height="20" stroke="currentColor" aria-hidden="true" />
   ) : (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.41M17.66 6.34l1.41-1.41" /></svg>
+    <LucideSun width="20" height="20" stroke="currentColor" aria-hidden="true" />
   );
 }
 
@@ -59,7 +66,7 @@ export default function CompactSettingsSheet({
   return (
     <MobileSheet
       className="harmony-sidebar__settings-sheet"
-      headerAction={<MobileIconButton appearance="plain" size="sm" onClick={onClose} aria-label={t('common.close')} icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>} />}
+      headerAction={<MobileIconButton appearance="plain" size="sm" onClick={onClose} aria-label={t('common.close')} icon={<LucideX width="20" height="20" stroke="currentColor" aria-hidden="true" />} />}
       onOpenChange={onClose}
       open={open}
       title={t('shared.features.settings')}
@@ -87,7 +94,7 @@ export default function CompactSettingsSheet({
             <span className="harmony-sidebar__settings-chevron" aria-hidden="true">›</span>
           </MobileButton>
           <div className="harmony-sidebar__settings-row">
-            <span className="harmony-sidebar__settings-row-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3.5 9h17M3.5 15h17M12 3c2.2 2.45 3.3 5.45 3.3 9S14.2 18.55 12 21M12 3C9.8 5.45 8.7 8.45 8.7 12s1.1 6.55 3.3 9" /></svg></span>
+            <span className="harmony-sidebar__settings-row-icon" aria-hidden="true"><LucideGlobe width="20" height="20" stroke="currentColor" aria-hidden="true" /></span>
             <span className="harmony-sidebar__settings-label">{t('settings.language')}</span>
             <LanguageToggleButton className="harmony-sidebar__settings-language" />
             <span className="harmony-sidebar__settings-chevron" aria-hidden="true">›</span>
@@ -97,7 +104,7 @@ export default function CompactSettingsSheet({
         <h3>{t('settings.modelSection')}</h3>
         <MobileCard padding="none" className="harmony-sidebar__settings-card">
           <div className="harmony-sidebar__settings-row">
-            <span className="harmony-sidebar__settings-row-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65"><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></svg></span>
+            <span className="harmony-sidebar__settings-row-icon" aria-hidden="true"><LucideLayoutGrid width="20" height="20" stroke="currentColor" aria-hidden="true" /></span>
             <span className="harmony-sidebar__settings-label">{t('settings.defaultModel')}</span>
             <small>{t('settings.followDesktop')}</small>
           </div>

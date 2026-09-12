@@ -21,7 +21,7 @@ import {
   PackagePlus,
   ShieldCheck,
 } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 
 import {
@@ -31,6 +31,10 @@ import {
   GalleryPageHeader,
   GallerySkeleton,
 } from '@/app/components';
+import { MarketList } from '@/app/components/GalleryLayout/MarketList';
+import { MarketImage } from '@/app/components/GalleryLayout/MarketImage';
+import { getInteractionMotion } from '@/shared/utils/motionPreference';
+import { getActiveSurfaceScope, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
 import { openMainSession } from '@/flow_chat/services/sessionActivation';
 import { useGallerySceneAutoRefresh } from '@/app/hooks/useGallerySceneAutoRefresh';
 import { useSceneManager } from '@/app/hooks/useSceneManager';
@@ -50,11 +54,6 @@ import {
   type MarketPackageInspection,
   type MarketSort,
 } from '@/infrastructure/api/service-api/MiniAppMarketAPI';
-import {
-  marketImageSrcSet,
-  marketImageUrl,
-  retryOriginalMarketImage,
-} from '@/infrastructure/api/service-api/MarketImage';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
@@ -99,7 +98,8 @@ interface MiniAppLibraryViewProps {
   tabs?: React.ReactNode;
 }
 
-const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
+const MiniAppLibraryContent: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
+  const [surfaceScope] = useState(getActiveSurfaceScope);
   const apps = useMiniAppStore((state) => state.apps);
   const loading = useMiniAppStore((state) => state.loading);
   const customizingAppIds = useMiniAppStore((state) => state.customizingAppIds);
@@ -121,8 +121,9 @@ const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<MiniAppCategory>('all');
   const [sort, setSort] = useState<MarketSort>('downloads');
-  const [marketItems, setMarketItems] = useState<MarketListingSummary[]>([]);
-  const [nextCursor, setNextCursor] = useState<string>();
+  const [cachedPage] = useState(() => miniAppMarketAPI.getCachedPage({ query: '', category: 'all', sort: 'downloads', limit: 30 }));
+  const [marketItems, setMarketItems] = useState<MarketListingSummary[]>(cachedPage?.items ?? []);
+  const [nextCursor, setNextCursor] = useState<string | undefined>(cachedPage?.nextCursor);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [catalogError, setCatalogError] = useState<string>();
@@ -146,6 +147,7 @@ const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
   const importTriggerRef = useRef<HTMLButtonElement>(null);
   const importMenuRef = useRef<HTMLDivElement>(null);
   const catalogRequestRef = useRef(0);
+  const animateList = useRef(true);
   const detailRequestRef = useRef(0);
 
   const importMenuLayout = useAnchoredPopoverPosition({
@@ -207,9 +209,13 @@ const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
   }, [activateScene, openScene, openTabIds]);
 
   const fetchCatalog = useCallback(async (cursor?: string, append = false) => {
+    if (!surfaceScope.isCurrent()) return;
     const requestId = ++catalogRequestRef.current;
     if (append) setLoadingMore(true);
-    else setCatalogLoading(true);
+    else {
+      setCatalogLoading(true);
+      setLoadingMore(false);
+    }
     setCatalogError(undefined);
 
     try {
@@ -226,10 +232,7 @@ const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
     } catch (loadError) {
       if (requestId !== catalogRequestRef.current) return;
       log.error('Failed to load MiniApp marketplace catalog', loadError);
-      if (!append) {
-        setMarketItems([]);
-        setNextCursor(undefined);
-      }
+      if (!append) setNextCursor(undefined);
       setCatalogError(String(loadError));
     } finally {
       if (requestId === catalogRequestRef.current) {
@@ -237,16 +240,21 @@ const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
         setLoadingMore(false);
       }
     }
-  }, [category, query, sort]);
+  }, [category, query, sort, surfaceScope]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       void fetchCatalog(undefined, false);
     }, 250);
-    return () => window.clearTimeout(timeout);
+    return () => {
+      window.clearTimeout(timeout);
+      // Invalidate before the debounce of a new filter, not after it fires.
+      catalogRequestRef.current += 1;
+    };
   }, [fetchCatalog]);
 
   const refetchMiniAppLibrary = useCallback(async () => {
+    if (!surfaceScope.isCurrent()) return;
     setLoading(true);
     try {
       const [refreshed, running, origins] = await Promise.all([
@@ -254,16 +262,18 @@ const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
         miniAppAPI.workerListRunning(),
         loadInstalledMarketOrigins(),
       ]);
+      if (!surfaceScope.isCurrent()) return;
       setApps(refreshed);
       setRunningWorkerIds(running);
       setMarketOrigins(origins);
       await fetchCatalog(undefined, false);
     } catch (error) {
+      if (!surfaceScope.isCurrent()) return;
       log.error('Failed to refresh MiniApp library', error);
     } finally {
-      setLoading(false);
+      if (surfaceScope.isCurrent()) setLoading(false);
     }
-  }, [fetchCatalog, setApps, setLoading, setMarketOrigins, setRunningWorkerIds]);
+  }, [fetchCatalog, setApps, setLoading, setMarketOrigins, setRunningWorkerIds, surfaceScope]);
 
   useGallerySceneAutoRefresh({
     sceneId: 'miniapps',
@@ -641,7 +651,11 @@ const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
 
     return (
       <>
-        <div className="miniapp-gallery__list" role="list">
+        <MarketList className="miniapp-gallery__list" role="list"
+          revision={JSON.stringify(libraryItems.map(item => item.key))}
+          animate={animateList.current}
+          aria-busy={catalogLoading || loadingMore || undefined}
+        >
           {libraryItems.map((item) => {
             const source = item.listing ?? item.app;
             if (!source) return null;
@@ -686,6 +700,7 @@ const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
             return (
               <MiniAppLibraryRow
                 key={item.key}
+                itemKey={item.key}
                 action={item.action}
                 actionDisabled={workspaceUnsupported || anotherMarketActionBusy}
                 actionLabel={actionLabel}
@@ -724,7 +739,7 @@ const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
               />
             );
           })}
-        </div>
+        </MarketList>
         {catalogLoading && marketItems.length === 0 ? (
           <GallerySkeleton
             count={2}
@@ -839,7 +854,10 @@ const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
             <SearchField
               className="miniapp-gallery__search"
               leadingIcon={<Icon name="search" size="sm" aria-hidden />}
-              onValueChange={setQuery}
+              onValueChange={value => {
+                animateList.current = getInteractionMotion() === 'pointer';
+                setQuery(value);
+              }}
               placeholder={t('searchPlaceholder')}
               aria-label={t('searchPlaceholder')}
               size="sm"
@@ -850,7 +868,10 @@ const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
                 className="miniapp-gallery__categories"
                 options={CATEGORIES.map((value) => ({ label: categoryLabel(value, t), value }))}
                 value={category}
-                onValueChange={(value) => setCategory(value as MiniAppCategory)}
+                onValueChange={(value) => {
+                  animateList.current = getInteractionMotion() === 'pointer';
+                  setCategory(value as MiniAppCategory);
+                }}
                 aria-label={t('market.catalog')}
                 size="sm"
               />
@@ -860,7 +881,10 @@ const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
               size="sm"
               options={sortOptions}
               value={sort}
-              onValueChange={(value) => setSort(value as MarketSort)}
+              onValueChange={(value) => {
+                animateList.current = getInteractionMotion() === 'pointer';
+                setSort(value as MarketSort);
+              }}
               aria-label={t('market.sortLabel')}
             />
             <span className="miniapp-gallery__result-count" aria-label={t('allApps')}>
@@ -982,17 +1006,16 @@ const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
             {detail.screenshotUrls.length ? (
               <div className="miniapp-market-detail__screenshots">
                 {detail.screenshotUrls.map((url, index) => (
-                  <img
+                  <MarketImage
                     key={url}
-                    src={marketImageUrl(url, 'compact-v1')}
-                    srcSet={marketImageSrcSet(url)}
+                    source={url}
+                    responsive
                     sizes="(min-width: 48rem) 360px, 80vw"
                     width={640}
                     height={360}
                     alt={t('market.library.showcaseAlt', { name: detailName })}
                     loading={index === 0 ? 'eager' : 'lazy'}
                     decoding="async"
-                    onError={(event) => retryOriginalMarketImage(event.currentTarget, url)}
                   />
                 ))}
               </div>
@@ -1266,5 +1289,10 @@ function categoryLabel(category: string, t: Translate): string {
     default: return t('market.categories.other');
   }
 }
+
+const MiniAppLibraryView: React.FC<MiniAppLibraryViewProps> = (props) => {
+  const epoch = useSyncExternalStore(onSurfaceActivated, () => getActiveSurfaceScope().epoch);
+  return <MiniAppLibraryContent key={epoch} {...props} />;
+};
 
 export default MiniAppLibraryView;

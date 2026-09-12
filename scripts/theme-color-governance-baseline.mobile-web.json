@@ -45,7 +45,7 @@
     "colorDomainNearPairs.themePreset.nearTotal": { "max": 0 },
     "colorDomainScopes.themePreset.occurrences": { "max": 0 },
     "colorDomainScopes.themePreset.uniqueColors": { "max": 0 },
-    "colorDomainScopes.assetMetadata.occurrences": { "max": 4 },
-    "colorDomainScopes.assetMetadata.uniqueColors": { "max": 1 }
+    "colorDomainScopes.assetMetadata.occurrences": { "max": 0 },
+    "colorDomainScopes.assetMetadata.uniqueColors": { "max": 0 }
   }
 }

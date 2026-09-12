@@ -54,6 +54,7 @@ internal class AppShellState(
     remoteSessionId: String? = null,
     remoteCreating: Boolean = false,
     remoteScanRequested: Boolean = false,
+    remoteConnectOpen: Boolean = false,
 ) {
     internal var surface: MobileSurface by mutableStateOf(surface)
         private set
@@ -85,17 +86,27 @@ internal class AppShellState(
     internal var remoteScanRequested: Boolean by mutableStateOf(remoteScanRequested)
         private set
 
+    internal var remoteConnectOpen: Boolean by mutableStateOf(remoteConnectOpen)
+        private set
+
+    internal fun closeRemoteConnect() {
+        remoteConnectOpen = false
+        remoteScanRequested = false
+    }
+
     internal fun show(next: MobileSurface) {
         surface = next
     }
 
     internal fun openRemoteSession(sessionId: String) {
+        closeRemoteConnect()
         surface = MobileSurface.REMOTE
         remoteCreating = false
         remoteSessionId = sessionId
     }
 
     internal fun createRemoteSession() {
+        closeRemoteConnect()
         surface = MobileSurface.REMOTE
         remoteScanRequested = false
         remoteCreating = true
@@ -103,6 +114,7 @@ internal class AppShellState(
     }
 
     internal fun closeRemoteSession() {
+        closeRemoteConnect()
         remoteCreating = false
         remoteSessionId = null
     }
@@ -115,6 +127,7 @@ internal class AppShellState(
      * [openRemoteScanner] remains for entry points whose whole job is to scan.
      */
     internal fun openRemoteConnect() {
+        remoteConnectOpen = true
         surface = MobileSurface.REMOTE
         remoteCreating = false
         remoteSessionId = null
@@ -122,6 +135,7 @@ internal class AppShellState(
     }
 
     internal fun openRemoteScanner() {
+        remoteConnectOpen = true
         surface = MobileSurface.REMOTE
         remoteCreating = false
         remoteSessionId = null
@@ -189,6 +203,7 @@ internal class AppShellState(
                     it.remoteSessionId,
                     it.remoteCreating,
                     it.remoteScanRequested,
+                    it.remoteConnectOpen,
                 )
             },
             restore = {
@@ -203,6 +218,8 @@ internal class AppShellState(
                     remoteSessionId = it.getOrNull(7) as String?,
                     remoteCreating = it.getOrNull(8) as? Boolean ?: false,
                     remoteScanRequested = it.getOrNull(9) as? Boolean ?: false,
+                    remoteConnectOpen = it.getOrNull(10) as? Boolean
+                        ?: (it.getOrNull(9) as? Boolean ?: false),
                 )
             },
         )

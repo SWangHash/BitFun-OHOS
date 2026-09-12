@@ -1,3 +1,4 @@
+import { Check as LucideCheck } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
@@ -150,9 +151,7 @@ export function ThemeSetup({ options, setOptions, onLaunch, onClose }: ThemeSetu
           disabled={isFinishing}
           style={{ minWidth: 120, justifyContent: 'center' }}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <LucideCheck width="14" height="14" aria-hidden="true" />
           {t('complete.finish')}
         </button>
       </div>

@@ -85,7 +85,10 @@ export function buildMiniAppLibraryItems(
     if (consumedAppIds.has(app.id)) continue;
     projected.push({
       item: {
-        key: `local:${app.id}`,
+        // Keep a marketplace install's DOM identity when metadata arrives.
+        key: origins[app.id] && installedByListingId.get(origins[app.id].listingId)?.app.id === app.id
+          ? `market:${origins[app.id].listingId}`
+          : `local:${app.id}`,
         action: 'open',
         app,
         downloadCount: 0,

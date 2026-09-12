@@ -71,6 +71,13 @@ a network drive or WSL mount.
 
 ## Verification
 
+For icon changes, also run `pnpm --dir src/web-ui run icons:check` and the focused
+`src/infrastructure/design-system/IconUsageIntegration.test.tsx` and
+`src/app/startup/startupPreload.test.ts` tests. Static startup chrome and native
+form decorations are generated from Lucide by `pnpm --dir src/web-ui run icons:generate`.
+General-purpose icons use Lucide; the four harness modes, Git branch, brand logos,
+mascots, and device overview artwork retain their authored assets.
+
 Choose the smallest matching check:
 
 ```bash

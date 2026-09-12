@@ -63,12 +63,11 @@ internal const val CONVERSATION_LIST_TEST_TAG: String = "conversation-list"
 /**
  * Joins a dictated fragment onto whatever the composer already holds.
  *
- * Extracted so the voice path and its merge policy are unit-testable. It keeps
- * the single-space join the previous in-composition draft used: a blank side is
- * dropped rather than leaving a doubled or leading space.
+ * Uses the shared policy to preserve existing whitespace and avoid inserting
+ * spaces between CJK fragments.
  */
 internal fun mergeComposerDraft(existing: String, spoken: String): String =
-    listOf(existing.trim(), spoken.trim()).filter(String::isNotEmpty).joinToString(" ")
+    com.openbitfun.mobile.core.feature.session.VoiceDraftPolicy.merge(existing, spoken)
 
 /**
  * One open session: the transcript and the composer, ported from

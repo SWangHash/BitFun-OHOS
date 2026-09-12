@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ImageBroken } from '@phosphor-icons/react';
+import { ImageOff as ImageBroken } from 'lucide-react';
 import type { Translate } from './i18n';
 import {
   marketImageSrcSet,
@@ -38,7 +38,7 @@ export function PosterImage({
           {Array.from(name.trim())[0]?.toUpperCase() ?? 'B'}
         </span>
         <span className="poster-fallback__label">
-          <ImageBroken size={18} weight="regular" aria-hidden="true" />
+          <ImageBroken size={18} aria-hidden="true" />
           {t('previewUnavailable')}
         </span>
       </div>

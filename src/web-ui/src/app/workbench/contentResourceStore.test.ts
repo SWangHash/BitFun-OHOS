@@ -7,6 +7,17 @@ const file = (path = '/project/readme.md'): PanelContent => ({ type: 'markdown-e
 
 describe('content resource ownership', () => {
   beforeEach(() => useContentResourceStore.setState({ resources: {} }));
+  it('replaces immutable dispatch snapshots without creating a filesystem resource', () => {
+    const store = useContentResourceStore.getState();
+    const preview: PanelContent = { type: 'image-viewer', title: 'output.png', data: {
+      filePath: 'dispatch-file://job/output.png', imageSource: { dataUrl: 'data:image/png;base64,AQ==', size: 1 },
+    } };
+    const id = store.open(preview, scope, 'job/output.png', true);
+    expect(useContentResourceStore.getState().resources[id].target.kind).toBe('content');
+    const updated = { ...preview, data: { ...preview.data, imageSource: { dataUrl: 'data:image/png;base64,Ag==', size: 1 } } };
+    expect(store.open(updated, scope, 'job/output.png', true)).toBe(id);
+    expect(useContentResourceStore.getState().resources[id].content.data.imageSource.dataUrl).toBe('data:image/png;base64,Ag==');
+  });
   it('deduplicates a file across entry points and navigates without replacing its buffer', () => {
     const store = useContentResourceStore.getState();
     const id = store.open(file(), scope);

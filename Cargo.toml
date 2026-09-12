@@ -62,7 +62,7 @@ resolver = "2"
 
 # Shared package metadata 鈥?single source of truth for version
 [workspace.package]
-version = "1.0.0" # x-release-please-version
+version = "1.0.0-beta" # x-release-please-version
 authors = ["OpenBitFun Team"]
 edition = "2021"
 
@@ -224,7 +224,6 @@ tauri-plugin-log = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-updater = "2"
-tauri-plugin-window-state = "2.4"
 tauri-plugin-single-instance = "2"
 tauri-build = { git = "https://github.com/richerfu/tauri", branch = "feat/open-harmony", features = [] }
 tauri-plugin-global-shortcut = "2.3"

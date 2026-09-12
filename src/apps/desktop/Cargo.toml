@@ -159,7 +159,6 @@ leptess = { workspace = true }
 tauri-plugin-dialog = { workspace = true }
 tauri-plugin-autostart = { workspace = true }
 tauri-plugin-updater = { workspace = true }
-tauri-plugin-window-state = { workspace = true }
 tauri-plugin-single-instance = { workspace = true }
 openbitfun-core = { path = "../../crates/assembly/core", features = ["system-vault"] }
 openbitfun-services-integrations = { path = "../../crates/services/services-integrations", features = ["system-vault"] }

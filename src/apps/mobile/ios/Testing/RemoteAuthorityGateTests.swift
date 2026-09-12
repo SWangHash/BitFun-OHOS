@@ -32,6 +32,7 @@ struct RemoteAuthorityGateTests {
         }
 
         verifyRemoteCreateInteractionPolicy()
+        verifyRemoteSendAuthority()
 
         expect(
             RemoteAuthorityGate.updatedScope(
@@ -629,6 +630,31 @@ struct RemoteAuthorityGateTests {
             preconditionFailure("Missing production path contract for \(function)")
         }
         expect(callRange.lowerBound < mutationRange.lowerBound, message)
+    }
+
+    private static func verifyRemoteSendAuthority() {
+        // The directory still shows workspace A, while workspace B was opened.
+        let directorySessionIDs = ["workspace-a-session"]
+        let opened = "workspace-b-session"
+        expect(!directorySessionIDs.contains(opened), "regression fixture opens outside the directory page")
+        expect(RemoteAuthorityGate.sendSessionID(
+            selectedSessionID: opened, openedSessionID: opened,
+            connected: true, busy: false, sending: false
+        ) == opened, "open session outside directory remains sendable")
+
+        for (selected, loaded, connected, busy, sending) in [
+            ("new-session", Optional(opened), true, false, false),
+            (opened, nil, true, false, false),
+            (opened, Optional(opened), false, false, false),
+            (opened, Optional(opened), true, true, false),
+            (opened, Optional(opened), true, false, true),
+            ("", Optional(""), true, false, false),
+        ] {
+            expect(RemoteAuthorityGate.sendSessionID(
+                selectedSessionID: selected, openedSessionID: loaded,
+                connected: connected, busy: busy, sending: sending
+            ) == nil, "switching, invalidated, disconnected, busy or empty sessions cannot send")
+        }
     }
 
     private static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {

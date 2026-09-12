@@ -25,11 +25,9 @@ import {
   type AppearanceMarketRelease,
   type AppearanceMarketSort,
 } from '@/infrastructure/api/service-api/AppearanceMarketAPI';
-import {
-  marketImageSrcSet,
-  marketImageUrl,
-  retryOriginalMarketImage,
-} from '@/infrastructure/api/service-api/MarketImage';
+import { MarketImage } from '@/app/components/GalleryLayout/MarketImage';
+import { MarketList } from '@/app/components/GalleryLayout/MarketList';
+import { getInteractionMotion } from '@/shared/utils/motionPreference';
 import {
   getAppearancePackageValidationError,
   useAppearance,
@@ -117,17 +115,19 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [mode, setMode] = useState<AppearanceMarketMode | 'all'>('all');
   const [sort, setSort] = useState<AppearanceMarketSort>('newest');
-  const [items, setItems] = useState<AppearanceMarketListingSummary[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | undefined>();
+  const [cachedPage] = useState(() => appearanceMarketAPI.getCachedPage({ query: '', mode: 'all', sort: 'newest', limit: 20 }));
+  const [items, setItems] = useState<AppearanceMarketListingSummary[]>(cachedPage?.items ?? []);
+  const [nextCursor, setNextCursor] = useState<string | undefined>(cachedPage?.nextCursor);
   const [detail, setDetail] = useState<AppearanceMarketListingDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [appending, setAppending] = useState(false);
-  const [loadedOnce, setLoadedOnce] = useState(false);
+  const [loadedOnce, setLoadedOnce] = useState(Boolean(cachedPage));
   const [detailLoading, setDetailLoading] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'browse' | AppearanceMarketWorkflow>('browse');
   const browseSequence = useRef(0);
+  const animateList = useRef(true);
 
   const browseRequest = useMemo<AppearanceMarketBrowseRequest>(() => ({
     query: submittedQuery,
@@ -148,8 +148,8 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
       setNextCursor(page.nextCursor);
     } catch (loadError) {
       if (sequence !== browseSequence.current) return;
+      if (!append) setNextCursor(undefined);
       setError(errorMessage(loadError));
-      if (!append) setItems([]);
     } finally {
       if (sequence === browseSequence.current) {
         setLoading(false);
@@ -163,6 +163,7 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
     if (!isOpen || view !== 'browse') return;
     setDetail(null);
     void loadPage();
+    return () => { browseSequence.current += 1; };
   }, [isOpen, loadPage, view]);
 
   useEffect(() => {
@@ -308,13 +309,14 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
         >
           {detail.previewUrl
             ? (
-              <img
-                src={marketImageUrl(detail.previewUrl, 'large-v1')}
-                srcSet={marketImageSrcSet(detail.previewUrl)}
+              <MarketImage
+                source={detail.previewUrl}
+                variant="large-v1"
+                responsive
+                loading="eager"
                 sizes="(max-width: 900px) calc(100vw - 64px), 420px"
                 alt={detail.name}
                 decoding="async"
-                onError={(event) => retryOriginalMarketImage(event.currentTarget, detail.previewUrl)}
               />
             )
             : <Icon name="image" size="lg" aria-hidden="true" />}
@@ -442,10 +444,9 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
     );
   };
 
-  // Placeholder cards stand in until the first page lands; a refresh keeps the
-  // current cards mounted and merely dims them. Both keep the dialog one size.
+  // Keep cached/current cards mounted during revalidation: no flash back to
+  // placeholders, no image remount, and no dimming on every market visit.
   const showSkeletons = !loadedOnce || (loading && !appending && items.length === 0);
-  const refreshing = loading && !appending && items.length > 0;
   const showEmpty = loadedOnce && !loading && items.length === 0 && !error;
 
   return (
@@ -519,7 +520,10 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
                 leadingIcon={<Icon name="search" size="lg" aria-hidden />}
                 value={query}
                 onValueChange={setQuery}
-                onSearch={value => setSubmittedQuery(value.trim())}
+                onSearch={value => {
+                  animateList.current = getInteractionMotion() === 'pointer';
+                  setSubmittedQuery(value.trim());
+                }}
                 placeholder={t('package.market.search')}
                 aria-label={t('package.market.search')}
                 size="sm"
@@ -527,7 +531,10 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
               <Select
                 className="appearance-market__toolbar-control"
                 value={mode}
-                onValueChange={value => setMode(value as AppearanceMarketMode | 'all')}
+                onValueChange={value => {
+                  animateList.current = getInteractionMotion() === 'pointer';
+                  setMode(value as AppearanceMarketMode | 'all');
+                }}
                 options={[
                   { value: 'all', label: t('package.market.mode.all') },
                   { value: 'dark', label: t('package.market.mode.dark') },
@@ -539,7 +546,10 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
               <Select
                 className="appearance-market__toolbar-control"
                 value={sort}
-                onValueChange={value => setSort(value as AppearanceMarketSort)}
+                onValueChange={value => {
+                  animateList.current = getInteractionMotion() === 'pointer';
+                  setSort(value as AppearanceMarketSort);
+                }}
                 options={[
                   { value: 'newest', label: t('package.market.sort.newest') },
                   { value: 'downloads', label: t('package.market.sort.downloads') },
@@ -565,7 +575,7 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
             )}
 
             <ScrollArea
-              className={`appearance-market__results${refreshing ? ' appearance-market__results--dimmed' : ''}`}
+              className="appearance-market__results"
               data-openbitfun-component="appearance-settings"
               data-openbitfun-part="marketResults"
               data-openbitfun-state={loading ? 'loading' : undefined}
@@ -589,8 +599,10 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
                   ))}
                 </div>
               ) : (
-                <div
+                <MarketList
                   className="appearance-market__grid"
+                  revision={JSON.stringify(items.map(item => item.listingId))}
+                  animate={animateList.current}
                   data-openbitfun-component="appearance-settings"
                   data-openbitfun-part="marketGrid"
                 >
@@ -603,6 +615,7 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
                     return (
                       <button data-overflow-trigger
                         key={item.listingId}
+                        data-market-key={item.listingId}
                         type="button"
                         className="appearance-market__card"
                         onClick={() => void openDetail(item)}
@@ -618,12 +631,11 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
                         >
                           {item.previewUrl
                             ? (
-                              <img
-                                src={marketImageUrl(item.previewUrl, 'compact-v1')}
+                              <MarketImage
+                                source={item.previewUrl}
                                 alt=""
                                 loading="lazy"
                                 decoding="async"
-                                onError={(event) => retryOriginalMarketImage(event.currentTarget, item.previewUrl)}
                               />
                             )
                             : <Icon name="image" size="lg" aria-hidden="true" />}
@@ -654,7 +666,7 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
                       </button>
                     );
                   })}
-                </div>
+                </MarketList>
               )}
 
               {showEmpty && (

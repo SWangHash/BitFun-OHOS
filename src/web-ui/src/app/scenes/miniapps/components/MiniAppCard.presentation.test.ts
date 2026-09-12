@@ -169,7 +169,7 @@ describe('Mini App card presentation', () => {
     const projection = readRelative('../views/miniAppLibraryItems.ts');
 
     expect(projection).toMatch(
-      /key: `local:\$\{app\.id\}`,[\s\S]*?downloadCount: 0,[\s\S]*?ratingAverage: 3,/,
+      /action: 'open',[\s\S]*?downloadCount: 0,[\s\S]*?ratingAverage: 3,/,
     );
     expect(source).toMatch(
       /downloadCount=\{item\.listing\s*\? formatNumber\(item\.downloadCount\)\s*: undefined\}/,
@@ -185,7 +185,7 @@ describe('Mini App card presentation', () => {
     const stylesheet = readRelative('../views/MiniAppLibraryView.scss');
 
     expect(library).toContain('getMiniAppShowcaseAsset(item.app.id)');
-    expect(row).toContain('marketImageSrcSet(showcaseUrl)');
+    expect(row).toMatch(/<MarketImage\s+source=\{showcaseUrl\}\s+responsive/);
     expect(row).toContain('<GalleryHorizontalEnd');
     expect(row).not.toContain('renderMiniAppIcon');
     expect(row).not.toContain('getMiniAppIconGradient');

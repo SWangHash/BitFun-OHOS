@@ -1,3 +1,4 @@
+import OpenBitFunMobileCore
 import SwiftUI
 
 private func normalizedDeviceKey(_ key: String?) -> String? {
@@ -65,20 +66,26 @@ struct SidebarView: View {
         directoryEntries.first(where: \.expanded)
     }
 
+    private var showsPrimaryNavigation: Bool {
+        model.accountUser != nil || model.remoteExpectedDeviceKey != nil || model.remoteConnected
+    }
+
     var body: some View {
         GeometryReader { proxy in
             VStack(alignment: .leading, spacing: 0) {
-                if model.accountUser == nil { signedOutHeader } else { authenticatedHeader }
+                if showsPrimaryNavigation { authenticatedHeader } else { signedOutHeader }
                 if searchVisible {
                     searchField
                 }
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        workspaceSection
+                ZStack(alignment: .bottom) {
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            workspaceSection
+                        }
+                        .padding(.bottom, showsPrimaryNavigation ? 84 : 142)
                     }
-                    .padding(.bottom, model.accountUser == nil && !model.remoteConnected ? 142 : 84)
+                    footer
                 }
-                footer
             }
             .padding(.horizontal, 20)
             .padding(.top, 4)
@@ -136,7 +143,9 @@ struct SidebarView: View {
                    let workspace = model.remoteWorkspaces.first(where: { $0.path == path }),
                    let anchor = anchors[path] {
                     let frame = proxy[anchor]
-                    let menuHeight = MobileDesignGeometry.compactPopoverActionHeight * 2 + 16
+                    let menuHeight = HarnessProfilePolicy.shared.supported(capabilities: model.remoteHostCapabilities)
+                        ? 46 * 3 + MobileDesignGeometry.compactPopoverActionHeight + 16
+                        : MobileDesignGeometry.compactPopoverActionHeight * 2 + 16
                     ZStack(alignment: .topLeading) {
                         OpenBitFunTheme.transparent
                             .contentShape(Rectangle())
@@ -197,7 +206,9 @@ struct SidebarView: View {
                 withAnimation(.easeOut(duration: 0.18)) { searchVisible.toggle() }
                 if !searchVisible { search = "" }
             } label: {
-                ReferenceImage(assetName: "SidebarSearchGlyph", width: 22, height: 22)
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 18, weight: .regular))
+                    .frame(width: 22, height: 22)
                     .frame(width: 44, height: 44)
                     .background(OpenBitFunTheme.card)
                     .overlay(Circle().stroke(OpenBitFunTheme.line, lineWidth: 0.5))
@@ -283,7 +294,9 @@ struct SidebarView: View {
                     .accessibilityLabel(Text(model.localized("刷新设备")))
                 }
                 Button { model.scanRemote() } label: {
-                    ReferenceImage(assetName: "SidebarPlusGlyph", width: 17, height: 20)
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .regular))
+                        .frame(width: 17, height: 20)
                         .frame(width: 32, height: 32)
                 }
                 .buttonStyle(.plain)
@@ -337,7 +350,9 @@ struct SidebarView: View {
         let selected = selectedDirectoryEntry?.id == device.id
         Button { selectDirectoryDevice(device) } label: {
             HStack(spacing: 8) {
-                ReferenceImage(assetName: "SidebarDeviceGlyph", width: 24, height: 20)
+                Image(systemName: "desktopcomputer")
+                    .font(.system(size: 18, weight: .regular))
+                    .frame(width: 24, height: 20)
                 Text(device.name)
                     .font(.system(size: 15, weight: selected ? .medium : .regular))
                     .foregroundStyle(device.online ? OpenBitFunTheme.ink : OpenBitFunTheme.muted)
@@ -441,7 +456,6 @@ struct SidebarView: View {
                     model.retryDirectoryWorkspace(device: device, workspace: scopedWorkspace)
                 }
             )
-            .padding(.leading, 20)
         }
         if device.workspaces.count > visibleWorkspaceCount {
             Button {
@@ -732,14 +746,18 @@ struct SidebarView: View {
     private func pairedDeviceRow(name: String) -> some View {
         Button { model.openRemoteSurface() } label: {
             HStack(spacing: 10) {
-                ReferenceImage(assetName: "SidebarDeviceGlyph", width: 22, height: 18)
+                Image(systemName: "desktopcomputer")
+                    .font(.system(size: 17, weight: .regular))
+                    .frame(width: 22, height: 18)
                 Text(name)
                     .font(.system(size: 15))
                     .foregroundStyle(OpenBitFunTheme.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 Circle().fill(OpenBitFunTheme.statusSuccess).frame(width: 7, height: 7)
-                ReferenceImage(assetName: "SidebarDownGlyph", width: 14, height: 14)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .regular))
+                    .frame(width: 14, height: 14)
             }
             .padding(.horizontal, 10)
             .frame(height: 46)
@@ -749,9 +767,23 @@ struct SidebarView: View {
 
     private func workspaceCreateMenu(_ workspace: MobileWorkspaceGroup) -> some View {
         VStack(spacing: 0) {
-            workspaceCreateMenuRow("Code") {
-                workspaceCreatePath = nil
-                model.createRemoteSession(in: workspace, agentType: "code")
+            if HarnessProfilePolicy.shared.supported(capabilities: model.remoteHostCapabilities) {
+                ForEach([HarnessProfile.minimal, .standard, .ultimate], id: \.name) { profile in
+                    Button {
+                        workspaceCreatePath = nil
+                        model.createRemoteSession(in: workspace, agentType: profile.agentType)
+                    } label: {
+                        HarnessProfileLabel(model: model, profile: profile)
+                            .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+                            .padding(.horizontal, 14)
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                workspaceCreateMenuRow("Code") {
+                    workspaceCreatePath = nil
+                    model.createRemoteSession(in: workspace, agentType: "code")
+                }
             }
             workspaceCreateMenuRow("Cowork") {
                 workspaceCreatePath = nil
@@ -775,7 +807,7 @@ struct SidebarView: View {
 
     private var footer: some View {
         Group {
-            if model.accountUser == nil {
+            if !showsPrimaryNavigation {
                 SignedOutConnectionActions(
                     scanTitle: model.localized("扫码连接"),
                     accountTitle: model.localized("使用 GitHub 登录"),
@@ -791,23 +823,34 @@ struct SidebarView: View {
 
     private var authenticatedFooter: some View {
         HStack(spacing: 0) {
-            Button { model.connectRemote() } label: {
-                HStack(spacing: 9) {
-                    ReferenceImage(assetName: "SidebarEditGlyph", width: 24, height: 24)
-                    Text(model.localized("连接桌面端"))
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(OpenBitFunTheme.ink)
+            Group {
+                if model.selectedRemoteWorkspaceKind.lowercased() != "assistant",
+                   HarnessProfilePolicy.shared.supported(capabilities: model.remoteHostCapabilities) {
+                    Menu {
+                        ForEach([HarnessProfile.minimal, .standard, .ultimate], id: \.name) { profile in
+                            Button { model.createRemoteSessionFromHome(agentType: profile.agentType) } label: {
+                                HarnessProfileLabel(model: model, profile: profile)
+                            }
+                        }
+                    } label: { newChatLabel }
+                } else {
+                    Button {
+                        if model.selectedRemoteWorkspaceKind.lowercased() == "assistant" {
+                            model.createRemoteAssistantSession()
+                        } else {
+                            model.createRemoteSessionFromHome()
+                        }
+                    } label: { newChatLabel }
                 }
-                .frame(width: 98, height: 44)
-                .background(OpenBitFunTheme.card)
-                .overlay(RoundedRectangle(cornerRadius: 22).stroke(OpenBitFunTheme.line, lineWidth: 0.5))
-                .clipShape(Capsule())
-                .shadow(color: OpenBitFunTheme.shadowSubtle, radius: 12, y: 4)
             }
             .buttonStyle(.plain)
+            .disabled(!model.remoteConnected || !model.remoteCreateInteraction.canSubmit || model.remoteCreateSubmitting)
+            .accessibilityIdentifier("sidebar.newChat")
             Spacer(minLength: 0)
             Button { model.settingsOpen = true; model.drawerOpen = false } label: {
-                ReferenceImage(assetName: "SidebarSettingsGlyph", width: 24, height: 24)
+                Image(systemName: "gearshape")
+                    .font(.system(size: 20, weight: .regular))
+                    .frame(width: 24, height: 24)
                     .frame(width: 44, height: 44)
                     .background(OpenBitFunTheme.card)
                     .clipShape(Circle())
@@ -818,6 +861,25 @@ struct SidebarView: View {
         }
         .frame(height: 56)
         .padding(.leading, 12)
+    }
+
+    private var newChatLabel: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "square.and.pencil")
+                .font(.system(size: 19, weight: .regular))
+                .frame(width: 24, height: 24)
+            Text(model.localized("新聊天"))
+                .font(.system(size: 15, weight: .medium))
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .foregroundStyle(OpenBitFunTheme.ink)
+        .frame(minWidth: 98, minHeight: 44)
+        .background(OpenBitFunTheme.card)
+        .overlay(Capsule().stroke(OpenBitFunTheme.line, lineWidth: 0.5))
+        .clipShape(Capsule())
+        .shadow(color: OpenBitFunTheme.shadowSubtle, radius: 12, y: 4)
+        .opacity(model.remoteConnected && model.remoteCreateInteraction.canSubmit && !model.remoteCreateSubmitting ? 1 : 0.45)
     }
 }
 
@@ -913,11 +975,10 @@ private struct SidebarWorkspaceRow: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 Button(action: onToggle) {
-                    ReferenceImage(
-                        assetName: expanded ? "SidebarDownGlyph" : "SidebarChevronGlyph",
-                        width: 14,
-                        height: 14
-                    )
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 14, height: 14)
+                    .rotationEffect(.degrees(expanded ? 90 : 0))
                     .opacity(0.62)
                     .frame(width: 24, height: 46)
                 }
@@ -928,7 +989,9 @@ private struct SidebarWorkspaceRow: View {
 
                 Button(action: onToggle) {
                     HStack(spacing: 10) {
-                        ReferenceImage(assetName: "SidebarFolderGlyph", width: 24, height: 20)
+                        Image(systemName: "folder")
+                            .font(.system(size: 18, weight: .regular))
+                            .frame(width: 24, height: 20)
                         Text(workspace.name)
                             .font(.system(size: 15, weight: workspace.selected ? .medium : .regular))
                             .foregroundStyle(OpenBitFunTheme.ink)
@@ -997,13 +1060,15 @@ private struct SidebarWorkspaceRow: View {
                     HStack(spacing: 0) {
                         Button { onOpenSession(session) } label: {
                             HStack(spacing: 10) {
-                            if ["running", "active", "in_progress"].contains(session.status.lowercased()) {
-                                Circle().fill(OpenBitFunTheme.statusSuccess).frame(width: 7, height: 7)
-                            }
                             Image(systemName: "doc")
-                                .font(.system(size: 18, weight: .regular))
+                                .font(.system(size: 17, weight: .regular))
                                 .foregroundStyle(OpenBitFunTheme.muted)
-                                .frame(width: 22)
+                                .frame(width: 19, height: 19)
+                                .overlay(alignment: .bottomLeading) {
+                                    if ["running", "active", "in_progress"].contains(session.status.lowercased()) {
+                                        Circle().fill(OpenBitFunTheme.statusSuccess).frame(width: 7, height: 7)
+                                    }
+                                }
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(session.title)
                                     .font(.system(
@@ -1039,7 +1104,7 @@ private struct SidebarWorkspaceRow: View {
                             transform: { [session.id: $0] }
                         )
                     }
-                    .padding(.leading, 32)
+                    .padding(.leading, 44)
                     .padding(.trailing, 4)
                     .frame(minHeight: metadata(session) == nil ? 44 : 56)
                     .background(isSelected(session) ? OpenBitFunTheme.soft : OpenBitFunTheme.transparent)
@@ -1065,6 +1130,7 @@ private struct SidebarWorkspaceRow: View {
                 }
             }
         }
+        .padding(.bottom, 6)
     }
 }
 

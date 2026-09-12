@@ -1,4 +1,8 @@
 export const EN_US_MESSAGES: [string, string][] = [
+  ['notification.onboardingTitle', 'Task completion notifications'],
+  ['notification.onboardingBody', 'Allow OpenBitFun to notify you when tasks finish. You can change this later in system settings.'],
+  ['notification.onboardingLater', 'Later'],
+  ['notification.onboardingEnable', 'Enable notifications'],
   ['app.title', 'OpenBitFun'],
 
   ['common.cancel', 'Cancel'],
@@ -251,7 +255,7 @@ export const EN_US_MESSAGES: [string, string][] = [
   ['remote.settings.accountSignedInBody', 'This connection is verified as account {0}. The password is not saved on the phone.'],
   ['remote.settings.accountNotSignedInBody', 'If the desktop asks for account verification while scanning, the phone completes it for this pairing.'],
   ['remote.settings.accountLoginTitle', 'Sign in with GitHub'],
-  ['remote.settings.accountLoginBody', 'Sign in with GitHub to connect to your computers. Tasks and model settings stay on the controlled computer.'],
+  ['remote.settings.accountLoginBody', 'Sign in with GitHub to connect to your computers.\nTasks and model settings stay on the controlled computer.'],
   ['remote.settings.loginServer', 'Sign-in server'],
   ['remote.settings.accountSignIn', 'Sign in with GitHub'],
   ['remote.settings.accountSigningIn', 'Signing in…'],

@@ -37,6 +37,7 @@ const descriptionKeys: Readonly<Record<string, MessageKey>> = {
   GitToolCard: "component.GitToolCard.description",
   GlobSearchToolCard: "component.GlobSearchToolCard.description",
   GrepSearchToolCard: "component.GrepSearchToolCard.description",
+  Icon: "component.Icon.description",
   IconButton: "component.IconButton.description",
   Input: "component.Input.description",
   KeyHint: "component.KeyHint.description",

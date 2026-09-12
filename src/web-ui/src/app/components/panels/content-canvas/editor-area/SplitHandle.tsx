@@ -1,3 +1,4 @@
+import { GripHorizontal as LucideGripHorizontal, GripVertical as LucideGripVertical } from 'lucide-react';
 /**
  * SplitHandle component.
  * Divider for adjusting split ratio.
@@ -120,17 +121,9 @@ export const SplitHandle: React.FC<SplitHandleProps> = ({
         <div className="canvas-split-handle__line" />
         <div className="canvas-split-handle__grip">
           {direction === 'horizontal' ? (
-            <svg width="6" height="16" viewBox="0 0 6 16" fill="none">
-              <circle cx="3" cy="4" r="1" fill="currentColor" />
-              <circle cx="3" cy="8" r="1" fill="currentColor" />
-              <circle cx="3" cy="12" r="1" fill="currentColor" />
-            </svg>
+            <LucideGripVertical width="6" height="16" aria-hidden="true" />
           ) : (
-            <svg width="16" height="6" viewBox="0 0 16 6" fill="none">
-              <circle cx="4" cy="3" r="1" fill="currentColor" />
-              <circle cx="8" cy="3" r="1" fill="currentColor" />
-              <circle cx="12" cy="3" r="1" fill="currentColor" />
-            </svg>
+            <LucideGripHorizontal width="16" height="6" aria-hidden="true" />
           )}
         </div>
       </div>

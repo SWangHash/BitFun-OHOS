@@ -22,15 +22,16 @@ test("Icon exposes the complete named catalog without duplicate names", () => {
   assert.ok(iconNames.includes("refresh"));
 });
 
-test("Icon is decorative by default and owns its exact asset source", () => {
+test("Icon is decorative by default and renders the named Lucide glyph", () => {
   const markup = renderToStaticMarkup(createElement(Icon, { name: "search" }));
 
   assert.match(markup, /data-openbitfun-component="icon"/);
   assert.match(markup, /data-openbitfun-name="search"/);
   assert.match(markup, /data-size="lg"/);
   assert.match(markup, /aria-hidden="true"/);
-  assert.match(markup, /mask-image:url/);
-  assert.doesNotMatch(markup, /<svg/);
+  assert.match(markup, /lucide-search/);
+  assert.match(markup, /stroke-width="1.6"/);
+  assert.doesNotMatch(markup, /mask-image/);
 });
 
 test("Icon exposes semantic size, tone, and accessible label independently", () => {
@@ -43,7 +44,7 @@ test("Icon exposes semantic size, tone, and accessible label independently", () 
 
   assert.match(markup, /role="img"/);
   assert.match(markup, /aria-label="Successful"/);
-  assert.doesNotMatch(markup, /aria-hidden/);
+  assert.doesNotMatch(markup.match(/^<span[^>]*>/)?.[0] ?? "", /aria-hidden/);
   assert.match(markup, /data-size="sm"/);
   assert.match(markup, /data-openbitfun-tone="success"/);
 });
@@ -82,7 +83,7 @@ test("Icon mask assets are color-agnostic", async () => {
   const assetDirectory = new URL("../src/components/Icon/assets/", import.meta.url);
   const assetNames = (await readdir(assetDirectory)).filter((name) => name.endsWith(".svg"));
 
-  assert.equal(assetNames.length, 64);
+  assert.deepEqual(assetNames.sort(), ["creative.svg", "git.svg", "minimal.svg", "standard.svg", "ultimate.svg"]);
   for (const assetName of assetNames) {
     const source = await readFile(new URL(assetName, assetDirectory), "utf8");
     assert.match(source, /(?:fill|stroke)="currentColor"/i, `${assetName} must use currentColor`);
@@ -97,8 +98,8 @@ test("Icon mask assets are color-agnostic", async () => {
 test("Icon preserves all reviewed asset geometry and opacity", async () => {
   const assets = new URL("../src/components/Icon/assets/", import.meta.url);
   const fingerprints = JSON.parse(await readFile(new URL("fixtures/icon-assets.json", import.meta.url), "utf8"));
-  assert.equal(fingerprints.length, 64);
-  assert.equal(new Set(fingerprints.map(entry => entry.node)).size, 64);
+  assert.equal(fingerprints.length, 5);
+  assert.equal(new Set(fingerprints.map(entry => entry.node)).size, 5);
   assert.deepEqual((await readdir(assets)).filter(name => name.endsWith(".svg")).sort(), fingerprints.map(entry => entry.asset).sort());
   for (const entry of fingerprints) {
     const source = (await readFile(new URL(entry.asset, assets), "utf8")).replaceAll("\r\n", "\n").trim();
@@ -107,28 +108,27 @@ test("Icon preserves all reviewed asset geometry and opacity", async () => {
   }
 });
 
-test("compatibility aliases share the canonical mask without duplicating assets", () => {
+test("compatibility aliases share canonical Lucide geometry", () => {
   for (const [alias, canonical] of [["download", "arrow-down"], ["circle", "unselected"]]) {
-    const renderMask = name => renderToStaticMarkup(createElement(Icon, { name })).match(/style="([^"]+)"/)?.[1];
-    assert.equal(renderMask(alias), renderMask(canonical));
+    const renderGlyph = name => renderToStaticMarkup(createElement(Icon, { name })).match(/<svg[\s\S]*?<\/svg>/)?.[0];
+    assert.ok(renderGlyph(alias));
+    assert.equal(renderGlyph(alias), renderGlyph(canonical));
     assert.ok(!canonicalIconNames.includes(alias));
   }
   assert.ok(!canonicalIconNames.includes("turn"));
 });
 
-test("monochrome catalog paths delegate alpha while layered artwork stays authored", async () => {
-  const assets = new URL("../src/components/Icon/assets/", import.meta.url);
-  const catalog = JSON.parse(await readFile(new URL("fixtures/icon-assets.json", import.meta.url), "utf8"));
-  for (const entry of catalog) {
-    const source = await readFile(new URL(entry.asset, assets), "utf8");
-    const markup = renderToStaticMarkup(createElement(Icon, { name: entry.name }));
-    if (entry.name === "progress-25" || entry.name === "turn") {
-      assert.doesNotMatch(markup, /data-openbitfun-artwork="monochrome"/);
-      assert.match(source, entry.name === "progress-25" ? /stroke-opacity="0.2"/ : /fill-opacity="0.05"/);
+test("every general-purpose named icon renders Lucide and only the five exceptions use masks", () => {
+  const preserved = new Set(["minimal", "standard", "ultimate", "creative", "git"]);
+  for (const name of iconNames) {
+    const markup = renderToStaticMarkup(createElement(Icon, { name }));
+    if (preserved.has(name)) {
+      assert.match(markup, /mask-image:url/, name);
+      assert.doesNotMatch(markup, /<svg/, name);
     } else {
-      assert.equal((source.match(/<path /g) ?? []).length, 1, entry.name);
-      assert.doesNotMatch(source, /(?:fill-|stroke-)?opacity=/, entry.name);
-      assert.match(markup, /data-openbitfun-artwork="monochrome"/);
+      assert.match(markup, /class="lucide lucide-/, name);
+      assert.match(markup, /stroke-width="1.6"/, name);
+      assert.doesNotMatch(markup, /mask-image/, name);
     }
   }
 });

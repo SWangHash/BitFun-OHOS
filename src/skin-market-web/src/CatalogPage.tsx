@@ -1,4 +1,4 @@
-import { ArrowRight, MagnifyingGlass } from '@phosphor-icons/react';
+import { ArrowRight, Search as MagnifyingGlass } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -167,7 +167,7 @@ export function CatalogPage({
         <div className="catalog-controls">
           <label className="search-field">
             <span className="sr-only">{t('searchLabel')}</span>
-            <MagnifyingGlass size={20} weight="regular" aria-hidden="true" />
+            <MagnifyingGlass size={20} aria-hidden="true" />
             <input
               type="search"
               value={queryInput}
@@ -288,7 +288,7 @@ function AppearanceRow({ eager, item, locale, onNavigate, t }: AppearanceRowProp
         </dl>
         <a className="text-link" href={path} onClick={follow}>
           {t('openDetail', { name: item.name })}
-          <ArrowRight size={18} weight="regular" aria-hidden="true" />
+          <ArrowRight size={18} aria-hidden="true" />
         </a>
         <time dateTime={new Date(item.publishedAt * 1000).toISOString()} className="appearance-row__date">
           {t('published', { date: formatMarketDate(item.publishedAt, locale) })}

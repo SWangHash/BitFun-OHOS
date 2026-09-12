@@ -182,6 +182,9 @@
     }
   ],
   "implementationOnlyCommands": {
+    "publicMarketImageCache": [
+      "market_image_load"
+    ],
     "legacyUpdateCompatibility": [
       "install_update"
     ],
@@ -2474,6 +2477,8 @@
           },
           "evidence": [
             "command:browser_webview_set_bounds",
+            "command:browser_webview_capture_preview",
+            "source:src/web-ui/src/app/scenes/browser/browserPreviewCache.ts#export class BrowserPreviewCache",
             "source:src/web-ui/src/app/scenes/browser/BrowserPanel.tsx#sandbox=",
             "source:src/web-ui/src/app/scenes/browser/browserInspectorScript.ts#BLANK_TARGET_INTERCEPT_SCRIPT"
           ]
@@ -9357,6 +9362,9 @@
     },
     "miniapp_market": {
       "capabilityId": "feature.miniapps"
+    },
+    "market_image": {
+      "capabilityId": null
     },
     "acp_client": {
       "capabilityId": "setting.tools.acp"

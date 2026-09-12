@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useState, useCallback, useRef, useEffect } from 'react';
 import { MobileBanner, MobileButton, MobileScrim, MobileStatus } from '@openbitfun/ui/mobile';
-import PairingPage from './pages/PairingPage';
+import PairingPage, { type BrowserAccountBinding } from './pages/PairingPage';
 import WorkspacePage from './pages/WorkspacePage';
 import SessionListPage from './pages/SessionListPage';
 import DevicesPage from './pages/DevicesPage';
@@ -12,6 +12,8 @@ import {
   RemoteSessionManager,
 } from './services/RemoteSessionManager';
 import { reconcileAccountOwner } from './services/accountOwner';
+import { BrowserAccountStorageError, releaseBrowserAccount } from './services/BrowserAccountStore';
+import { CloudAccountClient } from './services/CloudAccountClient';
 import {
   clearMobileNavigation,
   saveMobileNavigation,
@@ -64,6 +66,9 @@ const AppContent: React.FC = () => {
   const [accountDirectoryOpen, setAccountDirectoryOpen] = useState(false);
   const [preferredDeviceId, setPreferredDeviceId] = useState<string | undefined>();
   const navigationRef = useRef<PairedNavigation | null>(null);
+  const accountBindingRef = useRef<BrowserAccountBinding | null>(null);
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [automaticDeviceSelection, setAutomaticDeviceSelection] = useState(true);
   const controlTarget = useMobileStore((state) => state.controlTarget);
 
   // An authenticated account without a selected desktop has nothing to ping.
@@ -137,7 +142,11 @@ const AppContent: React.FC = () => {
       sessionMgr: RemoteSessionManager,
       preferredDeviceId?: string,
       navigation?: PairedNavigation,
+      account?: BrowserAccountBinding,
     ) => {
+      accountBindingRef.current = account ?? null;
+      setAccountError(null);
+      setAutomaticDeviceSelection(!navigation?.restored?.disconnected);
       navigationRef.current = navigation ?? null;
       const needsDevice = client.hasAccountIdentity && !client.targetDeviceId;
       setAccountDirectoryOpen(needsDevice);
@@ -354,9 +363,11 @@ const AppContent: React.FC = () => {
     setCompactSidebarOpen(true);
   }, []);
 
-  const handleDisconnect = useCallback(() => {
+  const resetAccount = useCallback((clearNavigation = false) => {
     navigationRef.current = null;
-    clearMobileNavigation();
+    accountBindingRef.current = null;
+    if (clearNavigation) clearMobileNavigation();
+    setAccountError(null);
     setAccountDirectoryOpen(false);
     setPreferredDeviceId(undefined);
     accountOwnerUnlistenRef.current?.();
@@ -375,10 +386,86 @@ const AppContent: React.FC = () => {
     setPrevPage(null);
     setNavDir(null);
     clearTimeout(timerRef.current);
-    localStorage.removeItem('openbitfun.mobile.user_id');
     useMobileStore.getState().resetConnectionState();
     pageStackRef.current = ['pairing'];
+    history.replaceState({ page: 'pairing' }, '');
     setPage('pairing');
+  }, []);
+
+  const handleAccountStorageError = useCallback((error: unknown) => {
+    setAccountError(t(error instanceof BrowserAccountStorageError && error.reason === 'invalid'
+      ? 'pairing.browserStorageInvalid' : 'pairing.browserStorageUnavailable'));
+  }, [t]);
+
+  useEffect(() => {
+    const binding = accountBindingRef.current;
+    const client = clientRef.current;
+    if (!sessionMgr || !binding || !client) return;
+    let disposed = false;
+    let generation = 0;
+    const synchronize = async () => {
+      const request = ++generation;
+      try {
+        const saved = await binding.store.read();
+        try {
+          if (disposed || request !== generation || clientRef.current !== client) return;
+          if (saved.session?.token !== binding.token || saved.controllerDeviceId !== client.controllerDeviceId) {
+            const clearNavigation = saved.lastChange !== 'expired' && saved.session?.userId !== client.accountUserId;
+            resetAccount(clearNavigation);
+          } else setAccountError(null);
+        } finally { releaseBrowserAccount(saved); }
+      } catch (error) {
+        if (!disposed && request === generation) handleAccountStorageError(error);
+      }
+    };
+    const unsubscribe = binding.store.subscribe(() => { void synchronize(); });
+    const unlistenExpired = client.onAuthorizationExpired(token => {
+      void binding.store.clearSession(token, 'expired').then(synchronize).catch(error => {
+        if (!disposed) handleAccountStorageError(error);
+      });
+    });
+    // Also close the gap between initial restoration and mounting this observer.
+    void synchronize();
+    return () => { disposed = true; unsubscribe(); unlistenExpired(); };
+  }, [sessionMgr, resetAccount, handleAccountStorageError]);
+
+  const handleSignOut = useCallback(async () => {
+    const binding = accountBindingRef.current;
+    if (!binding) { resetAccount(true); return; }
+    try {
+      await binding.store.clearSession(binding.token, 'signed-out');
+      if (accountBindingRef.current === binding) resetAccount(true);
+      void new CloudAccountClient(binding.store.relayUrl).logout(binding.token).catch(() => {
+        console.warn('Could not revoke the signed-out browser token');
+      });
+    } catch (error) { handleAccountStorageError(error); }
+  }, [resetAccount, handleAccountStorageError]);
+
+  const handleDisconnect = useCallback(() => {
+    // Disconnect this tab's target, retaining the browser account and other
+    // tabs' connections. The directory must wait for explicit selection here.
+    const deviceId = clientRef.current?.targetDeviceId;
+    if (navigationRef.current && deviceId) {
+      saveMobileNavigation(navigationRef.current.scope, { deviceId, disconnected: true });
+    }
+    if (navigationRef.current) navigationRef.current.restored = null;
+    clientRef.current?.setTargetDeviceId(null);
+    useMobileStore.getState().resetForDeviceSwitch();
+    useMobileStore.getState().setControlTarget(null);
+    setAutomaticDeviceSelection(false);
+    setPreferredDeviceId(undefined);
+    setAccountDirectoryOpen(true);
+    setActiveSessionId(null);
+    setActiveSessionName('Session');
+    setActiveSessionAgentType('Standard');
+    setChatAutoFocus(false);
+    setCompactSidebarOpen(false);
+    setPrevPage(null);
+    setNavDir(null);
+    clearTimeout(timerRef.current);
+    pageStackRef.current = ['pairing', 'devices'];
+    history.replaceState({ page: 'devices' }, '');
+    setPage('devices');
   }, []);
 
   useEffect(() => () => {
@@ -430,7 +517,7 @@ const AppContent: React.FC = () => {
       );
     }
     if (currentPage === 'devices' && clientRef.current) {
-      return <DevicesPage client={clientRef.current} onBack={doPopFromDevices} />;
+      return <DevicesPage client={clientRef.current} onBack={doPopFromDevices} onSignOut={() => void handleSignOut()} />;
     }
     if (currentPage === 'chat' && sessionMgrRef.current && activeSessionId) {
       return (
@@ -458,6 +545,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="mobile-app" data-layout={isWideLayout ? 'wide' : 'compact'}>
+      {accountError && <MobileBanner tone="danger">{accountError}</MobileBanner>}
       {connectionHealth === 'unreachable' && page !== 'pairing' && (
         <MobileBanner
           action={<MobileButton appearance="plain" onClick={handleDisconnect} size="sm">{t('sessions.repair')}</MobileButton>}
@@ -473,8 +561,9 @@ const AppContent: React.FC = () => {
         <DevicesPage
           client={clientRef.current}
           accountLanding
+          autoSelect={automaticDeviceSelection}
           preferredDeviceId={preferredDeviceId}
-          onBack={handleDisconnect}
+          onBack={() => void handleSignOut()}
           onDeviceSelected={handleControlTargetChanged}
         />
       )}

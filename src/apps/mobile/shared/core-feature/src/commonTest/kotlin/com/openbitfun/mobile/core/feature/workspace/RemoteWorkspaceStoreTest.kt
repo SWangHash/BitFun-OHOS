@@ -418,6 +418,43 @@ class RemoteWorkspaceStoreTest {
     }
 
     @Test
+    fun imagePreviewReadsEveryChunkFromItsOriginSession() = runTest {
+        val transport = FakeWorkspaceTransport(downloadChunks = true, imageChunks = true)
+        val store = RemoteWorkspaceStore.create(this, transport, StandardTestDispatcher(testScheduler))
+        store.dispatch(RemoteWorkspaceIntent.Load)
+        advanceUntilIdle()
+        store.dispatch(RemoteWorkspaceIntent.OpenFile("computer://preview.png", "Preview", "origin-session"))
+        advanceUntilIdle()
+        val image = assertIs<RemoteFilePreviewUiState.Image>(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).preview)
+        assertContentEquals("fn main() {}".encodeToByteArray(), image.bytes)
+        val reads = transport.commands.filter { it.cmd == "read_file_chunk" }
+        assertEquals(listOf(0, 6), reads.map { it.offset })
+        assertTrue(reads.all { it.sessionId == "origin-session" })
+    }
+
+    @Test
+    fun changedRevisionRejectsAnOtherwiseValidImageTransfer() = runTest {
+        val transport = FakeWorkspaceTransport(downloadChunks = true, imageChunks = true, revisionChanges = true)
+        val store = RemoteWorkspaceStore.create(this, transport, StandardTestDispatcher(testScheduler))
+        store.dispatch(RemoteWorkspaceIntent.Load)
+        advanceUntilIdle()
+        store.dispatch(RemoteWorkspaceIntent.OpenFile("preview.png", "Preview", "origin-session"))
+        advanceUntilIdle()
+        assertIs<RemoteFilePreviewUiState.Failed>(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).preview)
+    }
+
+    @Test
+    fun incompleteImageIsAnErrorInsteadOfATruncatedPreview() = runTest {
+        val transport = FakeWorkspaceTransport(downloadChunks = true, imageChunks = true, truncate = true)
+        val store = RemoteWorkspaceStore.create(this, transport, StandardTestDispatcher(testScheduler))
+        store.dispatch(RemoteWorkspaceIntent.Load)
+        advanceUntilIdle()
+        store.dispatch(RemoteWorkspaceIntent.OpenFile("preview.png", "Preview", "origin-session"))
+        advanceUntilIdle()
+        assertIs<RemoteFilePreviewUiState.Failed>(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).preview)
+    }
+
+    @Test
     fun downloadsAFileInChunksAndWaitsForThePlatformSaver() = runTest {
         val transport = FakeWorkspaceTransport(downloadChunks = true)
         val store = RemoteWorkspaceStore.create(this, transport, StandardTestDispatcher(testScheduler))
@@ -578,6 +615,9 @@ private class DelayedPreviewTransport : RemoteCommandTransport {
 private class FakeWorkspaceTransport(
     private val downloadChunks: Boolean = false,
     private val readFileUnsupported: Boolean = false,
+    private val imageChunks: Boolean = false,
+    private val truncate: Boolean = false,
+    private val revisionChanges: Boolean = false,
 ) : RemoteCommandTransport {
     val commands = mutableListOf<RemoteCommand>()
     var fileInfoError: String? = null
@@ -616,7 +656,14 @@ private class FakeWorkspaceTransport(
             }
             else -> error("Unexpected command ${command.cmd}")
         }
-        return RelayJson.decodeFromString(deserializer, json)
+        var response = if (imageChunks) json.replace("main.rs", "preview.png").replace("text/plain", "image/png") else json
+        if (truncate && command.cmd == "read_file_chunk" && command.offset != 0) {
+            response = response.replace("bigpIHt9", "").replace("\"chunk_size\":6", "\"chunk_size\":0")
+        }
+        if (revisionChanges && command.cmd == "read_file_chunk") {
+            response = response.dropLast(1) + ",\"revision\":\"12:${command.offset}\"}"
+        }
+        return RelayJson.decodeFromString(deserializer, response)
     }
 }
 

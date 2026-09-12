@@ -1,3 +1,4 @@
+import { ReadFileChunkResult } from '../main/ets/model/RemoteModels';
 import { GitHubAccountProfile, GitHubProfileLoader, normalizeGitHubProfile, readCachedGitHubProfile } from '../main/ets/services/GitHubAccountProfile';
 import { accountDeviceLink } from '../main/ets/services/AccountDeviceLink';
 import { describe, it, expect } from '@ohos/hypium';
@@ -328,6 +329,20 @@ class ScriptedAccountSessionManager extends RemoteSessionManager {
   }
 }
 
+class OutputFileSessionManager extends RemoteSessionManager {
+  readonly offsets: number[] = [];
+  invalid: boolean = false;
+  revisionChanges: boolean = false;
+
+  async readFileChunk(_path: string, offset: number, _limit: number, _sessionId?: string): Promise<ReadFileChunkResult> {
+    this.offsets.push(offset);
+    const bytes = offset === 0 ? 'a' : 'bcd';
+    return { name: 'preview.png', contentBase64: Encoding.bytesToBase64(Encoding.utf8ToBytes(bytes)),
+      offset: this.invalid && offset > 0 ? 0 : offset, chunkSize: bytes.length, totalSize: 4, mimeType: 'image/png',
+      revision: this.revisionChanges ? `4:${offset}` : undefined };
+  }
+}
+
 class RecordingAccountDeviceClient extends CloudAccountClient {
   async deviceRpc<T extends CommandStatusResponse>(
     _relayUrl: string,
@@ -582,6 +597,36 @@ export default function transportAndGeneralChatUnitTest() {
       }
       expect(accountDeviceLink('https://evil.test/v/1.0.0/#/pair?did=desktop-1')).assertUndefined();
       expect(accountDeviceLink('https://remote.openbitfun.com@evil.test/v/1.0.0/#/pair?did=desktop-1')).assertUndefined();
+    });
+  });
+
+  describe('Output file transfer', () => {
+    it('reassembles short padded chunks as bytes', 0, async () => {
+      const manager = new OutputFileSessionManager();
+      const file = await manager.readFile('preview.png', 'origin-session');
+      expect(Encoding.bytesToUtf8(Encoding.base64ToBytes(file.contentBase64))).assertEqual('abcd');
+      expect(manager.offsets.join(',')).assertEqual('0,1');
+    });
+    it('rejects a wrong offset instead of downloading a corrupt file', 0, async () => {
+      const manager = new OutputFileSessionManager();
+      manager.invalid = true;
+      let failed = false;
+      try { await manager.readFile('preview.png', 'origin-session'); } catch (_) { failed = true; }
+      expect(failed).assertTrue();
+    });
+    it('rejects a changed revision even when the file size is unchanged', 0, async () => {
+      const manager = new OutputFileSessionManager();
+      manager.revisionChanges = true;
+      let failed = false;
+      try { await manager.readFile('preview.png', 'origin-session'); } catch (_) { failed = true; }
+      expect(failed).assertTrue();
+    });
+    it('does not request the next chunk after the target is reset', 0, async () => {
+      const manager = new OutputFileSessionManager();
+      let failed = false;
+      try { await manager.readFile('preview.png', 'origin-session', () => manager.reset()); } catch (_) { failed = true; }
+      expect(failed).assertTrue();
+      expect(manager.offsets.length).assertEqual(1);
     });
   });
 

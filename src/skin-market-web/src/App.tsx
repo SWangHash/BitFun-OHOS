@@ -1,12 +1,12 @@
+import { GithubLogo } from '@phosphor-icons/react';
 import {
-  ArrowClockwise,
-  ArrowSquareOut,
-  GithubLogo,
-  GlobeSimple,
+  RefreshCw as ArrowClockwise,
+  ExternalLink as ArrowSquareOut,
+  Globe as GlobeSimple,
   Moon,
-  SignOut,
+  LogOut as SignOut,
   Sun,
-} from '@phosphor-icons/react';
+} from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import {
   sharedMarketAccountApi,
@@ -146,7 +146,7 @@ export default function App() {
               aria-label={locale === 'zh-CN' ? t('useEnglish') : t('useChinese')}
               title={locale === 'zh-CN' ? t('useEnglish') : t('useChinese')}
             >
-              <GlobeSimple size={19} weight="regular" aria-hidden="true" />
+              <GlobeSimple size={19} aria-hidden="true" />
               <span>{locale === 'zh-CN' ? 'EN' : '中'}</span>
             </button>
             <button
@@ -157,8 +157,8 @@ export default function App() {
               title={theme === 'dark' ? t('switchToLight') : t('switchToDark')}
             >
               {theme === 'dark'
-                ? <Sun size={20} weight="regular" aria-hidden="true" />
-                : <Moon size={20} weight="regular" aria-hidden="true" />}
+                ? <Sun size={20} aria-hidden="true" />
+                : <Moon size={20} aria-hidden="true" />}
             </button>
             {!accountResolved ? (
               <div className="account-loading" role="status" aria-label={t('accountLoading')}>
@@ -178,7 +178,7 @@ export default function App() {
                   aria-label={t('signOut')}
                   title={t('signOut')}
                 >
-                  <SignOut size={18} weight="regular" aria-hidden="true" />
+                  <SignOut size={18} aria-hidden="true" />
                 </button>
               </div>
             ) : (
@@ -203,7 +203,7 @@ export default function App() {
         <div className="account-alert" role="alert" title={accountError.message}>
           <span>{t('accountError')}</span>
           <button type="button" onClick={() => void refreshAccount()}>
-            <ArrowClockwise size={17} weight="bold" aria-hidden="true" />
+            <ArrowClockwise size={17} aria-hidden="true" />
             {t('retryAccount')}
           </button>
         </div>
@@ -246,7 +246,7 @@ export default function App() {
           <p>{t('footerNote')}</p>
           <a className="site-footer__link" href={OPENBITFUN_HOME_URL} target="_blank" rel="noreferrer">
             {t('openbitfunHome')}
-            <ArrowSquareOut size={16} weight="regular" aria-hidden="true" />
+            <ArrowSquareOut size={16} aria-hidden="true" />
           </a>
         </div>
       </footer>

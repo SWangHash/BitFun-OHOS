@@ -36,11 +36,14 @@ pub struct AppearanceMarketClient {
 }
 
 impl AppearanceMarketClient {
+    pub fn configured_base_url() -> String {
+        std::env::var("OPENBITFUN_APPEARANCE_MARKET_API_URL")
+            .unwrap_or_else(|_| DEFAULT_APPEARANCE_MARKET_API_URL.to_string())
+    }
+
     pub async fn from_environment() -> Result<Self, MarketClientError> {
-        let base_url = std::env::var("OPENBITFUN_APPEARANCE_MARKET_API_URL")
-            .unwrap_or_else(|_| DEFAULT_APPEARANCE_MARKET_API_URL.to_string());
         let identity = AccountIdentityClient::from_environment().await?;
-        Self::with_identity(base_url, identity)
+        Self::with_identity(Self::configured_base_url(), identity)
     }
 
     pub async fn new(

@@ -1,3 +1,4 @@
+import { Folder as LucideFolder, X as LucideX } from 'lucide-react';
 import React, { useEffect, useState, useCallback } from 'react';
 import { MobileBanner, MobileIconButton, MobileListRow, MobilePageHeader, MobileStatus } from '@openbitfun/ui/mobile';
 import { useI18n } from '../i18n';
@@ -88,7 +89,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ sessionMgr, onReady, onBa
             <MobileIconButton
               appearance="surface"
               className="workspace-page__close"
-              icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>}
+              icon={<LucideX stroke="currentColor" aria-hidden="true" />}
               onClick={onBack}
               size="sm"
               aria-label={t('common.close')}
@@ -113,7 +114,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ sessionMgr, onReady, onBa
                     disabled={switching}
                     selected={selected}
                     leading={<span className="workspace-page__recent-item-icon" aria-hidden="true">
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h4l2 2h7A2.5 2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/></svg>
+                      <LucideFolder width="22" height="22" stroke="currentColor" aria-hidden="true" />
                     </span>}
                     label={<span className="workspace-page__recent-item-name">{ws.name}</span>}
                     supportingText={<span className="workspace-page__recent-item-path">{ws.path}</span>}

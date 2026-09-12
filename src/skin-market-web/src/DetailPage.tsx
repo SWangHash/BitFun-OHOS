@@ -1,13 +1,13 @@
 import {
   ArrowLeft,
-  ArrowSquareOut,
-  CheckCircle,
-  Desktop,
-  DownloadSimple,
-  Prohibit,
+  ExternalLink as ArrowSquareOut,
+  CircleCheck as CheckCircle,
+  Monitor as Desktop,
+  Download as DownloadSimple,
+  Ban as Prohibit,
   ShieldCheck,
-  WarningCircle,
-} from '@phosphor-icons/react';
+  CircleAlert as WarningCircle,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { downloadUrl, skinMarketApi, SkinMarketApiError } from './api';
 import {
@@ -87,7 +87,7 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
     return (
       <main id="main-content" className="shell detail-state">
         <a className="back-link" href={catalogPath} onClick={navigate(catalogPath)}>
-          <ArrowLeft size={18} weight="regular" aria-hidden="true" />
+          <ArrowLeft size={18} aria-hidden="true" />
           {t('detailBack')}
         </a>
         <div className="state-panel" role={notFound ? undefined : 'alert'}>
@@ -154,7 +154,7 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
     <main id="main-content" className="detail-page">
       <div className="shell">
         <a className="back-link" href={catalogPath} onClick={navigate(catalogPath)}>
-          <ArrowLeft size={18} weight="regular" aria-hidden="true" />
+          <ArrowLeft size={18} aria-hidden="true" />
           {t('detailBack')}
         </a>
 
@@ -180,12 +180,12 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
             <p className="detail-author">{t('by', { author })}</p>
             {currentRelease && !currentRelease.yanked ? (
               <a className="primary-button download-button" href={downloadUrl(detail.slug, currentRelease.releaseNumber)}>
-                <DownloadSimple size={20} weight="bold" aria-hidden="true" />
+                <DownloadSimple size={20} aria-hidden="true" />
                 {t('detailDownload')}
               </a>
             ) : null}
             <p className="import-hint">
-              <Desktop size={19} weight="regular" aria-hidden="true" />
+              <Desktop size={19} aria-hidden="true" />
               <span>{t('desktopInstallNote')}</span>
             </p>
             <GetOpenBitFunCta placement="listing" t={t} />
@@ -218,7 +218,7 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
             {isAdmin ? (
               <section className="content-section moderation-panel" aria-labelledby="moderation-heading">
                 <div className="moderation-panel__heading">
-                  <WarningCircle size={24} weight="regular" aria-hidden="true" />
+                  <WarningCircle size={24} aria-hidden="true" />
                   <div>
                     <h2 id="moderation-heading">{t('moderationTitle')}</h2>
                     <p>{t('moderationIntro')}</p>
@@ -249,7 +249,7 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
                     disabled={!trimmedModerationReason || Boolean(moderationBusy)}
                     onClick={() => void unpublishListing()}
                   >
-                    <Prohibit size={18} weight="bold" aria-hidden="true" />
+                    <Prohibit size={18} aria-hidden="true" />
                     {moderationBusy === detail.listingId ? t('unpublishingListing') : t('unpublishListing')}
                   </button>
                 </div>
@@ -259,7 +259,7 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
 
           <aside className="detail-aside">
             <section className="aside-section" aria-labelledby="compatibility-heading">
-              <ShieldCheck size={24} weight="regular" aria-hidden="true" />
+              <ShieldCheck size={24} aria-hidden="true" />
               <h2 id="compatibility-heading">{t('compatibility')}</h2>
               <p>{t('minOpenBitFun', { version: detail.minOpenBitFunVersion })}</p>
               <h3>{t('requiredCapabilities')}</h3>
@@ -268,7 +268,7 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
                   {detail.requiredCapabilities.map((capability) => <li key={capability}><code>{capability}</code></li>)}
                 </ul>
               ) : (
-                <p className="verified-line"><CheckCircle size={18} weight="fill" aria-hidden="true" />{t('noExtraCapabilities')}</p>
+                <p className="verified-line"><CheckCircle size={18} fill="currentColor" aria-hidden="true" />{t('noExtraCapabilities')}</p>
               )}
             </section>
 
@@ -281,12 +281,12 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
               </dl>
               {customLicenseUrl ? (
                 <a className="text-link" href={customLicenseUrl} target="_blank" rel="noreferrer">
-                  {t('customLicense')}<ArrowSquareOut size={17} weight="regular" aria-hidden="true" />
+                  {t('customLicense')}<ArrowSquareOut size={17} aria-hidden="true" />
                 </a>
               ) : null}
               {repositoryUrl ? (
                 <a className="text-link" href={repositoryUrl} target="_blank" rel="noreferrer">
-                  {t('viewRepository')}<ArrowSquareOut size={17} weight="regular" aria-hidden="true" />
+                  {t('viewRepository')}<ArrowSquareOut size={17} aria-hidden="true" />
                 </a>
               ) : null}
             </section>
@@ -419,7 +419,7 @@ function ReleaseItem({
       {!release.yanked ? (
         <div className="release-item__actions">
           <a className="text-link" href={downloadUrl(detail.slug, release.releaseNumber)}>
-            <DownloadSimple size={17} weight="regular" aria-hidden="true" />
+            <DownloadSimple size={17} aria-hidden="true" />
             {t('downloadVersion', { version: release.packageVersion })}
           </a>
           {isAdmin ? (
@@ -429,7 +429,7 @@ function ReleaseItem({
               disabled={!moderationReasonReady || Boolean(moderationBusy)}
               onClick={() => void onYank(release)}
             >
-              <Prohibit size={16} weight="bold" aria-hidden="true" />
+              <Prohibit size={16} aria-hidden="true" />
               {moderationBusy === release.releaseId ? t('yankingRelease') : t('yankRelease')}
             </button>
           ) : null}
@@ -452,7 +452,7 @@ function DetailSkeleton({ catalogPath, navigate, t }: {
     <main id="main-content" className="detail-page" aria-live="polite" aria-busy="true">
       <div className="shell">
         <a className="back-link" href={catalogPath} onClick={navigate(catalogPath)}>
-          <ArrowLeft size={18} weight="regular" aria-hidden="true" />
+          <ArrowLeft size={18} aria-hidden="true" />
           {t('detailBack')}
         </a>
         <span className="sr-only">{t('loading')}</span>

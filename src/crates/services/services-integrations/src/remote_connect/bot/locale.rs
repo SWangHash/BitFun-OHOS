@@ -27,6 +27,9 @@ impl BotLanguage {
 /// platform adapters.  Add new strings here, then translate in both
 /// [`STRINGS_ZH`], [`STRINGS_ZH_TW`], and [`STRINGS_EN`].
 pub struct BotStrings {
+    pub tool_approval_title: &'static str,
+    pub tool_approve: &'static str,
+    pub tool_reject: &'static str,
     // ── Onboarding ───────────────────────────────────────────────
     pub welcome: &'static str,
     pub paired_success: &'static str,
@@ -190,6 +193,9 @@ pub struct BotStrings {
 }
 
 const STRINGS_ZH: BotStrings = BotStrings {
+    tool_approval_title: "需要授权",
+    tool_approve: "允许本次",
+    tool_reject: "拒绝",
     welcome: "\
 欢迎使用 OpenBitFun。
 
@@ -344,10 +350,13 @@ const STRINGS_ZH: BotStrings = BotStrings {
     devices_switched_to: "已切换到远程设备",
     devices_switched_local: "已切换回本地设备",
     devices_remote_prefix: "远程设备",
-    devices_msg_sent: "消息已发送，远程 agent 正在执行",
+    devices_msg_sent: "消息已发送，回复和附件将发回此聊天。",
 };
 
 const STRINGS_ZH_TW: BotStrings = BotStrings {
+    tool_approval_title: "需要授權",
+    tool_approve: "允許本次",
+    tool_reject: "拒絕",
     welcome: "\
 歡迎使用 OpenBitFun。
 
@@ -502,10 +511,13 @@ const STRINGS_ZH_TW: BotStrings = BotStrings {
     devices_switched_to: "已切換到遠端裝置",
     devices_switched_local: "已切換回本地裝置",
     devices_remote_prefix: "遠端裝置",
-    devices_msg_sent: "訊息已傳送，遠端 agent 正在執行",
+    devices_msg_sent: "訊息已傳送，回覆和附件將傳回此聊天。",
 };
 
 const STRINGS_EN: BotStrings = BotStrings {
+    tool_approval_title: "Approval required",
+    tool_approve: "Allow once",
+    tool_reject: "Reject",
     welcome: "\
 Welcome to OpenBitFun.
 
@@ -662,7 +674,7 @@ Open Remote Connect in OpenBitFun Desktop and send the 6-digit pairing code here
     devices_switched_to: "Switched to remote device",
     devices_switched_local: "Switched back to local device",
     devices_remote_prefix: "Remote device",
-    devices_msg_sent: "Message sent, remote agent is working",
+    devices_msg_sent: "Message sent. Replies and attachments will return to this chat.",
 };
 
 pub fn strings_for(language: BotLanguage) -> &'static BotStrings {

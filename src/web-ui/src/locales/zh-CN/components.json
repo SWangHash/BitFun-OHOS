@@ -41,6 +41,7 @@
     "emptyError": "此字段不能为空"
   },
   "markdown": {
+    "imageUnavailable": "图片预览加载失败",
     "remoteImageUnavailable": "派发任务暂不支持图片预览",
     "copySuccess": "复制成功",
     "copyCode": "复制代码",

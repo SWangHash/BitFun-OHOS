@@ -2,9 +2,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
-import { Icon } from '@openbitfun/ui';
+import { Icon, iconNames } from '@openbitfun/ui';
 import { HARNESS_PRESENTATION } from '@/shared/agents/harnessPresentation';
 import { ConfigRefreshButton } from '@/infrastructure/config/components/common';
 
@@ -24,91 +23,18 @@ function filesIn(directory: string): string[] {
 }
 
 describe('catalog icon consumer integration', () => {
-  it('keeps every migrated legacy icon on the shared catalog', () => {
-    const migrated = new Set([
-      'AppWindow',
-      'ArrowDownToLine',
-      'ArrowUp',
-      'BadgeCheck',
-      'Check',
-      'CheckCircle',
-      'CheckCircle2',
-      'ChevronDown',
-      'ChevronLeft',
-      'ChevronRight',
-      'ChevronUp',
-      'Circle',
-      'Clock',
-      'Clock3',
-      'ClipboardCopy',
-      'Copy',
-      'Download',
-      'Edit',
-      'Edit3',
-      'ExternalLink',
-      'Eye',
-      'Files',
-      'FileDown',
-      'FileEdit',
-      'FileImage',
-      'FileInput',
-      'FileOutput',
-      'FilePenLine',
-      'Folder',
-      'GitBranch',
-      'GitCommitHorizontal',
-      'Globe',
-      'Globe2',
-      'Image',
-      'Info',
-      'Link',
-      'Link2',
-      'ListFilter',
-      'MessageSquarePlus',
-      'Mic',
-      'MoreHorizontal',
-      'Pencil',
-      'PictureInPicture2',
-      'Paintbrush',
-      'PanelRightOpen',
-      'Plus',
-      'Puzzle',
-      'RefreshCw',
-      'Search',
-      'Settings',
-      'Settings2',
-      'SlidersHorizontal',
-      'Sparkle',
-      'Sparkles',
-      'SquareTerminal',
-      'Terminal',
-      'Trash2',
-      'User',
-      'WandSparkles',
-      'X',
-    ]);
-    const exemptions = new Set([
-      'flow_chat/components/ChatInputWorkspaceStrip.tsx: Circle',
-      'flow_chat/components/ReasoningPresetSelector.tsx: Circle',
-    ]);
-    const leftovers: string[] = [];
-    for (const file of filesIn(sourceRoot)) {
-      const ast = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
-      for (const statement of ast.statements) {
-        if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)
-          || statement.moduleSpecifier.text !== 'lucide-react' || statement.importClause?.isTypeOnly) continue;
-        const bindings = statement.importClause?.namedBindings;
-        if (!bindings || !ts.isNamedImports(bindings)) continue;
-        for (const item of bindings.elements) {
-          const name = item.propertyName?.text ?? item.name.text;
-          const location = `${path.relative(sourceRoot, file).replaceAll('\\', '/')}: ${name}`;
-          if (!item.isTypeOnly && migrated.has(name) && !exemptions.has(location)) {
-            leftovers.push(location);
-          }
-        }
+  it('renders all named general-purpose icons through Lucide while retaining mode and branch artwork', () => {
+    const preserved = new Set(['minimal', 'standard', 'ultimate', 'creative', 'git']);
+    for (const name of iconNames) {
+      const markup = renderToStaticMarkup(createElement(Icon, { name }));
+      if (preserved.has(name)) {
+        expect(markup).toContain('mask-image');
+        expect(markup).not.toContain('<svg');
+      } else {
+        expect(markup).toContain('class="lucide lucide-');
+        expect(markup).not.toContain('mask-image');
       }
     }
-    expect(leftovers).toEqual([]);
   });
 
   it('uses catalog marks in navigation, the creative entry and string-based menus', () => {
@@ -146,7 +72,7 @@ describe('catalog icon consumer integration', () => {
     expect(loading).toContain('disabled=""');
   });
 
-  it('preserves consumer animation classes and exact non-token dimensions on mask icons', () => {
+  it('preserves consumer animation classes and exact non-token dimensions on Lucide icons', () => {
     const markup = renderToStaticMarkup(createElement(Icon, {
       name: 'refresh', size: 'lg', className: 'browser-panel__spinning',
       style: { width: 20, height: 20 },
