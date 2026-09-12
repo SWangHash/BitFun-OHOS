@@ -94,7 +94,7 @@ impl AgentSubmissionPort for ExampleAgentProvider {
     }
 
     async fn resolve_session_agent_type(&self, _session_id: &str) -> PortResult<Option<String>> {
-        Ok(Some("agentic".to_string()))
+        Ok(Some("Standard".to_string()))
     }
 }
 
@@ -236,7 +236,7 @@ impl AgentSessionForkPort for SessionControlProvider {
         Ok(AgentSessionForkResult {
             session_id: format!("{}-fork", request.source_session_id),
             session_name: "Forked Session".to_string(),
-            agent_type: "agentic".to_string(),
+            agent_type: "Standard".to_string(),
         })
     }
 
@@ -248,7 +248,7 @@ impl AgentSessionForkPort for SessionControlProvider {
         Ok(AgentSessionForkResult {
             session_id: "forked-session".to_string(),
             session_name: "Forked at Turn".to_string(),
-            agent_type: "agentic".to_string(),
+            agent_type: "Standard".to_string(),
         })
     }
 }
@@ -264,11 +264,11 @@ impl AgentSessionRestorePort for SessionControlProvider {
             session: AgentSessionSummary {
                 session_id: "session-1".to_string(),
                 session_name: "Restored Session".to_string(),
-                agent_type: "agentic".to_string(),
+                agent_type: "Standard".to_string(),
                 model_id: Some("provider/model".to_string()),
                 reasoning_preset: None,
                 last_user_dialog_agent_type: None,
-                last_submitted_agent_type: Some("agentic".to_string()),
+                last_submitted_agent_type: Some("Standard".to_string()),
                 turn_count: 4,
                 created_at_ms: 10,
                 last_active_at_ms: 20,
@@ -337,7 +337,7 @@ impl AgentSubmissionPort for Phase2Provider {
     }
 
     async fn resolve_session_agent_type(&self, _session_id: &str) -> PortResult<Option<String>> {
-        Ok(Some("agentic".to_string()))
+        Ok(Some("Standard".to_string()))
     }
 }
 
@@ -385,11 +385,11 @@ impl openbitfun_agent_runtime::sdk::AgentSessionRestorePort for Phase2Provider {
             session: ports::AgentSessionSummary {
                 session_id: request.session_id,
                 session_name: "Phase 2".to_string(),
-                agent_type: "agentic".to_string(),
+                agent_type: "Standard".to_string(),
                 model_id: Some("provider/model".to_string()),
                 reasoning_preset: None,
                 last_user_dialog_agent_type: None,
-                last_submitted_agent_type: Some("agentic".to_string()),
+                last_submitted_agent_type: Some("Standard".to_string()),
                 turn_count: 1,
                 created_at_ms: 10,
                 last_active_at_ms: 20,
@@ -589,7 +589,7 @@ impl ports::AgentSessionLineagePort for Phase2Provider {
             sessions: vec![ports::AgentSessionLineageEntry {
                 session_id: "session-1".to_string(),
                 session_name: "Root".to_string(),
-                agent_type: "agentic".to_string(),
+                agent_type: "Standard".to_string(),
                 created_at_ms: 10,
                 status: ports::AgentSessionLifecycleStatus::Active,
                 active_turn_id: Some("turn-active".to_string()),
@@ -1281,7 +1281,7 @@ async fn run_round_trips_through_create_and_submit() {
                     let response = recv(cx.send_request(RunMessage {
                         session: RunSessionSpec::Create {
                             session_name: "Example SDK Session".to_string(),
-                            agent_type: "agentic".to_string(),
+                            agent_type: "Standard".to_string(),
                             workspace_path: None,
                         },
                         message: "hello from an app-server client".to_string(),
@@ -1291,7 +1291,7 @@ async fn run_round_trips_through_create_and_submit() {
                     .await?;
                     assert_eq!(response.session_id, "example-session");
                     assert_eq!(response.turn_id, "example-turn");
-                    assert_eq!(response.agent_type.as_deref(), Some("agentic"));
+                    assert_eq!(response.agent_type.as_deref(), Some("Standard"));
                     assert!(response.accepted);
                     Ok(())
                 })
@@ -1325,7 +1325,7 @@ async fn submit_dialog_turn_carries_agent_type_and_starts() {
                             original_message: None,
                             turn_id: None,
                             execution: Default::default(),
-                            agent_type: "agentic".to_string(),
+                            agent_type: "Standard".to_string(),
                             workspace_path: None,
                             remote_connection_id: None,
                             remote_ssh_host: None,
@@ -1402,7 +1402,7 @@ async fn create_session_returns_provider_session_id() {
                     let response = recv(cx.send_request(CreateSessionMessage(
                         AgentSessionCreateRequest {
                             session_name: "direct create".to_string(),
-                            agent_type: "agentic".to_string(),
+                            agent_type: "Standard".to_string(),
                             agent_route_key: None,
                             workspace_path: None,
                             project_workspace_path: None,
@@ -1417,7 +1417,7 @@ async fn create_session_returns_provider_session_id() {
                     .await?;
                     let CreateSessionResponse(inner) = response;
                     assert_eq!(inner.session_id, "example-session");
-                    assert_eq!(inner.agent_type, "agentic");
+                    assert_eq!(inner.agent_type, "Standard");
                     Ok(())
                 })
                 .await;
@@ -1701,7 +1701,8 @@ async fn client_connect_keeps_connection_alive_after_return() {
             let response = client
                 .create_session(CreateSessionMessage(AgentSessionCreateRequest {
                     session_name: "post-connect session".to_string(),
-                    agent_type: "agentic".to_string(),
+                    agent_type: "Standard".to_string(),
+                    agent_route_key: None,
                     workspace_path: None,
                     project_workspace_path: None,
                     execution_target: None,
@@ -1714,7 +1715,7 @@ async fn client_connect_keeps_connection_alive_after_return() {
                 .await
                 .expect("RPC after connect() must succeed -- connection should still be alive");
             assert_eq!(response.0.session_id, "example-session");
-            assert_eq!(response.0.agent_type, "agentic");
+            assert_eq!(response.0.agent_type, "Standard");
 
             client.shutdown().await;
         })

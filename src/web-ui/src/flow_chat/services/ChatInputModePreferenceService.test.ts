@@ -55,13 +55,13 @@ describe('ChatInputModePreferenceService', () => {
   it('uses only the remembered selection in follow-last mode', () => {
     const preference = normalizeChatInputModePreference({
       default_mode_strategy: 'follow_last',
-      default_mode_id: 'Ultra',
+      default_mode_id: 'Ultimate',
       last_mode_id: ' creative ',
     });
 
     expect(preference).toEqual({
       strategy: 'follow_last',
-      fixedModeId: 'Ultra',
+      fixedModeId: 'Ultimate',
       lastModeId: 'Creative',
     });
     expect(resolveConfiguredChatInputDefaultModeId(preference)).toBe('Creative');
@@ -83,19 +83,19 @@ describe('ChatInputModePreferenceService', () => {
 
   it('seeds fixed mode from the remembered selection and keeps unrelated fields', async () => {
     configMocks.current = {
-      last_mode_id: 'Ultra',
+      last_mode_id: 'Ultimate',
       show_permission_mode_control: false,
     };
 
     await expect(chatInputModePreferenceService.setStrategy('fixed')).resolves.toEqual({
       strategy: 'fixed',
-      fixedModeId: 'Ultra',
-      lastModeId: 'Ultra',
+      fixedModeId: 'Ultimate',
+      lastModeId: 'Ultimate',
     });
     expect(configMocks.current).toEqual({
       default_mode_strategy: 'fixed',
-      default_mode_id: 'Ultra',
-      last_mode_id: 'Ultra',
+      default_mode_id: 'Ultimate',
+      last_mode_id: 'Ultimate',
       show_permission_mode_control: false,
     });
   });
@@ -103,17 +103,17 @@ describe('ChatInputModePreferenceService', () => {
   it('remembers a successful selection without changing a fixed default', async () => {
     configMocks.current = {
       default_mode_strategy: 'fixed',
-      default_mode_id: 'agentic',
+      default_mode_id: 'Standard',
     };
 
     const preference = await chatInputModePreferenceService.rememberMode('Creative');
 
     expect(preference).toEqual({
       strategy: 'fixed',
-      fixedModeId: 'agentic',
+      fixedModeId: 'Standard',
       lastModeId: 'Creative',
     });
-    expect(resolveConfiguredChatInputDefaultModeId(preference)).toBe('agentic');
+    expect(resolveConfiguredChatInputDefaultModeId(preference)).toBe('Standard');
   });
 
   it.each(['Claw', 'Plan', 'Multitask'])('does not remember fixed or retired mode %s', async modeId => {

@@ -79,14 +79,9 @@ describe('SceneTopBar', () => {
       expect(toolbar.querySelector(':scope > [data-openbitfun-part="leading"] [role="tablist"]')).not.toBeNull();
       const trailing = toolbar.querySelector(':scope > [data-openbitfun-part="trailing"]')!;
       const actions = trailing.querySelector('[data-openbitfun-part="sceneActions"]')!;
-      const divider = trailing.querySelector('.openbitfun-scene-top-bar__actions-divider')!;
       const controls = trailing.querySelector('[data-openbitfun-part="controls"]')!;
-      expect(actions.nextElementSibling).toBe(divider);
-      expect(divider.getAttribute('data-openbitfun-part')).toBe('separator');
-      expect(divider.getAttribute('aria-hidden')).toBe('true');
-      expect(divider.nextElementSibling).toBe(controls);
+      expect(actions.nextElementSibling).toBe(controls);
       expect(controls.querySelector('button')).not.toBeNull();
-      expect(stylesheet).toContain('&__actions:empty + &__actions-divider');
       act(() => toolbar.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
       expect(maximize).toHaveBeenCalledOnce();
       act(() => toolbar.querySelector('[data-openbitfun-part="sceneActions"] button')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));

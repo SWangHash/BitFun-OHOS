@@ -58,7 +58,7 @@ export interface RemoteHomePresentationActions {
 
 export interface SidebarPresentationActions {
   readonly close: () => void;
-  readonly newChat: () => void;
+  readonly newChat: (agentType?: string) => void;
   readonly enterCode: () => void;
   /** Opens the QR scanner directly from sidebar device actions. */
   readonly scanDesktop: () => void;
@@ -82,15 +82,13 @@ export interface SettingsPresentationActions {
   readonly clearPairing: () => void;
   readonly reconnect: () => void;
   readonly openAccount: () => void;
-  readonly cloudLogin: (relayUrl: string, username: string, password: string) => Promise<string>;
+  readonly cloudCancelLogin: () => void;
+  readonly cloudLogin: () => Promise<string>;
   readonly cloudLogout: () => Promise<void>;
   readonly cloudListDevices: () => Promise<CloudAccountDevice[]>;
   readonly cloudSelectDevice: (device: CloudAccountDevice) => Promise<void>;
   readonly getPermissionMode: () => Promise<RemotePermissionMode>;
   readonly setPermissionMode: (mode: RemotePermissionMode) => Promise<RemotePermissionMode>;
-  readonly testGeneral: (url: string, key: string, model: string, clear: boolean) => Promise<string>;
-  readonly saveGeneral: (url: string, key: string, model: string, clear: boolean) => Promise<string>;
-  readonly selectGeneralModel: (modelId: string) => Promise<boolean>;
   readonly setLanguage: (language: string) => Promise<void>;
 }
 
@@ -135,12 +133,11 @@ export function emptyAppRootPresentationActions(): AppRootPresentationActions {
     onSettings: {
       close: () => {}, addConnection: () => {}, disconnect: () => {}, clearPairing: () => {},
       reconnect: () => {}, openAccount: () => {},
+      cloudCancelLogin: () => {},
       cloudLogin: async () => '', cloudLogout: async () => {},
       cloudListDevices: async () => [], cloudSelectDevice: async () => {},
       getPermissionMode: async () => 'ask',
       setPermissionMode: async (mode: RemotePermissionMode) => mode,
-      testGeneral: async () => '', saveGeneral: async () => '',
-      selectGeneralModel: async () => false,
       setLanguage: async () => {}
     },
     onConnect: {

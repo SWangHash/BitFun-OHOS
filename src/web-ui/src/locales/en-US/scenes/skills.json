@@ -1,14 +1,4 @@
 {
-  "skillsCenter": "Skills Center",
-  "searchSkills": "Search skills...",
-  "addSkill": "Add Skill",
-  "sortBy": "Sort",
-  "defaultSort": "Default",
-  "totalSkills": "{{count}} Skills",
-  "installSkill": "Install",
-  "viewDetails": "View Details",
-  "builtIn": "Built-in",
-  "suites": "Suites",
   "nav": {
     "title": "Skills",
     "summary": "Browse installed skills locally and jump to the external marketplace section.",
@@ -58,7 +48,7 @@
     "builtin": "Built-in",
     "user": "User",
     "project": "Project",
-    "suite": "Suites"
+    "groups": "Skill Groups"
   },
   "categories": {
     "all": "All installed skills, including built-in, user-level, and project-level.",
@@ -66,7 +56,7 @@
     "user": "OpenBitFun user-level skills installed globally for your account.",
     "project": "OpenBitFun project-level skills for the current workspace.",
     "source": "Skills discovered from {{source}}, including user-level and current-workspace project-level skills.",
-    "suite": "Built-in skill suites grouped by mode, with one-click visibility controls."
+    "groups": "Create and organize reusable groups of skills."
   },
   "section": {
     "user": {
@@ -84,11 +74,6 @@
     "searchPlaceholder": "Search marketplace skills...",
     "loading": "Loading marketplace skills...",
     "errorPrefix": "Failed to load marketplace: ",
-    "errors": {
-      "loadFailed": "Failed to load skills. Please check your network and try again.",
-      "loadMoreFailed": "Failed to load more skills. Please check your network and try again.",
-      "tooShort": "Search term too short. Enter at least 2 characters."
-    },
     "empty": {
       "noMatch": "No matching marketplace skills found",
       "noSkills": "No marketplace skills available"
@@ -121,6 +106,11 @@
       "versionLabel": "Version",
       "orgLabel": "Organization",
       "tagsLabel": "Tags"
+    },
+    "errors": {
+      "loadFailed": "Failed to load skills. Please check your network and try again.",
+      "loadMoreFailed": "Failed to load more skills. Please check your network and try again.",
+      "tooShort": "Search term too short. Enter at least 2 characters."
     }
   },
   "suite": {
@@ -225,8 +215,6 @@
   "list": {
     "loading": "Loading...",
     "errorPrefix": "Failed to load: ",
-    "noMore": "No more results",
-    "loadMoreFailed": "Load failed. Please retry.",
     "loadFailed": "Could not load skills",
     "retry": "Retry",
     "desktopUnavailable": "Manage skills in Desktop.",
@@ -264,7 +252,9 @@
       "globalToggleLabel": "Toggle global availability for {{name}}"
     },
     "scanIncomplete": "Some skills could not be scanned. Available skills are still listed.",
-    "diagnosticsUnavailable": "This host does not report skill scan diagnostics."
+    "diagnosticsUnavailable": "This host does not report skill scan diagnostics.",
+    "noMore": "No more results",
+    "loadMoreFailed": "Load failed. Please retry."
   },
   "deleteModal": {
     "title": "Confirm Delete",
@@ -284,11 +274,21 @@
     "toggleFailed": "Failed to toggle: {{error}}",
     "marketDownloadSuccess": "Skill \"{{name}}\" downloaded successfully",
     "marketDownloadFailed": "Failed to download: {{error}}",
-    "nameConflict": "A skill named \"{{name}}\" is already installed. Uninstall the existing one before installing this.",
     "enabled": "enabled",
     "disabled": "disabled",
-    "revealPathFailed": "Could not open in file explorer: {{error}}"
+    "revealPathFailed": "Could not open in file explorer: {{error}}",
+    "nameConflict": "A skill named \"{{name}}\" is already installed. Uninstall the existing one before installing this."
   },
+  "skillsCenter": "Skills Center",
+  "searchSkills": "Search skills...",
+  "addSkill": "Add Skill",
+  "sortBy": "Sort",
+  "defaultSort": "Default",
+  "totalSkills": "{{count}} Skills",
+  "installSkill": "Install",
+  "viewDetails": "View Details",
+  "builtIn": "Built-in",
+  "suites": "Suites",
   "matrix": {
     "tabLabel": "Gewu Market",
     "title": "OpenHarmony Matrix Skills",
@@ -337,6 +337,68 @@
       "tagsLoadFailed": "Failed to load tags",
       "categoriesLoadFailed": "Failed to load categories",
       "organizationsLoadFailed": "Failed to load organizations"
+    }
+  },
+  "groups": {
+    "title": "Skill Groups",
+    "subtitle": "Create and organize reusable groups of skills.",
+    "create": "New group",
+    "edit": "Edit group",
+    "copy": "Copy group",
+    "copyName": "{{name}} copy",
+    "copyNameNumbered": "{{name}} {{count}}",
+    "delete": "Delete group",
+    "deleteTitle": "Delete skill group",
+    "deleteMessage": "Delete \"{{name}}\"? Skills and existing agent configurations will be kept.",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "actions": "Actions for {{name}}",
+    "refresh": "Refresh groups and skills",
+    "search": "Search groups or skills…",
+    "searchSkills": "Search skills…",
+    "name": "Group name",
+    "namePlaceholder": "For example: Everyday development",
+    "save": "Save group",
+    "cancel": "Close",
+    "selectedOnly": "Selected only",
+    "memberCount": "{{count}} skills",
+    "unavailableCount": "{{count}} unavailable",
+    "myGroups": "My groups",
+    "builtinGroups": "Built-in groups",
+    "emptyGroup": "No skills added",
+    "unresolvedMembers": "Members are unavailable in the current catalog",
+    "noGroups": "No skill groups yet.",
+    "noMatch": "No matching groups.",
+    "noMatchingSkills": "No matching skills.",
+    "loading": "Loading skill groups…",
+    "catalogUnavailable": "The skill catalog is incomplete or unavailable. Existing member references are kept.",
+    "unavailableMember": "Unavailable in this environment",
+    "unresolvedMember": "Skill details are currently unavailable",
+    "globalDisabled": "Globally disabled",
+    "discardTitle": "Discard group changes?",
+    "discardMessage": "Your unsaved changes to this group will be discarded.",
+    "discard": "Discard changes",
+    "keepEditing": "Keep editing",
+    "errors": {
+      "invalidConfig": "The saved group data could not be read. It has been kept unchanged.",
+      "unsupportedVersion": "These groups use a newer format. Update OpenBitFun to edit them.",
+      "nameRequired": "Enter a group name.",
+      "nameDuplicate": "A group with this name already exists.",
+      "conflict": "This group changed elsewhere. Close the editor and refresh before editing it again.",
+      "notReady": "Wait for groups to load, or refresh and try again.",
+      "loadFailed": "Could not load skill groups. Refresh to retry.",
+      "saveFailed": "Could not save the group. Your changes have been kept; try again."
+    },
+    "builtin": {
+      "office": "Office",
+      "computerUse": "$t(shared:agents.ComputerUse)",
+      "meta": "Meta",
+      "miniapp": "MiniApp",
+      "canvas": "Canvas",
+      "debugging": "Debugging",
+      "coordination": "Coordination",
+      "planning": "Planning",
+      "gstack": "gstack"
     }
   }
 }

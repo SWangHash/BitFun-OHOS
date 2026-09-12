@@ -164,7 +164,7 @@ impl EmbeddedWebviewAutomation {
                 #[cfg(target_env = "ohos")]
                 let png = return Err("HarmonyOS ArkWeb screenshots require a native capture provider".to_string());
                 #[cfg(not(target_env = "ohos"))]
-                let png = platform::take_screenshot(webview, SCRIPT_TIMEOUT_MS)
+                let png = platform::take_screenshot(webview.as_ref(), SCRIPT_TIMEOUT_MS)
                     .await
                     .map_err(format_webdriver_error)?;
                 let data = if format.eq_ignore_ascii_case("jpeg") {

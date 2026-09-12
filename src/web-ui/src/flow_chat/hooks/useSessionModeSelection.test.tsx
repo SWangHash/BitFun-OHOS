@@ -38,10 +38,10 @@ function Probe({
   return (
     <>
       <span data-testid="pending">{String(selection.isModeChangePending)}</span>
-      <button type="button" onClick={() => selection.publishModeSelection('agentic')}>
+      <button type="button" onClick={() => selection.publishModeSelection('Standard')}>
         Hydrate
       </button>
-      <button type="button" onClick={() => selection.requestModeChange('agentic')}>
+      <button type="button" onClick={() => selection.requestModeChange('Standard')}>
         Select
       </button>
       <button type="button" onClick={() => selection.requestModeChange('ask')}>
@@ -76,7 +76,7 @@ describe('useSessionModeSelection', () => {
     const [hydrate, select] = Array.from(container.querySelectorAll('button'));
 
     act(() => hydrate.click());
-    expect(mocks.publish).toHaveBeenCalledWith('agentic');
+    expect(mocks.publish).toHaveBeenCalledWith('Standard');
     expect(mocks.updateSessionMode).not.toHaveBeenCalled();
     expect(mocks.committed).not.toHaveBeenCalled();
 
@@ -86,13 +86,13 @@ describe('useSessionModeSelection', () => {
     });
     expect(mocks.updateSessionMode).toHaveBeenCalledWith({
       sessionId: 'session-1',
-      modeId: 'agentic',
+      modeId: 'Standard',
       workspacePath: 'D:/workspace/project',
       remoteConnectionId: undefined,
       remoteSshHost: undefined,
     });
-    expect(mocks.publish).toHaveBeenLastCalledWith('agentic');
-    expect(mocks.committed).toHaveBeenCalledWith('agentic');
+    expect(mocks.publish).toHaveBeenLastCalledWith('Standard');
+    expect(mocks.committed).toHaveBeenCalledWith('Standard');
   });
 
   it('publishes a completed request only to the session that issued it', async () => {
@@ -117,7 +117,7 @@ describe('useSessionModeSelection', () => {
       await Promise.resolve();
     });
 
-    expect(publishA).toHaveBeenCalledWith('agentic');
+    expect(publishA).toHaveBeenCalledWith('Standard');
     expect(publishB).not.toHaveBeenCalled();
   });
 
@@ -147,7 +147,7 @@ describe('useSessionModeSelection', () => {
       sessionId: 'session-1',
       modeId: 'ask',
     }));
-    expect(mocks.publish).toHaveBeenCalledWith('agentic');
+    expect(mocks.publish).toHaveBeenCalledWith('Standard');
 
     await act(async () => {
       resolvers[1]();
@@ -185,9 +185,9 @@ describe('useSessionModeSelection', () => {
     });
 
     expect(mocks.publish).toHaveBeenCalledOnce();
-    expect(mocks.publish).toHaveBeenCalledWith('agentic');
+    expect(mocks.publish).toHaveBeenCalledWith('Standard');
     expect(mocks.committed).toHaveBeenCalledOnce();
-    expect(mocks.committed).toHaveBeenCalledWith('agentic');
+    expect(mocks.committed).toHaveBeenCalledWith('Standard');
     expect(mocks.reportFailure).toHaveBeenCalledWith(failure, 'ask');
     expect(container.querySelector('[data-testid="pending"]')?.textContent).toBe('false');
   });

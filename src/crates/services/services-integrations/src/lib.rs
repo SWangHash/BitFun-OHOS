@@ -4,6 +4,7 @@
 //! can opt into only the integration family they need.
 
 #[cfg(any(
+    feature = "account-identity",
     feature = "mcp",
     feature = "miniapp-market",
     feature = "miniapp-runtime",
@@ -118,3 +119,6 @@ pub mod web_tools;
 #[cfg(all(windows, feature = "git"))]
 #[link(name = "advapi32")]
 unsafe extern "system" {}
+
+#[cfg(feature = "account-identity")]
+pub mod account_identity;

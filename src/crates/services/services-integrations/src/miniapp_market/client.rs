@@ -1,14 +1,14 @@
-use super::credentials::{
-    system_market_credential_store, MarketCredentialStore, StoredMarketCredentials,
+use crate::account_identity::{
+    AccountIdentityClient, DesktopAuthPollRequest, DesktopAuthPollResponse, DesktopAuthStart,
+    MarketClientError, MarketMe,
 };
 use openbitfun_product_domains::miniapp::market::{
     CursorPage, MarketListingDetail, MarketListingSummary, MarketSort, MarketSubmission,
-    MarketSubmissionDraftRequest, MarketUserSummary, MARKET_PACKAGE_CONTENT_TYPE,
+    MarketSubmissionDraftRequest, ReviewDecisionRequest, MARKET_PACKAGE_CONTENT_TYPE,
 };
 use reqwest::{Method, RequestBuilder, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 const DEFAULT_MARKET_API_URL: &str = "https://market.openbitfun.com/miniapp/api/v1";
 
@@ -27,57 +27,6 @@ pub struct MarketBrowseRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DesktopAuthStart {
-    pub transaction_id: String,
-    pub transaction_secret: String,
-    pub authorization_url: String,
-    pub expires_at: i64,
-    pub poll_interval_seconds: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DesktopAuthPollRequest {
-    pub transaction_id: String,
-    pub transaction_secret: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DesktopAuthPollResponse {
-    pub status: String,
-    pub tokens: Option<MarketTokenPair>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MarketTokenPair {
-    pub access_token: String,
-    pub access_expires_at: i64,
-    pub refresh_token: String,
-    pub refresh_expires_at: i64,
-}
-
-impl From<MarketTokenPair> for StoredMarketCredentials {
-    fn from(value: MarketTokenPair) -> Self {
-        Self {
-            access_token: value.access_token,
-            access_expires_at: value.access_expires_at,
-            refresh_token: value.refresh_token,
-            refresh_expires_at: value.refresh_expires_at,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MarketMe {
-    pub user: MarketUserSummary,
-    pub is_admin: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RatingAggregate {
     pub average: f64,
     pub count: u32,
@@ -89,14 +38,6 @@ pub struct RatingAggregate {
 pub struct FavoriteAggregate {
     pub count: u32,
     pub is_favorited: bool,
-}
-
-#[derive(Debug, Clone, Serialize, thiserror::Error)]
-#[error("{message}")]
-pub struct MarketClientError {
-    pub code: String,
-    pub message: String,
-    pub request_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -116,31 +57,17 @@ struct ErrorBody {
 pub struct MarketClient {
     base_url: String,
     client: reqwest::Client,
-    credentials: Option<StoredMarketCredentials>,
-    credential_store: Arc<dyn MarketCredentialStore>,
+    identity: AccountIdentityClient,
 }
 
 impl MarketClient {
     pub async fn from_environment() -> Result<Self, MarketClientError> {
-        Self::from_environment_with_credential_store(system_market_credential_store()).await
-    }
-
-    pub async fn from_environment_with_credential_store(
-        credential_store: Arc<dyn MarketCredentialStore>,
-    ) -> Result<Self, MarketClientError> {
         let base_url = std::env::var("OPENBITFUN_MINIAPP_MARKET_API_URL")
             .unwrap_or_else(|_| DEFAULT_MARKET_API_URL.to_string());
-        Self::new_with_credential_store(base_url, credential_store).await
+        Self::new(base_url).await
     }
 
     pub async fn new(base_url: impl Into<String>) -> Result<Self, MarketClientError> {
-        Self::new_with_credential_store(base_url, system_market_credential_store()).await
-    }
-
-    pub async fn new_with_credential_store(
-        base_url: impl Into<String>,
-        credential_store: Arc<dyn MarketCredentialStore>,
-    ) -> Result<Self, MarketClientError> {
         let base_url = base_url.into().trim_end_matches('/').to_string();
         let parsed = reqwest::Url::parse(&base_url)
             .map_err(|error| local_error("invalid_market_url", error.to_string()))?;
@@ -159,15 +86,11 @@ impl MarketClient {
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|error| local_error("market_client_init_failed", error.to_string()))?;
-        let credentials = credential_store
-            .load()
-            .await
-            .map_err(|error| local_error("credential_store_unavailable", error))?;
+        let identity = AccountIdentityClient::new(base_url.clone()).await?;
         Ok(Self {
             base_url,
             client,
-            credentials,
-            credential_store,
+            identity,
         })
     }
 
@@ -193,11 +116,15 @@ impl MarketClient {
     }
 
     pub async fn listing(&mut self, slug: &str) -> Result<MarketListingDetail, MarketClientError> {
-        self.refresh_if_needed().await?;
+        let token = self.identity.access_token().await?;
         let request = self
             .client
             .get(self.url(&format!("/listings/{}", urlencoding::encode(slug))));
-        self.json(self.with_optional_auth(request)).await
+        self.json(match token {
+            Some(token) => request.bearer_auth(token),
+            None => request,
+        })
+        .await
     }
 
     pub async fn download_release(
@@ -220,67 +147,25 @@ impl MarketClient {
     }
 
     pub async fn start_desktop_auth(&self) -> Result<DesktopAuthStart, MarketClientError> {
-        self.json(self.client.post(self.url("/auth/desktop/start")))
-            .await
+        self.identity.start_desktop_auth().await
     }
 
     pub async fn poll_desktop_auth(
         &mut self,
         request: &DesktopAuthPollRequest,
     ) -> Result<DesktopAuthPollResponse, MarketClientError> {
-        let response: DesktopAuthPollResponse = self
-            .json(
-                self.client
-                    .post(self.url("/auth/desktop/poll"))
-                    .json(request),
-            )
-            .await?;
-        if let Some(tokens) = response.tokens.clone() {
-            let credentials: StoredMarketCredentials = tokens.into();
-            self.credential_store
-                .save(&credentials)
-                .await
-                .map_err(|error| local_error("credential_store_unavailable", error))?;
-            self.credentials = Some(credentials);
-        }
-        Ok(response)
+        self.identity.poll_desktop_auth(request).await
     }
 
     pub async fn me(&mut self) -> Result<Option<MarketMe>, MarketClientError> {
-        if self.credentials.is_none() {
-            return Ok(None);
-        }
-        self.refresh_if_needed().await?;
-        let Some(credentials) = self.credentials.as_ref() else {
-            return Ok(None);
-        };
-        let response = self
-            .client
-            .get(self.url("/me"))
-            .bearer_auth(&credentials.access_token)
-            .send()
-            .await
-            .map_err(transport_error)?;
-        if response.status() == StatusCode::UNAUTHORIZED {
-            self.credential_store
-                .clear()
-                .await
-                .map_err(|error| local_error("credential_store_unavailable", error))?;
-            self.credentials = None;
-            return Ok(None);
-        }
-        Ok(Some(decode_json(checked_response(response).await?).await?))
+        self.identity.me().await
     }
 
     /// Returns the shared marketplace access token after applying the normal
     /// refresh and expiry policy. Appearance Market uses the same desktop
     /// identity without creating a second credential vault.
     pub(crate) async fn access_token(&mut self) -> Result<Option<String>, MarketClientError> {
-        self.refresh_if_needed().await?;
-        Ok(self
-            .credentials
-            .as_ref()
-            .map(|credentials| credentials.access_token.clone()))
+        self.identity.access_token().await
     }
 
     pub async fn set_rating(
@@ -403,88 +288,35 @@ impl MarketClient {
         self.json(request).await
     }
 
+    pub async fn review_submission(
+        &mut self,
+        submission_id: &str,
+        decision: &ReviewDecisionRequest,
+    ) -> Result<MarketSubmission, MarketClientError> {
+        let request = self
+            .authorized(self.client.post(self.url(&format!(
+                "/admin/submissions/{}/decision",
+                urlencoding::encode(submission_id)
+            ))))
+            .await?;
+        self.json(request.json(decision)).await
+    }
+
     pub async fn logout(&mut self) -> Result<(), MarketClientError> {
-        if let Some(credentials) = self.credentials.as_ref() {
-            let response = self
-                .client
-                .post(self.url("/auth/logout"))
-                .bearer_auth(&credentials.access_token)
-                .send()
-                .await
-                .map_err(transport_error)?;
-            if !response.status().is_success() && response.status() != StatusCode::UNAUTHORIZED {
-                return Err(response_error(response).await);
-            }
-        }
-        self.credential_store
-            .clear()
-            .await
-            .map_err(|error| local_error("credential_store_unavailable", error))?;
-        self.credentials = None;
-        Ok(())
+        self.identity.logout().await
     }
 
     async fn authorized(
         &mut self,
         request: RequestBuilder,
     ) -> Result<RequestBuilder, MarketClientError> {
-        self.refresh_if_needed().await?;
-        let credentials = self.credentials.as_ref().ok_or_else(|| {
+        let token = self.identity.access_token().await?.ok_or_else(|| {
             local_error(
                 "authentication_required",
                 "Sign in with GitHub to continue.",
             )
         })?;
-        Ok(request.bearer_auth(&credentials.access_token))
-    }
-
-    fn with_optional_auth(&self, request: RequestBuilder) -> RequestBuilder {
-        match self.credentials.as_ref() {
-            Some(credentials) => request.bearer_auth(&credentials.access_token),
-            None => request,
-        }
-    }
-
-    async fn refresh_if_needed(&mut self) -> Result<(), MarketClientError> {
-        let Some(credentials) = self.credentials.as_ref() else {
-            return Ok(());
-        };
-        let now = chrono::Utc::now().timestamp();
-        if credentials.refresh_expires_at <= now {
-            self.credential_store
-                .clear()
-                .await
-                .map_err(|error| local_error("credential_store_unavailable", error))?;
-            self.credentials = None;
-            return Ok(());
-        }
-        if credentials.access_expires_at > now + 30 {
-            return Ok(());
-        }
-        let refresh_token = credentials.refresh_token.clone();
-        let response = self
-            .client
-            .post(self.url("/auth/refresh"))
-            .json(&serde_json::json!({ "refreshToken": refresh_token }))
-            .send()
-            .await
-            .map_err(transport_error)?;
-        if response.status() == StatusCode::UNAUTHORIZED {
-            self.credential_store
-                .clear()
-                .await
-                .map_err(|error| local_error("credential_store_unavailable", error))?;
-            self.credentials = None;
-            return Ok(());
-        }
-        let tokens: MarketTokenPair = decode_json(checked_response(response).await?).await?;
-        let stored: StoredMarketCredentials = tokens.into();
-        self.credential_store
-            .save(&stored)
-            .await
-            .map_err(|error| local_error("credential_store_unavailable", error))?;
-        self.credentials = Some(stored);
-        Ok(())
+        Ok(request.bearer_auth(token))
     }
 
     async fn json<T: DeserializeOwned>(
@@ -547,54 +379,5 @@ fn local_error(code: impl Into<String>, message: impl Into<String>) -> MarketCli
         code: code.into(),
         message: message.into(),
         request_id: None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use async_trait::async_trait;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    #[derive(Debug)]
-    struct EmptyCredentialStore {
-        load_count: AtomicUsize,
-    }
-
-    #[async_trait]
-    impl MarketCredentialStore for EmptyCredentialStore {
-        async fn load(&self) -> Result<Option<StoredMarketCredentials>, String> {
-            self.load_count.fetch_add(1, Ordering::Relaxed);
-            Ok(None)
-        }
-
-        async fn save(&self, _credentials: &StoredMarketCredentials) -> Result<(), String> {
-            Ok(())
-        }
-
-        async fn clear(&self) -> Result<(), String> {
-            Ok(())
-        }
-    }
-
-    #[tokio::test]
-    async fn injected_credential_store_constructs_client_without_system_keyring() {
-        let store = Arc::new(EmptyCredentialStore {
-            load_count: AtomicUsize::new(0),
-        });
-
-        let client = MarketClient::new_with_credential_store(
-            "https://market.example.test/miniapp/api/v1/",
-            store.clone(),
-        )
-        .await
-        .expect("an empty injected credential store should initialize the market client");
-
-        assert_eq!(
-            client.base_url,
-            "https://market.example.test/miniapp/api/v1"
-        );
-        assert!(client.credentials.is_none());
-        assert_eq!(store.load_count.load(Ordering::Relaxed), 1);
     }
 }

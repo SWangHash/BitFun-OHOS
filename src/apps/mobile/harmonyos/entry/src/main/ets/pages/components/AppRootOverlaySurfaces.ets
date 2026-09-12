@@ -40,6 +40,11 @@ export struct AppSidebarSurface {
       selectedSessionId: AppRouteContract.isGeneralComposerRoute(this.shellState.activeRoute) ?
         this.generalPageState.conversation.activeSession.sessionId : '',
       connectionState: this.remotePageState.connectionState,
+      isBusy: this.remotePageState.isBusy,
+      workspaceKind: this.remotePageState.workspaceKind,
+      workspacePath: this.remotePageState.workspacePath,
+      controlTargetDeviceId: this.remotePageState.controlTargetDeviceId,
+      supportsHarnessProfiles: this.remotePageState.supportsHostCapability(REMOTE_CAPABILITY_HARNESS_PROFILES_V1),
       accountUserId: this.remotePageState.accountUserId,
       controlTargetType: this.remotePageState.controlTargetType,
       showViewSettingsButton: false,
@@ -134,6 +139,7 @@ export struct AppSettingsSurface {
         desktopId: this.remotePageState.desktopId,
         userId: this.remotePageState.userId,
         accountUsername: this.remotePageState.accountUsername,
+        accountAvatarUrl: this.remotePageState.accountAvatarUrl,
         accountUserId: this.remotePageState.accountUserId,
         deviceId: this.deviceId,
         controlTargetType: this.remotePageState.controlTargetType,
@@ -145,6 +151,7 @@ export struct AppSettingsSurface {
         onOpenAccount: this.actions.onSettings.openAccount,
         onAddConnection: this.actions.onSettings.addConnection,
         cloudLogin: this.actions.onSettings.cloudLogin,
+        cloudCancelLogin: this.actions.onSettings.cloudCancelLogin,
         cloudLogout: this.actions.onSettings.cloudLogout,
         cloudListDevices: this.actions.onSettings.cloudListDevices,
         cloudSelectDevice: this.actions.onSettings.cloudSelectDevice,
@@ -157,12 +164,8 @@ export struct AppSettingsSurface {
     } else {
       SettingsSheet({
         sheetState: this.shellState.settingsSheet,
-        generalChatApiUrl: this.generalPageState.apiUrl,
-        generalChatModelName: this.generalPageState.modelName,
-        hasGeneralChatApiKey: this.generalPageState.hasApiKey,
-        generalChatModelCatalog: this.generalPageState.conversation.modelCatalog,
-        selectedGeneralChatModelId: this.generalPageState.conversation.selectedModelId,
         accountUsername: this.remotePageState.accountUsername,
+        accountAvatarUrl: this.remotePageState.accountAvatarUrl,
         authenticatedUserId: this.remotePageState.accountUserId,
         fallbackUserId: this.remotePageState.userId,
         desktopName: this.remotePageState.desktopName,
@@ -178,9 +181,6 @@ export struct AppSettingsSurface {
         cloudLogout: this.actions.onSettings.cloudLogout,
         cloudListDevices: this.actions.onSettings.cloudListDevices,
         cloudSelectDevice: this.actions.onSettings.cloudSelectDevice,
-        onTestGeneralChatConfig: this.actions.onSettings.testGeneral,
-        onSaveGeneralChatConfig: this.actions.onSettings.saveGeneral,
-        onSelectGeneralChatModel: this.actions.onSettings.selectGeneralModel,
         onSetLanguage: this.actions.onSettings.setLanguage,
         onClose: this.actions.onSettings.close
       })

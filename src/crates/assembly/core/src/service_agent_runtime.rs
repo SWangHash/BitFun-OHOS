@@ -427,6 +427,42 @@ fn workspace_metadata_string(
 }
 
 #[cfg(feature = "remote-connect")]
+pub(crate) fn remote_workspace_display_name(
+    workspace: &crate::service::workspace::WorkspaceInfo,
+) -> &str {
+    if workspace.workspace_kind == crate::service::workspace::WorkspaceKind::Assistant {
+        workspace
+            .identity
+            .as_ref()
+            .and_then(|identity| identity.name.as_deref())
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .unwrap_or(&workspace.name)
+    } else {
+        &workspace.name
+    }
+}
+
+#[cfg(feature = "remote-connect")]
+pub(crate) async fn remote_opened_workspace_catalog(
+    service: &crate::service::workspace::WorkspaceService,
+) -> Vec<RemoteRecentWorkspaceFacts> {
+    service
+        .get_opened_workspaces()
+        .await
+        .into_iter()
+        .map(|workspace| RemoteRecentWorkspaceFacts {
+            name: remote_workspace_display_name(&workspace).to_string(),
+            path: workspace.root_path.to_string_lossy().to_string(),
+            last_opened: workspace.last_accessed.to_rfc3339(),
+            kind: remote_workspace_kind(workspace.workspace_kind),
+            remote_connection_id: workspace_metadata_string(&workspace.metadata, "connectionId"),
+            remote_ssh_host: workspace_metadata_string(&workspace.metadata, "sshHost"),
+        })
+        .collect()
+}
+
+#[cfg(feature = "remote-connect")]
 async fn current_remote_workspace_facts() -> Option<RemoteWorkspaceFacts> {
     let workspace_service = crate::service::workspace::get_global_workspace_service()?;
     workspace_service
@@ -2629,6 +2665,14 @@ impl RemoteWorkspaceRuntimeHost for CoreRemoteWorkspaceRuntimeHost {
             .collect()
     }
 
+    async fn opened_workspaces(&self) -> Result<Option<Vec<RemoteRecentWorkspaceFacts>>, String> {
+        let workspace_service = crate::service::workspace::get_global_workspace_service()
+            .ok_or_else(|| "Workspace service not available".to_string())?;
+        Ok(Some(
+            remote_opened_workspace_catalog(&workspace_service).await,
+        ))
+    }
+
     async fn open_workspace(
         &self,
         path: &str,
@@ -3020,6 +3064,65 @@ mod tests {
         ToolCallData, ToolItemData, TurnStatus, UserMessageData,
     };
     use crate::OpenBitFunError;
+
+    #[tokio::test]
+    async fn remote_workspace_catalog_tracks_opened_rows_and_assistant_identity() {
+        use crate::service::workspace::{WorkspaceCreateOptions, WorkspaceKind, WorkspaceService};
+        let root = tempfile::tempdir().unwrap();
+        let paths = Arc::new(
+            crate::infrastructure::PathManager::with_user_root_for_tests(
+                root.path().join("user-root"),
+            ),
+        );
+        let service = WorkspaceService::new_for_test_path_manager(paths).await;
+        let project_root = root.path().join("project");
+        let assistant_root = root.path().join("workspace");
+        std::fs::create_dir_all(&project_root).unwrap();
+        std::fs::create_dir_all(&assistant_root).unwrap();
+        std::fs::write(assistant_root.join("IDENTITY.md"), "---\nname: Mina\n---\n").unwrap();
+        let project = service.open_workspace(project_root).await.unwrap();
+        let assistant = service
+            .open_workspace_with_options(
+                assistant_root.clone(),
+                WorkspaceCreateOptions {
+                    workspace_kind: WorkspaceKind::Assistant,
+                    display_name: Some("workspace".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        // Older records can retain the directory name alongside an up-to-date identity.
+        let mut export = service.export_workspaces().await.unwrap();
+        export
+            .workspaces
+            .iter_mut()
+            .find(|row| row.id == assistant.id)
+            .unwrap()
+            .name = "workspace".into();
+        service.import_workspaces(export, true).await.unwrap();
+
+        let opened = remote_opened_workspace_catalog(&service).await;
+        assert_eq!(opened.len(), 2);
+        let assistant_row = opened
+            .iter()
+            .find(|row| row.path == assistant.root_path.to_string_lossy())
+            .unwrap();
+        assert_eq!(assistant_row.name, "Mina");
+        assert_eq!(assistant_row.kind, RemoteConnectWorkspaceKind::Assistant);
+
+        service.close_workspace(&project.id).await.unwrap();
+        assert!(service
+            .get_recent_workspaces()
+            .await
+            .iter()
+            .any(|row| row.id == project.id));
+        let refreshed = remote_opened_workspace_catalog(&service).await;
+        assert_eq!(refreshed.len(), 1);
+        assert_eq!(refreshed[0].name, "Mina");
+        service.close_workspace(&assistant.id).await.unwrap();
+        assert!(remote_opened_workspace_catalog(&service).await.is_empty());
+    }
 
     #[cfg(feature = "opencode-plugin-host")]
     fn plugin_session_request() -> AgentSessionCreateRequest {
@@ -3435,7 +3538,7 @@ mod tests {
         let mut session = Session::new_with_id(
             "session-model-scope".to_string(),
             "Model scope".to_string(),
-            "agentic".to_string(),
+            "Standard".to_string(),
             Default::default(),
         );
 

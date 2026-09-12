@@ -159,10 +159,6 @@ pub(super) const BUILTIN_SKILL_SPECS: &[BuiltinSkillSpec] = &[
         group: BuiltinSkillGroup::Meta,
     },
     BuiltinSkillSpec {
-        dir_name: "xlsx",
-        group: BuiltinSkillGroup::Office,
-    },
-    BuiltinSkillSpec {
         dir_name: "arkts-error-fixes",
         group: BuiltinSkillGroup::HarmonyOS,
     },

@@ -142,6 +142,11 @@ pub struct RemoteFileChunkRange {
 pub trait RemoteWorkspaceRuntimeHost: Send + Sync {
     async fn current_workspace(&self) -> Option<RemoteWorkspaceFacts>;
     async fn recent_workspaces(&self) -> Vec<RemoteRecentWorkspaceFacts>;
+    /// Authoritative sidebar catalog, including opened assistant workspaces.
+    /// `None` advertises a legacy host; `Some([])` means no workspaces are open.
+    async fn opened_workspaces(&self) -> Result<Option<Vec<RemoteRecentWorkspaceFacts>>, String> {
+        Ok(None)
+    }
     async fn open_workspace(
         &self,
         path: &str,

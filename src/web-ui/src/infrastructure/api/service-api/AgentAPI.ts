@@ -1,3 +1,4 @@
+import { translateAgentIdentityFields } from '../../../../../shared/agent-harness/wire';
  
 
 import { api } from './ApiClient';
@@ -1699,9 +1700,7 @@ export class AgentAPI {
     remoteSshHost?: string;
   } = {}): Promise<ModeInfo[]> {
     try {
-      return await api.invoke<ModeInfo[]>('get_available_modes', {
-        request,
-      });
+      return translateAgentIdentityFields(await api.invoke<ModeInfo[]>('get_available_modes', { request }), 'canonical');
     } catch (error) {
       throw createTauriCommandError('get_available_modes', error);
     }

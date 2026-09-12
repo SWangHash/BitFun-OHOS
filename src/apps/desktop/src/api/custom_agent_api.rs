@@ -410,7 +410,6 @@ pub async fn delete_custom_agent(
             agent_id, error
         );
     } else {
-        crate::api::remote_connect_api::notify_settings_changed();
     }
 
     if let Err(error) = openbitfun_core::service::config::reload_global_config().await {

@@ -353,7 +353,7 @@ export function useMiniAppBridge(
                 typeof params.sessionName === 'string' && params.sessionName.trim()
                   ? params.sessionName.trim()
                   : `MiniApp: ${appId}`,
-                'agentic',
+                'Standard',
                 result.workspacePath,
                 {
                   sessionKind: 'miniapp',

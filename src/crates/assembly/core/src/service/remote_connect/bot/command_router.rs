@@ -14,6 +14,9 @@
 //!     `complete_im_bot_pairing`, `current_bot_language`,
 //!     `execute_forwarded_turn`, `apply_interactive_request`.
 
+use crate::service_agent_runtime::{
+    remote_opened_workspace_catalog, remote_workspace_display_name,
+};
 use log::{error, info};
 use serde_json::Value;
 use std::sync::{Arc, OnceLock};
@@ -149,7 +152,7 @@ fn ready_to_chat_body(state: &BotChatState, s: &'static BotStrings) -> Option<St
         }
     } else {
         // Assistant mode: prefer the cached assistant display name (set by
-        // pairing / switch / resume flows from `WorkspaceInfo.name`). The
+        // pairing / switch / resume flows from workspace identity facts). The
         // workspace path's directory name is meaningless here — the actual
         // assistant folder is usually `workspace` or `workspace-<uuid>`,
         // both of which look like noise to the user.
@@ -168,28 +171,32 @@ fn ready_to_chat_body(state: &BotChatState, s: &'static BotStrings) -> Option<St
     }
 }
 
-/// One-shot lookup that fills in `current_assistant_name` from the workspace
-/// service when the chat state has an `current_assistant` path but no cached
-/// display name (e.g. the state was persisted before the field was added).
-/// Best-effort: silently no-ops if the workspace service is unavailable or
-/// the path is not a known assistant workspace.
-async fn refresh_assistant_name_if_missing(state: &mut BotChatState) {
+/// Refresh the selected assistant label from current identity facts, including
+/// states that already cached an obsolete directory name. Peer control must
+/// never resolve a peer path against this host's workspace service.
+async fn refresh_assistant_name(state: &mut BotChatState) {
     use crate::service::workspace::get_global_workspace_service;
-    if state.current_assistant_name.is_some() {
+    if state.active_remote_device.is_some() || state.current_assistant.is_none() {
         return;
     }
-    let Some(path) = state.current_assistant.clone() else {
+    let Some(service) = get_global_workspace_service() else {
         return;
     };
-    let Some(svc) = get_global_workspace_service() else {
+    refresh_assistant_name_from_workspaces(state, &service.get_assistant_workspaces().await);
+}
+
+fn refresh_assistant_name_from_workspaces(
+    state: &mut BotChatState,
+    workspaces: &[crate::service::workspace::WorkspaceInfo],
+) {
+    let Some(path) = state.current_assistant.as_deref() else {
         return;
     };
-    let workspaces = svc.get_assistant_workspaces().await;
-    if let Some(ws) = workspaces
-        .into_iter()
-        .find(|w| w.root_path.to_string_lossy() == path)
+    if let Some(workspace) = workspaces
+        .iter()
+        .find(|workspace| workspace.root_path.to_string_lossy() == path)
     {
-        state.current_assistant_name = Some(ws.name);
+        state.current_assistant_name = Some(remote_workspace_display_name(workspace).to_string());
     }
 }
 
@@ -525,7 +532,7 @@ pub async fn bootstrap_im_chat_after_pairing(state: &mut BotChatState) -> String
     }
 
     state.current_assistant = Some(ws_info.root_path.to_string_lossy().to_string());
-    state.current_assistant_name = Some(ws_info.name.clone());
+    state.current_assistant_name = Some(remote_workspace_display_name(&ws_info).to_string());
     state.current_session_id = None;
 
     let create_res = create_session(state, "Claw").await;
@@ -625,11 +632,8 @@ async fn dispatch(
         return result_from_menu(state, welcome_view(s));
     }
 
-    // Lazily resolve `current_assistant_name` for chat states that were
-    // persisted before this field existed. Without this, already-paired
-    // users would keep seeing the workspace folder name (e.g. "workspace")
-    // until they manually re-switch assistants.
-    refresh_assistant_name_if_missing(state).await;
+    // Refresh both legacy missing labels and cached names after identity edits.
+    refresh_assistant_name(state).await;
 
     // Handle /cancel as task cancellation when an active session exists.
     if let BotCommand::CancelTask(turn_id) = &cmd {
@@ -678,7 +682,7 @@ async fn dispatch(
         BotCommand::SetVerbose(on) => set_verbose(state, on, s).await,
         BotCommand::SwitchContext => start_switch(state, s).await,
         BotCommand::NewSession => new_session_for_mode(state, s).await,
-        BotCommand::NewCodeSession => guarded_new(state, "agentic", s).await,
+        BotCommand::NewCodeSession => guarded_new(state, "Standard", s).await,
         BotCommand::NewCoworkSession => guarded_new(state, "Cowork", s).await,
         BotCommand::NewClawSession => guarded_new(state, "Claw", s).await,
         BotCommand::ResumeSession => start_resume(state, 0, s).await,
@@ -724,11 +728,11 @@ fn delegated_session(
     }
     let mut master_key = [0u8; 32];
     master_key.copy_from_slice(&key_vec);
-    Some(crate::service::remote_connect::AccountSession {
+    Some(crate::service::remote_connect::AccountSession::new(
         token,
-        user_id: String::new(),
+        String::new(),
         master_key,
-    })
+    ))
 }
 
 async fn list_devices(state: &mut BotChatState, s: &'static BotStrings) -> HandleResult {
@@ -888,8 +892,151 @@ async fn set_verbose(state: &mut BotChatState, on: bool, s: &'static BotStrings)
 
 // ── Switch context (workspace or assistant) ────────────────────────
 
+fn remote_workspace_choices(response: &str) -> Result<Vec<BotWorkspaceChoice>, String> {
+    let value: Value = serde_json::from_str(response).map_err(|error| error.to_string())?;
+    if value.get("resp").and_then(Value::as_str) == Some("error") {
+        return Err(value
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("Remote workspace service unavailable")
+            .to_string());
+    }
+    if value.get("resp").and_then(Value::as_str) != Some("recent_workspaces") {
+        return Err("Unexpected remote workspace catalog response".to_string());
+    }
+    // Field presence negotiates the authoritative catalog. In particular an
+    // empty opened list must not resurrect entries from recent history.
+    let rows = match value.get("opened_workspaces") {
+        Some(Value::Array(rows)) => rows,
+        None | Some(Value::Null) => value
+            .get("workspaces")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "Invalid legacy workspace catalog response".to_string())?,
+        _ => return Err("Invalid opened workspace catalog response".to_string()),
+    };
+    Ok(rows
+        .iter()
+        .filter_map(|workspace| {
+            // The bot keeps its existing Pro/Assistant picker separation.
+            if workspace.get("workspace_kind").and_then(Value::as_str) == Some("assistant") {
+                return None;
+            }
+            let text = |key| {
+                workspace
+                    .get(key)
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+            };
+            let path = text("path")?;
+            Some(BotWorkspaceChoice::new(
+                path,
+                text("name").unwrap_or(path),
+                text("remote_connection_id").map(str::to_string),
+                text("remote_ssh_host").map(str::to_string),
+            ))
+        })
+        .collect())
+}
+
+async fn load_remote_workspace_choices(
+    state: &BotChatState,
+) -> Result<Vec<BotWorkspaceChoice>, String> {
+    let response = exec_remote_rpc(state, r#"{"cmd":"list_recent_workspaces"}"#).await?;
+    remote_workspace_choices(&response)
+}
+
+fn show_workspace_choices(
+    state: &mut BotChatState,
+    options: Vec<BotWorkspaceChoice>,
+    s: &'static BotStrings,
+) -> HandleResult {
+    state.clear_pending();
+    if options.is_empty() {
+        return result_from_menu(
+            state,
+            MenuView::plain(s.switch_no_workspaces)
+                .with_items(vec![MenuItem::default(s.item_back, "/menu")]),
+        );
+    }
+    let view = workspace_selection_view(state, &options, s);
+    state.set_pending(PendingAction::SelectWorkspace { options });
+    result_from_menu(state, view)
+}
+
+fn local_pro_workspace_choices(
+    workspaces: Vec<openbitfun_runtime_ports::RemoteRecentWorkspaceFacts>,
+) -> Vec<BotWorkspaceChoice> {
+    workspaces
+        .into_iter()
+        .filter(|workspace| {
+            workspace.kind != openbitfun_runtime_ports::RemoteWorkspaceKind::Assistant
+        })
+        .map(|workspace| {
+            BotWorkspaceChoice::new(
+                workspace.path,
+                workspace.name,
+                workspace.remote_connection_id,
+                workspace.remote_ssh_host,
+            )
+        })
+        .collect()
+}
+
+fn current_workspace_choice<'a>(
+    options: &'a [BotWorkspaceChoice],
+    selected: &BotWorkspaceChoice,
+) -> Option<&'a BotWorkspaceChoice> {
+    options.iter().find(|option| {
+        option.path == selected.path
+            && option.remote_connection_id == selected.remote_connection_id
+            && option.remote_ssh_host == selected.remote_ssh_host
+    })
+}
+
+fn workspace_list_changed_result(
+    state: &mut BotChatState,
+    result: HandleResult,
+    s: &'static BotStrings,
+) -> HandleResult {
+    let mut view = result.menu;
+    view.title = format!("{}\n{}", s.workspace_list_changed, view.title);
+    result_from_menu(state, view)
+}
+
+async fn start_local_switch(
+    state: &mut BotChatState,
+    service: &crate::service::workspace::WorkspaceService,
+    s: &'static BotStrings,
+) -> HandleResult {
+    let workspaces = remote_opened_workspace_catalog(service).await;
+    state.clear_pending();
+    if state.display_mode == BotDisplayMode::Pro {
+        show_workspace_choices(state, local_pro_workspace_choices(workspaces), s)
+    } else {
+        let options: Vec<_> = workspaces
+            .into_iter()
+            .filter(|workspace| {
+                workspace.kind == openbitfun_runtime_ports::RemoteWorkspaceKind::Assistant
+            })
+            .map(|workspace| (workspace.path, workspace.name))
+            .collect();
+        if options.is_empty() {
+            return result_from_menu(
+                state,
+                MenuView::plain(s.switch_no_assistants)
+                    .with_items(vec![MenuItem::default(s.item_back, "/menu")]),
+            );
+        }
+        let view = assistant_selection_view(state, &options, s);
+        state.set_pending(PendingAction::SelectAssistant { options });
+        result_from_menu(state, view)
+    }
+}
+
 async fn start_switch(state: &mut BotChatState, s: &'static BotStrings) -> HandleResult {
-    // Remote-device control: list/switch workspaces on the peer, not the local desktop.
+    state.clear_pending();
+    // Remote device catalogs never fall back to this host's workspaces.
     if state.active_remote_device.is_some() {
         if state.display_mode != BotDisplayMode::Pro {
             return result_from_menu(
@@ -898,156 +1045,23 @@ async fn start_switch(state: &mut BotChatState, s: &'static BotStrings) -> Handl
                     .with_items(vec![MenuItem::default(s.item_back, "/menu")]),
             );
         }
-        let cmd = serde_json::json!({ "cmd": "list_recent_workspaces" });
-        let cmd_json = serde_json::to_string(&cmd).unwrap_or_default();
-        match exec_remote_rpc(state, &cmd_json).await {
-            Ok(resp) => {
-                let val: serde_json::Value = match serde_json::from_str(&resp) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        return result_from_menu(
-                            state,
-                            MenuView::plain(format!("{}{e}", s.workspace_open_failed_prefix))
-                                .with_items(vec![MenuItem::default(s.item_back, "/menu")]),
-                        );
-                    }
-                };
-                if val.get("resp").and_then(|value| value.as_str()) == Some("error") {
-                    let message = val
-                        .get("message")
-                        .and_then(|value| value.as_str())
-                        .unwrap_or(s.workspace_service_unavailable);
-                    return result_from_menu(
-                        state,
-                        MenuView::plain(message.to_string())
-                            .with_items(vec![MenuItem::default(s.item_back, "/menu")]),
-                    );
-                }
-                let workspaces = val
-                    .get("workspaces")
-                    .and_then(|value| value.as_array())
-                    .cloned()
-                    .unwrap_or_default();
-                if workspaces.is_empty() {
-                    return result_from_menu(
-                        state,
-                        MenuView::plain(s.switch_no_workspaces)
-                            .with_items(vec![MenuItem::default(s.item_back, "/menu")]),
-                    );
-                }
-                let options: Vec<BotWorkspaceChoice> = workspaces
-                    .iter()
-                    .filter_map(|workspace| {
-                        let path = workspace
-                            .get("path")
-                            .and_then(|value| value.as_str())
-                            .map(str::trim)
-                            .filter(|value| !value.is_empty())?;
-                        let name = workspace
-                            .get("name")
-                            .and_then(|value| value.as_str())
-                            .map(str::trim)
-                            .filter(|value| !value.is_empty())
-                            .unwrap_or(path);
-                        Some(BotWorkspaceChoice::new(
-                            path.to_string(),
-                            name.to_string(),
-                            workspace
-                                .get("remote_connection_id")
-                                .and_then(|value| value.as_str())
-                                .map(str::trim)
-                                .filter(|value| !value.is_empty())
-                                .map(str::to_string),
-                            workspace
-                                .get("remote_ssh_host")
-                                .and_then(|value| value.as_str())
-                                .map(str::trim)
-                                .filter(|value| !value.is_empty())
-                                .map(str::to_string),
-                        ))
-                    })
-                    .collect();
-                if options.is_empty() {
-                    return result_from_menu(
-                        state,
-                        MenuView::plain(s.switch_no_workspaces)
-                            .with_items(vec![MenuItem::default(s.item_back, "/menu")]),
-                    );
-                }
-                let view = workspace_selection_view(state, &options, s);
-                state.set_pending(PendingAction::SelectWorkspace { options });
-                return result_from_menu(state, view);
-            }
-            Err(error) => {
-                return result_from_menu(
-                    state,
-                    MenuView::plain(format!("{}{error}", s.workspace_open_failed_prefix))
-                        .with_items(vec![MenuItem::default(s.item_back, "/menu")]),
-                );
-            }
-        }
-    }
-
-    use crate::service::workspace::get_global_workspace_service;
-
-    let ws_service = match get_global_workspace_service() {
-        Some(s) => s,
-        None => {
-            return result_from_menu(
+        return match load_remote_workspace_choices(state).await {
+            Ok(options) => show_workspace_choices(state, options, s),
+            Err(error) => result_from_menu(
                 state,
-                MenuView::plain(s.workspace_service_unavailable)
+                MenuView::plain(format!("{}{error}", s.workspace_open_failed_prefix))
                     .with_items(vec![MenuItem::default(s.item_back, "/menu")]),
-            );
-        }
+            ),
+        };
+    }
+    let Some(service) = crate::service::workspace::get_global_workspace_service() else {
+        return result_from_menu(
+            state,
+            MenuView::plain(s.workspace_service_unavailable)
+                .with_items(vec![MenuItem::default(s.item_back, "/menu")]),
+        );
     };
-
-    if state.display_mode == BotDisplayMode::Pro {
-        let workspaces = ws_service.get_recent_workspaces().await;
-        if workspaces.is_empty() {
-            return result_from_menu(
-                state,
-                MenuView::plain(s.switch_no_workspaces)
-                    .with_items(vec![MenuItem::default(s.item_back, "/menu")]),
-            );
-        }
-        let options: Vec<BotWorkspaceChoice> = workspaces
-            .iter()
-            .map(|ws| {
-                let ssh_host = ws
-                    .metadata
-                    .get("sshHost")
-                    .and_then(|value| value.as_str())
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty())
-                    .map(str::to_string);
-                BotWorkspaceChoice::new(
-                    ws.root_path.to_string_lossy().to_string(),
-                    ws.name.clone(),
-                    ws.remote_ssh_connection_id().map(str::to_string),
-                    ssh_host,
-                )
-            })
-            .collect();
-        let view = workspace_selection_view(state, &options, s);
-        state.set_pending(PendingAction::SelectWorkspace { options });
-        result_from_menu(state, view)
-    } else {
-        let assistants = ws_service.get_assistant_workspaces().await;
-        if assistants.is_empty() {
-            return result_from_menu(
-                state,
-                MenuView::plain(s.switch_no_assistants)
-                    .with_items(vec![MenuItem::default(s.item_back, "/menu")]),
-            );
-        }
-        let options: Vec<(String, String)> = assistants
-            .iter()
-            .map(|ws| (ws.root_path.to_string_lossy().to_string(), ws.name.clone()))
-            .collect();
-        let view = assistant_selection_view(state, &options, s);
-        state.set_pending(PendingAction::SelectAssistant { options });
-        result_from_menu(state, view)
-    }
+    start_local_switch(state, &service, s).await
 }
 
 fn workspace_selection_view(
@@ -1151,6 +1165,20 @@ async fn select_workspace(
     s: &'static BotStrings,
 ) -> HandleResult {
     if state.active_remote_device.is_some() {
+        let options = match load_remote_workspace_choices(state).await {
+            Ok(options) => options,
+            Err(error) => {
+                return result_from_menu(
+                    state,
+                    MenuView::plain(format!("{}{error}", s.workspace_open_failed_prefix))
+                        .with_items(vec![MenuItem::default(s.item_back, "/menu")]),
+                )
+            }
+        };
+        let Some(choice) = current_workspace_choice(&options, choice) else {
+            let result = show_workspace_choices(state, options, s);
+            return workspace_list_changed_result(state, result, s);
+        };
         let cmd = serde_json::json!({
             "cmd": "set_workspace",
             "path": choice.path,
@@ -1230,9 +1258,23 @@ async fn select_workspace(
             return result_from_menu(state, MenuView::plain(s.workspace_service_unavailable));
         }
     };
+    select_local_workspace(state, &ws_service, choice, s).await
+}
+
+async fn select_local_workspace(
+    state: &mut BotChatState,
+    ws_service: &crate::service::workspace::WorkspaceService,
+    choice: &BotWorkspaceChoice,
+    s: &'static BotStrings,
+) -> HandleResult {
+    let options = local_pro_workspace_choices(remote_opened_workspace_catalog(ws_service).await);
+    let Some(choice) = current_workspace_choice(&options, choice) else {
+        let result = show_workspace_choices(state, options, s);
+        return workspace_list_changed_result(state, result, s);
+    };
     let path_buf = std::path::PathBuf::from(&choice.path);
     match open_bot_workspace(
-        ws_service.as_ref(),
+        ws_service,
         path_buf,
         choice.remote_connection_id.as_deref(),
         choice.remote_ssh_host.as_deref(),
@@ -1287,7 +1329,6 @@ async fn select_workspace(
 async fn select_assistant(
     state: &mut BotChatState,
     path: &str,
-    name: &str,
     s: &'static BotStrings,
 ) -> HandleResult {
     use crate::service::workspace::get_global_workspace_service;
@@ -1298,16 +1339,26 @@ async fn select_assistant(
             return result_from_menu(state, MenuView::plain(s.workspace_service_unavailable));
         }
     };
+    select_local_assistant(state, &ws_service, path, s).await
+}
+
+async fn select_local_assistant(
+    state: &mut BotChatState,
+    ws_service: &crate::service::workspace::WorkspaceService,
+    path: &str,
+    s: &'static BotStrings,
+) -> HandleResult {
+    let workspaces = remote_opened_workspace_catalog(ws_service).await;
+    let Some(workspace) = workspaces.iter().find(|workspace| {
+        workspace.kind == openbitfun_runtime_ports::RemoteWorkspaceKind::Assistant
+            && workspace.path == path
+    }) else {
+        let result = start_local_switch(state, ws_service, s).await;
+        return workspace_list_changed_result(state, result, s);
+    };
+    let name = &workspace.name;
     let path_buf = std::path::PathBuf::from(path);
-    match open_bot_workspace(
-        ws_service.as_ref(),
-        path_buf,
-        None,
-        None,
-        "bot assistant switch",
-    )
-    .await
-    {
+    match open_bot_workspace(ws_service, path_buf, None, None, "bot assistant switch").await {
         Ok(_info) => {
             state.current_assistant = Some(path.to_string());
             state.current_assistant_name = Some(name.to_string());
@@ -1855,7 +1906,7 @@ fn truncate_text(text: &str, max_chars: usize) -> String {
 
 async fn new_session_for_mode(state: &mut BotChatState, s: &'static BotStrings) -> HandleResult {
     let agent_type = if state.display_mode == BotDisplayMode::Pro {
-        "agentic"
+        "Standard"
     } else {
         "Claw"
     };
@@ -1867,12 +1918,12 @@ async fn guarded_new(
     agent_type: &str,
     s: &'static BotStrings,
 ) -> HandleResult {
-    let needs_pro = matches!(agent_type, "agentic" | "Cowork");
+    let needs_pro = matches!(agent_type, "Standard" | "Cowork");
     let needs_assistant = matches!(agent_type, "Claw");
 
     if needs_pro && state.display_mode != BotDisplayMode::Pro {
         let target_cmd = match agent_type {
-            "agentic" => "/new_code_session",
+            "Standard" => "/new_code_session",
             "Cowork" => "/new_cowork_session",
             _ => "/new_code_session",
         };
@@ -2005,13 +2056,13 @@ async fn create_session(state: &mut BotChatState, agent_type: &str) -> HandleRes
                 if let Some(primary_ws) = ws_service.get_primary_assistant_workspace().await {
                     Some((
                         primary_ws.root_path.to_string_lossy().to_string(),
-                        primary_ws.name.clone(),
+                        remote_workspace_display_name(&primary_ws).to_string(),
                     ))
                 } else {
                     match ws_service.create_assistant_workspace(None).await {
                         Ok(ws_info) => Some((
                             ws_info.root_path.to_string_lossy().to_string(),
-                            ws_info.name.clone(),
+                            remote_workspace_display_name(&ws_info).to_string(),
                         )),
                         Err(e) => {
                             return result_from_menu(
@@ -2103,7 +2154,14 @@ async fn create_session(state: &mut BotChatState, agent_type: &str) -> HandleRes
                 s.session_created_prefix,
                 session_name,
                 s.session_workspace_label,
-                short_path_name(&workspace_ref.path),
+                if is_claw {
+                    state
+                        .current_assistant_name
+                        .clone()
+                        .unwrap_or_else(|| short_path_name(&workspace_ref.path))
+                } else {
+                    short_path_name(&workspace_ref.path)
+                },
                 s.session_start_hint,
             );
             let view = MenuView::plain("").with_body(body);
@@ -2200,8 +2258,8 @@ async fn route_pending(
                 }
                 Some(n) if n >= 1 && n <= options.len() => {
                     state.clear_pending();
-                    let (path, name) = options[n - 1].clone();
-                    select_assistant(state, &path, &name, s).await
+                    let (path, _) = &options[n - 1];
+                    select_assistant(state, path, s).await
                 }
                 _ => {
                     state.set_pending(PendingAction::SelectAssistant { options });
@@ -2644,10 +2702,10 @@ async fn submit_question_answers(
 // ── Free-form chat handling ───────────────────────────────────────
 
 /// Look up the agent type a session was created with (e.g. "Claw", "Cowork",
-/// "agentic").  Returns `None` if the coordinator is unavailable or the
+/// "Standard").  Returns `None` if the coordinator is unavailable or the
 /// session is not currently hot in memory; in that case `send_message` will
 /// lazily restore the session from disk and `resolve_agent_type` falls back
-/// to the safe default ("agentic"), so chat keeps working.
+/// to the safe default ("Standard"), so chat keeps working.
 async fn resolve_session_agent_type(session_id: &str) -> Option<String> {
     use crate::agentic::coordination::get_global_coordinator;
     use crate::service_agent_runtime::CoreServiceAgentRuntime;
@@ -2728,18 +2786,18 @@ async fn handle_chat(
         let turn_id = format!("turn_{}", uuid::Uuid::new_v4());
 
         // Pick the agent type from the actual session — NOT a hardcoded
-        // "agentic" — otherwise every chat message goes through the Code
+        // "Standard" — otherwise every chat message goes through the Code
         // (`agentic`) agent regardless of what kind of session was created.
         // Concretely: the IM pairing bootstrap creates a `Claw` session for
         // assistant mode, but the old hardcoded value caused all subsequent
         // messages to be re-routed to the Code agent and the assistant flow
         // was effectively bypassed.  We mirror the agent type the session was
-        // actually created with, falling back to "agentic" only if the session
+        // actually created with, falling back to "Standard" only if the session
         // is missing in memory (e.g. needs lazy restore — `send_message` will
         // also normalize via `resolve_agent_type`).
         let agent_type = resolve_session_agent_type(&session_id)
             .await
-            .unwrap_or_else(|| "agentic".to_string());
+            .unwrap_or_else(|| "Standard".to_string());
 
         // Intentionally do NOT send a "Processing..." / "Queued" interstitial
         // message with a Cancel-task menu. The session manager queues new user
@@ -2974,6 +3032,246 @@ fn truncate_at_char_boundary(s: &str, max_len: usize) -> String {
 #[cfg(test)]
 mod parse_command_tests {
     use super::*;
+
+    #[test]
+    fn remote_picker_prefers_opened_workspaces_and_keeps_bot_mode_separation() {
+        let response = serde_json::json!({
+            "resp": "recent_workspaces",
+            "workspaces": [{"path": "/closed", "name": "Closed project"}],
+            "opened_workspaces": [
+                {"path": "/assistant/workspace", "name": "Mina", "workspace_kind": "assistant"},
+                {"path": "/repo", "name": "Project A", "workspace_kind": "remote",
+                 "remote_connection_id": "conn-a", "remote_ssh_host": "host-a"},
+                {"path": "/repo", "name": "Project B", "workspace_kind": "remote",
+                 "remote_connection_id": "conn-b", "remote_ssh_host": "host-b"}
+            ]
+        });
+        let options = remote_workspace_choices(&response.to_string()).unwrap();
+        assert_eq!(options.len(), 2);
+        assert_eq!(
+            options[0],
+            BotWorkspaceChoice::new(
+                "/repo",
+                "Project A",
+                Some("conn-a".into()),
+                Some("host-a".into())
+            )
+        );
+        assert_eq!(
+            options[1],
+            BotWorkspaceChoice::new(
+                "/repo",
+                "Project B",
+                Some("conn-b".into()),
+                Some("host-b".into())
+            )
+        );
+
+        let selected = BotWorkspaceChoice::new(
+            "/repo",
+            "Old label",
+            Some("conn-b".into()),
+            Some("host-b".into()),
+        );
+        assert_eq!(
+            current_workspace_choice(&options, &selected).unwrap().name,
+            "Project B"
+        );
+        assert!(current_workspace_choice(&options[..1], &selected).is_none());
+    }
+
+    #[test]
+    fn remote_picker_empty_opened_catalog_clears_stale_options_without_dropping_session() {
+        let response = r#"{"resp":"recent_workspaces","workspaces":[{"path":"/closed","name":"Closed"}],"opened_workspaces":[]}"#;
+        let options = remote_workspace_choices(response).unwrap();
+        assert!(options.is_empty());
+        let mut state = BotChatState::new("chat".into());
+        state.current_workspace = Some(BotWorkspaceRef::local("/closed"));
+        state.current_session_id = Some("retained-session".into());
+        state.set_pending(PendingAction::SelectWorkspace {
+            options: vec![BotWorkspaceChoice::new("/closed", "Closed", None, None)],
+        });
+        let strings = strings_for(BotLanguage::EnUS);
+        let result = show_workspace_choices(&mut state, options, strings);
+        assert_eq!(result.menu.title, strings.switch_no_workspaces);
+        assert!(state.pending_action.is_none());
+        assert_eq!(state.current_workspace_path(), Some("/closed"));
+        assert_eq!(
+            state.current_session_id.as_deref(),
+            Some("retained-session")
+        );
+    }
+
+    #[test]
+    fn remote_picker_accepts_legacy_catalog_after_wire_round_trip() {
+        use openbitfun_services_integrations::remote_connect::RemoteResponse;
+        let legacy = serde_json::json!({
+            "resp": "recent_workspaces",
+            "workspaces": [{"path": "/legacy", "name": "Legacy project", "last_opened": ""}]
+        });
+        let decoded: RemoteResponse = serde_json::from_value(legacy.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&decoded).unwrap(), legacy);
+        let options = remote_workspace_choices(&serde_json::to_string(&decoded).unwrap()).unwrap();
+        assert_eq!(
+            options,
+            vec![BotWorkspaceChoice::new(
+                "/legacy",
+                "Legacy project",
+                None,
+                None
+            )]
+        );
+
+        let mut null_catalog = legacy;
+        null_catalog["opened_workspaces"] = Value::Null;
+        assert_eq!(
+            remote_workspace_choices(&null_catalog.to_string()).unwrap(),
+            options
+        );
+    }
+
+    #[test]
+    fn remote_picker_does_not_hide_catalog_failures_as_empty_or_recent_rows() {
+        for response in [
+            r#"{"resp":"recent_workspaces","workspaces":[{"path":"/closed"}],"opened_workspaces":{}}"#,
+            r#"{"resp":"recent_workspaces"}"#,
+            r#"{"resp":"workspace_info","workspaces":[]}"#,
+            "invalid json",
+        ] {
+            assert!(remote_workspace_choices(response).is_err(), "{response}");
+        }
+        assert_eq!(
+            remote_workspace_choices(r#"{"resp":"error","message":"Peer offline"}"#).unwrap_err(),
+            "Peer offline"
+        );
+    }
+
+    #[tokio::test]
+    async fn local_bot_pickers_use_opened_rows_and_refresh_assistant_identity() {
+        use crate::service::workspace::{WorkspaceCreateOptions, WorkspaceKind, WorkspaceService};
+        let root = tempfile::tempdir().unwrap();
+        let paths = Arc::new(
+            crate::infrastructure::PathManager::with_user_root_for_tests(
+                root.path().join("user-root"),
+            ),
+        );
+        let service = WorkspaceService::new_for_test_path_manager(paths).await;
+        let project_root = root.path().join("project");
+        let assistant_root = root.path().join("workspace");
+        std::fs::create_dir_all(&project_root).unwrap();
+        std::fs::create_dir_all(&assistant_root).unwrap();
+        std::fs::write(assistant_root.join("IDENTITY.md"), "---\nname: Mina\n---\n").unwrap();
+        let project = service.open_workspace(project_root).await.unwrap();
+        let assistant = service
+            .open_workspace_with_options(
+                assistant_root.clone(),
+                WorkspaceCreateOptions {
+                    workspace_kind: WorkspaceKind::Assistant,
+                    display_name: Some("workspace".into()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        // Reproduce legacy records whose name still contains the directory
+        // basename even though the identity already has the assistant's name.
+        let mut exported = service.export_workspaces().await.unwrap();
+        exported
+            .workspaces
+            .iter_mut()
+            .find(|row| row.id == assistant.id)
+            .unwrap()
+            .name = "workspace".into();
+        service.import_workspaces(exported, true).await.unwrap();
+        let strings = strings_for(BotLanguage::EnUS);
+        let mut state = BotChatState::new("chat".into());
+        state.current_session_id = Some("keep-session".into());
+        state.display_mode = BotDisplayMode::Pro;
+        start_local_switch(&mut state, &service, strings).await;
+        let Some(PendingAction::SelectWorkspace { options }) = state.pending_action.clone() else {
+            panic!("expected workspace picker")
+        };
+        assert_eq!(options.len(), 1);
+        assert_eq!(options[0].path, project.root_path.to_string_lossy());
+        let stale_project = options[0].clone();
+
+        state.display_mode = BotDisplayMode::Assistant;
+        state.current_assistant = Some(assistant.root_path.to_string_lossy().to_string());
+        state.current_assistant_name = Some("workspace".into());
+        let result = start_local_switch(&mut state, &service, strings).await;
+        assert!(result.menu.body.as_deref().unwrap().contains("Mina"));
+        let Some(PendingAction::SelectAssistant { options }) = state.pending_action.as_ref() else {
+            panic!("expected assistant picker")
+        };
+        assert_eq!(options.len(), 1);
+        assert_eq!(options[0].1, "Mina");
+        refresh_assistant_name_from_workspaces(
+            &mut state,
+            &service.get_assistant_workspaces().await,
+        );
+        assert_eq!(state.current_assistant_name.as_deref(), Some("Mina"));
+
+        std::fs::write(assistant_root.join("IDENTITY.md"), "---\nname: Kira\n---\n").unwrap();
+        service
+            .refresh_workspace_identity(&assistant.id)
+            .await
+            .unwrap();
+        refresh_assistant_name_from_workspaces(
+            &mut state,
+            &service.get_assistant_workspaces().await,
+        );
+        assert_eq!(state.current_assistant_name.as_deref(), Some("Kira"));
+        assert!(ready_to_chat_body(&state, strings)
+            .unwrap()
+            .contains("Kira"));
+
+        service.close_workspace(&project.id).await.unwrap();
+        assert!(service
+            .get_recent_workspaces()
+            .await
+            .iter()
+            .any(|row| row.id == project.id));
+        state.display_mode = BotDisplayMode::Pro;
+        let result = select_local_workspace(&mut state, &service, &stale_project, strings).await;
+        assert!(result.menu.title.contains(strings.workspace_list_changed));
+        assert!(result.menu.title.contains(strings.switch_no_workspaces));
+        assert!(state.pending_action.is_none());
+        assert_eq!(
+            service.get_opened_workspaces().await.len(),
+            1,
+            "stale choice must not reopen the project"
+        );
+
+        service.close_workspace(&assistant.id).await.unwrap();
+        assert_eq!(
+            service.get_assistant_workspaces().await.len(),
+            1,
+            "closed assistants remain tracked"
+        );
+        state.display_mode = BotDisplayMode::Assistant;
+        let result = select_local_assistant(
+            &mut state,
+            &service,
+            &assistant.root_path.to_string_lossy(),
+            strings,
+        )
+        .await;
+        assert!(result.menu.title.contains(strings.workspace_list_changed));
+        assert!(result.menu.title.contains(strings.switch_no_assistants));
+        assert!(state.pending_action.is_none());
+        assert!(service.get_opened_workspaces().await.is_empty());
+        assert_eq!(state.current_session_id.as_deref(), Some("keep-session"));
+
+        let reopened = service.open_workspace(project.root_path).await.unwrap();
+        state.display_mode = BotDisplayMode::Pro;
+        start_local_switch(&mut state, &service, strings).await;
+        service.remove_workspace(&reopened.id).await.unwrap();
+        let result = select_local_workspace(&mut state, &service, &stale_project, strings).await;
+        assert!(result.menu.title.contains(strings.workspace_list_changed));
+        assert!(state.pending_action.is_none());
+        assert!(service.get_opened_workspaces().await.is_empty());
+        assert_eq!(state.current_session_id.as_deref(), Some("keep-session"));
+    }
 
     #[test]
     fn numeric_menu_with_trailing_dot() {

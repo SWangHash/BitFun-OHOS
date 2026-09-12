@@ -411,6 +411,21 @@ pub async fn browser_webview_create(
     let target_url = webview.url().map(|url| url.to_string()).unwrap_or_default();
     register_browser_target(webview.label(), &target_url, request.open_request_id);
     Ok(())
+    }
+
+    #[cfg(target_env = "ohos")]
+    {
+        let _ = app;
+        validate_browser_label(&request.label)?;
+        validate_webview_bounds(request.x, request.y, request.width, request.height)?;
+        if !has_html {
+            let _ = parse_browser_url(&request.url)?;
+        }
+        let json = serde_json::to_string(&request)
+            .map_err(|e| format!("failed to encode request: {e}"))?;
+        let response = ohos_browser_call("browser_webview_create_ohos", &json).await?;
+        decode_ok_envelope(&response)
+    }
 }
 
 /// Advertise which built-in browser surface the Agent should target. This is
@@ -443,21 +458,6 @@ pub async fn browser_webview_set_agent_target_state(
         record.active = false;
     }
     Ok(())
-}
-
-    #[cfg(target_env = "ohos")]
-    {
-        let _ = app;
-        validate_browser_label(&request.label)?;
-        validate_webview_bounds(request.x, request.y, request.width, request.height)?;
-        if !has_html {
-            let _ = parse_browser_url(&request.url)?;
-        }
-        let json = serde_json::to_string(&request)
-            .map_err(|e| format!("failed to encode request: {e}"))?;
-        let response = ohos_browser_call("browser_webview_create_ohos", &json).await?;
-        decode_ok_envelope(&response)
-    }
 }
 
 #[tauri::command]
@@ -707,6 +707,17 @@ pub async fn browser_get_url(
         }
     }
 
+    #[cfg(target_env = "ohos")]
+    {
+        let _ = app;
+        validate_browser_label(&request.label)?;
+        let json = serde_json::to_string(&request)
+            .map_err(|e| format!("failed to encode request: {e}"))?;
+        let response = ohos_browser_call("browser_webview_get_url_ohos", &json).await?;
+        decode_result_envelope(&response)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -750,16 +761,5 @@ mod tests {
                 .as_deref(),
             Some("embedded-browser-panel-view-new")
         );
-    }
-}
-
-    #[cfg(target_env = "ohos")]
-    {
-        let _ = app;
-        validate_browser_label(&request.label)?;
-        let json = serde_json::to_string(&request)
-            .map_err(|e| format!("failed to encode request: {e}"))?;
-        let response = ohos_browser_call("browser_webview_get_url_ohos", &json).await?;
-        decode_result_envelope(&response)
     }
 }

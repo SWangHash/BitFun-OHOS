@@ -25,6 +25,8 @@ pub enum PeerHostCapability {
     /// `start_dialog_turn` / `start_acp_dialog_turn` may be retried with the
     /// same `(sessionId, turnId)`; the host coalesces duplicate attempts.
     IdempotentDialogSubmit,
+    /// Inline imageContexts are durably prepared by the receiving Runtime.
+    InlineImageAttachmentsV1,
     /// Identity-based `rollback_session_to_turn` is implemented.
     TargetedSessionRollback,
     /// `get_token_usage_statistics` is implemented.
@@ -49,6 +51,7 @@ impl PeerHostCapability {
     /// Every capability id, in wire order.
     pub const ALL: &'static [PeerHostCapability] = &[
         Self::IdempotentDialogSubmit,
+        Self::InlineImageAttachmentsV1,
         Self::TargetedSessionRollback,
         Self::TokenUsageStatistics,
         Self::MiniappAgentContextFilesV1,
@@ -64,6 +67,7 @@ impl PeerHostCapability {
     pub const fn key(self) -> &'static str {
         match self {
             Self::IdempotentDialogSubmit => "idempotent_dialog_submit",
+            Self::InlineImageAttachmentsV1 => "inline_image_attachments_v1",
             Self::TargetedSessionRollback => "targeted_session_rollback",
             Self::TokenUsageStatistics => "token_usage_statistics",
             Self::MiniappAgentContextFilesV1 => "miniapp_agent_context_files_v1",
@@ -88,6 +92,7 @@ const DESKTOP_CAPABILITIES: &[PeerHostCapability] = PeerHostCapability::ALL;
 /// providers, and no presentation surface; everything else it shares.
 const CLI_CAPABILITIES: &[PeerHostCapability] = &[
     PeerHostCapability::IdempotentDialogSubmit,
+    PeerHostCapability::InlineImageAttachmentsV1,
     PeerHostCapability::TargetedSessionRollback,
     PeerHostCapability::TokenUsageStatistics,
     PeerHostCapability::ProductControlV1,

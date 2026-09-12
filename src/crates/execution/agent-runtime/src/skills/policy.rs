@@ -1,5 +1,5 @@
 use super::catalog::{builtin_skill_spec, BuiltinSkillGroup, BuiltinSkillSpec};
-use crate::agents::{resolve_mode_config_profile_id, SHARED_CODING_MODE_CONFIG_PROFILE_ID};
+use crate::agents::{resolve_mode_config_profile_id, STANDARD_HARNESS_CONFIG_ID};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SkillModeId {
@@ -9,18 +9,22 @@ enum SkillModeId {
     Creative,
     ComputerUse,
     DeepResearch,
+    Ultra,
+    SwarmWorker,
     Other,
 }
 
 impl SkillModeId {
     fn parse(mode_id: &str) -> Self {
         match mode_id.trim() {
-            SHARED_CODING_MODE_CONFIG_PROFILE_ID => Self::CodingShared,
+            STANDARD_HARNESS_CONFIG_ID => Self::CodingShared,
             "Cowork" => Self::Cowork,
             "Claw" => Self::Claw,
             "Creative" => Self::Creative,
             "ComputerUse" => Self::ComputerUse,
             "DeepResearch" => Self::DeepResearch,
+            "Ultimate" => Self::Ultra,
+            "SwarmWorker" => Self::SwarmWorker,
             _ => Self::Other,
         }
     }
@@ -41,6 +45,7 @@ impl PolicyEffect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SkillSelector {
     Group(BuiltinSkillGroup),
+    DirName(&'static str),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,6 +122,26 @@ const ENABLE_PLANNING: SkillPolicyRule = SkillPolicyRule {
     effect: PolicyEffect::Enable,
 };
 
+const ENABLE_AGENT_BROWSER: SkillPolicyRule = SkillPolicyRule {
+    selector: SkillSelector::DirName("agent-browser"),
+    effect: PolicyEffect::Enable,
+};
+
+const ENABLE_PLAN: SkillPolicyRule = SkillPolicyRule {
+    selector: SkillSelector::DirName("plan"),
+    effect: PolicyEffect::Enable,
+};
+
+const ULTRA_POLICY: ModeSkillPolicy = ModeSkillPolicy {
+    builtin_default: PolicyEffect::Disable,
+    rules: &[ENABLE_PLAN, ENABLE_AGENT_BROWSER],
+};
+
+const SWARM_WORKER_POLICY: ModeSkillPolicy = ModeSkillPolicy {
+    builtin_default: PolicyEffect::Disable,
+    rules: &[ENABLE_AGENT_BROWSER],
+};
+
 const OPEN_META_ONLY_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Disable,
     rules: &[ENABLE_META],
@@ -181,6 +206,8 @@ fn policy_for_mode(mode_id: &str) -> ModeSkillPolicy {
         SkillModeId::Creative => CREATIVE_POLICY,
         SkillModeId::Cowork => COWORK_POLICY,
         SkillModeId::DeepResearch => DEEP_RESEARCH_POLICY,
+        SkillModeId::Ultra => ULTRA_POLICY,
+        SkillModeId::SwarmWorker => SWARM_WORKER_POLICY,
         SkillModeId::ComputerUse | SkillModeId::Other => OPEN_META_ONLY_POLICY,
     }
 }
@@ -188,6 +215,7 @@ fn policy_for_mode(mode_id: &str) -> ModeSkillPolicy {
 fn selector_matches(selector: SkillSelector, spec: &BuiltinSkillSpec) -> bool {
     match selector {
         SkillSelector::Group(group) => spec.group == group,
+        SkillSelector::DirName(dir_name) => spec.dir_name == dir_name,
     }
 }
 
@@ -212,14 +240,14 @@ pub fn resolve_builtin_default_enabled(dir_name: &str, mode_id: &str) -> Option<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agents::{SHARED_CODING_MODE_CONFIG_PROFILE_ID, SHARED_CODING_MODE_IDS};
+    use crate::agents::{STANDARD_HARNESS_CONFIG_ID, STANDARD_HARNESS_CONFIG_MEMBERS};
     use crate::skills::catalog::BUILTIN_SKILL_SPECS;
 
     #[test]
     fn agent_browser_defaults_off_in_every_mode() {
         for mode_id in [
-            "agentic",
-            "coding_shared",
+            "Standard",
+            "Standard",
             "Claw",
             "Creative",
             "Cowork",
@@ -230,7 +258,33 @@ mod tests {
             assert_eq!(
                 resolve_builtin_default_enabled("agent-browser", mode_id),
                 Some(false),
-                "agent-browser must stay opt-in for mode {mode_id}: ControlHub's browser domain is the default browser path"
+                "agent-browser should default off for mode {mode_id}"
+            );
+        }
+
+        for mode_id in ["Ultimate", "SwarmWorker"] {
+            assert_eq!(
+                resolve_builtin_default_enabled("agent-browser", mode_id),
+                Some(true),
+                "agent-browser should be available in {mode_id}"
+            );
+        }
+    }
+
+    #[test]
+    fn swarm_agents_expose_only_their_requested_builtin_skills_by_default() {
+        for spec in BUILTIN_SKILL_SPECS {
+            assert_eq!(
+                resolve_builtin_default_enabled(spec.dir_name, "Ultimate"),
+                Some(matches!(spec.dir_name, "plan" | "agent-browser")),
+                "Ultra has unexpected default exposure for {}",
+                spec.dir_name
+            );
+            assert_eq!(
+                resolve_builtin_default_enabled(spec.dir_name, "SwarmWorker"),
+                Some(spec.dir_name == "agent-browser"),
+                "SwarmWorker has unexpected default exposure for {}",
+                spec.dir_name
             );
         }
     }
@@ -244,13 +298,15 @@ mod tests {
             "pr-review-canvas",
         ] {
             for mode_id in [
-                "agentic",
-                "coding_shared",
+                "Standard",
+                "Standard",
                 "Claw",
                 "Creative",
                 "Cowork",
                 "ComputerUse",
                 "DeepResearch",
+                "Ultimate",
+                "SwarmWorker",
                 "SomeUnknownMode",
             ] {
                 assert_eq!(
@@ -265,11 +321,9 @@ mod tests {
     #[test]
     fn shared_coding_modes_use_their_profile_builtin_skill_defaults() {
         for spec in BUILTIN_SKILL_SPECS {
-            let expected = resolve_builtin_default_enabled(
-                spec.dir_name,
-                SHARED_CODING_MODE_CONFIG_PROFILE_ID,
-            );
-            for mode_id in SHARED_CODING_MODE_IDS {
+            let expected =
+                resolve_builtin_default_enabled(spec.dir_name, STANDARD_HARNESS_CONFIG_ID);
+            for mode_id in STANDARD_HARNESS_CONFIG_MEMBERS {
                 assert_eq!(
                     resolve_builtin_default_enabled(spec.dir_name, mode_id),
                     expected,
@@ -283,7 +337,7 @@ mod tests {
 
     #[test]
     fn debug_skill_defaults_on_only_in_agentic() {
-        for mode_id in ["agentic", "coding_shared"] {
+        for mode_id in ["Standard", "Standard"] {
             assert_eq!(
                 resolve_builtin_default_enabled("debug", mode_id),
                 Some(true),
@@ -297,6 +351,8 @@ mod tests {
             "Cowork",
             "ComputerUse",
             "DeepResearch",
+            "Ultimate",
+            "SwarmWorker",
             "Team",
             "SomeUnknownMode",
         ] {
@@ -311,8 +367,8 @@ mod tests {
     #[test]
     fn multitask_skill_replaces_multitask_mode_in_coding_workflows() {
         for mode_id in [
-            "agentic",
-            "coding_shared",
+            "Standard",
+            "Standard",
             "Claw",
             "Cowork",
             "Creative",
@@ -325,7 +381,7 @@ mod tests {
             );
         }
 
-        for mode_id in ["ComputerUse", "SomeUnknownMode"] {
+        for mode_id in ["ComputerUse", "Ultimate", "SwarmWorker", "SomeUnknownMode"] {
             assert_eq!(
                 resolve_builtin_default_enabled("multitask", mode_id),
                 Some(false),
@@ -335,8 +391,10 @@ mod tests {
     }
 
     #[test]
-    fn plan_skill_replaces_plan_mode_in_writable_skill_workflows() {
-        for mode_id in ["agentic", "coding_shared", "Claw", "Cowork", "Creative"] {
+    fn plan_skill_defaults_on_for_planning_capable_workflows() {
+        for mode_id in [
+            "Standard", "Standard", "Claw", "Cowork", "Creative", "Ultimate",
+        ] {
             assert_eq!(
                 resolve_builtin_default_enabled("plan", mode_id),
                 Some(true),
@@ -357,13 +415,15 @@ mod tests {
     fn product_creation_skills_default_only_in_creative_mode() {
         for skill in ["miniapp-dev", "openbitfun-frontend-dev"] {
             for mode_id in [
-                "agentic",
-                "coding_shared",
+                "Standard",
+                "Standard",
                 "Claw",
                 "Creative",
                 "Cowork",
                 "ComputerUse",
                 "DeepResearch",
+                "Ultimate",
+                "SwarmWorker",
                 "SomeUnknownMode",
             ] {
                 assert_eq!(

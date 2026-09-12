@@ -512,7 +512,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
               : 'Start fixing review findings',
           }),
         'ReviewFixer',
-        'agentic',
+        'Standard',
       );
     } catch (error) {
       log.error('Failed to start review remediation', { childSessionId, reviewMode, error });
@@ -715,7 +715,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
           count: retryableSlices.length,
         }),
         'DeepReview',
-        'agentic',
+        'Standard',
       );
       store.minimize(childSessionId);
     } catch (error) {

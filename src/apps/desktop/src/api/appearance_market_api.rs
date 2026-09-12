@@ -82,21 +82,6 @@ struct NormalizedManualSubmission {
 }
 
 async fn appearance_market_client() -> Result<AppearanceMarketClient, String> {
-    #[cfg(target_env = "ohos")]
-    {
-        use openbitfun_services_integrations::miniapp_market::SystemMarketCredentialStore;
-        use std::sync::Arc;
-
-        let vault: Arc<dyn openbitfun_services_core::secure_credentials::SecureCredentialVault> = Arc::new(
-            crate::api::ohos::secure_credentials::OhosSecureCredentialVault::new(),
-        );
-        let store = SystemMarketCredentialStore::with_vault(vault);
-        return AppearanceMarketClient::from_environment_with_credential_store(Arc::new(store))
-            .await
-            .map_err(market_error);
-    }
-
-    #[cfg(not(target_env = "ohos"))]
     AppearanceMarketClient::from_environment().await.map_err(market_error)
 }
 

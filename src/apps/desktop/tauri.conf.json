@@ -4,6 +4,7 @@
   "identifier": "com.openbitfun.desktop",
   "build": {
     "devUrl": "http://localhost:1422",
+    "beforeBuildCommand": "pnpm run frontend:build-all",
     "frontendDist": "../../../dist"
   },
   "bundle": {
@@ -81,6 +82,7 @@
       "width": 800,
       "height": 600
     }],
+    "macOSPrivateApi": true,
     "security": {
       "csp": null
     },

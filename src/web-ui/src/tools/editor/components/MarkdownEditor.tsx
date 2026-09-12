@@ -5,11 +5,12 @@
  * @module components/MarkdownEditor
  */
 
-import { Button, Icon, IconButton, SegmentedControl } from '@openbitfun/ui';
+import { Button, Icon, IconButton, SegmentedControl, Toolbar, ToolbarGroup } from '@openbitfun/ui';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { MEditor } from '../meditor';
+import { resourcePathKey } from '@/shared/utils/resourcePath';
+import { useEditorDocument } from '../services/EditorDocument';
 import type { EditorInstance } from '../meditor';
-import { analyzeMarkdownEditability, type MarkdownEditabilityAnalysis } from '../meditor/utils/tiptapMarkdown';
 import { AlertCircle } from 'lucide-react';
 import { createLogger } from '@/shared/utils/logger';
 import { sendDebugProbe } from '@/shared/utils/debugProbe';
@@ -22,7 +23,6 @@ import {
 } from '@/infrastructure/peer-device/peerModeFlag';
 import { LoadingState } from '@openbitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
-import CodeEditor from './CodeEditor';
 import {
   diskVersionFromMetadata,
   diskVersionsDiffer,
@@ -73,6 +73,7 @@ export interface MarkdownEditorProps {
   jumpToColumn?: number;
   /** When false, disk sync polling is paused (background tab). */
   isActiveTab?: boolean;
+  navigationToken?: number;
   /** File missing on disk (tab chrome); skipped when embedded CodeEditor handles the same path */
   onFileMissingFromDiskChange?: (missing: boolean) => void;
 }
@@ -81,7 +82,6 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   filePath,
   initialContent = '',
   workspacePath,
-  fileName,
   readOnly = false,
   className = '',
   onContentChange,
@@ -89,41 +89,35 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   jumpToLine,
   jumpToColumn,
   isActiveTab = true,
+  navigationToken,
   onFileMissingFromDiskChange,
 }) => {
   const { t } = useI18n('tools');
+  const documentSession = useEditorDocument();
+  const documentFiles = documentSession?.files;
+  const documentIdentity = documentSession?.id ?? filePath;
+  const documentMarkdownMode = documentSession?.markdownMode;
   const [content, setContent] = useState<string>(initialContent);
   const [hasChanges, setHasChanges] = useState(false);
-  const [viewMode, setViewMode] = useState<'preview' | 'markdown'>('preview');
-  const [unsafeViewMode, setUnsafeViewMode] = useState<'source' | 'preview'>('source');
+  const [viewMode, setViewMode] = useState<'ir' | 'source'>('ir');
   const [loading, setLoading] = useState(!!filePath);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [editability, setEditability] = useState<MarkdownEditabilityAnalysis>(() => analyzeMarkdownEditability(initialContent));
   const editorRef = useRef<EditorInstance>(null);
   const isUnmountedRef = useRef(false);
   const diskVersionRef = useRef<DiskFileVersion | null>(null);
   const isCheckingDiskRef = useRef(false);
   const hasChangesRef = useRef(false);
+  const lastNavigationTokenRef = useRef<number | undefined>(undefined);
   const lastJumpPositionRef = useRef<{ filePath: string; line: number } | null>(null);
   const onContentChangeRef = useRef(onContentChange);
   const contentRef = useRef(content);
   const lastReportedDirtyRef = useRef<boolean | null>(null);
-  const unsafeViewModeRef = useRef(unsafeViewMode);
-  unsafeViewModeRef.current = unsafeViewMode;
   const lastReportedMissingRef = useRef<boolean | undefined>(undefined);
 
   const reportFileMissingFromDisk = useCallback(
     (missing: boolean) => {
       if (!onFileMissingFromDiskChange) {
-        return;
-      }
-      const isUnsafeSplit =
-        !!filePath &&
-        (editability.mode === 'unsafe' ||
-          editability.containsRenderOnlyBlocks ||
-          editability.containsRawHtmlInlines);
-      if (isUnsafeSplit && unsafeViewModeRef.current === 'source') {
         return;
       }
       if (lastReportedMissingRef.current === missing) {
@@ -132,7 +126,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       lastReportedMissingRef.current = missing;
       onFileMissingFromDiskChange(missing);
     },
-    [editability.containsRawHtmlInlines, editability.containsRenderOnlyBlocks, editability.mode, filePath, onFileMissingFromDiskChange]
+    [onFileMissingFromDiskChange]
   );
 
   onContentChangeRef.current = onContentChange;
@@ -141,13 +135,6 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   useEffect(() => {
     hasChangesRef.current = hasChanges;
   }, [hasChanges]);
-
-  const toNormalizedMarkdown = useCallback((raw: string) => {
-    const nextEditability = analyzeMarkdownEditability(raw);
-    const nextContent =
-      nextEditability.mode === 'unsafe' ? raw : nextEditability.canonicalMarkdown;
-    return { nextEditability, nextContent };
-  }, []);
 
   const basePath = React.useMemo(() => {
     if (!filePath) return undefined;
@@ -169,26 +156,36 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   }, []);
 
   useEffect(() => {
-    setViewMode('preview');
-    setUnsafeViewMode('source');
-  }, [filePath, initialContent]);
+    setViewMode(documentMarkdownMode ?? 'ir');
+  }, [documentIdentity, documentMarkdownMode, initialContent]);
 
   const fetchFileMetadata = useCallback(async () => {
     if (!filePath) {
       throw new Error('Missing file path');
     }
-    const { workspaceAPI } = await import('@/infrastructure/api');
+    const workspaceAPI = documentFiles ?? (await import('@/infrastructure/api')).workspaceAPI;
     return workspaceAPI.getFileMetadata(filePath);
-  }, [filePath]);
+  }, [documentFiles, filePath]);
 
   const loadFileContent = useCallback(async () => {
     if (!filePath || isUnmountedRef.current) return;
 
+    if (documentSession?.snapshot) {
+      const snapshot = documentSession.snapshot;
+      setError(null);
+      setContent(snapshot.content);
+      contentRef.current = snapshot.content;
+      setHasChanges(snapshot.isDirty);
+      hasChangesRef.current = snapshot.isDirty;
+      onContentChangeRef.current?.(snapshot.content, snapshot.isDirty);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
 
     try {
-      const { workspaceAPI } = await import('@/infrastructure/api');
+      const workspaceAPI = documentFiles ?? (await import('@/infrastructure/api')).workspaceAPI;
 
       const fileContent = await workspaceAPI.readFileContent(filePath);
       reportFileMissingFromDisk(false);
@@ -212,9 +209,9 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       }
 
       if (!isUnmountedRef.current) {
-        const { nextEditability, nextContent } = toNormalizedMarkdown(fileContent);
+        const nextContent = fileContent;
 
-        setEditability(nextEditability);
+        documentSession?.capture(nextContent, false);
         setContent(nextContent);
         setHasChanges(false);
         lastReportedDirtyRef.current = false;
@@ -245,7 +242,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         setLoading(false);
       }
     }
-  }, [fetchFileMetadata, filePath, reportFileMissingFromDisk, t, toNormalizedMarkdown]);
+  }, [documentFiles, documentSession, fetchFileMetadata, filePath, reportFileMissingFromDisk, t]);
 
   // Initial file load - only run once when filePath changes
   const loadFileContentCalledRef = useRef(false);
@@ -257,17 +254,13 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   
   useEffect(() => {
     if (filePath) {
-      if (!loadFileContentCalledRef.current) {
+      if ((!documentSession || documentSession.isCurrent()) && !loadFileContentCalledRef.current) {
         loadFileContentCalledRef.current = true;
         loadFileContent();
       }
     } else if (initialContent !== undefined) {
-      const nextEditability = analyzeMarkdownEditability(initialContent);
-      const nextContent = nextEditability.mode === 'unsafe'
-        ? initialContent
-        : nextEditability.canonicalMarkdown;
+      const nextContent = initialContent;
 
-      setEditability(nextEditability);
       setContent(nextContent);
       setHasChanges(false);
       lastReportedDirtyRef.current = false;
@@ -278,7 +271,11 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       // Calling it triggers parent re-render which unmounts this component,
       // causing an infinite loop.
     }
-  }, [filePath, initialContent, loadFileContent]);
+  }, [filePath, initialContent, loadFileContent, isActiveTab, documentSession]);
+
+  useEffect(() => {
+    if (isActiveTab && documentSession?.isCurrent() && !documentSession.snapshot && error) void loadFileContent();
+  }, [documentSession, error, isActiveTab, loadFileContent]);
 
   const syncMarkdownFromDisk = useCallback(async (source: 'poll' | 'event') => {
     if (!filePath || isUnmountedRef.current || isCheckingDiskRef.current) {
@@ -298,7 +295,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     let outcome = 'started';
     let probeError: string | null = null;
     try {
-      const { workspaceAPI } = await import('@/infrastructure/api');
+      const workspaceAPI = documentFiles ?? (await import('@/infrastructure/api')).workspaceAPI;
       const fileInfo = await fetchFileMetadata();
       if (isFileMissingFromMetadata(fileInfo)) {
         outcome = 'missing-on-disk';
@@ -328,7 +325,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         outcome = 'editor-changed-before-read';
         return;
       }
-      const { nextEditability, nextContent } = toNormalizedMarkdown(raw);
+      const nextContent = raw;
       if (nextContent === contentRef.current) {
         diskVersionRef.current = currentVersion;
         outcome = 'content-match';
@@ -352,7 +349,6 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       }
 
       if (!isUnmountedRef.current) {
-        setEditability(nextEditability);
         setContent(nextContent);
         contentRef.current = nextContent;
         setHasChanges(false);
@@ -397,21 +393,14 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       }
       isCheckingDiskRef.current = false;
     }
-  }, [fetchFileMetadata, filePath, isActiveTab, reportFileMissingFromDisk, t, toNormalizedMarkdown]);
+  }, [documentFiles, fetchFileMetadata, filePath, isActiveTab, reportFileMissingFromDisk, t]);
 
   const checkMarkdownDisk = useCallback(async () => {
     await syncMarkdownFromDisk('poll');
   }, [syncMarkdownFromDisk]);
 
-  const isUnsafeSplitUi =
-    !!filePath &&
-    (editability.mode === 'unsafe' ||
-      editability.containsRenderOnlyBlocks ||
-      editability.containsRawHtmlInlines);
-  const pollMarkdownDisk = !isUnsafeSplitUi || unsafeViewMode !== 'source';
-
   useEffect(() => {
-    if (!filePath || !isActiveTab || !pollMarkdownDisk) {
+    if (!filePath || !isActiveTab) {
       return;
     }
     const tick = () => {
@@ -443,20 +432,22 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       }
       window.removeEventListener('peer-mode:changed', onPeerModeChanged);
     };
-  }, [checkMarkdownDisk, filePath, isActiveTab, pollMarkdownDisk]);
+  }, [checkMarkdownDisk, filePath, isActiveTab]);
 
   useEffect(() => {
-    if (!filePath || !pollMarkdownDisk) {
+    if (!filePath) {
       return;
     }
 
     return globalEventBus.on('editor:file-changed', (data: { filePath?: string }) => {
-      if (!isSamePath(data.filePath || '', filePath)) {
+      if (!isActiveTab || (documentSession && !documentSession.isCurrent())
+        || !(documentSession ? resourcePathKey(data.filePath || '', documentSession.scope) === resourcePathKey(filePath, documentSession.scope)
+          : isSamePath(data.filePath || '', filePath))) {
         return;
       }
       void syncMarkdownFromDisk('event');
     });
-  }, [filePath, pollMarkdownDisk, syncMarkdownFromDisk]);
+  }, [filePath, syncMarkdownFromDisk, isActiveTab, documentSession]);
 
   const saveFileContent = useCallback(async () => {
     if (!hasChanges || isUnmountedRef.current) return;
@@ -465,7 +456,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
     try {
       if (filePath && workspacePath) {
-        const { workspaceAPI } = await import('@/infrastructure/api');
+        const workspaceAPI = documentFiles ?? (await import('@/infrastructure/api')).workspaceAPI;
 
         const fileInfoPre = await fetchFileMetadata();
         if (isFileMissingFromMetadata(fileInfoPre)) {
@@ -487,9 +478,8 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           });
           if (!overwrite) {
             const raw = await workspaceAPI.readFileContent(filePath);
-            const { nextEditability, nextContent } = toNormalizedMarkdown(raw);
+            const nextContent = raw;
             if (!isUnmountedRef.current) {
-              setEditability(nextEditability);
               setContent(nextContent);
               contentRef.current = nextContent;
               setHasChanges(false);
@@ -532,12 +522,13 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         }
 
         if (!isUnmountedRef.current) {
-          editorRef.current?.markSaved?.();
-          setHasChanges(false);
-          lastReportedDirtyRef.current = false;
-          if (onContentChangeRef.current) {
-            onContentChangeRef.current(content, false);
-          }
+          const stillDirty = contentRef.current !== content;
+          documentSession?.capture(contentRef.current, stillDirty, content);
+          if (!stillDirty) editorRef.current?.markSaved?.();
+          setHasChanges(stillDirty);
+          hasChangesRef.current = stillDirty;
+          lastReportedDirtyRef.current = stillDirty;
+          onContentChangeRef.current?.(contentRef.current, stillDirty);
         }
 
         globalEventBus.emit('file-tree:refresh');
@@ -545,6 +536,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
       if (onSave) {
         onSave(content);
+        onContentChangeRef.current?.(contentRef.current, contentRef.current !== content);
       }
     } catch (err) {
       if (!isUnmountedRef.current) {
@@ -553,14 +545,24 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         setError(t('editor.common.saveFailedWithMessage', { message: errorMessage }));
       }
     }
-  }, [content, fetchFileMetadata, filePath, hasChanges, onSave, reportFileMissingFromDisk, t, toNormalizedMarkdown, workspacePath]);
+  }, [content, documentFiles, documentSession, fetchFileMetadata, filePath, hasChanges, onSave, reportFileMissingFromDisk, t, workspacePath]);
+
+  useEffect(() => {
+    if (documentSession) documentSession.save = saveFileContent;
+  }, [documentSession, saveFileContent]);
+
+  useEffect(() => {
+    if (!loading && (!error || documentSession?.snapshot)) documentSession?.capture(content, hasChanges);
+  }, [documentSession, content, hasChanges, loading, error]);
 
   const handleContentChange = useCallback((newContent: string) => {
     contentRef.current = newContent;
+    if (documentSession?.snapshot) documentSession.capture(newContent, newContent !== documentSession.snapshot.savedContent);
     setContent(newContent);
-  }, []);
+  }, [documentSession]);
 
-  const handleDirtyChange = useCallback((isDirty: boolean) => {
+  const handleDirtyChange = useCallback((reportedDirty: boolean) => {
+    const isDirty = documentSession?.snapshot ? contentRef.current !== documentSession.snapshot.savedContent : reportedDirty;
     setHasChanges(isDirty);
     if (lastReportedDirtyRef.current === isDirty) {
       return;
@@ -568,7 +570,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
     lastReportedDirtyRef.current = isDirty;
     onContentChangeRef.current?.(contentRef.current, isDirty);
-  }, []);
+  }, [documentSession]);
 
   const handleSave = useCallback((_value: string) => {
     saveFileContent();
@@ -585,14 +587,14 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!jumpToLine) {
+    if (!jumpToLine || !isActiveTab) {
       return;
     }
 
     const lastJump = lastJumpPositionRef.current;
     if (lastJump && 
         lastJump.filePath === filePath && 
-        lastJump.line === jumpToLine) {
+        lastJump.line === jumpToLine && lastNavigationTokenRef.current === navigationToken) {
       return;
     }
 
@@ -606,6 +608,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
     const timer = setTimeout(() => {
       if (editorRef.current?.scrollToLine) {
+        lastNavigationTokenRef.current = navigationToken;
         editorRef.current.scrollToLine(jumpToLine, true);
         
         lastJumpPositionRef.current = {
@@ -616,17 +619,11 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [jumpToLine, jumpToColumn, filePath, loading, content]);
-
-  const shouldUseSourcePreviewFallback = !!filePath && (
-    editability.mode === 'unsafe' ||
-    editability.containsRenderOnlyBlocks ||
-    editability.containsRawHtmlInlines
-  );
+  }, [jumpToLine, jumpToColumn, filePath, loading, content, navigationToken, isActiveTab]);
 
   if (loading) {
     return (
-      <div className={`openbitfun-markdown-editor-loading ${className}`} data-openbitfun-component="markdown-editor" data-openbitfun-part="loading" data-openbitfun-state="loading">
+      <div className={`openbitfun-markdown-editor-loading ${className}`} data-openbitfun-product-component="markdown-editor" data-openbitfun-product-part="loading" data-openbitfun-state="loading">
         <LoadingState size="md">{t('editor.markdownEditor.loadingFile')}</LoadingState>
       </div>
     );
@@ -634,7 +631,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
   if (error) {
     return (
-      <div className={`openbitfun-markdown-editor-error ${className}`} data-openbitfun-component="markdown-editor" data-openbitfun-part="error" data-openbitfun-state="error">
+      <div className={`openbitfun-markdown-editor-error ${className}`} data-openbitfun-product-component="markdown-editor" data-openbitfun-product-part="error" data-openbitfun-state="error">
         <div className="error-content">
           <AlertCircle className="error-icon" />
           <p>{error}</p>
@@ -648,21 +645,31 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     );
   }
 
-  if (shouldUseSourcePreviewFallback) {
-    return (
-      <div className={`openbitfun-markdown-editor ${className}`} data-openbitfun-component="markdown-editor" data-openbitfun-part="root" data-openbitfun-view={unsafeViewMode}>
-        <div className="openbitfun-markdown-editor__mode-toolbar" data-openbitfun-component="markdown-editor" data-openbitfun-part="toolbar">
+  return (
+    <div className={`openbitfun-markdown-editor ${className}`} data-openbitfun-product-component="markdown-editor" data-openbitfun-product-part="root" data-openbitfun-view={viewMode}>
+      <Toolbar
+        className="openbitfun-markdown-editor__mode-toolbar"
+        data-openbitfun-product-component="markdown-editor"
+        data-openbitfun-product-part="toolbar"
+        size="sm"
+        leading={(
           <SegmentedControl
-            className="openbitfun-markdown-editor__mode-toggle"
             aria-label={t('editor.markdownEditor.viewModeLabel')}
+            size="sm"
+            tone="neutral"
             options={[
-              { value: 'source', label: t('editor.markdownEditor.markdown') },
-              { value: 'preview', label: t('editor.markdownEditor.preview') },
+              { value: 'ir', label: t('editor.markdownEditor.richText') },
+              { value: 'source', label: t('editor.markdownEditor.source') },
             ]}
-            value={unsafeViewMode}
-            onValueChange={(value) => setUnsafeViewMode(value as 'source' | 'preview')}
+            value={viewMode}
+            onValueChange={(value) => {
+              if (documentSession) documentSession.markdownMode = value as 'ir' | 'source';
+              setViewMode(value as 'ir' | 'source');
+            }}
           />
-          <div className="openbitfun-markdown-editor__toolbar-actions" data-openbitfun-component="markdown-editor" data-openbitfun-part="actions">
+        )}
+        trailing={(
+          <ToolbarGroup data-openbitfun-product-component="markdown-editor" data-openbitfun-product-part="actions">
             <IconButton
               type="button"
               size="sm"
@@ -675,97 +682,17 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
                 ? t('editor.markdownEditor.copiedMarkdown')
                 : t('editor.markdownEditor.copyMarkdown')}
             />
-          </div>
-        </div>
-        <div className="openbitfun-markdown-editor__unsafe-body" data-openbitfun-component="markdown-editor" data-openbitfun-part="body">
-          {unsafeViewMode === 'source' ? (
-            <CodeEditor
-              filePath={filePath}
-              workspacePath={workspacePath}
-              fileName={filePath.split(/[/\\]/).pop() || fileName}
-              language="markdown"
-              readOnly={readOnly}
-              showLineNumbers={true}
-              showMinimap={true}
-              jumpToLine={jumpToLine}
-              jumpToColumn={jumpToColumn}
-              isActiveTab={isActiveTab}
-              onFileMissingFromDiskChange={onFileMissingFromDiskChange}
-              onContentChange={(newContent, dirty) => {
-                contentRef.current = newContent;
-                setContent(newContent);
-                setHasChanges(dirty);
-                if (lastReportedDirtyRef.current === dirty) {
-                  return;
-                }
-
-                lastReportedDirtyRef.current = dirty;
-                onContentChangeRef.current?.(newContent, dirty);
-              }}
-              onSave={(_savedContent) => {
-                setHasChanges(false);
-                lastReportedDirtyRef.current = false;
-                onContentChangeRef.current?.(contentRef.current, false);
-              }}
-            />
-          ) : (
-            <MEditor
-              ref={editorRef}
-              value={content}
-              onChange={handleContentChange}
-              onSave={handleSave}
-              onDirtyChange={handleDirtyChange}
-              mode="preview"
-              height="100%"
-              width="100%"
-              placeholder={t('editor.markdownEditor.placeholder')}
-              readonly={true}
-              toolbar={false}
-              filePath={filePath}
-              basePath={basePath}
-            />
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={`openbitfun-markdown-editor ${className}`} data-openbitfun-component="markdown-editor" data-openbitfun-part="root" data-openbitfun-view={viewMode}>
-      <div className="openbitfun-markdown-editor__mode-toolbar" data-openbitfun-component="markdown-editor" data-openbitfun-part="toolbar">
-        <SegmentedControl
-          className="openbitfun-markdown-editor__mode-toggle"
-          aria-label={t('editor.markdownEditor.viewModeLabel')}
-          options={[
-            { value: 'preview', label: t('editor.markdownEditor.preview') },
-            { value: 'markdown', label: t('editor.markdownEditor.markdown') },
-          ]}
-          value={viewMode}
-          onValueChange={(value) => setViewMode(value as 'preview' | 'markdown')}
-        />
-        <div className="openbitfun-markdown-editor__toolbar-actions" data-openbitfun-component="markdown-editor" data-openbitfun-part="actions">
-          <IconButton
-            type="button"
-            size="sm"
-            onClick={() => void handleCopyMarkdown()}
-            aria-label={copied
-              ? t('editor.markdownEditor.copiedMarkdown')
-              : t('editor.markdownEditor.copyMarkdown')}
-            icon={copied ? <Icon name="check-line" size="lg" /> : <Icon name="duplicate" size="lg" />}
-            title={copied
-              ? t('editor.markdownEditor.copiedMarkdown')
-              : t('editor.markdownEditor.copyMarkdown')}
-          />
-        </div>
-      </div>
-      <div className="openbitfun-markdown-editor__body" data-openbitfun-component="markdown-editor" data-openbitfun-part="body">
+          </ToolbarGroup>
+        )}
+      />
+      <div className="openbitfun-markdown-editor__body" data-openbitfun-product-component="markdown-editor" data-openbitfun-product-part="body">
         <MEditor
           ref={editorRef}
           value={content}
           onChange={handleContentChange}
           onSave={handleSave}
           onDirtyChange={handleDirtyChange}
-          mode={viewMode === 'preview' ? 'preview' : 'edit'}
+          mode={viewMode === 'ir' ? 'ir' : 'edit'}
           height="100%"
           width="100%"
           placeholder={t('editor.markdownEditor.placeholder')}

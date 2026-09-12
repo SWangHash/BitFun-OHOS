@@ -1,3 +1,4 @@
+import { useEditorDocument } from '../services/EditorDocument';
 /**
  * Image Viewer Component
  * 
@@ -18,6 +19,7 @@ const log = createLogger('ImageViewer');
 export interface ImageViewerProps {
   /** Image file path */
   filePath: string;
+  isActiveTab?: boolean;
   /** File name */
   fileName?: string;
   /** Workspace path (for relative path resolution) */
@@ -29,9 +31,12 @@ export interface ImageViewerProps {
 export const ImageViewer: React.FC<ImageViewerProps> = ({
   filePath,
   fileName,
+  isActiveTab = true,
   className = ''
 }) => {
+  const documentSession = useEditorDocument();
   const { t } = useI18n('tools');
+  const [retryKey, setRetryKey] = useState(0);
   const [imageUrl, setImageUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +74,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
         setLoading(true);
         setError(null);
 
-        const { workspaceAPI } = await import('@/infrastructure/api');
+        const workspaceAPI = documentSession?.files ?? (await import('@/infrastructure/api')).workspaceAPI;
         const result = await workspaceAPI.readFileContent(filePath);
 
         const mimeType = getMimeType(filePath);
@@ -88,7 +93,11 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     };
 
     loadImage();
-  }, [filePath, getMimeType, t]);
+  }, [filePath, getMimeType, t, documentSession, retryKey]);
+
+  useEffect(() => {
+    if (isActiveTab && error && documentSession?.isCurrent()) setRetryKey(key => key + 1);
+  }, [documentSession, error, isActiveTab]);
 
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;

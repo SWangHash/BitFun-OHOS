@@ -5,6 +5,7 @@ import type { FileSystemNode, FileSystemOptions } from '../types';
 
 export interface UseFileSystemOptions extends FileSystemOptions {
   rootPath?: string;
+  remoteConnectionId?: string;
   autoLoad?: boolean;
   enableAutoWatch?: boolean;
 }
@@ -37,6 +38,7 @@ export function useFileSystem(options: UseFileSystemOptions = {}): UseFileSystem
 
   const controllerConfig = useMemo(() => ({
     rootPath: options.rootPath,
+    remoteConnectionId: options.remoteConnectionId,
     autoLoad: options.autoLoad ?? true,
     enableAutoWatch: options.enableAutoWatch ?? true,
     enablePathCompression: optionOverrides.enablePathCompression ?? options.enablePathCompression ?? true,
@@ -47,6 +49,7 @@ export function useFileSystem(options: UseFileSystemOptions = {}): UseFileSystem
     excludePatterns: optionOverrides.excludePatterns ?? options.excludePatterns ?? [],
   }), [
     options.rootPath,
+    options.remoteConnectionId,
     options.autoLoad,
     options.enableAutoWatch,
     options.enablePathCompression,
@@ -98,13 +101,16 @@ export function useFileSystem(options: UseFileSystemOptions = {}): UseFileSystem
       return [];
     }
 
-    const results = await workspaceAPI.searchFilenamesOnly(rootPath, query.trim());
+    const results = await workspaceAPI.searchFilenamesOnly(
+      rootPath, query.trim(), false, false, false, undefined, undefined, true,
+      undefined, controllerConfig.remoteConnectionId,
+    );
     return results.map((result) => ({
       path: result.path,
       name: result.name,
       isDirectory: result.isDirectory,
     }));
-  }, [controllerConfig.rootPath]);
+  }, [controllerConfig.rootPath, controllerConfig.remoteConnectionId]);
 
   const updateOptions = useCallback((nextOptions: Partial<FileSystemOptions>) => {
     setOptionOverrides(prev => ({

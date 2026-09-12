@@ -26,7 +26,6 @@ openbitfun-runtime-ports = { path = "../../contracts/runtime-ports", optional = 
 aes-gcm = { workspace = true, optional = true }
 aes = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
-argon2 = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 openbitfun-services-core = { path = "../services-core", optional = true }
@@ -56,6 +55,7 @@ rmcp = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
 rustls-native-certs = { version = "0.8", optional = true }
 sha2 = { workspace = true, optional = true }
+hkdf = { workspace = true, optional = true }
 sse-stream = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 tar = { workspace = true, optional = true }
@@ -222,7 +222,19 @@ miniapp-runtime = [
     "uuid",
     "which",
 ]
+account-identity = [
+    "dep:openbitfun-product-domains",
+    "openbitfun-services-core/tls-provider",
+    "openbitfun-services-core/credential-vault",
+    "openbitfun-services-core/secure-credentials",
+    "openbitfun-services-core/product-identity",
+    "chrono", "dirs", "thiserror",
+    "dep:keyring-core", "dep:windows-native-keyring-store", "dep:zbus-secret-service-keyring-store",
+    "reqwest", "reqwest/json", "reqwest/rustls-no-provider",
+    "tokio/rt", "tokio/sync",
+]
 miniapp-market = [
+    "account-identity",
     "openbitfun-services-core/tls-provider",
     "async-trait",
     "openbitfun-product-domains/appearance-market",
@@ -281,11 +293,15 @@ hook-import = [
     "uuid",
 ]
 remote-connect = [
+    "fs2",
+    "dep:openbitfun-product-domains",
+    "thiserror",
+    "dep:hkdf",
+    "account-identity",
     "remote-persistence",
     "anyhow",
     "aes",
     "aes-gcm",
-    "argon2",
     "async-trait",
     "base64",
     "dep:openbitfun-agent-tools",
@@ -365,6 +381,7 @@ remote-ssh-concrete = [
     "anyhow",
     "async-trait",
     "base64",
+    "dep:openbitfun-core-types",
     "openbitfun-services-core/tls-provider",
     "dep:openbitfun-runtime-ports",
     "chrono",
@@ -386,6 +403,7 @@ remote-ssh-concrete = [
     "windows",
 ]
 remote-persistence = [
+    "fs2",
     "aes-gcm",
     "anyhow",
     "base64",
@@ -460,7 +478,7 @@ process-tree = ["openbitfun-services-core/process-runtime"]
 # Forwarded to `openbitfun-services-core/system-vault`, which selects the OS
 # keyring backend. Desktop hosts enable this on macOS/Windows/Linux; the
 # OHOS desktop build does not (it injects an ArkTS-backed vault via
-# `SystemMarketCredentialStore::with_vault` at startup instead).
+# `account_identity::inject_ohos_credential_vault` at startup instead).
 system-vault = ["openbitfun-services-core/system-vault"]
 script-tool-runtime = [
     "async-trait",

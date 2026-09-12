@@ -4,11 +4,6 @@ import SwiftUI
 struct AccountSettingsView: View {
     @ObservedObject var model: MobileAppModel
     var onClose: (() -> Void)? = nil
-    @State private var relayURL = AccountDefaults.shared.CLOUD_RELAY_URL
-    @State private var username = ""
-    @State private var password = ""
-    @State private var advancedOpen = false
-
     var body: some View {
         Group {
             if model.accountFailureStage == "DEVICE_LIST", model.accountFailureCanRetry {
@@ -30,7 +25,7 @@ struct AccountSettingsView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
-                    Text(model.localized("登录 OpenBitFun 账号"))
+                    Text(model.localized("使用 GitHub 登录"))
                         .font(MobileDesignTypography.displayMedium.font)
                         .foregroundStyle(OpenBitFunTheme.ink)
                         .multilineTextAlignment(.center)
@@ -44,67 +39,10 @@ struct AccountSettingsView: View {
                         .padding(.top, 8)
                         .padding(.bottom, 24)
 
-                    VStack(spacing: 0) {
-                        accountCredentialRow(
-                            icon: "person",
-                            placeholder: model.localized("用户名"),
-                            text: $username,
-                            secure: false
-                        )
-                        Divider()
-                            .overlay(OpenBitFunTheme.line)
-                            .padding(.leading, 54)
-                            .padding(.trailing, 16)
-                        accountCredentialRow(
-                            icon: "lock",
-                            placeholder: model.localized("密码"),
-                            text: $password,
-                            secure: true
-                        )
+                    if let url = model.accountAuthorizationURL {
+                        Link(model.localized("打开 GitHub 授权"), destination: url)
+                            .padding(.vertical, 24)
                     }
-                    .background(OpenBitFunTheme.card)
-                    .clipShape(RoundedRectangle(cornerRadius: 24))
-                    .overlay(RoundedRectangle(cornerRadius: 24).stroke(OpenBitFunTheme.line, lineWidth: 1))
-                    .shadow(color: MobileDesignColors.shadowFaint, radius: 16, y: 5)
-
-                    VStack(spacing: 0) {
-                        Button { advancedOpen.toggle() } label: {
-                            HStack(spacing: 14) {
-                                Image(systemName: "gearshape")
-                                    .font(.system(size: 21, weight: .regular))
-                                    .foregroundStyle(OpenBitFunTheme.muted)
-                                    .frame(width: 24, height: 24)
-                                Text(model.localized("高级选项"))
-                                    .font(MobileDesignTypography.titleSmall.font)
-                                    .foregroundStyle(OpenBitFunTheme.ink)
-                                Spacer(minLength: 8)
-                                Image(systemName: advancedOpen ? "chevron.up" : "chevron.down")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(OpenBitFunTheme.muted)
-                            }
-                            .padding(.horizontal, 18)
-                            .frame(height: 58)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-
-                        if advancedOpen {
-                            Divider().overlay(OpenBitFunTheme.line).padding(.horizontal, 18)
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(model.localized("登录服务器"))
-                                    .font(MobileDesignTypography.labelSmall.font)
-                                    .foregroundStyle(OpenBitFunTheme.muted)
-                                accountRelayField
-                            }
-                            .padding(.horizontal, 18)
-                            .padding(.top, 14)
-                            .padding(.bottom, 18)
-                        }
-                    }
-                    .background(OpenBitFunTheme.card)
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(OpenBitFunTheme.line, lineWidth: 1))
-                    .padding(.top, 14)
 
                     if let error = model.coreErrorMessage, !error.isEmpty {
                         Text(error)
@@ -122,12 +60,11 @@ struct AccountSettingsView: View {
             }
 
             Button {
-                model.loginAccount(relayURL: relayURL, username: username, password: password)
-                password = ""
+                model.loginAccount()
             } label: {
                 HStack(spacing: 8) {
                     if model.accountBusy { ProgressView().tint(OpenBitFunTheme.contentOnAction) }
-                    Text(model.localized(model.accountBusy ? "正在登录" : "登录"))
+                    Text(model.localized(model.accountBusy ? "正在登录" : "通过 GitHub 登录"))
                 }
                 .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(OpenBitFunTheme.contentOnAction)
@@ -141,51 +78,6 @@ struct AccountSettingsView: View {
             .padding(.top, 10)
             .padding(.bottom, 24)
         }
-    }
-
-    private var accountRelayField: some View {
-        TextField(model.localized("Relay 地址"), text: $relayURL)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .keyboardType(.URL)
-            .font(MobileDesignTypography.bodyMedium.font)
-            .foregroundStyle(OpenBitFunTheme.ink)
-            .padding(.horizontal, 14)
-            .frame(height: 48)
-            .background(OpenBitFunTheme.soft)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(OpenBitFunTheme.line, lineWidth: 1))
-    }
-
-    @ViewBuilder
-    private func accountCredentialRow(
-        icon: String,
-        placeholder: String,
-        text: Binding<String>,
-        secure: Bool
-    ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 20, weight: .regular))
-                .foregroundStyle(OpenBitFunTheme.muted)
-                .frame(width: 24, height: 24)
-            Group {
-                if secure {
-                    SecureField(placeholder, text: text)
-                        .textContentType(.password)
-                } else {
-                    TextField(placeholder, text: text)
-                        .textContentType(.username)
-                }
-            }
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .font(MobileDesignTypography.bodyLarge.font)
-            .foregroundStyle(OpenBitFunTheme.ink)
-        }
-        .padding(.leading, 18)
-        .padding(.trailing, 12)
-        .frame(height: 60)
     }
 
     private var deviceListRetryPage: some View {
@@ -279,7 +171,7 @@ struct AccountSettingsView: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Text(model.localized("OpenBitFun 账号"))
+                            Text(model.localized("GitHub 账号"))
                                 .font(.system(size: 17, weight: .bold))
                                 .foregroundStyle(OpenBitFunTheme.ink)
                             Spacer()
@@ -413,10 +305,7 @@ struct AccountSettingsView: View {
     }
 
     private var canLogin: Bool {
-        !model.accountBusy &&
-            !relayURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !password.isEmpty
+        !model.accountBusy
     }
 
     private func close() {

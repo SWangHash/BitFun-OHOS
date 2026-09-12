@@ -1,14 +1,4 @@
 {
-  "skillsCenter": "技能中心",
-  "searchSkills": "搜索技能...",
-  "addSkill": "添加技能",
-  "sortBy": "排序",
-  "defaultSort": "默认",
-  "totalSkills": "{{count}} 个 Skills",
-  "installSkill": "安装技能",
-  "viewDetails": "查看详情",
-  "builtIn": "内置",
-  "suites": "套件",
   "nav": {
     "title": "技能",
     "summary": "在本地已安装技能与外部技能市场之间快速切换查看",
@@ -58,7 +48,7 @@
     "builtin": "内置",
     "user": "用户级",
     "project": "项目级",
-    "suite": "套件"
+    "groups": "技能分组"
   },
   "categories": {
     "all": "查看所有已安装的技能，包含内置、用户和项目级。",
@@ -66,7 +56,7 @@
     "user": "全局安装到当前账户的 OpenBitFun 用户级技能。",
     "project": "当前工作区下的 OpenBitFun 项目级技能。",
     "source": "从 {{source}} 扫描到的技能，包含用户级及当前工作区的项目级技能。",
-    "suite": "按模式分组的内置技能套件，可一键控制可见性。"
+    "groups": "创建和整理可复用的技能分组。"
   },
   "section": {
     "user": {
@@ -84,11 +74,6 @@
     "searchPlaceholder": "搜索市场技能...",
     "loading": "正在加载市场技能...",
     "errorPrefix": "市场加载失败: ",
-    "errors": {
-      "loadFailed": "加载技能失败，请检查网络后重试",
-      "loadMoreFailed": "加载更多失败，请检查网络后重试",
-      "tooShort": "关键词太短，请至少输入 2 个字符"
-    },
     "empty": {
       "noMatch": "没有找到匹配的市场技能",
       "noSkills": "暂时没有可展示的市场技能"
@@ -121,6 +106,11 @@
       "versionLabel": "版本",
       "orgLabel": "组织",
       "tagsLabel": "标签"
+    },
+    "errors": {
+      "loadFailed": "加载技能失败，请检查网络后重试",
+      "loadMoreFailed": "加载更多失败，请检查网络后重试",
+      "tooShort": "关键词太短，请至少输入 2 个字符"
     }
   },
   "suite": {
@@ -224,8 +214,6 @@
   },
   "list": {
     "loading": "加载中...",
-    "noMore": "没有更多了",
-    "loadMoreFailed": "加载失败，请重试",
     "errorPrefix": "加载失败: ",
     "loadFailed": "技能加载失败",
     "retry": "重试",
@@ -264,7 +252,9 @@
       "globalToggleLabel": "切换 {{name}} 的全局可用状态"
     },
     "scanIncomplete": "部分技能扫描失败，已成功读取的技能仍可使用。",
-    "diagnosticsUnavailable": "当前主机不提供技能扫描诊断。"
+    "diagnosticsUnavailable": "当前主机不提供技能扫描诊断。",
+    "noMore": "没有更多了",
+    "loadMoreFailed": "加载失败，请重试"
   },
   "deleteModal": {
     "title": "确认删除",
@@ -284,11 +274,21 @@
     "toggleFailed": "切换状态失败: {{error}}",
     "marketDownloadSuccess": "技能 \"{{name}}\" 下载成功",
     "marketDownloadFailed": "下载失败: {{error}}",
-    "nameConflict": "已安装同名技能 \"{{name}}\"，无法重复安装。请先卸载已有的同名技能后再安装。",
     "enabled": "启用",
     "disabled": "禁用",
-    "revealPathFailed": "无法在资源管理器中打开: {{error}}"
+    "revealPathFailed": "无法在资源管理器中打开: {{error}}",
+    "nameConflict": "已安装同名技能 \"{{name}}\"，无法重复安装。请先卸载已有的同名技能后再安装。"
   },
+  "skillsCenter": "技能中心",
+  "searchSkills": "搜索技能...",
+  "addSkill": "添加技能",
+  "sortBy": "排序",
+  "defaultSort": "默认",
+  "totalSkills": "{{count}} 个 Skills",
+  "installSkill": "安装技能",
+  "viewDetails": "查看详情",
+  "builtIn": "内置",
+  "suites": "套件",
   "matrix": {
     "tabLabel": "格物市场",
     "title": "OpenHarmony 格物市场技能",
@@ -337,6 +337,68 @@
       "tagsLoadFailed": "加载标签失败",
       "categoriesLoadFailed": "加载分类失败",
       "organizationsLoadFailed": "加载组织失败"
+    }
+  },
+  "groups": {
+    "title": "技能分组",
+    "subtitle": "创建和整理可复用的技能分组。",
+    "create": "新建分组",
+    "edit": "编辑分组",
+    "copy": "复制分组",
+    "copyName": "{{name}} 副本",
+    "copyNameNumbered": "{{name}} {{count}}",
+    "delete": "删除分组",
+    "deleteTitle": "删除技能分组",
+    "deleteMessage": "删除“{{name}}”？技能和已有智能体配置将保留。",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "actions": "{{name}} 的操作",
+    "refresh": "刷新分组和技能",
+    "search": "搜索分组或技能…",
+    "searchSkills": "搜索技能…",
+    "name": "分组名称",
+    "namePlaceholder": "例如：日常开发",
+    "save": "保存分组",
+    "cancel": "关闭",
+    "selectedOnly": "仅看已选",
+    "memberCount": "{{count}} 个技能",
+    "unavailableCount": "{{count}} 个不可用",
+    "myGroups": "我的分组",
+    "builtinGroups": "内置分组",
+    "emptyGroup": "尚未添加技能",
+    "unresolvedMembers": "当前目录中无法获取成员信息",
+    "noGroups": "还没有技能分组。",
+    "noMatch": "没有匹配的分组。",
+    "noMatchingSkills": "没有匹配的技能。",
+    "loading": "正在加载技能分组…",
+    "catalogUnavailable": "技能目录尚未完整加载，已有成员引用会保留。",
+    "unavailableMember": "当前环境不可用",
+    "unresolvedMember": "暂时无法获取技能详情",
+    "globalDisabled": "已全局禁用",
+    "discardTitle": "放弃分组修改？",
+    "discardMessage": "此分组尚未保存的修改将被放弃。",
+    "discard": "放弃修改",
+    "keepEditing": "继续编辑",
+    "errors": {
+      "invalidConfig": "无法读取已保存的分组数据，原数据已保留。",
+      "unsupportedVersion": "这些分组使用了更新的格式，请更新 OpenBitFun 后编辑。",
+      "nameRequired": "请输入分组名称。",
+      "nameDuplicate": "已存在同名分组。",
+      "conflict": "此分组已在其他位置修改，请关闭编辑器并刷新后重新编辑。",
+      "notReady": "请等待分组加载完成，或刷新后重试。",
+      "loadFailed": "加载技能分组失败，请刷新重试。",
+      "saveFailed": "保存分组失败，修改已保留，请重试。"
+    },
+    "builtin": {
+      "office": "Office",
+      "computerUse": "Computer Use",
+      "meta": "Meta",
+      "miniapp": "MiniApp",
+      "canvas": "画布",
+      "debugging": "调试",
+      "coordination": "协作调度",
+      "planning": "规划",
+      "gstack": "gstack"
     }
   }
 }

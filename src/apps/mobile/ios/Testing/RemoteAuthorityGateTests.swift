@@ -312,7 +312,7 @@ struct RemoteAuthorityGateTests {
         // part of this gate.
         let workspaceApply = functionBody(in: source, startingAt: "func apply(workspaceState state:")
         expect(
-            workspaceApply.contains("remoteInitialWorkspaceReady = true") &&
+            workspaceApply.contains("remoteInitialWorkspaceReady = !ready.busy && !ready.loadFailure") &&
                 workspaceApply.contains("advancePendingDirectoryRemoteDraftIfReady()"),
             "workspace-first applies authoritative catalog and advances workspace navigation"
         )
@@ -337,7 +337,7 @@ struct RemoteAuthorityGateTests {
         // Failure and target switch: neither readiness bit can survive an
         // invalid state or a changed target/epoch.
         expect(
-            source.contains("if !(state is RemoteWorkspaceUiStateReady) {\n            remoteInitialWorkspaceReady = false") &&
+            source.contains("if !(state is RemoteWorkspaceUiStateReady) || readyState?.busy == true || readyState?.loadFailure == true {\n            remoteInitialWorkspaceReady = false") &&
                 source.contains("remoteInitialSessionReady = false"),
             "workspace/session failure paths revoke readiness"
         )
@@ -347,7 +347,20 @@ struct RemoteAuthorityGateTests {
                 clearProjection.contains("remoteInitialWorkspaceReady = false"),
             "target switch clears both readiness projections"
         )
-        expect(source.contains("busy = ready.busy"), "session state keeps its original busy authority")
+        expect(
+            source.contains("setPublishedIfChanged(\\.busy, to: ready.busy)"),
+            "session state keeps its original busy authority without republishing an unchanged value"
+        )
+        expect(
+            source.contains("remoteInitialSessionReady = remoteInitialSessionReady || !ready.busy"),
+            "cached busy session state does not claim the first authoritative load has completed"
+        )
+        expect(
+            source.contains("func apply(\n        remoteConnectionPhase phase:") &&
+                source.contains("case \"CONNECTING\", \"RECONNECTING\":") &&
+                source.contains("connectionPhase = .reconnecting"),
+            "shared connection phase remains authoritative after cached content is projected"
+        )
 
         let modelSource = readSource(
             iosDirectory.appendingPathComponent("OpenBitFun/Infrastructure/MobileAppModel.swift")
@@ -480,9 +493,27 @@ struct RemoteAuthorityGateTests {
         let accountSource = readSource(
             iosDirectory.appendingPathComponent("OpenBitFun/Infrastructure/MobileAppModel+Account.swift")
         )
+        let adapterSource = readSource(
+            iosDirectory.appendingPathComponent("OpenBitFun/Infrastructure/MobileCoreAdapter.swift")
+        )
+        let accountRemoteStart = functionBody(
+            in: adapterSource,
+            startingAt: "private func startAccountRemoteSessionIfNeeded(ready:"
+        )
+        expect(
+            accountRemoteStart.contains("hydrateAccountTargetOnBind"),
+            "account login and restore keep remote session hydration lazy"
+        )
+        expectCallBeforeMutation(
+            in: adapterSource,
+            function: "func selectAccountDevice(id: String)",
+            call: "hydrateAccountTargetOnBind = true",
+            mutation: "account.dispatch(intent: AccountIntentSelectDevice",
+            message: "explicit device selection enables hydration before account selection emits"
+        )
         expectInvalidationBeforeMutation(
             in: accountSource,
-            function: "func selectRemoteDevice(_ device: MobileAccountDevice)",
+            function: "func selectRemoteDevice(_ device: MobileAccountDevice, preserveDrawer: Bool = false)",
             mutation: "coreAdapter?.selectAccountDevice(id: device.id)",
             message: "device switch invalidates transfers before adapter target selection"
         )
@@ -494,7 +525,7 @@ struct RemoteAuthorityGateTests {
         )
         expectInvalidationBeforeMutation(
             in: accountSource,
-            function: "func loginAccount(relayURL: String, username: String, password: String)",
+            function: "func loginAccount()",
             mutation: "coreAdapter?.beginAccountOperation()",
             message: "non-retained login invalidates transfers before adapter authority reset"
         )
@@ -530,23 +561,16 @@ struct RemoteAuthorityGateTests {
         expectInvalidationBeforeMutation(
             in: modelSource,
             function: "private func prepareProjectionForPairingSubmission()",
-            mutation: "directPairingConnected = false",
+            mutation: "remoteExpectedDeviceKey = nil",
             message: "replacing pairing invalidates transfers before old pairing projection is revoked"
         )
         expectCallBeforeMutation(
             in: modelSource,
             function: "func submitPairing(url: String)",
-            call: "prepareProjectionForPairingSubmission()",
-            mutation: "coreAdapter?.submitPairing(url: url)",
-            message: "pairing replacement preparation runs before adapter pairing mutation"
+            call: "coreAdapter?.resolveDeviceLink(url: url)",
+            mutation: "selectRemoteDevice(device)",
+            message: "QR membership validation precedes the device selection path that invalidates transfers"
         )
-        expectInvalidationBeforeMutation(
-            in: modelSource,
-            function: "private func apply(pairingState state: PairingUiState, generation: UInt64)",
-            mutation: "_ = coreAdapter?.invalidateRemoteAuthority",
-            message: "non-retained pairing failure invalidates transfers before exact adapter authority invalidation"
-        )
-
         let remoteSessionSource = readSource(
             iosDirectory.appendingPathComponent("OpenBitFun/Infrastructure/MobileAppModel+RemoteSession.swift")
         )

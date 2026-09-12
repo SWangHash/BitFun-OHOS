@@ -3,6 +3,8 @@ package com.openbitfun.mobile.core.feature.workspace
 import com.openbitfun.mobile.core.protocol.CommandStatus
 import com.openbitfun.mobile.core.protocol.RelayJson
 import com.openbitfun.mobile.core.protocol.RemoteCommand
+import com.openbitfun.mobile.core.persistence.PersistedRemoteWorkspace
+import com.openbitfun.mobile.core.persistence.RemoteWorkspaceListStore
 import com.openbitfun.mobile.core.transport.RemoteCommandTransport
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -52,6 +54,73 @@ class RemoteWorkspaceStoreTest {
 
         assertEquals("/next", transport.commands.first { it.cmd == "set_workspace" }.path)
         assertFalse(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).busy)
+    }
+
+    @Test
+    fun cachedCatalogStaysVisibleWhenTheLiveRefreshFails() = runTest {
+        val cache = MemoryWorkspaceListStore().apply {
+            rows["device-a"] = listOf(
+                PersistedRemoteWorkspace("/cached", "Cached", "yesterday", "local"),
+                PersistedRemoteWorkspace("/assistant", "Assistant", "", "assistant"),
+            )
+        }
+        val store = RemoteWorkspaceStore.create(
+            this,
+            FailingWorkspaceTransport(),
+            StandardTestDispatcher(testScheduler),
+            "device-a",
+            cache,
+        )
+
+        store.dispatch(RemoteWorkspaceIntent.Load)
+        val cached = assertIs<RemoteWorkspaceUiState.Ready>(store.state.value)
+        assertTrue(cached.busy)
+        assertEquals(listOf("/cached"), cached.workspaces.map { it.path })
+        assertEquals(listOf("/assistant"), cached.assistants.map { it.path })
+        advanceUntilIdle()
+
+        val failed = assertIs<RemoteWorkspaceUiState.Ready>(store.state.value)
+        assertFalse(failed.busy)
+        assertTrue(failed.loadFailure)
+        assertEquals(listOf("/cached"), failed.workspaces.map { it.path })
+        assertEquals(listOf("/assistant"), failed.assistants.map { it.path })
+    }
+
+    @Test
+    fun successfulCatalogRefreshReplacesAndPersistsCachedRows() = runTest {
+        val cache = MemoryWorkspaceListStore()
+        val store = RemoteWorkspaceStore.create(
+            this,
+            FakeWorkspaceTransport(),
+            StandardTestDispatcher(testScheduler),
+            "device-a",
+            cache,
+        )
+        store.dispatch(RemoteWorkspaceIntent.Load)
+        advanceUntilIdle()
+
+        assertEquals(listOf("/repo", "/assistant"), cache.rows.getValue("device-a").map { it.path })
+        assertFalse(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).loadFailure)
+    }
+
+    @Test
+    fun unavailableWorkspaceCacheDoesNotOverrideRemoteCatalog() = runTest {
+        val store = RemoteWorkspaceStore.create(
+            this,
+            FakeWorkspaceTransport(),
+            StandardTestDispatcher(testScheduler),
+            "device-a",
+            FailingWorkspaceListStore(),
+        )
+
+        store.dispatch(RemoteWorkspaceIntent.Load)
+        advanceUntilIdle()
+
+        val ready = assertIs<RemoteWorkspaceUiState.Ready>(store.state.value)
+        assertEquals(listOf("/repo"), ready.workspaces.map { it.path })
+        assertEquals(listOf("/assistant"), ready.assistants.map { it.path })
+        assertFalse(ready.busy)
+        assertFalse(ready.loadFailure)
     }
 
     @Test
@@ -549,4 +618,18 @@ private class FakeWorkspaceTransport(
         }
         return RelayJson.decodeFromString(deserializer, json)
     }
+}
+
+private class MemoryWorkspaceListStore : RemoteWorkspaceListStore {
+    val rows = mutableMapOf<String, List<PersistedRemoteWorkspace>>()
+    override fun load(deviceKey: String): List<PersistedRemoteWorkspace> = rows[deviceKey].orEmpty()
+    override fun save(deviceKey: String, workspaces: List<PersistedRemoteWorkspace>) {
+        rows[deviceKey] = workspaces
+    }
+}
+
+private class FailingWorkspaceListStore : RemoteWorkspaceListStore {
+    override fun load(deviceKey: String): List<PersistedRemoteWorkspace> = error("workspace cache read failed")
+    override fun save(deviceKey: String, workspaces: List<PersistedRemoteWorkspace>): Unit =
+        error("workspace cache write failed")
 }

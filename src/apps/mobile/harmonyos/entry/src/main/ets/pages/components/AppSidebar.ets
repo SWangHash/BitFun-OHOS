@@ -1,3 +1,4 @@
+import { HarnessProfileMenu } from './HarnessProfileMenu';
 import { MobileDesignGeometry, MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { RemoteSession } from '../../model/RemoteModels';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
@@ -45,6 +46,12 @@ export struct AppSidebar {
   @Param pinnedSessionId: string = '';
   @Param selectedSessionId: string = '';
   @Param connectionState: string = 'idle';
+  @Param isBusy: boolean = false;
+  @Param workspaceKind: string = 'normal';
+  @Param workspacePath: string = '';
+  @Param controlTargetDeviceId: string = '';
+  @Param supportsHarnessProfiles: boolean = false;
+  @Local showCreateMenu: boolean = false;
   @Param accountUserId: string = '';
   @Param controlTargetType: string = 'none';
   @Param showCollapseButton: boolean = false;
@@ -52,7 +59,7 @@ export struct AppSidebar {
   @Param showWorkspaceSection: boolean = false;
   @Param showConversationSection: boolean = true;
   @Event onClose: () => void = () => {};
-  @Event onNewChat: () => void = () => {};
+  @Event onNewChat: (agentType: string) => void = (_agentType: string) => {};
   @Event onEnterCode: () => void = () => {};
   @Event onScanDesktop: () => void = () => {};
   @Event onCollapse: () => void = () => {};
@@ -75,7 +82,7 @@ export struct AppSidebar {
   @Local archivedSessionsExpanded: boolean = false;
   @Local visibleRecentCount: number = RECENT_BATCH;
   /**
-   * The device/workspace section, rendered before recent conversations.
+   * The authenticated device/workspace section.
    *
    * It is a slot rather than a component this file constructs because the
    * sidebar has no business knowing about remote state; the host wires it.
@@ -279,7 +286,7 @@ export struct AppSidebar {
         .fontSize(MobileDesignTypography.bodyMedium.size)
         .fontColor(INK)
         .placeholderColor(SUBTLE)
-        .padding({ left: 14, right: 14 })
+        .padding(0)
         .backgroundColor(SOFT)
         .borderRadius(8)
         .margin({ top: 12 })
@@ -298,12 +305,12 @@ export struct AppSidebar {
   private SignedOutHeader() {
     Row() {
       Row({ space: 14 }) {
-        SymbolGlyph($r('sys.symbol.square_and_pencil'))
+        SymbolGlyph($r('sys.symbol.desktop'))
           .fontSize(23)
           .fontColor([INK])
           .width(24)
           .height(24)
-        Text(RemoteI18n.t('sidebar.signedOutNewChat'))
+        Text(RemoteI18n.t('sidebar.devices'))
           .fontSize(MobileDesignTypography.bodyLarge.size)
           .fontWeight(FontWeight.Medium)
           .fontColor(INK)
@@ -312,7 +319,7 @@ export struct AppSidebar {
       .height(50)
       .alignItems(VerticalAlign.Center)
       .onClick(() => {
-        this.onNewChat();
+        this.onEnterCode();
       })
 
       if (this.showCollapseButton) {
@@ -346,10 +353,23 @@ export struct AppSidebar {
       .border({ width: 0.5, color: LINE })
       .borderRadius(22)
       .shadow({ radius: 24, color: SHADOW_SUBTLE, offsetY: 7 })
+      .enabled(SidebarConnectionActionPolicy.canCreateSession(this.connectionState, this.isBusy))
+      .opacity(SidebarConnectionActionPolicy.canCreateSession(this.connectionState, this.isBusy) ? 1 : 0.45)
+      .accessibilityText(RemoteI18n.t('sidebar.newChat'))
       .stateEffect(true)
-      .onClick(() => {
-        this.onNewChat();
+      .bindPopup(this.showCreateMenu, {
+        builder: () => { this.CreateModeMenu() },
+        placement: Placement.Top,
+        popupColor: TRANSPARENT,
+        enableArrow: false,
+        autoCancel: true,
+        mask: false,
+        targetSpace: 6,
+        onStateChange: (event) => {
+          if (!event.isVisible) this.showCreateMenu = false;
+        }
       })
+      .onClick(() => { this.requestChat(); })
 
       Blank()
 
@@ -416,6 +436,11 @@ export struct AppSidebar {
     }
       .width('100%')
       .zIndex(2)
+  }
+
+  @Monitor('controlTargetDeviceId', 'workspacePath', 'workspaceKind', 'connectionState', 'isBusy', 'supportsHarnessProfiles')
+  private closeStaleCreateMenu(): void {
+    this.showCreateMenu = false;
   }
 
   @Builder
@@ -760,6 +785,28 @@ export struct AppSidebar {
 
   private sessionDetailsSheetOptions(): SheetOptions {
     return AdaptiveSheetOptions.fromPlacement(this.sessionDetailsPlacement);
+  }
+
+  private requestChat(): void {
+    if (!SidebarConnectionActionPolicy.canCreateSession(this.connectionState, this.isBusy)) return;
+    const action = SidebarConnectionActionPolicy.chatAction(this.workspaceKind, this.supportsHarnessProfiles);
+    if (action === 'choose-harness') {
+      this.showCreateMenu = !this.showCreateMenu;
+      return;
+    }
+    this.onNewChat(action === 'assistant' ? 'claw' : 'code');
+  }
+
+  @Builder
+  private CreateModeMenu() {
+    HarnessProfileMenu({
+      onSelect: (agentType: string) => {
+        this.showCreateMenu = false;
+        if (SidebarConnectionActionPolicy.canCreateSession(this.connectionState, this.isBusy)) {
+          this.onNewChat(agentType);
+        }
+      }
+    })
   }
 
   private shouldShowPrimaryNavigation(): boolean {

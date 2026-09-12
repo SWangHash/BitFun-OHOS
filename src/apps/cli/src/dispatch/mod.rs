@@ -47,6 +47,25 @@ pub(crate) async fn run_dispatch_verb(
     verb: &str,
     input: serde_json::Value,
 ) -> Result<serde_json::Value> {
+    use openbitfun_core_types::agent_identity_wire::{
+        translate_agent_identity_command, translate_agent_identity_response, AgentIdentityDialect,
+    };
+    let input = translate_agent_identity_command(verb, input, AgentIdentityDialect::Canonical)
+        .map_err(anyhow::Error::msg)?;
+    let result = run_dispatch_verb_canonical(verb, input).await?;
+    translate_agent_identity_response(
+        verb,
+        result,
+        &serde_json::Value::Null,
+        AgentIdentityDialect::Legacy,
+    )
+    .map_err(anyhow::Error::msg)
+}
+
+async fn run_dispatch_verb_canonical(
+    verb: &str,
+    input: serde_json::Value,
+) -> Result<serde_json::Value> {
     match verb {
         "probe" => {
             serde_json::to_value(probe(parse(input)?).await?).context("encode probe response")
@@ -1054,7 +1073,7 @@ mod tests {
             job_id: job_id.to_string(),
             session_id: format!("session-{job_id}"),
             workspace_path: "/tmp/workspace".to_string(),
-            agent_type: "agentic".to_string(),
+            agent_type: "Standard".to_string(),
             prompt: "task".to_string(),
             approval_policy: DispatchApprovalPolicy::RejectAndReport,
             model: Some("model-1".to_string()),
@@ -1072,7 +1091,7 @@ mod tests {
             "jobId": "job-1",
             "sessionId": "session-1",
             "workspacePath": "/tmp/workspace",
-            "agentType": "agentic",
+            "agentType": "Standard",
             "prompt": "task"
         });
         assert!(parse::<DispatchSubmitRequest>(missing).is_err());
@@ -1082,7 +1101,7 @@ mod tests {
             "jobId": "job-1",
             "sessionId": "session-1",
             "workspacePath": "/tmp/workspace",
-            "agentType": "agentic",
+            "agentType": "Standard",
             "prompt": "task",
             "approvalPolicy": "reject-and-report"
         }))
@@ -1096,7 +1115,7 @@ mod tests {
             "jobId": "job-1",
             "sessionId": "session-1",
             "workspacePath": "/tmp/workspace",
-            "agentType": "agentic",
+            "agentType": "Standard",
             "prompt": "task",
             "approvalPolicy": "reject-and-report"
         });

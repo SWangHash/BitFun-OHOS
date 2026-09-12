@@ -6,7 +6,7 @@ import '@openbitfun/theme-openbitfun/default.css';
 import '../../src/app/styles/index.scss';
 import { I18nProvider, i18nService } from '../../src/infrastructure/i18n';
 import { OpenBitFunDesignSystemProvider } from '../../src/infrastructure/design-system';
-import { appearanceRuntime, buildBuiltinAppearance, openBitFunDarkPalette } from '../../src/infrastructure/appearance';
+import { appearanceRuntime, buildBuiltinAppearance, openOpenBitFunDarkPalette } from '../../src/infrastructure/appearance';
 import { workspaceAPI } from '../../src/infrastructure/api';
 import MarkdownEditor from '../../src/tools/editor/components/MarkdownEditor';
 import { Preview } from '../../src/tools/editor/meditor/components/Preview';
@@ -21,7 +21,7 @@ workspaceAPI.writeFileContent = async (_workspace, _file, content) => {
   if (!response.ok) throw new Error('Fixture file write failed');
 };
 await i18nService.initialize();
-await appearanceRuntime.initialize(buildBuiltinAppearance(openBitFunDarkPalette));
+await appearanceRuntime.initialize(buildBuiltinAppearance(openOpenBitFunDarkPalette));
 
 const showReference = new URLSearchParams(location.search).has('reference');
 const referenceContent = showReference ? await workspaceAPI.readFileContent('/workspace/test.md') : '';

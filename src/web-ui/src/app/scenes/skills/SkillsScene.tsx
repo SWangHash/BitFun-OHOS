@@ -20,7 +20,7 @@
   DialogTitle,
 } from '@openbitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FolderOpen, Layers, Loader2, Package, ShieldAlert, ShieldCheck, TrendingUp, Zap } from 'lucide-react';
+import { FolderOpen, Layers, Loader2, Package, ShieldAlert, ShieldCheck, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 
@@ -45,12 +45,14 @@ import { useInstalledSkills } from './hooks/useInstalledSkills';
 import { useSkillMarket } from './hooks/useSkillMarket';
 import { useMatrixSkillMarket } from './hooks/useMatrixSkillMarket';
 import SkillCard from './components/SkillCard';
-import SkillsSuiteView from './components/SkillsSuiteView';
+import SkillGroupsView from './components/SkillGroupsView';
+import { useUserSkillGroups } from '@/features/skill-groups/useUserSkillGroups';
+import { resolveSkillGroups } from '@/features/skill-groups/skillGroups';
 import SkillsLoadMoreSentinel from './components/SkillsLoadMoreSentinel';
 import MatrixMarketView from './components/MatrixMarketView';
 import type { MatrixSkillSummary } from '@/infrastructure/api/service-api/MatrixSkillAPI';
 import './SkillsScene.scss';
-import { useSkillsSceneStore, type InstalledFilter } from './skillsSceneStore';
+import { useSkillsSceneStore, type SkillsView } from './skillsSceneStore';
 import { useGallerySceneAutoRefresh } from '@/app/hooks/useGallerySceneAutoRefresh';
 
 const log = createLogger('SkillsScene');
@@ -58,7 +60,7 @@ const log = createLogger('SkillsScene');
 type SkillTab = 'installed' | 'discover' | 'matrix';
 
 interface CategoryInfo {
-  id: InstalledFilter;
+  id: SkillsView;
   icon: React.ReactNode;
   labelKey: string;
   titleKey: string;
@@ -96,11 +98,11 @@ const CATEGORIES: CategoryInfo[] = [
     descKey: 'categories.project',
   },
   {
-    id: 'suite',
-    icon: <Zap size={15} strokeWidth={1.6} />,
-    labelKey: 'filters.suite',
-    titleKey: 'suite.title',
-    descKey: 'categories.suite',
+    id: 'groups',
+    icon: <Layers size={15} strokeWidth={1.6} />,
+    labelKey: 'filters.groups',
+    titleKey: 'groups.title',
+    descKey: 'categories.groups',
   },
 ];
 
@@ -114,12 +116,12 @@ const SkillsScene: React.FC = () => {
   const {
     searchDraft,
     marketQuery,
-    installedFilter,
+    installedView,
     hideDuplicates,
     isAddFormOpen,
     setSearchDraft,
     submitMarketQuery,
-    setInstalledFilter,
+    setInstalledView,
     setHideDuplicates,
     setAddFormOpen,
     toggleAddForm,
@@ -137,9 +139,21 @@ const SkillsScene: React.FC = () => {
 
   const installed = useInstalledSkills({
     searchQuery: installedSearch,
-    activeFilter: installedFilter,
+    activeFilter: installedView === 'groups' ? 'all' : installedView,
     enabled: desktopConfigAvailable,
   });
+
+  const skillGroups = useUserSkillGroups(desktopConfigAvailable);
+  const groupSkills = useMemo(() => installed.catalogReady ? installed.skills.map(skill => ({
+    ...skill,
+    sourceLabel: getSkillSourceLabel(skill, t('list.item.unknownSource')),
+    runtimeStatus: installed.globallyDisabledSkillKeys.has(skill.key)
+      ? t('groups.globalDisabled')
+      : skill.isShadowed ? t('list.item.shadowed') : undefined,
+  })) : [], [installed.catalogReady, installed.skills, installed.globallyDisabledSkillKeys, t]);
+  const skillGroupCount = useMemo(() => resolveSkillGroups(groupSkills, skillGroups.groups, {
+    builtin: key => key, other: '',
+  }).length, [groupSkills, skillGroups.groups]);
 
   const installedMarketIds = useMemo(
     () => installedSkillMarketIds(installed.skills),
@@ -238,8 +252,8 @@ const SkillsScene: React.FC = () => {
   }, [coverageSourceBySkillKey, installed.globallyDisabledSkillKeys, market.isRemoteWorkspace, t]);
 
   const refetchSkillsScene = useCallback(async () => {
-    await Promise.all([installed.loadSkills(true), market.refresh()]);
-  }, [installed, market]);
+    await Promise.all([installed.loadSkills(true), market.refresh(), skillGroups.reload()]);
+  }, [installed, market, skillGroups]);
 
   useGallerySceneAutoRefresh({
     sceneId: 'skills',
@@ -279,7 +293,7 @@ const SkillsScene: React.FC = () => {
   }, [hideDuplicates, installed.filteredSkills]);
 
   const installedCategories: CategoryInfo[] = [
-    ...CATEGORIES.filter((category) => category.id !== 'suite'),
+    ...CATEGORIES,
     ...installed.sourceGroups.map((group) => ({
       id: group.id,
       icon: <Icon name="extension" size="sm" />,
@@ -288,24 +302,23 @@ const SkillsScene: React.FC = () => {
       descKey: 'categories.source',
       sourceLabel: group.label,
     })),
-    ...CATEGORIES.filter((category) => category.id === 'suite'),
   ];
-  const activeInstalledCategory = installedCategories.find((category) => category.id === installedFilter)
+  const activeInstalledCategory = installedCategories.find((category) => category.id === installedView)
     ?? CATEGORIES[0];
 
   useEffect(() => {
-    if (!installed.loading && !installed.error && installedFilter.startsWith('source:')
-      && !installed.sourceGroups.some((group) => group.id === installedFilter)) {
-      setInstalledFilter('all');
+    if (!installed.loading && !installed.error && installedView.startsWith('source:')
+      && !installed.sourceGroups.some((group) => group.id === installedView)) {
+      setInstalledView('all');
     }
-  }, [installed.loading, installed.error, installed.sourceGroups, installedFilter, setInstalledFilter]);
+  }, [installed.loading, installed.error, installed.sourceGroups, installedView, setInstalledView]);
 
   return (
     <div className="openbitfun-skills-scene" data-testid="agent-skill-panel" data-openbitfun-scene="skills" data-openbitfun-part="root" data-openbitfun-tab={activeTab}>
 <GalleryPageHeader
         title={t('nav.title')}
         subtitle={t('page.subtitle')}
-        actions={desktopConfigAvailable && activeTab === 'installed' && installedFilter !== 'suite' ? (
+        actions={desktopConfigAvailable && activeTab === 'installed' ? (
           <Button
             variant="primary"
             size="sm"
@@ -369,7 +382,7 @@ const SkillsScene: React.FC = () => {
               </div>
 <nav className="skills-sidebar__nav" aria-label={t('installed.titleAll')} data-openbitfun-scene="skills" data-openbitfun-part="sidebarNav">
                 {installedCategories.map((cat) => {
-                  const count = installed.counts[cat.id] ?? 0;
+                  const count = cat.id === 'groups' ? skillGroupCount : installed.counts[cat.id] ?? 0;
                   const isEmpty = count === 0;
                   return (
                     <div
@@ -379,13 +392,13 @@ const SkillsScene: React.FC = () => {
                       data-openbitfun-part="sidebarItem"
                       data-openbitfun-category={cat.id}
                       data-openbitfun-state={[
-                        installedFilter === cat.id && 'active',
+                        installedView === cat.id && 'active',
                         isEmpty && 'empty',
                       ].filter(Boolean).join(' ') || undefined}
                     >
 <NavigationPanelItem
-                        selected={installedFilter === cat.id}
-                        onClick={() => setInstalledFilter(cat.id)}
+                        selected={installedView === cat.id}
+                        onClick={() => setInstalledView(cat.id)}
                         title={t(cat.descKey, { source: cat.sourceLabel })}
                         leading={<span data-openbitfun-scene="skills" data-openbitfun-part="sidebarItemIcon">{cat.icon}</span>}
                         metadata={(
@@ -413,8 +426,16 @@ const SkillsScene: React.FC = () => {
                   <Package size={28} strokeWidth={1.2} />
                   <span>{t(remoteConnectionActive ? 'list.remoteUnavailable' : 'list.desktopUnavailable')}</span>
                 </div>
-              ) : installedFilter === 'suite' ? (
-                <SkillsSuiteView />
+              ) : installedView === 'groups' ? (
+                <SkillGroupsView
+                  key={installed.catalogContextKey}
+                  skills={groupSkills}
+                  collection={skillGroups}
+                  catalogReady={installed.catalogReady}
+                  catalogLoading={installed.loading}
+                  catalogIncomplete={installed.diagnostics.length > 0 || !installed.diagnosticsAvailable}
+                  onRefresh={() => { void installed.loadSkills(true); void skillGroups.reload(); }}
+                />
               ) : (
                 <>
                   <div className="skills-main__toolbar" data-openbitfun-scene="skills" data-openbitfun-part="toolbar">

@@ -65,7 +65,7 @@ export function withChatInputDefaultModeStrategy(
     strategy,
     fixedModeId:
       strategy === 'fixed' && !preference.fixedModeId
-        ? preference.lastModeId ?? 'agentic'
+        ? preference.lastModeId ?? 'Standard'
         : preference.fixedModeId,
   };
 }

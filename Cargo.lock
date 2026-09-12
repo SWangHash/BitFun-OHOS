@@ -287,18 +287,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "argon2"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c3610892ee6e0cbce8ae2700349fcf8f98adb0dbfbee85aec3c9179d29cc072"
-dependencies = [
- "base64ct",
- "blake2",
- "cpufeatures 0.2.17",
- "password-hash 0.5.0",
-]
-
-[[package]]
 name = "arrayref"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -572,6 +560,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "auto-launch"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f012b8cc0c850f34117ec8252a44418f2e34a2cf501de89e29b241ae5f79471"
+dependencies = [
+ "dirs 4.0.0",
+ "thiserror 1.0.69",
+ "winreg 0.10.1",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -835,6 +834,7 @@ dependencies = [
  "tar",
  "tauri",
  "tauri-build",
+ "tauri-plugin-autostart",
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
  "tauri-plugin-global-shortcut",
@@ -857,15 +857,6 @@ dependencies = [
  "xz2",
  "zip 4.6.1",
  "zstd",
-]
-
-[[package]]
-name = "blake2"
-version = "0.10.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe"
-dependencies = [
- "digest",
 ]
 
 [[package]]
@@ -6569,7 +6560,7 @@ dependencies = [
 
 [[package]]
 name = "openbitfun-data-migrator"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "openbitfun-core-types",
  "openbitfun-legacy-migration",
@@ -6863,9 +6854,7 @@ dependencies = [
 name = "openbitfun-relay-service"
 version = "1.0.0"
 dependencies = [
- "aes-gcm",
  "anyhow",
- "argon2",
  "axum",
  "base64 0.22.1",
  "chrono",
@@ -6874,12 +6863,13 @@ dependencies = [
  "libsqlite3-sys",
  "openbitfun-page-function-runtime",
  "rand 0.8.7",
+ "reqwest 0.13.4",
  "rusqlite",
+ "rustls",
  "serde",
  "serde_json",
  "sha2",
  "sqlx",
- "subtle",
  "tempfile",
  "tokio",
  "tokio-tungstenite",
@@ -6887,6 +6877,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "uuid",
+ "webpki-roots 1.0.9",
 ]
 
 [[package]]
@@ -7036,7 +7027,6 @@ dependencies = [
  "aes",
  "aes-gcm",
  "anyhow",
- "argon2",
  "async-trait",
  "base64 0.22.1",
  "bzip2 0.5.2",
@@ -7048,6 +7038,7 @@ dependencies = [
  "futures-util",
  "git2",
  "hex",
+ "hkdf",
  "hostname",
  "image 0.25.10",
  "keyring-core",
@@ -7799,17 +7790,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "password-hash"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166"
-dependencies = [
- "base64ct",
- "rand_core 0.6.4",
- "subtle",
-]
-
-[[package]]
 name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7829,7 +7809,7 @@ checksum = "83a0692ec44e4cf1ef28ca317f14f8f07da2d95ec3fa01f86e4467b725e60917"
 dependencies = [
  "digest",
  "hmac",
- "password-hash 0.4.2",
+ "password-hash",
  "sha2",
 ]
 
@@ -10998,6 +10978,20 @@ dependencies = [
  "serde_json",
  "tauri-utils 2.9.3",
  "walkdir",
+]
+
+[[package]]
+name = "tauri-plugin-autostart"
+version = "2.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "459383cebc193cdd03d1ba4acc40f2c408a7abce419d64bdcd2d745bc2886f70"
+dependencies = [
+ "auto-launch",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.19",
 ]
 
 [[package]]

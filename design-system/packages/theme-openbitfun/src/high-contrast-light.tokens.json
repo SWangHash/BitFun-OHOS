@@ -19,6 +19,16 @@
     }
   },
   "color": {
+    "composer": {
+      "border": { "$type": "color", "$value": "{color.field.border}" },
+      "contextBackground": { "$type": "color", "$value": "{color.surface.subtle}" }
+    },
+    "keyHint": {
+      "content": { "$type": "color", "$value": "{color.content.muted}" }
+    },
+    "numberBadge": {
+      "background": { "$type": "color", "$value": "{color.action.neutral.surface}" }
+    },
     "actionCard": {
       "background": { "$type": "color", "$value": "{color.action.neutral.surface}" }
     },

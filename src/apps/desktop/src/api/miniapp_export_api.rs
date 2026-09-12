@@ -155,7 +155,7 @@ pub async fn miniapp_render_slide_page(
     match format.as_str() {
         "png" => {
             with_export_webview(&app, request.html, width, height, |webview| async move {
-                take_screenshot(webview, RENDER_TIMEOUT_MS)
+                take_screenshot(&webview, RENDER_TIMEOUT_MS)
                     .await
                     .map_err(|error| error.message)
             })
@@ -178,7 +178,7 @@ pub async fn miniapp_render_slide_page(
                 page_ranges: None,
             };
             with_export_webview(&app, request.html, width, height, |webview| async move {
-                print_page(webview, RENDER_TIMEOUT_MS, &options)
+                print_page(&webview, RENDER_TIMEOUT_MS, &options)
                     .await
                     .map_err(|error| error.message)
             })
