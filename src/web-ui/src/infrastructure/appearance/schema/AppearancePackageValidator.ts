@@ -1,7 +1,6 @@
 import type { AppearanceRegistry } from '../registry/AppearanceRegistry';
 import {
   APPEARANCE_SCHEMA,
-  APPEARANCE_SCHEMA_VERSION,
   type AppearancePackage,
   type AppearanceStyle,
   type AppearanceStyleProperty,
@@ -21,7 +20,6 @@ type ValidationErrorReporter = (
 ) => void;
 
 const ID_PATTERN = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
-const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const REFERENCE_PATTERN = /^globals\.(colors|lengths|numbers|durations|easings|fontFamilies|shadows)\.[a-z][a-zA-Z0-9.-]*$/;
 type AppearanceTokenGroup = 'colors' | 'lengths' | 'numbers' | 'durations' | 'easings' | 'fontFamilies' | 'shadows';
 const FORBIDDEN_TEXT_PATTERN = /(?:https?:\/\/|javascript:|data:|url\s*\(|<\/?[a-z]|[{};])/i;
@@ -161,9 +159,6 @@ export class AppearancePackageValidator {
     if (input.schema !== APPEARANCE_SCHEMA) {
       error('schema', 'INVALID_SCHEMA', `Schema must be ${APPEARANCE_SCHEMA}`);
     }
-    if (input.schemaVersion !== APPEARANCE_SCHEMA_VERSION) {
-      error('schemaVersion', 'UNSUPPORTED_SCHEMA_VERSION', `Schema version must be ${APPEARANCE_SCHEMA_VERSION}`);
-    }
     this.validateId(input.id, 'id', error);
     if (typeof input.name !== 'string' || input.name.trim().length === 0 || input.name.length > 100) {
       error('name', 'INVALID_NAME', 'Name must be between 1 and 100 characters');
@@ -173,9 +168,6 @@ export class AppearancePackageValidator {
       if (value !== undefined && (typeof value !== 'string' || value.length > (field === 'author' ? 100 : 500))) {
         error(field, `INVALID_${field.toUpperCase()}`, `Invalid ${field}`);
       }
-    }
-    if (typeof input.version !== 'string' || !VERSION_PATTERN.test(input.version)) {
-      error('version', 'INVALID_VERSION', 'Version must use semantic version syntax');
     }
     if (input.mode !== 'light' && input.mode !== 'dark') {
       error('mode', 'INVALID_MODE', 'Mode must be light or dark');
