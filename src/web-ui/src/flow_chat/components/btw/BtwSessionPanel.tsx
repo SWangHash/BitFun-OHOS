@@ -479,6 +479,8 @@ export const BtwSessionPanel: React.FC<BtwSessionPanelProps> = ({
         return actionBarLastSubmittedAction === 'fix-review'
           ? t('deepReviewActionBar.minimizedFixReview')
           : t('deepReviewActionBar.minimizedFix');
+      case 'fix_interrupted':
+        return t('deepReviewActionBar.fixInterruptedTitle');
       case 'fix_completed':
         return t('deepReviewActionBar.minimizedFixCompleted');
       case 'fix_failed':

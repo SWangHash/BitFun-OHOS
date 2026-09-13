@@ -52,9 +52,11 @@ export const ReviewActionHeader: React.FC<ReviewActionHeaderProps> = ({
         className={`deep-review-action-bar__icon ${phaseIconClass}`}
       />
       <span className="deep-review-action-bar__status-title">{phaseTitle}</span>
-      {errorMessage && (
-        <span className="deep-review-action-bar__error-message">{errorMessage}</span>
-      )}
     </div>
+    {errorMessage && (
+      <div className="deep-review-action-bar__error-message" role="status">
+        {errorMessage}
+      </div>
+    )}
   </>
 );
