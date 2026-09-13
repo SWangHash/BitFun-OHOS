@@ -625,6 +625,28 @@ $_section-header-height: 24px;
     transition: color $motion-fast $easing-standard;
   }
 
+  &__section-collapse-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--bf-appearance-token-color-text-muted);
+    opacity: 0.6;
+    transition: opacity $motion-fast $easing-standard;
+
+    svg {
+      transition: transform $motion-fast $easing-standard;
+    }
+
+    &.is-collapsed svg {
+      transform: rotate(-90deg);
+    }
+  }
+
+  &__section-header--interactive:hover &__section-collapse-toggle {
+    opacity: 1;
+  }
+
   &__section-header--bf-appearance-token-scene-entry &__section-label {
     font-size: var(--bf-appearance-token-font-size-sm);
     font-weight: 600;

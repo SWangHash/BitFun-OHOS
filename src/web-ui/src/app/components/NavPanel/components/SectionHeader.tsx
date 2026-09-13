@@ -3,7 +3,7 @@
  */
 
 import React, { useCallback } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 interface SectionHeaderProps {
   label: string;
@@ -62,6 +62,14 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
           : undefined
       }
     >
+      {collapsible ? (
+        <span
+          className={`bitfun-nav-panel__section-collapse-toggle${!isOpen ? ' is-collapsed' : ''}`}
+          aria-hidden="true"
+        >
+          <ChevronDown size={12} />
+        </span>
+      ) : null}
       <span className="bitfun-nav-panel__section-label">{label}</span>
       {onSceneOpen ? (
         <span className="bitfun-nav-panel__section-indicator" aria-hidden="true">
