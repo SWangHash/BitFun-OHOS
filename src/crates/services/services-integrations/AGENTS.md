@@ -121,3 +121,16 @@ pnpm run check:core-boundaries
 
 Other family-specific targets remain in `Cargo.toml`; add a guide command only
 for a recurring workflow, not to mirror every test target.
+
+### Review-platform GitCode regression checks
+
+Use the focused provider mapping tests for GitCode patch shapes, exact-diff
+availability, unpaginated file lookup, and Review-refresh statistics:
+
+```bash
+cargo test --locked -p bitfun-services-integrations --no-default-features --features review-platform --lib review_platform::tests::gitcode_
+```
+
+For HarmonyOS, add --target aarch64-unknown-linux-ohos and use a configured
+HarmonyOS runner. With no runner, --no-run verifies compilation and linking
+only; do not report that as executed regression tests.
