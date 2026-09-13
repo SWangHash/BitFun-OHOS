@@ -165,3 +165,16 @@ For the remote Flashgrep distribution gate and retained protocol helpers, use:
 ```bash
 cargo test --locked -p bitfun-services-integrations --no-default-features --features remote-ssh,workspace-search --lib remote_ssh::workspace_search::service::tests::
 ```
+
+### Review-platform GitCode regression checks
+
+Use the focused provider mapping tests for GitCode patch shapes, exact-diff
+availability, unpaginated file lookup, and Review-refresh statistics:
+
+```bash
+cargo test --locked -p bitfun-services-integrations --no-default-features --features review-platform --lib review_platform::tests::gitcode_
+```
+
+For HarmonyOS, add --target aarch64-unknown-linux-ohos and use a configured
+HarmonyOS runner. With no runner, --no-run verifies compilation and linking
+only; do not report that as executed regression tests.
