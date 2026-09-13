@@ -6401,7 +6401,11 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 reasoning_preset.as_deref(),
             )
             .await?;
+        // Admission intentionally switches the primary Agent above (for example,
+        // CodeReview -> ReviewFixer). Compare against that binding while keeping
+        // the original model/permission facts to detect real concurrent edits.
         let admission_facts = TurnAdmissionSessionFacts::from_session(&session)
+            .with_agent_type(&effective_agent_type)
             .with_reasoning_preset(reasoning_preset.clone());
 
         // Persist the first generation's effective permission as the maximum

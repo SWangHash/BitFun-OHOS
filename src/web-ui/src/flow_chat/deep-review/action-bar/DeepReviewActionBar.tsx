@@ -888,6 +888,8 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
           return t('deepReviewActionBar.fixAndReviewRunning');
         }
         return t('deepReviewActionBar.fixRunning');
+      case 'fix_interrupted':
+        return t('deepReviewActionBar.fixInterruptedTitle');
       case 'fix_completed':
         return t('deepReviewActionBar.fixCompleted');
       case 'fix_failed':
@@ -1061,7 +1063,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
           remediationItems={remediationItems}
           selectedRemediationIds={selectedRemediationIds}
           completedRemediationIds={completedRemediationIds}
-          fixingRemediationIds={fixingRemediationIds}
+          fixingRemediationIds={phase === 'fix_running' ? fixingRemediationIds : undefined}
           decisionSelections={decisionSelections}
           showRemediationList={showRemediationList}
           expandedDecisionIds={expandedDecisionIds}

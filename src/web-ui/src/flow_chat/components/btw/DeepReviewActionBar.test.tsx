@@ -47,7 +47,9 @@ vi.mock('react-i18next', async () => {
 
 vi.mock('@bitfun/ui', async importOriginal => ({
   ...await importOriginal<typeof import('@bitfun/ui')>(),
-  Icon: ({ name }: { name: string }) => <span data-bitfun-component="icon" data-bitfun-name={name} />,
+  Icon: ({ className, name }: { className?: string; name: string }) => (
+    <span className={className} data-bitfun-component="icon" data-bitfun-name={name} />
+  ),
   Button: ({
     children,
     disabled,
@@ -1326,6 +1328,56 @@ describeWithJsdom('DeepReviewActionBar', () => {
     const checkboxes = container.querySelectorAll('input[type="checkbox"]');
     expect(checkboxes.length).toBeGreaterThanOrEqual(2);
   });
+
+  it.each(['standard', 'deep'] as const)(
+    'stops displaying running fix items after %s review remediation is interrupted',
+    async (reviewMode) => {
+      const store = useReviewActionBarStore.getState();
+      store.showActionBar({
+        childSessionId: 'child-session',
+        parentSessionId: 'parent-session',
+        reviewMode,
+        reviewData: {
+          summary: { recommended_action: 'request_changes' },
+          remediation_plan: ['Completed fix', 'Unfinished fix'],
+        },
+        completedRemediationIds: new Set(['remediation-0']),
+      });
+      store.setActiveAction('fix', { baselineTurnId: 'review-turn' });
+      store.updatePhase('fix_running');
+
+      await act(async () => {
+        root.render(<ReviewActionBar childSessionId="child-session" />);
+      });
+      expect(container.querySelectorAll('.deep-review-action-bar__fixing-icon')).toHaveLength(1);
+
+      await act(async () => {
+        store.setRemainingFixIds(['remediation-1']);
+        store.setActiveAction(null);
+        store.updatePhase('fix_interrupted');
+      });
+
+      // The run snapshot is retained for recovery and progress counts, but is no longer active.
+      expect(useReviewActionBarStore.getState().fixingRemediationIds)
+        .toEqual(new Set(['remediation-1']));
+      expect(container.querySelector('.deep-review-action-bar__fixing-icon')).toBeNull();
+      expect(container.querySelector('.deep-review-action-bar__remediation-item--fixing')).toBeNull();
+      expect(container.querySelector('.deep-review-action-bar__status-title')?.textContent)
+        .toBe('Fix interrupted');
+      expect(container.querySelectorAll('.deep-review-action-bar__completed-icon')).toHaveLength(1);
+      expect(container.textContent).toContain('Recheck and continue');
+      expect(container.textContent).toContain('Up to 1 selected items may still need attention');
+
+      await act(async () => { store.skipRemainingFixes(); });
+      expect(container.querySelector('.deep-review-action-bar__fixing-icon')).toBeNull();
+
+      await act(async () => {
+        store.setActiveAction('fix');
+        store.updatePhase('fix_running');
+      });
+      expect(container.querySelectorAll('.deep-review-action-bar__fixing-icon')).toHaveLength(1);
+    },
+  );
 
   it('shows continue fix UI when phase is fix_interrupted', async () => {
     useReviewActionBarStore.getState().showActionBar({

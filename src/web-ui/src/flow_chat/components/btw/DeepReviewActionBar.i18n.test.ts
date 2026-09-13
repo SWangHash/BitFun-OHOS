@@ -29,6 +29,7 @@ const REQUIRED_ACTION_BAR_KEYS = [
   'deepReviewActionBar.minimizedReviewInterrupted',
   'deepReviewActionBar.minimizedResume',
   'deepReviewActionBar.fixInterrupted',
+  'deepReviewActionBar.fixInterruptedTitle',
   'deepReviewActionBar.continueFix',
   'deepReviewActionBar.skipRemaining',
   'deepReviewActionBar.manualCancel.title',

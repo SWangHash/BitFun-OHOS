@@ -165,6 +165,11 @@ impl TurnAdmissionSessionFacts {
         }
     }
 
+    pub(crate) fn with_agent_type(mut self, agent_type: &str) -> Self {
+        self.agent_type = agent_type.to_string();
+        self
+    }
+
     pub(crate) fn with_reasoning_preset(mut self, reasoning_preset: Option<String>) -> Self {
         self.reasoning_preset = reasoning_preset;
         self
@@ -11080,6 +11085,108 @@ mod tests {
             .expect_err("same model ID must not silently change its runtime binding");
 
         assert!(error.to_string().contains("model binding"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn dialog_turn_admission_accepts_its_own_agent_switch() {
+        for (previous_agent, next_agent) in [
+            ("CodeReview", "ReviewFixer"),
+            ("DeepReview", "ReviewFixer"),
+            ("agentic", "Plan"),
+        ] {
+            let workspace = TestWorkspace::new();
+            let persistence = Arc::new(PersistenceManager::new(workspace.path_manager()).unwrap());
+            let manager = test_manager(persistence);
+            let session = manager
+                .create_session(
+                    "Agent switch".to_string(),
+                    previous_agent.to_string(),
+                    SessionConfig {
+                        workspace_path: Some(workspace.path().to_string_lossy().into_owned()),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap();
+            manager
+                .update_session_agent_binding(
+                    &session.session_id,
+                    next_agent,
+                    SessionAgentRouteOwner::Local,
+                    None,
+                )
+                .await
+                .unwrap();
+            let expected =
+                TurnAdmissionSessionFacts::from_session(&session).with_agent_type(next_agent);
+            manager
+                .start_dialog_turn_with_prepended_messages_if_session_matches(
+                    &session.session_id,
+                    next_agent.to_string(),
+                    "continue".to_string(),
+                    Some("turn-after-agent-switch".to_string()),
+                    None,
+                    Vec::new(),
+                    None,
+                    &expected,
+                )
+                .await
+                .expect("the requested Agent switch must not reject its own Turn");
+            assert_eq!(manager.get_turn_count(&session.session_id), 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn dialog_turn_admission_agent_switch_still_rejects_concurrent_settings_changes() {
+        for change in ["model", "permission", "agent"] {
+            let workspace = TestWorkspace::new();
+            let persistence = Arc::new(PersistenceManager::new(workspace.path_manager()).unwrap());
+            let manager = test_manager(persistence);
+            let session = manager
+                .create_session(
+                    "Agent switch race".to_string(),
+                    "CodeReview".to_string(),
+                    SessionConfig {
+                        workspace_path: Some(workspace.path().to_string_lossy().into_owned()),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap();
+            manager
+                .update_session_agent_binding(
+                    &session.session_id,
+                    "ReviewFixer",
+                    SessionAgentRouteOwner::Local,
+                    None,
+                )
+                .await
+                .unwrap();
+            let expected =
+                TurnAdmissionSessionFacts::from_session(&session).with_agent_type("ReviewFixer");
+            {
+                let mut current = manager.sessions.get_mut(&session.session_id).unwrap();
+                match change {
+                    "model" => current.config.model_id = Some("changed-model".to_string()),
+                    "permission" => current.config.permission_mode = Some(PermissionMode::Ask),
+                    _ => current.agent_type = "Plan".to_string(),
+                }
+            }
+            manager
+                .start_dialog_turn_with_prepended_messages_if_session_matches(
+                    &session.session_id,
+                    "ReviewFixer".to_string(),
+                    "must reject".to_string(),
+                    None,
+                    None,
+                    Vec::new(),
+                    None,
+                    &expected,
+                )
+                .await
+                .expect_err("a real settings race must still fail closed");
+            assert_eq!(manager.get_turn_count(&session.session_id), 0);
+        }
     }
 
     #[tokio::test]
