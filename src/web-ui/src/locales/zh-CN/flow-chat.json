@@ -1032,6 +1032,7 @@
     "fixCompleted": "修复完成",
     "fixFailed": "修复失败",
     "fixTimeout": "修复超时",
+    "fixInterruptedTitle": "修复已中断",
     "fixInterrupted": "修复已中断，最多有 {{count}} 个已选项目可能仍需处理。",
     "reviewWaitingCapacity": "审核正在等待容量",
     "continueFix": "重新检查并继续（{{count}}）",

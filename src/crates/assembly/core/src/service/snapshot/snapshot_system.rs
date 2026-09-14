@@ -573,7 +573,11 @@ impl FileSnapshotSystem {
     ///
     /// `read_limit` bounds how many bytes are inspected; `None` reads the
     /// whole file and keeps the previous exactness for small files.
-    async fn detect_file_encoding(&self, file_path: &Path, read_limit: Option<u64>) -> Option<String> {
+    async fn detect_file_encoding(
+        &self,
+        file_path: &Path,
+        read_limit: Option<u64>,
+    ) -> Option<String> {
         use std::io::{BufReader, Read};
 
         let input = fs::File::open(file_path).ok()?;
@@ -834,9 +838,9 @@ impl FileSnapshotSystem {
         const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
         let mut magic = [0u8; 2];
         let is_gzip = reader.read_exact(&mut magic).is_ok() && magic == GZIP_MAGIC;
-        if !is_gzip {
-            reader.seek(SeekFrom::Start(0))?;
-        }
+        // Detection consumes the magic bytes; both raw copying and gzip decoding
+        // must start at the beginning of the persisted blob.
+        reader.seek(SeekFrom::Start(0))?;
 
         let staging_path = target_path
             .parent()
@@ -1191,6 +1195,77 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn restore_reloaded_deduplicated_gzip_checkpoint_is_repeatable() {
+        let context = test_runtime_context();
+        create_runtime_dirs(&context);
+        let file_path = context.runtime_root.join("workspace/README.md");
+        fs::create_dir_all(file_path.parent().unwrap()).unwrap();
+        let payload = "Original compressed snapshot content.\n"
+            .repeat(500)
+            .into_bytes();
+        fs::write(&file_path, &payload).unwrap();
+        let mut snapshots = FileSnapshotSystem::new(context.clone());
+        snapshots.initialize().await.unwrap();
+        snapshots.create_snapshot(&file_path).await.unwrap();
+        let checkpoint = snapshots.create_owned_snapshot(&file_path).await.unwrap();
+        let metadata = snapshots
+            .load_snapshot_from_disk(&checkpoint)
+            .await
+            .unwrap();
+        assert!(
+            metadata.compressed_content.is_empty(),
+            "deduplicated handle reads the blob"
+        );
+        assert!(fs::read(snapshots.get_content_path(&metadata.content_hash))
+            .unwrap()
+            .starts_with(&[0x1f, 0x8b]));
+        drop(snapshots);
+
+        // Reload the existing persisted shape, as on restart/reconciliation.
+        let mut reloaded = FileSnapshotSystem::new(context.clone());
+        reloaded.initialize().await.unwrap();
+        for _ in 0..2 {
+            fs::write(&file_path, "changed after checkpoint").unwrap();
+            reloaded
+                .restore_file(&checkpoint, &file_path)
+                .await
+                .unwrap();
+            assert_eq!(fs::read(&file_path).unwrap(), payload);
+        }
+        fs::remove_dir_all(&context.runtime_root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn streamed_restore_preserves_short_raw_content_and_failed_restore_target() {
+        let context = test_runtime_context();
+        create_runtime_dirs(&context);
+        let target = context.runtime_root.join("workspace/restored.txt");
+        fs::create_dir_all(target.parent().unwrap()).unwrap();
+        let mut snapshots = FileSnapshotSystem::new(context.clone());
+        snapshots.initialize().await.unwrap();
+        for content in [Vec::new(), vec![b'x'], b"raw content".to_vec()] {
+            let hash = snapshots.calculate_content_hash(&content);
+            fs::write(snapshots.get_content_path(&hash), &content).unwrap();
+            snapshots.stream_content_to_path(&hash, &target).unwrap();
+            assert_eq!(fs::read(&target).unwrap(), content);
+        }
+        let mut broken_gzip = snapshots.compress_content(b"compressed content").unwrap();
+        broken_gzip.truncate(broken_gzip.len() - 4);
+        fs::write(snapshots.get_content_path("broken"), broken_gzip).unwrap();
+        fs::write(&target, "keep original").unwrap();
+        assert!(snapshots.stream_content_to_path("broken", &target).is_err());
+        assert_eq!(fs::read(&target).unwrap(), b"keep original");
+        assert!(!fs::read_dir(target.parent().unwrap())
+            .unwrap()
+            .any(|entry| entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".restore-staging-")));
+        fs::remove_dir_all(&context.runtime_root).unwrap();
+    }
+
+    #[tokio::test]
     async fn create_snapshot_streams_large_files_without_embedding_content() {
         let context = test_runtime_context();
         create_runtime_dirs(&context);
@@ -1259,7 +1334,12 @@ mod tests {
             .read_dir()
             .expect("read restore parent")
             .filter_map(|entry| entry.ok())
-            .any(|entry| entry.file_name().to_string_lossy().starts_with(".restore-staging-"));
+            .any(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".restore-staging-")
+            });
         assert!(
             !leftover_staging,
             "restore staging file must be renamed into place, not left behind"
