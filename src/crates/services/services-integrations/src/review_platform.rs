@@ -1859,22 +1859,21 @@ async fn gitcode_review_target_parts(
     let confirmed_detail =
         send_bounded_json(gitcode_request(client, &base, ctx.token.as_deref())).await?;
     let initial_pull_request = gitcode_pull_request_from_value(&initial_detail);
-    let confirmed_pull_request = gitcode_pull_request_from_value(&confirmed_detail);
+    let mut confirmed_pull_request = gitcode_pull_request_from_value(&confirmed_detail);
     ensure_pull_request_revisions_stable(&initial_pull_request, &confirmed_pull_request)?;
-    Ok((
-        confirmed_pull_request,
-        array_items(&files)
-            .iter()
-            .map(gitcode_file_from_value)
-            .collect(),
-    ))
+    let files = array_items(&files)
+        .iter()
+        .map(gitcode_file_from_value)
+        .collect::<Vec<_>>();
+    apply_gitcode_review_target_change_stats(&mut confirmed_pull_request, &files);
+    Ok((confirmed_pull_request, files))
 }
 
 async fn gitcode_review_file_parts(
     ctx: &ProviderContext,
     pull_request_id: &str,
     file_path: &str,
-    file_page_hint: Option<u32>,
+    _file_page_hint: Option<u32>,
 ) -> Result<(ReviewPlatformPullRequest, Vec<ReviewPlatformFile>), ReviewPlatformError> {
     let client = http_client()?;
     let base = format!(
@@ -1890,12 +1889,10 @@ async fn gitcode_review_file_parts(
                 .query(&[("per_page", "100"), ("page", &page)])
         },
         github_next_page,
-        file_page_hint.unwrap_or(1),
-        if file_page_hint.is_some() {
-            100
-        } else {
-            MAX_REVIEW_TARGET_LIST_ITEMS
-        },
+        // GitCode ignores page/per_page and returns one file list. A page hint
+        // derived from the target index must not restrict this search to 100 files.
+        1,
+        MAX_REVIEW_TARGET_LIST_ITEMS,
         file_path,
         gitcode_file_from_value,
     )
@@ -6713,19 +6710,70 @@ fn github_file_from_value(value: &Value) -> ReviewPlatformFile {
 }
 
 fn gitcode_file_from_value(value: &Value) -> ReviewPlatformFile {
+    // GitCode returns a patch object; older payloads may contain a string.
+    let patch = value.get("patch").filter(|patch| patch.is_object());
+    let metadata = patch.unwrap_or(value);
+    let status = if value_bool(metadata, "new_file") {
+        ReviewFileStatus::Added
+    } else if value_bool(metadata, "deleted_file") {
+        ReviewFileStatus::Deleted
+    } else if value_bool(metadata, "renamed_file") {
+        ReviewFileStatus::Renamed
+    } else {
+        file_status(&value_string(value, "status"))
+    };
+    let diff = if value_bool(metadata, "too_large") || value_bool(metadata, "collapsed") {
+        None
+    } else if let Some(patch) = patch {
+        optional_string(patch, "diff")
+    } else {
+        optional_string(value, "patch").or_else(|| optional_string(value, "diff"))
+    };
     ReviewPlatformFile {
         path: first_non_empty(&[
             value_string(value, "filename"),
+            value_string(metadata, "new_path"),
             value_string(value, "new_path"),
         ]),
-        old_path: value
-            .get("previous_filename")
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        status: file_status(&value_string(value, "status")),
-        additions: value_i64(value, "additions") as i32,
-        deletions: value_i64(value, "deletions") as i32,
-        patch: optional_string(value, "patch").or_else(|| optional_string(value, "diff")),
+        old_path: optional_string(value, "previous_filename")
+            .or_else(|| optional_string(metadata, "old_path")),
+        status,
+        additions: if value.get("additions").is_some() {
+            value_i64(value, "additions") as i32
+        } else {
+            value_i64(metadata, "added_lines") as i32
+        },
+        deletions: if value.get("deletions").is_some() {
+            value_i64(value, "deletions") as i32
+        } else {
+            value_i64(metadata, "removed_lines") as i32
+        },
+        patch: diff,
+    }
+}
+
+// Review refreshes replace the UI's PR summary, so include the same file
+// statistics as the detail/list path without calling a bounded subset complete.
+fn apply_gitcode_review_target_change_stats(
+    pull_request: &mut ReviewPlatformPullRequest,
+    files: &[ReviewPlatformFile],
+) {
+    let count = i32::try_from(files.len()).unwrap_or(i32::MAX);
+    let complete =
+        files.len() < MAX_REVIEW_TARGET_LIST_ITEMS && pull_request.changed_files <= count;
+    if complete {
+        apply_files_stats(pull_request, files);
+        pull_request.changed_files = count;
+        pull_request.changed_file_count_known = true;
+    } else {
+        if pull_request.changed_files < count {
+            pull_request.changed_files = count;
+            pull_request.changed_file_count_known = false;
+        }
+        let additions = files.iter().map(|file| file.additions).sum::<i32>();
+        let deletions = files.iter().map(|file| file.deletions).sum::<i32>();
+        pull_request.additions = pull_request.additions.max(additions);
+        pull_request.deletions = pull_request.deletions.max(deletions);
     }
 }
 
@@ -7150,8 +7198,19 @@ fn file_status(status: &str) -> ReviewFileStatus {
 fn count_diff_lines(diff: &str) -> (i32, i32) {
     let mut additions = 0;
     let mut deletions = 0;
+    let mut in_hunk = false;
     for line in diff.lines() {
-        if line.starts_with("+++") || line.starts_with("---") {
+        if line.starts_with("diff --git ") {
+            in_hunk = false;
+            continue;
+        }
+        if line.starts_with("@@ ") {
+            in_hunk = true;
+            continue;
+        }
+        // Inside a hunk, these prefixes can be actual source lines (for
+        // example, a removed Markdown rule or an added increment expression).
+        if !in_hunk && (line.starts_with("+++") || line.starts_with("---")) {
             continue;
         }
         if line.starts_with('+') {
@@ -8266,6 +8325,187 @@ mod tests {
             pull_request.head_revision.as_deref(),
             Some("2222222222222222222222222222222222222222")
         );
+    }
+
+    #[tokio::test]
+    async fn gitcode_object_patch_survives_review_refresh_and_file_fetch() {
+        let mut pull_request = gitcode_pull_request_from_value(&json!({
+            "number": 166, "state": "merged",
+            "base": { "sha": "1111111111111111111111111111111111111111" },
+            "head": { "sha": "2222222222222222222222222222222222222222" }
+        }));
+        let file = gitcode_file_from_value(&json!({
+            "filename": "src/new.rs", "additions": 1, "deletions": 0,
+            "patch": {
+                "diff": "@@ -0,0 +1 @@\n+new\n",
+                "old_path": "src/new.rs", "new_path": "src/new.rs",
+                "new_file": true, "deleted_file": false, "renamed_file": false,
+                "too_large": false, "added_lines": 1, "removed_lines": 0
+            }
+        }));
+        apply_gitcode_review_target_change_stats(&mut pull_request, &[file.clone()]);
+        let target = review_target_from_parts(pull_request.clone(), vec![file.clone()]);
+        assert_eq!(target.pull_request.changed_files, 1);
+        assert!(target.pull_request.changed_file_count_known);
+        assert_eq!(target.pull_request.additions, 1);
+        assert_eq!(target.pull_request.deletions, 0);
+        assert!(target.files[0].diff_available);
+        assert!(target.limitations.is_empty());
+        let diff = file_diff_from_parts(
+            pull_request,
+            vec![file],
+            "1111111111111111111111111111111111111111",
+            "2222222222222222222222222222222222222222",
+            "src/new.rs",
+        )
+        .unwrap();
+        assert!(diff.diff.contains("--- /dev/null\n+++ b/src/new.rs\n"));
+        assert!(diff.diff.contains("+new\n"));
+
+        // Match GitCode's unpaginated response for a target beyond file 100.
+        let mut values = (0..100)
+            .map(|index| json!({ "filename": format!("src/{index}.rs") }))
+            .collect::<Vec<_>>();
+        values.push(json!({
+            "filename": "src/new.rs", "additions": 1, "deletions": 0,
+            "patch": { "diff": "@@ -0,0 +1 @@\n+new\n", "new_file": true }
+        }));
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        thread::spawn(move || {
+            for body in [Value::Array(values), json!({ "number": 166 })] {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut request = [0u8; 4096];
+                stream.read(&mut request).unwrap();
+                let body = body.to_string();
+                write!(stream,
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(), body,
+                ).unwrap();
+            }
+        });
+        let mut tokens = ReviewPlatformAuthTokens::default();
+        tokens.tokens.insert(
+            token_key(ReviewPlatformKind::Gitcode, "gitcode.com").unwrap(),
+            "fixture-token".to_string(),
+        );
+        let mut context = provider_context_for_identity(
+            ReviewPlatformKind::Gitcode,
+            "gitcode.com",
+            "example/repo",
+            &tokens,
+        )
+        .unwrap();
+        context.api_base_url = format!("http://{address}");
+        let (_, files) = gitcode_review_file_parts(&context, "166", "src/new.rs", Some(2))
+            .await
+            .unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "src/new.rs");
+        assert!(file_has_complete_patch(&files[0]));
+    }
+
+    #[test]
+    fn gitcode_object_patch_preserves_rename_delete_and_nested_counts() {
+        for (flag, status) in [
+            ("renamed_file", ReviewFileStatus::Renamed),
+            ("deleted_file", ReviewFileStatus::Deleted),
+        ] {
+            let mut value = json!({
+                "patch": {
+                    "old_path": "old.rs", "new_path": "new.rs",
+                    "diff": "@@ -1 +0,0 @@\n-old\n",
+                    "added_lines": 0, "removed_lines": 1
+                }
+            });
+            value["patch"][flag] = json!(true);
+            let file = gitcode_file_from_value(&value);
+            assert_eq!(file.path, "new.rs");
+            assert_eq!(file.old_path.as_deref(), Some("old.rs"));
+            assert_eq!(file.status, status);
+            assert_eq!(file.deletions, 1);
+            assert!(file_has_complete_patch(&file));
+        }
+    }
+
+    #[test]
+    fn gitcode_complete_patch_counts_header_like_content_inside_hunks() {
+        let hunk = "@@ -1,2 +1,2 @@\n----\n--- old text\n+++counter;\n+++ new text\n";
+        for patch in [
+            hunk.to_string(),
+            format!("diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n{hunk}"),
+        ] {
+            let file = ReviewPlatformFile {
+                path: "a.txt".to_string(),
+                old_path: None,
+                status: ReviewFileStatus::Modified,
+                additions: 2,
+                deletions: 2,
+                patch: Some(patch),
+            };
+            assert!(file_has_complete_patch(&file));
+        }
+    }
+
+    #[test]
+    fn gitcode_legacy_patch_shapes_remain_reviewable() {
+        for field in ["patch", "diff"] {
+            let mut value = json!({
+                "filename": "new.rs", "previous_filename": "old.rs",
+                "status": "renamed", "additions": 1, "deletions": 1
+            });
+            value[field] = json!("@@ -1 +1 @@\n-old\n+new\n");
+            let file = gitcode_file_from_value(&value);
+            assert!(file_has_complete_patch(&file));
+            assert_eq!(file.status, ReviewFileStatus::Renamed);
+            assert_eq!(file.old_path.as_deref(), Some("old.rs"));
+        }
+    }
+
+    #[test]
+    fn gitcode_object_patch_does_not_bypass_unavailable_or_incomplete_evidence() {
+        for metadata in [
+            json!({"diff": "@@ -1 +1 @@\n-old\n+new\n", "too_large": true}),
+            json!({"diff": "@@ -1 +1 @@\n-old\n+new\n", "collapsed": true}),
+            json!({"diff": "@@ -1 +1 @@\n+new\n"}),
+            json!({"diff": ""}),
+            json!({}),
+        ] {
+            let file = gitcode_file_from_value(&json!({
+                "filename": "a.rs", "additions": 1, "deletions": 1,
+                "patch": metadata
+            }));
+            assert!(!file_has_complete_patch(&file));
+            let pr = gitcode_pull_request_from_value(&json!({"number": 1}));
+            assert!(file_diff_from_parts(pr, vec![file], "", "", "a.rs").is_err());
+        }
+    }
+
+    #[test]
+    fn gitcode_review_refresh_preserves_totals_for_bounded_file_lists() {
+        let file = gitcode_file_from_value(&json!({
+            "filename": "a.rs", "additions": 1, "deletions": 1
+        }));
+        let mut pr = gitcode_pull_request_from_value(&json!({
+            "number": 1, "changes_count": "2000", "added_lines": 4000,
+            "removed_lines": 3000
+        }));
+        apply_gitcode_review_target_change_stats(&mut pr, &[file.clone()]);
+        assert_eq!(
+            (pr.changed_files, pr.additions, pr.deletions),
+            (2000, 4000, 3000)
+        );
+        assert!(pr.changed_file_count_known);
+
+        let mut unknown = gitcode_pull_request_from_value(&json!({"number": 1}));
+        let files = vec![file; MAX_REVIEW_TARGET_LIST_ITEMS];
+        apply_gitcode_review_target_change_stats(&mut unknown, &files);
+        assert_eq!(unknown.changed_files as usize, MAX_REVIEW_TARGET_LIST_ITEMS);
+        assert!(!unknown.changed_file_count_known);
+        let target = review_target_from_parts(unknown, files);
+        assert!(target
+            .limitations
+            .contains(&"provider_file_list_incomplete".to_string()));
     }
 
     #[test]
