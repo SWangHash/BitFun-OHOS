@@ -55,7 +55,6 @@
       "yanked": "This release was withdrawn and can no longer be installed.",
       "yankedBadge": "Withdrawn",
       "installedReleaseYanked": "Your installed release was withdrawn. Update to a reviewed release when one is available.",
-      "incompatibleVersion": "This package requires BitFun {{version}} or newer.",
       "unsupportedCapabilities": "This package requires Appearance capabilities that this BitFun version does not support.",
       "listingConflict": "A package with this id is already linked to a different Skin Market listing.",
       "localOverride": "This package was modified locally. Updating it will replace those local changes.",

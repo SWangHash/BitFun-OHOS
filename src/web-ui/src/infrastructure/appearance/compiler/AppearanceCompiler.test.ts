@@ -3,12 +3,11 @@ import { bitfunDarkPalette, builtinAppearancePalettes } from '../builtins/palett
 import { buildBuiltinAppearance } from '../builtins/buildBuiltinAppearance';
 import { composeAppearancePackage } from '../builtins/composeAppearancePackage';
 import { createDefaultAppearanceRegistry } from '../registry/defaultAppearanceRegistry';
-import { AppearancePackageValidationError } from '../schema/AppearancePackageValidationError';
 import type { AppearancePackage } from '../types';
 import { AppearanceCompiler } from './AppearanceCompiler';
 
 describe('AppearanceCompiler', () => {
-  it('preserves structured validation diagnostics when compilation is rejected', () => {
+  it('ignores rules for unregistered parts and reports them as diagnostics', () => {
     const pkg = {
       ...buildBuiltinAppearance(bitfunDarkPalette),
       components: {
@@ -20,8 +19,11 @@ describe('AppearanceCompiler', () => {
       },
     };
 
-    expect(() => new AppearanceCompiler(createDefaultAppearanceRegistry()).compile(pkg, 1))
-      .toThrow(AppearancePackageValidationError);
+    const snapshot = new AppearanceCompiler(createDefaultAppearanceRegistry()).compile(pkg, 1);
+    expect(snapshot.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ level: 'warning', code: 'UNKNOWN_PART', path: 'toolbar-mode.sessionMenu' }),
+    ]));
+    expect(snapshot.cssText).not.toContain('sessionMenu');
   });
 
   it('compiles a built-in appearance into host-owned component selectors', () => {

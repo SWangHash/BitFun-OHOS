@@ -288,6 +288,15 @@ export class AppearanceCompiler {
       if (!descriptor) return;
       const resolvedParts: Record<string, ResolvedAppearanceStyle[]> = {};
       Object.entries(definition.parts).forEach(([partId, partRule]) => {
+        if (!descriptor.parts.some(candidate => candidate.id === partId)) {
+          context.diagnostics.push({
+            level: 'warning',
+            path: `${surfaceId}.${partId}`,
+            code: 'UNKNOWN_PART',
+            message: `Unknown part ${surfaceId}.${partId}; its rules are ignored`,
+          });
+          return;
+        }
         const baseSelector = `:root[data-bf-appearance="${context.pkg.id}"][data-bf-appearance-revision="${context.revision}"] [${surfaceAttribute}="${surfaceId}"][data-bf-part="${partId}"]`;
         const compiled = this.compilePart(baseSelector, partRule, descriptor, materials, context);
         resolvedParts[partId] = compiled.map(rule => rule.style);
