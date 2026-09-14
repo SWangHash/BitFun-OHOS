@@ -381,6 +381,16 @@ pub fn spawn_pty(
     // configuration into user terminals, then overlay terminal-specific env.
     apply_sanitized_environment(&mut cmd, &shell_config.env);
 
+    // Seed PWD from the spawn cwd for POSIX shells. Without it, shells whose
+    // binary relies on a fallback getcwd implementation fail at startup on
+    // filesystems where readdir inode numbers do not match stat (hmdfs, FUSE).
+    #[cfg(not(windows))]
+    if shell_type.inherits_pwd() {
+        if let Some(pwd) = crate::shell::pwd_seed_for_cwd(std::path::Path::new(&cwd)) {
+            cmd.env("PWD", pwd);
+        }
+    }
+
     // Set terminal type
     #[cfg(not(windows))]
     {

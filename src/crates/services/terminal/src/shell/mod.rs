@@ -47,6 +47,21 @@ pub enum ShellType {
 }
 
 impl ShellType {
+    /// Check if this shell honors an inherited `PWD` environment variable.
+    ///
+    /// POSIX shells initialize their working-directory state (and bash's
+    /// fallback `getcwd` implementation, used when the binary was built with
+    /// `GETCWD_BROKEN`) from `PWD` at startup, so seeding it from the spawn
+    /// cwd avoids `shell-init: error retrieving current directory` failures on
+    /// filesystems where `readdir` inode numbers do not match `stat` (FUSE,
+    /// hmdfs, overlayfs).
+    pub fn inherits_pwd(&self) -> bool {
+        matches!(
+            self,
+            ShellType::Bash | ShellType::Zsh | ShellType::Sh | ShellType::Ksh | ShellType::Csh
+        )
+    }
+
     /// Get the display name for this shell type (platform-specific)
     pub fn name(&self) -> &str {
         match self {
@@ -151,9 +166,33 @@ impl std::fmt::Display for ShellType {
     }
 }
 
+/// Return the `PWD` value to seed into a spawned shell's environment.
+///
+/// Some filesystems (FUSE, hmdfs, overlayfs) return inode numbers from
+/// `readdir` that do not match `stat`, which breaks bash's fallback `getcwd`
+/// implementation with `shell-init: error retrieving current directory`.
+/// POSIX shells initialize their working-directory state from an inherited,
+/// consistent `PWD`, so seeding it from the spawn cwd keeps those shells
+/// functional without changing the process working directory itself.
+/// The value is only injected when the target directory actually exists;
+/// otherwise the child keeps whatever the environment already provides.
+pub fn pwd_seed_for_cwd(cwd: &std::path::Path) -> Option<String> {
+    if !cwd.is_dir() {
+        return None;
+    }
+    let candidate = cwd.to_string_lossy().into_owned();
+    if candidate.starts_with('/') {
+        Some(candidate)
+    } else {
+        std::env::current_dir()
+            .ok()
+            .map(|base| base.join(cwd).to_string_lossy().into_owned())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::ShellType;
+    use super::{pwd_seed_for_cwd, ShellType};
 
     #[test]
     fn shell_default_remains_platform_specific() {
@@ -161,5 +200,31 @@ mod tests {
         assert_eq!(ShellType::default(), ShellType::PowerShellCore);
         #[cfg(not(windows))]
         assert_eq!(ShellType::default(), ShellType::Bash);
+    }
+
+    #[test]
+    fn posix_shells_inherit_pwd_and_others_do_not() {
+        assert!(ShellType::Bash.inherits_pwd());
+        assert!(ShellType::Zsh.inherits_pwd());
+        assert!(ShellType::Sh.inherits_pwd());
+        assert!(ShellType::Ksh.inherits_pwd());
+        assert!(ShellType::Csh.inherits_pwd());
+        assert!(!ShellType::Fish.inherits_pwd());
+        assert!(!ShellType::PowerShellCore.inherits_pwd());
+        assert!(!ShellType::Cmd.inherits_pwd());
+    }
+
+    #[test]
+    fn pwd_seed_requires_existing_directory_and_absolute_result() {
+        assert_eq!(
+            pwd_seed_for_cwd(std::path::Path::new("/definitely/not/a/dir")),
+            None
+        );
+
+        let temp = std::env::temp_dir();
+        let seeded = pwd_seed_for_cwd(&temp).expect("temp dir exists");
+        let seeded_path = std::path::PathBuf::from(&seeded);
+        assert!(seeded_path.is_absolute());
+        assert_eq!(seeded_path.file_name(), temp.file_name());
     }
 }

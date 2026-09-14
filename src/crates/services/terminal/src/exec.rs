@@ -1092,6 +1092,10 @@ async fn spawn_pty_process(request: &ExecCommandRequest) -> TerminalResult<ExecP
     let mut command = CommandBuilder::new(&request.argv[0]);
     command.cwd(&request.cwd);
     apply_sanitized_environment_to_pty(&mut command, &request.env);
+    #[cfg(unix)]
+    if let Some(pwd) = crate::shell::pwd_seed_for_cwd(&request.cwd) {
+        command.env("PWD", pwd);
+    }
     for arg in request.argv.iter().skip(1) {
         command.arg(arg);
     }
@@ -1218,6 +1222,10 @@ async fn spawn_pipe_process(
     command.env_clear();
     for (key, value) in sanitized_environment(&request.env) {
         command.env(key, value);
+    }
+    #[cfg(unix)]
+    if let Some(pwd) = crate::shell::pwd_seed_for_cwd(&request.cwd) {
+        command.env("PWD", pwd);
     }
     command.stdin(Stdio::null());
     command.stdout(Stdio::piped());
