@@ -33,7 +33,6 @@ import {
 } from '@/infrastructure/appearance';
 import { useMarketAccount } from '@/infrastructure/market-account';
 import { notificationService } from '@/shared/notification-system';
-import { getVersionInfo } from '@/shared/utils/version';
 import {
   AppearanceMarketWorkflows,
   type AppearanceMarketWorkflow,
@@ -72,31 +71,6 @@ function installedEntry(
 
 function hasUnsupportedCapabilities(detail: AppearanceMarketListingSummary): boolean {
   return detail.requiredCapabilities.some(capability => !SUPPORTED_CAPABILITIES.has(capability));
-}
-
-function requiresNewerBitfun(minimum: string): boolean {
-  const parse = (value: string) => {
-    const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(value);
-    return match ? {
-      numbers: [Number(match[1]), Number(match[2]), Number(match[3])] as const,
-      prerelease: match[4],
-    } : null;
-  };
-  const current = parse(getVersionInfo().version);
-  const required = parse(minimum);
-  if (!current || !required) return true;
-  for (let index = 0; index < current.numbers.length; index += 1) {
-    if (current.numbers[index] !== required.numbers[index]) {
-      return current.numbers[index] < required.numbers[index];
-    }
-  }
-  if (!current.prerelease && required.prerelease) return false;
-  if (current.prerelease && !required.prerelease) return true;
-  return Boolean(
-    current.prerelease
-    && required.prerelease
-    && current.prerelease < required.prerelease,
-  );
 }
 
 export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDialogProps) {
@@ -263,9 +237,6 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
     const local = installedEntry(appearances, detail);
     const active = selectedAppearanceId === detail.packageId;
     const unsupported = hasUnsupportedCapabilities(detail);
-    const incompatibleVersion = requiresNewerBitfun(
-      release?.minBitfunVersion ?? detail.minBitfunVersion,
-    );
     const linkedToOtherListing = local?.marketOrigin
       && local.marketOrigin.listingId !== detail.listingId;
     const installedReleaseYanked = Boolean(
@@ -284,7 +255,6 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
       || !release
       || release.yanked
       || unsupported
-      || incompatibleVersion
       || Boolean(linkedToOtherListing);
 
     return (
@@ -347,7 +317,6 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
 
           {(release?.yanked
             || installedReleaseYanked
-            || incompatibleVersion
             || unsupported
             || linkedToOtherListing
             || local?.localOverride) && (
@@ -362,15 +331,11 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
                   ? t('package.market.yanked')
                   : installedReleaseYanked
                     ? t('package.market.installedReleaseYanked')
-                    : incompatibleVersion
-                      ? t('package.market.incompatibleVersion', {
-                          version: release?.minBitfunVersion ?? detail.minBitfunVersion,
-                        })
-                      : unsupported
-                        ? t('package.market.unsupportedCapabilities')
-                        : linkedToOtherListing
-                          ? t('package.market.listingConflict')
-                          : t('package.market.localOverride')}
+                    : unsupported
+                      ? t('package.market.unsupportedCapabilities')
+                      : linkedToOtherListing
+                        ? t('package.market.listingConflict')
+                        : t('package.market.localOverride')}
               </span>
             </div>
           )}
@@ -407,7 +372,6 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
                 variant={active ? 'secondary' : 'primary'}
                 disabled={active
                   || unsupported
-                  || incompatibleVersion
                   || installing
                   || appearanceStatus === 'applying'}
                 onClick={() => void handleApply()}
