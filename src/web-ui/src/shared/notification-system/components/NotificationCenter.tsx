@@ -16,7 +16,7 @@ export const NotificationCenter: React.FC = () => {
   const { t, formatDate } = useI18n(['components', 'common', 'errors']);
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const activeTaskNotifications = useMemo(() => {
     return [...allProgressNotifications, ...allLoadingNotifications];
   }, [allProgressNotifications, allLoadingNotifications]);
@@ -44,16 +44,7 @@ export const NotificationCenter: React.FC = () => {
 
   
   const handleNotificationClick = (notification: NotificationRecord) => {
-    
-    setExpandedIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(notification.id)) {
-        newSet.delete(notification.id);
-      } else {
-        newSet.add(notification.id);
-      }
-      return newSet;
-    });
+    setExpandedId(current => current === notification.id ? null : notification.id);
 
     
     if (!notification.read) {
@@ -265,7 +256,7 @@ export const NotificationCenter: React.FC = () => {
         })
       : formatTime(notification.timestamp);
 
-    const isExpanded = expandedIds.has(notification.id);
+    const isExpanded = expandedId === notification.id;
     const technicalDetails = getTechnicalDetails(notification);
 
     return (

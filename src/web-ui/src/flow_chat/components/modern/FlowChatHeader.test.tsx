@@ -61,6 +61,10 @@ vi.mock('./SessionFilesBadge', () => ({
   SessionFilesBadge: () => <div data-testid="session-files-badge" />,
 }));
 
+vi.mock('./SessionShareFilesButton', () => ({
+  SessionShareFilesButton: () => null,
+}));
+
 vi.mock('./SessionTreePopover', () => ({
   SessionTreePopover: () => (
     <div className="session-tree-popover">
@@ -143,6 +147,28 @@ describe('FlowChatHeader', () => {
     expect(container.querySelector('[data-testid="flowchat-header-turn-list"]')).toBeNull();
     expect(container.querySelector('[data-testid="flowchat-header-turn-prev"]')).toBeNull();
     expect(container.querySelector('[data-testid="flowchat-header-turn-next"]')).toBeNull();
+  });
+
+  it('hides the centered turn summary while search occupies the header', () => {
+    act(() => {
+      root.render(<FlowChatHeader {...createProps()} />);
+    });
+
+    expect(container.querySelector('.flowchat-header__message')).not.toBeNull();
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="flowchat-header-search"]')?.click();
+    });
+
+    expect(container.querySelector('[data-testid="flowchat-header-search-bar"]')).not.toBeNull();
+    expect(container.querySelector('.flowchat-header__message')).toBeNull();
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[aria-label="flowChatHeader.searchClose"]')?.click();
+    });
+
+    expect(container.querySelector('[data-testid="flowchat-header-search-bar"]')).toBeNull();
+    expect(container.querySelector('.flowchat-header__message')).not.toBeNull();
   });
 
   it('places the Agent tree entry immediately before background commands', () => {

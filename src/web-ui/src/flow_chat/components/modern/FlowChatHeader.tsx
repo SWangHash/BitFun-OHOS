@@ -489,7 +489,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
         <SessionFilesBadge sessionId={sessionId} />
       </div>
 
-      {hasTurnInfo ? (
+      {hasTurnInfo && !isSearchOpen ? (
         <Tooltip content={currentUserMessage} placement="bottom">
           <div
             className="flowchat-header__message"

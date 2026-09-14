@@ -42,3 +42,28 @@ describe('existing FlowChat background command menus', () => {
     expect(source.match(/flowchat-header__background-command-menu--portal/g)).toHaveLength(2);
   });
 });
+
+describe('chat input slash picker interaction contract', () => {
+  const source = readSource('./ChatInput.tsx');
+  const styles = readSource('./ChatInput.scss');
+
+  it('tracks the selected item inside the portalled picker', () => {
+    expect(source).toContain('const selectedItem = slashCommandPickerRef.current?.querySelector(');
+    expect(source).not.toContain('const selectedItem = containerRef.current?.querySelector(');
+  });
+
+  it('dismisses the picker when the session scene deactivates or focus moves outside it', () => {
+    expect(source).toContain('if (!isSceneActive) {');
+    expect(source).toContain("document.addEventListener('mousedown', handleSlashPickerPointerDown)");
+    expect(source).toContain("document.removeEventListener('mousedown', handleSlashPickerPointerDown)");
+  });
+
+  it('avoids an ArkWeb backdrop layer that can survive picker removal', () => {
+    const pickerStyles = styles.slice(
+      styles.indexOf('&__slash-command-picker'),
+      styles.indexOf('&__slash-command-header'),
+    );
+
+    expect(pickerStyles).not.toContain('backdrop-filter');
+  });
+});
