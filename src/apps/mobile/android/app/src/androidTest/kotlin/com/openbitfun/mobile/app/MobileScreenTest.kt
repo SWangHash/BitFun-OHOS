@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -66,24 +67,34 @@ class MobileScreenTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
 
+    private fun text(resource: Int): String = InstrumentationRegistry.getInstrumentation().targetContext.getString(resource)
+
     @Test
-    fun theDrawerSwitchesSurfacesAndClosesBehindTheTap() {
+    fun welcomeOrDrawerExposesNavigationEntries() {
+        if (!hasDrawerEntry()) {
+            composeRule.onNodeWithText(text(R.string.welcome_login)).assertIsDisplayed()
+            composeRule.onNodeWithText(text(R.string.welcome_scan)).assertIsDisplayed()
+            composeRule.onNodeWithText(text(R.string.miniapps_title)).performClick()
+            composeRule.onNodeWithText(text(R.string.miniapps_close)).assertIsDisplayed().performClick()
+            composeRule.onNodeWithText(text(R.string.welcome_login)).assertIsDisplayed()
+            return
+        }
         composeRule.onNodeWithTag(SIDEBAR_TEST_TAG).assertIsNotDisplayed()
 
-        composeRule.onNodeWithTag(MENU_TEST_TAG).performClick()
+        openDrawer()
         composeRule.onNodeWithTag(SIDEBAR_TEST_TAG).assertIsDisplayed()
         // The recent list holds general-chat sessions, and a session is only
         // stored once something has been sent to it — so a device that has never
         // chatted shows the empty state rather than a blank row.
-        composeRule.onNodeWithText("No conversations yet.").assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.sidebar_recent_empty)).assertIsDisplayed()
 
         composeRule.onNodeWithTag(SIDEBAR_CODE_TEST_TAG).performClick()
 
         // The drawer routes to the choose-connection page rather than launching
         // the scanner, so both entry modes stay visible behind the closing drawer.
-        waitForText("Choose how to connect")
-        composeRule.onNodeWithText("Scan to connect").assertIsDisplayed()
-        composeRule.onNodeWithText("Sign in with GitHub").assertIsDisplayed()
+        waitForText(text(R.string.connect_choose_connection))
+        composeRule.onNodeWithText(text(R.string.sidebar_scan_to_connect)).assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.account_login_title)).assertIsDisplayed()
         composeRule.onNodeWithTag(SIDEBAR_TEST_TAG).assertIsNotDisplayed()
     }
 
@@ -101,25 +112,30 @@ class MobileScreenTest {
      * guards against cannot happen in.
      */
     @Test
-    fun theDrawerOpensTheAccountAndStepsOutOfTheWay() {
-        composeRule.onNodeWithTag(MENU_TEST_TAG).performClick()
+    fun accountEntryWorksFromWelcomeOrDrawer() {
+        if (!hasDrawerEntry()) {
+            composeRule.onNodeWithText(text(R.string.welcome_login)).performClick()
+            composeRule.onNode(hasText(text(R.string.account_login_title)) and hasClickAction()).assertIsDisplayed()
+            return
+        }
+        openDrawer()
         composeRule.onNodeWithTag(SIDEBAR_TEST_TAG).assertIsDisplayed()
 
-        val signedOut = composeRule.onAllNodesWithText("Sign in with GitHub")
+        val signedOut = composeRule.onAllNodesWithText(text(R.string.account_login_title))
             .fetchSemanticsNodes()
             .isNotEmpty()
         if (signedOut) {
-            composeRule.onNodeWithText("Sign in with GitHub").performClick()
+            composeRule.onNodeWithText(text(R.string.account_login_title)).performClick()
         } else {
             // The signed-in exchange: settings first, and the profile row there
             // is what leads on to the account. The drawer is over the general
             // chat, so the gear lands on the app's own settings page.
             composeRule.onNodeWithTag(SIDEBAR_SETTINGS_TEST_TAG).performClick()
-            waitForText("Settings")
+            waitForText(text(R.string.navigation_settings))
             composeRule.onNodeWithTag(GENERAL_SETTINGS_PROFILE_TEST_TAG).performClick()
         }
 
-        waitForText(if (signedOut) "Sign in with GitHub" else "Account")
+        waitForText(text(if (signedOut) R.string.account_login_title else R.string.account_title))
         composeRule.onNodeWithTag(SIDEBAR_TEST_TAG).assertIsNotDisplayed()
     }
 
@@ -133,19 +149,19 @@ class MobileScreenTest {
      */
     @Test
     fun theSettingsPageClosesByItsOwnButton() {
-        composeRule.onNodeWithTag(MENU_TEST_TAG).performClick()
+        openDrawer()
         openSettingsFromAuthenticatedDrawerOrSkip()
-        waitForText("Settings")
+        waitForText(text(R.string.navigation_settings))
 
         composeRule.onNodeWithTag(GENERAL_SETTINGS_CLOSE_TEST_TAG).performClick()
 
-        waitForNoText("About")
+        waitForNoText(text(R.string.settings_about_section))
     }
 
     /** The sidebar gear is the app-settings entry, even over a remote surface. */
     @Test
     fun theGearAlwaysOpensRootSettings() {
-        composeRule.onNodeWithTag(MENU_TEST_TAG).performClick()
+        openDrawer()
         openSettingsFromAuthenticatedDrawerOrSkip()
 
         waitForTag(GENERAL_SETTINGS_TEST_TAG)
@@ -153,7 +169,7 @@ class MobileScreenTest {
         composeRule.onNodeWithTag(GENERAL_SETTINGS_CLOSE_TEST_TAG).performClick()
         waitForNoTag(GENERAL_SETTINGS_TEST_TAG)
 
-        composeRule.onNodeWithTag(MENU_TEST_TAG).performClick()
+        openDrawer()
         waitForTag(SIDEBAR_TEST_TAG)
         val connectNodes = composeRule.onAllNodesWithTag(SIDEBAR_CODE_TEST_TAG)
             .fetchSemanticsNodes()
@@ -170,7 +186,7 @@ class MobileScreenTest {
         }
         waitForTag(MENU_TEST_TAG)
 
-        composeRule.onNodeWithTag(MENU_TEST_TAG).performClick()
+        openDrawer()
         waitForTag(SIDEBAR_TEST_TAG)
         openSettingsFromAuthenticatedDrawerOrSkip()
 
@@ -201,7 +217,7 @@ class MobileScreenTest {
 
         // Refused, and still on the form: the reason has to sit next to the field
         // that caused it, which the overview has none of.
-        composeRule.onNodeWithText("The API URL must start with http:// or https://.")
+        composeRule.onNodeWithText(text(R.string.model_service_invalid_url))
             .assertIsDisplayed()
         composeRule.onNodeWithTag(MODEL_SERVICE_URL_TEST_TAG).assertIsDisplayed()
     }
@@ -219,9 +235,9 @@ class MobileScreenTest {
     fun theModelPanelSaysWhatTheAccountHasSynced() {
         openGeneralModelService()
 
-        composeRule.onNodeWithText("Account sync").assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.model_service_account_section)).assertIsDisplayed()
         composeRule.onNodeWithTag(MODEL_SERVICE_ACCOUNT_TEST_TAG).assertIsDisplayed()
-        composeRule.onNodeWithText("Account models").assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.model_service_account_summary)).assertIsDisplayed()
     }
 
     /**
@@ -238,7 +254,7 @@ class MobileScreenTest {
         composeRule.onNodeWithTag(MODEL_SERVICE_LOCAL_TEST_TAG).performClick()
 
         composeRule.onNodeWithTag(MODEL_SERVICE_PROBE_TEST_TAG).assertIsNotEnabled()
-        composeRule.onNodeWithText("Keep or enter an API key to test the connection.")
+        composeRule.onNodeWithText(text(R.string.model_service_test_needs_key))
             .assertIsDisplayed()
 
         composeRule.onNodeWithTag(MODEL_SERVICE_KEY_TEST_TAG).performTextInput("instrumentation-key")
@@ -251,7 +267,7 @@ class MobileScreenTest {
         openRemote()
         // Scanning is the front door; the fields live one step behind it.
         openManualPairing()
-        composeRule.onNodeWithText("Pair").assertIsNotEnabled()
+        composeRule.onNodeWithText(text(R.string.connect_pair)).assertIsNotEnabled()
     }
 
     @Test
@@ -265,7 +281,7 @@ class MobileScreenTest {
         composeRule.onNodeWithTag(CONNECT_SUBMIT_TEST_TAG).performClick()
 
         // The shell's top bar names the connection state once pairing lands.
-        waitForText("Connected")
+        waitForText(text(R.string.paired_title))
         waitForText("完善鸿蒙端远程控制", substring = true)
         composeRule.onNodeWithText("完善鸿蒙端远程控制", substring = true)
             .performScrollTo()
@@ -319,7 +335,7 @@ class MobileScreenTest {
         // The language became the card's label, and next to it is the copy that
         // is the whole point of showing a command on a phone.
         composeRule.onNodeWithText("ts").assertIsDisplayed()
-        composeRule.onNodeWithText("Copy").assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.chat_copy)).assertIsDisplayed()
         // The code itself is only asserted to exist: it does not wrap, so its own
         // bounds run past the card it scrolls inside and "displayed" is not a
         // question that has an answer for it. The card around it is on screen.
@@ -349,14 +365,14 @@ class MobileScreenTest {
 
         // Every fixture session sits in the one open workspace, so the project
         // grouping says nothing; dating them apart is what proves the regroup.
-        composeRule.onNodeWithText("Newest first").performScrollTo().performClick()
-        waitForText("Yesterday")
-        composeRule.onNodeWithText("Today").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("Earlier").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.group_by_time)).performScrollTo().performClick()
+        waitForText(text(R.string.time_yesterday))
+        composeRule.onNodeWithText(text(R.string.time_today)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.time_earlier)).performScrollTo().assertIsDisplayed()
 
         // A row is its title until asked otherwise; the oldest fixtures are days
         // old, so the relative time is the part that shows up.
-        composeRule.onNodeWithText("Updated").performScrollTo().performClick()
+        composeRule.onNodeWithText(text(R.string.session_updated_at)).performScrollTo().performClick()
         waitForText("days ago", substring = true)
     }
 
@@ -378,10 +394,10 @@ class MobileScreenTest {
         composeRule.onNodeWithTag(CONNECT_SUBMIT_TEST_TAG).performClick()
         // The workspace panel only appears once the desktop has answered with
         // one, which is the same round trip the file field then depends on.
-        waitForText("Remote file path")
+        waitForText(text(R.string.file_reference_label))
 
-        composeRule.onNodeWithText("Remote file path").performScrollTo().performTextInput("src/preview.rs")
-        composeRule.onNodeWithText("Open file").performScrollTo().performClick()
+        composeRule.onNodeWithText(text(R.string.file_reference_label)).performScrollTo().performTextInput("src/preview.rs")
+        composeRule.onNodeWithText(text(R.string.file_preview_open)).performScrollTo().performClick()
 
         waitForText("preview.rs")
         // Wherever it lands the preview is a surface of its own, not a card at
@@ -436,17 +452,17 @@ class MobileScreenTest {
         openManualPairing()
         composeRule.onNodeWithTag(CONNECT_PAIRING_CODE_TEST_TAG).performTextInput(pairingUrl)
         composeRule.onNodeWithTag(CONNECT_SUBMIT_TEST_TAG).performClick()
-        waitForText("Connected")
+        waitForText(text(R.string.paired_title))
 
         try {
             setRelayReachable(pairingUrl, reachable = false)
             // No tap in between: only the store's own timer can notice, and it
             // has fifteen seconds to run plus the ping it then has to fail.
-            waitForText("Connection error", timeoutMillis = 60_000)
+            waitForText(text(R.string.connection_error), timeoutMillis = 60_000)
 
             setRelayReachable(pairingUrl, reachable = true)
             composeRule.onNodeWithText(InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.sidebar_device_retry)).performScrollTo().performClick()
-            waitForText("Connected", timeoutMillis = 40_000)
+            waitForText(text(R.string.paired_title), timeoutMillis = 40_000)
         } finally {
             setRelayReachable(pairingUrl, reachable = true)
         }
@@ -454,9 +470,9 @@ class MobileScreenTest {
 
     /** The remote surface is reached through the drawer now that the tab bar is gone. */
     private fun openRemote() {
-        composeRule.onNodeWithTag(MENU_TEST_TAG).performClick()
+        openDrawer()
         composeRule.onNodeWithTag(SIDEBAR_CODE_TEST_TAG).performClick()
-        waitForText("Choose how to connect")
+        waitForText(text(R.string.connect_choose_connection))
     }
 
     /**
@@ -465,7 +481,7 @@ class MobileScreenTest {
      * fallback Harmony shows after a scan error.
      */
     private fun openManualPairing() {
-        composeRule.onNodeWithText("Scan to connect").performClick()
+        composeRule.onNodeWithText(text(R.string.sidebar_scan_to_connect)).performClick()
         // Google Code Scanner owns a separate system activity. Espresso's
         // pressBack requires our activity to be resumed, so inject the platform
         // key directly and wait for the cancellation callback to reveal the
@@ -497,7 +513,7 @@ class MobileScreenTest {
                 .isNotEmpty()
         }
         composeRule.onNodeWithTag(CONNECT_MANUAL_TEST_TAG).assertIsDisplayed().performClick()
-        composeRule.onNodeWithText("Manual pairing").assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.connect_manual_title)).assertIsDisplayed()
     }
 
     /**
@@ -546,6 +562,13 @@ class MobileScreenTest {
         }
     }
 
+    private fun hasDrawerEntry(): Boolean = composeRule.onAllNodesWithTag(MENU_TEST_TAG).fetchSemanticsNodes().isNotEmpty()
+
+    private fun openDrawer() {
+        assumeTrue("This path requires an authenticated shell; signed-out welcome is covered separately", hasDrawerEntry())
+        composeRule.onNodeWithTag(MENU_TEST_TAG).performClick()
+    }
+
     private fun openSettingsFromAuthenticatedDrawerOrSkip() {
         val settingsNodes = composeRule.onAllNodesWithTag(SIDEBAR_SETTINGS_TEST_TAG)
             .fetchSemanticsNodes()
@@ -557,9 +580,9 @@ class MobileScreenTest {
     }
 
     private fun openGeneralModelService() {
-        composeRule.onNodeWithTag(MENU_TEST_TAG).performClick()
+        openDrawer()
         openSettingsFromAuthenticatedDrawerOrSkip()
-        waitForText("Settings")
+        waitForText(text(R.string.navigation_settings))
         composeRule.onNodeWithTag(GENERAL_SETTINGS_MODEL_TEST_TAG).performClick()
     }
 }

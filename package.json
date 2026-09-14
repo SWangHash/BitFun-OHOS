@@ -60,7 +60,7 @@
     "theme:color-audit:test": "node --test scripts/audit-theme-colors.test.mjs scripts/audit-cli-theme-colors.test.mjs scripts/audit-frontend-colors.test.mjs",
     "motion:audit": "node scripts/audit-web-motion.mjs",
     "theme:visual-contract": "node scripts/validate-theme-visual-contract.mjs",
-    "appearance:contract-audit": "node scripts/audit-appearance-contracts.mjs",
+    "appearance:contract-audit": "node --test scripts/appearance-dom-contracts.test.mjs && node scripts/audit-appearance-contracts.mjs",
     "flowchat:log:analyze": "node scripts/diagnostics/analyze-flowchat-log.mjs",
     "flowchat:log:analyze:test": "node --test scripts/diagnostics/analyze-flowchat-log.test.mjs",
     "product:identity:audit": "node scripts/product-identity-audit.mjs",

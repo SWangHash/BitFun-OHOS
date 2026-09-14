@@ -2,11 +2,7 @@ use openbitfun_product_capabilities::{
     product_assembly_plan_for_profile, DeliveryProfile, ProductCapabilityId,
 };
 
-const HEADLESS_PROFILES: &[DeliveryProfile] = &[
-    DeliveryProfile::Cli,
-    DeliveryProfile::Acp,
-    DeliveryProfile::Sdk,
-];
+const HEADLESS_PROFILES: &[DeliveryProfile] = &[DeliveryProfile::Acp, DeliveryProfile::Sdk];
 
 #[test]
 fn headless_agent_hosts_select_only_the_code_agent_product_capability() {
@@ -122,5 +118,34 @@ fn headless_agent_hosts_keep_explore_code_agents_without_product_workflow_agents
                 "{profile} must keep the explore code agent {code_agent}"
             );
         }
+    }
+}
+
+#[test]
+fn cli_pages_are_independent_of_miniapp_and_acp() {
+    let plan = product_assembly_plan_for_profile(DeliveryProfile::Cli);
+    assert_eq!(
+        plan.capability_set().ids(),
+        &[ProductCapabilityId::CodeAgent, ProductCapabilityId::Pages]
+    );
+    let names: Vec<_> = plan
+        .tool_plan()
+        .tool_provider_group_plan()
+        .iter()
+        .flat_map(|group| group.tool_names().iter().copied())
+        .collect();
+    for tool in ["PagePublish", "PageDeploy"] {
+        assert!(names.contains(&tool));
+    }
+    for tool in ["InitMiniApp", "PublishMiniApp", "CreateCanvas"] {
+        assert!(!names.contains(&tool));
+    }
+    for profile in [DeliveryProfile::Acp, DeliveryProfile::Sdk] {
+        let plan = product_assembly_plan_for_profile(profile);
+        assert!(!plan
+            .tool_plan()
+            .tool_provider_group_plan()
+            .iter()
+            .any(|group| group.provider_id() == "core.pages"));
     }
 }

@@ -192,6 +192,13 @@ catalog behind a deferred tool specification, so a direct primary review pays
 no catalog input cost. Full selected guidance enters model context only after
 admission.
 
+The Skill catalog follows the runtime registry's invocation eligibility. External
+discovery alone does not admit guidance: the user must import a native copy first.
+Imported copies retain their source parser semantics through the import record,
+including Claude skills without explicit names. Resolution rechecks the native
+key and implicit-invocation policy, so undoing an import or disabling implicit
+invocation also invalidates an earlier catalog selection.
+
 The existing manifest and backend admission path gain one small typed
 `focused_assignment` projection: question id, target fingerprint, allowed
 changed paths or packet id, expected evidence, capability key, and capability

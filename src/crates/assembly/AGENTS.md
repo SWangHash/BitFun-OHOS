@@ -54,3 +54,11 @@ integration, or stable product-domain contracts.
   and should be owned by app or adapter code when possible.
 - Interface crates may call assembly APIs, but adapters and services must not
   depend on assembly.
+
+## Focused Verification
+
+For external-source discovery scheduling, queueing, and deferred completion:
+
+```bash
+cargo test --locked -p openbitfun-external-sources --lib refresh::tests
+```

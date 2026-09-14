@@ -1,7 +1,8 @@
 package com.openbitfun.mobile.app.ui.common
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.asPaddingValues
@@ -59,17 +60,19 @@ internal fun AdaptiveModalSurface(
 ) {
     if (!visible) return
 
+    // Scrim and sheet hit interception must not merge labels into extra clickable
+    // accessibility nodes. Close buttons and the native back action remain available.
     if (fitContent) {
         Dialog(onDismissRequest = onDismissRequest,
             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
             val window = (LocalView.current.parent as? DialogWindowProvider)?.window
             SideEffect { window?.setDimAmount(0f) }
             Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim)
-                .clickable(interactionSource = null, indication = null, onClick = onDismissRequest)
+                .pointerInput(onDismissRequest) { detectTapGestures(onTap = { onDismissRequest() }) }
                 .safeDrawingPadding().imePadding().padding(MobileDesignGeometry.LoginSheetOuterMargin),
                 contentAlignment = Alignment.BottomCenter) {
                 Surface(modifier = Modifier.widthIn(max = MobileDesignGeometry.LoginSheetMaxWidth).fillMaxWidth()
-                    .clickable(interactionSource = null, indication = null, onClick = {}),
+                    .pointerInput(Unit) { detectTapGestures(onTap = {}) },
                     shape = RoundedCornerShape(MobileDesignGeometry.SheetTopRadius),
                     color = MaterialTheme.colorScheme.background) {
                     content(Modifier.fillMaxWidth())
@@ -93,7 +96,7 @@ internal fun AdaptiveModalSurface(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.scrim)
-                    .clickable(onClick = onDismissRequest)
+                    .pointerInput(onDismissRequest) { detectTapGestures(onTap = { onDismissRequest() }) }
                     .safeDrawingPadding()
                     .imePadding(),
                 contentAlignment = Alignment.CenterEnd,
@@ -105,7 +108,7 @@ internal fun AdaptiveModalSurface(
                     modifier = Modifier
                         .width(placement.width.dp)
                         .height(placement.height.dp)
-                        .clickable(interactionSource = null, indication = null, onClick = {}),
+                        .pointerInput(Unit) { detectTapGestures(onTap = {}) },
                 ) {
                     content(Modifier.fillMaxSize())
                 }

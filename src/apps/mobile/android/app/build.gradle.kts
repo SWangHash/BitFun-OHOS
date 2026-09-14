@@ -95,3 +95,10 @@ dependencies {
     // release explicitly until the BOM updates its transitive constraint.
     androidTestImplementation(libs.androidx.test.espresso)
 }
+
+// Project product-owned offline tools into Android assets before packaging.
+val generateMiniApps by tasks.registering(Exec::class) {
+    workingDir(rootProject.file("../miniapps"))
+    commandLine("node", "generate.cjs", "android")
+}
+tasks.named("preBuild").configure { dependsOn(generateMiniApps) }

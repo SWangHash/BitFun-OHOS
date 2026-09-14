@@ -415,9 +415,41 @@ pub(crate) struct ChatState {
     // -- Question state --
     /// Current pending question prompt (if AskUserQuestion tool is waiting for answers)
     pub question_prompt: Option<QuestionPrompt>,
+    pending_question_prompts: VecDeque<QuestionPrompt>,
 }
 
 impl ChatState {
+    fn enqueue_question_prompt(&mut self, prompt: QuestionPrompt) {
+        if self
+            .question_prompt
+            .as_ref()
+            .is_some_and(|current| current.tool_id == prompt.tool_id)
+            || self
+                .pending_question_prompts
+                .iter()
+                .any(|queued| queued.tool_id == prompt.tool_id)
+        {
+            return;
+        }
+        if self.question_prompt.is_none() {
+            self.question_prompt = Some(prompt);
+        } else {
+            self.pending_question_prompts.push_back(prompt);
+        }
+    }
+
+    pub(crate) fn resolve_question_prompt(&mut self, tool_id: &str) {
+        self.pending_question_prompts
+            .retain(|prompt| prompt.tool_id != tool_id);
+        if self
+            .question_prompt
+            .as_ref()
+            .is_some_and(|prompt| prompt.tool_id == tool_id)
+        {
+            self.question_prompt = self.pending_question_prompts.pop_front();
+        }
+    }
+
     /// Create a new ChatState for a fresh session
     pub(crate) fn new(
         core_session_id: String,
@@ -461,6 +493,7 @@ impl ChatState {
             permission_prompt: None,
             permission_queue: VecDeque::new(),
             question_prompt: None,
+            pending_question_prompts: VecDeque::new(),
         }
     }
 
@@ -875,6 +908,7 @@ impl ChatState {
         self.permission_prompt = None;
         self.permission_queue.clear();
         self.question_prompt = None;
+        self.pending_question_prompts.clear();
     }
 
     // ============ Event Handlers ============
@@ -1111,7 +1145,7 @@ impl ChatState {
                     if let Some(prompt) =
                         QuestionPrompt::from_params(identity.tool_id.clone(), effective_params)
                     {
-                        self.question_prompt = Some(prompt);
+                        self.enqueue_question_prompt(prompt);
                     }
                 }
 
@@ -1196,9 +1230,7 @@ impl ChatState {
                     tool.duration_ms = Some(dur);
                 });
                 // Clear question prompt if this tool completed
-                if self.question_prompt.as_ref().map(|p| &p.tool_id) == Some(&identity.tool_id) {
-                    self.question_prompt = None;
-                }
+                self.resolve_question_prompt(&identity.tool_id);
                 self.rebuild_streaming_message();
             }
 
@@ -1212,9 +1244,7 @@ impl ChatState {
                     tool.result = Some(err);
                 });
                 // Clear question prompt if this tool failed
-                if self.question_prompt.as_ref().map(|p| &p.tool_id) == Some(&identity.tool_id) {
-                    self.question_prompt = None;
-                }
+                self.resolve_question_prompt(&identity.tool_id);
                 self.rebuild_streaming_message();
             }
 
@@ -1228,9 +1258,7 @@ impl ChatState {
                     tool.result = Some(rsn);
                 });
                 // Clear question prompt if this tool was cancelled
-                if self.question_prompt.as_ref().map(|p| &p.tool_id) == Some(&identity.tool_id) {
-                    self.question_prompt = None;
-                }
+                self.resolve_question_prompt(&identity.tool_id);
                 self.rebuild_streaming_message();
             }
 
@@ -1340,6 +1368,7 @@ impl ChatState {
         self.tool_index.clear();
         self.is_processing = false;
         self.question_prompt = None;
+        self.pending_question_prompts.clear();
     }
 
     /// Handle dialog turn failure
@@ -1361,6 +1390,7 @@ impl ChatState {
         self.tool_index.clear();
         self.is_processing = false;
         self.question_prompt = None;
+        self.pending_question_prompts.clear();
     }
 
     /// Handle dialog turn cancellation
@@ -1381,6 +1411,7 @@ impl ChatState {
         self.tool_index.clear();
         self.is_processing = false;
         self.question_prompt = None;
+        self.pending_question_prompts.clear();
     }
 
     pub(crate) fn should_apply_turn_cancelled(&mut self, turn_id: &str) -> bool {
@@ -1809,6 +1840,50 @@ mod tests {
                 "steps": ["Inspect", "Implement"]
             })
         );
+    }
+
+    #[test]
+    fn question_queue_preserves_active_draft_and_retires_only_matching_tools() {
+        let mut state = ChatState::new("session".into(), "Session".into(), "Standard".into(), None);
+        let started = |id: &str| ToolEventData::Started {
+            identity: ToolEventIdentity::direct(id, "AskUserQuestion"),
+            params: json!({"questions": [{"question": "Choose", "options": [{"label": "Yes"}, {"label": "No"}]}]}),
+            timeout_seconds: None,
+        };
+        state.handle_tool_event(&started("first"));
+        state
+            .question_prompt
+            .as_mut()
+            .unwrap()
+            .interaction_acknowledged = true;
+        state.handle_tool_event(&started("second"));
+        state.handle_tool_event(&started("third"));
+        state.handle_tool_event(&started("first"));
+        assert_eq!(state.question_prompt.as_ref().unwrap().tool_id, "first");
+        assert!(
+            state
+                .question_prompt
+                .as_ref()
+                .unwrap()
+                .interaction_acknowledged
+        );
+        state.handle_tool_event(&ToolEventData::Cancelled {
+            identity: ToolEventIdentity::direct("second", "AskUserQuestion"),
+            reason: "timeout".into(),
+            duration_ms: None,
+            queue_wait_ms: None,
+            preflight_ms: None,
+            confirmation_wait_ms: None,
+            execution_ms: None,
+        });
+        assert_eq!(state.question_prompt.as_ref().unwrap().tool_id, "first");
+        state.resolve_question_prompt("first");
+        assert_eq!(state.question_prompt.as_ref().unwrap().tool_id, "third");
+        state.resolve_question_prompt("first");
+        assert_eq!(state.question_prompt.as_ref().unwrap().tool_id, "third");
+        state.resolve_question_prompt("third");
+        assert!(state.question_prompt.is_none());
+        assert!(state.pending_question_prompts.is_empty());
     }
 
     #[test]

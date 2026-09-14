@@ -277,13 +277,13 @@ private fun SidebarActiveDeviceBody(
             val selected = readyWorkspace.selected
             val workspaceRows = buildList {
                 if (selected != null && selected.path.isNotBlank()) {
-                    add(selected.path to selected.name)
+                    add(selected.path to (readyWorkspace.workspaces.firstOrNull { RemoteWorkspacePathPolicy.equal(it.path, selected.path) }?.displayName ?: selected.name))
                 }
                 readyWorkspace.workspaces.forEach { workspace ->
                     if (workspace.path.isNotBlank() && none {
                         RemoteWorkspacePathPolicy.equal(it.first, workspace.path)
                     }) {
-                        add(workspace.path to workspace.name)
+                        add(workspace.path to workspace.displayName)
                     }
                 }
             }

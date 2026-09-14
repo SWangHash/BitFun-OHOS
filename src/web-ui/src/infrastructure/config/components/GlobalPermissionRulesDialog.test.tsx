@@ -54,17 +54,20 @@ vi.mock('@openbitfun/ui', () => ({
   Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) => (
     open ? <div role="dialog">{children}</div> : null
   ),
+  DialogDescription: ({ children }: React.PropsWithChildren) => <p>{children}</p>,
+  DialogFooter: ({ children }: React.PropsWithChildren) => <footer>{children}</footer>,
   DialogBody: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
   DialogClose: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button type="button" {...props} />,
   DialogHeader: ({ children }: React.PropsWithChildren) => <header>{children}</header>,
   DialogHeading: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
   DialogTitle: ({ children }: React.PropsWithChildren) => <h2>{children}</h2>,
-  Button: ({ children, disabled, onClick }: {
+  Button: ({ children, disabled, onClick, 'data-permission-add-rule': addRule }: {
     children: React.ReactNode;
+    'data-permission-add-rule'?: boolean;
     disabled?: boolean;
     onClick?: () => void;
   }) => (
-    <button type="button" disabled={disabled} onClick={onClick}>{children}</button>
+    <button type="button" data-permission-add-rule={addRule} disabled={disabled} onClick={onClick}>{children}</button>
   ),
   IconButton: ({ children, disabled, onClick, 'aria-label': ariaLabel }: {
     children: React.ReactNode;
@@ -341,6 +344,17 @@ describe('GlobalPermissionRulesDialog', () => {
     });
     expect(container.querySelectorAll('.global-permission-rules-dialog__rule-row')).toHaveLength(1);
     expect(container.querySelector<HTMLSelectElement>('select[aria-label="Action"]')?.value).toBe('git');
+  });
+
+  it('returns focus to Add rule when the last rule is removed', async () => {
+    vi.useFakeTimers();
+    await renderDialog([{ action: 'read', resource: '*', effect: 'ask' }]);
+    const removeButton = container.querySelector<HTMLButtonElement>('button[aria-label="Remove rule"]');
+    await act(async () => {
+      removeButton?.focus();
+      removeButton?.click();
+    });
+    expect(document.activeElement).toBe(container.querySelector('[data-permission-add-rule]'));
   });
 
   it('cancels an old removal when the dialog closes and opens with new rules', async () => {

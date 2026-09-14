@@ -67,7 +67,9 @@ impl MarketClient {
     }
 
     pub async fn from_environment() -> Result<Self, MarketClientError> {
-        Self::new(Self::configured_base_url()).await
+        let mut client = Self::new(Self::configured_base_url()).await?;
+        client.identity = AccountIdentityClient::from_environment().await?;
+        Ok(client)
     }
 
     pub async fn new(base_url: impl Into<String>) -> Result<Self, MarketClientError> {

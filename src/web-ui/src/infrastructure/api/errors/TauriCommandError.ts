@@ -176,6 +176,19 @@ export function isGitRepositoryUntrustedError(error: unknown): boolean {
   return hasStableErrorPrefix(error, GIT_REPOSITORY_UNTRUSTED_PREFIX);
 }
 
+/**
+ * Existing hosts serialize Git repository discovery failures as English text.
+ * Match their specific prefixes through transport wrappers, not generic
+ * "not found" messages (which can also mean a missing file or revision).
+ */
+export function isGitRepositoryNotFoundError(error: unknown): boolean {
+  return [
+    'Failed to get Git status: Repository not found:',
+    'Repository not found:',
+    'fatal: not a git repository (or any of the parent directories):',
+  ].some((prefix) => stableErrorPayload(error, prefix) !== undefined);
+}
+
 /** Repository path Git rejected, as reported by the backend. */
 export function gitRepositoryUntrustedPath(error: unknown): string | undefined {
   const payload = stableErrorPayload(error, GIT_REPOSITORY_UNTRUSTED_PREFIX);

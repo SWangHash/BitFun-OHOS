@@ -39,11 +39,17 @@ impl fmt::Debug for MCPImportTransport {
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct MCPImportServer {
+    pub environment: std::collections::BTreeMap<String, String>,
+    pub headers: std::collections::BTreeMap<String, String>,
+    pub source_id: Option<String>,
     pub native_id: String,
     pub candidate_id: String,
     pub behavior_version: String,
     pub display_name: String,
     pub transport: MCPImportTransport,
+    pub working_directory: Option<String>,
+    pub timeouts: crate::mcp::MCPServerTimeouts,
+    pub oauth_enabled: Option<bool>,
 }
 
 impl fmt::Debug for MCPImportServer {
@@ -55,6 +61,12 @@ impl fmt::Debug for MCPImportServer {
             .field("behavior_version", &self.behavior_version)
             .field("display_name", &self.display_name)
             .field("transport", &self.transport)
+            .field(
+                "working_directory",
+                &self.working_directory.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field("timeouts", &self.timeouts)
+            .field("oauth_enabled", &self.oauth_enabled)
             .finish()
     }
 }
@@ -293,6 +305,42 @@ impl MCPConfigService {
 
 impl MCPImportServer {
     fn validate(&self) -> Result<(), MCPImportError> {
+        for (values, headers) in [(&self.environment, false), (&self.headers, true)] {
+            if values.len() > 256
+                || values.iter().any(|(key, value)| {
+                    key.is_empty()
+                        || key.len() > 256
+                        || key.contains(['=', '\0', '\r', '\n'])
+                        || value.len() > 65536
+                        || value.contains('\0')
+                        || (headers
+                            && (value.contains(['\r', '\n'])
+                                || !key.bytes().all(|byte| {
+                                    byte.is_ascii_alphanumeric()
+                                        || b"!#$%&'*+-.^_`|~".contains(&byte)
+                                })))
+                })
+            {
+                return Err(MCPImportError::InvalidRequest("environment or headers"));
+            }
+        }
+
+        self.timeouts
+            .validate()
+            .map_err(|_| MCPImportError::InvalidRequest("timeouts"))?;
+        if let Some(directory) = &self.working_directory {
+            validate_text(directory, "working directory")?;
+            if !std::path::Path::new(directory).is_absolute() {
+                return Err(MCPImportError::InvalidRequest("working directory"));
+            }
+        }
+        if matches!(&self.transport, MCPImportTransport::Local { .. })
+            && self.oauth_enabled.is_some()
+            || matches!(&self.transport, MCPImportTransport::Remote { .. })
+                && self.working_directory.is_some()
+        {
+            return Err(MCPImportError::InvalidRequest("transport options"));
+        }
         validate_id(&self.native_id, "native id")?;
         validate_id(&self.candidate_id, "candidate id")?;
         validate_id(&self.behavior_version, "behavior version")?;
@@ -367,6 +415,21 @@ fn cursor_servers(current: &Option<Value>) -> Result<Map<String, Value>, MCPImpo
 
 fn imported_server_value(import: MCPImportServer) -> Value {
     let mut server = Map::new();
+    if !import.environment.is_empty() {
+        server.insert("env".into(), serde_json::json!(import.environment));
+    }
+    if !import.headers.is_empty() {
+        server.insert("headers".into(), serde_json::json!(import.headers));
+    }
+    if let Some(directory) = import.working_directory {
+        server.insert("workingDirectory".into(), Value::String(directory));
+    }
+    if !import.timeouts.is_empty() {
+        server.insert("timeouts".into(), serde_json::json!(import.timeouts));
+    }
+    if let Some(enabled) = import.oauth_enabled {
+        server.insert("oauthEnabled".into(), Value::Bool(enabled));
+    }
     match import.transport {
         MCPImportTransport::Local { command, args } => {
             server.insert("type".to_string(), Value::String("stdio".to_string()));
@@ -394,6 +457,7 @@ fn imported_server_value(import: MCPImportServer) -> Value {
         serde_json::json!({
             "sourceCandidateId": import.candidate_id,
             "behaviorVersion": import.behavior_version,
+            "sourceId": import.source_id,
         }),
     );
     Value::Object(server)

@@ -173,12 +173,17 @@ CLI-local 配置只保存终端形态偏好与调用入口设置。共享权限�
 CLI 通过 `DeliveryProfile::Cli` 消费经过校验的产品 Runtime parts。产品定义、Delivery Profile、Runtime Configuration 和 Capability Availability 是不同概念：
 
 - 编译期由 CLI 显式选择 `agent-runtime` 生命周期基线、实际 service owner、
-  `external-sources` / `plugin-runtime` / `ssh-remote` 和九组 `tools-*`；这保持现有
+  `external-sources` / `plugin-runtime` / `ssh-remote` 和显式 `tools-*` 工具组（含独立的 `tools-pages`）；这保持现有
   CLI capability plan，但不再从 Core 基线暗带具体能力，也不继承 Desktop 后续加入
   `product-full` 的能力。
 - 隐藏入口不证明后端依赖被移除。
 - CLI 不读取 authoring product definition 作为运行时业务配置。
 - 品牌、资源、数据 namespace、更新渠道和内置扩展由产品定制 owner 生成，CLI 只消费结果。
+
+Pages 由独立 `tools-pages` 工具组和 `core.pages` provider 提供，不启用 MiniApp。
+CLI 执行端启动时恢复自身账户，并把工具可用性与发布处理器绑定到同一 AccountRuntime。
+工具发布复用 Relay 服务客户端与现有权限链；账户切换后不把旧账户操作结果作为新账户成功返回。
+Shared TUI 的账户管理仍明确不支持；执行端须预先登录，跨进程登录变化在重启后生效。
 
 ### 6.3 外部来源与插件
 

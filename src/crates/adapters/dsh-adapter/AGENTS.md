@@ -14,6 +14,20 @@ composes a profile or executes plugins. Bridge events remain native-only;
 unresolved paths, opaque bundle composition, and malformed sources are visible
 diagnostics. Keep these semantics out of the OpenCode adapter and native registry.
 
+`mcp_source` discovers explicit `@deepseek-ai/dsh-mcp-client` declarations in
+home/profile/workspace `cordis.yml` and `cordis.patch.yml`. Each file is an
+independent reuse source, not an effective native profile. Literal stdio and
+HTTPS Streamable HTTP declarations use the shared MCP provider and import ports.
+Preserve launch-relative cwd, the 60-second default tool timeout, and disabled
+OAuth discovery. Dynamic YAML, partial patches and scoped lifecycle behavior remain unsupported.
+Direct compatibility activation rejects explicit reconnect/startup policies;
+explicit snapshot import accepts valid literal reconnect and failOnStartupError
+settings with a disclosure that OpenBitFun owns lifecycle after import. Source
+disabled state does not block import. Keep the discovery revision when preparing
+the import so status relaxation cannot break or bypass stale-plan checks. Never
+evaluate Cordis or install packages during discovery. Environment and headers stay private to the
+approved runtime preparation and require manual setup for snapshot import.
+
 It does not execute Cordis plugins, install npm packages, or depend on a
 user-local `dsh` CLI. Execution of dsh bundles belongs to future Plugin Host /
 external-ACP work, not this adapter boundary.
@@ -45,6 +59,7 @@ requires its own consumer evidence before that path is shared.
 
 ## Verification
 
+- `cargo test --locked -p openbitfun-dsh-adapter --lib mcp_source::tests`
 - `cargo test --locked -p openbitfun-dsh-adapter --lib hook_source::tests`
 - `cargo test --locked -p openbitfun-dsh-adapter --test dsh_source_adapter`
 - `cargo test --locked -p openbitfun-core --no-default-features --features plugin-runtime --lib plugin_runtime::tests`

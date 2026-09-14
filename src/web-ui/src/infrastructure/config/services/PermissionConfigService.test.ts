@@ -20,10 +20,29 @@ describe('PermissionConfigService', () => {
     configManagerMock.setConfig.mockResolvedValue(undefined);
   });
 
-  it('uses ask and disabled auto approval as safe defaults', async () => {
+  it('defaults missing configuration to full access with auto approval disabled', async () => {
     configManagerMock.getConfig.mockResolvedValue(undefined);
     const { permissionConfigService } = await import('./PermissionConfigService');
 
+    await expect(permissionConfigService.getConfig()).resolves.toEqual({
+      policy: { preset: 'full_access', rules: [] },
+      interaction: { auto_approve_ask: false },
+    });
+  });
+
+  it('preserves stored ask and auto approval preferences', async () => {
+    const stored = {
+      policy: { preset: 'ask', rules: [] },
+      interaction: { auto_approve_ask: true },
+    };
+    configManagerMock.getConfig.mockResolvedValue(stored);
+    const { permissionConfigService } = await import('./PermissionConfigService');
+    await expect(permissionConfigService.getConfig()).resolves.toEqual(stored);
+  });
+
+  it('keeps configuration load failures on the ask fallback', async () => {
+    configManagerMock.getConfig.mockRejectedValue(new Error('offline'));
+    const { permissionConfigService } = await import('./PermissionConfigService');
     await expect(permissionConfigService.getConfig()).resolves.toEqual({
       policy: { preset: 'ask', rules: [] },
       interaction: { auto_approve_ask: false },

@@ -191,3 +191,24 @@ describe('skill scan response compatibility', () => {
     await expect(new ConfigAPI().getSkillScanReport()).rejects.toThrow();
   });
 });
+
+describe('reviewed Skill import wire compatibility', () => {
+  it('preserves legacy validation and sends the reviewed digest only when supplied', async () => {
+    invokeMock.mockReset();
+    invokeMock.mockResolvedValue({ valid: true });
+    const config = new ConfigAPI();
+    await config.validateSkillPath('/source');
+    expect(invokeMock).toHaveBeenLastCalledWith('validate_skill_path', { path: '/source' });
+    await config.validateSkillPath('/source', { sourceKey: 'external-key', workspacePath: '/workspace' });
+    expect(invokeMock).toHaveBeenLastCalledWith('validate_skill_path', { path: '/source', sourceKey: 'external-key', workspacePath: '/workspace' });
+    await config.addSkill({ sourcePath: '/source', level: 'user', sourceKey: 'external-key', expectedSourceFingerprint: 'reviewed', targetName: 'alias' });
+    expect(invokeMock).toHaveBeenLastCalledWith('add_skill', { sourcePath: '/source', level: 'user', workspacePath: undefined, sourceKey: 'external-key', expectedSourceFingerprint: 'reviewed', targetName: 'alias' });
+    await config.addSkill({ sourcePath: '/source', level: 'user' });
+    expect(invokeMock).toHaveBeenLastCalledWith('add_skill', { sourcePath: '/source', level: 'user', workspacePath: undefined });
+  });
+
+  it('retains the advertised reviewed-import version', async () => {
+    invokeMock.mockResolvedValueOnce({ skills: [], diagnostics: [], importOperationsVersion: 3 });
+    expect((await new ConfigAPI().getSkillScanReport()).importOperationsVersion).toBe(3);
+  });
+});

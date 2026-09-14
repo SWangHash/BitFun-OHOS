@@ -328,6 +328,10 @@
     "modifier": {
       "$description": "Single-property semantic modifiers for intentional deviations from a complete typography role.",
       "leading": {
+        "intrinsic": {
+          "$description": "Font-metric leading for OverflowText's inner single-line box. Numeric leading cannot express platform font ascent/descent; the outer box retains the owner's larger line height.",
+          "lineHeight": { "$type": "string", "$value": "normal" }
+        },
         "none": { "lineHeight": { "$value": "{lineHeight.none}" } },
         "tight": {
           "$description": "Compact text leading for message bubbles: 18px at the default 15px body size, scaling with user typography.",

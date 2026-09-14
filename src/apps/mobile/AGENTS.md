@@ -25,6 +25,7 @@ Native mobile applications are product entrypoints under `src/apps/mobile`.
 | `ios/` | iOS app, resources, lifecycle, and adapters |
 | `harmonyos/` | HarmonyOS app, resources, lifecycle, and adapters |
 | `shared/` | Kotlin Multiplatform core: protocol, crypto, transport, persistence, domain, feature stores |
+| `miniapps/` | Build-time packaging and isolated document bridge for product-owned offline tools; native storage and WebView lifecycle stay in each app |
 | `design-system/` | HarmonyOS-derived mobile tokens, component contracts, deterministic preview scenarios, and the desktop comparison surface |
 
 ## Native UI Contract
@@ -90,3 +91,13 @@ UiState or an Intent declared there, and no module above it is visible to them.
   from `shared/`, with an emulator or handset attached. Those suites compile the
   same `commonTest` sources onto ART; they are not in CI, so run them by hand
   when touching either module.
+
+## Offline Mini Apps
+
+Android preBuild and the iOS resource phase run `miniapps/generate.cjs` (Node.js
+must be on PATH). Generated native HTML is ignored; update product-owned built-in
+sources or the packaging owner, never the generated resources. Harmony retains
+its existing native host and invokes the same generator without native wrappers.
+Run `node --test src/apps/mobile/miniapps/*.test.cjs src/apps/mobile/harmonyos/miniapps/*.test.cjs`
+from the repository root after bundle/bridge changes. Storage keys remain scoped
+to an allowlisted app; retain unreadable records and surface the error.

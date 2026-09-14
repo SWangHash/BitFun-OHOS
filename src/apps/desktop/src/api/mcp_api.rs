@@ -17,6 +17,8 @@ use tauri::State;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MCPServerInfo {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub import_origin: Option<openbitfun_core::service::mcp::server::MCPImportOrigin>,
     pub id: String,
     pub name: String,
     pub status: String,
@@ -280,6 +282,17 @@ pub async fn get_mcp_servers(state: State<'_, AppState>) -> Result<Vec<MCPServer
         };
 
         infos.push(MCPServerInfo {
+            import_origin: config
+                .settings
+                .get("_openbitfunImport")
+                .cloned()
+                .and_then(|value| serde_json::from_value::<openbitfun_core::service::mcp::server::MCPImportOrigin>(value).ok())
+                .map(|mut origin| {
+                    if origin.source_id.is_none() {
+                        origin.source_id = openbitfun_core::external_sources::ecosystem_for_imported_mcp_candidate(&origin.source_candidate_id);
+                    }
+                    origin
+                }),
             id: config.id.clone(),
             name: config.name.clone(),
             status,

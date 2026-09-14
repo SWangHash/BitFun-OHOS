@@ -25,7 +25,9 @@ function Icon({ name }: { name: string }) {
 }
 
 vi.mock('lucide-react', () => ({
-  Loader2: () => <Icon name="loader" />,
+  Loader2: ({ className }: { className?: string }) => (
+    <svg data-icon="loader" className={className} />
+  ),
 }));
 
 vi.mock('@openbitfun/ui', () => ({
@@ -41,6 +43,32 @@ vi.mock('@openbitfun/ui', () => ({
     <button type="button" onClick={onClick}>
       {leadingIcon}
       {children}
+    </button>
+  ),
+  IconButton: ({
+    type,
+    className,
+    onClick,
+    disabled,
+    'aria-label': ariaLabel,
+    icon,
+  }: {
+    type?: string;
+    className?: string;
+    onClick?: React.MouseEventHandler<HTMLButtonElement>;
+    disabled?: boolean;
+    'aria-label'?: string;
+    icon?: React.ReactNode;
+  }) => (
+    <button
+      type={type}
+      className={className}
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      data-loading="false"
+    >
+      {icon}
     </button>
   ),
   Icon: ({ name }: { name: string }) => <Icon name={name} />,
@@ -222,6 +250,42 @@ describe('CodeReviewReportExportActions', () => {
       'toolCards.codeReview.export.saveSuccess',
     );
     expect(notificationServiceMock.error).not.toHaveBeenCalled();
+  });
+
+  it('keeps saving disabled while the file picker is open and does not claim success when cancelled', async () => {
+    saveTextFileWithDialogMock.mockImplementationOnce(
+      () => new Promise(resolve => { setTimeout(() => resolve({ status: 'cancelled' }), 20); }),
+    );
+    const parentClick = vi.fn();
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      act(() => {
+        root.render(
+          <div onClick={parentClick}>
+            <CodeReviewReportExportActions reviewData={{ summary: { recommended_action: 'approve' } }} actions={['save']} />
+          </div>,
+        );
+      });
+
+      const button = container.querySelector<HTMLButtonElement>('button[aria-label="Save Markdown"]')!;
+      await act(async () => button.click());
+
+      expect(saveTextFileWithDialogMock).toHaveBeenCalledTimes(1);
+      expect(button.disabled).toBe(true);
+      expect(button.getAttribute('data-loading')).toBe('false');
+      act(() => button.click());
+      expect(saveTextFileWithDialogMock).toHaveBeenCalledTimes(1);
+      expect(parentClick).not.toHaveBeenCalled();
+
+      await act(async () => new Promise(resolve => window.setTimeout(resolve, 40)));
+      expect(notificationServiceMock.success).not.toHaveBeenCalled();
+      expect(button.disabled).toBe(false);
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
   });
 
   it('keeps cancellation silent', async () => {

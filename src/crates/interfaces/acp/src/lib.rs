@@ -4,6 +4,9 @@
 //! runtime. Product hosts select the additive `client` and `server` features
 //! explicitly; the compatibility default enables both roles.
 
+// Server prompt futures include the assembled runtime and instruction discovery.
+#![cfg_attr(feature = "server", recursion_limit = "256")]
+
 #[cfg(feature = "client")]
 pub mod client;
 #[cfg(feature = "server")]

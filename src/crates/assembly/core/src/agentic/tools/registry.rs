@@ -683,7 +683,9 @@ mod tests {
                 "core.openharmony",
                 "core.review",
                 "core.miniapp",
-                "core.creation"
+                "core.pages",
+                "core.creation",
+                "core.canvas",
             ],
             "provider groups must preserve the reviewed atomic ownership order"
         );

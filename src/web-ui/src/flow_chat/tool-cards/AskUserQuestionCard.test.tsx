@@ -23,6 +23,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@/infrastructure/api/service-api/ToolAPI', () => ({
   toolAPI: {
     submitUserAnswers: vi.fn(),
+    startUserQuestionInteraction: vi.fn(),
   },
 }));
 
@@ -94,6 +95,8 @@ describe('AskUserQuestionCard', () => {
   beforeEach(() => {
     activateSurface(LOCAL_SURFACE_ID);
     askUserQuestionDraftStore.setState({ drafts: {} });
+    vi.mocked(toolAPI.startUserQuestionInteraction).mockReset();
+    vi.mocked(toolAPI.startUserQuestionInteraction).mockResolvedValue(undefined);
     vi.mocked(toolAPI.submitUserAnswers).mockReset();
     vi.mocked(toolAPI.submitUserAnswers).mockResolvedValue(undefined);
     container = document.createElement('div');
@@ -400,4 +403,128 @@ describe('AskUserQuestionCard', () => {
       .toBe('toolCards.askUser.submitFailed');
     expect(submitButton?.disabled).toBe(false);
   });
+  it.each([
+    ['cancelled', undefined, 'toolCards.default.cancelled'],
+    ['rejected', undefined, 'toolCards.default.rejected'],
+    ['error', undefined, 'toolCards.default.failed'],
+    ['completed', 'cancelled', 'toolCards.default.cancelled'],
+    ['completed', 'timeout', 'toolCards.askUser.timeout'],
+  ] as const)('renders %s/%s as a terminal notice, even with stale streaming params', (status, resultStatus, label) => {
+    const item = questionTool(status);
+    item.isParamsStreaming = true;
+    item.partialParams = item.toolCall.input;
+    if (resultStatus) item.toolResult = { success: true, result: { status: resultStatus } };
+    act(() => root.render(<AskUserQuestionCard toolItem={item} config={config} sessionId="session-a" />));
+    expect(container.textContent).toContain(label);
+    expect(container.textContent).not.toContain('toolCards.askUser.waitingAnswer');
+    expect(container.textContent).not.toContain('questionsAnswered');
+    expect(container.querySelector('input')).toBeNull();
+    expect(container.querySelector('[data-openbitfun-part="submit"]')).toBeNull();
+    expect(toolAPI.submitUserAnswers).not.toHaveBeenCalled();
+  });
+
+  it('shows only the live question form beside an obsolete retry', async () => {
+    const old = questionTool('cancelled');
+    old.interruptionReason = 'retry_superseded';
+    const live = questionTool('running');
+    live.id = 'live-tool';
+    live.toolCall = { ...live.toolCall, id: 'live-tool' };
+    act(() => root.render(<>
+      <AskUserQuestionCard toolItem={old} config={config} sessionId="session-a" />
+      <AskUserQuestionCard toolItem={live} config={config} sessionId="session-a" />
+    </>));
+    expect(container.querySelectorAll('[data-openbitfun-part="submit"]')).toHaveLength(1);
+    act(() => container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-openbitfun-part="submit"] button')?.click());
+    expect(toolAPI.submitUserAnswers).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toolAPI.submitUserAnswers).mock.calls[0][0]).toBe('live-tool');
+  });
+
+  it('does not render partial questions as a disabled form and uses final parameters after streaming', () => {
+    const item = questionTool('preparing');
+    item.isParamsStreaming = true;
+    item.partialParams = item.toolCall.input;
+    act(() => root.render(<AskUserQuestionCard toolItem={item} config={config} sessionId="session-a" />));
+    expect(container.textContent).toContain('toolCards.askUser.loadingQuestions');
+    expect(container.querySelector('input')).toBeNull();
+    const final = { ...item, status: 'running' as const, isParamsStreaming: false,
+      toolCall: { ...item.toolCall, input: { questions: [{ ...item.toolCall.input.questions[0], question: 'Final question' }] } } };
+    act(() => root.render(<AskUserQuestionCard toolItem={final} config={config} sessionId="session-a" />));
+    expect(container.textContent).toContain('Final question');
+    expect(container.textContent).not.toContain('Which database?');
+    expect(container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.disabled).toBe(false);
+  });
+
+  it.each(['resolve', 'reject'] as const)('does not revive a draft when an in-flight submission settles after timeout: %s', async (outcome) => {
+    let resolve!: () => void;
+    let reject!: (error: Error) => void;
+    vi.mocked(toolAPI.submitUserAnswers).mockImplementationOnce(() => new Promise<void>((yes, no) => { resolve = yes; reject = no; }));
+    const item = questionTool('running');
+    act(() => root.render(<AskUserQuestionCard toolItem={item} config={config} sessionId="session-a" />));
+    act(() => container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.click());
+    act(() => container.querySelector<HTMLButtonElement>('[data-openbitfun-part="submit"] button')?.click());
+    const timedOut = { ...item, status: 'completed' as const, toolResult: { success: true, result: { status: 'timeout' } } };
+    act(() => root.render(<AskUserQuestionCard toolItem={timedOut} config={config} sessionId="session-a" />));
+    await act(async () => { if (outcome === 'resolve') resolve(); else reject(new Error('expired question')); });
+    expect(container.textContent).toContain('toolCards.askUser.timeout');
+    expect(container.querySelector('[data-openbitfun-part="submit"]')).toBeNull();
+    expect(askUserQuestionDraftStore.getState().drafts).toEqual({});
+  });
+
+  it.each(['preparing', 'streaming', 'pending'] as const)('does not offer answers before a %s call starts executing', (status) => {
+    const item = questionTool(status);
+    item.isParamsStreaming = false;
+    act(() => root.render(<AskUserQuestionCard toolItem={item} config={config} sessionId="session-a" />));
+    expect(container.textContent).toContain('toolCards.askUser.loadingQuestions');
+    expect(container.querySelector('[data-openbitfun-part="submit"]')).toBeNull();
+  });
+
+  it('acknowledges the first option click once without submitting answers', async () => {
+    act(() => root.render(<AskUserQuestionCard toolItem={questionTool('running')} config={config} sessionId="session-a" />));
+    expect(toolAPI.startUserQuestionInteraction).not.toHaveBeenCalled();
+    await act(async () => container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.click());
+    await act(async () => container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.click());
+    expect(toolAPI.startUserQuestionInteraction).toHaveBeenCalledExactlyOnceWith('question-tool-1', 'session-a');
+    expect(toolAPI.submitUserAnswers).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges input focus without requiring any text or selection', async () => {
+    act(() => root.render(<AskUserQuestionCard toolItem={questionTool('running')} config={config} sessionId="session-a" />));
+    await act(async () => container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.focus());
+    expect(toolAPI.startUserQuestionInteraction).toHaveBeenCalledExactlyOnceWith('question-tool-1', 'session-a');
+    expect(toolAPI.submitUserAnswers).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed activity acknowledgement and retries on the next interaction', async () => {
+    vi.mocked(toolAPI.startUserQuestionInteraction).mockRejectedValueOnce(new Error('host unavailable'));
+    act(() => root.render(<AskUserQuestionCard toolItem={questionTool('running')} config={config} sessionId="session-a" />));
+    await act(async () => container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.click());
+    expect(container.textContent).toContain('toolCards.askUser.interactionFailed');
+    await act(async () => container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.click());
+    expect(toolAPI.startUserQuestionInteraction).toHaveBeenCalledTimes(2);
+    expect(container.textContent).not.toContain('toolCards.askUser.interactionFailed');
+  });
+
+  it('keeps legacy peer answers working and explicitly reports unsupported timeout cancellation', async () => {
+    act(() => root.render(
+      <PeerDeviceContext.Provider value={{
+        peerMode: { active: true, deviceId: 'legacy-peer', deviceName: 'Legacy' },
+        attachments: [],
+        currentPeerCapabilities: {
+          idempotentDialogSubmit: true, targetedSessionRollback: true, tokenUsageStatistics: true,
+          miniAppAgentContextFilesV1: false, cancelTool: false, toolCatalog: false,
+          userQuestionResponse: true, hostKind: 'desktop',
+        },
+        switchToDevice: vi.fn(), switchToLocal: vi.fn(), disconnectDevice: vi.fn(), disconnectAllDevices: vi.fn(),
+      }}>
+        <AskUserQuestionCard toolItem={questionTool('running')} config={config} sessionId="session-a" />
+      </PeerDeviceContext.Provider>,
+    ));
+    await act(async () => container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.click());
+    expect(toolAPI.startUserQuestionInteraction).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('toolCards.askUser.interactionFailed');
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-openbitfun-part="submit"] button')?.click());
+    expect(toolAPI.submitUserAnswers).toHaveBeenCalledTimes(1);
+  });
+
 });

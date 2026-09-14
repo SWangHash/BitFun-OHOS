@@ -1,3 +1,5 @@
+import { BuiltinMiniAppHost } from '../../services/BuiltinMiniAppHost';
+import { MiniAppViewModel } from '../viewmodel/MiniAppViewModel';
 import { SidebarConnectionActionPolicy } from '../policy/SidebarConnectionActionPolicy';
 import { accountDeviceLink } from '../../services/AccountDeviceLink';
 import {
@@ -9,6 +11,7 @@ import {
   RecentWorkspaceEntry,
   SelectedImageAttachment,
   SessionSummary,
+  SessionListResult,
   WorkspaceInfo
 } from '../../model/RemoteModels';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
@@ -125,6 +128,7 @@ export abstract class AppRootRuntimeComposition {
   abstract openWorkspacePickerOnDevice(deviceId: string): Promise<void>;
   abstract pickImages(): Promise<void>;
   abstract publishRemoteSessions(sessions: RemoteSession[], hasMore: boolean): void;
+  abstract publishWorkspaceSessionPage(path: string, result: SessionListResult): void;
   abstract reconcileCreatedRemoteSession(session: SessionSummary): Promise<void>;
   abstract reconnect(): Promise<void>;
   abstract reconnectActiveRemote(): Promise<void>;
@@ -138,6 +142,7 @@ export abstract class AppRootRuntimeComposition {
   abstract toggleVoiceInput(): Promise<void>;
 
   readonly sessionManager: RemoteSessionManager = new RemoteSessionManager();
+  readonly miniAppViewModel: MiniAppViewModel = new MiniAppViewModel(new BuiltinMiniAppHost((): Context => this.host.context()));
   readonly taskCompletionNotificationPort: HarmonyTaskCompletionNotificationPort =
     new HarmonyTaskCompletionNotificationPort((): Context => this.host.context());
   readonly taskCompletionNotificationController: TaskCompletionNotificationController =
@@ -672,7 +677,11 @@ export abstract class AppRootRuntimeComposition {
           return this.remotePageState.controlTargetDeviceId || this.remotePageState.desktopId;
         },
         activeDeviceConnected: (): boolean =>
-          (this.remotePageState.connectionState as ConnectionState) === ConnectionState.Connected
+          (this.remotePageState.connectionState as ConnectionState) === ConnectionState.Connected,
+        loadActiveWorkspaceSessions: (path: string): Promise<SessionListResult> =>
+          this.sessionManager.listSessionPageForWorkspace(path, 50),
+        onActiveWorkspaceSessions: (path: string, result: SessionListResult): void =>
+          this.publishWorkspaceSessionPage(path, result)
       },
       this.remoteSessionListStore
     );
@@ -752,6 +761,7 @@ export abstract class AppRootRuntimeComposition {
     onCompactLayoutEntered: (): void => this.enterCompactLayout(),
     onLayoutModeChanged: (wideLayout: boolean): void => this.appShellState.setWideLayout(wideLayout),
     onRemoteHome: {
+      openMiniApps: (): void => { this.closeAppSidebar(); this.miniAppViewModel.actions.open(); },
       openSidebar: (): void => this.openAppSidebar(),
       connectWorkspace: (): void => this.openConnectSheet(),
       addConnection: (): void => this.openConnectSheet(),
@@ -812,15 +822,19 @@ export abstract class AppRootRuntimeComposition {
       },
       refreshDevices: async (): Promise<void> => {
         await this.settingsController.refreshAccountDevicesIfStale(0);
+        await this.deviceDirectoryViewModel.refreshExpandedWorkspaceSessions();
       },
+      refreshSessions: (): Promise<void> => this.deviceDirectoryViewModel.refreshExpandedWorkspaceSessions(),
       settings: (): void => { this.closeAppSidebar(); this.appShellState.openSettings('general'); },
       openAccount: (): void => {
         this.closeAppSidebar();
         setTimeout(() => this.appShellState.openSettings('account'), 180);
       },
       openSession: (session: RemoteSession): void => {
+        // The shell supplies the horizontal motion; do not stack a second
+        // NavDestination push animation on top of the closing drawer.
         this.closeAppSidebar();
-        this.conversationController.openHomeSession(session);
+        this.conversationController.openHomeSession(session, true);
       },
       archive: (session: RemoteSession, archived: boolean): void => {
         this.conversationController.archiveHomeSession(session, archived);

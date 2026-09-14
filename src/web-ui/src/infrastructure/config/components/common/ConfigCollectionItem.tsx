@@ -1,5 +1,5 @@
 import React, { useId, useState } from 'react';
-import { OverflowText, Icon } from '@openbitfun/ui';
+import { OverflowText, Icon, IconButton } from '@openbitfun/ui';
 ;
 import { RetainedMountBoundary } from '@/shared/presence';
 import './ConfigCollectionItem.scss';
@@ -101,17 +101,17 @@ export const ConfigCollectionItem: React.FC<ConfigCollectionItemProps> = ({
           <div className="openbitfun-collection-item__control">
             {control}
             {hasDetails ? (
-              <button
+              <IconButton
                 type="button"
                 className="openbitfun-collection-btn openbitfun-collection-item__details-toggle"
                 onClick={toggleDetails}
                 disabled={detailsDisabled}
+                aria-label={typeof label === 'string' ? label : ''}
                 aria-labelledby={labelId}
                 aria-expanded={isExpanded}
                 aria-controls={detailsId}
-              >
-                <Icon name="chevron-down" size="sm" aria-hidden="true" />
-              </button>
+                icon={<Icon name="chevron-down" size="sm" aria-hidden="true" />}
+              />
             ) : null}
           </div>
         </div>

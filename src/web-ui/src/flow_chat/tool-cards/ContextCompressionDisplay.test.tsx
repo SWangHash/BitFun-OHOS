@@ -72,7 +72,7 @@ describe('ContextCompressionDisplay', () => {
     });
 
     expect(container.querySelector('[data-openbitfun-part="action"]')?.textContent).toBe('Context compression:');
-    expect(container.querySelector('[data-openbitfun-part="content"]')?.textContent).toBe(
+    expect(container.querySelector('[data-openbitfun-component="flow-chat-tool-card"][data-openbitfun-part="content"]')?.textContent).toBe(
       'Compressed context length 31,000 (compression ratio 75%)',
     );
     expect(container.querySelector('[data-openbitfun-part="tokenChange"]')).toBeNull();

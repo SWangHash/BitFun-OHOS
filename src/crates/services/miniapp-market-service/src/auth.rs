@@ -833,6 +833,7 @@ mod tests {
             database_path: root.join("market.sqlite"),
             artifact_dir: root.join("artifacts"),
             web_dir: root.join("web"),
+            github_callback_url: None,
             github_client_id: Some("client-id".to_string()),
             github_client_secret: Some("client-secret".to_string()),
             session_secret: "test-session-secret-at-least-24".to_string(),
@@ -840,6 +841,43 @@ mod tests {
             public_browse: false,
             web_submissions_enabled: false,
         }
+    }
+
+    #[tokio::test]
+    async fn oauth_uses_shared_callback_and_retains_legacy_default() {
+        let temporary = tempfile::tempdir().unwrap();
+        let database = Database::open(&temporary.path().join("market.sqlite"))
+            .await
+            .unwrap();
+        let mut config = test_config(temporary.path());
+        assert_eq!(
+            config.github_callback_url(),
+            "https://market.openbitfun.com/miniapp/api/v1/auth/github/callback"
+        );
+        config.github_callback_url =
+            Some("https://auth.openbitfun.com/api/v1/auth/github/callback".to_string());
+        let service = AuthService::new(config, database).unwrap();
+        for authorization_url in [
+            service.start_web_oauth("/miniapp/").await.unwrap(),
+            service
+                .start_desktop_oauth()
+                .await
+                .unwrap()
+                .authorization_url,
+        ] {
+            let url = Url::parse(&authorization_url).unwrap();
+            assert_eq!(
+                url.query_pairs()
+                    .find(|(key, _)| key == "redirect_uri")
+                    .unwrap()
+                    .1,
+                "https://auth.openbitfun.com/api/v1/auth/github/callback"
+            );
+        }
+        assert!(service
+            .complete_oauth("invalid-code", "invalid-state")
+            .await
+            .is_err());
     }
 
     #[tokio::test]

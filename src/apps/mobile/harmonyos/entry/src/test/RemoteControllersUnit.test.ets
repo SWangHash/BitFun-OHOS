@@ -254,6 +254,20 @@ class MultiBlockingFileInfoClient extends FakeRemoteFileDownloadClient {
   }
 }
 
+class HeldSessionListClient extends FakeRemoteSessionClient {
+  private releaseList: () => void = () => {};
+  private readonly hold: Promise<void> = new Promise<void>((resolve: () => void) => {
+    this.releaseList = resolve;
+  });
+
+  release(): void { this.releaseList(); }
+
+  async listSessions(limit: number, offset: number, query: string, agentType: string): Promise<SessionListResult> {
+    await this.hold;
+    return super.listSessions(limit, offset, query, agentType);
+  }
+}
+
 export default function remoteControllersUnitTest() {
   describe('ToolFileReferenceResolver', () => {
     it('extracts structured single-file paths from supported tools', 0, () => {
@@ -1246,6 +1260,64 @@ export default function remoteControllersUnitTest() {
       expect(projection.hasMore).assertFalse();
       expect(busyEvents[0]).assertTrue();
       expect(busyEvents[1]).assertFalse();
+    });
+
+    it('keeps a sidebar snapshot when an older refresh or pagination request completes', 0, async () => {
+      for (const paginate of [false, true]) {
+        const client = new HeldSessionListClient();
+        client.listResults = [{ sessions: [remoteSession('stale', 'Stale')], hasMore: true }];
+        const projection = new RemoteSessionProjectionRecord();
+        let loading = false;
+        let busy = false;
+        let errors = 0;
+        const controller = new RemoteSessionController(client, 8, {
+          onSessions: (sessions: RemoteSession[], hasMore: boolean): void => {
+            projection.sessions = sessions;
+            projection.hasMore = hasMore;
+          },
+          onActiveSession: () => {}, onStatusText: () => {},
+          onBusy: (value: boolean): void => { busy = value; },
+          onLoading: (value: boolean): void => { loading = value; },
+          onSessionError: (): void => { errors++; },
+          onReconnecting: () => {}, onConnected: () => {},
+          onConnectionFailed: (): void => { errors++; }, onStartHeartbeat: () => {}
+        });
+        controller.setSessions([remoteSession('cached', 'Cached')], true);
+        const pending = paginate ? controller.loadMore('', '', false, true) :
+          controller.refresh('', '', true, true);
+        expect(loading).assertTrue();
+        controller.setSessions([remoteSession('fresh', 'Fresh')], false);
+        expect(loading).assertFalse();
+        expect(busy).assertFalse();
+        client.release();
+        await pending;
+        controller.updateSessionTitle('fresh', 'Renamed');
+        expect(projection.sessions.length).assertEqual(1);
+        expect(projection.sessions[0].id).assertEqual('fresh');
+        expect(projection.sessions[0].title).assertEqual('Renamed');
+        expect(projection.hasMore).assertFalse();
+        expect(errors).assertEqual(0);
+      }
+    });
+
+    it('ignores a late list failure after the target list is cleared', 0, async () => {
+      const client = new HeldSessionListClient();
+      client.shouldFailList = true;
+      let errors = 0;
+      let loading = false;
+      const controller = new RemoteSessionController(client, 8, {
+        onSessions: () => {}, onActiveSession: () => {}, onStatusText: () => {}, onBusy: () => {},
+        onLoading: (value: boolean): void => { loading = value; },
+        onSessionError: (): void => { errors++; },
+        onReconnecting: () => {}, onConnected: () => {},
+        onConnectionFailed: (): void => { errors++; }, onStartHeartbeat: () => {}
+      });
+      const pending = controller.refresh('', '', true, true);
+      controller.clearSessions();
+      client.release();
+      await pending;
+      expect(loading).assertFalse();
+      expect(errors).assertEqual(0);
     });
 
     it('creates and opens sessions through active-session callbacks', 0, async () => {

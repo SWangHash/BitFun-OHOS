@@ -70,31 +70,31 @@
     image-rendering: pixelated;
     transform-origin: 50% 80%;
     animation:
-      openbitfun-petdex-walk 1.8s steps(6) infinite,
+      openbitfun-petdex-walk 1.8s steps(var(--openbitfun-petdex-frames)) infinite,
       openbitfun-petdex-breathe 6s ease-in-out infinite;
   }
 
   &__petdex--rest {
     animation:
-      openbitfun-petdex-walk 2.4s steps(6) infinite,
+      openbitfun-petdex-walk 2.4s steps(var(--openbitfun-petdex-frames)) infinite,
       openbitfun-petdex-breathe 6.4s ease-in-out infinite;
   }
 
   &__petdex--working {
     animation:
-      openbitfun-petdex-walk 1.16s steps(6) infinite,
+      openbitfun-petdex-walk 1.16s steps(var(--openbitfun-petdex-frames)) infinite,
       openbitfun-petdex-work 0.56s linear infinite;
   }
 
   &__petdex--hover {
     animation:
-      openbitfun-petdex-walk 1.44s steps(6) infinite,
+      openbitfun-petdex-walk 1.44s steps(var(--openbitfun-petdex-frames)) infinite,
       openbitfun-petdex-hover 1.9s ease-in-out infinite;
   }
 
   &__petdex--dragging {
     animation:
-      openbitfun-petdex-walk 0.96s steps(6) infinite,
+      openbitfun-petdex-walk 0.96s steps(var(--openbitfun-petdex-frames)) infinite,
       openbitfun-petdex-dragging 0.48s linear infinite;
   }
 }
@@ -711,7 +711,7 @@
   }
 
   to {
-    background-position-x: 85.7142857%;
+    background-position-x: var(--openbitfun-petdex-end);
   }
 }
 

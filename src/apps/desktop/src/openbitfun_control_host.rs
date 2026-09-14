@@ -202,6 +202,7 @@ fn dto_to_selection(pet: &AgentCompanionPetPackageDto) -> AgentCompanionPetSelec
         package_path: pet.package_path.clone(),
         spritesheet_path: pet.spritesheet_path.clone(),
         spritesheet_mime_type: pet.spritesheet_mime_type.clone(),
+        sprite_version_number: Some(pet.sprite_version_number),
     }
 }
 

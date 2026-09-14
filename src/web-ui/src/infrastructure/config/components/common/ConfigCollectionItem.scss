@@ -173,6 +173,28 @@
     background: color-mix(in srgb, var(--openbitfun-color-status-danger-content) 8%, transparent);
     color: var(--openbitfun-color-status-danger-content);
   }
+
+  // Preserve collection action geometry and feedback for the shared button root.
+  &[data-openbitfun-component='icon-button'] {
+    flex-shrink: 1;
+
+    &::before { content: none; }
+
+    &:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--openbitfun-color-accent-default) 40%, transparent);
+      outline-offset: 2px;
+    }
+
+    > [data-openbitfun-part='icon'] {
+      --openbitfun-opacity-icon-artwork: inherit;
+      display: contents;
+    }
+
+    > :where([data-openbitfun-part='icon']) > :where([data-openbitfun-component='icon']) {
+      inline-size: 14px;
+      block-size: 14px;
+    }
+  }
 }
 
 // ─── empty row ─────────────────────────────────────────────────────────────────

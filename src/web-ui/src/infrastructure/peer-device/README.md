@@ -173,7 +173,12 @@ Still to migrate, in order: the interaction mailbox, then history positions.
     `runtimeSessionEventGate` queues live events by
     `(DeviceSurfaceId, SessionId)`; replay starts from an empty active-Turn base,
     then the gate drops cursor-covered events and releases newer events in
-    order. Never compare cursors across different `streamId` values. This is
+    order. Held events pass through the same ordering and ownership checks as
+    live events. A detected gap or rejected projection remains stale through
+    subsequent deliveries until a successful read repairs it. Since delivery
+    may already have advanced beyond the missing event, gap repair uses the
+    journal prefix; a suffix after that cursor cannot fill the hole.
+    Never compare cursors across different `streamId` values. This is
     gated on
     `isSurfaceReconcileEnabled()`, **not** on Peer Mode: once a window has
     switched surface, a turn left running on the local device also needs the
@@ -251,13 +256,28 @@ Still to migrate, in order: the interaction mailbox, then history positions.
     hosts already support the command, while legacy CLI hosts must show an
     explicit unsupported/upgrade state. Current controllers include the owning
     Session id with the mutation and hosts reject stale cross-Session answers;
-    newer hosts still accept the legacy Tool-id-only form. Any new
+    newer hosts still accept the legacy Tool-id-only form. A
+    question interaction may disable its unattended deadline through the
+    session-scoped `start_user_question_interaction` command, gated by
+    `user_question_interaction_v1`. It is idempotent and does not answer the
+    question. Older peers keep their answer path and display an explicit warning
+    if interaction cannot stop the deadline. The Runtime snapshot's additive
+    `interactionStarted` flag survives controller reattachment; changing devices
+    does not restart a timer. Activity and answer commands use the reserved
+    high-priority control slot so ordinary HostInvoke work cannot queue them
+    past the deadline. Trusted execution lineage registers parent Session
+    controllers for child questions; reattachment projects the same pending
+    question into the parent's turn without granting unrelated Sessions access.
+    Any new
     interaction that can suspend execution is incomplete until its owner
     exposes equivalent replayable attach state and a negotiated response path.
 
 13. **Weak links use bounded, idempotency-aware recovery.** Presence gaps
-    and product RPC timeouts keep an attached peer's surface selected and show
-    a reconnecting notice. A single dedicated handshake owns recovery and its
+    and product RPC timeouts keep an attached peer's surface selected and request
+    a silent control probe. Only a failed control ping or re-attach marks the
+    connection degraded and shows the compact status beside the device controls.
+    A roster omission still requests event re-attachment even when ping succeeds;
+    a failed product request alone does not require re-attachment. A single dedicated handshake owns recovery and its
     retry counter; concurrent product failures must not consume it or postpone
     the timer. Retry delay is capped, not retry lifetime. A successful recovery
     re-attaches event delivery before publishing `ready`, without changing the

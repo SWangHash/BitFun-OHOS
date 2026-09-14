@@ -4,9 +4,9 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { elapsedMs, nowMs } from '@/shared/utils/timing';
 import { ITransportAdapter, type TransportRequestTiming } from './base';
 import { createLogger } from '@/shared/utils/logger';
-import { routeSurfaceEvent } from '@/infrastructure/peer-device/deviceSurfaceRouting';
-import { surfaceIdForDevice } from '@/infrastructure/peer-device/deviceSurface';
-import { routeRuntimeSessionEvent } from '@/infrastructure/peer-device/runtimeSessionEventGate';
+import { getActiveSurfaceDeviceId, isSurfaceScopedEvent, routeSurfaceEvent } from '@/infrastructure/peer-device/deviceSurfaceRouting';
+import { getActiveSurfaceScope, surfaceIdForDevice } from '@/infrastructure/peer-device/deviceSurface';
+import { markRuntimeSessionProjectionStale, routeRuntimeSessionEvent } from '@/infrastructure/peer-device/runtimeSessionEventGate';
 import { sanitizeErrorForLog } from '../logSanitizer';
 
 const log = createLogger('TauriAdapter');
@@ -63,8 +63,8 @@ function registerSharedTauriEventListener(
 
     // Capture the logical listeners that owned the event when it arrived. A
     // Session read may hold delivery after accepting the write; those owners
-    // must still paint it when released, while later subscribers must not
-    // receive the native event retroactively.
+    // may paint it if still subscribed when released; later subscribers must
+    // not receive the native event retroactively.
     const subscriptions = [...shared.subscriptions];
 
     // Peer devices stay attached while the UI renders another device, so
@@ -75,12 +75,24 @@ function registerSharedTauriEventListener(
       return;
     }
 
+    const sourceSurfaceId = surfaceIdForDevice(route.sourceDeviceId);
+    const scope = getActiveSurfaceScope();
     routeRuntimeSessionEvent(
-      surfaceIdForDevice(route.sourceDeviceId),
+      sourceSurfaceId,
       event,
       route.payload,
       payload => {
-        for (const subscription of subscriptions) {
+        // Fenced delivery can outlive a device switch or an unsubscribe. Never
+        // call an obsolete listener against the newly selected store container.
+        const currentSubscriptions = subscriptions.filter(subscription => shared.subscriptions.has(subscription));
+        if (!scope.isCurrent() ||
+            (isSurfaceScopedEvent(event) && getActiveSurfaceDeviceId() !== route.sourceDeviceId) ||
+            shared.closed || currentSubscriptions.length === 0) {
+          const sessionId = (payload as { sessionId?: unknown } | null)?.sessionId;
+          if (typeof sessionId === 'string') markRuntimeSessionProjectionStale(sourceSurfaceId, sessionId);
+          return;
+        }
+        for (const subscription of currentSubscriptions) {
           try {
             subscription.callback(payload);
           } catch (error) {

@@ -1,9 +1,11 @@
 import { Check as LucideCheck } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { createContext, useContext, useMemo, useRef, useState } from 'react';
 import { MobileButton, MobileCard, MobileTextField } from '@openbitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import { messages } from '../i18n/messages';
 import type { RemoteToolStatus } from '../services/RemoteSessionManager';
+
+export const QuestionInteractionContext = createContext<((toolId: string) => Promise<void>) | null>(null);
 
 interface ChatAskQuestionCardProps {
   onAnswer: (toolId: string, answers: Record<string, unknown>) => Promise<void>;
@@ -47,6 +49,13 @@ function isOtherOption(label: string | undefined): boolean {
 
 export default function ChatAskQuestionCard({ onAnswer, tool }: ChatAskQuestionCardProps) {
   const { t, language } = useI18n();
+  const onInteraction = useContext(QuestionInteractionContext);
+  const interactionStarted = useRef(false);
+  const startInteraction = () => {
+    if (!onInteraction || interactionStarted.current) return;
+    interactionStarted.current = true;
+    void onInteraction(tool.id).catch(() => { interactionStarted.current = false; });
+  };
   const questions = (tool.tool_input?.questions || []) as Array<Omit<Question, 'hasBuiltInOther'>>;
   const [selected, setSelected] = useState<Record<number, string | string[]>>({});
   const [customTexts, setCustomTexts] = useState<Record<number, string>>({});
@@ -65,6 +74,7 @@ export default function ChatAskQuestionCard({ onAnswer, tool }: ChatAskQuestionC
   if (normalizedQuestions.length === 0) return null;
 
   const handleSelect = (questionIndex: number, label: string, multiple: boolean) => {
+    startInteraction();
     setSelected((current) => {
       if (multiple) {
         const values = (current[questionIndex] as string[] | undefined) || [];
@@ -171,6 +181,8 @@ export default function ChatAskQuestionCard({ onAnswer, tool }: ChatAskQuestionC
                   appearance="surface"
                   disabled={submitted || submitting}
                   className="chat-ask-card__custom-input"
+                  onFocus={startInteraction}
+                  onClick={startInteraction}
                   onChange={(event) => setCustomTexts((current) => ({ ...current, [questionIndex]: event.target.value }))}
                   placeholder={t('common.typeYourAnswer')}
                   value={customTexts[questionIndex] || ''}

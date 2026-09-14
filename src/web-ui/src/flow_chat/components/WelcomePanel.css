@@ -70,6 +70,10 @@
 }
 
 .welcome-panel__inline-btn {
+  block-size: auto;
+  letter-spacing: inherit;
+  white-space: normal;
+  text-decoration: none;
   display: inline-flex;
   align-items: center;
   gap: 0.18rem;
@@ -87,6 +91,23 @@
   cursor: default;
   vertical-align: baseline;
   transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.welcome-panel__inline-btn::before { content: none; }
+
+.welcome-panel__inline-btn > [data-openbitfun-part='content'] { gap: inherit; }
+
+.welcome-panel__inline-btn [data-openbitfun-part='leading-icon'] {
+  --openbitfun-opacity-icon-artwork: inherit;
+  inline-size: 13px;
+  block-size: 13px;
+}
+
+.welcome-panel__inline-btn [data-openbitfun-part='trailing-icon'] {
+  --openbitfun-opacity-icon-artwork: inherit;
+  inline-size: 11px;
+  block-size: 11px;
+  opacity: 1;
 }
 
 .welcome-panel__inline-btn--interactive {

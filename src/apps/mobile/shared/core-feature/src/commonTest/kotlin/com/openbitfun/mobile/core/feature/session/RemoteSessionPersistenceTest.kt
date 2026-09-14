@@ -145,7 +145,7 @@ class RemoteSessionPersistenceTest {
         val second = RemoteSessionStore.create(this, transport, "device-a", stores.stores)
         second.dispatch(RemoteSessionIntent.Open("server")); runCurrent()
         assertEquals("keep me", assertIs<RemoteSessionUiState.Ready>(second.state.value).draft)
-        second.dispatch(RemoteSessionIntent.SendMessage("server", "hello")); runCurrent()
+        second.dispatch(RemoteSessionIntent.SendMessage("server", "keep me")); runCurrent()
         assertEquals(null, stores.drafts.values["remote-composer:device-a:server"])
         first.dispatch(RemoteSessionIntent.Stop)
         second.dispatch(RemoteSessionIntent.Stop)

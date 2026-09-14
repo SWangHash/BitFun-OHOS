@@ -265,7 +265,7 @@ extension MobileAppModel {
                 controlTargetEpoch: text.target.controlTargetEpoch, name: text.name,
                 content: text.content, mimeType: text.mimeType, imageData: nil, truncated: text.truncated,
                 loadedBytes: text.loadedBytes, sizeBytes: text.sizeBytes, markdown: text.markdown,
-                lineStart: text.target.lineStart, failure: nil, failureKind: nil, retryable: false, unsupported: false)
+                lineStart: text.target.lineStart, lineEnd: text.target.lineEnd, failure: nil, failureKind: nil, retryable: false, unsupported: false)
         } else if let image = state as? RemoteFilePreviewUiStateImage {
             filePreview = MobileFilePreview(id: image.target.remotePath, sessionID: image.target.sessionId,
                 controlTargetEpoch: image.target.controlTargetEpoch, name: image.name,

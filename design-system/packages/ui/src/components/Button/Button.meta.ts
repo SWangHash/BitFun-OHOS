@@ -10,6 +10,7 @@ export const buttonMeta = {
     { defaultValue: "md", name: "size", type: "xs | sm | md | lg" },
     { defaultValue: "neutral", name: "tone", type: "neutral | danger" },
     { defaultValue: "false", name: "loading", type: "boolean" },
+    { defaultValue: "overflow", name: "labelBehavior", type: "overflow | static" },
     { name: "leadingIcon", type: "ReactNode" },
     { name: "trailingIcon", type: "ReactNode" },
   ],

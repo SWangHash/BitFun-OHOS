@@ -336,7 +336,7 @@ async function tryIncrementalCatchUp(
 
     attachment.finish(
       { streamId: backfill.streamId, cursor: backfill.cursor },
-      { projectionCaughtUp: true },
+      { projectionCaughtUp: true, events: backfill.events },
     );
     fenceResolved = true;
     log.debug('Runtime session projection caught up incrementally', {
@@ -359,7 +359,7 @@ async function tryIncrementalCatchUp(
     if (!fenceResolved) {
       // Release the held events rather than stranding them. On a superseded
       // read this is a no-op, which is why it is safe unconditionally.
-      attachment.abort();
+      attachment.abort({ discard: !surfaceScope.isCurrent() });
     }
   }
 }
@@ -492,10 +492,12 @@ export function installPeerSessionRefresh(context: FlowChatContext): () => void 
     // (regression: send-to-first-token latency, and the fence churn that left
     // an interactive card unanswerable after a device switch).
     //
+    // A gap/refused event precedes the delivered cursor. A suffix starting
+    // after that cursor cannot repair it; rebuild from the journal prefix.
     // `forceRuntimeReplay` is deliberately excluded: an idle or errored
     // machine has no live projection to continue, and wants the snapshot.
     const canRepairIncrementally =
-      !forceRuntimeReplay && (projectionStale || streamIsStale);
+      !forceRuntimeReplay && !projectionStale && streamIsStale;
     if (canRepairIncrementally) {
       inFlight = true;
       try {
@@ -573,7 +575,7 @@ export function installPeerSessionRefresh(context: FlowChatContext): () => void 
           attachment.finish({
             streamId: snapshot.streamId,
             cursor: snapshot.cursor,
-          }, { projectionCaughtUp: true });
+          }, { projectionCaughtUp: true, events: snapshot.events });
           attachmentFinished = true;
           log.debug('Runtime session projection already current', {
             sessionId,
@@ -585,7 +587,9 @@ export function installPeerSessionRefresh(context: FlowChatContext): () => void 
         // Establish an empty current-Turn base before replay. The journal is
         // authoritative for everything after DialogTurnStarted, so no
         // UI-written partial checkpoint is allowed to overlap it.
-        context.eventBatcher.clear();
+        // Only this Session is fenced. Other Sessions may have accumulated
+        // text/tool events during the read; publish them instead of erasing them.
+        context.eventBatcher.flushNow();
         context.contentBuffers.delete(sessionId);
         context.activeTextItems.delete(sessionId);
         const replayTurnId = snapshot.activeTurnId ?? result.latestTurnId;
@@ -631,7 +635,7 @@ export function installPeerSessionRefresh(context: FlowChatContext): () => void 
         attachment.finish({
           streamId: snapshot.streamId,
           cursor: snapshot.cursor,
-        }, { projectionCaughtUp });
+        }, { projectionCaughtUp, events: snapshot.events });
         attachmentFinished = true;
         if (!projectionCaughtUp) {
           markRuntimeSessionProjectionStale(surfaceScope.surfaceId, sessionId);

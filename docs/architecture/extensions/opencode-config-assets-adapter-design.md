@@ -213,7 +213,7 @@ OpenCode adapter 在来源发现、解析和审批前不 import module、不读�
 | Skills | `.opencode/.claude/.agents` 项目与用户根、`SKILL.md`、`skills.paths/urls` | OpenCode adapter 只由 `openbitfun-core/external_sources` 组合并投影有序本地配置根；Skill 归属模块负责有界递归、解析、覆盖与按需加载 | 标准根及 V1 `skills.paths`/当前本地字符串数组可用；项目配置限项目根，用户配置限项目根或用户目录；配置根最多 64 个、每根 512 个 Skill、单文件 256 KiB、可选策略 64 KiB，实际加载再次执行有界非链接读取；配置根在同 scope 覆盖标准 OpenCode 根，但不重排更早的 OpenBitFun/Claude/Codex/Cursor 来源 | URL、下载/缓存、脚本与外部依赖不加载；无效根不影响标准 Skill。 |
 | References | `references` / 旧 `reference`，本地 path 或 Git repository/branch/description/hidden | OpenCode adapter 输出来源无关的 Reference provider snapshot；Product Assembly 生命周期协调器与 OpenBitFun 原生关联目录合成唯一有效引用目录；关联目录视图和既有目录选择器消费 | 当前支持本地声明路径、description/hidden、异步刷新和 `@alias` 展示；原生关联目录始终在 OpenCode 引用之前，外部引用只读、不自动进入 Prompt 且不改变权限 | Git 引用、Remote 发现和下载/缓存不实现；无效高优先级 entry 阻断同 alias 的旧值并给出诊断，不回退到更宽松来源。 |
 | Commands | JSON/JSONC、Markdown、`$ARGUMENTS`、位置参数、`@file`、`!shell`、agent/model/variant/subtask | Prompt Command 专属契约；adapter 提取静态文件引用与 shell 计划，Product Assembly 负责审批指纹和装配，Terminal owner 负责进程执行 | prompt 与静态 workspace 相对 UTF-8 `@file` 可发送；`!shell` 展示精确命令、工作目录与绝对 shell 路径，经重新校验后以不加载 profile 的隔离式 argv 执行，并仅把 stdout 按模板顺序加入 Prompt。为保持 OpenCode 语义，正常退出后的非零退出码仍使用 stdout。静态计划可记住，参数相关计划仅可单次运行；显式 agent 加缺省/true subtask 可走 approved fresh Subagent，其余 agent/model/variant/subtask 组合以及 shell 与委派的组合整体受限 | 任一文件读取、进程启动、超时或超限失败时不发送部分 Prompt；进程副作用不可回滚。最多 8 文件、单文件 64 KiB、文件总量 128 KiB；最多 8 条 shell 指令、单条 64 KiB、总计 128 KiB、每条 stdout 256 Ki 字符、30 秒；最终命令 1 MiB。安全模式禁用，Remote 不回退到本机。 |
-| MCP | local 的 command/environment/cwd/timeout，remote 的 URL/headers/oauth/timeout，Agent 选择 | MCP 归属模块创建兼容配置视图 | 当前支持 local stdio 和 HTTPS remote 的静态发现、首次/行为变化审批、冲突选择与 workspace 隔离的运行期接纳；显式 V1 `timeout` 作为毫秒值约束启动、目录读取和执行，并在 GUI/TUI 审阅详情中可见；C0a 快照导入只复制无 env/cwd/timeout 的 local command/args 或无 header/query/fragment/timeout 的 HTTPS remote，并保持 disabled | `{env:NAME}` 当前只允许用于运行期兼容来源的 environment/Header 值，不进入 C0a 快照；SSE、OpenCode OAuth client 配置、Agent 范围、Remote 执行域与 V2 分阶段 timeout 配置格式保持明确不支持；凭据、超时或网络失败只影响单个 Server。 |
+| MCP | local 的 command/environment/cwd/timeout，remote 的 URL/headers/oauth/timeout，Agent 选择 | MCP 归属模块创建兼容配置视图 | 当前支持 local stdio 和 HTTPS remote 的静态发现、首次/行为变化审批、冲突选择与 workspace 隔离的运行期接纳；显式 V1 `timeout` 作为毫秒值约束启动、目录读取和执行，并在 GUI/TUI 审阅详情中可见；快照导入保留可表达的 command/args、cwd、超时与动态 OAuth 开关，写入的原生副本默认 disabled；V1/V2 独立解析，V2 使用整条覆盖及分阶段 timeout | `{env:NAME}` 当前只允许用于运行期兼容来源的 environment/Header 值，不进入 C0a 快照；SSE、OpenCode OAuth client 配置、Agent 范围与 Remote 执行域保持明确不支持；凭据、超时或网络失败只影响单个 Server。 |
 | LSP | command、extensions、env、initialization | **Runtime 已退役**：adapter 只保留来源位置与字段存在事实，不创建运行时 DTO | 固定显示 `unsupported`；永不导入、应用或执行 | 不启动本地或 Remote 进程，不安装 Server，不回退到控制端本机；该项不进入任何 OC-R 阶段。 |
 | Formatters | command、environment、extensions、`$FILE` | **基础能力缺失**：先补文件写入后的 Formatter 执行消费点，再做格式转换 | 首次确认命令后执行匹配 Formatter | 超时后标记未格式化，文件写入结果保留。 |
 | Themes | builtin/user/project/cwd JSON | **部分已有**：GUI Theme 已有；TUI 主题消费边界在终端阶段补齐 | 保留覆盖顺序和语义角色 | 颜色能力不支持时做可见降级。 |
@@ -403,7 +403,10 @@ OpenCode 生态内部仍按其规则覆盖同名内置命令，但跨独立 prov
   外部本地进程默认不继承 OpenBitFun 的完整父进程环境。显式 V1 `timeout` 通过现有 MCP runtime owner 分别约束启动、目录读取
   和执行；缺省值继续使用 OpenBitFun 既有行为。当前是每次请求的硬期限，不因 progress 重置；超时只停止 OpenBitFun 的当前等待，
   不承诺服务端工作已经取消，也不自动重放或重启。SSE、OpenCode
-  `clientId/clientSecret/scope/callbackPort/redirectUri`、V2 分阶段 timeout 配置格式和 Agent 范围仍需后续接入，不能静默忽略。
+  `clientId/clientSecret/scope/callbackPort/redirectUri`（V2 对应 snake_case 字段）和 Agent 范围仍需后续接入，不能静默忽略。
+  V2 由独立解析模块读取 `mcp.servers` 与 `disabled`，同名条目整条替换，`mcp.timeout` 和服务器 timeout 按阶段继承；
+  默认 startup/catalog 为 30 秒、execution 为 12 小时。V1 保持递归合并与标量 timeout，同一来源链混用 V1/V2 时明确报错。
+  外部禁用不阻止有效声明的显式导入；导入预览说明启停、登录、重连、Code Mode 与工具权限由 OpenBitFun 管理。
 - LSP 只解析到来源清单和 `unsupported` 诊断。OpenBitFun LSP Runtime 已退役，因此 command、extensions、env、
   initialization 不进入产品 DTO，不触发审批、安装或进程启动，在本地、Remote Workspace、Peer Device 和 Detached
   Dispatch 中都不得执行或回退。

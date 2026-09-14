@@ -27,7 +27,7 @@ describe('MCP settings presentation', () => {
 
     expect(source).toContain("title={showJsonEditor ? tMcp('jsonEditor.title') : tMcp('section.serverList.title')}");
     expect(source).toContain("{showJsonEditor ? tMcp('actions.backToList') : tMcp('actions.jsonConfig')}");
-    expect(source).toContain('{!showJsonEditor && <ExternalMcpOverview />}');
+    expect(source).not.toContain('ExternalMcpOverview');
     expect(source).not.toContain('<h3>{tMcp(\'jsonEditor.title\')}</h3>');
   });
 });

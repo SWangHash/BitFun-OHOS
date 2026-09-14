@@ -331,7 +331,12 @@ impl ExternalMcpCoordinator {
                 true,
             ));
         };
-        if !server.source_enabled || !matches!(server.static_status, ExternalMcpStaticStatus::Ready)
+        // Import copies a declaration into native ownership; upstream enablement
+        // is not an execution grant or a prerequisite for copying it. The provider
+        // still validates the exact declaration for the requested purpose.
+        if purpose == "activation"
+            && (!server.source_enabled
+                || !matches!(server.static_status, ExternalMcpStaticStatus::Ready))
         {
             return Err(ExternalSourceProviderError::new(
                 "external_mcp.server_unavailable",

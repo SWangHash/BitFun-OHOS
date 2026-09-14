@@ -141,7 +141,7 @@ const snapshot = {
 const plan = {
   schemaVersion: 1,
   source,
-  disposition: 'import',
+  disposition: 'update',
   behaviorVersion: 'sha256:behavior',
   handlers: [{
     stableKey: 'pre-tool-use-0',
@@ -197,7 +197,7 @@ describe('HooksConfig imported Hook management', () => {
     expect(container.textContent).toContain('activation.title');
   });
 
-  it('shows PI and DeepSeek Harness discoveries without offering execution or import', async () => {
+  it('keeps unimported external discoveries out of native Hook management', async () => {
     const externalSources = ['pi', 'deepseek-harness'].map((ecosystemId) => ({
       ...source,
       key: { providerId: `${ecosystemId}.hooks`, sourceId: 'extension' },
@@ -221,9 +221,9 @@ describe('HooksConfig imported Hook management', () => {
     });
     await act(async () => root.render(<HooksConfig embedded />));
     await flush();
-    expect(container.textContent).toContain('tool_call');
-    expect(container.textContent).toContain('PreToolUse');
-    expect(container.textContent).toContain('discovery.readOnly');
+    expect(container.textContent).not.toContain('tool_call');
+    expect(container.textContent).not.toContain('PreToolUse');
+    expect(container.textContent).not.toContain('discovery.title');
     expect(container.textContent).not.toContain('imports.review');
     expect(planImportMock).not.toHaveBeenCalled();
     expect(applyImportMock).not.toHaveBeenCalled();
@@ -242,14 +242,15 @@ describe('HooksConfig imported Hook management', () => {
     expect(empty?.textContent).toContain('imports.empty');
   });
 
-  it('loads settings and sources together, then exposes exact commands before apply', async () => {
+  it('reviews exact commands before updating a previously imported Hook', async () => {
+    getSnapshotMock.mockResolvedValue({ ...snapshot, imports: [{ importId: 'managed-1', source, enabled: true, behaviorVersion: 'old', state: 'update_available' }] });
     await act(async () => root.render(<HooksConfig />));
     await flush();
 
     expect(getConfigMock).toHaveBeenCalledTimes(1);
     expect(getSnapshotMock).toHaveBeenCalledWith('D:/workspace/project', false);
     const review = Array.from(container.querySelectorAll('button'))
-      .find((button) => button.textContent === 'imports.review')!;
+      .find((button) => button.textContent === 'imports.update')!;
     await act(async () => review.click());
     await flush();
 
@@ -259,13 +260,14 @@ describe('HooksConfig imported Hook management', () => {
     expect(dialog.textContent).not.toContain('sha256:plan-1');
 
     const confirm = Array.from(dialog.querySelectorAll('button'))
-      .find((button) => button.textContent === 'imports.confirm')!;
+      .find((button) => button.textContent === 'imports.confirmUpdate')!;
     await act(async () => confirm.click());
     await flush();
     expect(applyImportMock).toHaveBeenCalledWith('D:/workspace/project', plan);
   });
 
   it('keeps a stale replacement plan open and never applies it implicitly', async () => {
+    getSnapshotMock.mockResolvedValue({ ...snapshot, imports: [{ importId: 'managed-1', source, enabled: true, behaviorVersion: 'old', state: 'update_available' }] });
     const refreshedPlan = {
       ...plan,
       handlers: [{ ...plan.handlers[0], command: 'python D:/managed/hooks/check-v2.py' }],
@@ -279,12 +281,12 @@ describe('HooksConfig imported Hook management', () => {
     await flush();
     await act(async () => {
       Array.from(container.querySelectorAll('button'))
-        .find((button) => button.textContent === 'imports.review')!.click();
+        .find((button) => button.textContent === 'imports.update')!.click();
     });
     await flush();
     await act(async () => {
       Array.from(container.querySelectorAll('button'))
-        .find((button) => button.textContent === 'imports.confirm')!.click();
+        .find((button) => button.textContent === 'imports.confirmUpdate')!.click();
     });
     await flush();
 
@@ -389,6 +391,7 @@ describe('HooksConfig imported Hook management', () => {
   });
 
   it('does not claim an imported source will run while the master switch is off', async () => {
+    getSnapshotMock.mockResolvedValue({ ...snapshot, imports: [{ importId: 'managed-1', source, enabled: true, behaviorVersion: 'old', state: 'update_available' }] });
     getConfigMock.mockResolvedValue({ enabled: false, project_hooks_enabled: false });
     applyImportMock.mockResolvedValue({
       schemaVersion: 1,
@@ -412,12 +415,12 @@ describe('HooksConfig imported Hook management', () => {
     await flush();
     await act(async () => {
       Array.from(container.querySelectorAll('button'))
-        .find((button) => button.textContent === 'imports.review')!.click();
+        .find((button) => button.textContent === 'imports.update')!.click();
     });
     await flush();
     await act(async () => {
       Array.from(container.querySelectorAll('button'))
-        .find((button) => button.textContent === 'imports.confirm')!.click();
+        .find((button) => button.textContent === 'imports.confirmUpdate')!.click();
     });
     await flush();
 

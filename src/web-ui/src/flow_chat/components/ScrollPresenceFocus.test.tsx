@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScrollToBottomButton } from './ScrollToBottomButton';
 import { ScrollToLatestBar } from './ScrollToLatestBar';
+import { ScrollToTurnHeaderButton } from './ScrollToTurnHeaderButton';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -12,7 +13,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@openbitfun/ui', () => ({
+vi.mock('@openbitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@openbitfun/ui')>(),
   Tooltip: ({ children }: { children: React.ReactNode }) => children,
 }));
 
@@ -129,5 +131,43 @@ describe('retained scroll controls', () => {
     expect(button?.getAttribute('aria-hidden')).toBe('false');
     expect(button?.hasAttribute('inert')).toBe(false);
     expect(button?.textContent).toContain('3');
+  });
+
+  it('keeps latest navigation on the whole bar and fires once per action', () => {
+    const onClick = vi.fn();
+    act(() => root.render(<ScrollToLatestBar visible onClick={onClick} inputHeight={140} />));
+    const bar = container.querySelector<HTMLElement>('[role="button"]')!;
+    const iconButton = bar.querySelector<HTMLButtonElement>('[data-openbitfun-component="icon-button"]')!;
+    expect(iconButton.tabIndex).toBe(-1);
+    expect(iconButton.getAttribute('aria-hidden')).toBe('true');
+    act(() => iconButton.click());
+    expect(onClick).toHaveBeenCalledTimes(1);
+    act(() => bar.click());
+    expect(onClick).toHaveBeenCalledTimes(2);
+    for (const key of ['Enter', ' ']) {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      act(() => bar.dispatchEvent(event));
+      expect(event.defaultPrevented).toBe(true);
+    }
+    expect(onClick).toHaveBeenCalledTimes(4);
+    act(() => root.render(<ScrollToLatestBar visible={false} onClick={onClick} inputHeight={140} />));
+    act(() => {
+      bar.click();
+      bar.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(onClick).toHaveBeenCalledTimes(4);
+  });
+
+  it('keeps current-turn navigation and its hidden tab order', () => {
+    const onClick = vi.fn();
+    act(() => root.render(<ScrollToTurnHeaderButton visible onClick={onClick} turnLabel="Current turn" />));
+    const button = container.querySelector<HTMLButtonElement>('[data-openbitfun-component="icon-button"]')!;
+    expect(button.getAttribute('aria-label')).toBe('Current turn');
+    expect(button.tabIndex).toBe(0);
+    act(() => button.click());
+    expect(onClick).toHaveBeenCalledTimes(1);
+    act(() => root.render(<ScrollToTurnHeaderButton visible={false} onClick={onClick} />));
+    expect(button.tabIndex).toBe(-1);
+    expect(button.closest('[aria-hidden="true"]')).not.toBeNull();
   });
 });

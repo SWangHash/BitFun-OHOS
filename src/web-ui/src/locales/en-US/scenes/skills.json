@@ -55,7 +55,7 @@
     "builtin": "Core skills shipped with the app. They cannot be deleted.",
     "user": "OpenBitFun user-level skills installed globally for your account.",
     "project": "OpenBitFun project-level skills for the current workspace.",
-    "source": "Skills discovered from {{source}}, including user-level and current-workspace project-level skills.",
+    "source": "OpenBitFun copies imported from {{source}}, including user-level and current-workspace project-level skills.",
     "groups": "Create and organize reusable groups of skills."
   },
   "section": {

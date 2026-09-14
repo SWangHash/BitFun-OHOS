@@ -12,10 +12,31 @@
     white-space: nowrap;
   }
 
+  .root:has(> .content) {
+    /* Center the natural text box without an anonymous inline baseline strut.
+       Keep the owner's leading as a minimum, and let taller fonts expand it.
+       The zero-minimum track still allows long labels to overflow horizontally. */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    min-block-size: 1lh;
+  }
+
   .content {
-    display: inline-block;
+    display: block;
     min-inline-size: max-content;
-    vertical-align: top;
+    /* Keep ascent/descent inside the clipping box, including in tight controls. */
+    line-height: var(--openbitfun-type-modifier-leading-intrinsic-line-height);
+    /* Font ink and fractional scaling can extend beyond the natural line box.
+       Include block-axis breathing room in the grid's intrinsic height so the
+       horizontal clipping viewport does not shave off accents or descenders. */
+    padding-block: calc(var(--openbitfun-space-1) / 2);
+  }
+
+  .root[data-overflow-style="ellipsis"] > .content {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .root[data-overflow-lines] {
@@ -36,8 +57,8 @@
   }
 
   /* Keep resting specificity low so the owning control can reveal the full end. */
-  .root[data-overflow-behavior="fade"][data-overflow="true"]:not([data-overflow-lines]),
-  .root[data-overflow-behavior="marquee"][data-overflow="true"]:where(:not(:hover):not(:focus-visible):not([data-marquee-active="true"])) {
+  .root:not([data-overflow-style="ellipsis"])[data-overflow-behavior="fade"][data-overflow="true"]:not([data-overflow-lines]),
+  .root:not([data-overflow-style="ellipsis"])[data-overflow-behavior="marquee"][data-overflow="true"]:where(:not(:hover):not(:focus-visible):not([data-marquee-active="true"])) {
     -webkit-mask-image: linear-gradient(
       to right,
       currentColor 0,
@@ -54,8 +75,8 @@
     mask-repeat: no-repeat;
   }
 
-  .root:where(:dir(rtl))[data-overflow-behavior="fade"][data-overflow="true"]:not([data-overflow-lines]),
-  .root:where(:dir(rtl))[data-overflow-behavior="marquee"][data-overflow="true"]:where(:not(:hover):not(:focus-visible):not([data-marquee-active="true"])) {
+  .root:not([data-overflow-style="ellipsis"]):where(:dir(rtl))[data-overflow-behavior="fade"][data-overflow="true"]:not([data-overflow-lines]),
+  .root:not([data-overflow-style="ellipsis"]):where(:dir(rtl))[data-overflow-behavior="marquee"][data-overflow="true"]:where(:not(:hover):not(:focus-visible):not([data-marquee-active="true"])) {
     -webkit-mask-image: linear-gradient(
       to left,
       currentColor 0,
@@ -70,15 +91,20 @@
     );
   }
 
-  :where([data-overflow-trigger]:is(:hover, :focus-within, [data-overflow-active="true"])) .root[data-overflow-behavior="marquee"][data-overflow="true"] {
+  :where([data-overflow-trigger][data-overflow-active="true"]) .root:where(:not([data-marquee-trigger="interaction"])):not([data-overflow-style="ellipsis"])[data-overflow-behavior="marquee"][data-overflow="true"],
+  :where([data-overflow-trigger]:is(:hover, :focus-within)) .root:not([data-overflow-style="ellipsis"])[data-overflow-behavior="marquee"][data-overflow="true"] {
     -webkit-mask-image: none;
     mask-image: none;
   }
 
-  :where([data-overflow-trigger]:is(:hover, :focus-within, [data-overflow-active="true"])) .root[data-overflow-behavior="marquee"][data-overflow="true"] .content,
+  :where([data-overflow-trigger][data-overflow-active="true"]) .root:where(:not([data-marquee-trigger="interaction"]))[data-overflow-behavior="marquee"][data-overflow="true"] .content,
+  :where([data-overflow-trigger]:is(:hover, :focus-within)) .root[data-overflow-behavior="marquee"][data-overflow="true"] .content,
   .root[data-overflow-behavior="marquee"][data-overflow="true"]:hover .content,
   .root[data-overflow-behavior="marquee"][data-overflow="true"]:focus-visible .content,
   .root[data-overflow-behavior="marquee"][data-overflow="true"][data-marquee-active="true"] .content {
+    min-inline-size: max-content;
+    overflow: visible;
+    text-overflow: clip;
     animation: openbitfun-overflow-text-marquee var(--_overflow-text-marquee-duration) linear infinite alternate;
     will-change: transform;
   }
@@ -95,7 +121,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .root[data-overflow-behavior="marquee"][data-overflow="true"] {
+    .root:not([data-overflow-style="ellipsis"])[data-overflow-behavior="marquee"][data-overflow="true"] {
       -webkit-mask-image: linear-gradient(
         to right,
         currentColor 0,
@@ -112,7 +138,7 @@
       mask-repeat: no-repeat;
     }
 
-    .root:dir(rtl)[data-overflow-behavior="marquee"][data-overflow="true"] {
+    .root:not([data-overflow-style="ellipsis"]):dir(rtl)[data-overflow-behavior="marquee"][data-overflow="true"] {
       -webkit-mask-image: linear-gradient(
         to left,
         currentColor 0,
@@ -127,7 +153,8 @@
       );
     }
 
-    :where([data-overflow-trigger]:is(:hover, :focus-within, [data-overflow-active="true"])) .root[data-overflow-behavior="marquee"][data-overflow="true"] .content,
+    :where([data-overflow-trigger][data-overflow-active="true"]) .root:where(:not([data-marquee-trigger="interaction"]))[data-overflow-behavior="marquee"][data-overflow="true"] .content,
+    :where([data-overflow-trigger]:is(:hover, :focus-within)) .root[data-overflow-behavior="marquee"][data-overflow="true"] .content,
     .root[data-overflow-behavior="marquee"][data-overflow="true"]:hover .content,
     .root[data-overflow-behavior="marquee"][data-overflow="true"]:focus-visible .content,
     .root[data-overflow-behavior="marquee"][data-overflow="true"][data-marquee-active="true"] .content {
@@ -135,12 +162,18 @@
       transform: none;
       will-change: auto;
     }
+
+    .root[data-overflow-style="ellipsis"][data-overflow-behavior="marquee"][data-overflow="true"] > .content {
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
 
   @media (forced-colors: active) {
-    .root:dir(rtl)[data-overflow-behavior][data-overflow="true"],
-    .root[data-overflow-behavior][data-overflow="true"],
-    .root[data-overflow-behavior][data-overflow="true"]:not(:hover):not(:focus-visible):not([data-marquee-active="true"]) {
+    .root:not([data-overflow-style="ellipsis"]):dir(rtl)[data-overflow-behavior][data-overflow="true"],
+    .root:not([data-overflow-style="ellipsis"])[data-overflow-behavior][data-overflow="true"],
+    .root:not([data-overflow-style="ellipsis"])[data-overflow-behavior][data-overflow="true"]:not(:hover):not(:focus-visible):not([data-marquee-active="true"]) {
       -webkit-mask-image: none;
       mask-image: none;
     }

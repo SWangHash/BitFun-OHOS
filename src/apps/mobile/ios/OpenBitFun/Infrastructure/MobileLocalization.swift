@@ -32,7 +32,9 @@ enum MobileLocalization {
         // still fall through to the English localization, so keep the source
         // language explicit instead of relying on Bundle fallback order.
         if language == .simplifiedChinese { return key }
-        return String(localized: String.LocalizationValue(key), locale: Locale(identifier: language.rawValue))
+        guard let path = Bundle.main.path(forResource: language.rawValue, ofType: "lproj"),
+              let bundle = Bundle(path: path) else { return key }
+        return bundle.localizedString(forKey: key, value: key, table: nil)
     }
 
     static func text(_ key: String) -> String {

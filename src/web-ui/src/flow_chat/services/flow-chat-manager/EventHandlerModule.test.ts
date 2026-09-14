@@ -23,6 +23,8 @@ import { markOptimisticDispatchTurnMetadata } from '@/features/dispatch/optimist
 import { interruptedTurnRecoveryGate } from '../interruptedTurnRecoveryGate';
 import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import { localSessionDriver } from '../../session-drivers/local/LocalSessionDriver';
+import { chatInputSessionSubscriptionKey } from '../../utils/chatInputSessionSubscription';
+import { selectInterruptedTurnRecovery } from '../../utils/interruptedTurnRecovery';
 
 const {
   buildBuiltInBrowserTabOptions,
@@ -124,6 +126,85 @@ describe('interrupted turn lifecycle', () => {
     stateMachineManager.clear();
     interruptedTurnRecoveryGate.resetForTests();
   });
+
+  it.each(['running', 'restored-interrupted'] as const)(
+    'keeps the composer recovery snapshot current through repeated stops from %s',
+    async initialState => {
+      const store = FlowChatStore.getInstance();
+      const turn: DialogTurn = {
+        id: 'turn-1',
+        sessionId: 'session-1',
+        agentType: 'Standard',
+        userMessage: { id: 'user-1', content: 'continue this work', timestamp: 1 },
+        modelRounds: [],
+        status: initialState === 'running' ? 'processing' : 'cancelled',
+        startTime: 1,
+        ...(initialState === 'restored-interrupted' ? {
+          finishReason: 'interrupted',
+          recovery: { status: 'interrupted' as const, executionGeneration: 0 },
+        } : {}),
+      };
+      createSessionWithTurn(turn);
+      const context = createFlowChatContext();
+      let composerSession = store.getState().sessions.get('session-1')!;
+      // Use the actual subscription boundary used by ChatInput, rather than
+      // reading fresh Store state after every event and hiding stale renders.
+      const unsubscribe = store.subscribeSelector(
+        state => chatInputSessionSubscriptionKey(state.sessions.get('session-1')!),
+        () => { composerSession = store.getState().sessions.get('session-1')!; },
+      );
+      store.notifyListeners();
+      const candidate = () => selectInterruptedTurnRecovery(composerSession, {
+        draft: '',
+        hasComposerAttachments: false,
+        executionIdle: stateMachineManager.getCurrentState('session-1') === SessionExecutionState.IDLE,
+        desktopRuntime: true,
+        peerMode: false,
+        acpSession: false,
+        modeChangePending: false,
+        modelChangePending: false,
+      });
+      let generation = 0;
+      const interrupt = vi.spyOn(agentAPI, 'interruptDialogTurn').mockImplementation(async () => {
+        // Production broadcasts settlement before the stop RPC returns.
+        __test_only__.handleDialogTurnInterrupted(context, {
+          sessionId: 'session-1', turnId: 'turn-1', executionGeneration: generation,
+        });
+      });
+
+      try {
+        if (initialState === 'running') {
+          await stateMachineManager.transition('session-1', SessionExecutionEvent.START, {
+            taskId: 'session-1', dialogTurnId: 'turn-1',
+          });
+          await localSessionDriver.cancel(context, 'session-1');
+        }
+        expect(candidate()).toEqual({
+          sessionId: 'session-1', turnId: 'turn-1', executionGeneration: 0,
+        });
+
+        for (generation = 1; generation <= 3; generation += 1) {
+          expect(interruptedTurnRecoveryGate.tryBegin(candidate()!)).toBe(true);
+          __test_only__.handleDialogTurnRecovered(context, {
+            sessionId: 'session-1', turnId: 'turn-1', executionGeneration: generation,
+          });
+          await Promise.resolve();
+          expect(candidate()).toBeNull();
+          expect(interruptedTurnRecoveryGate.isSessionInFlight('session-1')).toBe(false);
+          // Stop immediately, without a new model round, token update, or
+          // draft edit incidentally refreshing the composer's snapshot.
+          await localSessionDriver.cancel(context, 'session-1');
+          expect(candidate()).toEqual({
+            sessionId: 'session-1', turnId: 'turn-1', executionGeneration: generation,
+          });
+          expect(composerSession.dialogTurns).toHaveLength(1);
+        }
+      } finally {
+        unsubscribe();
+        interrupt.mockRestore();
+      }
+    },
+  );
 
   it('projects the authoritative recovered fence and releases the shared gate', async () => {
     const turn: DialogTurn = {

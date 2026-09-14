@@ -124,9 +124,11 @@
       "headers": "headers",
       "env": "env",
       "oauth": "OAuth"
-    }
+    },
+    "importedSource": "Imported"
   },
   "status": {
+    "disabled": "Disabled",
     "uninitialized": "Uninitialized",
     "starting": "Starting",
     "connected": "Connected",
@@ -141,6 +143,7 @@
     "error": "Error"
   },
   "actions": {
+    "enableAndStart": "Enable and start",
     "add": "Add Server",
     "addFirst": "Add First Server",
     "edit": "Edit",

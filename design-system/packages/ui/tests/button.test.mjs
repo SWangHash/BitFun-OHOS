@@ -13,7 +13,29 @@ test("Button exposes the neutral outline contract by default", () => {
   assert.match(markup, /data-openbitfun-variant="outline"/);
   assert.match(markup, /data-size="md"/);
   assert.match(markup, /type="button"/);
+  assert.match(markup, /data-label-behavior="overflow"/);
+  assert.match(markup, /data-overflow-behavior="marquee"/);
   assert.match(markup, />Session<\/span>/);
+});
+
+test("static labels retain native button semantics without adding overflow machinery", () => {
+  const markup = renderToStaticMarkup(createElement(Button, {
+    labelBehavior: "static", type: "submit", name: "action", value: "history",
+    title: "History details", leadingIcon: createElement("svg"),
+  }, "Show previous attempts"));
+  assert.match(markup, /type="submit"/);
+  assert.match(markup, /name="action"/);
+  assert.match(markup, /value="history"/);
+  assert.match(markup, /title="History details"/);
+  assert.match(markup, /data-openbitfun-part="label">Show previous attempts<\/span>/);
+  assert.match(markup, /data-openbitfun-part="leading-icon"/);
+  assert.doesNotMatch(markup, /data-overflow-behavior|data-overflow-content|data-overflow-tooltip/);
+  const pending = renderToStaticMarkup(createElement(Button, {
+    labelBehavior: "static", loading: true,
+  }, "Saving"));
+  assert.match(pending, /disabled=""/);
+  assert.match(pending, /aria-busy="true"/);
+  assert.match(pending, />Saving<\/span>/);
 });
 
 test("danger tone preserves destructive semantics independently from presentation", async () => {

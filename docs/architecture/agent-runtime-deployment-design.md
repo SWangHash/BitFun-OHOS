@@ -6,7 +6,7 @@ Agent Runtime 的模块职责见 [`agent-runtime-services-design.md`](agent-runt
 [`agent-sdk-product-architecture.md`](agent-sdk-product-architecture.md)，第三方 JS/TS 进程见
 [`extensions/plugin-runtime-design.md`](extensions/plugin-runtime-design.md)。Rich Client 的 Embedded direct-runtime 决策、App Server 协议
 和 Shared transport 提案见 [`app-server-architecture.md`](app-server-architecture.md)。Embedded interactive TUI 已完成 direct-runtime
-迁移；Shared transport 未通过独立评审前继续使用 v17。
+迁移；Shared transport 未通过独立评审前继续使用 v18。
 
 SSH/容器工作区保留轻量 SSH 部署：同一 Agent Runtime 和会话状态仍由 OpenBitFun 主机持有，
 只在工作区文件与进程 I/O 边界选择本地或 SSH provider，不要求目标安装 OpenBitFun CLI 或 daemon。
@@ -26,7 +26,7 @@ flowchart TB
   Web["Web UI"] --> WebAS["loopback WebSocket App Server"]
   TUI["Interactive TUI"] --> RuntimeClient["CliAgentRuntimeClient"]
   RuntimeClient -->|"Embedded current"| API
-  RuntimeClient -->|"--shared"| SharedIPC["private Runtime IPC v17"]
+  RuntimeClient -->|"--shared"| SharedIPC["private Runtime IPC v18"]
   TUI --> OwnerApis["existing owner/service APIs"]
   OwnerApis --> DomainOwners["existing owners / services"]
   Other["Headless CLI · ACP · Peer Host · SDK Host"] --> Adapter["独立 first-party adapters"]
@@ -60,7 +60,7 @@ flowchart TB
   API --> Owners["Session / Tool / Permission / MCP owners"]
 ```
 
-这是当前已交付的 Phase 5 Embedded direct-runtime composition。它不改变 Desktop GUI 的独立迁移状态，也不把 Shared v17 替换为 App Server。
+这是当前已交付的 Phase 5 Embedded direct-runtime composition。它不改变 Desktop GUI 的独立迁移状态，也不把 Shared v18 替换为 App Server。
 
 ### 1.3 Optional Shared App Server proposal
 
@@ -73,7 +73,7 @@ flowchart LR
   Runtime --> Storage["Workspace / Session storage"]
 ```
 
-这是 Phase 6 的待评审提案，不是当前 Shared TUI 的必经链路，也不改变 Current 图中的 private Runtime IPC v17。只有完成连接治理、安全、恢复、取消、限制、性能和回滚门槛后，才可评审是否替换 v17；评审也可以决定长期保留 v17。
+这是 Phase 6 的待评审提案，不是当前 Shared TUI 的必经链路，也不改变 Current 图中的 private Runtime IPC v18。只有完成连接治理、安全、恢复、取消、限制、性能和回滚门槛后，才可评审是否替换 v18；评审也可以决定长期保留 v18。
 
 ### 1.4 Current implementation facts
 
@@ -86,8 +86,8 @@ flowchart LR
 | Runtime ownership | Desktop、CLI、ACP、SDK Host 和现有 Server agent bootstrap 共用 Core owner；Embedded 取得共享锁，Shared TUI 取得独占锁，同一 workspace 上两种 deployment 互斥 |
 | Session 写入 | OpenBitFun Runtime 的持久化 Session 由 `SessionManager` 管理；同一存储位置中的同一 Session 同时只允许一个本机进程写入，list/view 等只读操作不受影响 |
 | 当前 HTTP Server | 已组装 Embedded Runtime 和 `OpenBitFunAppServer`，每个 `/ws` 连接通过 WebSocket transport 运行一条 App Server connection；当前固定 loopback、单用户且缺少连接级身份与作用域绑定，不构成远程或多用户 Server API |
-| Shared local IPC | 未发布的 v17 本机协议已有 discovery、实例锁、严格握手、Session 控制权、有界事件流和 cleanup；唯一 consumer 是第一方交互式 TUI compatibility adapter；是否由 Shared App Server 替换仍待评审与等价证据 |
-| Shared TUI | `openbitfun --shared` / `openbitfun chat --shared` 可列出、创建、恢复 Session，删除未被控制的空闲非当前 Session，通过 `/fork` 从完整历史或选中提示词之前创建分支，重命名当前 Session，读取 transcript，通过 **View subagents** 只读查看当前根 Session 的子会话并定向取消子会话活动 Turn，切换当前 Session 的 Agent mode/model，通过 `/reload [skills|instructions]` 刷新声明式上下文，通过 `/compact` 或 `/summarize` 压缩当前 Session 上下文，在 Turn 空闲时通过 `/diff` 读取 Runtime 绑定工作区的只读差异，提交/取消 Turn，处理 Permission 和 UserInput；Runtime 行为由 `CliAgentRuntimeClient` 的 Shared backend 映射 v17；Model、Skill、Subagent、MCP、External Source、Hook 和 Worktree 等 Host-local 能力由当前 CLI 进程直接调用对应 owner/service 提供。Account/Settings Sync 和后续 External Application V2 未由当前 Shared Host 提供并返回 typed unsupported；Remote workspace scope 下的 controller-local owner/service 调用明确拒绝执行 |
+| Shared local IPC | 未发布的 v18 本机协议已有 discovery、实例锁、严格握手、Session 控制权、有界事件流和 cleanup；唯一 consumer 是第一方交互式 TUI compatibility adapter；是否由 Shared App Server 替换仍待评审与等价证据 |
+| Shared TUI | `openbitfun --shared` / `openbitfun chat --shared` 可列出、创建、恢复 Session，删除未被控制的空闲非当前 Session，通过 `/fork` 从完整历史或选中提示词之前创建分支，重命名当前 Session，读取 transcript，通过 **View subagents** 只读查看当前根 Session 的子会话并定向取消子会话活动 Turn，切换当前 Session 的 Agent mode/model，通过 `/reload [skills|instructions]` 刷新声明式上下文，通过 `/compact` 或 `/summarize` 压缩当前 Session 上下文，在 Turn 空闲时通过 `/diff` 读取 Runtime 绑定工作区的只读差异，提交/取消 Turn，处理 Permission 和 UserInput；Runtime 行为由 `CliAgentRuntimeClient` 的 Shared backend 映射 v18；Model、Skill、Subagent、MCP、External Source、Hook 和 Worktree 等 Host-local 能力由当前 CLI 进程直接调用对应 owner/service 提供。Account/Settings Sync 和后续 External Application V2 未由当前 Shared Host 提供并返回 typed unsupported；Remote workspace scope 下的 controller-local owner/service 调用明确拒绝执行 |
 | Shared GUI/Headless/ACP/SDK Host/Remote | 未交付，也不会由 `--shared` 隐式启用；Replay、Observer、通用 Controller transfer 和 Session archive 同样不在当前协议中 |
 
 因此当前交付的是 Embedded TUI direct Runtime composition 与一条窄的、显式启用的 Shared TUI compatibility deployment；
@@ -137,7 +137,7 @@ flowchart TB
 
 当前复用的是 Runtime API、权威事实和 owner；Web 额外使用 App Server wire，Embedded TUI
 使用 direct Runtime adapter，Shared TUI 的共同 Runtime 行为使用
-private v17。TUI 管理面由 controller 直接调用现有 owner/service API，不随 Runtime
+private v18。TUI 管理面由 controller 直接调用现有 owner/service API，不随 Runtime
 port 进入 Shared wire。各入口不复用 renderer、CLI 参数、SDK wire、远程认证或平台窗口生命周期。
 任何新能力必须先进入既有 Runtime 或 owner service，再由 App Server、direct adapter 或其他独立
 adapter 映射，禁止在 Embedded、Shared 或其他入口复制业务实现。
@@ -169,7 +169,7 @@ flowchart LR
 - 当前 App Server 为每条 connection/stream 发送单调 sequence 和 connection-local cursor；`app/syncEvents` 返回当前连接的 cursor
   与 pending Permission snapshot，`session/sync` 恢复 Session state、transcript、workspace binding 和 pending Permission。它没有跨连接
   持久化 replay/resume：重连后的旧 cursor 不能继续消费，client 必须重新 initialize 并执行权威 sync。
-- Shared Runtime IPC v17 不复用 App Server cursor。它按自己的有界队列规则处理 lag/closed：Agent 流失效后 fail closed；Permission lag
+- Shared Runtime IPC v18 不复用 App Server cursor。它按自己的有界队列规则处理 lag/closed：Agent 流失效后 fail closed；Permission lag
   尝试从 Runtime 的 pending 集合重建，重建失败或流关闭时取消当前 Turn 并退出。任何路径都不能把流失效伪装成透明恢复。
 - 旧 Embedded App Server 链路已删除；当前 direct-runtime 路径不包含 private in-memory transport、App Server task/thread 或 JSON-RPC 编解码，也不增加 SDK Host、跨进程 IPC 或后台进程依赖。
 
@@ -282,7 +282,7 @@ sequenceDiagram
   end
 ```
 
-当前私有协议（v17）只覆盖 TUI 已有用户旅程需要的窄操作：
+当前私有协议（v18）只覆盖 TUI 已有用户旅程需要的窄操作：
 
 | 已支持 | 明确不支持 |
 |---|---|
@@ -312,11 +312,12 @@ sequenceDiagram
 - v17 扩展原子 restore，使响应带回 Runtime Session state；增加结构化 Session usage、等待指定 Turn settlement，以及记录本地命令
   transcript turn 的 operation。它补齐当前 Shared TUI 的行为，并为 `CliAgentRuntimeClient` 的 Shared backend 提供 operation 基线；没有增加
   replay、observer、通用 controller transfer、多 Session multiplex 或公开 SDK 能力。
+- v18 增加当前 controller 限定的问答首次交互和取消操作，委托同一个 Runtime mailbox；首次交互永久停止无人值守超时，Esc 取消问题而不取消整轮。私有协议版本参与本机实例标识，旧客户端继续连接旧版本实例，新客户端不会向 v17 发送新操作。
 - 一个连接最多控制一个 Session、同时最多提交一个活动 Turn；一个 Session 同时只有一个 controller。create/restore/fork 在完整结果通过大小检查后才原子切换控制权，失败时保留原 Session。fork 只接受当前 controller 的空闲 Session；无选中 Turn 时复制到最新持久化 Turn，指定 `before_turn_id` 时只复制该 Turn 之前的历史。活动 Turn 期间不能切换或 fork Session，也不能修改其名称、Agent mode 或 model；删除只作用于非当前且未被任何连接控制的 Session。
 - Submit 与手动 context compaction 都使用调用方已有的 `turn_id` 标识不确定结果；若操作超时，返回 `outcome_unknown`、关闭连接并按该 ID 取消。手动 compaction 要求当前 controller 且 Session 空闲，由 Core 通过与普通对话 Turn 共用的原子准入路径创建一个可审计 maintenance Turn，并在取得所有权后读取压缩上下文：planning 阶段允许取消，atomic commit 开始后忽略晚到取消并保持 Processing 直至终态持久化完成。maintenance Turn 保留在权威 transcript 中但不进入模型上下文，live/restored payload 使用同一 compression ID 和 `applied` 事实；commit 后的持久化故障发布明确失败终态而不是遗留 Processing。断连取消只有得到确认后才释放 Session 控制权；无法确认时继续隔离该 Session，直到 Runtime 进程退出。
 - Session delete/rename 和 Agent mode/model update 复用既有 Runtime 端口和校验，Runtime 对最终结果保持权威并拒绝无效目标。它们都是有副作用操作；发送前编码或 frame 上限失败表示请求未执行，连接仍可使用。rename 写入失败时恢复旧 metadata：确认恢复后返回明确失败，无法确认时返回 `outcome_unknown`。Shared Client 在请求写入后响应超时或丢失连接时也返回 `outcome_unknown` 并断开连接。两种情况都不自动重试：rename 由用户恢复 Session 并核对当前值；delete 由用户重新打开 `/sessions` 核对目标是否仍存在。模型目录以及完整 Agent/Subagent 管理仍是同版本第一方产品事实，不加入 IPC；v16 的 main Agent 摘要只是 host-owned selector 所需的最小只读投影。
 - 声明式上下文 reload 只失效当前 Session 的 instructions 缓存，并按目标复用 Skill Registry 刷新；它可在活动 Turn 中执行但不改写该 Turn，generation 保护保证下一条消息重建上下文。它不引入 watcher、热替换或第二套 Runtime owner。
-- v17 保留 `update current Session model` operation 及其 controller/idle/unknown-outcome 合同，但模型目录和默认值不进入该 wire。Shared TUI 的模型目录与配置由 CLI-local Model service 委托现有配置 owner，不属于 v17 或 App Server implementation。该 capability 只描述当前本机 Shared CLI scope，不伪装成 v17 或 Remote capability。
+- v18 保留 `update current Session model` operation 及其 controller/idle/unknown-outcome 合同，但模型目录和默认值不进入该 wire。Shared TUI 的模型目录与配置由 CLI-local Model service 委托现有配置 owner，不属于 v18 或 App Server implementation。该 capability 只描述当前本机 Shared CLI scope，不伪装成 v18 或 Remote capability。
 - Agent 事件流 lag/closed 后 fail closed；Permission lag 先从 Runtime 权威 pending 集合重建，重建失败或流关闭时取消当前 Turn 并退出。路由到父 Session 的嵌套 Permission 与 AskUserQuestion 复用现有 TUI 交互，不新增第二套 UI 状态。
 - Windows Shared Runtime 在初始化前把自身放入 kill-on-close Job；Unix 仅在应用内优雅退出路径中通过受管子进程组回收后代。Runtime 被 `SIGTERM`、`SIGKILL` 或崩溃直接终止后的 Unix 后代回收不在当前保证内。两者都只负责生命周期，不是安全沙箱。
 - 最后一个连接离开后等待 30 秒再退出；新连接会取消 idle 退出。退出只删除自己发布的 discovery；Unix 下继任 owner 会在持有实例锁后清理同一 identity 的陈旧 socket。
@@ -359,7 +360,7 @@ flowchart TB
   Web["Web UI"] --> AppServer["App Server"]
   EmbeddedTUI["Embedded TUI"] --> RuntimeClient["CliAgentRuntimeClient"]
   EmbeddedTUI --> OwnerApis["existing owner/service APIs"]
-  SharedTUI["Shared TUI"] --> SharedCompat["Runtime IPC v17 compatibility"]
+  SharedTUI["Shared TUI"] --> SharedCompat["Runtime IPC v18 compatibility"]
   DesktopAdapter --> API["Agent Runtime API / owner ports"]
   AppServer --> API["Agent Runtime API / owner ports"]
   RuntimeClient --> API
@@ -387,7 +388,7 @@ flowchart TB
 flowchart LR
   TUI["Interactive TUI · current"] --> RuntimeClient["CliAgentRuntimeClient"]
   RuntimeClient -->|"Embedded default"| Runtime["AgentRuntime typed API"]
-  RuntimeClient -->|"Shared compatibility"| IPC["adapters/agent-runtime-ipc v17"]
+  RuntimeClient -->|"Shared compatibility"| IPC["adapters/agent-runtime-ipc v18"]
   TUI --> OwnerApis["existing owner/service APIs"]
   OwnerApis --> DomainOwners["existing owners / services"]
   IPC --> Handler["CLI Shared handler"]
@@ -395,19 +396,19 @@ flowchart LR
 ```
 
 第二张图描述当前已交付的 TUI composition：Embedded 与 Shared 都使用同一个
-`CliAgentRuntimeClient`，其内部 backend 分别调用 `AgentRuntime` typed API 和 Runtime IPC v17。CLI Host 负责命令解析、TUI 状态、
+`CliAgentRuntimeClient`，其内部 backend 分别调用 `AgentRuntime` typed API 和 Runtime IPC v18。CLI Host 负责命令解析、TUI 状态、
 错误文案、Runtime backend 选择和生命周期；
 Startup 和 Chat controller 直接调用其实际使用的 owner/service API，并在访问 controller-local owner
 前检查 workspace scope。统一 Runtime client 负责 typed
 request/result/event 映射及私有 IPC 的协议与连接控制；Agent Runtime 与 owner 负责 Session 校验、
-持久化和权威结果。TUI 业务代码不根据部署形态复制 Runtime 分支，Shared 是否替换 v17 仍按独立门槛决定。
+持久化和权威结果。TUI 业务代码不根据部署形态复制 Runtime 分支，Shared 是否替换 v18 仍按独立门槛决定。
 这里不存在 catch-all TUI client 或统一 TUI management 模块。
 
 - CLI 不依赖 SDK Host，GUI/TUI 也不依赖公开 SDK package。
 - 交互式 TUI 的启动页和会话页直接依赖 `CliAgentRuntimeClient`；Embedded 与 Shared Runtime 调用都进入该 client。TUI controller 不直接依赖 Rust Runtime SDK、Runtime 实现或 IPC operation。
 - 非 Runtime 能力由 controller 直接调用 owner-owned 的稳定 service/API；每个使用 controller-local owner 的调用点单独裁剪 Remote workspace scope。CLI 仅在 `openbitfun server` 的独立 stdio Server Host 装配点（`src/apps/cli/src/server_host.rs`）依赖 App Server implementation；该 Host 是独立 Host 表面，注入显式 allowlist 与 canonical workspace scope 收敛能力，而非 TUI/Headless 的默认路径。TUI、controller 与 Headless CLI 仍不依赖 App Server implementation/client，也不复制 management DTO；Headless CLI 默认保持 Embedded。当前可复用 behavior-light protocol 合同，后续若下沉 semantic payload，必须与 JSON-RPC envelope 分离。
 - App Server wiring 独立于 TUI composition；TUI 重构不以 App Server parity 或兼容性作为验收条件。
-- Web 当前独立使用自己的 loopback WebSocket App Server Host，不进入 TUI backend composition。Shared 当前只有 private Runtime IPC v17；Shared App Server 只存在于第 1.3 节的 Phase 6 candidate 图中。
+- Web 当前独立使用自己的 loopback WebSocket App Server Host，不进入 TUI backend composition。Shared 当前只有 private Runtime IPC v18；Shared App Server 只存在于第 1.3 节的 Phase 6 candidate 图中。
 - Headless CLI 和 Peer Host 使用同一 Runtime 订阅入口，但分别保留确定性退出与 Peer fanout 语义；共享订阅入口不等于共享 renderer 或产品生命周期。
  - TUI 不是 Server；当前 Embedded Host 在同进程直接调用 Runtime，是否连接 Shared deployment 是部署选择，不改变 TUI 的 renderer/键位职责或行为合同。
 - Agent SDK Host 只服务外部 SDK 合同，不成为第一方 rich-client 的通用底座。
@@ -448,11 +449,11 @@ flowchart LR
 
 Phase 5 已把 Embedded interactive TUI 从旧 App Server 一次性切到 direct Runtime adapter，并删除
 旧 in-process App Server；Headless/CI 保留独立 adapter，Shared 继续使用前一张 Current 图中的
-private Runtime IPC v17。旧 App Server 不作为回滚配置保留。
+private Runtime IPC v18。旧 App Server 不作为回滚配置保留。
 
 ### 5.3 Scenario (+1) · delivered contract: rename current Session
 
-该场景将已交付的 Embedded direct adapter 与当前 Shared v17 行为放在同一等价合同中。
+该场景将已交付的 Embedded direct adapter 与当前 Shared v18 行为放在同一等价合同中。
 
 ```mermaid
 sequenceDiagram
@@ -469,7 +470,7 @@ sequenceDiagram
     R->>R: validate ownership + persist
     R-->>C: applied / failed / outcome_unknown
   else Shared compatibility
-    C->>R: Runtime IPC v17 -> owner port
+    C->>R: Runtime IPC v18 -> owner port
     R->>R: validate ownership + persist
     R-->>C: applied / failed / outcome_unknown
   end
@@ -496,7 +497,7 @@ sequenceDiagram
     R->>R: existing delete owner
     R-->>C: applied / failed / outcome_unknown
   else Shared compatibility
-    C->>R: Runtime IPC v17 -> owner port
+    C->>R: Runtime IPC v18 -> owner port
     R->>R: existing delete owner
     R-->>C: applied / failed / outcome_unknown
   end
@@ -504,7 +505,7 @@ sequenceDiagram
   T-->>U: remove only after applied
 ```
 
-Embedded 和 Shared 最终调用同一个 Agent Runtime。Shared Runtime Host 通过 v17 handler 调用 Runtime；它不是 Shared App Server。Shared Runtime Host 只在请求方没有活动 Turn、目标 Session 未被任何 Client 控制时调用 Runtime owner；`session_in_use` 和 `not_found` 保持结构化错误。TUI 复用现有单个 Session 异步任务槽位，不阻塞事件循环，也不自动重试结果不确定的删除。
+Embedded 和 Shared 最终调用同一个 Agent Runtime。Shared Runtime Host 通过 v18 handler 调用 Runtime；它不是 Shared App Server。Shared Runtime Host 只在请求方没有活动 Turn、目标 Session 未被任何 Client 控制时调用 Runtime owner；`session_in_use` 和 `not_found` 保持结构化错误。TUI 复用现有单个 Session 异步任务槽位，不阻塞事件循环，也不自动重试结果不确定的删除。
 
 ## 6. 隔离和生命周期原则
 
@@ -562,7 +563,7 @@ Session/Turn、事件恢复、Permission/UserInput、Controller、配置管理�
 - 当前入口使用第 1.1 节列出的 adapter；Embedded TUI 使用 direct Runtime adapter，Web/需要连接边界的 Rich Client 继续使用 App Server。
 - Client、窗口、Session 或 workspace 数量不会自动等量增加 Runtime 或 Plugin Host 进程。
 - 当前 Shared Runtime IPC 是第一方 TUI 的 private compatibility transport，不成为公开 SDK、Remote、Peer、HTTP 或浏览器协议；是否由 App Server Shared transport 替换仍待评审。
-- Shared TUI 的 Model、Skill、Subagent、MCP、External Source V1、Hook 和 Worktree 管理由 controller 直接调用现有 owner/service。这些 capability 不进入 `CliAgentRuntimeClient` 或 v17 wire。Account/Settings Sync 和后续 External Application V2 未由当前 Shared Host 提供并返回 typed unsupported；Remote workspace scope 明确 fail closed，不回落控制端本机。MCP service 的进程状态和 tool registry 只属于当前 CLI 进程，不即时重配已经运行的 Shared Runtime Host；跨进程 MCP 管理需要单独的同步/restart contract。
+- Shared TUI 的 Model、Skill、Subagent、MCP、External Source V1、Hook 和 Worktree 管理由 controller 直接调用现有 owner/service。这些 capability 不进入 `CliAgentRuntimeClient` 或 v18 wire。Account/Settings Sync 和后续 External Application V2 未由当前 Shared Host 提供并返回 typed unsupported；Remote workspace scope 明确 fail closed，不回落控制端本机。MCP service 的进程状态和 tool registry 只属于当前 CLI 进程，不即时重配已经运行的 Shared Runtime Host；跨进程 MCP 管理需要单独的同步/restart contract。
 - 默认 GUI/TUI/Headless CLI、ACP 与 SDK Host 保持 Embedded；其中交互式 TUI 的 Embedded 请求使用 direct Runtime adapter，旧 Embedded App Server 已删除。Desktop direct Runtime 是独立的已批准迁移步骤，不由 TUI Phase 5 的完成状态代替；Headless CLI、ACP 与 SDK Host 继续使用各自 adapter。只有交互式 TUI 的显式 `--shared` 选择 Shared。互斥按 `workspace + product` 生效，不再按入口名称缩窄。
 - Account/session cloud sync 仍使用既有 Core compatibility 边界，不属于 Shared Runtime 支持。
 - Remote workspace 的文件、凭据、进程和 Runtime 位于目标执行域，禁止静默回落本机。

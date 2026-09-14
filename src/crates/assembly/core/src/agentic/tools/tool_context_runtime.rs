@@ -44,7 +44,8 @@ use openbitfun_agent_runtime::permission::{
 };
 use openbitfun_agent_runtime::remote_file_delivery::TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY;
 use openbitfun_agent_runtime::user_questions::{
-    USER_INPUT_AVAILABLE_CONTEXT_KEY, USER_INPUT_MODEL_ROUND_CONTEXT_KEY,
+    UserQuestionController, USER_INPUT_AVAILABLE_CONTEXT_KEY, USER_INPUT_MODEL_ROUND_CONTEXT_KEY,
+    USER_INPUT_PARENT_CONTEXT_KEY,
 };
 use openbitfun_agent_tools::{
     LoadedDeferredToolSpec, PortableToolContextProvider, ToolContextFacts, ToolWorkspaceKind,
@@ -361,6 +362,28 @@ fn build_tool_context_custom_data(context: &ToolExecutionContext) -> HashMap<Str
         USER_INPUT_MODEL_ROUND_CONTEXT_KEY.to_string(),
         Value::String(context.round_id.clone()),
     );
+    let question_controller = context
+        .subagent_parent_info
+        .as_ref()
+        .map(|parent| UserQuestionController {
+            session_id: parent.session_id.clone(),
+            dialog_turn_id: Some(parent.dialog_turn_id.clone()),
+        })
+        .or_else(|| {
+            context
+                .permission_delegation
+                .as_ref()
+                .map(|parent| UserQuestionController {
+                    session_id: parent.parent_session_id.clone(),
+                    dialog_turn_id: parent.parent_dialog_turn_id.clone(),
+                })
+        });
+    if let Some(controller) = question_controller {
+        extension_custom_data.insert(
+            USER_INPUT_PARENT_CONTEXT_KEY.to_string(),
+            serde_json::to_value(controller).expect("controller contains only strings"),
+        );
+    }
     let deep_review_parent = context.subagent_parent_info.as_ref().map(|parent_info| {
         tool_context::DeepReviewToolParentContext {
             tool_call_id: parent_info.tool_call_id.as_str(),
@@ -1712,6 +1735,27 @@ mod task_context_tests {
     }
 
     #[test]
+    fn restored_question_delegation_without_parent_turn_still_identifies_controller() {
+        let mut task = task_with_context_vars();
+        task.context.subagent_parent_info = None;
+        task.context.permission_delegation =
+            Some(openbitfun_agent_runtime::sdk::PermissionDelegationContext {
+                parent_session_id: "restored-parent".into(),
+                parent_dialog_turn_id: None,
+                parent_tool_call_id: "parent-tool".into(),
+                subagent_type: "ComputerUse".into(),
+            });
+        let context = build_tool_use_context_for_task(&task, None, CancellationToken::new());
+        assert_eq!(
+            context.custom_data
+                [openbitfun_agent_runtime::user_questions::USER_INPUT_PARENT_CONTEXT_KEY],
+            json!({
+                "session_id": "restored-parent", "dialog_turn_id": null,
+            })
+        );
+    }
+
+    #[test]
     fn tool_task_context_materialization_preserves_runtime_fields() {
         let task = task_with_context_vars();
 
@@ -1764,6 +1808,13 @@ mod task_context_tests {
         assert_eq!(
             context.custom_data["deep_review_parent_tool_call_id"],
             json!("parent_tool")
+        );
+        assert_eq!(
+            context.custom_data
+                [openbitfun_agent_runtime::user_questions::USER_INPUT_PARENT_CONTEXT_KEY],
+            json!({
+                "session_id": "parent_session", "dialog_turn_id": "parent_turn"
+            })
         );
         assert_eq!(
             context.custom_data["deep_review_parent_session_id"],

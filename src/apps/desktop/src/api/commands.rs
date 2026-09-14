@@ -508,6 +508,7 @@ pub struct AgentCompanionPetPackageDto {
     pub package_path: String,
     pub spritesheet_path: String,
     pub spritesheet_mime_type: String,
+    pub sprite_version_number: u32,
 }
 
 #[derive(Debug, Serialize)]
@@ -2588,6 +2589,7 @@ fn spritesheet_mime_type(file_name: &str) -> &'static str {
 fn load_pet_manifest_from_bytes(bytes: &[u8]) -> Result<(serde_json::Value, PathBuf), String> {
     let manifest: serde_json::Value =
         serde_json::from_slice(bytes).map_err(|e| format!("Failed to parse pet.json: {}", e))?;
+    pet_sprite_version(&manifest)?;
     let spritesheet_path = manifest
         .get("spritesheetPath")
         .and_then(|value| value.as_str())
@@ -2595,6 +2597,56 @@ fn load_pet_manifest_from_bytes(bytes: &[u8]) -> Result<(serde_json::Value, Path
         .ok_or_else(|| "pet.json is missing spritesheetPath".to_string())?
         .to_string();
     Ok((manifest, PathBuf::from(spritesheet_path)))
+}
+
+fn pet_sprite_version(manifest: &serde_json::Value) -> Result<u32, String> {
+    match manifest.get("spriteVersionNumber") {
+        None => Ok(1),
+        Some(value) => match value.as_u64() {
+            Some(1) => Ok(1),
+            Some(2) => Ok(2),
+            _ => Err(format!("Unsupported pet spriteVersionNumber: {value}")),
+        },
+    }
+}
+
+#[cfg(test)]
+mod pet_package_tests {
+    use super::*;
+
+    #[test]
+    fn pet_manifest_versions_are_validated_and_exported() {
+        for version in [None, Some(1), Some(2)] {
+            let dir = tempfile::tempdir().unwrap();
+            let mut manifest = serde_json::json!({
+                "id": "sample", "displayName": "Sample", "spritesheetPath": "spritesheet.webp"
+            });
+            if let Some(version) = version {
+                manifest["spriteVersionNumber"] = serde_json::json!(version);
+            }
+            std::fs::write(
+                dir.path().join("pet.json"),
+                serde_json::to_vec(&manifest).unwrap(),
+            )
+            .unwrap();
+            std::fs::write(dir.path().join("spritesheet.webp"), []).unwrap();
+            let dto = pet_package_dto_from_dir(dir.path(), "user").unwrap();
+            assert_eq!(dto.sprite_version_number, version.unwrap_or(1));
+            assert_eq!(
+                serde_json::to_value(dto).unwrap()["spriteVersionNumber"],
+                version.unwrap_or(1)
+            );
+        }
+        for version in [
+            serde_json::json!(0),
+            serde_json::json!(3),
+            serde_json::json!("2"),
+            serde_json::Value::Null,
+        ] {
+            let manifest = serde_json::json!({"spritesheetPath": "spritesheet.webp", "spriteVersionNumber": version});
+            assert!(load_pet_manifest_from_bytes(&serde_json::to_vec(&manifest).unwrap()).is_err());
+        }
+    }
 }
 
 fn load_pet_package_source(source_path: &Path) -> Result<PetPackageSource, String> {
@@ -2718,6 +2770,7 @@ fn pet_package_dto_from_dir(
         package_path: dir.to_string_lossy().to_string(),
         spritesheet_path: spritesheet_path.to_string_lossy().to_string(),
         spritesheet_mime_type: spritesheet_mime_type(spritesheet_file_name).to_string(),
+        sprite_version_number: pet_sprite_version(&manifest)?,
     })
 }
 
@@ -2773,6 +2826,7 @@ pub(crate) async fn import_agent_companion_pet_package_impl(
     let source_path = PathBuf::from(source_path);
     let source = load_pet_package_source(&source_path)?;
     let (pet_json, _) = load_pet_manifest_from_bytes(&source.pet_json)?;
+    let sprite_version_number = pet_sprite_version(&pet_json)?;
 
     let raw_id = pet_json
         .get("id")
@@ -2839,6 +2893,7 @@ pub(crate) async fn import_agent_companion_pet_package_impl(
         package_path: package_dir.to_string_lossy().to_string(),
         spritesheet_path: spritesheet_path.to_string_lossy().to_string(),
         spritesheet_mime_type: spritesheet_mime_type(&spritesheet_file_name).to_string(),
+        sprite_version_number,
     })
 }
 

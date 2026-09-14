@@ -53,8 +53,8 @@ class ToolStatusRowTest {
             )
         }
 
-        composeRule.onNodeWithText("Approve").assertIsDisplayed()
-        composeRule.onNodeWithText("Reject").performClick()
+        composeRule.onNodeWithText(testString(R.string.tool_approve)).assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.tool_reject)).performClick()
 
         assertEquals(false, approved)
         // The desktop refuses a rejection without a reason, so the client
@@ -85,10 +85,10 @@ class ToolStatusRowTest {
 
         // No tap needed to reach it: the panel is the transcript, not a dialog.
         composeRule.onNodeWithText("Which branch should this land on?").assertIsDisplayed()
-        composeRule.onNodeWithText("Send answer").assertIsNotEnabled()
+        composeRule.onNodeWithText(testString(R.string.tool_answer_send)).assertIsNotEnabled()
 
-        composeRule.onNodeWithText("Your answer").performTextInput("  main  ")
-        composeRule.onNodeWithText("Send answer").assertIsEnabled().performClick()
+        composeRule.onNodeWithText(testString(R.string.tool_answer_label)).performTextInput("  main  ")
+        composeRule.onNodeWithText(testString(R.string.tool_answer_send)).assertIsEnabled().performClick()
 
         assertEquals("main", answer)
     }
@@ -113,7 +113,7 @@ class ToolStatusRowTest {
 
         // Kept on screen rather than hidden: the turn is still blocked on this
         // tool, and a row that loses its buttons reads as one that resolved.
-        composeRule.onNodeWithText("Approve").assertIsNotEnabled()
+        composeRule.onNodeWithText(testString(R.string.tool_approve)).assertIsNotEnabled()
         assertEquals(false, approved)
     }
 
@@ -135,8 +135,8 @@ class ToolStatusRowTest {
             )
         }
 
-        composeRule.onNodeWithText("Running \"README.md\"").assertIsDisplayed()
-        composeRule.onNodeWithText("Stop").performClick()
+        composeRule.onNodeWithText(testString(R.string.tool_line_running, "README.md")).assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.message_stop)).performClick()
 
         assertEquals("Cancelled from the Android client", cancellation)
     }
@@ -159,10 +159,10 @@ class ToolStatusRowTest {
 
         // The state is carried by the badge, so the line is free to say the one
         // thing a chip reading "Done" never did: which file was edited.
-        composeRule.onNodeWithText("Edit file · README.md").assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.tool_line_target, testString(R.string.tool_op_edit_file), "README.md")).assertIsDisplayed()
         composeRule.onNodeWithTag(TOOL_EXPAND_TEST_TAG).assertIsDisplayed()
-        composeRule.onNodeWithText("Approve").assertDoesNotExist()
-        composeRule.onNodeWithText("Your answer").assertDoesNotExist()
+        composeRule.onNodeWithText(testString(R.string.tool_approve)).assertDoesNotExist()
+        composeRule.onNodeWithText(testString(R.string.tool_answer_label)).assertDoesNotExist()
     }
 
     @Test
@@ -184,7 +184,7 @@ class ToolStatusRowTest {
         composeRule.onNodeWithTag(TOOL_EXPAND_TEST_TAG).assertIsDisplayed()
         composeRule.onNodeWithTag(TOOL_EXPAND_TEST_TAG).performClick()
         composeRule.onNodeWithTag(TOOL_EXPAND_TEST_TAG).assertIsDisplayed()
-        composeRule.onNodeWithText("Read file · One.kt").assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.tool_line_target, testString(R.string.tool_op_read_file), "One.kt")).assertIsDisplayed()
     }
 
     @Test
@@ -209,7 +209,7 @@ class ToolStatusRowTest {
             )
         }
 
-        composeRule.onNodeWithText("Edit file · README.md").performClick()
+        composeRule.onNodeWithText(testString(R.string.tool_line_target, testString(R.string.tool_op_edit_file), "README.md")).performClick()
 
         assertEquals("docs/README.md" to "README.md", opened)
     }
@@ -230,13 +230,13 @@ class ToolStatusRowTest {
             )
         }
 
-        composeRule.onNodeWithText("Ran 2 tools").assertIsDisplayed()
-        composeRule.onNodeWithText("Read file · One.kt").assertDoesNotExist()
+        composeRule.onNodeWithText(testString(R.string.tool_group_summary, 2)).assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.tool_line_target, testString(R.string.tool_op_read_file), "One.kt")).assertDoesNotExist()
 
-        composeRule.onNodeWithText("Ran 2 tools").performClick()
+        composeRule.onNodeWithText(testString(R.string.tool_group_summary, 2)).performClick()
 
-        composeRule.onNodeWithText("Read file · One.kt").assertIsDisplayed()
-        composeRule.onNodeWithText("Read file · Two.kt").assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.tool_line_target, testString(R.string.tool_op_read_file), "One.kt")).assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.tool_line_target, testString(R.string.tool_op_read_file), "Two.kt")).assertIsDisplayed()
     }
 
     private fun pendingTool(actions: Set<ToolAction>): ToolCard = ToolCard(

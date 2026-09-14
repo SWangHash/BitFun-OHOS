@@ -1,11 +1,11 @@
 {
   "schemaVersion": 2,
   "generatedFrom": "src/shared/interactive-capabilities/catalog.json",
-  "catalogDigest": "896281a3cd5cac2b50ec607988e04624224444911ddb2d58ba59a5d7d06493c5",
-  "commandCount": 645,
+  "catalogDigest": "124222af073f8c5164b15b625723c0e3b81f0b200e41855cd343ef1f07d5f39b",
+  "commandCount": 648,
   "coverage": {
-    "commandCount": 645,
-    "documentedCommandCount": 608,
+    "commandCount": 648,
+    "documentedCommandCount": 611,
     "implementationCommandCount": 37,
     "implementationDigest": "3c5e64b6ff16d55d95c2a6b4f77046be009a554b395b4a52bf8ed7c162ab1093"
   },
@@ -329,7 +329,7 @@
       "visibility": "documented",
       "rustPath": "add_skill",
       "sourceFile": "src/apps/desktop/src/api/skill_api.rs",
-      "signature": "fn add_skill( _state: State<'_, AppState>, source_path: String, level: String, workspace_path: Option<String>, ) -> Result<String, String>",
+      "signature": "fn add_skill( _state: State<'_, AppState>, source_path: String, level: String, workspace_path: Option<String>, source_key: Option<String>, target_name: Option<String>, expected_source_fingerprint: Option<String>, ) -> Result<String, String>",
       "remoteWorkspacePolicy": "LegacyUnaudited"
     },
     {
@@ -1793,7 +1793,7 @@
       "visibility": "documented",
       "rustPath": "delete_skill",
       "sourceFile": "src/apps/desktop/src/api/skill_api.rs",
-      "signature": "fn delete_skill( state: State<'_, AppState>, skill_key: String, workspace_path: Option<String>, ) -> Result<String, String>",
+      "signature": "fn delete_skill( state: State<'_, AppState>, skill_key: String, workspace_path: Option<String>, expected_import_id: Option<String>, ) -> Result<String, String>",
       "remoteWorkspacePolicy": "LegacyUnaudited"
     },
     {
@@ -2691,6 +2691,22 @@
       "remoteWorkspacePolicy": "LegacyUnaudited"
     },
     {
+      "id": "get_chat_mcp_catalog",
+      "moduleId": "tool",
+      "capabilityId": "feature.ai-assistant",
+      "capabilityIds": [
+        "feature.ai-assistant"
+      ],
+      "documentedItemIds": [
+        "feature.ai-assistant:mcp-mentions"
+      ],
+      "visibility": "documented",
+      "rustPath": "get_chat_mcp_catalog",
+      "sourceFile": "src/apps/desktop/src/api/tool_api.rs",
+      "signature": "fn get_chat_mcp_catalog( request: openbitfun_core::agentic::tools::product_runtime::ChatMcpCatalogRequest, ) -> Result<openbitfun_core::agentic::tools::product_runtime::ChatMcpCatalog, String>",
+      "remoteWorkspacePolicy": "RemoteUnsupported"
+    },
+    {
       "id": "get_clipboard_files",
       "moduleId": "clipboard_file",
       "capabilityId": "feature.files-editor",
@@ -3055,6 +3071,22 @@
       "sourceFile": "src/apps/desktop/src/api/commands.rs",
       "signature": "fn get_health_status( state: State<'_, AppState>, ) -> Result<crate::api::HealthStatus, String>",
       "remoteWorkspacePolicy": "WorkspaceAgnostic"
+    },
+    {
+      "id": "get_instruction_source_catalog",
+      "moduleId": "external_sources",
+      "capabilityId": "feature.ecosystem-compatibility",
+      "capabilityIds": [
+        "feature.ecosystem-compatibility"
+      ],
+      "documentedItemIds": [
+        "feature.ecosystem-compatibility:source-discovery"
+      ],
+      "visibility": "documented",
+      "rustPath": "get_instruction_source_catalog",
+      "sourceFile": "src/apps/desktop/src/api/external_sources_api.rs",
+      "signature": "fn get_instruction_source_catalog( request: ExternalSourceSnapshotRequest, ) -> ExternalSourceOperationResult<openbitfun_core::external_sources::InstructionSourceCatalog>",
+      "remoteWorkspacePolicy": "RemoteUnsupported"
     },
     {
       "id": "get_latest_insights",
@@ -9417,6 +9449,22 @@
       "remoteWorkspacePolicy": "LocalOnly"
     },
     {
+      "id": "start_user_question_interaction",
+      "moduleId": "tool",
+      "capabilityId": "feature.ai-assistant",
+      "capabilityIds": [
+        "feature.ai-assistant"
+      ],
+      "documentedItemIds": [
+        "feature.ai-assistant:permission-mailbox"
+      ],
+      "visibility": "documented",
+      "rustPath": "start_user_question_interaction",
+      "sourceFile": "src/apps/desktop/src/api/tool_api.rs",
+      "signature": "fn start_user_question_interaction( runtime: State<'_, DesktopRuntimeContext>, request: StartUserQuestionInteractionRequest, ) -> Result<(), String>",
+      "remoteWorkspacePolicy": "WorkspaceAgnostic"
+    },
+    {
       "id": "startup_window_control",
       "moduleId": "system",
       "capabilityId": "setting.application.general",
@@ -10168,7 +10216,7 @@
       "visibility": "documented",
       "rustPath": "validate_skill_path",
       "sourceFile": "src/apps/desktop/src/api/skill_api.rs",
-      "signature": "fn validate_skill_path(path: String) -> Result<SkillValidationResult, String>",
+      "signature": "fn validate_skill_path( path: String, source_key: Option<String>, workspace_path: Option<String>, ) -> Result<SkillValidationResult, String>",
       "remoteWorkspacePolicy": "LegacyUnaudited"
     },
     {

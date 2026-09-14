@@ -18,47 +18,52 @@ struct RemoteCreateSessionView: View {
     private let log = Logger(subsystem: "com.openbitfun.mobile.ios", category: "remote-create-ui")
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button(action: onBack) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 19, weight: .medium))
-                        .foregroundStyle(OpenBitFunTheme.ink)
-                        .frame(width: 44, height: 44)
-                        .background(OpenBitFunTheme.card)
-                        .clipShape(Circle())
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 0) {
+                    HStack {
+                        Button(action: onBack) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 19, weight: .medium))
+                                .foregroundStyle(OpenBitFunTheme.ink)
+                                .frame(width: 44, height: 44)
+                                .background(OpenBitFunTheme.card)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(model.localized("返回"))
+                        Spacer()
+                    }
+                    .frame(height: 78, alignment: .top)
+                    .padding(.leading, 18)
+                    .padding(.top, 14)
+
+                    Spacer(minLength: 12)
+
+                    if !model.remoteConnected {
+                        createStatus(message: model.localized("连接不可用，请重新连接"), retryTitle: model.localized("重试"), action: model.verifyRemoteConnection)
+                    } else if let error = model.remoteCreateError ?? model.remoteCreateDeviceError ??
+                                (model.workspaceLoadFailed ? (model.coreErrorMessage ?? model.localized("工作区加载失败，请重试")) : nil) {
+                        createStatus(message: error, retryTitle: model.localized("重试"), action: retryCreate)
+                    }
+
+                    contextButton(
+                        kind: .device,
+                        icon: "desktopcomputer",
+                        label: deviceLabel,
+                        automationIdentifier: selectedDeviceAutomationIdentifier
+                    )
+                    contextButton(
+                        kind: .workspace,
+                        icon: selectedWorkspacePath.isEmpty ? "message" : "folder",
+                        label: model.remoteCreateWorkspacePhase == .loading
+                            ? model.localized("正在加载工作区") : selectedWorkspaceName,
+                        automationIdentifier: selectedWorkspaceAutomationIdentifier
+                    )
+                    createComposer
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(model.localized("返回"))
-                Spacer()
+                .frame(minHeight: geometry.size.height)
             }
-            .frame(height: 78, alignment: .top)
-            .padding(.leading, 18)
-            .padding(.top, 14)
-
-            Spacer(minLength: 12)
-
-            if !model.remoteConnected {
-                createStatus(message: model.localized("连接不可用，请重新连接"), retryTitle: model.localized("重试"), action: model.verifyRemoteConnection)
-            } else if let error = model.remoteCreateError ?? model.remoteCreateDeviceError ??
-                        (model.workspaceLoadFailed ? (model.coreErrorMessage ?? model.localized("工作区加载失败，请重试")) : nil) {
-                createStatus(message: error, retryTitle: model.localized("重试"), action: retryCreate)
-            }
-
-            contextButton(
-                kind: .device,
-                icon: "desktopcomputer",
-                label: deviceLabel,
-                automationIdentifier: selectedDeviceAutomationIdentifier
-            )
-            contextButton(
-                kind: .workspace,
-                icon: selectedWorkspacePath.isEmpty ? "message" : "folder",
-                label: model.remoteCreateWorkspacePhase == .loading
-                    ? model.localized("正在加载工作区") : selectedWorkspaceName,
-                automationIdentifier: selectedWorkspaceAutomationIdentifier
-            )
-            createComposer
         }
         .background(OpenBitFunTheme.page)
         .overlayPreferenceValue(RemoteCreateSelectionAnchorKey.self) { anchors in
@@ -251,7 +256,7 @@ struct RemoteCreateSessionView: View {
                 .buttonStyle(.plain)
                 // A session-list refresh is not an active turn and must not disable creation here.
                 .disabled(model.remoteCreateSubmitting || !model.remoteConnected)
-                .accessibilityLabel(model.remoteCreateSubmitting ? model.localized("正在加载") : model.localized("发送"))
+                .accessibilityLabel(model.localized(model.remoteCreateSubmitting ? "正在加载" : (speech.isListening ? "停止语音输入" : (instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "语音输入" : "发送"))))
             }
             .frame(height: MobileDesignGeometry.composerExpandedActionRowHeight)
         }

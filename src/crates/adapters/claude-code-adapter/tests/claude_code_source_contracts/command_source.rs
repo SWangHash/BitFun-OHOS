@@ -573,3 +573,100 @@ fn watch_roots_are_bounded_to_user_and_project_claude_directories() {
         .iter()
         .any(|root| root.path == fixture.workspace.join(".claude") && root.recursive));
 }
+
+#[test]
+fn configured_claude_directory_is_shared_by_providers_and_watch_roots() {
+    use openbitfun_claude_code_adapter::{
+        ClaudeCodeHookProvider, ClaudeCodeHookProviderOptions, ClaudeCodeInstructionSourceOptions,
+        ClaudeCodeSubagentProvider, ClaudeCodeSubagentProviderOptions,
+    };
+    use openbitfun_product_domains::external_hook_catalog::ExternalHookSourceProvider;
+    use openbitfun_product_domains::external_subagents::{
+        ExternalSubagentDiscoveryInput, ExternalSubagentSourceProvider,
+    };
+    struct Restore(Option<std::ffi::OsString>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            match &self.0 {
+                Some(value) => std::env::set_var("CLAUDE_CONFIG_DIR", value),
+                None => std::env::remove_var("CLAUDE_CONFIG_DIR"),
+            }
+        }
+    }
+    // Other fixtures inject explicit options; only this test changes this variable.
+    let _restore = Restore(std::env::var_os("CLAUDE_CONFIG_DIR"));
+    let temp = tempfile::tempdir().unwrap();
+    let custom = temp.path().join("custom-claude");
+    std::fs::create_dir_all(custom.join("commands")).unwrap();
+    std::fs::create_dir_all(custom.join("agents")).unwrap();
+    std::fs::write(custom.join("commands/review.md"), "Review this change.").unwrap();
+    std::fs::write(
+        custom.join("agents/reviewer.md"),
+        "---\nname: reviewer\ndescription: Review changes\n---\nReview this change.",
+    )
+    .unwrap();
+    std::fs::write(
+        custom.join("settings.json"),
+        r#"{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"echo check"}]}]}}"#,
+    )
+    .unwrap();
+    std::env::set_var("CLAUDE_CONFIG_DIR", &custom);
+    assert_eq!(
+        ClaudeCodeInstructionSourceOptions::from_environment().config_dir,
+        Some(custom.clone())
+    );
+    let commands =
+        ClaudeCodeCommandProvider::new(ClaudeCodeCommandProviderOptions::from_environment());
+    let agents =
+        ClaudeCodeSubagentProvider::new(ClaudeCodeSubagentProviderOptions::from_environment());
+    let hooks = ClaudeCodeHookProvider::new(ClaudeCodeHookProviderOptions::from_environment());
+    let context = openbitfun_product_domains::external_sources::ExternalSourceContext {
+        workspace_root: None,
+        execution_domain_id: openbitfun_product_domains::external_sources::ExecutionDomainId::new(
+            "local-user",
+        )
+        .unwrap(),
+    };
+    assert_eq!(commands.discover(&context).unwrap().commands.len(), 1);
+    assert_eq!(
+        agents
+            .discover(&ExternalSubagentDiscoveryInput {
+                context: context.clone(),
+                suppressed_sources: Default::default()
+            })
+            .unwrap()
+            .definitions
+            .len(),
+        1
+    );
+    assert_eq!(hooks.discover(&context).unwrap().sources.len(), 1);
+    assert!(commands
+        .watch_roots(&context)
+        .iter()
+        .any(|root| root.path == custom));
+    assert!(agents
+        .watch_roots(&context)
+        .iter()
+        .any(|root| root.path == custom));
+    for invalid in ["", "relative", "~/claude"] {
+        std::env::set_var("CLAUDE_CONFIG_DIR", invalid);
+        assert!(ClaudeCodeInstructionSourceOptions::from_environment()
+            .config_dir
+            .is_none());
+        assert!(ClaudeCodeCommandProvider::default()
+            .discover(&context)
+            .is_err());
+        assert!(ClaudeCodeSubagentProvider::default()
+            .discover(&ExternalSubagentDiscoveryInput {
+                context: context.clone(),
+                suppressed_sources: Default::default()
+            })
+            .is_err());
+        assert!(ClaudeCodeHookProvider::default()
+            .discover(&context)
+            .is_err());
+        assert!(ClaudeCodeCommandProvider::default()
+            .watch_roots(&context)
+            .is_empty());
+    }
+}

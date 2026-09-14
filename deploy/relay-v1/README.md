@@ -21,11 +21,23 @@ peers. Keep the range list synchronized with the WAF control plane. Raise
 `worker_connections` to 8192 and retain a file descriptor limit of at least
 16384; validate with `nginx -t` before a graceful reload.
 
-Published Pages are disabled with an explicit 503 until both isolated public
-and sign-in origins are configured. This prevents uploaded content from sharing
-the mobile controller's account origin. Enabling Pages requires dedicated
-origins, their proxy routes, and the Page isolation verification in the owner
-guide; setting an arbitrary origin value alone is insufficient.
+Published Pages use the existing official Relay address:
+`https://remote.openbitfun.com/v/1.0.0/p/{github_username}/{slug}`.
+Compose sets this public base URL and the separate sign-in base URL
+`https://auth.openbitfun.com/v/1.0.0`. Users do not configure domains.
+Install the versioned Pages sign-in locations from
+[`nginx-auth.openbitfun.com.conf`](../miniapp-market/nginx-auth.openbitfun.com.conf)
+in the existing auth server as well. Keep its marketplace sign-in routes intact.
+These locations forward only Page sign-in and GitHub start/poll endpoints to
+Relay, preserve the auth Host, and omit query strings from access logs.
+The Page callback and published content remain on the remote origin.
+
+Both base URLs are required: missing configuration returns an explicit 503.
+After changing the environment, recreate only `relay-v1` with the verified
+existing image (`docker compose up -d --no-build relay-v1`), validate Nginx,
+and gracefully reload it. Verify publish and deploy through an authenticated
+CLI, fetch both returned URLs, and verify that private-page sign-in redirects
+to the auth origin and its client script loads.
 
 Before replacement, back up this version's database and assets and retain the
 previous image tag. Roll back only this Compose project and its versioned

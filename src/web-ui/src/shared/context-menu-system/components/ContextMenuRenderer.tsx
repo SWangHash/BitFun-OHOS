@@ -33,6 +33,7 @@ const CONTEXT_MENU_CATALOG: Record<string, IconName> = {
   Pin: 'pin',
   Plus: 'plus',
   Search: 'search',
+  Terminal: 'terminal',
   RefreshCw: 'refresh',
   X: 'xmark',
 };

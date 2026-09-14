@@ -405,7 +405,13 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
         </div>
 
         {/* Path Breadcrumb / Input */}
-        <div className="remote-file-browser__breadcrumb" data-openbitfun-component="ssh-remote" data-openbitfun-part="breadcrumb">
+        <ScrollArea
+          className="remote-file-browser__breadcrumb"
+          data-openbitfun-component="ssh-remote"
+          data-openbitfun-part="breadcrumb"
+          orientation="horizontal"
+          scrollbarVisibility="hidden"
+        >
           {isEditingPath ? (
             <Input
               ref={pathInputRef}
@@ -432,13 +438,13 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
               }}
               title={t('ssh.remote.clickToEditPath') || 'Click to edit path'}
             >
-              <button
+              <IconButton
                 className="remote-file-browser__breadcrumb-btn"
                 onClick={(e) => { e.stopPropagation(); navigateTo(homeAnchor); }}
                 title={t('ssh.remote.homeFolder') || 'Home folder'}
-              >
-                <Home size={14} />
-              </button>
+                aria-label={t('ssh.remote.homeFolder')}
+                icon={<Home size={14} />}
+              />
               <Icon name="chevron-right" size="xs" className="remote-file-browser__breadcrumb-sep" />
               {pathParts.length === 0 ? (
                 <span className="remote-file-browser__breadcrumb-current">/</span>
@@ -461,19 +467,19 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
               )}
             </div>
           )}
-        </div>
+        </ScrollArea>
 
         {/* Toolbar */}
         <div className="remote-file-browser__toolbar" data-openbitfun-component="ssh-remote" data-openbitfun-part="toolbar">
-          <button
+          <IconButton
             className="remote-file-browser__toolbar-btn"
             onClick={() => loadDirectory(currentPath)}
             title={t('actions.refresh')}
             disabled={transferBusy}
-          >
-            <Icon name="refresh" size="md" />
-          </button>
-          <button
+            aria-label={t('actions.refresh')}
+            icon={<Icon name="refresh" size="md" />}
+          />
+          <IconButton
             className="remote-file-browser__toolbar-btn"
             onClick={() => {
               const p = getRemoteParentPath(currentPath);
@@ -481,18 +487,18 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
             }}
             title="Go up"
             disabled={getRemoteParentPath(currentPath) === null || transferBusy}
-          >
-            <Icon name="arrow-left" size="md" />
-          </button>
-          <button
+            aria-label="Go up"
+            icon={<Icon name="arrow-left" size="md" />}
+          />
+          <IconButton
             type="button"
             className="remote-file-browser__toolbar-btn"
             onClick={() => void handleUploadToCurrentDir()}
             title={t('ssh.remote.upload')}
             disabled={transferBusy}
-          >
-            <Icon name="upload" size="md" />
-          </button>
+            aria-label={t('ssh.remote.upload')}
+            icon={<Icon name="upload" size="md" />}
+          />
         </div>
 
         {transferBusy && (
@@ -507,15 +513,19 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
           {error && (
             <div className="remote-file-browser__error">
               <span>{error}</span>
-              <button
+              <IconButton
                 type="button"
                 onClick={() => loadDirectory(currentPath)}
                 title={t('actions.retry') || 'Retry'}
                 style={{ marginLeft: 'auto', marginRight: 8 }}
-              >
-                <Icon name="refresh" size="sm" />
-              </button>
-              <button onClick={() => setError(null)}>×</button>
+                aria-label={t('actions.retry')}
+                icon={<Icon name="refresh" size="sm" />}
+              />
+              <IconButton
+                onClick={() => setError(null)}
+                aria-label={t('actions.close')}
+                icon={'×'}
+              />
             </div>
           )}
 

@@ -2,6 +2,7 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 
 export const toolbarModeAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'toolbar-mode',
+  componentAttribute: 'data-openbitfun-product-component',
   parts: [
     { id: 'root' }, { id: 'header' }, { id: 'headerLeft' }, { id: 'title' },
     { id: 'headerActions' }, { id: 'overflowTrigger' }, { id: 'overflowMenu' },

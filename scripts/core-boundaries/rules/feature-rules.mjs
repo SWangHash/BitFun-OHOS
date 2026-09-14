@@ -223,6 +223,7 @@ export const optionalDependencyFeatureOwnerRules = [
           'tools-image-analysis',
           'tools-mcp',
           'tools-miniapp',
+          'tools-pages',
         ],
       },
       { depName: 'chrono-tz', ownerFeatures: ['scheduled-jobs'] },
@@ -717,6 +718,7 @@ export const coreProductFullFeatureAssemblyRule = {
     'tools-image-analysis',
     'tools-mcp',
     'tools-miniapp',
+    'tools-pages',
     'web-tools',
     'workspace-search',
     'announcement',
@@ -1323,6 +1325,13 @@ export const coreClosedFeatureProfileRules = [
   },
   {
     manifestPath: 'src/crates/assembly/core/Cargo.toml',
+    featureName: 'tools-pages',
+    requiredFeatureRefs: ['openbitfun-tool-packs/pages'],
+    exact: true,
+    reason: 'tools-pages owns account publishing tools without MiniApp runtime dependencies',
+  },
+  {
+    manifestPath: 'src/crates/assembly/core/Cargo.toml',
     featureName: 'tools-miniapp',
     requiredFeatureRefs: [
       'openbitfun-tool-packs/miniapp',
@@ -1732,6 +1741,7 @@ export const ownerCrateFeatureAssemblyRules = [
       'computer-use',
       'image-analysis',
       'miniapp',
+      'pages',
       'creation',
       'canvas',
       'agent-control',

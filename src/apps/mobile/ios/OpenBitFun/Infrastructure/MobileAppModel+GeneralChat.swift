@@ -127,7 +127,8 @@ extension MobileAppModel {
                 )
             },
             actions: Set(tool.actions.map(\.name)),
-            foldIntoSummary: tool.foldIntoSummary
+            foldIntoSummary: tool.foldIntoSummary,
+            planPath: tool.plan?.path, planName: tool.plan?.name ?? "", planOverview: tool.plan?.overview ?? ""
         )
     }
 

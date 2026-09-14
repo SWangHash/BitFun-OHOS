@@ -138,6 +138,16 @@ impl MCPServerTimeouts {
 }
 
 /// MCP server configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MCPImportOrigin {
+    pub source_candidate_id: String,
+    pub behavior_version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_id: Option<String>,
+}
+
+/// MCP server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MCPServerConfig {

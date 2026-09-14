@@ -28,6 +28,13 @@ use crate::runtime::DesktopRuntimeContext;
 /// controller cannot tell "unsupported" from "empty".
 pub type ToolInfo = ToolInfoDto;
 
+#[tauri::command]
+pub async fn get_chat_mcp_catalog(
+    request: openbitfun_core::agentic::tools::product_runtime::ChatMcpCatalogRequest,
+) -> Result<openbitfun_core::agentic::tools::product_runtime::ChatMcpCatalog, String> {
+    openbitfun_core::agentic::tools::product_runtime::build_chat_mcp_catalog(request).await
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionRequest {
@@ -351,6 +358,24 @@ pub async fn execute_tool(request: ToolExecutionRequest) -> Result<ToolExecution
     }
 
     Err(format!("Tool '{}' not found", request.tool_name))
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartUserQuestionInteractionRequest {
+    pub session_id: String,
+    pub tool_id: String,
+}
+
+#[tauri::command]
+pub async fn start_user_question_interaction(
+    runtime: State<'_, DesktopRuntimeContext>,
+    request: StartUserQuestionInteractionRequest,
+) -> Result<(), String> {
+    runtime
+        .agent_runtime()
+        .start_user_question_interaction(&request.session_id, &request.tool_id)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

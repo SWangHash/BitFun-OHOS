@@ -1084,6 +1084,122 @@ async fn mcp_config_service_orchestration_preserves_load_save_delete_contract() 
 }
 
 #[tokio::test]
+async fn external_mcp_import_options_survive_load_save_and_legacy_round_trip() {
+    let store = Arc::new(InMemoryMCPConfigStore::default());
+    let service = MCPConfigService::new(store.clone());
+    let directory = tempfile::tempdir().unwrap();
+    let cwd = directory.path().to_string_lossy().into_owned();
+    let timeouts = openbitfun_services_integrations::mcp::MCPServerTimeouts {
+        startup_ms: Some(1250),
+        catalog_ms: Some(2500),
+        execution_ms: Some(60_000),
+    };
+    let snapshot = service.user_import_snapshot().await.unwrap();
+    service
+        .apply_user_import(
+            &snapshot.fingerprint,
+            vec![
+                MCPImportServer {
+                    environment: [("TOKEN".into(), "literal-secret".into())].into(),
+                    headers: Default::default(),
+                    source_id: Some("codex".into()),
+                    native_id: "local".into(),
+                    candidate_id: "deepseek-harness:mcp:local".into(),
+                    behavior_version: "v1".into(),
+                    display_name: "local".into(),
+                    transport: MCPImportTransport::Local {
+                        command: "node".into(),
+                        args: vec!["./server.js".into()],
+                    },
+                    working_directory: Some(cwd.clone()),
+                    timeouts,
+                    oauth_enabled: None,
+                },
+                MCPImportServer {
+                    environment: Default::default(),
+                    headers: [("Authorization".into(), "Bearer header-secret".into())].into(),
+                    source_id: Some("codex".into()),
+                    native_id: "remote".into(),
+                    candidate_id: "deepseek-harness:mcp:remote".into(),
+                    behavior_version: "v1".into(),
+                    display_name: "remote".into(),
+                    transport: MCPImportTransport::Remote {
+                        url: "https://example.test/mcp".into(),
+                    },
+                    working_directory: None,
+                    timeouts,
+                    oauth_enabled: Some(false),
+                },
+            ],
+        )
+        .await
+        .unwrap();
+    for id in ["local", "remote"] {
+        let config = service.get_server_config(id).await.unwrap().unwrap();
+        assert!(!config.enabled);
+        assert!(!config.auto_start);
+        assert_eq!(config.timeouts, timeouts);
+        if id == "local" {
+            assert_eq!(config.working_directory.as_deref(), Some(cwd.as_str()));
+        } else {
+            assert_eq!(config.oauth_enabled, Some(false));
+            assert!(!config.remote_oauth_enabled());
+        }
+        service.save_server_config(&config).await.unwrap();
+        let loaded = service.get_server_config(id).await.unwrap().unwrap();
+        assert_eq!(loaded.timeouts, timeouts);
+        assert_eq!(loaded.env, config.env);
+        assert_eq!(loaded.headers, config.headers);
+        assert_eq!(loaded.settings["_openbitfunImport"]["sourceId"], "codex");
+        if id == "local" {
+            assert_eq!(
+                loaded.env.get("TOKEN").map(String::as_str),
+                Some("literal-secret")
+            );
+        } else {
+            assert_eq!(
+                loaded.headers.get("Authorization").map(String::as_str),
+                Some("Bearer header-secret")
+            );
+        }
+        assert_eq!(loaded.working_directory, config.working_directory);
+        assert_eq!(loaded.oauth_enabled, config.oauth_enabled);
+    }
+    let legacy = serde_json::json!({"mcpServers":{"legacy":{"command":"old-server"}}});
+    let parsed = parse_cursor_format(&legacy);
+    assert_eq!(parsed.len(), 1);
+    assert!(parsed[0].timeouts.is_empty());
+    assert!(parsed[0].working_directory.is_none());
+    assert!(parsed[0].oauth_enabled.is_none());
+    let round_trip =
+        serde_json::json!({"mcpServers":{"legacy": config_to_cursor_format(&parsed[0])}});
+    let reloaded = parse_cursor_format(&round_trip);
+    assert_eq!(reloaded[0].command, parsed[0].command);
+    assert!(reloaded[0].timeouts.is_empty());
+}
+
+#[test]
+fn mcp_json_import_options_reject_malformed_values_before_saving() {
+    for (key, value) in [
+        ("timeouts", serde_json::json!({"executionMs": 0})),
+        (
+            "timeouts",
+            serde_json::json!({"startupMs": 9_007_199_254_740_992u64}),
+        ),
+        ("timeouts", serde_json::json!({"executionMs": "60000"})),
+        ("workingDirectory", serde_json::json!(false)),
+        ("oauthEnabled", serde_json::json!("false")),
+    ] {
+        let mut config = serde_json::json!({"mcpServers":{"docs":{"command":"docs-server"}}});
+        config["mcpServers"]["docs"][key] = value;
+        assert!(
+            validate_mcp_json_config(&config).is_err(),
+            "accepted malformed {key}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn external_mcp_import_is_atomic_disabled_and_idempotence_visible() {
     let store = Arc::new(InMemoryMCPConfigStore::default());
     let service = MCPConfigService::new(store.clone());
@@ -1092,6 +1208,12 @@ async fn external_mcp_import_is_atomic_disabled_and_idempotence_visible() {
         .apply_user_import(
             &snapshot.fingerprint,
             vec![MCPImportServer {
+                environment: Default::default(),
+                headers: Default::default(),
+                source_id: Some("codex".into()),
+                working_directory: None,
+                timeouts: Default::default(),
+                oauth_enabled: None,
                 native_id: "docs".to_string(),
                 candidate_id: "opencode:mcp:docs".to_string(),
                 behavior_version: "sha256:behavior-v1".to_string(),
@@ -1121,6 +1243,12 @@ async fn external_mcp_import_is_atomic_disabled_and_idempotence_visible() {
         .apply_user_import(
             &snapshot.fingerprint,
             vec![MCPImportServer {
+                environment: Default::default(),
+                headers: Default::default(),
+                source_id: Some("codex".into()),
+                working_directory: None,
+                timeouts: Default::default(),
+                oauth_enabled: None,
                 native_id: "other".to_string(),
                 candidate_id: "opencode:mcp:other".to_string(),
                 behavior_version: "sha256:behavior-v1".to_string(),
@@ -1146,6 +1274,12 @@ async fn stale_full_json_save_cannot_overwrite_a_concurrent_import() {
         .apply_user_import(
             &import_snapshot.fingerprint,
             vec![MCPImportServer {
+                environment: Default::default(),
+                headers: Default::default(),
+                source_id: Some("codex".into()),
+                working_directory: None,
+                timeouts: Default::default(),
+                oauth_enabled: None,
                 native_id: "docs".to_string(),
                 candidate_id: "opencode:mcp:docs".to_string(),
                 behavior_version: "sha256:behavior-v1".to_string(),
@@ -1171,6 +1305,12 @@ async fn stale_full_json_save_cannot_overwrite_a_concurrent_import() {
 #[test]
 fn import_debug_output_redacts_private_transport_values() {
     let import = MCPImportServer {
+        environment: Default::default(),
+        headers: Default::default(),
+        source_id: Some("codex".into()),
+        working_directory: None,
+        timeouts: Default::default(),
+        oauth_enabled: None,
         native_id: "docs".to_string(),
         candidate_id: "opencode:mcp:docs".to_string(),
         behavior_version: "sha256:behavior-v1".to_string(),

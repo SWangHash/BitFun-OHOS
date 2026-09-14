@@ -349,7 +349,7 @@ async fn load_discovered_review_skill(
         &markdown,
         info.level,
         true,
-        &info.source_slot,
+        info.parser_source_slot(),
     )
     .map_err(|error| OpenBitFunError::tool(error.to_string()))?;
     data.key = info.key.clone();
@@ -438,6 +438,9 @@ fn xml_escape(value: &str) -> String {
 mod tests {
     use super::*;
     use crate::agentic::tools::framework::ToolUseContext;
+    use crate::agentic::tools::implementations::skills::registry::imports::{
+        import_copy_as, remove_imported_copy,
+    };
     use crate::agentic::WorkspaceBinding;
     use std::collections::HashMap;
     use std::path::PathBuf;
@@ -456,6 +459,29 @@ mod tests {
             runtime_tool_restrictions: Default::default(),
             runtime_handles: openbitfun_runtime_ports::ToolRuntimeHandles::default(),
         }
+    }
+
+    async fn import_review_skill(root: &std::path::Path, source_key: &str) -> SkillInfo {
+        let registry = get_skill_registry();
+        let source = registry
+            .find_skill_by_key_for_workspace(source_key, Some(root))
+            .await
+            .expect("discovered review skill");
+        import_copy_as(source, root.join(".openbitfun/skills"), None)
+            .await
+            .expect("imported review skill");
+        registry
+            .get_all_skills_for_workspace(Some(root))
+            .await
+            .into_iter()
+            .find(|skill| {
+                skill.is_native()
+                    && skill
+                        .import_origin
+                        .as_ref()
+                        .is_some_and(|origin| origin.source_key == source_key)
+            })
+            .expect("native review skill")
     }
 
     #[test]
@@ -531,7 +557,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn catalog_loads_claude_review_skill_with_source_semantics() {
+    async fn catalog_requires_import_preserves_claude_semantics_and_revokes_on_undo() {
         let temp = tempfile::tempdir().expect("temporary workspace");
         let skill_dir = temp
             .path()
@@ -545,13 +571,46 @@ mod tests {
         )
         .expect("skill markdown");
         let context = local_tool_context(temp.path().to_path_buf());
+        let source_key = "project::claude::code-review-claude";
+        assert!(review_capability_catalog(&context)
+            .await
+            .iter()
+            .all(|descriptor| !descriptor.key().contains("code-review-claude")));
+        assert!(load_review_skill(&context, source_key).await.is_err());
+        let imported = import_review_skill(temp.path(), source_key).await;
 
         let descriptor = review_capability_catalog(&context)
             .await
             .into_iter()
-            .find(|descriptor| descriptor.key().contains("code-review-claude"));
+            .find(|descriptor| descriptor.key() == format!("skill:{}", imported.key))
+            .expect("imported review skill descriptor");
 
-        assert!(descriptor.is_some());
+        let resolved =
+            resolve_review_capability(&context, descriptor.key(), descriptor.fingerprint())
+                .await
+                .expect("resolved imported Claude guidance");
+        assert_eq!(
+            resolved.guidance,
+            "Review $target for Claude compatibility."
+        );
+        assert!(load_review_skill(&context, source_key).await.is_err());
+
+        remove_imported_copy(
+            std::path::Path::new(&imported.path),
+            &imported.import_origin.as_ref().unwrap().import_id,
+        )
+        .await
+        .expect("undo imported review skill");
+        assert!(review_capability_catalog(&context)
+            .await
+            .iter()
+            .all(|candidate| candidate.key() != descriptor.key()));
+        assert!(
+            resolve_review_capability(&context, descriptor.key(), descriptor.fingerprint())
+                .await
+                .is_err()
+        );
+        assert!(skill_dir.join("SKILL.md").is_file());
     }
 
     #[tokio::test]
@@ -568,15 +627,29 @@ mod tests {
             "---\nname: Policy review\ndescription: Check policy changes\n---\nReview policy-sensitive behavior.\n",
         )
         .expect("skill markdown");
+        std::fs::write(
+            skill_dir.join("agents").join("openai.yaml"),
+            "policy:\n  allow_implicit_invocation: true\n",
+        )
+        .expect("initial policy");
         let context = local_tool_context(temp.path().to_path_buf());
+        let imported =
+            import_review_skill(temp.path(), "project::codex::code-review-policy-change").await;
         let descriptor = review_capability_catalog(&context)
             .await
             .into_iter()
             .find(|descriptor| descriptor.key().contains("code-review-policy-change"))
             .expect("review skill descriptor");
+        assert!(
+            resolve_review_capability(&context, descriptor.key(), descriptor.fingerprint())
+                .await
+                .is_ok()
+        );
 
         std::fs::write(
-            skill_dir.join("agents").join("openai.yaml"),
+            PathBuf::from(&imported.path)
+                .join("agents")
+                .join("openai.yaml"),
             "policy:\n  allow_implicit_invocation: false\n",
         )
         .expect("updated policy");

@@ -59,6 +59,16 @@ public sealed interface AccountUiState {
         public val refreshFailure: AccountFailureReason?,
         public val avatarUrl: String?,
     ) : AccountUiState {
+        /** Preserve callers created before explicit Relay selection was added. */
+        public constructor(
+            userId: String,
+            username: String,
+            devices: List<AccountDeviceUi>,
+            selectedDeviceId: String?,
+            selectedDeviceName: String?,
+        ) : this(userId, AccountDefaults.CLOUD_RELAY_URL, username, devices,
+            selectedDeviceId, selectedDeviceName, false, null, null)
+
         public constructor(
             userId: String, relayUrl: String, username: String, devices: List<AccountDeviceUi>,
             selectedDeviceId: String?, selectedDeviceName: String?, refreshing: Boolean,
@@ -74,13 +84,6 @@ public sealed interface AccountUiState {
             selectedDeviceName: String?,
         ) : this(userId, relayUrl, username, devices, selectedDeviceId, selectedDeviceName, false, null)
 
-        public constructor(
-            userId: String,
-            username: String,
-            devices: List<AccountDeviceUi>,
-            selectedDeviceId: String?,
-            selectedDeviceName: String?,
-        ) : this(userId, username, com.openbitfun.mobile.core.transport.DEFAULT_CLOUD_RELAY_URL, devices, selectedDeviceId, selectedDeviceName)
     }
     public data class Failed public constructor(
         public val reason: AccountFailureReason,

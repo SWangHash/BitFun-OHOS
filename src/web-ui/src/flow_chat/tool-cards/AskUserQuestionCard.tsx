@@ -17,6 +17,7 @@ import React, {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from 'react';
@@ -115,11 +116,9 @@ function normalizeToolAnswer(input: unknown): ToolAnswer | undefined {
 
 /** Same source as FileOperationToolCard: partial JSON while streaming, then final toolCall.input. */
 function isAwaitingQuestionPayload(
-  questionsLength: number,
   isParamsStreaming: boolean | undefined,
   status: FlowToolItem['status'],
 ): boolean {
-  if (questionsLength > 0) return false;
   if (isParamsStreaming) return true;
   const rawStatus = status as string;
   return status === 'preparing'
@@ -141,13 +140,22 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     getActiveSurfaceScope,
   );
   const { status, toolCall, toolResult, isParamsStreaming, partialParams } = toolItem;
-  const paramsSource = partialParams || toolCall?.input;
+  const paramsSource = isParamsStreaming ? partialParams || toolCall?.input : toolCall?.input;
+  const normalizedResult = useMemo(
+    () => normalizeToolResult(toolResult?.result),
+    [toolResult?.result],
+  );
+  const timedOut = normalizedResult?.status === 'timeout';
+  const cancelled = status === 'cancelled' || normalizedResult?.status === 'cancelled';
+  const rejected = status === 'rejected';
+  const failed = status === 'error' || toolResult?.success === false;
+  const endedWithoutAnswer = timedOut || cancelled || rejected || failed;
+  const finished = status === 'completed' || endedWithoutAnswer;
   const questions = useMemo(
     () => normalizeQuestionsFromParams(paramsSource),
     [paramsSource],
   );
-  const awaitingPayload = isAwaitingQuestionPayload(
-    questions.length,
+  const awaitingPayload = !finished && isAwaitingQuestionPayload(
     isParamsStreaming,
     status,
   );
@@ -159,12 +167,18 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     peerDevice?.peerMode.active === true,
     peerDevice?.currentPeerCapabilities ?? null,
   );
+  const canAnswer = !finished && !awaitingPayload && canSubmitUserAnswers;
+  const submissionScope = useRef(0);
   const draftKey = useMemo(
     () => sessionId && draftToolId
       ? askUserQuestionDraftKey(sessionId, draftToolId, activeSurfaceId)
       : null,
     [activeSurfaceId, draftToolId, sessionId],
   );
+  useLayoutEffect(() => {
+    submissionScope.current += 1;
+    return () => { submissionScope.current += 1; };
+  }, [draftKey, canAnswer]);
   const storedDraft = useAskUserQuestionDraftStore((state) => (
     draftKey ? state.drafts[draftKey] : undefined
   ));
@@ -174,6 +188,30 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   const isSubmitting = submissionPhase === 'submitting';
   const isSubmitted = submissionPhase === 'submitted';
   const [submissionFailed, setSubmissionFailed] = useState(false);
+  const [interactionFailed, setInteractionFailed] = useState(false);
+  const interactionAttempt = useRef<number | null>(null);
+  const startInteraction = useCallback(() => {
+    if (!canAnswer || !sessionId || interactionAttempt.current === submissionScope.current) return;
+    const scope = submissionScope.current;
+    if (peerDevice?.peerMode.active && peerDevice.currentPeerCapabilities?.userQuestionInteraction !== true) {
+      setInteractionFailed(true);
+      return;
+    }
+    interactionAttempt.current = scope;
+    setInteractionFailed(false);
+    void toolAPI.startUserQuestionInteraction(toolId, sessionId).catch((error) => {
+      if (submissionScope.current !== scope) return;
+      interactionAttempt.current = null;
+      setInteractionFailed(true);
+      log.error('Failed to acknowledge user question interaction', { toolId, sessionId, error });
+    });
+  }, [canAnswer, peerDevice, sessionId, toolId]);
+  const handleInteraction = useCallback((event: React.SyntheticEvent) => {
+    const target = event.target;
+    if (target instanceof Element && target.closest('input, [data-openbitfun-part="option"], [data-openbitfun-part="custom-option"]')) {
+      startInteraction();
+    }
+  }, [startInteraction]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showCompletedSummary, setShowCompletedSummary] = useState(status === 'completed');
   const { cardRootRef, applyExpandedState } = useToolCardHeightContract({
@@ -200,21 +238,17 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
 
   useEffect(() => {
     setSubmissionFailed(false);
+    setInteractionFailed(false);
   }, [draftKey]);
 
   useEffect(() => {
     if (
       draftKey
-      && (
-        status === 'completed'
-        || status === 'cancelled'
-        || status === 'rejected'
-        || status === 'error'
-      )
+      && finished
     ) {
       askUserQuestionDraftStore.getState().clearDraft(draftKey);
     }
-  }, [draftKey, status]);
+  }, [draftKey, finished]);
 
   const setSubmissionPhase = useCallback((phase: AskUserQuestionSubmissionPhase) => {
     if (draftKey) {
@@ -340,7 +374,8 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   }, [draftKey]);
 
   const handleSubmit = useCallback(async () => {
-    if (!canSubmitUserAnswers || !isAllAnswered() || isSubmitting || isSubmitted) return;
+    if (!canAnswer || !isAllAnswered() || isSubmitting || isSubmitted) return;
+    const scope = submissionScope.current;
 
     setSubmissionFailed(false);
     setSubmissionPhase('submitting');
@@ -367,8 +402,10 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
 
       await toolAPI.submitUserAnswers(toolId, processedAnswers, sessionId);
       activeSurfaceScope.assertCurrent('submitUserAnswers');
+      if (scope !== submissionScope.current) return;
       setSubmissionPhase('submitted');
     } catch (error) {
+      if (scope !== submissionScope.current) return;
       setSubmissionPhase('idle');
       if (isSurfaceChangedError(error)) {
         return;
@@ -379,7 +416,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   }, [
     activeSurfaceScope,
     answers,
-    canSubmitUserAnswers,
+    canAnswer,
     isAllAnswered,
     isSubmitted,
     isSubmitting,
@@ -390,10 +427,6 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     toolId,
   ]);
 
-  const normalizedResult = useMemo(
-    () => normalizeToolResult(toolResult?.result),
-    [toolResult?.result],
-  );
   const resultAnswers = normalizedResult?.answers;
 
   const getEffectiveAnswer = useCallback((questionIndex: number): ToolAnswer | undefined => {
@@ -524,9 +557,30 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
         ? t('toolCards.askUser.submittedWaiting')
         : isSubmitting
           ? t('toolCards.askUser.submitting')
+          : interactionFailed
+            ? t('toolCards.askUser.interactionFailed')
           : submissionFailed
             ? t('toolCards.askUser.submitFailed')
             : t('toolCards.askUser.waitingAnswer');
+
+  if (endedWithoutAnswer) {
+    const terminalLabel = timedOut
+      ? t('toolCards.askUser.timeout')
+      : cancelled
+        ? t('toolCards.default.cancelled')
+        : rejected
+          ? t('toolCards.default.rejected')
+          : t('toolCards.default.failed');
+    return (
+      <AskUser
+        data-tool-card-id={toolId ?? ''}
+        questions={[]}
+        ref={cardRootRef}
+        state="error"
+        statusLabel={terminalLabel}
+      />
+    );
+  }
 
   if (awaitingPayload) {
     return (
@@ -552,18 +606,15 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     );
   }
 
-  const timedOut = normalizedResult?.status === 'timeout';
-  const componentState: AskUserState = timedOut
-    ? 'timeout'
-    : status === 'completed'
-      ? 'completed'
-      : responseUnsupported
-        ? 'error'
-        : isSubmitting
-          ? 'submitting'
-          : isSubmitted
-            ? 'submitted'
-            : 'asking';
+  const componentState: AskUserState = status === 'completed'
+    ? 'completed'
+    : responseUnsupported
+      ? 'error'
+      : isSubmitting
+        ? 'submitting'
+        : isSubmitted
+          ? 'submitted'
+          : 'asking';
   const showSubmit = componentState === 'asking'
     || componentState === 'submitting'
     || componentState === 'submitted';
@@ -574,11 +625,13 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       aria-label={t('toolCards.askUser.questionsCount', { count: questions.length })}
       customAnswers={presentation.customAnswers}
       data-tool-card-id={toolId ?? ''}
-      disabled={Boolean(isParamsStreaming) || responseUnsupported}
+      disabled={!canAnswer}
       expanded={showCompletedSummary ? isExpanded : undefined}
       header={showCompletedSummary
         ? undefined
         : t('toolCards.askUser.questionsCount', { count: questions.length })}
+      onClickCapture={handleInteraction}
+      onFocusCapture={handleInteraction}
       onAnswersChange={handleAnswersChange}
       onCustomAnswerChange={(questionId, value, meta) => {
         handleOtherInputChange(Number(questionId), value, meta.isComposing);
@@ -592,14 +645,11 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       questions={designQuestions}
       ref={cardRootRef}
       state={componentState}
-      statusLabel={timedOut
-        ? t('toolCards.askUser.timeout')
-        : showCompletedSummary ? undefined : statusText}
+      statusLabel={showCompletedSummary ? undefined : statusText}
       submitDisabled={
         !isAllAnswered()
         || isSubmitted
-        || Boolean(isParamsStreaming)
-        || responseUnsupported
+        || !canAnswer
       }
       submitLabel={showSubmit ? t('toolCards.askUser.submit') : undefined}
       submittingLabel={t('toolCards.askUser.submitting')}

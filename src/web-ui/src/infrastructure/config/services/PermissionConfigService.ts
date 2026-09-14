@@ -8,7 +8,7 @@ const CONFIG_PATH = 'tool_permissions';
 
 export const DEFAULT_TOOL_PERMISSION_CONFIG: ToolPermissionConfig = {
   policy: {
-    preset: 'ask',
+    preset: 'full_access',
     rules: [],
   },
   interaction: {
@@ -36,7 +36,9 @@ export function normalizeToolPermissionConfig(value: unknown): ToolPermissionCon
 
   return {
     policy: {
-      preset: policy.preset === 'full_access' ? 'full_access' : 'ask',
+      preset: policy.preset === undefined
+        ? DEFAULT_TOOL_PERMISSION_CONFIG.policy.preset
+        : policy.preset === 'full_access' ? 'full_access' : 'ask',
       rules,
     },
     interaction: {
@@ -52,7 +54,7 @@ export class PermissionConfigService {
     } catch (error) {
       log.warn('Failed to load tool permission config, using safe defaults', error);
       return {
-        policy: { preset: DEFAULT_TOOL_PERMISSION_CONFIG.policy.preset, rules: [] },
+        policy: { preset: 'ask', rules: [] },
         interaction: { auto_approve_ask: DEFAULT_TOOL_PERMISSION_CONFIG.interaction.auto_approve_ask },
       };
     }

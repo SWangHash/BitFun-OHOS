@@ -496,7 +496,10 @@ fn spawn_discovery_task<R: DiscoveryRequest>(
     budget: Arc<tokio::sync::Semaphore>,
 ) -> SharedDiscoveryTask<R::Result> {
     async move {
-        let permit = match budget.try_acquire_owned() {
+        // A refresh can contain more providers than worker slots. Keep those
+        // providers queued under the existing discovery/deferred deadlines;
+        // capacity contention must not turn a valid source into an empty scan.
+        let permit = match budget.acquire_owned().await {
             Ok(permit) => permit,
             Err(_) => {
                 return R::failed(
@@ -504,7 +507,7 @@ fn spawn_discovery_task<R: DiscoveryRequest>(
                     discovery_error::<R>(
                         "discovery_overloaded",
                         format!(
-                            "{} provider discovery could not start because the process-wide discovery budget is full",
+                            "{} provider discovery could not start because the process-wide discovery budget is closed",
                             R::PROVIDER_LABEL
                         ),
                     ),
@@ -653,6 +656,37 @@ mod tests {
                 version: 0,
             }
         }
+    }
+
+    #[tokio::test]
+    async fn providers_exceeding_worker_capacity_queue_and_all_complete() {
+        let lane = DiscoveryLane::<FakeRequest>::with_limits(1, Duration::from_secs(1));
+        let held = Arc::clone(&lane.budget).acquire_owned().await.unwrap();
+        let batch = lane
+            .discover(
+                ["first", "second", "third"]
+                    .into_iter()
+                    .map(|id| FakeRequest::blocked(id, Arc::new(AtomicBool::new(true))))
+                    .collect(),
+                Duration::from_millis(5),
+            )
+            .await;
+        assert_eq!(batch.deferred.len(), 3);
+        assert!(batch
+            .immediate
+            .iter()
+            .all(|result| result.kind == FakeResultKind::TimedOut));
+        drop(held);
+        let results = futures::future::join_all(batch.deferred.into_iter().map(|deferred| async {
+            let completed = lane.complete_deferred(deferred).await.unwrap().0;
+            lane.finalize_deferred(completed).await.unwrap()
+        }))
+        .await;
+        assert_eq!(results.len(), 3);
+        assert!(results
+            .iter()
+            .all(|result| result.kind == FakeResultKind::Success));
+        assert_eq!(lane.budget.available_permits(), 1);
     }
 
     #[tokio::test]
@@ -882,17 +916,24 @@ mod tests {
                 Duration::from_millis(5),
             )
             .await;
-        assert_eq!(second.immediate[0].kind, FakeResultKind::Overloaded);
-        assert!(second.deferred.is_empty());
+        assert_eq!(second.immediate[0].kind, FakeResultKind::TimedOut);
+        assert_eq!(second.deferred.len(), 1);
 
         blocked_release.store(true, Ordering::Release);
         let resumed = lane
             .resume_abandoned(observer.expect("one exit observer is retained"))
             .await;
         let resumed = resumed.expect("the pending generation starts when the old worker exits");
-        let resumed = lane
-            .complete_deferred(resumed)
+        let (resumed, replacement) = tokio::join!(
+            lane.complete_deferred(resumed),
+            lane.complete_deferred(second.deferred.into_iter().next().unwrap()),
+        );
+        let replacement = lane
+            .finalize_deferred(replacement.unwrap().0)
             .await
+            .unwrap();
+        assert_eq!(replacement.kind, FakeResultKind::Success);
+        let resumed = resumed
             .expect("the newest pending request runs after the abandoned worker exits")
             .0;
         let resumed = lane

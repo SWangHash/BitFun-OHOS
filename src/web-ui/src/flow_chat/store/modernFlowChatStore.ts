@@ -7,7 +7,7 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { immer } from 'zustand/middleware/immer';
-import type { Session, DialogTurn, ModelRound, FlowItem, FlowThinkingItem, FlowToolItem, FlowUserSteeringItem, AnyFlowItem, TokenUsage } from '../types/flow-chat';
+import type { Session, DialogTurn, ModelRound, ModelRoundAttempt, FlowItem, FlowThinkingItem, FlowToolItem, FlowUserSteeringItem, AnyFlowItem, TokenUsage } from '../types/flow-chat';
 import {
   isCollapsibleTool,
   READ_TOOL_NAMES,
@@ -158,7 +158,7 @@ function isExploreOnlyRound(round: ModelRound): boolean {
     return false;
   }
 
-  if (round.renderHints?.disableExploreGrouping === true) {
+  if (round.renderHints?.disableExploreGrouping === true || round.renderHints?.continuedAfterInterruption) {
     return false;
   }
 
@@ -369,18 +369,41 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
       | { type: 'steering'; item: FlowUserSteeringItem }
     > = [];
 
+    let continuationPending = false;
+    const hasRecovery = (turn.recoveryEpoch ?? turn.recovery?.executionGeneration ?? 0) > 0;
     turn.modelRounds.forEach(round => {
+      const continuedAfterInterruption = hasRecovery && continuationPending;
+      continuationPending ||= round.status === 'cancelled';
       if (!round.items || round.items.length === 0) return;
       const nonSteeringItems = round.items.filter(item => item.type !== 'user-steering');
       if (nonSteeringItems.length > 0) {
-        const normalizedRound = nonSteeringItems.length === round.items.length
+        let normalizedRound = nonSteeringItems.length === round.items.length
           ? round
           : { ...round, items: nonSteeringItems };
+        // Older runtimes recorded a cancelled stream as a superseded retry.
+        // Repair only that terminal attempt in the display projection.
+        const lastAttempt = round.attempts?.reduce<ModelRoundAttempt | undefined>(
+          (last, attempt) => !last || attempt.index > last.index ? attempt : last, undefined,
+        );
+        if (round.status === 'cancelled' && lastAttempt?.diagnostic?.category === 'stream_error'
+          && lastAttempt.diagnostic.rawError?.startsWith('Cancelled: ')) {
+          normalizedRound = { ...normalizedRound, attempts: round.attempts?.map(attempt => (
+            attempt === lastAttempt ? { ...attempt, status: 'cancelled', diagnostic: undefined } : attempt
+          )) };
+        }
+        if (continuedAfterInterruption) {
+          normalizedRound = { ...normalizedRound, renderHints: {
+            ...normalizedRound.renderHints, continuedAfterInterruption: true,
+          } };
+        }
+        continuationPending = round.status === 'cancelled';
         const lastRenderEntry = renderEntries[renderEntries.length - 1];
 
         if (
           normalizedRound.roundGroupId &&
+          !continuedAfterInterruption &&
           lastRenderEntry?.type === 'round' &&
+          !lastRenderEntry.round.renderHints?.continuedAfterInterruption &&
           lastRenderEntry.round.roundGroupId === normalizedRound.roundGroupId
         ) {
           lastRenderEntry.round = mergeRoundGroupForDisplay(lastRenderEntry.round, normalizedRound);

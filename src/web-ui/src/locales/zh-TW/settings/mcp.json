@@ -124,9 +124,11 @@
       "headers": "請求頭",
       "env": "環境變量",
       "oauth": "OAuth"
-    }
+    },
+    "importedSource": "外部匯入"
   },
   "status": {
+    "disabled": "已停用",
     "uninitialized": "未初始化",
     "starting": "啟動中",
     "connected": "已連接",
@@ -141,6 +143,7 @@
     "error": "錯誤"
   },
   "actions": {
+    "enableAndStart": "啟用並啟動",
     "add": "新增伺服器",
     "addFirst": "新增第一個伺服器",
     "edit": "編輯",

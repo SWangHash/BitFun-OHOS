@@ -45,6 +45,8 @@ export interface AgentCompanionPetSelection {
   packagePath: string;
   spritesheetPath: string;
   spritesheetMimeType: string;
+  /** Absent in legacy saved selections; resolve from the installed package before rendering. */
+  spriteVersionNumber?: number | null;
 }
 
 const CONFIG_PATH = 'app.ai_experience';

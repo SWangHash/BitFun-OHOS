@@ -492,6 +492,24 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .toolbar-btn {
+  // The existing variants retain their surfaces; the shared component owns the button.
+  &::before { content: none; }
+
+  > [data-openbitfun-part='icon'] {
+    --openbitfun-opacity-icon-artwork: inherit;
+    display: contents;
+  }
+
+  > :where([data-openbitfun-part='icon']) > :where(svg) {
+    inline-size: 14px;
+    block-size: 14px;
+  }
+
+  > :where([data-openbitfun-part='icon']) > :where([data-openbitfun-component='icon']) {
+    inline-size: 16px;
+    block-size: 16px;
+  }
+
   flex-shrink: 0;
   align-self: center;
   width: 32px;

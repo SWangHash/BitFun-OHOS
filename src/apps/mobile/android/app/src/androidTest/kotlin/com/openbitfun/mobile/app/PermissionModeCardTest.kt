@@ -32,10 +32,10 @@ class PermissionModeCardTest {
             onIntent = { intents += it },
         )
 
-        composeRule.onNodeWithText("Ask first").assertIsDisplayed()
-        composeRule.onNodeWithText("Approve automatically").assertIsDisplayed()
-        composeRule.onNodeWithText("Full access").assertIsDisplayed()
-        composeRule.onNodeWithText("Approve automatically").performClick()
+        composeRule.onNodeWithText(testString(R.string.permission_ask)).assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.permission_auto)).assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.permission_full)).assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.permission_auto)).performClick()
 
         assertEquals(
             listOf(RemoteSessionIntent.SetPermissionMode(SessionPermissionMode.AUTO)),
@@ -51,16 +51,16 @@ class PermissionModeCardTest {
             onIntent = { intents += it },
         )
 
-        composeRule.onNodeWithText("Full access").performClick()
+        composeRule.onNodeWithText(testString(R.string.permission_full)).performClick()
         assertTrue(intents.isEmpty())
         composeRule.onNodeWithTag(FULL_ACCESS_CONFIRM_TEST_TAG).assertIsDisplayed()
 
-        composeRule.onNodeWithText("Cancel").performClick()
+        composeRule.onNodeWithText(testString(R.string.common_cancel)).performClick()
         composeRule.onNodeWithTag(FULL_ACCESS_CONFIRM_TEST_TAG).assertDoesNotExist()
         assertTrue(intents.isEmpty())
 
-        composeRule.onNodeWithText("Full access").performClick()
-        composeRule.onNodeWithText("Turn on full access").performClick()
+        composeRule.onNodeWithText(testString(R.string.permission_full)).performClick()
+        composeRule.onNodeWithText(testString(R.string.permission_full_confirm_action)).performClick()
         assertEquals(
             listOf(RemoteSessionIntent.SetPermissionMode(SessionPermissionMode.FULL_ACCESS)),
             intents,
@@ -72,12 +72,12 @@ class PermissionModeCardTest {
         setPermissionContent(permissionMode = SessionPermissionMode.UNKNOWN)
 
         composeRule
-            .onNodeWithText("The desktop's permission mode could not be read. Refresh to try again.")
+            .onNodeWithText(testString(R.string.permission_unknown))
             .assertIsDisplayed()
-        composeRule.onNodeWithText("Ask first").assertIsNotEnabled()
-        composeRule.onNodeWithText("Approve automatically").assertIsNotEnabled()
-        composeRule.onNodeWithText("Full access").assertIsNotEnabled()
-        composeRule.onNodeWithText("Refresh").assertIsEnabled()
+        composeRule.onNodeWithText(testString(R.string.permission_ask)).assertIsNotEnabled()
+        composeRule.onNodeWithText(testString(R.string.permission_auto)).assertIsNotEnabled()
+        composeRule.onNodeWithText(testString(R.string.permission_full)).assertIsNotEnabled()
+        composeRule.onNodeWithText(testString(R.string.account_devices_refresh)).assertIsEnabled()
     }
 
     @Test
@@ -88,11 +88,11 @@ class PermissionModeCardTest {
         )
 
         composeRule
-            .onNodeWithText("Connect to the desktop to change the permission mode.")
+            .onNodeWithText(testString(R.string.permission_needs_connection))
             .assertIsDisplayed()
-        composeRule.onNodeWithText("Ask first").assertIsNotEnabled()
-        composeRule.onNodeWithText("Approve automatically").assertIsNotEnabled()
-        composeRule.onNodeWithText("Full access").assertIsNotEnabled()
+        composeRule.onNodeWithText(testString(R.string.permission_ask)).assertIsNotEnabled()
+        composeRule.onNodeWithText(testString(R.string.permission_auto)).assertIsNotEnabled()
+        composeRule.onNodeWithText(testString(R.string.permission_full)).assertIsNotEnabled()
     }
 
     private fun setPermissionContent(

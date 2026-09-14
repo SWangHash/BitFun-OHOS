@@ -1,5 +1,16 @@
 # FlowChat Virtualization
 
+## Interrupted turn continuity
+
+Cancelled rounds remain in the ordinary transcript. The display projection removes
+only the terminal legacy `stream_error` diagnostic whose serialized error starts
+with `Cancelled: `; genuine failed attempts keep their retry history. Saved data
+is unchanged. A recovery generation and a preceding cancelled round place a quiet
+continuation label inside the next visible model-round row, including when empty
+cancelled rounds precede it. That boundary prevents cross-round grouping from
+hiding the label; ordinary within-round tool folding remains available. Round ids
+and virtual row keys stay unchanged, with no viewport writes or mount animation.
+
 ## Embedded session lifetime
 
 `BtwSessionPanel` keeps a lightweight tab-owned wrapper while its content is
@@ -162,6 +173,12 @@ timestamp stays at the row's leading edge while the actions stay at its trailing
 edge. The shell's trailing margin remains the item gap; the next Turn may remove
 that gap without removing space occupied by controls.
 
+MCP service references in user-message text render as ordinary reference capsules,
+including text segments alongside persisted file or skill capsules. The display
+reads the existing prompt syntax, so historical messages need no migration or live
+MCP catalog lookup. It preserves the stored text and uses the existing row measurement
+path, with no mount animation or viewport writes.
+
 ## A Row's Mount Is Not an Arrival
 
 **No mount or enter animation may live inside `.virtual-item-wrapper`**, no
@@ -232,3 +249,12 @@ Lab sequence own their own gaps. Thinking/Explore content has an 8px top inset;
 bounded Explore retains 8px bottom padding for its scroll fade. There is no
 negative adjacent-region margin. The resident runtime slot stays 24px high and
 continues to participate in the existing footer/reservation contract.
+
+## Streaming glyph presentation
+
+The shared Markdown renderer paints newly appended text with
+`useStreamingTextReveal`. Its CSS Highlight ranges fade on their own arrival
+clock without adding nodes or changing geometry. Mounted history and virtualized
+remounts start settled; stream completion does not restart the text. It does not
+write the viewport, change row keys, or add a mount animation inside a virtual
+item. Unsupported Highlight APIs and reduced motion display text directly.

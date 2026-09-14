@@ -1,4 +1,4 @@
-import { Button } from '@openbitfun/ui';
+import { Button, Textarea } from '@openbitfun/ui';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle } from 'lucide-react';
@@ -101,7 +101,7 @@ export const DecisionExecutionGate: React.FC<DecisionExecutionGateProps> = ({
         <span>
           {t('deepReviewActionBar.decisionGate.supplementLabel')}
         </span>
-        <textarea
+        <Textarea
           value={customInstructions}
           onChange={(event) => onCustomInstructionsChange(event.target.value)}
           placeholder={t('deepReviewActionBar.decisionGate.supplementPlaceholder')}

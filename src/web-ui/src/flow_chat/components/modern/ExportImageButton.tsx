@@ -11,7 +11,7 @@ import { FlowChatStore } from '../../store/FlowChatStore';
 import { notificationService } from '@/shared/notification-system';
 import { FlowTextBlock } from '../FlowTextBlock';
 import { FlowToolCard } from '../FlowToolCard';
-import { Icon, Menu, MenuItem, Tooltip } from '@openbitfun/ui';
+import { Button, Icon, IconButton, Menu, MenuItem, Tooltip } from '@openbitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import type { DialogTurn, FlowTextItem, FlowToolItem, FlowThinkingItem } from '../../types/flow-chat';
@@ -85,38 +85,38 @@ const LOGO_PLACEHOLDER_CLASS = 'export-content__logo-placeholder';
 
 const ExportContent: React.FC<ExportContentProps> = ({ dialogTurn, expandThinking }) => {
   return (
-    <div data-openbitfun-component="export-image" data-openbitfun-part="root" className="export-content">
-      <div className="export-content__header" data-openbitfun-component="export-image" data-openbitfun-part="header">
+    <div data-openbitfun-product-component="export-image" data-openbitfun-product-part="root" className="export-content">
+      <div className="export-content__header" data-openbitfun-product-component="export-image" data-openbitfun-product-part="header">
         {/* Placeholder reserves space for the logo. The actual logo is drawn
             onto the final image via canvas compositing to avoid issues with
             embedding <img>/data URLs inside an SVG foreignObject. */}
         <div
           className={`export-content__logo ${LOGO_PLACEHOLDER_CLASS}`}
-          data-openbitfun-component="export-image"
-          data-openbitfun-part="logo"
+          data-openbitfun-product-component="export-image"
+          data-openbitfun-product-part="logo"
           aria-label="OpenBitFun"
         />
-        <div className="export-content__title-group" data-openbitfun-component="export-image" data-openbitfun-part="title">
+        <div className="export-content__title-group" data-openbitfun-product-component="export-image" data-openbitfun-product-part="title">
           <div className="export-content__title">OpenBitFun</div>
           <div className="export-content__subtitle">{i18nService.t('flow-chat:exportImage.subtitle').replace(/ /g, '\u00A0')}</div>
         </div>
-        <div className="export-content__timestamp" data-openbitfun-component="export-image" data-openbitfun-part="timestamp">
+        <div className="export-content__timestamp" data-openbitfun-product-component="export-image" data-openbitfun-product-part="timestamp">
           {i18nService.formatDate(new Date())}
         </div>
       </div>
 
       {dialogTurn.userMessage?.content && (
-        <div className="export-content__user-section" data-openbitfun-component="export-image" data-openbitfun-part="user">
+        <div className="export-content__user-section" data-openbitfun-product-component="export-image" data-openbitfun-product-part="user">
           <div className="export-content__user-bubble">
             {dialogTurn.userMessage.content}
           </div>
         </div>
       )}
 
-      <div className="export-content__ai-section" data-openbitfun-component="export-image" data-openbitfun-part="assistant">
+      <div className="export-content__ai-section" data-openbitfun-product-component="export-image" data-openbitfun-product-part="assistant">
         
         {dialogTurn.modelRounds.map((modelRound) => (
-          <div key={modelRound.id} className="export-content__model-round" data-openbitfun-component="export-image" data-openbitfun-part="round">
+          <div key={modelRound.id} className="export-content__model-round" data-openbitfun-product-component="export-image" data-openbitfun-product-part="round">
             {[...modelRound.items]
               .sort((a, b) => a.timestamp - b.timestamp)
               .map((item) => {
@@ -124,7 +124,7 @@ const ExportContent: React.FC<ExportContentProps> = ({ dialogTurn, expandThinkin
                   const textItem = item as FlowTextItem;
                   if (textItem.content && textItem.content.trim()) {
                     return (
-                      <div data-openbitfun-component="export-image" data-openbitfun-part="text" key={item.id} className="export-content__text-item">
+                      <div data-openbitfun-product-component="export-image" data-openbitfun-product-part="text" key={item.id} className="export-content__text-item">
                         <FlowTextBlock 
                           textItem={{
                             ...textItem,
@@ -137,7 +137,7 @@ const ExportContent: React.FC<ExportContentProps> = ({ dialogTurn, expandThinkin
                 } else if (item.type === 'thinking') {
                   const thinkingItem = item as FlowThinkingItem;
                   return (
-                    <div data-openbitfun-component="export-image" data-openbitfun-part="thinking" key={item.id} className={`export-content__thinking-item${expandThinking ? ' export-content__thinking-item--expanded' : ''}`}>
+                    <div data-openbitfun-product-component="export-image" data-openbitfun-product-part="thinking" key={item.id} className={`export-content__thinking-item${expandThinking ? ' export-content__thinking-item--expanded' : ''}`}>
                       <ModelThinkingDisplay 
                         thinkingItem={{
                           ...thinkingItem,
@@ -151,7 +151,7 @@ const ExportContent: React.FC<ExportContentProps> = ({ dialogTurn, expandThinkin
                 } else if (item.type === 'tool') {
                   const toolItem = item as FlowToolItem;
                   return (
-                    <div data-openbitfun-component="export-image" data-openbitfun-part="tool" key={item.id} className="export-content__tool-item">
+                    <div data-openbitfun-product-component="export-image" data-openbitfun-product-part="tool" key={item.id} className="export-content__tool-item">
                       <FlowToolCard toolItem={toolItem} />
                     </div>
                   );
@@ -162,7 +162,7 @@ const ExportContent: React.FC<ExportContentProps> = ({ dialogTurn, expandThinkin
         ))}
       </div>
 
-      <div className="export-content__footer" data-openbitfun-component="export-image" data-openbitfun-part="footer">
+      <div className="export-content__footer" data-openbitfun-product-component="export-image" data-openbitfun-product-part="footer">
         <span>{i18nService.t('flow-chat:exportImage.poweredBy').replace(/ /g, '\u00A0')}</span>
         <span className="export-content__footer-brand">OpenBitFun</span>
         <span>•</span>
@@ -556,7 +556,7 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
         messageNode: (
           <>
             {successPrefix}
-            <button
+            <Button labelBehavior="static" variant="text"
               type="button"
               className="notification-item__path-link"
               onClick={(e) => {
@@ -566,7 +566,7 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
               }}
             >
               {filePath}
-            </button>
+            </Button>
           </>
         ),
       });
@@ -584,11 +584,11 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
   return (
     <>
       <Tooltip content={isExporting ? i18nService.t('flow-chat:exportImage.exporting') : i18nService.t('flow-chat:exportImage.exportToImage')} placement="top">
-        <button
+        <IconButton
           ref={buttonRef}
           className={`model-round-item__action-btn model-round-item__export-btn ${className}`}
-          data-openbitfun-component="export-image"
-          data-openbitfun-part="trigger"
+          data-openbitfun-product-component="export-image"
+          data-openbitfun-product-part="trigger"
           data-openbitfun-state={isExporting ? 'exporting' : undefined}
           onClick={() => setIsMenuOpen(current => !current)}
           disabled={isExporting}
@@ -597,11 +597,10 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
           aria-label={isExporting
             ? i18nService.t('flow-chat:exportImage.exporting')
             : i18nService.t('flow-chat:exportImage.exportToImage')}
-        >
-          {isExporting
+          icon={isExporting
             ? <Icon name="progress-25" size="sm" className="spinning" />
             : <Icon name="image" size="sm" />}
-        </button>
+        />
       </Tooltip>
       {isMenuOpen && createPortal(
         <Menu

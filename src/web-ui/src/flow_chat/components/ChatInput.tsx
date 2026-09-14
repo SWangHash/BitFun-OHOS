@@ -19,6 +19,8 @@ import {
   type RichTextInputElement,
 } from './RichTextInput';
 import { ChatContextPicker, type ContextPickerSkill } from './ChatContextPicker';
+import { useChatMcpCatalog } from '../hooks/useChatMcpCatalog';
+import type { ContextPickerMcpItem } from './chatMcpItems';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import {
   useSessionDerivedState,
@@ -128,6 +130,7 @@ import {
   isChatInputActionVisibleForTarget,
   resolveAvailableChatInputMode,
   resolveChatInputCanUseSkills,
+  resolveChatInputCanUseMcp,
   resolveChatInputMainAgentModes,
   resolveChatInputSendAgentType,
   resolveChatInputModePolicy,
@@ -935,7 +938,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       }
       collapseVerificationRafRef.current = requestAnimationFrame(() => {
         collapseVerificationRafRef.current = null;
-        measureIsMultiLine('collapse-confirmation');
+        measureIsMultiLineRef.current?.('collapse-confirmation');
       });
       return;
     }
@@ -962,8 +965,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (!el) return;
     let rafId: number;
     const observer = new MutationObserver(() => {
+      cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
-        measureIsMultiLine('mutation-observer');
+        // Session restoration can change attachments after this observer mounts.
+        measureIsMultiLineRef.current?.('mutation-observer');
         checkDomEmpty();
       });
     });
@@ -972,9 +977,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       observer.disconnect();
       cancelAnimationFrame(rafId);
     };
-  // measureIsMultiLine / checkDomEmpty capture latest closure values
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [checkDomEmpty]);
 
   useEffect(() => {
     const containerEl = containerRef.current;
@@ -1486,6 +1489,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     isActive: false,
     query: '',
     startOffset: 0,
+  });
+  const canSelectMcp = resolveChatInputCanUseMcp({
+    targetAgentType: effectiveSendAgentType,
+    isAcpTargetSession,
+    isDispatchTransport: Boolean(caps.dispatchTransport),
+  });
+  const chatMcp = useChatMcpCatalog({
+    enabled: canSelectMcp && contextTriggerState.isActive,
+    surfaceEpoch: deviceSurfaceScope.epoch,
+    modeId: effectiveSendAgentType,
+    workspacePath: sessionBoundWorkspacePath || undefined,
+    remoteConnectionId: sessionBoundRemoteConnectionId || undefined,
   });
   const {
     skills: resolvedModeSkills,
@@ -5604,6 +5619,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     focusRichTextInputSoon();
   }, [focusRichTextInputSoon, getRichTextTriggerController, setQueuedInput]);
 
+  const selectContextMcp = useCallback((item: ContextPickerMcpItem) => {
+    getRichTextTriggerController()?.replaceActiveContextTrigger?.(item.reference);
+    setQueuedInput(null);
+    focusRichTextInputSoon();
+  }, [focusRichTextInputSoon, getRichTextTriggerController, setQueuedInput]);
+
   const handleContextPickerAddImage = useCallback(() => {
     getRichTextTriggerController()?.replaceActiveContextTrigger?.('');
     handleImageInput();
@@ -5971,7 +5992,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 >
                   {t('chatInput.targetMain')}
                   {inputTarget === 'main' && currentSessionTitle && (
-                    <OverflowText className="openbitfun-chat-input__target-tab-name" data-openbitfun-component="chat-input" data-openbitfun-part="targetName">{currentSessionTitle}</OverflowText>
+                    <>
+                      <span className="openbitfun-chat-input__target-tab-separator" aria-hidden="true">·</span>
+                      <OverflowText className="openbitfun-chat-input__target-tab-name" data-openbitfun-component="chat-input" data-openbitfun-part="targetName">{currentSessionTitle}</OverflowText>
+                    </>
                   )}
                 </button>
                 <button data-overflow-trigger
@@ -5986,7 +6010,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 >
                   {activeBtwTargetLabel}
                   {inputTarget === 'btw' && activeBtwSessionTitle && (
-                    <OverflowText className="openbitfun-chat-input__target-tab-name" data-openbitfun-component="chat-input" data-openbitfun-part="targetName">{activeBtwSessionTitle}</OverflowText>
+                    <>
+                      <span className="openbitfun-chat-input__target-tab-separator" aria-hidden="true">·</span>
+                      <OverflowText className="openbitfun-chat-input__target-tab-name" data-openbitfun-component="chat-input" data-openbitfun-part="targetName">{activeBtwSessionTitle}</OverflowText>
+                    </>
                   )}
                 </button>
               </div>
@@ -6071,6 +6098,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 skillDiagnosticsAvailable={resolvedSkillDiagnosticsAvailable}
                 onRetrySkills={retryResolvedModeSkills}
                 onSelectSkill={canUseSkillsForTarget ? selectContextSkill : undefined}
+                mcpCatalog={chatMcp.catalog}
+                mcpLoading={chatMcp.loading}
+                mcpLoadFailed={chatMcp.failed}
+                mcpUnavailable={chatMcp.unavailable}
+                onRefreshMcp={chatMcp.refresh}
+                onSelectMcp={canSelectMcp ? selectContextMcp : undefined}
                 onAddImage={!isAcpTargetSession ? handleContextPickerAddImage : undefined}
                 onSelectContext={(context: FileContext | DirectoryContext | SessionReferenceContext) => {
                   addContext(context);

@@ -44,7 +44,7 @@ struct ComposerBar: View {
 
     private var primaryActionKind: ComposerPrimaryAction {
         if speech.isListening { return .stopListening }
-        if model.isSending { return .stopTurn }
+        if model.isSending && (!hasContent || model.surface != .remote) { return .stopTurn }
         if hasContent { return canSend ? .send : .sendBlocked }
         return model.busy ? .voiceBlocked : .voice
     }

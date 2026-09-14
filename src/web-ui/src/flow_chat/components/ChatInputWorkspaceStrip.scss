@@ -50,7 +50,7 @@ $track-item-gap: 10px;
   // controls restate it here. Shape — the pill and its hover fill — is what
   // says a control is a control, so a label never needs a size of its own.
   font-size: var(--openbitfun-type-flow-meta-font-size);
-  line-height: var(--openbitfun-type-modifier-leading-none-line-height);
+  line-height: var(--openbitfun-type-flow-support-line-height);
   letter-spacing: inherit;
   white-space: nowrap;
   cursor: pointer;
@@ -130,7 +130,6 @@ $track-item-gap: 10px;
       > span:not([data-overflow-content]) {
         min-width: 0;
         overflow: hidden;
-        padding-bottom: 1px;
       }
     }
   }
@@ -180,7 +179,6 @@ $track-item-gap: 10px;
     > span:not([data-overflow-content]) {
       min-width: 0;
       overflow: hidden;
-      padding-bottom: 1px;
     }
   }
 
@@ -241,7 +239,6 @@ $track-item-gap: 10px;
     min-width: 0;
     max-width: 88px;
     overflow: hidden;
-    padding-bottom: 1px;
     white-space: nowrap;
     font-weight: var(--openbitfun-type-label-sm-font-weight);
   }
@@ -384,15 +381,6 @@ $track-item-gap: 10px;
     }
   }
 
-  /*
-   * Product sans faces have different vertical metrics across platform font
-   * profiles. Keep the shared 1px optical compensation on every text span so
-   * labels remain aligned with icons and with one another.
-   */
-  &__worktree-label {
-    padding-bottom: 1px;
-  }
-
   // The one thing on the track that is a subject rather than a qualifier, so
   // it carries full weight either way. With more than one workspace open it is
   // also the switcher; the pill metrics apply to both forms so a static
@@ -414,7 +402,7 @@ $track-item-gap: 10px;
     font-family:var(--openbitfun-type-body-sm-font-family);
     font-size: inherit;
     font-weight: var(--openbitfun-type-label-sm-font-weight);
-    line-height: var(--openbitfun-type-modifier-leading-none-line-height);
+    line-height: var(--openbitfun-type-flow-support-line-height);
     white-space: nowrap;
     cursor: default;
   }
@@ -422,7 +410,6 @@ $track-item-gap: 10px;
   &__workspace-name {
     min-width: 0;
     overflow: hidden;
-    padding-bottom: 1px;
   }
 
   // Only the interactive form answers a click — the hover fill is the whole
@@ -462,7 +449,6 @@ $track-item-gap: 10px;
     font-weight: inherit;
     flex: 1 1 auto;
     overflow: hidden;
-    padding-bottom: 1px;
   }
 
   // Shares the permission menu's floating surface so both popovers off this

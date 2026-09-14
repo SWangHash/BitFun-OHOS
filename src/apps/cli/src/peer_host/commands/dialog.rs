@@ -302,6 +302,20 @@ fn parse_user_answer_submission(
 /// response must terminate on the same host as the waiting Tool future; before
 /// this handler existed a CLI peer could render that snapshot but every click
 /// fell through to the unsupported-command branch.
+pub(crate) async fn start_user_question_interaction(
+    state: &PeerHostState,
+    args: &Value,
+) -> Result<Value, String> {
+    let request = args.get("request").ok_or("Missing request")?;
+    let session_id = get_string(request, "sessionId")?;
+    let tool_id = get_string(request, "toolId")?;
+    state
+        .agent_runtime
+        .start_user_question_interaction(&session_id, &tool_id)
+        .map_err(|error| error.to_string())?;
+    Ok(json!({ "success": true }))
+}
+
 pub(crate) async fn submit_user_answers(
     state: &PeerHostState,
     args: &Value,

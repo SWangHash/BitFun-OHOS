@@ -236,11 +236,14 @@ pub fn validate_mcp_json_config(
             ("env", "object"),
             ("headers", "object"),
             ("xaa", "object"),
+            ("timeouts", "object"),
+            ("workingDirectory", "string"),
         ] {
             if let Some(value) = obj.get(key) {
                 let matches_expected = match expected {
                     "array" => value.is_array(),
                     "object" => value.is_object(),
+                    "string" => value.is_string(),
                     _ => false,
                 };
                 if !matches_expected {
@@ -275,6 +278,15 @@ pub fn validate_mcp_json_config(
                 return Err(MCPJsonConfigValidationError::new(format!(
                     "Server '{}' 'oauth' conflicts with 'oauthEnabled'",
                     server_id
+                )));
+            }
+        }
+        if let Some(value) = obj.get("timeouts") {
+            let valid = serde_json::from_value::<crate::mcp::MCPServerTimeouts>(value.clone())
+                .is_ok_and(|timeouts| timeouts.validate().is_ok());
+            if !valid {
+                return Err(MCPJsonConfigValidationError::new(format!(
+                    "Server '{}' timeouts must contain positive exactly representable millisecond integers", server_id
                 )));
             }
         }

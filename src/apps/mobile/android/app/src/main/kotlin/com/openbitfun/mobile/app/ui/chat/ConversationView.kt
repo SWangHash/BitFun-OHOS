@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -107,6 +108,8 @@ internal fun ConversationView(
     download: RemoteFileDownloadUiState,
     onDownloadFile: (String, String) -> Unit,
     modifier: Modifier,
+    hostCapabilities: List<String> = emptyList(),
+    attachmentOwner: String = "",
 ) {
     val timeline = state.timeline
     val activeTurn = timeline?.activeTurn
@@ -126,37 +129,53 @@ internal fun ConversationView(
     // voice, and send all round-trip through `state.draft` so a half-written
     // message survives session switches and process restarts via DraftStore.
     val draft = state.draft
-    var images by remember(sessionId) { mutableStateOf<List<ComposerImage>>(emptyList()) }
-    LaunchedEffect(sessionId, state.lastSentMessage) {
+    val attachments: com.openbitfun.mobile.app.viewmodel.ComposerAttachmentsViewModel =
+        androidx.lifecycle.viewmodel.compose.viewModel()
+    val context = LocalContext.current
+    val attachmentKey = org.json.JSONArray(listOf(attachmentOwner, sessionId)).toString()
+    val attachmentDraft = remember(attachmentKey, attachments) {
+        attachments.forSession(attachmentKey, java.io.File(context.noBackupFilesDir, "composer-attachments"))
+    }
+    var images by attachmentDraft.images
+    val attachmentsBlocked = attachmentDraft.loading.value || attachmentDraft.saving.value || attachmentDraft.failed.value
+    LaunchedEffect(attachmentKey, state.lastSentMessage, attachmentDraft.loading.value) {
         state.lastSentMessage?.takeIf { it.sessionId == sessionId }?.let { sent ->
             images = images.filterNot { it.id in sent.imageIds }
         }
     }
     var showSettings by rememberSaveable(sessionId) { mutableStateOf(false) }
-    val context = LocalContext.current
-
     val pickerScope = rememberCoroutineScope()
-    val currentSessionId by rememberUpdatedState(sessionId)
-    var preparingImage by remember(sessionId) { mutableStateOf(false) }
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null && images.size < MAX_COMPOSER_IMAGES) {
-            val targetSession = sessionId
+    val currentAttachmentKey by rememberUpdatedState(attachmentKey)
+    var preparingImage by remember(attachmentKey) { mutableStateOf(false) }
+    var pickerOwner by rememberSaveable { mutableStateOf<String?>(null) }
+    val importPhotos: (List<android.net.Uri>) -> Unit = { uris ->
+        val belongsToCurrentTarget = pickerOwner == attachmentKey
+        pickerOwner = null
+        if (belongsToCurrentTarget && uris.isNotEmpty() && images.size < MAX_COMPOSER_IMAGES) {
+            val targetSession = attachmentKey
             preparingImage = true
             pickerScope.launch {
                 try {
-                    val prepared = prepareComposerImage(context.contentResolver, uri)
-                    if (currentSessionId == targetSession && images.size < MAX_COMPOSER_IMAGES) {
-                        images = images + prepared
+                    for (uri in uris.take(MAX_COMPOSER_IMAGES - images.size)) {
+                        val prepared = prepareComposerImage(context.contentResolver, uri)
+                        if (currentAttachmentKey == targetSession && images.size < MAX_COMPOSER_IMAGES) {
+                            images = images + prepared
+                        }
                     }
                 } catch (_: Exception) {
-                    if (currentSessionId == targetSession) {
+                    if (currentAttachmentKey == targetSession) {
                         Toast.makeText(context, R.string.chat_image_prepare_failed, Toast.LENGTH_LONG).show()
                     }
                 } finally {
-                    if (currentSessionId == targetSession) preparingImage = false
+                    if (currentAttachmentKey == targetSession) preparingImage = false
                 }
             }
         }
+    }
+
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_COMPOSER_IMAGES), importPhotos)
+    val singlePhotoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) importPhotos(listOf(uri))
     }
 
     val voiceInput = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -168,128 +187,145 @@ internal fun ConversationView(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize().testTag(CONVERSATION_TEST_TAG)) {
-        ConversationHeader(
-            title = state.sessions.firstOrNull { it.id == sessionId }?.title.orEmpty(),
-            contextTitle = contextTitle,
-            canStop = activeTurn != null,
-            enabled = !state.busy && sessionId.isNotEmpty(),
-            onBack = onBack,
-            onOpenSidebar = onOpenSidebar,
-            onRename = { title ->
-                onIntent(RemoteSessionIntent.RenameSession(sessionId, title))
-            },
-            onShowUploadedFiles = {
-                Toast.makeText(context, uploadedFilesMessage, Toast.LENGTH_SHORT).show()
-            },
-            onStop = {
-                onIntent(RemoteSessionIntent.CancelTurn(sessionId, activeTurn?.turnId))
-            },
-            modifier = Modifier,
-        )
-
-        if (phase != ConnectionPhase.CONNECTED) {
-            ChatStatusBar(
-                phase = phase,
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.openbitfun.mobile.app.ui.chat.tool.LocalPlanActions provides com.openbitfun.mobile.app.ui.chat.tool.PlanActions(
+            supported = "plan_build_v1" in hostCapabilities,
+            enabled = !state.busy && activeTurn == null && phase == ConnectionPhase.CONNECTED,
+            build = { plan -> onIntent(RemoteSessionIntent.BuildPlan(sessionId, plan.path, plan.name)) },
+        ),
+    ) {
+        Column(modifier = modifier.fillMaxSize().testTag(CONVERSATION_TEST_TAG)) {
+            ConversationHeader(
+                title = state.sessions.firstOrNull { it.id == sessionId }?.title.orEmpty(),
+                contextTitle = contextTitle,
                 canStop = activeTurn != null,
+                enabled = !state.busy && sessionId.isNotEmpty(),
+                onBack = onBack,
+                onOpenSidebar = onOpenSidebar,
+                onRename = { title ->
+                    onIntent(RemoteSessionIntent.RenameSession(sessionId, title))
+                },
+                onShowUploadedFiles = {
+                    Toast.makeText(context, uploadedFilesMessage, Toast.LENGTH_SHORT).show()
+                },
+                onStop = {
+                    onIntent(RemoteSessionIntent.CancelTurn(sessionId, activeTurn?.turnId))
+                },
+                modifier = Modifier,
+            )
+
+            if (phase != ConnectionPhase.CONNECTED) {
+                ChatStatusBar(
+                    phase = phase,
+                    canStop = activeTurn != null,
+                    onStop = {
+                        onIntent(RemoteSessionIntent.CancelTurn(sessionId, activeTurn?.turnId))
+                    },
+                )
+            }
+
+            if (timeline == null) {
+                ConversationLoadingState(modifier = Modifier.weight(1f).fillMaxWidth())
+            } else if (visibleRows.isEmpty()) {
+                ConversationEmptyState(modifier = Modifier.weight(1f).fillMaxWidth())
+            } else {
+                ConversationTimelineView(
+                    rows = visibleRows,
+                    hasMoreMessages = state.hasMoreMessages,
+                    onLoadOlder = { onIntent(RemoteSessionIntent.LoadOlderMessages) },
+                    enabled = !state.busy,
+                    onApproveTool = { toolId ->
+                        onIntent(RemoteSessionIntent.ApproveTool(sessionId, toolId))
+                    },
+                    onRejectTool = { toolId, reason ->
+                        onIntent(RemoteSessionIntent.RejectTool(sessionId, toolId, reason))
+                    },
+                    onCancelTool = { toolId, reason ->
+                        onIntent(RemoteSessionIntent.CancelTool(sessionId, toolId, reason))
+                    },
+                    onAnswerTool = { toolId, answer ->
+                        onIntent(RemoteSessionIntent.AnswerQuestion(sessionId, toolId, answer))
+                    },
+                    onAnswerToolStructured = { toolId, answers ->
+                        onIntent(AnswerStructuredQuestion(sessionId, toolId, answers))
+                    },
+                    onRetry = { row ->
+                        val retryImages = row.images.map { image ->
+                            images.firstOrNull { it.dataUrl == image.dataUrl } ?: ComposerImage(
+                                id = image.name,
+                                dataUrl = image.dataUrl,
+                                mimeType = image.dataUrl.substringAfter("data:").substringBefore(';'),
+                            )
+                        }
+                        onIntent(RemoteSessionIntent.SendMessage(sessionId, row.text, retryImages))
+                    },
+                    onOpenFile = onOpenFile,
+                    previewingRemotePath = previewingRemotePath,
+                    previewLoading = previewLoading,
+                    download = download,
+                    onDownloadFile = onDownloadFile,
+                    downloadEnabled = !state.busy && phase == ConnectionPhase.CONNECTED,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+            }
+
+            if (attachmentDraft.failed.value) {
+                TextButton(onClick = { attachmentDraft.retry() }) {
+                    Text(stringResource(R.string.chat_attachment_recovery_failed))
+                }
+            }
+            ComposerBar(
+                draft = draft,
+                images = images,
+                // An empty session id would send nowhere, so it reads as busy.
+                busy = state.busy || preparingImage || attachmentsBlocked || sessionId.isEmpty(),
+                streaming = activeTurn != null,
+                phase = phase,
+                model = timeline?.selectedModelOption(stringResource(R.string.models_unnamed)),
+                modelOptions = timeline?.modelOptions(stringResource(R.string.models_unnamed)) ?: emptyList(),
+                modelCatalogFailed = state.modelCatalogFailure != null,
+                capabilities = ChatComposerCapabilities.RemoteChat,
+                placeholder = stringResource(R.string.message_input_label),
+                onDraftChange = { onIntent(RemoteSessionIntent.UpdateDraft(it)) },
+                onRemoveImage = { id -> images = images.filterNot { it.id == id } },
+                onOpenModels = { showSettings = true },
+                onSelectModel = { modelId ->
+                    onIntent(RemoteSessionIntent.SelectModel(sessionId, modelId))
+                },
+                modifier = Modifier,
+                onAttach = {
+                    pickerOwner = attachmentKey
+                    val remaining = MAX_COMPOSER_IMAGES - images.size
+                    if (remaining == 1) singlePhotoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    else if (remaining > 1) photoPicker.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly, maxItems = remaining),
+                    )
+                },
+                onVoice = {
+                    voiceInput.launch(
+                        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(
+                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+                            )
+                        },
+                    )
+                },
+                onSend = {
+                    onIntent(
+                        RemoteSessionIntent.SendMessage(
+                            sessionId,
+                            draft,
+                            images.takeIf { it.isNotEmpty() },
+                        ),
+                    )
+                },
                 onStop = {
                     onIntent(RemoteSessionIntent.CancelTurn(sessionId, activeTurn?.turnId))
                 },
             )
         }
 
-        if (timeline == null) {
-            ConversationLoadingState(modifier = Modifier.weight(1f).fillMaxWidth())
-        } else if (visibleRows.isEmpty()) {
-            ConversationEmptyState(modifier = Modifier.weight(1f).fillMaxWidth())
-        } else {
-            ConversationTimelineView(
-                rows = visibleRows,
-                hasMoreMessages = state.hasMoreMessages,
-                onLoadOlder = { onIntent(RemoteSessionIntent.LoadOlderMessages) },
-                enabled = !state.busy,
-                onApproveTool = { toolId ->
-                    onIntent(RemoteSessionIntent.ApproveTool(sessionId, toolId))
-                },
-                onRejectTool = { toolId, reason ->
-                    onIntent(RemoteSessionIntent.RejectTool(sessionId, toolId, reason))
-                },
-                onCancelTool = { toolId, reason ->
-                    onIntent(RemoteSessionIntent.CancelTool(sessionId, toolId, reason))
-                },
-                onAnswerTool = { toolId, answer ->
-                    onIntent(RemoteSessionIntent.AnswerQuestion(sessionId, toolId, answer))
-                },
-                onAnswerToolStructured = { toolId, answers ->
-                    onIntent(AnswerStructuredQuestion(sessionId, toolId, answers))
-                },
-                onRetry = { row ->
-                    val retryImages = row.images.map { image ->
-                        images.firstOrNull { it.dataUrl == image.dataUrl } ?: ComposerImage(
-                            id = image.name,
-                            dataUrl = image.dataUrl,
-                            mimeType = image.dataUrl.substringAfter("data:").substringBefore(';'),
-                        )
-                    }
-                    onIntent(RemoteSessionIntent.SendMessage(sessionId, row.text, retryImages))
-                },
-                onOpenFile = onOpenFile,
-                previewingRemotePath = previewingRemotePath,
-                previewLoading = previewLoading,
-                download = download,
-                onDownloadFile = onDownloadFile,
-                downloadEnabled = !state.busy && phase == ConnectionPhase.CONNECTED,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            )
-        }
-
-        ComposerBar(
-            draft = draft,
-            images = images,
-            // An empty session id would send nowhere, so it reads as busy.
-            busy = state.busy || preparingImage || sessionId.isEmpty(),
-            streaming = activeTurn != null,
-            phase = phase,
-            model = timeline?.selectedModelOption(stringResource(R.string.models_unnamed)),
-            modelOptions = timeline?.modelOptions(stringResource(R.string.models_unnamed)) ?: emptyList(),
-            modelCatalogFailed = state.modelCatalogFailure != null,
-            capabilities = ChatComposerCapabilities.RemoteChat,
-            placeholder = stringResource(R.string.message_input_label),
-            onDraftChange = { onIntent(RemoteSessionIntent.UpdateDraft(it)) },
-            onRemoveImage = { id -> images = images.filterNot { it.id == id } },
-            onOpenModels = { showSettings = true },
-            onSelectModel = { modelId ->
-                onIntent(RemoteSessionIntent.SelectModel(sessionId, modelId))
-            },
-            modifier = Modifier,
-            onAttach = {
-                photoPicker.launch(
-                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                )
-            },
-            onVoice = {
-                voiceInput.launch(
-                    Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(
-                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                        )
-                    },
-                )
-            },
-            onSend = {
-                onIntent(
-                    RemoteSessionIntent.SendMessage(
-                        sessionId,
-                        draft,
-                        images.takeIf { it.isNotEmpty() },
-                    ),
-                )
-            },
-            onStop = {
-                onIntent(RemoteSessionIntent.CancelTurn(sessionId, activeTurn?.turnId))
-            },
-        )
     }
 
     if (showSettings) {

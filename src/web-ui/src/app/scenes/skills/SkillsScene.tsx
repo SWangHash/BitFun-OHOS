@@ -20,7 +20,7 @@
   DialogTitle,
 } from '@openbitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FolderOpen, Layers, Loader2, Package, ShieldAlert, ShieldCheck, TrendingUp } from 'lucide-react';
+import { FolderOpen, Layers, Loader2, ShieldAlert, ShieldCheck, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 
@@ -71,14 +71,14 @@ interface CategoryInfo {
 const CATEGORIES: CategoryInfo[] = [
   {
     id: 'all',
-    icon: <Layers size={15} strokeWidth={1.6} />,
+    icon: { glyph: Layers },
     labelKey: 'filters.all',
     titleKey: 'installed.titleListAll',
     descKey: 'categories.all',
   },
   {
     id: 'builtin',
-    icon: <ShieldCheck size={15} strokeWidth={1.6} />,
+    icon: { glyph: ShieldCheck },
     labelKey: 'filters.builtin',
     titleKey: 'installed.titleBuiltin',
     descKey: 'categories.builtin',
@@ -92,14 +92,14 @@ const CATEGORIES: CategoryInfo[] = [
   },
   {
     id: 'project',
-    icon: <FolderOpen size={15} strokeWidth={1.6} />,
+    icon: { glyph: FolderOpen },
     labelKey: 'filters.project',
     titleKey: 'installed.titleProject',
     descKey: 'categories.project',
   },
   {
     id: 'groups',
-    icon: <Layers size={15} strokeWidth={1.6} />,
+    icon: { glyph: Layers },
     labelKey: 'filters.groups',
     titleKey: 'groups.title',
     descKey: 'categories.groups',
@@ -114,6 +114,7 @@ const SkillsScene: React.FC = () => {
   const remoteConnectionActive = peerDevice?.peerMode.active === true;
   const desktopConfigAvailable = isTauriRuntime() && !remoteConnectionActive;
   const {
+    nativeNavigationRequest,
     searchDraft,
     marketQuery,
     installedView,
@@ -136,6 +137,13 @@ const SkillsScene: React.FC = () => {
     | { type: 'matrix'; skill: MatrixSkillSummary }
     | null
   >(null);
+
+  useEffect(() => {
+    if (!nativeNavigationRequest) return;
+    setActiveTab('installed');
+    setInstalledSearch('');
+    setSelectedDetail(null);
+  }, [nativeNavigationRequest]);
 
   const installed = useInstalledSkills({
     searchQuery: installedSearch,
@@ -400,7 +408,7 @@ const SkillsScene: React.FC = () => {
                         selected={installedView === cat.id}
                         onClick={() => setInstalledView(cat.id)}
                         title={t(cat.descKey, { source: cat.sourceLabel })}
-                        leading={<span data-openbitfun-scene="skills" data-openbitfun-part="sidebarItemIcon">{cat.icon}</span>}
+                        leading={<span data-openbitfun-scene="skills" data-openbitfun-part="sidebarItemIcon"><Icon {...cat.icon} size="sm" /></span>}
                         metadata={(
                           <span className="skills-sidebar__item-count" data-openbitfun-scene="skills" data-openbitfun-part="sidebarItemCount">
                             {formatNumber(count)}
@@ -423,7 +431,7 @@ const SkillsScene: React.FC = () => {
             <div className="skills-main" data-openbitfun-scene="skills" data-openbitfun-part="main">
               {!desktopConfigAvailable ? (
                 <div className="skills-main__empty" data-testid="skills-management-unavailable" data-openbitfun-scene="skills" data-openbitfun-part="empty">
-                  <Package size={28} strokeWidth={1.2} />
+                  <Icon name="package" size="lg" />
                   <span>{t(remoteConnectionActive ? 'list.remoteUnavailable' : 'list.desktopUnavailable')}</span>
                 </div>
               ) : installedView === 'groups' ? (
@@ -520,7 +528,7 @@ const SkillsScene: React.FC = () => {
 
                     {!installed.loading && installed.error && (
                       <div className="skills-main__empty skills-main__empty--error" data-openbitfun-scene="skills" data-openbitfun-part="error">
-                        <Package size={28} strokeWidth={1.2} />
+                        <Icon name="package" size="lg" />
                         <span>{t('list.loadFailed')}</span>
                         <Button
                           variant="outline"
@@ -541,7 +549,7 @@ const SkillsScene: React.FC = () => {
 
                     {!installed.loading && !installed.error && installedFiltered.length === 0 && installed.diagnostics.length === 0 && (
                       <div className="skills-main__empty" data-testid="skill-list-empty" data-openbitfun-scene="skills" data-openbitfun-part="empty">
-                        <Package size={28} strokeWidth={1.2} />
+                        <Icon name="package" size="lg" />
                         <span>
                           {installed.skills.length === 0
                             ? t('list.empty.noSkills')
@@ -772,7 +780,7 @@ const SkillsScene: React.FC = () => {
 
               {!market.marketLoading && market.marketError && (
                 <div className="skills-discover__empty skills-discover__empty--error" data-openbitfun-scene="skills" data-openbitfun-part="error">
-                  <Package size={28} strokeWidth={1.5} />
+                  <Icon name="package" size="lg" />
                   <span>{market.marketError}</span>
                 </div>
               )}
@@ -793,7 +801,7 @@ const SkillsScene: React.FC = () => {
 
               {!market.marketLoading && !market.marketError && !market.loadingMore && market.marketSkills.length === 0 && (
                 <div className="skills-discover__empty" data-testid="skill-list-empty" data-openbitfun-scene="skills" data-openbitfun-part="empty">
-                  <Package size={28} strokeWidth={1.5} />
+                  <Icon name="package" size="lg" />
                   <span>{marketQuery ? t('market.empty.noMatch') : t('market.empty.noSkills')}</span>
                 </div>
               )}
@@ -963,7 +971,7 @@ const SkillsScene: React.FC = () => {
       <GalleryDetailModal
         isOpen={desktopConfigAvailable && Boolean(selectedDetail)}
         onClose={() => setSelectedDetail(null)}
-        icon={selectedMarketSkill || selectedMatrixSkill ? <Package size={24} strokeWidth={1.6} /> : <Icon name="extension" size="lg" />}
+        icon={selectedMarketSkill || selectedMatrixSkill ? <Icon name="package" size="lg" /> : <Icon name="extension" size="lg" />}
         iconGradient={getCardGradient(
           selectedInstalledSkill?.name
           ?? selectedMarketSkill?.installId

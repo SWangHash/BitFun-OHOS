@@ -1,4 +1,4 @@
-import { OverflowText, Button, Field, Icon, Input, Select, ScrollArea, Textarea } from '@openbitfun/ui';
+import { OverflowText, Button, Empty, Field, Icon, Input, Select, ScrollArea, Textarea } from '@openbitfun/ui';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Inbox, ShieldCheck } from 'lucide-react';
 import { confirmDialog } from '@/infrastructure/confirm-dialog';
@@ -413,10 +413,11 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
           {renderManualSubmit()}
           {loading ? <p className="appearance-market__loading">{t('package.market.submissions.loading')}</p>
             : submissions.length === 0 ? (
-              <div className="appearance-market__empty">
-                <Inbox size={28} aria-hidden="true" />
-                <p>{t('package.market.submissions.empty')}</p>
-              </div>
+              <Empty
+                className="appearance-market__empty"
+                icon={<Inbox size={28} aria-hidden="true" />}
+                description={t('package.market.submissions.empty')}
+              />
             ) : (
               <div
                 className="appearance-market__submission-list"
@@ -502,10 +503,11 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
       {loading && reviewQueue.length === 0 ? (
         <p className="appearance-market__loading">{t('package.market.review.loading')}</p>
       ) : reviewQueue.length === 0 ? (
-        <div className="appearance-market__empty">
-          <ShieldCheck size={28} aria-hidden="true" />
-          <p>{t('package.market.review.empty')}</p>
-        </div>
+        <Empty
+          className="appearance-market__empty"
+          icon={<ShieldCheck size={28} aria-hidden="true" />}
+          description={t('package.market.review.empty')}
+        />
       ) : (
         <div
           className="appearance-market__review-layout"

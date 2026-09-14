@@ -10,9 +10,9 @@
 import React, { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Icon, Menu, MenuItem, Tooltip } from '@openbitfun/ui';
+import { Button, Icon, IconButton, Menu, MenuItem, Tooltip } from '@openbitfun/ui';
 import { CircleAlert } from 'lucide-react';
-import type { ModelRound, ModelRoundAttempt, ModelRoundAttemptDiagnostic, FlowItem, FlowTextItem, FlowToolItem, FlowThinkingItem, TokenUsage, ToolRejectOptions } from '../../types/flow-chat';
+import type { ModelRound, ModelRoundAttempt, ModelRoundAttemptDiagnostic, FlowItem, FlowTextItem, FlowToolItem, FlowThinkingItem, ToolRejectOptions } from '../../types/flow-chat';
 import { useI18n } from '@/infrastructure/i18n';
 import { FlowTextBlock } from '../FlowTextBlock';
 import { FlowToolCard } from '../FlowToolCard';
@@ -45,6 +45,7 @@ import { buildTranscriptExportLabels } from '../../utils/transcriptExportLabels'
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import { canvasArtifactReferenceFromToolItem } from '../../utils/canvasArtifactPresentation';
+import { areModelRoundItemPropsEqual, type ModelRoundItemProps } from './modelRoundItemMemo';
 import './ModelRoundItem.scss';
 import './SubagentItems.scss';
 
@@ -123,19 +124,6 @@ const ModelRoundRenderTrace: React.FC<ModelRoundRenderTraceProps> = ({
   return null;
 };
 
-interface ModelRoundItemProps {
-  round: ModelRound;
-  turnId: string;
-  isLastRound?: boolean;
-  isTurnComplete?: boolean;
-  turnStartedAt?: number;
-  turnEndedAt?: number;
-  turnDurationMs?: number;
-  turnTokenUsage?: TokenUsage;
-  canvasArtifactItems?: FlowToolItem[];
-  expandedThinkingItemIds?: string[];
-}
-
 function sortRoundAttempts(attempts: ModelRoundAttempt[]): ModelRoundAttempt[] {
   return [...attempts].sort((left, right) => left.index - right.index);
 }
@@ -179,17 +167,16 @@ const AttemptDiagnosticDetails: React.FC<{ diagnostic: ModelRoundAttemptDiagnost
 
   const renderCopyButton = (value: string, valueKey: string) => (
     <Tooltip content={copiedValue === valueKey ? t('modelRound.attemptDiagnostics.copied') : t('modelRound.attemptDiagnostics.copy')} placement="top">
-      <button
+      <IconButton
         type="button"
         className="model-round-item__attempt-diagnostic-copy"
-        data-openbitfun-component="model-round-item"
-        data-openbitfun-part="action"
+        data-openbitfun-product-component="model-round-item"
+        data-openbitfun-product-part="action"
         data-openbitfun-state={copiedValue === valueKey ? 'copied' : undefined}
         onClick={() => void copyValue(value, valueKey)}
         aria-label={t('modelRound.attemptDiagnostics.copy')}
-      >
-        {copiedValue === valueKey ? <Icon name="check-line" size="lg" style={{ width: 13, height: 13 }} /> : <Icon name="duplicate" size="lg" style={{ width: 13, height: 13 }} />}
-      </button>
+        icon={copiedValue === valueKey ? <Icon name="check-line" size="lg" style={{ width: 13, height: 13 }} /> : <Icon name="duplicate" size="lg" style={{ width: 13, height: 13 }} />}
+      />
     </Tooltip>
   );
 
@@ -198,38 +185,37 @@ const AttemptDiagnosticDetails: React.FC<{ diagnostic: ModelRoundAttemptDiagnost
   return (
     <>
       <Tooltip content={isOpen ? t('modelRound.attemptDiagnostics.hide') : t('modelRound.attemptDiagnostics.show')} placement="top">
-        <button
+        <IconButton
           type="button"
           className="model-round-item__attempt-diagnostic-toggle"
-          data-openbitfun-component="model-round-item"
-          data-openbitfun-part="diagnosticToggle"
+          data-openbitfun-product-component="model-round-item"
+          data-openbitfun-product-part="diagnosticToggle"
           data-openbitfun-state={isOpen ? 'expanded' : undefined}
           onClick={() => setIsOpen(current => !current)}
           aria-expanded={isOpen}
           aria-controls={detailsId}
           aria-label={isOpen ? t('modelRound.attemptDiagnostics.hide') : t('modelRound.attemptDiagnostics.show')}
-        >
-          <CircleAlert size={13} aria-hidden="true" />
-        </button>
+          icon={<CircleAlert size={13} aria-hidden="true" />}
+        />
       </Tooltip>
 
       {isOpen && (
         <div
           id={detailsId}
           className="model-round-item__attempt-diagnostic-details"
-          data-openbitfun-component="model-round-item"
-          data-openbitfun-part="diagnosticDetails"
+          data-openbitfun-product-component="model-round-item"
+          data-openbitfun-product-part="diagnosticDetails"
         >
           <div
             className="model-round-item__attempt-diagnostic-category"
-            data-openbitfun-component="model-round-item"
-            data-openbitfun-part="diagnosticSection"
+            data-openbitfun-product-component="model-round-item"
+            data-openbitfun-product-part="diagnosticSection"
           >
             {attemptDiagnosticCategoryLabel(diagnostic, t)}
           </div>
 
           {diagnostic.rawError && (
-            <div className="model-round-item__attempt-diagnostic-section" data-openbitfun-component="model-round-item" data-openbitfun-part="diagnosticSection">
+            <div className="model-round-item__attempt-diagnostic-section" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="diagnosticSection">
               <div className="model-round-item__attempt-diagnostic-section-header">
                 <span>{t('modelRound.attemptDiagnostics.providerError')}</span>
                 {renderCopyButton(diagnostic.rawError, 'raw-error')}
@@ -244,8 +230,8 @@ const AttemptDiagnosticDetails: React.FC<{ diagnostic: ModelRoundAttemptDiagnost
               <div
                 key={`${toolCall.toolId ?? toolCall.toolName ?? 'tool'}:${index}`}
                 className="model-round-item__attempt-diagnostic-section"
-                data-openbitfun-component="model-round-item"
-                data-openbitfun-part="diagnosticSection"
+                data-openbitfun-product-component="model-round-item"
+                data-openbitfun-product-part="diagnosticSection"
               >
                 <div className="model-round-item__attempt-diagnostic-tool-title">
                   {t('modelRound.attemptDiagnostics.toolArguments', { name: toolLabel })}
@@ -332,8 +318,8 @@ const TaskWithSubagentWrapper: React.FC<TaskWithSubagentWrapperProps> = React.me
   return (
     <div
       className={className}
-      data-openbitfun-component="model-round-item"
-      data-openbitfun-part="subagent"
+      data-openbitfun-product-component="model-round-item"
+      data-openbitfun-product-part="subagent"
       data-openbitfun-state={!isCollapsed ? 'expanded' : undefined}
     >
       <FlowItemRenderer
@@ -594,8 +580,8 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         className={getModelRoundItemClassName({
           isVisuallyStreaming,
         })}
-        data-openbitfun-component="model-round-item"
-        data-openbitfun-part="root"
+        data-openbitfun-product-component="model-round-item"
+        data-openbitfun-product-part="root"
         data-openbitfun-status={round.status}
         data-openbitfun-state={isVisuallyStreaming ? 'streaming' : undefined}
         data-testid="chat-assistant-message"
@@ -606,6 +592,9 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         data-effective-model-name={round.effectiveModelName || ''}
         data-streaming={isVisuallyStreaming ? 'true' : 'false'}
       >
+        {round.renderHints?.continuedAfterInterruption && (
+          <div className="model-round-item__continuation">{t('modelRound.continued')}</div>
+        )}
         {renderTraceEnabled && renderTraceStartedAtMs !== null && groupSummary && (
           <ModelRoundRenderTrace
             startedAtMs={renderTraceStartedAtMs}
@@ -618,19 +607,19 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         )}
 
         {historyRounds.length > 0 && (
-          <div className="model-round-item__retry-history" data-openbitfun-component="model-round-item" data-openbitfun-part="retryHistory">
-            <button
+          <div className="model-round-item__retry-history" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="retryHistory">
+            <Button labelBehavior="static" variant="text"
               type="button"
               className="model-round-item__retry-toggle"
-              data-openbitfun-component="model-round-item"
-              data-openbitfun-part="retryToggle"
+              data-openbitfun-product-component="model-round-item"
+              data-openbitfun-product-part="retryToggle"
               data-openbitfun-state={showRoundHistory ? 'expanded' : undefined}
               onClick={() => setShowRoundHistory(current => !current)}
             >
               {showRoundHistory
                 ? t('modelRound.roundHistoryHide')
                 : t('modelRound.roundHistoryShow', { count: historyRounds.length })}
-            </button>
+            </Button>
 
             {showRoundHistory && historyRounds.map((historyRound, historyIndex) => {
               const historyAttempts = sortRoundAttempts(historyRound.attempts ?? []);
@@ -649,24 +638,24 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
               });
 
               return (
-                <div key={historyRound.id} className="model-round-item__retry-attempt" data-openbitfun-component="model-round-item" data-openbitfun-part="retryAttempt">
-                  <div className="model-round-item__retry-attempt-label" data-openbitfun-component="model-round-item" data-openbitfun-part="attemptLabel">
+                <div key={historyRound.id} className="model-round-item__retry-attempt" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="retryAttempt">
+                  <div className="model-round-item__retry-attempt-label" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="attemptLabel">
                     {t('modelRound.roundRetryLabel', { index: historyIndex + 1 })}
                   </div>
                   {historyOlderAttempts.length > 0 && (
-                    <div className="model-round-item__retry-history" data-openbitfun-component="model-round-item" data-openbitfun-part="retryHistory">
-                      <button
+                    <div className="model-round-item__retry-history" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="retryHistory">
+                      <Button labelBehavior="static" variant="text"
                         type="button"
                         className="model-round-item__retry-toggle"
-                        data-openbitfun-component="model-round-item"
-                        data-openbitfun-part="retryToggle"
+                        data-openbitfun-product-component="model-round-item"
+                        data-openbitfun-product-part="retryToggle"
                         data-openbitfun-state={showHistoryRoundAttempts ? 'expanded' : undefined}
                         onClick={() => toggleHistoryRoundAttempts(historyRound.id)}
                       >
                         {showHistoryRoundAttempts
                           ? t('modelRound.retryHistoryHide')
                           : t('modelRound.retryHistoryShow', { count: historyOlderAttempts.length })}
-                      </button>
+                      </Button>
 
                       {showHistoryRoundAttempts && historyOlderAttempts.map((attempt) => {
                         const attemptGroups = buildModelRoundItemGroups({
@@ -677,8 +666,8 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
                         });
 
                         return (
-                          <div key={attempt.id} className="model-round-item__retry-attempt" data-openbitfun-component="model-round-item" data-openbitfun-part="retryAttempt">
-                            <div className="model-round-item__retry-attempt-label" data-openbitfun-component="model-round-item" data-openbitfun-part="attemptLabel">
+                          <div key={attempt.id} className="model-round-item__retry-attempt" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="retryAttempt">
+                            <div className="model-round-item__retry-attempt-label" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="attemptLabel">
                               <span>{t('modelRound.attemptLabel', { index: attempt.index })}</span>
                               {attempt.diagnostic && <AttemptDiagnosticDetails diagnostic={attempt.diagnostic} />}
                             </div>
@@ -704,19 +693,19 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         )}
 
         {historicalAttempts.length > 0 && (
-          <div className="model-round-item__retry-history" data-openbitfun-component="model-round-item" data-openbitfun-part="retryHistory">
-            <button
+          <div className="model-round-item__retry-history" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="retryHistory">
+            <Button labelBehavior="static" variant="text"
               type="button"
               className="model-round-item__retry-toggle"
-              data-openbitfun-component="model-round-item"
-              data-openbitfun-part="retryToggle"
+              data-openbitfun-product-component="model-round-item"
+              data-openbitfun-product-part="retryToggle"
               data-openbitfun-state={showRetryHistory ? 'expanded' : undefined}
               onClick={() => setShowRetryHistory(current => !current)}
             >
               {showRetryHistory
                 ? t('modelRound.retryHistoryHide')
                 : t('modelRound.retryHistoryShow', { count: historicalAttempts.length })}
-            </button>
+            </Button>
 
             {showRetryHistory && historicalAttempts.map((attempt) => {
               const attemptGroups = buildModelRoundItemGroups({
@@ -727,8 +716,8 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
               });
 
               return (
-                <div key={attempt.id} className="model-round-item__retry-attempt" data-openbitfun-component="model-round-item" data-openbitfun-part="retryAttempt">
-                  <div className="model-round-item__retry-attempt-label" data-openbitfun-component="model-round-item" data-openbitfun-part="attemptLabel">
+                <div key={attempt.id} className="model-round-item__retry-attempt" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="retryAttempt">
+                  <div className="model-round-item__retry-attempt-label" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="attemptLabel">
                     <span>{t('modelRound.attemptLabel', { index: attempt.index })}</span>
                     {attempt.diagnostic && <AttemptDiagnosticDetails diagnostic={attempt.diagnostic} />}
                   </div>
@@ -752,8 +741,8 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         {canvasArtifactItems.length > 0 && (
           <div
             className="model-round-item__canvas-attachments"
-            data-openbitfun-component="model-round-item"
-            data-openbitfun-part="canvasAttachments"
+            data-openbitfun-product-component="model-round-item"
+            data-openbitfun-product-part="canvasAttachments"
           >
             {canvasArtifactItems.map((item, index) => (
               <FlowItemRenderer
@@ -771,24 +760,24 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         {shouldReserveFooter && (
           <div
             className={`model-round-item__footer${shouldRevealFooter ? '' : ' model-round-item__footer--pending'}`}
-            data-openbitfun-component="model-round-item"
-            data-openbitfun-part="footer"
+            data-openbitfun-product-component="model-round-item"
+            data-openbitfun-product-part="footer"
             data-openbitfun-state={shouldRevealFooter ? undefined : 'pending'}
             aria-hidden={!shouldRevealFooter}
           >
             {completionMetaItems.length > 0 && (
               <div
                 className="model-round-item__meta"
-                data-openbitfun-component="model-round-item"
-                data-openbitfun-part="meta"
+                data-openbitfun-product-component="model-round-item"
+                data-openbitfun-product-part="meta"
                 aria-label={t('modelRound.meta.label')}
               >
                 {completionMetaItems.map(item => (
                   <span
                     key={item.key}
                     className="model-round-item__meta-item"
-                    data-openbitfun-component="model-round-item"
-                    data-openbitfun-part="metaItem"
+                    data-openbitfun-product-component="model-round-item"
+                    data-openbitfun-product-part="metaItem"
                     aria-label={`${item.label}: ${item.value}`}
                   >
                     {item.value}
@@ -805,7 +794,7 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
 
             {allowTranscriptExport && <div className="model-round-item__copy-menu-anchor">
               <Tooltip content={copied ? t('modelRound.copiedDialog') : t('modelRound.copyDialog')} placement="top">
-                <button
+                <IconButton
                   ref={copyButtonRef}
                   className={`model-round-item__action-btn model-round-item__copy-btn ${copied ? 'copied' : ''}`}
                   onClick={() => setIsCopyMenuOpen(current => !current)}
@@ -815,9 +804,9 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
                   aria-expanded={isCopyMenuOpen}
                   aria-label={copied ? t('modelRound.copiedDialog') : t('modelRound.copyDialog')}
                   data-testid="model-round-copy-btn"
-                 data-openbitfun-component="model-round-item" data-openbitfun-part="action" data-openbitfun-state={copied ? 'copied' : undefined}>
-                  <Icon name={copied ? 'check-line' : 'duplicate'} size="sm" />
-                </button>
+                  data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="action" data-openbitfun-state={copied ? 'copied' : undefined}
+                  icon={<Icon name={copied ? 'check-line' : 'duplicate'} size="sm" />}
+                />
               </Tooltip>
 
               {isCopyMenuOpen && createPortal(
@@ -858,29 +847,7 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
       </TypewriterRevealGateProvider>
     );
   },
-  (prev, next) => {
-    // Streaming content accumulates, so always re-render.
-    if (next.round.isStreaming || prev.round.isStreaming) {
-      return false;
-    }
-
-    // In complete state, compare items array reference to detect tool state changes.
-    return (
-      prev.round.id === next.round.id &&
-      prev.round.items === next.round.items &&
-      prev.round.attempts === next.round.attempts &&
-      prev.round.attemptDiagnostics === next.round.attemptDiagnostics &&
-      prev.round.historyRounds === next.round.historyRounds &&
-      prev.isLastRound === next.isLastRound &&
-      prev.isTurnComplete === next.isTurnComplete &&
-      prev.expandedThinkingItemIds === next.expandedThinkingItemIds &&
-      prev.turnStartedAt === next.turnStartedAt &&
-      prev.turnEndedAt === next.turnEndedAt &&
-      prev.turnDurationMs === next.turnDurationMs &&
-      prev.turnTokenUsage === next.turnTokenUsage &&
-      prev.canvasArtifactItems === next.canvasArtifactItems
-    );
-  }
+  areModelRoundItemPropsEqual
 );
 
 ModelRoundItem.displayName = 'ModelRoundItem';
@@ -944,7 +911,7 @@ const FlowItemRenderer: React.FC<FlowItemRendererProps> = ({
       const toolItem = item as FlowToolItem;
 
       return (
-        <div className="flowchat-flow-item" data-flow-item-id={item.id} data-flow-item-type="tool" data-openbitfun-component="model-round-item" data-openbitfun-part="toolItem">
+        <div className="flowchat-flow-item" data-flow-item-id={item.id} data-flow-item-type="tool" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="toolItem">
           <FlowToolCard
             toolItem={toolItem}
             isLastItem={isLastItem}

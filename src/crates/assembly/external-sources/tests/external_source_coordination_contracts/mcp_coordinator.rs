@@ -150,6 +150,11 @@ impl ExternalMcpSourceProvider for FakeProvider {
         expected_behavior_version: &str,
     ) -> Result<PreparedExternalMcpImportServer, ExternalSourceProviderError> {
         Ok(PreparedExternalMcpImportServer {
+            environment: Default::default(),
+            headers: Default::default(),
+            working_directory: None,
+            timeouts: Default::default(),
+            oauth_enabled: None,
             id: server_id.clone(),
             behavior_version: expected_behavior_version.to_string(),
             transport: PreparedExternalMcpImportTransport::Remote {
@@ -364,4 +369,25 @@ fn coordinator_deduplicates_watch_roots_and_rejects_duplicate_providers() {
         provider.identity().provider_id,
         ProviderId::new("fake.mcp").unwrap()
     );
+}
+
+#[test]
+fn disabled_external_server_can_import_but_cannot_activate() {
+    let mut value = snapshot("project", "behavior-v1");
+    value.servers[0].source_enabled = false;
+    value.servers[0].static_status = ExternalMcpStaticStatus::DisabledBySource;
+    let server = value.servers[0].clone();
+    let provider: Arc<dyn ExternalMcpSourceProvider> = Arc::new(FakeProvider::new(value));
+    let mut coordinator =
+        ExternalMcpCoordinator::new(context(), revision_key(), vec![provider]).unwrap();
+    coordinator.refresh();
+    assert!(coordinator
+        .prepare_import_guarded(&server.id, &server.behavior_version)
+        .is_ok());
+    assert!(coordinator
+        .prepare_server_guarded(&server.id, &server.behavior_version)
+        .is_err());
+    assert!(coordinator
+        .prepare_import_guarded(&server.id, "old-version")
+        .is_err());
 }

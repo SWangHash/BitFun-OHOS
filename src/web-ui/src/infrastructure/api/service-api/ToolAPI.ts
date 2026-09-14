@@ -63,6 +63,10 @@ export class ToolAPI {
   /**
    * Submit user answers.
    */
+  async startUserQuestionInteraction(toolId: string, sessionId: string): Promise<void> {
+    await api.invoke('start_user_question_interaction', { request: { toolId, sessionId } });
+  }
+
   async submitUserAnswers(
     toolId: string,
     answers: Record<string, string | string[]>,

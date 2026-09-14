@@ -25,7 +25,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { AgentCompanionMood } from '../utils/agentCompanionMood';
 import type { AgentCompanionPetSelection } from '@/infrastructure/config/services/AIExperienceConfigService';
-import { resolveAgentCompanionPetSrc } from '@/infrastructure/config/services/AgentCompanionPetService';
+import { resolveAgentCompanionPet } from '@/infrastructure/config/services/AgentCompanionPetService';
+import { getPetAnimationFrameCount, getPetLookFrame, getPetSpriteFrameSize } from '@/infrastructure/config/services/agentCompanionPetSprite';
+import { createLogger } from '@/shared/utils/logger';
+import { useI18n } from '@/infrastructure/i18n';
 import './AgentCompanionPet.scss';
 
 export interface AgentCompanionPetProps {
@@ -34,6 +37,9 @@ export interface AgentCompanionPetProps {
   pet?: AgentCompanionPetSelection | null;
   nativePetdexSize?: boolean;
   petdexScale?: number;
+  lookDirection?: number | null;
+  action?: 'jumping' | 'waving' | 'failed' | null;
+  dragDirection?: 'left' | 'right';
   onPetFrameSizeChange?: (size: { width: number; height: number } | null) => void;
 }
 
@@ -41,8 +47,7 @@ export type AgentCompanionPetMood = AgentCompanionMood | 'hover' | 'dragging';
 
 const VIEW_W = 320;
 const VIEW_H = 204;
-const PETDEX_COLUMNS = 8;
-const PETDEX_ROWS = 9;
+const log = createLogger('AgentCompanionPet');
 
 /* ---------- Static silhouette (verbatim from user's panda.svg) ---------- */
 
@@ -289,26 +294,50 @@ export const AgentCompanionPet: React.FC<AgentCompanionPetProps> = ({
   pet = null,
   nativePetdexSize = false,
   petdexScale = 1,
+  lookDirection = null,
+  action = null,
+  dragDirection = 'left',
   onPetFrameSizeChange,
 }) => {
-  const [petSrc, setPetSrc] = useState<string | null>(null);
+  const { t } = useI18n('settings/runtime');
+  const [resource, setResource] = useState<(Awaited<ReturnType<typeof resolveAgentCompanionPet>> & {
+    selection: AgentCompanionPetSelection;
+  }) | null>(null);
+  const activeResource = resource?.selection === pet ? resource : null;
+  const petSrc = activeResource?.src;
+  const layout = activeResource?.layout;
+  const [failedPet, setFailedPet] = useState<AgentCompanionPetSelection | null>(null);
+  const [reducedMotion, setReducedMotion] = useState(false);
   const [petFrameSize, setPetFrameSize] = useState<{ width: number; height: number } | null>(null);
   useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    setResource(null);
+    setFailedPet(null);
+    setPetFrameSize(null);
+    onPetFrameSizeChange?.(null);
     if (!pet) {
-      setPetSrc(null);
-      setPetFrameSize(null);
-      onPetFrameSizeChange?.(null);
       return;
     }
     let cancelled = false;
-    void resolveAgentCompanionPetSrc(pet).then(src => {
-      if (!cancelled) setPetSrc(src || null);
+    void resolveAgentCompanionPet(pet).then(resolved => {
+      if (!cancelled) setResource({ ...resolved, selection: pet });
+    }).catch(error => {
+      if (cancelled) return;
+      log.error('Failed to resolve Agent companion pet', error);
+      setFailedPet(pet);
     });
     return () => { cancelled = true; };
   }, [onPetFrameSizeChange, pet]);
 
   useEffect(() => {
-    if (!petSrc || !nativePetdexSize) {
+    if (!petSrc || !layout || !pet) {
       setPetFrameSize(null);
       onPetFrameSizeChange?.(null);
       return;
@@ -318,23 +347,26 @@ export const AgentCompanionPet: React.FC<AgentCompanionPetProps> = ({
     const image = new Image();
     image.onload = () => {
       if (cancelled) return;
-      const width = Math.round(image.naturalWidth / PETDEX_COLUMNS);
-      const height = Math.round(image.naturalHeight / PETDEX_ROWS);
-      if (width <= 0 || height <= 0) {
-        setPetFrameSize(null);
-        onPetFrameSizeChange?.(null);
+      let frameSize;
+      try {
+        frameSize = getPetSpriteFrameSize(image.naturalWidth, image.naturalHeight, layout.version);
+      } catch (error) {
+        log.error('Invalid Agent companion spritesheet', error);
+        setFailedPet(pet);
         return;
       }
+      if (!nativePetdexSize) return;
       const scale = Number.isFinite(petdexScale) && petdexScale > 0 ? petdexScale : 1;
       const nextSize = {
-        width: Math.max(1, Math.round(width * scale)),
-        height: Math.max(1, Math.round(height * scale)),
+        width: Math.max(1, Math.round(frameSize.width * scale)),
+        height: Math.max(1, Math.round(frameSize.height * scale)),
       };
       setPetFrameSize(nextSize);
       onPetFrameSizeChange?.(nextSize);
     };
     image.onerror = () => {
       if (cancelled) return;
+      setFailedPet(pet);
       setPetFrameSize(null);
       onPetFrameSizeChange?.(null);
     };
@@ -343,7 +375,7 @@ export const AgentCompanionPet: React.FC<AgentCompanionPetProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [nativePetdexSize, onPetFrameSizeChange, petSrc, petdexScale]);
+  }, [layout, nativePetdexSize, onPetFrameSizeChange, pet, petSrc, petdexScale]);
 
   const [transitioning, setTransitioning] = useState(false);
   const prevMoodRef = useRef<AgentCompanionPetMood>(mood);
@@ -402,15 +434,33 @@ export const AgentCompanionPet: React.FC<AgentCompanionPetProps> = ({
     .filter(Boolean)
     .join(' ');
 
-  if (pet && petSrc) {
+  if (pet && failedPet === pet) {
+    return (
+      <div data-openbitfun-component="chat-input-pixel-pet" data-openbitfun-part="root"
+        data-openbitfun-mood={mood} data-openbitfun-layout="petdex"
+        className={`openbitfun-agent-companion-pet ${className}`.trim()}
+        role="img" aria-label={t('features.pet.loadFailed')} title={t('features.pet.loadFailed')}
+      >!</div>
+    );
+  }
+
+  if (pet && petSrc && layout) {
     const rowByMood: Record<AgentCompanionPetMood, number> = {
       rest: 0,
-      hover: 1,
-      dragging: 2,
+      hover: 0,
+      dragging: dragDirection === 'right' ? 1 : 2,
       analyzing: 8,
       waiting: 6,
       working: 7,
     };
+    // Short lifecycle reactions remain visible over task activity; dragging wins.
+    const spriteAction = mood !== 'dragging' ? action : null;
+    const actionRow = spriteAction === 'waving' ? 3 : spriteAction === 'jumping' ? 4 : spriteAction === 'failed' ? 5 : null;
+    const lookFrame = !spriteAction && !reducedMotion && mood === 'rest'
+      ? getPetLookFrame(layout.version, lookDirection)
+      : null;
+    const row = lookFrame?.row ?? actionRow ?? rowByMood[mood];
+    const frames = getPetAnimationFrameCount(actionRow ?? rowByMood[mood]);
     const nativePetdexStyle = nativePetdexSize && petFrameSize
       ? {
         '--openbitfun-petdex-width': `${petFrameSize.width}px`,
@@ -426,12 +476,23 @@ export const AgentCompanionPet: React.FC<AgentCompanionPetProps> = ({
         aria-hidden
       >
         <div
+          key={spriteAction ?? mood}
           data-openbitfun-component="chat-input-pixel-pet"
           data-openbitfun-part="petdex"
+          data-pet-action={spriteAction ?? undefined}
           className={`openbitfun-agent-companion-pet__petdex openbitfun-agent-companion-pet__petdex--${mood}`}
           style={{
             '--openbitfun-petdex-src': `url("${petSrc}")`,
-            '--openbitfun-petdex-row': rowByMood[mood],
+            '--openbitfun-petdex-row': row,
+            '--openbitfun-petdex-frames': frames,
+            '--openbitfun-petdex-end': `${frames / (layout.columns - 1) * 100}%`,
+            backgroundSize: `${layout.columns * 100}% ${layout.rows * 100}%`,
+            backgroundPositionY: `${row / (layout.rows - 1) * 100}%`,
+            ...(spriteAction ? { animationDuration: '1.2s', animationName: 'openbitfun-petdex-walk' } : {}),
+            ...(lookFrame ? {
+              animation: 'none',
+              backgroundPositionX: `${lookFrame.column / (layout.columns - 1) * 100}%`,
+            } : {}),
           } as React.CSSProperties}
         />
       </div>

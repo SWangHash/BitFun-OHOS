@@ -8,9 +8,12 @@ use openbitfun_agent_runtime::question_templates::{
 };
 use openbitfun_agent_runtime::user_questions::{
     ask_user_question_available_in_context, build_answered_user_question_result,
-    build_cancelled_user_question_result, validate_ask_user_question_input, AskUserQuestionInput,
+    build_cancelled_user_question_result, build_timed_out_user_question_result,
+    validate_ask_user_question_input, wait_for_user_question_response, AskUserQuestionInput,
     PendingQuestionRequestMeta, PendingUserQuestion, ResolvedQuestionRequest,
+    UserQuestionController, UserQuestionWaitOutcome, DEFAULT_USER_QUESTION_TIMEOUT_SECONDS,
     USER_INPUT_AVAILABLE_CONTEXT_KEY, USER_INPUT_MODEL_ROUND_CONTEXT_KEY,
+    USER_INPUT_PARENT_CONTEXT_KEY,
 };
 use log::{debug, warn};
 use serde_json::{json, Value};
@@ -32,6 +35,63 @@ impl Default for AskUserQuestionTool {
 }
 
 impl AskUserQuestionTool {
+    async fn question_controllers(context: &ToolUseContext) -> Vec<UserQuestionController> {
+        let Some(parent) = context
+            .custom_data
+            .get(USER_INPUT_PARENT_CONTEXT_KEY)
+            .and_then(|value| serde_json::from_value::<UserQuestionController>(value.clone()).ok())
+        else {
+            return Vec::new();
+        };
+        let mut controllers = vec![parent];
+        let Some(coordinator) = crate::agentic::coordination::get_global_coordinator() else {
+            return controllers;
+        };
+        let manager = coordinator.get_session_manager();
+        let mut visited = std::collections::HashSet::new();
+        if let Some(session_id) = context.session_id.as_ref() {
+            visited.insert(session_id.clone());
+        }
+        while let Some(current) = controllers.last() {
+            let session_id = current.session_id.clone();
+            if !visited.insert(session_id.clone()) {
+                controllers.pop();
+                break;
+            }
+            let Some(storage) = manager.effective_session_storage_path(&session_id).await else {
+                break;
+            };
+            let metadata = match manager.load_session_metadata(&storage, &session_id).await {
+                Ok(Some(metadata)) => metadata,
+                Ok(None) => break,
+                Err(error) => {
+                    warn!(
+                        "Failed to resolve question controller lineage: session_id={}, error={}",
+                        session_id, error
+                    );
+                    break;
+                }
+            };
+            let Some(relationship) =
+                openbitfun_services_core::session::normalized_session_relationship(&metadata)
+            else {
+                break;
+            };
+            if relationship.kind != Some(crate::service::session::SessionRelationshipKind::Subagent)
+            {
+                break;
+            }
+            let Some(parent_session_id) = relationship.parent_session_id else {
+                break;
+            };
+            controllers.push(UserQuestionController {
+                session_id: parent_session_id,
+                dialog_turn_id: relationship.parent_dialog_turn_id,
+            });
+        }
+        controllers
+    }
+
     pub fn new() -> Self {
         Self
     }
@@ -88,7 +148,8 @@ RECOMMENDATION GUIDELINES:
 - Provide 2-4 clear options with descriptions of trade-offs
 
 Usage notes:
-- This tool ends the current dialog turn and waits for the user's reply before the assistant continues
+- This tool waits up to 30 seconds by default for the first user interaction. Once the user clicks an option or input, the timeout is disabled and the tool waits for submission or cancellation. If the user does not interact, it skips the questions and returns so you can continue execution.
+- Prefer the default timeout. Set timeout_seconds only when necessary to wait a shorter or longer time. A timeout is not user approval or a selected answer.
 - Put all questions you need into a single AskUserQuestion call instead of calling it repeatedly in one response
 - Users will always be able to select "Other" to provide custom text input
 - Use multiSelect: true to allow multiple answers to be selected for a question
@@ -103,6 +164,13 @@ Usage notes:
         json!({
             "type": "object",
             "properties": {
+                "timeout_seconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": u32::MAX,
+                    "default": DEFAULT_USER_QUESTION_TIMEOUT_SECONDS,
+                    "description": "Seconds to wait for the first user interaction, default 30. Once the user starts answering, wait until submission or cancellation without a timeout. Prefer omitting this parameter; use a shorter or longer wait only when necessary. On timeout, skip the questions and continue execution."
+                },
                 "questions": {
                     "type": "array",
                     "items": {
@@ -184,6 +252,10 @@ Usage notes:
     }
 
     fn is_concurrency_safe(&self, _input: Option<&Value>) -> bool {
+        true
+    }
+
+    fn manages_own_execution_timeout(&self) -> bool {
         true
     }
 
@@ -375,7 +447,7 @@ Usage notes:
         } else {
             serde_json::to_value(&tool_input).unwrap_or_else(|_| json!({}))
         };
-        let _registration = manager.register_question(
+        let registration = manager.register_question_with_controllers(
             PendingUserQuestion::new_with_meta(
                 tool_id.clone(),
                 session_id.clone(),
@@ -385,6 +457,7 @@ Usage notes:
                 Some(pending_meta),
             ),
             tx,
+            Self::question_controllers(context).await,
         );
 
         // 6. Send backend event to notify frontend to display question card
@@ -405,9 +478,16 @@ Usage notes:
             tool_id
         );
 
-        // 7. Wait for user answer until the user responds, cancels, or the turn is cancelled.
-        match rx.await {
-            Ok(response) => {
+        // 7. Bound the wait in the runtime host, including for remote driving surfaces.
+        // The registration guard clears replay state on timeout or turn cancellation.
+        match wait_for_user_question_response(
+            &registration,
+            rx,
+            std::time::Duration::from_secs(u64::from(tool_input.timeout_seconds)),
+        )
+        .await
+        {
+            UserQuestionWaitOutcome::Answered(response) => {
                 debug!(
                     "AskUserQuestion tool received user response, tool_id: {}",
                     tool_id
@@ -420,7 +500,16 @@ Usage notes:
                     image_attachments: None,
                 }])
             }
-            Err(_) => {
+            UserQuestionWaitOutcome::TimedOut => {
+                debug!("AskUserQuestion timed out, tool_id: {}", tool_id);
+                let result = build_timed_out_user_question_result(&tool_input);
+                Ok(vec![ToolResult::Result {
+                    data: result.data,
+                    result_for_assistant: Some(result.result_for_assistant),
+                    image_attachments: None,
+                }])
+            }
+            UserQuestionWaitOutcome::Cancelled => {
                 warn!("AskUserQuestion tool channel closed, tool_id: {}", tool_id);
                 let result = build_cancelled_user_question_result(&tool_input);
                 Ok(vec![ToolResult::Result {
@@ -670,5 +759,128 @@ mod tests {
             .pending_question_snapshot(&session_id)
             .questions
             .is_empty());
+    }
+    #[tokio::test]
+    async fn parent_controller_can_stop_and_cancel_child_question() {
+        let unique = uuid::Uuid::new_v4().to_string();
+        let child = format!("child-{unique}");
+        let parent = format!("parent-{unique}");
+        let mut context = context_with_custom_data(HashMap::from([(
+            openbitfun_agent_runtime::user_questions::USER_INPUT_PARENT_CONTEXT_KEY.to_string(),
+            serde_json::json!({ "session_id": parent, "dialog_turn_id": "parent-turn" }),
+        )]));
+        context.session_id = Some(child.clone());
+        context.tool_call_id = Some(unique.clone());
+        let input = serde_json::json!({"timeout_seconds": 1, "questions": [{
+            "question": "Continue?", "header": "Continue", "options": [
+                {"label": "Yes", "description": "Continue"}, {"label": "No", "description": "Stop"}
+            ]
+        }]});
+        let task =
+            tokio::spawn(async move { AskUserQuestionTool::new().call(&input, &context).await });
+        let manager = get_user_input_manager();
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            while !manager.has_pending(&unique) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        manager.start_interaction(&parent, &unique).unwrap();
+        assert_eq!(
+            manager.pending_question_snapshot(&parent).questions[0]
+                .dialog_turn_id
+                .as_deref(),
+            Some("parent-turn")
+        );
+        assert!(manager.start_interaction("unrelated", &unique).is_err());
+        manager.cancel_for_session(&parent, &unique).unwrap();
+        let result = task.await.unwrap().unwrap();
+        match &result[0] {
+            crate::agentic::tools::framework::ToolResult::Result { data, .. } => {
+                assert_eq!(data["status"], "cancelled")
+            }
+            _ => panic!("expected cancellation result"),
+        }
+        assert!(manager
+            .pending_question_snapshot(&child)
+            .questions
+            .is_empty());
+    }
+
+    #[test]
+    fn timeout_schema_is_optional_and_owned_by_the_tool() {
+        let tool = AskUserQuestionTool::new();
+        let schema = tool.input_schema();
+        assert_eq!(schema["properties"]["timeout_seconds"]["default"], 30);
+        assert_eq!(schema["properties"]["timeout_seconds"]["minimum"], 1);
+        assert_eq!(schema["required"], serde_json::json!(["questions"]));
+        assert!(tool.manages_own_execution_timeout());
+    }
+
+    async fn assert_question_times_out(timeout_seconds: Option<u32>) {
+        let unique = uuid::Uuid::new_v4().to_string();
+        let mut context = context_with_custom_data(HashMap::new());
+        context.session_id = Some(unique.clone());
+        context.tool_call_id = Some(unique.clone());
+        let mut input = serde_json::json!({
+            "questions": [{
+                "question": "Continue?", "header": "Continue",
+                "options": [
+                    { "label": "Yes", "description": "Continue" },
+                    { "label": "No", "description": "Stop" }
+                ]
+            }]
+        });
+        if let Some(seconds) = timeout_seconds {
+            input["timeout_seconds"] = serde_json::json!(seconds);
+        }
+        let expected = std::time::Duration::from_secs(u64::from(timeout_seconds.unwrap_or(30)));
+        let started = tokio::time::Instant::now();
+        let result = tokio::time::timeout(
+            expected + std::time::Duration::from_secs(5),
+            AskUserQuestionTool::new().call(&input, &context),
+        )
+        .await
+        .expect("question must finish without a user response")
+        .unwrap();
+        assert!(started.elapsed() >= expected);
+        match &result[0] {
+            crate::agentic::tools::framework::ToolResult::Result {
+                data,
+                result_for_assistant,
+                ..
+            } => {
+                assert_eq!(data["status"], "timeout");
+                assert_eq!(
+                    result_for_assistant.as_deref(),
+                    Some("用户无响应，跳过提问，继续执行")
+                );
+            }
+            _ => panic!("timeout must return a normal tool result"),
+        }
+        let manager = get_user_input_manager();
+        assert!(manager
+            .pending_question_snapshot(&unique)
+            .questions
+            .is_empty());
+        assert!(!manager.has_pending(&unique));
+        assert!(manager
+            .send_answer(&unique, serde_json::json!({ "0": "Yes" }))
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn unanswered_question_defaults_to_thirty_seconds_and_rejects_late_answers() {
+        assert_question_times_out(None).await;
+    }
+
+    #[tokio::test]
+    async fn unanswered_question_honors_shorter_timeout() {
+        assert_question_times_out(Some(1)).await;
+    }
+    #[tokio::test]
+    async fn unanswered_question_honors_longer_timeout() {
+        assert_question_times_out(Some(31)).await;
     }
 }

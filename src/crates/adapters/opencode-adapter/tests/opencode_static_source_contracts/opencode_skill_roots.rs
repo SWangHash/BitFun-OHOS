@@ -231,3 +231,96 @@ fn inline_config_paths_are_applied_last_and_stay_workspace_scoped() {
     assert_eq!(roots[1].path, dunce::canonicalize(inline_root).unwrap());
     assert_eq!(roots[1].scope, ExternalSourceScope::Project);
 }
+
+#[test]
+fn diagnostics_explain_bad_sources_without_hiding_valid_roots_or_secrets() {
+    let fixture = Fixture::new();
+    fs::create_dir_all(fixture.project.join("valid")).unwrap();
+    write(
+        fixture.user_config.join("opencode.json"),
+        r#"{"secret":"do-not-display",broken}"#,
+    );
+    write(
+        fixture.project.join("opencode.json"),
+        r#"{"skills":["../../valid", "../../missing", "https://user:secret@example.test/skills", "../../opencode.json", "../../../home"]}"#,
+    );
+    let report = fixture
+        .provider()
+        .discover_with_diagnostics(Some(&fixture.opened_directory));
+    assert_eq!(report.roots.len(), 1);
+    assert_eq!(report.diagnostics.len(), 5);
+    let messages = format!("{:?}", report.diagnostics);
+    for expected in [
+        "JSON/JSONC",
+        "missing or unreadable",
+        "not a directory",
+        "outside",
+        "URLs",
+    ] {
+        assert!(messages.contains(expected), "{messages}");
+    }
+    assert!(!messages.contains("secret"));
+    assert!(!messages.contains("example.test"));
+    write(fixture.user_config.join("opencode.json"), "{}");
+    write(
+        fixture.project.join("opencode.json"),
+        r#"{"skills":["../../valid"]}"#,
+    );
+    let refreshed = fixture
+        .provider()
+        .discover_with_diagnostics(Some(&fixture.opened_directory));
+    assert_eq!(refreshed.roots.len(), 1);
+    assert!(refreshed.diagnostics.is_empty());
+}
+
+#[test]
+fn diagnostics_are_bounded_and_absent_default_configuration_is_quiet() {
+    let fixture = Fixture::new();
+    assert!(fixture
+        .provider()
+        .discover_with_diagnostics(None)
+        .diagnostics
+        .is_empty());
+    write(
+        fixture.user_config.join("opencode.json"),
+        &serde_json::json!({"skills": vec!["https://secret@example.test"; 200]}).to_string(),
+    );
+    let report = fixture.provider().discover_with_diagnostics(None);
+    assert!(report.roots.is_empty());
+    assert_eq!(report.diagnostics.len(), 65);
+    assert!(report
+        .diagnostics
+        .last()
+        .unwrap()
+        .message
+        .contains("omitted"));
+}
+
+#[test]
+fn unreadable_configuration_and_missing_explicit_file_are_reported() {
+    let fixture = Fixture::new();
+    fs::write(fixture.user_config.join("opencode.json"), [255, 254]).unwrap();
+    let mut options = OpenCodeSkillRootProviderOptions {
+        config: OpenCodeCommandProviderOptions {
+            explicit_config_file: Some(fixture.home.join("missing.json")),
+            user_config_dir: fixture.user_config.clone(),
+            legacy_user_config_dir: None,
+            explicit_config_dir: None,
+            inline_config_content: None,
+            project_config_enabled: true,
+        },
+        home_dir: Some(fixture.home.clone()),
+    };
+    let report = OpenCodeSkillRootProvider::new(options.clone()).discover_with_diagnostics(None);
+    assert_eq!(report.diagnostics.len(), 2);
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|entry| entry.message.contains("UTF-8")));
+    options.config.inline_config_content = Some(" ".repeat(1024 * 1024 + 1));
+    let report = OpenCodeSkillRootProvider::new(options).discover_with_diagnostics(None);
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|entry| entry.message.contains("size limit")));
+}

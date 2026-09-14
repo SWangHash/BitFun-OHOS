@@ -54,17 +54,17 @@ fn policy(preset: PermissionPolicyPreset, rules: Vec<PermissionRule>) -> Permiss
 }
 
 #[test]
-fn tool_permission_config_defaults_to_ask_with_auto_approve_disabled() {
+fn tool_permission_config_defaults_to_full_access_with_auto_approve_disabled() {
     let config = ToolPermissionConfig::default();
 
-    assert_eq!(config.policy.preset, PermissionPolicyPreset::Ask);
+    assert_eq!(config.policy.preset, PermissionPolicyPreset::FullAccess);
     assert!(config.policy.rules.is_empty());
     assert!(!config.interaction.auto_approve_ask);
     assert_eq!(
         serde_json::to_value(config).expect("serialize tool permission config"),
         json!({
             "policy": {
-                "preset": "ask",
+                "preset": "full_access",
                 "rules": [],
             },
             "interaction": {
@@ -399,7 +399,7 @@ fn task_and_skill_default_allow_do_not_authorize_child_tools() {
 }
 
 #[test]
-fn legacy_skip_confirmation_field_does_not_enable_access_or_auto_approve() {
+fn legacy_skip_confirmation_field_does_not_override_product_defaults() {
     let config: ToolPermissionConfig = serde_json::from_value(json!({
         "skip_tool_confirmation": true,
     }))
@@ -704,6 +704,12 @@ fn permission_mode_projects_onto_preset_and_auto_approval() {
 #[test]
 fn permission_mode_round_trips_through_stored_configuration() {
     let mut config = ToolPermissionConfig::default();
+    assert_eq!(
+        PermissionMode::from_config(&config),
+        PermissionMode::FullAccess
+    );
+
+    config.policy.preset = PermissionPolicyPreset::Ask;
     assert_eq!(PermissionMode::from_config(&config), PermissionMode::Ask);
 
     config.interaction.auto_approve_ask = true;
@@ -923,5 +929,24 @@ fn unset_permission_mode_is_omitted_so_old_builds_see_unchanged_files() {
     assert_eq!(
         written,
         json!({ "permission_mode": "full_access", "keep": "value" })
+    );
+}
+
+#[test]
+fn stored_permission_preferences_survive_default_change() {
+    for preset in ["ask", "full_access"] {
+        for auto_approve in [false, true] {
+            let stored = json!({
+                "policy": { "preset": preset, "rules": [] },
+                "interaction": { "auto_approve_ask": auto_approve }
+            });
+            let config: ToolPermissionConfig = serde_json::from_value(stored.clone()).unwrap();
+            assert_eq!(serde_json::to_value(config).unwrap(), stored);
+        }
+    }
+    let missing: ToolPermissionConfig = serde_json::from_value(json!({})).unwrap();
+    assert_eq!(
+        PermissionMode::from_config(&missing),
+        PermissionMode::FullAccess
     );
 }

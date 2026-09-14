@@ -559,6 +559,13 @@ export class RemoteSessionManager {
     });
   }
 
+  async startQuestionInteraction(sessionId: string, toolId: string): Promise<void> {
+    if (!this.supportsHostCapability('user_question_interaction_v1')) {
+      throw new Error('Execution host does not support stopping the question timeout');
+    }
+    await this.request({ cmd: 'start_question_interaction', session_id: sessionId, tool_id: toolId });
+  }
+
   async answerQuestion(toolId: string, answers: any): Promise<void> {
     await this.request({ cmd: 'answer_question', tool_id: toolId, answers });
   }

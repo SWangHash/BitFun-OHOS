@@ -124,6 +124,7 @@ public class RemoteWorkspaceStore internal constructor(
                 name = item.name?.takeIf(String::isNotBlank) ?: basename(item.path.orEmpty()),
                 lastOpened = item.lastOpened,
                 kind = item.workspaceKind.orEmpty(),
+                remoteSshHost = item.remoteSshHost,
             )
         }.filter { it.path.isNotEmpty() }
         val loadedAssistants = assistants.assistants.map { item ->
@@ -180,6 +181,7 @@ public class RemoteWorkspaceStore internal constructor(
                                     name = item.name?.takeIf(String::isNotBlank) ?: basename(item.path.orEmpty()),
                                     lastOpened = item.lastOpened,
                                     kind = item.workspaceKind.orEmpty(),
+                                    remoteSshHost = item.remoteSshHost,
                                 )
                             }.filter { it.path.isNotEmpty() }
                             val loadedAssistants = assistants.assistants.map { item ->
@@ -646,7 +648,7 @@ public class RemoteWorkspaceStore internal constructor(
             WorkspaceAssistant(row.path, row.name.ifEmpty { basename(row.path) }, null)
         }
         val workspaces = rows.filterNot { it.workspaceKind == ASSISTANT_KIND }.map { row ->
-            RecentWorkspace(row.path, row.name.ifEmpty { basename(row.path) }, row.lastOpened, row.workspaceKind)
+            RecentWorkspace(row.path, row.name.ifEmpty { basename(row.path) }, row.lastOpened, row.workspaceKind, row.remoteSshHost)
         }
         return RemoteWorkspaceUiState.Ready(
             workspaces = workspaces,
@@ -664,7 +666,7 @@ public class RemoteWorkspaceStore internal constructor(
         assistants: List<WorkspaceAssistant>,
     ): List<PersistedRemoteWorkspace> {
         val rows = workspaces.map { workspace ->
-            PersistedRemoteWorkspace(workspace.path, workspace.name, workspace.lastOpened, workspace.kind)
+            PersistedRemoteWorkspace(workspace.path, workspace.name, workspace.lastOpened, workspace.kind, workspace.remoteSshHost)
         }.toMutableList()
         assistants.forEach { assistant ->
             if (rows.none { it.path == assistant.path }) {

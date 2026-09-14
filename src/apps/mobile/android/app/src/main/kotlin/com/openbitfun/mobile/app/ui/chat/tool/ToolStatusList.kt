@@ -39,6 +39,13 @@ import com.openbitfun.mobile.core.feature.session.collapseToolRows
 import com.openbitfun.mobile.app.ui.theme.openBitFunColors
 
 /** Anything the desktop must be told about a rejection needs a reason; this is ours. */
+internal data class PlanActions(
+    val supported: Boolean = false,
+    val enabled: Boolean = false,
+    val build: (com.openbitfun.mobile.core.feature.session.PlanToolDescriptor) -> Unit = {},
+)
+internal val LocalPlanActions = androidx.compose.runtime.staticCompositionLocalOf { PlanActions() }
+
 private const val REJECT_REASON = "Rejected from the Android client"
 private const val CANCEL_REASON = "Cancelled from the Android client"
 
@@ -179,6 +186,23 @@ internal fun ToolStatusRow(
     onOpenFile: (String, String) -> Unit,
     modifier: Modifier,
 ) {
+    val plan = tool.plan
+    if (plan != null) {
+        val actions = LocalPlanActions.current
+        Column(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(14.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(plan.name.ifBlank { stringResource(R.string.plan_title) }, style = MaterialTheme.typography.titleSmall)
+            if (plan.overview.isNotBlank()) Text(plan.overview, style = MaterialTheme.typography.bodySmall)
+            androidx.compose.material3.TextButton(onClick = { onOpenFile(plan.path, plan.name) }, enabled = enabled && plan.path.isNotBlank()) {
+                Text(stringResource(R.string.plan_view))
+            }
+            androidx.compose.material3.Button(onClick = { actions.build(plan) }, enabled = actions.supported && actions.enabled && tool.phase == ToolPhase.COMPLETED && plan.path.isNotBlank()) {
+                Text(stringResource(R.string.plan_build))
+            }
+            if (!actions.supported) Text(stringResource(R.string.plan_unsupported), style = MaterialTheme.typography.bodySmall)
+            else if (!actions.enabled) Text(stringResource(R.string.plan_wait), style = MaterialTheme.typography.bodySmall)
+        }
+        return
+    }
     var expanded by remember(tool.id) { mutableStateOf(false) }
     val blocking = tool.actions.isNotEmpty()
     val emphasized = expanded || blocking || tool.phase == ToolPhase.FAILED

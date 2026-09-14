@@ -1,5 +1,6 @@
 import {
   gitRepositoryUntrustedPath,
+  isGitRepositoryNotFoundError,
   isGitRepositoryUntrustedError,
 } from '@/infrastructure/api/errors/TauriCommandError';
 import type {
@@ -68,6 +69,12 @@ async function prepareWithRepositoryTrust(
     // burst, so it is always worth a prompt — including right after a decline.
     return await withGitRepositoryTrustRecovery(prepare, { userInitiated: true });
   } catch (error) {
+    if (isGitRepositoryNotFoundError(error)) {
+      throw reviewTargetError(
+        'No Git repository was found in the current workspace. Review requires a Git repository with an existing commit. Open such a project and try again.',
+        'deepReviewActionBar.launchError.notGitRepository',
+      );
+    }
     if (!isGitRepositoryUntrustedError(error)) {
       throw error;
     }
@@ -283,7 +290,7 @@ async function prepareFromResolvedTarget(params: {
     ].includes(limitation))
   ) {
     throw reviewTargetError(
-      'The requested Review target could not be prepared as bounded evidence. Open its workspace or narrow the target and try again.',
+      'The files or code diff could not be read for Review. Check that the corresponding workspace is open and the target is valid, and see the logs for the specific error.',
       'deepReviewActionBar.launchError.unresolvedTarget',
     );
   }

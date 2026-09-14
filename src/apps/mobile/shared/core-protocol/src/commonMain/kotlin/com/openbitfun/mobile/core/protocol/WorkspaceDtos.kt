@@ -42,6 +42,7 @@ public data class RecentWorkspaceEntryResponse(
     /** Resolved from [RECENT_WORKSPACE_TIME_KEYS]; empty string when absent. */
     val lastOpened: String = "",
     val workspaceKind: String? = null,
+    val remoteSshHost: String? = null,
 )
 
 public object RecentWorkspaceEntryResponseSerializer : KSerializer<RecentWorkspaceEntryResponse> {
@@ -54,6 +55,7 @@ public object RecentWorkspaceEntryResponseSerializer : KSerializer<RecentWorkspa
             name = json.wireString("name"),
             lastOpened = json.firstWireTime(RECENT_WORKSPACE_TIME_KEYS),
             workspaceKind = json.wireString("workspace_kind"),
+            remoteSshHost = json.wireString("remote_ssh_host"),
         )
     }
 
@@ -64,6 +66,7 @@ public object RecentWorkspaceEntryResponseSerializer : KSerializer<RecentWorkspa
                 value.name?.let { put("name", it) }
                 if (value.lastOpened.isNotEmpty()) put("last_opened", value.lastOpened)
                 value.workspaceKind?.let { put("workspace_kind", it) }
+                value.remoteSshHost?.let { put("remote_ssh_host", it) }
             },
         )
     }

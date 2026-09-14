@@ -5,6 +5,7 @@ mod dialog;
 mod external_sources;
 mod filesystem;
 mod git;
+mod models;
 mod permission;
 mod product_control;
 mod session;
@@ -24,6 +25,17 @@ pub(crate) async fn dispatch(
     state: &PeerHostState,
 ) -> Result<Value, String> {
     match command {
+        "list_ai_models_by_config" => models::list_ai_models_by_config(args).await,
+        "list_visible_subagents" | "list_subagents" | "list_manageable_subagents" => tools::list_subagents(command, args).await,
+        "get_session_permission_mode" => permission::session_permission_mode(state, args, false, false).await,
+        "update_session_permission_mode" => permission::session_permission_mode(state, args, true, false).await,
+        "update_active_turn_permission_mode" => permission::session_permission_mode(state, args, true, true).await,
+        "get_ai_model_catalog" => models::get_ai_model_catalog().await,
+        "project_ai_model_reasoning_catalog" => models::project_ai_model_reasoning_catalog(args).await,
+        "get_model_configs" => models::get_model_configs().await,
+        "get_models_dev_catalog_status" => models::get_models_dev_catalog_status().await,
+        "refresh_models_dev_catalog_now" => models::refresh_models_dev_catalog_now().await,
+        "test_ai_config_connection" => models::test_ai_config_connection(args).await,
         // Workspace / config
         "initialize_workspace_startup_state" => {
             workspace::initialize_workspace_startup_state(state).await
@@ -82,6 +94,7 @@ pub(crate) async fn dispatch(
         // really has no tools". Without this the call fell into the unsupported
         // dispatch branch and the UI silently rendered an empty tool list.
         "get_all_tools_info" => tools::get_all_tools_info().await,
+        "get_chat_mcp_catalog" => tools::get_chat_mcp_catalog(args).await,
 
         // Sessions
         "list_persisted_sessions" => session::list_persisted_sessions(state, args).await,
@@ -117,6 +130,7 @@ pub(crate) async fn dispatch(
         // Dialog / tools
         "start_dialog_turn" => dialog::start_dialog_turn(state, args).await,
         "cancel_dialog_turn" => dialog::cancel_dialog_turn(state, args).await,
+        "start_user_question_interaction" => dialog::start_user_question_interaction(state, args).await,
         "submit_user_answers" => dialog::submit_user_answers(state, args).await,
         // Per-tool interrupt. The controller renders Terminal cards for Turns
         // this host owns, so it must be able to stop a running tool here —
@@ -170,6 +184,19 @@ pub(crate) async fn dispatch(
 /// cannot be advertised as runnable here without a handler (or vice versa).
 #[cfg(test)]
 pub(crate) const HANDLED_COMMANDS: &[&str] = &[
+    "list_subagents",
+    "list_manageable_subagents",
+    "test_ai_config_connection",
+    "refresh_models_dev_catalog_now",
+    "get_models_dev_catalog_status",
+    "get_model_configs",
+    "project_ai_model_reasoning_catalog",
+    "get_ai_model_catalog",
+    "update_active_turn_permission_mode",
+    "update_session_permission_mode",
+    "get_session_permission_mode",
+    "list_visible_subagents",
+    "list_ai_models_by_config",
     "apply_external_source_control_action_command",
     "archive_session",
     "cancel_dialog_turn",
@@ -187,6 +214,7 @@ pub(crate) const HANDLED_COMMANDS: &[&str] = &[
     "get_agent_profile_config",
     "get_agent_profile_configs",
     "get_all_tools_info",
+    "get_chat_mcp_catalog",
     "get_available_modes",
     "get_config",
     "get_configs",
@@ -246,6 +274,7 @@ pub(crate) const HANDLED_COMMANDS: &[&str] = &[
     "set_external_tool_targets_enabled_command",
     "start_dialog_turn",
     "submit_user_answers",
+    "start_user_question_interaction",
     "subscribe_permission_requests",
     "touch_session_activity",
     "update_external_integration_policy_command",

@@ -22,6 +22,9 @@ use openbitfun_core::agentic::tools::implementations::skills::mode_overrides::{
     save_project_mode_skills_document_local, set_disabled_mode_skills_in_document,
     set_global_user_skill_disabled, set_mode_skill_disabled_in_document, set_user_mode_skill_state,
 };
+use openbitfun_core::agentic::tools::implementations::skills::registry::imports::{
+    self as skill_imports, SkillImportPreview,
+};
 use openbitfun_core::agentic::tools::implementations::skills::{
     resolver::resolve_skill_default_enabled_for_mode, ModeSkillInfo, SkillData, SkillInfo,
     SkillLocation, SkillRegistry, SkillScanReport,
@@ -144,6 +147,12 @@ fn ensure_skill_can_be_deleted(skill: &SkillInfo) -> Result<(), String> {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SkillValidationResult {
+    #[serde(
+        default,
+        rename = "importPreview",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub import_preview: Option<SkillImportPreview>,
     pub valid: bool,
     pub name: Option<String>,
     pub description: Option<String>,
@@ -626,8 +635,20 @@ pub async fn get_skill_configs(
         get_skill_scan_report_for_workspace_input(&state, registry, workspace_path.as_deref())
             .await?;
 
-    serialize_skill_scan_response(all_skills, include_diagnostics.unwrap_or(false))
-        .map_err(|e| format!("Failed to serialize skill configs: {}", e))
+    let mut response =
+        serialize_skill_scan_response(all_skills, include_diagnostics.unwrap_or(false))
+            .map_err(|e| format!("Failed to serialize skill configs: {}", e))?;
+    if let Some(object) = response.as_object_mut() {
+        let supported = match workspace_path.as_deref() {
+            Some(path) => !is_remote_path(path).await,
+            None => true,
+        };
+        object.insert(
+            "importOperationsVersion".into(),
+            serde_json::json!(if supported { 3 } else { 0 }),
+        );
+    }
+    Ok(response)
 }
 
 #[tauri::command]
@@ -935,14 +956,58 @@ pub async fn reset_mode_skill_selection(
     ))
 }
 
+async fn resolve_external_skill_import_source(
+    source_path: &str,
+    source_key: &str,
+    workspace: Option<&Path>,
+) -> Result<SkillInfo, String> {
+    if let Some(root) = workspace {
+        if is_remote_path(&root.to_string_lossy()).await {
+            return Err("External Skill import into remote workspaces is not supported".into());
+        }
+    }
+    let source = SkillRegistry::global()
+        .find_skill_by_key_for_workspace(source_key, workspace)
+        .await
+        .ok_or("skill_import_stale: External Skill source changed; refresh before importing")?;
+    if tokio::fs::canonicalize(&source.path)
+        .await
+        .map_err(|error| error.to_string())?
+        != tokio::fs::canonicalize(source_path)
+            .await
+            .map_err(|error| error.to_string())?
+    {
+        return Err("External Skill path does not match the selected source".into());
+    }
+    Ok(source)
+}
+
 #[tauri::command]
-pub async fn validate_skill_path(path: String) -> Result<SkillValidationResult, String> {
+pub async fn validate_skill_path(
+    path: String,
+    source_key: Option<String>,
+    workspace_path: Option<String>,
+) -> Result<SkillValidationResult, String> {
     use std::path::Path;
+    if let Some(source_key) = source_key {
+        let workspace = workspace_root_from_input(workspace_path.as_deref());
+        let source =
+            resolve_external_skill_import_source(&path, &source_key, workspace.as_deref()).await?;
+        let preview = skill_imports::preview_import(source).await?;
+        return Ok(SkillValidationResult {
+            valid: true,
+            name: Some(preview.name.clone()),
+            description: Some(preview.description.clone()),
+            error: None,
+            import_preview: Some(preview),
+        });
+    }
 
     let skill_path = Path::new(&path);
 
     if !skill_path.exists() {
         return Ok(SkillValidationResult {
+            import_preview: None,
             valid: false,
             name: None,
             description: None,
@@ -952,6 +1017,7 @@ pub async fn validate_skill_path(path: String) -> Result<SkillValidationResult, 
 
     if !skill_path.is_dir() {
         return Ok(SkillValidationResult {
+            import_preview: None,
             valid: false,
             name: None,
             description: None,
@@ -962,6 +1028,7 @@ pub async fn validate_skill_path(path: String) -> Result<SkillValidationResult, 
     let skill_md_path = skill_path.join("SKILL.md");
     if !skill_md_path.exists() {
         return Ok(SkillValidationResult {
+            import_preview: None,
             valid: false,
             name: None,
             description: None,
@@ -973,12 +1040,14 @@ pub async fn validate_skill_path(path: String) -> Result<SkillValidationResult, 
         Ok(content) => {
             match SkillData::from_markdown(path.clone(), &content, SkillLocation::User, false) {
                 Ok(data) => Ok(SkillValidationResult {
+                    import_preview: None,
                     valid: true,
                     name: Some(data.name),
                     description: Some(data.description),
                     error: None,
                 }),
                 Err(e) => Ok(SkillValidationResult {
+                    import_preview: None,
                     valid: false,
                     name: None,
                     description: None,
@@ -987,6 +1056,7 @@ pub async fn validate_skill_path(path: String) -> Result<SkillValidationResult, 
             }
         }
         Err(e) => Ok(SkillValidationResult {
+            import_preview: None,
             valid: false,
             name: None,
             description: None,
@@ -1001,8 +1071,42 @@ pub async fn add_skill(
     source_path: String,
     level: String,
     workspace_path: Option<String>,
+    source_key: Option<String>,
+    target_name: Option<String>,
+    expected_source_fingerprint: Option<String>,
 ) -> Result<String, String> {
-    let validation = validate_skill_path(source_path.clone()).await?;
+    if let Some(source_key) = source_key {
+        if !matches!(level.as_str(), "user" | "project") {
+            return Err("Invalid Skill target scope".into());
+        }
+        let workspace = workspace_root_from_input(workspace_path.as_deref());
+        let source =
+            resolve_external_skill_import_source(&source_path, &source_key, workspace.as_deref())
+                .await?;
+        let paths = get_path_manager_arc();
+        let target = if level == "project" {
+            paths
+                .project_root(workspace.as_deref().ok_or("No workspace selected")?)
+                .join("skills")
+        } else {
+            paths.user_skills_dir()
+        };
+        skill_imports::import_copy_as_reviewed(
+            source,
+            target,
+            target_name,
+            expected_source_fingerprint,
+        )
+        .await?;
+        SkillRegistry::global()
+            .refresh_for_workspace(workspace.as_deref())
+            .await;
+        return Ok("External Skill imported successfully".into());
+    }
+    if target_name.is_some() || expected_source_fingerprint.is_some() {
+        return Err("Reviewed or renamed Skill imports require their source identity".into());
+    }
+    let validation = validate_skill_path(source_path.clone(), None, None).await?;
     if !validation.valid {
         return Err(validation.error.unwrap_or("Invalid skill path".to_string()));
     }
@@ -1093,11 +1197,15 @@ pub async fn delete_skill(
     state: State<'_, AppState>,
     skill_key: String,
     workspace_path: Option<String>,
+    expected_import_id: Option<String>,
 ) -> Result<String, String> {
     let registry = SkillRegistry::global();
     if let Some((remote_root, entry)) =
         resolve_remote_workspace(&state, workspace_path.as_deref()).await?
     {
+        if expected_import_id.is_some() {
+            return Err("External Skill import undo on remote workspaces is not supported".into());
+        }
         let remote_fs = state
             .get_remote_file_service_async()
             .await
@@ -1150,7 +1258,9 @@ pub async fn delete_skill(
 
     let skill_path = std::path::PathBuf::from(&skill_info.path);
 
-    if skill_path.exists() {
+    if let Some(expected) = expected_import_id {
+        skill_imports::remove_imported_copy(&skill_path, &expected).await?;
+    } else if skill_path.exists() {
         if let Err(e) = tokio::fs::remove_dir_all(&skill_path).await {
             return Err(format!("Failed to delete skill folder: {}", e));
         }
@@ -1173,6 +1283,35 @@ mod tests {
     use super::{await_remote_skill_discovery, can_delete_owned_skill};
     use std::future;
     use tokio::time::Duration;
+
+    #[test]
+    fn skill_validation_reads_and_round_trips_legacy_payloads() {
+        let old = serde_json::json!({ "valid": true, "name": "demo", "description": "existing", "error": null });
+        let parsed: super::SkillValidationResult = serde_json::from_value(old.clone()).unwrap();
+        assert!(parsed.import_preview.is_none());
+        assert_eq!(serde_json::to_value(parsed).unwrap(), old);
+        let new = serde_json::json!({ "valid": true, "name": "demo", "description": "existing", "error": null,
+            "importPreview": { "fingerprint": "reviewed", "fileCount": 2, "name": "demo", "description": "existing" } });
+        let parsed: super::SkillValidationResult = serde_json::from_value(new.clone()).unwrap();
+        assert_eq!(serde_json::to_value(parsed).unwrap(), new);
+    }
+
+    #[tokio::test]
+    async fn legacy_skill_path_validation_remains_available_without_source_identity() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("SKILL.md"),
+            "---\nname: demo\ndescription: Existing\n---\nBody",
+        )
+        .unwrap();
+        let result =
+            super::validate_skill_path(temp.path().to_string_lossy().into_owned(), None, None)
+                .await
+                .unwrap();
+        assert!(result.valid);
+        assert!(result.import_preview.is_none());
+        assert_eq!(result.name.as_deref(), Some("demo"));
+    }
 
     #[test]
     fn skill_scan_response_preserves_legacy_arrays_and_opt_in_diagnostics() {

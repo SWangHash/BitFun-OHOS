@@ -615,7 +615,7 @@ mod tests {
         async fn stop_device_routing(&self) {}
     }
 
-    fn test_runtime() -> Arc<AccountRuntime> {
+    pub(super) fn test_runtime() -> Arc<AccountRuntime> {
         AccountRuntime::new(Arc::new(TestAccountRuntimeHost))
     }
 
@@ -631,3 +631,7 @@ mod tests {
         assert_eq!(runtime.account_context_generation(), generation);
     }
 }
+
+#[cfg(all(test, feature = "tools-pages"))]
+#[path = "account_pages_tests.rs"]
+mod account_pages_tests;

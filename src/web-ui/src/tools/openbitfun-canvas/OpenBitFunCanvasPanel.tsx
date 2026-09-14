@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Icon } from '@openbitfun/ui';
+import { Icon, IconButton } from '@openbitfun/ui';
 import { AlertTriangle, Code2, Loader2, MousePointer2 } from 'lucide-react';
 import path from 'path-browserify';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
@@ -1015,7 +1015,7 @@ export const OpenBitFunCanvasPanel: React.FC<OpenBitFunCanvasPanelProps> = ({
   return (
     <div className="openbitfun-canvas-panel" data-openbitfun-component="canvas-tool" data-openbitfun-part="root">
       <div className="openbitfun-canvas-panel__toolbar" data-openbitfun-component="canvas-tool" data-openbitfun-part="toolbar">
-        <button
+        <IconButton
           type="button"
           className={`openbitfun-canvas-panel__toolbar-button${sourceVisible ? ' openbitfun-canvas-panel__toolbar-button--active' : ''}`}
           aria-pressed={sourceVisible}
@@ -1023,28 +1023,26 @@ export const OpenBitFunCanvasPanel: React.FC<OpenBitFunCanvasPanelProps> = ({
           title={sourceVisible ? 'Hide Canvas source' : 'Show Canvas source'}
           disabled={!hasSourceDialogText}
           onClick={() => setSourceVisible(value => !value)}
-        >
-          <Code2 size={15} />
-        </button>
-        <button
+          icon={<Code2 size={15} />}
+        />
+        <IconButton
           type="button"
           className={`openbitfun-canvas-panel__toolbar-button${designMode ? ' openbitfun-canvas-panel__toolbar-button--active' : ''}`}
           aria-pressed={designMode}
           title="Select Canvas element"
           onClick={() => setDesignMode(value => !value)}
-        >
-          <MousePointer2 size={15} />
-        </button>
-        <button
+          aria-label="Select Canvas element"
+          icon={<MousePointer2 size={15} />}
+        />
+        <IconButton
           type="button"
           className="openbitfun-canvas-panel__toolbar-button"
           title="Export HTML"
           aria-label="Export Canvas HTML"
           disabled={exportingHtml}
           onClick={handleExportHtml}
-        >
-          {exportingHtml ? <Loader2 size={15} className="openbitfun-canvas-panel__toolbar-icon--spin" /> : <Icon name="arrow-down" size="sm" />}
-        </button>
+          icon={exportingHtml ? <Loader2 size={15} className="openbitfun-canvas-panel__toolbar-icon--spin" /> : <Icon name="arrow-down" size="sm" />}
+        />
       </div>
       {isFrameReady && (
         <iframe

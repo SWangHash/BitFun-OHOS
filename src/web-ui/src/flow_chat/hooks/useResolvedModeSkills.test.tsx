@@ -116,4 +116,18 @@ describe('useResolvedModeSkills', () => {
     expect(latest.skills).toEqual([]);
     expect(latest.failed).toBe(true);
   });
+
+  it('excludes external discovery returned by an older host and keeps native imported copies', async () => {
+    const external = ['claude-code', 'codex', 'cursor', 'opencode', 'agent-skills', 'deepseek-harness', 'pi'].map(sourceId => ({
+      name: sourceId, key: sourceId, sourceId, effectiveEnabled: true, selectedForRuntime: true,
+    } as ModeSkillInfo));
+    const imported = { ...skills[0], sourceId: 'openbitfun', importOrigin: { sourceId: 'codex' } } as ModeSkillInfo;
+    await render();
+    await act(async () => requests[0].resolve([...external, imported]));
+    expect(latest.skills).toEqual([imported]);
+    await render({ enabled: false });
+    await render({ enabled: true });
+    await act(async () => requests[1].resolve(external));
+    expect(latest.skills).toEqual([]);
+  });
 });

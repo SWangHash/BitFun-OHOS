@@ -71,6 +71,9 @@ const HIGH_PRIORITY_COMMANDS = new Set([
   // reaches the host. It must take the reserved high-priority slot, not queue
   // behind normal reads/mutations. See PR #2428 review #4.
   'cancel_tool',
+  // Question activity must reach the owner before its unattended deadline.
+  'start_user_question_interaction',
+  'submit_user_answers',
   'rollback_session_to_turn',
   'list_pending_permission_requests',
   'subscribe_permission_requests',

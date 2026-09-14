@@ -1,4 +1,4 @@
-import { RecentWorkspaceEntry, RemoteSession } from '../../model/RemoteModels';
+import { RecentWorkspaceEntry, RemoteSession, SessionListResult } from '../../model/RemoteModels';
 import {
   AccountDeviceDirectory,
   AccountDeviceDirectorySource
@@ -10,9 +10,11 @@ import { RemoteLogger } from '../../services/RemoteLogger';
 import { RemoteSessionListStore } from '../../services/RemoteSessionListCache';
 import { stampRemoteSessionsDevice } from '../../services/RemoteSessionIdentity';
 import { RemoteUiState } from '../../services/RemoteUiState';
+import { mapInConcurrentBatches, CONCURRENT_WORKSPACE_LISTINGS } from '../../services/ConcurrentWorkspaceListing';
 import {
   DeviceDirectoryEntry,
   DeviceDirectoryState,
+  WorkspaceDirectoryState,
   emptyDeviceDirectoryEntry
 } from '../state/DeviceDirectoryState';
 
@@ -21,6 +23,8 @@ export interface DeviceDirectoryViewModelHooks {
   readonly activeDeviceId: () => string;
   /** Whether the conversation link to [activeDeviceId] is currently live. */
   readonly activeDeviceConnected: () => boolean;
+  readonly loadActiveWorkspaceSessions?: (path: string) => Promise<SessionListResult>;
+  readonly onActiveWorkspaceSessions?: (path: string, result: SessionListResult) => void;
 }
 
 /** Selection, loading, and retry for the sidebar's device directory. */
@@ -30,7 +34,8 @@ export class DeviceDirectoryViewModel {
   private readonly hooks: DeviceDirectoryViewModelHooks;
   private readonly directory?: AccountDeviceDirectorySource;
   private readonly inFlight: Set<string> = new Set<string>();
-  private readonly workspaceInFlight: Set<string> = new Set<string>();
+  private readonly workspaceInFlight: Map<WorkspaceDirectoryState, Promise<void>> =
+    new Map<WorkspaceDirectoryState, Promise<void>>();
   /** Device whose control-target catalog request currently owns `loading`. */
   private liveCatalogDeviceId: string = '';
 
@@ -296,29 +301,82 @@ export class DeviceDirectoryViewModel {
   async loadWorkspaceSessions(deviceId: string, path: string): Promise<void> {
     const entry = this.state.find(deviceId);
     const normalizedPath = path.trim();
-    if (!entry || normalizedPath.length === 0 || !entry.online) {
+    const active = deviceId === this.hooks.activeDeviceId() && this.hooks.activeDeviceConnected();
+    if (normalizedPath.length === 0 || (!active && (!entry || !entry.online))) {
       return;
     }
-    const requestKey = `${deviceId}\u0001${normalizedPath}`;
-    if (this.workspaceInFlight.has(requestKey)) {
-      return;
+    const scope = this.state.workspaceLoadState(deviceId, normalizedPath);
+    const pending = this.workspaceInFlight.get(scope);
+    if (pending) {
+      return pending;
     }
-    const source = this.directorySource();
-    if (!source) {
-      throw new Error('Account device directory is unavailable.');
-    }
-    this.workspaceInFlight.add(requestKey);
+    const request = this.fetchWorkspaceSessions(scope, entry, normalizedPath, active);
+    this.workspaceInFlight.set(scope, request);
     try {
-      const sessions = await new DeviceDirectoryCoordinator(source)
-        .loadWorkspaceSessions(deviceId, normalizedPath);
-      entry.sessions = DeviceDirectoryViewModel.replaceWorkspaceSessions(
-        entry.sessions,
-        normalizedPath,
-        sessions
-      );
-      await this.persistDevice(deviceId, entry.workspaces, entry.sessions);
+      await request;
     } finally {
-      this.workspaceInFlight.delete(requestKey);
+      this.workspaceInFlight.delete(scope);
+    }
+  }
+
+  /** Refresh only the workspace branches actually disclosed in the sidebar. */
+  async refreshExpandedWorkspaceSessions(): Promise<void> {
+    const selected = this.state.selectedDeviceId;
+    const scopes = this.state.workspaceDirectory.filter((item: WorkspaceDirectoryState): boolean =>
+      item.deviceId === selected && item.expanded
+    );
+    await mapInConcurrentBatches(scopes, async (scope: WorkspaceDirectoryState): Promise<void> => {
+      if (!this.state.isCurrentWorkspaceLoad(scope) || !scope.expanded ||
+        this.state.selectedDeviceId !== selected) return;
+      try {
+        await this.loadWorkspaceSessions(scope.deviceId, scope.path);
+      } catch (_err) {
+        // Each failed branch exposes its own retry row and retains its cache.
+      }
+    }, CONCURRENT_WORKSPACE_LISTINGS);
+  }
+
+  private async fetchWorkspaceSessions(
+    scope: WorkspaceDirectoryState,
+    entry: DeviceDirectoryEntry | undefined,
+    path: string,
+    active: boolean
+  ): Promise<void> {
+    const binding = this.hooks.credentials();
+    const isCurrent = (): boolean => {
+      const currentBinding = this.hooks.credentials();
+      return this.state.isCurrentWorkspaceLoad(scope) && this.state.find(scope.deviceId) === entry &&
+        binding?.session === currentBinding?.session && binding?.relayUrl === currentBinding?.relayUrl &&
+        (!active || (scope.deviceId === this.hooks.activeDeviceId() && this.hooks.activeDeviceConnected()));
+    };
+    scope.status = 'loading';
+    try {
+      if (active && this.hooks.loadActiveWorkspaceSessions && this.hooks.onActiveWorkspaceSessions) {
+        const result = await this.hooks.loadActiveWorkspaceSessions(path);
+        if (!isCurrent()) return;
+        this.captureWorkspaceSessions(scope.deviceId, path, result.sessions);
+        this.hooks.onActiveWorkspaceSessions(path, result);
+      } else {
+        const source = this.directorySource();
+        if (!source || !entry) throw new Error('Account device directory is unavailable.');
+        const sessions = await new DeviceDirectoryCoordinator(source).loadWorkspaceSessions(scope.deviceId, path);
+        if (!isCurrent()) return;
+        entry.sessions = DeviceDirectoryViewModel.replaceWorkspaceSessions(entry.sessions, path, sessions);
+        await this.persistDevice(scope.deviceId, entry.workspaces, entry.sessions);
+      }
+      if (isCurrent()) {
+        scope.hasLoadedSessions = true;
+        scope.status = 'ready';
+      }
+    } catch (err) {
+      if (isCurrent()) {
+        scope.status = 'failed';
+        throw new Error(err instanceof Error ? err.message : String(err));
+      }
+    } finally {
+      // A target switch can abandon a live request without replacing this
+      // device's disclosure object. Do not strand it in `loading` on return.
+      if (this.state.isCurrentWorkspaceLoad(scope) && scope.status === 'loading') scope.status = 'idle';
     }
   }
 

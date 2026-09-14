@@ -1843,6 +1843,9 @@ export function ComponentDetailPage({
                 <NavigationPanelItem reserveLeadingSpace>
                   {t("components.preview.navigationPanelMoreItem")}
                 </NavigationPanelItem>
+                <NavigationPanelItem labelBehavior="static" style={{ maxInlineSize: 180, whiteSpace: "normal" }}>
+                  {t("components.preview.cardDescription")}
+                </NavigationPanelItem>
               </NavigationPanelSection>
             </NavigationPanelContent>
           </NavigationPanelBody>
@@ -2168,6 +2171,13 @@ export function ComponentDetailPage({
                           ))}
                         </Fragment>
                       ))}
+                    </div>
+                    <div className="component-preview-row">
+                      <code>labelBehavior="static"</code>
+                      <Button labelBehavior="static" size="sm" variant="text"
+                        style={{ maxInlineSize: 220, blockSize: "auto", whiteSpace: "normal" }}>
+                        {t("components.preview.cardDescription")}
+                      </Button>
                     </div>
                   </section>
                 ))

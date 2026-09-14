@@ -30,6 +30,7 @@ import {
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
+import { PeerConnectionStatus } from '@/infrastructure/peer-device/PeerConnectionStatus';
 import DeviceStatusControl from './DeviceStatusControl';
 import AppearanceQuickSwitchMenuItem from './AppearanceQuickSwitchMenuItem';
 
@@ -164,6 +165,7 @@ const PersistentFooterActions: React.FC = () => {
 
   return (
     <>
+      <PeerConnectionStatus />
       <div className="openbitfun-nav-panel__footer" data-openbitfun-component="nav-panel" data-openbitfun-part="footer">
         <div className="openbitfun-nav-panel__footer-left">
           <DeviceStatusControl

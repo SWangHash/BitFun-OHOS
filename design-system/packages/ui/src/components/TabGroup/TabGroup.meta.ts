@@ -9,6 +9,7 @@ export const tabGroupMeta = {
     { name: "items", type: "readonly TabGroupItem[]" },
     { name: "items[].labelTransitionKey", type: "string | number" },
     { name: "items[].labelSuffix", type: "ReactNode" },
+    { name: "items[].tabProps", type: "TabGroupItem['tabProps']" },
     { name: "value", type: "string" },
     { name: "defaultValue", type: "string" },
     { name: "onValueChange", type: "(value: string) => void" },

@@ -30,6 +30,8 @@ export interface ActionItemProps
   children: ReactNode;
   className?: string;
   leading?: ReactNode;
+  /** Static labels preserve wrapping without implicit overflow motion or tooltips. */
+  labelBehavior?: "overflow" | "static";
   metadata?: ReactNode;
   reserveLeadingSpace?: boolean;
   shortcut?: ReactNode;
@@ -42,6 +44,7 @@ export const ActionItem = forwardRef<HTMLButtonElement, ActionItemProps>(functio
   className,
   disabled,
   leading,
+  labelBehavior = "overflow",
   metadata,
   reserveLeadingSpace = false,
   shortcut,
@@ -71,7 +74,11 @@ export const ActionItem = forwardRef<HTMLButtonElement, ActionItemProps>(functio
             {leading}
           </span>
         )}
-        <OverflowText className={styles.label} data-openbitfun-part="label">{children}</OverflowText>
+        {labelBehavior === "static" ? (
+          <span className={classNames(styles.label, styles.staticLabel)} data-openbitfun-part="label">{children}</span>
+        ) : (
+          <OverflowText className={styles.label} data-openbitfun-part="label">{children}</OverflowText>
+        )}
         {metadata !== undefined && metadata !== null && (
           <span className={styles.metadata} data-openbitfun-part="metadata">
             {metadata}

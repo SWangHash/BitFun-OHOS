@@ -56,9 +56,9 @@ pub struct ClaudeCodeSubagentProviderOptions {
 impl ClaudeCodeSubagentProviderOptions {
     pub fn from_environment() -> Self {
         Self {
-            user_claude_dir: dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".claude"),
+            user_claude_dir: crate::ClaudeCodeInstructionSourceOptions::from_environment()
+                .config_dir
+                .unwrap_or_default(),
             project_root_override: None,
             project_config_enabled: true,
         }
@@ -140,6 +140,13 @@ impl ExternalSubagentSourceProvider for ClaudeCodeSubagentProvider {
         &self,
         input: &ExternalSubagentDiscoveryInput,
     ) -> Result<ExternalSubagentProviderSnapshot, ExternalSourceProviderError> {
+        if !self.options.user_claude_dir.is_absolute() {
+            return Err(ExternalSourceProviderError::new(
+                "claude.config_root_invalid",
+                "Claude Code configuration directory must be absolute",
+                false,
+            ));
+        }
         if input
             .context
             .workspace_root

@@ -708,11 +708,27 @@ describe('Deep Review target resolver', () => {
   });
 
   it('still degrades an ordinary Git failure into unknown evidence', async () => {
-    mockGitGetStatus.mockRejectedValue(new Error('fatal: not a git repository'));
+    mockGitGetStatus.mockRejectedValue(new Error('Failed to get Git status: Permission denied'));
 
     const target = classifyReviewTargetFromFiles(['src/lib.rs'], 'session_files');
     const snapshot = await resolveCurrentFileReviewSnapshot('/workspace', target);
 
     expect(snapshot.targetEvidence.limitations).toContain('file_scope_target_evidence_failed');
+  });
+
+  it('preserves repository discovery failures from session files and slash commands', async () => {
+    const missingRepository = new TauriCommandError(
+      "Failed to get Git status: Repository not found: could not find repository at '/workspace'",
+      { command: 'git_get_status' },
+    );
+    mockGitGetStatus.mockRejectedValue(missingRepository);
+
+    const target = classifyReviewTargetFromFiles(['src/lib.rs'], 'session_files');
+    await expect(resolveCurrentFileReviewSnapshot('/workspace', target))
+      .rejects.toBe(missingRepository);
+    await expect(resolveSlashCommandReviewTarget('', '/workspace'))
+      .rejects.toBe(missingRepository);
+    await expect(resolveSlashCommandReviewTarget('src/lib.rs', '/workspace'))
+      .rejects.toBe(missingRepository);
   });
 });

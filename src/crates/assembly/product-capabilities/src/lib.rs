@@ -22,6 +22,7 @@ pub enum ProductCapabilityId {
     DeepReview,
     DeepResearch,
     MiniApp,
+    Pages,
     Creation,
     Canvas,
     VoiceInput,
@@ -34,6 +35,7 @@ impl ProductCapabilityId {
             Self::DeepReview => "deep-review",
             Self::DeepResearch => "deep-research",
             Self::MiniApp => "miniapp",
+            Self::Pages => "pages",
             Self::Creation => "creation",
             Self::Canvas => "canvas",
             Self::VoiceInput => "voice-input",
@@ -57,6 +59,7 @@ pub enum ProductFeatureGroup {
     ComputerUse,
     ImageAnalysis,
     MiniApp,
+    Pages,
     Creation,
     Canvas,
     AgentControl,
@@ -72,6 +75,7 @@ impl ProductFeatureGroup {
             Self::ComputerUse => "computer-use",
             Self::ImageAnalysis => "image-analysis",
             Self::MiniApp => "miniapp",
+            Self::Pages => "pages",
             Self::Creation => "creation",
             Self::Canvas => "canvas",
             Self::AgentControl => "agent-control",
@@ -95,6 +99,7 @@ impl From<ToolPackFeatureGroup> for ProductFeatureGroup {
             ToolPackFeatureGroup::ComputerUse => Self::ComputerUse,
             ToolPackFeatureGroup::ImageAnalysis => Self::ImageAnalysis,
             ToolPackFeatureGroup::MiniApp => Self::MiniApp,
+            ToolPackFeatureGroup::Pages => Self::Pages,
             ToolPackFeatureGroup::Creation => Self::Creation,
             ToolPackFeatureGroup::Canvas => Self::Canvas,
             ToolPackFeatureGroup::AgentControl => Self::AgentControl,
@@ -112,6 +117,7 @@ impl From<ProductFeatureGroup> for ToolPackFeatureGroup {
             ProductFeatureGroup::ComputerUse => Self::ComputerUse,
             ProductFeatureGroup::ImageAnalysis => Self::ImageAnalysis,
             ProductFeatureGroup::MiniApp => Self::MiniApp,
+            ProductFeatureGroup::Pages => Self::Pages,
             ProductFeatureGroup::Creation => Self::Creation,
             ProductFeatureGroup::Canvas => Self::Canvas,
             ProductFeatureGroup::AgentControl => Self::AgentControl,
@@ -1073,6 +1079,12 @@ const MINIAPP_CAPABILITY_PACK: ProductCapabilityPack = ProductCapabilityPack::ne
     MINIAPP_TOOL_GROUPS,
     NO_PRODUCT_AGENTS,
 );
+const PAGES_CAPABILITY_PACK: ProductCapabilityPack = ProductCapabilityPack::new(
+    ProductCapabilityId::Pages,
+    &[RuntimeServiceCapability::Network],
+    &["core.pages"],
+    NO_PRODUCT_AGENTS,
+);
 const CREATION_CAPABILITY_PACK: ProductCapabilityPack = ProductCapabilityPack::new(
     ProductCapabilityId::Creation,
     MINIAPP_SERVICES,
@@ -1093,6 +1105,7 @@ const DEFAULT_PRODUCT_CAPABILITY_PACKS: &[ProductCapabilityPack] = &[
     DEEP_REVIEW_CAPABILITY_PACK,
     DEEP_RESEARCH_CAPABILITY_PACK,
     MINIAPP_CAPABILITY_PACK,
+    PAGES_CAPABILITY_PACK,
     CREATION_CAPABILITY_PACK,
     // CANVAS_CAPABILITY_PACK, // canvas-runtime cannot be compiled on OHOS
     VOICE_INPUT_CAPABILITY_PACK,
@@ -1133,7 +1146,10 @@ fn product_capability_registry_for_profile(profile: DeliveryProfile) -> ProductC
         DeliveryProfile::ProductFull | DeliveryProfile::Desktop => {
             default_product_capability_registry()
         }
-        DeliveryProfile::Cli | DeliveryProfile::Acp | DeliveryProfile::Sdk => {
+        DeliveryProfile::Cli => {
+            ProductCapabilityRegistry::new(&[CODE_AGENT_CAPABILITY_PACK, PAGES_CAPABILITY_PACK])
+        }
+        DeliveryProfile::Acp | DeliveryProfile::Sdk => {
             ProductCapabilityRegistry::new(&[CODE_AGENT_CAPABILITY_PACK])
         }
         DeliveryProfile::Server

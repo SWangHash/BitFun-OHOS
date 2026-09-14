@@ -2,6 +2,8 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 
 export const modelRoundItemAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'model-round-item',
+  // Persisted package names stay stable; product hooks coexist with IconButton.
+  componentAttribute: 'data-openbitfun-product-component',
   parts: [
     { id: 'root' },
     { id: 'retryHistory' },

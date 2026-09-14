@@ -59,16 +59,7 @@
     border-bottom: 1px solid var(--openbitfun-color-border-subtle);
     flex-shrink: 0;
     min-height: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-
-    &::-webkit-scrollbar {
-      display: none;
-      width: 0;
-      height: 0;
-    }
+    overscroll-behavior: auto;
   }
 
   &__breadcrumb-path {
@@ -117,6 +108,8 @@
   }
 
   &__breadcrumb-btn {
+    inline-size: auto;
+    block-size: auto;
     display: inline-flex;
     align-items: center;
     padding: 4px 8px;
@@ -226,6 +219,10 @@
     color: var(--openbitfun-color-status-danger-content);
 
     button {
+      inline-size: auto;
+      block-size: auto;
+      display: inline-block;
+      transition: none;
       background: none;
       border: none;
       color: var(--openbitfun-color-status-danger-content);
@@ -233,6 +230,31 @@
       font-size: var(--openbitfun-type-flow-title-font-size);
       padding: 0 4px;
     }
+  }
+
+  // Preserve native action geometry and surfaces through IconButton's public slot.
+  &__breadcrumb-btn[data-openbitfun-component='icon-button'],
+  &__toolbar-btn,
+  &__error > [data-openbitfun-component='icon-button'] {
+    outline: revert;
+    outline-offset: revert;
+
+    &::before { content: none; }
+
+    > [data-openbitfun-part='icon'] {
+      --openbitfun-opacity-icon-artwork: inherit;
+      display: contents;
+    }
+
+    > :where([data-openbitfun-part='icon']) > :where(svg, [data-openbitfun-component='icon']) {
+      inline-size: 14px;
+      block-size: 14px;
+    }
+  }
+
+  &__toolbar-btn > :where([data-openbitfun-part='icon']) > :where([data-openbitfun-component='icon']) {
+    inline-size: 16px;
+    block-size: 16px;
   }
 
   &__loading {

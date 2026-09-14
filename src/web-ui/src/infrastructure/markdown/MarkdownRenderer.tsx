@@ -36,6 +36,7 @@ import {
 import path from 'path-browserify';
 import { getActiveSurfaceScope, onSurfaceActivated, type SurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import './Markdown.scss';
+import { useStreamingTextReveal } from './useStreamingTextReveal';
 import { SessionMarkdownImage, type SessionImageReader } from './SessionMarkdownImage';
 
 const log = createLogger('Markdown');
@@ -1677,6 +1678,9 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
     sourceRangeRef,
   ]);
   
+  const textRevealRef = useRef<HTMLDivElement>(null);
+  useStreamingTextReveal(textRevealRef, sourceRange ? contentStr.slice(sourceRange.start, sourceRange.end) : contentStr, isStreaming);
+
   const wrapperClassName = `markdown-renderer ${className}`.trim();
   const basicMarkdownRenderer = (
     <ReactMarkdown
@@ -1690,7 +1694,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
   );
 
   return (
-    <div className={wrapperClassName} data-openbitfun-component="markdown" data-openbitfun-part="root" data-openbitfun-state={isStreaming ? 'streaming' : undefined}>
+    <div ref={textRevealRef} className={wrapperClassName} data-openbitfun-component="markdown" data-openbitfun-part="root" data-openbitfun-state={isStreaming ? 'streaming' : undefined}>
       {renderTraceEnabled && renderTraceStartedAtMs !== null && (
         <MarkdownRenderTrace
           startedAtMs={renderTraceStartedAtMs}

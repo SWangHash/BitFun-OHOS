@@ -94,6 +94,7 @@ impl CliRuntimeContext {
         let compatibility =
             CoreAgentRuntimeCompatibility::build(agentic_system.coordinator.clone(), scheduler);
         let account = build_account_runtime();
+        openbitfun_core::product_runtime::account_pages::register_account_pages(&account.runtime);
         let local_workspace_snapshot = CoreLocalWorkspaceSnapshot::build();
         let token_usage_service = agentic_system.token_usage_service.clone();
 

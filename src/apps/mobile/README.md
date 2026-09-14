@@ -21,6 +21,12 @@ interfaces.
 All three apps can send images with or without text. Camera photos are decoded
 on the phone and converted to a supported format before upload. Failed sends
 retain the draft and images; acknowledgement removes only the submitted content.
+Android supports selecting several photos at once and retains prepared attachments
+across Activity recreation and process restarts. Android stores prepared image drafts
+in app-private files excluded from backups, scoped by account endpoint, account,
+device and session. Failed saves and unreadable records offer retry without erasing
+the stored draft. An in-progress photo conversion still needs to be retried if the
+process stops before preparation and saving finish.
 
 Model selection belongs to the connected host. A primary model that supports
 images receives their pixels directly. For a text-only primary model, select an
@@ -57,6 +63,10 @@ metadata, execution-mode IDs, speech draft merging, and completion observation i
 | Capability | Android and iOS behavior | Compatibility and verification boundary |
 |---|---|---|
 | Execution modes | Minimal / Standard / Ultimate, with the HarmonyOS density glyph; workspace menus also retain Cowork | Enabled only by live `get_workspace_info.capabilities` containing `harness_profiles_v1`; older hosts keep Code / Cowork. Capability absence in old payloads is covered by a round-trip test. |
+| Running-turn input | A nonempty remote draft offers Send; an empty composer retains Stop | Hosts advertising `dialog_steer_v1` receive `steer_turn` with the active turn ID. Older hosts retain `send_message` queueing; failed sends retain the draft and attachments. |
+| Plans | Legacy CreatePlan, structured plans and `.plan.md` writes show a plan card with file preview and Build | Build requires `plan_build_v1`, a completed plan tool and an idle connected session. Paths remain remote; the mobile app never runs the plan locally. |
+| Offline Mini Apps | Gomoku, Regex Playground and Daily Divination open from welcome and sidebar without login | Product-owned sources are bundled by `miniapps/generate.cjs`; native WebView hosts expose only per-app allowlisted storage and clipboard. No network, Node or shell bridge. |
+| Code preview | Native lexical colors, line numbers and referenced-line backgrounds | Both apps use the core-feature highlighter with native theme tokens; large files retain its bounded plain-text fallback. |
 | Account profile | Public GitHub login and avatar replace the numeric-ID placeholder | The immutable Relay user ID still authorizes devices. Display metadata uses a separate encrypted 24-hour cache; offline refreshes preserve credentials and cached display. |
 | Task completion | Notify for a previously observed successful remote turn while backgrounded | Identity includes target, session and turn. Replayed, failed and cancelled turns do not notify. These are local notifications, not server push. iOS observes within its OS background-task allowance; Android observes while the controller process remains alive. Neither promises notification after process termination. |
 | Speech input | Continue an existing draft without trimming its whitespace or inserting spaces into Chinese text | iOS owns Speech/AVAudio lifecycle in a platform adapter and cancels on route, target or scene changes. Android uses the system recognition activity. |
@@ -81,3 +91,10 @@ or opens system notification settings for an existing decision.
 Camera and microphone access stays contextual to scanning and voice input.
 Notification authorization does not extend the platform background-execution
 limits described above.
+
+## Connection recovery
+
+Native iOS and Android controllers probe idle session lists while the app is in the
+foreground. An open transcript uses its existing session poll for recovery instead
+of duplicating the health request. Temporary transport failures keep the displayed
+list or transcript; a successful response restores the connected state.

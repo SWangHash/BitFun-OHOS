@@ -100,8 +100,15 @@ The `devtools` Cargo feature exists for debugging UI/UX in the desktop app. When
 cargo check -p openbitfun-desktop && cargo test -p openbitfun-desktop
 ```
 
+For shared GitHub sign-in and token redaction, use
+`cargo test -p openbitfun-desktop --lib api::account_identity_api::tests`.
+For the matching cross-entry UI state, run
+`pnpm --dir src/web-ui run test:run src/infrastructure/account-identity/AccountIdentityService.test.ts src/features/market-account/AccountIdentityControls.test.tsx src/app/components/RemoteConnectDialog/ensureAccountSession.test.ts`.
+
 For skill discovery response compatibility and timeouts, use
 `cargo test -p openbitfun-desktop --lib api::skill_api::tests`.
+For companion pet manifest versions and package metadata, use
+`cargo test -p openbitfun-desktop --lib api::commands::pet_package_tests`.
 For content-search routing and remote fallback protection, use
 `cargo test --locked -p openbitfun-desktop --lib api::search_api::tests`.
 For staged application-update cache and signature behavior, use

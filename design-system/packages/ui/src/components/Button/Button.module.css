@@ -238,6 +238,13 @@
     flex: 0 0 auto;
   }
 
+  .staticLabel {
+    display: inline;
+    overflow: visible;
+    line-height: inherit;
+    white-space: inherit;
+  }
+
   .icon {
     --openbitfun-opacity-icon-artwork: 1;
     display: inline-flex;

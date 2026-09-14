@@ -236,10 +236,10 @@ describe('Remote Connect safety contracts', () => {
       remoteConnectApiSource.indexOf('async accountGetCredentialHint'),
     );
     const accountPanelInitialization = accountPanelSource.slice(
-      accountPanelSource.indexOf('remoteConnectAPI.accountStatus().then'),
+      accountPanelSource.indexOf('    ensureAccountSession(remoteConnectAPI'),
       accountPanelSource.indexOf(
         'return () => {',
-        accountPanelSource.indexOf('remoteConnectAPI.accountStatus().then'),
+        accountPanelSource.indexOf('    ensureAccountSession(remoteConnectAPI'),
       ),
     );
     expect(statusMethod).toContain('throw e');

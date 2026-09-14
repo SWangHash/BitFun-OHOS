@@ -1,4 +1,4 @@
-//! Host callback for PagePublish (wired by desktop account APIs).
+//! Host callback for PagePublish (wired by product account hosts).
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -25,7 +25,7 @@ pub type PagePublishHandler =
 
 static PAGE_PUBLISH_HANDLER: OnceLock<PagePublishHandler> = OnceLock::new();
 
-/// Register the desktop handler that publishes page content via the account relay.
+/// Register the executing host handler that publishes page content via the account relay.
 pub fn set_page_publish_handler(handler: PagePublishHandler) {
     let _ = PAGE_PUBLISH_HANDLER.set(handler);
 }
@@ -35,4 +35,20 @@ pub async fn invoke_page_publish(request: PagePublishHostRequest) -> Result<Valu
         return Err("PagePublish host is not available on this surface".to_string());
     };
     handler(request).await
+}
+
+/// The executing host's account state; Desktop retains its existing login gate.
+pub type PageAccountAvailability =
+    Arc<dyn Fn() -> Pin<Box<dyn Future<Output = bool> + Send>> + Send + Sync>;
+static PAGE_ACCOUNT_AVAILABILITY: OnceLock<PageAccountAvailability> = OnceLock::new();
+
+pub fn set_page_account_availability(handler: PageAccountAvailability) {
+    let _ = PAGE_ACCOUNT_AVAILABILITY.set(handler);
+}
+
+pub async fn page_account_available() -> bool {
+    match PAGE_ACCOUNT_AVAILABILITY.get() {
+        Some(handler) => handler().await,
+        None => super::account_login_capability::account_login_available(),
+    }
 }

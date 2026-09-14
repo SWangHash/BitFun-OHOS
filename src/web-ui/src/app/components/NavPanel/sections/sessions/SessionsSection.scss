@@ -236,6 +236,10 @@
     font-size: var(--openbitfun-type-meta-font-size);
     line-height: var(--openbitfun-type-body-sm-line-height);
     white-space: nowrap;
+
+    &:not([data-overflow='true']) {
+      text-align: right;
+    }
   }
 
   // Status and the menu share one trailing cell, including when status is idle.

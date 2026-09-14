@@ -719,6 +719,9 @@
     "errorCreateFailed": "建立工作區失敗"
   },
   "peerConnection": {
+    "reconnectingShort": "正在重新連線…",
+    "returnLocalShort": "返回本機",
+    "returningShort": "正在返回…",
     "reconnecting": "正在重新連線至「{{name}}」。內容可能尚未更新。"
   },
   "peerDirectoryPicker": {

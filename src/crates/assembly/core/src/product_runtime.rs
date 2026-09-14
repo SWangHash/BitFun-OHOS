@@ -4,6 +4,8 @@
 //! keeps only compatibility exports and adapter wiring that still depends on
 //! existing concrete core paths.
 
+#[cfg(all(feature = "tools-pages", feature = "remote-connect"))]
+pub mod account_pages;
 mod runtime_services;
 
 use std::path::{Path, PathBuf};
@@ -945,6 +947,54 @@ impl CoreAgentRuntimeCompatibility {
             scheduler,
             persistence,
         }
+    }
+
+    /// Permission selectors use the invocation's Session owner, including Peer hosts.
+    pub fn session_permission_mode(
+        &self,
+        session_id: &str,
+    ) -> Option<openbitfun_runtime_ports::PermissionMode> {
+        self.coordinator
+            .get_session_manager()
+            .session_permission_mode(session_id)
+    }
+
+    pub async fn update_session_permission_mode(
+        &self,
+        session_id: &str,
+        mode: Option<openbitfun_runtime_ports::PermissionMode>,
+    ) -> OpenBitFunResult<()> {
+        self.coordinator
+            .get_session_manager()
+            .update_session_permission_mode(session_id, mode)
+            .await
+    }
+
+    pub fn active_turn_permission_mode(
+        &self,
+        session_id: &str,
+        turn_id: &str,
+    ) -> Option<openbitfun_runtime_ports::PermissionMode> {
+        self.coordinator
+            .get_session_manager()
+            .active_turn_permission_mode(session_id, turn_id)
+    }
+
+    pub fn set_active_turn_permission_mode(
+        &self,
+        session_id: &str,
+        turn_id: &str,
+        mode: openbitfun_runtime_ports::PermissionMode,
+    ) -> bool {
+        self.coordinator
+            .get_session_manager()
+            .set_active_turn_permission_mode(session_id, turn_id, mode)
+    }
+
+    pub fn clear_active_turn_permission_mode(&self, session_id: &str, turn_id: &str) -> bool {
+        self.coordinator
+            .get_session_manager()
+            .clear_active_turn_permission_mode(session_id, turn_id)
     }
 
     /// Start a manual context compaction as a caller-identified turn.

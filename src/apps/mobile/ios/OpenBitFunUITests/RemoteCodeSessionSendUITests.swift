@@ -184,8 +184,8 @@ final class RemoteCreateWorkspacePickerUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        app.launchArguments = ["--remote-create"]
-        app.launch()
+        app.launchArguments = ["--harness-preview", "--remote-create"]
+        app.launchMobileReady()
     }
 
     func testWorkspacePickerOpensAndExposesUsableRows() {
@@ -194,8 +194,8 @@ final class RemoteCreateWorkspacePickerUITests: XCTestCase {
 
     func testSessionDirectoryBusyDoesNotDisableWorkspacePicker() {
         app.terminate()
-        app.launchArguments = ["--remote-create-session-loading"]
-        app.launch()
+        app.launchArguments = ["--harness-preview", "--remote-create-session-loading"]
+        app.launchMobileReady()
         assertWorkspacePickerUsable()
     }
 
@@ -240,9 +240,9 @@ final class ComposerFocusResponsivenessUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testRemoteHomeComposerAcceptsFirstCharacter() {
-        app.launchArguments = ["--remote", "--connected", "--remote-home-preview"]
-        app.launch()
+    func testRemoteConversationComposerAcceptsFirstCharacter() {
+        app.launchArguments = ["--harness-preview", "--remote", "--connected"]
+        app.launchMobileReady()
         assertFirstCharacterResponsiveness(
             identifier: "composer.input",
             named: "RemoteHomeComposer"
@@ -250,8 +250,8 @@ final class ComposerFocusResponsivenessUITests: XCTestCase {
     }
 
     func testRemoteCreateComposerAcceptsFirstCharacter() {
-        app.launchArguments = ["--remote-create"]
-        app.launch()
+        app.launchArguments = ["--harness-preview", "--remote-create"]
+        app.launchMobileReady()
         assertFirstCharacterResponsiveness(
             identifier: "remoteCreate.composer.input",
             named: "RemoteCreateComposer"
@@ -768,7 +768,7 @@ final class SidebarNavigationUITests: XCTestCase {
     func testNewChatOffersHarnessProfilesInCompactAndWideSidebar() {
         let app = XCUIApplication(bundleIdentifier: "com.openbitfun.mobile.ios")
         app.launchArguments = ["--harness-preview", "--drawer", "--simplified-chinese"]
-        app.launch()
+        app.launchMobileReady()
         let later = app.alerts.buttons["稍后"]
         if later.waitForExistence(timeout: 3) { later.tap() }
         let newChat = app.buttons["sidebar.newChat"]
@@ -787,10 +787,10 @@ final class SidebarNavigationUITests: XCTestCase {
         app.terminate()
         XCUIDevice.shared.orientation = .landscapeLeft
         defer { XCUIDevice.shared.orientation = .portrait }
-        app.launch()
+        app.launchMobileReady()
         XCTAssertTrue(newChat.waitForExistence(timeout: 10))
         XCTAssertTrue(newChat.isHittable)
-        app.scrollViews.firstMatch.swipeUp()
+        app.scrollViews["sidebar.workspaces"].swipeUp()
         XCTAssertLessThan(workspace.frame.maxY, newChat.frame.minY, "The final workspace must scroll clear of the floating actions.")
         let wide = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         wide.name = "SidebarWide"
@@ -830,5 +830,99 @@ final class GitHubLoginPresentationUITests: XCTestCase {
         XCTAssertTrue(login.isEnabled, "Returning from the browser must allow reopening the same authorization.")
         XCTAssertTrue(login.label.contains("打开 GitHub 授权"))
         app.terminate()
+    }
+}
+
+final class MobileParityUITests: XCTestCase {
+    func testPlanCardExplainsUnsupportedHost() {
+        let app = XCUIApplication(bundleIdentifier: "com.openbitfun.mobile.ios")
+        app.launchArguments = ["--harness-preview", "--plan-preview", "--simplified-chinese"]
+        app.launchMobileReady()
+        XCTAssertTrue(app.staticTexts["Mobile parity"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["查看计划"].exists)
+        XCTAssertFalse(app.buttons["执行计划"].isEnabled)
+        XCTAssertTrue(app.staticTexts["此电脑暂不支持执行计划"].exists)
+        let evidence = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        evidence.name = "PlanCardUnsupportedHost"
+        evidence.lifetime = .keepAlways
+        add(evidence)
+    }
+
+    func testRemoteCodePreviewShowsNumberedLines() {
+        let app = XCUIApplication(bundleIdentifier: "com.openbitfun.mobile.ios")
+        app.launchArguments = ["--harness-preview", "--file-preview", "--simplified-chinese"]
+        app.launchMobileReady()
+        let code = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "fn main()")).firstMatch
+        XCTAssertTrue(code.waitForExistence(timeout: 10))
+        XCTAssertTrue(code.label.trimmingCharacters(in: .whitespaces).hasPrefix("2"))
+        let evidence = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        evidence.name = "NumberedCodePreview"
+        evidence.lifetime = .keepAlways
+        add(evidence)
+    }
+
+    func testLanguageSwitchUpdatesExistingAndNewScreens() {
+        let app = XCUIApplication(bundleIdentifier: "com.openbitfun.mobile.ios")
+        app.launchArguments = ["--harness-preview", "--settings", "--simplified-chinese"]
+        app.launchMobileReady()
+        let language = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "语言")).firstMatch
+        XCTAssertTrue(language.waitForExistence(timeout: 15))
+        language.tap()
+        XCTAssertTrue(app.buttons["English"].waitForExistence(timeout: 5))
+        app.buttons["English"].tap()
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
+        let account = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Current account")).firstMatch
+        XCTAssertTrue(account.exists)
+        account.tap()
+        XCTAssertTrue(app.buttons["Sign out"].waitForExistence(timeout: 5))
+        let evidence = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        evidence.name = "LanguageEnglishApplied"
+        evidence.lifetime = .keepAlways
+        add(evidence)
+    }
+
+    func testOfflineMiniAppsOpenFromSidebar() {
+        let app = XCUIApplication(bundleIdentifier: "com.openbitfun.mobile.ios")
+        app.launchArguments = ["--harness-preview", "--drawer", "--simplified-chinese"]
+        app.launchMobileReady()
+        let miniapps = app.buttons["小应用"].firstMatch
+        XCTAssertTrue(miniapps.waitForExistence(timeout: 15))
+        let sidebar = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        sidebar.name = "OfflineMiniApp-Sidebar"
+        sidebar.lifetime = .keepAlways
+        add(sidebar)
+        miniapps.tap()
+        XCTAssertTrue(app.staticTexts["全部应用"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["离线可用"].exists)
+        let gallery = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        gallery.name = "OfflineMiniApp-Gallery"
+        gallery.lifetime = .keepAlways
+        add(gallery)
+        for title in ["五子棋", "正则游乐场", "每日占卜"] {
+            let entry = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
+            XCTAssertTrue(entry.waitForExistence(timeout: 10))
+            entry.tap()
+            XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 10))
+            XCTAssertTrue(app.webViews.staticTexts[title].waitForExistence(timeout: 10), "The bundled page must render, not just create a WebView.")
+            let evidence = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            evidence.name = "OfflineMiniApp-" + title
+            evidence.lifetime = .keepAlways
+            add(evidence)
+            app.buttons["返回"].tap()
+            XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        }
+    }
+}
+
+private extension XCUIApplication {
+    func launchMobileReady() {
+        launch()
+        let startup = descendants(matching: .any)["startup.brand"].firstMatch
+        if startup.waitForExistence(timeout: 2) {
+            let disappeared = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: startup)
+            XCTAssertEqual(XCTWaiter.wait(for: [disappeared], timeout: 15), .completed)
+        }
+        let later = alerts.buttons["稍后"]
+        if later.exists { later.tap() }
     }
 }

@@ -495,6 +495,16 @@ pub struct SourceQualifiedMcpServerId {
 }
 
 impl SourceQualifiedMcpServerId {
+    pub fn from_stable_key(value: &str) -> Option<Self> {
+        let (provider, remainder) = take_length_prefixed(value)?;
+        let (source, remainder) = take_length_prefixed(remainder)?;
+        let (local, remainder) = take_length_prefixed(remainder)?;
+        if !remainder.is_empty() {
+            return None;
+        }
+        Self::new(SourceKey::new(provider, source).ok()?, local).ok()
+    }
+
     pub fn new(
         source: SourceKey,
         local_id: impl Into<String>,
@@ -879,9 +889,14 @@ impl fmt::Debug for PreparedExternalMcpImportTransport {
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct PreparedExternalMcpImportServer {
+    pub environment: std::collections::BTreeMap<String, String>,
+    pub headers: std::collections::BTreeMap<String, String>,
     pub id: SourceQualifiedMcpServerId,
     pub behavior_version: String,
     pub transport: PreparedExternalMcpImportTransport,
+    pub working_directory: Option<PathBuf>,
+    pub timeouts: ExternalMcpTimeouts,
+    pub oauth_enabled: Option<bool>,
 }
 
 impl fmt::Debug for PreparedExternalMcpImportServer {
@@ -891,12 +906,65 @@ impl fmt::Debug for PreparedExternalMcpImportServer {
             .field("id", &self.id)
             .field("behavior_version", &self.behavior_version)
             .field("transport", &self.transport)
+            .field(
+                "working_directory",
+                &self.working_directory.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field("timeouts", &self.timeouts)
+            .field("oauth_enabled", &self.oauth_enabled)
             .finish()
     }
 }
 
 impl PreparedExternalMcpImportServer {
     pub fn validate(&self) -> Result<(), ExternalSourceContractError> {
+        for (values, headers) in [(&self.environment, false), (&self.headers, true)] {
+            if values.len() > 256
+                || values.iter().any(|(key, value)| {
+                    key.is_empty()
+                        || key.len() > 256
+                        || key.contains(['=', '\0', '\r', '\n'])
+                        || value.len() > 65536
+                        || value.contains('\0')
+                        || (headers
+                            && (value.contains(['\r', '\n'])
+                                || !key.bytes().all(|byte| {
+                                    byte.is_ascii_alphanumeric()
+                                        || b"!#$%&'*+-.^_`|~".contains(&byte)
+                                })))
+                })
+            {
+                return Err(ExternalSourceContractError::InvalidIdentifier(
+                    "prepared MCP import environment or headers",
+                ));
+            }
+        }
+
+        self.timeouts.validate()?;
+        if let Some(directory) = &self.working_directory {
+            if !directory.is_absolute() || directory.to_str().is_none() {
+                return Err(ExternalSourceContractError::InvalidIdentifier(
+                    "prepared MCP import working directory",
+                ));
+            }
+            validate_text(
+                directory.to_str().expect("validated UTF-8"),
+                "prepared MCP import working directory",
+            )?;
+        }
+        if matches!(
+            &self.transport,
+            PreparedExternalMcpImportTransport::Local { .. }
+        ) && self.oauth_enabled.is_some()
+            || matches!(
+                &self.transport,
+                PreparedExternalMcpImportTransport::Remote { .. }
+            ) && self.working_directory.is_some()
+        {
+            return Err(ExternalSourceContractError::InvalidIdentifier(
+                "prepared MCP import transport options",
+            ));
+        }
         validate_text(
             &self.behavior_version,
             "prepared MCP import behavior version",

@@ -60,9 +60,10 @@ pub struct ClaudeCodeHookProviderOptions {
 
 impl ClaudeCodeHookProviderOptions {
     pub fn from_environment() -> Self {
-        let user_settings_file = dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join(".claude/settings.json");
+        let user_settings_file = crate::ClaudeCodeInstructionSourceOptions::from_environment()
+            .config_dir
+            .unwrap_or_default()
+            .join("settings.json");
         Self {
             user_settings_file,
             project_root_override: None,
@@ -158,6 +159,13 @@ impl ExternalHookSourceProvider for ClaudeCodeHookProvider {
         &self,
         context: &ExternalSourceContext,
     ) -> Result<ExternalHookProviderSnapshot, ExternalSourceProviderError> {
+        if !self.options.user_settings_file.is_absolute() {
+            return Err(ExternalSourceProviderError::new(
+                "claude.config_root_invalid",
+                "Claude Code configuration directory must be absolute",
+                false,
+            ));
+        }
         if context
             .workspace_root
             .as_ref()
@@ -253,6 +261,12 @@ impl ExternalHookSourceProvider for ClaudeCodeHookProvider {
         requested_source: &SourceKey,
         expected_catalog_content_version: &str,
     ) -> Result<PreparedExternalHookImport, ExternalSourceProviderError> {
+        if !self.options.user_settings_file.is_absolute() {
+            return Err(import_error(
+                "claude.config_root_invalid",
+                "Claude Code configuration directory must be absolute",
+            ));
+        }
         if requested_source.provider_id.as_str() != PROVIDER_ID {
             return Err(import_error(
                 "claude.hook.import_provider_mismatch",

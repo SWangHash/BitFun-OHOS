@@ -27,6 +27,7 @@
       "importing": "导入中",
       "importHint": "可以去 https://petdex.dev/ 下载形象 zip 后导入",
       "importDialogTitle": "选择 Petdex 形象 zip",
+      "loadFailed": "无法加载此宠物，请在宠物设置中检查宠物包和图集版本。",
       "importFailed": "导入宠物形象失败",
       "delete": "删除已导入形象",
       "deleteConfirmTitle": "删除形象",

@@ -7,7 +7,9 @@
 //! or depend on a user-local `dsh` CLI.
 
 mod hook_source;
+mod mcp_source;
 mod source_adapter;
 pub use hook_source::{DshHookProvider, DshHookProviderOptions};
+pub use mcp_source::{DshMcpProvider, DshMcpProviderOptions};
 
 pub use source_adapter::load_dsh_package_adapter;

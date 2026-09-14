@@ -141,6 +141,7 @@ mod tests {
             database_path: temp.path().join("market.sqlite"),
             artifact_dir: temp.path().join("artifacts"),
             web_dir: temp.path().join("web"),
+            github_callback_url: None,
             github_client_id: None,
             github_client_secret: None,
             session_secret: "test-session-secret-at-least-24".to_string(),

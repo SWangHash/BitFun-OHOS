@@ -55,7 +55,7 @@
     "builtin": "系統出廠內建的核心技能，不可刪除。",
     "user": "為目前帳戶全域安裝的 OpenBitFun 用戶級技能。",
     "project": "目前工作區底下的 OpenBitFun 項目級技能。",
-    "source": "從 {{source}} 掃描到的技能，包含用戶級及目前工作區的項目級技能。",
+    "source": "從 {{source}} 匯入的 OpenBitFun 副本，包含用戶級及目前工作區的項目級技能。",
     "groups": "建立和整理可重複使用的技能分組。"
   },
   "section": {

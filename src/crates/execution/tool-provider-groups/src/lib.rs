@@ -16,6 +16,7 @@ pub enum ToolPackFeatureGroup {
     ComputerUse,
     ImageAnalysis,
     MiniApp,
+    Pages,
     Creation,
     Canvas,
     AgentControl,
@@ -31,6 +32,7 @@ impl ToolPackFeatureGroup {
             Self::ComputerUse => "computer-use",
             Self::ImageAnalysis => "image-analysis",
             Self::MiniApp => "miniapp",
+            Self::Pages => "pages",
             Self::Creation => "creation",
             Self::Canvas => "canvas",
             Self::AgentControl => "agent-control",
@@ -46,6 +48,7 @@ pub const ALL_FEATURE_GROUPS: &[ToolPackFeatureGroup] = &[
     ToolPackFeatureGroup::ComputerUse,
     ToolPackFeatureGroup::ImageAnalysis,
     ToolPackFeatureGroup::MiniApp,
+    ToolPackFeatureGroup::Pages,
     ToolPackFeatureGroup::Creation,
     ToolPackFeatureGroup::Canvas,
     ToolPackFeatureGroup::AgentControl,
@@ -73,6 +76,7 @@ pub fn enabled_feature_groups() -> Vec<ToolPackFeatureGroup> {
             ToolPackFeatureGroup::ImageAnalysis,
         ),
         (cfg!(feature = "miniapp"), ToolPackFeatureGroup::MiniApp),
+        (cfg!(feature = "pages"), ToolPackFeatureGroup::Pages),
         (cfg!(feature = "creation"), ToolPackFeatureGroup::Creation),
         (cfg!(feature = "canvas"), ToolPackFeatureGroup::Canvas),
         (
@@ -100,9 +104,8 @@ pub fn tool_feature_group(tool_name: &str) -> Option<ToolPackFeatureGroup> {
         "ComputerUse" => Some(ToolPackFeatureGroup::ComputerUse),
         "view_image" | "analyze_image" => Some(ToolPackFeatureGroup::ImageAnalysis),
         "GenerativeUI" | "InitMiniApp" | "FinalizeMiniApp" | "PublishMiniApp"
-        | "PublishAppearance" | "PageDeploy" | "PagePublish" | "Playbook" => {
-            Some(ToolPackFeatureGroup::MiniApp)
-        }
+        | "PublishAppearance" | "Playbook" => Some(ToolPackFeatureGroup::MiniApp),
+        "PageDeploy" | "PagePublish" => Some(ToolPackFeatureGroup::Pages),
         "FrontendWorkbench" => Some(ToolPackFeatureGroup::Creation),
         "CreateCanvas" | "ReadCanvas" | "UpdateCanvas" | "PatchCanvas" => {
             Some(ToolPackFeatureGroup::Canvas)
@@ -260,10 +263,13 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
             "FinalizeMiniApp",
             "PublishMiniApp",
             "PublishAppearance",
-            "PageDeploy",
-            "PagePublish",
             "Playbook",
         ],
+    },
+    ToolProviderGroupPlan {
+        provider_id: "core.pages",
+        feature_groups: &[ToolPackFeatureGroup::Pages],
+        tool_names: &["PageDeploy", "PagePublish"],
     },
     ToolProviderGroupPlan {
         provider_id: "core.creation",
@@ -366,6 +372,7 @@ mod tests {
                 "computer-use",
                 "image-analysis",
                 "miniapp",
+                "pages",
                 "creation",
                 "canvas",
                 "agent-control"
@@ -511,6 +518,7 @@ mod tests {
                 "core.computer-use",
                 "core.review",
                 "core.miniapp",
+                "core.pages",
                 "core.creation",
                 "core.canvas",
                 "core.openharmony"
@@ -581,9 +589,9 @@ mod tests {
                 "FinalizeMiniApp",
                 "PublishMiniApp",
                 "PublishAppearance",
+                "Playbook",
                 "PageDeploy",
                 "PagePublish",
-                "Playbook",
                 "FrontendWorkbench",
                 "CreateCanvas",
                 "ReadCanvas",
@@ -631,6 +639,7 @@ mod tests {
                 ("core.computer-use", vec!["computer-use"]),
                 ("core.review", vec!["agent-control"]),
                 ("core.miniapp", vec!["miniapp"]),
+                ("core.pages", vec!["pages"]),
                 ("core.creation", vec!["creation"]),
                 ("core.canvas", vec!["canvas"]),
                 ("core.openharmony", vec!["basic"]),

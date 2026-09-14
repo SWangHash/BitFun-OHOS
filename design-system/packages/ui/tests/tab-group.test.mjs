@@ -42,6 +42,33 @@ test("TabGroup exposes a single selected tab with native button behavior", () =>
   assert.equal((markup.match(/data-overflow-trigger="true"/g) ?? []).length, 2);
 });
 
+test("tab presentation props reach the button without replacing its owned semantics", () => {
+  const markup = renderToStaticMarkup(createElement(TabGroup, {
+    items: [{ ...items[0], id: "product-tab", tabProps: {
+      className: "product-tab", "data-openbitfun-product-component": "product",
+      "data-openbitfun-product-part": "tab", title: "Full title",
+      "aria-describedby": "help", style: { opacity: 0.8 },
+      // Untyped callers must not override component-owned interaction/identity.
+      role: "button", type: "submit", tabIndex: 8, id: "wrong-id",
+      "aria-selected": false, "aria-controls": "wrong-panel", "data-openbitfun-part": "wrong-part",
+    } }],
+  }));
+  const button = markup.match(/<button\b[^>]*>/)?.[0] ?? "";
+  assert.match(button, /class="[^" ]+ product-tab"/);
+  assert.match(button, /data-openbitfun-product-component="product"/);
+  assert.match(button, /data-openbitfun-product-part="tab"/);
+  assert.match(button, /aria-describedby="help"/);
+  assert.match(button, /style="opacity:0.8"/);
+  assert.match(button, /title="Full title"/);
+  assert.match(button, /id="product-tab"/);
+  assert.match(button, /role="tab"/);
+  assert.match(button, /type="button"/);
+  assert.match(button, /tabindex="0"/);
+  assert.match(button, /aria-selected="true"/);
+  assert.match(button, /aria-controls="welcome-panel"/);
+  assert.match(button, /data-openbitfun-part="tab"/);
+});
+
 test("controlled value and disabled items preserve selection and focus contracts", () => {
   const markup = renderToStaticMarkup(
     createElement(TabGroup, {

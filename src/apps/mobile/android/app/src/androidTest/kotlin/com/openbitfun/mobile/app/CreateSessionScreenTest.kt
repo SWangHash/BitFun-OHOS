@@ -69,7 +69,7 @@ class CreateSessionScreenTest {
             )
         }
 
-        composeRule.onNodeWithText("Chat").assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.navigation_general_chat)).assertIsDisplayed()
         composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).performTextInput("review the parser")
         composeRule.onNodeWithTag(COMPOSER_SEND_TEST_TAG).performClick()
 
@@ -102,7 +102,7 @@ class CreateSessionScreenTest {
             )
         }
 
-        composeRule.onNodeWithText("No desktop is connected.").assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.create_no_device)).assertIsDisplayed()
         // The draft survives — it is worth keeping until a desktop comes back —
         // but the send is the same dimmed control a dropout produces.
         composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).performTextInput("review the parser")
@@ -162,10 +162,10 @@ class CreateSessionScreenTest {
 
         composeRule.onNodeWithTag(CREATE_SESSION_WORKSPACE_TEST_TAG).performClick()
 
-        composeRule.onNodeWithText("Choose a workspace").assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.create_workspace_picker)).assertIsDisplayed()
         // A desktop with no recent projects is not a broken picker, and saying
         // where to fix it is the only useful thing the sheet can offer.
-        composeRule.onNodeWithText("No recent workspaces. Open one on the desktop first.")
+        composeRule.onNodeWithText(testString(R.string.create_no_workspaces))
             .assertIsDisplayed()
     }
 

@@ -149,6 +149,8 @@ mod tests {
     #[test]
     fn context_mode_key_outranks_the_legacy_auto_approve_flag() {
         let mut global = GlobalConfig::default();
+        global.tool_permissions.policy.preset =
+            openbitfun_runtime_ports::PermissionPolicyPreset::Ask;
         global.tool_permissions.interaction.auto_approve_ask = true;
         let mut context_vars = std::collections::HashMap::new();
 

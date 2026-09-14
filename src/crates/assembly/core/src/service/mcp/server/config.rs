@@ -4,7 +4,7 @@ use crate::util::errors::OpenBitFunError;
 
 use openbitfun_services_integrations::mcp::server::MCPServerConfigValidationError;
 pub use openbitfun_services_integrations::mcp::server::{
-    MCPServerConfig, MCPServerOAuthConfig, MCPServerTimeouts, MCPServerTransport,
+    MCPImportOrigin, MCPServerConfig, MCPServerOAuthConfig, MCPServerTimeouts, MCPServerTransport,
     MCPServerXaaConfig,
 };
 

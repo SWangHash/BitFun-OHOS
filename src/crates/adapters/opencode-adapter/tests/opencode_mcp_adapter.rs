@@ -341,6 +341,34 @@ fn unsafe_user_servers_require_setup_instead_of_copying_opaque_fields() {
     let snapshot = provider.discover(&input).unwrap();
 
     for server in &snapshot.servers {
+        if server.name == "env" || server.name == "headers" {
+            let prepared = provider
+                .prepare_import(&input, &server.id, &server.behavior_version)
+                .unwrap();
+            let values = if server.name == "env" {
+                &prepared.environment
+            } else {
+                &prepared.headers
+            };
+            assert_eq!(values.values().next().unwrap(), "secret");
+            assert!(!format!("{prepared:?}").contains("secret"));
+            continue;
+        }
+        if server.name == "cwd" || server.name == "no-oauth" {
+            let prepared = provider
+                .prepare_import(&input, &server.id, &server.behavior_version)
+                .unwrap();
+            if server.name == "cwd" {
+                assert!(prepared
+                    .working_directory
+                    .as_ref()
+                    .unwrap()
+                    .ends_with("tools"));
+            } else {
+                assert_eq!(prepared.oauth_enabled, Some(false));
+            }
+            continue;
+        }
         let error = provider
             .prepare_import(&input, &server.id, &server.behavior_version)
             .unwrap_err();
@@ -554,9 +582,9 @@ fn opencode_timeout_applies_to_all_mcp_lifecycle_phases() {
     assert_eq!(
         provider
             .prepare_import(&input, &server.id, &server.behavior_version)
-            .unwrap_err()
-            .code,
-        "external_mcp.import_setup_required"
+            .unwrap()
+            .timeouts,
+        server.timeouts
     );
 }
 
@@ -613,4 +641,186 @@ fn external_opencode_config_dir_is_a_user_scoped_late_override_and_keeps_global_
         source.location == user.join("opencode.json").to_string_lossy()
             && source.scope == ExternalSourceScope::UserGlobal
     }));
+}
+
+fn import_fixture(
+    user_config: serde_json::Value,
+    project_config: serde_json::Value,
+) -> (TempDir, OpenCodeMcpProvider, ExternalMcpDiscoveryInput) {
+    let temp = TempDir::new().unwrap();
+    let user = temp.path().join("user");
+    let project = temp.path().join("project");
+    fs::create_dir_all(&user).unwrap();
+    fs::create_dir_all(project.join(".git")).unwrap();
+    fs::write(user.join("opencode.json"), user_config.to_string()).unwrap();
+    fs::write(project.join("opencode.json"), project_config.to_string()).unwrap();
+    let provider = OpenCodeMcpProvider::new(options(user));
+    let input = ExternalMcpDiscoveryInput {
+        context: context(project),
+        suppressed_sources: BTreeSet::new(),
+        revision_key: revision_key(),
+    };
+    (temp, provider, input)
+}
+
+#[test]
+fn v1_server_named_servers_and_disabled_import_remain_compatible() {
+    let (_temp, provider, input) = import_fixture(
+        serde_json::json!({"mcp": {
+            "servers": {"type": "local", "command": ["docs"], "enabled": false},
+            "invalid": {"type": "local", "command": [], "enabled": false}
+        }}),
+        serde_json::json!({}),
+    );
+    let snapshot = provider.discover(&input).unwrap();
+    let server = snapshot
+        .servers
+        .iter()
+        .find(|s| s.name == "servers")
+        .unwrap();
+    assert_eq!(
+        server.static_status,
+        ExternalMcpStaticStatus::DisabledBySource
+    );
+    assert!(provider
+        .prepare_server(&input, &server.id, &server.behavior_version)
+        .is_err());
+    assert!(provider
+        .prepare_import(&input, &server.id, &server.behavior_version)
+        .is_ok());
+    let invalid = snapshot
+        .servers
+        .iter()
+        .find(|s| s.name == "invalid")
+        .unwrap();
+    assert!(provider
+        .prepare_import(&input, &invalid.id, &invalid.behavior_version)
+        .is_err());
+}
+
+#[test]
+fn v2_replaces_whole_servers_and_inherits_independent_timeout_defaults() {
+    let (_temp, provider, mut input) = import_fixture(
+        serde_json::json!({"mcp": {
+            "timeout": {"startup": 45000, "execution": 600000},
+            "servers": {
+                "docs": {"type": "local", "command": ["old"], "environment": {"OLD_SECRET": "must-not-survive"}},
+                "partial": {"type": "local", "command": ["old"]}
+            }
+        }}),
+        serde_json::json!({"mcp": {"servers": {
+            "docs": {"type": "remote", "url": "https://example.test/mcp", "disabled": true, "codemode": false, "timeout": {"catalog": 60000}},
+            "partial": {"disabled": true}
+        }}}),
+    );
+    let snapshot = provider.discover(&input).unwrap();
+    let docs = snapshot.servers.iter().find(|s| s.name == "docs").unwrap();
+    assert_eq!(
+        docs.static_status,
+        ExternalMcpStaticStatus::DisabledBySource
+    );
+    assert!(docs.environment_keys.is_empty());
+    assert!(provider
+        .prepare_server(&input, &docs.id, &docs.behavior_version)
+        .is_err());
+    let prepared = provider
+        .prepare_import(&input, &docs.id, &docs.behavior_version)
+        .unwrap();
+    assert_eq!(prepared.timeouts.startup_ms, Some(45000));
+    assert_eq!(prepared.timeouts.catalog_ms, Some(60000));
+    assert_eq!(prepared.timeouts.execution_ms, Some(600000));
+    assert_eq!(prepared.oauth_enabled, Some(true));
+    let partial = snapshot
+        .servers
+        .iter()
+        .find(|s| s.name == "partial")
+        .unwrap();
+    assert!(provider
+        .prepare_import(&input, &partial.id, &partial.behavior_version)
+        .is_err());
+    input.suppressed_sources.insert(docs.id.source.clone());
+    assert!(provider
+        .prepare_import(&input, &docs.id, &docs.behavior_version)
+        .is_err());
+}
+
+#[test]
+fn v2_late_global_timeout_changes_invalidate_earlier_servers() {
+    let (temp, provider, input) = import_fixture(
+        serde_json::json!({"mcp": {"servers": {
+            "docs": {"type": "local", "command": ["docs"]}
+        }}}),
+        serde_json::json!({"mcp": {"timeout": {"execution": 9000}}}),
+    );
+    let snapshot = provider.discover(&input).unwrap();
+    let docs = &snapshot.servers[0];
+    let prepared = provider
+        .prepare_import(&input, &docs.id, &docs.behavior_version)
+        .unwrap();
+    assert_eq!(prepared.timeouts.startup_ms, Some(30000));
+    assert_eq!(prepared.timeouts.catalog_ms, Some(30000));
+    assert_eq!(prepared.timeouts.execution_ms, Some(9000));
+    fs::write(
+        temp.path().join("project/opencode.json"),
+        r#"{"mcp":{"timeout":{"execution":10000}}}"#,
+    )
+    .unwrap();
+    assert!(provider
+        .prepare_import(&input, &docs.id, &docs.behavior_version)
+        .is_err());
+}
+
+#[test]
+fn v2_invalid_settings_remain_unavailable_even_when_disabled() {
+    for patch in [
+        serde_json::json!({"enabled": false}),
+        serde_json::json!({"disabled": "yes"}),
+        serde_json::json!({"timeout": 3000}),
+        serde_json::json!({"timeout": {"execution": 0}}),
+        serde_json::json!({"codemode": "yes"}),
+        serde_json::json!({"oauth": {"scope": "restricted"}}),
+    ] {
+        let mut server = serde_json::json!({"type": "remote", "url": "https://example.test/mcp", "disabled": true});
+        server
+            .as_object_mut()
+            .unwrap()
+            .extend(patch.as_object().unwrap().clone());
+        let (_temp, provider, input) = import_fixture(
+            serde_json::json!({"mcp": {"servers": {"docs": server}}}),
+            serde_json::json!({}),
+        );
+        let snapshot = provider.discover(&input).unwrap();
+        let docs = &snapshot.servers[0];
+        assert!(provider
+            .prepare_import(&input, &docs.id, &docs.behavior_version)
+            .is_err());
+    }
+}
+
+#[test]
+fn mixed_versions_and_invalid_higher_priority_layers_fail_explicitly() {
+    let v1 = serde_json::json!({"mcp": {"docs": {"type": "local", "command": ["docs"]}}});
+    for overlay in [
+        serde_json::json!({"mcp": {"servers": {"docs": {"type": "local", "command": ["other"]}}}}),
+        serde_json::json!({"mcp": {"servers": {}, "docs": {"enabled": false}}}),
+    ] {
+        let (_temp, provider, input) = import_fixture(v1.clone(), overlay);
+        assert!(provider.discover(&input).is_err());
+    }
+}
+
+#[test]
+fn invalid_v2_global_defaults_do_not_disappear_behind_a_valid_project_server() {
+    let (_temp, provider, input) = import_fixture(
+        serde_json::json!({"mcp": {"timeout": {"execution": "invalid"}}}),
+        serde_json::json!({"mcp": {"servers": {"type": {"type": "local", "command": ["docs"]}}}}),
+    );
+    assert!(provider.discover(&input).is_err());
+    let (_temp, provider, input) = import_fixture(
+        serde_json::json!({}),
+        serde_json::json!({"mcp": {"servers": {"type": {"type": "local", "command": ["docs"]}}}}),
+    );
+    let snapshot = provider.discover(&input).unwrap();
+    assert_eq!(snapshot.servers[0].name, "type");
+    assert_eq!(snapshot.servers[0].timeouts.execution_ms, Some(43_200_000));
 }

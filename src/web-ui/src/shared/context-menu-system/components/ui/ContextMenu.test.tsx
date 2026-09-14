@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ContextMenu } from './ContextMenu';
 import type { ContextMenuItem } from './types';
+import { ContextMenuRenderer } from '../ContextMenuRenderer';
+import { useContextMenuStore } from '../../store/ContextMenuStore';
 
 vi.mock('@/shared/utils/logger', () => ({
   createLogger: () => ({ error: vi.fn() }),
@@ -37,6 +39,7 @@ describe('ContextMenu presence', () => {
 
   afterEach(() => {
     act(() => root.unmount());
+    useContextMenuStore.getState().reset();
     vi.useRealTimers();
     dom.window.close();
   });
@@ -262,5 +265,29 @@ describe('ContextMenu presence', () => {
     expect(document.querySelector('[data-openbitfun-component="menu"][data-openbitfun-product-part="root"]')).not.toBeNull();
     expect(document.querySelector('[data-openbitfun-product-part="item"][data-openbitfun-state="disabled"]')?.getAttribute('aria-disabled')).toBe('true');
     expect(document.querySelector('[data-openbitfun-product-part="item"][data-openbitfun-state="submenu-active"]')?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('resolves the file explorer terminal icon and forwards layout classes through product slots', () => {
+    useContextMenuStore.setState({
+      visible: true,
+      position: { x: 20, y: 20 },
+      items: [
+        { id: 'file-new-terminal', label: 'New terminal here', icon: 'Terminal' },
+        { id: 'file-paste', label: 'Paste', icon: 'Clipboard', shortcut: 'Ctrl+V' },
+        { id: 'file-new', label: 'New', icon: 'Plus', submenu: [{ id: 'file-new-file', label: 'New file', icon: 'FilePlus' }] },
+      ],
+    });
+    act(() => root.render(<ContextMenuRenderer />));
+    const terminal = document.querySelector('[data-menu-id="file-new-terminal"]')!;
+    expect(terminal.querySelector('[data-openbitfun-name="terminal"] svg')).not.toBeNull();
+    expect(terminal.querySelector('i.Terminal')).toBeNull();
+    const iconSlots = Array.from(document.querySelectorAll<HTMLElement>('[data-openbitfun-product-part="icon"]'));
+    expect(iconSlots).toHaveLength(3);
+    for (const slot of iconSlots) {
+      expect(slot.className).not.toBe('');
+      expect(slot.parentElement?.getAttribute('data-openbitfun-part')).toBe('leading');
+      expect(slot.querySelector('svg')).not.toBeNull();
+    }
+    expect(document.querySelector<HTMLElement>('[data-openbitfun-product-part="submenuArrow"]')?.className).toBeTruthy();
   });
 });

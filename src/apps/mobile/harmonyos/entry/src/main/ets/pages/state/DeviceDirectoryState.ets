@@ -10,6 +10,7 @@ export class WorkspaceDirectoryState {
   @Trace path: string = '';
   @Trace expanded: boolean = false;
   @Trace status: WorkspaceDirectoryStatus = 'idle';
+  @Trace hasLoadedSessions: boolean = false;
 }
 
 /**
@@ -71,6 +72,19 @@ export class DeviceDirectoryState {
 
   workspaceStatus(deviceId: string, path: string): WorkspaceDirectoryStatus {
     return this.findWorkspace(deviceId, path)?.status || 'idle';
+  }
+
+  workspaceHasLoadedSessions(deviceId: string, path: string): boolean {
+    return this.findWorkspace(deviceId, path)?.hasLoadedSessions || false;
+  }
+
+  /** A request retains this object so a reset cannot publish into its successor. */
+  workspaceLoadState(deviceId: string, path: string): WorkspaceDirectoryState {
+    return this.ensureWorkspace(deviceId, path);
+  }
+
+  isCurrentWorkspaceLoad(state: WorkspaceDirectoryState): boolean {
+    return this.findWorkspace(state.deviceId, state.path) === state;
   }
 
   setWorkspaceExpanded(deviceId: string, path: string, expanded: boolean): void {

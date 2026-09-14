@@ -118,7 +118,7 @@ class FileReferenceCardsTest {
             )
         }
 
-        composeRule.onNodeWithContentDescription("Download").assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription(testString(R.string.file_download)).assertIsDisplayed().performClick()
         composeRule.onNodeWithTag(FILE_DOWNLOAD_ACTION_TEST_TAG)
             .assertWidthIsEqualTo(44.dp)
             .assertHeightIsEqualTo(44.dp)

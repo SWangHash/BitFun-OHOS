@@ -204,9 +204,9 @@ impl StaticToolProviderFactory<dyn Tool> for ProductConcreteToolFactory {
             "FrontendWorkbench" => Some(Arc::new(FrontendWorkbenchTool::new())),
             #[cfg(feature = "tools-miniapp")]
             "PublishAppearance" => Some(Arc::new(PublishAppearanceTool::new())),
-            #[cfg(feature = "tools-miniapp")]
+            #[cfg(feature = "tools-pages")]
             "PageDeploy" => Some(Arc::new(PageDeployTool::new())),
-            #[cfg(feature = "tools-miniapp")]
+            #[cfg(feature = "tools-pages")]
             "PagePublish" => Some(Arc::new(PagePublishTool::new())),
             #[cfg(feature = "tools-browser-web")]
             "ControlHub" => Some(Arc::new(ControlHubTool::new())),

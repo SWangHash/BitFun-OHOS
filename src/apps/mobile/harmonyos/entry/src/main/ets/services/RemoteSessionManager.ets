@@ -135,15 +135,22 @@ export class RemoteSessionManager implements RemoteChatCommandClient, RemoteFile
   }
 
   async listSessionsForWorkspace(workspacePath: string, limit: number = 50): Promise<RemoteSession[]> {
+    return (await this.listSessionPageForWorkspace(workspacePath, limit)).sessions;
+  }
+
+  async listSessionPageForWorkspace(workspacePath: string, limit: number = 50): Promise<SessionListResult> {
     const path = workspacePath.trim();
     if (path.length === 0) {
-      return [];
+      return { sessions: [], hasMore: false };
     }
     const response = await this.send<SessionListResponse>(
       RemoteCommandFactory.listSessions(path, limit, 0, ''),
       INTERACTIVE_DIRECTORY_TIMEOUT_MS
     );
-    return stampRemoteSessionsWorkspace(RemoteResponseMapper.sessions(response.sessions || []), path);
+    return {
+      sessions: stampRemoteSessionsWorkspace(RemoteResponseMapper.sessions(response.sessions || []), path),
+      hasMore: response.has_more || false
+    };
   }
 
   async listSessions(limit: number, offset: number, query: string, agentType: string): Promise<SessionListResult> {

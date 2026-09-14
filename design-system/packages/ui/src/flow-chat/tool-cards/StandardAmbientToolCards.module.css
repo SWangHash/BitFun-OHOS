@@ -155,7 +155,7 @@
   .imageButton {
     display: inline-flex;
     inline-size: 10rem;
-    max-inline-size: calc(100vi - 4.75rem);
+    max-inline-size: 100%;
     aspect-ratio: 1;
     align-items: center;
     justify-content: center;

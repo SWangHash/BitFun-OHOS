@@ -248,7 +248,30 @@ fn safe_servers_have_a_native_import_projection_and_unsafe_fields_require_setup(
             if args == &["--stdio"]
     ));
 
-    for name in ["env", "cwd", "query", "headers"] {
+    let cwd = snapshot.servers.iter().find(|s| s.name == "cwd").unwrap();
+    let prepared_cwd = provider
+        .prepare_import(&input, &cwd.id, &cwd.behavior_version)
+        .unwrap();
+    assert!(prepared_cwd
+        .working_directory
+        .as_ref()
+        .unwrap()
+        .ends_with("tools"));
+    assert_eq!(prepared_remote.oauth_enabled, Some(true));
+    for name in ["env", "headers"] {
+        let server = snapshot.servers.iter().find(|s| s.name == name).unwrap();
+        let prepared = provider
+            .prepare_import(&input, &server.id, &server.behavior_version)
+            .unwrap();
+        let values = if name == "env" {
+            &prepared.environment
+        } else {
+            &prepared.headers
+        };
+        assert_eq!(values.values().next().unwrap(), "secret");
+        assert!(!format!("{prepared:?}").contains("secret"));
+    }
+    for name in ["query"] {
         let server = snapshot
             .servers
             .iter()
@@ -396,9 +419,9 @@ fn claude_timeout_controls_execution_and_subsecond_values_are_ignored() {
     assert_eq!(
         provider
             .prepare_import(&input, &docs.id, &docs.behavior_version)
-            .unwrap_err()
-            .code,
-        "external_mcp.import_setup_required"
+            .unwrap()
+            .timeouts,
+        docs.timeouts
     );
 }
 
@@ -520,4 +543,35 @@ fn project_config_symlink_cannot_escape_the_project_root() {
         result.is_err(),
         "project provenance must not cover an outside target"
     );
+}
+
+#[test]
+fn project_disabled_servers_are_importable_and_disable_changes_fence_old_plans() {
+    let fixture = Fixture::new();
+    let mut config = serde_json::json!({"mcpServers": {"docs": {"type": "http", "url": "https://example.test/mcp"}}, "projects": {}});
+    config["projects"][fixture.project.to_str().unwrap()] =
+        serde_json::json!({"disabledMcpServers": ["docs"]});
+    fs::write(&fixture.user_config, config.to_string()).unwrap();
+    let provider = fixture.provider();
+    let input = fixture.input();
+    let snapshot = provider.discover(&input).unwrap();
+    let docs = &snapshot.servers[0];
+    assert!(!docs.source_enabled);
+    assert_eq!(
+        docs.static_status,
+        ExternalMcpStaticStatus::DisabledBySource
+    );
+    assert!(provider
+        .prepare_server(&input, &docs.id, &docs.behavior_version)
+        .is_err());
+    let imported = provider
+        .prepare_import(&input, &docs.id, &docs.behavior_version)
+        .unwrap();
+    assert_eq!(imported.oauth_enabled, Some(true));
+    config["projects"] = serde_json::json!({});
+    fs::write(&fixture.user_config, config.to_string()).unwrap();
+    assert!(provider
+        .prepare_import(&input, &docs.id, &docs.behavior_version)
+        .is_err());
+    assert!(provider.discover(&input).unwrap().servers[0].source_enabled);
 }

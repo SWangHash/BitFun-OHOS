@@ -63,17 +63,23 @@ class ChatComposerPolicyTest {
     }
 
     @Test
-    fun aRunningTurnOutranksEverythingElseInTheSlot() {
-        // Even with a perfectly sendable draft: while the agent is talking, the
-        // only control worth offering is the one that makes it stop.
+    fun remoteDraftCanSteerWhileAnEmptyComposerStillStops() {
         assertEquals(
-            ComposerPrimaryAction.STOP,
+            ComposerPrimaryAction.SEND,
             primaryAction(text = "ship it", streaming = true),
         )
         assertEquals(
             ComposerPrimaryAction.STOP,
             primaryAction(text = "", streaming = true),
         )
+    }
+
+    @Test
+    fun localTurnsStillStopAndRemoteCommandsRespectBusyAndConnection() {
+        assertEquals(ComposerPrimaryAction.STOP, primaryAction("draft", streaming = true, requiresRemoteConnection = false))
+        assertEquals(ComposerPrimaryAction.SEND_BLOCKED, primaryAction("draft", streaming = true, busy = true))
+        assertEquals(ComposerPrimaryAction.SEND_BLOCKED, primaryAction("draft", streaming = true, phase = ConnectionPhase.DISCONNECTED))
+        assertEquals(ComposerPrimaryAction.SEND, primaryAction("", attachmentCount = 1, streaming = true))
     }
 
     @Test

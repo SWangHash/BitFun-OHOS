@@ -28,8 +28,8 @@ class ToolConfirmationPanelTest {
             }
         }
 
-        composeRule.onNodeWithText("Approve").assertIsDisplayed()
-        composeRule.onNodeWithText("Reject").assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.tool_approve)).assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.tool_reject)).assertIsDisplayed()
         composeRule.onAllNodes(hasSetTextAction()).assertCountEquals(0)
     }
 }

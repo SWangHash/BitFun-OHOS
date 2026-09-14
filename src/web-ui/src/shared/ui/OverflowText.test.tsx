@@ -57,10 +57,10 @@ describe('overflow text full-content access', () => {
     vi.useRealTimers();
   });
 
-  it('shows the complete label from the entire owning control and keeps its click behavior', () => {
+  it.each(['marquee', 'fade'] as const)('shows the complete %s label from the owning control and keeps its click behavior', (behavior) => {
     const onClick = vi.fn();
     render(<button data-overflow-trigger aria-describedby="help" onClick={onClick}>
-      <OverflowText>{longLabel}</OverflowText>
+      <OverflowText behavior={behavior}>{longLabel}</OverflowText>
     </button>);
     const button = host.querySelector('button')!;
     hover(button);
@@ -73,6 +73,28 @@ describe('overflow text full-content access', () => {
     expect(onClick).toHaveBeenCalledOnce();
     expect(tooltip()).toBeNull();
     expect(button.getAttribute('aria-describedby')).toBe('help');
+  });
+
+  it('keeps interaction-only ellipsis idle on virtual selection and reveals full text on focus', () => {
+    render(<button data-overflow-trigger data-overflow-active="true">
+      <OverflowText overflowStyle="ellipsis" marqueeTrigger="interaction" marqueeActive>
+        {longLabel}
+      </OverflowText>
+    </button>);
+    const label = host.querySelector<HTMLElement>('[data-overflow]')!;
+    expect(label.getAttribute('data-overflow')).toBe('true');
+    expect(label.getAttribute('data-marquee-active')).toBeNull();
+    reveal();
+    expect(tooltip()).toBeNull();
+    act(() => host.querySelector('button')!.focus());
+    reveal();
+    expect(tooltip()?.textContent).toBe(longLabel);
+    act(() => {
+      availableWidth = 1000;
+      resizeCallbacks.forEach(callback => callback());
+    });
+    expect(label.getAttribute('data-overflow')).toBe('false');
+    expect(tooltip()).toBeNull();
   });
 
   it('keeps the command tooltip open when portal enter precedes native trigger leave', () => {

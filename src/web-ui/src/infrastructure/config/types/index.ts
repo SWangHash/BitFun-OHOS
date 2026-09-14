@@ -403,6 +403,11 @@ export type ParentSubagentOverrideConfig = Record<string, AgentSubagentOverrideS
 export type SkillLevel = 'user' | 'project';
 
 export interface SkillInfo {
+  /** The external origin of an explicitly installed native copy. */
+  importOrigin?: {
+    schemaVersion: number; importId: string; sourceKey: string; sourcePath: string;
+    sourceId: string; sourceLabel: string; sourceSlot: string; fingerprint: string;
+  } | null;
   key: string;
   name: string;
   description: string;
@@ -465,6 +470,8 @@ export interface SkillScanDiagnostic {
 }
 
 export interface SkillScanReport<T = SkillInfo> {
+  /** Negotiated host support for durable external copies and identity-checked undo. */
+  importOperationsVersion?: number;
   skills: T[];
   diagnostics: SkillScanDiagnostic[];
   /** False when an older host returns the legacy array instead of diagnostics. */
@@ -535,7 +542,15 @@ export const DEFAULT_LANGUAGE_TEMPLATES: Record<string, LanguageDebugTemplate> =
   }]),
 );
 
+export interface SkillImportPreview {
+  fingerprint: string;
+  fileCount: number;
+  name: string;
+  description: string;
+}
+
 export interface SkillValidationResult {
+  importPreview?: SkillImportPreview;
   valid: boolean;
   name?: string;
   description?: string;
