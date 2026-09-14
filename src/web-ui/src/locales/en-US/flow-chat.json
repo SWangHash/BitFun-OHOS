@@ -1031,6 +1031,7 @@
     "fixCompleted": "Fix completed",
     "fixFailed": "Fix failed",
     "fixTimeout": "Fix timed out",
+    "fixInterruptedTitle": "Fix interrupted",
     "fixInterrupted": "Fix was interrupted. Up to {{count}} selected items may still need attention.",
     "reviewWaitingCapacity": "Review waiting for capacity",
     "continueFix": "Recheck and continue ({{count}})",

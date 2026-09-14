@@ -160,13 +160,14 @@
   }
 
   &__error-message {
-    margin-left: auto;
+    min-width: 0;
+    max-height: min(180px, 30vh);
     font-size: var(--bf-appearance-token-tool-card-action-font-size);
     color: var(--bf-appearance-token-color-error);
-    max-width: 50%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text;
   }
 
   /* Remediation section */
