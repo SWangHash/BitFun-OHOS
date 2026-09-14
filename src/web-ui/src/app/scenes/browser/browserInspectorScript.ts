@@ -14,6 +14,37 @@
  *     programmatically cancel an active session.
  */
 import { INSPECTOR_OVERLAY_THEME } from '@/shared/inspector/inspectorOverlayTheme';
+import { getBuiltinAppearanceCssToken } from '@/infrastructure/appearance/builtins/catalog';
+
+// The inspector script is eval()'d inside an external page's document where
+// BitFun appearance CSS variables are not defined. Resolve each token in the
+// host document at injection time and bake the resolved value into the script.
+// When a variable is unavailable, fall back to the builtin appearance's
+// definition of the same token so colors keep a single source of truth.
+type InspectorTokenName = Extract<
+  keyof typeof INSPECTOR_OVERLAY_THEME,
+  'activeBorder' | 'activeBackground' | 'selectedBorder' | 'selectedBackground' | 'browserTooltipBackground' | 'tooltipText' | 'tooltipShadow'
+>;
+
+function resolveInspectorToken(token: InspectorTokenName): string {
+  const variableName = INSPECTOR_OVERLAY_THEME[token].slice(4, -1); // strip var( ... )
+  if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+    const value = window.getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
+    if (value) return value;
+  }
+  return getBuiltinAppearanceCssToken(variableName);
+}
+
+function resolveInspectorTheme(): Record<InspectorTokenName, string> {  return {
+    activeBorder: resolveInspectorToken('activeBorder'),
+    activeBackground: resolveInspectorToken('activeBackground'),
+    selectedBorder: resolveInspectorToken('selectedBorder'),
+    selectedBackground: resolveInspectorToken('selectedBackground'),
+    browserTooltipBackground: resolveInspectorToken('browserTooltipBackground'),
+    tooltipText: resolveInspectorToken('tooltipText'),
+    tooltipShadow: resolveInspectorToken('tooltipShadow'),
+  };
+}
 
 const INSPECTOR_SCRIPT_BODY = /* js */ `
 (function () {
@@ -24,6 +55,7 @@ const INSPECTOR_SCRIPT_BODY = /* js */ `
   window.__bitfun_inspector_active = true;
 
   var LABEL = window.__bitfun_inspector_label || '';
+  var THEME = window.__bitfun_inspector_theme;
   var EVENT_SELECTED = 'browser-inspector-element-selected-' + LABEL;
   var EVENT_CANCELLED = 'browser-inspector-cancelled-' + LABEL;
 
@@ -31,8 +63,8 @@ const INSPECTOR_SCRIPT_BODY = /* js */ `
   var overlay = document.createElement('div');
   overlay.style.cssText = [
     'position:fixed',
-    'border:2px solid ${INSPECTOR_OVERLAY_THEME.activeBorder}',
-    'background:${INSPECTOR_OVERLAY_THEME.activeBackground}',
+    'border:2px solid ' + THEME.activeBorder,
+    'background:' + THEME.activeBackground,
     'pointer-events:none',
     'z-index:2147483646',
     'box-sizing:border-box',
@@ -45,8 +77,8 @@ const INSPECTOR_SCRIPT_BODY = /* js */ `
   var tooltip = document.createElement('div');
   tooltip.style.cssText = [
     'position:fixed',
-    'background:${INSPECTOR_OVERLAY_THEME.browserTooltipBackground}',
-    'color:${INSPECTOR_OVERLAY_THEME.tooltipText}',
+    'background:' + THEME.browserTooltipBackground,
+    'color:' + THEME.tooltipText,
     'padding:3px 8px',
     'border-radius:4px',
     'font-size:12px',
@@ -56,7 +88,7 @@ const INSPECTOR_SCRIPT_BODY = /* js */ `
     'display:none',
     'max-width:480px',
     'white-space:nowrap',
-    'box-shadow:0 2px 8px ${INSPECTOR_OVERLAY_THEME.tooltipShadow}',
+    'box-shadow:0 2px 8px ' + THEME.tooltipShadow,
     'line-height:1.6',
   ].join(';');
 
@@ -179,11 +211,11 @@ const INSPECTOR_SCRIPT_BODY = /* js */ `
 
     emitTauri(EVENT_SELECTED, data);
 
-    overlay.style.borderColor = '${INSPECTOR_OVERLAY_THEME.selectedBorder}';
-    overlay.style.background = '${INSPECTOR_OVERLAY_THEME.selectedBackground}';
+    overlay.style.borderColor = THEME.selectedBorder;
+    overlay.style.background = THEME.selectedBackground;
     setTimeout(function () {
-      overlay.style.borderColor = '${INSPECTOR_OVERLAY_THEME.activeBorder}';
-      overlay.style.background = '${INSPECTOR_OVERLAY_THEME.activeBackground}';
+      overlay.style.borderColor = THEME.activeBorder;
+      overlay.style.background = THEME.activeBackground;
     }, 300);
   }
 
@@ -208,11 +240,20 @@ const INSPECTOR_SCRIPT_BODY = /* js */ `
 /**
  * Returns the JavaScript string to eval() inside the Tauri embedded webview.
  *
+ * Inspector colors are resolved in the host document at injection time so the
+ * script follows the active appearance; a mid-session theme change is picked
+ * up the next time the inspector starts.
+ *
  * @param webviewLabel  The label of the webview whose events should be listened to.
  */
 export function createInspectorScript(webviewLabel: string): string {
-  // Inject the label as a global before the IIFE runs.
-  return `window.__bitfun_inspector_label = ${JSON.stringify(webviewLabel)};\n${INSPECTOR_SCRIPT_BODY}`;
+  // Inject the label and resolved theme as globals before the IIFE runs.
+  const theme = JSON.stringify(resolveInspectorTheme());
+  return [
+    `window.__bitfun_inspector_label = ${JSON.stringify(webviewLabel)};`,
+    `window.__bitfun_inspector_theme = ${theme};`,
+    INSPECTOR_SCRIPT_BODY,
+  ].join('\n');
 }
 
 /** Script to cancel an active inspector session without triggering a selection. */
