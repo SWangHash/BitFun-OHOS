@@ -76,9 +76,13 @@ describe('AppearancePackageParser', () => {
     await expect(parser.parse(source)).rejects.toThrow('Undeclared archive file: payload.css');
   });
 
-  it('rejects unknown schemas', async () => {
-    const unsupported = { ...manifest(), schema: 'example.unknown' };
-    await expect(parser.parse(await archive(unsupported))).rejects.toThrow('Schema must be bitfun.appearance');
+  it('accepts foreign schema identifiers and rejects non-string schemas', async () => {
+    const foreign = { ...manifest(), schema: 'openbitfun.appearance' };
+    const stored = await parser.parse(await archive(foreign));
+    expect(stored.manifest.id).toBe('test.archive');
+
+    const nonString = { ...manifest(), schema: 123 } as unknown as AppearancePackage;
+    await expect(parser.parse(await archive(nonString))).rejects.toThrow();
   });
 
   it('imports validated background video metadata and its poster', async () => {

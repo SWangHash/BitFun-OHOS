@@ -1,6 +1,5 @@
 import type { AppearanceRegistry } from '../registry/AppearanceRegistry';
 import {
-  APPEARANCE_SCHEMA,
   type AppearancePackage,
   type AppearanceStyle,
   type AppearanceStyleProperty,
@@ -156,8 +155,8 @@ export class AppearancePackageValidator {
       'assets', 'integrity',
     ], '$', error);
 
-    if (input.schema !== APPEARANCE_SCHEMA) {
-      error('schema', 'INVALID_SCHEMA', `Schema must be ${APPEARANCE_SCHEMA}`);
+    if (input.schema !== undefined && typeof input.schema !== 'string') {
+      error('schema', 'INVALID_SCHEMA', 'Schema must be a string identifier');
     }
     this.validateId(input.id, 'id', error);
     if (typeof input.name !== 'string' || input.name.trim().length === 0 || input.name.length > 100) {
@@ -385,14 +384,10 @@ export class AppearancePackageValidator {
     Object.entries(value).forEach(([id, surface]) => {
       const descriptor = getDescriptor(id);
       if (!descriptor) {
-        error(
+        warning(
           `${path}.${id}`,
           'UNKNOWN_SURFACE',
-          `No registered appearance contract for ${id}`,
-          {
-            surfaceKind: path === 'components' ? 'component' : 'scene',
-            surfaceId: id,
-          },
+          `No registered appearance contract for ${id}; its rules are ignored`,
         );
         return;
       }
@@ -420,12 +415,7 @@ export class AppearancePackageValidator {
       const part = parts.get(partId);
       const partPath = `${path}.parts.${partId}`;
       if (!part) {
-        error(partPath, 'UNKNOWN_PART', `Unknown part ${partId}`, {
-          surfaceKind: path.startsWith('components.') ? 'component' : 'scene',
-          surfaceId: descriptor.id,
-          partId,
-          allowedParts: descriptor.parts.map(candidate => candidate.id),
-        });
+        warning(partPath, 'UNKNOWN_PART', `Unknown part ${partId}; its rules are ignored`);
         return;
       }
       if (!isRecord(rawRule)) {

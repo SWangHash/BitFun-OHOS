@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultAppearanceRegistry } from '../registry/defaultAppearanceRegistry';
 import type { AppearancePackage } from '../types';
-import { AppearancePackageValidationError } from './AppearancePackageValidationError';
-import { appearancePackageValidator, assertValidAppearancePackage } from './AppearancePackageValidator';
+import { appearancePackageValidator } from './AppearancePackageValidator';
 
 function validPackage(): AppearancePackage {
   return {
@@ -69,41 +68,49 @@ describe('AppearancePackageValidator', () => {
     ]));
   });
 
-  it('rejects unknown package schemas', () => {
-    const result = appearancePackageValidator.validate({
+  it('accepts foreign schema identifiers and rejects non-string schemas', () => {
+    expect(appearancePackageValidator.validate({
       ...validPackage(),
-      schema: 'example.unknown',
-    }, registry);
-    expect(result.errors).toEqual(expect.arrayContaining([
+      schema: 'openbitfun.appearance',
+    }, registry).errors).toEqual([]);
+
+    expect(appearancePackageValidator.validate({
+      ...validPackage(),
+      schema: 123,
+    } as unknown as AppearancePackage, registry).errors).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'INVALID_SCHEMA', path: 'schema' }),
     ]));
   });
 
-  it('rejects raw CSS strings and unregistered parts', () => {
+  it('rejects raw CSS strings and skips unregistered parts', () => {
     const raw = validPackage() as unknown as Record<string, unknown>;
     const components = raw.components as Record<string, { parts: Record<string, unknown> }>;
     components.button.parts.root = { base: { backgroundColor: 'url(https://example.com/a.png)' } };
     components.button.parts.internalClass = { base: { color: { kind: 'hex', value: '#fff' } } };
 
     const result = appearancePackageValidator.validate(raw, registry);
+    expect(result.valid).toBe(false);
     expect(result.errors).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'INVALID_COLOR' }),
-      expect.objectContaining({ code: 'UNKNOWN_PART' }),
+    ]));
+    expect(result.warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'UNKNOWN_PART', path: 'components.button.parts.internalClass' }),
     ]));
   });
 
-  it('rejects unregistered component ids instead of compiling package selectors', () => {
+  it('skips unregistered component ids instead of compiling package selectors', () => {
     const raw = validPackage();
     raw.components = {
       'private-widget': { parts: { root: { base: { opacity: { kind: 'number', value: 1 } } } } },
-    };
+    } as AppearancePackage['components'];
     const result = appearancePackageValidator.validate(raw, registry);
-    expect(result.errors).toEqual(expect.arrayContaining([
+    expect(result.valid).toBe(true);
+    expect(result.warnings).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'UNKNOWN_SURFACE', path: 'components.private-widget' }),
     ]));
   });
 
-  it('keeps incompatible component contracts as grouped structured diagnostics', () => {
+  it('reports unregistered parts as ignored warnings instead of hard failures', () => {
     const raw = validPackage();
     raw.components = {
       'toolbar-mode': {
@@ -122,44 +129,13 @@ describe('AppearancePackageValidator', () => {
     } as AppearancePackage['components'];
 
     const result = appearancePackageValidator.validate(raw, registry);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toHaveLength(5);
-    expect(result.errors).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        code: 'UNKNOWN_PART',
-        path: 'components.toolbar-mode.parts.sessionMenu',
-        context: expect.objectContaining({
-          surfaceKind: 'component',
-          surfaceId: 'toolbar-mode',
-          partId: 'sessionMenu',
-          allowedParts: expect.arrayContaining(['root', 'sessionSurface', 'controls']),
-        }),
-      }),
-      expect.objectContaining({
-        code: 'UNKNOWN_PART',
-        path: 'components.floating-mini-chat.parts.inputBar',
-        context: expect.objectContaining({
-          surfaceId: 'floating-mini-chat',
-          partId: 'inputBar',
-          allowedParts: expect.arrayContaining(['root', 'panel', 'body']),
-        }),
-      }),
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toHaveLength(5);
+    expect(result.warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'UNKNOWN_PART', path: 'components.toolbar-mode.parts.sessionMenu' }),
+      expect.objectContaining({ code: 'UNKNOWN_PART', path: 'components.floating-mini-chat.parts.inputBar' }),
     ]));
-
-    try {
-      assertValidAppearancePackage(raw, registry);
-      throw new Error('Expected appearance validation to fail');
-    } catch (error) {
-      expect(error).toBeInstanceOf(AppearancePackageValidationError);
-      const validationError = error as AppearancePackageValidationError;
-      expect(validationError.groups).toHaveLength(2);
-      expect(validationError.groups.map(group => group.surfaceId)).toEqual([
-        'toolbar-mode',
-        'floating-mini-chat',
-      ]);
-      expect(validationError.message).toContain('5 issues');
-      expect(validationError.message).toContain('\ncomponent toolbar-mode:\n');
-    }
   });
 
   it('rejects unknown fields instead of silently carrying CSS or selectors', () => {
