@@ -58,7 +58,7 @@ export const NotificationCenter: React.FC = () => {
   };
 
   
-  const filteredHistory = useMemo(() => {
+  const searchFilteredHistory = useMemo(() => {
     let filtered = history;
 
     
@@ -72,16 +72,6 @@ export const NotificationCenter: React.FC = () => {
     });
 
     
-    if (filter !== 'all') {
-      filtered = filtered.filter(n => {
-        if (filter === 'info') {
-          return n.type === 'info' || n.type === 'success';
-        }
-        return n.type === filter;
-      });
-    }
-
-    
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(n =>
@@ -91,7 +81,21 @@ export const NotificationCenter: React.FC = () => {
     }
 
     return filtered;
-  }, [history, filter, searchQuery]);
+  }, [history, searchQuery]);
+
+
+  const filteredHistory = useMemo(() => {
+    if (filter === 'all') {
+      return searchFilteredHistory;
+    }
+
+    return searchFilteredHistory.filter(n => {
+      if (filter === 'info') {
+        return n.type === 'info' || n.type === 'success';
+      }
+      return n.type === filter;
+    });
+  }, [searchFilteredHistory, filter]);
 
   
   const groupedHistory = useMemo(() => {
@@ -411,7 +415,7 @@ export const NotificationCenter: React.FC = () => {
             data-testid="notification-filter-all"
             onClick={() => setFilter('all')}
           >
-            {t('components:notificationCenter.filters.all', { count: history.length })}
+            {t('components:notificationCenter.filters.all', { count: filteredHistory.length })}
           </button>
           <button
             className={`notification-center__filter ${filter === 'error' ? 'is-active' : ''}`}
