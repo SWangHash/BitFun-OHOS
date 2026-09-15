@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { LocaleId, LocaleMetadata, I18nConfig } from '@/infrastructure/i18n/types';
 import { getLocaleMetadata } from '@/infrastructure/i18n/presets';
 import { createLogger } from '@/shared/utils/logger';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 
 const log = createLogger('I18nAPI');
 
@@ -31,9 +32,20 @@ class I18nAPIClass {
 
    
   async setLanguage(language: LocaleId): Promise<string> {
-    return invoke<string>('i18n_set_language', { 
+    const result = await invoke<string>('i18n_set_language', {
       request: { language }
     });
+    await this.setApplicationPreferredLanguage(language);
+    return result;
+  }
+
+  async setApplicationPreferredLanguage(language: LocaleId): Promise<void> {
+    if (!isOpenHarmonyRuntime()) return;
+    try {
+      await invoke<string>('set_app_preferred_language', { language });
+    } catch (error) {
+      log.warn('Failed to sync OpenHarmony application language', error);
+    }
   }
 
    

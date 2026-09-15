@@ -3,6 +3,7 @@ import { audio } from '@kit.AudioKit';
 import { speechRecognizer } from '@kit.CoreSpeechKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import i18n from '@ohos.i18n';
 import RustModule from 'libbitfun_desktop_lib.so';
 
 const VOICE_DOMAIN: number = 0x0000;
@@ -602,6 +603,13 @@ export async function ensureMicrophonePermission(context: Context): Promise<void
     return;
   }
   let needSettingFallback: boolean = false;
+  try {
+    hilog.info(VOICE_DOMAIN, VOICE_TAG, 'Microphone permission locale: preferred=%{public}s system=%{public}s', i18n.System.getAppPreferredLanguage(), i18n.System.getSystemLanguage());
+    const reason = context.resourceManager.getStringSync($r('app.string.permission_microphone_reason').id);
+    hilog.info(VOICE_DOMAIN, VOICE_TAG, 'Microphone rationale resource before permission prompt: containsCjk=%{public}s length=%{public}d', /[\u3400-\u9fff]/.test(reason).toString(), reason.length);
+  } catch (error) {
+    hilog.warn(VOICE_DOMAIN, VOICE_TAG, 'Failed to read microphone permission locale diagnostics');
+  }
   try {
     const result = await atManager.requestPermissionsFromUser(context, [MICROPHONE_PERMISSION]);
     if (result.authResults.length > 0 &&

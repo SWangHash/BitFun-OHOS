@@ -67,7 +67,7 @@ pub use api::*;
 
 use crate::ohos::ohos_file_system::{
     open_oh_file_dialog, save_file_to_downloads_ohos, send_system_notification_ohos,
-    set_theme_mode, share_file_ohos,
+    set_app_preferred_language, set_theme_mode, share_file_ohos,
 };
 use crate::ohos::window::{
     center_ohos, close_window, current_monitor_ohos, handle_max_window, handle_min_window,
@@ -2212,6 +2212,7 @@ pub async fn _run() {
             window_is_minimized,
             window_start_dragging,
             close_window,
+            set_app_preferred_language,
             set_theme_mode,
             save_file_to_downloads_ohos,
             send_system_notification_ohos,

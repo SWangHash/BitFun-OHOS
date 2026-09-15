@@ -906,6 +906,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
+        "set_app_preferred_language",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    (
         "import_agent_companion_pet_package",
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),

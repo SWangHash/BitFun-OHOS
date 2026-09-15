@@ -16,6 +16,7 @@ import { calendarManager } from '@kit.CalendarKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { buffer } from '@kit.ArkTS';
 import { notificationManager } from '@kit.NotificationKit';
+import i18n from '@ohos.i18n';
 import RustModule from 'libbitfun_desktop_lib.so';
 import { AppUpdater, UpdateCheckResult } from '../utils/AppUpdater';
 import { CommonUtils } from '../utils/CommonUtils';
@@ -112,6 +113,7 @@ export default class EntryAbility extends RustAbility {
     // web-ui "follow system" selection resolves correctly without waiting for
     // the first system change. web-ui dedups when it equals the resolved theme.
     this.notifySystemColorMode();
+    this.applySystemPreferredLanguage();
   }
 
   onDestroy(): void {
@@ -144,6 +146,19 @@ export default class EntryAbility extends RustAbility {
       RustModule.notifySystemColorMode(mode);
     } catch (e) {
       hilog.warn(DOMAIN, 'vnext', 'notifySystemColorMode failed: ' + JSON.stringify(e));
+    }
+  }
+
+  /** Keep native application resources (including permission rationale) aligned with the device locale on cold start. */
+  private applySystemPreferredLanguage(): void {
+    try {
+      const systemLanguage = i18n.System.getSystemLanguage();
+      const currentLanguage = i18n.System.getAppPreferredLanguage();
+      hilog.info(DOMAIN, 'vnext', 'Applying system preferred language: system=%{public}s current=%{public}s', systemLanguage, currentLanguage);
+      i18n.System.setAppPreferredLanguage(systemLanguage);
+      hilog.info(DOMAIN, 'vnext', 'Applied system preferred language: requested=%{public}s actual=%{public}s', systemLanguage, i18n.System.getAppPreferredLanguage());
+    } catch (e) {
+      hilog.warn(DOMAIN, 'vnext', 'setAppPreferredLanguage failed: ' + JSON.stringify(e));
     }
   }
 
@@ -697,6 +712,21 @@ export default class EntryAbility extends RustAbility {
       };
       await notificationManager.publish(request);
       return '';
+    });
+    RustModule.registerArktsFunction('set_app_preferred_language', async (_err: Error, language: string): Promise<string> => {
+      const normalizedLanguage = language.trim();
+      if (normalizedLanguage.length === 0) {
+        throw new Error('Application preferred language must not be empty');
+      }
+      i18n.System.setAppPreferredLanguage(normalizedLanguage);
+      hilog.info(DOMAIN, 'vnext', 'Application preferred language updated: requested=%{public}s actual=%{public}s system=%{public}s', normalizedLanguage, i18n.System.getAppPreferredLanguage(), i18n.System.getSystemLanguage());
+      try {
+        const reason = this.context.resourceManager.getStringSync($r('app.string.permission_microphone_reason').id);
+        hilog.info(DOMAIN, 'vnext', 'Microphone rationale resource after locale update: containsCjk=%{public}s length=%{public}d', /[\u3400-\u9fff]/.test(reason).toString(), reason.length);
+      } catch (error) {
+        hilog.warn(DOMAIN, 'vnext', 'Failed to read microphone rationale resource after locale update');
+      }
+      return normalizedLanguage;
     });
     RustModule.registerArktsFunction('set_theme_mode', async (err: Error, arg: string): Promise<string> => {
       // arg is the color mode the webview should adopt: 'light' | 'dark' | 'system'.

@@ -355,6 +355,8 @@ export class I18nService {
       
       await this.saveCurrentLocale(locale);
 
+      await i18nAPI.setApplicationPreferredLanguage(locale);
+
       
       if (this.hooks.afterChange) {
         await this.hooks.afterChange(locale, oldLocale);

@@ -136,6 +136,7 @@ export class AppearanceService {
   private systemMedia: MediaQueryList | null = null;
   private systemColorSchemeUnsubscribe: (() => void) | null = null;
   private ohosSystemAppearanceId: string | null = null;
+  private nativeSystemAppearanceRefresh: Promise<void> | null = null;
   private syncUnsubscribe: (() => void) | null = null;
   private reconciliationQueued = false;
   private activeSource: AppearanceSource | null = null;
@@ -638,16 +639,22 @@ export class AppearanceService {
   }
 
   private async refreshNativeSystemAppearance(): Promise<void> {
-    try {
-      const scheme = await workspaceAPI.setThemeMode('system');
-      if (scheme === 'light' || scheme === 'dark') {
-        this.ohosSystemAppearanceId = scheme === 'dark'
-          ? DEFAULT_DARK_APPEARANCE_ID
-          : DEFAULT_LIGHT_APPEARANCE_ID;
-      }
-    } catch (error) {
-      log.debug('Native system appearance discovery is unavailable', { error });
-    }
+    if (this.nativeSystemAppearanceRefresh) return this.nativeSystemAppearanceRefresh;
+    this.nativeSystemAppearanceRefresh = workspaceAPI.setThemeMode('system')
+      .then(scheme => {
+        if (scheme === 'light' || scheme === 'dark') {
+          this.ohosSystemAppearanceId = scheme === 'dark'
+            ? DEFAULT_DARK_APPEARANCE_ID
+            : DEFAULT_LIGHT_APPEARANCE_ID;
+        }
+      })
+      .catch(error => {
+        log.debug('Native system appearance discovery is unavailable', { error });
+      })
+      .finally(() => {
+        this.nativeSystemAppearanceRefresh = null;
+      });
+    return this.nativeSystemAppearanceRefresh;
   }
 
   private detachSystemListener(): void {

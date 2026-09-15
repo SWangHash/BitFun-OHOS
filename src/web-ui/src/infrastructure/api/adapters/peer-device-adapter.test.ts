@@ -39,8 +39,10 @@ describe('isPeerLocalOnlyCommand', () => {
     expect(isPeerLocalOnlyCommand('set_prevent_sleep_enabled')).toBe(true);
   });
 
-  it('keeps native main-window geometry control on the controller computer', () => {
+  it('keeps native main-window and application-resource controls on the controller computer', () => {
     expect(isPeerLocalOnlyCommand('set_main_window_transient_geometry')).toBe(true);
+    expect(isPeerLocalOnlyCommand('set_app_preferred_language')).toBe(true);
+    expect(isPeerLocalOnlyCommand('set_theme_mode')).toBe(true);
   });
 });
 

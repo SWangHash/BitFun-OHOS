@@ -15,9 +15,28 @@ pub async fn open_oh_file_dialog(options: Option<String>) -> Result<String, Stri
     open_dialog_file(opts).await
 }
 
+/// Set the HarmonyOS application preferred language so native permission and
+/// resource dialogs use the same locale as the web UI.
+#[tauri::command]
+pub async fn set_app_preferred_language(language: String) -> Result<String, String> {
+    let function = {
+        let lock = JS_THREADSAFE_FUNCTION.read();
+        lock.get("set_app_preferred_language").cloned()
+    };
+    let Some(function) = function else {
+        return Err("The Arkts has not register the function".to_owned());
+    };
+    let promise = function
+        .call_async(Ok(language))
+        .await
+        .map_err(|e| e.to_string())?;
+    promise.await.map_err(|e| e.to_string())
+}
+
 /// Tell the HarmonyOS shell which color mode the webview should adopt.
 ///
 /// `mode` is one of `"light"`, `"dark"`, or `"system"`:
+///
 /// - `light`/`dark` — pin the app to that appearance; the ArkTS side returns `""`.
 /// - `system` — release the override (`COLOR_MODE_NOT_SET`) and the ArkTS side
 ///   returns the real system color mode (`"light"` or `"dark"`) so the web-ui can

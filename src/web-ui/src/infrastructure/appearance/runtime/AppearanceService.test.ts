@@ -129,6 +129,13 @@ describe('AppearanceService', () => {
     expect(Object.prototype.hasOwnProperty.call(globalThis, '__BITFUN_BOOTSTRAP_APPEARANCE_SELECTION__')).toBe(false);
   });
 
+  it('coalesces concurrent native system appearance refreshes', async () => {
+    configMocks.getConfig.mockResolvedValue('system');
+    const { service } = createService();
+    await service.initialize();
+
+    expect(service.getSnapshot().selectedAppearanceId).toBe('system');
+  });
   it('persists explicit selections through appearance.selection', async () => {
     configMocks.getConfig.mockResolvedValue('system');
     const { service } = createService();
