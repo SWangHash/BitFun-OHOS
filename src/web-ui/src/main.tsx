@@ -20,9 +20,14 @@ import {
   buildReactCrashLogPayload,
   isMinifiedReactErrorMessage,
 } from './shared/utils/reactProductionError';
+import { installNativeTitleTooltip } from './shared/utils/nativeTitleTooltip';
 
 // Install console forwarding before app startup so early console output is persisted too.
 bootstrapLogger();
+
+// Intercept native `title` tooltips before any paint: native bubbles cannot be
+// themed by page CSS, so they are re-rendered with the themed tooltip chrome.
+installNativeTitleTooltip();
 
 const log = createLogger('App');
 startupTrace.markPhase('first_script_eval', {
