@@ -571,7 +571,7 @@ pub async fn browser_webview_capture_preview(
     #[cfg(not(target_env = "ohos"))]
     {
         let webview = find_browser_webview(&app, &request.label)?;
-        let png = match openbitfun_webdriver::platform::take_screenshot(&webview, 1000).await {
+        let png = match openbitfun_webdriver::platform::take_screenshot(webview, 1000).await {
             Ok(png) => png,
             Err(error) if error.error == "unsupported operation" => {
                 return Ok(WebviewPreviewResponse::Unsupported {
