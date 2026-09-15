@@ -39,11 +39,6 @@
     padding: 0 $size-gap-3 $size-gap-2;
   }
 
-  [data-bf-appearance-switching='true'] &__search-field .search__wrapper,
-  [data-bf-appearance-switching='true'] &__search-field .search__wrapper * {
-    transition: none !important;
-  }
-
   &__search-field.search {
     width: 100%;
 

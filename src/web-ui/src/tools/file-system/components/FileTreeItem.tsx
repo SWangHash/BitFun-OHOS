@@ -30,7 +30,8 @@ const ERROR_OFFSET = 4;
  * 重命名输入框。
  *
  * 输入过程中实时校验（空名/非法字符/Windows保留名/同级重名/名称过长），
- * 命中即报错，Enter/blur 时若仍有错误则阻断提交、保持聚焦（与 VSCode 一致）。
+ * 命中即报错；按 Enter 时若有错误则阻断提交、保持聚焦（与 VSCode 一致）；
+ * 失焦提交时若仍有错误则直接取消，避免卡死。
  *
  * 报错气泡用 portal 挂到 `document.body`：树容器有 `overflow:hidden`，若直接画在
  * 节点下方/上方会被裁剪。气泡默认位于输入框下方，下方空间不足时翻到上方。
@@ -87,14 +88,14 @@ const RenameInput: React.FC<RenameInputProps> = ({ node, siblings, isRemote, onR
 
     const newName = nextValue.trim();
 
-    // 空名或与原名一致：取消（与原行为一致）。
-    if (!newName || newName === node.name) {
+    // 与原名一致：无实际变更，取消（与原行为一致）。
+    if (newName === node.name) {
       submittedRef.current = true;
       onCancel?.();
       return;
     }
 
-    // 有校验错误：
+    // 校验错误（含空名）：
     // - 按 Enter：阻断提交，保持输入框与聚焦并提示（VSCode 行为），让用户继续修正。
     // - 失焦（点击别处）：不再阻断，直接取消重命名并清除错误，避免卡死。
     const errorMsg = validate(nextValue);
@@ -278,15 +279,13 @@ export const FileTreeItem: React.FC<FileTreeItemProps> = ({
 
   const handleDragStart = (event: React.DragEvent) => {
     const dragImage = document.createElement('div');
+    dragImage.className = 'bitfun-file-explorer__drag-preview';
     dragImage.textContent = t('fileTree.draggingFile', { name: node.name });
-    dragImage.style.position = 'absolute';
-    dragImage.style.top = '-1000px';
-    dragImage.style.padding = '8px';
-    dragImage.style.background = 'var(--bf-appearance-token-color-overlay-black-80)';
-    dragImage.style.color = 'var(--bf-appearance-token-color-static-white)';
-    dragImage.style.borderRadius = '4px';
     document.body.appendChild(dragImage);
     dragImageRef.current = dragImage;
+
+    // Force synchronous style/layout so the drag snapshot picks up themed styles.
+    dragImage.getBoundingClientRect();
 
     event.dataTransfer.setDragImage(dragImage, 0, 0);
     event.dataTransfer.effectAllowed = 'copy';

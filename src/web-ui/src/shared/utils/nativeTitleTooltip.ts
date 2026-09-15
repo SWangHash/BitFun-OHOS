@@ -6,7 +6,9 @@
  * Chromium evaluates native tooltips lazily (roughly one second after hover),
  * so a synchronous strip prevents the native bubble from ever appearing. The
  * same themed `.bitfun-tooltip` chrome used by the Tooltip component (driven
- * by `--bf-appearance-token-*` variables) is then shown near the cursor.
+ * by `--bf-appearance-token-*` variables) is then shown near the cursor. Like
+ * the native bubble, it is anchored where the pointer was when it appeared and
+ * does not follow later pointer movement inside the element.
  *
  * The attribute is restored as soon as the pointer leaves, so DevTools, tests,
  * and accessibility tooling still observe the original value. While the
@@ -43,9 +45,8 @@ let installed = false;
 let warmUntil = 0;
 let active: ActiveTitleTarget | null = null;
 let showTimer: ReturnType<typeof setTimeout> | null = null;
-let cursorPosition: { x: number; y: number } | null = null;
+let anchor: { x: number; y: number } | null = null;
 let bubble: HTMLDivElement | null = null;
-let repositionPending = false;
 
 function findTitledTarget(node: EventTarget | null): Element | null {
   if (!(node instanceof Element)) return null;
@@ -90,7 +91,7 @@ function dismissActive(): void {
   cancelShowTimer();
   restoreActiveTitle();
   hideBubble();
-  cursorPosition = null;
+  anchor = null;
 }
 
 function ensureBubble(): HTMLDivElement {
@@ -128,16 +129,16 @@ function ensureBubble(): HTMLDivElement {
 }
 
 function positionBubble(): void {
-  if (!bubble || !bubble.isConnected || !cursorPosition) return;
+  if (!bubble || !bubble.isConnected || !anchor) return;
   const rect = bubble.getBoundingClientRect();
-  let left = cursorPosition.x + CURSOR_OFFSET_X;
-  let top = cursorPosition.y + CURSOR_OFFSET_Y;
+  let left = anchor.x + CURSOR_OFFSET_X;
+  let top = anchor.y + CURSOR_OFFSET_Y;
   if (left + rect.width > window.innerWidth - VIEWPORT_PADDING) {
-    left = cursorPosition.x - rect.width - CURSOR_GAP;
+    left = anchor.x - rect.width - CURSOR_GAP;
     if (left < VIEWPORT_PADDING) left = VIEWPORT_PADDING;
   }
   if (top + rect.height > window.innerHeight - VIEWPORT_PADDING) {
-    top = cursorPosition.y - rect.height - CURSOR_GAP;
+    top = anchor.y - rect.height - CURSOR_GAP;
     if (top < VIEWPORT_PADDING) top = VIEWPORT_PADDING;
   }
   bubble.style.left = `${Math.round(left)}px`;
@@ -160,27 +161,25 @@ function onPointerOver(event: PointerEvent): void {
   const title = el.getAttribute('title') ?? '';
   active = { element: el, title };
   el.removeAttribute('title');
-  cursorPosition = { x: event.clientX, y: event.clientY };
+  anchor = { x: event.clientX, y: event.clientY };
   const delay = Date.now() < warmUntil ? 0 : SHOW_DELAY_MS;
   showTimer = setTimeout(() => {
     showTimer = null;
     if (!active) return;
+    // Anchor where the pointer is at show time, like the native bubble; after
+    // appearing, later pointer movement no longer moves it (see onPointerMove).
     showBubble(active.title);
   }, delay);
 }
 
 function onPointerMove(event: PointerEvent): void {
-  if (!active) return;
+  // While waiting to show, keep the anchor under the pointer so the bubble
+  // appears where the cursor actually is. Once shown, the anchor is frozen
+  // and the bubble no longer follows the pointer, matching native titles.
+  if (!active || (bubble && bubble.isConnected)) return;
   const target = event.target;
   if (!(target instanceof Element) || !active.element.contains(target)) return;
-  cursorPosition = { x: event.clientX, y: event.clientY };
-  if (bubble && bubble.isConnected && !repositionPending) {
-    repositionPending = true;
-    requestAnimationFrame(() => {
-      repositionPending = false;
-      positionBubble();
-    });
-  }
+  anchor = { x: event.clientX, y: event.clientY };
 }
 
 function onPointerOut(event: PointerEvent): void {

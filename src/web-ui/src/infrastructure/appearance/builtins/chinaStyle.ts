@@ -12,7 +12,6 @@ import {
   createStandardSpacing,
   rgbFromHex,
   rgbaFromHex,
-  STATIC_BLACK,
   STATIC_WHITE,
 } from './paletteHelpers';
 

@@ -65,7 +65,11 @@
 
 .bitfun-session-scene__chat-pane {
   flex: 1 1 auto;
-  min-width: 400px;
+  // 400px is the comfortable minimum, but it is a hard floor no more: on a
+  // narrow window the sum of the chat floor, the resizer and the aux pane
+  // exceeds the row, and the excess was clipped by the row's overflow: hidden.
+  // Capping the floor at the row width lets the pane shrink instead.
+  min-width: min(400px, 100%);
   height: 100%;
   overflow: hidden;
   position: relative;
